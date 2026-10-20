@@ -19,7 +19,8 @@
  *            (static: Windows PowerShell 5.1 here has every policy scope Undefined = Restricted)
  *   tasks    Windows only: schtasks /query per task -> ok | MISSING | DISABLED | WRONG ACTION (<full script path>) |
  *            FAILED <last result>
- *   tailnet  informational only, never a FAIL: is tailscale.exe present (docs/agent-os/TAILNET-MCP.md)
+ *   tailnet  `tailscale serve status` (or --serve-status <file> in tests): serving <url><path> when a configured port is
+ *            proxied tailnet-only | installed, not serving | not installed; FUNNEL ON <url> is the one FAIL (never public)
  * A failed read is UNKNOWN (<reason>), never ok, and carries no guessed fix. An absent client file (ENOENT) is a real
  * "nothing configured" and reads MISSING. Total budget 1.5 s; every probe has its own timeout.
  * Flags (tests): --home <dir> (also the base of AppData/Roaming), --config <file>, --primary <dir> (skips git rev-parse).
@@ -305,11 +306,49 @@ async function taskItem(task, root) {
   return taskFromCsv(task, r.out.split(/\r?\n/).find((l) => l.trim()) ?? "", fix, root);
 }
 
-function tailnetItem() {
+const TAILNET_DOC = "docs/agent-os/TAILNET-MCP.md";
+
+function tailscaleExe() {
   const dirs = [...(process.env.PATH || process.env.Path || "").split(delimiter), join(process.env.ProgramFiles || "C:\\Program Files", "Tailscale")];
   const exe = WIN ? "tailscale.exe" : "tailscale";
-  const present = dirs.some((d) => d && existsSync(join(d, exe)));
-  return okItem(`tailnet: ${present ? "installed" : "not installed"} (optional, docs/agent-os/TAILNET-MCP.md)`);
+  return dirs.map((d) => d && join(d, exe)).find((p) => p && existsSync(p)) ?? null;
+}
+
+/** `tailscale serve status` text -> one block per served URL: its Funnel flag and the local ports it proxies. */
+export function parseServeStatus(text) {
+  const blocks = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const head = line.match(/^(https?:\/\/\S+)\s*\((tailnet only|Funnel on)\)/i);
+    if (head) {
+      blocks.push({ url: head[1], funnel: /funnel/i.test(head[2]), ports: new Set() });
+      continue;
+    }
+    const proxy = blocks.length && line.match(/proxy https?:\/\/(?:127\.0\.0\.1|localhost):(\d+)/i);
+    if (proxy) blocks[blocks.length - 1].ports.add(Number(proxy[1]));
+  }
+  return blocks;
+}
+
+/** Informational unless Funnel is on: the runbook is tailnet-only, so a public route is the one FAIL here. */
+async function tailnetItem(expected, statusFile) {
+  const exe = tailscaleExe();
+  if (!exe && !statusFile) return okItem(`tailnet: not installed (optional, ${TAILNET_DOC})`);
+  let text;
+  if (statusFile) {
+    const r = attempt(() => readText(statusFile));
+    if (r.err) return unknownItem("tailnet", r.err);
+    text = r.value;
+  } else {
+    const r = await sh(exe, ["serve", "status"]);
+    text = `${r.out}\n${r.err}`;
+    if (r.code !== 0 && !/no serve config/i.test(text)) return unknownItem("tailnet", `serve status ${r.why || `exit ${r.code}`}`);
+  }
+  const blocks = parseServeStatus(text);
+  const served = expected.map((s) => ({ s, block: blocks.find((b) => b.ports.has(s.port)) })).filter((x) => x.block);
+  const funnel = served.find((x) => x.block.funnel);
+  if (funnel) return failItem(`tailnet: FUNNEL ON ${funnel.block.url}`, `tailscale funnel reset (tailnet only, never public: ${TAILNET_DOC})`);
+  if (served.length) return okItem(`tailnet: serving ${served.map((x) => `${x.block.url}${x.s.path}`).join(" ")}`);
+  return okItem(`tailnet: installed, not serving (optional, ${TAILNET_DOC})`);
 }
 
 async function main() {
@@ -328,7 +367,8 @@ async function main() {
   const projectDir = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
   const primary = await within(primaryRoot(projectDir, flag("--primary")), "primary").then((p) => (p.text ? { err: "timeout" } : p));
   const root = primary.value ?? REPO;
-  const expected = config.servers.map((s) => ({ name: s.name, port: s.port, path: s.path, kind: s.kind, url: `http://127.0.0.1:${s.port}${s.path}` }));
+  // `expect` is the serverInfo.name a pass-through relays from its upstream; every other server answers as its own kind.
+  const expected = config.servers.map((s) => ({ name: s.name, port: s.port, path: s.path, kind: s.kind, expect: s.expect ?? s.kind ?? s.name, url: `http://127.0.0.1:${s.port}${s.path}` }));
   const serverFix = `${PS} ${join(root, "scripts", "local-mcp-servers.ps1")} -Start`;
 
   const readers = {
@@ -339,7 +379,7 @@ async function main() {
 
   const checks = [
     within(graphItem(primary, `${PS} ${join(root, "scripts", "graphify-sync-launcher.ps1")}`), "graph"),
-    ...expected.map((s) => within(mcpProbe(s.port, s.path, s.kind ?? s.name).then((st) => {
+    ...expected.map((s) => within(mcpProbe(s.port, s.path, s.expect).then((st) => {
       if (st === "up") return okItem(`${s.name} up`);
       if (st === "DOWN") return failItem(`${s.name} DOWN`, serverFix);
       return failItem(`${s.name} WRONG SERVICE`, `find the program on port ${s.port}: Get-NetTCPConnection -LocalPort ${s.port} -State Listen; free the port or move ${s.name} in config/agent-os/local-services.json`);
@@ -347,6 +387,7 @@ async function main() {
   ];
   // Tasks start with the other probes: schtasks is the slowest child (cold start measured near 1 s).
   const tasks = WIN ? Promise.all((config.tasks ?? []).map((t) => within(taskItem(t, root), `task ${t.name}`))) : Promise.resolve([]);
+  const tailnet = within(tailnetItem(expected, flag("--serve-status")), "tailnet");
   const items = await Promise.all(checks);
   if (!expected.length) items.push(failItem("servers: none configured", "add the graphify entry to config/agent-os/local-services.json"));
   for (const c of config.clients) items.push(readers[c] ? clientItem(c, readers[c], expected) : unknownItem(c, "unknown client"));
@@ -356,7 +397,7 @@ async function main() {
     [".claude/settings.local.json", join(projectDir, ".claude", "settings.local.json")],
   ]));
   items.push(...(await tasks));
-  items.push(tailnetItem());
+  items.push(await tailnet);
 
   const fixes = [...new Set(items.map((i) => i.fix).filter(Boolean))];
   return `[health] ${items.map((i) => i.text).join(" | ")}${fixes.length ? ` | FIX FIRST: ${fixes.map((f, n) => `(${n + 1}) ${f}`).join(" ")}` : ""}`;

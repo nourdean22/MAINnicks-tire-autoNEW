@@ -3,7 +3,9 @@
   "about": "Local code-intelligence services and the machine inventory. Read by scripts/local-mcp-servers.ps1, scripts/agent-os/session-health.mjs and scripts/graphify-session-context.ps1. Nothing else hardcodes a port.",
   "hosts": ["NATTYNOUR"],
   "servers": [
-    { "name": "graphify", "port": 8765, "path": "/mcp", "kind": "graphify" }
+    { "name": "graphify", "port": 8765, "path": "/mcp", "kind": "graphify" },
+    { "name": "tailnet-proxy", "port": 8767, "path": "/mcp", "kind": "host-rewrite", "upstream": 8765, "expect": "graphify", "client": false,
+      "why": "tailscale serve forwards the caller's Host and graphify's loopback bind refuses it (HTTP 421); this rewrites Host. Serve 8767, never 8765 directly. client false: local clients keep using 8765; only tailnet clients come through here." }
   ],
   "clients": ["claude", "codex", "vscode"],
   "tasks": [

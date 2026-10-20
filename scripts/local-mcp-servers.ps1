@@ -57,7 +57,8 @@ function Test-Mcp($server) {
     try {
         $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri $url -Body $initBody -ContentType 'application/json' `
             -Headers @{ Accept = 'application/json, text/event-stream' } -TimeoutSec 2
-        $kind = [regex]::Escape([string]$server.kind)
+        # A pass-through answers with its upstream's name: `expect` names it; every other kind answers as itself.
+        $kind = [regex]::Escape([string]$(if ($server.expect) { $server.expect } else { $server.kind }))
         if ($r.StatusCode -eq 200 -and [string]$r.Content -match "`"serverInfo`"\s*:\s*\{[^}]*`"name`"\s*:\s*`"$kind`"") { return 'UP' }
         return 'WRONG SERVICE'
     } catch {
@@ -95,6 +96,15 @@ function Get-Launch($server) {
             $graph = Join-Path $primary 'graphify-out\graph.json'
             if (-not (Test-Path $graph)) { return @{ Problem = "no $graph yet: run scripts/graphify-sync-launcher.ps1 in the primary checkout first" } }
             return @{ Bin = $bin; Args = @('--transport', 'http', '--host', '127.0.0.1', '--port', "$($server.port)", '--path', $server.path, "`"$graph`"") }
+        }
+        'host-rewrite' {
+            # Loopback pass-through that rewrites Host for `tailscale serve` (graphify's loopback bind answers 421 otherwise).
+            $node = Resolve-Bin 'node'
+            if (-not $node) { return @{ Problem = 'node not found on PATH' } }
+            $script = Join-Path $repo 'scripts\tailnet-host-proxy.mjs'
+            if (-not (Test-Path $script)) { return @{ Problem = "missing $script" } }
+            if (-not $server.upstream) { return @{ Problem = "server '$($server.name)' has no upstream port in local-services.json" } }
+            return @{ Bin = $node; Args = @("`"$script`"", '--listen', "$($server.port)", '--upstream', "$($server.upstream)") }
         }
         default { return @{ Problem = "unknown kind '$($server.kind)'" } }
     }

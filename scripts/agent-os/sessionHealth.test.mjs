@@ -123,8 +123,8 @@ function project(label) {
   return dir;
 }
 
-function run({ homeDir, configFile, primaryDir, projectDir }, { script = SCRIPT } = {}) {
-  const args = [script, "--home", homeDir, "--config", configFile];
+function run({ homeDir, configFile, primaryDir, projectDir }, { script = SCRIPT, extraArgs = [] } = {}) {
+  const args = [script, "--home", homeDir, "--config", configFile, ...extraArgs];
   if (primaryDir) args.push("--primary", primaryDir);
   const started = Date.now();
   // Async on purpose: the fixture MCP servers live in THIS process, and spawnSync would block them from answering.
@@ -302,10 +302,60 @@ test("C3: a listener that answers 200 with another serverInfo name is WRONG SERV
   assert.match(line, /FIX FIRST: [^|]*Get-NetTCPConnection -LocalPort/);
 });
 
+test("a host-rewrite pass-through is judged by `expect` (its upstream's name): up with it, WRONG SERVICE without it", async () => {
+  const graph = await listen("graphify");
+  const relay = await listen("graphify"); // stands in for the proxy: what reaches it answers as graphify
+  const withExpect = await healthy("relay-expect", { ports: [graph, relay], config: { servers: [
+    { name: "graphify", port: graph, path: "/mcp", kind: "graphify" },
+    { name: "tailnet-proxy", port: relay, path: "/mcp", kind: "host-rewrite", upstream: graph, expect: "graphify" },
+  ] } });
+  const line = oneLine(await run(withExpect));
+  assert.match(line, /tailnet-proxy up/);
+  const without = await healthy("relay-noexpect", { ports: [graph, relay], config: { servers: [
+    { name: "graphify", port: graph, path: "/mcp", kind: "graphify" },
+    { name: "tailnet-proxy", port: relay, path: "/mcp", kind: "host-rewrite", upstream: graph },
+  ] } });
+  assert.match(oneLine(await run(without)), /tailnet-proxy WRONG SERVICE/);
+});
+
 test("C3: a 500 from the port is WRONG SERVICE, never up", async () => {
   const f = await healthy("http-500", { ports: [await listen("graphify", 500), await listen()] });
   assert.match(oneLine(await run(f)), /graphify WRONG SERVICE \| spare up/);
 });
+// `tailscale serve status` output, as the CLI prints it: one URL line per served host, then its proxy lines.
+const serveStatus = (label, text) => {
+  const file = join(SCRATCH, `${label}-serve-status.txt`);
+  writeFileSync(file, text);
+  return ["--serve-status", file];
+};
+
+test("tailnet: a serve config that proxies the configured port reads `serving <url><path>`, never a FAIL", async () => {
+  const fx = await healthy("tailnet-serving");
+  const ports = JSON.parse(readFileSync(fx.configFile, "utf8")).servers.map((s) => s.port);
+  const text = `https://nattynour-1.tailae7855.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:${ports[0]}\n`;
+  const line = oneLine(await run(fx, { extraArgs: serveStatus("serving", text) }));
+  assert.match(line, /tailnet: serving https:\/\/nattynour-1\.tailae7855\.ts\.net\/mcp/);
+  assert.doesNotMatch(line, /FIX FIRST/);
+});
+
+test("tailnet: Funnel on the served port is a FAIL with the reset fix (the runbook says tailnet-only, never Funnel)", async () => {
+  const fx = await healthy("tailnet-funnel");
+  const ports = JSON.parse(readFileSync(fx.configFile, "utf8")).servers.map((s) => s.port);
+  const text = `https://nattynour-1.tailae7855.ts.net (Funnel on)\n|-- / proxy http://127.0.0.1:${ports[0]}\n`;
+  const line = oneLine(await run(fx, { extraArgs: serveStatus("funnel", text) }));
+  assert.match(line, /tailnet: FUNNEL ON https:\/\/nattynour-1\.tailae7855\.ts\.net/);
+  assert.match(line, /FIX FIRST: .*tailscale funnel reset/);
+});
+
+test("tailnet: no serve config, or a config that serves another port, reads `not serving`, no FAIL", async () => {
+  const fx = await healthy("tailnet-none");
+  const none = oneLine(await run(fx, { extraArgs: serveStatus("none", "No serve config\n") }));
+  assert.match(none, /tailnet: installed, not serving \(optional, docs\/agent-os\/TAILNET-MCP\.md\)/);
+  const other = oneLine(await run(fx, { extraArgs: serveStatus("other", "https://nattynour-1.tailae7855.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:3000\n") }));
+  assert.match(other, /tailnet: installed, not serving/);
+  assert.doesNotMatch(other, /FIX FIRST/);
+});
+
 test("host gate: a host not in the config prints the not-expected line and nothing else", async () => {
   const f = await healthy("other-host", { config: { hosts: ["SOME-OTHER-HOST"] } });
   assert.equal(oneLine(await run(f)), "[health] local services: not expected on this host");

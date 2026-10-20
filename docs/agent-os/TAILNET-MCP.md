@@ -1,13 +1,18 @@
-# Reaching the graphify MCP server over Tailscale (runbook, not wired)
+# Reaching the graphify MCP server over Tailscale
 
-Status 2026-10-19: **not set up, and nothing in the PR that added this file installs Tailscale.** The one shared
-server, `graphify` on `http://127.0.0.1:8765/mcp` (`config/agent-os/local-services.json`), listens on loopback only.
-This page says how another PC could reach it once Nour signs NATTYNOUR into a tailnet. Serena was trialled and dropped
-the same day (`docs/UPSTREAMS.md`), so there is no second port.
+Status 2026-10-19 (evening): NATTYNOUR is signed in as `nattynour-1` (100.127.185.69) on the tailnet
+`tailae7855.ts.net`, with `nicksmax` online on the same tailnet. The one shared server, `graphify` on
+`http://127.0.0.1:8765/mcp` (`config/agent-os/local-services.json`), is published tailnet-only at
+**`https://nattynour-1.tailae7855.ts.net/mcp`** through `tailscale serve --bg 8767`: port 8767 is
+`scripts/tailnet-host-proxy.mjs`, a loopback pass-through that rewrites the Host header to `127.0.0.1:8765`. It exists
+because graphify's loopback bind makes the MCP SDK refuse any other Host with HTTP 421 (measured 2026-10-19 on the first
+serve of 8765), graphify has no allowed-hosts switch, and binding `0.0.0.0` would open the port to the shop LAN. The `[health]` line says whether that rule is live
+(`tailnet: serving <url>`), not yet enabled (`tailnet: installed, not serving`), or wrongly public (`tailnet: FUNNEL ON`,
+a FAIL). Serena was trialled and dropped the same day (`docs/UPSTREAMS.md`), so there is no second port.
 
-`docs/UPSTREAMS.md:65` records Tailscale as ADOPT-CANDIDATE, not adopted, and says exposing anything over it "needs
-the operator's explicit go-ahead and a threat model, not an agent's initiative". This page is that threat model. No
-agent runs these steps; Nour does, after he says go.
+Nour gave the go on 2026-10-19 ("get all my computers interconnected", "get it all installed"); `docs/UPSTREAMS.md` records
+Tailscale as ADOPTED on that date with this page as the threat model. Two steps stay his alone because they are account
+actions: enabling Serve on the tailnet (a one-time admin-console approval the CLI links to) and the ACL rule below.
 
 ## Threat model
 
@@ -32,33 +37,45 @@ agent runs these steps; Nour does, after he says go.
    start the server from an account where gh is signed out and `GH_TOKEN` is unset.
 5. **No auth on the server itself.** Anything that reaches the port can query it, which is why step 3 is required.
 
-## Setup on NATTYNOUR (Nour, once, after go)
+## Setup on NATTYNOUR
 
-Commands quoted from Tailscale's docs, read 2026-10-19 (Serve page "Last validated Jan 20, 2026"; CLI page "Last
-validated Jul 30, 2026"):
+Commands from Tailscale's docs (Serve page "Last validated Jan 20, 2026"; CLI page "Last validated Jul 30, 2026") and
+from `tailscale serve --help` on 1.104.1 (read 2026-10-19: `--bg` keeps the rule after the command exits; without it the
+rule lives only while the command runs).
 
-- `tailscale serve 3000` proxies a local web server at `http://127.0.0.1:3000` to the tailnet (Serve page example).
-- `tailscale serve status` shows the configuration; `tailscale serve reset` clears it (CLI page subcommands).
-- Flags for running it in the background were not on either page: read `tailscale serve --help` before relying on one.
+1. Sign in: `tailscale up` (Nour; done 2026-10-19, node `nattynour-1`). Tailscale 1.104.1 was installed by winget.
+2. `tailscale serve --bg 8767` (the pass-through, never 8765 directly: that answers 421). The first run on a tailnet
+   where Serve is not yet enabled prints a `https://login.tailscale.com/f/serve?node=...` link and waits; Nour opens it
+   once and approves (done 2026-10-19). Nothing else is needed: MagicDNS is enabled tailnet-wide and Serve provisions
+   the TLS certificate for `nattynour-1.tailae7855.ts.net` itself. The logon task (`scripts/register-local-mcp-task.ps1`)
+   starts both the server and the pass-through; the serve rule persists across reboots on its own.
+3. ACL (Nour, admin console, Access controls): allow `nourdean22@` (his own user) to `nattynour-1:443`, and nothing else to
+   that port. Tagged or shared nodes must not match. Never `tailscale funnel`: the health line turns FAIL if it sees Funnel.
+4. `tailscale serve status` must print `https://nattynour-1.tailae7855.ts.net (tailnet only)` over `proxy http://127.0.0.1:8767`.
+   Check from a second device that `https://nattynour-1.tailae7855.ts.net/mcp` answers an MCP initialize with
+   `serverInfo.name` graphify (the same probe `scripts/local-mcp-servers.ps1 -Status` runs locally).
 
-Steps:
+Hygiene: the tailnet also lists a stale `nattynour` node (offline, last seen 13 days before 2026-10-19), the old PC's
+registration. Remove it in the admin console so the name is not confused with `nattynour-1`.
 
-1. Sign in: `tailscale up` (Nour). Tailscale 1.104.1 was installed 2026-10-19 by winget; nothing in this repo installs it.
-2. `tailscale serve 8765`
-3. Add the ACL rule from threat-model step 3 in the admin console.
-4. `tailscale serve status`, then check from the other device that the URL it prints answers.
+## Client config on a second PC (NicksMax first)
 
-## Client config on a second PC
+On NicksMax (signed in to the same tailnet), run these once; they point its clients at the shared graph over the tailnet.
+The URL is fixed by MagicDNS, so it survives IP changes:
 
-Replace `<url>` with the HTTPS URL `tailscale serve status` prints, plus `/mcp`:
+- Claude Code: `claude mcp add --transport http --scope user graphify https://nattynour-1.tailae7855.ts.net/mcp`
+- Codex: `codex mcp add graphify --url https://nattynour-1.tailae7855.ts.net/mcp`
+- VS Code: `code --add-mcp '{"name":"graphify","type":"http","url":"https://nattynour-1.tailae7855.ts.net/mcp"}'`
 
-- Claude Code: `claude mcp add --transport http --scope user graphify <url>`
-- Codex: `codex mcp add graphify --url <url>`
-- VS Code: `code --add-mcp '{"name":"graphify","type":"http","url":"<url>"}'`
-
-The iPhone has no MCP client today; it reads the two PWAs over the internet, which this does not change.
+The graph answers only while NATTYNOUR is awake and on the tailnet (it is a laptop); a client that cannot reach it loses
+the `graphify` tool for that session and nothing else. The iPhone has no MCP client today; it reads the two PWAs over the
+internet, which this does not change. MECHANICS is reached by Chrome Remote Desktop and is not on the tailnet as far as
+the repo knows; add it the same way if it is.
 
 ## Health
 
-`scripts/agent-os/session-health.mjs` prints `tailnet: not installed (optional, docs/agent-os/TAILNET-MCP.md)` or
-`tailnet: installed (...)` as information. It is never a FAIL.
+`scripts/agent-os/session-health.mjs` reads `tailscale serve status` (budgeted like every other probe) and prints one of:
+`tailnet: serving https://nattynour-1.tailae7855.ts.net/mcp` (the configured port is proxied, tailnet only);
+`tailnet: installed, not serving (optional, docs/agent-os/TAILNET-MCP.md)` (no serve config, or another port);
+`tailnet: FUNNEL ON <url>`, a FAIL whose fix is `tailscale funnel reset` (never public);
+`tailnet: not installed (...)` when the binary is absent; `tailnet UNKNOWN (<reason>)` when the command failed.

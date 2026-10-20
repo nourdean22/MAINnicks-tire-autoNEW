@@ -163,7 +163,7 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   `~/.codex/config.toml`, VS Code `mcp.json`), PowerShell hooks missing `-ExecutionPolicy Bypass`, and the scheduled
   tasks (Windows). Each FAIL is followed by its fix under `FIX FIRST:`; a failed read is `UNKNOWN (<reason>)` with no
   guessed fix; a host not in `hosts` prints one not-expected line; budget 1.5 s; exit 0 always, own errors print
-  `[health] off: <reason>`. Tailscale presence is information only (`TAILNET-MCP.md`). Canary `sessionHealth.test.mjs`
+  `[health] off: <reason>`. The tailnet item reads `tailscale serve status`: `serving <url>` or `installed, not serving` are information, `FUNNEL ON` is a FAIL (`TAILNET-MCP.md`). Canary `sessionHealth.test.mjs`
   (healthy and broken fixtures, real sockets, a 55-commit fixture repo, mutants); `hookCommand.test.mjs` asserts every
   PowerShell hook carries Bypass (Windows PowerShell 5.1 on NATTYNOUR is Restricted, so the graphify briefing was
   silently off until 2026-10-19).
