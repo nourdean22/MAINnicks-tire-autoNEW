@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/vapi-admin-read-bound",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
+  "claimedBy": "2026-10-20-leftover-backlog: bounded Vapi admin reads (rescued W4 test)",
+  "claimedAt": "2026-10-20T21:33:34.426Z",
+  "expiresAt": "2026-10-21T09:33:34.426Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
