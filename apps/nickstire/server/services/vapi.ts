@@ -2210,7 +2210,12 @@ export function buildOutboundRecoveryPrompt(params: {
 // and a sales message left on voicemail needs a toll-free opt-out number the
 // shop does not have (47 CFR 64.1200(b)(3)). The lane leaves no voicemail.
 
-export async function getRecentCalls(limit = 20): Promise<{
+/**
+ * `opts.signal` lets a caller choose its own deadline. Without it the call keeps
+ * vapiFetch's 15 s cap, which a 200-call backfill (scripts/backfills/
+ * backfill-vapi-duration.ts) needs; only the admin router asks for the 3 s bound.
+ */
+export async function getRecentCalls(limit = 20, opts: { signal?: AbortSignal } = {}): Promise<{
   success: boolean;
   calls: Array<{
     id: string;
@@ -2227,9 +2232,7 @@ export async function getRecentCalls(limit = 20): Promise<{
   error?: string;
 }> {
   try {
-    // An admin read: bounded well under vapiFetch's 15 s write cap, because
-    // Today's first batch waits for this call (it stalled at exactly 15 s).
-    const res = await vapiFetch(`/call?limit=${limit}`, { signal: AbortSignal.timeout(VAPI_ADMIN_READ_BOUND_MS) });
+    const res = await vapiFetch(`/call?limit=${limit}`, { signal: opts.signal });
     if (!res.ok) {
       return { success: false, calls: [], error: `${res.status}: ${(await res.text()).slice(0, 200)}` };
     }

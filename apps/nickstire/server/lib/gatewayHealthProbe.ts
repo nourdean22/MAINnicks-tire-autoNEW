@@ -25,6 +25,9 @@ const GATEWAY_PROBE_TIMEOUT_MS = 3_000;
 const GATEWAY_PROBE_TTL_MS = 60_000;
 
 type Device = { id: string; name?: string; lastSeen?: string };
+function isDeviceList(v: unknown): v is Device[] {
+  return Array.isArray(v) && v.every((d) => typeof d === "object" && d !== null && typeof (d as { id?: unknown }).id === "string");
+}
 let cached: { key: string; devices: Device[]; at: number } | null = null;
 
 /** Test hook: forget the last successful probe. */
@@ -55,7 +58,12 @@ export async function probeGatewayHealth() {
         // not offline. Q-23 phase 9: the admin must not blame the device for it.
         return { configured: true as const, readable: false, online: false, lastSeen: null, deviceName: null, error: `Capevace /device returned ${res.status}` };
       }
-      devices = (await res.json()) as Device[];
+      const body: unknown = await res.json();
+      // A 200 that is not a device list (null, an error object) is "could not ask": never kept, never a throw.
+      if (!isDeviceList(body)) {
+        return { configured: true as const, readable: false, online: false, lastSeen: null, deviceName: null, error: "Capevace /device returned an unexpected body" };
+      }
+      devices = body;
       cached = { key, devices, at: Date.now() };
     } catch (err) {
       return {

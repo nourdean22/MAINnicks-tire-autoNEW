@@ -152,12 +152,21 @@ function keepAnswers<T extends { ok: boolean }>(key: string, read: () => Promise
   return () => readOnce(key, read, (v) => v.ok);
 }
 
-/** One bounded list of assistants, shared by whichever card asks first. */
+/** A 200 is not an answer until it is a list of assistants; null or an error object is "could not ask". */
+function isAssistantList(v: unknown): v is Array<{ id: string; name?: string }> {
+  return Array.isArray(v) && v.every((a) => typeof a === "object" && a !== null && typeof (a as { id?: unknown }).id === "string");
+}
+
+/** One bounded list of assistants, shared by whichever card asks first. A malformed reply throws and is never kept. */
 function listAssistants(signal: AbortSignal) {
   return readOnce(
     LIST_KEY,
-    () => vapiApiFetch<Array<{ id: string; name?: string }>>("/assistant?limit=10", signal),
-    () => true,
+    async () => {
+      const list = await vapiApiFetch<unknown>("/assistant?limit=10", signal);
+      if (!isAssistantList(list)) throw new TRPCError({ code: "BAD_GATEWAY", message: "VAPI returned an unexpected assistant list" });
+      return list;
+    },
+    isAssistantList,
   );
 }
 
@@ -373,7 +382,7 @@ export const vapiRouter = router({
     .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
     .query(async ({ input }) => {
       const { getRecentCalls } = await import("../services/vapi");
-      return getRecentCalls(input?.limit ?? 20);
+      return getRecentCalls(input?.limit ?? 20, { signal: AbortSignal.timeout(VAPI_ADMIN_READ_BOUND_MS) });
     }),
 
   /** Honest Voice Receptionist ROI — MEASURED conversions × the average PAID
@@ -1122,6 +1131,8 @@ export const vapiRouter = router({
         signal: AbortSignal.timeout(VAPI_API_DEFAULT_TIMEOUT_MS),
       }).catch((err: unknown) => {
         log.error("VAPI PATCH did not complete", { error: err instanceof Error ? err.message : String(err) });
+        // The update may have landed: forget the card memo, or "reload the card" would show the pre-edit number.
+        resetVapiAdminReadCaches();
         throw new TRPCError({
           code: "BAD_GATEWAY",
           message: "Could not confirm the update with VAPI (no answer in time, or the connection failed). It may or may not have applied: reload the card to see the current number before retrying.",
