@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/skills-repo-adoption",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "a7b885c2-eac8-456c-82e7-7cec9b78bc13",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-18-skills-repo-adoption",
   "claimedAt": "2026-10-18T20:40:07.225Z",
   "expiresAt": "2026-10-19T08:40:07.225Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-20T21:33:33.375Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "18c92c7f2bd6f24c12ac665c0035f4fd1cf83ab7",
+  "releasedBy": "manual-15368-1792532011166",
+  "foreignReleaseReason": null
 }
