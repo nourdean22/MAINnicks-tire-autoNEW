@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state moves in this diff. It bounds the latency of existing admin reads (vapi.getTransferDestination, vapi.getFollowUpTransferDestination, vapi.recentCalls via services/vapi.ts getRecentCalls, sms.gatewayHealth via the new lib/gatewayHealthProbe.ts) to 3 s with the existing ok:false / success:false / readable:false shapes, adds a 60 s memo of successful answers with an epoch guard, and gives the transfer-destination PATCH a 10 s bound with an honest could-not-confirm error. Response shapes are unchanged, so no ledger row advances from code and test receipts alone. Local proof on branch nickstire/vapi-admin-read-bound: adminReadLatencyBound 8/8 (red on unmodified main), 4 files / 23 tests, typecheck:raw exit 0, lint:source exit 0, lint:orphans 0 NEW, preflight vitest-related and build green. Live proof owed after deploy: Today and the Voice page load without the 15-19.5 s stall."
+    }
+  }
+}
