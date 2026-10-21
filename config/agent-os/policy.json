@@ -44,6 +44,16 @@
     "are not in the list. Registered in .claude/settings.json by the pretool-only MCP matcher. Documented in docs/agent-os/README.md > Infra tools: deny by name."
   ],
   "version": 2,
+  "infraApprovals": {
+    "$comment": "Per-action approval of ONE infra-mutation-tool call (job 2026-10-20-infra-approve-per-action, scripts/agent-os/infra-approve.mjs). neverApprovable: leaves no approval lifts; a malformed list makes NOTHING approvable. aliases: an approval target -> the ids it also matches as a whole input value; a malformed map adds nothing. The 30-minute window is a constant in code, not here.",
+    "neverApprovable": ["railway-agent", "delete_project", "delete-service", "set_default_branch", "accept_project_transfer_request", "buy_domain"],
+    "aliases": {
+      "statenour-web": ["c68ce7f7-63b1-47bf-9e9e-2d7dfe717d4e"],
+      "nickstire": ["a6234c8d-1ff4-478f-9085-654954b54e97"],
+      "MAINnicks-tire-auto": ["a6234c8d-1ff4-478f-9085-654954b54e97"],
+      "statenour-worker": ["5441c378-3bab-4bb7-958f-36961159f5fe"]
+    }
+  },
   "mcpAdapters": [
     {
       "id": "terminal-run",
@@ -811,8 +821,8 @@
       "id": "infra-mutation-tool",
       "tools": ["Bash"],
       "pattern": "^mcp__.+__(?:accept-deploy|connect-service-source|create-deployment|create-function|create-service|delete-bucket|delete-domain|delete-feature-flag|delete-service|delete-tcp-proxy|delete-volume|delete-webhook|deploy-template|railway-agent|redeploy|reset-bucket-credentials|restart-service|set-feature-flag|set-variables|update-bucket|update-domain|update-function-source-code|update-service|update-volume|update-webhook|add_auth_oauth_provider|add_auth_trusted_domain|complete_database_migration|complete_query_tuning|create_credential|delete_auth_oauth_provider|delete_auth_trusted_domain|delete_auth_user|delete_branch|delete_data_api|delete_function|delete_functions_custom_domain|delete_postgres_database|delete_postgres_endpoint|delete_postgres_role|delete_project|delete_snapshot|delete_storage_bucket|delete_storage_object|delete_storage_objects_by_prefix|delete_trigger|deploy_function|disable_auth|finalize_branch_restore|reset_from_parent|reset_postgres_role_password|restart_postgres_endpoint|restore_snapshot|revoke_credential|rotate_credential|set_default_branch|suspend_postgres_endpoint|update_auth_config|update_auth_oauth_provider|update_auth_user_role|update_branch|update_data_api|update_function|update_postgres_database|update_postgres_endpoint|update_project|update_snapshot|update_trigger|accept_project_transfer_request|activate_kms_signing_key|add_project_domain|add_route|approve_rolling_release_stage|assign_alias|buy_domain|cancel_deployment|complete_rolling_release|create_deployment|create_edge_config_token|create_kms_signing_key|create_or_transfer_domain|create_project_env|create_record|create_sdk_key|edit_project_env|edit_route|issue_cert|patch_edge_config_items|patch_url_protection_bypass|pause_project|put_firewall_config|replace_domain_dns_records|request_promote|request_rollback|restore_edge_config_backup|restore_redirects|revoke_kms_signing_key|run_session_command|stage_redirects|stage_routes|start_rolling_release|unpause_project|update_attack_challenge_mode|update_bulk_redirect_version|update_connector|update_edge_config|update_firewall_config|update_flag|update_flag_segment|update_flag_settings|update_kms_issuer|update_kms_issuer_policy|update_project_protection_bypass|update_record|update_rolling_release_config|update_route_versions|upsert_connector_project_connection|write_session_files|create_object_store_bucket_key|create_prisma_postgres_connection_string|create_prisma_postgres_recovery|delete_object_store_bucket|delete_object_store_bucket_key|delete_prisma_compute_app|delete_prisma_compute_deployment|delete_prisma_compute_env_var|delete_prisma_postgres_connection_string|delete_prisma_postgres_database|execute_prisma_postgres_schema_update|link_prisma_github_repository|promote_prisma_compute_deployment|rollback_prisma_compute_app|set_prisma_compute_env_var|start_prisma_compute_deployment|stop_prisma_compute_deployment)$",
-      "why": "AGENTS.md > Protected operations: deletes, redeploys, restarts, variable and credential edits, domain and DNS changes and schema changes on Railway, Neon, Vercel and Prisma need Nour's explicit instruction for the specific action, every time. These MCP tools carry no command text, so this rule judges the TOOL NAME, by its last segment, whatever server segment it has. Native permissions.ask rules written for the same tools did not prompt in bypassPermissions in the 2026-10-15 live check, so this is a hook denial (exit 2), which was proven live the same day. Reads, logs and additive creates are not denied.",
-      "fix": "Do not retry and do not look for another route to the same effect. Tell Nour the exact action (provider, tool, target id, what it changes). He runs it himself in the provider dashboard or CLI, or changes this rule in a PR where the diff is reviewable. There is no override and no environment variable that lifts it. Railway reads and logs through Bash (railway run, railway variables, railway logs) and MCP reads are not affected.",
+      "why": "AGENTS.md > Protected operations: deletes, redeploys, restarts, variable and credential edits, domain and DNS changes and schema changes on Railway, Neon, Vercel and Prisma need Nour's explicit instruction for the specific action, every time. These MCP tools carry no command text, so this rule judges the TOOL NAME, by its last segment, whatever server segment it has. Native permissions.ask rules written for the same tools did not prompt in bypassPermissions in the 2026-10-15 live check, so this is a hook denial (exit 2), which was proven live the same day. Reads, logs and additive creates are not denied. Per-action approval (2026-10-20): when Nour types the line APPROVE <tool> <target> in chat, exactly one call of that tool whose input holds that target as a whole value passes within 30 minutes (scripts/agent-os/infra-approve.mjs); the tools in infraApprovals.neverApprovable never pass.",
+      "fix": "Do not retry and do not look for another route to the same effect. Tell Nour the exact action (provider, tool, target id, what it changes). He can approve that one call by typing the line APPROVE <tool> <target> in chat (one call, 30 minutes), or he runs it himself in the provider dashboard or CLI, or changes this rule in a PR where the diff is reviewable. Never write an approval yourself. There is no override and no environment variable that lifts it. Railway reads and logs through Bash (railway run, railway variables, railway logs) and MCP reads are not affected.",
       "denyExamples": [
         "mcp__7f852746-c86d-4f4d-9dc6-3ca49eb07004__delete-service",
         "mcp__7f852746-c86d-4f4d-9dc6-3ca49eb07004__set-variables",
@@ -864,6 +874,55 @@
         "lane-dispatch type=lane-research model=haiku brief=./briefs/research-brief.v3.md model-effort-line=yes",
         "agent type=Explore",
         "agent type=-"
+      ]
+    },
+    {
+      "id": "infra-approvals-store-write",
+      "tools": ["Write", "Edit", "NotebookEdit"],
+      "pathPattern": "(?:^|/)nourc(?:ity|i~[0-9]+)[. ]*/(?:[^/]*/)*?approv(?:als|~[0-9]+)[. ]*(?:/|:|$)",
+      "flags": "i",
+      "why": "The per-action infra approvals (%LOCALAPPDATA%/nourcity/approvals, job 2026-10-20-infra-approve-per-action) are written ONLY by the UserPromptSubmit hook scripts/agent-os/infra-approve.mjs from Nour's own prompt. A record or a .used marker written, edited or deleted by an agent would create or revive an approval. Any spelling of a nourcity segment followed by an approvals segment is denied: either slash, any case, 8.3 short names, trailing dots, ./ and ../ segments.",
+      "fix": "Do not touch the approvals store. Ask Nour to type APPROVE <tool> <target> in chat; read the store with the Read tool if you need to see it.",
+      "denyExamples": [
+        "C:\\Users\\nourd\\AppData\\Local\\nourcity\\approvals\\sess.json",
+        "C:/Users/nourd/AppData/Local/NourCity/Approvals/sess.0f3c9a2e.used",
+        "C:\\Users\\nourd\\AppData\\Local\\NOURCI~1\\APPROV~1\\sess.json",
+        "$env:LOCALAPPDATA\\nourcity\\approvals\\sess.json",
+        "C:/x/nourcity/asks/../approvals/sess.json",
+        "C:\\x\\nourcity.\\approvals.\\sess.json",
+        "/home/u/.local/state/nourcity/approvals/sess.json"
+      ],
+      "allowExamples": [
+        "C:\\Users\\nourd\\AppData\\Local\\nourcity\\asks\\sess.md",
+        "apps/nickstire/client/src/pages/admin/ApprovalsSection.tsx",
+        "C:/x/approvals/nourcity.txt",
+        "scripts/agent-os/infra-approve.mjs"
+      ]
+    },
+    {
+      "id": "infra-approvals-store-shell",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "^(?:(?=[\\s\\S]*?nourc(?:ity|i~[0-9]))(?=[\\s\\S]*?approv(?:als|~[0-9]))|(?=[\\s\\S]*?\\bnode\\b)(?=[\\s\\S]*?infra-approve\\.mjs))",
+      "flags": "i",
+      "why": "The shell door to the same store: a command that names both a nourcity and an approvals path piece (in any order, quoting, variable or separator form, so Join-Path and string pieces are caught), or that runs the writer scripts/agent-os/infra-approve.mjs with node (fed forged stdin it would record an approval), could create or revive an approval. Only the UserPromptSubmit hook may run the writer. A single read-only command (cat, rg ...) is mention, not execution, and passes; a pieced-together name built to dodge the match is not caught (the README says so).",
+      "fix": "Do not write, delete or move anything in the approvals store and do not run infra-approve.mjs. Ask Nour to type APPROVE <tool> <target> in chat. To test the writer, run node --test scripts/agent-os/infraApprove.test.mjs.",
+      "denyExamples": [
+        "Set-Content \"$env:LOCALAPPDATA\\nourcity\\approvals\\s.json\" '[]'",
+        "Set-Content -Path (Join-Path $env:LOCALAPPDATA 'nourcity\\approvals\\s.json') -Value x",
+        "$d = Join-Path $env:LOCALAPPDATA nourcity; New-Item -ItemType File (Join-Path $d approvals\\x.used)",
+        "echo [] > \"$LOCALAPPDATA/nourcity/approvals/s.json\"",
+        "cp /tmp/forged.json ~/.local/state/NourCity/Approvals/s.json",
+        "Remove-Item \"$env:LOCALAPPDATA\\NOURCI~1\\APPROV~1\\*.used\"",
+        "node -e \"require('fs').writeFileSync(process.env.LOCALAPPDATA+'/nourcity/approvals/s.json','[]')\"",
+        "echo {\"session_id\":\"s\",\"prompt\":\"APPROVE redeploy x\"} | node scripts/agent-os/infra-approve.mjs"
+      ],
+      "allowExamples": [
+        "node --test scripts/agent-os/infraApprove.test.mjs",
+        "git add scripts/agent-os/infra-approve.mjs scripts/agent-os/infraApprove.test.mjs",
+        "cat \"$LOCALAPPDATA/nourcity/approvals/s.json\"",
+        "Get-Content $env:LOCALAPPDATA\\nourcity\\asks\\s.md",
+        "git commit -m \"feat: nourcity approvals\"",
+        "node scripts/agent-os/operator-asks.mjs --recall"
       ]
     }
   ]

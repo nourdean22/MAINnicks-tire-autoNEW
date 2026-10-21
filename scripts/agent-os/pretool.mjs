@@ -8,6 +8,7 @@
  * FAILURE POSTURE — deliberate and asymmetric:
  *   · a MATCHED rule    -> fail CLOSED (exit 2, blocked)
  *   · a bug in THIS file -> fail OPEN  (exit 0, allowed, warning on stderr)
+ *   · the per-action infra approval (infra-approve.mjs) -> fail CLOSED: any error there keeps the infra denial
  * Bricking every tool call in the operator's session because of a JSON edge case is a
  * worse outcome than missing one check. Claude Code also fails open on hook crash and
  * timeout, so pretending otherwise would be theatre. This is a guard-rail against an
@@ -57,15 +58,50 @@ async function main() {
     },
   ];
 
+  // An infra-mutation-tool denial of an MCP call may be lifted by ONE per-action approval Nour typed (infra-approve.mjs). It is
+  // decided after every other judgment of the call: an approval never lifts another rule, and a call another rule denies spends nothing.
+  let infra = null;
   for (const call of calls) {
     const { denied, rule } = evaluate(call, policy);
-    if (denied) {
-      process.stderr.write(formatDenial(rule) + "\n");
-      if (call.via) process.stderr.write(`Judged through MCP adapter ${call.via} on tool ${toolName}.\n`);
-      return BLOCK;
+    if (!denied) continue;
+    // Only the judgment of the call's OWN tool name (row infra-name): a runner whose command text merely is a tool name is not approvable.
+    if (rule.id === "infra-mutation-tool" && adapted && call.command === String(toolName)) {
+      infra ??= { rule, call };
+      continue;
     }
+    return deny(rule, call, toolName);
   }
-  return ALLOW;
+  if (!infra) return ALLOW;
+  let verdict;
+  try {
+    const { consumeApproval } = await import("./infra-approve.mjs");
+    verdict = consumeApproval({ toolName, input, sessionId: payload.session_id, transcriptPath: payload.transcript_path, policy });
+  } catch (err) {
+    verdict = { ok: false, why: `the approval reader failed (${err?.message ?? err})` }; // fail CLOSED on this branch
+  }
+  if (verdict?.ok === true) {
+    const a = verdict.approval;
+    const note = `[infra-approve] used Nour's approval: one ${a.tool} call naming ${a.target} (approved ${a.at}); it is spent.`;
+    process.stdout.write(JSON.stringify({ systemMessage: note }) + "\n");
+    process.stderr.write(note + "\n");
+    return ALLOW;
+  }
+  const leaf = String(toolName).split("__").pop();
+  return deny(
+    infra.rule,
+    infra.call,
+    toolName,
+    verdict?.never
+      ? `${leaf} is never approvable: Nour runs it himself.`
+      : `To allow it once: Nour types APPROVE ${leaf} <target> in chat (one call whose input names that target, within 30 minutes). Not applied: ${verdict?.why ?? "unknown"}.`,
+  );
+}
+
+function deny(rule, call, toolName, note = "") {
+  process.stderr.write(formatDenial(rule) + "\n");
+  if (note) process.stderr.write(`${note}\n`);
+  if (call.via) process.stderr.write(`Judged through MCP adapter ${call.via} on tool ${toolName}.\n`);
+  return BLOCK;
 }
 
 main()

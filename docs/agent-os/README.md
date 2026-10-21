@@ -608,6 +608,42 @@ the official run is still owed.
   not match. (d) The CLI door (`railway`, `vercel`, `neonctl` through Bash or a runner) is not judged by this rule. (e) The in-process matrix and the real hook
   call the same functions `pretool.mjs` calls; a canary compares their verdicts on a sample so the two cannot drift apart unseen.
 
+### Infra tools: approve one call (2026-10-20)
+
+**Status: BUILT, canaried, live check owed.** Nour asked for the agent to do the Railway work and chose this design (job
+2026-10-20-infra-approve-per-action). It keeps "explicit instruction for the specific action, every time" and moves the click from
+his dashboard to his chat. It is not an override: it lifts one call of one tool on one target, and only after Nour typed it.
+
+- **How Nour approves.** He types a line of its own in a prompt: `APPROVE <tool> <target>`, for example `APPROVE redeploy statenour-web`
+  or `APPROVE update_branch br-dark-poetry-amzuf3je`. The keyword is any case; the tool is the last segment of the MCP name. Within
+  30 minutes exactly one call of that tool whose input holds that target passes; a second call, another tool, another target or a
+  call after 30 minutes is denied with the usual `infra-mutation-tool` reason plus one line on how to approve.
+- **Writer.** `scripts/agent-os/infra-approve.mjs`, a UserPromptSubmit hook in `.claude/settings.json`, reads only the prompt text and
+  appends `{id, tool, target, at, session_id, used:false}` to `%LOCALAPPDATA%/nourcity/approvals/<session>.json`. A line that is not
+  an infra tool name ("APPROVE the plan") records nothing; a never-approvable tool is refused out loud. It prints what it recorded.
+- **Reader.** `pretool.mjs`, only when `infra-mutation-tool` is the one rule denying an MCP call, calls `consumeApproval()`. It needs all
+  of: an unused record of THIS session for that tool (case-insensitive); the target, or one of its `aliases` in `policy.json` >
+  `infraApprovals`, equal to a whole string value anywhere in the input (case-insensitive, never a substring, never a key); the record
+  0 to 30 minutes old (the window is a code constant, inclusive, a future date fails); the same APPROVE line in a genuine operator
+  message of the session transcript, 0 to 30 minutes old (`operator-asks.mjs` > `operatorAsk`: a tool result, a message from another
+  session, an sdk-started prompt, a /loop re-fire or a lane brief does not count); and the exclusive create of `<session>.<id>.used`,
+  so when two calls race on one approval exactly one passes. The pass prints a notice naming the approval it spent.
+- **Never approvable.** `neverApprovable` in `policy.json`: `railway-agent` (it can do anything), `delete_project`, `delete-service`,
+  `set_default_branch`, `accept_project_transfer_request`, `buy_domain`. A malformed list makes NOTHING approvable; a malformed alias
+  map adds nothing. An approval never lifts another rule: a destructive migration stays denied by `destructive-sql` and spends nothing.
+- **The store is out of the agent's reach.** Rule `infra-approvals-store-write` denies Write, Edit, NotebookEdit and the MCP file tools
+  on any path with a nourcity segment followed by an approvals segment (either slash, any case, 8.3 short names, trailing dots, `./` and
+  `../`). Rule `infra-approvals-store-shell` denies a shell or MCP runner command that names both pieces in any order or form, or that
+  runs `infra-approve.mjs` with node. A single read-only command (`cat`, `rg`) passes.
+- **It fails closed.** A missing, unreadable, malformed or directory-shaped store, a missing transcript, a reader that throws or a
+  reader module that does not load all mean no approval: the call stays denied (the rest of `pretool.mjs` still fails open on its own bugs).
+- **Limits.** (a) A command that builds the path from pieces (`'nour'+'city'`) or writes a forged transcript line is not caught: this is a
+  guard rail against an agent doing it by accident, not a security boundary. (b) LOCALAPPDATA only locates the store. (c) A message typed
+  while a turn runs may not fire UserPromptSubmit: type the APPROVE line as its own message. (d) A target that is a project id matches
+  every call on that project: name the most specific id. Canaries: `scripts/agent-os/infraApprove.test.mjs`.
+- **Live check owed.** In a fresh session Nour types `APPROVE redeploy <a service id>`; the next redeploy of that service passes with the
+  notice, the same call again is `BLOCKED by repo policy: infra-mutation-tool` with the approve line.
+
 ### Still unguarded
 
 Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" means the schema was not read.
