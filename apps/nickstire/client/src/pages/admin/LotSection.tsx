@@ -36,7 +36,7 @@
  *
  * Data: trpc.lot.now + trpc.lot.visits + trpc.lot.health + trpc.lot.conversations, polled every 15s.
  */
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
@@ -216,6 +216,8 @@ type ConversationRow = {
   linkConfidence: number | null;
   /** Timed transcript segments stored (eyes-ears v1): null = no transcript, 0 = transcribed silent. Absent on older servers. */
   segmentCount?: number | null;
+  /** Worth-knowing flag kinds on this conversation (ears-v2): owner only, [] for every other role. Absent on older servers. */
+  flagKinds?: string[];
   /** One sentence on what the conversation was about (migration 0141). Absent on older servers. */
   gist?: string | null;
   /** Evidence-backed facts, max 12 (office-digest v1). Absent on older servers: not available, not zero. */
@@ -1313,12 +1315,138 @@ function digestText(h: DigestHour): { text: string; tone: string } {
   }
 }
 
+/**
+ * The server's refusal for a role that is not the owner (ears-v2: lot.worthKnowing, lot.officeDigest).
+ * shortcut: matched on the server's exact text, which has no code field; upgrade when the router sends one.
+ */
+const OWNER_ONLY_REASON = "Only the owner can see this.";
+
+/** Plain words for the worth-knowing flag kinds (shared/conversationFlags.ts). */
+const FLAG_LABELS: Record<string, string> = {
+  NEGATIVE_TALK: "Negative talk",
+  CUSTOMER_COMPLAINT: "Customer complaint",
+  STAFF_CONFLICT: "Staff conflict",
+  SAFETY: "Safety",
+  LEAVING_OR_COMPETITOR: "Leaving or a competitor",
+  MONEY_OR_DISCOUNT: "Money or discount",
+};
+
+type AccountPart = { text: string; kind: "heard" | "inferred" | "inaudible" };
+
+/**
+ * An account split into heard text, "(inferred: ...)" guesses and "[inaudible: ...]" gaps, each part
+ * keeping its exact words. Anything unbalanced makes the whole account plain heard text.
+ */
+function accountParts(text: string): AccountPart[] {
+  const parts: AccountPart[] = [];
+  let i = 0;
+  let from = 0;
+  const push = (end: number, next: AccountPart) => {
+    if (end > from) parts.push({ text: text.slice(from, end), kind: "heard" });
+    parts.push(next);
+  };
+  while (i < text.length) {
+    const head = text.slice(i, i + 11).toLowerCase();
+    let close = -1;
+    let kind: AccountPart["kind"] | null = null;
+    if (head.startsWith("(inferred:")) {
+      kind = "inferred";
+      for (let j = i, depth = 0; j < text.length; j++) {
+        if (text[j] === "(") depth++;
+        else if (text[j] === ")" && --depth === 0) { close = j; break; }
+      }
+    } else if (head === "[inaudible:") {
+      kind = "inaudible";
+      close = text.indexOf("]", i);
+    }
+    if (kind === null) { i++; continue; }
+    if (close < 0) return [{ text, kind: "heard" }];
+    push(i, { text: text.slice(i, close + 1), kind });
+    i = from = close + 1;
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), kind: "heard" });
+  return parts;
+}
+
+/** The account (gist) as plain text nodes: guesses muted and italic, gaps muted, the noise line muted. */
+function AccountText({ text }: { text: string }) {
+  if (text === "Only shop noise, no speech.") return <span className="text-foreground/50">{text}</span>;
+  return (
+    <>
+      {accountParts(text).map((p, i) =>
+        p.kind === "heard" ? (
+          <Fragment key={i}>{p.text}</Fragment>
+        ) : p.kind === "inferred" ? (
+          <span key={i} className="italic text-foreground/50">
+            <span className="sr-only">inferred: </span>
+            {p.text}
+          </span>
+        ) : (
+          <span key={i} className="text-foreground/50">{p.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+type WorthKnowingData =
+  | { ok: true; day: string; items: Array<{ episodeId: string; source: string; cameraLabel: string; startedAtMs: number | null; kind: string; quote: string; account: string | null }> }
+  | { ok: false; reason: string };
+
+/**
+ * "Worth knowing today" (ears-v2), the owner's first read in Office intelligence: every flag of the
+ * shop day with the exact words it rests on. A manager's refusal renders nothing; a failed read says
+ * so and is never "Nothing flagged".
+ */
+function WorthKnowing() {
+  const q = trpc.lot.worthKnowing.useQuery(undefined, { refetchInterval: POLL_MS });
+  // Same boundary narrowing as ConversationPanel.
+  const data = q.data as WorthKnowingData | undefined;
+  const answer = answerOf(q);
+  if (!q.isError && data?.ok === false && data.reason === OWNER_ONLY_REASON) return null;
+  const reason = q.isError ? (q.error?.message ?? "the request failed") : (offlineReason(q) ?? (data?.ok === false ? data.reason : "no answer"));
+  return (
+    <section aria-label="Worth knowing today" className="mb-4 border-b border-foreground/10 pb-3">
+      <h3 className="mb-1 text-[12px] font-semibold">Worth knowing today</h3>
+      {answer === "loading" ? (
+        <Loading what="what is worth knowing today" />
+      ) : answer === "unknown" || data?.ok !== true ? (
+        <p className="text-[13px] text-amber-300">Worth knowing today could not be read: {reason}</p>
+      ) : data.items.length === 0 ? (
+        <p className="text-[13px] text-foreground/60">Nothing flagged today.</p>
+      ) : (
+        <ol aria-label="Flags today" className="divide-y divide-foreground/10">
+          {data.items.map((it, i) => (
+            <li key={`${it.episodeId}-${i}`} className="min-h-12 py-2">
+              <div className="text-[12px] text-foreground/55">
+                <span className="font-medium text-amber-300">{factLabel(it.kind)}</span>
+                {" · "}
+                {it.cameraLabel}
+                {" · "}
+                <span className="tabular-nums">{it.startedAtMs === null ? "time unknown" : shopClock(it.startedAtMs)}</span>
+              </div>
+              <q className="mt-0.5 block text-[13px] text-foreground/90">{it.quote}</q>
+              {it.account && (
+                <p className="mt-0.5 text-[12px] text-foreground/55">
+                  <AccountText text={it.account} />
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 /** The "Last 6 hours" block at the top of Office intelligence. A read that did not answer is never a quiet hour. */
 function OfficeDigest() {
   const q = trpc.lot.officeDigest.useQuery({ hours: DIGEST_HOURS }, { refetchInterval: DIGEST_POLL_MS });
   const answer = answerOf(q);
   const data = q.data;
   const reason = offlineReason(q) ?? (data && data.ok === false ? data.reason : q.error?.message);
+  // ears-v2: the digest is the owner's. A manager's refusal is not a failure to show them.
+  if (!q.isError && data?.ok === false && data.reason === OWNER_ONLY_REASON) return null;
 
   return (
     <section aria-label="Last 6 hours" className="mb-4 border-b border-foreground/10 pb-3">
@@ -1401,6 +1529,7 @@ const FACTS_SHOWN = 3;
 
 /** "TIRE_SIZE" or "vehicle_make" as a sentence-case label. */
 function factLabel(kind: string): string {
+  if (FLAG_LABELS[kind]) return FLAG_LABELS[kind];
   const words = kind.replace(/[_-]+/g, " ").trim().toLowerCase();
   return words ? words[0].toUpperCase() + words.slice(1) : "Fact";
 }
@@ -1519,7 +1648,10 @@ function ConversationPanel({
   // component boundary. Re-narrow ONLY the procedure payload here; the server still owns
   // runtime validation and every branch below preserves failed/unknown vs empty.
   const data = query.data as ConversationQueryData | undefined;
-  const rows: ConversationRow[] = data?.ok === true ? data.conversations : [];
+  // Flagged conversations first (ears-v2); each group keeps the server's newest-first order.
+  const listed: ConversationRow[] = data?.ok === true ? data.conversations : [];
+  const flagged = (r: ConversationRow) => (r.flagKinds?.length ?? 0) > 0;
+  const rows = [...listed.filter(flagged), ...listed.filter((r) => !flagged(r))];
   // Owner only, decided by the server; an older server or a failed read shows no words.
   const wordsVisible = data?.ok === true && data.wordsVisible === true;
   const runtime = officeCamera?.conversation ?? null;
@@ -1550,6 +1682,7 @@ function ConversationPanel({
       icon={<MessageSquare className="w-4 h-4" />}
       subtitle="NICKS EUCLID camera health, counter capture/STT health, and evidence-backed summaries in one truth surface"
     >
+      <WorthKnowing />
       <OfficeDigest />
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-lg border border-foreground/10 p-3">
@@ -1829,10 +1962,19 @@ function ConversationPanel({
                         {row.source}
                         {row.triggerType ? ` · ${row.triggerType}` : ""}
                       </div>
+                      {flagged(row) && (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {row.flagKinds!.map((k) => (
+                            <span key={k} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
+                              {factLabel(k)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {row.gist && (
                         <div className="mt-1 text-[13px] text-foreground/85">
                           <span className="font-medium text-foreground/55">Heard: </span>
-                          {row.gist}
+                          <AccountText text={row.gist} />
                         </div>
                       )}
                       {row.facts && <FactList facts={row.facts} total={factTotal} />}
