@@ -10,10 +10,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createRunTmp, RUN_TMP_ENV } from "./runTmp.mjs";
+import vitestGlobalSetup, { createRunTmp, RUN_TMP_ENV } from "./runTmp.mjs";
 
 // A child process that leaks a fixture the way the leaking tests do, and prints its path.
 const LEAKER = [
@@ -65,6 +65,47 @@ test("the run dir is created under the caller's temp dir with the given prefix",
     assert.match(run.dir, /runtmp-canary-/);
   } finally {
     run.cleanup();
+  }
+});
+
+// The default export is what both vitest configs register as globalSetup; its RETURN value is the
+// teardown vitest calls at the end. The app wiring tests only see the env during the run, so this
+// arm is what fails if the teardown stops removing the dir.
+test("the vitest globalSetup export scopes TEMP to a run dir and the teardown it returns removes that dir", () => {
+  const saved = Object.fromEntries(["TEMP", "TMP", "TMPDIR", RUN_TMP_ENV].map((k) => [k, process.env[k]]));
+  try {
+    const teardown = vitestGlobalSetup();
+    const dir = process.env[RUN_TMP_ENV];
+    assert.ok(dir && existsSync(dir), "setup creates the run dir and publishes it");
+    assert.equal(process.env.TEMP, dir);
+    assert.equal(typeof teardown, "function", "setup must return the teardown");
+    teardown();
+    assert.equal(existsSync(dir), false, "the teardown removes the run dir");
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+// Ctrl+C, a runner timeout or a hard kill ends a run before its cleanup: the next run sweeps
+// run dirs with the same prefix that nothing has touched for 6 hours.
+test("a stale run dir left by an interrupted run is swept when the next run starts; a fresh one is not", () => {
+  const prefix = "runtmp-sweep-";
+  const stale = mkdtempSync(join(tmpdir(), prefix));
+  const fresh = mkdtempSync(join(tmpdir(), prefix));
+  writeFileSync(join(stale, "fixture.txt"), "left behind");
+  const sevenHoursAgo = new Date(Date.now() - 7 * 3600_000);
+  utimesSync(stale, sevenHoursAgo, sevenHoursAgo);
+  const run = createRunTmp(prefix);
+  try {
+    assert.equal(existsSync(stale), false, "a run dir untouched for 7 h is removed");
+    assert.ok(existsSync(fresh), "a run dir touched just now may belong to a live run and stays");
+  } finally {
+    run.cleanup();
+    rmSync(fresh, { recursive: true, force: true });
+    rmSync(stale, { recursive: true, force: true });
   }
 });
 

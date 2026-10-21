@@ -8,13 +8,31 @@
  * suite) and, through the default export, the nickstire and statenour vitest globalSetup.
  * Canary: runTmp.test.mjs.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { lstatSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export const RUN_TMP_ENV = "TEST_RUN_TMP";
+// A live run keeps creating fixtures at the top of its dir, which refreshes the dir's mtime.
+const STALE_MS = 6 * 3600_000;
+
+/** Remove run dirs with this prefix untouched for STALE_MS: left by a run killed before its cleanup. */
+function sweepStale(prefix) {
+  const base = tmpdir();
+  for (const name of readdirSync(base)) {
+    if (!name.startsWith(prefix)) continue;
+    const p = join(base, name);
+    try {
+      const st = lstatSync(p);
+      if (st.isDirectory() && Date.now() - st.mtimeMs > STALE_MS) rmSync(p, { recursive: true, force: true, maxRetries: 3 });
+    } catch {
+      // gone already, or still held open: the next run tries again
+    }
+  }
+}
 
 export function createRunTmp(prefix) {
+  sweepStale(prefix);
   const dir = mkdtempSync(join(tmpdir(), prefix));
   return {
     dir,
