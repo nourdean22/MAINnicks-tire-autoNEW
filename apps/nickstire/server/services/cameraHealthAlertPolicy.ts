@@ -290,7 +290,8 @@ export function formatCameraHealthAlert(input: {
 
 export async function deliverWithConfirmedNotification(input: {
   camera: string;
-  state: CameraHealthState;
+  /** Only labels the error; the office lane (officeLaneAlert.ts) passes its own state. */
+  state: string;
   alert: { title: string; message: string };
   notify: (alert: { title: string; message: string }) => Promise<CameraAlertDelivery>;
   releaseClaim: () => Promise<void>;

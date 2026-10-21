@@ -15,8 +15,11 @@ import { BUSINESS } from "@shared/business";
 import { deriveShopState, type ShopState, type ShopStateInputs } from "@shared/shopState";
 import { EXPECTED_CAMERAS } from "@shared/cameras";
 import { createLogger } from "../lib/logger";
+import { readVehicleCounterTrust } from "./vehicleCounterTrust";
 
 const log = createLogger("shop-state");
+/** The window's last day the "band withheld" line was logged for: once per ET day, not per request. */
+let withheldLoggedFor: string | null | undefined;
 
 async function lotInput(): Promise<ShopStateInputs["lot"]> {
   try {
@@ -54,6 +57,17 @@ async function lotInput(): Promise<ShopStateInputs["lot"]> {
       WHERE camera IN (${sql.join(vehicleTruth.map((c) => sql`${c}`), sql`, `)})
     `);
     const last = feedRow?.lastHeartbeatAt ? new Date(feedRow.lastHeartbeatAt as string | Date) : null;
+    // A fresh feed is not a counting camera (2026-10-21: "light, 0 vehicles" published with a fresh
+    // sensor while the camera counted 1 arrival in a week of 30 billed jobs). UNDERCOUNTING withholds
+    // the band; UNKNOWN does not, since a failed invoice read is no evidence the camera is wrong.
+    const trust = await readVehicleCounterTrust(d);
+    if (trust.level === "UNDERCOUNTING") {
+      if (trust.toDay !== withheldLoggedFor) {
+        withheldLoggedFor = trust.toDay;
+        log.info("lot band withheld: counter undercounting", { arrivals: trust.arrivals, billed: trust.billed, days: trust.days, fromDay: trust.fromDay, toDay: trust.toDay });
+      }
+      return null;
+    }
     return { activeVisits: Number(visitRow?.activeVisits ?? 0), lastObservationAt: last && Number.isFinite(last.getTime()) ? last : null };
   } catch (err) {
     log.warn("lot aggregate unavailable — lot band unknown", { error: err instanceof Error ? err.message : String(err) });

@@ -292,3 +292,82 @@ What the tiles will say, and why it is the truth:
 
 Rollback: clear `OFFICE_CAMERA_HEARTBEAT_URL` and restart the task. The row then ages out to
 "producer offline" again, which is the state before this change.
+
+## 2026-10-21 speech gate (shop PC MECHANICS)
+
+Loud bangs inside or outside the shop passed the energy wake (mean >= -50 dBFS AND peak >= -34
+dBFS) and started recordings. Three settings, each OFF until set, so copying the files changes
+nothing until the steps below turn them on:
+
+- `OFFICE_WAKE_GATE=speech`: a probe that passes the energy thresholds (kept as a pre-gate) is
+  transcribed by the same whisper-cli, model and thread count, 20 s timeout, and wakes a capture
+  only if whisper hears words. Sound tags (`[BLANK_AUDIO]`, `(banging)`, `*clank*`) and whisper's
+  noise phrases ("you", "thank you", "thanks for watching", "bye") are not words. If whisper fails
+  on the probe, the energy decision stands and the failure is counted: a probe nobody could read
+  is not silence. While a capture is being transcribed the check is skipped (no second whisper run
+  on the front-desk CPU). Probe audio is deleted after the check. Unset or `energy` = before.
+- `OFFICE_WHISPER_NOISE_ARGS=auto`: at worker start, `whisper-cli --help` is read once and only
+  the flags it lists are added to every transcription: `--suppress-nst` (suppress non-speech
+  tokens) and `--no-speech-thold 0.6` (whisper.cpp's own default, stated explicitly). A build that
+  lists neither runs today's command exactly. Unset or `off` = before, and no help probe runs.
+- `EUFY_BRIDGE_URL` unset: the worker no longer tries a bridge that does not exist on this PC, so
+  the state reads READY / OFF_HOURS instead of BRIDGE_RETRY all day. Allowed only with the audio
+  fallback on; a configured bridge that fails still reports BRIDGE_RETRY (NicksMax).
+
+Steps (admin PowerShell on MECHANICS, outside the schedule, nobody at the front desk; about 15
+minutes):
+
+1. Save the current env and back up the three changed files:
+   ```powershell
+   $v = "C:\NOURCITY\camera-bridge\vision"
+   @{ EUFY_BRIDGE_URL = [Environment]::GetEnvironmentVariable("EUFY_BRIDGE_URL", "Machine");
+      OFFICE_WHISPER_MODEL = [Environment]::GetEnvironmentVariable("OFFICE_WHISPER_MODEL", "Machine") } |
+     ConvertTo-Json | Set-Content C:\NOURCITY\office-env-before-20261021.json
+   foreach ($f in "officewake.py","officepost.py","officeaudio.py") { Copy-Item "$v\$f" "$v\$f.bak-20261021" }
+   ```
+2. Copy `vision/officewake.py`, `vision/officepost.py`, `vision/officeaudio.py` and the new
+   `vision/officebench.py` from this commit into `$v`.
+3. Bench base.en against small.en on 10 recorded clips (reads the clips, writes nothing beside
+   them, posts nothing; the clips folder holds at most the last 6 hours):
+   ```powershell
+   $py = (Get-ScheduledTask StateNour-OfficeIntelligence-ShopPC).Actions[0].Execute
+   $models = Split-Path $env:OFFICE_WHISPER_MODEL
+   Set-Location C:\NOURCITY\camera-bridge
+   & $py -m vision.officebench --clips $env:OFFICE_INTERACTION_DIR --model $env:OFFICE_WHISPER_MODEL --model "$models\ggml-small.en.bin" --transcriber $env:OFFICE_TRANSCRIBER --threads 2 --max-clips 10
+   ```
+   Read the two `"kind": "summary"` lines. `rtf` is STT seconds per audio second. If
+   `ggml-small.en.bin` is not in `$models`, its rows carry an error: keep base.en (downloading a
+   model is a separate decision).
+4. Turn the settings on:
+   ```powershell
+   [Environment]::SetEnvironmentVariable("OFFICE_WAKE_GATE", "speech", "Machine")
+   [Environment]::SetEnvironmentVariable("OFFICE_WHISPER_NOISE_ARGS", "auto", "Machine")
+   [Environment]::SetEnvironmentVariable("EUFY_BRIDGE_URL", $null, "Machine")
+   ```
+   Only if the small.en summary shows `rtf` under 0.5 with 0 failures:
+   `[Environment]::SetEnvironmentVariable("OFFICE_WHISPER_MODEL", "$models\ggml-small.en.bin", "Machine")`.
+5. Restart: `Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC`, then `Start-ScheduledTask`
+   with the same name.
+6. Three receipts:
+   - Ledger: `Get-Content $env:OFFICE_WAKE_LEDGER -Tail 300 | Select-String '"startup"|bridge_not_configured|speech_probe'`.
+     The `startup` row shows `"wakeGate": "speech"`, `"bridge": false` and `whisperNoiseArgs`
+     (an empty list means this whisper-cli lists neither flag; the gate still works). In open
+     hours, `speech_probe` rows show `decision` (`speech`, `no_speech`, `error`,
+     `skipped_backlog`) and `latencyMs`. Many `error` rows: whisper fails on probes and the lane
+     is back on the energy rule (nothing lost; read the `error` field). `latencyMs` above 5000:
+     too heavy for this PC, roll back the gate.
+   - camera_runtime office row (Admin -> Lot, Conversation intelligence tile): worker state
+     READY in open hours, OFF_HOURS after, never BRIDGE_RETRY; its `conversationSttEngine`
+     names the flags in use (plain `whisper-cli.exe` when none).
+   - The next episode on Admin -> Lot -> Office intelligence arrives with words. Over a day the
+     share of SKIPPED (no words) episodes should fall.
+
+Rollback (one line, restores the files and the saved env, then restarts). EUFY_BRIDGE_URL must
+come back before the restart: the old officewake.py refuses to start without it.
+
+```powershell
+$v="C:\NOURCITY\camera-bridge\vision"; $e=Get-Content C:\NOURCITY\office-env-before-20261021.json | ConvertFrom-Json; foreach ($f in "officewake.py","officepost.py","officeaudio.py") { Copy-Item "$v\$f.bak-20261021" "$v\$f" -Force }; [Environment]::SetEnvironmentVariable("OFFICE_WAKE_GATE",$null,"Machine"); [Environment]::SetEnvironmentVariable("OFFICE_WHISPER_NOISE_ARGS",$null,"Machine"); [Environment]::SetEnvironmentVariable("EUFY_BRIDGE_URL",$e.EUFY_BRIDGE_URL,"Machine"); [Environment]::SetEnvironmentVariable("OFFICE_WHISPER_MODEL",$e.OFFICE_WHISPER_MODEL,"Machine"); Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC; Start-ScheduledTask StateNour-OfficeIntelligence-ShopPC
+```
+
+Partial rollback, new code kept: set `OFFICE_WAKE_GATE` to `energy` (or `OFFICE_WHISPER_NOISE_ARGS`
+to `off`) and restart the task.

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import List, Optional, Sequence
@@ -87,8 +88,38 @@ def covered_seconds(segments: Sequence[dict], total: Optional[float] = None) -> 
     return round(covered, 2)
 
 
+#: Noise-robust whisper-cli flags, each added only when `whisper-cli --help` lists it
+#: (OFFICE_WHISPER_NOISE_ARGS=auto). The shop PC's build is unknown, and a flag it lacks would
+#: make every transcription exit non-zero, so an unlisted flag is never passed.
+NOISE_FLAGS = (("--suppress-nst",), ("--no-speech-thold", "0.6"))
+
+
+def noise_args(binary: str, mode: str = "off", *, run=None, timeout_s: float = 15.0) -> tuple:
+    """The NOISE_FLAGS this transcriber build supports, read once from its --help; () when off.
+
+    Anything that stops the help probe (missing binary, timeout) adds nothing: the command stays
+    exactly what it was before this existed.
+    """
+    if mode != "auto":
+        return ()
+    run = run or subprocess.run
+    try:
+        proc = run([binary, "--help"], capture_output=True, text=True, encoding="utf-8",
+                   errors="replace", timeout=timeout_s)
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    # whisper.cpp prints its usage to stderr; read both streams.
+    usage = f"{proc.stdout or ''}\n{proc.stderr or ''}"
+    out: List[str] = []
+    for flag in NOISE_FLAGS:
+        if re.search(rf"(?<![\w-]){re.escape(flag[0])}(?![\w-])", usage):
+            out.extend(flag)
+    return tuple(out)
+
+
 def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = None,
-               timeout_s: float = 600.0, threads: Optional[int] = None) -> Transcript:
+               timeout_s: float = 600.0, threads: Optional[int] = None,
+               extra_args: Sequence[str] = ()) -> Transcript:
     """Run the local transcriber over one wav and return its timed segments.
 
     The contract is the one thing that matters: a transcriber that did not run returns a
@@ -106,6 +137,7 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
     if threads:
         # OFFICE_WHISPER_THREADS: cap CPU on a shared machine; unset keeps whisper's default.
         cmd += ["-t", str(int(threads))]
+    cmd += list(extra_args)  # noise_args(); empty keeps today's command byte for byte
     engine_name = os.path.basename(binary) or binary
     model_name = os.path.basename(model) if model else None
     started = time.time()

@@ -767,7 +767,7 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       // Read back the elected owner. `affectedRows` can be zero for an identical heartbeat,
       // but authority is a fact about the stored row, not about whether MySQL changed bytes.
       const ownerRows = await d.execute(sql`
-        SELECT producerInstanceId FROM camera_runtime WHERE camera = ${b.camera} LIMIT 1
+        SELECT producerInstanceId, heartbeatSeq FROM camera_runtime WHERE camera = ${b.camera} LIMIT 1
       `);
       const ownerList = (Array.isArray(ownerRows) ? ownerRows[0] : ownerRows) as
         unknown as Array<Record<string, unknown>> | undefined;
@@ -775,9 +775,18 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         ? String(ownerList[0].producerInstanceId)
         : null;
       const authoritative = authorityProducer === b.producerInstanceId;
+      // WAS THIS HEARTBEAT APPLIED? `accepted` cannot say: mysql2 connects with FOUND_ROWS, so a
+      // duplicate whose guarded SET changed nothing still reports one affected row, and a REFUSED
+      // standby read as accepted. 2026-10-21: 2529 phantom transitions in 24 h from a p2 standby
+      // while p1 owned the office row, each one counted as a drop by lot.health. Applied = the
+      // stored row now carries this producer AND this sequence. Every camera_health_events write
+      // below is gated on it; `accepted` keeps its old meaning for the reply (officewake.py reads it
+      // together with `authoritative`, which already says no for a refused standby).
+      const storedSeq = Array.isArray(ownerList) && ownerList.length ? Number(ownerList[0].heartbeatSeq) : null;
+      const applied = authoritative && storedSeq === b.heartbeatSeq;
 
       let transition: { from: string | null; to: string; reason: string } | null = null;
-      if (accepted) {
+      if (applied) {
         const prevState = prev ? String(prev.state) : null;
         const prevInstance = prev ? String(prev.producerInstanceId) : null;
         if (prevState === null) {
@@ -892,7 +901,7 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       }
 
       console.info(
-        `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} ${accepted ? "accepted" : "stale"} state=${verdict.state}` +
+        `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} ${accepted ? "accepted" : "stale"} applied=${applied} state=${verdict.state}` +
         ` authoritative=${authoritative} owner=${authorityProducer ?? "-"}` +
         (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : "") +
         (activeRun ? ` activeRun=${activeRun.runId}` : ""),
