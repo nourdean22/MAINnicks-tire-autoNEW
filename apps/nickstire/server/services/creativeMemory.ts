@@ -64,7 +64,7 @@ export interface StoredGenome {
   genome: CreativeGenome | null;
 }
 
-export async function listGenomes(limit = 20): Promise<StoredGenome[]> {
+async function listGenomes(limit = 20): Promise<StoredGenome[]> {
   try {
     const { getDb } = await import("../db");
     const d = await getDb();

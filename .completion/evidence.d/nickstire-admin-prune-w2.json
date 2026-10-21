@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "2026-10-20 rescue of admin-prune W2a: the only change in server/services/higgsfieldStudio.ts is the deletion of the exported helper stitchVideos (73 lines, ffmpeg concat of downloaded clips; it made no provider call and reserved no spend). No remaining reference in apps/ or packages/ (grep), so the spend path, its reservation and its persistence are untouched. reelPipeline.ts is not in this diff. Reel and Higgsfield spend-path tests ran green in the preflight 'vitest related' step (121 text-scan tests included)."
+    },
+    "policy-matrix": {
+      "ref": "2026-10-20 rescue of admin-prune W2a: the only autonomy-policy change is client/src/lib/autonomyPolicy.ts losing validateAutonomyPolicyShape, whose single caller was the deleted publishAutonomyPolicy procedure (no remaining reference in apps/). server/services/autonomyControl.ts and autonomyPolicy.ts are not in this diff, so the kill-switch/actor matrix of the policy engine is unchanged. Policy and autonomy tests ran green in the preflight 'vitest related' step."
+    },
+    "cron-fail-closed": {
+      "ref": "2026-10-20 rescue of admin-prune W2a: crons kpi-snapshot, staff-performance, customer-segmentation, customer-segment-refresh and review-auto-draft are retired (crudAutomation loses autoFetchAndDraftReviews, which wrote template drafts nobody sees and sent a negative-review Telegram), and reviewMonitor and missedCallRecovery only reword one alert each (it names Google, or the renamed admin path); no cron gains a send or a write. Evidence on the combined tree (apps/nickstire, vitest): server/__tests__/cronNoSwallowedFailure.test.ts, server/cron/jobs/cronRethrow2026.test.ts, server/cron/jobs/cronDetailsSayWhy.test.ts, server/__tests__/reviewPipelineUrgentOnce.test.ts, server/publicSubmitStaffNotify.test.ts and server/__tests__/cron-cadence.test.ts: 6 files, 65 tests passed."
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
-import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
-import { bookings, expectedArrivals, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { expectedArrivals, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
 import { getDbTyped } from "../db";
 import { attributionObligationSubject } from "./bridgeKeys";
 import {
@@ -11,11 +11,6 @@ import {
   type LeadLinkObservation,
   type PaidInvoiceObservation,
 } from "./revenueAttribution";
-import {
-  buildVapiMeasurementRecord,
-  deriveVapiFacts,
-  VAPI_QUALITY_VERSION,
-} from "./vapiMeasurement";
 const log = createLogger("revenue-reconciliation");
 
 export const RECONCILIATION_DEFINITION_VERSION = "revenue-reconciliation-v1";
@@ -318,162 +313,4 @@ export async function resolveAttributionDecision(input: {
   `);
 
   return { id, supersedesDecisionId: existing?.id ?? null };
-}
-
-export async function getRevenueJourney(callId: number) {
-  const db = await getDbTyped();
-  if (!db) throw new Error("DB unavailable");
-
-  const raw = await db.execute(sql`
-    SELECT
-      c.id AS callId,
-      JSON_EXTRACT(c.metadata, '$.behavior') AS behavior,
-      c.leadId AS leadId,
-      l.bookingId AS bookingId,
-      l.invoiceId AS invoiceId,
-      b.confirmedAt AS bookingConfirmedAt,
-      b.status AS bookingStatus,
-      i.paymentStatus AS invoiceStatus,
-      i.totalAmount AS invoiceAmountCents,
-      i.invoiceDate AS invoiceDate,
-      d.id AS decisionId,
-      d.decision,
-      d.evidence_level AS evidenceLevel,
-      d.match_method AS matchMethod,
-      d.work_order_id AS workOrderId,
-      d.decided_at AS decidedAt
-    FROM vapi_call_logs c
-    LEFT JOIN leads l ON l.id = c.leadId
-    LEFT JOIN bookings b ON b.id = l.bookingId
-    LEFT JOIN invoices i ON i.id = l.invoiceId
-    LEFT JOIN revenue_attribution_decisions d
-      ON d.call_id = c.id AND d.current_slot = 1
-    WHERE c.id = ${callId}
-    LIMIT 1
-  `);
-  const row = rowsFromExecute<Record<string, unknown>>(raw)[0] ?? null;
-  if (!row) return null;
-
-  return {
-    ...row,
-    stages: {
-      call: "observed",
-      lead: row.leadId ? "verified" : "unavailable",
-      booking: row.bookingId ? "verified" : "unavailable",
-      arrival: row.workOrderId ? "verified" : "not_connected",
-      repairOrder: row.workOrderId ? "verified" : "not_connected",
-      paidInvoice: row.invoiceId && row.invoiceStatus === "paid" ? "verified" : "unavailable",
-    },
-    limitations: [
-      "Booking confirmation is not treated as vehicle arrival.",
-      "Arrival and repair-order stages remain not connected unless a reviewed work-order identifier is present.",
-      "Behavior provenance is provider-delivered when Vapi includes stamped assistant metadata; calls before the next config push can legitimately report behavior metadata unavailable.",
-    ],
-  };
-}
-
-export async function runLegacyVapiBackfill(input: {
-  since: Date;
-  until: Date;
-  mode: "dry_run" | "apply";
-}) {
-  const db = await getDbTyped();
-  if (!db) throw new Error("DB unavailable");
-  const runId = randomUUID();
-
-  await db.execute(sql`
-    INSERT INTO vapi_legacy_backfill_runs
-      (id, definition_version, mode, status, window_start, window_end)
-    VALUES
-      (${runId}, ${LEGACY_BACKFILL_DEFINITION_VERSION}, ${input.mode}, 'running', ${input.since}, ${input.until})
-  `);
-
-  try {
-    const rows = await db.select({
-      id: vapiCallLogs.id,
-      leadId: vapiCallLogs.leadId,
-      callbackId: vapiCallLogs.callbackId,
-      endedReason: vapiCallLogs.endedReason,
-      evalOutcome: vapiCallLogs.evalOutcome,
-      evalScore: vapiCallLogs.evalScore,
-      evalAt: vapiCallLogs.evalAt,
-      metadata: vapiCallLogs.metadata,
-    }).from(vapiCallLogs).where(and(
-      gte(vapiCallLogs.createdAt, input.since),
-      lte(vapiCallLogs.createdAt, input.until),
-      isNotNull(vapiCallLogs.evalAt),
-    ));
-
-    let eligible = 0;
-    let updated = 0;
-    let skipped = 0;
-
-    for (const row of rows) {
-      const metadata = asRecord(row.metadata);
-      if (metadata.revenueOpsV1) {
-        skipped += 1;
-        continue;
-      }
-      if (!row.evalOutcome) {
-        skipped += 1;
-        continue;
-      }
-
-      eligible += 1;
-      if (input.mode === "dry_run") continue;
-
-      const facts = deriveVapiFacts({
-        reachedTool: false,
-        leadId: row.leadId,
-        callbackId: row.callbackId,
-        endedReason: row.endedReason,
-        inferredWalkIn: row.evalOutcome === "walk_in_directed",
-      });
-      const measurement = buildVapiMeasurementRecord({
-        facts,
-        quality: {
-          score: row.evalScore,
-          version: VAPI_QUALITY_VERSION,
-          evidence: ["legacy stored evaluation"],
-          ...(row.evalScore == null ? { unavailableReason: row.evalOutcome } : {}),
-        },
-        walkInEvidence: row.evalOutcome === "walk_in_directed" ? "inferred" : "observed",
-      });
-
-      await db.update(vapiCallLogs).set({
-        metadata: {
-          ...metadata,
-          revenueOpsV1: {
-            ...measurement,
-            backfillVersion: LEGACY_BACKFILL_DEFINITION_VERSION,
-            backfilledAt: new Date().toISOString(),
-            sourceLimitation: "Reconstructed from stored evaluation fields; provider transcript was not refetched.",
-          },
-        },
-      }).where(eq(vapiCallLogs.id, row.id));
-      updated += 1;
-    }
-
-    await db.execute(sql`
-      UPDATE vapi_legacy_backfill_runs SET
-        status = 'completed',
-        rows_scanned = ${rows.length},
-        rows_eligible = ${eligible},
-        rows_updated = ${updated},
-        rows_skipped = ${skipped},
-        completed_at = NOW()
-      WHERE id = ${runId}
-    `);
-
-    return { runId, mode: input.mode, scanned: rows.length, eligible, updated, skipped };
-  } catch (error) {
-    await db.execute(sql`
-      UPDATE vapi_legacy_backfill_runs SET
-        status = 'failed',
-        error_text = ${error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000)},
-        completed_at = NOW()
-      WHERE id = ${runId}
-    `).catch(() => undefined);
-    throw error;
-  }
 }

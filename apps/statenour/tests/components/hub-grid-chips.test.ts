@@ -5,12 +5,14 @@
  * hub-grid.tsx printed the word "healthy" in green on a live page.
  *
  * The chips are pure functions of the payload, exported via CARDS.
+ *
+ * 2026-10-19 (wave 2V): Diagnostics, Errors, AI Cost, Cockpit Observability, State Calibration, Fleet Truth and
+ * Logs left the hub with their pages. Their chip tests went with them; the planted control below proves the
+ * remaining chips still refuse to read healthy off an unmeasured section.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 
 import { CARDS } from "@/components/system/hub-grid";
-import { hubPaletteRows } from "@/components/system/hub-cards";
 
 type Payload = Parameters<(typeof CARDS)[number]["chip"]>[0];
 
@@ -35,84 +37,47 @@ const chip = (href: string, d: Payload) => {
 };
 
 describe("hub chips honour measured flags", () => {
-  it("Diagnostics says healthy only when BOTH its sources measured clean", () => {
-    expect(chip("/system/health", payload())).toEqual({ label: "healthy", severity: "healthy" });
-    expect(
-      chip("/system/health", payload({ errors: { count24h: 0, fatal24h: 0, measured: false } })),
-    ).toEqual({ label: "unmeasured", severity: "unknown" });
-    expect(
-      chip(
-        "/system/health",
-        payload({ crons: { declared: 0, silent: 0, logRows48h: 0, killed: 0, measured: false } }),
-      ),
-    ).toEqual({ label: "unmeasured", severity: "unknown" });
-  });
-
-  it("Cron Deck and Errors go unknown on their own unmeasured section", () => {
+  it("Cron Deck goes unknown on its own unmeasured section", () => {
     expect(
       chip(
         "/system/crons",
         payload({ crons: { declared: 0, silent: 0, logRows48h: 0, killed: 0, measured: false } }),
       ).severity,
     ).toBe("unknown");
-    expect(
-      chip("/system/logs?view=errors", payload({ errors: { count24h: 0, fatal24h: 0, measured: false } }))
-        .severity,
-    ).toBe("unknown");
   });
 
   it("info chips stop presenting filler as telemetry", () => {
-    expect(
-      chip("/system/ai-cost", payload({ ai: { calls24h: 0, costCents7d: 0, measured: false } })).label,
-    ).toBe("unmeasured");
     expect(
       chip("/brain?tab=memory", payload({ brain: { totalMemories: 0, permanent: 0, avgConfidence: 0, measured: false } }))
         .label,
     ).toBe("unmeasured");
     expect(
-      chip(
-        "/system/cockpit-observability",
-        payload({ ai: { calls24h: 0, costCents7d: 0, measured: false } }),
-      ).label,
+      chip("/system#stale-data", payload({ stale: { totalRows: 0, categories: 0, measured: false } })).label,
     ).toBe("unmeasured");
   });
 
-  it("error severity uses calibrated thresholds, never a bare >0 critical", () => {
-    // fatal24h counts level='error' since the 2026-08-04 repoint (no writer
-    // ever emits 'fatal'; the old >0-critical branch could never fire).
-    // Baseline ~12.6/day: an ordinary day stays healthy.
-    expect(
-      chip("/system/logs?view=errors", payload({ errors: { count24h: 12, fatal24h: 12, measured: true } })),
-    ).toEqual({ label: "12 24h", severity: "healthy" });
-    // Warning band via count>20.
-    expect(
-      chip("/system/logs?view=errors", payload({ errors: { count24h: 25, fatal24h: 25, measured: true } }))
-        .severity,
-    ).toBe("warning");
-    // Critical only at >=40 errors/24h (~3x mean).
-    expect(
-      chip("/system/logs?view=errors", payload({ errors: { count24h: 41, fatal24h: 40, measured: true } })),
-    ).toEqual({ label: "40 errors 24h", severity: "critical" });
-    // Diagnostics degrades on warning-level volume, not the dead fatal branch.
-    expect(
-      chip("/system/health", payload({ errors: { count24h: 25, fatal24h: 25, measured: true } })),
-    ).toEqual({ label: "degraded", severity: "warning" });
-    expect(
-      chip("/system/health", payload({ errors: { count24h: 12, fatal24h: 12, measured: true } })),
-    ).toEqual({ label: "healthy", severity: "healthy" });
-  });
-
   it("a legacy payload without measured keeps the old behaviour (deploy window)", () => {
-    const legacy = payload({
-      crons: { declared: 12, silent: 0, logRows48h: 300, killed: 0 },
-      errors: { count24h: 5, fatal24h: 0 },
-    });
-    expect(chip("/system/health", legacy)).toEqual({ label: "healthy", severity: "healthy" });
+    const legacy = payload({ crons: { declared: 12, silent: 0, logRows48h: 300, killed: 0 } });
+    expect(chip("/system/crons", legacy)).toEqual({ label: "12 jobs", severity: "info" });
   });
 
   it("null payload still renders the em-dash unknown on every live chip", () => {
-    for (const href of ["/system/health", "/system/crons", "/system/ai-cost"]) {
+    for (const href of ["/system/crons", "/system#stale-data", "/brain?tab=memory"]) {
       expect(chip(href, null).severity).toBe("unknown");
+    }
+  });
+
+  it("the cut tiles are gone from the hub (a re-added one would need its chip tests back)", () => {
+    for (const href of [
+      "/system/health",
+      "/system/fleet",
+      "/system/logs",
+      "/system/logs?view=errors",
+      "/system/ai-cost",
+      "/system/calibration",
+      "/system/cockpit-observability",
+    ]) {
+      expect(CARDS.some((c) => c.href === href), href).toBe(false);
     }
   });
 });
@@ -132,38 +97,5 @@ describe("Cron Deck chip never reads healthy while crons are silent (09-F24 step
     expect(
       chip("/system/crons", payload({ crons: { declared: 12, silent: 0, logRows48h: 300, killed: 2, measured: true } })),
     ).toEqual({ label: "2 killed", severity: "warning" });
-  });
-});
-
-describe("two calibrations, two names (10-X3 = 02-X1)", () => {
-  const card = () => {
-    const c = CARDS.find((x) => x.href === "/system/calibration");
-    if (!c) throw new Error("no /system/calibration card");
-    return c;
-  };
-
-  it("the /system/calibration card is named for what the page shows", () => {
-    expect(card().title).toBe("State Calibration");
-    expect(card().description).not.toMatch(/prediction|coverage|drift/i);
-  });
-
-  it("the page points to where prediction accuracy actually lives", () => {
-    const src = readFileSync("app/(mastery)/system/calibration/page.tsx", "utf8");
-    expect(src).toContain('href="/stats?tab=calibration"');
-  });
-
-  it("the palette row drops the keywords that belong to the other page", () => {
-    // UI v3 W5a: the palette row is built from the card (hubPaletteRows), so assert the row itself.
-    const row = hubPaletteRows(new Set()).find((r) => r.id === "sys-calibration");
-    expect(row?.label).toContain("State Calibration");
-    expect([row?.label, ...(row?.keywords ?? [])].join(" ")).not.toMatch(/drift|coverage|\blens\b|accuracy/i);
-  });
-
-  it("the health page no longer sends the strategic-lens card to /system/calibration", () => {
-    const src = readFileSync("app/(mastery)/system/health/page.tsx", "utf8");
-    // UI v3 W1a capitalised the section label ("Strategic lens"); match either case.
-    const at = src.search(/strategic lens [^\n]{1,4}\{data\.range\}/i);
-    expect(at).toBeGreaterThan(-1); // anchor on the strategic-lens header, or this check scans nothing
-    expect(src.slice(at, at + 400)).not.toContain('href="/system/calibration"');
   });
 });

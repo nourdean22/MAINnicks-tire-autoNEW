@@ -28,7 +28,7 @@ export interface VinDecodeResult {
 
 const cache = new Map<string, VinDecodeResult | null>();
 
-export function normalizeVinForLookup(raw: string | null | undefined): string | null {
+function normalizeVinForLookup(raw: string | null | undefined): string | null {
   const value = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   // vPIC's admin lookup historically accepts partial VINs down to 11 chars.
   // I/O/Q remain forbidden by ISO 3779.
@@ -115,15 +115,6 @@ export async function decodeVin(
   fetchImpl: typeof fetch = fetch,
 ): Promise<VinDecodeResult | null> {
   const vin = normalizeVin(rawVin);
-  return vin ? decodeNormalizedVin(vin, fetchImpl) : null;
-}
-
-/** Existing admin route compatibility: vPIC accepts partial 11-17 character VIN lookups. */
-export async function decodeVinForLookup(
-  rawVin: string | null | undefined,
-  fetchImpl: typeof fetch = fetch,
-): Promise<VinDecodeResult | null> {
-  const vin = normalizeVinForLookup(rawVin);
   return vin ? decodeNormalizedVin(vin, fetchImpl) : null;
 }
 

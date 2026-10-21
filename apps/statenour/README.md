@@ -72,7 +72,7 @@ auth-gated, wrapped in `NourStateProvider` + `AmbientAura` +
 | `/missions` | Missions — tasks / projects / recurring loops (absorbed the old `/tasks`) |
 | `/journal` | Thought stream — voice + text + Obsidian-flavored |
 | `/knowledge` | Knowledge base (Drive ingest lives here) |
-| `/brain` | Memory hub — Memory / Board / Wisdom / Reason tabs |
+| `/brain` | Memory hub — three tabs: Memory (beliefs, pinned context and the Wisdom library), Review (governed claims plus Discover), Health (substrate health plus what changed). Board and Reason were dropped and Wisdom folded into Memory on 2026-10-19; every old `?tab=` key redirects. |
 | `/stats` | Stats + body log (absorbed `/body`, `/mastery`, `/plan`) |
 | `/business` · `/money` · `/market` · `/people` | Tabbed domain surfaces (absorbed `/financial`, `/funnel`, `/crm`, `/seo`, `/radar`, …) |
 | `/system` | **System Command Center** — see below |
@@ -84,15 +84,10 @@ redirects the retired paths):
 
 | Route | What you see / control |
 |---|---|
-| `/system` | Hub grid — health / governance / AI / data tiles + needs-attention strip |
-| `/system/health` | Unified probe hub — DB latency, env, crons, errors, backlog, vectors |
+| `/system` | Hub grid + needs-attention strip. Since 2026-10-19 it is also where the retired System pages land: health, logs, ai-cost, calibration, cockpit-observability and fleet each redirect here (their old sub-redirects too), and `/proof` does too. The Fleet page action survives as the Outbox dead-letter row with a Redrive button. |
 | `/system/crons` | Cron deck — enable/disable + run-now per job (absorbed `/system/cron-runs`) |
-| `/system/logs` | Unified log tail (`?view=errors` = fingerprint groups; absorbed `/system/errors`) |
-| `/system/ai-cost` | Cost + latency + error rate · trend bars · feature × model breakdown (absorbed `/system/costs`, `/system/performance`) |
 | `/system/actions` | Nick's autonomous-action audit + approvals (absorbed `/system/approvals`) |
 | `/system/alerts` | Cross-category brain-alert inspector |
-| `/system/calibration` | Eval / coverage / quality / operator-state lenses (absorbed the eval quadruplet) |
-| `/system/cockpit-observability` | Live metrics, execution traces, memory decay, prompt versions |
 | `/system/inbox` | Memory-quarantine review — claims + contradictions before they land |
 
 Navigation is the **bottom tab bar + More sheet**

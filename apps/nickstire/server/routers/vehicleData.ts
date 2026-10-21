@@ -6,7 +6,7 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
-import { complaintsByVehicle, decodeVin, recallsByVehicle } from "../services/vehicleData";
+import { complaintsByVehicle, recallsByVehicle } from "../services/vehicleData";
 import { warrantyExtensionsByVehicle, warrantyIngestFreshness } from "../services/nhtsaWarrantyRead";
 
 const vehicleInput = z.object({
@@ -16,9 +16,6 @@ const vehicleInput = z.object({
 });
 
 export const vehicleDataRouter = router({
-  decodeVin: adminProcedure
-    .input(z.object({ vin: z.string().min(11).max(17) }))
-    .query(async ({ input }) => decodeVin(input.vin)),
 
   recalls: adminProcedure
     .input(vehicleInput)

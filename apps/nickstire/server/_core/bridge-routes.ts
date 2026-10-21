@@ -211,7 +211,7 @@ const BRIDGE_OPS: BridgeOp[] = [
   },
   {
     method: "post", path: "/api/bridge/run-job", id: "bridge_run_job",
-    summary: "DESTRUCTIVE: run an allowlisted background job by name (e.g. dashboard-sync, vendor-health, self-healing, customer-segmentation, enrich-customer-data, weather-intel).",
+    summary: "DESTRUCTIVE: run an allowlisted background job by name (e.g. dashboard-sync, vendor-health, self-healing, enrich-customer-data, weather-intel).",
     properties: { jobName: { type: "string", description: "Allowlisted job name; a non-allowlisted name returns 403 with the allowed list." } },
     required: ["jobName"],
   },
@@ -1156,13 +1156,11 @@ export function registerBridgeRoutes(app: Express): void {
   // explicitly when you genuinely need to run a job over the bridge.
   const BRIDGE_RUN_JOB_ALLOWLIST = new Set([
     "enrich-customer-data",
-    "customer-segmentation",
     "vendor-health",
     "dashboard-sync",
     "self-healing",
     "weather-intel",
     "review-monitor",
-    "staff-performance",
     "fleet-scoring",
     // 2026-07-20 · operator-authorised. Added so a cron FIX can be verified on
     // the deployed container instead of waiting ~18h for the daily tick —

@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-10-17 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-19 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -17,12 +17,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 |---|---|---|
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 23 / 0 |
-| hourly | every 2h | 37 / 1 |
-| daily | every 1d | 52 / 0 |
+| hourly | every 2h | 35 / 1 |
+| daily | every 1d | 49 / 0 |
 | briefings | every 12h | 6 / 0 |
 | nightly | every 1d | 1 / 0 |
 
-**Total: 126 tiered jobs (123 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 121 tiered jobs (118 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -71,7 +71,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `campaign-auto-retry` | yes | no | yes | — |
 | `confirmation-calls` | no | no | yes | — |
 | `content-reserve-replenish` | no | no | yes | — |
-| `customer-segment-refresh` | yes | no | yes | — |
 | `data-analyzers-live` | yes | no | yes | — |
 | `drip-step-processor` | yes | no | yes | — |
 | `enrich-customer-data` | no | no | yes | — |
@@ -79,7 +78,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `followup-cadence` | yes | no | yes | — |
 | `intelligence-autopilot` | yes | no | yes | — |
 | `intelligence-engines-live` | yes | no | yes | — |
-| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
 | `memory-sync-to-statenour` | no | no | yes | — |
 | `missed-call-recovery` | yes | no | yes | — |
 | `nick-auto-actions` | yes | no | yes | — |
@@ -121,7 +119,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `content-auto-gen` | no | no | yes | — |
 | `content-experiment-resolve` | no | no | yes | — |
 | `cron-skip-watchdog` | no | no | yes | — |
-| `customer-segmentation` | no | no | yes | Full segment recompute |
 | `db-backup` | no | no | yes | — |
 | `declined-work-recovery` | no | no | yes | Recover declined estimates via SMS |
 | `email-campaign-auto` | no | no | yes | — |
@@ -148,11 +145,9 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `retention-all` | no | no | yes | — |
 | `revenue-analytics-pipeline` | no | no | yes | — |
 | `revenue-reconciliation` | no | no | yes | — |
-| `review-auto-draft` | no | no | yes | — |
 | `review-monitor` | no | no | yes | Monitor Google reviews, alert on negatives |
 | `review-pipeline` | no | no | yes | — |
 | `seo-forensic` | no | no | yes | — |
-| `staff-performance` | no | no | yes | Tech utilization + revenue-per-tech metrics |
 | `stale-booking-cleanup` | no | no | yes | — |
 | `tire-inventory-intelligence` | no | no | yes | — |
 | `vapi-call-eval` | no | no | yes | — |

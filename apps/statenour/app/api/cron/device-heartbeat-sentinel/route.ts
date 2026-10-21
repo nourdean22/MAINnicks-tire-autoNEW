@@ -36,7 +36,7 @@ const WATCHED = {
 };
 
 const ADMIN_LOT_URL = "https://nickstire.org/admin?tab=lot";
-const HEALTH_URL = "https://bdnick.info/system/health";
+const HEALTH_URL = "https://bdnick.info/system";
 
 /**
  * Where an alert for a silent device should open. Only shop and office cameras

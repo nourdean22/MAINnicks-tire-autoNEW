@@ -48,6 +48,8 @@ resume (`sendSwitchesStatus.heldQueued` counts them). No value is asserted here:
 | `send_pause_weather_sms` | weather texts (`WEATHER_SMS_SEND`) | HOLD (fail closed) |
 | `send_pause_missed_call_recovery` | missed-caller texts (`MISSED_CALL_RECOVERY_SEND`) | HOLD (fail closed) |
 
+FACT 2026-10-20 ~22:35Z (Railway variable-name read; prod SELECT-only probe): `MAINnicks-tire-auto` has no `WEATHER_SMS_SEND` variable, and `weatherIntelligence.ts:195` sends only when it is `"1"`. Flags: `weather_triggered_sms`=1, `send_pause_weather_sms`=0. Weather texts are shadow-only.
+
 Reel publish, autopost and the comment responder keep their own switches (`publishingKillSwitch`, `*_paused`).
 
 **Regenerate, never retype:** `node scripts/probe-live-send-flags.mjs`. A flag
@@ -116,6 +118,16 @@ detailed in `docs/CURRENT-TRUTH.md`:
   `shop_settings.tirePriceFloors` so cold pods and prerender can serve them —
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
+
+## 2026-10-19 - Admin prune W2a: 168 uncalled tRPC procedures and 4 idle crons gone, admin SSE stream fixed (branch nickstire/admin-prune-w2, NOT yet merged)
+
+- **BUILT, not deployed:** 172 procedures with no caller in the repo and 0 HTTP calls in 14 days (Railway logs 2026-10-05..19) were cut and 4
+  restored as stop or contract doors (contentAdmin.startContentExperiment, stopContentExperiment, toggleCampaign; instagramAdmin.finalizeReelDraft).
+  Census 811 -> 643. 13 routers are gone. Admin URLs built by the server use /admin?tab=<id>, not /admin#<id>.
+- **Crons retired:** kpi-snapshot (its only reader was kpi.history), staff-performance (technicians has 0 rows), customer-segmentation and
+  customer-segment-refresh (documented no-ops). None sent anything. nhtsa-warranty-ingest, content-reserve-replenish and obligation-mirror stay.
+- **SSE fix:** GET /api/admin/events answered 0 x 2xx in 14 days: compression() gzipped text/event-stream and nothing flushed. It now sends
+  Cache-Control no-transform. Not yet observed live: a 200 on /api/admin/events in Railway HTTP logs after deploy.
 
 ## 2026-10-19 - Call score vapi-quality-v2: an agent walk-in invitation counts as the next step (job 2026-10-18-vapi-quality-v2)
 

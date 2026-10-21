@@ -585,7 +585,7 @@ export const CRONS: CronDef[] = [
     category: "hygiene",
     foldedInto: "mega",
     description:
-      "FOLDED into mega (morning) · the data-source canary · probes the nickstire bridge + service feeders and writes data_source_probe rows the /system/health operational rollup reads to flag a dead bridge / $0-revenue feeder. Pipeline+reader existed since v10.0.58 but the cron was never wired — it ran zero times, which is why the revenue-$0 regression went uncaught.",
+      "FOLDED into mega (morning) · the data-source canary · probes the nickstire bridge + service feeders and writes data_source_probe rows the System hub operational rollup reads to flag a dead bridge / $0-revenue feeder. Pipeline+reader existed since v10.0.58 but the cron was never wired — it ran zero times, which is why the revenue-$0 regression went uncaught.",
     addedAt: "2026-05-29",
   },
   {
@@ -678,6 +678,19 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "review",
     description: "Nightly via mega-evening fan-out · captures the day's DailyEmpireSnapshot row for trend analysis.",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
+    // 2026-10-19 · wave 2V review · the digest's only scheduler was the 4h read-through in
+    // GET /api/ultron/health-digest, called by the SystemHealthCard on the cut /system/health page.
+    name: "health-digest",
+    schedule: null,
+    mode: "folded",
+    category: "review",
+    foldedInto: "mega-evening",
+    addedAt: "2026-10-19",
+    description: "FOLDED into mega-evening · recomputes + persists the system health digest (BrainMemory system_health_digest) that Brain Health Time Travel and the Google OAuth-expiry highlight read.",
     memory: 512,
     maxDuration: 60,
   },
@@ -871,7 +884,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * *",
     mode: "active",
     category: "signals",
-    description: "Nightly via mega-evening fan-out · detects abnormal creation-rate spikes across BrainMemory + Task + Mission + Ledger · flag in /system/health.",
+    description: "Nightly via mega-evening fan-out · detects abnormal creation-rate spikes across BrainMemory + Task + Mission + Ledger · flagged on the System hub.",
     memory: 256,
     maxDuration: 30,
   },

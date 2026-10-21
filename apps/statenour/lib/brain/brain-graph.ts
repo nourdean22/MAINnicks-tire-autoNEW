@@ -610,7 +610,7 @@ export async function getBrainGraph(params: {
       label: humanizeMemoryLabel(r.insight, r.insight),
       weight: Math.min(8, Math.max(3, Math.floor(r.confidence * 8))),
       status: r.actionable && !r.acknowledged ? "opportunity" : "active",
-      href: `/brain?tab=wisdom`,
+      href: `/brain?tab=memory`,
       evidence: "supported_inference",
       ageDays: ageDaysOf(r.createdAt),
       isNew: ageDaysOf(r.createdAt) < 7,

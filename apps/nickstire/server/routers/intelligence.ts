@@ -7,8 +7,7 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { intelligenceDecisionLedger, socialContentInventory } from "../../drizzle/schema";
 import { forecastSeasonalDemand } from "../services/intelligenceEngines";
 import { generateMasterIntelligenceReport } from "../services/masterIntelligence";
@@ -19,7 +18,7 @@ import {
   analyzeChatFunnel,
 } from "../services/advancedEngines";
 
-import { safeCount, safeRowQuery } from "../lib/sql-safe";
+import { safeRowQuery } from "../lib/sql-safe";
 
 export const intelligenceRouter = router({
   /** #6 Seasonal Demand Forecasting — which services peak this month */
@@ -129,78 +128,6 @@ export const intelligenceRouter = router({
     actions.sort((a, b) => b.urgency - a.urgency);
     return { actions: actions.slice(0, 8) };
   }),
-
-  // ── Shop Load (real-time) ──
-  //
-  // "Cars in Shop" = work orders that are ACTUALLY being worked on right
-  // now. Two filters protect against phantom counts:
-  //
-  //  1. Status: only `in_progress`, `waiting_parts`, `quality_check` count.
-  //     `approved` was previously included but it's a QUOTE-stage status —
-  //     a quote can sit in `approved` for weeks without the car ever being
-  //     in the shop. Including it produced phantoms (e.g. WO-2026-105165
-  //     was "approved" for 18 days with no vehicle info, never started).
-  //
-  //  2. Freshness: ignore anything whose updated_at is older than 7 days.
-  //     A WO that hasn't been touched in a week is dead, not active.
-  //     If a job genuinely takes a week+, the tech updates it.
-  shopLoad: adminProcedure.query(async () => {
-    const { getDb } = await import("../db");
-    const { sql: rawSql } = await import("drizzle-orm");
-    const d = await getDb();
-    if (!d) return { activeWOs: 0, todayBookings: 0, estimatedWait: 0 };
-    const activeWOs = await safeCount(d, rawSql`
-      SELECT COUNT(*) as cnt FROM work_orders
-      WHERE status IN ('in_progress', 'waiting_parts', 'quality_check')
-        AND COALESCE(updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    `);
-    const todayBookings = await safeCount(d,
-      rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`
-    );
-    return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
-  }),
-
-  // ── Decision Ledger & Learning Loop ──
-  logDecision: adminProcedure
-    .input(z.object({
-      engineId: z.string(),
-      recommendationType: z.string(),
-      recommendationTarget: z.string(),
-      actionTaken: z.string(),
-      valueAtRiskCents: z.number().optional().default(0),
-      contextJson: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const { getDb } = await import("../db");
-      const d = await getDb();
-      if (!d) throw new Error("DB not ready");
-
-      await d.insert(intelligenceDecisionLedger).values({
-        engineId: input.engineId,
-        recommendationType: input.recommendationType,
-        recommendationTarget: input.recommendationTarget,
-        actionTaken: input.actionTaken,
-        valueAtRiskCents: input.valueAtRiskCents,
-        contextJson: input.contextJson,
-      });
-      return { success: true };
-    }),
-
-  updateDecisionOutcome: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      actualRevenueCapturedCents: z.number(),
-    }))
-    .mutation(async ({ input }) => {
-      const { getDb } = await import("../db");
-      const d = await getDb();
-      if (!d) throw new Error("DB not ready");
-
-      await d.update(intelligenceDecisionLedger)
-        .set({ actualRevenueCapturedCents: input.actualRevenueCapturedCents })
-        .where(eq(intelligenceDecisionLedger.id, input.id));
-      return { success: true };
-    }),
 
   recentDecisions: adminProcedure.query(async () => {
     const { getDb } = await import("../db");

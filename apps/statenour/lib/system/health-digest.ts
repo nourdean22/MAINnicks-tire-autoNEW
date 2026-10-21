@@ -2,11 +2,17 @@
  * System-health digest.
  *
  * Writes a compact health summary to
- * BrainMemory(category=BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST) for the
- * SystemHealthCard. No cron runs it: the nightly health-digest cron was
- * deleted in f87fb7e62, and GET /api/ultron/health-digest recomputes and
- * persists whenever the stored row is over 4h old. That read-through is the
- * scheduler (audit 02-F5).
+ * BrainMemory(category=BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST). Readers: Brain
+ * Health Time Travel (app/api/brain/time-travel/route.ts) and the Google
+ * OAuth-expiry highlight.
+ *
+ * Scheduler: /api/cron/health-digest (app/api/cron/health-digest/route.ts),
+ * folded into mega-evening, calls refreshHealthDigest() daily (wave 2V review,
+ * 2026-10-19). Before that the nightly cron had been deleted (f87fb7e62) and
+ * the 4h read-through in GET /api/ultron/health-digest was the only scheduler
+ * (audit 02-F5); its only caller was the SystemHealthCard on the
+ * /system/health page that Nour cut, so the rows would have stopped. That GET
+ * still recomputes when the stored row is over 4h old, as a fallback.
  *
  * Principle: silent degradation is the enemy. If Drive hasn't ingested
  * in 7 days, if 18 crons have drifted, if AI error rate is climbing —
@@ -195,7 +201,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
       pushFor("cron", {
         severity: "critical",
         headline: d.headline,
-        link: "/system/health",
+        link: "/system",
       });
     }
   }
@@ -238,7 +244,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("env", {
       severity: "warning",
       headline: `${env.total - env.ready} env groups not configured`,
-      link: "/system/health",
+      link: "/system",
     });
   }
 
@@ -246,7 +252,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("slow-routes", {
       severity: "warning",
       headline: `${slowRoutes} route${slowRoutes === 1 ? "" : "s"} slow (p95 > 2s, last 24h)`,
-      link: "/system/ai-cost",
+      link: "/system",
     });
   }
 
@@ -275,7 +281,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     highlights.push({
       severity: "warning",
       headline: `${unnamedUnmeasured.length} probe${unnamedUnmeasured.length === 1 ? "" : "s"} unmeasured (${unnamedUnmeasured.join(", ")}) — treat as unknown, not clear`,
-      link: "/system/health",
+      link: "/system",
     });
   }
 
@@ -484,27 +490,35 @@ async function computeEnvReadiness(): Promise<{ ready: number; total: number }> 
 export async function persistHealthDigest(
   digest: SystemHealthDigest,
 ): Promise<void> {
+  await safeQuery(() => upsertHealthDigestRow(digest), null, { label: "health-digest.persist" });
+}
+
+/**
+ * The awaited, failure-propagating write the daily cron uses. `persistHealthDigest` hands any
+ * upsert failure (and an open quota circuit) to safeQuery's fallback and returns normally, so a
+ * cron built on it would file a green run for a digest that never landed.
+ */
+export async function persistHealthDigestOrThrow(digest: SystemHealthDigest): Promise<void> {
+  await upsertHealthDigestRow(digest);
+}
+
+function upsertHealthDigestRow(digest: SystemHealthDigest) {
   const dateKey = digest.generatedAt.slice(0, 10);
-  await safeQuery(
-    () =>
-      prisma.brainMemory.upsert({
-        where: { category_key: { category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST, key: dateKey } },
-        create: {
-          category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST,
-          key: dateKey,
-          content: JSON.stringify(digest),
-          confidence: 1.0,
-          source: "cron:health-digest",
-          expiresAt: new Date(Date.now() + 30 * 86400_000),
-        },
-        update: {
-          content: JSON.stringify(digest),
-          lastSeen: new Date(),
-        },
-      }),
-    null,
-    { label: "health-digest.persist" },
-  );
+  return prisma.brainMemory.upsert({
+    where: { category_key: { category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST, key: dateKey } },
+    create: {
+      category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST,
+      key: dateKey,
+      content: JSON.stringify(digest),
+      confidence: 1.0,
+      source: "cron:health-digest",
+      expiresAt: new Date(Date.now() + 30 * 86400_000),
+    },
+    update: {
+      content: JSON.stringify(digest),
+      lastSeen: new Date(),
+    },
+  });
 }
 
 /**
@@ -521,7 +535,7 @@ export async function refreshHealthDigest(): Promise<SystemHealthDigest> {
   const fresh = await computeHealthDigest();
   // Persist is fire-and-forget — we return fresh either way.
   persistHealthDigest(fresh).catch(() => {
-    /* the next GET over 4h old recomputes and retries; there is no cron */
+    /* the next daily /api/cron/health-digest run (or a GET over 4h old) recomputes and retries */
   });
   return fresh;
 }
@@ -572,7 +586,7 @@ export function googleOauthHighlight(
       severity: "warning",
       headline: `Google OAuth status unknown — ${status.reason}`,
       // NOT the re-grant flow. There is nothing for the operator to re-grant.
-      link: "/system/health",
+      link: "/system",
     };
   }
   // Which account the worst state belongs to (all-accounts read, 08-F3): a
@@ -600,7 +614,7 @@ export function googleOauthHighlight(
     };
   }
   if (status.state === "stale") {
-    return { severity: "warning", headline: status.reason, link: "/system/health" };
+    return { severity: "warning", headline: status.reason, link: "/system" };
   }
   return null;
 }

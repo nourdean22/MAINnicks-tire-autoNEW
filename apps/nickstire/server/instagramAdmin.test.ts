@@ -235,13 +235,6 @@ describe("instagramAdmin router", () => {
     });
   });
 
-  describe("getRecentGenerations (admin)", () => {
-    it("returns an array without throwing", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      const rows = await caller.instagramAdmin.getRecentGenerations({ limit: 5 });
-      expect(Array.isArray(rows)).toBe(true);
-    });
-  });
 
   describe("autopostLaneStatus (admin)", () => {
     it("is an admin query that returns the v1 contract", async () => {
@@ -321,18 +314,6 @@ describe("instagramAdmin router", () => {
     });
   });
 
-  describe("getProviderHealth (admin)", () => {
-    it("returns text/image/autopost health shape without throwing", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      const h = await caller.instagramAdmin.getProviderHealth();
-      expect(h.text).toHaveProperty("provider");
-      expect(typeof h.text.configured).toBe("boolean");
-      expect(typeof h.text.openaiFallback).toBe("boolean");
-      expect(h.image).toHaveProperty("provider");
-      expect(typeof h.autopost.recentFailures).toBe("number");
-      expect(typeof h.autopost.recentRuns).toBe("number");
-    });
-  });
 
   describe("publishPost input validation", () => {
     it("rejects empty or invalid URLs", async () => {
@@ -380,19 +361,6 @@ describe("instagramAdmin router", () => {
     });
   });
 
-  describe("regenerateImage", () => {
-    it("rejects non-admin callers (before any image generation)", async () => {
-      const caller = appRouter.createCaller(ctx("user"));
-      await expect(
-        caller.instagramAdmin.regenerateImage({ prompt: "a tire on a studio podium" }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    });
-
-    it("rejects a too-short prompt at input validation (no image call)", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      await expect(caller.instagramAdmin.regenerateImage({ prompt: "ab" })).rejects.toBeTruthy();
-    });
-  });
 
   // schedulePost / listScheduled / cancelScheduled were deleted 2026-07-24
   // (zero client callers + integrity holes publishPost had already fixed).

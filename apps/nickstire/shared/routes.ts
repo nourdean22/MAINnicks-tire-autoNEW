@@ -1198,7 +1198,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.6,
     changefreq: "weekly",
     title: "Ask a Mechanic — Nick's Tire & Auto Cleveland",
-    description: "Ask our mechanics a question online. Free advice from Nick's Tire & Auto, Cleveland. Get answers before you visit.",
+    description: "Ask our mechanics a question online. Free advice from Nick's Tire & Auto, Cleveland. Leave your email and the shop replies.",
     group: "utility",
     sitemap: true,
     prerender: true,

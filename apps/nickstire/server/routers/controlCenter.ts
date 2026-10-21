@@ -3,11 +3,11 @@
  * today's stats, AI gateway health, system status, daily brief, and execution tracking.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { sql, eq, gte, and, desc, isNull, inArray } from "drizzle-orm";
+import { sql, eq, gte, and, desc, isNull } from "drizzle-orm";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
-import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, algEstimates, callEvents, tireOrders, winbackSends, winbackCampaigns, memberships } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, algEstimates, winbackCampaigns, memberships } from "../../drizzle/schema";
 import { countActionableLeads } from "@shared/leadSource";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -84,107 +84,6 @@ function deriveBottleneck(
 }
 
 export const controlCenterRouter = router({
-  moneySummary: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) {
-      return {
-        unpaidInvoicesSum: 0,
-        openEstimatesSum: 0,
-        totalOutstanding: 0,
-        todayMetrics: { calls: 0, leads: 0, bookings: 0, tireOrders: 0, winbacks: 0 },
-        pendingItems: [],
-      };
-    }
-
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    const [
-      openEstimates,
-      callsToday,
-      leadsToday,
-      bookingsToday,
-      tireOrdersToday,
-      winbacksToday,
-      pendingEstimatesList,
-      unpaidInvoices,
-    ] = await Promise.all([
-      // Outstanding opportunities = real ALG/ShopDriver counter estimates that
-      // never converted to an invoice (matched_invoice_id IS NULL), in cents.
-      // Same table the Customers-tab "Declined" column reads, but this is the
-      // FULL unmatched sum — a SUPERSET of customerMetricsRefresh.declinedValue,
-      // which only counts estimates whose phone fuzzy-matches a known customer.
-      // So this headline is expected to be >= the sum of the per-customer
-      // Declined dollars (don't "reconcile" them to be equal). The old source,
-      // estimates_log, is the web AI-estimator funnel with no writer → it was $0.
-      d.select({ sum: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` })
-        .from(algEstimates)
-        .where(isNull(algEstimates.matchedInvoiceId)),
-      d.select({ count: sql<number>`count(*)` })
-        .from(callEvents)
-        .where(gte(callEvents.createdAt, todayStart)),
-      d.select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(gte(leads.createdAt, todayStart)),
-      d.select({ count: sql<number>`count(*)` })
-        .from(bookings)
-        .where(gte(bookings.createdAt, todayStart)),
-      d.select({ count: sql<number>`count(*)` })
-        .from(tireOrders)
-        .where(gte(tireOrders.createdAt, todayStart)),
-      d.select({ count: sql<number>`count(*)` })
-        .from(winbackSends)
-        .where(gte(winbackSends.createdAt, todayStart)),
-      d.select({
-        id: algEstimates.id,
-        name: algEstimates.customerName,
-        value: algEstimates.estimatedAmount,
-        createdAt: algEstimates.estimateDate,
-        service: algEstimates.serviceDescription,
-      })
-        .from(algEstimates)
-        .where(isNull(algEstimates.matchedInvoiceId))
-        .orderBy(desc(algEstimates.estimatedAmount))
-        .limit(5),
-      // Unpaid invoices = issued invoices still awaiting payment (pending
-      // or partial), in cents. Pairs with the openEstimates superset above
-      // so totalOutstanding reflects BOTH unconverted estimates AND
-      // issued-but-unpaid invoices. Was hardcoded to 0 (false $0).
-      d.select({ sum: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-        .from(invoices)
-        .where(inArray(invoices.paymentStatus, ["pending", "partial"])),
-    ]);
-
-    const openEstimatesSum = openEstimates[0]?.sum ?? 0;
-    const unpaidInvoicesSum = unpaidInvoices[0]?.sum ?? 0;
-
-    const combinedPending = [
-      ...pendingEstimatesList.map((est: { id: number; name: string | null; value: number | null; createdAt: Date; service: string | null }) => ({
-        id: est.id,
-        name: est.name || "Unknown",
-        value: est.value ?? 0,
-        type: "estimate" as const,
-        date: est.createdAt,
-        reference: est.service || `EST-${est.id}`,
-      })),
-    ]
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-
-    return {
-      unpaidInvoicesSum,
-      openEstimatesSum,
-      totalOutstanding: openEstimatesSum + unpaidInvoicesSum,
-      todayMetrics: {
-        calls: callsToday[0]?.count ?? 0,
-        leads: leadsToday[0]?.count ?? 0,
-        bookings: bookingsToday[0]?.count ?? 0,
-        tireOrders: tireOrdersToday[0]?.count ?? 0,
-        winbacks: winbacksToday[0]?.count ?? 0,
-      },
-      pendingItems: combinedPending,
-    };
-  }),
 
   getOverview: adminProcedure.query(async () => {
     const d = await db();
@@ -322,34 +221,34 @@ export const controlCenterRouter = router({
         urgentItems.push({
           type: "lead",
           message: `${staleLeadsCount} lead${staleLeadsCount > 1 ? "s" : ""} with no response in 24h`,
-          action: "/admin#leads", priority: "high",
+          action: "/admin?tab=leads", priority: "high",
         });
       }
       if (todayStats.callbacksPending > 0) {
         urgentItems.push({
           type: "callback",
           message: `${todayStats.callbacksPending} callback${todayStats.callbacksPending > 1 ? "s" : ""} pending`,
-          action: "/admin#bookings", priority: "high",
+          action: "/admin?tab=overview", priority: "high",
         });
       }
       if (staleQuotesCount > 0) {
         urgentItems.push({
           type: "quote",
           message: `${staleQuotesCount} quote${staleQuotesCount > 1 ? "s" : ""} not followed up (48h+)`,
-          action: "/admin#leads", priority: "medium",
+          action: "/admin?tab=leads", priority: "medium",
         });
       }
       if (failedSmsCount > 0) {
         urgentItems.push({
           type: "sms", message: `${failedSmsCount} failed SMS in last 24h`,
-          action: "/admin#sms", priority: "medium",
+          action: "/admin?tab=campaigns", priority: "medium",
         });
       }
       if (newLeadsTodayCount > 0) {
         urgentItems.push({
           type: "lead",
           message: `${newLeadsTodayCount} new lead${newLeadsTodayCount > 1 ? "s" : ""} today — not contacted yet`,
-          action: "/admin#leads", priority: "medium",
+          action: "/admin?tab=leads", priority: "medium",
         });
       }
     }
@@ -359,7 +258,7 @@ export const controlCenterRouter = router({
       urgentItems.push({
         type: "system",
         message: "OpenAI or Gemini API key is missing or invalid — Nick AI is offline",
-        action: "/admin#settings",
+        action: "/admin?tab=settings",
         priority: "high",
       });
     }
@@ -544,19 +443,19 @@ export const controlCenterRouter = router({
         topAction = {
           type: "lead",
           message: `${revenueWaiting.staleLeadsCount} lead${revenueWaiting.staleLeadsCount > 1 ? "s" : ""} with no response in 24h${staleDollars}`,
-          action: "/admin#leads",
+          action: "/admin?tab=leads",
         };
       } else if (revenueWaiting.pendingCallbacks > 0) {
         topAction = {
           type: "callback",
           message: `${revenueWaiting.pendingCallbacks} callback${revenueWaiting.pendingCallbacks > 1 ? "s" : ""} pending — money waiting`,
-          action: "/admin#bookings",
+          action: "/admin?tab=overview",
         };
       } else if (revenueWaiting.staleQuotesCount > 0) {
         topAction = {
           type: "quote",
           message: `${revenueWaiting.staleQuotesCount} quote${revenueWaiting.staleQuotesCount > 1 ? "s" : ""} not followed up (48h+)${staleDollars}`,
-          action: "/admin#leads",
+          action: "/admin?tab=leads",
         };
       } else {
         // Check failed SMS as lowest priority topAction
@@ -572,7 +471,7 @@ export const controlCenterRouter = router({
             topAction = {
               type: "sms",
               message: `${failedSms!.count} failed SMS in last 24h`,
-              action: "/admin#sms",
+              action: "/admin?tab=campaigns",
             };
           }
         } catch (err) {
@@ -916,53 +815,6 @@ export const controlCenterRouter = router({
     }
   }),
 
-  // ─── OPERATIONAL TWIN (machine-readable system model) ────
-  getOperationalTwin: adminProcedure.query(async () => {
-    const d = await db();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- gateway health shape varies between providers
-    let health: Record<string, unknown> = { openaiHealthy: false, circuitBreaker: { open: false } };
-    try { health = getGatewayHealth() as Record<string, unknown>; } catch (err) {
-      log.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
-    }
-
-    return {
-      version: "1.0",
-      timestamp: new Date().toISOString(),
-      subsystems: {
-        server: { status: "live", risk: "low" },
-        database: { status: d ? "connected" : "disconnected", risk: d ? "low" : "critical" },
-        aiGateway: {
-          status: (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) ? "active" : "offline",
-          circuitBreaker: "closed",
-          risk: (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) ? "low" : "critical",
-        },
-        cron: { status: "running", jobCount: 55, risk: "low" },
-        auth: { status: "active", method: "google-oauth", risk: "low" },
-        controlCenter: { status: "active", endpoints: 10, risk: "low" },
-        tunnel: { status: process.env.TUNNEL_URL ? "configured" : "local-only", risk: "low" },
-      },
-      protectedCore: [
-        "server/_core/index.ts", "server/_core/trpc.ts", "server/routers.ts",
-        "drizzle/schema.ts", "server/db.ts", "client/src/App.tsx",
-      ],
-      truthSources: {
-        database: "TiDB Cloud via Drizzle ORM",
-        ai: "Gemini / OpenRouter via ai-gateway.ts",
-        auth: "Google OAuth via GOOGLE_OAUTH_CLIENT_ID",
-        config: ".env + Railway env vars",
-        schema: "drizzle/schema.ts (68 tables, 22 migrations)",
-      },
-      knownDebt: {
-        schemaNaming: "mixed camelCase/snake_case across eras",
-        missingTimestamps: 8,
-        missingIndexes: 22,
-        stubCronJobs: 2,
-        contentCronMissing: true,
-        staleKBDoc: true,
-      },
-    };
-  }),
-
   // ─── SOURCE STATUS (truth layer summary) ────────────────
   getSourceStatus: adminProcedure.query(async () => {
     const d = await db();
@@ -1028,17 +880,6 @@ export const controlCenterRouter = router({
         getRecentOptOuts(input?.limit ?? 100),
       ]);
       return { optIns, optOuts, totalOptIns: optIns.length, totalOptOuts: optOuts.length };
-    }),
-
-  /**
-   * Core Web Vitals report — p50/p75/p95 by metric + top slowest routes.
-   * Real-user data, not CrUX lab averages. 60-min default window.
-   */
-  webVitals: adminProcedure
-    .input(z.object({ windowMinutes: z.number().min(5).max(24 * 60).default(60) }).optional())
-    .query(async ({ input }) => {
-      const { getCwvReport } = await import("../lib/cwv-telemetry");
-      return getCwvReport(input?.windowMinutes ?? 60);
     }),
 
   topMoneyMoves: adminProcedure.query(async () => {

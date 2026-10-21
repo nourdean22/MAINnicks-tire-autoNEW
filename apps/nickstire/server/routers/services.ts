@@ -7,23 +7,23 @@ import { TRPCError } from "@trpc/server";
 import { getDbTyped } from "../db";
 import {
   createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon, redeemCouponById,
-  getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
+  getCustomerVehicles, addCustomerVehicle, deleteCustomerVehicle,
   getServiceHistoryForUser,
-  createReferral, getReferrals, updateReferralStatus,
-  createQuestion, getPublishedQuestions, getAllQuestions, answerQuestion,
+  createReferral, 
+  createQuestion, getPublishedQuestions, 
   createCustomerNotification, getPendingNotifications, markNotificationSent,
-  getServicePricingByCategory, getAllServicePricing, upsertServicePricing, seedDefaultPricing,
-  createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, updateInspectionItem, deleteInspectionItem, publishInspection,
+  getServicePricingByCategory, 
+  createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, deleteInspectionItem, publishInspection,
   verifyInspectionItem,
   recordInspectionView, decideInspectionItem,
   getLoyaltyRewards, createLoyaltyReward, updateLoyaltyReward,
-  getLoyaltyTransactions, awardPoints, redeemReward,
+  getLoyaltyTransactions, redeemReward,
   getUserLoyaltySummary,
 } from "../db";
 import { storagePut } from "../storage";
 import { sendSms } from "../sms";
 import { createLogger } from "../lib/logger";
-import { pickGatewayDevice, isGatewayOnline } from "../lib/gateway-device";
+import { probeGatewayHealth } from "../lib/gatewayHealthProbe";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { z } from "zod";
 import { inspectionMeasurementsSchema, photoUrlListSchema } from "@shared/inspectionMeasurements";
@@ -134,20 +134,6 @@ export const garageRouter = router({
     .mutation(async ({ ctx, input }) => {
       return addCustomerVehicle({ ...input, userId: ctx.user.id });
     }),
-  updateVehicle: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      year: z.string().optional(),
-      make: z.string().optional(),
-      model: z.string().optional(),
-      mileage: z.number().optional(),
-      nickname: z.string().optional(),
-      vin: z.string().optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return updateCustomerVehicle(id, ctx.user.id, data);
-    }),
   deleteVehicle: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -157,6 +143,25 @@ export const garageRouter = router({
     return getServiceHistoryForUser(ctx.user.id);
   }),
 });
+
+/**
+ * Staff heads-up for a public submission (2026-10-19). The admin screens that listed
+ * referrals and questions were retired, so without this a saved submission reached
+ * nobody. First name only, never a phone; the one email is the qa.ask reply address, so
+ * staff can answer by email. Fail-soft and detached: callers
+ * do not await it (a slow or unreachable Telegram would otherwise hold the customer's
+ * response for the transport timeout after the row is saved, inviting a retry and a
+ * duplicate), and it never throws.
+ */
+async function notifyStaffOfSubmission(text: string): Promise<void> {
+  try {
+    const { sendTelegram } = await import("../services/telegram");
+    await sendTelegram(text, "digest");
+  } catch (err) {
+    log.warn("[public-submit] staff Telegram failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+const firstNameOf = (name: string) => (name.trim().split(/\s+/)[0] || "Someone").slice(0, 40);
 
 export const referralsRouter = router({
   submit: publicProcedure
@@ -205,7 +210,7 @@ export const referralsRouter = router({
       // either way, and leaving it on the raw values keeps that logic exactly
       // as it was audited. Raw input reached the DB before this — every other
       // public write form in this app (lead, callback, candidates) sanitizes.
-      return createReferral({
+      const saved = await createReferral({
         referrerName: sanitizeText(input.referrerName),
         referrerPhone: sanitizePhone(input.referrerPhone),
         referrerEmail: input.referrerEmail ? sanitizeEmail(input.referrerEmail) : undefined,
@@ -213,17 +218,10 @@ export const referralsRouter = router({
         refereePhone: sanitizePhone(input.refereePhone),
         refereeEmail: input.refereeEmail ? sanitizeEmail(input.refereeEmail) : undefined,
       });
-    }),
-  all: dbAdminProcedure.query(async () => {
-    return getReferrals();
-  }),
-  updateStatus: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      status: z.enum(["pending", "visited", "redeemed", "expired"]),
-    }))
-    .mutation(async ({ input }) => {
-      return updateReferralStatus(input.id, input.status);
+      void notifyStaffOfSubmission(
+        `🤝 New referral: ${firstNameOf(sanitizeText(input.referrerName))} referred ${firstNameOf(sanitizeText(input.refereeName))}. Contact details are in the referrals table.`,
+      );
+      return saved;
     }),
 });
 
@@ -243,19 +241,11 @@ export const qaRouter = router({
       category: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      return createQuestion(input);
-    }),
-  all: dbAdminProcedure.query(async () => {
-    return getAllQuestions();
-  }),
-  answer: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      answer: z.string().min(1),
-      answeredBy: z.string().default("Nick's Tire & Auto"),
-    }))
-    .mutation(async ({ input }) => {
-      return answerQuestion(input.id, input.answer, input.answeredBy);
+      const saved = await createQuestion(input);
+      void notifyStaffOfSubmission(
+        `❓ New question from ${firstNameOf(input.questionerName)}: "${input.question.slice(0, 300)}"\n${input.questionerEmail ? `Reply to: ${input.questionerEmail}` : "No email left, so there is no way to reply."}`,
+      );
+      return saved;
     }),
 });
 
@@ -295,28 +285,6 @@ export const pricingRouter = router({
       }
       return getServicePricingByCategory(input.serviceType, input.vehicleCategory);
     }),
-  allServices: publicProcedure.query(async () => {
-    if (!(await getDbTyped())) {
-      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Pricing store unavailable - this is a read failure, not an empty price list." });
-    }
-    return getAllServicePricing();
-  }),
-  upsert: adminProcedure
-    .input(z.object({
-      serviceType: z.string(),
-      serviceLabel: z.string(),
-      vehicleCategory: z.enum(["compact", "midsize", "full-size", "truck-suv"]),
-      lowEstimate: z.number(),
-      highEstimate: z.number(),
-      typicalHours: z.string().optional(),
-      notes: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      return upsertServicePricing(input);
-    }),
-  seedDefaults: adminProcedure.mutation(async () => {
-    return seedDefaultPricing();
-  }),
 });
 
 export const inspectionRouter = router({
@@ -406,23 +374,6 @@ export const inspectionRouter = router({
     .mutation(async ({ input }) => {
       return addInspectionItem(input);
     }),
-  updateItem: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      component: z.string().optional(),
-      category: z.enum(["brakes", "tires", "engine", "suspension", "electrical", "fluids", "body", "other"]).optional(),
-      condition: z.enum(["green", "yellow", "red"]).optional(),
-      notes: z.string().optional(),
-      photoUrl: z.string().optional(),
-      photoUrls: photoUrlListSchema.optional(),
-      measurements: inspectionMeasurementsSchema.optional(),
-      recommendedAction: z.string().optional(),
-      estimatedCost: z.number().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const { id, ...data } = input;
-      return updateInspectionItem(id, data);
-    }),
   /**
    * 0143 · post-work verification. After the approved repair is done the tech
    * records who did it, AFTER photos and AFTER measurements. This is the proof
@@ -498,37 +449,6 @@ export const loyaltyRouter = router({
     .input(z.object({ rewardId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       return redeemReward(ctx.user.id, input.rewardId);
-    }),
-  awardPoints: adminProcedure
-    .input(z.object({
-      userId: z.number(),
-      points: z.number().min(1),
-      description: z.string(),
-      serviceHistoryId: z.number().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      return awardPoints(input.userId, input.points, input.description, input.serviceHistoryId);
-    }),
-  /**
-   * RETIRED (forensic-audit HIGH · operator decision). This resolved a
-   * customers.id and passed it to awardPoints(), which keys the UNRELATED
-   * users table — so it silently credited a random OAuth user (or threw
-   * "User not found") and never the intended customer. Loyalty is a
-   * users-table concept; there is no correct customer→user bridge, so the
-   * feature is retired rather than "fixed". Kept as a clear-erroring stub
-   * so any lingering caller fails loudly instead of corrupting balances.
-   */
-  awardPointsByPhone: adminProcedure
-    .input(z.object({
-      phone: z.string().min(7).max(20),
-      points: z.number().min(1),
-      description: z.string(),
-    }))
-    .mutation(async () => {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Loyalty award-by-phone has been retired.",
-      });
     }),
   createReward: adminProcedure
     .input(z.object({
@@ -625,62 +545,5 @@ export const smsRouter = router({
    * timestamp + name. Online if lastSeen is within GATEWAY_OFFLINE_MINUTES
    * (shared with the alerting cron — see lib/gateway-device.ts).
    */
-  gatewayHealth: adminProcedure.query(async () => {
-    const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
-    const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
-    const baseUrl = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
-    if (!username || !password) {
-      return { configured: false as const, readable: true, online: false, lastSeen: null, deviceName: null, error: "SHOP_SMS_GATEWAY_USERNAME/PASSWORD not set" };
-    }
-    const auth = Buffer.from(`${username}:${password}`).toString("base64");
-    try {
-      const res = await fetch(`${baseUrl}/device`, {
-        headers: { Authorization: `Basic ${auth}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) {
-        // readable: false · the vendor API failed, so the phone's state is UNKNOWN,
-        // not offline. Q-23 phase 9: the admin must not blame the device for it.
-        return { configured: true as const, readable: false, online: false, lastSeen: null, deviceName: null, error: `Capevace /device returned ${res.status}` };
-      }
-      const devices = (await res.json()) as Array<{ id: string; name?: string; lastSeen?: string }>;
-      if (!devices.length) {
-        return { configured: true as const, readable: true, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
-      }
-      // Don't blindly trust devices[0] — the Capevace account can hold a stale
-      // test phone alongside the live F25e, and order isn't guaranteed. Prefer
-      // the configured device id, else the freshest by lastSeen (shared helper).
-      const dev = pickGatewayDevice(devices, process.env.SHOP_SMS_GATEWAY_DEVICE_ID);
-      if (!dev) {
-        return {
-          configured: true as const,
-          readable: true,
-          online: false,
-          lastSeen: null,
-          deviceName: null,
-          error: `Configured gateway device ${process.env.SHOP_SMS_GATEWAY_DEVICE_ID} not registered (${devices.length} device(s) found)`,
-        };
-      }
-      const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
-      const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
-      return {
-        configured: true as const,
-        readable: true,
-        online: isGatewayOnline(ageMin),
-        lastSeen: dev.lastSeen || null,
-        ageMinutes: ageMin,
-        deviceName: dev.name || null,
-        deviceId: dev.id,
-      };
-    } catch (err) {
-      return {
-        configured: true as const,
-        readable: false,
-        online: false,
-        lastSeen: null,
-        deviceName: null,
-        error: err instanceof Error ? err.message : "Unreachable",
-      };
-    }
-  }),
+  gatewayHealth: adminProcedure.query(() => probeGatewayHealth()),
 });

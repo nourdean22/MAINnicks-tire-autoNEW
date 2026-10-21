@@ -54,9 +54,9 @@ fi
 
 # ── credentials: report, never write ─────────────────────────────────────
 say "credentials (set these in the cloud environment, not here)"
-if [ -n "${RAILWAY_TOKEN:-}" ]; then ok "RAILWAY_TOKEN present (project-scoped)"
-elif [ -n "${RAILWAY_API_TOKEN:-}" ]; then ok "RAILWAY_API_TOKEN present (account-scoped — prefer a project token)"
-else bad "no Railway token — every production read and both databases are unreachable"; fi
+if [ -n "${RAILWAY_TOKEN:-}${RAILWAY_API_TOKEN:-}" ]; then
+  printf '   warn %s\n' "Railway token present: a cloud environment must not hold a production token; keep it scoped to a non-production environment (docs/CLOUD-ENVIRONMENT.md)"
+else ok "no Railway token (expected in a cloud environment; production reads go through the Railway MCP under Nour's login, see docs/CLOUD-ENVIRONMENT.md)"; fi
 [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ] && ok "GitHub token present" || bad "no GH_TOKEN — gh needs auth to open or merge a PR"
 
 # ── verdict ──────────────────────────────────────────────────────────────

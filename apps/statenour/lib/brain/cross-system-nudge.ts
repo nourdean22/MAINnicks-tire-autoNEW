@@ -323,7 +323,7 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       severity: "medium",
       source: "correlation",
       text: row.content,
-      link: "/brain?tab=continuity",
+      link: "/brain?tab=health#time-travel",
     });
   }
 
@@ -375,7 +375,7 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       severity: "high",
       source: "blind_spot",
       text: meta?.suggestedAction ? `BLIND SPOT · ${meta.domain}: ${meta.suggestedAction}` : row.content,
-      link: "/brain?tab=discover",
+      link: "/brain?tab=review",
     });
   }
 

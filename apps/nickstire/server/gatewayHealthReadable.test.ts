@@ -13,6 +13,7 @@
  * `fetch` is stubbed in every case: no request leaves the test.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetGatewayHealthCache } from "./lib/gatewayHealthProbe";
 
 function adminContext() {
   return {
@@ -42,6 +43,8 @@ const respond = (status: number, body: unknown) =>
 
 describe("sms.gatewayHealth · readable separates 'could not ask' from 'offline'", () => {
   beforeEach(() => {
+    // A good probe is kept 60 s; each case below stubs its own vendor answer.
+    resetGatewayHealthCache();
     vi.stubEnv("SHOP_SMS_GATEWAY_USERNAME", "canary-user");
     vi.stubEnv("SHOP_SMS_GATEWAY_PASSWORD", "canary-pass");
     vi.stubEnv("SHOP_SMS_GATEWAY_URL", "https://gateway.invalid/3rdparty/v1");

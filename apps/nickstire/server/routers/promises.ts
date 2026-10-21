@@ -4,14 +4,13 @@
  * sweep, not here. No endpoint contacts a customer.
  */
 import { z } from "zod";
-import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
+import { router, dbAdminProcedure } from "../_core/trpc";
 import {
   PROMISE_TYPES,
   createPromise,
   keepPromise,
   cancelPromise,
   listOpenPromises,
-  sweepOverduePromises,
 } from "../services/promiseLedger";
 
 export const promisesRouter = router({
@@ -55,7 +54,4 @@ export const promisesRouter = router({
   cancel: dbAdminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ input, ctx }) => cancelPromise({ id: input.id, by: ctx.user?.email ?? "admin" })),
-
-  /** Manual sweep (the cron also runs this on tier 3). */
-  sweep: adminProcedure.mutation(async () => sweepOverduePromises()),
 });

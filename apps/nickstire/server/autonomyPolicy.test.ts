@@ -8,7 +8,6 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   DEFAULT_AUTONOMY_POLICY,
   evaluateAutonomyAction,
-  validateAutonomyPolicyShape,
   type AutonomyPolicy,
 } from "../client/src/lib/autonomyPolicy";
 
@@ -30,7 +29,6 @@ describe("default posture", () => {
     expect(Object.values(DEFAULT_AUTONOMY_POLICY.formatPermissions)).not.toContain("auto");
     expect(Object.values(DEFAULT_AUTONOMY_POLICY.alwaysRequireApproval).every(Boolean)).toBe(true);
     expect(DEFAULT_AUTONOMY_POLICY.emergencyControls.globalKillSwitch).toBe(false);
-    expect(validateAutonomyPolicyShape(DEFAULT_AUTONOMY_POLICY)).toBe(true);
   });
 
   it("publish is DENIED under the default policy (mode produce < controlled_publish)", () => {

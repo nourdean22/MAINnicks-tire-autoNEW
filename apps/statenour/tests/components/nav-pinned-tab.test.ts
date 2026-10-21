@@ -20,7 +20,6 @@ describe("resolvePinnedTab", () => {
   it("a flat More row can be pinned", () => {
     expect(resolvePinnedTab("/stats", NAV).label).toBe("Stats");
     expect(resolvePinnedTab("/people", NAV).label).toBe("People");
-    expect(resolvePinnedTab("/proof", NAV).label).toBe("Proof");
   });
 
   it("pinning Journal is the default again", () => {
@@ -29,6 +28,9 @@ describe("resolvePinnedTab", () => {
 
   it("a stale or unknown href falls back to Journal", () => {
     expect(resolvePinnedTab("/market", NAV).href).toBe("/journal");
+    // Pages cut 2026-10-19: a bar that stored one of them must open Journal, not an empty slot.
+    expect(resolvePinnedTab("/proof", NAV).href).toBe("/journal");
+    expect(resolvePinnedTab("/pins", NAV).href).toBe("/journal");
     expect(resolvePinnedTab("not a path", NAV).href).toBe("/journal");
   });
 

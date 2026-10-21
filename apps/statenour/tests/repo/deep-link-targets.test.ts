@@ -215,7 +215,7 @@ function sweep(): string[] {
 
 describe("deep links resolve to a page or a redirect", () => {
   it("SUBJECT: the route table, the sweep and the links it reads are all real", () => {
-    expect(pageRoutes().length).toBeGreaterThan(20);
+    expect(pageRoutes().length).toBeGreaterThan(15);
     expect(redirectSources().length).toBeGreaterThan(30);
     expect(SWEEP_DIRS.flatMap((d) => walk(d, SHIPPED)).length).toBeGreaterThan(800);
     // The instrument fired: the tree emits ~380 links (2026-10-10), from server code AND UI.

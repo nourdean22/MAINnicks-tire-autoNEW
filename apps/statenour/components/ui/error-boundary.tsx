@@ -92,7 +92,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {error.message.slice(0, 300)}
             </p>
             <p className="text-[11px] text-rose-300 mt-1 font-mono">
-              logged to /api/errors · check /system/logs?view=errors
+              logged to /api/errors · check the Railway logs
             </p>
           </div>
           <button

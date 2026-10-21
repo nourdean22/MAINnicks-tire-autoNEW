@@ -1,5 +1,12 @@
 # CURRENT-TRUTH.md — Statenour
 
+## 2026-10-19 - bdnick prune wave 2V retirements (PR #3184; live only once merged and the deploy is verified)
+
+- **Retired pages, FACT by code reading.** The page files for `/pins`, `/proof`, `/system/health`, `/system/logs`, `/system/ai-cost`, `/system/calibration`, `/system/cockpit-observability` and `/system/fleet` are deleted. Each old URL redirects in `next.config.ts` (`/pins` to `/brain?tab=memory`; the rest to `/system`), and every older redirect that used to hop through one of them (`/system/costs`, `/system/errors`, `/system/coverage` and the rest) now lands on `/system` directly. `tests/repo/retired-routes-gate.test.ts` pins every row.
+- **Brain is three tabs, FACT by code reading.** `app/(mastery)/brain/page.tsx` defaults to Memory and offers Memory, Review and Health. Board and Reason were dropped; Wisdom is a section of Memory (`components/brain/wisdom-section.tsx`, collapsed until tapped or deep-linked with `?focus=` or `?evolution=1`); the old `?tab=` keys and the `/brain/board`, `/brain/wisdom` and `/reason` paths redirect to the tab that received the content. Live deep links: `?tab=memory&resolve=`, `?tab=memory&focus=`, `?tab=health#time-travel`.
+- **Duties that moved, FACT by code reading.** The Fleet page action is the Outbox dead-letter row on `/system` with a two-tap Redrive (`components/system/outbox-redrive-row.tsx`). The health digest, whose only scheduler was the cut System Health page, runs from `/api/cron/health-digest` folded into mega-evening; the write is awaited and a failed write files the run FAILED (`persistHealthDigestOrThrow`, pinned by `tests/cron/health-digest-cron.test.ts`). Deep-mode questions travel by sessionStorage, not the URL.
+- **Not verified here.** Whether this is deployed (UNKNOWN until the PR merges and `/api/version` reports its commit), and whether bdnick.info actually serves the redirects (no live request was made).
+
 ## 2026-10-16 - Re-verified after UI v3 waves W0 to W1b and the chat idempotency merge
 
 Last verified **2026-10-16** (re-read: `/api/version`, `git log origin/main`, the W0 to W1b UI files, the chat turn guard files, the installed package versions, and the present-tense claims of every section dated 2026-09-28 to 2026-10-11; every line below says FACT or STRONG INFERENCE and names its receipt).

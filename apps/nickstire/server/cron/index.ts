@@ -554,12 +554,6 @@ export function registerAllJobs(): void {
     return cleanupOldData();
   });
 
-  // Customer segmentation (every 24 hours)
-  registerJob("customer-segmentation", 24 * 60 * 60 * 1000, async () => {
-    const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
-    return processCustomerSegmentation();
-  });
-
   // Retention sequences (every 24 hours).
   // wave-181.78 (week-audit · agent finding) · D7 + D14 tiers were
   // added to the tiered scheduler in wave-181.58 but never to this
@@ -685,16 +679,6 @@ export function registerAllJobs(): void {
     const data = await fetchCompetitorSnapshot();
     return { recordsProcessed: data.length, details: `${data.length} competitors checked` };
   }, false); // Disabled until GOOGLE_PLACES_API_KEY is set
-
-  // Staff performance rollup (every 24 hours)
-  // AG-20 · persist=true writes qc_pass_rate/comeback_rate/total_jobs
-  // back to the technician rows — recommendTech scoring read these
-  // columns but this rollup computed the numbers and discarded them.
-  registerJob("staff-performance", 24 * 60 * 60 * 1000, async () => {
-    const { getTeamPerformance } = await import("../services/staffPerformance");
-    const perf = await getTeamPerformance(true);
-    return { recordsProcessed: perf.techs?.length || 0, details: "Performance rollup complete (persisted)" };
-  });
 
   // ═══ HERCULES EXPANSION ═══
 

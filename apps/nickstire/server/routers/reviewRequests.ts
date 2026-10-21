@@ -10,7 +10,7 @@
  * - Admin settings (enable/disable, delay, daily cap, template)
  * - Processing queue that sends pending requests
  */
-import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router } from "../_core/trpc";
 import { SITE_URL } from "@shared/business";
 import {
   createReviewRequest,
@@ -20,7 +20,6 @@ import {
   markReviewRequestSent,
   markReviewRequestHeldOut,
   markReviewRequestFailed,
-  markReviewRequestClicked,
   isPhoneOnReviewCooldown,
   getReviewRequestsSentToday,
   getReviewRequestStats,
@@ -35,7 +34,7 @@ import { sendSms, withOptOut } from "../sms";
 import { z } from "zod";
 import crypto from "crypto";
 
-import { GBP_REVIEW_URL as GOOGLE_REVIEW_URL, STORE_NAME } from "@shared/const";
+import { STORE_NAME } from "@shared/const";
 
 import { createLogger } from "../lib/logger";
 
@@ -347,12 +346,4 @@ export const reviewRequestsRouter = router({
     // Backfill complete
     return { scheduled, skipped, total: eligible.length };
   }),
-
-  /** Track click — public endpoint for redirect */
-  trackClick: publicProcedure
-    .input(z.object({ token: z.string().max(64) }))
-    .mutation(async ({ input }) => {
-      await markReviewRequestClicked(input.token);
-      return { redirectUrl: GOOGLE_REVIEW_URL };
-    }),
 });

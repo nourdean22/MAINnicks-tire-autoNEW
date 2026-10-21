@@ -17,7 +17,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8").replace(/\/\
 describe("stored names and titles render as authored", () => {
   it("no mission title, board name or advisor name is lowercased on render", () => {
     const hits: string[] = [];
-    for (const f of ["components/actions/loop-row-item.tsx", "components/brain/board-tab.tsx"]) {
+    for (const f of ["components/actions/loop-row-item.tsx"]) {
       for (const m of read(f).matchAll(/\b(?:title|boardName|advisorName|name)\.toLowerCase\(\)/g)) hits.push(`${f}: ${m[0]}`);
     }
     expect(hits).toEqual([]);

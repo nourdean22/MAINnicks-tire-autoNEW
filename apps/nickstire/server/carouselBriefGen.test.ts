@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { parseBriefJson } from "./services/carouselBriefGen";
 
@@ -23,29 +22,6 @@ function ctx(role: "admin" | "user" | null): TrpcContext {
     res: { clearCookie: () => {} } as TrpcContext["res"],
   };
 }
-
-describe("contentAdmin.generateCarouselBrief (auth gating)", () => {
-  it("is registered in the appRouter", () => {
-    expect(appRouter._def.procedures["contentAdmin.generateCarouselBrief"]).toBeDefined();
-  });
-
-  it("rejects unauthenticated callers with FORBIDDEN (before any LLM call)", async () => {
-    const caller = appRouter.createCaller(ctx(null));
-    await expect(caller.contentAdmin.generateCarouselBrief({})).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("rejects non-admin callers with FORBIDDEN", async () => {
-    const caller = appRouter.createCaller(ctx("user"));
-    await expect(caller.contentAdmin.generateCarouselBrief({})).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("rejects an over-long topic at input validation", async () => {
-    const caller = appRouter.createCaller(ctx("admin"));
-    await expect(
-      caller.contentAdmin.generateCarouselBrief({ topic: "x".repeat(400) }),
-    ).rejects.toBeTruthy();
-  });
-});
 
 describe("parseBriefJson (resilient extraction)", () => {
   it("parses a clean JSON object", () => {

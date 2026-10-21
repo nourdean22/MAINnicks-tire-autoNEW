@@ -79,7 +79,12 @@ export function EntityActionRow({ entities, labelOf, extra, compact, className }
           // The object's canonical route, not the page it happened to be
           // inspected from — a link copied on /missions to a memory must
           // open /brain.
-          const href = `${window.location.origin}${homeRouteFor(first)}`;
+          const route = homeRouteFor(first);
+          if (!route) {
+            toast.error("This object has no page to link to");
+            return;
+          }
+          const href = `${window.location.origin}${route}`;
           const write = navigator.clipboard?.writeText?.(href);
           if (write) {
             write.then(() => toast.success("Link copied")).catch(() => toast.error("Could not copy the link"));

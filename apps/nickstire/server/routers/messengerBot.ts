@@ -4,7 +4,6 @@
  * Conversation state: name -> vehicle -> problem -> booking creation.
  * Uses same SMS bot pattern with in-memory 30-min TTL.
  */
-import { router, adminProcedure } from "../_core/trpc";
 import { sanitizeText, sanitizePhone, sanitizeName } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 import { leads } from "../../drizzle/schema";
@@ -295,19 +294,3 @@ export async function handleMessengerMessage(
   }
 }
 
-export const messengerBotRouter = router({
-  // Admin endpoint to view active conversations
-  listConversations: adminProcedure.query(async () => {
-    const convs = Array.from(conversationMap.entries())
-      .filter(([_, c]) => Date.now() - c.timestamp < CONVERSATION_TTL_MS)
-      .map(([id, c]) => ({
-        senderId: id,
-        stage: c.stage,
-        name: c.name,
-        vehicle: c.vehicle,
-        createdAt: new Date(c.timestamp),
-      }));
-
-    return convs;
-  }),
-});

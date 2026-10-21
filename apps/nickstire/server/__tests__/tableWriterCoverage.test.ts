@@ -34,6 +34,11 @@ const APP = join(__dirname, "..", "..");
  * tables never appeared (correction #15 in artifact 1).
  */
 const KNOWN_WRITERLESS: Record<string, string> = {
+  // admin-prune W2a (2026-10-19): the only writers were tRPC procedures with no caller in the repo
+  // and 0 HTTP calls in 14 days, deleted with them. Readers remain; no DDL in this job.
+  job_assignments: "W2a · writer was jobAssignments.assign (deleted, never called); 0 rows ever in prod (2026-10-19 SELECT).",
+  kpi_snapshots: "W2a · writer was the kpi-snapshot cron, retired with its only reader kpi.history.",
+  intelligence_decision_ledger: "W2a · writer was intelligence.logDecision (deleted, never called).",
   // audit findings
   customer_testimonials: "F-5 · created on demand and read by the evidence engine; no entry surface was ever built.",
   vehicles: "F-16 · zero readers and zero writers since the monorepo began; retired by 0117 (operator-gated).",
@@ -116,8 +121,6 @@ describe("every Drizzle table has a writer, or a reason it does not", () => {
     expect(findWriters(sources, "leads", "leads").length).toBeGreaterThan(0);
     // customer_metrics is written ONLY by raw SQL — the case the Drizzle-only scan missed.
     expect(findWriters(sources, "customerMetrics", "customer_metrics").length).toBeGreaterThan(0);
-    // kpi_snapshots gained its writer in the audit wave (kpiSnapshot job, raw INSERT).
-    expect(findWriters(sources, "kpiSnapshots", "kpi_snapshots").length).toBeGreaterThan(0);
   });
 
   it("no table outside KNOWN_WRITERLESS is read-only for the whole repo", () => {

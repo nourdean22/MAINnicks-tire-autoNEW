@@ -102,7 +102,7 @@ export function TodaysCompound() {
       // was matched in the toast. Audit caught the misleading label.
       label: "w/ wisdom thread",
       value: `${data.wisdomCount}`,
-      href: "/brain?tab=wisdom",
+      href: "/brain?tab=memory",
     });
   }
   if (data.goalsLifted > 0) {

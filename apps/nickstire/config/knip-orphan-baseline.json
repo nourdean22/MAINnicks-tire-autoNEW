@@ -22,6 +22,16 @@
       "reason": "test seam (2026-10-17, office-digest v2): the per-hour digest memo is module state that serial vitest shares across files; server/routers/lotOfficeDigest.test.ts clears it before every case so memo-window tests start empty. No production caller by design: the memo lives for the process."
     },
     {
+      "file": "apps/nickstire/server/routers/vapi.ts",
+      "symbol": "resetVapiAdminReadCaches",
+      "reason": "test seam (2026-10-20): the transfer-destination memo is module state; adminReadLatencyBound.test.ts and vapiAdminReadEpoch.test.ts reset it between cases. Also called by setTransferDestination in the same file; knip does not count test files as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/lib/gatewayHealthProbe.ts",
+      "symbol": "resetGatewayHealthCache",
+      "reason": "test seam (2026-10-20): the probe memory is module state; adminReadLatencyBound.test.ts and gatewayHealthReadable.test.ts reset it. No production caller by design."
+    },
+    {
       "file": "apps/nickstire/server/routers/instagramAdmin.ts",
       "symbol": "readCommentResponderStatus",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.commentResponderStatus (contract CommentResponderStatus v1, job 2026-10-16-comment-responder-controls). commentResponderStatus.test.ts imports it to pin the three states with a fake database: a failed history read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an unparseable context_json row is nulls (never a throw). Its runtime consumer is the commentResponderStatus adminProcedure in the same module, which the client lane's comment responder card calls, so the rule is live, not vacuous."
@@ -1744,11 +1754,6 @@
     {
       "file": "apps/nickstire/server/services/abandonedForms.ts",
       "symbol": "__resetPartialsForTest",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/lib/cwv-telemetry.ts",
-      "symbol": "resetCwvBuffer",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
@@ -6370,6 +6375,41 @@
       "file": "apps/nickstire/server/routers/campaigns.ts",
       "symbol": "processCampaignSends",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The resumable at-most-once campaign sender. Its runtime consumers are in this same module: the admin send and resume mutations and resumeStuckCampaigns, which cron/index.ts and cron/scheduler.ts call for the campaign-resume job, so the sender is live, not vacuous. Its one caller outside the module, the statenour bulk-sms bridge endpoint in _core/statenour-bridge-routes.ts, was removed 2026-10-19 (job 2026-10-18-bdnick-prune wave 4), which left the export imported only by server/__tests__/contactHoldoutLanes.test.ts, which drives the holdout lanes through it directly. Tests are excluded from knip project globs by design."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "explodeTopic",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "generateHookLibrary",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "validateClaimSafety",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "generateScoredDraft",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "runManufacturingPipeline",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "getReserveStatus",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/content-generator.ts",
+      "symbol": "getCurrentSeason",
+      "reason": "admin-prune W2a (2026-10-19): content.currentSeason (0 calls in 14 days) was its only outside importer; still used inside content-generator.ts for seasonal generation, exported only for features.test.ts."
     }
   ]
 }

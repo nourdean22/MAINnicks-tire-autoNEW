@@ -58,7 +58,7 @@ export const GET = cronHandler(async () => {
     try {
       const { sendTelegram } = await import("@/lib/services/telegram");
       await sendTelegram(
-        `🚨 <b>Nick proposer FAILED · ${today}</b>\n\n${msg}\n\n<i>Audit /system/logs for the stack · operator missed today's queue.</i>`,
+        `🚨 <b>Nick proposer FAILED · ${today}</b>\n\n${msg}\n\n<i>Audit the Railway logs for the stack · operator missed today's queue.</i>`,
         undefined,
         "HTML",
       );

@@ -58,7 +58,6 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "activity.recent",
   "callTracking.logCall",
   "conversion.liveSessions",
-  "conversion.recentActivity",
   "conversion.shopCapacity",
   "customerEvents.log",
   // 2026-09-15 (Dream-to-Proof) · which registered web experiments are armed — ids only,
@@ -66,15 +65,11 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "experiments.active",
   // 2026-09-08 (D14) · the public PhotoRibbon reads photo src + view count, no customer data; 5-min cache.
   "customerEvents.topRibbonPhotosPublic",
-  "reviewRequests.trackClick",
   "shareCards.get",
-  "shareCards.trackShare",
   // published content, reviews, media
   "content.activeNotifications",
   "content.articleBySlug",
-  "content.currentSeason",
   "content.publishedArticles",
-  "gallery.list",
   "instagram.account",
   "instagram.posts",
   "reviews.google",
@@ -86,13 +81,9 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "diagnose.analyze",
   "estimates.generate",
   "laborEstimate.generate",
-  "pricing.allServices",
   "pricing.estimate",
   "qa.ask",
   "qa.published",
-  "search.ai",
-  "search.instant",
-  "serviceMatcher.match",
   // tire store + checkout (customer-facing commerce)
   "gatewayTire.checkOrder",
   "gatewayTire.confirmCheckout",
@@ -148,7 +139,6 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   // shop status, specials, misc public reads
   "coupons.active",
   "loyalty.rewards",
-  "shopStatus.getLineOfCars",
   // 2026-09-15 (Dream-to-Proof) · ShopState: hours + capacity band + lot band (aggregate
   // count, no plate column) + weather risk. Public by construction — see shared/shopState.ts
   // and its property test that no plate/customer/phone-shaped key can appear.
@@ -156,7 +146,6 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "shopStatus.getStatus",
   "specials.getActive",
   "system.health",
-  "technicians.list",
   "weather.current",
   // statenour bridge lane riding the public tier. REVIEWED 2026-08-09: the
   // handler requires STATENOUR_SYNC_KEY via timingSafeEqual and throws

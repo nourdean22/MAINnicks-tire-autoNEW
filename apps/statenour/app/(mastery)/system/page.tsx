@@ -26,6 +26,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { controlTower } from "@/lib/system/control-tower";
 import { SystemHubGrid } from "@/components/system/hub-grid";
+import { OutboxRedriveRow } from "@/components/system/outbox-redrive-row";
 import { AgendaDesk } from "@/components/system/agenda-desk";
 // ObservabilityRow · 4-tile ops telemetry (cost SLO · voice latency ·
 // eval pass rate · OS drift). Relocated from /ultron at v10.0.529.48.
@@ -318,6 +319,10 @@ export default function SystemPage() {
           Everything below is detail and keeps its old order. Pinned by
           tests/components/system-page-hub-first.test.tsx. */}
       <SystemHubGrid />
+
+      {/* Wave 2V (2026-10-19) · the Fleet page's only action survives as one row: dead-lettered chat
+          background work with a two-tap Redrive. Hidden when the queue is clean, UNKNOWN when unread. */}
+      <OutboxRedriveRow />
 
       {/* Q-24 (2026-09-23) · what needs the owner: exceptions with age and
           evidence, decisions waiting, cost per outcome. Platform verdict above,
@@ -637,7 +642,7 @@ export default function SystemPage() {
             · Nick brain panel · same memory counts surface on
               /brain · /brain/health · /system/coverage
             · Integrations · same status surfaces on the hub-grid
-              cards + /system/health
+              cards (the Diagnostics page was cut 2026-10-19)
           Wave 52 already deleted 3 sibling debug-dump cards for
           this same reason (per file header). This finishes the
           job. SystemHubGrid above is the page · attention-strip

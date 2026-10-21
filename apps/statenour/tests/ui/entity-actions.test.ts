@@ -17,6 +17,14 @@ describe("actionsFor", () => {
     expect(actionsFor([])).toEqual([]);
   });
 
+  it("a claim or experiment has no page, so the list the row renders has no 'open' (Codex on #3184)", () => {
+    for (const kind of ["claim", "experiment"] as const) {
+      expect(actionsFor([{ kind, id: "x1" }]).map((a) => a.id)).toEqual(["ask-nick", "workset", "copy-link"]);
+    }
+    // control: a kind with a page still lists it
+    expect(actionsFor([{ kind: "task", id: "t1" }]).map((a) => a.id)).toContain("open");
+  });
+
   it("every registered action has a kind the row can run", () => {
     for (const a of ENTITY_ACTIONS) expect(["navigate", "chat", "workset", "copy-link"]).toContain(a.kind);
   });
@@ -29,8 +37,16 @@ describe("hrefs", () => {
     expect(homeRouteFor({ kind: "person", id: "p1" })).toBe("/people?inspect=person:p1");
     expect(homeRouteFor({ kind: "decision", id: "d1" })).toBe("/decisions/d1");
     expect(homeRouteFor({ kind: "journal", id: "j1" })).toBe("/journal#bd-j1");
-    expect(homeRouteFor({ kind: "pin", id: "p1" })).toBe("/pins#pin-p1");
-    expect(homeRouteFor({ kind: "claim", id: "c1" })).toBe("/proof");
+    expect(homeRouteFor({ kind: "pin", id: "p1" })).toBe("/brain?tab=memory#pin-p1");
+    expect(homeRouteFor({ kind: "claim", id: "c1" })).toBeNull();
+    expect(homeRouteFor({ kind: "experiment", id: "e1" })).toBeNull();
+  });
+
+  it("'Open on its page' is hidden for objects with no page (claim, experiment), shown for the rest", () => {
+    const open = ENTITY_ACTIONS.find((a) => a.id === "open")!;
+    expect(open.href!([{ kind: "claim", id: "c1" }], {})).toBeNull();
+    expect(open.href!([{ kind: "experiment", id: "e1" }], {})).toBeNull();
+    expect(open.href!([{ kind: "task", id: "t1" }], {})).toBe("/missions?inspect=task:t1#task-t1");
   });
 
   it("open is single-object only; ask-nick carries the wire ids in the prompt", () => {

@@ -13,14 +13,10 @@ import { StandardPage } from "@/components/layout/standard-page";
 import { PageTabs } from "@/components/layout/page-tabs";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MemoryTab } from "@/components/brain/memory-tab";
-import { BoardTab } from "@/components/brain/board-tab";
-import { WisdomTab } from "@/components/brain/wisdom-tab";
-import { ReasonTab } from "@/components/brain/reason-tab";
 import { BrainHealthView } from "@/components/brain/health-view";
 import { BrainContinuityView } from "@/components/brain/continuity-view";
 import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-outcomes";
 import { KnowledgeReviewTab } from "@/components/brain/knowledge-review-tab";
-import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { DiscoverTab } from "@/components/brain/discover-tab";
 import { ResearchPipelineStatus } from "@/components/brain/research-pipeline-status";
 
@@ -34,6 +30,19 @@ function GovernedKnowledgeReview() {
       <ResearchPipelineStatus />
       <KnowledgeActionOutcomes />
       <KnowledgeReviewTab />
+      {/* 2026-10-19 · the Discover tab folded in: what the engines noticed is the other half of
+          "what needs the operator's judgment" (its feedback buttons train the engine). */}
+      <DiscoverTab />
+    </div>
+  );
+}
+
+/** Health plus the former Changed tab (Time Travel lives at #time-travel). */
+function HealthAndChanges() {
+  return (
+    <div className="space-y-8">
+      <BrainHealthView />
+      <BrainContinuityView />
     </div>
   );
 }
@@ -42,10 +51,7 @@ export default function BrainPage() {
   return (
     <>
       {/* StandardPage documents `description` as ONE LINE (standard-page.tsx:81).
-          The old 113-char string wrapped to three lines at 704px, and this header
-          block is what pushed the MAP canvas below the fold: chrome above the
-          canvas measured 326px against a 542px viewport, leaving the graph at
-          ~40% of the screen against a >=55% target. Kept short deliberately. */}
+          Kept short deliberately. */}
       <StandardPage
         eyebrow="Mastery"
         title="Brain"
@@ -53,49 +59,21 @@ export default function BrainPage() {
         width="3xl"
         rhythm="compact"
       >
-        {/* 2026-08-19 · Brain truth pass · ordered by the mental model
-            instead of accretion order, so nine tabs read as ONE product:
-              MAP      — where everything is and how it connects
-              RULE     — what needs the operator's judgment (Discover =
-                         what the engines noticed, Review = governed
-                         external claims)
-              LIBRARY  — what we believe and what it taught us
-              THINK    — operator-initiated cognition
-              PULSE    — what changed, and is the substrate healthy
-            Tab KEYS are deliberately unchanged: ?tab=memory&resolve=,
-            ?tab=reason&q=, ?tab=wisdom&focus=, ?tab=board, ?tab=health
-            and ?tab=continuity are live deep-link contracts from Home,
-            the ticker, the command palette and chat tool results.
-
-            2026-09-16 · Visible Transformation: the nine tabs are grouped
-            into FIVE LENSES with genuinely different compositions —
-              GRAPH    canvas   · the map, full-bleed
-              LIBRARY  index    · memory · wisdom · discover, indexed on the left
-              THINK    reading  · board · reason, a centered reading column
-              REVIEW   ledger   · governed claims, full width
-              PULSE    board    · changed · health, a ruled board
-            The `tabs` list below is still the contract (nav-items mirrors
-            it, tests/repo/brain-nav-tabs.test.ts pins both); `lenses` only
-            groups it. */}
+        {/* 2026-10-19 · wave 2V (Nour's cut): nine tabs became three.
+              MEMORY — what we believe: the former Memory tab plus Wisdom
+              REVIEW — what needs the operator's judgment: governed claims plus Discover
+              HEALTH — is the substrate healthy, and what changed (the former Changed tab)
+            Dropped: Map (a canvas gallery), Board and Reason (operator-started cognition Chat already does).
+            Every old ?tab= key redirects in next.config.ts and is pinned in
+            tests/repo/retired-routes-gate.test.ts. Deep links that stay live: ?tab=memory&resolve=,
+            ?tab=memory&focus= (Wisdom cards), ?tab=health#time-travel. nav-items mirrors this list
+            (tests/repo/brain-nav-tabs.test.ts). */}
         <PageTabs
-          defaultKey="graph"
+          defaultKey="memory"
           tabs={[
-            { key: "graph", label: "Map", render: () => <HomeBrainGraph variant="full" /> },
-            { key: "discover", label: "Discover", render: () => <DiscoverTab /> },
-            { key: "review", label: "Review", render: () => <GovernedKnowledgeReview /> },
             { key: "memory", label: "Memory", render: () => <MemoryTab /> },
-            { key: "wisdom", label: "Wisdom", render: () => <WisdomTab /> },
-            { key: "board", label: "Board", render: () => <BoardTab /> },
-            { key: "reason", label: "Reason", render: () => <ReasonTab /> },
-            { key: "continuity", label: "Changed", render: () => <BrainContinuityView /> },
-            { key: "health", label: "Health", render: () => <BrainHealthView /> },
-          ]}
-          lenses={[
-            { key: "graph", label: "Graph", hint: "where everything is", tabs: ["graph"], layout: "canvas" },
-            { key: "library", label: "Library", hint: "what we believe", tabs: ["memory", "wisdom", "discover"], layout: "index" },
-            { key: "think", label: "Think", hint: "operator cognition", tabs: ["board", "reason"], layout: "reading" },
-            { key: "review", label: "Review", hint: "governed claims", tabs: ["review"], layout: "ledger" },
-            { key: "pulse", label: "Pulse", hint: "what changed · is it healthy", tabs: ["continuity", "health"], layout: "board" },
+            { key: "review", label: "Review", render: () => <GovernedKnowledgeReview /> },
+            { key: "health", label: "Health", render: () => <HealthAndChanges /> },
           ]}
         />
       </StandardPage>

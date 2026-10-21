@@ -780,3 +780,21 @@ export async function getTrendHistory(opts?: { limit?: number }) {
     .orderBy(desc(reviewTrends.snapshotDate))
     .limit(opts?.limit ?? 12);
 }
+
+/** The URGENT REVIEWS Telegram text: up to three reviews, each a short preview. */
+function formatUrgentReviewsAlert(urgent: UrgentReview[]): string {
+  return (
+    `⭐ URGENT REVIEWS: ${urgent.length} need response!\n\n` +
+    urgent.slice(0, 3).map((r) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(r.reviewText || "").slice(0, 80)}${(r.reviewText || "").length > 80 ? "..." : ""}"`).join("\n") +
+    `\n\nReply on Google (Business Profile reviews).`
+  );
+}
+
+/** Alert once per urgent SET for good (review-pipeline runs daily; a per-day claim re-sent the same unanswered review every morning). */
+export async function notifyUrgentReviews(urgent: UrgentReview[]): Promise<unknown> {
+  if (urgent.length === 0) return null;
+  const { sendOncePerStateEver, stateFingerprint } = await import("../services/alertClaim");
+  const { sendTelegramResult } = await import("../services/telegram");
+  const state = stateFingerprint(urgent.map((r) => String(r.id)));
+  return sendOncePerStateEver(`urgent-reviews:${state}`, () => sendTelegramResult(formatUrgentReviewsAlert(urgent), "incident"));
+}

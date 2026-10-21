@@ -210,18 +210,10 @@ describe("the health surfaces use liveness, not presence", () => {
 
   it("getPipelineHealth decides the higgsfield branch on hfSession.live === true", () => {
     const src = read();
-    const fn = src.slice(src.indexOf("getPipelineHealth"), src.indexOf("getProviderHealth"));
+    const fn = src.slice(src.indexOf("getPipelineHealth:"), src.indexOf("getDeliveryIssues:"));
     expect(fn).toContain("hfSession.live === true");
     // The old presence check must not be what decides `configured` any more.
     expect(fn).not.toMatch(/\? higgsfieldConfigured\s*\n?\s*:/);
   });
 
-  it("getProviderHealth does too, and still reports presence separately", () => {
-    const src = read();
-    const fn = src.slice(src.indexOf("getProviderHealth"));
-    expect(fn).toContain('imageProvider === "higgsfield" ? hfSession.live === true');
-    // Presence is still exposed - it is genuinely useful ("blob present but session
-    // dead" is the actionable state) - just no longer mistaken for health.
-    expect(fn).toContain("higgsfieldCreds,");
-  });
 });

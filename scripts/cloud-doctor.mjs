@@ -91,7 +91,7 @@ add(
   !ghV ? "install the GitHub CLI" : "gh auth login  (or set GH_TOKEN)",
 );
 
-// ── railway: the one that silently blocks every production read ──────────
+// ── railway: optional; a cloud env holds no production token by design ───
 const railwayV = probe("railway --version");
 const tokenEnv = process.env.RAILWAY_TOKEN ? "RAILWAY_TOKEN" : process.env.RAILWAY_API_TOKEN ? "RAILWAY_API_TOKEN" : null;
 let railwayState = "MISSING";
@@ -118,7 +118,7 @@ add(
   "railway CLI + auth",
   railwayState,
   railwayDetail,
-  "npm i -g @railway/cli, then set RAILWAY_TOKEN (project-scoped) in the environment. Browser OAuth cannot be used headlessly — see docs/CLOUD-ENVIRONMENT.md",
+  "no token is the expected cloud state: production reads use the Railway MCP under Nour's login. A token, if ever used, must be scoped to a non-production environment — see docs/CLOUD-ENVIRONMENT.md",
 );
 
 // ── env files: absent by design in the cloud, and that is the point ──────
@@ -136,7 +136,8 @@ add(
 // Neither app keeps a .env in a cloud container. Both go through
 // `railway run -s <service>`, which injects that service's variables into one
 // subprocess: nickstire -> TiDB (mysql2), statenour-web -> Neon (Prisma/pg).
-// So ONE project-scoped Railway token unlocks both, and no token unlocks neither.
+// With no production token in a cloud env (the expected state), neither is
+// probed here; production reads go through the Railway MCP under Nour's login.
 const DB_SERVICES = [
   { service: "MAINnicks-tire-auto", app: "nickstire", engine: "TiDB / MySQL" },
   { service: "statenour-web", app: "statenour", engine: "Neon / Postgres" },
@@ -147,8 +148,8 @@ for (const { service, app, engine } of DB_SERVICES) {
       "optional",
       `db · ${app}`,
       "UNKNOWN",
-      `${engine} — not probed: the Railway CLI is not authenticated, so the question cannot be asked`,
-      "authenticate Railway first; this check answers itself once that is OK",
+      `${engine} — skipped by design (no production token in cloud); the Railway CLI is not authenticated`,
+      "read production through the Railway MCP under Nour's login; see docs/CLOUD-ENVIRONMENT.md",
     );
     continue;
   }

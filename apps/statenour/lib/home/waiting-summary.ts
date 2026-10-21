@@ -259,7 +259,7 @@ export function composeWaitingSummary(input: WaitingInput): WaitingSummary {
             deadline: null,
             consequence: clip(a.reason) ?? clip(a.operationKey, 80),
             nextAction: "nothing yet; the Owner Panel flags it if still executing after 30 min",
-            href: "/system/logs",
+            href: "/system",
             source: `action_attempts ${a.id}`,
           }),
         );
