@@ -6410,6 +6410,26 @@
       "file": "apps/nickstire/server/content-generator.ts",
       "symbol": "getCurrentSeason",
       "reason": "admin-prune W2a (2026-10-19): content.currentSeason (0 calls in 14 days) was its only outside importer; still used inside content-generator.ts for seasonal generation, exported only for features.test.ts."
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "detectForbiddenReelClaims",
+      "reason": "admin-prune W3 (2026-10-21): the deleted Pattern Lab / Inbox screens were its only outside importers. Still called inside facelessReelStudio.ts by the reel claim check, and exported for faceless-reel-studio.test.ts."
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "detectGenericAdLanguage",
+      "reason": "admin-prune W3 (2026-10-21): the deleted Pattern Lab / Inbox screens were its only outside importers. Still called inside facelessReelStudio.ts by the reel claim check, and exported for faceless-reel-studio.test.ts."
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "detectPriceClaims",
+      "reason": "admin-prune W3 (2026-10-21): the deleted Pattern Lab / Inbox screens were its only outside importers. Still called inside facelessReelStudio.ts by the reel claim check, and exported for faceless-reel-studio.test.ts."
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/instagram/igViews.ts",
+      "symbol": "normalizeIgView",
+      "reason": "admin-prune W3 (2026-10-21): the deleted views were its only outside importers. Still used inside igViews.ts by readIgViewFromUrl, and exported for ig-views-redirects.test.ts, which pins where every legacy ?igview= value lands."
     }
   ]
 }
