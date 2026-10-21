@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/admin-prune-w2",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "a2599f2f-7b2d-4c75-82f1-74a50c66e5ef",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\laughing-swirles-926ea3",
   "claimedBy": "2026-10-19-admin-prune",
   "claimedAt": "2026-10-19T10:54:20.588Z",
   "expiresAt": "2026-10-19T22:54:20.588Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-21T13:19:10.307Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "fb519a7fc1aa023d87d47b513edbecd00936143d",
+  "releasedBy": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "foreignReleaseReason": null
 }
