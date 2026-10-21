@@ -6,14 +6,11 @@
  */
 import { describe, expect, it } from "vitest";
 import { ASSISTANT_SYSTEM_PROMPT, VAPI_TOOLS, buildAssistantConfig } from "./services/vapi";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 type Tool = { type?: string; function?: { name?: string; description?: string; parameters?: { required?: string[]; properties?: Record<string, { description?: string }> } } };
 const tool = (name: string) => (VAPI_TOOLS as unknown as Tool[]).find((t) => t.function?.name === name)!.function!;
-const section = (start: string, end: string) => {
-  const from = ASSISTANT_SYSTEM_PROMPT.indexOf(start);
-  expect(from, `prompt section "${start}"`).toBeGreaterThan(-1);
-  return ASSISTANT_SYSTEM_PROMPT.slice(from, ASSISTANT_SYSTEM_PROMPT.indexOf(end, from + start.length));
-};
+const section = (start: string, end: string) => sliceBlock(ASSISTANT_SYSTEM_PROMPT, start, end, { label: "ASSISTANT_SYSTEM_PROMPT" });
 
 describe("no questions before a transfer or a callback", () => {
   it.each([

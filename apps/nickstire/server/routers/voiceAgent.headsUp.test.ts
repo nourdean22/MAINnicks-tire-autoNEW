@@ -259,6 +259,14 @@ describe("the name never blocks the heads-up", () => {
     expect(bodyOf()).toContain("Name not given - (216) 555-0123");
   });
 
+  it("the text stays ASCII without losing the name: accents fold, a non-Latin name falls back", async () => {
+    const caller = await loadCaller();
+    await caller.bookSlot({ ...TOW, name: "José" });
+    expect(bodyOf(0)).toContain("Jose - (216) 555-0123");
+    await caller.bookSlot({ ...TOW, callId: "call_test_9", name: "محمد" });
+    expect(bodyOf(1)).toContain("Name not given - (216) 555-0123");
+  });
+
   it("a different 10-digit spoken number rides along as Callback:", async () => {
     await (await loadCaller()).bookSlot({ ...TOW, phone: "216-555-0177" });
     expect(bodyOf()).toContain("Ray - (216) 555-0123");

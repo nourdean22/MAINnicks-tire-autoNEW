@@ -115,6 +115,8 @@ async function resolveCallerName(given: string | undefined, callerNumber: string
 /** Plain ASCII for an internal text: smart quotes and dashes folded, anything else non-printable dropped. */
 function asciiClip(s: string | undefined, max: number): string {
   return (s ?? "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/[–—]/g, "-")
@@ -136,7 +138,7 @@ function arrivalHeadsUpText(input: { phone?: string; callerNumber?: string; serv
   const spoken = (input.phone ?? "").replace(/\D/g, "").slice(-10);
   const number = callerId.length === 10 ? formatUsPhone(callerId) : spoken.length === 10 ? formatUsPhone(spoken) : asciiClip(input.phone, 20) || "no number";
   const vehicle = asciiClip(input.vehicle, 60);
-  const lines = [isTow(input.service) ? "TOW COMING (phone)" : "COMING IN (phone)", `${asciiClip(name ?? "Name not given", 40)} - ${number}`];
+  const lines = [isTow(input.service) ? "TOW COMING (phone)" : "COMING IN (phone)", `${asciiClip(name ?? "", 40) || "Name not given"} - ${number}`];
   if (callerId.length === 10 && spoken.length === 10 && spoken !== callerId) lines.push(`Callback: ${formatUsPhone(spoken)}`);
   if (isTow(input.service)) {
     // "tow incoming — won't start" -> "won't start": the header already says it's a tow.
