@@ -9,11 +9,16 @@
  *
  * THE SOLUTION:
  * Probes only fire when there's an explicit demand:
- *   1. admin_login    — Nour just logged into /admin
+ *   1. admin_login    — Nour just logged into /admin (OAuth callback)
  *   2. chat_query     — Nick chat asks "what's our revenue today?"
  *   3. manual_refresh — Admin clicks "Refresh from ALG" button
  *   4. overnight      — Single 3 AM ET probe (shop closed, no Moe risk)
- *   5. health_check   — Stale-data detector (DB-only, no probe — see runIfStale)
+ *   5. evening        — Single 8 PM ET probe (after the shop closes)
+ *   6. admin_refresh  — A full admin page load or refresh, at most every 30 min,
+ *                       any hour (Nour, 2026-10-21: "Refresh syncs anytime",
+ *                       accepting that it logs the shop counter out; the
+ *                       throttle lives in lib/adminActivity.ts)
+ *   7. health_check   — Stale-data detector (DB-only, no probe — see runIfStale)
  *
  * Every probe is tracked in `alg_probe_log` so admin can see when/why
  * the last probe fired + outcome.
@@ -44,6 +49,7 @@ export type ProbeReason =
   | "manual_refresh"
   | "overnight"
   | "evening"
+  | "admin_refresh"
   | "health_check";
 
 export type ProbeOutcome =

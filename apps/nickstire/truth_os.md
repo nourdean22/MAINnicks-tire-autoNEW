@@ -119,6 +119,20 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-21 - Billed card gets Today and Yesterday; ShopDriver now syncs on admin page loads (branch worktree-agent-a8848ccfdd81e4e12, NOT yet merged)
+
+- **BUILT, not deployed, not proven live:** the Billed card on the Today page has Today and Yesterday chips (7 days stays the default). A day newer
+  than the invoice mirror's through-date renders "Not synced yet. The invoice mirror is current through <date>." with no figure
+  (`windowAfterThrough` from `server/services/shopSales.ts`); a synced day with no invoices is a real $0.
+- **When ALG syncs, as of this branch (Nour's decision, 2026-10-21, "Refresh syncs anytime"):** on a full admin page load or refresh, at most once per
+  30 minutes, at any hour (probe reason `admin_refresh`, `lib/adminActivity.ts`); plus 3 AM and 8 PM ET, the OAuth login, the manual refresh buttons and
+  the Nick chat. Each sync re-authenticates ShopDriver and logs the shop counter out; Nour accepted that. The old 6 h "resume edge" rule is deleted.
+  The trigger is the Billed card's first mount per document (`shopdriver.syncOnAdminLoad`): a deep link straight to another admin page does not sync
+  until Today is opened. The earlier claim that a `POST /api/admin/ping` route and bridge calls touch the activity tracker was false: only the
+  adminProcedure middleware calls it.
+- **Known limit:** the 30-minute check is the `alg_probe_log` read plus an in-process flag, not an atomic claim. A deploy overlap can start two probes
+  once. If the log ever shows two `admin_refresh` rows within a minute, make the claim a conditional write.
+
 ## 2026-10-19 - Admin prune W2a: 168 uncalled tRPC procedures and 4 idle crons gone, admin SSE stream fixed (branch nickstire/admin-prune-w2, NOT yet merged)
 
 - **BUILT, not deployed:** 172 procedures with no caller in the repo and 0 HTTP calls in 14 days (Railway logs 2026-10-05..19) were cut and 4

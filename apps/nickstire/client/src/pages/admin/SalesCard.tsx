@@ -34,7 +34,7 @@
  * reconciling it needs pending/partial/refunded, and they are the same person on
  * a different day.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -54,10 +54,47 @@ function dollars(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
+/**
+ * SYNC ON A PAGE LOAD (Nour, 2026-10-21, "Refresh syncs anytime"). This card is on the
+ * Today page, the /admin landing, so its first mount in a document is a load or refresh.
+ * The server throttles to one ShopDriver sync per 30 min at any hour and accepts that
+ * each one logs the shop counter out. This flag lives for the document, so a chip tap or
+ * an in-app return to the page is not a load; a browser refresh resets it. A deep link
+ * to another admin page does not sync until Today is opened (move this to the shell to
+ * change that).
+ */
+let loadSyncAsked = false;
+/** Test seam: a new document. */
+export function __resetLoadSyncForTest(): void {
+  loadSyncAsked = false;
+}
+const SYNC_POLL_MS = 15_000;
+const SYNC_POLL_MAX_MS = 3 * 60_000;
+
 export default function SalesCard() {
   const [period, setPeriod] = useState<Period>("last_7d");
   const [showDetail, setShowDetail] = useState(false);
-  const query = trpc.controlCenter.shopSales.useQuery({ period });
+  // True only after the server says it started a probe; re-reads this card while it lands.
+  const [syncing, setSyncing] = useState(false);
+  const { mutate: syncOnLoad } = trpc.shopdriver.syncOnAdminLoad.useMutation({
+    onSuccess: (r) => {
+      if (r.started) setSyncing(true);
+    },
+  });
+  useEffect(() => {
+    if (loadSyncAsked) return;
+    loadSyncAsked = true;
+    syncOnLoad();
+  }, [syncOnLoad]);
+  useEffect(() => {
+    if (!syncing) return;
+    const t = setTimeout(() => setSyncing(false), SYNC_POLL_MAX_MS);
+    return () => clearTimeout(t);
+  }, [syncing]);
+  const query = trpc.controlCenter.shopSales.useQuery(
+    { period },
+    { refetchInterval: syncing ? SYNC_POLL_MS : false },
+  );
   const data = query.data;
   // Decided from the period the server answered for, not the chip just tapped.
   const notSynced =
@@ -88,6 +125,12 @@ export default function SalesCard() {
           ))}
         </div>
       </div>
+
+      {syncing && (
+        <div role="status" className="mb-2 flex items-center gap-2 text-xs text-foreground/60">
+          <Loader2 className="w-3 h-3 animate-spin" /> Syncing the invoice mirror from ShopDriver…
+        </div>
+      )}
 
       {query.isLoading && (
         <div className="flex items-center gap-2 text-sm text-foreground/60">

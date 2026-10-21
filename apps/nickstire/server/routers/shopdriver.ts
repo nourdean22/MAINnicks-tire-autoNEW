@@ -328,6 +328,21 @@ export const shopdriverRouter = router({
     }),
 
   /**
+   * Sync ShopDriver because the admin was just loaded or refreshed (Nour,
+   * 2026-10-21: "Refresh syncs anytime"). The client calls this ONCE per full
+   * page load, never per click or in-app navigation. At most one probe per 30
+   * min, any hour (lib/adminActivity.ts owns the throttle). Returns as soon as
+   * the decision is made; the probe runs behind the response, so the caller
+   * polls its own reads to see the new numbers. `started: false` means a
+   * probe ran within 30 min, one is running, or the log could not be read.
+   */
+  syncOnAdminLoad: adminProcedure.mutation(async () => {
+    const { maybeFireAdminRefreshProbe } = await import("../lib/adminActivity");
+    const { started } = await maybeFireAdminRefreshProbe("admin-load");
+    return { started };
+  }),
+
+  /**
    * Read the last N probe attempts. For the admin "Probe Log" panel —
    * shows when each probe fired, why, and what came back.
    */

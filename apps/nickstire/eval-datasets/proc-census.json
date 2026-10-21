@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T17:55:03.556Z",
-  "count": 646,
+  "generatedAt": "2026-10-21T16:16:02.610Z",
+  "count": 647,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -243,6 +243,7 @@
     "mutation.shopdriver.requestProbe",
     "mutation.shopdriver.syncCustomers",
     "mutation.shopdriver.syncInvoices",
+    "mutation.shopdriver.syncOnAdminLoad",
     "mutation.shopdriver.updateSetting",
     "mutation.shopdriver.upsertSetting",
     "mutation.sms.sendManual",
