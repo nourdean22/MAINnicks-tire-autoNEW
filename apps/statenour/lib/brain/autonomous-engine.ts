@@ -597,9 +597,11 @@ const RULES: ActionRule[] = [
       // dupe path does: drop its confidence so it stops being picked. A failed
       // lookup throws; it must not read as "no existing row".
       const skipKeyCollision = async (existingId: string) => {
+        // min(0.5, ...) so any starting confidence ends below the 0.6 trigger
+        // (1.0 - 0.3 = 0.7 would be re-picked every cycle).
         await prisma.brainMemory.update({
           where: { id: memory.id },
-          data: { confidence: Math.max(0.3, memory.confidence - 0.3) },
+          data: { confidence: Math.min(0.5, Math.max(0.3, memory.confidence - 0.3)) },
         });
         return { result: "skipped", payload: { reason: "wisdom_key_exists", existing: existingId } };
       };

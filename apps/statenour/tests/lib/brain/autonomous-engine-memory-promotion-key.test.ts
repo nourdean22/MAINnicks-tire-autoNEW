@@ -89,6 +89,20 @@ describe("memory_promotion · wisdom key collision", () => {
     expect(sendTelegram).not.toHaveBeenCalled();
   });
 
+  // The trigger re-picks anything >= 0.6, so a skipped key collision must end below it
+  // whatever it started at (1.0 - 0.3 = 0.7 would be picked and skipped every cycle).
+  it.each([
+    [1.0, 0.5],
+    [0.8, 0.5],
+    [0.65, 0.35],
+  ])("key collision at confidence %s drops to %s, below the 0.6 trigger", async (before, after) => {
+    wisdomRows({ keyRow: { id: "wis-9" } });
+    await action()({ ...memory, confidence: before });
+    const dropped = update.mock.calls[0][0].data.confidence;
+    expect(dropped).toBeCloseTo(after, 10);
+    expect(dropped).toBeLessThan(0.6);
+  });
+
   it("race: P2002 from the promote update is the same skip, with confidence lowered", async () => {
     wisdomRows({});
     update.mockRejectedValueOnce(p2002()).mockResolvedValue({});
