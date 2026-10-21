@@ -17,3 +17,6 @@ export type ConversationFlagKind = (typeof CONVERSATION_FLAG_KINDS)[number];
 export function isConversationFlagKind(kind: unknown): kind is ConversationFlagKind {
   return typeof kind === "string" && (CONVERSATION_FLAG_KINDS as readonly string[]).includes(kind);
 }
+
+/** The exact account stored for a clip with no intelligible speech. Readers treat it as no account (the office digest stays THIN on it). */
+export const NOISE_ONLY_ACCOUNT = "Only shop noise, no speech.";

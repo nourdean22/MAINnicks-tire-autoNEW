@@ -10,9 +10,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  role: null as null | "owner" | "manager",
+  role: null as null | "owner" | "manager" | "throw",
   execute: vi.fn(),
+  llm: vi.fn(),
 }));
+
+vi.mock("../_core/llm", async (orig) => ({ ...(await orig<Record<string, unknown>>()), invokeLLM: h.llm }));
 
 vi.mock("../lib/db-helper", () => ({
   db: async () => ({ execute: h.execute }),
@@ -29,14 +32,18 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
 
 vi.mock("../services/adminSecurity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/adminSecurity")>()),
-  getAdminSecurityState: vi.fn(async () => h.role === null ? null
-    : { adminRole: h.role, mfaEnabled: false, mfaVerifiedAt: null, mfaAgeMinutes: null, encryptedSecret: null }),
+  getAdminSecurityState: vi.fn(async () => {
+    if (h.role === "throw") throw new Error("admin_security read timed out");
+    return h.role === null ? null
+      : { adminRole: h.role, mfaEnabled: false, mfaVerifiedAt: null, mfaAgeMinutes: null, encryptedSecret: null };
+  }),
 }));
 
 import { lotRouter } from "./lot";
 import type { TrpcContext } from "../_core/context";
+import { officeHourDigest } from "../services/officeDigest";
 
-function caller(adminRole: "owner" | "manager") {
+function caller(adminRole: "owner" | "manager" | "throw") {
   h.role = adminRole;
   return lotRouter.createCaller({
     user: { id: 1, openId: "admin", email: "a@b.com", name: "A", loginMethod: "manus", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() },
@@ -65,6 +72,7 @@ const ACCOUNT = "A customer asked for a tire rotation and said the prices are to
 
 beforeEach(() => {
   h.execute.mockReset();
+  h.llm.mockReset();
 });
 
 describe("(h) lot.conversations: account and flags are the owner's", () => {
@@ -138,9 +146,34 @@ describe("(i) lot.worthKnowing", () => {
   it("an explicit day is passed to SQL as the day, and a malformed day is rejected", async () => {
     install([], bounds("2026-10-20"));
     const r = await caller("owner").worthKnowing({ day: "2026-10-20" });
-    expect(r).toEqual({ ok: true, day: "2026-10-20", items: [] });
+    expect(r).toEqual({ ok: true, day: "2026-10-20", items: [], truncated: false });
     expect(flat(h.execute.mock.calls[0][0]).params).toContain("2026-10-20");
     await expect(caller("owner").worthKnowing({ day: "10/20/2026" })).rejects.toThrow();
+  });
+
+  it("P1-c (Codex on #3213): only rows holding a flag are read, filtered in SQL BEFORE the bound, so a busy day cannot push an older flag out", async () => {
+    install([]);
+    await caller("owner").worthKnowing();
+    const rowsQ = flat(h.execute.mock.calls[1][0]);
+    for (const kind of ["NEGATIVE_TALK", "CUSTOMER_COMPLAINT", "STAFF_CONFLICT", "SAFETY", "LEAVING_OR_COMPETITOR", "MONEY_OR_DISCOUNT"]) {
+      expect(rowsQ.params).toContain(JSON.stringify(kind));
+    }
+    expect(rowsQ.text).toContain("JSON_CONTAINS(JSON_EXTRACT(facts, '$[*].kind'), ?)");
+    // the flag filter sits in the WHERE, ahead of ORDER BY / LIMIT
+    expect(rowsQ.text.indexOf("JSON_CONTAINS")).toBeLessThan(rowsQ.text.indexOf("ORDER BY"));
+    expect(rowsQ.text).toMatch(/LIMIT 201$/);
+  });
+
+  it("P1-c: more than 200 flagged conversations says truncated: true instead of cutting silently", async () => {
+    const many = Array.from({ length: 201 }, (_, i) => ({ episodeId: `ep-${i}`, source: "eufy-office", startedAtMs: 1792600000000 - i, facts: [FLAG], gist: null }));
+    install(many);
+    const r = await caller("owner").worthKnowing();
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.truncated).toBe(true);
+    expect(r.items).toHaveLength(200);
+    install(many.slice(0, 200));
+    const full = await caller("owner").worthKnowing();
+    expect(full).toMatchObject({ ok: true, truncated: false });
   });
 
   it("unknown day bounds (timezone tables missing) or a failed read is ok:false, never an empty day", async () => {
@@ -165,5 +198,64 @@ describe("(k) lot.officeDigest is owner only", () => {
     });
     const r = await caller("owner").officeDigest({ hours: 1 });
     expect(r).toMatchObject({ ok: true });
+  });
+});
+
+describe("skeptic review of #3213: an UNVERIFIED owner (role read threw) does not open words", () => {
+  const row = { episodeId: "ep-1", source: "eufy-office", transcriptStatus: "DONE", durationSeconds: 30, transcript: [], segmentCount: 3, facts: [BUSINESS, FLAG], gist: ACCOUNT };
+
+  it("S1: lot.conversations is manager-shaped when the role read threw (reads stay open)", async () => {
+    h.execute.mockResolvedValue([[row], []]);
+    const r = await caller("throw").conversations();
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.wordsVisible).toBe(false);
+    const c = r.conversations[0];
+    expect(c.gist).toBeNull();
+    expect(c.flagKinds).toEqual([]);
+    expect(c.facts).toEqual([{ kind: "REQUESTED_WORK", value: "tire rotation", evidenceText: "", confidence: 0.9 }]);
+    expect(JSON.stringify(r)).not.toContain("way too much");
+  });
+
+  it("S1: transcript, worthKnowing and officeDigest are refused when the role read threw", async () => {
+    expect(await caller("throw").conversationTranscript({ episodeId: "ep-1" })).toEqual({ ok: false, reason: "Only the owner can read what was said." });
+    expect(await caller("throw").worthKnowing()).toEqual({ ok: false, reason: "Only the owner can see this." });
+    expect(await caller("throw").officeDigest({ hours: 1 })).toEqual({ ok: false, reason: "Only the owner can see this." });
+    expect(h.execute).not.toHaveBeenCalled();
+  });
+
+  it("S1 CONTROL: an owner whose row was read gets the words", async () => {
+    h.execute.mockResolvedValue([[row], []]);
+    const r = await caller("owner").conversations();
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.wordsVisible).toBe(true);
+    expect(r.conversations[0].gist).toBe(ACCOUNT);
+  });
+});
+
+describe("skeptic review of #3213: the office digest", () => {
+  it("S4: an hour of noise-only clips stays THIN, with no model call", async () => {
+    const nowHour = 497950;
+    h.execute.mockImplementation(async (q: unknown) => {
+      const t = flat(q).text;
+      if (t.includes("AS nowHour")) return [[{ nowHour }], []];
+      if (t.includes("FROM conversation_episodes")) {
+        return [[{ episodeId: "n1", durationSeconds: 8, facts: [], transcriptStatus: "DONE", hourIdx: nowHour, gist: "Only shop noise, no speech." }], []];
+      }
+      return [[], []];
+    });
+    const r = await caller("owner").officeDigest({ hours: 1 });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.hours[0].status).toBe("THIN");
+    expect(h.llm).not.toHaveBeenCalled();
+  });
+
+  it("S6: the digest keeps guess labels, and a long gist is cut before an open (inferred:", async () => {
+    h.llm.mockResolvedValue({ id: "t", created: 0, model: "m", choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ digest: "d", topics: [] }) }, finish_reason: "stop" }] });
+    await officeHourDigest(1792600000000 + 7 * 3_600_000, false, [{ episodeId: "s6-ep", gist: "a".repeat(280) + " (inferred: a long guess that runs past the line here)", facts: [] }]);
+    const [system, user] = h.llm.mock.calls[0][0].messages as Array<{ content: string }>;
+    expect(system.content).toContain("never state a guess as heard");
+    const gistLine = user.content.split("\n").find((l) => l.startsWith("- gist:"))!;
+    expect(gistLine).not.toContain("(inferred:");
+    expect(gistLine.endsWith(" (cut)")).toBe(true);
   });
 });

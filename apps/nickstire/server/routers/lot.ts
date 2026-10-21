@@ -79,7 +79,7 @@ import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from ".
 import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { conversationSourceLabel, jsonArray, storedFacts, transcriptCoverage } from "../lib/conversationQuality";
-import { isConversationFlagKind } from "../../shared/conversationFlags";
+import { CONVERSATION_FLAG_KINDS, NOISE_ONLY_ACCOUNT, isConversationFlagKind } from "../../shared/conversationFlags";
 import { officeHourDigest } from "../services/officeDigest";
 import { readVehicleCounterTrust } from "../services/vehicleCounterTrust";
 import { conversationEpisodeColumnPresent, officeVisualColumnPresent, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
@@ -113,6 +113,18 @@ const minutesBetween = (from: string, toCoalesce: string[]) =>
   );
 
 const OPEN_VISIT_CAP = 500;
+
+/**
+ * The owner rule for staff and customer words: the OWNER role, read from its row. A role read that
+ * threw falls back to owner for reads in the admin middleware (roleVerified false); that fallback
+ * does not open these words (skeptic review of #3213).
+ */
+function ownerVerified(security: { adminRole: string; roleVerified?: boolean }): boolean {
+  return security.adminRole === "owner" && security.roleVerified === true;
+}
+
+/** Flagged conversations lot.worthKnowing reads per day; past this it says truncated. */
+const WORTH_KNOWING_MAX_ROWS = 200;
 
 /** An UNREGISTERED camera_runtime row silent this long is retired from lot.health (not deleted). */
 const RETIRE_UNREGISTERED_AFTER_SECONDS = 7 * 24 * 3600;
@@ -421,7 +433,7 @@ export const lotRouter = router({
 
       const limit = input?.limit ?? 25;
       const includeSelftest = input?.includeSelftest ?? false;
-      const quotes = ctx.adminSecurity.adminRole === "owner";
+      const quotes = ownerVerified(ctx.adminSecurity);
       try {
         const where = includeSelftest ? sql`1 = 1` : sql`source <> 'selftest'`;
         // `visual` (migration 0140) and `gist` (0141) are selected only once the column exists, so
@@ -511,7 +523,7 @@ export const lotRouter = router({
   conversationTranscript: adminProcedure
     .input(z.object({ episodeId: z.string().min(1).max(64) }))
     .query(async ({ input, ctx }) => {
-      if (ctx.adminSecurity.adminRole !== "owner") {
+      if (!ownerVerified(ctx.adminSecurity)) {
         return { ok: false as const, reason: "Only the owner can read what was said." };
       }
       const d = await dbTyped();
@@ -567,7 +579,7 @@ export const lotRouter = router({
   worthKnowing: adminProcedure
     .input(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional())
     .query(async ({ input, ctx }) => {
-      if (ctx.adminSecurity.adminRole !== "owner") return { ok: false as const, reason: "Only the owner can see this." };
+      if (!ownerVerified(ctx.adminSecurity)) return { ok: false as const, reason: "Only the owner can see this." };
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
       try {
@@ -592,10 +604,15 @@ export const lotRouter = router({
            WHERE source <> 'selftest' AND facts IS NOT NULL
              AND UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) >= ${startEpoch}
              AND UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) < ${endEpoch}
+             AND (${sql.join(CONVERSATION_FLAG_KINDS.map((k) => sql`JSON_CONTAINS(JSON_EXTRACT(facts, '$[*].kind'), ${JSON.stringify(k)})`), sql` OR `)})
            ORDER BY COALESCE(startedAt, createdAt) DESC
-           LIMIT 300
+           LIMIT ${sql.raw(String(WORTH_KNOWING_MAX_ROWS + 1))}
         `));
-        const items = rows.flatMap((r) => storedFacts(r.facts)
+        // Only FLAGGED conversations are read, filtered in SQL before the bound (Codex on #3213: a
+        // bound over every row let a busy day push an older flag out of "Worth knowing"). One row
+        // past the bound means there were more, said as truncated, never cut silently.
+        const truncated = rows.length > WORTH_KNOWING_MAX_ROWS;
+        const items = rows.slice(0, WORTH_KNOWING_MAX_ROWS).flatMap((r) => storedFacts(r.facts)
           .filter((f) => isConversationFlagKind(f.kind))
           .map((f) => ({
             episodeId: String(r.episodeId),
@@ -606,7 +623,7 @@ export const lotRouter = router({
             quote: f.value,
             account: r.gist == null ? null : String(r.gist),
           })));
-        return { ok: true as const, day, items };
+        return { ok: true as const, day, items, truncated };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "worth-knowing read failed" };
       }
@@ -634,7 +651,7 @@ export const lotRouter = router({
       // ears-v2: the digest is built from the detailed accounts and the flag facts, which are the
       // owner's. Refused before any read, so the in-process memo can never serve an owner-built
       // digest to another role.
-      if (ctx.adminSecurity.adminRole !== "owner") return { ok: false as const, reason: "Only the owner can see this." };
+      if (!ownerVerified(ctx.adminSecurity)) return { ok: false as const, reason: "Only the owner can see this." };
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
 
@@ -669,7 +686,8 @@ export const lotRouter = router({
           .map((r) => ({
             episodeId: String(r.episodeId),
             durationSeconds: numOrNull(r.durationSeconds),
-            gist: typeof r.gist === "string" && r.gist.trim() ? r.gist : null,
+            // The noise-only line is no account: an hour of noise-only clips stays THIN, no model call.
+            gist: typeof r.gist === "string" && r.gist.trim() && r.gist.trim() !== NOISE_ONLY_ACCOUNT ? r.gist : null,
             facts: storedFacts(r.facts).map((f) => ({ kind: f.kind, value: f.value })),
             transcriptFailed: r.transcriptStatus === "FAILED",
           }));

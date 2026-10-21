@@ -21,8 +21,8 @@
  * why a low-level capture downgrades every confidence rather than being ignored.
  */
 import { invokeLLM, type JsonSchema } from "../_core/llm";
-import { CONVERSATION_FLAG_KINDS, isConversationFlagKind, type ConversationFlagKind } from "../../shared/conversationFlags";
-import { isNonSpeechText } from "../lib/conversationQuality";
+import { CONVERSATION_FLAG_KINDS, NOISE_ONLY_ACCOUNT, isConversationFlagKind, type ConversationFlagKind } from "../../shared/conversationFlags";
+import { cutAtMarkerBoundary, heardText, isNonSpeechText } from "../lib/conversationQuality";
 
 /** One timed segment as `transcribeAudio()` returns them. */
 export type TranscriptSegment = {
@@ -142,11 +142,17 @@ export type ExtractionResult = {
 };
 
 const EXTRACTION_PROMPT_VERSION = "ears-v2-2026-10-21";
-const NOISE_ONLY_ACCOUNT = "Only shop noise, no speech.";
 const MAX_ACCOUNT_CHARS = 1200;
 /** A silence between segments this long gets its own unnumbered line in the transcript the model reads. */
 const GAP_LINE_SECONDS = 2;
 
+/** Fillers that are not words for the noise-only check. */
+const FILLERS = new Set(["uh", "um", "hmm", "mm", "mhm", "ah", "oh", "huh", "er"]);
+
+/** True when a segment holds at least one real word once sound tags are removed. */
+function hasRealWords(text: string): boolean {
+  return normalizeWords(heardText(text)).split(" ").some((w) => w.length >= 2 && !FILLERS.has(w));
+}
 /** Case, whitespace and punctuation removed, so a quote is compared on its words. */
 function normalizeWords(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -329,7 +335,7 @@ const OUTPUT_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ["facts"],
+  required: ["facts", "account", "accountSegments", "noiseOnly", "flags"],
   },
 };
 
@@ -418,6 +424,17 @@ export async function extractConversationFacts(
     const text = typeof content === "string" ? content : "";
     if (!text.trim()) throw new Error("LLM returned no content for fact extraction");
     raw = JSON.parse(stripFence(text));
+    // Every ears-v2 field is required (Codex on #3213): a reply of only { facts: [] } would
+    // otherwise read as "no account, no flags" when the model never answered those questions.
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const missing = [
+      Array.isArray(r.facts) ? null : "facts",
+      typeof r.account === "string" || r.account === null ? null : "account",
+      Array.isArray(r.accountSegments) ? null : "accountSegments",
+      typeof r.noiseOnly === "boolean" ? null : "noiseOnly",
+      Array.isArray(r.flags) ? null : "flags",
+    ].filter((m): m is string => m !== null);
+    if (missing.length) throw new Error(`LLM reply missing ears-v2 fields: ${missing.join(", ")}`);
   } catch (err) {
     // A failed extraction must NOT read as "no facts found". That is the empty-vs-error
     // confusion this whole file is arranged against.
@@ -429,13 +446,12 @@ export async function extractConversationFacts(
 
   const latencyMs = Date.now() - started;
   const parsed = (raw ?? {}) as { facts?: unknown[]; account?: unknown; accountSegments?: unknown; noiseOnly?: unknown; flags?: unknown[] };
-  const byIndex = new Map(segments.map((s) => [s.index, s]));
-  // Flags and the account may cite SPEECH only: a noise line was never shown numbered.
+  // Facts, flags and the account may cite SPEECH only: a noise line was never shown numbered
+  // (Codex on #3213: business facts used to resolve against every segment, noise included).
   const speechByIndex = new Map(segments.filter((s) => !isNonSpeechText(s.text)).map((s) => [s.index, s]));
-  const noiseOnly = parsed.noiseOnly === true;
+  const modelSaysNoise = parsed.noiseOnly === true;
   const rawFacts = Array.isArray(parsed.facts) ? parsed.facts : [];
   const rawFlags = Array.isArray(parsed.flags) ? parsed.flags : [];
-  if (noiseOnly && (rawFacts.length || rawFlags.length)) bump("noise-only clip: facts and flags ignored");
   const quiet = typeof opts.meanVolumeDb === "number" && opts.meanVolumeDb < LOW_LEVEL_DB;
 
   // Computed only when BOTH numbers are present. A missing measurement is not evidence of
@@ -449,13 +465,13 @@ export async function extractConversationFacts(
   const gappy = coverage !== null && coverage < MIN_TRANSCRIPT_COVERAGE;
 
   const facts: ConversationFact[] = [];
-  for (const item of noiseOnly ? [] : rawFacts) {
+  for (const item of rawFacts) {
     const f = item as Partial<ConversationFact>;
     if (!f || typeof f !== "object") { bump("malformed"); continue; }
     if (!FACT_KINDS.includes(f.kind as FactKind)) { bump("unknown kind"); continue; }
     if (typeof f.value !== "string" || !f.value.trim()) { bump("empty value"); continue; }
 
-    const seg = byIndex.get(Number(f.evidenceSegment));
+    const seg = speechByIndex.get(Number(f.evidenceSegment));
     if (!seg) {
       // A cited segment that does not exist means the model invented its provenance. Discard
       // rather than repair: a fact whose evidence is fabricated is exactly the thing this
@@ -491,25 +507,46 @@ export async function extractConversationFacts(
   // guess or gap marker, and clears 0.7. The coverage cap does NOT apply (the flag shows its exact
   // heard words and the owner can open the transcript); the quiet cap does.
   let flagCount = 0;
-  for (const item of noiseOnly ? [] : rawFlags) {
+  for (const item of rawFlags) {
     const f = item as { kind?: unknown; evidenceSegment?: unknown; quote?: unknown; confidence?: unknown };
     if (!f || typeof f !== "object") { bump("flag malformed"); continue; }
     if (!isConversationFlagKind(f.kind)) { bump("flag unknown kind"); continue; }
-    const seg = speechByIndex.get(Number(f.evidenceSegment));
+    // Strict: Number(null), Number("") and Number(false) are 0, which would repair a malformed
+    // citation into segment 0 (Codex on #3213).
+    const seg = Number.isInteger(f.evidenceSegment) ? speechByIndex.get(f.evidenceSegment as number) : undefined;
     if (!seg) { bump("flag evidence segment does not exist"); continue; }
     const quote = typeof f.quote === "string" ? f.quote.trim() : "";
     if (!normalizeWords(quote)) { bump("flag quote empty"); continue; }
     if (/\(inferred|\[inaudible|\[gap/i.test(quote)) { bump("flag quote is inferred or a gap marker"); continue; }
-    // Whole words: "char" is not heard in "charge".
-    if (!` ${normalizeWords(seg.text)} `.includes(` ${normalizeWords(quote)} `)) { bump("flag quote not in cited segment"); continue; }
+    // Whole words, matched against the segment with its sound tags removed, so "door slams I'm
+    // leaving" cannot match inside "(door slams)"; "char" is not heard in "charge". The STORED value
+    // is the matching slice of what was heard, never the model's string (skeptic review of #3213):
+    // "20% off, $cash" from the model stores as "20 off cash" if that is what the segment says.
+    const heard = heardText(seg.text);
+    const tokens = [...heard.matchAll(/[\p{L}\p{N}]+/gu)];
+    const want = normalizeWords(quote).split(" ");
+    let value: string | null = null;
+    for (let i = 0; i + want.length <= tokens.length && value === null; i++) {
+      if (want.every((w, k) => tokens[i + k][0].toLowerCase() === w)) {
+        const last = tokens[i + want.length - 1];
+        value = heard.slice(tokens[i].index, (last.index ?? 0) + last[0].length);
+      }
+    }
+    if (value === null) { bump("flag quote not in cited segment"); continue; }
     const base = typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0;
     const conf = quiet ? Math.min(base, 0.6) : base;
     if (conf < MIN_FACT_CONFIDENCE) { bump(quiet ? "flag below threshold (inaudible capture)" : "flag below threshold"); continue; }
-    facts.push({ kind: f.kind, value: quote, evidenceSegment: seg.index, evidenceText: seg.text, confidence: conf });
+    facts.push({ kind: f.kind, value, evidenceSegment: seg.index, evidenceText: seg.text, confidence: conf });
     flagCount++;
   }
 
   const summary = evidenceBackedSummary(facts);
+
+  // The model's noiseOnly is honoured only when the server agrees (skeptic review of #3213): no
+  // business fact and no flag survived, and no segment holds a real word. Otherwise it is ignored
+  // and said so, and the account below is judged like any other.
+  const noiseOnly = modelSaysNoise && facts.length === 0 && !segments.some((s) => hasRealWords(s.text));
+  if (modelSaysNoise && !noiseOnly) bump("noiseOnly ignored (the server kept facts or heard words)");
 
   // THE ACCOUNT (ears-v2). It labels its own guesses, so coverage and level no longer withhold it;
   // it still has to rest on a speech segment that exists. noiseOnly overrides whatever the model
@@ -521,10 +558,10 @@ export async function extractConversationFacts(
     const rawAccount = typeof parsed.account === "string" ? parsed.account.trim() : "";
     if (rawAccount) {
       const cited = Array.isArray(parsed.accountSegments)
-        ? parsed.accountSegments.filter((i) => speechByIndex.has(Number(i)))
+        ? parsed.accountSegments.filter((i) => Number.isInteger(i) && speechByIndex.has(i as number))
         : [];
       if (!cited.length) bump("account withheld (no existing segment cited)");
-      else gist = rawAccount.slice(0, MAX_ACCOUNT_CHARS);
+      else gist = cutAtMarkerBoundary(rawAccount, MAX_ACCOUNT_CHARS);
     }
   }
 

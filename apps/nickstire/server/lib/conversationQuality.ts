@@ -39,15 +39,56 @@ export function storedFacts(value: unknown): StoredFact[] {
   });
 }
 
+/** [..], (..) and *..* tags as whisper writes them around sounds. */
+const TAG = /\[([^\]]*)\]|\(([^)]*)\)|\*([^*]*)\*/g;
+
 /**
- * True when a transcript segment holds no words: empty, or only whisper's non-speech tokens
- * ([BLANK_AUDIO], [MUSIC], (banging), *noise*, music notes). A line that mixes a token with words
- * ("(laughs) yeah it is") is speech.
+ * A tag is a SOUND when its inner text is short and is not a "Speaker: words" line: "(banging)",
+ * "[BLANK_AUDIO]", "(door slams)". "(Customer: I'm going to Firestone)" is speech the transcriber
+ * bracketed, and is kept (skeptic review of #3213).
  */
-export function isNonSpeechText(text: string): boolean {
-  return /^(?:\s|\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|[♪♫.…\-–—])*$/u.test(text);
+function isSoundTag(inner: string): boolean {
+  const t = inner.trim();
+  return !t.includes(":") && t.split(/\s+/).filter(Boolean).length <= 4;
 }
 
+/**
+ * True when a transcript segment holds no words: empty, or only sound tags ([BLANK_AUDIO],
+ * [MUSIC], (banging), *noise*) and music notes. A line that mixes a tag with words ("(laughs)
+ * yeah it is") or brackets real speech is speech.
+ */
+export function isNonSpeechText(text: string): boolean {
+  let words = false;
+  const rest = text.replace(TAG, (_m, a?: string, b?: string, c?: string) => {
+    if (!isSoundTag(a ?? b ?? c ?? "")) words = true;
+    return " ";
+  });
+  return !words && /^[\s♪♫.…\-–—]*$/u.test(rest);
+}
+
+/** The segment's words with sound tags removed; a bracketed speech line keeps its words. */
+export function heardText(text: string): string {
+  return text.replace(TAG, (_m, a?: string, b?: string, c?: string) => {
+    const inner = a ?? b ?? c ?? "";
+    return isSoundTag(inner) ? " " : ` ${inner} `;
+  });
+}
+
+/**
+ * Cut to `max` characters without leaving a guess or a gap open: a cut inside "(inferred: ..."
+ * would render the rest of the guess as heard (Codex on #3213). The cut goes before any marker
+ * still open at the limit and ends " (cut)". Used for the stored account and the digest's input.
+ */
+export function cutAtMarkerBoundary(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const suffix = " (cut)";
+  let cut = text.slice(0, Math.max(0, max - suffix.length));
+  for (const [open, close] of [["(inferred:", ")"], ["[inaudible:", "]"]] as const) {
+    const at = cut.lastIndexOf(open);
+    if (at >= 0 && !cut.includes(close, at)) cut = cut.slice(0, at);
+  }
+  return cut.trimEnd() + suffix;
+}
 /** Where a conversation source's microphone is, in words (eufy-office -> "Office"); anything else names itself. */
 export function conversationSourceLabel(source: string): string {
   return source === "eufy-office" ? "Office" : source;
@@ -70,6 +111,17 @@ export function transcriptCoverage(
   transcript: unknown,
   totalSeconds: unknown,
 ): number | null {
+  const covered = speechCoveredSeconds(transcript, totalSeconds);
+  return covered === null ? null : Math.max(0, Math.min(1, covered / Number(totalSeconds)));
+}
+
+/**
+ * Seconds of the clip covered by SPEECH segments (same union, clamping and non-speech rule as
+ * transcriptCoverage). The route measures this itself and gives it to the extractor's coverage
+ * gate (Codex on #3213): the producer's coveredSeconds counts [BLANK_AUDIO] and (banging) spans.
+ * null when the clip duration is unknown.
+ */
+export function speechCoveredSeconds(transcript: unknown, totalSeconds: unknown): number | null {
   if (totalSeconds === null || totalSeconds === undefined) return null;
   const total = Number(totalSeconds);
   if (!Number.isFinite(total) || total <= 0) return null;
@@ -104,5 +156,5 @@ export function transcriptCoverage(
   }
   covered += end - start;
 
-  return Math.max(0, Math.min(1, covered / total));
+  return Math.max(0, Math.min(total, covered));
 }

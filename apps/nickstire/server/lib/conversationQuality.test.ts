@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jsonArray, transcriptCoverage } from "./conversationQuality";
+import { cutAtMarkerBoundary, isNonSpeechText, jsonArray, transcriptCoverage } from "./conversationQuality";
 
 describe("jsonArray", () => {
   it("accepts parsed arrays and JSON strings, but not malformed JSON", () => {
@@ -54,5 +54,24 @@ describe("transcriptCoverage: non-speech tokens are not covered speech (job 2026
   it("an empty text is not speech either; a segment without a text field still counts as before", () => {
     expect(transcriptCoverage([{ start: 0, end: 5, text: "  " }], 10)).toBe(0);
     expect(transcriptCoverage([{ start: 0, end: 5 }], 10)).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe("isNonSpeechText: a sound tag, not any bracketed line (skeptic review of #3213, S5)", () => {
+  it("short sound descriptions and whisper tags are noise", () => {
+    for (const t of ["[BLANK_AUDIO]", "(door slams)", "[Music]", " (banging) ", "*engine revving*", "♪", ""]) expect(isNonSpeechText(t), t).toBe(true);
+  });
+  it("a speaker line or a long sentence in brackets is speech", () => {
+    for (const t of ["(Customer: I'm going to Firestone)", "(the customer said they would come back next week)", "(laughs) yeah it is"]) expect(isNonSpeechText(t), t).toBe(false);
+  });
+});
+
+describe("cutAtMarkerBoundary", () => {
+  it("never leaves an (inferred: or [inaudible: open, and leaves short text alone", () => {
+    expect(cutAtMarkerBoundary("short (inferred: x)", 300)).toBe("short (inferred: x)");
+    const cut = cutAtMarkerBoundary("a".repeat(280) + " (inferred: a long guess that runs past the line)", 300);
+    expect(cut.endsWith(" (cut)")).toBe(true);
+    expect(cut).not.toContain("(inferred:");
+    expect(cut.length).toBeLessThanOrEqual(300);
   });
 });

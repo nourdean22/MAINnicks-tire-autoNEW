@@ -32,9 +32,11 @@ const reply = (content: string): InvokeResult => ({
   choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
 });
 
+/** ears-v2 requires every field (Codex on #3213); these older tests are about facts, so the rest default empty. */
+const V2_EMPTY = { account: null, accountSegments: [], noiseOnly: false, flags: [] };
 const replyWith = (payload: unknown) =>
   (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-    reply(JSON.stringify(payload)),
+    reply(JSON.stringify({ ...V2_EMPTY, ...(payload as object) })),
   );
 
 beforeEach(() => vi.clearAllMocks());
@@ -96,7 +98,7 @@ describe("conversation facts — the gateway CONTRACT, pinned after production t
     // self-inflicted extraction failure that looks exactly like a provider outage.
     const fenced = [
       "```json",
-      JSON.stringify({ facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1, confidence: 0.95 }] }),
+      JSON.stringify({ ...V2_EMPTY, facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1, confidence: 0.95 }] }),
       "```",
     ].join(String.fromCharCode(10));
     (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(reply(fenced));

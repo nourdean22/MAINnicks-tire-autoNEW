@@ -50,7 +50,8 @@ describe("ears-v2 flags: the quote must be in the cited segment", () => {
     replyWith({ account: "x", accountSegments: [2], noiseOnly: false, facts: [], flags: [flag({ quote: "You charge WAY too much." })] });
     const r = await extractConversationFacts(SEGMENTS, GOOD);
     expect(r.facts).toEqual([{
-      kind: "NEGATIVE_TALK", value: "You charge WAY too much.", evidenceSegment: 2,
+      // the HEARD words, not the model's casing or punctuation (skeptic review of #3213)
+      kind: "NEGATIVE_TALK", value: "you charge way too much", evidenceSegment: 2,
       evidenceText: "Honestly, you charge way too much here!", confidence: 0.9,
     }]);
     expect(r.flagCount).toBe(1);
@@ -97,11 +98,17 @@ describe("ears-v2 flags: the quote must be in the cited segment", () => {
 
 describe("ears-v2 account", () => {
   it("(d) noiseOnly true with an account claiming speech stores exactly the noise line, and no facts or flags", async () => {
+    // A clip the server also hears no words in: a filler and a blank. The model's fact and flag
+    // do not survive (noise citation, quote not heard), so its noiseOnly is honoured.
+    const fillerOnly: TranscriptSegment[] = [
+      { index: 0, start: 0, end: 2, text: "Uh." },
+      { index: 1, start: 2, end: 5, text: "[BLANK_AUDIO]" },
+    ];
     replyWith({
-      account: "A customer asked about tires.", accountSegments: [2], noiseOnly: true,
-      facts: [{ kind: "REQUESTED_WORK", value: "tires", evidenceSegment: 2, confidence: 0.9 }], flags: [flag({})],
+      account: "A customer asked about tires.", accountSegments: [0], noiseOnly: true,
+      facts: [{ kind: "REQUESTED_WORK", value: "tires", evidenceSegment: 1, confidence: 0.9 }], flags: [flag({ evidenceSegment: 0 })],
     });
-    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    const r = await extractConversationFacts(fillerOnly, GOOD);
     expect(r.gist).toBe(NOISE_LINE);
     expect(r.noiseOnly).toBe(true);
     expect(r.facts).toEqual([]);
@@ -180,5 +187,118 @@ describe("ears-v2 prompt", () => {
     expect(lines.some((l) => /^\[1\]/.test(l))).toBe(false);
     // a gap under 2 s gets no line
     expect(lines.filter((l) => l.startsWith("[gap"))).toHaveLength(1);
+  });
+});
+
+describe("Codex review of #3213", () => {
+  it("P1-a: a business fact citing a hidden noise segment is dropped, never stored with noise as evidence", async () => {
+    replyWith({ account: "x", accountSegments: [2], noiseOnly: false, facts: [{ kind: "REQUESTED_WORK", value: "tires", evidenceSegment: 1, confidence: 0.95 }], flags: [] });
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.facts).toEqual([]);
+    expect(r.dropped).toContainEqual({ reason: "evidence segment does not exist", count: 1 });
+  });
+
+  it("P2-a: the schema requires every ears-v2 field, and a reply missing any is a FAILED extraction, never 'no flags'", async () => {
+    replyWith({ facts: [] });
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/missing ears-v2 fields: account, accountSegments, noiseOnly, flags/);
+    expect(r.gist).toBeUndefined();
+    const schema = llm.mock.calls[0][0].outputSchema.schema as { required: string[] };
+    expect(schema.required).toEqual(expect.arrayContaining(["facts", "account", "accountSegments", "noiseOnly", "flags"]));
+
+    replyWith({ facts: [], account: null, accountSegments: [], noiseOnly: false });
+    const noFlags = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(noFlags).toMatchObject({ ok: false, error: expect.stringContaining("flags") });
+
+    // CONTROL: every field present, account null, is a successful empty extraction
+    replyWith({ facts: [], account: null, accountSegments: [], noiseOnly: false, flags: [] });
+    expect((await extractConversationFacts(SEGMENTS, GOOD)).ok).toBe(true);
+  });
+
+  it("P2-b: a long account is never cut inside an open (inferred: ...) guess", async () => {
+    const head = "w".repeat(1180) + " ";
+    replyWith({ account: `${head}(inferred: the customer was comparing prices with another shop down the street)`, accountSegments: [2], noiseOnly: false, facts: [], flags: [] });
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.gist!.length).toBeLessThanOrEqual(1200);
+    expect(r.gist!.endsWith(" (cut)")).toBe(true);
+    expect(r.gist).not.toContain("(inferred:");
+  });
+
+  it("P2-b: and never inside an open [inaudible: ...] stretch; a closed marker before the cut stays", async () => {
+    const head = "Someone asked about tires (inferred: winter ones). " + "w".repeat(1120) + " ";
+    replyWith({ account: `${head}[inaudible: a long burst of impact wrench noise drowned the rest of it]`, accountSegments: [2], noiseOnly: false, facts: [], flags: [] });
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.gist!.length).toBeLessThanOrEqual(1200);
+    expect(r.gist!.endsWith(" (cut)")).toBe(true);
+    expect(r.gist).not.toContain("[inaudible:");
+    expect(r.gist).toContain("(inferred: winter ones)");
+  });
+
+  it("P2-b CONTROL: an account within 1200 chars is untouched", async () => {
+    replyWith({ account: "Short (inferred: fine). [inaudible: bang]", accountSegments: [2], noiseOnly: false, facts: [], flags: [] });
+    expect((await extractConversationFacts(SEGMENTS, GOOD)).gist).toBe("Short (inferred: fine). [inaudible: bang]");
+  });
+
+  it("P2-c: a flag's evidenceSegment must be an integer, not null, empty, false or a numeric string", async () => {
+    for (const bad of [null, "", false, "2", 2.5]) {
+      replyWith({ account: null, accountSegments: [], noiseOnly: false, facts: [], flags: [flag({ evidenceSegment: bad })] });
+      const r = await extractConversationFacts(SEGMENTS, GOOD);
+      expect(r.facts, `evidenceSegment ${JSON.stringify(bad)}`).toEqual([]);
+    }
+  });
+
+  it("P2-c: accountSegments must be integers: [null] or [\"0\"] does not cite segment 0", async () => {
+    for (const bad of [[null], ["0"], [false]]) {
+      replyWith({ account: "Someone talked.", accountSegments: bad, noiseOnly: false, facts: [], flags: [] });
+      const r = await extractConversationFacts(SEGMENTS, GOOD);
+      expect(r.gist, JSON.stringify(bad)).toBeNull();
+    }
+  });
+});
+
+describe("skeptic review of #3213", () => {
+  it("S2: the stored flag value is the heard slice, never the model's string", async () => {
+    const segs: TranscriptSegment[] = [{ index: 0, start: 0, end: 3, text: "Yeah I can do 20 off cash, no receipt." }];
+    replyWith({ account: null, accountSegments: [], noiseOnly: false, facts: [], flags: [{ kind: "MONEY_OR_DISCOUNT", evidenceSegment: 0, quote: "I can do 20% off, $cash", confidence: 0.9 }] });
+    const r = await extractConversationFacts(segs, { coveredSeconds: 3, totalSeconds: 3 });
+    expect(r.facts).toHaveLength(1);
+    expect(r.facts[0].value).toBe("I can do 20 off cash");
+    expect(r.facts[0].value).not.toMatch(/[%$]/);
+  });
+
+  it("S2: a quote cannot match inside a sound tag", async () => {
+    const segs: TranscriptSegment[] = [{ index: 0, start: 0, end: 3, text: "(door slams) I'm leaving now" }];
+    replyWith({ account: null, accountSegments: [], noiseOnly: false, facts: [], flags: [{ kind: "LEAVING_OR_COMPETITOR", evidenceSegment: 0, quote: "door slams I'm leaving", confidence: 0.9 }] });
+    const r = await extractConversationFacts(segs, { coveredSeconds: 3, totalSeconds: 3 });
+    expect(r.facts).toEqual([]);
+    expect(r.dropped).toContainEqual({ reason: "flag quote not in cited segment", count: 1 });
+    // CONTROL: the words outside the tag still match
+    replyWith({ account: null, accountSegments: [], noiseOnly: false, facts: [], flags: [{ kind: "LEAVING_OR_COMPETITOR", evidenceSegment: 0, quote: "I'm leaving", confidence: 0.9 }] });
+    expect((await extractConversationFacts(segs, { coveredSeconds: 3, totalSeconds: 3 })).facts.map((f) => f.value)).toEqual(["I'm leaving"]);
+  });
+
+  it("S3: noiseOnly from the model is ignored when the server heard words; the surviving flag and the account stand", async () => {
+    replyWith({ account: "A customer said the prices are too high.", accountSegments: [2], noiseOnly: true, facts: [], flags: [flag({})] });
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.noiseOnly).toBe(false);
+    expect(r.gist).toBe("A customer said the prices are too high.");
+    expect(r.facts.map((f) => f.kind)).toEqual(["NEGATIVE_TALK"]);
+    expect(r.dropped).toContainEqual({ reason: "noiseOnly ignored (the server kept facts or heard words)", count: 1 });
+  });
+
+  it("S3: noiseOnly is ignored even with nothing kept, when a segment holds real words", async () => {
+    replyWith({ account: null, accountSegments: [], noiseOnly: true, facts: [], flags: [] });
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.noiseOnly).toBe(false);
+    expect(r.gist).toBeNull();
+  });
+
+  it("S5: a bracketed speaker line is speech, so it reaches the model numbered and is citable", async () => {
+    const segs: TranscriptSegment[] = [{ index: 0, start: 0, end: 3, text: "(Customer: I'm going to Firestone)" }];
+    replyWith({ account: null, accountSegments: [], noiseOnly: false, facts: [], flags: [{ kind: "LEAVING_OR_COMPETITOR", evidenceSegment: 0, quote: "going to Firestone", confidence: 0.9 }] });
+    const r = await extractConversationFacts(segs, { coveredSeconds: 3, totalSeconds: 3 });
+    expect(llm).toHaveBeenCalledTimes(1);
+    expect(r.facts.map((f) => f.value)).toEqual(["going to Firestone"]);
   });
 });

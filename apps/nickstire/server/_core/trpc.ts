@@ -261,7 +261,12 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
   if (!hasAdminPermission(adminRole, requiredPermission)) {
     throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${requiredPermission}` });
   }
-  return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: { ...effective, adminRole } } });
+  // ADDITIVE (skeptic review of #3213): false when the role read THREW and this READ fell back
+  // to owner. Nothing above changes; owner-only reads of staff and customer words (lot.conversations
+  // quotes/account/flags, conversationTranscript, worthKnowing, officeDigest) require it true.
+  // Rollback: drop this field and the `ownerVerified` checks in routers/lot.ts.
+  const roleVerified = !securityReadFailed;
+  return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: { ...effective, adminRole, roleVerified } } });
 });
 
 export const adminProcedure = t.procedure
