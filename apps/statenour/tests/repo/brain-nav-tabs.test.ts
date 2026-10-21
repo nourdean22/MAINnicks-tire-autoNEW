@@ -28,7 +28,7 @@ describe("Brain nav tabs mirror the Brain page tabs", () => {
   const pageTabs = pairsIn(page, "<PageTabs", "]}");
 
   it("the page declares every tab with a key and a label (parser sanity)", () => {
-    expect(pageTabs.length).toBeGreaterThanOrEqual(9);
+    expect(pageTabs.length).toBe(3);
   });
 
   it("nav-items lists the same tabs, same order, same labels", () => {

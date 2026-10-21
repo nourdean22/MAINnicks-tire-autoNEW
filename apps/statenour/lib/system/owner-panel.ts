@@ -380,7 +380,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
               : `${describePage(p.operationKey)} · delivery unconfirmed`,
           detail: failed ? clip(p.reason) : delivered ? "paged to Telegram" : `page attempt is ${p.state}; no delivery was recorded`,
           since: p.startedAt,
-          href: "/system/health",
+          href: null,
           evidence: `action_attempts ${p.operationKey}`,
         }),
       );
@@ -404,7 +404,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           clip(input.outboxHealth.lastDeadError) ??
           "dead-letter queue needs review or redrive",
         since: oldest,
-        href: "/system/health",
+        href: null,
         evidence: "post_turn_outbox status=dead|failed",
       }),
     );
@@ -474,7 +474,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
               clip(attempt.reason) ??
               "operation may or may not have committed; reconcile before retry",
             since: attempt.settledAt ?? attempt.updatedAt ?? attempt.startedAt,
-            href: "/system/logs",
+            href: null,
             evidence,
           }),
         );
@@ -490,7 +490,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
             title: `${attempt.tool} failed`,
             detail: clip(attempt.reason) ?? clip(attempt.operationKey),
             since: attempt.settledAt ?? attempt.updatedAt ?? attempt.startedAt,
-            href: "/system/logs",
+            href: null,
             evidence,
           }),
         );
@@ -510,7 +510,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
             title: `${attempt.tool} still executing after 30m`,
             detail: clip(attempt.reason) ?? clip(attempt.operationKey),
             since: attempt.startedAt,
-            href: "/system/logs",
+            href: null,
             evidence,
           }),
         );
@@ -612,7 +612,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           title: `AI lane ${l.feature} stopped · over its cap`,
           detail: `${dollars(l.spentCents)} of ${dollars(l.capCents)} today · calls return nothing until midnight ET`,
           since: null,
-          href: "/system/ai-cost",
+          href: null,
           evidence: `ai_generations feature=${l.feature} today`,
         }),
       );
@@ -755,7 +755,7 @@ export function costTiles(
     label: "AI spend per lane outcome",
     value: null,
     provenance: "UNMEASURED",
-    note: "lanes record spend (ai_generations.feature) but no outcome; spend per lane is on /system/ai-cost",
+    note: "lanes record spend (ai_generations.feature) but no outcome; spend per lane is in /api/system/ai-cost",
   });
   let recoveredRevenue: CostTile;
   if (valueAttribution === null) {

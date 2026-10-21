@@ -179,7 +179,7 @@ export const qualityBenchWeekly = inngest.createFunction(
           priority: regressed ? "P1" : "P2",
           title,
           body,
-          deepLink: "/system/health",
+          deepLink: "/system",
           surfaces: ["scoreboard", "brain"],
           expiresAt: new Date(Date.now() + 8 * 24 * 3_600_000).toISOString(),
         });

@@ -19,7 +19,7 @@
  * Route → entity-id mapping:
  *   · /decisions/<id>          → { kind: "decision",  id }
  *   · /journal#bd-<id>         → { kind: "journal",   id }
- *   · /pins#pin-<id>           → { kind: "pin",       id }
+ *   · /brain?tab=memory#pin-<id>           → { kind: "pin",       id }
  *   · /tasks#task-row-<id>     → { kind: "task",      id }
  *   · /brain/wisdom?focus=<k>  → no chat anchor today (skip)
  *
@@ -80,7 +80,7 @@ function extractEntity(
     const cleanHash = hash.slice(1);
     if (pathname.startsWith("/journal") && cleanHash.startsWith("bd-")) {
       out.lastJournalEntryId = cleanHash.slice(3);
-    } else if (pathname.startsWith("/pins") && cleanHash.startsWith("pin-")) {
+    } else if (pathname.startsWith("/brain") && cleanHash.startsWith("pin-")) {
       out.lastPinId = cleanHash.slice(4);
     } else if (pathname.startsWith("/missions") && cleanHash.startsWith("task-row-")) {
       out.lastTaskId = cleanHash.slice(9);

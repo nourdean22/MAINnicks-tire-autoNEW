@@ -211,7 +211,7 @@ export const GET = cronHandler(async () => {
     priority: "P0",
     title: `Cost SLO breach · forecast $${forecast$} (${pct}% of $${budget$} budget)`,
     body: `Burn so far: $${burn$} in ${state.hoursElapsed.toFixed(1)}h · 24h forecast: $${forecast$} · threshold $${(state.thresholdCents / 100).toFixed(2)}`,
-    deepLink: "/system/ai-cost",
+    deepLink: "/system",
     surfaces: ["scoreboard"],
     extra: {
       date: today,

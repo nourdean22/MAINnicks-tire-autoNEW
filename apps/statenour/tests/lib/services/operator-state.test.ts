@@ -307,10 +307,8 @@ describe("chooseLanding · 2026-05-24 Wave W Phase 3", () => {
     expect(rec?.reason).toMatch(/momentum|wave/);
   });
 
-  it("recommends the brain board tab on low-focus high-capacity (strategy time)", () => {
-    const rec = chooseLanding({ ...base, focus: 0.2, capacity: 0.7 });
-    expect(rec?.surface).toBe("/brain?tab=board");
-    expect(rec?.reason).toMatch(/board|focus/);
+  it("low-focus high-capacity no longer recommends a surface (the Brain board tab was cut 2026-10-19)", () => {
+    expect(chooseLanding({ ...base, focus: 0.2, capacity: 0.7 })).toBeNull();
   });
 
   it("returns null for neutral steady-state (no specific signal)", () => {

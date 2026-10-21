@@ -43,7 +43,7 @@ describe("mastery pages use the canonical StandardPage shell", () => {
   const pages = walkPages(MASTERY_ROOT).map(rel).sort();
 
   it("discovers the mastery route tree", () => {
-    expect(pages.length).toBeGreaterThanOrEqual(20);
+    expect(pages.length).toBeGreaterThanOrEqual(10);
   });
 
   it("keeps the exception list explicit and valid", () => {

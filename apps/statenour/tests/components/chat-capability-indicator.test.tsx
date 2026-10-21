@@ -130,7 +130,7 @@ describe("ChatCapabilityIndicator · W3b dot and words", () => {
     providers = { data: { overallTone: "green" }, isError: false };
     tools = { data: healthyTools, isError: false };
     const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
-    expect(markup).toContain('href="/system/health"');
+    expect(markup).toContain('href="/system"');
     expect(markup).toMatch(/aria-label="ready \(capability health\)"/);
     expect(markup).toMatch(/title="ready"/);
     expect(markup).toMatch(/hidden md:inline[^>]*>Ready</);

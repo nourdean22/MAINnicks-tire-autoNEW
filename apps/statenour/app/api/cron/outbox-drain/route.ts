@@ -41,13 +41,13 @@ export const GET = cronHandler(async () => {
   }
   // WP-8: dead-lettering is a TRANSITION alert — fired once, here, when a
   // row exhausts its attempts, so a standing pile never re-pages. The
-  // standing count lives on /system/fleet (queue health).
+  // standing count is in the fleet-truth API (/api/system/fleet-truth).
   if (newDead > 0) {
     log.error("outbox_rows_dead_lettered", { newDead });
     const { sendTelegram } = await import("@/lib/services/telegram");
     await sendTelegram(
       `⚠️ OUTBOX: ${newDead} post-turn row(s) dead-lettered after ` +
-        `${OUTBOX_MAX_ATTEMPTS} attempts. Inspect + redrive at /system/fleet.`,
+        `${OUTBOX_MAX_ATTEMPTS} attempts. Redrive it from /system.`,
     ).catch((e: unknown) =>
       log.warn("outbox_dead_alert_failed", {
         error: e instanceof Error ? e.message : String(e),

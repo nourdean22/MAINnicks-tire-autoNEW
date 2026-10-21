@@ -6,9 +6,10 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/ultron/health-digest — expose the latest persisted digest.
  *
- * Reads BrainMemory(category="system_health_digest"). There is no cron: the
- * nightly health-digest cron was deleted in f87fb7e62, so this GET's 4h
- * read-through below is the scheduler (audit 02-F5).
+ * Reads BrainMemory(category="system_health_digest"). The daily
+ * /api/cron/health-digest (folded into mega-evening) writes it; this GET's 4h
+ * read-through below is the fallback when that row is stale or missing
+ * (it was the only scheduler between f87fb7e62 and wave 2V, audit 02-F5).
  *
  * ── Apr 26 freshness rework ──
  * Stale data is the enemy. The original GET handler returned whatever

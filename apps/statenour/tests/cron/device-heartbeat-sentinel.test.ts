@@ -78,15 +78,15 @@ describe("device-heartbeat-sentinel", () => {
     expect(res.ok).toBe(true);
   });
 
-  it("links a shop device to the admin Lot and a home device to /system/health", async () => {
+  it("links a shop device to the admin Lot and a home device to the System hub", async () => {
     const home = { ...SILENT, id: "cmn-kitchen", name: "Kitchen Camera", platformDeviceId: "v380-kitchen", location: "home-kitchen" };
     db.smartDevice.findMany.mockResolvedValueOnce([SILENT, home]).mockResolvedValueOnce([]);
     await runHeartbeatSentinel(NOW);
     const pushes = mockSendPush.mock.calls.map((c) => c[0] as { tag: string; url: string });
     expect(pushes.find((p) => p.tag === "device-offline:v380-shopsign")?.url).toBe("https://nickstire.org/admin?tab=lot");
-    expect(pushes.find((p) => p.tag === "device-offline:v380-kitchen")?.url).toBe("https://bdnick.info/system/health");
+    expect(pushes.find((p) => p.tag === "device-offline:v380-kitchen")?.url).toBe("https://bdnick.info/system");
     expect(alertLinkFor("Office")).toBe("https://nickstire.org/admin?tab=lot");
-    expect(alertLinkFor(null)).toBe("https://bdnick.info/system/health");
+    expect(alertLinkFor(null)).toBe("https://bdnick.info/system");
   });
   it("never-reported devices cannot be candidates: the stale query requires lastSeenAt < cutoff and status ONLINE", async () => {
     await runHeartbeatSentinel(NOW);

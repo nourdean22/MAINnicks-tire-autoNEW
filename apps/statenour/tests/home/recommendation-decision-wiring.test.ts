@@ -90,13 +90,10 @@ describe("the rest of the census joins (same slice)", () => {
     expect(promote).toContain("`task:${task.id}`");
   });
 
-  it("the harvest odometer row has a reader on /system/fleet, by key, with no age filter, absent = said", () => {
+  it("the harvest odometer row is still read by key, with no age filter (the /system/fleet page that rendered it was cut 2026-10-19; the procedure stays)", () => {
     const health = read("lib/trpc/routers/system/health.ts");
     expect(health).toContain('key: "eval_run:corpus-odometer"');
     expect(health).not.toMatch(/corpus-odometer[\s\S]{0,400}createdAt/);
-    const fleet = read("app/(mastery)/system/fleet/page.tsx");
-    expect(fleet).toContain("delivery.data.odometer");
-    expect(fleet).toContain("no eval_run:corpus-odometer row yet");
   });
 
   it("one morning is one ledger row (E12): no hand-off writer, no fallback keyed on the synthetic hand-off; the backstop writes the real surface and rateable fallback", () => {

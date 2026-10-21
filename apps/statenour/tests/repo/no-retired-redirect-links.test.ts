@@ -81,7 +81,7 @@ describe("no shipped link rides a retired redirect", () => {
   it("SUBJECT: the redirect table, the page table and the sweep are real", () => {
     expect(REDIRECTS.length).toBeGreaterThan(30);
     expect(REDIRECTS.some((r) => r.join("/") === "system/costs")).toBe(true);
-    expect(PAGES.length).toBeGreaterThan(20);
+    expect(PAGES.length).toBeGreaterThan(15);
     const files = ["lib", "components"].flatMap((d) => walk(d, SHIPPED));
     expect(files.length).toBeGreaterThan(300);
     expect(files.flatMap((f) => links(readFileSync(f, "utf8"))).length).toBeGreaterThan(100);
@@ -106,7 +106,7 @@ describe("no shipped link rides a retired redirect", () => {
 
   it("NEGATIVE CONTROL: real pages, template holes and API paths pass", () => {
     const fine = [
-      'link: { href: "/system/ai-cost", label: "Cost" },',
+      'link: { href: "/system/crons", label: "Crons" },',
       'href: "/system/crons",',
       "href: `/decisions/${o.id}`,",
       'href: "/brain?tab=reason",',

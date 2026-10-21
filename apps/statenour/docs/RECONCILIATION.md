@@ -1,5 +1,21 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-19 · bdnick prune wave 2V: Nour's visible cuts, Pinned Memory and Proof pages gone, Brain from 9 tabs to 3, 7 System tiles and 6 pages gone (branch `statenour/prune-bdnick-w2v`) · 1 statenour PR
+>
+> Not live until merged and deployed. After wave 1 Nour asked why bdnick.info still looked the same; he picked these cuts himself on 2026-10-19 (14-day visits: Proof 5, Brain 4 across all 9 tabs, the six System pages 0). Based on wave 3, which merges first.
+>
+> - **Pages.** /pins and /proof are deleted. /pins opens Brain Memory, where the pinned-context panel keeps every pin; /proof opens /system. The `/pins` slash command stays as a chat alias with a dated, reasoned waiver in the retired-routes gate.
+> - **Brain.** Three tabs: Memory, Review, Health. Wisdom folds into Memory, Discover into Review, Changed into Health; Map, Board and Reason are dropped. Every old `?tab=` key redirects in one hop.
+> - **System.** Fleet Truth, Diagnostics (the Health page), Errors, AI Cost, Logs, State Calibration and Cockpit Observability tiles are gone, with their six pages. Every old URL lands on /system.
+> - **Duties kept.** Outbox redrive moved from the Fleet page to a two-tap "Outbox N dead-lettered" row on /system (UNKNOWN on a failed read, hidden at 0). The health digest, whose only scheduler was the cut Health page, gets its own cron folded into mega-evening. The deep-mode question travels by sessionStorage, not the URL.
+> - **Also.** nick-reasoner, brain-node-detail-panel and ultron/client-cache are deleted (no mount left). The /costs slash command is gone. Test floors follow the real post-cut counts (17 page routes, 14 palette targets).
+>
+> **Flagged · NOT fixed**
+> - The admin Receptionist panel text (`apps/nickstire/.../VapiPanel.tsx`) still says results land "on /proof"; handed to the admin-prune job.
+> - Lost with the cut, by Nour's choice: the per-fingerprint error drill-down and the receptionist-gate detail on /proof.
+> - `/api/nick/reason/stream` and the AI Cost and Proof read APIs have no UI reader now; they go in the wave 5 dead-code pass.
+> - Older comments still name /system/health as a place (schema-sentinel, pulse-digest and others); comments, not links.
+
 > ## 2026-10-19 · bdnick prune wave 3: 48 unused Nick tools, 7 rejected rules and 7 crons cut, customer names and phones out of the bdnick database (branch `statenour/prune-bdnick-w3`) · 1 statenour PR
 >
 > Not live until merged and deployed. Same job as wave 1 (Nour, 2026-10-18: old tools and features out, shop work to the admin). Evidence: tool_telemetry and bridge_call_logs (never called), autonomous_actions approvals (Nour rejected these rules every time), and the admin's own equivalents for each shop cron.
@@ -4785,7 +4801,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-19 (bdnick prune wave 3 on branch statenour/prune-bdnick-w3; earlier the same day: bdnick prune wave 1 on branch statenour/prune-bdnick-w1; prior stamp 2026-10-18, UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
+**Last verified:** 2026-10-19 (bdnick prune wave 2V on branch statenour/prune-bdnick-w2v; earlier the same day: bdnick prune wave 3 on branch statenour/prune-bdnick-w3 and bdnick prune wave 1 on branch statenour/prune-bdnick-w1; prior stamp 2026-10-18, UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

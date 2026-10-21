@@ -341,7 +341,7 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
         summary: `Top predicted question: "${top.question}"`,
         confidence: confidenceStr,
         reason: "Calculated from past 7 days user chats, decisions, and commitments.",
-        href: "/brain?tab=board",
+        href: "/chat",
       });
     } else {
       sources.push({

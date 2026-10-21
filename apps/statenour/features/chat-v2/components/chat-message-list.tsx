@@ -4,7 +4,7 @@ import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
 import { Fragment, useState, useCallback, useEffect } from "react";
 import type { UIMessage } from "ai";
-import { AlertTriangle, CheckCircle2, ChevronRight, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { MediaTimestampBar } from "./media-timestamp-bar";
 import { useChatUiStore } from "../stores/chat-ui-store";
@@ -290,16 +290,6 @@ function ToolReceiptSummary({ message, traceId, children, openByDefault = false 
           {glyph}
           {words}
         </>
-      )}
-      {/* 10-X4: the page reads no ?search= param, so it opens unfiltered:
-          name the page, do not promise this turn's trace. */}
-      {traceId && (
-        <Link
-          href="/system/cockpit-observability"
-          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-fg-secondary transition-colors hover:text-fg sm:min-h-8"
-        >
-          Observability <ExternalLink size={11} />
-        </Link>
       )}
     </div>
   );

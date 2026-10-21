@@ -88,7 +88,7 @@ export default function MasteryLayout({
           market, macro, mode chips, priority alerts — with the personal
           pulse. GlobalTopTicker was deleted 2026-09-01 (audit W-1): for
           eleven weeks this comment said priority alerts flowed through a
-          component nothing mounted. /system/health remains the canonical
+          component nothing mounted. The /system hub is the canonical
           surface for true incident triage. */}
       {/* Session-expiry pre-warning — polls /api/auth/session and
           surfaces a fixed banner 10min before expiry so mid-capture

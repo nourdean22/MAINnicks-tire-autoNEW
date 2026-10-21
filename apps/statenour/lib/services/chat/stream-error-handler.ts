@@ -84,7 +84,7 @@ const SAFE_STREAM_ERROR_CATEGORIES: ReadonlyArray<{
     test: /vision|image|multimodal|media type|unsupported content|image_url/i,
     text:
       "That request included an image, and no available model could read it. " +
-      "Check the vision model on /system/health, then tap Retry to check and continue.",
+      "Check the vision model provider, then tap Retry to check and continue.",
   },
   {
     test: /quota|rate.?limit|429|insufficient.?(credit|funds)|billing/i,

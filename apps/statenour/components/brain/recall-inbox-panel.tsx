@@ -159,7 +159,7 @@ export function RecallInboxPanel() {
           `/brain/link-review` is not a route (only app/(mastery)/brain/page.tsx
           exists); `/brain#contradictions` anchored into the Memory tab's
           panel but omitted ?tab=memory, so it also landed on Map. Now:
-          pins → the real /pins page, link-review → the ruling queue,
+          pins → the pinned-context panel on this tab, link-review → the ruling queue,
           contradictions → the Memory tab where the resolution panel lives. */}
       <SourceGroup
         label="pins"
@@ -167,7 +167,7 @@ export function RecallInboxPanel() {
         items={data.pins.items}
         total={data.pins.total}
         error={data.pins.error}
-        href="/pins"
+        href="/brain?tab=memory#pinned-context"
         tint="text-fg-secondary"
       />
       <SourceGroup

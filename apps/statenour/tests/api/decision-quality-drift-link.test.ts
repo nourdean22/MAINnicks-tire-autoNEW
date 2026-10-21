@@ -19,6 +19,6 @@ describe("decision-quality-drift deep link", () => {
 
   it("links the live page directly, never a retired redirect", () => {
     for (const link of deepLinks) expect(redirectSources).not.toContain(link.split(/[?#]/)[0]);
-    expect(deepLinks).toContain("/system/calibration");
+    expect(deepLinks).toContain("/system");
   });
 });

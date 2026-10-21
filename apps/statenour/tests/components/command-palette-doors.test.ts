@@ -41,7 +41,9 @@ const dupes = (xs: string[]) => [...new Set(xs.filter((x, i) => xs.indexOf(x) !=
 describe("command palette · doors", () => {
   it("the subject is real: the scan sees the action list", () => {
     expect(literalIds.length).toBeGreaterThan(20);
-    expect(navigateTargets.length).toBeGreaterThan(15);
+    // 14 after the 2026-10-19 wave 2V cut: seven of the hub rows (Fleet, Diagnostics, Errors, AI Cost, Logs,
+    // State Calibration, Cockpit) left with their tiles; the literal navigate("...") targets did not change.
+    expect(navigateTargets.length).toBeGreaterThan(12);
   });
 
   it("POSITIVE CONTROL: the duplicate finder flags a repeat", () => {

@@ -414,7 +414,7 @@ describe("custom properties read by the app are defined", () => {
 
   it("no .tsx under app/, components/, features/, hooks/ or lib/ reads a custom property that nothing defines", () => {
     const files = gitFiles("app/**/*.tsx", "components/**/*.tsx", "features/**/*.tsx", "hooks/**/*.tsx", "lib/**/*.tsx");
-    expect(files.length, "git ls-files matched nothing: the scan would pass vacuously").toBeGreaterThan(300);
+    expect(files.length, "git ls-files matched nothing: the scan would pass vacuously").toBeGreaterThan(250);
     const sources: Record<string, string> = {};
     for (const f of files) sources[f] = read(f);
     expect(undefinedCustomProperties(sources, defined())).toEqual([]);

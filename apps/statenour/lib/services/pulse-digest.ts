@@ -74,7 +74,7 @@ function linkForInsightActor(
     return "/brain";
   }
   if (a === "system" || a.includes("watcher") || a.includes("cron")) {
-    return "/system/health";
+    return "/system";
   }
   if (a.includes("distill")) return "/brain";
   return "/brain";
@@ -289,7 +289,7 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         severity,
         streakDays: streakDays > 1 ? streakDays : undefined,
         at: newest.createdAt.toISOString(),
-        link: "/system/health",
+        link: "/system",
       });
     }
 
@@ -307,7 +307,7 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         kind: "error",
         severity: "critical",
         at: new Date().toISOString(),
-        link: "/system/health",
+        link: "/system",
       });
     }
 
@@ -376,7 +376,7 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         kind: "win",
         severity: "win",
         at: new Date().toISOString(),
-        link: "/system/health",
+        link: "/system",
       });
     }
     if (reflectionsToday > 0) {

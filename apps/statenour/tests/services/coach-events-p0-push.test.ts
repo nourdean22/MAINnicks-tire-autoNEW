@@ -52,7 +52,7 @@ describe("recordCoachEvent · P0 web-push bridge", () => {
       priority: "P0",
       title: "Data feeder down · 2 probes failing",
       body: "A business-data feeder is unreachable.",
-      deepLink: "/system/health",
+      deepLink: "/system",
     });
 
     expect(ev).not.toBeNull();
@@ -61,7 +61,7 @@ describe("recordCoachEvent · P0 web-push bridge", () => {
       title: "Data feeder down · 2 probes failing",
       body: "A business-data feeder is unreachable.",
       level: "critical",
-      url: "/system/health",
+      url: "/system",
       tag: "coach:system-alert:data-source-health",
     });
   });
@@ -97,7 +97,7 @@ describe("recordCoachEvent · P0 web-push bridge", () => {
     await new Promise((r) => setImmediate(r));
   });
 
-  it("falls back body→title and url→/system/health when unset", async () => {
+  it("falls back body→title and url→/system when unset", async () => {
     await recordCoachEvent({
       kind: "system-alert",
       subjectId: "global",
@@ -108,7 +108,7 @@ describe("recordCoachEvent · P0 web-push bridge", () => {
       expect(h.sendPush).toHaveBeenCalledWith(
         expect.objectContaining({
           body: "Cron fleet silent",
-          url: "/system/health",
+          url: "/system",
         }),
       ),
     );
