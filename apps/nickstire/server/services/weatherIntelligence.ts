@@ -99,8 +99,8 @@ const WINTER_ALERT = /winter storm|winter weather|lake effect snow|blizzard|ice 
 const HEAT_ALERT = /heat/i;
 // Rain-driven flood products only. "Lakeshore Flood ..." and "Coastal Flood ..." are lake-level (wind and seiche), not rain.
 const RAIN_FLOOD_ALERT = /^\s*(?:flash )?flood (?:watch|warning|advisory)\s*$/i;
-// A forecast that names any of these is snow-lane weather ("Snow Showers" also matches /showers/), never heavy rain.
-const FROZEN_PRECIP = /snow|sleet|flurries|wintry/i;
+// A forecast that names any of these is snow or ice, never heavy rain ("Snow Showers" also matches /showers/, "Freezing Rain" /rain/).
+const FROZEN_PRECIP = /snow|sleet|flurries|wintry|freezing/i;
 
 function withinHours(p: NwsPeriod, now: Date, hours: number): boolean {
   const start = Date.parse(p.startTime);
@@ -187,6 +187,13 @@ const WEATHER_SMS_TEMPLATES: Record<string, string> = {
 const WEATHER_COOLDOWN_DAYS = 30;
 /** LIKE pattern for every weather_<trigger> variantKey; the underscore is escaped so it is not a wildcard. */
 const WEATHER_VARIANT_LIKE = "weather\\_%";
+/** Real send attempts per trigger event. A sendSms call whose result is heldOut is a withheld control, not an attempt. */
+const WEATHER_SMS_CAP = 10;
+/**
+ * Candidates read per run, wider than the cap: a held-out control writes no sms_messages row, so it never cools down
+ * and keeps its place at the head of the order. Read only 10 and the controls would fill them.
+ */
+const WEATHER_CANDIDATE_POOL = 50;
 
 /**
  * Send weather-triggered SMS to lapsed customers (60+ days since last visit).
@@ -260,16 +267,18 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
             .where(recentWeatherText(sql`CONCAT('%', RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10))`)),
         ),
       )
-    ).orderBy(desc(customers.lastVisitDate)).limit(10);
+    ).orderBy(desc(customers.lastVisitDate)).limit(WEATHER_CANDIDATE_POOL);
 
     let sent = 0;
+    let attempts = 0;
     for (const [i, c] of targets.entries()) {
+      if (attempts >= WEATHER_SMS_CAP) break;
       if (!c.phone) continue;
       // C5.5 round 2: re-read the pause before every send (a fresh read: the start gate's cached answer may be stale).
       const midRunHold = await sendPauseHoldReason("weather_sms", "automated", { fresh: true });
       if (midRunHold) {
         log.info(`Weather SMS for "${triggerId}" held mid-run (${midRunHold})`, { sent });
-        return { sent, held: `${midRunHold} · not_attempted=${targets.length - i}` };
+        return { sent, held: `${midRunHold} · not_attempted=${Math.min(targets.length - i, WEATHER_SMS_CAP - attempts)}` };
       }
 
       // Second guard, same rule as the query's NOT EXISTS: skip anyone texted by ANY weather trigger in the last
@@ -284,8 +293,11 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
 
       const firstName = c.firstName || "there";
       const msg = withOptOut(template.replace("{name}", firstName));
+      let returned = false;
       try {
         const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true, variantKey });
+        returned = true;
+        if (!result.heldOut) attempts++; // the cap counts real attempts; a held-out control was never contacted
         // Log with the weather variantKey so the cooldown above sees this
         // send on the next run and the admin SMS tile counts it.
         // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
@@ -300,6 +312,7 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
         if (wo === "sent") sent++;
         else if (wo !== "failed") log.info(`Weather SMS ${wo} for customer #${c.id} (not counted as sent)`);
       } catch (err) {
+        if (!returned) attempts++; // sendSms itself threw: the gateway was called, so the cap still counts it
         log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });
       }
     }

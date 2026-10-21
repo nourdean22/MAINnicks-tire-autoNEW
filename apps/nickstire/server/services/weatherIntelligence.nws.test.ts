@@ -161,6 +161,20 @@ describe("heavy_rain · real rain only (pure)", () => {
     expect(rainTriggered(withThursday(shortForecast.replace(/snow|sleet|flurries|wintry/gi, "").trim() || "Showers", 90))).toBe(true);
   });
 
+  it.each(["Freezing Rain", "Light Freezing Rain", "Chance Freezing Rain", "Rain And Freezing Rain"])(
+    "%s at 90%% is ice, not heavy rain (the text says hydroplaning, the road says glaze)",
+    (shortForecast) => {
+      expect(rainTriggered(withThursday(shortForecast, 90))).toBe(false);
+      // control: the same words without 'freezing' are rain and do fire.
+      expect(rainTriggered(withThursday(shortForecast.replace(/freezing /gi, ""), 90))).toBe(true);
+    },
+  );
+
+  it("Freezing Drizzle at 90% fires no heavy_rain (it carries no rain word to begin with)", () => {
+    expect(rainTriggered(withThursday("Freezing Drizzle", 90))).toBe(false);
+    expect(rainTriggered(withThursday("Drizzle", 90))).toBe(false);
+  });
+
   it("a snow forecast keeps firing snow_forecast (the fix did not blind the snow lane)", () => {
     const r = evaluateForecast(withThursday("Snow Showers", 90), [], OCT_NOW);
     expect(r.triggered).toContain("snow_forecast");
