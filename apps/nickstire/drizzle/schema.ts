@@ -3644,7 +3644,7 @@ export const algProbeLog = mysqlTable("alg_probe_log", {
   id: int("id").autoincrement().primaryKey(),
   /**
    * Why the probe fired:
-   *   admin_login | chat_query | manual_refresh | overnight | evening | health_check
+   *   admin_login | chat_query | manual_refresh | overnight | evening | admin_refresh | health_check
    */
   reason: varchar("reason", { length: 32 }).notNull(),
   /** Optional sub-detail (chat session id, admin user id, etc) */
