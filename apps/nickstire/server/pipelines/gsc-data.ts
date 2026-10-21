@@ -1255,11 +1255,6 @@ export async function runGscPipeline(): Promise<{
           confidence: 0.7,
         });
       }
-      try {
-        const { sendTelegram } = await import("../services/telegram");
-        const lines = [...recovered.entries()].slice(0, 5).map(([page, r]) => `"${page}" · #${r.from} → #${r.to}`);
-        await sendTelegram(`📈 SEO WINS · ${recovered.size} page(s) climbed to page 1:\n\n${lines.join("\n")}\n\nThe self-improving loop is paying off.`, "digest");
-      } catch { /* telegram is best-effort */ }
     }
   } catch (winErr) {
     log.error("[GSC Pipeline] win-detection failed:", winErr);

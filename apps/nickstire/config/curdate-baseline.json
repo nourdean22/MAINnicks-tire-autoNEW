@@ -2,12 +2,6 @@
   "$comment": "Sites of a calendar date computed from the UTC DB clock (CURDATE() and the other spellings listed in scripts/lint-curdate.mjs), accepted when the gate was introduced on 2026-09-23 and widened the same day from 96 bare CURDATE() in 28 files to 109 sites in 33. ANY NEW SITE FAILS. One entry per file: count, effect, reason. effect = what the file's worst site decides, most to least customer impact: customer-send (who receives a text) > customer-state (a customer's recorded state) > customer-view (shown to a customer) > staff-today (a today/period figure or day count that staff or the owner read) > alert-dedupe (a once-per-day alert key) > rolling-window (an N-day window whose edge moves by hours). The reason says who sees it, and how wrong it is and when; every reason was re-read against the code on 2026-09-23. The UTC day runs from 8 PM to 8 PM Eastern (7 PM to 7 PM in winter), which gives two shapes of error. (1) A today / week / month window over a column that holds a UTC instant (createdAt, invoiceDate, lastVisitDate) is shifted 4 hours earlier (5 in winter) ALL DAY: at 10 AM it already holds the rows from 8 PM to midnight the evening before, and from 8 PM ET it restarts near empty on the next day. (2) A day count or a date compared with an ET calendar date (bookings.preferredDate, expected_arrivals.expectedDate), or a DATEDIFF against daytime timestamps, is one day off only while the query runs between 8 PM ET (7 PM in winter) and midnight. No site governs an SMS sending window: sms.ts computes those in JS in America/New_York.",
   "entries": [
     {
-      "file": "server/cron/scheduler.ts",
-      "count": 1,
-      "effect": "staff-today",
-      "reason": "stale-estimate-alert (business hours, 7 AM to 9 PM ET) prints DATEDIFF(NOW(), invoiceDate) as each pending estimate's '(Nd old)' in the owner's Telegram message. Both dates are UTC days, so a run between 8 and 9 PM ET (7 and 9 PM in winter) prints every age one day high, and an estimate written after 8 PM ET reads one day young. The 3-day selection itself is a rolling NOW() window and is correct."
-    },
-    {
       "file": "server/pipelines/gbp-reviews.ts",
       "count": 1,
       "effect": "staff-today",

@@ -12,14 +12,10 @@
  * sit in pending, so a slow-collections month read as a pricing problem
  * and generated "lower your prices" advice. The recommender is deleted.
  *
- * What the data CAN honestly support — and what this module now does —
- * is a COLLECTIONS signal: which service categories are accumulating
- * unpaid invoices. That is real and actionable (chase payment), and the
- * alert says exactly that.
- *
- * Pricing recommendations stay out of this codebase until they can be
- * built on actual estimate decisions + cost structure (Quote Quality &
- * Profit Guard — blocked on parts/labor cost capture).
+ * 2026-10-21: the collections signal that replaced it (unpaid-invoice
+ * concentrations per service, a daily Telegram) is deleted too. An invoice in
+ * this system is a CLOSED job and money is taken on a separate register, so
+ * paymentStatus cannot say paid or unpaid (Nour, 2026-10-21).
  *
  * The decline-reason objection analytics + operator coaching scripts are
  * retained (they read REAL decline reasons when callers pass them), with
@@ -27,11 +23,8 @@
  * every factual claim in a script now traces to shared/business.ts.
  */
 
-import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { getGoogleReviews } from "../google-reviews";
-
-const log = createLogger("payment-status-intel");
 
 /** Calculate the "Objection Index" — how often each decline reason appears */
 export function analyzeObjections(
@@ -63,173 +56,6 @@ export function analyzeObjections(
       services: Array.from(data.services),
     }))
     .sort((a, b) => b.count - a.count);
-}
-
-/**
- * Known service categories and their keyword matchers.
- * Invoices are categorized by matching serviceDescription against these.
- *
- * A SEPARATE taxonomy, not a copy of engines/shared.ts categorizeService:
- * Title Case labels printed in the collections alert, lowercase substring
- * keywords, first match wins. Outputs are pinned row by row, known
- * misclassifications included, in serviceCategorizers.golden.test.ts.
- */
-const SERVICE_CATEGORIES: Record<string, string[]> = {
-  "Oil Change": ["oil change", "oil & filter", "lube", "synthetic oil"],
-  "Brakes": ["brake", "rotor", "pad", "caliper"],
-  "Tires": ["tire", "mount", "balance", "alignment", "rotate"],
-  "Suspension": ["strut", "shock", "suspension", "ball joint", "tie rod", "control arm"],
-  "Engine": ["engine", "timing", "head gasket", "valve", "spark plug", "ignition"],
-  "Transmission": ["transmission", "trans fluid", "trans flush"],
-  "Exhaust": ["exhaust", "muffler", "catalytic", "pipe"],
-  "Electrical": ["battery", "alternator", "starter", "electrical", "wiring"],
-  "AC/Heating": ["ac ", "a/c", "compressor", "freon", "heater core", "hvac"],
-  "Diagnostics": ["diagnostic", "check engine", "scan", "inspection"],
-  "General Maintenance": ["flush", "coolant", "power steering", "belt", "hose", "filter"],
-};
-
-/**
- * Categorize a service description into one payment-alert label.
- */
-function paymentAlertCategory(description: string): string {
-  const lower = (description || "").toLowerCase();
-  for (const [category, keywords] of Object.entries(SERVICE_CATEGORIES)) {
-    if (keywords.some((kw) => lower.includes(kw))) {
-      return category;
-    }
-  }
-  return "Other";
-}
-
-/**
- * Payment-status breakdown per service category from live invoice data.
- *
- * MEASURES PAYMENT STATE, NOT ESTIMATE APPROVAL: every row here already
- * became an invoice; "unpaid" means paymentStatus is not paid/partial.
- * A category with high unpaid share has a collections problem (or a
- * data-entry lag) — it says nothing about whether the price was right.
- *
- * @param days Number of days to look back (default 30)
- */
-export async function getServicePaymentBreakdown(days = 30): Promise<Array<{
-  service: string;
-  paidOrPartial: number;
-  unpaid: number;
-  total: number;
-  unpaidShare: number; // 0-100, % of invoices in this category not yet paid/partial
-}>> {
-  try {
-    const { getDb } = await import("../db");
-    const { sql } = await import("drizzle-orm");
-    const db = await getDb();
-    // A database it cannot reach is not "no invoices": throw, so the cron records a failure
-    // (2026-10-09). An empty array below means a real read found nothing to analyze.
-    if (!db) throw new Error("database not available: payment state is unknown, not empty");
-
-    const [rows] = await db.execute(sql`
-      SELECT serviceDescription, paymentStatus
-      FROM invoices
-      WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
-        AND serviceDescription IS NOT NULL
-        AND serviceDescription != ''
-    `);
-
-    const invoiceRows = rows as Array<{ serviceDescription: string; paymentStatus: string }>;
-    if (!invoiceRows || invoiceRows.length === 0) return [];
-
-    // Aggregate by category
-    const categoryStats: Record<string, { paidOrPartial: number; unpaid: number }> = {};
-
-    for (const row of invoiceRows) {
-      const category = paymentAlertCategory(row.serviceDescription);
-      if (!categoryStats[category]) {
-        categoryStats[category] = { paidOrPartial: 0, unpaid: 0 };
-      }
-      if (row.paymentStatus === "paid" || row.paymentStatus === "partial") {
-        categoryStats[category].paidOrPartial++;
-      } else {
-        categoryStats[category].unpaid++;
-      }
-    }
-
-    return Object.entries(categoryStats)
-      .map(([service, stats]) => ({
-        service,
-        paidOrPartial: stats.paidOrPartial,
-        unpaid: stats.unpaid,
-        total: stats.paidOrPartial + stats.unpaid,
-        unpaidShare: Math.round((stats.unpaid / (stats.paidOrPartial + stats.unpaid)) * 100),
-      }))
-      .filter((r) => r.total >= 3) // Need at least 3 data points
-      .sort((a, b) => b.total - a.total);
-  } catch (err: unknown) {
-    // Rethrow: returning [] here read as "No invoice data to analyze" and cron_log recorded the
-    // run as completed while the read had failed.
-    log.error("Failed to compute payment breakdown:", { error: (err as Error).message });
-    throw err;
-  }
-}
-
-/**
- * Cron job (scheduler name: "pricing-intelligence", kept for cron_log
- * continuity): report unpaid-invoice concentrations per category.
- *
- * Alerts ONLY on collections facts. Never recommends price changes —
- * see the module header for why the old raise/lower alerts were invalid.
- */
-export async function runPricingIntelligenceJob(): Promise<{
-  recordsProcessed: number;
-  details: string;
-}> {
-  const alerts: string[] = [];
-
-  try {
-    const rates = await getServicePaymentBreakdown(30);
-    if (rates.length === 0) {
-      return { recordsProcessed: 0, details: "No invoice data to analyze" };
-    }
-
-    for (const rate of rates) {
-      // ≥40% of a category's invoices unpaid with real volume = money
-      // sitting in receivables (or a paymentStatus data-entry gap —
-      // both worth a look). Threshold is a triage prior, not a finding.
-      if (rate.unpaidShare >= 40 && rate.unpaid >= 3) {
-        alerts.push(
-          `💵 UNPAID CONCENTRATION: ${rate.service} — ${rate.unpaid}/${rate.total} invoices (last 30d) not marked paid/partial. Chase payment or fix paymentStatus entries.`
-        );
-      }
-    }
-
-    // Send via Telegram if we have actionable alerts
-    if (alerts.length > 0) {
-      try {
-        const { sendTelegram } = await import("./telegram");
-        await sendTelegram(
-          `💳 PAYMENT-STATUS CHECK (30-day)\n\n` +
-          alerts.join("\n\n") +
-          `\n\n📊 ${rates.length} service categories analyzed. This measures payment state on invoices — NOT estimate approval, NOT pricing.`
-        );
-      } catch (e) { log.warn("[services/pricingIntelligence] operation failed:", e); }
-
-      try {
-        const { remember } = await import("./nickMemory");
-        await remember({
-          type: "insight",
-          content: `Payment-status check: ${alerts.length} unpaid concentrations. ${alerts.join(" | ").slice(0, 1500)}`,
-          source: "pricing_intelligence",
-          confidence: 0.85,
-        });
-      } catch (e) { log.warn("[services/pricingIntelligence] operation failed:", e); }
-    }
-
-    const details = `${rates.length} categories, ${alerts.length} unpaid-concentration alerts`;
-    if (alerts.length > 0) log.info(`Payment-status check: ${details}`);
-    return { recordsProcessed: rates.length, details };
-  } catch (err: unknown) {
-    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
-    log.error("Payment-status job failed:", { error: (err as Error).message });
-    throw err;
-  }
 }
 
 function normalizeDeclineReason(reason: string): string {

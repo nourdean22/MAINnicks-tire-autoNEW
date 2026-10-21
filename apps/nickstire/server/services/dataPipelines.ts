@@ -333,7 +333,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
 
     // Find invoices from last 7 days
     const [localInvoices] = await db.execute(sql`
-      SELECT invoiceNumber, customerName, customerPhone, totalAmount, invoiceDate, paymentStatus, source
+      SELECT invoiceNumber, customerName, customerPhone, totalAmount, invoiceDate, source
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)
       ORDER BY invoiceDate DESC
@@ -344,31 +344,19 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
     if (!invoices || invoices.length === 0) return { recordsProcessed: 0, details: "No recent invoices" };
 
     // Calculate daily totals
-    const dailyTotals = new Map<string, { count: number; total: number; paid: number; pending: number }>();
+    // No paid/pending split: an invoice is a closed job and money is collected on a separate
+    // register, so paymentStatus cannot say paid or unpaid (Nour, 2026-10-21).
+    const dailyTotals = new Map<string, { count: number; total: number }>();
     for (const inv of invoices) {
       const day = new Date(inv.invoiceDate as string).toISOString().slice(0, 10);
-      const existing = dailyTotals.get(day) || { count: 0, total: 0, paid: 0, pending: 0 };
-      const amount = Number(inv.totalAmount) / 100; // cents to dollars
+      const existing = dailyTotals.get(day) || { count: 0, total: 0 };
       existing.count++;
-      existing.total += amount;
-      if (inv.paymentStatus === "paid") existing.paid += amount;
-      else existing.pending += amount;
+      existing.total += Number(inv.totalAmount) / 100; // cents to dollars
       dailyTotals.set(day, existing);
     }
 
     // Flag anomalies
     const anomalies: string[] = [];
-
-    // Check for unpaid invoices > 3 days old
-    const unpaidOld = invoices.filter((inv: RawRow) => {
-      if (inv.paymentStatus === "paid") return false;
-      const age = Date.now() - new Date(inv.invoiceDate as string).getTime();
-      return age > 3 * 24 * 60 * 60 * 1000;
-    });
-    if (unpaidOld.length > 0) {
-      const totalUnpaid = unpaidOld.reduce((s: number, i: RawRow) => s + Number(i.totalAmount) / 100, 0);
-      anomalies.push(`💸 ${unpaidOld.length} unpaid invoices >3 days old ($${totalUnpaid.toFixed(0)} outstanding)`);
-    }
 
     // Check for zero-amount invoices
     const zeroInvoices = invoices.filter((inv: RawRow) => Number(inv.totalAmount) === 0);
@@ -383,7 +371,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
         await sendTelegram(
           `📊 INVOICE RECONCILIATION (7-day)\n\n` +
           [...dailyTotals.entries()].slice(0, 5).map(([day, d]) =>
-            `${day}: ${d.count} invoices | $${d.total.toFixed(0)} total | $${d.paid.toFixed(0)} paid | $${d.pending.toFixed(0)} pending`
+            `${day}: ${d.count} invoices | $${d.total.toFixed(0)} total`
           ).join("\n") +
           `\n\n${anomalies.join("\n")}`, "digest"
         );
@@ -397,7 +385,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
       if (today) {
         await remember({
           type: "insight",
-          content: `Invoice reconciliation: ${today[1].count} invoices today, $${today[1].total.toFixed(0)} total ($${today[1].paid.toFixed(0)} paid, $${today[1].pending.toFixed(0)} pending). ${anomalies.length} anomalies.`,
+          content: `Invoice reconciliation: ${today[1].count} invoices today, $${today[1].total.toFixed(0)} total ${anomalies.length} anomalies.`,
           source: "invoice_reconciliation",
           identity: "invoice_reconciliation_today",
           confidence: 0.9,

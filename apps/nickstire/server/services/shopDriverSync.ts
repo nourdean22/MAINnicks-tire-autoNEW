@@ -115,8 +115,7 @@ export async function pushInvoice(invoice: {
       `Vehicle: ${invoice.vehicleInfo || "N/A"}\n` +
       `Service: ${invoice.serviceDescription || "N/A"}\n` +
       `Labor: $${invoice.laborCost.toFixed(2)} | Parts: $${invoice.partsCost.toFixed(2)} | Tax: $${invoice.taxAmount.toFixed(2)}\n` +
-      `Total: $${invoice.totalAmount.toFixed(2)}\n` +
-      `Payment: ${invoice.paymentStatus} (${invoice.paymentMethod})\n\n` +
+      `Total: $${invoice.totalAmount.toFixed(2)}\n\n` +
       `⚡ Create in ShopDriver NOW`
     );
     return { success: true, method: "telegram" };

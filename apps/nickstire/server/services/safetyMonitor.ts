@@ -27,7 +27,6 @@ interface Alert {
 interface FinancialMetrics {
   dailyRevenueVsAvg: number;
   unusualTransactions: number;
-  unpaidInvoicesTotal: number;
   refundRate: number;
 }
 
@@ -41,7 +40,6 @@ interface ReputationMetrics {
 interface OperationalMetrics {
   stalePendingJobs: number;
   missedCallbacks: number;
-  overdueFollowups: number;
   smsOptOutRate: number;
   cronFailureRate: number;
 }
@@ -71,7 +69,6 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
   const metrics: FinancialMetrics = {
     dailyRevenueVsAvg: 100,
     unusualTransactions: 0,
-    unpaidInvoicesTotal: 0,
     refundRate: 0,
   };
 
@@ -138,20 +135,6 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
           message: `${metrics.unusualTransactions} invoice(s) today exceed 3x average ($${Math.round(avgInv * 3 / 100)}) — verify accuracy`,
         });
       }
-    }
-
-    // Unpaid invoices total
-    const [unpaidRows] = await db.execute(sql`
-      SELECT COALESCE(SUM(totalAmount), 0) as unpaidTotal
-      FROM invoices
-      WHERE paymentStatus IN ('pending', 'partial')
-    `);
-    metrics.unpaidInvoicesTotal = Number((unpaidRows as unknown as Record<string, unknown>[])?.[0]?.unpaidTotal || 0);
-    if (metrics.unpaidInvoicesTotal > 500000) { // >$5K in cents
-      alerts.push({
-        severity: "warning",
-        message: `Unpaid invoices total $${Math.round(metrics.unpaidInvoicesTotal / 100)} — cash flow risk`,
-      });
     }
 
     // Refund rate (last 30 days)
@@ -289,7 +272,6 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
   const metrics: OperationalMetrics = {
     stalePendingJobs: 0,
     missedCallbacks: 0,
-    overdueFollowups: 0,
     smsOptOutRate: 0,
     cronFailureRate: 0,
   };
@@ -356,21 +338,6 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       alerts.push({
         severity: "warning",
         message: `${unconfirmedCount} bookings unconfirmed >24h — leads going cold`,
-      });
-    }
-
-    // Overdue follow-ups (pending invoices >7 days)
-    const [overdueRows] = await db.execute(sql`
-      SELECT COUNT(*) as cnt
-      FROM invoices
-      WHERE paymentStatus = 'pending'
-        AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY)
-    `);
-    metrics.overdueFollowups = Number((overdueRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
-    if (metrics.overdueFollowups > 5) {
-      alerts.push({
-        severity: "warning",
-        message: `${metrics.overdueFollowups} invoices pending >7 days without follow-up`,
       });
     }
 

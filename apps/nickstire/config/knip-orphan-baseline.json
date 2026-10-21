@@ -2383,11 +2383,6 @@
     },
     {
       "file": "apps/nickstire/server/services/pricingIntelligence.ts",
-      "symbol": "getServicePaymentBreakdown",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
       "symbol": "getObjectionCoaching",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },

@@ -259,21 +259,6 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           actionsPerformed += freeInspections;
         }
 
-        // Estimate-to-invoice conversion (ALG estimates = declined work)
-        const [estRows] = await d.execute(rawSql`
-          SELECT
-            COUNT(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= ${weekAgoKey} THEN 1 END) as estimates,
-            COUNT(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= ${weekAgoKey} THEN 1 END) as closed
-          FROM invoices
-        `);
-        const estimates = Number((estRows as RawRow[])?.[0]?.estimates || 0);
-        const closed = Number((estRows as RawRow[])?.[0]?.closed || 0);
-        if (estimates > 3) {
-          const conversionRate = closed > 0 ? Math.round((closed / (closed + estimates)) * 100) : 0;
-          alerts.push(
-            `📋 DECLINED ESTIMATES: ${estimates} pending (walked away) vs ${closed} closed this week. ${conversionRate}% close rate.`
-          );
-        }
       }
     } catch (e: unknown) {
       log.warn("Walk-in classification failed:", { error: (e as Error).message });
