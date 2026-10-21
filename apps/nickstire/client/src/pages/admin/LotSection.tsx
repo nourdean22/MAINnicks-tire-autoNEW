@@ -214,6 +214,8 @@ type ConversationRow = {
   candidateVehicleVisitId: string | null;
   candidateWorkOrderId: string | null;
   linkConfidence: number | null;
+  /** Timed transcript segments stored (eyes-ears v1): null = no transcript, 0 = transcribed silent. Absent on older servers. */
+  segmentCount?: number | null;
   /** One sentence on what the conversation was about (migration 0141). Absent on older servers. */
   gist?: string | null;
   /** Evidence-backed facts, max 12 (office-digest v1). Absent on older servers: not available, not zero. */
@@ -398,6 +400,8 @@ type CameraHealth = {
   /** Null when no health event was recorded for this camera today -- which is NOT the same
    *  as a steady day, and must not render as one. */
   stability: { dropsToday: number; transitionsToday: number } | null;
+  /** Distinct producer processes that wrote a health event in the last hour: 0 = steady, null = not measured. */
+  producersLast60m?: number | null;
   openVisits: number;
   /** Today as state segments from local midnight to now (audit N6); `current` is the state in force and its real start. */
   timeline: CameraTimeline | null;
@@ -1264,7 +1268,11 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
 }
 
 type ConversationQueryData =
-  | { ok: true; conversations: ConversationRow[] }
+  | { ok: true; conversations: ConversationRow[]; wordsVisible?: boolean }
+  | { ok: false; reason: string };
+
+type TranscriptData =
+  | { ok: true; episodeId: string; durationSeconds: number | null; segments: Array<{ start: number; end: number; text: string }>; truncated: boolean }
   | { ok: false; reason: string };
 
 /** office-digest v3: one row per clock hour, newest first. */
@@ -1437,6 +1445,69 @@ function FactList({ facts, total }: { facts: NonNullable<ConversationRow["facts"
   );
 }
 
+/** Seconds into the clip as m:ss. */
+function clipOffset(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The words behind one conversation card, for the owner (eyes-ears v1). Read only when opened, one
+ * episode at a time; a failed or refused read says so and never reads as "nothing was said".
+ */
+function SaidWords({ episodeId }: { episodeId: string }) {
+  const [open, setOpen] = useState(false);
+  const q = trpc.lot.conversationTranscript.useQuery(
+    { episodeId },
+    { enabled: open, staleTime: Infinity, refetchOnWindowFocus: false },
+  );
+  // Same boundary narrowing as ConversationPanel: the decorated hook widens data at this boundary.
+  const d = q.data as TranscriptData | undefined;
+  const failed = q.isError
+    ? `What was said could not be read: ${q.error?.message ?? "the request failed"}`
+    : offlineReason(q)
+      ? `What was said could not be read: ${OFFLINE}`
+      : q.isPending
+        ? null
+        : !d
+          ? "What was said could not be read."
+          : d.ok === false
+            ? d.reason
+            : null;
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="min-h-12 rounded-md px-3 text-[12px] text-foreground/60 underline active:scale-95"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? "Hide what was said" : "Show what was said"}
+      </button>
+      {open &&
+        (failed ? (
+          <div className="text-[12px] text-foreground/55">{failed}</div>
+        ) : q.isPending || d?.ok !== true ? (
+          <Loading what="what was said" />
+        ) : d.segments.length === 0 ? (
+          <div className="text-[12px] text-foreground/55">No words were transcribed in this clip.</div>
+        ) : (
+          <>
+            <ol aria-label="What was said" className="space-y-1">
+              {d.segments.map((s, i) => (
+                <li key={`${s.start}-${i}`} className="text-[13px] text-foreground/85">
+                  <span className="tabular-nums text-foreground/45">{clipOffset(s.start)}</span> {s.text}
+                </li>
+              ))}
+            </ol>
+            {d.truncated && <div className="mt-1 text-[11px] text-foreground/45">Showing the first {d.segments.length} lines.</div>}
+            <div className="mt-1 text-[11px] text-foreground/45">Machine transcript. Words can be misheard.</div>
+          </>
+        ))}
+    </div>
+  );
+}
+
 function ConversationPanel({
   query,
   officeCamera,
@@ -1449,6 +1520,8 @@ function ConversationPanel({
   // runtime validation and every branch below preserves failed/unknown vs empty.
   const data = query.data as ConversationQueryData | undefined;
   const rows: ConversationRow[] = data?.ok === true ? data.conversations : [];
+  // Owner only, decided by the server; an older server or a failed read shows no words.
+  const wordsVisible = data?.ok === true && data.wordsVisible === true;
   const runtime = officeCamera?.conversation ?? null;
   const reportedState =
     runtime?.state ?? (runtime?.workerOk === false ? "STOPPED" : "UNKNOWN");
@@ -1682,8 +1755,9 @@ function ConversationPanel({
         <div className="mb-2">
           <div className="text-[12px] font-semibold">Counter conversations</div>
           <div className="text-[11px] text-foreground/40">
-            Operational summaries only: raw audio and full transcripts stay off
-            this screen; self-tests are hidden
+            {wordsVisible
+              ? "Raw audio is never kept. Tap a conversation to read what was said; self-tests are hidden."
+              : "Summaries only: raw audio is never kept and the words are owner-only; self-tests are hidden."}
           </div>
         </div>
 
@@ -1737,6 +1811,8 @@ function ConversationPanel({
                         : row.factCount === 0
                           ? "No evidence-backed actionable facts were found."
                           : "Summary withheld: validated evidence is incomplete.");
+              // The words that produced the gist: under the gist and facts when there is one, else under the summary.
+              const words = wordsVisible && (row.segmentCount ?? 0) > 0 ? <SaidWords episodeId={row.episodeId} /> : null;
 
               return (
                 <div
@@ -1760,9 +1836,11 @@ function ConversationPanel({
                         </div>
                       )}
                       {row.facts && <FactList facts={row.facts} total={factTotal} />}
+                      {row.gist && words}
                       <div className={row.gist && !row.summary ? "mt-1 text-[11px] text-foreground/45" : "mt-1 text-[13px] text-foreground/85"}>
                         {summaryText}
                       </div>
+                      {!row.gist && words}
                       {row.visual?.status === "DONE" && row.visual.summary && (
                         <div className="mt-1 text-[12px] text-foreground/70">
                           <span className="font-medium text-foreground/55">Saw: </span>
@@ -1908,6 +1986,12 @@ export default function LotSection() {
 
   // null freshness is UNKNOWN, not fresh. Only a real, recent number is "Live".
   const freshnessUnknown = n?.ok === true && n.staleSeconds === null && !n.neverIngested;
+  // The counter judged against billed jobs (eyes-ears v1), server-decided. Absent on an older server,
+  // and only UNDERCOUNTING changes this page: OK and UNKNOWN keep the counts as they were.
+  const counterTrust = n?.ok === true ? (n.counterTrust ?? null) : null;
+  const undercounting = counterTrust?.level === "UNDERCOUNTING";
+  /** A car count's label while the counter is missing cars: the number stays, the label says whose count it is. */
+  const carCount = (label: string) => (undercounting ? `${label} (camera saw)` : label);
   const stale = n?.ok === true && n.staleSeconds !== null && n.staleSeconds > 300;
 
   const fleet = summarizeCameraFleet(
@@ -1952,6 +2036,9 @@ export default function LotSection() {
             ? // Never "Live" over a sign camera that is not HEALTHY: the visits below are
               // whatever it last managed to see. 2026-10-05 said "Live" over a blind lane.
               { label: `Not watching · sign ${signStateLabel}`, variant: "danger" }
+            : undercounting
+              ? // Watching, fresh, and still missing most cars (2026-09-28 on): never "Live" over it.
+                { label: "Undercounting cars", variant: "danger" }
             : freshnessUnknown
               ? { label: "Freshness unknown", variant: "warning" }
               : stale
@@ -2003,6 +2090,7 @@ export default function LotSection() {
           hours: coverage.hours.map((h) => ({ hour: h.hour, watchedMinutes: h.watchedMinutes, elapsedMinutes: h.elapsedMinutes, solarMinutes: h.solarMinutes })),
         }
       : null,
+    counterTrust: counterTrust ? { level: counterTrust.level, reason: counterTrust.reason } : null,
   });
 
   // WATCHED TODAY: the share of the shop's business time the sign camera spent HEALTHY, from
@@ -2067,7 +2155,7 @@ export default function LotSection() {
             ? { value: "coverage not stored yet", tone: "muted", detail: "migration 0144 has not been applied; the worker reports it, the shop cannot keep it" }
             : { value: "coverage unknown", tone: "muted", detail: "the worker has not reported a listening window yet" };
 
-  const signChip: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
+  const signChipBase: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
     ? { value: healthAnswer === "loading" ? "loading" : "unknown", tone: "muted", detail: health.isError ? health.error?.message ?? null : offlineReason(health) ?? "camera health could not be read" }
     : !signCamera
       ? { value: "no vehicle-truth camera registered", tone: "bad", detail: null }
@@ -2096,6 +2184,23 @@ export default function LotSection() {
                   : "bad",
             detail: signCamera.reason,
           };
+  // A producer that keeps restarting (2026-10-21: 20 processes in a day) resets the edge's tracks each
+  // time. producersLast60m counts processes that WROTE an event, so a steady camera reads 0 and the
+  // restart count is a lower bound. 0-2 and null (not measured) leave the chip as it was.
+  const signProducers = signLoaded ? signCamera?.producersLast60m : undefined;
+  const signChip: { value: string; tone: ChipTone; detail: string | null } =
+    typeof signProducers === "number" && signProducers >= 3
+      ? {
+          ...signChipBase,
+          tone: signChipBase.tone === "bad" ? "bad" : "warn",
+          detail: [
+            signChipBase.detail,
+            `camera software restarted at least ${signProducers - 1} times in the last hour; each restart drops the cars it was tracking`,
+          ]
+            .filter(Boolean)
+            .join("; "),
+        }
+      : signChipBase;
 
   const confidenceChip: { value: string; tone: ChipTone } =
     confidence.level === "OK"
@@ -2178,6 +2283,9 @@ export default function LotSection() {
             <p className="text-[13px] text-muted-foreground">
               Longest first: clocks are live, and a car whose arrival was never observed says so instead of guessing
             </p>
+            {undercounting && floorBoardLoaded && (
+              <p className="text-[13px] text-amber-400">The camera is missing cars right now; this list is what it saw.</p>
+            )}
             {onLotVisits.isError ? (
               <Unknown what="Floor board" reason={onLotVisits.error?.message} />
             ) : offlineReason(onLotVisits) ? (
@@ -2273,14 +2381,20 @@ export default function LotSection() {
               }
             />
           ) : n?.ok === true ? (
+          <div className="space-y-3">
+          {undercounting && counterTrust && (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[13px] text-amber-300">
+              {counterTrust.reason} Counts below are what the camera saw, not every car.
+            </p>
+          )}
           <section aria-label="Lot counters" className="grid grid-cols-4 gap-2 lg:grid-cols-1 lg:gap-6 lg:pt-1">
-            <LotCounter label="On property" value={n.counts.onProperty} />
+            <LotCounter label={carCount("On property")} value={n.counts.onProperty} />
             {/* NOT "Waiting". Jacking happens wherever it needs to, so this bucket holds
                 cars that are queueing AND cars being worked on where they stand. The
                 camera cannot separate them, and naming it "waiting" would turn a guess
                 into a number someone staffs against. */}
             <LotCounter
-              label="On lot, not in a bay"
+              label={carCount("On lot, not in a bay")}
               value={n.counts.onLotNotInBay}
               alert={Boolean(n.waits.oldestWaitMinutes && n.waits.oldestWaitMinutes > ATTENTION_MINUTES)}
               detail={
@@ -2292,9 +2406,10 @@ export default function LotSection() {
             {/* Bays 1 and 3 only, and INTERIOR only. A car being plugged on the apron
                 in front of a bay is a different job with a different duration, so the
                 zone stops at the door threshold and that car stays out of this count. */}
-            <LotCounter label="In a bay" value={n.counts.inBays} detail="pulled in · bays 1 and 3" />
-            <LotCounter label="Pulled out, still here" value={n.counts.postService} alert={n.counts.postService > 0} />
+            <LotCounter label={carCount("In a bay")} value={n.counts.inBays} detail="pulled in · bays 1 and 3" />
+            <LotCounter label={carCount("Pulled out, still here")} value={n.counts.postService} alert={n.counts.postService > 0} />
           </section>
+          </div>
           ) : null}
           </div>
 
@@ -2376,23 +2491,23 @@ export default function LotSection() {
                   car that crossed the portal and turned around counted as an arrival, a
                   departure AND a left-without-a-bay. */}
               <StatCard
-                label="Arrivals today"
+                label={carCount("Arrivals today")}
                 value={n.counts.arrivalsToday}
                 icon={<Car className="w-4 h-4" />}
-                trendLabel={`${n.counts.passThroughsToday} drive-by${n.counts.passThroughsToday === 1 ? "" : "s"} not counted`}
+                trendLabel={carCount(`${n.counts.passThroughsToday} drive-by${n.counts.passThroughsToday === 1 ? "" : "s"} not counted`)}
               />
-              <StatCard label="Departures today" value={n.counts.departuresToday} icon={<LogOut className="w-4 h-4" />} />
+              <StatCard label={carCount("Departures today")} value={n.counts.departuresToday} icon={<LogOut className="w-4 h-4" />} />
               {/* NOT "abandoned". A finished outside tyre job looks identical to a
                   customer who gave up, and calling good business a loss is the worse of
                   the two errors. */}
               <StatCard
-                label="Left without a bay"
+                label={carCount("Left without a bay")}
                 value={n.counts.leftWithoutBay}
                 icon={<AlertTriangle className="w-4 h-4" />}
                 color="text-foreground/70"
               />
               <StatCard
-                label="Arrival time unknown"
+                label={carCount("Arrival time unknown")}
                 value={n.counts.arrivalTimeUnknown}
                 icon={<HelpCircle className="w-4 h-4" />}
                 color={n.counts.arrivalTimeUnknown > 0 ? "text-amber-400" : "text-foreground/60"}
