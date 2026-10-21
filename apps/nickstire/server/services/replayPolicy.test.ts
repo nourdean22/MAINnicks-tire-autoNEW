@@ -47,7 +47,7 @@ const CLAUSE_BREAKERS: Array<[id: string, breakIt: (p: string) => string]> = [
   ["hours-gate", (p) => p.replace(/Sun 9AM.4PM \(Cleveland\)/, "Sun 9AM-9PM (Cleveland)")],
   ["closed-no-transfer", (p) => removeAll(p, /CLOSED . do NOT transferCall/g)],
   ["shop-hours", (p) => p.replace("Hours: Mon-Sat 8 AM-6 PM", "Hours: Mon-Sat 8 AM-9 PM")],
-  ["callback-only-via-escalate", (p) => removeAll(p, "Never tell a caller a callback is coming without it.")],
+  ["callback-only-via-escalate", (p) => removeAll(p, "Never tell a caller a callback is coming unless escalate returned success:true")],
   ["no-text-promise", (p) => removeAll(p, /never promise a text/gi)],
   ["do-not-call", (p) => removeAll(p, "the caller asks us not to call them")],
   ["ai-disclosure", (p) => removeAll(p, "directly asks")],

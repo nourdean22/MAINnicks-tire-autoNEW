@@ -187,7 +187,7 @@ const POLICY_CLAUSES: PolicyClause[] = [
   lit("closed-no-transfer", "closed do not transfercall"),
   { id: "shop-hours", locate: / hours mon sat \d+ am \d+ pm sun \d+ am \d+ pm / },
   // Callbacks and texts only when a tool can back them.
-  lit("callback-only-via-escalate", "never tell a caller a callback is coming without it"),
+  lit("callback-only-via-escalate", "never tell a caller a callback is coming unless escalate returned success true"),
   lit("no-text-promise", "never promise a text"),
   // Consent: do-not-call (the tool name is extracted, not hard-coded).
   { id: "do-not-call", locate: / [a-z]+ the caller asks us not to call them / },
