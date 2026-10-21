@@ -33,6 +33,14 @@ export const customerEventsRouter = router({
       sessionId: z.string().max(64).nullish(),
     }))
     .mutation(async ({ input }) => {
+      // admin_* names are written only by admin procedures (aiReferrals.log counts
+      // admin_ai_referral rows); this public sink must not let anyone forge them.
+      // Field-only match: the same text inside eventData or sourcePage is free text.
+      // Folded to ASCII letters/digits/underscore first: a case- or accent-insensitive
+      // collation would compare a look-alike (accent, zero-width, full-width) EQUAL.
+      if (input.eventName.normalize("NFKD").replace(/[^a-z0-9_]/gi, "").toLowerCase().startsWith("admin_")) {
+        return { success: false };
+      }
       const d = await db();
       if (!d) return { success: false };
       try {

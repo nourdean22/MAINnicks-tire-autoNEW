@@ -367,7 +367,8 @@ export async function maybeProposeCallActions(meta: CallMeta): Promise<Extractio
  * from the call-state trail there), plus the two rows a tool can write without
  * a trail id: a callback_requests row whose context embeds `callId=<id>`
  * (scheduleCallback/escalate) and an expected_arrivals row with
- * sourceRef = callId (bookSlot). Fails OPEN to {} with a warn — the gate then
+ * sourceRef = callId (bookSlot), or the voice-arrival claim a "coming now" /
+ * tow bookSlot leaves when it texts the shop instead of filing a row. Fails OPEN to {} with a warn — the gate then
  * behaves as before this existed (a possible duplicate draft a human rejects),
  * never as "captured".
  */
@@ -387,7 +388,8 @@ export async function loadCallCaptureEvidence(
         (SELECT convertedToLead FROM vapi_call_logs WHERE vapiCallId = ${callId} LIMIT 1) AS convertedToLead,
         EXISTS (SELECT 1 FROM callback_requests
                 WHERE createdAt >= NOW() - INTERVAL 7 DAY AND context LIKE ${likeCallId}) AS hasCallback,
-        EXISTS (SELECT 1 FROM expected_arrivals WHERE sourceRef = ${callId}) AS hasArrival`);
+        (EXISTS (SELECT 1 FROM expected_arrivals WHERE sourceRef = ${callId})
+          OR EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-arrival:${callId}`})) AS hasArrival`);
     const r = (rows as unknown as Array<Record<string, unknown>>)[0] ?? {};
     const fk = (v: unknown): number | null => {
       const n = Number(v);

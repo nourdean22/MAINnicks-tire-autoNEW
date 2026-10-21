@@ -25,6 +25,10 @@ export default defineConfig({
     // v8.26 · Mock @/lib/auth-guard globally so route tests don't pull
     // next-auth into the vitest node environment (incompatible runtime).
     setupFiles: ["tests/setup/auth-guard-mock.ts"],
+    // 2026-10-21 · TEMP/TMP/TMPDIR point at one dir per run, deleted at the end, so
+    // mkdtemp fixtures tests forget to remove stop piling up in the system temp dir.
+    // Wiring test: tests/repo/test-run-tmp.test.ts.
+    globalSetup: [path.resolve(rootDir, "../../scripts/agent-os/runTmp.mjs")],
     // 2026-07-25 · forks, NOT threads. The 2026-05-23 switch to the
     // threads pool assumed "no native modules load in workers" — that
     // stopped being true once tests began importing modules that reach

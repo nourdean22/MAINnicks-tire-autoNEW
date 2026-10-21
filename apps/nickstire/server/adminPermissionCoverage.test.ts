@@ -30,7 +30,7 @@ import { permissionForAdminProcedure, ADMIN_ROLES, hasAdminPermission } from "..
  * (auth, market, proposals, search, ...) have always been absent, so a router added
  * without a line here is simply not covered by the fail-open sweep below. Add yours.
  */
-const ROUTERS = `activity adStudio adminDashboard adminSecurity analytics autoLabor booking
+const ROUTERS = `activity adStudio adminDashboard aiReferrals adminSecurity analytics autoLabor booking
 callTracking callback campaigns candidates chat closedLoop content contentAdmin contentStudio controlCenter
 conversion costEstimator coupons customerEvents customerNotifications customers dispatch emergency
 estimates export featureFlags financing followUps gallery garage gatewayTire gbp inspection
@@ -61,6 +61,8 @@ describe("every admin mutation is explicitly permissioned", () => {
     // front_desk open; the live public markup stays an owner/manager setting.
     ["gatewayTire.updateMarkup", "settings.manage"],
     ["financing.approve", "money.manage"],
+    // 2026-10-21: front desk logs "an AI assistant sent this customer" at the counter.
+    ["aiReferrals.log", "customers.manage"],
   ])("%s resolves to %s", (path, expected) => {
     expect(permissionForAdminProcedure(path, "mutation")).toBe(expected);
   });

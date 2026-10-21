@@ -223,7 +223,15 @@ export async function processAgenticAuditor(): Promise<ProcessResult> {
                 eq(expectedArrivals.customerPhone, phone),
               ))
               .limit(1);
-            if (!hit) {
+            // A "coming now" / tow bookSlot texts the shop and files no row; its
+            // trace is the voice-arrival claim for this call (2026-10-21).
+            let persisted = Boolean(hit);
+            if (!persisted) {
+              const [claim] = (await d.execute(sql`
+                SELECT EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-arrival:${row.vapiCallId}`}) AS hit`)) as unknown as [Array<{ hit?: unknown }>];
+              persisted = Number(claim?.[0]?.hit) === 1;
+            }
+            if (!persisted) {
               findings.push({
                 type: "missing_arrival_record",
                 severity: "alert",

@@ -23,12 +23,16 @@ function createVoiceContext(): TrpcContext {
 
 async function loadCaller() {
   vi.resetModules();
-  vi.doMock("../services/expectedArrivals", () => ({ recordExpectedArrival }));
+  vi.doMock("../services/expectedArrivals", async (orig) => ({
+    ...(await orig<typeof import("../services/expectedArrivals")>()),
+    recordExpectedArrival,
+  }));
   const { voiceAgentRouter } = await import("./voiceAgent");
   return voiceAgentRouter.createCaller(createVoiceContext());
 }
 
-const base = { name: "Test Caller", service: "flat tire repair", preferredDay: "today" };
+// A LATER day: "today" now texts the shop instead (voiceAgent.headsUp.test.ts), the row path is for later days.
+const base = { name: "Test Caller", service: "flat tire repair", preferredDay: "tomorrow" };
 
 describe("bookSlot result is honest about the expected-arrival write", () => {
   afterEach(() => {
@@ -82,11 +86,12 @@ describe("bookSlot result is honest about the expected-arrival write", () => {
   });
 });
 
-describe("the webhook injects caller ID for bookSlot only", () => {
-  it("source wires customerNumber into args.callerNumber, scoped to bookSlot", async () => {
+describe("the webhook injects caller ID for bookSlot and escalate", () => {
+  it("source wires customerNumber into args.callerNumber, scoped to bookSlot and escalate", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const src = fs.readFileSync(path.resolve(process.cwd(), "server/routes/webhooks/vapi.ts"), "utf8");
-    expect(src).toContain('if (call.function.name === "bookSlot" && customerNumber) args.callerNumber = customerNumber;');
+    expect(src).toContain('const CALLER_ID_TOOLS = new Set(["bookSlot", "escalate", "tireInquiry"]);');
+    expect(src).toContain("if (CALLER_ID_TOOLS.has(call.function.name) && customerNumber) args.callerNumber = customerNumber;");
   });
 });

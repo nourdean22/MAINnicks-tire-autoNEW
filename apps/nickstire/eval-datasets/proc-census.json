@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-21T21:51:43.865Z",
-  "count": 649,
+  "generatedAt": "2026-10-21T22:46:07.929Z",
+  "count": 651,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -12,6 +12,7 @@
     "mutation.adminSecurity.reportClientError",
     "mutation.adminSecurity.setRole",
     "mutation.adminSecurity.verifyMfa",
+    "mutation.aiReferrals.log",
     "mutation.auth.logout",
     "mutation.autoLabor.calculateLabor",
     "mutation.booking.addUpsellInterest",
@@ -317,6 +318,7 @@
     "query.adminSecurity.queueFeedbackSummary",
     "query.adminSecurity.recentActions",
     "query.adminSecurity.status",
+    "query.aiReferrals.summary",
     "query.auth.me",
     "query.autoLabor.categories",
     "query.autoLabor.jobsByCategory",

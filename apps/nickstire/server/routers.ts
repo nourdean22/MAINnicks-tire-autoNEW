@@ -49,6 +49,7 @@ import {
   campaignsRouter,
   callTrackingRouter,
   customerEventsRouter,
+  aiReferralsRouter,
   marketAdminRouter,
   costEstimatorRouter,
   emergencyRouter,
@@ -168,6 +169,8 @@ export const appRouter = router({
 
   callTracking: callTrackingRouter,
   customerEvents: customerEventsRouter,
+  /** 2026-10-21 · staff log of AI-assistant referrals + 30-day counts (admin only). */
+  aiReferrals: aiReferralsRouter,
   campaigns: campaignsRouter,
   gatewayTire: gatewayTireRouter,
   /** 2026-10-18 · public vehicle tire finder (D&K quicksearch via the Gateway Tire login). */
