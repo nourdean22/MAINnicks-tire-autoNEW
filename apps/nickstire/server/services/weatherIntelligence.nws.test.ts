@@ -108,6 +108,126 @@ describe("evaluateForecast (pure)", () => {
   });
 });
 
+/**
+ * heavy_rain must fire on rain, never on snow or on a lake-level flood alert (2026-10-20).
+ * Before the fix "Snow Showers" matched /showers/ and "Lakeshore Flood Advisory" matched /flood/, so a
+ * snow day texted lapsed customers "heavy rain today ... Worn tires = danger".
+ */
+describe("heavy_rain · real rain only (pure)", () => {
+  /** The recorded forecast shifted to October, with the Thursday period (30h out) edited. */
+  const withThursday = (shortForecast: string, pop: number, detailedForecast = "Mostly dry.") => {
+    const f = shiftedForecast({});
+    f.properties.periods[2] = {
+      ...f.properties.periods[2],
+      shortForecast,
+      detailedForecast,
+      probabilityOfPrecipitation: { value: pop },
+    };
+    return parsePeriods(f);
+  };
+  const alertOf = (event: string) => ({ event, severity: "Moderate", headline: "", onset: "2026-10-21T18:00:00-04:00", ends: null });
+  const rainTriggered = (periods: ReturnType<typeof parsePeriods>, a: ReturnType<typeof alertOf>[] = []) =>
+    evaluateForecast(periods, a, OCT_NOW).triggered.includes("heavy_rain");
+
+  it("POSITIVE CONTROL: the recorded forecast with no edit fires no heavy_rain", () => {
+    expect(rainTriggered(parsePeriods(shiftedForecast({})))).toBe(false);
+  });
+
+  it("rain showers at 80% fire it, 79% do not (the PoP boundary is pinned)", () => {
+    expect(rainTriggered(withThursday("Showers And Thunderstorms", 80))).toBe(true);
+    expect(rainTriggered(withThursday("Showers And Thunderstorms", 79))).toBe(false);
+  });
+
+  it("the words 'heavy rain' in the forecast text fire it at any chance", () => {
+    expect(rainTriggered(withThursday("Rain", 40, "Heavy rain possible in the evening."))).toBe(true);
+  });
+
+  it("a rain period more than 48h out does not fire it", () => {
+    const f = shiftedForecast({});
+    f.properties.periods[6] = { ...f.properties.periods[6], shortForecast: "Showers", probabilityOfPrecipitation: { value: 95 } };
+    expect(rainTriggered(parsePeriods(f))).toBe(false);
+  });
+
+  it.each([
+    "Snow Showers",
+    "Rain And Snow Showers",
+    "Showers And Sleet",
+    "Light Rain And Flurries",
+    "Wintry Showers Likely",
+  ])("%s at 90%% is not heavy rain, and a snow forecast still sees its own trigger", (shortForecast) => {
+    const periods = withThursday(shortForecast, 90);
+    expect(rainTriggered(periods)).toBe(false);
+    // the rain control above is live: the same 90% with no frozen word does fire.
+    expect(rainTriggered(withThursday(shortForecast.replace(/snow|sleet|flurries|wintry/gi, "").trim() || "Showers", 90))).toBe(true);
+  });
+
+  it.each(["Freezing Rain", "Light Freezing Rain", "Chance Freezing Rain", "Rain And Freezing Rain"])(
+    "%s at 90%% is ice, not heavy rain (the text says hydroplaning, the road says glaze)",
+    (shortForecast) => {
+      expect(rainTriggered(withThursday(shortForecast, 90))).toBe(false);
+      // control: the same words without 'freezing' are rain and do fire.
+      expect(rainTriggered(withThursday(shortForecast.replace(/freezing /gi, ""), 90))).toBe(true);
+    },
+  );
+
+  it("Freezing Drizzle at 90% fires no heavy_rain (it carries no rain word to begin with)", () => {
+    expect(rainTriggered(withThursday("Freezing Drizzle", 90))).toBe(false);
+    expect(rainTriggered(withThursday("Drizzle", 90))).toBe(false);
+  });
+
+  it("a snow forecast keeps firing snow_forecast (the fix did not blind the snow lane)", () => {
+    const r = evaluateForecast(withThursday("Snow Showers", 90), [], OCT_NOW);
+    expect(r.triggered).toContain("snow_forecast");
+    expect(r.triggered).not.toContain("heavy_rain");
+  });
+
+  // A flood alert alone is not proof of rain: snowmelt, ice jams and dam or levee failures raise the same products
+  // (weather.gov/safety/flood-hazards). It counts only beside an independent rain signal in the forecast.
+  const FLOOD_ALERTS = ["Flood Watch", "Flood Warning", "Flood Advisory", "Flash Flood Watch", "Flash Flood Warning"];
+  const DRY = () => parsePeriods(shiftedForecast({}));
+
+  it.each(FLOOD_ALERTS)("the %s alert beside a dry forecast does NOT fire it (snowmelt and ice jams flood too)", (event) => {
+    expect(rainTriggered(DRY(), [alertOf(event)])).toBe(false);
+  });
+
+  it.each(FLOOD_ALERTS)("the %s alert beside 60%% rain showers fires it", (event) => {
+    expect(rainTriggered(withThursday("Rain Showers", 60), [alertOf(event)])).toBe(true);
+  });
+
+  it("the rain signal beside a flood alert starts at 50%: 50 fires, 49 does not", () => {
+    expect(rainTriggered(withThursday("Rain Showers", 50), [alertOf("Flood Warning")])).toBe(true);
+    expect(rainTriggered(withThursday("Rain Showers", 49), [alertOf("Flood Warning")])).toBe(false);
+  });
+
+  it.each(["Snow Showers", "Freezing Rain", "Rain And Sleet"])(
+    "a flood warning beside %s at 60%% does not fire it (the signal is frozen, not rain)",
+    (shortForecast) => {
+      expect(rainTriggered(withThursday(shortForecast, 60), [alertOf("Flood Warning")])).toBe(false);
+    },
+  );
+
+  it("a flood warning beside rain more than 48h out does not fire it", () => {
+    const f = shiftedForecast({});
+    f.properties.periods[6] = { ...f.properties.periods[6], shortForecast: "Rain Showers", probabilityOfPrecipitation: { value: 90 } };
+    expect(rainTriggered(parsePeriods(f), [alertOf("Flood Warning")])).toBe(false);
+  });
+
+  it.each([
+    "Lakeshore Flood Advisory",
+    "Lakeshore Flood Warning",
+    "Lakeshore Flood Watch",
+    "Coastal Flood Advisory",
+    "Coastal Flood Warning",
+    "Coastal Flood Watch",
+  ])("the %s alert is lake level, not rain, and does not fire it even beside 60%% rain showers", (event) => {
+    expect(rainTriggered(withThursday("Rain Showers", 60), [alertOf(event)])).toBe(false);
+  });
+
+  it("alert matching ignores case and padding", () => {
+    expect(rainTriggered(withThursday("Rain Showers", 60), [alertOf("  flash flood WARNING ")])).toBe(true);
+  });
+});
+
 describe("checkWeatherTriggers (cron handler)", () => {
   const freezeTonight = () => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -136,7 +256,7 @@ describe("checkWeatherTriggers (cron handler)", () => {
   it("Q-21: a held-out control is neither logged as an outbound SMS nor counted as sent", async () => {
     freezeTonight();
     process.env.WEATHER_SMS_SEND = "1";
-    const rows = (r: unknown[]) => ({ limit: async () => r });
+    const rows = (r: unknown[]) => ({ limit: async () => r, orderBy: () => ({ limit: async () => r }) });
     getDb.mockResolvedValueOnce({
       select: () => ({
         from: () => ({
@@ -158,7 +278,7 @@ describe("checkWeatherTriggers (cron handler)", () => {
   it("control: a real weather send IS logged (so the held-out assertion above is live)", async () => {
     freezeTonight();
     process.env.WEATHER_SMS_SEND = "1";
-    const rows = (r: unknown[]) => ({ limit: async () => r });
+    const rows = (r: unknown[]) => ({ limit: async () => r, orderBy: () => ({ limit: async () => r }) });
     getDb.mockResolvedValueOnce({
       select: () => ({
         from: () => ({
@@ -207,7 +327,7 @@ describe("checkWeatherTriggers (cron handler)", () => {
 
   describe("C5.5 round 2: pause set mid-run", () => {
     const threeTargets = () => {
-      const rows = (r: unknown[]) => ({ limit: async () => r });
+      const rows = (r: unknown[]) => ({ limit: async () => r, orderBy: () => ({ limit: async () => r }) });
       getDb.mockResolvedValueOnce({
         select: () => ({
           from: () => ({
