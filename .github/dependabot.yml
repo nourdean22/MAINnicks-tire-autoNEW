@@ -68,6 +68,11 @@ updates:
       # The deploy Dockerfiles pin the lockfile's turbo (apps/statenour/tests/repo/dockerfile-turbo-pin.test.ts).
       # Bump by hand with the #3014 recipe (docs: deploy-image turbo pin).
       - dependency-name: "turbo"
+      # The worker is on Express 5, nickstire and statenour on 4. With one "/" root Dependabot picks a single
+      # target, so PR 3202 rewrote the worker's "^5.2.1" to "^4.22.3" (a downgrade that
+      # apps/statenour/tests/repo/worker-express-aligned.test.ts catches). Bump express by hand per app.
+      # Reopen when every app is on the same express major.
+      - dependency-name: "express"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
