@@ -133,18 +133,31 @@ test("fails OPEN on its own errors: a lock dir under a regular file (ENOTDIR) ru
   assert.match(r.out, /running unleased/);
 });
 
-test("--max-wait (the lefthook form): a held lease or low RAM waits briefly, then WARNS and runs unleased", async () => {
+// 2026-10-19: four sibling commit hooks each waited 90 s and then ran tsc anyway (3.6 GB each), so the lease protected nothing once
+// every waiter gave up together and git itself hit "Out of memory". The hook form now FAILS the hook; the session retries the commit.
+test("--max-wait (the lefthook form): a held lease or low RAM waits briefly, then FAILS the hook (exit 1) and spawns no child", async () => {
   const dir = mkdtempSync(join(tmpdir(), "heavy-"));
   plantLock(dir, { pid: process.pid, startedMs: Date.now() });
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--max-wait", "1s", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "4000" });
-  assert.equal(r.code, 0, r.out);
-  assert.ok(existsSync(marker), "the command must run after the short wait");
-  assert.match(r.out, /proceeding unleased/);
+  assert.equal(r.code, 1, r.out);
+  assert.ok(!existsSync(marker), "the command must NOT run unleased after the short wait");
+  assert.match(r.out, /heavy lease busy: retry the commit/);
+  assert.doesNotMatch(r.out, /proceeding unleased/);
   const ram = mkdtempSync(join(tmpdir(), "heavy-"));
-  const r2 = await runAsync(ram, ["run", "--max-wait", "1s", "--", process.execPath, "-e", "0"], { HEAVY_FREE_MB: "300", HEAVY_MAX_WAIT_MS: "4000" });
-  assert.equal(r2.code, 0, r2.out);
-  assert.match(r2.out, /free RAM 300 MB[\s\S]*proceeding unleased/);
+  const ramMarker = join(ram, "ran.txt");
+  const r2 = await runAsync(ram, ["run", "--max-wait", "1s", "--", process.execPath, "-e", stamp(ramMarker, 0)], { HEAVY_FREE_MB: "300", HEAVY_MAX_WAIT_MS: "4000" });
+  assert.equal(r2.code, 1, r2.out);
+  assert.ok(!existsSync(ramMarker), "low RAM must not run the command either");
+  assert.match(r2.out, /free RAM 300 MB[\s\S]*heavy lease busy: retry the commit/);
+});
+
+test("--max-wait with a FREE lease still runs the command and passes its exit code (control: the new refusal is not a blanket failure)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const marker = join(dir, "ran.txt");
+  const r = await runAsync(dir, ["run", "--max-wait", "1s", "--", process.execPath, "-e", `require('fs').appendFileSync(${JSON.stringify(marker)},'x');process.exit(5)`], { HEAVY_MAX_WAIT_MS: "4000" });
+  assert.equal(r.code, 5, r.out);
+  assert.ok(existsSync(marker), "a free lease must run the command");
 });
 
 test("a lock file whose JSON is not an object (null) is corrupt: taken over once old, not waited on forever", async () => {

@@ -594,3 +594,31 @@ test("a comment list that never ends is BLOCKED at the page cap, never an endles
   assert.ok(logs.some((l) => /^BLOCKED: .*comments/.test(l)), JSON.stringify(logs));
   assert.ok(commentPages(g) <= 40, `${commentPages(g)} pages`);
 });
+
+// 2026-10-21 (PR 3194): after a close and reopen the rollup keeps the superseded failed run of a check beside its newer
+// run on the same head, and the gate blocked a PR whose latest run was green. Judge only the latest run per check name.
+const AT = (min) => new Date(T0 + min * MIN).toISOString();
+const wfRun = (name, conclusion, min, workflowName = "CI", status = "COMPLETED") => ({ ...run(name, conclusion, status, AT(min)), workflowName });
+
+test("rollup: a superseded FAILED run of a check does not block when its latest run succeeded (the 3194 close/reopen shape)", () => {
+  const rollup = [wfRun("node", "FAILURE", 0), wfRun("node", "SUCCESS", 10), run("security")];
+  assert.deepEqual(blockers(view({ statusCheckRollup: rollup }), SHA), []);
+  assert.deepEqual(blockers(view({ statusCheckRollup: rollup.slice().reverse() }), SHA), [], "array order must not decide which run is latest");
+});
+
+test("rollup: the LATEST run decides, so an older success never hides a newer failure", () => {
+  const rollup = [wfRun("node", "SUCCESS", 0), wfRun("node", "FAILURE", 10)];
+  assert.deepEqual(blockers(view({ statusCheckRollup: rollup }), SHA), ['check "node" FAILURE']);
+});
+
+test("rollup: a newer run still in progress is 'not finished' (soft), not a hard failure from the older run", () => {
+  const rollup = [wfRun("node", "FAILURE", 0), wfRun("node", "", 10, "CI", "IN_PROGRESS")];
+  assert.deepEqual(blockers(view({ statusCheckRollup: rollup }), SHA), ['check "node" has not finished (IN_PROGRESS)']);
+});
+
+test("rollup: same name in different workflows, or runs with no start time, are NOT collapsed (fail closed)", () => {
+  assert.deepEqual(blockers(view({ statusCheckRollup: [wfRun("node", "FAILURE", 0, "A"), wfRun("node", "SUCCESS", 10, "B")] }), SHA), ['check "node" FAILURE']);
+  const bare = (conclusion) => ({ __typename: "CheckRun", name: "node", status: "COMPLETED", conclusion, workflowName: "CI" });
+  assert.deepEqual(blockers(view({ statusCheckRollup: [bare("FAILURE"), bare("SUCCESS")] }), SHA), ['check "node" FAILURE']);
+  assert.deepEqual(blockers(view({ statusCheckRollup: [wfRun("node", "FAILURE", 5), wfRun("node", "SUCCESS", 5)] }), SHA), ['check "node" FAILURE'], "a tie on the start time keeps both");
+});

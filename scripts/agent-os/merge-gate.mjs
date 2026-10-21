@@ -39,6 +39,30 @@ const nameOf = (c) => c.name ?? c.context ?? "(unnamed check)";
 const firstLine = (e) => String(e?.message ?? e).split("\n")[0];
 
 /**
+ * After a close and reopen (PR 3194, 2026-10-21) the rollup keeps the superseded run of a check beside its newer run on the same
+ * head. Judge only the latest run per workflow + check name. FAIL CLOSED: an entry with no readable start time is never collapsed,
+ * and neither are same-named checks of different workflows, so this can only drop a run that a later run of the same check replaced.
+ */
+export function latestRuns(rollup) {
+  const startMs = (c) => {
+    const t = Date.parse(c.startedAt);
+    return Number.isFinite(t) && t > Date.UTC(2000, 0, 1) ? t : null;
+  };
+  const best = new Map();
+  for (const c of rollup) {
+    const t = startMs(c);
+    if (t === null) continue;
+    const key = `${c.workflowName ?? ""}\u0000${nameOf(c)}`;
+    if (!(best.get(key) >= t)) best.set(key, t);
+  }
+  // A tie on the start time keeps every tied entry: dropping one could drop the failure.
+  return rollup.filter((c) => {
+    const t = startMs(c);
+    return t === null || best.get(`${c.workflowName ?? ""}\u0000${nameOf(c)}`) === t;
+  });
+}
+
+/**
  * Sorts the reasons this PR must not be merged right now. `hard` is something wrong; `soft` is "not yet" (CI not started,
  * a check running, GitHub computing). `view` is `gh pr view --json state,isDraft,mergeStateStatus,headRefOid,statusCheckRollup`.
  */
@@ -51,7 +75,7 @@ export function assess(view, expectedSha) {
   else if (view.mergeStateStatus !== "CLEAN") hard.push(`mergeStateStatus is ${view.mergeStateStatus}, not CLEAN (BEHIND or DIRTY: update the branch)`);
   if (view.headRefOid !== expectedSha) hard.push(`head is ${view.headRefOid}, not the ${expectedSha} you verified: re-verify the new head`);
   // An empty list is right after an open or a push, before Actions has created its runs: this repo has no branch protection, so nothing else stops a merge of a head that never ran CI.
-  const rollup = view.statusCheckRollup ?? [];
+  const rollup = latestRuns(view.statusCheckRollup ?? []);
   if (!rollup.length) soft.push("no checks have reported yet: wait for CI to start, a head that never ran CI must not merge");
   for (const c of rollup) {
     // A CheckRun has status + conclusion; a commit StatusContext has only state.
