@@ -11,15 +11,16 @@
  *   consumeApproval()        imported by pretool.mjs (READER): only when infra-mutation-tool alone denies an MCP call.
  *
  * The store: %LOCALAPPDATA%/nourcity/approvals/<session>.json, a JSON list of {id, tool, target, at, session_id, used:false}, written only by this
- * hook. A call spends a record by the EXCLUSIVE create of <session>.<id>.used (claim-before-act: when two calls race, one create wins).
+ * hook. A call spends a record AND the operator message behind it by EXCLUSIVE creates of <session>.<id>.used and <session>.msg-<hash>.used
+ * (claim-before-act: when two calls race, one create wins; one typed message spends one approval however many records it produced).
  * The reader also requires the same APPROVE line in a genuine operator message of the transcript (operator-asks.mjs > operatorAsk), so a record
  * alone (a forged store, a message sent by another session, a /loop re-fire, a tool result) is not an approval.
  * LOCALAPPDATA only LOCATES the store; no environment variable lifts the rule, and with no store nothing is approved.
  * FAILURE POSTURE: the reader fails CLOSED (any error: no approval, the call stays denied). The writer fails quietly (nothing recorded).
  * Canaries: infraApprove.test.mjs. Docs: docs/agent-os/README.md > Infra tools: approve one call.
  */
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadPolicy } from "./policy.mjs";
@@ -85,18 +86,35 @@ const fresh = (ts, now) => {
   return age >= 0 && age <= APPROVAL_WINDOW_MS;
 };
 
-/** True when a genuine operator message of the transcript, 0-30 min old, has the line APPROVE <tool> <target>. */
+const hash = (s) => createHash("sha256").update(s).digest("hex").slice(0, 24);
+
+/**
+ * The identities (a hash of transcript timestamp + text) of the genuine operator messages, 0-30 min old, that hold the line
+ * APPROVE <tool> <target>. One message spends ONE approval (Codex P1 on PR 3193: a duplicate hook run or a /loop re-fire minted a fresh
+ * record each time, and the one original line corroborated them all).
+ */
 function typedByNour(transcriptPath, tool, target, now) {
-  if (typeof transcriptPath !== "string" || !transcriptPath) return false;
+  const out = [];
+  if (typeof transcriptPath !== "string" || !transcriptPath) return out;
   for (const line of readFileSync(transcriptPath, "utf8").split("\n")) {
     if (!/approve/i.test(line) || line.includes('"toolUseResult":')) continue;
     let ask = null;
     try {
       ask = operatorAsk(JSON.parse(line));
     } catch {}
-    if (ask && fresh(ask.ts, now) && approveLines(ask.text).some((a) => a.tool === tool && a.target === target)) return true;
+    if (ask && fresh(ask.ts, now) && approveLines(ask.text).some((a) => a.tool === tool && a.target === target)) out.push(hash(`${ask.ts}\n${ask.text}`));
   }
-  return false;
+  return out;
+}
+
+/** Exclusive create: true for exactly one caller (claim-before-act), false when it exists or cannot be made. */
+function claim(file) {
+  try {
+    closeSync(openSync(file, "wx"));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -120,13 +138,13 @@ export function consumeApproval({ toolName, input, sessionId, transcriptPath, po
       const target = a.target.toLowerCase();
       const names = new Set([target, ...(aliases.get(target) ?? [])]);
       if (!ids.every((v) => v !== null && names.has(v))) continue; // EVERY identifying field names the approved target
-      if (!typedByNour(transcriptPath, tool, target, now)) continue;
-      try {
-        closeSync(openSync(join(dir, `${session}.${a.id}.used`), "wx")); // the one-shot claim: exactly one create succeeds
-      } catch {
-        continue; // spent already (or not creatable): never a pass
-      }
-      return { ok: true, why: "approved", approval: a };
+      // Two locks, each an exclusive create: the RECORD (<session>.<id>.used) and the operator MESSAGE behind it (<session>.msg-<hash>.used).
+      const recordLock = join(dir, `${session}.${a.id}.used`);
+      const messageLock = (m) => join(dir, `${session}.msg-${m}.used`);
+      const messages = typedByNour(transcriptPath, tool, target, now).filter((m) => !existsSync(messageLock(m)));
+      if (!messages.length || existsSync(recordLock) || !claim(recordLock)) continue;
+      const spent = messages.find((m) => claim(messageLock(m)));
+      if (spent) return { ok: true, why: "approved", approval: a, message: spent };
     }
     return { ok: false, why: "no unused approval for this tool and target from the last 30 minutes" };
   } catch (err) {
@@ -135,32 +153,39 @@ export function consumeApproval({ toolName, input, sessionId, transcriptPath, po
 }
 
 /** The WRITER: append each approvable APPROVE line of the prompt to the session's store. @returns {{recorded, refused}} */
-export function recordApprovals({ sessionId, prompt, policy, env = {}, now = Date.now() }) {
+export function recordApprovals({ sessionId, prompt, transcriptPath, policy, env = {}, now = Date.now() }) {
   const session = sessionKey(sessionId);
   const lines = approveLines(redactPrivate(String(prompt ?? ""))); // <private> text is never stored (AGENTS.md > Memory)
   if (!session || !lines.length) return { recorded: [], refused: [] };
   const { never } = settingsOf(policy);
   const infra = (tool) => approvable(tool, policy, new Set());
+  // Idempotent per prompt delivery: the same prompt text at the same transcript size is one hook event delivered twice.
+  let size = 0;
+  try {
+    size = statSync(transcriptPath).size;
+  } catch {}
+  const promptKey = `${hash(String(prompt))}:${size}`;
+  const dir = approvalsDir(env);
+  const file = join(dir, `${session}.json`);
+  let list = [];
+  try {
+    list = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
+  } catch {}
+  if (!Array.isArray(list)) list = [];
   const recorded = [];
   const refused = [];
-  const seen = new Set();
+  const seen = new Set(list.filter((a) => a?.prompt_key === promptKey).map((a) => `${a.tool} ${a.target}`));
   for (const l of lines) {
     if (!infra(l.tool)) continue; // not an infra tool name ("APPROVE the plan"): not an approval
     if (!approvable(l.tool, policy, never)) refused.push(l);
     else if (!seen.has(`${l.tool} ${l.target}`)) {
       seen.add(`${l.tool} ${l.target}`);
-      recorded.push({ id: randomUUID(), ...l, at: new Date(now).toISOString(), session_id: session, used: false });
+      recorded.push({ id: randomUUID(), ...l, at: new Date(now).toISOString(), session_id: session, used: false, prompt_key: promptKey });
     }
   }
   if (recorded.length) {
-    const dir = approvalsDir(env);
-    const file = join(dir, `${session}.json`);
-    let list = [];
-    try {
-      list = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
-    } catch {}
     mkdirSync(dir, { recursive: true });
-    writeFileSync(file, JSON.stringify([...(Array.isArray(list) ? list : []), ...recorded], null, 1));
+    writeFileSync(file, JSON.stringify([...list, ...recorded], null, 1));
   }
   return { recorded, refused };
 }
@@ -173,9 +198,9 @@ export function main(stdinText, env) {
     return 0;
   }
   if (typeof payload.prompt !== "string") return 0;
-  const { recorded, refused } = recordApprovals({ sessionId: payload.session_id, prompt: payload.prompt, policy: loadPolicy(), env });
+  const { recorded, refused } = recordApprovals({ sessionId: payload.session_id, prompt: payload.prompt, transcriptPath: payload.transcript_path, policy: loadPolicy(), env });
   for (const a of recorded) process.stdout.write(`[infra-approve] recorded: one ${a.tool} call naming ${a.target}, valid 30 minutes.\n`);
-  for (const a of refused) process.stdout.write(`[infra-approve] ${a.tool} is never approvable: Nour runs it himself (nothing recorded).\n`);
+  for (const a of refused) process.stdout.write(`[infra-approve] ${a.tool} is never approvable; do it in the provider dashboard (nothing recorded).\n`);
   return 0;
 }
 

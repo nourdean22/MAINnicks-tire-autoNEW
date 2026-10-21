@@ -45,8 +45,10 @@
   ],
   "version": 2,
   "infraApprovals": {
-    "$comment": "Per-action approval of ONE infra-mutation-tool call (job 2026-10-20-infra-approve-per-action, scripts/agent-os/infra-approve.mjs). neverApprovable: leaves no approval lifts; a malformed list makes NOTHING approvable. aliases: an approval target -> the ids it also matches as a whole input value; a malformed map adds nothing. The 30-minute window is a constant in code, not here.",
-    "neverApprovable": ["railway-agent", "delete_project", "delete-service", "set_default_branch", "accept_project_transfer_request", "buy_domain"],
+    "$comment": "Per-action approval of ONE infra-mutation-tool call (job 2026-10-20-infra-approve-per-action, scripts/agent-os/infra-approve.mjs). neverApprovable: leaves no approval lifts (the six outage-class tools, plus every project-level leaf: its input names only a project id, a scope id no approval can name; Codex P2 on PR 3193); a malformed list makes NOTHING approvable. aliases: an approval target -> the ids it also matches as a whole input value; a malformed map adds nothing. The 30-minute window is a constant in code, not here.",
+    "neverApprovable": ["railway-agent", "delete_project", "delete-service", "set_default_branch", "accept_project_transfer_request", "buy_domain",
+      "update_project", "pause_project", "unpause_project", "add_project_domain", "create_project_env", "edit_project_env",
+      "update_project_protection_bypass", "upsert_connector_project_connection"],
     "aliases": {
       "statenour-web": ["c68ce7f7-63b1-47bf-9e9e-2d7dfe717d4e"],
       "nickstire": ["a6234c8d-1ff4-478f-9085-654954b54e97"],

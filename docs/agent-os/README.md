@@ -620,14 +620,18 @@ his dashboard to his chat. It is not an override: it lifts one call of one tool 
   call after 30 minutes is denied with the usual `infra-mutation-tool` reason plus one line on how to approve.
 - **Writer.** `scripts/agent-os/infra-approve.mjs`, a UserPromptSubmit hook in `.claude/settings.json`, reads only the prompt text and
   appends `{id, tool, target, at, session_id, used:false}` to `%LOCALAPPDATA%/nourcity/approvals/<session>.json`. A line that is not
-  an infra tool name ("APPROVE the plan") records nothing; a never-approvable tool is refused out loud. It prints what it recorded.
+  an infra tool name ("APPROVE the plan") records nothing; a never-approvable tool records nothing and prints "`<tool>` is never
+  approvable; do it in the provider dashboard". It prints what it recorded. It is idempotent per delivery: the same prompt text at the
+  same transcript size (one hook event delivered twice) adds no second record.
 - **Reader.** `pretool.mjs`, only when `infra-mutation-tool` is the one rule denying an MCP call, calls `consumeApproval()`. It needs all
   of: an unused record of THIS session for that tool (case-insensitive); the target, or one of its `aliases` in `policy.json` >
   `infraApprovals`, equal to EVERY identifying field of the input (case-insensitive whole value, never a substring); the record
   0 to 30 minutes old (the window is a code constant, inclusive, a future date fails); the same APPROVE line in a genuine operator
   message of the session transcript, 0 to 30 minutes old (`operator-asks.mjs` > `operatorAsk`: a tool result, a message from another
-  session, an sdk-started prompt, a /loop re-fire or a lane brief does not count); and the exclusive create of `<session>.<id>.used`,
-  so when two calls race on one approval exactly one passes. The pass prints a notice naming the approval it spent.
+  session, an sdk-started prompt, a /loop re-fire or a lane brief does not count); and two exclusive creates, of the record's lock
+  `<session>.<id>.used` and of the lock of the operator message behind it `<session>.msg-<hash of its timestamp and text>.used`. So
+  when two calls race on one approval exactly one passes, and ONE typed message spends ONE approval however many records a duplicate
+  hook run or a /loop re-fire produced (Codex P1 on PR 3193); two separate APPROVE messages allow two calls. The pass prints a notice naming the approval it spent.
 - **What "target" means.** An identifying field is a key at any depth that is `id` or ends in `_id`, `-id`, `Id` or `ID` (`branch_id`,
   `serviceId`, `deploymentId`, `endpoint_id`), except the scope keys `project_id`/`projectId`, `environment_id`/`environmentId`,
   `org_id`/`orgId`, `workspace_id`/`workspaceId` and `team_id`/`teamId`. The input needs at least one, and every one must equal the
@@ -636,7 +640,10 @@ his dashboard to his chat. It is not an override: it lifts one call of one tool 
   ids is denied with "needs an id-bearing target". A redeploy that also names a `deploymentId` needs that id to match too, so approve the
   plain service redeploy.
 - **Never approvable.** `neverApprovable` in `policy.json`: `railway-agent` (it can do anything), `delete_project`, `delete-service`,
-  `set_default_branch`, `accept_project_transfer_request`, `buy_domain`. A malformed list makes NOTHING approvable; a malformed alias
+  `set_default_branch`, `accept_project_transfer_request`, `buy_domain`, and every project-level leaf: `update_project`, `pause_project`,
+  `unpause_project`, `add_project_domain`, `create_project_env`, `edit_project_env`, `update_project_protection_bypass`,
+  `upsert_connector_project_connection` (their input names only a project id, a scope id no approval can name, and pausing or
+  reconfiguring a whole project is outage-class: Nour does it in the dashboard; Codex P2 on PR 3193). A malformed list makes NOTHING approvable; a malformed alias
   map adds nothing. An approval never lifts another rule: a destructive migration stays denied by `destructive-sql` and spends nothing.
 - **The store is out of the agent's reach.** Rule `infra-approvals-store-write` denies Write, Edit, NotebookEdit and the MCP file tools
   on any path with a nourcity segment followed by an approvals segment (either slash, any case, 8.3 short names, trailing dots, `./` and

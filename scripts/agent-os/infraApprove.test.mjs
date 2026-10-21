@@ -60,6 +60,10 @@ const userLine = (text, ts, extra = {}) => `${JSON.stringify({ type: "user", ori
 /** Nour types `text`: the transcript gets the entry and the configured writer runs on the UserPromptSubmit payload. */
 function say(sb, text, { ts = iso(Date.now()), writer = WRITER } = {}) {
   appendFileSync(sb.transcript, userLine(text, ts));
+  return fire(sb, text, writer);
+}
+/** Run the writer on a UserPromptSubmit payload WITHOUT a transcript entry (a duplicate delivery or a re-fire). */
+function fire(sb, text, writer = WRITER) {
   const payload = { session_id: sb.session, transcript_path: sb.transcript, cwd: ROOT, hook_event_name: "UserPromptSubmit", prompt: text };
   const r = spawnSync(process.execPath, [writer], { input: JSON.stringify(payload), env: envOf(sb), encoding: "utf8", timeout: 20000 });
   return { code: r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
@@ -216,7 +220,54 @@ test("never approvable: railway-agent, delete_project, delete-service, set_defau
     assert.ok(denied(r), `${t} must stay denied`);
     assert.match(r.err, /never approvable/i, `${t}: the denial says it is never approvable`);
   }
-  assert.deepEqual(policy.infraApprovals.neverApprovable.slice().sort(), never.map(([t]) => t).sort(), "the list lives in policy.json and is exactly these six");
+  assert.deepEqual(policy.infraApprovals.neverApprovable.slice().sort(), [...never.map(([t]) => t), ...PROJECT_LEVEL].sort(), "the list lives in policy.json: these six plus the project-level leaves");
+});
+
+// Codex P2 on PR 3193: a project-level mutation carries only a project id (a scope id), so an approval for it could never pass while the
+// writer announced it. They are never approvable: the writer refuses them out loud and the reader denies a planted record.
+const PROJECT_LEVEL = ["update_project", "pause_project", "unpause_project", "add_project_domain", "create_project_env", "edit_project_env", "update_project_protection_bypass", "upsert_connector_project_connection"];
+test("project-level tools are never approvable: the writer records nothing and says so; a planted record is still denied", async () => {
+  await mod();
+  const leaves = new RegExp(policy.rules.find((x) => x.id === RULE).pattern).source.match(/\(\?:(.*)\)\$/)[1].split("|");
+  assert.deepEqual(leaves.filter((l) => /[_-]project|project[_-]/.test(l)).sort(), [...PROJECT_LEVEL, "delete_project", "accept_project_transfer_request"].sort(), "the project-level list is derived from the rule pattern");
+  for (const tool of PROJECT_LEVEL) {
+    const sb = sandbox();
+    const r = say(sb, `APPROVE ${tool} prj-123`);
+    assert.ok(!existsSync(join(sb.dir, `${sb.session}.json`)), `${tool}: nothing recorded`);
+    assert.match(r.out, new RegExp(`\\[infra-approve\\] ${tool} is never approvable; do it in the provider dashboard`), `${tool}: the refusal is printed`);
+    const now = Date.now();
+    plant(sb, [rec(sb, tool, "prj-123", now)], []);
+    const c = call(sb, `mcp__v__${tool}`, { id: "prj-123", projectId: "prj-123" });
+    assert.ok(denied(c) && /never approvable/.test(c.err), `${tool}: a planted record is denied as never approvable`);
+  }
+});
+
+// Codex P1 on PR 3193: one operator message must not mint several approvals (a duplicate UserPromptSubmit or a /loop re-fire records a
+// fresh record each time, and the single original line corroborated every one).
+test("one operator message spends at most once: a duplicate hook run records nothing new, a /loop re-fire's record finds the message spent", async () => {
+  await mod();
+  const sb = sandbox();
+  const line = `APPROVE update_branch ${BRANCH}`;
+  say(sb, line);
+  fire(sb, line); // the same UserPromptSubmit delivered twice: the transcript did not move
+  assert.equal(JSON.parse(readFileSync(join(sb.dir, `${sb.session}.json`), "utf8")).length, 1, "the duplicate hook run is idempotent");
+  appendFileSync(sb.transcript, userLine(line, iso(Date.now()), { origin: undefined, turnOrigin: "scheduled" }));
+  fire(sb, line); // a /loop re-fire: the hook sees the same text again
+  assert.ok(allowed(call(sb, `${NEON}update_branch`, BRANCH_INPUT)), "the one approval passes");
+  assert.ok(denied(call(sb, `${NEON}update_branch`, BRANCH_INPUT)), "the re-fire's record has no unspent operator message behind it");
+});
+
+test("the one-shot holds on BOTH locks: two records behind one message pass once; one record behind two messages passes once", async () => {
+  await mod();
+  const now = Date.now();
+  const sb = sandbox();
+  plant(sb, [rec(sb, "update_branch", BRANCH, now), rec(sb, "update_branch", BRANCH, now)], [userLine(`APPROVE update_branch ${BRANCH}`, iso(now))]);
+  assert.ok(allowed(call(sb, `${NEON}update_branch`, BRANCH_INPUT)));
+  assert.ok(denied(call(sb, `${NEON}update_branch`, BRANCH_INPUT)), "two records, one message: the message lock stops the second");
+  const sb2 = sandbox();
+  plant(sb2, [rec(sb2, "update_branch", BRANCH, now)], [userLine(`APPROVE update_branch ${BRANCH}`, iso(now)), userLine(`APPROVE update_branch ${BRANCH}`, iso(now + 1))]);
+  assert.ok(allowed(call(sb2, `${NEON}update_branch`, BRANCH_INPUT)));
+  assert.ok(denied(call(sb2, `${NEON}update_branch`, BRANCH_INPUT)), "one record, two messages: the record lock stops the second");
 });
 
 // --- 4 - only Nour's own words create an approval ------------------------------------------------------
