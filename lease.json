@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/admin-prune-w3-final",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
+  "claimedBy": "2026-10-21-admin-prune-w3 (manager integration)",
+  "claimedAt": "2026-10-21T14:34:16.806Z",
+  "expiresAt": "2026-10-22T02:34:16.806Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
