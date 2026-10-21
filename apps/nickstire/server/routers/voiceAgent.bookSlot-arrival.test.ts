@@ -91,6 +91,7 @@ describe("the webhook injects caller ID for bookSlot and escalate", () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const src = fs.readFileSync(path.resolve(process.cwd(), "server/routes/webhooks/vapi.ts"), "utf8");
-    expect(src).toContain('if ((call.function.name === "bookSlot" || call.function.name === "escalate") && customerNumber) args.callerNumber = customerNumber;');
+    expect(src).toContain('const CALLER_ID_TOOLS = new Set(["bookSlot", "escalate", "tireInquiry"]);');
+    expect(src).toContain("if (CALLER_ID_TOOLS.has(call.function.name) && customerNumber) args.callerNumber = customerNumber;");
   });
 });

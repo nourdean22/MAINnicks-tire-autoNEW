@@ -12,7 +12,8 @@ describe("VAPI corpus-grounded conversation rules", () => {
   it("keeps turns short and interactive", () => {
     expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/ONE idea per turn/);
     expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/at most ONE question per turn/);
-    expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/aim for 18 spoken words or fewer/);
+    // 2026-10-21 (Nour, part 2 wording brief): 18 tightened to 12.
+    expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/Aim for 12 spoken words or fewer per turn/);
     expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/deliver ONE beat, pause for the caller/);
   });
 

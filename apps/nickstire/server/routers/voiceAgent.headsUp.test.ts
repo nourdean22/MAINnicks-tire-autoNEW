@@ -42,10 +42,11 @@ const fakeDrizzle = {
   update: () => ({ set: () => ({ where: async () => undefined }) }),
   select: () => ({ from: () => ({ where: () => ({ limit: async () => h.customerRows }) }) }),
   insert: () => ({
-    values: async (v: Record<string, unknown>) => {
-      if (h.insertFails) throw new Error("db down");
-      h.inserted.push(v);
-      return [{ insertId: 77 }];
+    values: (v: Record<string, unknown>) => {
+      const p: Promise<unknown> = h.insertFails ? Promise.reject(new Error("db down")) : Promise.resolve([{ insertId: 77 }]);
+      p.catch(() => {});
+      if (!h.insertFails) h.inserted.push(v);
+      return Object.assign(p, { $returningId: async () => { await p; return [{ id: 78 }]; } });
     },
   }),
 };
@@ -187,6 +188,54 @@ describe("bookSlot: coming in today / tow → one internal text, no expected_arr
     expect(h.textOnDutyManager).not.toHaveBeenCalled();
     expect(h.recordExpectedArrival).toHaveBeenCalledWith(expect.objectContaining({ preferredDay: "saturday", phone: CALLER, sourceRef: "call_t2" }));
     expect(res.status).toBe("walk_in_guidance");
+  });
+});
+
+describe("only a caller who says today gets the text (part 2: strict routing)", () => {
+  it.each(["next week", "this weekend", "soon", "sometime"])("%j → the row path: 1 row, 0 texts", async (preferredDay) => {
+    const res = await (await loadCaller()).bookSlot({ name: "Ray", service: "brake check", preferredDay, callId: "call_r1", callerNumber: CALLER });
+    expect(h.textOnDutyManager).not.toHaveBeenCalled();
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe("walk_in_guidance");
+  });
+
+  it.each(["in 20 minutes", "on my way", "right now", "this afternoon", ""])("%j → 0 rows, 1 text", async (preferredDay) => {
+    const res = await (await loadCaller()).bookSlot({ name: "Ray", service: "brake check", preferredDay, callId: "call_r2", callerNumber: CALLER });
+    expect(h.textOnDutyManager).toHaveBeenCalledTimes(1);
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+    expect(res.status).toBe("shop_texted");
+  });
+
+  it("no preferredDay at all → today → the text", async () => {
+    await (await loadCaller()).bookSlot({ name: "Ray", service: "brake check", callId: "call_r3", callerNumber: CALLER });
+    expect(h.textOnDutyManager).toHaveBeenCalledTimes(1);
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+  });
+});
+
+describe("shopInfo says payment programs and names no person", () => {
+  it("no key or value mentions financing; after-hours names nobody", async () => {
+    const info = await (await loadCaller()).shopInfo();
+    const keys = JSON.stringify(Object.keys(info));
+    expect(keys).not.toMatch(/financ/i);
+    expect(info).toMatchObject({ paymentProgramsAvailable: true });
+    expect((info as Record<string, unknown>).paymentPrograms).toEqual(["Kafene", "Acima", "Snap Finance", "Koalafi", "American First"]);
+    expect((info as Record<string, unknown>).emergencyAfterHours).toBe("Call or text the shop number; the shop sees it when it opens.");
+  });
+});
+
+describe("tireInquiry needs no name or number from the caller", () => {
+  it("a rack check with only a size files the lead under caller ID and the record name", async () => {
+    h.customerRows = [{ firstName: "Raymond", lastName: "Smith" }];
+    const res = await (await loadCaller()).tireInquiry({ tireSize: "225/65R17", notes: "rack check", callerNumber: CALLER, callId: "call_ti1" });
+    expect(res.success).toBe(true);
+    expect(h.inserted[0]).toMatchObject({ phone: "2165550123", name: "Raymond S." });
+  });
+
+  it("an ordinary inquiry with no name or phone still answers", async () => {
+    const res = await (await loadCaller()).tireInquiry({ tireSize: "225/65R17", callerNumber: CALLER });
+    expect(res.success).toBe(true);
+    expect(h.inserted).toHaveLength(0);
   });
 });
 

@@ -132,6 +132,14 @@ function formatUsPhone(tenDigits: string): string {
 
 const isTow = (service: string) => /\btow/i.test(service);
 
+/**
+ * A preferredDay that names today in so many words. parseExpectedDate maps
+ * anything it can't read ("next week", "this weekend", "soon") to today; those
+ * keep the row path so the manager never gets a "COMING IN" text for a caller
+ * who isn't coming today.
+ */
+const SAID_TODAY = /\b(today|now|asap|tonight|this (morning|afternoon|evening)|on (my|the|our|his|her|their) way|in (a|an|\d+|few|a few|a couple|couple)( of)? (minutes?|mins?|hours?|hrs?))\b/i;
+
 /** The internal heads-up text. The number is caller ID; a different full spoken number rides along as Callback. */
 function arrivalHeadsUpText(input: { phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string }, name: string | null): string {
   const callerId = (input.callerNumber ?? "").replace(/\D/g, "").slice(-10);
@@ -510,7 +518,9 @@ export const voiceAgentRouter = router({
       // holds even when the model reaches for bookSlot out of habit.
       const now = new Date();
       const { parseExpectedDate, toShopDateStr } = await import("../services/expectedArrivals");
-      if (isTow(input.service) || parseExpectedDate(input.preferredDay, now) === toShopDateStr(now)) {
+      const day = (input.preferredDay ?? "").trim();
+      const saysToday = (!day || SAID_TODAY.test(day)) && parseExpectedDate(input.preferredDay, now) === toShopDateStr(now);
+      if (isTow(input.service) || saysToday) {
         if (await sendArrivalHeadsUp(input)) {
           return {
             success: true,
@@ -968,8 +978,11 @@ export const voiceAgentRouter = router({
   // escalate / sendConfirmationSms.
   tireInquiry: voiceAgentInternalProcedure
     .input(z.object({
-      name: z.string().min(2).max(200),
-      phone: z.string().min(7).max(20),
+      // Caller ID supplies the number and, for a known customer, the name.
+      name: z.string().max(200).optional(),
+      phone: z.string().max(20).optional(),
+      /** The number VAPI connected (caller ID), injected by the webhook — never by the model. */
+      callerNumber: z.string().max(30).optional(),
       tireSize: z.string().max(50).optional(),
       vehicle: z.string().max(200).optional(),
       newOrUsed: z.enum(["new", "used", "either"]).default("either"),
@@ -1031,7 +1044,7 @@ export const voiceAgentRouter = router({
         // (blocked caller-ID, VAPI anonymous sentinel) we never dedup — a
         // garbage key must not match a DIFFERENT person. FAIL-OPEN: a dedup
         // error must never block capture — on error we insert.
-        const normalizedPhone = input.phone.replace(/\D/g, "");
+        const normalizedPhone = pickArrivalPhone(input.phone, input.callerNumber).replace(/\D/g, "").slice(-10);
         const inquiryProblem = `[VOICE-AGENT TIRE INQUIRY]${input.callId ? ` callId=${input.callId}` : ""} — ${problemSummary}`;
         let dedupLeadId: number | null = null;
         if (normalizedPhone.length >= 10) {
@@ -1058,7 +1071,7 @@ export const voiceAgentRouter = router({
         let newLeadId: number | null = dedupLeadId;
         if (dedupLeadId == null) {
           const insertedLeadRows = await d.insert(leads).values({
-            name: input.name,
+            name: (await resolveCallerName(input.name, input.callerNumber)) ?? "Caller",
             phone: normalizedPhone,
             email: null,
             problem: inquiryProblem,
@@ -1164,9 +1177,9 @@ export const voiceAgentRouter = router({
         sunday: "9:00 AM - 4:00 PM",
       },
       walkInsWelcome: true,
-      financingAvailable: true,
-      financingProviders: ["Kafene", "Acima", "Snap Finance", "Koalafi", "American First"],
-      emergencyAfterHours: "Leave a voicemail or text — Nick checks after-hours messages.",
+      paymentProgramsAvailable: true,
+      paymentPrograms: ["Kafene", "Acima", "Snap Finance", "Koalafi", "American First"],
+      emergencyAfterHours: "Call or text the shop number; the shop sees it when it opens.",
       languagesSpoken: ["English", "Arabic"],
     };
   }),

@@ -30,7 +30,7 @@ vi.mock("../../routers/voiceAgent", () => {
   };
   return {
     spokenShopDirections: () => "17625 Euclid Avenue",
-    voiceAgentRouter: { createCaller: () => ({ escalate: record("escalate"), bookSlot: record("bookSlot") }) },
+    voiceAgentRouter: { createCaller: () => ({ escalate: record("escalate"), bookSlot: record("bookSlot"), tireInquiry: record("tireInquiry") }) },
   };
 });
 
@@ -87,6 +87,11 @@ describe("escalate receives the connected caller ID", () => {
   it("a model-supplied callerNumber is overwritten by caller ID", async () => {
     await postEvent(toolCall("escalate", { reason: "x", callerNumber: "+12165550999" }, "+12165550123"));
     expect(h.calls[0].args.callerNumber).toBe("+12165550123");
+  });
+
+  it("tireInquiry gets it too, overwriting a model-supplied value (part 2)", async () => {
+    await postEvent(toolCall("tireInquiry", { tireSize: "225/65R17", callerNumber: "+12165550999" }, "+12165550123"));
+    expect(h.calls[0]).toMatchObject({ tool: "tireInquiry", args: { tireSize: "225/65R17", callerNumber: "+12165550123" } });
   });
 
   it("bookSlot keeps the same injection", async () => {

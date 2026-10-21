@@ -53,7 +53,7 @@ describe("coming now / tow coming is a heads-up text", () => {
 
   it("the tow flow passes eta and no longer requires a phone capture", () => {
     const tow = section("## BROKEN-DOWN / TOWED", "\n\n");
-    expect(tow).toContain('bookSlot({ name, service: "tow incoming — <what happened>", vehicle, eta })');
+    expect(tow).toContain('bookSlot({ name, service: "tow incoming: <what happened>", vehicle, eta })');
     expect(tow).not.toContain("name + phone + vehicle");
     expect(tow).toContain("Don't let them off the line without name + vehicle.");
   });
@@ -71,19 +71,14 @@ describe("coming now / tow coming is a heads-up text", () => {
   });
 });
 
+// Part 2 (2026-10-21 wording brief) took the FLOW 1 / FLOW 2 / FLAT TIRE number
+// asks and tireInquiry's required fields in scope; vapi.prompt-cadence.test.ts
+// pins their replacements. What stays out of scope is pinned here.
 describe("out-of-scope caller lines stay as they were", () => {
   it.each([
-    "What's your name and best number for the shop?",
-    "Pull up today, we'll get you taken care of — what's your name and best number?",
-    "FCFS — come by today? What's your name and best number?",
-    "→ name → best number → bookSlot({ service: \"flat tire repair\", preferredDay: \"today\" })",
     "Switch to simple Spanish/Arabic. If it gets complex, capture phone + transferCall.",
     "→ sendConfirmationSms → transferCall (if the transfer fails, the shop already has the text).",
   ])("still contains %j", (line) => {
     expect(ASSISTANT_SYSTEM_PROMPT).toContain(line);
-  });
-
-  it("tireInquiry still requires its own fields", () => {
-    expect(tool("tireInquiry").parameters?.required).toContain("phone");
   });
 });

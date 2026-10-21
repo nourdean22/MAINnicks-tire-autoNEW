@@ -72,8 +72,11 @@ describe("prompt exemplars stay speakable", () => {
     expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/BROKEN-DOWN[\s\S]{0,400}Beat 1/);
   });
 
-  it("the tire close asks for the number out loud (it did not before)", () => {
-    expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/Beat 3 \(CAPTURE\)[\s\S]{0,120}name and best number/);
+  // 2026-10-21 (Nour): caller ID has the number, so the close asks them to come
+  // down instead of asking for a name and number.
+  it("the tire close asks them to come down, not for a number", () => {
+    expect(ASSISTANT_SYSTEM_PROMPT).toMatch(/Beat 3 \(COME DOWN\)[\s\S]{0,120}Can you swing by today\?/);
+    expect(ASSISTANT_SYSTEM_PROMPT).not.toMatch(/name and best number/);
   });
 
   it("the restructure kept the facts, not just the shape", () => {
@@ -81,7 +84,7 @@ describe("prompt exemplars stay speakable", () => {
       USED_TIRE_QUOTE.display,
       "computer spin balancing",
       "most standard sizes in stock",
-      "First-come first-served",
+      "First come, first served",
       "paying for the tow",
       "free written quote",
     ]) {

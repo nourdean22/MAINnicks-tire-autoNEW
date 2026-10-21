@@ -7,6 +7,6 @@
  * it may not claim anything was sent. Pinned by vapiToolPromiseTruth.test.ts.
  */
 export function ordinaryTireInquiryReply(tireSize?: string | null): string {
-  const heard = tireSize ? `Got it — ${tireSize}, noted.` : "Got it, noted.";
+  const heard = tireSize ? `Got it, ${tireSize}, noted.` : "Got it, noted.";
   return `${heard} Walk in any day, we usually have most common sizes on the rack from $60 installed.`;
 }

@@ -36,7 +36,7 @@ const CLAUSE_BREAKERS: Array<[id: string, breakIt: (p: string) => string]> = [
   ["price-oil-conventional", (p) => p.split("forty-nine dollars").join("thirty-nine dollars")],
   ["price-full-synthetic", (p) => p.split("Full synthetic: eighty dollars").join("Full synthetic: ninety dollars")],
   ["no-phone-diagnosis", (p) => removeAll(p, "you cannot diagnose it over the phone")],
-  ["do-not-drive-tow", (p) => removeAll(p, /Don't drive it . that one's a tow, not a drive\./g)],
+  ["do-not-drive-tow", (p) => removeAll(p, /Don't drive it\W+that one's a tow, not a drive\./gi)],
   ["fire-call-911", (p) => removeAll(p, "tell them to get out and call 911 first")],
   ["no-named-person", (p) => removeAll(p, "NEVER promise a specific person/tech")],
   ["no-capacity-claims", (p) => removeAll(p, "There is no live capacity feed")],
