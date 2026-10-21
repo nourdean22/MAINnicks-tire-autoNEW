@@ -47,6 +47,14 @@ tool passed 250 tests, then its first live `probe` (a SELECT) failed on producti
 5. The receipt (the script, its output and the positive control's failure) goes in the lane's return and the PR body. No receipt, no
    operator-facing step, and the report names the rung as "tested against a fake".
 
+## A granted one-line value change is reviewed like code (step 6)
+
+When you grant a lane's cross-lane note (an href, a key, a label), grep every reader of the OLD value first, including
+guards that compare against it. Witnessed 2026-10-16: `lib/floating-home/smart-now.ts:62` changed `/system/actions` to
+`/system/actions?tab=approvals` unreviewed; the same file's `pathname.startsWith(target)` guard then never matched, so the More
+sheet kept suggesting the page the operator was already on (W1b review P1-1). Same shape in W1a: `toLowerCase()` hidden behind a
+removed `uppercase` class, and a mastery `icon` field whose readers only tsc found.
+
 ## Probe it yourself (step 7)
 
 1. Find the real entry point: the process the consumer runs, with the command string exactly as configured (a hook in

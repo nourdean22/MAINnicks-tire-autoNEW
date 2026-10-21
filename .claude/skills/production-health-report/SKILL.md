@@ -52,6 +52,9 @@ Prefer evidence roughly in this order:
 - Never report completion because a PR merged; verify deployment and behavior when material.
 - Never trust stale docs over current live/config/code evidence.
 - Do not expose secrets from environment variables or logs.
+- After a merge to main, read `list-deployments` for EACH touched service and confirm a deployment exists for the merge commit.
+  A merge can produce NO deployment for the touched service while untouched services get SKIPPED records (2026-10-20 19:05-19:23Z,
+  three pushes), and the project has no deploy webhook to page on it. Report it as "merged, not deployed".
 - Use exact commit/deploy IDs and timestamps when available.
 - If a connector/source is unavailable, mark that boundary rather than guessing.
 

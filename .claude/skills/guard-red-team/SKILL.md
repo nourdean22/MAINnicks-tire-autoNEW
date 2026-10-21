@@ -92,6 +92,12 @@ first run found a fourth subject the hand-audit had missed.
      was staled to 40,000, because the changelog paragraph recording the
      old wrong value still contained the string. Capture from the
      authoritative sentence and compare VALUES; never assert a mention.
+   - **Probe from a script file that builds guarded literals from parts.** A
+     Bash command string that QUOTES `git push --dry-run origin main` as probe
+     data is itself judged and blocked, which proves the guard but not the
+     probe (witnessed 2026-10-18: the manager's rtk-plus-repo-guard probe only
+     ran once the literals were assembled inside `probe-rtk-guard.mjs` and the
+     command line named only the script).
    - **Drive-qualified paths** — PowerShell `Env:`, `HKLM:`, `Cert:` are
      provider paths, not filesystem paths. Witnessed 2026-08-04: a
      compound command containing the standard env-token removal cmdlet
@@ -126,6 +132,13 @@ first run found a fourth subject the hand-audit had missed.
    env was stripped in both the canary and `stop-check.mjs`'s own runner.
    Red-team every canary in the context it will actually run (hook env),
    never standalone-only.
+7. **A shell's exit code for "not found" is not portable** (bash 1, dash 127,
+   `where.exe` 1). Any status-to-verdict mapping lives in an exported function
+   with a unit test per code (0, 1, 127, 2, ENOENT, a signal), and a branch
+   labelled NOT CHECKED may not carry a test that assumes the checked branch's
+   behaviour. Witnessed 2026-10-18 (PR 3150): `session-surface.mjs` treated only
+   exit 1 from `command -v` as MISSING; Linux CI's `/bin/sh` is dash, exit 127,
+   two canaries went red; fixed by an exported `classifyLookup` (95462f05f).
 
 ## Red flags
 

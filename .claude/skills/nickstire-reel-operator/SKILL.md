@@ -82,6 +82,13 @@ This repo does **not** expose that:
   spec's credit rules — but report the estimate as an estimate, and the
   balance as `UNKNOWN` when `getHiggsfieldAccountHealth()` can't parse it.
 
+- Before changing a paid request to save money, quote both settings with the
+  vendor's no-submit preflight (`get_cost:true` on the Higgsfield MCP) and keep
+  the change only if the quote moves. A reseller's price structure is not the
+  vendor's: "request Seedance clips silent" was built, tested and reverted on
+  2026-10-08 because audio off costs the same as on (12 credits at 1080p;
+  recorded in `docs/UPSTREAMS.md`, 2026-08-29).
+
 HERO/SUPPORT/REFERENCE/AUDIO routing from the spec maps to `higgsfieldStudio.ts`:
 `generateReelClipVideo()` (line 435, one call per beat, accepts
 `{prompt, negativePrompt, startImageUrl}`) and `stitchVideos()` (line 583,
@@ -114,6 +121,13 @@ fixed) so every beat shares one object/environment.
   `client/src/lib/facelessReelStudio.ts` (validators run at brief-build time)
   — approved phrasing: *can point to · may indicate · worth checking · one
   clue · do not guess · stop by and we'll take a look.*
+- **A prohibited-claim pattern is tested on the denial and the hedge, not only
+  the claim.** For each new pattern add one denial ("not always X", "doesn't
+  mean Y") to SAFE and one softened claim ("probably", "usually", "perfectly")
+  to the hedged table; the brake, E-Check and no-start packets refused five
+  correct myth-busting lines and passed eight hedged claims (2026-10-09).
+  `mechanicalTruth.test.ts` also runs every packet's own facts and reasons
+  through every pattern.
 - **Local/weather/event claims:** no verified live source is wired into this
   pipeline today. Label `UNKNOWN` and omit rather than assume Cleveland
   weather or a local event is current.
@@ -236,6 +250,21 @@ The second command is not optional. On 2026-08-16 three runs fired within two
 hours; #1610 duplicated #1607's battery topic exactly, because at 20:36 #1607 was
 still an unmerged draft and therefore invisible to `ls`. Checking only the
 directory is blind during precisely the window when collisions happen.
+
+### Pack authoring checks
+
+- **A real-footage requirement is declared on the beat, not in prose.** If a
+  shot must be real, put `source: "real"` on that beat; the generator then
+  refuses it until the footage exists. Prose in `modelRecommendation` or
+  `creditEfficiencyNote` is read by no gate (2026-10-08: 22 rotation packs ask
+  for real footage in prose, none on a beat, and 14 of the research's 62 picks
+  carry a "0 credits" note while the lane would charge about 60 credits each).
+- **An imported pack must name what the camera sees in every beat.** Before
+  admitting packs, print beat 1's provider prompt for each
+  (`buildHiggsfieldReelPromptPack`) and read its `Subject:` line. A subject a
+  viewer could not name ("the physical subject", "the relevant components") is
+  not a shot; `beatGenerationRoute` holds such beats (`needs_subject`). 34 of 34
+  packs from the 2026-09-25 imports failed this.
 
 ## Backlog ceiling — when NOT to add a new pack
 

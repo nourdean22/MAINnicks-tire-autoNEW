@@ -154,6 +154,16 @@ The change points at these; they cost one extra pulse each:
   the check is an exact string compare, so these should *not* opt out.
 - Two pulses against one job — the CAS should make the second a no-op.
 
+## A pre-check must be the refusal the consumer applies
+
+Before writing a check that predicts a later gate (pack-variant eligibility, a
+miner's brief loop), list what the gate refuses and call the same code:
+`server/services/reelEnqueueRefusals.briefEnqueueRefusals`. A parallel
+re-implementation drifts the day the gate gains a rule. Witnessed 2026-10-09:
+variant eligibility checked "listed, loads, builds" while enqueue refuses on four
+more brief-level checks, so one arm's bad variant would have decided which packs
+aired.
+
 ## Worktree setup (harness worktrees)
 
 Worktrees under `.claude/worktrees/` are created by the harness, not by

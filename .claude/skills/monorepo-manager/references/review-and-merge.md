@@ -54,6 +54,17 @@ Rules for using it:
    finding (judged by fewer skeptics than configured). Copy all four into the PR body: silence reads as "covered everything".
    The composed findings are in the workflow's task output file, not in its journal: read them there before the file is cleaned up.
 
+Restarts and quota days (2026-10-16 and 2026-10-18):
+
+- Three process restarts in one night killed the running review workflow and two lane rounds; only committed work and scratchpad
+  notes survived (about 2 hours of repeated agent work). Write every lane brief and every review brief to the session scratchpad
+  before dispatch and re-dispatch from the file after a restart. Prefer two read-only lens agents over a multi-agent workflow when
+  the machine is below 2 GB free. Lane CHECKPOINTS (commit per deliverable) landed in brief v3 (#3064).
+- A Codex usage-limit notice on a PR is not a day-long condition: quota reset the same evening and Codex reviewed #3157 and #3159 in
+  full (8 and 4 findings, one a false P1). After a notice, post `@codex review` once more on the final head if the PR is still open an
+  hour later; a merge on the fail-open path (`--codex-wait-minutes 0`, with Nour's go) gets the read-only skeptic lens as the
+  substitute, recorded in the ledger row with the WARN line.
+
 ## Merge protocol (step 13)
 
 Merge only when authorized. Then run ONE command, which re-verifies every condition in the same process as the merge:

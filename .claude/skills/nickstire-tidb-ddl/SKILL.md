@@ -115,5 +115,24 @@ half and the job retired. **Do not apply through `pnpm db:migrate`** for a
 scoped change: it has no dry run and applies every unrecorded file — use the
 scoped runner shape in prod-db-guard ("Applying migrations in scope").
 
+**When the DDL ships INSIDE `handleRunMigrations`, read the live commit before
+the one-tap runner.** The runner only knows the migration list of the container
+that serves the tap. Before tapping, `GET /api/health` must report
+`deploy.commit` = the merge SHA, and the result's `total` must match the new
+list's length: a stale container reports "none failed" too. Witnessed
+2026-10-02: the tap at 15:46Z ran on the old container (`62087aa2`) while the
+merge was still BUILDING and applied nothing; the tap at 15:53Z did the work
+(176 steps).
+
+## Grouped queries: prove the SQL Drizzle renders
+
+Drizzle renders a column unqualified in `SELECT` but qualified in `GROUP BY`,
+and TiDB `only_full_group_by` rejects the pair. It cost NICKSTIRE-1
+(2026-09-08) and then the customerIntelligence queries again (2026-10-09 to
+2026-10-20, PR 3189); typecheck and unit tests passed both times because no
+test rendered the real SQL. For any grouped query, render the real Drizzle
+builder over a recording fake mysql2 client and assert the `SELECT` and
+`GROUP BY` column forms match.
+
 After applying, re-run `pnpm run check` from `apps/nickstire/` — `tsc` fails
 against the schema until the migration is actually applied.

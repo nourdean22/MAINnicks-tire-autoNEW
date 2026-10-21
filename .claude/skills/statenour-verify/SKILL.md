@@ -87,18 +87,35 @@ non-obvious and two of them silently lie if run carelessly.
   statenour-typecheck 149s red -> green, agent-os-verify red while the
   same command passed standalone). Rerun ONCE before diagnosing; twice
   red at identical duration = real.
-- **TS2307 "cannot find module" in a file OUTSIDE your diff = stale-junction
-  phantom, not your regression.** Worktree node_modules are junctions to the
-  PRIMARY checkout; if the primary sits behind main, packages added since
-  (witnessed 2026-08-27: `edge-tts-universal` from #1930) do not resolve.
-  Confirm with `git show HEAD:apps/statenour/package.json | grep <pkg>` vs
-  what is installed - the fix is refreshing the PRIMARY checkout, never
-  patching the app.
-- **lefthook's parallel pre-commit jobs can flake red under memory
-  pressure** and pass unchanged on retry (witnessed twice 2026-08-27:
-  statenour-typecheck 149s red -> green, agent-os-verify red while the
-  same command passed standalone). Rerun ONCE before diagnosing; twice
-  red at identical duration = real.
+- **A green CI job is not a green sweep; read the TASK count.**
+  `paths-filter` (`.github/workflows/test.yml`) decides whether the `node` JOB
+  runs; `turbo run --affected` decides which PACKAGES run inside it. A
+  workflow-only diff satisfies the first and is empty to the second, so the job
+  goes green having compiled nothing (witnessed 2026-09-16: #2362 was cited as
+  the heaviest case and it passed; it ran zero turbo tasks). Before citing a CI
+  run as proof a build-level change worked, open the sweep step's log:
+  `Tasks: 0 successful, 0 total` and a full sweep are the same colour.
+- **Any build-resource number must be taken COLD.** CI always is (fresh
+  checkout, remote caching disabled); a local repeat is not. `Compiled
+  successfully in <10s` is the tell: that run skipped the compile and
+  type-check phases that hold the peak. Delete `.next` between arms, and never
+  write a locally measured MB figure into a workflow comment without naming
+  the cache state (witnessed 2026-09-16: warm 4962 MB vs cold 6778 MB; #2368
+  existed only to retract the figures).
+- **The full suite runs from a shell with `bash` on PATH.**
+  `tests/repo/anti-slop-gate.test.ts` and
+  `tests/redteam/repo-canary-gates.redteam.test.ts` spawn `bash`; from the
+  PowerShell tool they fail (39 tests, exit 1, empty output on 2026-10-15) and
+  pass from Git Bash (195 tests). Before diagnosing either with exit 1 and no
+  output, check `Get-Command bash` / `which bash` in the shell that ran the
+  suite; both helpers fold every spawn error into exit 1, so that signature
+  alone does not prove a missing bash. If those two files are the only reds in
+  PowerShell, rerun them from Git Bash before calling them real.
+- **A partial directory list is not a sweep.** Before RETURN on any copy or
+  class sweep, run the whole statenour vitest suite once, from Git Bash, alone.
+  Witnessed 2026-10-16: a lane ran six directories and reported green; CI then
+  failed on `tests/home/waiting-line.test.tsx:59`, a casing pin outside that
+  list (about 45 runner-minutes).
 - ~405 eslint `any` warnings are pre-existing and non-blocking — only
   `error`-severity problems fail the gate.
 - Vitest can abort with a native `failed to delete napi ref` crash on

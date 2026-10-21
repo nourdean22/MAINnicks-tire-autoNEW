@@ -1815,7 +1815,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   looked at."
 - **Confidence:** high — (a) 3/3 failures then the fix validated in the same session; (b) reproduced on #2370
   itself and independently filed by the reviewer
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-shared-main-push/SKILL.md, PR mechanics item 4)
 
 ### P2 · `statenour-verify` (Traps) — a green CI job is not a green sweep; read the TASK count
 - **Trigger (witnessed):** I cited #2362's passing CI run as "the heaviest case, and it passed" — the evidence
@@ -1830,7 +1830,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   step's log and read the task count. `Tasks: 0 successful, 0 total` and a full sweep are the same colour in the
   check rollup."
 - **Confidence:** medium (once, unambiguous, and it shipped into a PR body before being caught)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/statenour-verify/SKILL.md, Traps)
 
 ### P3 · `positive-control-first` — a THIRD way a canary lies: it scanned nothing
 - **Trigger (witnessed):** the first draft of `apps/statenour/tests/repo/raw-sql-interval-cast.test.ts` (#2359)
@@ -1852,7 +1852,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   Naming it here because the two findings the reviewer filed on this queue were both exactly this shape — a
   proposal that does not survive contact with the file it targets.
 - **Confidence:** high (the dead detector in #2359, and the whole of #2362 is the same shape one layer up)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/positive-control-first/SKILL.md, heading renamed to Three ways a canary lies)
 
 ### P4 · `positive-control-first` — the dual of stripping comments: mutate the LIVE text
 - **Trigger (witnessed):** this skill already prescribes stripping comments so documentation cannot satisfy a
@@ -1868,7 +1868,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   arm passes having changed nothing the scanner reads. Anchor the mutation on the executable line and assert it
   occurs exactly once before mutating it."
 - **Confidence:** high (structural consequence of a remedy this skill already prescribes)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/positive-control-first/SKILL.md, the dual paragraph)
 
 ### P5 · `statenour-verify` (Traps) — a build-resource number is only a measurement if the run was COLD
 - **Trigger (witnessed):** #2362 wrote `peak 4962MB` and a `7695MB` collision into `.github/workflows/test.yml`
@@ -1882,7 +1882,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   skipped the compile and type-check phases that hold the peak. Delete `.next` between arms, and never write a
   locally-measured MB figure into a workflow comment without naming the cache state it was taken in."
 - **Confidence:** high (a wrong number shipped and required a retraction PR)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/statenour-verify/SKILL.md, Traps)
 
 ### P6 · `stranded-branch-rescue` — restarting a branch after its PR squash-merged, without rewriting history
 - **Trigger (witnessed):** after each squash-merge this session the working branch had to be restarted on `main`,
@@ -1928,7 +1928,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   simply moves rather than resolving. That edit is the operator's, not this queue's.
 - **Confidence:** high on the pattern (five recurrences in one session); high on the collision (read in the file,
   not inferred); high on the root conflict (read at `AGENTS.md:52`)
-- **Status:** proposed — NOT adoptable as first written; needs the fallback scoping plus a root `AGENTS.md` edit
+- **Status:** applied this PR (.claude/skills/stranded-branch-rescue/SKILL.md: zombie rule amended, restart recipe added as a FALLBACK only; root AGENTS.md already prescribes delete-and-branch-fresh, so no AGENTS.md edit was needed)
 
 ### P7 · `statenour-verify` — the Traps list carries two byte-identical duplicate bullets
 - **Trigger (witnessed):** found while auditing this queue's own proposals against the skills they target, after
@@ -1949,7 +1949,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** delete the second occurrence of each pair. No wording changes — the surviving copies are
   correct and are cited elsewhere.
 - **Confidence:** high (measured over the whole file, not sampled)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/statenour-verify/SKILL.md, the second copy of each duplicate pair deleted)
 
 > **Audit note for this whole block.** After the reviewer filed findings against P1 and P6 — both of them
 > "this proposal does not survive contact with the file it targets" — I checked the remaining four the same
@@ -2056,7 +2056,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   = the merge SHA. Then compare the result's `total` with the new list's length: a stale container reports
   'none failed' too."
 - **Confidence:** medium (once, unambiguous)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-tidb-ddl/SKILL.md, Applying)
 
 ### P2 · `prod-db-guard` § Running it from an agent session — PowerShell eats comma lists
 - **Trigger (witnessed):** on NattyNour (via Desktop Commander, PowerShell),
@@ -2068,7 +2068,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   ids). Unquoted, PowerShell converts it to an array of NUMBERS: leading zeros vanish and the commas become spaces."
   Also put the quoted form in the `scripts/record-migrations.mjs` usage comment.
 - **Confidence:** medium (once)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/prod-db-guard/SKILL.md, Running it from an agent session); the usage-comment half in apps/nickstire/scripts/record-migrations.mjs is outside lane: approved 2026-10-21 · owner lane-nickstire-server · due 2026-10-28
 
 ### P3 · `prod-db-guard` — a scripts-only prod run from the operator PC does not need full worktree-setup
 - **Trigger (witnessed):** `scripts/worktree-setup.ps1` on NattyNour sat >10 min in its repo-wide
@@ -2085,7 +2085,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   4. tear down with `worktree-teardown.ps1`, adding `-ForceDirtyRelease` only after `git rev-list --count
      origin/main..<tmp>` = 0 and a clean status.
 - **Confidence:** medium (once)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/prod-db-guard/SKILL.md, A scripts-only prod run from the operator PC)
 
 ### P4 · `nickstire-verify` — fake timers around a REAL short sleep reached through dynamic imports
 - **Trigger (witnessed):** `server/postInvoiceFollowUp.test.ts` "control: a phone NOT on cooldown is still texted"
@@ -2098,7 +2098,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   advance can race the import and the sleep never fires, and local speed hides it. Use real timers with an explicit
   per-test timeout, or inject the sleep."
 - **Confidence:** medium (once; local-green/CI-red makes it costly)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ### P5 · `nickstire-verify` — run the fail-open-slice gate locally when adding a source-assertion test
 - **Trigger (witnessed, recurring):** 2026-10-01 (#2865, recorded as a trap in `.remember/now.md`) and again
@@ -2109,7 +2109,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** add to the pre-push sequence: "If the diff adds or edits a test that slices source text, run
   `pnpm exec vitest run server/failOpenSliceGate.test.ts` (3 ms) and use `sliceBlock()`, never `slice(indexOf…)`."
 - **Confidence:** high (recurred ≥2×)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ### P6 · production truth — the "what is ARMED" probe cannot see `feature_flags` table switches
 - **Trigger (witnessed):** in this wave's docs I first wrote "`contact_holdout_*` flags still OFF" and "sends only
@@ -2121,7 +2121,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   (`sms_review_requests`, `contact_holdouts_enabled`, `contact_holdout_*`, `review_reminder_drafts`, …) with their
   live values. Then `truth_os.md` § "What is ARMED" can list DB switches beside env ones instead of being silent on them.
 - **Confidence:** medium
-- **Status:** proposed
+- **Status:** approved 2026-10-21 · owner lane-nickstire-server · due 2026-10-28 (apps/nickstire/scripts/probe-live-send-flags.mjs is outside the platform lane; truth_os.md > What is ARMED follows it)
 
 ### Recurrence note on 2026-09 P6 (`stranded-branch-rescue` restart recipe — placement still undecided)
 - Witnessed twice more this session (#2885→#2891, and #2891→the docs follow-up). The force-push hook blocked
@@ -2142,7 +2142,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   test as a consumer. Derive the value in the test from the function's behaviour or from the artifact it produces.
   When the diff adds an `export`, run `pnpm run lint:orphans` in the targeted loop, before the full suite."
 - **Confidence:** high (recurred 2x in one session)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ### P2 · `nickstire-verify` — find the source-shape pins on a call site before editing it
 - **Trigger (witnessed):** `server/contentExperimentArmKey.test.ts` pinned the literal text
@@ -2153,7 +2153,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** pre-push sequence: "Before changing a call site, `grep -rn '<fnName>(' --include='*.test.ts*'`.
   A test that asserts source text goes red only at full-suite time."
 - **Confidence:** medium (once)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ### P3 · `nickstire-reel-operator` — a real-footage requirement is declared on the beat, not in prose
 - **Trigger (witnessed):** checking the operator's 31-day / 62-Reel research (2026-10-08) against the packs through
@@ -2170,7 +2170,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   A pack whose beat visuals name no concrete subject ('the physical subject', 'the relevant components') is not
   production-ready."
 - **Confidence:** high (9 and 23 instances)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-reel-operator/SKILL.md, Pack authoring checks)
 
 ### P4 · `CLAUDE-OPERATING-PROFILE.md` § SUBAGENT POLICY + `nickstire-verify` "dispatch reviewers" — spawn on request
 - **Trigger (witnessed, twice):** the operator rejected both unrequested Explore spawns this session, at 11:25Z
@@ -2181,7 +2181,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   `nickstire-verify`: "dispatch reviewers per subsystem" becomes "run a per-subsystem hostile pass, in-session unless
   the operator asked for agents".
 - **Confidence:** high (2x). The operator gave no reason; cost or noise is an inference.
-- **Status:** proposed
+- **Status:** applied this PR (CLAUDE-OPERATING-PROFILE.md SUBAGENT POLICY, scoped: lane dispatch under monorepo-manager is the standing exception; .claude/skills/nickstire-verify/SKILL.md wave-review bullet)
 
 ### P5 · `nickstire-verify` — a pixel test renders with production's own asset
 - **Trigger (witnessed):** `server/captionSafeZone.test.ts` "cropdetect measures the real drawtext box" rendered with
@@ -2193,7 +2193,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** Traps: "A render or pixel test uses the production asset (font, overlay, LUT). OS faces are fallbacks
   only: 'wider, so conservative' on one OS is a different, failing test on another."
 - **Confidence:** medium (once)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ### Recurrence note on 2026-10-02 P5 (`nickstire-verify` — run the fail-open-slice gate locally)
 - Third occurrence. `server/cron/tierCadence.test.ts` (3) and `server/declaredSourceAtGeneration.test.ts` (2) added raw
@@ -2226,7 +2226,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   preflight (`get_cost:true` on the Higgsfield MCP) and keep the change only if the quote moves. A reseller's price
   structure is not the vendor's."
 - **Confidence:** medium (once)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-reel-operator/SKILL.md, Capability and cost preflight)
 
 ### P2 · any script that rewrites a committed data file — a round-trip check must abort, not print
 - **Trigger (witnessed):** a Python edit of `docs/reels-engine-v2/angle-bank.json` printed `round-trip identical: False`
@@ -2235,7 +2235,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** under the ledger round-trip note in `nickstire-verify`: "the check is `sys.exit` on mismatch, never
   a print; a file with its own layout gets a line edit."
 - **Confidence:** medium (once)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ### Correction to 2026-10-08 P3 (`nickstire-reel-operator`, real footage declared on the beat)
 - The "9 of the 133 rotation packs say 'Real vehicle and tire footage only.'" count does not reproduce: that exact
@@ -2262,7 +2262,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** "Before admitting packs, print beat 1's provider prompt for each and read its `Subject:` line. A
   subject a viewer could not name is not a shot. `beatGenerationRoute` now holds such beats (`needs_subject`)."
 - **Confidence:** high (34 of 34, measured)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-reel-operator/SKILL.md, Pack authoring checks)
 
 ### P2 · `nickstire-verify` — a refusal the caller cannot type is a jam
 - **Trigger (witnessed):** four content refusals in `enqueueReelJob` threw a bare `Error`; `dailyReelPost` advances the
@@ -2272,7 +2272,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** "When adding a refusal on a path a scheduler calls, find the caller's catch and throw what it
   types. A test that pins the throw's text pins the bug with it."
 - **Confidence:** high (4 sites)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, Traps)
 
 ## 2026-10-09 · adversarial review of the peaceful-pascal branch (4 reviewers + skeptics + critic)
 
@@ -2286,7 +2286,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
   claim ('probably', 'usually', 'perfectly') to the hedged table; `mechanicalTruth.test.ts` also runs every packet's
   own facts and reasons through every pattern."
 - **Confidence:** high (14 sentences, each reproduced against the real module)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-reel-operator/SKILL.md, Truth and evidence contract)
 
 ### P2 · `nickstire-verifier-reel-pipeline` — an eligibility check must be the refusal the consumer applies
 - **Trigger (witnessed):** pack-variant eligibility checked "listed, loads, builds", while enqueue refuses on four more
@@ -2296,7 +2296,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** "Before a pre-check that predicts a later gate, list what the gate refuses and call the same code;
   a parallel re-implementation drifts the day the gate gains a rule."
 - **Confidence:** high (2 sites, both reproduced)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verifier-reel-pipeline/SKILL.md, A pre-check must be the refusal the consumer applies)
 
 ## 2026-10-15 · statenour Retry gate (#3057), the idempotency review (#3060) and the manager metrics
 
@@ -2305,27 +2305,27 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** operator trust, and the stances (verification-before-completion, find-skill's one-line gate) were unchecked for those turns.
 - **Proposed edit:** add one line under "Always-on meta-stances": "Every reply that did work ends with `Skills: <names invoked this turn>`; a turn that invoked none says `Skills: none, because <reason>`." Optionally extend `scripts/agent-os/stop-check.mjs` to warn (not block) when a turn that edited files or ran commands had no Skill call.
 - **Confidence:** medium (once, a direct operator correction)
-- **Status:** proposed
+- **Status:** applied this PR (CLAUDE-OPERATING-PROFILE.md, Always-on meta-stances); the optional hook half already exists, applied earlier (scripts/agent-os/skills-check.mjs header, Stop hook)
 
 ### P2 · `statenour-verify`: the full suite runs from a shell with bash on PATH
 - **Trigger (witnessed):** the full statenour suite run from the PowerShell tool failed 39 tests in `tests/repo/anti-slop-gate.test.ts` and `tests/redteam/repo-canary-gates.redteam.test.ts` (exit 1, empty output) because those tests spawn `bash` and the PowerShell tool has none on PATH (`Get-Command bash` there: not recognized). From the Bash tool the same two files passed (195 tests). An earlier session had blamed "load" before reading the real error.
 - **Cost:** one wasted 8 minute suite run and a diagnosis, twice across the session.
 - **Proposed edit:** in the Traps list: "The anti-slop tests spawn `bash`. Run the full suite from the Bash tool (or with Git's bash on PATH). Before diagnosing a red in `anti-slop-gate.test.ts` or `repo-canary-gates.redteam.test.ts` with exit 1 and empty output, check that `bash` resolves in the shell that ran the suite (`Get-Command bash` in PowerShell, `which bash` in Bash): both helpers normalize every spawn error (a missing executable, a permission or resource failure) to exit 1 with empty output, so that signature alone does not prove a missing bash." Optionally keep the original error code in the helpers' `out`.
 - **Confidence:** medium (once, reproduced both ways)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/statenour-verify/SKILL.md, Traps)
 
 ### P3 · `monorepo-manager` references/sessions-and-plans.md: the brief for a session started with start_session
 - **Trigger (witnessed):** step 10 says "Review before the PR opens" and binds the integration branch the manager owns. PR #3060 (server-side idempotency on the live chat route, 19 files) was opened by a session the manager started from a card, so step 10 never had a hook before it opened: the manager's 8-lens review with 3 skeptics ran afterwards and produced 14 skeptic-confirmed findings, 3 of them P1 (fast-path lanes invisible to the guard, a 409 that poisons Retry on the current client, a lease renewing for the 6 minute cap after the client left) plus 28 not yet skeptic-checked. `references/sessions-and-plans.md` has no section on briefing a started session.
 - **Cost:** the PR was not mergeable as opened; one extra fix round and about 40 minutes of review.
 - **Proposed edit:** add a "Started sessions" paragraph to `references/sessions-and-plans.md` (and a pointer in step 5): the brief for a `start_session` child that changes a production request path (a route, a hook, a persistence writer) ends with "Do not push or open a PR. Commit on your branch and report; the manager runs step 10 on it and then tells you to open it." The manager runs step 10 as soon as such a child reports a branch.
 - **Confidence:** medium (once on #3060; supported by the six review rounds on #3057)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/references/sessions-and-plans.md, item 8)
 ### P4 · `monorepo-manager` step 5: record the dispatch time so cycle time can be computed
 - **Trigger (witnessed):** all three manager jobs of this session (payment-reminders-removed, shop-clock-backfill, t2-streaming-receipts) have cycle time UNKNOWN in `docs/agent-os/MANAGER-METRICS.md`, because nothing recorded the first dispatch time and the metrics rule forbids a guess.
 - **Cost:** the cycle-time column is empty for every job of the session, so the process cannot be compared across jobs.
 - **Proposed edit:** in step 5, after the dispatch: "write the dispatch time (UTC) into the ledger row's Next cell"; step 15 then computes cycle time from it.
 - **Confidence:** medium (three rows, same gap)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 5, and references/job-lessons.md)
 ## 2026-10-16 · bdnick UI v3 waves W0 to W1b (manager session "bdnick ui upgrade")
 
 ### P1 · monorepo-manager (references/verify.md, step 6)
@@ -2333,35 +2333,35 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** one extra lane round and one extra CI run on PR W1b.
 - **Proposed edit:** under step 6 add: "A granted one-line value change (an href, a key, a label) is reviewed like code: grep every reader of the OLD value, including guards that compare against it, before the grant."
 - **Confidence:** high (the same shape hit W1a: `toLowerCase()` hidden behind a removed `uppercase` class, and the mastery `icon` field whose readers only tsc found).
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/references/verify.md, step 6 section)
 
 ### P1 · statenour-verify
 - **Trigger (witnessed):** the W1a lane's "broad sweep" ran `tests/components tests/repo __tests__ tests/lib tests/hooks tests/floating-home` and reported INFERRED green; CI then failed on `tests/home/waiting-line.test.tsx:59`, a casing pin outside that list (#3066 node run 38834210409). The same lane later ran the whole suite from PowerShell and saw two reds that were only `'bash' is not recognized` (the anti-slop gate files spawn bash).
 - **Cost:** one CI run (about 45 runner-minutes) and one rework push.
 - **Proposed edit:** "Before RETURN on any copy or class sweep, run the whole statenour vitest suite once, from Git Bash, alone; a partial directory list is not a sweep. If `tests/repo/anti-slop-gate.test.ts` and `tests/redteam/repo-canary-gates.redteam.test.ts` are the only reds and the shell is PowerShell, rerun those two from Git Bash before calling them real."
 - **Confidence:** high (two incidents in one job).
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/statenour-verify/SKILL.md, Traps)
 
 ### P2 · antislop-layoutmobile (or a repo note in empty-vs-error)
 - **Trigger (witnessed):** to recover ink on `missions/phone` the lane moved `/missions` off the core-page list, which only changed its description from `never` to the `md-up` default, still hidden at 390 px; the CI distance stayed at 0.342 (run 38836221412). The real fix was `descriptionVisibility="always"`.
 - **Cost:** one CI run and one lane round.
 - **Proposed edit:** add the rule: "A width-conditional default is not a restore. Before calling a prop flip a fix, state what the default renders at the width the gate measures."
 - **Confidence:** medium (once, clear).
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/antislop-layoutmobile/SKILL.md, Width-Conditional Default Is Not a Restore)
 
 ### P2 · monorepo-manager (step 10, review-and-merge.md)
 - **Trigger (witnessed):** three process restarts in one night killed the running `adversarial-review` workflow and two lane rounds; only committed work and scratchpad notes survived. Lanes that committed per deliverable lost nothing; the W0b lane lost 76 minutes of uncommitted edits once.
 - **Cost:** about 2 hours of repeated agent work.
 - **Proposed edit:** "Write every lane brief and every review brief to the session scratchpad before dispatch, and re-dispatch from the file after a restart; prefer two read-only lens agents over a multi-agent workflow when the machine is below 2 GB free." The CHECKPOINTS rule already landed in brief v3 (#3064).
 - **Confidence:** medium.
-- **Status:** proposed (CHECKPOINTS part: applied #3064)
+- **Status:** applied this PR (.claude/skills/monorepo-manager/references/review-and-merge.md, Restarts and quota days; the CHECKPOINTS part was applied in #3064)
 
 ### P2 · skill-fire-audit
 - **Trigger (witnessed):** `fire_audit.py --days 14` crashed with `FileNotFoundError` on a transcript path over 260 characters under `~/.claude/projects/` (Windows long path), so the instrument meant to answer "which skills fire" could not run.
 - **Cost:** the measurement Nour asked for was unavailable until the fix on chore/skill-recall-hook.
 - **Proposed edit:** "Per-file reads are wrapped; skipped files are counted and printed; on Windows retry with the extended-length prefix." (Being applied in the skill-recall PR.)
 - **Confidence:** high.
-- **Status:** proposed (fix in flight)
+- **Status:** applied earlier (.claude/skills/skill-fire-audit/scripts/fire_audit.py:97-120 long-path prefix and :184 skipped count already do it, checked 2026-10-21)
 
 ## 2026-10-18 · office camera lane on the shop PC + admin digest (session-observer)
 
@@ -2394,35 +2394,35 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** about 40 minutes across six refusals and one wrong Serena one-liner handed to Nour.
 - **Proposed edit:** in the local rules: "Install a skill by copying its SKILL.md (and references/scripts) at a pinned sha with gh api, never through its installer; binaries, MCP servers and plugins are one-liners for Nour, and an MCP with `--` args goes through `claude mcp add-json`." Point to `superpower-installs-2026-10-18` memory for the receipts.
 - **Confidence:** high (recurred 6x in one session)
-- **Status:** proposed
+- **Status:** approved 2026-10-21 · owner operator-machine · due 2026-10-28 (the find-skills skill is machine-global under ~/.claude/skills, not a repo file; the lane may not edit ~/.claude)
 
 ### P2 · guard-red-team (step 5, hook wiring on every platform) and positive-control-first
 - **Trigger (witnessed):** PR 3150's `session-surface.mjs` treated only exit 1 from `command -v` as MISSING; Linux CI's `/bin/sh` is dash, which exits 127, so the path segment read `UNKNOWN (lookup exit 127)` and two canaries went red (run 39157575666). The lane had labelled the POSIX branch NOT CHECKED yet shipped a test that assumed bash semantics. Fix 95462f05f: an exported `classifyLookup({status, signal, error})` with a unit test on 0 / 1 / 127 / 2 / ENOENT / SIGTERM, so a Windows machine pins the Linux behaviour.
 - **Cost:** one red CI run, one lane resume, about 25 minutes.
 - **Proposed edit:** add to step 5: "a shell's exit code for not-found is not portable (bash 1, dash 127, where.exe 1); any status-to-verdict mapping lives in an exported function with a unit test per code, and a branch labelled NOT CHECKED may not carry a test that assumes the checked branch's behaviour."
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/guard-red-team/SKILL.md, Protocol item 7)
 
 ### P3 · monorepo-manager (step 11, integrate) or harness-worktree-setup
 - **Trigger (witnessed):** `git push` from the lane worktree `agent-aff9b9599fd628cd0` failed in the lefthook pre-push step: "'turbo' is not recognized", "node_modules missing". The same branch pushed from the primary checkout in 1.5 s (turbo 2.11.7, build --affected). The sibling lane's worktree had junctioned node_modules and pushed fine.
 - **Cost:** one failed push and one retry, about 5 minutes.
 - **Proposed edit:** step 11: "push a lane branch from the primary checkout (`git push -u origin <branch>` there pushes the local ref; the pre-push hook runs where node_modules exists); never `--no-verify` from the worktree."
 - **Confidence:** medium (once, clear; the memory `harness-worktree-commit-path` records the same shape from 2026-10-15)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 11, and references/job-lessons.md)
 
 ### P4 · monorepo-manager (step 15) and references/ledger-and-metrics.md
 - **Trigger (witnessed):** the manager wrote `docs/agent-os/ledger/2026-10-18-private-tag-memory.md` with an invented metrics header (`Lanes | Dispatches | Returns rejected | ...`) and prose rows; the lane's pre-commit `agent-os verify` failed twice on the two real-ledger canaries and the lane had to move the file out to commit. The correct header is the 8-cell one every existing file carries (`After the PR opened (Codex, human) | Manager catches before it opened | Red-first ... | Mutation ... | Cycle time ... | Rework pushes | Source`).
 - **Cost:** two failed pre-commit runs (about 9 minutes) and a lane detour.
 - **Proposed edit:** step 15: "copy the two table headers from an existing `docs/agent-os/ledger/*.md` verbatim; the file holds exactly the ledger row and the metrics row, nothing else; run `node --test scripts/agent-os/ledgerSplit.test.mjs` before committing it."
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 15, and references/job-lessons.md)
 
 ### P5 · guard-red-team (mention vs execution, the manager's own probes)
 - **Trigger (witnessed):** the manager's probe of the rtk hook plus repo guard was itself blocked by the repo guard (push-to-main) because the Bash command string quoted `git push --dry-run origin main` as probe data. The probe only ran once the guarded literals were assembled from parts inside a script file (`probe-rtk-guard.mjs`) and the Bash line named only the script.
 - **Cost:** one blocked probe round, about 5 minutes.
 - **Proposed edit:** add to the Protocol: "probe from a script file that builds guarded literals from parts; a Bash command string that quotes them is itself judged and blocked, which proves the guard but not the probe."
 - **Confidence:** medium (once, clear; AGENTS.md > Environment already warns about docs written through Bash, not about probes)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/guard-red-team/SKILL.md, Protocol: probe from a script file)
 
 ### P6 · monorepo-manager references/review-and-merge.md (Codex marker)
 - **Trigger (witnessed):** Codex's review quota was exhausted all day (its bot posted "You have reached your Codex usage limits" on #3129, #3149 and #3150). merge-gate merged #3129 and #3149 on the "failed" marker with a WARN, but #3150's re-pushed SHA 95462f05f got no marker at all, so merge-gate waited toward its 25-minute Codex window; the merge went through with `--codex-wait-minutes 0` on Nour's standing "merge once CI is green".
@@ -2436,28 +2436,28 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** the fail-open merges got no second look; #3157 waited one extra fix round.
 - **Proposed edit:** after a quota notice, the manager posts "@codex review" once more on the final head before running the gate when the PR is still open an hour later, and a quota-day fail-open merge gets the review lens (the read-only skeptic lane) as the substitute, recorded in the ledger row.
 - **Confidence:** medium (one day, four PRs)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/references/review-and-merge.md, Restarts and quota days)
 
 ### P8 · nickstire-verify (the exit code is the receipt)
 - **Trigger (witnessed 2026-10-18 twice in one session):** `node merge-gate.mjs ... ; echo EXIT=$?` after a `| tail -4` printed the exit of `tail`; `pnpm run check | tail -3` read as "tsc exit=0" while tsc had failed. The skill already names the trap for vitest; both bit again on other commands.
 - **Cost:** about 10 minutes and one stale "ready" status.
 - **Proposed edit:** generalise the trap to every gate: "never pipe a gate's output; redirect to a file, then read the file and the exit code separately" (`cmd > log 2>&1; echo $?`), and add merge-gate's own rule: it needs the FULL 40-character sha; a short sha prints usage and exits 64 (`merge-gate.mjs:276-278`; the "exit 0" the session read that day came from the `| tail` in front of `$?`, the same trap).
 - **Confidence:** high (recurring, two commands, one day)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, the exit-code trap generalised to every gate, plus the 40-character sha rule read at scripts/agent-os/merge-gate.mjs usage check)
 
 ### P9 · harness-worktree-setup or nickstire-verify (preflight blind spot for data-file readers)
 - **Trigger (witnessed 2026-10-18, #3152):** preflight said "all green" and CI failed on `completionAuthority.test.ts`, which reads `capability-ledger.json` at runtime: `vitest related` follows imports, never `readFileSync`. Fixed in #3153 (`scripts/preflight-text-scan.mjs` scans data files too).
 - **Cost:** one billed CI run and about 20 minutes.
 - **Proposed edit:** one line in the skill's preflight step: "a test that reads a data file is selected only by the text scan; after any `docs/operations/*.json` edit run `node scripts/preflight-text-scan.mjs <file>` and the tests it names".
 - **Confidence:** high (fixed and canaried in #3153)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-verify/SKILL.md, step 0)
 
 ### P10 · monorepo-manager (step 2, spec) for third-party portals
 - **Trigger (witnessed 2026-10-18, Kafene portal client):** briefs for a server-side portal client were written before anyone checked how the vendor's edge treats datacenter egress; Kafene's Cloudflare refused this laptop's VPN exit (FACT) and would most likely refuse Railway's datacenter egress (STRONG INFERENCE, never probed from a datacenter host), and its device trust is a browser fingerprint, which killed the design after the contract research.
 - **Cost:** two drafted briefs and about 40 minutes of research aimed at the wrong design.
 - **Proposed edit:** step 2 gains a line for any job that automates a vendor portal: "before the spec, read the portal's egress and device-trust rules from where the code will run (one `curl -sI` from a datacenter host and the login bundle's fingerprint calls); a VPN/datacenter block or fingerprint trust is a kill criterion to settle first".
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 2, and references/job-lessons.md)
 
 ## 2026-10-19 · Koalafi Direct API contract (session 9dcc8dd1, docs PR)
 
@@ -2466,7 +2466,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** one research lane run and about 30 minutes on the HTML path; one stopped turn.
 - **Proposed edit:** step 9 (and the lane-research agent) gains: "for a vendor doc site, try `<site>/llms.txt` and `<site>/docs/<slug>.md` before saving HTML; the primary quote comes from the `.md` file. Send nothing to a vendor's live API until a sandbox credential exists: a probe without one proves nothing and may create vendor-side records." The docs-only verdict belongs with it: when the keyed client cannot be exercised, capture the contract and the build plan, do not ship a dormant client (it is tested only against your own reading of the docs).
 - **Confidence:** medium (once, clear; the Kafene job the day before hit the same shape from the portal side, P10)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 9, references/job-lessons.md, and .claude/agents/lane-research.md)
 
 ## 2026-10-19 · Live code graph for every AI tool (session 72b1a5f8, job 2026-10-19-graph-live-mcp)
 
@@ -2475,14 +2475,14 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** one failed git command, one stale lock, about 15 minutes across two sessions; the same shape as the 2026-10-16 OOM (854 fsmonitor daemons), one cause up.
 - **Proposed edit:** the hook form of `heavy.mjs run --max-wait 90s` stops running unleased after the wait; it fails the hook with "heavy lease busy: retry the commit" (exit 1) so the commit is retried by the session, never run in parallel. AGENTS.md > Commands gains one clause: "a hook that cannot get the heavy lease fails the commit; retry, do not bypass". `heavy.test.mjs` gets the case: lease held, max-wait expired, exit 1 and no child spawned.
 - **Confidence:** high (two incidents, one mechanism, the fix is one branch in `heavy.mjs`)
-- **Status:** proposed
+- **Status:** applied this PR (scripts/agent-os/heavy.mjs + heavy.test.mjs (red 1f/12p, then green; mutation = the old fall-through), lefthook.yml comment, docs/agent-os/README.md; the AGENTS.md clause is not added because AGENTS.md sits at its 200-line cap)
 
 ### P13 · session-health and the plugin set (per-session plugin MCP servers)
 - **Trigger (witnessed 2026-10-19):** every Claude session on NATTYNOUR started its own copy of two plugin MCP servers: Desktop Commander (17 processes, 1,439 MB private across 5 sessions) and opencode-subagent (8 processes, 336 MB), plus, until this job, Serena (7 copies, about 400 MB each, with no language server configured). The opencode plugin cannot work at all: the `opencode` CLI it drives is not installed, and the server timed out connecting in this session.
 - **Cost:** about 2 GB of RAM per five sessions doing nothing, on a 16 GB laptop that hit 8 MB free the same day.
 - **Proposed edit:** (a) `session-health.mjs` gains one informational item: count of plugin MCP server processes per plugin name across the machine, printed when any plugin has more than 3 copies, with the plugin named; (b) Nour decides per plugin: disable `opencode-subagent-mcp` until the CLI is installed, and keep or drop Desktop Commander (the pretool guard covers it, so it is safe but not free). Not a code change to the plugins themselves: they are vendored.
 - **Confidence:** medium (measured once; the counts will differ by day)
-- **Status:** proposed
+- **Status:** approved 2026-10-21 · owner lane-platform · due 2026-10-28 for part (a), the session-health plugin-process count (needs a Windows process listing inside the 1.5 s budget and its own canary pair); part (b), which plugins to disable, is approved 2026-10-21 · owner operator-machine · due 2026-10-28
 
 ## 2026-10-21 · leftover backlog + approve-per-action (job 2026-10-21-platform-hygiene)
 
@@ -2491,39 +2491,39 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** found in round 1 of review; a miss in a guard of this kind is a production write.
 - **Proposed edit:** the subagent-brief template and the monorepo-manager spec step gain one line for any approval or deny guard brief: "the approved target matches IDENTIFYING fields only (id, branch id, project id, service id), never any value in the call; ship a canary where the id sits in a free-text field such as `name` and the call is still refused".
 - **Confidence:** high (found by a probe, fixed and canaried in 3193)
-- **Status:** proposed
+- **Status:** applied this PR (.agents/core/templates/subagent-brief.md GUARD RULE, .claude/skills/monorepo-manager/SKILL.md step 5 with references/job-lessons.md)
 
 ### P2 · positive-control-first (two silent-instrument shapes in scan controls)
 - **Trigger (witnessed 2026-10-20, the secret-history scan control):** (a) `git grep --no-index` given a path outside the working directory matches nothing and exits 0; (b) Windows PowerShell 5.1 strips `"` from native-command arguments, so a regex containing `"` silently never matches. Each shape returns an empty result with a success exit code, the same as a real "nothing found".
 - **Cost:** a scan control that could not have found anything reads as a clean history.
 - **Proposed edit:** the checklist gains a step 8: "a scan or grep control must find a PLANTED positive in the same invocation shape as the real scan (same cwd, same path form, same shell); `git grep --no-index` with an outside path and a regex containing a double quote under PowerShell 5.1 both return empty with exit 0".
 - **Confidence:** high (two shapes, both reproduced)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/positive-control-first/SKILL.md, Checklist item 8)
 
 ### P3 · prod-db-guard (a Neon child branch's role password is not the parent's)
 - **Trigger (witnessed 2026-10-20, scrub rehearsal):** rehearsing a scrub on a Neon child branch failed authentication because the branch's role password differs from production's.
 - **Cost:** failed rehearsal logins; the risk side is the reverse mistake, pointing a rehearsal at the production string.
 - **Proposed edit:** one line in the rehearsal section: "rehearse with the connection string from `get_connection_string` for the branch, and check by hash (never print it) that it differs from the production string before use; a string that matches production is not the branch".
 - **Confidence:** medium (one rehearsal)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/prod-db-guard/SKILL.md, A Neon child branch has its own role password)
 
 ### P4 · `scripts/agent-os/merge-gate.mjs` (code: judge only the latest run per check name)
 - **Trigger (witnessed 2026-10-21, PR 3194):** after a close and reopen the status rollup kept the superseded failed run of the same check on the same head, and the gate blocked a PR whose latest run was green.
 - **Cost:** a blocked gate on a PR whose latest run of the check was not the failed one.
 - **Proposed edit:** group the rollup by check name and judge only the newest run (by completion time) of each name; keep an arm where an older failed run plus a newer green run of one name passes, and an arm where the newer run is the failed one and the gate still blocks.
 - **Confidence:** medium (one PR)
-- **Status:** proposed
+- **Status:** applied this PR (scripts/agent-os/merge-gate.mjs latestRuns() + mergeGate.test.mjs (red 2f/66p, then 68/68; mutation = no dedupe, 2 fail))
 
 ### P5 · nickstire-verify / nickstire-tidb-ddl (Drizzle renders a column unqualified in SELECT but qualified in GROUP BY)
 - **Trigger (witnessed twice, PR 3189):** TiDB `only_full_group_by` rejects the pair; first NICKSTIRE-1 on 2026-09-08, then the customerIntelligence queries from 2026-10-09 to 2026-10-20. Typecheck and unit tests passed both times because no test rendered the real SQL.
 - **Cost:** the same class of production query error twice, the second time across the 2026-10-09 to 2026-10-20 window.
 - **Proposed edit:** for any grouped query, prove it by rendering the real Drizzle builder over a recording fake mysql2 client and asserting the SELECT and GROUP BY column forms match; add that one line to both skills.
 - **Confidence:** high (recurred twice)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/nickstire-tidb-ddl/SKILL.md, Grouped queries)
 
 ### P6 · production-health-report / deploy checks (a merge can produce no Railway deployment for the touched service)
 - **Trigger (witnessed 2026-10-20 19:05-19:23Z, three pushes):** merges to main produced NO deployment for the touched service while untouched services got SKIPPED records. The project has no deploy webhook, so nothing paged.
 - **Cost:** merged code that was not live, found by reading the deployment list rather than by any alert.
 - **Proposed edit:** after a merge, read `list-deployments` for each touched service and confirm a deployment exists for the merge commit; a missing one is a finding, not a pass. The report skill gains a "merged but not deployed" class.
 - **Confidence:** medium (one window, three pushes)
-- **Status:** proposed
+- **Status:** applied this PR (.claude/skills/production-health-report/SKILL.md, Rules)
