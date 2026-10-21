@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "WHAT THE OPERATOR SEES after this diff, and where. (1) Admin -> Instagram: the tab row shows four tabs, Today, Create, Queue, Learn, each 48 px tall; Community is gone. (2) The gear (now 48 x 48) -> Controls is the first entry. It opens one screen in this order: Autonomy control (kill switches and limits), Send switches, Image autopost, Comment responder, then Pipeline health (read-only) last. A part that fails to render shows a one-line notice in its own slot and leaves the other switches on screen; a failed pipeline read cannot push a switch off. (3) Planning board, Pattern Lab and Community are no longer offered anywhere. Old links still land: ?igview=community, inbox and patterns open Today; planning and drafts open Create; pipeline and control open Controls; the Creative assistant fatigue card opens Strategy and its quality card opens Controls. (4) Create -> Campaign Package: the carousel button reads 'Draft and save carousel brief' and its toast says the brief is saved only, because no screen renders or publishes saved carousels any more. PROOF: client/src/__tests__/ig-controls-view.test.tsx (order, deep links, per-part isolation, gear menu 48 px), ig-views-redirects.test.ts (every legacy key), ig-cut-views-no-dangling-refs.test.ts, comment-responder-card.test.tsx and ig-autopost-card.test.tsx (48 px), run against the real InstagramAdmin shell with mocked queries. NOT YET SEEN: the authenticated admin at 375 px on the installed PWA. The live look is owed after deploy."
+    }
+  }
+}

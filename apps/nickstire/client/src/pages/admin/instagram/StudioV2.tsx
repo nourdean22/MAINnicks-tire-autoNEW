@@ -159,7 +159,7 @@ function gateClass(gate: string) {
 }
 
 export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) => void } = {}) {
-  // Handoff from Community/Insights/Today — consumed exactly once, before
+  // Handoff from Insights/Today/Strategy — consumed exactly once, before
   // first render, so a preloaded source is indistinguishable from a typed one.
   const [handoff] = useState(() => initialFromHandoff());
   const [showReelStudio, setShowReelStudio] = useState(handoff?.startInReel ?? false);

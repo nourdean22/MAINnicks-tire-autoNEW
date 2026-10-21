@@ -12,23 +12,19 @@ import { IG_PRIMARY_VIEWS, IG_SECONDARY_VIEWS, type IgView, readIgViewFromUrl, w
 import Today from "./Today";
 import StudioV2 from "./StudioV2";
 import QueueV2 from "./QueueV2";
-import { Inbox } from "./Inbox";
 import Learn from "./Learn";
 import Settings from "./Settings";
-import DraftBoardPanel from "../DraftBoardPanel";
-import PatternLab from "./PatternLab";
 import Strategy from "./Strategy";
-import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 import ActionCenter from "./ActionCenter";
-import { Pipeline } from "./Pipeline";
+import { Controls } from "./Controls";
 import { PhotoCheckCard } from "./PhotoCheckCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 /**
- * The canonical five-view shell (audit Wave 4). The operator has five jobs —
- * what needs attention / create / approve+publish / respond / what worked —
- * not nine equal tabs. Rare surfaces (Planning, reel recovery, autonomy
- * control, settings) live behind the gear. The active view persists in the
+ * The canonical four-view shell (audit Wave 4, pruned in W3 on 2026-10-19). The operator's
+ * jobs are what needs attention / create / approve+publish / what worked, not nine equal tabs.
+ * Rare surfaces (Controls, strategy, reel recovery, settings) live behind the gear. Controls
+ * holds every stop switch for the autonomous lanes. The active view persists in the
  * URL (?igview=), so a refresh or PWA relaunch no longer resets to square one.
  */
 export function InstagramAdmin() {
@@ -80,13 +76,13 @@ export function InstagramAdmin() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-2xl font-bold tracking-tight">Instagram</h2>
-          <p className="text-sm text-muted-foreground">Create, approve, publish, respond, learn: one controlled workflow.</p>
+          <p className="text-sm text-muted-foreground">Create, approve, publish, learn: one controlled workflow.</p>
         </div>
         <div className="flex items-center gap-2">
           {metaChip && <Badge variant="outline" className={metaChip.className}>{metaChip.label}</Badge>}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="More surfaces" className="relative h-11 w-11">
+              <Button variant="outline" size="icon" aria-label="More surfaces" className="relative h-12 w-12">
                 <Settings2 className="h-4 w-4" />
                 {attentionUnknown ? (
                   <span
@@ -110,7 +106,7 @@ export function InstagramAdmin() {
               <DropdownMenuLabel>More surfaces</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {IG_SECONDARY_VIEWS.map((view) => (
-                <DropdownMenuItem key={view.key} onSelect={() => navigate(view.key)}>
+                <DropdownMenuItem key={view.key} className="min-h-12" onSelect={() => navigate(view.key)}>
                   {view.label}
                   {view.key === "actions" && attentionUnknown && (
                     <Badge variant="outline" className="ml-2 border-amber-500/40 text-amber-500" title="Held reels unknown: read failed">?</Badge>
@@ -159,7 +155,7 @@ export function InstagramAdmin() {
 
       {isSecondary && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <button type="button" className="underline min-h-11" onClick={() => navigate("today")}>← Back to Today</button>
+          <button type="button" className="underline min-h-12" onClick={() => navigate("today")}>← Back to Today</button>
           <span>·</span>
           <span className="font-medium text-foreground">{IG_SECONDARY_VIEWS.find((v) => v.key === activeView)?.label}</span>
         </div>
@@ -204,14 +200,10 @@ export function InstagramAdmin() {
         {activeView === "today" && <Today onNavigate={navigate} />}
         {activeView === "create" && <StudioV2 onNavigate={navigate} />}
         {activeView === "publish" && <QueueV2 />}
-        {activeView === "community" && <Inbox onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
         {activeView === "insights" && <Learn onNavigate={navigate} />}
-        {activeView === "pipeline" && <Pipeline />}
-        {activeView === "planning" && <DraftBoardPanel onNavigate={() => navigate("create")} />}
-        {activeView === "patterns" && <PatternLab onNavigate={navigate} />}
         {activeView === "strategy" && <Strategy onNavigate={navigate} />}
         {activeView === "actions" && <ActionCenter onPublishStaged={() => navigate("publish")} />}
-        {activeView === "control" && <AutonomyCommandCenter />}
+        {activeView === "controls" && <Controls />}
         {activeView === "settings" && <Settings />}
       </div>
       </ErrorBoundary>

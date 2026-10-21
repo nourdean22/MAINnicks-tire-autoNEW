@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 152,
+    "emDash": 151,
     "emoji": 0,
-    "transitionAll": 61,
+    "transitionAll": 51,
     "slowDuration": 7,
-    "smallInput": 107,
-    "offPalette": 137
+    "smallInput": 102,
+    "offPalette": 130
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -17,11 +17,6 @@
     },
     "client/src/components/admin/CommandSearch.tsx": {
       "offPalette": 5
-    },
-    "client/src/components/admin/DraftCard.tsx": {
-      "transitionAll": 4,
-      "smallInput": 2,
-      "offPalette": 6
     },
     "client/src/index.css": {
       "uppercase": 4,
@@ -41,10 +36,6 @@
     },
     "client/src/pages/admin/CommissioningPanel.tsx": {
       "emDash": 2
-    },
-    "client/src/pages/admin/DraftBoardPanel.tsx": {
-      "transitionAll": 6,
-      "smallInput": 2
     },
     "client/src/pages/admin/GrowthSection.tsx": {
       "offPalette": 14
@@ -127,11 +118,6 @@
     "client/src/pages/admin/instagram/ActionCenter.tsx": {
       "emDash": 1,
       "smallInput": 1
-    },
-    "client/src/pages/admin/instagram/Inbox.tsx": {
-      "emDash": 1,
-      "smallInput": 1,
-      "offPalette": 1
     },
     "client/src/pages/admin/instagram/Learn.tsx": {
       "emDash": 1

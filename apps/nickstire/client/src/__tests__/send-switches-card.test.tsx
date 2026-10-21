@@ -1,12 +1,12 @@
 /**
- * Send switches card on Instagram > Pipeline health (contract sendSwitchesStatus v1, C5.5).
+ * Send switches card on Instagram > Controls (contract sendSwitchesStatus v1, C5.5).
  *
  * The five send_pause_<lane> flags stop unattended calls and texts by lane. This card is the
  * consumer of the server's status read and of featureFlags.toggle. TRUE = paused. Three chip
  * states, never two: a switch that could not be read is Unknown and is never rendered as Live,
  * and a failed toggle leaves the chip alone and says why in words. Pause is one tap (the safe
  * direction); Resume asks first through the in-DOM confirmDialog, because window.confirm is
- * suppressed in the iOS standalone PWA. Rendered through Pipeline so the test also proves the
+ * suppressed in the iOS standalone PWA. Rendered through Controls so the test also proves the
  * card is mounted.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
@@ -28,6 +28,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() } }));
 vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirmDialog }));
+// Controls also mounts the kill switch screen; it has its own test and must not add buttons here.
+vi.mock("@/components/admin/AutonomyCommandCenter", () => ({ default: () => null }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     instagramAdmin: {
@@ -63,7 +65,7 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-import { Pipeline } from "../pages/admin/instagram/Pipeline";
+import { Controls } from "../pages/admin/instagram/Controls";
 
 const LABEL: Record<string, string> = {
   voice_outbound: "Outbound calls",
@@ -122,9 +124,9 @@ afterEach(() => {
 });
 
 describe("Send switches card: three chip states, never two", () => {
-  it("is mounted on Pipeline health and renders one row per lane with its state chip", () => {
+  it("is mounted on Controls and renders one row per lane with its state chip", () => {
     h.status = MIXED;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Send switches")).toBeTruthy();
     expect(within(row("voice_outbound")).getByText("Live")).toBeTruthy();
     expect(within(row("customer_confirmations")).getByText("Paused")).toBeTruthy();
@@ -135,7 +137,7 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("an unreadable switch renders the word Unknown and never Live", () => {
     h.status = MIXED;
-    render(<Pipeline />);
+    render(<Controls />);
     const r = row("declined_recovery");
     expect(within(r).queryByText("Live")).toBeNull();
     expect(within(r).queryByText("Paused")).toBeNull();
@@ -144,20 +146,20 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("readable false is Unknown even when the server sent paused false", () => {
     h.status = { lanes: [lane("voice_outbound", { paused: false, readable: false }), ...LANES.slice(1).map((n) => lane(n))] };
-    render(<Pipeline />);
+    render(<Controls />);
     expect(within(row("voice_outbound")).getByText("Unknown")).toBeTruthy();
     expect(within(row("voice_outbound")).queryByText("Live")).toBeNull();
   });
 
   it("an open-fail lane says a failed read does not hold it", () => {
     h.status = { lanes: [lane("customer_confirmations", { paused: null, readable: false }), ...LANES.filter((n) => n !== "customer_confirmations").map((n) => lane(n))] };
-    render(<Pipeline />);
+    render(<Controls />);
     expect(within(row("customer_confirmations")).getByText(OPEN_NOTE)).toBeTruthy();
   });
 
   it("shows the env line in words: armed, off, unknown", () => {
     h.status = MIXED;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(within(row("voice_outbound")).getByText("env armed")).toBeTruthy();
     expect(within(row("weather_sms")).getByText("env off")).toBeTruthy();
     expect(within(row("missed_call_recovery")).getByText("env unknown")).toBeTruthy();
@@ -165,7 +167,7 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("a lane missing from the response is Unknown, not Live, and still says what a failed read does", () => {
     h.status = { lanes: LANES.filter((n) => n !== "missed_call_recovery" && n !== "customer_confirmations").map((n) => lane(n)) };
-    render(<Pipeline />);
+    render(<Controls />);
     expect(within(row("missed_call_recovery")).getByText("Unknown")).toBeTruthy();
     expect(within(row("missed_call_recovery")).queryByText("Live")).toBeNull();
     expect(within(row("missed_call_recovery")).getByText(CLOSED_NOTE)).toBeTruthy();
@@ -174,7 +176,7 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("a failed query still says per row whether a failed read holds the lane (static fail class)", () => {
     h.isError = true;
-    render(<Pipeline />);
+    render(<Controls />);
     for (const n of LANES) {
       expect(within(row(n)).getByText(n === "customer_confirmations" ? OPEN_NOTE : CLOSED_NOTE)).toBeTruthy();
     }
@@ -182,7 +184,7 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("a failed read of the whole card is five Unknown rows with Retry, and never Live", () => {
     h.isError = true;
-    render(<Pipeline />);
+    render(<Controls />);
     for (const n of LANES) {
       expect(within(row(n)).getByText("Unknown")).toBeTruthy();
       expect(within(row(n)).queryByText("Live")).toBeNull();
@@ -194,7 +196,7 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("a failed read still lets the operator pause a lane", () => {
     h.isError = true;
-    render(<Pipeline />);
+    render(<Controls />);
     expect((pause("weather_sms") as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(pause("weather_sms"));
     expect(h.toggleMutate).toHaveBeenCalledWith({ key: "send_pause_weather_sms", value: true });
@@ -202,7 +204,7 @@ describe("Send switches card: three chip states, never two", () => {
 
   it("loading renders no chips", () => {
     h.isLoading = true;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Send switches")).toBeTruthy();
     expect(screen.queryByText("Live")).toBeNull();
     expect(screen.queryByText("Unknown")).toBeNull();
@@ -212,7 +214,7 @@ describe("Send switches card: three chip states, never two", () => {
 describe("Pause and Resume", () => {
   it.each(LANES)("Pause %s is one tap: no dialog, the lane's own flag set to true", (n) => {
     h.status = all();
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(pause(n));
     expect(h.confirmDialog).not.toHaveBeenCalled();
     expect(h.toggleMutate).toHaveBeenCalledTimes(1);
@@ -221,7 +223,7 @@ describe("Pause and Resume", () => {
 
   it("Pause on an Unknown switch works and sets true", () => {
     h.status = MIXED;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(pause("declined_recovery"));
     expect(h.confirmDialog).not.toHaveBeenCalled();
     expect(h.toggleMutate).toHaveBeenCalledWith({ key: "send_pause_declined_recovery", value: true });
@@ -229,7 +231,7 @@ describe("Pause and Resume", () => {
 
   it.each(LANES)("Resume %s asks first with the flag policy copy, and toggles false only on confirm", async (n) => {
     h.status = all({ paused: true });
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(resume(n));
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     const opts = h.confirmDialog.mock.calls[0][0];
@@ -246,7 +248,7 @@ describe("Pause and Resume", () => {
   const QUEUE_LINE = "Texts queued before or during the pause send on resume.";
   const resumeMessage = async (over: Partial<Lane>) => {
     h.status = all({ paused: true, ...over });
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(resume("weather_sms"));
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     return String(h.confirmDialog.mock.calls[0][0].message);
@@ -274,7 +276,7 @@ describe("Pause and Resume", () => {
 
   it("a cancelled Resume changes nothing", async () => {
     h.status = MIXED;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(resume("customer_confirmations"));
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     await Promise.resolve();
@@ -283,7 +285,7 @@ describe("Pause and Resume", () => {
 
   it("a successful toggle refetches the status", () => {
     h.status = all();
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(pause("voice_outbound"));
     expect(h.refetch).toHaveBeenCalledTimes(1);
   });
@@ -292,7 +294,7 @@ describe("Pause and Resume", () => {
     vi.useFakeTimers();
     try {
       h.status = all();
-      render(<Pipeline />);
+      render(<Controls />);
       fireEvent.click(pause("voice_outbound"));
       expect(h.refetch).toHaveBeenCalledTimes(1);
       expect(within(row("voice_outbound")).getByText("Live")).toBeTruthy();
@@ -309,7 +311,7 @@ describe("Pause and Resume", () => {
     vi.useFakeTimers();
     try {
       h.status = all();
-      const view = render(<Pipeline />);
+      const view = render(<Controls />);
       fireEvent.click(pause("voice_outbound"));
       view.unmount();
       vi.advanceTimersByTime(7000);
@@ -322,7 +324,7 @@ describe("Pause and Resume", () => {
   it("a toggle error shows its text under that row and leaves the chip alone", () => {
     h.status = all();
     h.toggleError = "Operation failed";
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(pause("voice_outbound"));
     const r = row("voice_outbound");
     expect(within(r).getByText("Pause failed: Operation failed")).toBeTruthy();
@@ -335,7 +337,7 @@ describe("Pause and Resume", () => {
 describe("Phone layout (390 px)", () => {
   it("rows stack, wrap long text, and hold 48 px targets with no fixed widths", () => {
     h.status = MIXED;
-    const { container } = render(<Pipeline />);
+    const { container } = render(<Controls />);
     // The shared Button and Badge carry whitespace-nowrap for their one-word labels; the card's own
     // text elements (labels, env line, notes, errors) must be free to wrap.
     const own = Array.from(row("voice_outbound").parentElement!.querySelectorAll("*")).filter((el) => !el.closest("[data-slot=button],[data-slot=badge]"));

@@ -255,7 +255,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
           <StatCard label="Studio queue" value={metrics.queueHealth} trend={metrics.queueHealth === "Attention" ? "down" : "neutral"} icon={<Trophy className="h-4 w-4" />} />
         </div>
         <p className="text-xs text-muted-foreground">
-          Source: Meta analytics cache (sync via Community → Sync Feed) · window: all-time · engagement = (likes+comments)/followers at sync time.
+          Source: Meta analytics cache (refreshed by the analytics pipeline) · window: all-time · engagement = (likes+comments)/followers at sync time.
           Reach, saves, shares, and views appear per post only when Meta insights were captured for it, absent means unknown, never zero.
           {" "}{analytics.data?.snapshotStats == null
             ? "Metric-history snapshots: unknown (could not read)."

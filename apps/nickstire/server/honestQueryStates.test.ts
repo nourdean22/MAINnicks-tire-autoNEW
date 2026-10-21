@@ -13,7 +13,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { readStatus, readStatusOfList, unavailableCopy } from "../client/src/lib/queryState";
+import { readStatus, unavailableCopy } from "../client/src/lib/queryState";
+
+// The list-emptiness predicate the deleted readStatusOfList helper passed to readStatus.
+const listIsEmpty = (d: unknown) => Array.isArray(d) && d.length === 0;
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -21,29 +24,29 @@ describe("readStatus classifies the state react-query cannot express with isLoad
   it("PAUSED (offline) is unavailable, NOT empty — the whole reason this exists", () => {
     // The exact shape react-query leaves behind when the browser is offline.
     const paused = { isError: false, isLoading: false, isPending: true, fetchStatus: "paused" as const, data: undefined };
-    const s = readStatusOfList(paused);
+    const s = readStatus(paused, listIsEmpty);
     expect(s.state).toBe("unavailable");
     expect(s.reason).toBe("not_attempted");
   });
 
   it("an ERROR is unavailable and distinguishable from a paused read", () => {
-    const s = readStatusOfList({ isError: true, isLoading: false, data: undefined });
+    const s = readStatus({ isError: true, isLoading: false, data: undefined }, listIsEmpty);
     expect(s.state).toBe("unavailable");
     expect(s.reason).toBe("error");
   });
 
   it("a genuinely fetching query is loading", () => {
-    expect(readStatusOfList({ isError: false, isLoading: true, fetchStatus: "fetching", data: undefined }).state)
+    expect(readStatus({ isError: false, isLoading: true, fetchStatus: "fetching", data: undefined }, listIsEmpty).state)
       .toBe("loading");
   });
 
   it("a SUCCESSFUL read of zero rows is empty — a real zero must survive", () => {
-    const s = readStatusOfList({ isError: false, isLoading: false, fetchStatus: "idle", data: [] });
+    const s = readStatus({ isError: false, isLoading: false, fetchStatus: "idle", data: [] }, listIsEmpty);
     expect(s.state).toBe("empty");
   });
 
   it("a successful read with rows is ready", () => {
-    expect(readStatusOfList({ isError: false, isLoading: false, fetchStatus: "idle", data: [{ id: 1 }] }).state)
+    expect(readStatus({ isError: false, isLoading: false, fetchStatus: "idle", data: [{ id: 1 }] }, listIsEmpty).state)
       .toBe("ready");
   });
 
@@ -130,35 +133,6 @@ describe("storage copy names the delivery path instead of asserting CloudFront",
     expect(settings).not.toContain("S3_BUCKET and CLOUDFRONT_DOMAIN must both be configured");
     expect(settings).toContain("health.data?.storage?.cdn");
     expect(settings).toMatch(/served through the app from S3/);
-  });
-});
-
-describe("Community states what it actually read", () => {
-  const inbox = read("client/src/pages/admin/instagram/Inbox.tsx");
-
-  it("no longer blames Instagram credentials for a read that never happened", () => {
-    expect(inbox).not.toContain("Make sure Instagram credentials are set");
-  });
-
-  it("the feed distinguishes unavailable from verified empty", () => {
-    expect(inbox).toContain('feedStatus.state === "unavailable"');
-    // Copy corrected in self-audit: loadCache() returns null both when the file
-    // is ABSENT and when reading it THROWS, so "the cache was read" overclaimed.
-    // The client can only report what it received.
-    expect(inbox).toContain("The feed cache returned no posts.");
-  });
-
-  it("the cluster panel has an unavailable branch at all — it previously had none", () => {
-    expect(inbox).toContain('optStatus.state === "unavailable"');
-    // The confident-empty string may remain, but only AFTER the unavailable
-    // branch. Both anchors are JSX-shaped so they cannot match the explanatory
-    // comments in this file or in Inbox.tsx — the mistake this assertion caught
-    // on its first run.
-    const unavailableAt = inbox.indexOf(') : optStatus.state === "unavailable" ? (');
-    const emptyAt = inbox.indexOf(">No prominent themes found right now.</div>");
-    expect(unavailableAt, "the unavailable JSX branch is missing").toBeGreaterThan(-1);
-    expect(emptyAt, "the verified-empty JSX is missing").toBeGreaterThan(-1);
-    expect(emptyAt).toBeGreaterThan(unavailableAt);
   });
 });
 

@@ -79,7 +79,7 @@ export default function CampaignPackageCard() {
     onError: (e) => toast.error("Carousel draft failed", { description: e.message }),
   });
   const saveCarousel = trpc.contentAdmin.saveCarouselDraft.useMutation({
-    onSuccess: () => toast.success("Carousel saved to Draft Board", { description: "Open the Drafts tab to render slides and publish." }),
+    onSuccess: () => toast.success("Carousel brief saved", { description: "Saved as a brief only. No screen renders or publishes saved carousels." }),
     onError: (e) => toast.error("Draft save failed", { description: e.message }),
   });
   const draftAndSaveCarousel = async (genome: unknown, contentRunId?: string) => {
@@ -284,10 +284,10 @@ export default function CampaignPackageCard() {
                     {carouselDraft.isPending
                       ? "Drafting 5-slide brief..."
                       : saveCarousel.isPending
-                        ? "Saving to Draft Board..."
+                        ? "Saving carousel brief..."
                         : carouselDraft.data
                           ? "Redraft carousel"
-                          : "Draft carousel to Draft Board"}
+                          : "Draft and save carousel brief"}
                   </Button>
                 </div>
                 {carouselDraft.data && (
@@ -315,8 +315,8 @@ export default function CampaignPackageCard() {
                     )}
                     <p className="text-xs text-muted-foreground">
                       {saveCarousel.isSuccess
-                        ? "Saved: open the Drafts tab to render slides and publish."
-                        : "Saving to Draft Board..."}
+                        ? "Saved as a brief only. No screen renders or publishes saved carousels."
+                        : "Saving carousel brief..."}
                     </p>
                   </div>
                 )}

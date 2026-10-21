@@ -74,11 +74,6 @@ export function readStatus(q: QueryLike, isEmpty?: (data: unknown) => boolean): 
   return { state: "ready" };
 }
 
-/** Convenience for the common `data` shape of an array. */
-export function readStatusOfList(q: QueryLike): ReadStatus {
-  return readStatus(q, (d) => Array.isArray(d) && d.length === 0);
-}
-
 /**
  * Operator-facing copy for an unavailable read.
  *

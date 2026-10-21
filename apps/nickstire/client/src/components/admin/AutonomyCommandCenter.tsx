@@ -22,7 +22,7 @@ function SwitchRow({ label, on, scope, busy, onToggle }: { label: string; on: bo
         {on ? <ShieldAlert className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-emerald-500" />}
         {label}
       </span>
-      <Button size="sm" variant={on ? "destructive" : "outline"} disabled={busy} onClick={() => onToggle(scope, !on)}>
+      <Button size="sm" variant={on ? "destructive" : "outline"} className="min-h-12" disabled={busy} onClick={() => onToggle(scope, !on)}>
         <Power className="mr-1.5 h-3.5 w-3.5" />
         {on ? "ARMED: release" : "arm"}
       </Button>
@@ -139,7 +139,7 @@ export default function AutonomyCommandCenter() {
                     {!isEditing ? (
                       <button
                         type="button"
-                        className="font-mono tabular-nums underline decoration-dotted underline-offset-2 hover:text-primary"
+                        className="inline-flex min-h-12 items-center px-2 font-mono tabular-nums underline decoration-dotted underline-offset-2 hover:text-primary"
                         onClick={() => { setEditingLimit(key); setLimitDraft(String(current)); }}
                         title="Tap to change: publishes a new policy version"
                       >
@@ -151,17 +151,17 @@ export default function AutonomyCommandCenter() {
                           value={limitDraft}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimitDraft(e.target.value)}
                           inputMode={wholeOnly ? "numeric" : "decimal"}
-                          className="h-7 w-20 text-xs font-mono"
+                          className="min-h-12 w-20 text-xs font-mono"
                           aria-label={`${label} (${unit})`}
                         />
                         <Button
-                          size="sm" className="h-7 text-[11px]"
+                          size="sm" className="min-h-12 text-[11px]"
                           disabled={setLimit.isPending || limitDraft.trim() === "" || !Number.isFinite(Number(limitDraft)) || Number(limitDraft) < min || Number(limitDraft) > max || (wholeOnly && !Number.isInteger(Number(limitDraft)))}
                           onClick={() => setLimit.mutate({ key, value: Number(limitDraft) })}
                         >
                           {setLimit.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setEditingLimit(null)}>
+                        <Button size="sm" variant="ghost" className="min-h-12 text-[11px]" onClick={() => setEditingLimit(null)}>
                           Cancel
                         </Button>
                       </span>

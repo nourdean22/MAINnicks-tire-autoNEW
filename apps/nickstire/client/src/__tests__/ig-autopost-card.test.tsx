@@ -1,5 +1,5 @@
 /**
- * Image autopost card on Instagram > Pipeline health (contract autopostLaneStatus v1.1).
+ * Image autopost card on Instagram > Controls (contract autopostLaneStatus v1.1).
  *
  * The image lane posts unattended. This card is the consumer of three server
  * writers: the lane status read, the background run door (startAutopostRun) and
@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() } }));
 vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirmDialog }));
+// Controls also mounts the kill switch screen; it has its own test and must not add buttons here.
+vi.mock("@/components/admin/AutonomyCommandCenter", () => ({ default: () => null }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     instagramAdmin: {
@@ -69,7 +71,7 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-import { Pipeline } from "../pages/admin/instagram/Pipeline";
+import { Controls } from "../pages/admin/instagram/Controls";
 
 const ERROR_STATUS = { available: false, reason: "Autopost history could not be read: connection reset", paused: false, live: true };
 const IDLE = { inFlight: false, startedAt: null };
@@ -122,7 +124,7 @@ afterEach(() => {
 describe("Image autopost card: three states, never two", () => {
   it("(a) a failed read says state unknown, not empty, and never renders 0 posted", () => {
     h.status = ERROR_STATUS;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Image autopost state could not be read, state unknown, not empty")).toBeTruthy();
     expect(screen.getByText(/connection reset/)).toBeTruthy();
     expect(screen.queryByText(/posted of/)).toBeNull();
@@ -133,28 +135,28 @@ describe("Image autopost card: three states, never two", () => {
 
   it("(a) a transport error (isError, no data) is the same ERROR card, not UNMEASURED", () => {
     h.isError = true;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Image autopost state could not be read, state unknown, not empty")).toBeTruthy();
     expect(screen.queryByText(/No autopost run recorded yet/)).toBeNull();
   });
 
   it("loading renders no counts", () => {
     h.isLoading = true;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Image autopost")).toBeTruthy();
     expect(screen.queryByText(/posted of/)).toBeNull();
   });
 
   it("(b) a successful read with no runs is UNMEASURED, not a zero", () => {
     h.status = UNMEASURED_STATUS;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText(/No autopost run recorded yet\. The next slot window is 8:07, 13:07 or 20:07 ET\./)).toBeTruthy();
     expect(screen.queryByText(/0 posted of 0 runs/)).toBeNull();
   });
 
   it("(c) measured: 7-day counts carry their denominator, and the run list renders a string date", () => {
     h.status = measured();
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("13 posted of 23 runs (0 failed, 10 aborted, 0 dry runs)")).toBeTruthy();
     expect(screen.getByText("Live")).toBeTruthy();
     fireEvent.click(screen.getByText("Last 20 runs"));
@@ -167,7 +169,7 @@ describe("Run a slot now", () => {
   it("(d) cancel in the confirm sends nothing", async () => {
     h.status = measured();
     h.confirmAnswer = false;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(runNow());
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     expect(h.runMutate).not.toHaveBeenCalled();
@@ -176,7 +178,7 @@ describe("Run a slot now", () => {
   it("(d) confirm starts exactly one background run with {}, never the awaited door, and the live text says it posts", async () => {
     h.status = measured();
     h.confirmAnswer = true;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(runNow());
     await waitFor(() => expect(h.runMutate).toHaveBeenCalledTimes(1));
     expect(h.runMutate.mock.calls[0][0]).toEqual({});
@@ -188,7 +190,7 @@ describe("Run a slot now", () => {
 
   it("(d) when the lane is a dry run the confirm says nothing is posted", async () => {
     h.status = measured({ live: false });
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(runNow());
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     expect(String(h.confirmDialog.mock.calls[0][0].message)).toContain("nothing is posted");
@@ -213,7 +215,7 @@ describe("Run a slot now: background run and polling", () => {
 
   it("started: the card says the run started and that the result appears in the history", async () => {
     h.status = measured();
-    render(<Pipeline />);
+    render(<Controls />);
     await startAndAnswer({ started: true, startedAt: STARTED_AT });
     await waitFor(() => expect(screen.getByText(/^Run started .+; the result appears in the history$/)).toBeTruthy());
     expect(h.refetch).toHaveBeenCalled();
@@ -221,7 +223,7 @@ describe("Run a slot now: background run and polling", () => {
 
   it("refused: the refusal is shown and no started line", async () => {
     h.status = measured();
-    render(<Pipeline />);
+    render(<Controls />);
     await startAndAnswer({ started: false, refusal: "A manual run is already in flight." });
     await waitFor(() => expect(screen.getByText(/A manual run is already in flight\./)).toBeTruthy());
     expect(screen.queryByText(/Run started/)).toBeNull();
@@ -229,7 +231,7 @@ describe("Run a slot now: background run and polling", () => {
 
   it("in flight: the button is disabled, the in-flight line shows, and the status polls every 15 s", () => {
     h.status = measured({ manualRun: { inFlight: true, startedAt: STARTED_AT } });
-    render(<Pipeline />);
+    render(<Controls />);
     expect((runNow() as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/^Run in flight since /)).toBeTruthy();
     fireEvent.click(runNow());
@@ -244,31 +246,31 @@ describe("Run a slot now: background run and polling", () => {
 
   it("settled: the result line reads the newest admin row written after the start", async () => {
     h.status = measured();
-    const { rerender } = render(<Pipeline />);
+    const { rerender } = render(<Controls />);
     await startAndAnswer({ started: true, startedAt: STARTED_AT });
     h.status = measured({ manualRun: { inFlight: true, startedAt: STARTED_AT } });
-    rerender(<Pipeline />);
+    rerender(<Controls />);
     expect(screen.queryByText(/^Manual run finished/)).toBeNull();
     const base = measured().recent as Array<Record<string, unknown>>;
     h.status = measured({ recent: [adminRow(44, { igPostId: "17900000000000044", overallScore: 8.9 }), OLDER_ADMIN, ...base] });
-    rerender(<Pipeline />);
+    rerender(<Controls />);
     expect(screen.getByText("Manual run finished: posted, post 17900000000000044")).toBeTruthy();
     expect((runNow() as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("settled with an error: the result line carries the error", async () => {
     h.status = measured();
-    const { rerender } = render(<Pipeline />);
+    const { rerender } = render(<Controls />);
     await startAndAnswer({ started: true, startedAt: STARTED_AT });
     h.status = measured({ recent: [adminRow(45, { status: "aborted", error: "judge score 5.1 below the 7.0 bar" })] });
-    rerender(<Pipeline />);
+    rerender(<Controls />);
     expect(screen.getByText("Manual run finished: aborted: judge score 5.1 below the 7.0 bar")).toBeTruthy();
   });
 
   it("just started, the cached read predates the start: no result and no 'no result row' line yet", async () => {
     h.status = measured({ recent: [OLDER_ADMIN] });
     h.dataUpdatedAt = 1;
-    render(<Pipeline />);
+    render(<Controls />);
     await startAndAnswer({ started: true, startedAt: STARTED_AT });
     await waitFor(() => expect(screen.getByText(/^Run started /)).toBeTruthy());
     expect(screen.queryByText(/no result row was recorded for it/)).toBeNull();
@@ -277,10 +279,10 @@ describe("Run a slot now: background run and polling", () => {
 
   it("settled with no admin row since the start: says so, never shows an older run as the result", async () => {
     h.status = measured();
-    const { rerender } = render(<Pipeline />);
+    const { rerender } = render(<Controls />);
     await startAndAnswer({ started: true, startedAt: STARTED_AT });
     h.status = measured({ recent: [OLDER_ADMIN] });
-    rerender(<Pipeline />);
+    rerender(<Controls />);
     expect(screen.queryByText(/Manual run finished: failed/)).toBeNull();
     expect(screen.getByText(/no result row was recorded for it/)).toBeTruthy();
   });
@@ -289,7 +291,7 @@ describe("Run a slot now: background run and polling", () => {
 describe("Pause control when history cannot be read", () => {
   it("history unreadable, pause known: Pause lane renders and is one tap", () => {
     h.status = ERROR_STATUS;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Image autopost state could not be read, state unknown, not empty")).toBeTruthy();
     const pause = screen.getByRole("button", { name: "Pause lane" }) as HTMLButtonElement;
     expect(pause.disabled).toBe(false);
@@ -300,7 +302,7 @@ describe("Pause control when history cannot be read", () => {
 
   it("history unreadable, lane paused: Resume asks first through confirmDialog", async () => {
     h.status = { ...ERROR_STATUS, paused: true };
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(screen.getByRole("button", { name: "Resume lane" }));
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     expect(h.toggleMutate).not.toHaveBeenCalled();
@@ -311,7 +313,7 @@ describe("Pause control when history cannot be read", () => {
 
   it("the query threw: the switch renders disabled with the reason", () => {
     h.isError = true;
-    render(<Pipeline />);
+    render(<Controls />);
     const toggle = screen.getByRole("button", { name: /pause lane|resume lane/i }) as HTMLButtonElement;
     expect(toggle.disabled).toBe(true);
     expect(screen.getByText(/pause state unknown until a refresh reads it/i)).toBeTruthy();
@@ -323,7 +325,7 @@ describe("Pause control when history cannot be read", () => {
 describe("Pause and resume", () => {
   it("(e) pause is one tap: no dialog, flag set to true", () => {
     h.status = measured({ paused: false });
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(screen.getByRole("button", { name: "Pause lane" }));
     expect(h.confirmDialog).not.toHaveBeenCalled();
     expect(h.toggleMutate).toHaveBeenCalledWith({ key: "ig_autopost_paused", value: true });
@@ -331,7 +333,7 @@ describe("Pause and resume", () => {
 
   it("(e) resume asks first; cancel changes nothing, confirm clears the flag", async () => {
     h.status = measured({ paused: true });
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Paused")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Resume lane" }));
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
@@ -347,11 +349,29 @@ describe("Pause and resume", () => {
 
   it("(f) an unreadable pause flag shows Unknown and disables the switch", () => {
     h.status = measured({ paused: null });
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Unknown")).toBeTruthy();
     const toggle = screen.getByRole("button", { name: /pause lane|resume lane/i }) as HTMLButtonElement;
     expect(toggle.disabled).toBe(true);
     fireEvent.click(toggle);
     expect(h.toggleMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("Phone targets (48 px)", () => {
+  it("Run a slot now, the pause switch and the disclosure hold a 48 px floor", () => {
+    h.status = measured();
+    const { container } = render(<Controls />);
+    expect(runNow().className).toMatch(/\bmin-h-12\b/);
+    expect(screen.getByRole("button", { name: /pause lane|resume lane/i }).className).toMatch(/\bmin-h-12\b/);
+    const disclosures = Array.from(container.querySelectorAll("summary"));
+    expect(disclosures.length).toBeGreaterThan(0);
+    for (const s of disclosures) expect(s.className).toMatch(/\bmin-h-12\b/);
+  });
+
+  it("Retry on a failed read holds a 48 px floor", () => {
+    h.status = ERROR_STATUS;
+    render(<Controls />);
+    expect(screen.getByRole("button", { name: "Retry" }).className).toMatch(/\bmin-h-12\b/);
   });
 });
