@@ -105,7 +105,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
 import { BUSINESS, SITE_URL } from "@shared/business";
-import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
+import { buildLlmsTxt } from "./llmsTxt";
 import { startTieredScheduler } from "../cron/scheduler";
 import { inFlightCronRuns, whenCronRunsSettled } from "../cron/index";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
@@ -690,10 +690,9 @@ async function startServer() {
   // so it works regardless of the prerendered-money-page coverage state.
   // 2026-08-19 · this handler is the ONLY /llms.txt that serves — it is
   // registered before serveStatic(), so the old client/public/llms.txt could
-  // never be reached and was deleted. Values below were verified against
-  // shared/business.ts canon on 2026-08-19 (prices, hours, warranty,
-  // financing, rating floor). If canon changes, change BOTH places — or
-  // better, derive this template from BUSINESS (follow-up).
+  // never be reached and was deleted.
+  // 2026-10-21 · the body lives in ./llmsTxt.ts and builds every price from
+  // canon (shared/business.ts, shared/pricing.ts), plus a tire-size section.
   // 2026-09-09 · the rating line is no longer one of those hand-maintained
   // facts: getReviewCopy() resolves it live (admin override > Google > static
   // floor, hour-cached) so a real move in the count reaches the answer engines.
@@ -703,41 +702,7 @@ async function startServer() {
     const b = SITE_URL;
     const { getReviewCopy } = await import("../lib/reviewCopy");
     const { rating: reviewRating, countDisplay: reviewCountDisplay } = await getReviewCopy();
-    res.send(`# Nick's Tire & Auto
-> Full-service auto repair and tire shop on Euclid Ave serving Cleveland, Euclid, and Northeast Ohio. Open 7 days, walk in (no appointment needed), written estimate before any work — you don't pay until you say yes.
-
-## Key facts
-- Address: 17625 Euclid Ave, Cleveland, OH 44112
-- Phone: (216) 862-0005
-- Hours: Monday-Saturday 8AM-6PM, Sunday 9AM-4PM (open 7 days a week)
-- Rating: ${reviewRating} stars from ${reviewCountDisplay} Google reviews
-- Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
-- No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
-- ${PAYMENT_PROGRAMS_SHORT}. ${PAYMENT_PROGRAMS_CREDIT_LINE}
-- Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Strongsville, Lyndhurst, Richmond Heights, Willoughby
-
-## Services
-- [Brake repair](${b}/brakes): Pads from $149/axle; pads + rotors from $149.99/axle, depending on vehicle. Free check and a written quote first.
-- [Tires - new & used](${b}/tires): Used from $25 installed (select 12-inch; most sizes $40-80), new from $89 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
-- [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free multi-point check included.
-- [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
-- [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Free readiness check before the state test.
-- [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
-- [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
-- [Payment programs](${b}/financing): five providers compared side by side; each provider decides approval.
-
-## Common questions
-- Why is my car shaking or vibrating when I brake? Usually a warped brake rotor: the surface is no longer flat, so the pad grabs unevenly and you feel it in the wheel or pedal. Common on Cleveland cars from stop-and-go traffic and winter heat cycles. The fix is resurfacing or replacing the rotor, most often as a pads + rotors job. Free check at 17625 Euclid Ave, written quote before any work.
-- Is it safe to drive with grinding brakes? No. Grinding means the pads are worn out and bare metal is cutting into the rotor, so every stop does more damage and your stopping distance gets longer. Get it checked the same day. Open 7 days, walk in or call (216) 862-0005.
-- How much does a brake job cost in Cleveland? At Nick's Tire & Auto: pad replacement from $149 per axle. Rotors and other parts depend on what the free check finds; you get a written quote before any work, and you don't pay until you say yes.
-- Where can I get brakes done near me in Cleveland (44112)? Nick's Tire & Auto, 17625 Euclid Ave, Cleveland, OH 44112 (east side), serving Euclid, East Cleveland, Cleveland Heights, South Euclid, and Lyndhurst. First-come-first-served, walk in 7 days a week, no appointment needed.
-
-## Guides
-- [Auto repair blog](${b}/blog): 120+ Cleveland-specific guides on brakes, tires, winter prep, repair costs, and common car problems.
-
-## Contact
-- Call or text (216) 862-0005 · 17625 Euclid Ave, Cleveland, OH 44112 · ${b}
-`);
+    res.send(buildLlmsTxt({ siteUrl: b, reviewRating, reviewCountDisplay }));
   });
 
   // /ai.txt and /llms-full.txt — retired 2026-09-07. Both were static,

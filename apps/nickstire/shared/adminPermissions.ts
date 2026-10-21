@@ -234,6 +234,10 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
 
   // Customer records.
   if (normalized.startsWith("customerevents.") || normalized.startsWith("garage.")) return "customers.manage";
+  // 2026-10-21 · front desk logs "an AI assistant sent this customer" at the counter;
+  // the summary is counts only (no customer data). Left unmapped, log fell to the
+  // owner-only mutation fallback.
+  if (normalized.startsWith("aireferrals.")) return "customers.manage";
 
   // Read-oriented analytics surfaces.
   if (

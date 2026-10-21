@@ -354,6 +354,7 @@ describe("the shop's weekday hours open at 8, everywhere", () => {
  */
 const SERVER_COPY_FILES = [
   "server/_core/index.ts",
+  "server/_core/llmsTxt.ts",
   "server/gemini.ts",
   "server/services/chatTools.ts",
   "server/services/gbpContentGenerator.ts",
