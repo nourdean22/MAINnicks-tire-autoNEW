@@ -197,7 +197,6 @@ describe("the duplicate-key and missing-table sites that regexed the wrapper (co
   // dashboardSync's regex named the table its own SQL reads, so every failure
   // of that job read as "migration not applied".
   it.each([
-    ["../services/recoveryLift.ts", /isUnknownColumnError\(v3err\)[\s\S]*isUnknownColumnError\(err\)/],
     ["../services/mediaRegistry.ts", /isMissingTableError\(err\)/],
     ["../cron/jobs/followupCadence.ts", /isDuplicateKeyError\(err\)/],
     ["../cron/jobs/dashboardSync.ts", /isMissingTableError\(error\)/],

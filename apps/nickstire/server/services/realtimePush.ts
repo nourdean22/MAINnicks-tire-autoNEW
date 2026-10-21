@@ -105,7 +105,9 @@ export async function sseHandler(req: any, res: any): Promise<void> {
 
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
+    // no-transform: the app-wide compression() middleware skips it. Without it
+    // gzip buffered every frame and the browser never received a byte.
+    "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
     "X-Accel-Buffering": "no",
   });

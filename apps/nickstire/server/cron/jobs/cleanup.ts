@@ -104,13 +104,16 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
   // specifically for cleanup scans, but I forgot to add the cleanup
   // block — audit caught it. 90-day retention keeps recent history for
   // operator debugging without unbounded growth.
+  // A once-per-state-for-good claim (sendOncePerStateEver, fired_for = EVER_FIRED_FOR) is the dedupe
+  // marker itself, not history: pruning it would re-send an urgent-review alert that is still unanswered.
   try {
     const { getDb } = await import("../../db");
     const { sql } = await import("drizzle-orm");
+    const { EVER_FIRED_FOR } = await import("../../services/alertClaim");
     const db = await getDb();
     if (db) {
       const [result] = await db.execute(sql`
-        DELETE FROM cron_alerts_fired WHERE fired_at < (NOW() - INTERVAL 90 DAY)
+        DELETE FROM cron_alerts_fired WHERE fired_at < (NOW() - INTERVAL 90 DAY) AND fired_for <> ${EVER_FIRED_FOR}
       `);
       const cronAlertsCleaned = (result as { affectedRows?: number })?.affectedRows ?? 0;
       cleaned += cronAlertsCleaned;

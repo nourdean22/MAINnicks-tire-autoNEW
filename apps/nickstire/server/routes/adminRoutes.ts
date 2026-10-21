@@ -179,8 +179,8 @@ export function registerAdminRoutes(app: Express): void {
   // IG+FB poster. In dryrun mode (the default until IG_AUTOPOST_DRYRUN=false)
   // it generates + dual-evals + sends a Telegram PREVIEW without posting, and
   // returns the run summary (status/scores). The full caption + image land in
-  // Telegram (notifyPreview) and ig_autopost_log. Mirrors the tRPC
-  // fireIgAutopostNow so the dryrun can be reviewed without a browser session.
+  // Telegram (notifyPreview) and ig_autopost_log. The admin run-now door is
+  // instagramAdmin.startAutopostRun; this one needs no browser session.
   app.post("/api/admin/ig-autopost-fire", requireAdminApiKey, async (req, res) => {
     try {
       const { runIgAutopostOneOff } = await import("../services/igAutopost");

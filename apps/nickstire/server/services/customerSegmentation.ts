@@ -78,20 +78,3 @@ export function segmentCustomer(params: {
 
   return { segment: "growing", score: 50, recommendedAction: "Standard engagement. Continue nurture." };
 }
-
-/** Get segment display info */
-export function getSegmentInfo(segment: CustomerSegment): { label: string; color: string; icon: string } {
-  const INFO: Record<CustomerSegment, { label: string; color: string; icon: string }> = {
-    vip: { label: "VIP", color: "#FDB913", icon: "crown" },
-    loyal: { label: "Loyal", color: "#27AE60", icon: "heart" },
-    growing: { label: "Growing", color: "#1E4D8C", icon: "trending-up" },
-    "one-timer": { label: "One-Timer", color: "#8B949E", icon: "user" },
-    "at-risk": { label: "At Risk", color: "#FF9800", icon: "alert-triangle" },
-    churned: { label: "Churned", color: "#FF3B30", icon: "user-x" },
-    fleet: { label: "Fleet", color: "#1E4D8C", icon: "truck" },
-    new: { label: "New", color: "#27AE60", icon: "star" },
-    referrer: { label: "Referrer", color: "#FDB913", icon: "users" },
-    "price-sensitive": { label: "Price-Sensitive", color: "#FF9800", icon: "dollar-sign" },
-  };
-  return INFO[segment];
-}

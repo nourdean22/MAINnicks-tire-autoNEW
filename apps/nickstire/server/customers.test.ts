@@ -96,7 +96,6 @@ describe("Customers Router", () => {
       expect(customersRouter._def.procedures.list).toBeDefined();
       expect(customersRouter._def.procedures.stats).toBeDefined();
       expect(customersRouter._def.procedures.getById).toBeDefined();
-      expect(customersRouter._def.procedures.updateSegment).toBeDefined();
       // Quick SMS
       expect(customersRouter._def.procedures.quickSms).toBeDefined();
       // Notes
@@ -107,7 +106,6 @@ describe("Customers Router", () => {
       // Export
       expect(customersRouter._def.procedures.exportCsv).toBeDefined();
       // Follow-ups
-      expect(customersRouter._def.procedures.recentFollowUps).toBeDefined();
     });
   });
 

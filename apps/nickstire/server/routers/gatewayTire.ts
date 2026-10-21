@@ -1229,26 +1229,6 @@ export const gatewayTireRouter = router({
       };
     }),
 
-  getOrder: adminProcedure
-    .input(z.object({ id: z.number().int() }))
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return null;
-
-      const results = await d.select().from(tireOrders).where(eq(tireOrders.id, input.id)).limit(1);
-      if (results.length === 0) return null;
-
-      const o = results[0];
-      return {
-        ...o,
-        pricePerTire: o.pricePerTire / 100,
-        serviceFeePerTire: o.serviceFeePerTire / 100,
-        totalAmount: o.totalAmount / 100,
-        statusLabel: getStatusLabel(o.status),
-        statusColor: getStatusColor(o.status),
-      };
-    }),
-
   updateOrder: adminProcedure
     .input(z.object({
       id: z.number().int(),
@@ -1458,58 +1438,6 @@ export const gatewayTireRouter = router({
     };
   }),
 
-  /**
-   * Cancellation money risks for the admin Tire Orders tab.
-   * 2026-06-10 checkout-protection wave — two states nothing else
-   * watches continuously:
-   *   refundNeeded   — cancelled but PAID: Stripe holds the customer's
-   *                    money and only a manual dashboard refund returns
-   *                    it (no refund API exists in this codebase).
-   *   staleSessions  — cancelled, unpaid, but a Stripe Checkout session
-   *                    was issued: the hosted page stays payable ~24h,
-   *                    so a customer can still pay for a cancelled order
-   *                    (createCheckout blocks NEW sessions only). Expire
-   *                    it in the Stripe dashboard to close the hole.
-   */
-  cancellationRisks: adminProcedure.query(async () => {
-    type RiskRow = {
-      id: number;
-      orderNumber: string;
-      customerName: string;
-      customerPhone: string;
-      totalAmount: number;
-      paymentStatus: string;
-      stripeSessionId: string | null;
-      updatedAt: Date;
-    };
-    const d = await db();
-    if (!d) return { refundNeeded: [] as RiskRow[], staleSessions: [] as RiskRow[] };
-    const rows = await d.select({
-      id: tireOrders.id,
-      orderNumber: tireOrders.orderNumber,
-      customerName: tireOrders.customerName,
-      customerPhone: tireOrders.customerPhone,
-      totalAmount: tireOrders.totalAmount,
-      paymentStatus: tireOrders.paymentStatus,
-      stripeSessionId: tireOrders.stripeSessionId,
-      updatedAt: tireOrders.updatedAt,
-    })
-      .from(tireOrders)
-      .where(and(
-        eq(tireOrders.status, "cancelled"),
-        sql`(${tireOrders.paymentStatus} = 'paid' OR ${tireOrders.stripeSessionId} IS NOT NULL)`,
-      ))
-      .orderBy(desc(tireOrders.updatedAt))
-      .limit(25) as RiskRow[];
-    const refundNeeded = rows
-      .filter((r: RiskRow) => r.paymentStatus === "paid")
-      .map((r: RiskRow) => ({ ...r, totalAmount: r.totalAmount / 100 }));
-    const staleSessions = rows
-      .filter((r: RiskRow) => r.paymentStatus !== "paid" && !!r.stripeSessionId)
-      .map((r: RiskRow) => ({ ...r, totalAmount: r.totalAmount / 100 }));
-    return { refundNeeded, staleSessions };
-  }),
-
   status: adminProcedure.query(async () => {
     const username = process.env.GATEWAY_TIRE_USERNAME;
     const password = process.env.GATEWAY_TIRE_PASSWORD;
@@ -1636,14 +1564,6 @@ export const gatewayTireRouter = router({
         await d.insert(shopSettings).values({ key: "tireMarkup", value: input.markup.toString(), category: "pricing", label: "Tire Markup %", updatedBy: "admin" });
       }
       return { success: true, markup: input.markup };
-    }),
-
-  portalUrl: adminProcedure
-    .input(z.object({ path: z.string().default("/"), search: z.string().optional() }).optional())
-    .query(({ input }) => {
-      let url = GATEWAY_PORTAL_BASE + (input?.path || "/");
-      if (input?.search) url = `${GATEWAY_PORTAL_BASE}/dashboard?search=${encodeURIComponent(input.search)}`;
-      return { url, accountId: process.env.GATEWAY_TIRE_USERNAME || "" };
     }),
 
   refundOrder: adminProcedure

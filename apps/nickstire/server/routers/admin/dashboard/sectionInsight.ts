@@ -19,39 +19,6 @@ import { inArray } from "drizzle-orm";
 
 
 export const sectionInsightProcedures = {
-  // Q-27 · reference customer-value ranking. Read-only and deliberately
-  // separate from every SMS/re-engagement action. The response labels its
-  // calibration as external CDNOW, not shop-fitted, so no surface can honestly
-  // present this as predicted revenue.
-  customerValueReferenceRanking: dbAdminProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(100).default(25) }).optional())
-    .query(async ({ input }) => {
-      try {
-        const { getCustomerValueReferenceRanking } = await import("../../../lib/customerValueRanking");
-        return await getCustomerValueReferenceRanking(input?.limit ?? 25);
-      } catch {
-        return {
-          rankingOnly: true as const,
-          calibration: "external-cdnow-reference-not-shop-fitted" as const,
-          horizonWeeks: 13 as const,
-          rows: [],
-          measuredRows: 0,
-        };
-      }
-    }),
-
-  // Read-only repeat-customer retention cohorts (one-and-done vs repeat,
-  // reactivation-eligible). Powers the customers-section insight below and any
-  // retention panel. NOTHING on the SMS send path.
-  retentionCohortSummary: dbAdminProcedure.query(async () => {
-    try {
-      const { getRetentionCohortSummary } = await import("../../../lib/retentionCohorts");
-      return await getRetentionCohortSummary();
-    } catch (e) {
-      void e;
-      return null;
-    }
-  }),
   sectionInsight: dbAdminProcedure
     .input(z.object({
       section: z.enum([
@@ -268,7 +235,7 @@ export const sectionInsightProcedures = {
                 variant: blockers.length >= 2 ? "danger" as const : "warning" as const,
                 message: `${blockers.length} revenue-cron gate${blockers.length === 1 ? "" : "s"} OFF · pipelines running but producing 0 sends. Blockers: ${blockers.join(" · ")}. All gates are production-safe to flip (at-most-once + TCPA + rate-limit guards verified wave-181.58 → wave-181.79).`,
                 metric: `${blockers.length} of 3 gates OFF`,
-                cta: { label: "Operator runbook", section: "settings", settingsTab: "flags" },
+                cta: { label: "Operator runbook", section: "settings", settingsTab: "shopdriver" },
               };
             }
             return null;

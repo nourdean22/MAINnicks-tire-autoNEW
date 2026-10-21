@@ -5,8 +5,8 @@
  * Caches results for 1 hour to avoid excessive API calls.
  *
  * When the API key is not configured, falls back to DB-stored review stats
- * (editable from admin dashboard) instead of returning null. Those stats are
- * ADMIN-ENTERED only: the automatic copy of Google's rating/count into
+ * instead of returning null. No admin screen writes them any more (2026-10-19);
+ * they were ADMIN-ENTERED only: the automatic copy of Google's rating/count into
  * shop_settings (saveBackupStatsToDb, updatedBy "system_sync") was removed in
  * Q-48 because the Places terms do not allow storing it.
  */
@@ -84,49 +84,6 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
     log.warn("[GoogleReviews] Review data fetch failed:", err instanceof Error ? err.message : err);
     return null;
   }
-}
-
-/**
- * Save review stats to the DB (used by admin mutation).
- */
-export async function saveReviewStatsToDb(stats: { count?: number; rating?: number }): Promise<void> {
-  const { getDb } = await import("./db");
-  const d = await getDb();
-  if (!d) throw new Error("Database not available");
-
-  if (stats.count !== undefined) {
-    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewCount")).limit(1);
-    if (existing.length > 0) {
-      await d.update(shopSettings).set({ value: String(stats.count), updatedBy: "admin" }).where(eq(shopSettings.key, "reviewCount"));
-    } else {
-      await d.insert(shopSettings).values({
-        key: "reviewCount",
-        value: String(stats.count),
-        label: "Google Review Count",
-        category: "general",
-        updatedBy: "admin",
-      });
-    }
-  }
-
-  if (stats.rating !== undefined) {
-    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewRating")).limit(1);
-    if (existing.length > 0) {
-      await d.update(shopSettings).set({ value: String(stats.rating), updatedBy: "admin" }).where(eq(shopSettings.key, "reviewRating"));
-    } else {
-      await d.insert(shopSettings).values({
-        key: "reviewRating",
-        value: String(stats.rating),
-        label: "Google Review Rating",
-        category: "general",
-        updatedBy: "admin",
-      });
-    }
-  }
-
-  // Bust the in-memory cache so next fetch picks up new values
-  cachedData = null;
-  cacheTimestamp = 0;
 }
 
 /**

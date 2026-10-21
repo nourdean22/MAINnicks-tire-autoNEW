@@ -7,8 +7,6 @@ import {
   runManufacturingPipeline,
   getReserveStatus,
   replenishReserve,
-  syncSocialMetrics,
-  attributeRevenueToSocial,
   detectServiceCategory,
   getServiceCoverageStatus,
   selectUnderservedService,
@@ -821,96 +819,6 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
       expect(result.success).toBe(true);
       expect(result.draftsCreated).toBe(1);
       expect(result.campaignRuns).toContain("brakes");
-    });
-  });
-
-  describe("syncSocialMetrics", () => {
-    beforeEach(() => {
-      mockInventoryResult = [];
-      mockInstagramAnalyticsResult = [];
-      mockCommLogResult = [];
-      mockSmsMessagesResult = [];
-      mockBookingsResult = [];
-    });
-
-    it("should match instagramAnalytics to socialContentInventory and sync metrics", async () => {
-      mockInventoryResult = [
-        {
-          id: "item_1",
-          status: "published",
-          hookText: "Don't drive on Cuyahoga winter roads without checking this",
-          bodyText: "Brake check info",
-          interactiveDmKeyword: "SURVIVE",
-          contentType: "reel",
-          platform: "instagram",
-          metricsReach: 0,
-          metricsEngagement: 0,
-        }
-      ];
-
-      mockInstagramAnalyticsResult = [
-        {
-          id: 101,
-          postId: "ig_post_123",
-          postType: "VIDEO",
-          caption: "Don't drive on Cuyahoga winter roads without checking this! Text SURVIVE for a checklist.",
-          likes: 12,
-          comments: 3,
-          reach: 150,
-          shares: 5,
-          saved: 8,
-        }
-      ];
-
-      const result = await syncSocialMetrics();
-      expect(result.matched).toBe(1);
-      expect(result.updated).toBe(1);
-    });
-  });
-
-  describe("attributeRevenueToSocial", () => {
-    beforeEach(() => {
-      mockInventoryResult = [];
-      mockInstagramAnalyticsResult = [];
-      mockCommLogResult = [];
-      mockSmsMessagesResult = [];
-      mockBookingsResult = [];
-    });
-
-    it("should attribute bookings to inventory items using interactiveDmKeyword", async () => {
-      mockInventoryResult = [
-        {
-          id: "item_1",
-          status: "published",
-          hookText: "Checking brakes",
-          bodyText: "Brake check info",
-          interactiveDmKeyword: "SURVIVE",
-          publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        }
-      ];
-
-      mockCommLogResult = [
-        {
-          phone: "2165551234",
-          body: "Please send me the SURVIVE checklist!",
-          createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-        }
-      ];
-
-      mockSmsMessagesResult = [];
-
-      mockBookingsResult = [
-        {
-          id: 501,
-          phone: "2165551234",
-          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        }
-      ];
-
-      const result = await attributeRevenueToSocial();
-      expect(result.itemsProcessed).toBe(1);
-      expect(result.bookingsAttributed).toBe(1);
     });
   });
 

@@ -12,7 +12,7 @@
 import { DrizzleQueryError } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "../_core/context";
-import { DEFAULT_AUTONOMY_POLICY, validateAutonomyPolicyShape, type AutonomyPolicy } from "../../client/src/lib/autonomyPolicy";
+import { DEFAULT_AUTONOMY_POLICY, type AutonomyPolicy } from "../../client/src/lib/autonomyPolicy";
 
 const state = vi.hoisted(() => ({
   rows: [] as Array<{ version: number; policyJson: string; note: string; createdBy: string }>,
@@ -99,14 +99,6 @@ beforeEach(() => {
 });
 
 describe("a limit edit changes one limit against the stored policy", () => {
-  it("CONTROL — what the phone used to publish fails the router's shape check", () => {
-    // collectCommandCenter's policy section, with source removed, is all the old editor sent.
-    const { version, operatingMode, emergencyControls, limits } = chosen;
-    const sent = { version, operatingMode, emergencyControls, limits: { ...limits, maxGenerationCostPerDayUsd: 0 } };
-    expect(validateAutonomyPolicyShape(sent)).toBe(false);
-    expect(validateAutonomyPolicyShape({ ...chosen, limits: sent.limits })).toBe(true);
-  });
-
   it("writes exactly the next version and keeps everything the phone did not send", async () => {
     await expect(setPolicyLimit("maxGenerationCostPerDayUsd", 0, "owner@nickstire.org")).resolves.toEqual({ version: 6 });
     const p = latest();

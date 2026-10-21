@@ -14,10 +14,7 @@ import {
   type PaidInvoiceObservation,
 } from "../services/revenueAttribution";
 import {
-  getRevenueJourney,
   resolveAttributionDecision,
-  runLegacyVapiBackfill,
-  runRevenueReconciliation,
 } from "../services/revenueReconciliation";
 
 const dateRangeSchema = z.object({
@@ -140,17 +137,6 @@ export const revenueAttributionRouter = router({
     };
   }),
 
-  reconciliationRuns: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(20) })).query(async ({ input }) => {
-    const db = await getDb();
-    if (!db) throw new Error("DB unavailable");
-    const raw = await db.execute(sql`
-      SELECT * FROM revenue_reconciliation_runs
-      ORDER BY started_at DESC
-      LIMIT ${input.limit}
-    `);
-    return rowsFromExecute<Record<string, unknown>>(raw);
-  }),
-
   reviewQueue: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(200).default(50) })).query(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
@@ -262,14 +248,6 @@ export const revenueAttributionRouter = router({
     };
   }),
 
-  reconcile: adminProcedure.input(dateRangeSchema.extend({
-    maxDays: z.number().int().min(1).max(30).default(14),
-  })).mutation(async ({ input }) => runRevenueReconciliation({
-    since: new Date(input.sinceISO),
-    until: input.untilISO ? new Date(input.untilISO) : new Date(),
-    maxDays: input.maxDays,
-  })),
-
   resolve: adminProcedure.input(z.object({
     callId: z.number().int().positive(),
     leadId: z.number().int().positive().nullable().optional(),
@@ -285,21 +263,4 @@ export const revenueAttributionRouter = router({
     ...input,
     decidedBy: ctx.user?.email ?? ctx.user?.name ?? "admin",
   })),
-
-  journey: adminProcedure.input(z.object({ callId: z.number().int().positive() })).query(async ({ input }) =>
-    getRevenueJourney(input.callId)),
-
-  legacyBackfill: adminProcedure.input(dateRangeSchema.extend({
-    mode: z.enum(["dry_run", "apply"]).default("dry_run"),
-    confirmation: z.string().optional(),
-  })).mutation(async ({ input }) => {
-    if (input.mode === "apply" && input.confirmation !== "APPLY_LEGACY_VAPI_BACKFILL") {
-      throw new Error("Applying the backfill requires confirmation: APPLY_LEGACY_VAPI_BACKFILL");
-    }
-    return runLegacyVapiBackfill({
-      since: new Date(input.sinceISO),
-      until: input.untilISO ? new Date(input.untilISO) : new Date(),
-      mode: input.mode,
-    });
-  }),
 });

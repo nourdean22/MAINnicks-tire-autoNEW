@@ -45,7 +45,7 @@ export interface TechPerformance {
  * discarded them. The cron callers pass persist=true; router/NickGPT
  * read paths keep the default (no writes on read).
  */
-export async function getTeamPerformance(persist = false): Promise<{
+export async function getTeamPerformance(): Promise<{
   techs: TechPerformance[];
   teamTotals: {
     totalJobs: number;
@@ -118,17 +118,6 @@ export async function getTeamPerformance(persist = false): Promise<{
 
     teamJobs += jobsCompleted;
     teamRevenue += Number(revenue);
-
-    if (persist) {
-      // Decimal columns take string values in drizzle.
-      await db.update(technicians)
-        .set({
-          qcPassRate: qcPassRate.toFixed(2),
-          comebackRate: comebackRate.toFixed(2),
-          totalJobsCompleted: jobsCompleted,
-        })
-        .where(eq(technicians.id, tech.id));
-    }
 
     results.push({
       techId: tech.id,

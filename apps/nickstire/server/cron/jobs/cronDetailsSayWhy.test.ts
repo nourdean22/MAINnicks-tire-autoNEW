@@ -51,13 +51,4 @@ describe("zero-record cron runs say why", () => {
       expect(r.details).toBe("flag predictive_maintenance_alerts off");
     });
   });
-
-  describe("customer segmentation (a documented no-op)", () => {
-    it("says who owns the work now, instead of a bare zero", async () => {
-      const { processCustomerSegmentation } = await import("./customerSegmentation");
-      const r = await processCustomerSegmentation();
-      expect(r.recordsProcessed).toBe(0);
-      expect(r.details).toContain("enrichCustomerData");
-    });
-  });
 });

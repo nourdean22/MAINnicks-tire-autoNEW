@@ -402,7 +402,7 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(h.callbackClaims).toHaveLength(15);
     for (const r of h.callbackRows) expect(String(r.context)).toMatch(/shadow mode/);
     expect(out).toMatchObject({ shadow: true, recordsProcessed: 0, candidates: 17, callbackRows: 15 });
-    expect(h.telegrams.join("\n")).toContain("15 callback rows written for the shop (Admin > Calls > Missed / Pending)");
+    expect(h.telegrams.join("\n")).toContain("15 callback rows written for the shop (Admin > Voice Receptionist > Calls > Missed / Pending)");
   });
 
   it("(c) LIVE: candidates past RUN_CAP get no callback row (they are not suppressed; the next run texts them)", async () => {

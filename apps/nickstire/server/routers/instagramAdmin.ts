@@ -1159,45 +1159,9 @@ Keep it under 200 characters.`;
       }
     }),
 
-  /** Recent AI generations (from ig_autopost_log).
-   *  @deprecated Zero client callers (audit R4, 2026-07-24) — its composer and
-   *  the generatePost co-pilot are gone. Kept only for its test coverage;
-   *  delete alongside the legacy queue. */
-  getRecentGenerations: adminProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(50).default(25) }).optional())
-    .query(async ({ input }): Promise<Array<{
-      id: number; archetype: string; conceptKey: string; status: string;
-      caption: string; imageUrl: string | null; overallScore: number | null;
-      source: string; createdAt: Date; error: string | null;
-      evalScoresJson: string | null;
-      igPostId: string | null;
-      fbPostId: string | null;
-    }>> => {
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — generation history cannot be read." });
-      const { igAutopostLog } = await import("../../drizzle/schema");
-      return database
-        .select({
-          id: igAutopostLog.id,
-          archetype: igAutopostLog.archetype,
-          conceptKey: igAutopostLog.conceptKey,
-          status: igAutopostLog.status,
-          caption: igAutopostLog.caption,
-          imageUrl: igAutopostLog.imageUrl,
-          overallScore: igAutopostLog.overallScore,
-          source: igAutopostLog.source,
-          createdAt: igAutopostLog.createdAt,
-          error: igAutopostLog.error,
-          evalScoresJson: igAutopostLog.evalScoresJson,
-        })
-        .from(igAutopostLog)
-        .orderBy(desc(igAutopostLog.createdAt))
-        .limit(input?.limit ?? 25);
-    }),
-
   /** Instagram image autopost lane: pause state, live/dry-run, today's slots,
    *  the last 20 runs and 7-day counts (contract AutopostLaneStatus v1). The
-   *  run-now door is nickActions.fireIgAutopostNow. */
+   *  run-now door is startAutopostRun below. */
   autopostLaneStatus: adminProcedure.query(async (): Promise<AutopostLaneStatus> =>
     readAutopostLaneStatus(await dbTyped()),
   ),
@@ -1214,8 +1178,7 @@ Keep it under 200 characters.`;
    *  once (a run outlasts the gateway timeout). Refused while another manual
    *  run is in flight. The outcome is the ig_autopost_log row (source "admin")
    *  that autopostLaneStatus shows; poll it while manualRun.inFlight is true.
-   *  nickActions.fireIgAutopostNow still awaits the run for the HTTP route and
-   *  the Nour-OS bridge. */
+   *  POST /api/admin/ig-autopost-fire still awaits the run (headless). */
   startAutopostRun: adminProcedure
     .input(z.object({ forceArchetype: z.enum(IG_ARCHETYPES).optional() }))
     .mutation(({ input }): StartAutopostRunResult => startManualAutopostRun(input.forceArchetype)),
@@ -1455,20 +1418,6 @@ Keep it under 200 characters.`;
     .query(async ({ input }) => {
       const { buildReelPipelineHealth } = await import("../services/reelPipelineHealth");
       return buildReelPipelineHealth(input?.windowDays ?? 30);
-    }),
-
-  reelRecoveryLedger: adminProcedure
-    .input(
-      z
-        .object({
-          limit: z.number().int().min(1).max(200).optional(),
-          jobId: z.number().int().positive().optional(),
-        })
-        .optional(),
-    )
-    .query(async ({ input }) => {
-      const { buildReelRecoveryLedger } = await import("../services/reelRecoveryLedger");
-      return buildReelRecoveryLedger({ limit: input?.limit, jobId: input?.jobId });
     }),
 
   /**
@@ -1747,111 +1696,6 @@ Keep it under 200 characters.`;
       preferredLane: api.configured === true ? ("api_key" as const) : ("cli_session" as const),
     };
   }),
-  getProviderHealth: adminProcedure.query(async () => {
-    // Text LLM (server/_core/llm.ts) prefers GEMINI_API_KEY, else OPENAI_API_KEY.
-    const geminiKey = !!process.env.GEMINI_API_KEY;
-    const openaiKey = !!process.env.OPENAI_API_KEY;
-    const textProvider: "gemini" | "openai" | "none" = geminiKey ? "gemini" : openaiKey ? "openai" : "none";
-
-    // Default must match the ENGINE's default (igAutopost.generatePostImage
-    // falls back to "adrender") — this panel used to claim "openai" while the
-    // engine rendered the branded poster, so the health card described a
-    // provider that wasn't in use.
-    let imageProvider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "adrender").toLowerCase();
-    let higgsfieldCreds = !!process.env.HIGGSFIELD_CREDENTIALS_JSON;
-    let recentRuns = 0;
-    let recentFailures = 0;
-    let lastError: string | null = null;
-    let lastErrorAt: Date | null = null;
-
-    try {
-      const database = await db();
-      if (database) {
-        const { appSecretKv, igAutopostLog } = await import("../../drizzle/schema");
-        const { inArray } = await import("drizzle-orm");
-        const kv = await database
-          .select()
-          .from(appSecretKv)
-          .where(inArray(appSecretKv.k, ["ig_autopost_image_provider", "higgsfield_credentials_json"]));
-        for (const r of kv) {
-          if (r.k === "ig_autopost_image_provider" && r.v) imageProvider = r.v.toLowerCase();
-          if (r.k === "higgsfield_credentials_json" && r.v) higgsfieldCreds = true;
-        }
-        const runs = await database
-          .select({ status: igAutopostLog.status, error: igAutopostLog.error, createdAt: igAutopostLog.createdAt })
-          .from(igAutopostLog)
-          .orderBy(desc(igAutopostLog.createdAt))
-          .limit(10);
-        recentRuns = runs.length;
-        // runs are ordered newest-first, so the first failed row we hit is the
-        // most recent failure (for-of avoids the dynamic-import any-inference).
-        for (const r of runs) {
-          if (r.status === "failed") {
-            recentFailures++;
-            if (!lastError && r.error) {
-              lastError = r.error;
-              lastErrorAt = r.createdAt;
-            }
-          }
-        }
-      }
-    } catch (err) {
-      log.error("getProviderHealth failed:", err);
-    }
-
-    // Is the ACTIVE image provider's credential actually present? Two prior
-    // lies fixed here: the real default "adrender" (the deterministic branded
-    // poster) needs NO AI key at all but fell through to the openai branch and
-    // reported unconfigured; anything unrecognized now reports false instead
-    // of borrowing openai's status.
-    // Same presence-vs-liveness correction as getPipelineHealth. `higgsfieldCreds`
-    // proves a blob exists; it does NOT prove the session works, and IG autopost
-    // image generation runs through that same session.
-    const { higgsfieldSessionLiveness } = await import("../services/higgsfieldStudio");
-    const hfSession = await higgsfieldSessionLiveness();
-    const imageHealthy =
-      imageProvider === "adrender" ? true
-      : imageProvider === "higgsfield" ? hfSession.live === true
-      : imageProvider.includes("gemini") ? geminiKey
-      : imageProvider === "openai" || imageProvider === "openrouter" ? openaiKey
-      : false;
-
-    return {
-      text: {
-        provider: textProvider,
-        configured: textProvider !== "none",
-        openaiFallback: !geminiKey && openaiKey,
-      },
-      image: {
-        provider: imageProvider,
-        configured: imageHealthy,
-        /** PRESENCE of the credentials blob - not liveness. See higgsfieldSession. */
-        higgsfieldCreds,
-        higgsfieldSession: {
-          live: hfSession.live,
-          balanceCredits: hfSession.balanceCredits,
-          checkedAt: hfSession.checkedAt,
-          reason: hfSession.reason,
-        },
-      },
-      autopost: { recentRuns, recentFailures, lastError, lastErrorAt },
-    };
-  }),
-
-  /** Regenerate an image from a prompt (re-roll the visual while keeping a
-   *  winning caption, or generate one for a custom post). Wraps the autopost
-   *  image generator (which throws) into an ok/error result. */
-  regenerateImage: adminProcedure
-    .input(z.object({ prompt: z.string().min(3).max(1000) }))
-    .mutation(async ({ input }) => {
-      const { generatePostImage } = await import("../services/igAutopost");
-      try {
-        const res = await generatePostImage(input.prompt);
-        return { ok: true as const, url: res.url };
-      } catch (err) {
-        return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
-      }
-    }),
 
   /** Milestone 1 (Creative Compiler 2.0): record an authenticated operator
    *  "publish anyway" override that accepts specific ADVISORY quality findings,
@@ -1977,7 +1821,7 @@ Keep it under 200 characters.`;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
-        const { eq, and } = await import("drizzle-orm");
+        const { eq } = await import("drizzle-orm");
         const rows = await database
           .select()
           .from(socialContentInventory)
@@ -2911,18 +2755,6 @@ Keep it under 200 characters.`;
       }
       return { success: true, revokedApprovals };
     }),
-
-  // §K.4 real-shop media flywheel — "Capture opportunity" for the Today tab:
-  // subjects the upcoming slate needs a real photo of and the pool cannot
-  // supply. Read-only. A pool-read failure throws (dbAdminProcedure + the
-  // service), so the card renders unknown rather than a clean empty list.
-  getCaptureOpportunities: dbAdminProcedure.query(async () => {
-    const { getDbTyped } = await import("../db");
-    const database = await getDbTyped();
-    if (!database) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — capture opportunities are unknown, not empty." });
-    const { captureOpportunities } = await import("../services/instagramAdminStrategy");
-    return captureOpportunities(database);
-  }),
 
   /** Creative Assistant (Wave C, README §M) — "what should we make today?"
    *  Five cards max, each with the exact signal lines it was ranked on; a

@@ -66,9 +66,7 @@ describe("Advanced Features Schema", () => {
 describe("Advanced Routers Export", () => {
   it("should export all advanced routers", async () => {
     const routers = await import("./routers/advanced");
-    expect(routers.jobAssignmentsRouter).toBeDefined();
     expect(routers.invoicesRouter).toBeDefined();
-    expect(routers.kpiRouter).toBeDefined();
     expect(routers.portalRouter).toBeDefined();
   });
 });

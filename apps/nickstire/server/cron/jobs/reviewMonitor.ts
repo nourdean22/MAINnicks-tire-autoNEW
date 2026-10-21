@@ -121,7 +121,7 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
         const { notifySystemAlert } = await import("../../email-notify");
         await notifySystemAlert({
           title: "Low Rating Review Alert",
-          message: `⚠️ ${lowRatingCount} new review(s) with 3 stars or below detected. Check admin → Review Replies to respond.`,
+          message: `⚠️ ${lowRatingCount} new review(s) with 3 stars or below detected. Reply on Google (Business Profile reviews).`,
         });
       } catch (err) {
         log.error("Failed to send low-rating alert", { error: err instanceof Error ? err.message : String(err) });
