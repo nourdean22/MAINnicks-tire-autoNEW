@@ -1112,9 +1112,12 @@ function buildTiers(): void {
       // disappeared: admin_login probes fired exactly ONCE in 7 days
       // because the PWA session persists — no fresh logins, no daytime
       // sync). This 8 PM ET probe runs AFTER close (Mon–Sat 6 PM, Sun
-      // 4 PM), so it cannot kick the shop counter's ShopDriver session —
-      // the 2026-05-05 shop-protect directive stands. Net: today's sales
-      // appear on the admin the same evening.
+      // 4 PM), so it cannot kick the shop counter's ShopDriver session.
+      // 2026-10-21: the shop-protect directive no longer holds for the
+      // daytime. Nour chose "Refresh syncs anytime": a full admin page load
+      // or refresh also syncs (reason admin_refresh, at most every 30 min,
+      // any hour, lib/adminActivity.ts), accepting counter logouts. Syncs
+      // now run: page loads, 3 AM, 8 PM, OAuth login and the manual buttons.
       {
         name: "alg-evening-probe",
         handler: async () => {
@@ -1168,7 +1171,9 @@ function buildTiers(): void {
       //   2. chat_query     — Nick chat asks for fresh data
       //   3. manual_refresh — admin clicks "Refresh from ALG" button
       //   4. overnight      — single 3 AM ET probe (shop closed)
-      // Net effect: probes drop from ~12/hour to ~3-5/day under normal use.
+      //   5. admin_refresh  — 2026-10-21: a full admin page load, <= 1 per 30 min
+      // Net effect: probes drop from ~12/hour to ~3-5/day under normal use
+      // (more on days Nour reloads the admin; each costs a counter logout).
       // See: server/services/algProbeBudget.ts
       {
         name: "abandoned-forms",

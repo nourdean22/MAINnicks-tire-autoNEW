@@ -16,11 +16,17 @@
  *    can earn a stronger word — that is an operator-verified event, not a
  *    styling decision.
  *
- * 2. It does not default to TODAY. The ALG mirror runs a day behind, so today's
+ * 2. It does not default to TODAY, though Today and Yesterday are chips (the owner
+ *    asked for the day, 2026-10-21). The ALG mirror runs a day behind, so today's
  *    invoice count is structurally 0 every morning; a "$0 today" tile reads as a
  *    dead shop rather than a sync lag. It defaults to a completed 7-day window
  *    and always prints the through-date, which is the same reasoning that made
- *    controlCenter.todayPulse exclude "sales today" deliberately.
+ *    controlCenter.todayPulse exclude "sales today" deliberately. A single day that
+ *    no successful ShopDriver sync has covered (`windowSynced` false, read from the
+ *    sync log, never from the newest invoice) renders "Not synced yet" INSTEAD of the
+ *    figure: not synced is not $0. A day a sync has covered with no invoices (a
+ *    holiday) is a real $0 and still shows it, labelled with the sync time. An
+ *    unreadable sync log (`windowSynced` null) is "Sync status unknown", never synced.
  *
  * 3. It never renders a failed read as $0. The procedure returns a discriminated
  *    union, so the unavailable branch has no number to show.
@@ -30,13 +36,15 @@
  * reconciling it needs pending/partial/refunded, and they are the same person on
  * a different day.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
-type Period = "last_7d" | "last_30d" | "month_to_date" | "prev_month";
+type Period = "today" | "yesterday" | "last_7d" | "last_30d" | "month_to_date" | "prev_month";
 
 const PERIODS: { id: Period; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "yesterday", label: "Yesterday" },
   { id: "last_7d", label: "7 days" },
   { id: "last_30d", label: "30 days" },
   { id: "month_to_date", label: "This month" },
@@ -48,11 +56,84 @@ function dollars(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
+type SyncState =
+  | { state: "ok"; etDate: string; etTime: string }
+  | { state: "never" }
+  | { state: "unreadable" };
+
+/** When the figure was last current, from the ShopDriver sync log. Never invents a time. */
+function syncCaption(period: Period, sync: SyncState): string {
+  if (sync.state === "ok") {
+    return period === "today"
+      ? `so far today, as of ${sync.etTime} ET`
+      : `current as of ${sync.etDate} ${sync.etTime} ET`;
+  }
+  return sync.state === "never" ? "no ShopDriver sync on record" : "sync time unknown";
+}
+
+/** What a single day shows INSTEAD of a figure when no sync covers it, or the log is unreadable. */
+function dayNotShownText(period: Period, windowSynced: boolean | null, sync: SyncState): string {
+  const which = period === "today" ? "today" : "yesterday";
+  if (windowSynced === null) {
+    return `Sync status unknown: the ShopDriver sync log could not be read, so ${which}'s total is not shown.`;
+  }
+  const head = period === "today" ? "Not synced yet today." : "Not synced yet for yesterday.";
+  if (sync.state === "ok") return `${head} Last ShopDriver sync: ${sync.etDate} ${sync.etTime} ET.`;
+  return `${head} No ShopDriver sync on record.`;
+}
+
+// How the card follows a running probe: every 15 s for the first 3 minutes, then every 60 s while
+// the latest read still says one is running, and it gives up after 20 minutes. A probe that takes
+// longer than 3 minutes (a slow ShopDriver) used to freeze the card on the pre-sync numbers.
+const SYNC_POLL_FAST_MS = 15_000;
+const SYNC_POLL_FAST_FOR_MS = 3 * 60_000;
+const SYNC_POLL_SLOW_MS = 60_000;
+const SYNC_POLL_GIVE_UP_MS = 20 * 60_000;
+
 export default function SalesCard() {
   const [period, setPeriod] = useState<Period>("last_7d");
   const [showDetail, setShowDetail] = useState(false);
-  const query = trpc.controlCenter.shopSales.useQuery({ period });
+  // The sync itself is started by the admin shell on a page load (useSyncOnAdminLoad). This card
+  // only follows it: while the read says a probe is running (`syncInFlight`: this load's refresh,
+  // an OAuth callback, chat, a second tab, a manual sync-now) it keeps re-reading on the schedule
+  // above, so the new numbers appear without a manual refresh. The read that says "not running"
+  // is itself the final read: its in-flight check runs before its data reads. It shows only what
+  // the read returned.
+  const followStartedAt = useRef<number | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
+  const query = trpc.controlCenter.shopSales.useQuery(
+    { period },
+    {
+      refetchInterval: (q) => {
+        const d = q.state.data;
+        if (d?.available !== true || !d.syncInFlight) {
+          followStartedAt.current = null;
+          return false;
+        }
+        followStartedAt.current ??= Date.now();
+        const since = Date.now() - followStartedAt.current;
+        if (since >= SYNC_POLL_GIVE_UP_MS) return false;
+        return since < SYNC_POLL_FAST_FOR_MS ? SYNC_POLL_FAST_MS : SYNC_POLL_SLOW_MS;
+      },
+    },
+  );
   const data = query.data;
+  const inFlight = data?.available === true && data.syncInFlight;
+  useEffect(() => {
+    if (!inFlight) {
+      followStartedAt.current = null;
+      setGaveUp(false);
+      return;
+    }
+    followStartedAt.current ??= Date.now();
+    const t = setTimeout(() => setGaveUp(true), SYNC_POLL_GIVE_UP_MS);
+    return () => clearTimeout(t);
+  }, [inFlight]);
+  // The line is on for as long as the server says a probe runs AND we are still following it.
+  const following = inFlight && !gaveUp;  // Decided from the period the server answered for, not the chip just tapped. A single day
+  // shows its figure only when a successful ShopDriver sync covers it (windowSynced === true).
+  const singleDay = data?.available === true && (data.period === "today" || data.period === "yesterday");
+  const dayNotShown = singleDay && data.windowSynced !== true;
 
   return (
     <section
@@ -80,6 +161,12 @@ export default function SalesCard() {
         </div>
       </div>
 
+      {following && (
+        <div role="status" className="mb-2 flex items-center gap-2 text-xs text-foreground/60">
+          <Loader2 className="w-3 h-3 animate-spin" /> Syncing the invoice mirror from ShopDriver…
+        </div>
+      )}
+
       {query.isLoading && (
         <div className="flex items-center gap-2 text-sm text-foreground/60">
           <Loader2 className="w-4 h-4 animate-spin" /> Reading invoices…
@@ -97,7 +184,12 @@ export default function SalesCard() {
         </div>
       )}
 
-      {data?.available === true && (
+      {/* A day no ShopDriver sync has covered has no invoices YET: say so, print no figure. */}
+      {data?.available === true && dayNotShown && (
+        <div className="text-sm text-foreground/70">{dayNotShownText(data.period, data.windowSynced, data.sync)}</div>
+      )}
+
+      {data?.available === true && !dayNotShown && (
         <>
           <div className="flex items-baseline gap-3 flex-wrap">
             <span className="text-3xl font-semibold tabular-nums">{dollars(data.cents)}</span>
@@ -110,6 +202,7 @@ export default function SalesCard() {
           <div className="mt-1 text-xs text-foreground/50">
             Billed (invoice date), gross incl. tax · not yet reconciled to the shop report
             {data.throughDate ? ` · mirror current through ${data.throughDate}` : " · mirror through-date unknown"}
+            {` · ${syncCaption(data.period, data.sync)}`}
           </div>
 
           <button

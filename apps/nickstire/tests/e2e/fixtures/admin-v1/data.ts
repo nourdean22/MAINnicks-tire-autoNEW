@@ -271,6 +271,8 @@ export const HANDLERS = {
     period: "last_7d",
     window: { fromISO: "2026-10-07", toISO: "2026-10-13", label: "Last 7 days" },
     throughDate: "2026-10-13",
+    sync: { state: "ok", lastAt: "2026-10-14T00:00:00.000Z", etDate: "2026-10-13", etTime: "8:00 PM" },
+    windowSynced: true,
     basis: "invoice_date",
     grossOrNet: "gross_tax_inclusive",
     definitionVersion: "demo",
@@ -278,6 +280,8 @@ export const HANDLERS = {
     reconciledToShopReport: false,
     caveats: [],
   }),
+  // The Billed card asks for a sync once per page load; the fixture says one ran within 30 min.
+  "shopdriver.syncOnAdminLoad": () => ({ started: false }),
   "controlCenter.todayPulse": (_i, c) => ({
     available: true,
     declinedWork: { openCount: 3, openCents: 94_000, last30: 11 },

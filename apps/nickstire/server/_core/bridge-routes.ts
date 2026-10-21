@@ -1072,7 +1072,8 @@ export function registerBridgeRoutes(app: Express): void {
     if (!passesHeavySyncGate("trigger-mirror", req, res)) return;
     try {
       const { runFullMirror, debugLastFetch } = await import("../services/shopDriverMirror");
-      const result = await runFullMirror();
+      const { recordExternalSync } = await import("../services/algProbeBudget");
+      const result = await recordExternalSync("bridge_mirror", () => runFullMirror());
       res.json({ success: true, ...result, debug: debugLastFetch(), timestamp: new Date().toISOString() });
     } catch (err: unknown) {
       log.error("[Bridge] Mirror trigger error:", err);
@@ -1101,7 +1102,8 @@ export function registerBridgeRoutes(app: Express): void {
     // 1. Mirror sync (ALG → DB)
     try {
       const { runFullMirror } = await import("../services/shopDriverMirror");
-      results.mirror = await runFullMirror();
+      const { recordExternalSync } = await import("../services/algProbeBudget");
+      results.mirror = await recordExternalSync("bridge_full_sync", () => runFullMirror());
     } catch (e: unknown) {
       results.mirror = { error: (e as Error).message };
     }

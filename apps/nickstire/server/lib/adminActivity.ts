@@ -12,12 +12,21 @@
  *   actively using their counter and we DO NOT probe.
  *
  * How it works:
- *   - Every adminProcedure call touches this tracker.
- *   - Every /admin page view pings POST /api/admin/ping which touches it.
- *   - Bridge requests from autonicks.com (via BRIDGE_API_KEY) touch it too.
+ *   - Every adminProcedure call touches this tracker (server/_core/trpc.ts).
+ *     That is the ONLY caller of touchAdminActivity: there is no /api/admin/ping
+ *     route and no bridge hook in this repo (checked 2026-10-21; this header
+ *     used to claim both).
  *   - Cron jobs that auth against ShopDriver/ALG check isAdminSessionActive()
  *     before running. If false, they skip with a "shop-protected" result.
  *   - Admin UI has a "Force Sync Now" button that bypasses the gate.
+ *   - SYNC ON PAGE LOAD (Nour, 2026-10-21, "Refresh syncs anytime"): a full
+ *     admin page load or refresh syncs ShopDriver through
+ *     maybeFireAdminRefreshProbe, at most once per 30 minutes, at any hour.
+ *     Nour accepted that each sync re-authenticates ShopDriver and logs the
+ *     shop counter out. A touch alone (every click) NEVER probes. This
+ *     replaced the 6 h "resume edge" rule (first touch after 6 h of silence).
+ *     Other ALG syncs: 3 AM and 8 PM ET (scheduler), OAuth login, the manual
+ *     refresh buttons and the Nick chat.
  *
  * Design notes:
  *   - Pure in-memory on the server. Resets on restart — safe, cron just
@@ -27,119 +36,136 @@
 
 interface AdminActivityState {
   lastTouchMs: number;
-  /**
-   * Last REAL human touch (adminProcedure / ping / bridge) — never set by
-   * the synthetic startup arm. Strike-1 fix: the resume edge must be
-   * computed from HUMAN inactivity. Pre-fix it read `lastTouchMs`, which
-   * the boot arm back-dates ~8 min — so a deploy shortly before the
-   * operator's morning open erased their 10-hour gap and suppressed the
-   * first real resume probe of the day.
-   */
-  lastRealTouchMs: number;
   totalTouches: number;
   lastSource: string | null;
 }
 
 const state: AdminActivityState = {
   lastTouchMs: 0,
-  lastRealTouchMs: 0,
   totalTouches: 0,
   lastSource: null,
 };
 
-/** Record admin activity. Called by adminProcedure middleware, /admin pings, bridge calls. */
+/**
+ * Record admin activity (called by the adminProcedure middleware). It only
+ * records: syncing ShopDriver on a page load is maybeFireAdminRefreshProbe,
+ * called by one deliberate door, because a touch happens on every click.
+ */
 export function touchAdminActivity(source: string = "unknown"): void {
-  const prevRealTouchMs = state.lastRealTouchMs;
-  const now = Date.now();
-  state.lastTouchMs = now;
-  state.lastRealTouchMs = now;
+  state.lastTouchMs = Date.now();
   state.totalTouches++;
   state.lastSource = source;
-
-  // Session-resume ALG probe (2026-07-28). The 2026-05-05 "probe on admin
-  // login" trigger fires in the OAuth CALLBACK — but the session cookie
-  // lasts 30 days, so real callbacks happen ~monthly (verified in prod:
-  // last admin.login compliance row 07-23 while lastSignedIn bumped daily
-  // via cookie auth). "Login" was a proxy for "operator sat down at the
-  // admin"; this detects that directly: first HUMAN touch after a long
-  // human gap (the synthetic startup arm never counts — see
-  // lastRealTouchMs). The DB-side throttle below is what keeps deploys
-  // and back-to-back edges from kicking the counter's session.
-  if (isResumeEdge(prevRealTouchMs, now)) {
-    void maybeFireSessionResumeProbe(source);
-  }
 }
 
-// ─── Session-resume ALG probe ─────────────────────────────
-const RESUME_GAP_MS = 6 * 60 * 60 * 1000; // ≥6h of admin silence = a new sitting
-const RESUME_MIN_PROBE_INTERVAL_MS = 4 * 60 * 60 * 1000; // and ≥4h since ANY successful probe
-let resumeProbeInFlight = false;
-
+// ─── ALG sync on an admin page load ───────────────────────
 /**
- * A resume edge is the moment the operator comes back to the admin after
- * a long HUMAN gap. Callers pass the previous REAL touch (never the
- * synthetic startup arm). prevRealTouchMs === 0 (no human touch since
- * boot) only NOMINATES an edge — Railway redeploys many times a day
- * here, so the DB-side probe-interval check in
- * maybeFireSessionResumeProbe is what prevents a counter-session kick on
- * every deploy. Exported for unit tests.
+ * DECISION, Nour, 2026-10-21 ("Refresh syncs anytime"): sync ShopDriver on every
+ * admin page load or refresh, at most every 30 min, at any hour, accepting that
+ * each sync re-authenticates ShopDriver and logs the shop counter out. This
+ * replaced the 2026-07-28 resume-edge rule (first touch after 6 h of silence,
+ * 4 h between probes), which never fired in a day of steady use.
  */
-export function isResumeEdge(prevRealTouchMs: number, nowMs: number, gapMs: number = RESUME_GAP_MS): boolean {
-  return prevRealTouchMs === 0 || nowMs - prevRealTouchMs >= gapMs;
-}
+export const REFRESH_PROBE_MIN_INTERVAL_MS = 30 * 60 * 1000;
+let refreshProbeInFlight = false;
 
 /**
  * Probe outcomes that ATTEMPTED an ALG authentication — the thing that
  * kicks the shop counter's ShopDriver session. Strike-1 fix: the
  * throttle previously counted only `success`, so an `empty` probe ten
  * minutes ago (auth happened, no new records) didn't suppress the next
- * resume probe — repeated kicks. `dedup`/`skipped_recent` never reach
+ * probe — repeated kicks. `dedup`/`skipped_recent` never reach
  * auth and deliberately don't count. Exported for unit tests.
  */
 export const AUTH_ATTEMPTING_OUTCOMES = ["success", "empty", "auth_failed", "error"] as const;
 
+/** Is this process starting or running a page-load refresh probe? The sales read reports it so the card can follow it. */
+export function isAdminRefreshProbeInFlight(): boolean {
+  return refreshProbeInFlight;
+}
+
+export interface AdminRefreshProbeResult {
+  /** True when this call started a probe. False: in flight already, too soon, or the log was unreadable. */
+  started: boolean;
+  /** Resolves when the probe and its follow-up end; never rejects. Callers that must not wait ignore it. */
+  done: Promise<void>;
+}
+
 /**
- * Fire ONE ALG probe for this sitting, throttled restart-proof:
- * skip unless the last AUTH-ATTEMPTING probe (any reason, per
- * alg_probe_log) is older than RESUME_MIN_PROBE_INTERVAL_MS. Each
- * attempt re-auths ALG and kicks the shop counter's ShopDriver session
- * once — same cost the operator accepted for the login trigger,
- * ~1-3×/day in practice (morning open; afternoon return;
- * overnight/evening probes already cover the rest).
+ * Sync ShopDriver for a full admin page load, throttled restart-proof: start a
+ * probe only when the last AUTH-ATTEMPTING probe (any reason, per
+ * alg_probe_log) is at least REFRESH_PROBE_MIN_INTERVAL_MS old. The decision is
+ * returned as soon as it is made; the probe runs behind it, and a failure of
+ * any kind stays inside `done` and never reaches the admin request. An
+ * unreadable log means "do not probe": unknown is not "due".
+ *
+ * shortcut: the in-process flag plus the log read is not an atomic claim. During
+ * a Railway redeploy the old and new instance can both pass the read and each
+ * probe once (algProbeBudget's own 30 s dedup is per process too). That costs
+ * one extra counter logout per deploy at most. Upgrade to a conditional claim
+ * row if alg_probe_log ever shows two admin_refresh rows inside one minute.
  */
-async function maybeFireSessionResumeProbe(source: string): Promise<void> {
-  if (resumeProbeInFlight) return;
-  resumeProbeInFlight = true;
+export async function maybeFireAdminRefreshProbe(source: string): Promise<AdminRefreshProbeResult> {
+  if (refreshProbeInFlight) return { started: false, done: Promise.resolve() };
+  refreshProbeInFlight = true;
+  let handedOff = false;
   try {
+    // In-memory floor: every auth attempt THIS process started, stamped when it STARTED (the
+    // budget sets lastProbeStartedAt before the probe runs, not when it logs). writeProbeLog
+    // swallows insert errors, so a probe that authenticated but could not log leaves no durable
+    // row, and the SQL age below would call the next load due at once (the budget's own success
+    // TTL is only 5 min, and empty / auth_failed / error have none). Both ages must be 30 min.
+    const { getProbeBudgetState } = await import("../services/algProbeBudget");
+    const lastStartedIso = getProbeBudgetState().lastProbeStartedAt;
+    if (lastStartedIso && Date.now() - new Date(lastStartedIso).getTime() < REFRESH_PROBE_MIN_INTERVAL_MS) {
+      return { started: false, done: Promise.resolve() };
+    }
+
     const { getDb } = await import("../db");
     const d = await getDb();
-    if (!d) return;
+    if (!d) return { started: false, done: Promise.resolve() };
     const { algProbeLog } = await import("../../drizzle/schema");
-    const { desc, inArray } = await import("drizzle-orm");
+    const { desc, inArray, sql } = await import("drizzle-orm");
+    // The age is computed IN SQL (apps/nickstire/AGENTS.md > Time): the driver hands a
+    // timestamp back shifted by the ET offset, so `Date.now() - startedAt` in JS can be hours
+    // off in either direction. startedAt is written by the column default (CURRENT_TIMESTAMP,
+    // see algProbeBudget.writeProbeLog, which never sets it), so NOW() is the same clock.
     const [lastAuthAttempt] = await d
-      .select({ startedAt: algProbeLog.startedAt })
+      .select({ ageSeconds: sql<number | null>`TIMESTAMPDIFF(SECOND, ${algProbeLog.startedAt}, NOW())` })
       .from(algProbeLog)
       .where(inArray(algProbeLog.outcome, [...AUTH_ATTEMPTING_OUTCOMES]))
       .orderBy(desc(algProbeLog.startedAt))
       .limit(1);
-    if (lastAuthAttempt?.startedAt && Date.now() - new Date(lastAuthAttempt.startedAt).getTime() < RESUME_MIN_PROBE_INTERVAL_MS) {
-      return; // an auth already happened recently — don't kick the counter again
+    if (lastAuthAttempt) {
+      const ageSeconds = Number(lastAuthAttempt.ageSeconds);
+      // A row whose age cannot be read is UNKNOWN, not "due": do not probe.
+      if (!Number.isFinite(ageSeconds) || ageSeconds * 1000 < REFRESH_PROBE_MIN_INTERVAL_MS) {
+        return { started: false, done: Promise.resolve() }; // an auth already happened recently — don't kick the counter again
+      }
     }
 
-    const { requestAlgProbe } = await import("../services/algProbeBudget");
-    const result = await requestAlgProbe("admin_login", { detail: `session-resume:${source}` });
-    if (result.outcome === "success") {
-      // Parity with the OAuth login path — fold fresh invoices/estimates
-      // into the materialized customer aggregates before the operator
-      // opens the customers admin.
-      const { refreshCustomerMetrics } = await import("../services/customerMetricsRefresh");
-      await refreshCustomerMetrics();
-    }
+    handedOff = true;
+    const done = (async () => {
+      try {
+        const { requestAlgProbe } = await import("../services/algProbeBudget");
+        const result = await requestAlgProbe("admin_refresh", { detail: `page-load:${source}` });
+        if (result.outcome === "success") {
+          // Parity with the OAuth login path — fold fresh invoices/estimates
+          // into the materialized customer aggregates before the operator
+          // opens the customers admin.
+          const { refreshCustomerMetrics } = await import("../services/customerMetricsRefresh");
+          await refreshCustomerMetrics();
+        }
+      } catch {
+        // a failed freshness probe must never break the admin request
+      } finally {
+        refreshProbeInFlight = false;
+      }
+    })();
+    return { started: true, done };
   } catch {
-    // fire-and-forget — a failed freshness probe must never break the
-    // admin request that triggered it
+    return { started: false, done: Promise.resolve() };
   } finally {
-    resumeProbeInFlight = false;
+    if (!handedOff) refreshProbeInFlight = false;
   }
 }
 

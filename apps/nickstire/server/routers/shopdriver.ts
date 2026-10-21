@@ -274,7 +274,9 @@ export const shopdriverRouter = router({
    */
   forceSyncNow: adminProcedure.mutation(async ({ ctx }) => {
     const { runFullMirror } = await import("../services/shopDriverMirror");
-    const result = await runFullMirror();
+    const { recordExternalSync } = await import("../services/algProbeBudget");
+    // Outside the budget on purpose (it must run), but recorded: a row in alg_probe_log and the in-memory start stamp.
+    const result = await recordExternalSync("force_sync", () => runFullMirror());
 
     const { logAdminAction } = await import("../services/auditTrail");
     logAdminAction({
@@ -326,6 +328,21 @@ export const shopdriverRouter = router({
 
       return res;
     }),
+
+  /**
+   * Sync ShopDriver because the admin was just loaded or refreshed (Nour,
+   * 2026-10-21: "Refresh syncs anytime"). The client calls this ONCE per full
+   * page load, never per click or in-app navigation. At most one probe per 30
+   * min, any hour (lib/adminActivity.ts owns the throttle). Returns as soon as
+   * the decision is made; the probe runs behind the response, so the caller
+   * polls its own reads to see the new numbers. `started: false` means a
+   * probe ran within 30 min, one is running, or the log could not be read.
+   */
+  syncOnAdminLoad: adminProcedure.mutation(async () => {
+    const { maybeFireAdminRefreshProbe } = await import("../lib/adminActivity");
+    const { started } = await maybeFireAdminRefreshProbe("admin-load");
+    return { started };
+  }),
 
   /**
    * Read the last N probe attempts. For the admin "Probe Log" panel —
@@ -608,6 +625,10 @@ export const shopdriverRouter = router({
   syncInvoices: adminProcedure.mutation(async () => {
     const d = await db();
     if (!d) return { success: false, error: "Database unavailable", synced: 0 };
+    // This is a partial pull (the newest 50 tickets), not runFullMirror: it authenticates ShopDriver, so it holds
+    // off the page-load refresh, but it is NOT logged as a sync because it covers no whole day.
+    const { noteAuthAttemptStarted } = await import("../services/algProbeBudget");
+    noteAuthAttemptStarted();
 
     // Try to fetch recent tickets from ShopDriver API
     const res = await sdFetch("/api/tickets?limit=50&sort=-createdAt");
