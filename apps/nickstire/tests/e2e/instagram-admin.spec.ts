@@ -5,7 +5,15 @@ import { collectFirstPartyErrors } from "./helpers";
 const STORAGE_STATE = process.env.E2E_ADMIN_STORAGE_STATE;
 test.use(STORAGE_STATE ? { storageState: STORAGE_STATE } : {});
 
-const VIEWS = ["today", "create", "publish", "community", "insights", "strategy"] as const;
+// Four primary tabs (Today, Create, Queue = publish, Learn = insights); Controls and Strategy sit behind the gear.
+const VIEWS = ["today", "create", "publish", "insights", "controls", "strategy"] as const;
+const PRIMARY_LABELS = ["Today", "Create", "Queue", "Learn"];
+// Old ?igview= values that no longer exist, and where igViews.ts sends them.
+const LEGACY = [
+  { old: "community", lands: "today" },
+  { old: "planning", lands: "create" },
+  { old: "pipeline", lands: "controls" },
+] as const;
 
 test.beforeEach(() => {
   test.skip(!STORAGE_STATE, "E2E_ADMIN_STORAGE_STATE is required for authenticated admin visual QA");
@@ -18,7 +26,8 @@ for (const view of VIEWS) {
     await expect(page.getByRole("heading", { name: "Instagram", exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Sign in", { exact: true })).toHaveCount(0);
     const primaryTabs = page.locator('[role="tab"]');
-    await expect(primaryTabs).toHaveCount(5);
+    await expect(primaryTabs).toHaveCount(4);
+    expect(await primaryTabs.allTextContents()).toEqual(PRIMARY_LABELS);
     const boxes = await primaryTabs.evaluateAll((els) => els.map((el) => {
       const r = el.getBoundingClientRect();
       return { width: r.width, height: r.height };
@@ -43,5 +52,20 @@ for (const view of VIEWS) {
     });
 
     expect(errors, "no first-party runtime/tRPC errors").toEqual([]);
+  });
+}
+
+for (const { old, lands } of LEGACY) {
+  test("Instagram admin legacy igview=" + old + " lands on " + lands, async ({ page }) => {
+    await page.goto("/admin?tab=instagram&igview=" + old, { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: "Instagram", exact: true })).toBeVisible({ timeout: 20_000 });
+    if (lands === "today") {
+      await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
+    } else if (lands === "create") {
+      await expect(page.getByRole("tab", { name: "Create" })).toHaveAttribute("aria-selected", "true");
+    } else {
+      // Controls is behind the gear: no primary tab is selected and the back link is shown.
+      await expect(page.getByRole("button", { name: /Back to Today/ })).toBeVisible();
+    }
   });
 }

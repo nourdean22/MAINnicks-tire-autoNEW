@@ -196,7 +196,7 @@ skips — that shape cost roughly an hour of dead pipeline after a deploy.
 
 ## Where to look first — Pipeline health
 
-**Instagram admin → gear menu → "Pipeline health"** (`?igview=pipeline`),
+**Instagram admin → gear menu → "Controls"** (`?igview=controls`; the old `?igview=pipeline` link lands there too). Pipeline health is the read-only section at the bottom, below the stop switches,
 backed by `instagramAdmin.reelPipelineHealth` → `server/services/reelPipelineHealth.ts`.
 Read-only; it issues SELECTs and nothing else.
 

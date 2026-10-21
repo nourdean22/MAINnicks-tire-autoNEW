@@ -269,7 +269,7 @@ detailed in `docs/CURRENT-TRUTH.md`:
 - `runReelCommentResponder` (cron and the Meta comment webhook) now stops before any DB or Graph read unless `REEL_COMMENT_RESPONDER_ENABLED` is exactly `true` and the new inverted flag `reel_comment_responder_paused` is off. Before this the cron read ENABLED as truthy, the webhook as exactly `true`, and the service read only LIVE.
 - A live run asks the autonomy publishing kill switch once; instagram blocked (or the switch unreadable) makes that run a dry run whose cron_log details start `kill switch: replies drafted, not posted`.
 - Every reply attempt writes one `autonomy_audit_events` row, action `comment_reply`, decision POSTED, FAILED or DRY_RUN, with media, comment and reply ids, tone and our reply text. The customer's comment text is never stored.
-- `instagramAdmin.commentResponderStatus` (contract v1) feeds the comment responder card on Admin -> Instagram -> Pipeline health: enabled, live, pause, last run, the last 20 replies and 7-day counts. A failed read is UNKNOWN or `available:false` and still carries the pause state.
+- `instagramAdmin.commentResponderStatus` (contract v1) feeds the comment responder card on Admin -> Instagram -> gear -> Controls: enabled, live, pause, last run, the last 20 replies and 7-day counts. A failed read is UNKNOWN or `available:false` and still carries the pause state.
 - Live state 2026-10-16: ENABLED and LIVE both `true`, 0 replies since 2026-10-03. Live proof owed: one pause logs `Skip — paused by reel_comment_responder_paused` on the next pulse, and the first live reply after deploy shows as a POSTED row on the card.
 ## 2026-10-16 - External clips door: operator-rendered beats enter the pipeline before assembly
 
@@ -282,7 +282,7 @@ detailed in `docs/CURRENT-TRUTH.md`:
 
 - New inverted flag `ig_autopost_paused` (TRUE = paused). `runIgAutopostCron` checks it after the slot gate and before the dedupe read and any generation or spend; the manual Run-a-slot-now door ignores it. Turning `legacy_autopost_live` OFF still only makes the lane a dry run that spends.
 - `instagramAdmin.autopostLaneStatus` (contract v1) returns pause and live state, the last post, today's slots, the last 20 runs and 7-day counts. A failed read is UNKNOWN or `available:false`, never 0.
-- The 'Image autopost' card on Admin -> Instagram -> Pipeline health shows that status and has Pause / Resume and Run a slot now. Run a slot now (`instagramAdmin.startAutopostRun`) starts a background run, one at a time, because a run outlasts the gateway timeout; its outcome appears in the history. `nickActions.fireIgAutopostNow` still waits for the run (HTTP route, Nour-OS bridge).
+- The 'Image autopost' card on Admin -> Instagram -> gear -> Controls shows that status and has Pause / Resume and Run a slot now. Run a slot now (`instagramAdmin.startAutopostRun`) starts a background run, one at a time, because a run outlasts the gateway timeout; its outcome appears in the history. `nickActions.fireIgAutopostNow` still waits for the run (HTTP route, Nour-OS bridge).
 - Live proof owed: the card shows real rows in prod, one manual run starts and its row appears in the history, and one paused slot logs `Skip — paused by ig_autopost_paused` in cron_log.
 ## 2026-10-16 - the reel lane stops spending into an empty Higgsfield balance, and needs_review parks
 
@@ -565,7 +565,7 @@ master it costs 1.18x**, and the curve turns hard just after 8 (9 → 2.19x,
 phone upload limit. Chromatic aberration and highlight bloom were each measured
 washing Nick yellow out by ~10% and were rejected on that evidence.
 
-**Where to look now:** Instagram admin → gear → **Pipeline health**. It carries
+**Where to look now:** Instagram admin → gear → **Controls** (stop switches first; the read-only **Pipeline health** is at the bottom). It carries
 the forward schedule with the first empty day called out, measured hook
 performance, the queue, cost per published reel and lane health. All of it was
 reachable before and none of it was on a screen; it was being answered with
