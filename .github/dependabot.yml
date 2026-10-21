@@ -73,6 +73,8 @@ updates:
       # apps/statenour/tests/repo/worker-express-aligned.test.ts catches). Bump express by hand per app.
       # Reopen when every app is on the same express major.
       - dependency-name: "express"
+      # Same split for the types: worker "@types/express" ^5, nickstire ^4.17.21. Bump by hand per app.
+      - dependency-name: "@types/express"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
