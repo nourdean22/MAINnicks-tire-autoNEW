@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/shop-eyes-ears-pro",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "6a2a04f7-b106-4718-95fa-b6385c52dedd",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-eyes-ears-pro-97b84c",
+  "claimedBy": "2026-10-21-shop-eyes-ears-pro",
+  "claimedAt": "2026-10-21T16:34:52.922Z",
+  "expiresAt": "2026-10-22T04:34:52.922Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
