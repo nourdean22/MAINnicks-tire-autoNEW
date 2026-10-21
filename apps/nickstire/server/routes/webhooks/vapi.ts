@@ -284,9 +284,9 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   // LLM never supplies callId, so without this the conversion attribution is
   // silently dead. Only set when the tool didn't already provide one.
   if (phoneCallId && args.callId == null) args.callId = phoneCallId;
-  // bookSlot only: the connected caller ID, so a number the model heard short
-  // can still file the expected arrival. Overwrites — the model never owns it.
-  if (call.function.name === "bookSlot" && customerNumber) args.callerNumber = customerNumber;
+  // bookSlot and escalate: the connected caller ID, so the assistant never has
+  // to ask for a number (Nour, 2026-10-21). Overwrites — the model never owns it.
+  if ((call.function.name === "bookSlot" || call.function.name === "escalate") && customerNumber) args.callerNumber = customerNumber;
   // sendConfirmationSms texts the connected party only: call.customer.number is
   // the caller ID inbound and the number Vapi dialled outbound. A model-chosen
   // number would let a caller have the shop's line text anyone (security review

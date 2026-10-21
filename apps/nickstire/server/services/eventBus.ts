@@ -588,20 +588,6 @@ async function ensureInitialized(): Promise<void> {
     handles: ["booking_created", "lead_captured", "callback_requested", "emergency_request"],
     softFail: true,
     handler: async (event) => {
-      const { getOnDutyManagerPhone } = await import("./vapi");
-      const managerPhone = await getOnDutyManagerPhone();
-      if (!managerPhone) {
-        log.info("[eventBus:manager-sms] no on-duty manager configured — skipping alert");
-        return;
-      }
-
-      // Sanity check: if the on-duty number happens to be the F25e itself
-      // (216-862-0005), the gateway can't text itself. Skip.
-      if (managerPhone.replace(/\D/g, "").endsWith("2168620005")) {
-        log.warn("[eventBus:manager-sms] on-duty manager is the shop gateway phone — skipping (would loop)");
-        return;
-      }
-
       const data = event.data as Record<string, unknown>;
       const name = String(data.name || "Unknown");
       const phone = String(data.phone || "no phone");
@@ -625,17 +611,41 @@ async function ensureInitialized(): Promise<void> {
         body = `🚨 EMERGENCY\n${name} — ${phone}${problem}\nCall back ASAP`;
       }
       if (!body) return;
-
-      const { sendSms } = await import("../sms");
-      // via:"shop" routes through the F25e gateway (the shop's real
-      // 216-862-0005 number). If that fails, sendSms falls back to
-      // Twilio + fires a Telegram alert — the caller doesn't have to
-      // think about it.
-      await sendSms(managerPhone, body, { via: "shop", messageClass: "internal" });
+      await textOnDutyManager(body);
     },
   });
 
   log.info(`Event bus initialized: ${destinations.length} destinations`);
+}
+
+/**
+ * Text the on-duty manager: whoever the live VAPI transfer number points at
+ * (5-min cache). The only recipient this can reach; callers never pick it.
+ * "skipped" = no number configured, or the number is the shop gateway itself
+ * (it can't text itself). "failed" = sendSms said so.
+ */
+export async function textOnDutyManager(body: string): Promise<{ status: "sent" | "skipped" | "failed"; reason?: string }> {
+  const { getOnDutyManagerPhone } = await import("./vapi");
+  const managerPhone = await getOnDutyManagerPhone();
+  if (!managerPhone) {
+    log.info("[eventBus:manager-sms] no on-duty manager configured — skipping alert");
+    return { status: "skipped", reason: "no on-duty number" };
+  }
+
+  // Sanity check: if the on-duty number happens to be the F25e itself
+  // (216-862-0005), the gateway can't text itself. Skip.
+  if (managerPhone.replace(/\D/g, "").endsWith("2168620005")) {
+    log.warn("[eventBus:manager-sms] on-duty manager is the shop gateway phone — skipping (would loop)");
+    return { status: "skipped", reason: "on-duty number is the shop gateway" };
+  }
+
+  const { sendSms } = await import("../sms");
+  // via:"shop" routes through the F25e gateway (the shop's real
+  // 216-862-0005 number). If that fails, sendSms falls back to
+  // Twilio + fires a Telegram alert — the caller doesn't have to
+  // think about it.
+  const res = await sendSms(managerPhone, body, { via: "shop", messageClass: "internal" });
+  return res.success ? { status: "sent" } : { status: "failed", reason: res.error ?? "send failed" };
 }
 
 // ─── DISPATCH (the main function) ─────────────────────

@@ -27,6 +27,7 @@ import { localClock } from "../../shared/shopState";
 import { createLogger } from "../lib/logger";
 import { ordinaryTireInquiryReply } from "../lib/tireInquiryReply";
 import type { SmsOrchestratorEvent, SmsOrchestratorResult } from "../services/smsOrchestrator";
+import type { TelegramSendResult } from "../services/telegram";
 
 const log = createLogger("voiceAgent");
 
@@ -60,6 +61,151 @@ function pickArrivalPhone(spoken: string | undefined, callerNumber: string | und
   if (said.length >= 10) return spoken as string;
   const callerId = (callerNumber ?? "").replace(/\D/g, "");
   return callerId.length >= 10 ? (callerNumber as string) : (spoken ?? "");
+}
+
+type VoiceDb = NonNullable<Awaited<ReturnType<typeof import("../lib/db-helper").db>>>;
+
+/** One customers row by phone, matched on the LAST 10 digits (shared by lookupCustomer and the caller-name fallback). */
+async function selectCustomerByPhone(d: VoiceDb, phoneDigits: string) {
+  const { customers } = await import("../../drizzle/schema");
+  const { sql } = await import("drizzle-orm");
+  // wave-181.2: phone is stored E.164 ("+12168620005") via normalizePhone.
+  // Compare on the LAST 10 digits (strip "+" and country code) so any
+  // inbound format — "+12168620005", "12168620005", "2168620005",
+  // "(216) 862-0005" — all match the same row.
+  const [c] = await d
+    .select({
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      totalVisits: customers.totalVisits,
+      lastVisitDate: customers.lastVisitDate,
+      vehicleYear: customers.vehicleYear,
+      vehicleMake: customers.vehicleMake,
+      vehicleModel: customers.vehicleModel,
+      segment: customers.segment,
+      balanceDue: customers.balanceDue,
+    })
+    .from(customers)
+    .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) = RIGHT(${phoneDigits}, 10)`)
+    .limit(1);
+  return c;
+}
+
+/**
+ * The caller's name without asking: the name they gave if it has 2+ letters,
+ * else the customer on file for the caller-ID number ("Raymond S."), else null.
+ */
+async function resolveCallerName(given: string | undefined, callerNumber: string | undefined): Promise<string | null> {
+  if ((given ?? "").replace(/[^\p{L}]/gu, "").length >= 2) return (given as string).trim();
+  const digits = (callerNumber ?? "").replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) return null;
+    const c = await selectCustomerByPhone(d, digits);
+    if (!c?.firstName) return null;
+    return c.lastName ? `${c.firstName} ${c.lastName.charAt(0).toUpperCase()}.` : c.firstName;
+  } catch (err) {
+    log.debug("caller-name lookup failed", { err: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+/** Plain ASCII for an internal text: smart quotes and dashes folded, anything else non-printable dropped. */
+function asciiClip(s: string | undefined, max: number): string {
+  return (s ?? "")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function formatUsPhone(tenDigits: string): string {
+  return `(${tenDigits.slice(0, 3)}) ${tenDigits.slice(3, 6)}-${tenDigits.slice(6)}`;
+}
+
+const isTow = (service: string) => /\btow/i.test(service);
+
+/** The internal heads-up text. The number is caller ID; a different full spoken number rides along as Callback. */
+function arrivalHeadsUpText(input: { phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string }, name: string | null): string {
+  const callerId = (input.callerNumber ?? "").replace(/\D/g, "").slice(-10);
+  const spoken = (input.phone ?? "").replace(/\D/g, "").slice(-10);
+  const number = callerId.length === 10 ? formatUsPhone(callerId) : spoken.length === 10 ? formatUsPhone(spoken) : asciiClip(input.phone, 20) || "no number";
+  const vehicle = asciiClip(input.vehicle, 60);
+  const lines = [isTow(input.service) ? "TOW COMING (phone)" : "COMING IN (phone)", `${asciiClip(name ?? "Name not given", 40)} - ${number}`];
+  if (callerId.length === 10 && spoken.length === 10 && spoken !== callerId) lines.push(`Callback: ${formatUsPhone(spoken)}`);
+  if (isTow(input.service)) {
+    // "tow incoming — won't start" -> "won't start": the header already says it's a tow.
+    lines.push(vehicle, asciiClip(input.service.replace(/^\s*tow(ed|ing)?\s*(incoming|coming|on (its|the) way)?[\s\-–—:,]*/i, ""), 80));
+  } else {
+    lines.push(`For: ${asciiClip(input.service, 80)}`, vehicle);
+  }
+  if (asciiClip(input.eta, 40)) lines.push(`ETA: ${asciiClip(input.eta, 40)}`);
+  return lines.filter(Boolean).join("\n");
+}
+
+/** Mark the call converted for VAPI eval scoring and conversion dashboards. Best-effort. */
+async function markCallConverted(callId: string | undefined): Promise<void> {
+  // wave-fix-2026-05-25 (audit #107) · mark this call as converted
+  // so VAPI eval scoring + conversion-rate dashboards count it.
+  // Pre-fix, convertedToLead stayed 0 for every booked call, the
+  // alert thresholds (e.g. "low-quality calls > 30%") fired on
+  // noise. Best-effort · failure here doesn't block the booking.
+  if (!callId) return;
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (d) {
+      const { vapiCallLogs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await d.update(vapiCallLogs)
+        .set({ convertedToLead: 1 })
+        .where(eq(vapiCallLogs.vapiCallId, callId));
+    }
+  } catch (err) {
+    log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for bookSlot", { callId, err: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+/**
+ * Coming in now/today or a tow: text the on-duty manager once per call instead
+ * of filing an expected_arrivals row (Nour, 2026-10-21). True when the shop has
+ * the text, or another tool call in this call already sent it. False means the
+ * caller must file the row so the visit is not lost (paused, no number, failed).
+ */
+async function sendArrivalHeadsUp(input: { name: string; phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string; callId?: string }): Promise<boolean> {
+  await markCallConverted(input.callId);
+  let reason = "unknown";
+  try {
+    const { isEnabled } = await import("../services/featureFlags");
+    if (await isEnabled("vapi_arrival_text_paused")) {
+      log.info("arrival heads-up text paused (vapi_arrival_text_paused); filing the arrival row", { callId: input.callId });
+      return false;
+    }
+    const body = arrivalHeadsUpText(input, await resolveCallerName(input.name, input.callerNumber));
+    const { textOnDutyManager } = await import("../services/eventBus");
+    const send = async (): Promise<TelegramSendResult> => {
+      const r = await textOnDutyManager(body);
+      reason = r.reason ?? r.status;
+      return { status: r.status === "sent" ? "delivered" : "failed" };
+    };
+    // Persisted claim: a call's tool calls can land on different replicas.
+    const { sendOncePerState } = await import("../services/alertClaim");
+    const result = input.callId ? await sendOncePerState(`voice-arrival:${input.callId}`, send) : await send();
+    if (result === null || result.status === "delivered") return true;
+  } catch (err) {
+    reason = err instanceof Error ? err.message : String(err);
+  }
+  log.warn("arrival heads-up text not sent; filing the arrival row instead", {
+    errorId: "VOICE_ARRIVAL_TEXT_FAILED",
+    reason: reason.replace(/\d{4,}/g, "#"),
+    callId: input.callId,
+  });
+  return false;
 }
 
 function spokenClock(hhmm: string): string {
@@ -346,15 +492,32 @@ export const voiceAgentRouter = router({
     .input(z.object({
       // No min length here: a short name is a normal result below, not a thrown error.
       name: z.string().max(200),
-      phone: z.string().min(7).max(20),
+      // Caller ID supplies the number; this is only a different callback number the caller gave.
+      phone: z.string().max(20).optional(),
       vehicle: z.string().max(200).optional(),
       service: z.string().max(200),
       preferredDay: z.string().max(20).optional(),
+      eta: z.string().max(60).optional(),
       callId: z.string().max(100).optional(),
       /** The number VAPI connected (caller ID), injected by the webhook — never by the model. */
       callerNumber: z.string().max(30).optional(),
     }))
     .mutation(async ({ input }) => {
+      // Coming in now/today, or a tow on its way: the shop gets a text, no row.
+      // A later day keeps the row below. Routed on the request itself, so it
+      // holds even when the model reaches for bookSlot out of habit.
+      const now = new Date();
+      const { parseExpectedDate, toShopDateStr } = await import("../services/expectedArrivals");
+      if (isTow(input.service) || parseExpectedDate(input.preferredDay, now) === toShopDateStr(now)) {
+        if (await sendArrivalHeadsUp(input)) {
+          return {
+            success: true,
+            reference: "WALKIN-INFO",
+            status: "shop_texted",
+            message: "No appointment was booked. The shop just got a text that they're on the way. Tell the caller Nick's is first come, first served: pull in and they'll take care of them.",
+          };
+        }
+      }
       // A name under two letters is not a name. Thrown, it reaches the caller as
       // "Tool execution failed"; returned, the model asks once for the full name.
       if (input.name.trim().length < 2) {
@@ -367,27 +530,7 @@ export const voiceAgentRouter = router({
       }
       try {
         log.info("Voice agent bookSlot called (expected arrival, not a booking)", { nameGiven: Boolean(input.name), service: input.service });
-
-        // wave-fix-2026-05-25 (audit #107) · mark this call as converted
-        // so VAPI eval scoring + conversion-rate dashboards count it.
-        // Pre-fix, convertedToLead stayed 0 for every booked call, the
-        // alert thresholds (e.g. "low-quality calls > 30%") fired on
-        // noise. Best-effort · failure here doesn't block the booking.
-        if (input.callId) {
-          try {
-            const { db } = await import("../lib/db-helper");
-            const d = await db();
-            if (d) {
-              const { vapiCallLogs } = await import("../../drizzle/schema");
-              const { eq } = await import("drizzle-orm");
-              await d.update(vapiCallLogs)
-                .set({ convertedToLead: 1 })
-                .where(eq(vapiCallLogs.vapiCallId, input.callId));
-            }
-          } catch (err) {
-            log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for bookSlot", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
-          }
-        }
+        await markCallConverted(input.callId);
 
         // Persist the intent as a durable EXPECTED ARRIVAL (not a booking — FCFS,
         // no appointments — and not a lead). This is the "customer said they're
@@ -449,27 +592,45 @@ export const voiceAgentRouter = router({
   // wave-148 — write mutation: callback_requests row + Telegram alert.
   escalate: voiceAgentInternalProcedure
     .input(z.object({
-      name: z.string().min(2).max(200),
-      phone: z.string().min(7).max(20),
+      // Caller ID supplies both (Nour, 2026-10-21): the assistant never asks.
+      name: z.string().max(200).optional(),
+      phone: z.string().max(20).optional(),
       reason: z.string().max(500),
       urgency: z.enum(["low", "medium", "high"]).default("medium"),
       callId: z.string().max(100).optional(),
+      /** The number VAPI connected (caller ID), injected by the webhook — never by the model. */
+      callerNumber: z.string().max(30).optional(),
     }))
     .mutation(async ({ input }) => {
+      const phone = pickArrivalPhone(input.phone, input.callerNumber).replace(/\D/g, "").slice(-10);
+      if (phone.length < 10) {
+        return {
+          success: false,
+          needs_number: true,
+          message: "No caller ID on this call. Ask once for the best number for the callback, then call escalate again with phone.",
+        };
+      }
       try {
+        const name = (await resolveCallerName(input.name, input.callerNumber)) ?? "Caller";
         const { db } = await import("../lib/db-helper");
         const { callbackRequests } = await import("../../drizzle/schema");
         const d = await db();
         if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
         const [insertedCallback] = await d.insert(callbackRequests).values({
-          name: input.name,
-          phone: input.phone.replace(/\D/g, ""),
+          name,
+          phone,
           context: `[VOICE-AGENT · ${input.urgency.toUpperCase()}]${input.callId ? ` callId=${input.callId}` : ""} — ${input.reason}`,
           status: "new",
           utmSource: "voice-agent",
           utmMedium: "phone",
           utmCampaign: "vapi-receptionist",
         });
+
+        // Same bus dispatch as the website's callback form (routers/callback.ts):
+        // texts the on-duty manager, Telegram, NOUR OS. Never blocks the tool.
+        import("../services/eventBus").then(({ emit }) =>
+          emit.callbackRequested({ id: insertedCallback?.insertId ? Number(insertedCallback.insertId) : null, name, phone, reason: input.reason }),
+        ).catch((e) => log.warn("escalate → event bus dispatch failed", { err: e instanceof Error ? e.message : String(e) }));
 
         // LINK THE CALLBACK TO THE CALL — same trail mechanism as tireInquiry's
         // leadId, because this had the identical hole and a worse version of it:
@@ -524,11 +685,11 @@ export const voiceAgentRouter = router({
             const { BUSINESS } = await import("@shared/business");
             const res = await createVoicePromise({
               promiseType: "callback",
-              promisedAction: `Call ${input.name} back about: ${input.reason}`.slice(0, 500),
+              promisedAction: `Call ${name} back about: ${input.reason}`.slice(0, 500),
               vapiCallId: input.callId,
               dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
-              customerName: input.name,
-              customerPhone: input.phone.replace(/\D/g, ""),
+              customerName: name,
+              customerPhone: phone,
               owner: "Front Counter",
             });
             if ("skipped" in res) {
@@ -548,11 +709,11 @@ export const voiceAgentRouter = router({
             // wave-122 (MEDIUM S3) — mask phone in Telegram body. Last-4
             // is enough for operator recognition; full number is in
             // callback_requests row for the admin tool.
-            const phoneTail = input.phone.replace(/\D/g, "").slice(-4);
+            const phoneTail = phone.slice(-4);
             const { sendTelegram } = await import("../services/telegram");
             await sendTelegram(
               `🚨 VOICE AGENT ESCALATION — HIGH URGENCY\n\n` +
-              `${input.name} · ...${phoneTail}\n` +
+              `${name} · ...${phoneTail}\n` +
               `Reason: ${input.reason}\n` +
               (input.callId ? `Call: ${input.callId}\n` : "") +
               `\nCall back ASAP — full number in admin > Callbacks.`,
@@ -564,11 +725,16 @@ export const voiceAgentRouter = router({
         log.info("Voice agent escalated", { nameGiven: Boolean(input.name), urgency: input.urgency });
         return {
           success: true,
-          message: `On the shop's callback list — the shop will call ${input.name} back.`,
+          message: `On the shop's callback list — the shop will call ${name === "Caller" ? "them" : name} back.`,
         };
       } catch (err) {
+        // Returned, not thrown: a throw reaches the model as "Tool execution
+        // failed" and it may still tell the caller a callback is coming.
         log.error("Voice agent escalate failed", { err: err instanceof Error ? err.message : String(err) });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Escalation failed" });
+        return {
+          success: false,
+          message: "The callback was NOT saved. Do not tell the caller they're on the callback list. Read them the shop's number and hours instead: " + spokenShopDirections(),
+        };
       }
     }),
 
@@ -1023,31 +1189,11 @@ export const voiceAgentRouter = router({
     .query(async ({ input }) => {
       try {
         const { db } = await import("../lib/db-helper");
-        const { customers } = await import("../../drizzle/schema");
-        const { sql } = await import("drizzle-orm");
         const d = await db();
         if (!d) return { found: false, reason: "DB unavailable" };
         const phoneDigits = input.phone.replace(/\D/g, "");
         if (phoneDigits.length < 10) return { found: false, reason: "Invalid phone format" };
-        // wave-181.2: phone is stored E.164 ("+12168620005") via normalizePhone.
-        // Compare on the LAST 10 digits (strip "+" and country code) so any
-        // inbound format — "+12168620005", "12168620005", "2168620005",
-        // "(216) 862-0005" — all match the same row.
-        const [c] = await d
-          .select({
-            firstName: customers.firstName,
-            lastName: customers.lastName,
-            totalVisits: customers.totalVisits,
-            lastVisitDate: customers.lastVisitDate,
-            vehicleYear: customers.vehicleYear,
-            vehicleMake: customers.vehicleMake,
-            vehicleModel: customers.vehicleModel,
-            segment: customers.segment,
-            balanceDue: customers.balanceDue,
-          })
-          .from(customers)
-          .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) = RIGHT(${phoneDigits}, 10)`)
-          .limit(1);
+        const c = await selectCustomerByPhone(d, phoneDigits);
         if (!c) return { found: false };
         const monthsSinceLastVisit = c.lastVisitDate
           ? Math.round((Date.now() - new Date(c.lastVisitDate).getTime()) / (30 * 86_400_000))

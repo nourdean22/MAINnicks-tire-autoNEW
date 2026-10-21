@@ -22,12 +22,16 @@ function createVoiceContext(): TrpcContext {
 
 async function loadCaller() {
   vi.resetModules();
-  vi.doMock("../services/expectedArrivals", () => ({ recordExpectedArrival }));
+  vi.doMock("../services/expectedArrivals", async (orig) => ({
+    ...(await orig<typeof import("../services/expectedArrivals")>()),
+    recordExpectedArrival,
+  }));
   const { voiceAgentRouter } = await import("./voiceAgent");
   return voiceAgentRouter.createCaller(createVoiceContext());
 }
 
-const base = { phone: "2165550101", service: "flat tire repair", preferredDay: "today" };
+// A LATER day: coming today texts the shop with whatever name it has (voiceAgent.headsUp.test.ts).
+const base = { phone: "2165550101", service: "flat tire repair", preferredDay: "tomorrow" };
 
 describe("bookSlot with an incomplete name", () => {
   afterEach(() => {
