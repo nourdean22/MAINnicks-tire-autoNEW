@@ -62,6 +62,23 @@ describe("the job of every call: get them to come down", () => {
     for (const q of quoted(price)) expect(words(q), q).toBeLessThanOrEqual(12);
   });
 
+  it("Turn 1 is the symptom's URGENCY line OR the curiosity line, never both, and ends 'The look is free.'", () => {
+    for (const block of [section("## FLOW 2", "\n\nPRICE QUESTION"), section("PRICE QUESTION (any", "\n\n")]) {
+      const turn1 = block.split("\n").find((l) => l.includes("Turn 1"));
+      expect(turn1, "a Turn 1 line").toBeDefined();
+      expect(turn1).toContain("URGENCY line");
+      expect(turn1).toMatch(/never both/i);
+      expect(turn1).toContain('"The look is free."');
+    }
+  });
+
+  it("while CLOSED the ask is about the next open day, not today", () => {
+    const job = section("# THE JOB OF EVERY CALL", "\n# ");
+    expect(job).toMatch(/While CLOSED/);
+    expect(job).toContain('"Can you swing by tomorrow morning?"');
+    expect(job).toContain("HOURS GATE");
+  });
+
   it("FLOW 1 and FLOW 2 never ask for a number; the prompt says caller ID has it", () => {
     for (const flow of [section("## FLOW 1", "## FLOW 2"), section("## FLOW 2", "## FLOW 3")]) {
       expect(flow).not.toMatch(/best number/i);
