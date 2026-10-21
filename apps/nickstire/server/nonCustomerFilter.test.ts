@@ -24,21 +24,15 @@
  * SYNTHETIC INPUTS ONLY.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { join } from "path";
 
 import {
-  exclusionReason, isNonCustomer, partitionNonCustomers, exclusionNote,
+  exclusionReason, isNonCustomer, exclusionNote,
   INTERNAL_LINES, type InternalLine,
 } from "./services/nonCustomerFilter";
 
 /** SYNTHETIC registry — the mechanism is exercised without asserting on the
  *  operator's real number, so this suite keeps its meaning if that changes. */
 const FAKE_INTERNAL: readonly InternalLine[] = [{ last10: "5551230000", note: "synthetic" }];
-
-function stripComments(t: string): string {
-  return t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-}
 
 describe("canary - the three real test rows are caught", () => {
   it("BREAKS: the two 216-555-9999 rows are excluded", () => {
@@ -113,38 +107,8 @@ describe("canary - it does NOT exclude people who might be real", () => {
   });
 });
 
-describe("canary - exclusions are reported, never silent", () => {
-  it("BREAKS: partition returns the reason for every excluded row", () => {
-    const { real, excluded } = partitionNonCustomers([
-      { customerName: "Jhordan Oneal", customerPhone: "2167804062" },
-      { customerName: "Nour Test", customerPhone: "2165559999" },
-      { customerName: "test test", customerPhone: "77777777777" },
-    ]);
-    expect(real).toHaveLength(1);
-    expect(excluded).toHaveLength(2);
-    expect(excluded.every((e) => typeof e.reason === "string" && e.reason.length > 0)).toBe(true);
-  });
-});
-
-describe("canary - the filter is WIRED where the money is quoted", () => {
-  const router = stripComments(
-    readFileSync(join(process.cwd(), "server/routers/advanced/invoices.ts"), "utf-8"),
-  );
-
-  it("BREAKS: the dashboard figure is built from the FILTERED set", () => {
-    // This is the $2,221.35 the banner published, $1,167.27 of which was
-    // fiction. If `decorated` is ever rebuilt from the raw rows the banner
-    // silently starts lying again.
-    expect(router).toContain('"../../services/nonCustomerFilter"');
-    expect(router).toMatch(/split\.real\.map\(/);
-    expect(router).not.toMatch(/const decorated = items\.map\(/);
-  });
-
-  it("the operator can see WHY the figure shrank", () => {
-    expect(router).toMatch(/excludedNonCustomers: split\.excluded\.length/);
-    expect(router).toMatch(/excludedReasons:/);
-  });
-});
+// 2026-10-21: the "filter is WIRED where the money is quoted" arm read invoices.unpaidList, which was deleted
+// with the Unpaid tab (the register is separate, so no unpaid figure is quoted anywhere now).
 
 describe("canary - internal lines are withheld as their OWN category", () => {
   it("BREAKS: a registry number is excluded, and NOT as test data", () => {

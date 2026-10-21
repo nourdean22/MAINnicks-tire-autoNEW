@@ -26,7 +26,7 @@ describe("retired payment reminder", () => {
     expect(tieredJobs).toContain("alg-declined-work-recovery");
     expect(httpJobs.length).toBeGreaterThan(10);
     expect(httpJobs).toContain("declined-work-recovery");
-    expect(procedures).toContain("invoices.unpaidList");
+    expect(procedures).toContain("invoices.list");
   });
 
   it("the tiered scheduler registers no job named unpaid-invoice-recovery", () => {
@@ -39,5 +39,9 @@ describe("retired payment reminder", () => {
 
   it("the admin one-shot trigger is not a registered tRPC procedure", () => {
     expect(procedures).not.toContain(RETIRED_PROCEDURE);
+  });
+
+  it("the unpaid-invoice worklist query is gone too: the register is separate, so the system cannot know who paid", () => {
+    expect(procedures).not.toContain("invoices.unpaidList");
   });
 });

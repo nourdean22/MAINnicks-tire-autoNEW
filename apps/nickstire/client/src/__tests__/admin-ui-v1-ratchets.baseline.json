@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 151,
+    "emDash": 147,
     "emoji": 0,
     "transitionAll": 51,
     "slowDuration": 7,
     "smallInput": 102,
-    "offPalette": 130
+    "offPalette": 127
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -182,10 +182,6 @@
     "client/src/pages/admin/money/TireRegistrationPanel.tsx": {
       "emDash": 1,
       "smallInput": 2
-    },
-    "client/src/pages/admin/money/UnpaidInvoicesSection.tsx": {
-      "emDash": 4,
-      "offPalette": 3
     },
     "client/src/pages/admin/money/WorkOrdersSection.tsx": {
       "emDash": 7,

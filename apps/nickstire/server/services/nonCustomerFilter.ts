@@ -36,10 +36,9 @@
  * (`internalLineFor`, server/sms.ts). Only a declared internal class,
  * `isInternal` or `humanInitiated` gets past it, so operator self-tests still
  * work. Category (1), seeded test data, is not checked there. It is applied by
- * the callers that quote money or counts: the admin Unpaid list
- * (`partitionNonCustomers`) and the waiting-conversations count
- * (`isNonCustomer`). The unpaid-invoice reminder lane that first needed it was
- * removed 2026-10-15.
+ * the caller that counts waiting conversations (`isNonCustomer`).
+ * The admin Unpaid list that also used it was removed 2026-10-21 and the
+ * unpaid-invoice reminder lane that first needed it 2026-10-15.
  *
  * THE DEFAULT IS ALWAYS TO KEEP. Excluding a real customer means a bill that
  * never gets asked for - the same failure in the opposite direction - so
@@ -192,19 +191,4 @@ export function exclusionNote(reason: ExclusionReason): string {
     return "internal line (shop or operator) — not a customer, deliberately not messaged";
   }
   return `seeded test data (${reason})`;
-}
-
-/** Split a set into real customers and withheld rows, with reasons. */
-export function partitionNonCustomers<T extends MaybeNonCustomer>(
-  rows: T[],
-  internalLines: readonly InternalLine[] = INTERNAL_LINES,
-): { real: T[]; excluded: Array<{ row: T; reason: ExclusionReason }> } {
-  const real: T[] = [];
-  const excluded: Array<{ row: T; reason: ExclusionReason }> = [];
-  for (const r of rows) {
-    const reason = exclusionReason(r, internalLines);
-    if (reason) excluded.push({ row: r, reason });
-    else real.push(r);
-  }
-  return { real, excluded };
 }
