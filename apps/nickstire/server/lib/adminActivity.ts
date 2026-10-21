@@ -78,6 +78,11 @@ let refreshProbeInFlight = false;
  */
 export const AUTH_ATTEMPTING_OUTCOMES = ["success", "empty", "auth_failed", "error"] as const;
 
+/** Is this process starting or running a page-load refresh probe? The sales read reports it so the card can follow it. */
+export function isAdminRefreshProbeInFlight(): boolean {
+  return refreshProbeInFlight;
+}
+
 export interface AdminRefreshProbeResult {
   /** True when this call started a probe. False: in flight already, too soon, or the log was unreadable. */
   started: boolean;

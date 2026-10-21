@@ -40,6 +40,8 @@ const log = createLogger("alg-probe-budget");
 let lastProbeStartedAt = 0;
 let lastProbeFinishedAt = 0;
 let inFlightProbe: Promise<ProbeResult> | null = null;
+/** Syncs run through recordExternalSync (manual sync-now, bridge refreshes) that have not finished. */
+let externalSyncsInFlight = 0;
 const DEDUP_WINDOW_MS = 30_000; // 30 sec — coalesce burst requests
 const RECENT_SUCCESS_TTL_MS = 5 * 60_000; // skip if last success < 5 min ago
 
@@ -50,11 +52,17 @@ export type ProbeReason =
   | "overnight"
   | "evening"
   | "admin_refresh"
+  // Syncs that bypass the budget on purpose (a manual "sync now" must run); see recordExternalSync.
+  | "force_sync"
+  | "bridge_mirror"
+  | "bridge_full_sync"
   | "health_check";
 
 export type ProbeOutcome =
   | "success"
   | "auth_failed"
+  // No longer written (2026-10-21): it meant "authenticated, found nothing", and the same
+  // rows were written when the invoice fetch FAILED. Old rows keep it; readers still accept it.
   | "empty"
   | "dedup"
   | "skipped_recent"
@@ -186,13 +194,8 @@ async function runProbe(reason: ProbeReason, options: ProbeOptions): Promise<Pro
     const durationMs = Date.now() - start;
     const totalRecords = mirrorResult.recordsProcessed + (estimateResult?.recordsProcessed || 0);
 
-    // Auth failure detection
-    const authFailed = mirrorResult.details.includes("Auth failed") || mirrorResult.details.includes("auth_failed");
-    const empty = totalRecords === 0 && !authFailed;
-
-    let outcome: ProbeOutcome = "success";
-    if (authFailed) outcome = "auth_failed";
-    else if (empty) outcome = "empty";
+    // Estimates processing rows never make a probe a success: only the invoice phase does.
+    const outcome = mirrorOutcome(mirrorResult);
 
     // Mark fresh on success
     if (outcome === "success") {
@@ -244,8 +247,77 @@ async function runProbe(reason: ProbeReason, options: ProbeOptions): Promise<Pro
 }
 
 /**
+ * Stamp lastProbeStartedAt for a ShopDriver authentication that is not a full mirror (the admin's
+ * partial ticket pulls). It is not logged and does not count as a sync: it only keeps the
+ * page-load refresh from authenticating again right behind it.
+ */
+export function noteAuthAttemptStarted(): void {
+  lastProbeStartedAt = Date.now();
+}
+
+/**
+ * What a mirror run MEANS in alg_probe_log. `success` only when the invoices were actually
+ * fetched (invoicesFetched above 0): runFullMirror reports 0 when the invoice fetch failed
+ * (login rejected, session invalidated), and the sales card reads `success` as "ShopDriver was
+ * read". A rejected login is auth_failed; any other zero is an error. Estimates processing rows
+ * change nothing here. (`empty`, "authenticated and found nothing", is no longer written: it
+ * was also what a failed invoice fetch looked like.)
+ */
+function mirrorOutcome(mirror: { invoicesFetched?: number; details: string }): "success" | "auth_failed" | "error" {
+  if (mirror.details.includes("Auth failed") || mirror.details.includes("auth_failed")) return "auth_failed";
+  return (mirror.invoicesFetched ?? 0) > 0 ? "success" : "error";
+}
+
+/**
+ * Run a ShopDriver sync that must NOT go through requestAlgProbe's dedup / fresh-data refusal
+ * (a manual "sync now" has to run) and still be seen: it stamps lastProbeStartedAt when it
+ * STARTS (the in-memory floor that keeps a page-load refresh from kicking the counter again),
+ * counts as in flight while it runs, and writes the same kind of alg_probe_log row, with the
+ * same outcome rules, so the sales card's sync watermark and the freshness card see it.
+ * The sync's own result (or error) goes back to the caller unchanged.
+ */
+export async function recordExternalSync<T extends { recordsProcessed: number; invoicesFetched?: number; details: string }>(
+  reason: ProbeReason,
+  run: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now();
+  lastProbeStartedAt = start;
+  externalSyncsInFlight++;
+  try {
+    const result = await run();
+    const outcome = mirrorOutcome(result);
+    if (outcome === "success") lastProbeFinishedAt = Date.now();
+    await writeProbeLog({
+      reason,
+      outcome,
+      recordsProcessed: result.recordsProcessed,
+      durationMs: Date.now() - start,
+      errorMessage: outcome !== "success" ? result.details : undefined,
+    });
+    return result;
+  } catch (err) {
+    await writeProbeLog({
+      reason,
+      outcome: "error",
+      recordsProcessed: 0,
+      durationMs: Date.now() - start,
+      errorMessage: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+    });
+    throw err;
+  } finally {
+    externalSyncsInFlight--;
+  }
+}
+
+/**
  * Write a row to alg_probe_log. Fire-and-forget — failure to log
  * shouldn't break the probe itself.
+ *
+ * startedAt is written here, by the DATABASE clock: NOW() minus the probe's duration. The
+ * column default would stamp insert time, which is AFTER the work, so a fetch begun at 11:59 PM
+ * that logs at 12:01 AM would read as a probe on the next day; the sales card judges day
+ * coverage from this instant. No JS Date is bound into it: driver-written TiDB datetimes
+ * come back shifted on ET (apps/nickstire/AGENTS.md > Time).
  */
 async function writeProbeLog(params: {
   reason: ProbeReason;
@@ -259,7 +331,9 @@ async function writeProbeLog(params: {
     const d = await db();
     if (!d) return;
     const { algProbeLog } = await import("../../drizzle/schema");
+    const { sql } = await import("drizzle-orm");
     await d.insert(algProbeLog).values({
+      startedAt: sql`DATE_SUB(NOW(), INTERVAL ${Math.max(0, Math.round(params.durationMs)) * 1000} MICROSECOND)`,
       reason: params.reason,
       detail: params.detail || null,
       outcome: params.outcome,
@@ -324,7 +398,7 @@ export function getProbeBudgetState() {
   return {
     lastProbeStartedAt: lastProbeStartedAt > 0 ? new Date(lastProbeStartedAt).toISOString() : null,
     lastProbeFinishedAt: lastProbeFinishedAt > 0 ? new Date(lastProbeFinishedAt).toISOString() : null,
-    inFlight: inFlightProbe !== null,
+    inFlight: inFlightProbe !== null || externalSyncsInFlight > 0,
     secondsSinceLastFinish: lastProbeFinishedAt > 0 ? Math.round((now - lastProbeFinishedAt) / 1000) : null,
     dedupWindowMs: DEDUP_WINDOW_MS,
     freshnessTTLMs: RECENT_SUCCESS_TTL_MS,

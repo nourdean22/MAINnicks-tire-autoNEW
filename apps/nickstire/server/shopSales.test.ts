@@ -23,10 +23,20 @@ import {
   type ShopSales,
 } from "./services/shopSales";
 
-// paidInvoiceRevenue loads the db lazily; the mock answers its two statements in order
-// (the window aggregate, then MAX(invoiceDate)).
+// paidInvoiceRevenue loads the db lazily; the mock answers its three statements in order
+// (the sync watermark, the window aggregate, then MAX(invoiceDate)).
 const dbMock = vi.hoisted(() => ({ execute: vi.fn() }));
 vi.mock("./db", () => ({ getDb: async () => ({ execute: dbMock.execute }) }));
+
+// Whether a probe is running now: the budget's state and the page-load refresh's own flag.
+const live = vi.hoisted(() => ({ budgetInFlight: false, refreshInFlight: false, stateThrows: false }));
+vi.mock("./services/algProbeBudget", () => ({
+  getProbeBudgetState: () => {
+    if (live.stateThrows) throw new Error("state unavailable");
+    return { inFlight: live.budgetInFlight };
+  },
+}));
+vi.mock("./lib/adminActivity", () => ({ isAdminRefreshProbeInFlight: () => live.refreshInFlight }));
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -273,6 +283,9 @@ describe("whether a window is synced comes from the ShopDriver sync log, not fro
   afterEach(() => {
     vi.useRealTimers();
     dbMock.execute.mockReset();
+    live.budgetInFlight = false;
+    live.refreshInFlight = false;
+    live.stateThrows = false;
   });
 
   const aggRow = {
@@ -283,19 +296,19 @@ describe("whether a window is synced comes from the ShopDriver sync log, not fro
   type Period = (typeof SALES_PERIODS)[number];
   const epoch = (iso: string) => Date.parse(iso) / 1000;
 
-  // The three statements, in order: the window aggregate, MAX(invoiceDate) over shopdriver rows,
-  // then the newest SUCCESSFUL probe (UNIX_TIMESTAMP, a number: no driver Date to shift).
+  // The three statements, in order: the newest SUCCESSFUL probe (UNIX_TIMESTAMP, a number: no
+  // driver Date to shift), the window aggregate, then MAX(invoiceDate) over shopdriver rows.
   async function read(
     period: Period,
     opts: { now?: string; agg?: Record<string, number>; through?: Date | null; probe?: string | null | "reject" } = {},
   ) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(opts.now ?? NOW_ISO));
+    if (opts.probe === "reject") dbMock.execute.mockRejectedValueOnce(new Error("alg_probe_log unreadable"));
+    else dbMock.execute.mockResolvedValueOnce([opts.probe ? [{ probeEpoch: epoch(opts.probe) }] : []]);
     dbMock.execute
       .mockResolvedValueOnce([[{ ...aggRow, ...opts.agg }]])
       .mockResolvedValueOnce([[{ throughDate: opts.through ?? null }]]);
-    if (opts.probe === "reject") dbMock.execute.mockRejectedValueOnce(new Error("alg_probe_log unreadable"));
-    else dbMock.execute.mockResolvedValueOnce([opts.probe ? [{ probeEpoch: epoch(opts.probe) }] : []]);
     const r = await paidInvoiceRevenue(period);
     if (!r.available) throw new Error(`unexpected unavailable: ${r.reason}`);
     return r;
@@ -325,13 +338,34 @@ describe("whether a window is synced comes from the ShopDriver sync log, not fro
     expect(t.sync).toMatchObject({ state: "ok", etDate: "2026-10-20", etTime: "8:00 PM" });
   });
 
-  it("the probe lookup counts only probes that read the mirror (success, empty), never failures", async () => {
+  it("the probe lookup counts only `success`: the outcome that means the invoices were read", async () => {
     await read("today", { probe: "2026-10-21T15:42:00Z" });
-    const text = sqlText(dbMock.execute.mock.calls[2]!);
+    const text = sqlText(dbMock.execute.mock.calls[0]!);
     expect(text).toMatch(/FROM alg_probe_log/);
-    expect(text).toMatch(/outcome IN \('success', 'empty'\)/);
-    for (const bad of ["auth_failed", "error", "dedup", "skipped_recent"]) expect(text).not.toContain(bad);
+    expect(text).toMatch(/WHERE outcome = 'success'/);
+    // `empty` was also what a failed invoice fetch was logged as, so it can no longer vouch for a sync.
+    for (const bad of ["empty", "auth_failed", "error", "dedup", "skipped_recent"]) expect(text).not.toContain(bad);
     expect(text).toMatch(/UNIX_TIMESTAMP\(startedAt\)/);
+  });
+
+  it("the sync watermark is read BEFORE the invoice aggregate", async () => {
+    // A probe that lands between the two reads can then only make us say "not synced" about data
+    // that is already fresh. In the other order the aggregate could miss the probe's rows while
+    // the watermark saw the probe, and we would say "synced" about stale data.
+    await read("today", { probe: "2026-10-21T15:42:00Z" });
+    const [first, second, third] = dbMock.execute.mock.calls.map(sqlText);
+    expect(first).toMatch(/FROM alg_probe_log/);
+    expect(second).toMatch(/paidCount[\s\S]*FROM invoices\s+WHERE invoiceDate >=/);
+    expect(third).toMatch(/MAX\(invoiceDate\)/);
+  });
+
+  it("a probe that landed between the two reads can only make the day look unsynced, never synced", async () => {
+    // The watermark read saw last night's probe; the aggregate (read after) already holds rows
+    // the new probe wrote. Result: fresh rows labelled "not synced". The reverse order would give
+    // a stale aggregate labelled with the new probe's time.
+    const t = await read("today", { agg: { paidCount: 4, paidCents: 120000 }, probe: "2026-10-21T00:00:00Z" });
+    expect(t.windowSynced).toBe(false);
+    expect(t.cents).toBe(120000);
   });
 
   it("a day with no successful probe on record is not synced", async () => {
@@ -352,7 +386,7 @@ describe("whether a window is synced comes from the ShopDriver sync log, not fro
 
   it("the data date is read from ShopDriver rows only", async () => {
     await read("yesterday", { probe: "2026-10-21T15:42:00Z" });
-    expect(sqlText(dbMock.execute.mock.calls[1]!)).toMatch(/MAX\(invoiceDate\) AS throughDate FROM invoices WHERE source = 'shopdriver'/);
+    expect(sqlText(dbMock.execute.mock.calls[2]!)).toMatch(/MAX\(invoiceDate\) AS throughDate FROM invoices WHERE source = 'shopdriver'/);
   });
 
   it("every period is judged against the probe: with a probe at 11:42 ET today they are all synced", async () => {
@@ -394,11 +428,53 @@ describe("whether a window is synced comes from the ShopDriver sync log, not fro
     vi.useFakeTimers();
     vi.setSystemTime(new Date(NOW_ISO));
     dbMock.execute
+      .mockResolvedValueOnce([[{ probeEpoch: String(epoch("2026-10-21T15:42:00Z")) }]])
       .mockResolvedValueOnce([[aggRow]])
-      .mockResolvedValueOnce([[{ throughDate: null }]])
-      .mockResolvedValueOnce([[{ probeEpoch: String(epoch("2026-10-21T15:42:00Z")) }]]);
+      .mockResolvedValueOnce([[{ throughDate: null }]]);
     const r = await paidInvoiceRevenue("today");
     expect(r.available && r.windowSynced).toBe(true);
+  });
+
+  it("a fetch begun at 23:59 ET that was logged at 00:01 ET covers yesterday's night, not today", async () => {
+    // writeProbeLog stores startedAt as NOW() minus the duration, so the row says 23:59 even
+    // though it was inserted after midnight. Read at 00:01 ET: not a probe today.
+    expect((await read("today", { now: "2026-10-21T04:01:00Z", probe: "2026-10-21T03:59:30Z" })).windowSynced).toBe(false);
+    expect((await read("today", { now: "2026-10-21T04:01:00Z", probe: "2026-10-21T04:00:30Z" })).windowSynced).toBe(true);
+  });
+});
+
+describe("syncInFlight: the read says whether a probe is running, so the card can follow it", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    dbMock.execute.mockReset();
+    live.budgetInFlight = false;
+    live.refreshInFlight = false;
+    live.stateThrows = false;
+  });
+  const aggRow = { paidCount: 0, paidCents: 0, pendingCount: 0, pendingCents: 0, partialCount: 0, partialCents: 0, refundedCount: 0, refundedCents: 0, blankInvoiceNumbers: 0 };
+  async function inFlight() {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-21T15:59:00Z"));
+    dbMock.execute.mockResolvedValueOnce([[]]).mockResolvedValueOnce([[aggRow]]).mockResolvedValueOnce([[{ throughDate: null }]]);
+    const r = await paidInvoiceRevenue("today");
+    if (!r.available) throw new Error("unexpected unavailable");
+    return r.syncInFlight;
+  }
+
+  it("is false when nothing is running", async () => {
+    expect(await inFlight()).toBe(false);
+  });
+  it("is true while the probe budget has a probe or a manual sync running (OAuth callback, chat, another tab, sync-now)", async () => {
+    live.budgetInFlight = true;
+    expect(await inFlight()).toBe(true);
+  });
+  it("is true while this page-load refresh is starting its probe", async () => {
+    live.refreshInFlight = true;
+    expect(await inFlight()).toBe(true);
+  });
+  it("is false, not an error, when the probe state cannot be read", async () => {
+    live.stateThrows = true;
+    expect(await inFlight()).toBe(false);
   });
 });
 

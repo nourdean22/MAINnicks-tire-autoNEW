@@ -153,6 +153,8 @@ export type ShopSales =
        * period.
        */
       windowSynced: boolean | null;
+      /** A ShopDriver probe is running right now: the card should keep re-reading until it lands. */
+      syncInFlight: boolean;
       basis: "invoice_date";
       grossOrNet: "gross_tax_inclusive";
       definitionVersion: string;
@@ -297,7 +299,47 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
   const now = new Date();
   const { from, to } = salesWindow(period, now);
 
+  // Is a probe running right now? Read first and never fatal: it only tells the card to keep
+  // following (OAuth callback, chat, a second tab, a manual sync-now and this page-load refresh
+  // all count). Unknown is "not following", not an error.
+  let syncInFlight = false;
   try {
+    const [{ getProbeBudgetState }, { isAdminRefreshProbeInFlight }] = await Promise.all([
+      import("./algProbeBudget"),
+      import("../lib/adminActivity"),
+    ]);
+    syncInFlight = getProbeBudgetState().inFlight || isAdminRefreshProbeInFlight();
+  } catch (err) {
+    log.warn("[shopSales] probe state unreadable", { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  try {
+    // ORDER MATTERS: the sync watermark is read BEFORE the invoice aggregate. A probe can land
+    // between the two reads. This way round the aggregate may already hold the new rows while
+    // the watermark still shows the old probe, so we say "not synced" about data that is fresh,
+    // which is harmless. In the other order the aggregate could be stale while the watermark
+    // names the new probe, and we would say "synced" about data that is not.
+    //
+    // The watermark is the newest SUCCESSFUL ShopDriver probe: outcome `success` only, which
+    // algProbeBudget writes only when the invoice fetch returned rows. (`empty` was also what a
+    // failed invoice fetch was logged as; `auth_failed` and `error` read nothing.) Its own try:
+    // an unreadable log makes the sync UNKNOWN, it does not make the invoice figures unavailable.
+    let sync: ShopSync;
+    try {
+      sync = syncFromProbeRows(
+        await db.execute(sql`
+          SELECT UNIX_TIMESTAMP(startedAt) AS probeEpoch
+          FROM alg_probe_log
+          WHERE outcome = 'success'
+          ORDER BY startedAt DESC
+          LIMIT 1
+        `),
+      );
+    } catch (err) {
+      log.warn("[shopSales] alg_probe_log read failed", { error: err instanceof Error ? err.message : String(err) });
+      sync = { state: "unreadable", reason: err instanceof Error ? err.message : "probe log read failed" };
+    }
+
     // One statement. The buckets are computed in SQL over the same window and
     // the same table, so an exclusion count can never disagree with the headline
     // because of a differently-shaped second query.
@@ -318,26 +360,6 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
 
     // ShopDriver rows only: a same-day manual or booking invoice must not move the data date.
     const throughRows = await db.execute(sql`SELECT MAX(invoiceDate) AS throughDate FROM invoices WHERE source = 'shopdriver'`);
-
-    // The sync watermark: the newest SUCCESSFUL ShopDriver probe (success or empty, the outcomes
-    // that read the mirror; never auth_failed or error). Its own try: an unreadable log makes the
-    // sync UNKNOWN, it does not make the invoice figures unavailable.
-    let sync: ShopSync;
-    try {
-      sync = syncFromProbeRows(
-        await db.execute(sql`
-          SELECT UNIX_TIMESTAMP(startedAt) AS probeEpoch
-          FROM alg_probe_log
-          WHERE outcome IN ('success', 'empty')
-          ORDER BY startedAt DESC
-          LIMIT 1
-        `),
-      );
-    } catch (err) {
-      log.warn("[shopSales] alg_probe_log read failed", { error: err instanceof Error ? err.message : String(err) });
-      sync = { state: "unreadable", reason: err instanceof Error ? err.message : "probe log read failed" };
-    }
-
     const unwrap = (r: unknown): Record<string, unknown> => {
       const arr = Array.isArray(r) ? (r[0] as unknown) : r;
       const list = Array.isArray(arr) ? arr : [arr];
@@ -357,6 +379,7 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
       window: { fromISO: from, toISO: to, label: PERIOD_LABEL[period] },
       throughDate,
       sync,
+      syncInFlight,
       windowSynced: windowSyncedFor({ to }, sync, etDate(now)),
       basis: "invoice_date",
       grossOrNet: "gross_tax_inclusive",

@@ -1133,6 +1133,12 @@ export function debugLastFetch() { return _lastFetchDebug; }
 
 export async function runFullMirror(): Promise<{
   recordsProcessed: number;
+  /**
+   * How many invoices the fetch returned. 0 means the invoice phase FAILED (login rejected or
+   * the session was invalidated), whatever `recordsProcessed` says: a probe is only a read of
+   * the mirror when this is above 0 (algProbeBudget turns it into the log outcome).
+   */
+  invoicesFetched: number;
   details: string;
 }> {
   const start = Date.now();
@@ -1144,7 +1150,7 @@ export async function runFullMirror(): Promise<{
     const msg = `🚨 ALG MIRROR DOWN: Auth failed (attempt #${consecutiveFailures}). No credentials or login rejected. Dashboard data is STALE.`;
     log.error(msg);
     await sendMirrorAlert(msg);
-    return { recordsProcessed: 0, details: "Auth failed — no credentials or login rejected" };
+    return { recordsProcessed: 0, invoicesFetched: 0, details: "Auth failed — no credentials or login rejected" };
   }
 
   // Fetch in parallel
@@ -1208,7 +1214,7 @@ export async function runFullMirror(): Promise<{
       await upsertCustomers(rawCustomers);
     }
 
-    return { recordsProcessed: 0, details: `0 invoices fetched — session invalidated (fail #${consecutiveFailures})` };
+    return { recordsProcessed: 0, invoicesFetched: 0, details: `0 invoices fetched — session invalidated (fail #${consecutiveFailures})` };
   }
 
   // Store customers first (so invoice linking works)
@@ -1317,7 +1323,7 @@ export async function runFullMirror(): Promise<{
     } catch (e) { log.warn("[shopDriverMirror:mirror] memory save for mirror insight failed:", e); }
   }
 
-  return { recordsProcessed: total, details };
+  return { recordsProcessed: total, invoicesFetched: rawInvoices.length, details };
 }
 
 // ─── ALERT HELPER ──────────────────────────────────────

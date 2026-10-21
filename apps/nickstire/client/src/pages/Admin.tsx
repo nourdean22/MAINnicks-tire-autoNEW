@@ -16,6 +16,7 @@ import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
 import { trpc } from "@/lib/trpc";
+import { useSyncOnAdminLoad } from "@/lib/useSyncOnAdminLoad";
 import type { AdminRole } from "@shared/adminPermissions";
 import {
   ArrowLeft,
@@ -124,6 +125,8 @@ export default function Admin() {
    */
   const adminReady =
     isAdmin && !!security && (!security.mfaRequired || (security.mfaEnabled === true && security.mfaVerified === true));
+  // Nour, 2026-10-21: opening or refreshing ANY admin tab syncs ShopDriver (once per page load, server-throttled).
+  useSyncOnAdminLoad(adminReady);
 
   const { data: bundle, isError: overviewUnavailable, error: overviewError } =
     trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {

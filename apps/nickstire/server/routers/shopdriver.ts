@@ -274,7 +274,9 @@ export const shopdriverRouter = router({
    */
   forceSyncNow: adminProcedure.mutation(async ({ ctx }) => {
     const { runFullMirror } = await import("../services/shopDriverMirror");
-    const result = await runFullMirror();
+    const { recordExternalSync } = await import("../services/algProbeBudget");
+    // Outside the budget on purpose (it must run), but recorded: a row in alg_probe_log and the in-memory start stamp.
+    const result = await recordExternalSync("force_sync", () => runFullMirror());
 
     const { logAdminAction } = await import("../services/auditTrail");
     logAdminAction({
@@ -623,6 +625,10 @@ export const shopdriverRouter = router({
   syncInvoices: adminProcedure.mutation(async () => {
     const d = await db();
     if (!d) return { success: false, error: "Database unavailable", synced: 0 };
+    // This is a partial pull (the newest 50 tickets), not runFullMirror: it authenticates ShopDriver, so it holds
+    // off the page-load refresh, but it is NOT logged as a sync because it covers no whole day.
+    const { noteAuthAttemptStarted } = await import("../services/algProbeBudget");
+    noteAuthAttemptStarted();
 
     // Try to fetch recent tickets from ShopDriver API
     const res = await sdFetch("/api/tickets?limit=50&sort=-createdAt");

@@ -301,6 +301,19 @@ describe("one probe at a time, and a failure stays out of the request", () => {
     await first.done;
   });
 
+  it("reports itself in flight from the moment it accepts a load until the probe ends", async () => {
+    const { maybeFireAdminRefreshProbe, isAdminRefreshProbeInFlight } = await load();
+    expect(isAdminRefreshProbeInFlight()).toBe(false);
+    lastAttemptAgo(31 * MIN);
+    let finish!: (v: unknown) => void;
+    m.requestAlgProbe.mockReturnValueOnce(new Promise((res) => { finish = res; }));
+    const first = await maybeFireAdminRefreshProbe("page-load");
+    expect(isAdminRefreshProbeInFlight()).toBe(true); // the response is out, the probe is not even started yet
+    finish({ outcome: "success", recordsProcessed: 1, durationMs: 1, reason: "admin_refresh" });
+    await first.done;
+    expect(isAdminRefreshProbeInFlight()).toBe(false);
+  });
+
   it("two loads that race on the same stale read start exactly one probe", async () => {
     const { maybeFireAdminRefreshProbe } = await load();
     lastAttemptAgo(31 * MIN);
@@ -364,9 +377,10 @@ describe("the reason, the door and the consumer exist", () => {
     expect(router).toMatch(/maybeFireAdminRefreshProbe\(/);
   });
 
-  it("the Today page's Billed card is the consumer: it calls the door once per document and refetches", () => {
-    const card = read("client/src/pages/admin/SalesCard.tsx");
-    expect(card).toMatch(/shopdriver\.syncOnAdminLoad\.useMutation/);
-    expect(card).toMatch(/refetchInterval/);
+  it("the admin shell is the consumer (once per document, any tab); the Billed card follows the probe it reports", () => {
+    const hook = read("client/src/lib/useSyncOnAdminLoad.ts");
+    expect(hook).toMatch(/shopdriver\.syncOnAdminLoad\.useMutation/);
+    expect(read("client/src/pages/Admin.tsx")).toMatch(/useSyncOnAdminLoad\(adminReady\)/);
+    expect(read("client/src/pages/admin/SalesCard.tsx")).toMatch(/refetchInterval/);
   });
 });

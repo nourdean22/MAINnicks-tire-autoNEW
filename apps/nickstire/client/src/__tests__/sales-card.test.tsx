@@ -19,9 +19,6 @@ const h = vi.hoisted(() => ({
   inputs: [] as Array<{ period: string }>,
   refetchIntervals: [] as unknown[],
   syncCalls: 0,
-  syncStarted: false,
-  /** "reject": the server refuses the call (MFA not cleared); "hang": no answer yet. */
-  syncMode: "accept" as "accept" | "reject" | "hang",
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -35,26 +32,11 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
     },
-    shopdriver: {
-      syncOnAdminLoad: {
-        useMutation: (opts?: { onSuccess?: (r: { started: boolean }) => void; onError?: (e: Error) => void }) => ({
-          mutate: () => {
-            h.syncCalls++;
-            if (h.syncMode === "reject") opts?.onError?.(new Error("MFA required"));
-            else if (h.syncMode === "accept") opts?.onSuccess?.({ started: h.syncStarted });
-          },
-        }),
-      },
-    },
   },
 }));
 
 import SalesCard from "../pages/admin/SalesCard";
 
-/** A new document: a browser refresh clears the card's once-per-load marker on window. */
-const newDocument = () => {
-  delete (window as unknown as Record<string, unknown>).__shopSalesLoadSyncAsked;
-};
 
 const ok = {
   available: true as const,
@@ -65,6 +47,7 @@ const ok = {
   throughDate: "2026-09-06",
   sync: { state: "ok" as const, lastAt: "2026-09-07T00:00:00.000Z", etDate: "2026-09-06", etTime: "8:00 PM" },
   windowSynced: true as boolean | null,
+  syncInFlight: false,
   basis: "invoice_date" as const,
   grossOrNet: "gross_tax_inclusive" as const,
   definitionVersion: "shop-sales-v1-invoice-date-gross",
@@ -83,9 +66,6 @@ beforeEach(() => {
   h.inputs = [];
   h.refetchIntervals = [];
   h.syncCalls = 0;
-  h.syncStarted = false;
-  h.syncMode = "accept";
-  newDocument();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -185,100 +165,81 @@ describe("phone ergonomics", () => {
 });
 
 /**
- * Sync on a full admin page load (Nour, 2026-10-21). The card is the Today page's first
- * mount, so it asks the server once per document load. A chip tap or an in-app return to
- * the page is NOT a load. While a started sync is landing the card re-reads on a short
- * interval so the new numbers appear without a manual refresh; it only ever shows what
- * the read returned.
+ * The sync is started by the admin shell on a page load (sync-on-admin-load.test.tsx). The card
+ * only FOLLOWS it: while the read says a probe is running (`syncInFlight`) it re-reads on a short
+ * interval so the new numbers appear without a manual refresh, for at most 3 minutes. It does not
+ * depend on its own call having started one, so it also follows a probe started by the shell, the
+ * OAuth callback, chat or a second tab. It only ever shows what the read returned.
  */
-describe("syncs the invoice mirror once per page load, then shows what lands", () => {
-  const lastInterval = () => h.refetchIntervals[h.refetchIntervals.length - 1];
+describe("follows a running sync, then shows what lands", () => {
+  /** What the card's refetchInterval says for the latest read (react-query asks it after each read). */
+  const intervalFor = (data: unknown) => {
+    const fn = h.refetchIntervals[h.refetchIntervals.length - 1] as (q: { state: { data: unknown } }) => unknown;
+    return fn({ state: { data } });
+  };
 
-  it("asks the server to sync on the first mount", () => {
-    h.result = { data: ok, isLoading: false, isError: false };
+  it("re-reads every 15 s while the read says a probe is running, and says it is syncing", () => {
+    const running = { ...ok, syncInFlight: true };
+    h.result = { data: running, isLoading: false, isError: false };
     render(<SalesCard />);
-    expect(h.syncCalls).toBe(1);
-  });
-
-  it("does not ask again on a chip tap, a re-render, or coming back to the page in the same document", () => {
-    h.result = { data: ok, isLoading: false, isError: false };
-    const first = render(<SalesCard />);
-    fireEvent.click(screen.getByRole("button", { name: "Today" }));
-    fireEvent.click(screen.getByRole("button", { name: "Yesterday" }));
-    first.rerender(<SalesCard />);
-    first.unmount();
-    render(<SalesCard />);
-    expect(h.syncCalls).toBe(1);
-  });
-
-  it("a browser refresh (a new document) asks again", () => {
-    h.result = { data: ok, isLoading: false, isError: false };
-    render(<SalesCard />);
-    cleanup();
-    newDocument();
-    render(<SalesCard />);
-    expect(h.syncCalls).toBe(2);
-  });
-
-  it("a started sync re-reads every 15 s and says it is syncing", () => {
-    h.syncStarted = true;
-    h.result = { data: ok, isLoading: false, isError: false };
-    render(<SalesCard />);
-    expect(lastInterval()).toBe(15_000);
+    expect(intervalFor(running)).toBe(15_000);
     expect(screen.getByText(/Syncing the invoice mirror/)).toBeTruthy();
   });
 
-  it("a sync that did not start (one ran in the last 30 min) adds no polling and no syncing line", () => {
-    h.syncStarted = false;
+  it("does not poll, and says nothing, when no probe is running", () => {
     h.result = { data: ok, isLoading: false, isError: false };
     render(<SalesCard />);
-    expect(lastInterval()).toBe(false);
+    expect(intervalFor(ok)).toBe(false);
     expect(screen.queryByText(/Syncing the invoice mirror/)).toBeNull();
   });
 
-  it("stops re-reading after 3 minutes, so a sync that never lands does not poll forever", () => {
+  it("does not poll on a failed read or before the first read", () => {
+    h.result = { data: undefined, isLoading: true, isError: false };
+    render(<SalesCard />);
+    expect(intervalFor(undefined)).toBe(false);
+    expect(intervalFor({ available: false, reason: "down" })).toBe(false);
+  });
+
+  it("stops re-reading after 3 minutes, so a probe that never ends does not poll forever", () => {
     vi.useFakeTimers();
-    h.syncStarted = true;
-    h.result = { data: ok, isLoading: false, isError: false };
+    const running = { ...ok, syncInFlight: true };
+    h.result = { data: running, isLoading: false, isError: false };
     render(<SalesCard />);
-    expect(lastInterval()).toBe(15_000);
+    expect(intervalFor(running)).toBe(15_000);
     act(() => { vi.advanceTimersByTime(3 * 60_000 + 1); });
-    expect(lastInterval()).toBe(false);
+    expect(intervalFor(running)).toBe(false);
     expect(screen.queryByText(/Syncing the invoice mirror/)).toBeNull();
   });
 
-  it("while syncing, an unsynced Today still shows no figure", () => {
-    h.syncStarted = true;
+  it("the cap resets once the probe ends, so the next one is followed again", () => {
+    vi.useFakeTimers();
+    const running = { ...ok, syncInFlight: true };
+    h.result = { data: running, isLoading: false, isError: false };
+    const view = render(<SalesCard />);
+    act(() => { vi.advanceTimersByTime(3 * 60_000 + 1); });
+    h.result = { data: ok, isLoading: false, isError: false }; // it ended
+    view.rerender(<SalesCard />);
+    h.result = { data: running, isLoading: false, isError: false }; // another one started
+    view.rerender(<SalesCard />);
+    expect(intervalFor(running)).toBe(15_000);
+  });
+
+  it("the card itself no longer asks the server to sync", () => {
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(h.syncCalls).toBe(0);
+  });
+
+  it("while a probe runs, an unsynced Today still shows no figure", () => {
     h.result = {
-      data: { ...ok, period: "today", cents: 0, invoiceCount: 0, windowSynced: false, sync: lastNight },
+      data: { ...ok, period: "today", cents: 0, invoiceCount: 0, windowSynced: false, sync: lastNight, syncInFlight: true },
       isLoading: false, isError: false,
     };
     const { container } = render(<SalesCard />);
     expect(screen.getByText(/Not synced yet today\./)).toBeTruthy();
+    expect(screen.getByText(/Syncing the invoice mirror/)).toBeTruthy();
     expect(container.textContent).not.toContain("$");
-  });
-
-  it("a first call the server refuses (MFA not cleared) does not use up the page load: the next mount asks again", () => {
-    h.syncMode = "reject";
-    h.result = { data: ok, isLoading: false, isError: false };
-    render(<SalesCard />);
-    expect(h.syncCalls).toBe(1);
-    cleanup();
-    h.syncMode = "accept"; // MFA cleared
-    render(<SalesCard />);
-    expect(h.syncCalls).toBe(2);
-    cleanup();
-    render(<SalesCard />); // accepted now: the page load is used up
-    expect(h.syncCalls).toBe(2);
-  });
-
-  it("a call still waiting for its answer is not doubled by a second mount", () => {
-    h.syncMode = "hang";
-    h.result = { data: ok, isLoading: false, isError: false };
-    render(<SalesCard />);
-    cleanup();
-    render(<SalesCard />);
-    expect(h.syncCalls).toBe(1);
   });
 });
 
@@ -374,7 +335,6 @@ describe("Today and Yesterday period chips", () => {
       expect(screen.queryByText(/Not synced yet/)).toBeNull();
       expect(container.textContent).not.toMatch(/so far today|current as of/);
       cleanup();
-      newDocument();
     }
   });
 

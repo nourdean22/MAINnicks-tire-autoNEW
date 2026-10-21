@@ -56,22 +56,6 @@ function dollars(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
-/**
- * SYNC ON A PAGE LOAD (Nour, 2026-10-21, "Refresh syncs anytime"). This card is on the
- * Today page, the /admin landing, so its first mount in a document is a load or refresh.
- * The server throttles to one ShopDriver sync per 30 min at any hour and accepts that
- * each one logs the shop counter out. This flag lives for the document, so a chip tap or
- * an in-app return to the page is not a load; a browser refresh resets it. A deep link
- * to another admin page does not sync until Today is opened (move this to the shell to
- * change that). The marker is a property of `window`, so a test starts a new document
- * by deleting it. It is set to "pending" when the call goes out, "done" only once the
- * server ACCEPTED it, and cleared when the call is rejected: with MFA on the first call
- * is refused by adminProcedure, and a marker set before the answer would swallow the only
- * sync of the load.
- */
-const LOAD_SYNC_MARK = "__shopSalesLoadSyncAsked";
-type LoadSyncMark = "pending" | "done";
-const loadSyncMarks = () => window as unknown as Record<string, LoadSyncMark | undefined>;
 type SyncState =
   | { state: "ok"; etDate: string; etTime: string }
   | { state: "never" }
@@ -104,32 +88,31 @@ const SYNC_POLL_MAX_MS = 3 * 60_000;
 export default function SalesCard() {
   const [period, setPeriod] = useState<Period>("last_7d");
   const [showDetail, setShowDetail] = useState(false);
-  // True only after the server says it started a probe; re-reads this card while it lands.
-  const [syncing, setSyncing] = useState(false);
-  const { mutate: syncOnLoad } = trpc.shopdriver.syncOnAdminLoad.useMutation({
-    onSuccess: (r) => {
-      loadSyncMarks()[LOAD_SYNC_MARK] = "done";
-      if (r.started) setSyncing(true);
-    },
-    onError: () => {
-      delete loadSyncMarks()[LOAD_SYNC_MARK];
-    },
-  });
-  useEffect(() => {
-    if (loadSyncMarks()[LOAD_SYNC_MARK]) return;
-    loadSyncMarks()[LOAD_SYNC_MARK] = "pending";
-    syncOnLoad();
-  }, [syncOnLoad]);
-  useEffect(() => {
-    if (!syncing) return;
-    const t = setTimeout(() => setSyncing(false), SYNC_POLL_MAX_MS);
-    return () => clearTimeout(t);
-  }, [syncing]);
+  // The sync itself is started by the admin shell on a page load (useSyncOnAdminLoad). This card
+  // only follows it: while the read says a probe is running (`syncInFlight`: this load's refresh,
+  // an OAuth callback, chat, a second tab, a manual sync-now) it re-reads every 15 s, for at most
+  // 3 minutes, so the new numbers appear without a manual refresh. It shows only what the read
+  // returned.
+  const [capped, setCapped] = useState(false);
   const query = trpc.controlCenter.shopSales.useQuery(
     { period },
-    { refetchInterval: syncing ? SYNC_POLL_MS : false },
-  );
-  const data = query.data;
+    {
+      refetchInterval: (q) => {
+        const d = q.state.data;
+        return !capped && d?.available === true && d.syncInFlight ? SYNC_POLL_MS : false;
+      },
+    },
+  );  const data = query.data;
+  const inFlight = data?.available === true && data.syncInFlight;
+  useEffect(() => {
+    if (!inFlight) {
+      setCapped(false);
+      return;
+    }
+    const t = setTimeout(() => setCapped(true), SYNC_POLL_MAX_MS);
+    return () => clearTimeout(t);
+  }, [inFlight]);
+  const following = inFlight && !capped;
   // Decided from the period the server answered for, not the chip just tapped. A single day
   // shows its figure only when a successful ShopDriver sync covers it (windowSynced === true).
   const singleDay = data?.available === true && (data.period === "today" || data.period === "yesterday");
@@ -161,7 +144,7 @@ export default function SalesCard() {
         </div>
       </div>
 
-      {syncing && (
+      {following && (
         <div role="status" className="mb-2 flex items-center gap-2 text-xs text-foreground/60">
           <Loader2 className="w-3 h-3 animate-spin" /> Syncing the invoice mirror from ShopDriver…
         </div>
