@@ -1335,7 +1335,8 @@ type AccountPart = { text: string; kind: "heard" | "inferred" | "inaudible" };
 
 /**
  * An account split into heard text, "(inferred: ...)" guesses and "[inaudible: ...]" gaps, each part
- * keeping its exact words. Anything unbalanced makes the whole account plain heard text.
+ * keeping its exact words, read left to right. An unclosed marker styles everything from its opening to the end;
+ * the parts before it keep their parse.
  */
 function accountParts(text: string): AccountPart[] {
   const parts: AccountPart[] = [];
@@ -1360,7 +1361,10 @@ function accountParts(text: string): AccountPart[] {
       close = text.indexOf("]", i);
     }
     if (kind === null) { i++; continue; }
-    if (close < 0) return [{ text, kind: "heard" }];
+    if (close < 0) {
+      push(i, { text: text.slice(i), kind });
+      return parts;
+    }
     push(i, { text: text.slice(i, close + 1), kind });
     i = from = close + 1;
   }
@@ -1390,7 +1394,13 @@ function AccountText({ text }: { text: string }) {
 }
 
 type WorthKnowingData =
-  | { ok: true; day: string; items: Array<{ episodeId: string; source: string; cameraLabel: string; startedAtMs: number | null; kind: string; quote: string; account: string | null }> }
+  | {
+      ok: true;
+      day: string;
+      items: Array<{ episodeId: string; source: string; cameraLabel: string; startedAtMs: number | null; kind: string; quote: string; account: string | null }>;
+      /** The server hit its bound on flagged rows; optional until the server fix lands. */
+      truncated?: boolean;
+    }
   | { ok: false; reason: string };
 
 /**
@@ -1412,9 +1422,11 @@ function WorthKnowing() {
         <Loading what="what is worth knowing today" />
       ) : answer === "unknown" || data?.ok !== true ? (
         <p className="text-[13px] text-amber-300">Worth knowing today could not be read: {reason}</p>
-      ) : data.items.length === 0 ? (
+      ) : data.items.length === 0 && data.truncated !== true ? (
         <p className="text-[13px] text-foreground/60">Nothing flagged today.</p>
       ) : (
+        <>
+        {data.items.length > 0 && (
         <ol aria-label="Flags today" className="divide-y divide-foreground/10">
           {data.items.map((it, i) => (
             <li key={`${it.episodeId}-${i}`} className="min-h-12 py-2">
@@ -1434,6 +1446,9 @@ function WorthKnowing() {
             </li>
           ))}
         </ol>
+        )}
+        {data.truncated === true && <p className="mt-1 text-[12px] text-amber-300">More was flagged today than shown here.</p>}
+        </>
       )}
     </section>
   );

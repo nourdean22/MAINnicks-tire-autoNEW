@@ -113,10 +113,34 @@ describe("Worth knowing today", () => {
     expect((h.calls.get("lot.worthKnowing")?.opts as { refetchInterval?: number }).refetchInterval).toBe(15_000);
   });
 
-  it("an empty day says Nothing flagged today", () => {
-    setOffice({ worth: { data: { ok: true, day: "2026-10-21", items: [] } } });
+  for (const truncated of [undefined, false]) {
+    it(`an empty day says Nothing flagged today (truncated ${truncated})`, () => {
+      setOffice({ worth: { data: { ok: true, day: "2026-10-21", items: [], ...(truncated === undefined ? {} : { truncated }) } } });
+      render(<LotSection />);
+      expect(within(block()!).getByText("Nothing flagged today.")).toBeTruthy();
+      expect(screen.queryByText("More was flagged today than shown here.")).toBeNull();
+    });
+
+    it(`a full list has no more-line (truncated ${truncated})`, () => {
+      setOffice({ worth: { data: { ok: true, day: "2026-10-21", items: ITEMS, ...(truncated === undefined ? {} : { truncated }) } } });
+      render(<LotSection />);
+      expect(screen.queryByText("More was flagged today than shown here.")).toBeNull();
+    });
+  }
+
+  it("a truncated list ends with the more-line", () => {
+    setOffice({ worth: { data: { ok: true, day: "2026-10-21", items: ITEMS, truncated: true } } });
     render(<LotSection />);
-    expect(within(block()!).getByText("Nothing flagged today.")).toBeTruthy();
+    const more = within(block()!).getByText("More was flagged today than shown here.");
+    const rows = within(block()!).getAllByRole("listitem");
+    expect(Boolean(rows[rows.length - 1].compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it("a truncated empty list never says Nothing flagged today", () => {
+    setOffice({ worth: { data: { ok: true, day: "2026-10-21", items: [], truncated: true } } });
+    render(<LotSection />);
+    expect(screen.queryByText("Nothing flagged today.")).toBeNull();
+    expect(within(block()!).getByText("More was flagged today than shown here.")).toBeTruthy();
   });
 
   const broken: Array<[string, Partial<Q>, string]> = [
@@ -219,11 +243,45 @@ describe("the account: guesses look like guesses", () => {
     expect(span.className).toContain("text-foreground/50");
   });
 
-  it("an unbalanced (inferred: ... renders as plain text", () => {
-    setOffice({ rows: [convo("c-1", T0, { gist: "A customer (inferred: likely angry and left." })] });
+  // The visible words, without the screen-reader-only "inferred: " prefix.
+  const visible = (el: Element): string =>
+    [...el.childNodes].map((n) => (n.nodeType === 3 ? n.textContent ?? "" : (n as Element).classList.contains("sr-only") ? "" : visible(n as Element))).join("");
+  const styled = (cls: string) => [...heard().querySelectorAll(`span.${cls.replace("/", "\\/")}`)].filter((s) => !s.classList.contains("sr-only")).map(visible);
+
+  it("an unclosed (inferred: styles from its opening to the end; an earlier closed guess keeps its parse", () => {
+    const gist = "OK (inferred: a) b (inferred: c";
+    setOffice({ rows: [convo("c-1", T0, { gist })] });
     render(<LotSection />);
-    expect(heard().querySelector("span.italic")).toBeNull();
-    expect(heard().textContent).toContain("A customer (inferred: likely angry and left.");
+    expect(styled("italic")).toEqual(["(inferred: a)", "(inferred: c"]);
+    expect(visible(heard())).toBe(`Heard: ${gist}`);
+  });
+
+  it("an unclosed [inaudible: styles from its opening to the end", () => {
+    const gist = "They paid (inferred: cash) then [inaudible: about ten seconds";
+    setOffice({ rows: [convo("c-1", T0, { gist })] });
+    render(<LotSection />);
+    expect(styled("italic")).toEqual(["(inferred: cash)"]);
+    const gap = [...heard().querySelectorAll("span")].find((s) => s.textContent === "[inaudible: about ten seconds")!;
+    expect(gap.className).toContain("text-foreground/50");
+    expect(gap.className).not.toContain("italic");
+    expect(visible(heard())).toBe(`Heard: ${gist}`);
+  });
+
+  it("parentheses inside a guess stay inside it", () => {
+    const gist = "A customer (inferred: likely the (front) tire) left.";
+    setOffice({ rows: [convo("c-1", T0, { gist })] });
+    render(<LotSection />);
+    expect(styled("italic")).toEqual(["(inferred: likely the (front) tire)"]);
+    expect(visible(heard())).toBe(`Heard: ${gist}`);
+  });
+
+  it("a 100k-character account renders without loss", () => {
+    const gist = "word (inferred: x) [inaudible: y] ".repeat(3000) + "(inferred: tail";
+    expect(gist.length).toBeGreaterThan(100_000);
+    setOffice({ rows: [convo("c-1", T0, { gist })] });
+    render(<LotSection />);
+    expect(visible(heard())).toBe(`Heard: ${gist}`);
+    expect(styled("italic")).toHaveLength(3001);
   });
 
   it("the noise line renders muted, as written", () => {
