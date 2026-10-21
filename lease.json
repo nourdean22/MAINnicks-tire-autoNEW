@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/prune-bdnick-w2v",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "31cd0942-42dc-47b2-91fd-b8e3be5cb913",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\bdnick-w2v",
   "claimedBy": "2026-10-18-bdnick-prune-w2v",
   "claimedAt": "2026-10-19T18:34:41.144Z",
   "expiresAt": "2026-10-20T06:34:41.144Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": "9f96cd73a8594e06e185e56067d60b01af1f982a"
+  "releasedAt": "2026-10-21T13:20:32.160Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "e4fd96f9381ae6ba3e2a3c027d8cdffc549f2097",
+  "releasedBy": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "foreignReleaseReason": null
 }
