@@ -85,9 +85,10 @@ const log = createLogger("shop-sales");
 export const SALES_DEFINITION_VERSION = "shop-sales-v2-invoice-date-gross-completed-days";
 
 /**
- * The one list of periods. The tRPC input enum (routers/controlCenter.ts) and the
- * card's chips (client SalesCard.tsx) repeat it by hand; shopSales.test.ts fails
- * if any of the three drifts, because a chip the router rejects is a dead button.
+ * The one list of periods. The tRPC input enum (routers/controlCenter.ts) is built
+ * from it; the card's chips (client SalesCard.tsx) repeat it by hand, and
+ * shopSales.test.ts fails if they drift, because a chip the router rejects is a
+ * dead button.
  */
 export const SALES_PERIODS = ["today", "yesterday", "last_7d", "last_30d", "month_to_date", "prev_month"] as const;
 export type SalesPeriod = (typeof SALES_PERIODS)[number];
@@ -220,7 +221,7 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
  * midnight shift cannot move either side by a day. A null through-date (empty
  * mirror) is "nothing synced", so the window is after it.
  */
-export function isWindowAfterThrough(window: { from: string; to: string }, throughDate: string | null): boolean {
+function isWindowAfterThrough(window: { from: string; to: string }, throughDate: string | null): boolean {
   if (!throughDate) return true;
   // `to` is exclusive, so the last date inside the window is the day before it.
   const lastDate = new Date(Date.parse(`${window.to}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);

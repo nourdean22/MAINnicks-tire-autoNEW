@@ -46,7 +46,12 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-import SalesCard, { __resetLoadSyncForTest } from "../pages/admin/SalesCard";
+import SalesCard from "../pages/admin/SalesCard";
+
+/** A new document: a browser refresh clears the card's once-per-load marker on window. */
+const newDocument = () => {
+  delete (window as unknown as Record<string, unknown>).__shopSalesLoadSyncAsked;
+};
 
 const ok = {
   available: true as const,
@@ -75,7 +80,7 @@ beforeEach(() => {
   h.refetchIntervals = [];
   h.syncCalls = 0;
   h.syncStarted = false;
-  __resetLoadSyncForTest();
+  newDocument();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -199,6 +204,15 @@ describe("syncs the invoice mirror once per page load, then shows what lands", (
     first.unmount();
     render(<SalesCard />);
     expect(h.syncCalls).toBe(1);
+  });
+
+  it("a browser refresh (a new document) asks again", () => {
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    cleanup();
+    newDocument();
+    render(<SalesCard />);
+    expect(h.syncCalls).toBe(2);
   });
 
   it("a started sync re-reads every 15 s and says it is syncing", () => {

@@ -17,7 +17,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   salesWindow,
-  isWindowAfterThrough,
   paidInvoiceRevenue,
   SALES_PERIODS,
   SALES_DEFINITION_VERSION,
@@ -270,41 +269,6 @@ describe("today and yesterday are single Eastern days", () => {
   });
 });
 
-describe("windowAfterThrough: does the window end after what the mirror holds?", () => {
-  // [from, to) is half-open, so the last date inside the window is the day BEFORE `to`.
-  const today = { from: "2026-10-21", to: "2026-10-22" };
-  const yesterday = { from: "2026-10-20", to: "2026-10-21" };
-  const last7 = { from: "2026-10-14", to: "2026-10-21" };
-  const mtd = { from: "2026-10-01", to: "2026-10-22" };
-  const prevMonth = { from: "2026-09-01", to: "2026-10-01" };
-
-  it.each([
-    // [label, window, throughDate, expected]
-    ["today, mirror through yesterday (the normal morning)", today, "2026-10-20", true],
-    ["today, mirror through today", today, "2026-10-21", false],
-    ["yesterday, mirror through yesterday", yesterday, "2026-10-20", false],
-    ["yesterday, mirror one day older", yesterday, "2026-10-19", true],
-    ["7 days, mirror through yesterday", last7, "2026-10-20", false],
-    ["7 days, mirror two days behind", last7, "2026-10-19", true],
-    ["month to date, mirror through yesterday (partial on any morning)", mtd, "2026-10-20", true],
-    ["month to date, mirror through today", mtd, "2026-10-21", false],
-    ["last month, mirror far ahead", prevMonth, "2026-10-20", false],
-    ["last month, mirror through its last day", prevMonth, "2026-09-30", false],
-    ["last month, mirror one day short of its last day", prevMonth, "2026-09-29", true],
-    ["mirror ahead of the window (a future-dated row)", today, "2026-10-25", false],
-    ["no invoices in the mirror at all: nothing is synced", today, null, true],
-  ] as const)("%s", (_label, window, through, expected) => {
-    expect(isWindowAfterThrough(window, through)).toBe(expected);
-  });
-
-  it("compares calendar days across a month end and a year end, not raw strings", () => {
-    expect(isWindowAfterThrough({ from: "2026-09-30", to: "2026-10-01" }, "2026-09-30")).toBe(false);
-    expect(isWindowAfterThrough({ from: "2026-09-30", to: "2026-10-01" }, "2026-09-29")).toBe(true);
-    expect(isWindowAfterThrough({ from: "2026-12-31", to: "2027-01-01" }, "2026-12-31")).toBe(false);
-    expect(isWindowAfterThrough({ from: "2027-01-01", to: "2027-01-02" }, "2026-12-31")).toBe(true);
-  });
-});
-
 describe("paidInvoiceRevenue ships windowAfterThrough on every successful read", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -353,6 +317,43 @@ describe("paidInvoiceRevenue ships windowAfterThrough on every successful read",
     });
   });
 
+  // The truth table, driven through the real read. `now` is noon ET unless noted; the mirror
+  // reports MAX(invoiceDate) as a Date whose UTC digits are the stored shop day.
+  const through = (day: string) => new Date(`${day}T04:00:00Z`);
+  async function windowAfterAt(nowISO: string, period: (typeof SALES_PERIODS)[number], day: string | null) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(nowISO));
+    dbMock.execute.mockResolvedValueOnce([[aggRow]]).mockResolvedValueOnce([[{ throughDate: day ? through(day) : null }]]);
+    const r = await paidInvoiceRevenue(period);
+    if (!r.available) throw new Error("unexpected unavailable");
+    return r.windowAfterThrough;
+  }
+
+  it.each([
+    // [label, now, period, mirror through, windowAfterThrough]
+    ["today, mirror through yesterday (the normal morning)", "2026-10-21T15:59:00Z", "today", "2026-10-20", true],
+    ["today, mirror through today", "2026-10-21T15:59:00Z", "today", "2026-10-21", false],
+    ["yesterday, mirror through yesterday", "2026-10-21T15:59:00Z", "yesterday", "2026-10-20", false],
+    ["yesterday, mirror one day older", "2026-10-21T15:59:00Z", "yesterday", "2026-10-19", true],
+    ["7 days, mirror through yesterday", "2026-10-21T15:59:00Z", "last_7d", "2026-10-20", false],
+    ["7 days, mirror two days behind", "2026-10-21T15:59:00Z", "last_7d", "2026-10-19", true],
+    ["30 days, mirror through yesterday", "2026-10-21T15:59:00Z", "last_30d", "2026-10-20", false],
+    ["month to date, mirror through yesterday (partial on any morning)", "2026-10-21T15:59:00Z", "month_to_date", "2026-10-20", true],
+    ["month to date, mirror through today", "2026-10-21T15:59:00Z", "month_to_date", "2026-10-21", false],
+    ["last month, mirror far ahead", "2026-10-21T15:59:00Z", "prev_month", "2026-10-20", false],
+    ["last month, mirror through its last day", "2026-10-21T15:59:00Z", "prev_month", "2026-09-30", false],
+    ["last month, mirror one day short of its last day", "2026-10-21T15:59:00Z", "prev_month", "2026-09-29", true],
+    ["mirror dated after the window (a future-dated row)", "2026-10-21T15:59:00Z", "today", "2026-10-25", false],
+    ["no invoices in the mirror at all: nothing is synced", "2026-10-21T15:59:00Z", "today", null, true],
+    ["month end: yesterday is Sep 30, mirror through Sep 30", "2026-10-01T15:59:00Z", "yesterday", "2026-09-30", false],
+    ["month end: yesterday is Sep 30, mirror through Sep 29", "2026-10-01T15:59:00Z", "yesterday", "2026-09-29", true],
+    ["year end: yesterday is Dec 31, mirror through Dec 31", "2027-01-01T17:00:00Z", "yesterday", "2026-12-31", false],
+    ["year end: today is Jan 2, mirror through Dec 31", "2027-01-02T17:00:00Z", "today", "2026-12-31", true],
+    ["22:00 ET Oct 21 (UTC is already Oct 22): today is still Oct 21", "2026-10-22T02:00:00Z", "today", "2026-10-21", false],
+  ] as const)("windowAfterThrough: %s", async (_label, nowISO, period, day, expected) => {
+    expect(await windowAfterAt(nowISO, period, day)).toBe(expected);
+  });
+
   it("an empty mirror reports the window as after it, with an unknown through-date", async () => {
     const t = await readAt("yesterday", null);
     expect(t.throughDate).toBeNull();
@@ -379,9 +380,10 @@ describe("the period list is one contract across router, service and card", () =
     expect(expected()).toEqual(["last_30d", "last_7d", "month_to_date", "prev_month", "today", "yesterday"]);
   });
 
-  it("controlCenter.shopSales accepts every period the service defines", () => {
+  it("controlCenter.shopSales builds its input enum from the service's list, not a copy", () => {
     const router = read("server/routers/controlCenter.ts");
-    expect(listIn(router, /shopSales: adminProcedure\s*\.input\(z\.object\(\{ period: z\.enum\(\[([^\]]*)\]\)/)).toEqual(expected());
+    expect(router).toMatch(/import \{ SALES_PERIODS \} from "\.\.\/services\/shopSales"/);
+    expect(router).toMatch(/shopSales: adminProcedure\s*\.input\(z\.object\(\{ period: z\.enum\(SALES_PERIODS\)/);
   });
 
   it("every chip the card offers is a period the router accepts, and 7 days stays the default", () => {

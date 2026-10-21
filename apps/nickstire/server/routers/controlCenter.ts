@@ -16,6 +16,7 @@ import { db } from "../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "../lib/logger";
+import { SALES_PERIODS } from "../services/shopSales";
 
 const log = createLogger("routers:controlCenter");
 /** Get today's date string (YYYY-MM-DD) in America/New_York timezone */
@@ -1091,7 +1092,7 @@ export const controlCenterRouter = router({
    * render, so an unreadable period cannot become $0.
    */
   shopSales: adminProcedure
-    .input(z.object({ period: z.enum(["today", "yesterday", "last_7d", "last_30d", "month_to_date", "prev_month"]).default("last_7d") }).optional())
+    .input(z.object({ period: z.enum(SALES_PERIODS).default("last_7d") }).optional())
     .query(async ({ input }) => {
       const { paidInvoiceRevenue } = await import("../services/shopSales");
       return paidInvoiceRevenue(input?.period ?? "last_7d");

@@ -61,12 +61,15 @@ function dollars(cents: number): string {
  * each one logs the shop counter out. This flag lives for the document, so a chip tap or
  * an in-app return to the page is not a load; a browser refresh resets it. A deep link
  * to another admin page does not sync until Today is opened (move this to the shell to
- * change that).
+ * change that). The marker is a property of `window`, so a test starts a new document
+ * by deleting it.
  */
-let loadSyncAsked = false;
-/** Test seam: a new document. */
-export function __resetLoadSyncForTest(): void {
-  loadSyncAsked = false;
+const LOAD_SYNC_MARK = "__shopSalesLoadSyncAsked";
+function claimLoadSync(): boolean {
+  const w = window as unknown as Record<string, boolean | undefined>;
+  if (w[LOAD_SYNC_MARK]) return false;
+  w[LOAD_SYNC_MARK] = true;
+  return true;
 }
 const SYNC_POLL_MS = 15_000;
 const SYNC_POLL_MAX_MS = 3 * 60_000;
@@ -82,9 +85,7 @@ export default function SalesCard() {
     },
   });
   useEffect(() => {
-    if (loadSyncAsked) return;
-    loadSyncAsked = true;
-    syncOnLoad();
+    if (claimLoadSync()) syncOnLoad();
   }, [syncOnLoad]);
   useEffect(() => {
     if (!syncing) return;
