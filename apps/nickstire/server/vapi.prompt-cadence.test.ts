@@ -72,11 +72,18 @@ describe("the job of every call: get them to come down", () => {
     }
   });
 
-  it("while CLOSED the ask is about the next open day, not today", () => {
+  it("while CLOSED: before opening the ask is this morning, after closing it is tomorrow morning", () => {
     const job = section("# THE JOB OF EVERY CALL", "\n# ");
     expect(job).toMatch(/While CLOSED/);
-    expect(job).toContain('"Can you swing by tomorrow morning?"');
     expect(job).toContain("HOURS GATE");
+    expect(job).toMatch(/before today's opening \(before 8 AM Mon-Sat, 9 AM Sun\)/);
+    expect(job).toContain('"We open at 8. Can you swing by this morning?"');
+    expect(job).toMatch(/9 on Sunday/);
+    expect(job).toMatch(/After closing[^"\n]*"Can you swing by tomorrow morning\?"/);
+    for (const q of quoted(job)) {
+      expect(words(q), q).toBeLessThanOrEqual(12);
+      expect(q).not.toMatch(DASH);
+    }
   });
 
   it("FLOW 1 and FLOW 2 never ask for a number; the prompt says caller ID has it", () => {

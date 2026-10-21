@@ -25,6 +25,9 @@ const h = vi.hoisted(() => ({
   customerRows: [] as Array<Record<string, unknown>>,
   inserted: [] as Array<Record<string, unknown>>,
   insertFails: false,
+  claimTries: 0,
+  realText: false,
+  fetchCalls: [] as string[],
 }));
 
 /** drizzle sql`` -> text with ? placeholders + the bound values, for the fake claim table. */
@@ -39,18 +42,73 @@ function render(q: { queryChunks?: unknown[] }): { text: string; params: unknown
   return { text, params };
 }
 
-const fakeDrizzle = {
-  update: () => ({ set: () => ({ where: async () => undefined }) }),
-  select: () => ({ from: () => ({ where: () => ({ limit: async () => h.customerRows }) }) }),
-  insert: () => ({
-    values: (v: Record<string, unknown>) => {
-      const p: Promise<unknown> = h.insertFails ? Promise.reject(new Error("db down")) : Promise.resolve([{ insertId: 77 }]);
-      p.catch(() => {});
-      if (!h.insertFails) h.inserted.push(v);
-      return Object.assign(p, { $returningId: async () => { await p; return [{ id: 78 }]; } });
-    },
-  }),
-};
+function fakeDrizzle() {
+  return {
+    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => h.customerRows }) }) }),
+    insert: () => ({
+      values: (v: Record<string, unknown>) => {
+        const p: Promise<unknown> = h.insertFails ? Promise.reject(new Error("db down")) : Promise.resolve([{ insertId: 77 }]);
+        p.catch(() => {});
+        if (!h.insertFails) h.inserted.push(v);
+        return Object.assign(p, { $returningId: async () => { await p; return [{ id: 78 }]; } });
+      },
+    }),
+  };
+}
+
+/** The claim table: INSERT IGNORE / DELETE on (alert_key, fired_for). */
+async function fakeExecute(q: { queryChunks?: unknown[] }) {
+  const { text, params } = render(q);
+  const key = `${params[0]}|${params[1]}`;
+  if (/INSERT IGNORE/i.test(text)) {
+    h.claimTries++;
+    if (h.claims.has(key)) return [{ affectedRows: 0 }];
+    h.claims.add(key);
+    return [{ affectedRows: 1 }];
+  }
+  if (/DELETE/i.test(text)) { h.claims.delete(key); return [{ affectedRows: 1 }]; }
+  return [[]];
+}
+
+// Hoisted, file-wide mocks: they survive vi.resetModules and every concurrent dynamic
+// import. A per-test vi.doMock let a fire-and-forget emit reach the REAL eventBus and
+// real ../db once (2026-10-21, an HTTP 401 from NOUR OS): never again in this file.
+type Fn = (...a: unknown[]) => unknown;
+vi.mock("../services/expectedArrivals", async (orig) => ({
+  ...(await orig<typeof import("../services/expectedArrivals")>()),
+  recordExpectedArrival: (...a: unknown[]) => (h.recordExpectedArrival as Fn)(...a),
+}));
+vi.mock("../services/featureFlags", async (orig) => ({
+  ...(await orig<typeof import("../services/featureFlags")>()),
+  isEnabled: (...a: unknown[]) => (h.isEnabled as Fn)(...a),
+}));
+vi.mock("../lib/db-helper", () => ({ db: async () => fakeDrizzle() }));
+vi.mock("../db", async (orig) => ({
+  ...(await orig<typeof import("../db")>()),
+  getDb: async () => ({ execute: fakeExecute }),
+  getDbTyped: async () => null,
+}));
+vi.mock("../lib/logger", async (orig) => ({
+  ...(await orig<typeof import("../lib/logger")>()),
+  createLogger: () => ({ info: () => {}, debug: () => {}, error: () => {}, warn: (...a: unknown[]) => (h.warn as Fn)(...a) }),
+}));
+vi.mock("../services/voice-call-state", () => ({ recordCallState: async () => {} }));
+vi.mock("../services/promiseLedger", () => ({ createVoicePromise: async () => ({ skipped: true, reason: "test" }) }));
+vi.mock("../services/telegram", () => ({ sendTelegram: (...a: unknown[]) => (h.sendTelegram as Fn)(...a) }));
+vi.mock("../services/vapi", async (orig) => ({
+  ...(await orig<typeof import("../services/vapi")>()),
+  getOnDutyManagerPhone: (...a: unknown[]) => (h.onDuty as Fn)(...a),
+}));
+vi.mock("../sms", async (orig) => ({ ...(await orig<typeof import("../sms")>()), sendSms: (...a: unknown[]) => (h.sendSms as Fn)(...a) }));
+vi.mock("../services/eventBus", async (orig) => {
+  const real = await orig<typeof import("../services/eventBus")>();
+  return {
+    ...real,
+    emit: { ...real.emit, callbackRequested: (...a: unknown[]) => (h.callbackRequested as Fn)(...a) },
+    textOnDutyManager: (body: string) => (h.realText ? real.textOnDutyManager(body) : (h.textOnDutyManager as Fn)(body)),
+  };
+});
 
 function createVoiceContext(): TrpcContext {
   return {
@@ -61,66 +119,8 @@ function createVoiceContext(): TrpcContext {
   };
 }
 
-const MOCKED = [
-  "../services/expectedArrivals",
-  "../services/featureFlags",
-  "../lib/db-helper",
-  "../db",
-  "../lib/logger",
-  "../services/voice-call-state",
-  "../services/promiseLedger",
-  "../services/eventBus",
-  "../services/vapi",
-  "../sms",
-  "../services/telegram",
-];
-
 async function loadCaller(opts: { realEventBus?: boolean } = {}) {
-  vi.resetModules();
-  vi.doMock("../services/expectedArrivals", async (orig) => ({
-    ...(await orig<typeof import("../services/expectedArrivals")>()),
-    recordExpectedArrival: h.recordExpectedArrival,
-  }));
-  vi.doMock("../services/featureFlags", async (orig) => ({
-    ...(await orig<typeof import("../services/featureFlags")>()),
-    isEnabled: h.isEnabled,
-  }));
-  vi.doMock("../lib/db-helper", () => ({ db: async () => fakeDrizzle }));
-  vi.doMock("../db", async (orig) => ({
-    ...(await orig<typeof import("../db")>()),
-    getDb: async () => ({
-      execute: async (q: { queryChunks?: unknown[] }) => {
-        const { text, params } = render(q);
-        const key = `${params[0]}|${params[1]}`;
-        if (/INSERT IGNORE/i.test(text)) {
-          if (h.claims.has(key)) return [{ affectedRows: 0 }];
-          h.claims.add(key);
-          return [{ affectedRows: 1 }];
-        }
-        if (/DELETE/i.test(text)) { h.claims.delete(key); return [{ affectedRows: 1 }]; }
-        return [[]];
-      },
-    }),
-  }));
-  vi.doMock("../lib/logger", async (orig) => ({
-    ...(await orig<typeof import("../lib/logger")>()),
-    createLogger: () => ({ info: () => {}, debug: () => {}, error: () => {}, warn: h.warn }),
-  }));
-  vi.doMock("../services/voice-call-state", () => ({ recordCallState: vi.fn(async () => {}) }));
-  vi.doMock("../services/promiseLedger", () => ({ createVoicePromise: vi.fn(async () => ({ skipped: true, reason: "test" })) }));
-  vi.doMock("../services/telegram", () => ({ sendTelegram: h.sendTelegram }));
-  if (opts.realEventBus) {
-    vi.doMock("../services/vapi", async (orig) => ({
-      ...(await orig<typeof import("../services/vapi")>()),
-      getOnDutyManagerPhone: h.onDuty,
-    }));
-    vi.doMock("../sms", async (orig) => ({ ...(await orig<typeof import("../sms")>()), sendSms: h.sendSms }));
-  } else {
-    vi.doMock("../services/eventBus", () => ({
-      textOnDutyManager: h.textOnDutyManager,
-      emit: { callbackRequested: h.callbackRequested },
-    }));
-  }
+  h.realText = Boolean(opts.realEventBus);
   const { voiceAgentRouter } = await import("./voiceAgent");
   return voiceAgentRouter.createCaller(createVoiceContext());
 }
@@ -140,6 +140,10 @@ beforeEach(() => {
   h.customerRows = [];
   h.inserted = [];
   h.insertFails = false;
+  h.claimTries = 0;
+  h.fetchCalls = [];
+  // No network from a unit test: any fetch is recorded and refused, and afterEach fails the test.
+  vi.stubGlobal("fetch", async (u: unknown) => { h.fetchCalls.push(String(u)); throw new Error("network call in a unit test"); });
   h.isEnabled.mockResolvedValue(false);
   h.textOnDutyManager.mockResolvedValue({ status: "sent" });
   h.recordExpectedArrival.mockResolvedValue({ id: 9, created: true });
@@ -147,8 +151,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  for (const m of MOCKED) vi.doUnmock(m);
-  vi.resetModules();
+  h.realText = false;
+  vi.unstubAllGlobals();
+  expect(h.fetchCalls, "network calls from this test").toEqual([]);
   vi.useRealTimers();
   for (const f of [h.recordExpectedArrival, h.textOnDutyManager, h.callbackRequested, h.isEnabled, h.warn, h.sendSms, h.onDuty, h.sendTelegram]) f.mockReset();
 });
@@ -252,6 +257,48 @@ describe("textOnDutyManager reports a queued or uncertain send as pending (revie
   });
 });
 
+describe("Codex re-review: one callback event per call", () => {
+  // The emit is fire-and-forget behind a cold dynamic import, so wait on observed
+  // state (claim attempts, emits), never on a fixed number of ticks.
+  const until = (fn: () => void) => vi.waitFor(fn, { timeout: 15_000, interval: 20 });
+
+  it("two escalate calls with the same callId emit once", async () => {
+    const caller = await loadCaller();
+    await caller.escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e9" });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await caller.escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e9" });
+    await until(() => expect(h.claimTries).toBe(2)); // the second escalate tried, and lost, the claim
+    await new Promise((r) => setImmediate(r));
+    expect(h.callbackRequested).toHaveBeenCalledTimes(1);
+  });
+
+  it("different callIds emit twice", async () => {
+    const caller = await loadCaller();
+    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e10" });
+    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e11" });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
+    expect(h.claimTries).toBe(2);
+  });
+
+  it("no callId: each escalate emits", async () => {
+    const caller = await loadCaller();
+    await caller.escalate({ reason: "x", callerNumber: CALLER });
+    await caller.escalate({ reason: "x", callerNumber: CALLER });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
+    expect(h.claimTries).toBe(0);
+  });
+
+  it("an emit that throws hands the claim back, so a retry emits", async () => {
+    h.callbackRequested.mockRejectedValueOnce(new Error("bus down"));
+    const caller = await loadCaller();
+    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e12" });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await until(() => expect([...h.claims].some((k) => k.startsWith("voice-callback:call_e12|"))).toBe(false));
+    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e12" });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
+  });
+});
+
 describe("Codex review on PR 3212", () => {
   it("P1: a fallback from the heads-up never re-asks the name; the row files with no name", async () => {
     h.textOnDutyManager.mockResolvedValue({ status: "pending", reason: "queued" });
@@ -287,14 +334,14 @@ describe("Codex review on PR 3212", () => {
 
   it("P2: a high-urgency escalate sends no direct Telegram; the bus event carries HIGH URGENCY", async () => {
     await (await loadCaller()).escalate({ reason: "brakes gone", urgency: "high", callerNumber: CALLER, callId: "call_c3" });
-    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 20 });
     expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ reason: "HIGH URGENCY: brakes gone" }));
     expect(h.sendTelegram).not.toHaveBeenCalled();
   });
 
   it("P2: a medium escalate passes the reason as said", async () => {
     await (await loadCaller()).escalate({ reason: "status check", callerNumber: CALLER });
-    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 20 });
     expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ reason: "status check" }));
   });
 
@@ -508,7 +555,7 @@ describe("escalate uses caller ID", () => {
     expect(res).toMatchObject({ success: true });
     expect(h.inserted).toHaveLength(1);
     expect(h.inserted[0]).toMatchObject({ name: "Caller", phone: "2165550123" });
-    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 20 });
     expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ id: 77, name: "Caller", phone: "2165550123" }));
   });
 

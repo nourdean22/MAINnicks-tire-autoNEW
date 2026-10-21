@@ -673,8 +673,16 @@ export const voiceAgentRouter = router({
         // texts the on-duty manager, Telegram, NOUR OS. Never blocks the tool.
         // The bus is the one Telegram sender for this callback; urgency rides in the reason.
         const busReason = input.urgency === "high" ? `HIGH URGENCY: ${input.reason}` : input.reason;
-        import("../services/eventBus").then(({ emit }) =>
-          emit.callbackRequested({ id: insertedCallback?.insertId ? Number(insertedCallback.insertId) : null, name, phone, reason: busReason }),
+        const emitCallback = async (): Promise<TelegramSendResult> => {
+          const { emit } = await import("../services/eventBus");
+          await emit.callbackRequested({ id: insertedCallback?.insertId ? Number(insertedCallback.insertId) : null, name, phone, reason: busReason });
+          return { status: "delivered" };
+        };
+        // A replayed or retried escalate in the same call must not text and alert twice:
+        // the same persisted per-call claim as the arrival heads-up (a throw hands it back).
+        (input.callId
+          ? import("../services/alertClaim").then(({ sendOncePerState }) => sendOncePerState(`voice-callback:${input.callId}`, emitCallback))
+          : emitCallback()
         ).catch((e) => log.warn("escalate → event bus dispatch failed", { err: e instanceof Error ? e.message : String(e) }));
 
         // LINK THE CALLBACK TO THE CALL — same trail mechanism as tireInquiry's
