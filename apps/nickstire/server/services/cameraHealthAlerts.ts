@@ -47,6 +47,12 @@ import {
   formatCameraHealthAlert,
   type CameraHealthState as HealthState,
 } from "./cameraHealthAlertPolicy";
+import {
+  formatOfficeLaneAlert,
+  officeLaneAlertClaim,
+  officeLaneAlertDecision,
+  officeLaneVerdict,
+} from "./officeLaneAlert";
 
 const log = createLogger("camera-health-alerts");
 
@@ -89,7 +95,8 @@ async function releaseAlertClaim(db: Db, claim: Claim): Promise<void> {
 async function deliverClaimedAlert(input: {
   db: Db;
   camera: string;
-  state: HealthState;
+  /** A camera state or an office-lane state; it only labels the delivery error. */
+  state: string;
   claim: Claim;
   alert: { title: string; message: string };
 }): Promise<void> {
@@ -166,8 +173,10 @@ export async function runCameraHealthAlertSelfTest(input?: {
 async function latestCameraAlert(
   db: Db,
   camera: string,
+  /** Claim key family: camera pages, or the office lane's own pages (officeLaneAlert.ts). */
+  family: "camera_health" | "office_lane" = "camera_health",
 ): Promise<{ key: string; ageSeconds: number | null; vision: string | null; frames: string | null } | null> {
-  const prefix = `camera_health:${camera}:%`;
+  const prefix = family === "office_lane" ? `office_lane:${camera}:%` : `camera_health:${camera}:%`;
   const [rows] = await db.execute(sql`
     SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
       FROM cron_alerts_fired
@@ -278,6 +287,72 @@ export async function recordDerivedHealthTransition(
     }
     throw err;
   }
+}
+
+/**
+ * One office-lane judgement (officeLaneAlert.ts) through the same claim, cooldown and delivery
+ * rail as the camera pages. A read failure THROWS (the caller fails the run, never "not
+ * posting"); an undeliverable page is returned, its claim already released for the next tick.
+ * The 0144 window count is read only once production has the column.
+ */
+async function judgeOfficeLane(
+  db: Db,
+  camera: string,
+  label: string,
+  shopOpen: boolean,
+): Promise<{ state: string; sent: boolean; held: boolean; deliveryError: unknown }> {
+  const hasWindow = await cameraRuntimeHasColumns(db, ["conversationCapturesLast60m"]);
+  const [rows] = await db.execute(sql`
+    SELECT UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds,
+           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationCaptureAt) AS captureAgeSeconds,
+           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationPostAt) AS postAgeSeconds,
+           UNIX_TIMESTAMP(lastConversationPostAt) AS postEpoch
+           ${hasWindow ? sql`, conversationCapturesLast60m` : sql``}
+      FROM camera_runtime
+     WHERE camera = ${camera}
+  `);
+  const row = (rows as Array<Record<string, unknown>>)[0] ?? null;
+  const verdict = officeLaneVerdict({
+    shopOpen,
+    heartbeatAgeSeconds: row ? numberOrNull(row.ageSeconds) : null,
+    captureAgeSeconds: row ? numberOrNull(row.captureAgeSeconds) : null,
+    capturesLast60m: row ? numberOrNull(row.conversationCapturesLast60m) : null,
+    postAgeSeconds: row ? numberOrNull(row.postAgeSeconds) : null,
+  });
+  const none = { state: verdict.state, sent: false, held: false, deliveryError: null };
+  if (verdict.state === "NOT_JUDGED") return none;
+
+  const latest = await latestCameraAlert(db, camera, "office_lane");
+  const decision = officeLaneAlertDecision(verdict.state, latest?.key ?? null, latest?.ageSeconds ?? null);
+  if (!decision.notify) return { ...none, held: decision.held };
+
+  const episode = decision.recovery
+    ? episodeFromAlertKey(latest?.key ?? null)
+    : row ? numberOrNull(row.postEpoch) : null;
+  const claim = officeLaneAlertClaim(camera, verdict.state, episode);
+  const claimed = await claimAlert(db, claim, {
+    camera,
+    lane: "office_conversations",
+    state: verdict.state,
+    reason: verdict.reason,
+    recovery: decision.recovery,
+    episode,
+  });
+  if (!claimed) return none;
+  try {
+    await deliverClaimedAlert({
+      db,
+      camera,
+      state: verdict.state,
+      claim,
+      alert: formatOfficeLaneAlert(label, verdict.reason, decision.recovery),
+    });
+  } catch (err) {
+    log.error("office lane alert delivery failed", { camera, state: verdict.state, error: err instanceof Error ? err.message : String(err) });
+    return { ...none, deliveryError: err };
+  }
+  log.warn(decision.recovery ? "office lane recovery fired" : "office lane alert fired", { camera, state: verdict.state, episode });
+  return { ...none, sent: true };
 }
 
 export async function runCameraHealthAlerts(): Promise<{
@@ -506,6 +581,30 @@ export async function runCameraHealthAlerts(): Promise<{
     }
   }
 
+  // THE OFFICE LANE (F2): recording but nothing reaching the server. Its own read, after every
+  // camera has been judged; a failed read is never "not posting" -- it pages nothing and fails the
+  // run loudly at the end, like the timeline.
+  let officeLaneFailure: unknown = null;
+  const office = commissioned.find((c) => c.camera === "office");
+  if (office) {
+    try {
+      const lane = await judgeOfficeLane(db, office.camera, office.label, shopOpen);
+      observed.push(`office-lane=${lane.state}`);
+      if (lane.sent) sent++;
+      if (lane.held) held++;
+      if (lane.deliveryError) deliveryFailure = lane.deliveryError;
+    } catch (err) {
+      officeLaneFailure = err;
+    }
+  }
+
+  if (officeLaneFailure) {
+    throw new Error(
+      `camera-health-alerts: ${sent} alert(s) sent, then the office lane read failed: ${
+        officeLaneFailure instanceof Error ? officeLaneFailure.message : String(officeLaneFailure)
+      }`,
+    );
+  }
   if (timelineFailure) {
     throw new Error(
       `camera-health-alerts: ${sent} alert(s) sent, then the health timeline write failed: ${

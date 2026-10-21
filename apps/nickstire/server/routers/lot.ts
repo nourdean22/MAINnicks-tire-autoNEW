@@ -113,6 +113,18 @@ const minutesBetween = (from: string, toCoalesce: string[]) =>
 
 const OPEN_VISIT_CAP = 500;
 
+/** An UNREGISTERED camera_runtime row silent this long is retired from lot.health (not deleted). */
+const RETIRE_UNREGISTERED_AFTER_SECONDS = 7 * 24 * 3600;
+
+/**
+ * A visit that is ON THE PROPERTY: not departed, and arrived (or was first written) within the
+ * last 7 days. A producer that died mid-visit never sends the departure, so an unwindowed
+ * `departedAt IS NULL` kept counting its cars forever (2026-10-21: 5 rows from 2026-09-24 in
+ * onProperty). The floor board and the counters read this one fragment; rows outside it are
+ * disclosed as `staleOpenRows`, never dropped silently.
+ */
+const OPEN_VISIT = sql`departedAt IS NULL AND COALESCE(arrivedAt, createdAt) >= NOW() - INTERVAL 7 DAY`;
+
 /**
  * WHAT THIS CAMERA CAN AND CANNOT KNOW ABOUT SERVICE.
  *
@@ -683,20 +695,21 @@ export const lotRouter = router({
       const agg = rowsOf(await d.execute(sql`
         SELECT
           COUNT(*) AS total,
-          SUM(CASE WHEN departedAt IS NULL THEN 1 ELSE 0 END) AS onProperty,
-          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
+          SUM(CASE WHEN ${OPEN_VISIT} THEN 1 ELSE 0 END) AS onProperty,
+          SUM(CASE WHEN departedAt IS NULL THEN 1 ELSE 0 END) - SUM(CASE WHEN ${OPEN_VISIT} THEN 1 ELSE 0 END) AS staleOpenRows,
+          SUM(CASE WHEN ${OPEN_VISIT} AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL THEN 1 ELSE 0 END) AS inBays,
-          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
+          SUM(CASE WHEN ${OPEN_VISIT} AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL AND bay IS NULL THEN 1 ELSE 0 END) AS bayUnknown,
-          SUM(CASE WHEN departedAt IS NULL AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
-          SUM(CASE WHEN departedAt IS NULL
+          SUM(CASE WHEN ${OPEN_VISIT} AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
+          SUM(CASE WHEN ${OPEN_VISIT}
                     AND NOT (bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL) THEN 1 ELSE 0 END) AS onLotNotInBay,
-          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL
+          SUM(CASE WHEN ${OPEN_VISIT} AND bayEnteredAt IS NULL
                     AND preexisting = 0 THEN 1 ELSE 0 END) AS waiting,
-          SUM(CASE WHEN departedAt IS NULL AND preexisting = 1 THEN 1 ELSE 0 END) AS preexisting,
-          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL
+          SUM(CASE WHEN ${OPEN_VISIT} AND preexisting = 1 THEN 1 ELSE 0 END) AS preexisting,
+          SUM(CASE WHEN ${OPEN_VISIT} AND bayEnteredAt IS NULL
                     AND preexisting = 1 THEN 1 ELSE 0 END) AS preexistingWaiting,
-          MAX(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL AND preexisting = 0
+          MAX(CASE WHEN ${OPEN_VISIT} AND bayEnteredAt IS NULL AND preexisting = 0
                    THEN ${ageMinutes("COALESCE(waitStartedAt, arrivedAt)")} END) AS oldestWaitMinutes,
           COUNT(DISTINCT CASE WHEN preexisting = 0 AND state <> 'PASS_THROUGH'
                               AND UNIX_TIMESTAMP(arrivedAt) >= ${ET_DAY_START}
@@ -791,7 +804,7 @@ export const lotRouter = router({
       const bays = rowsOf(await d.execute(sql`
         SELECT bay, MIN(${ageMinutes("bayEnteredAt")}) AS occupiedMinutes
         FROM vehicle_visits
-        WHERE departedAt IS NULL AND bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL
+        WHERE ${OPEN_VISIT} AND bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL
           AND dataClass = 'PRODUCTION'
           AND bay IS NOT NULL
         GROUP BY bay
@@ -844,6 +857,9 @@ export const lotRouter = router({
           departuresToday: num(r.departuresToday),
           leftWithoutBay: num(r.abandonedBeforeBay),
           arrivalTimeUnknown: num(r.arrivalTimeUnknown),
+          // Open rows older than the 7-day window (a producer that died mid-visit): kept out of
+          // every count above, and shown here so they are never silently gone.
+          staleOpenRows: num(r.staleOpenRows),
         },
         waits: {
           oldestWaitMinutes:
@@ -1046,7 +1062,7 @@ export const lotRouter = router({
                  ${sql.raw("UNIX_TIMESTAMP(departedAt)")} AS departedEpoch
           FROM vehicle_visits
           WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
-            ${input.openOnly ? sql`AND departedAt IS NULL AND COALESCE(arrivedAt, createdAt) >= NOW() - INTERVAL 7 DAY` : sql``}
+            ${input.openOnly ? sql`AND ${OPEN_VISIT}` : sql``}
           -- The open-only floor board keeps the LONGEST-waiting cars when it hits its cap: the
           -- car about to become a complaint must survive the LIMIT, so open visits read oldest
           -- first (the board sorts by dwell anyway). The recent list stays newest first. Nothing
@@ -1495,8 +1511,21 @@ export const lotRouter = router({
       const known = new Set<string>(EXPECTED_CAMERAS.map((c) => c.camera));
       // A producer nobody registered is shown, not hidden: it is either a config typo
       // (camera id mismatch) or something posting under the shop's key that should not be.
+      //
+      // ...unless it has been silent for over 7 days: then it is RETIRED (2026-10-21: `right`, cut
+      // over 2026-09-28, and the `guardprobe` test row read PRODUCER_OFFLINE forever, so the fleet
+      // could never say Live). Retired rows leave the cards and the fleet verdict and are listed
+      // in `retiredCameras`. An unknown heartbeat age is not "dead": it stays a camera.
+      const isRetired = (r: Record<string, unknown>) => {
+        const age = numOrNull(r.ageSeconds);
+        return !known.has(String(r.camera)) && age !== null && age > RETIRE_UNREGISTERED_AFTER_SECONDS;
+      };
+      const retiredCameras = runtime.filter(isRetired).map((r) => {
+        const epoch = numOrNull(r.receivedAtEpoch);
+        return { camera: String(r.camera), lastHeartbeatAt: epoch === null ? null : new Date(epoch * 1000).toISOString() };
+      });
       const unregistered = runtime
-        .filter((r) => !known.has(String(r.camera)))
+        .filter((r) => !known.has(String(r.camera)) && !isRetired(r))
         .map((r) =>
           describe(
             String(r.camera),
@@ -1561,6 +1590,8 @@ export const lotRouter = router({
         windowColumnsStored,
         shopOpen,
         cameras,
+        /** Unregistered camera rows silent for over 7 days: off the cards and the fleet verdict, still listed. */
+        retiredCameras,
         healthy: cameras.filter((c) => c.state === "HEALTHY").length,
         expected: expected.length,
         /** Vehicle-truth camera's HEALTHY share of business time so far, per hour (audit N2); null without hours today. */

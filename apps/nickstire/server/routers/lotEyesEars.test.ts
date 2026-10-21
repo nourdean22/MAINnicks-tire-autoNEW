@@ -220,3 +220,60 @@ describe("lot.now: counterTrust (S3)", () => {
     expect(r.counterTrust).toMatchObject({ level: "UNKNOWN", arrivals: null, billed: null });
   });
 });
+
+describe("lot.now: ghost open rows stop counting as cars on the property (F1)", () => {
+  // 2026-10-21 production: 5 PRODUCTION rows from dead producers (arrived 2026-09-24, never
+  // departed) counted in onProperty forever. The floor board already windows open rows to 7 days.
+  const WINDOW = "departedAt IS NULL AND COALESCE(arrivedAt, createdAt) >= NOW() - INTERVAL 7 DAY";
+  const OPEN_ALIASES = ["onProperty", "inBays", "bayUnknown", "postService", "onLotNotInBay", "waiting", "preexisting", "preexistingWaiting", "oldestWaitMinutes"];
+
+  /** The expression that produces `alias` in the aggregate SELECT. */
+  function exprFor(text: string, alias: string): string {
+    const end = text.indexOf(` AS ${alias},`) >= 0 ? text.indexOf(` AS ${alias},`) : text.indexOf(` AS ${alias} `);
+    if (end < 0) throw new Error(`alias ${alias} not found`);
+    const start = Math.max(text.lastIndexOf("SUM(", end), text.lastIndexOf("MAX(", end), text.lastIndexOf("COUNT(", end));
+    return text.slice(start, end);
+  }
+
+  async function run(agg: Record<string, unknown>) {
+    const seen: string[] = [];
+    h.execute.mockImplementation(async (q: unknown) => {
+      const t = flat(q).text;
+      seen.push(t);
+      if (t.includes("FROM invoices")) return [[{ fromDay: "2026-12-05", toDay: "2026-12-11", arrivals: 40, billed: 30 }], []];
+      if (t.includes("AS total")) return [[agg], []];
+      return [[], []];
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, 11, 12, 17, 0, 0)));
+    try {
+      const r = await caller("owner").now();
+      if (!r.ok) throw new Error(r.reason);
+      return { r, seen };
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  it("every open-row aggregate carries the floor board's 7-day window; today's counters do not", async () => {
+    const { seen } = await run({ total: 50, onProperty: 2, staleOpenRows: 5 });
+    const agg = seen.find((t) => t.includes("AS total"))!;
+    for (const alias of OPEN_ALIASES) expect(exprFor(agg, alias), alias).toContain(WINDOW);
+    for (const alias of ["arrivalsToday", "departuresToday", "abandonedBeforeBay"]) expect(exprFor(agg, alias), alias).not.toContain("INTERVAL 7 DAY");
+  });
+
+  it("the open rows outside the window are disclosed as staleOpenRows, never dropped silently", async () => {
+    const { r, seen } = await run({ total: 50, onProperty: 2, staleOpenRows: 5 });
+    expect(r.counts.staleOpenRows).toBe(5);
+    expect(r.counts.onProperty).toBe(2);
+    const agg = seen.find((t) => t.includes("AS total"))!;
+    // every open row minus the windowed open rows: a NULL arrival time cannot make a row vanish from both
+    expect(agg).toContain(`SUM(CASE WHEN departedAt IS NULL THEN 1 ELSE 0 END) - SUM(CASE WHEN ${WINDOW} THEN 1 ELSE 0 END) AS staleOpenRows`);
+  });
+
+  it("the bays read (open, in a bay) is windowed too", async () => {
+    const { seen } = await run({ total: 50 });
+    const bays = seen.find((t) => t.includes("GROUP BY bay"))!;
+    expect(bays).toContain(WINDOW);
+  });
+});

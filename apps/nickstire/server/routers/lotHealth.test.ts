@@ -30,6 +30,7 @@ import { BUSINESS } from "../../shared/business";
 import { shopDayWindow } from "../../shared/shopState";
 import { HEALTH_THRESHOLDS } from "../lib/cameraHealth";
 import { resetStorableHeartbeatColumns } from "../lib/heartbeatStorableColumns";
+import { summarizeCameraFleet } from "../../shared/cameraFleetHealth";
 
 type Flat = { text: string; params: unknown[] };
 
@@ -82,14 +83,14 @@ const signRuntime = {
 
 type Fixtures = { anchor: Array<Record<string, unknown>>; today: Array<Record<string, unknown>>; producers?: Array<Record<string, unknown>> | Error };
 
-function install(fixtures: Fixtures, runtime: Record<string, unknown> = signRuntime): Flat[] {
+function install(fixtures: Fixtures, runtime: Record<string, unknown> | Array<Record<string, unknown>> = signRuntime): Flat[] {
   const executed: Flat[] = [];
   h.execute = async (q: unknown) => {
     const f = flat(q);
     executed.push(f);
     const t = f.text;
     if (t.includes("INFORMATION_SCHEMA.COLUMNS")) return [[], []];
-    if (t.includes("FROM camera_runtime r")) return [[runtime], []];
+    if (t.includes("FROM camera_runtime r")) return [Array.isArray(runtime) ? runtime : [runtime], []];
     if (t.includes("FROM camera_health_events ORDER BY at DESC LIMIT 20")) return [[], []];
     if (t.includes("COUNT(DISTINCT producerInstanceId)")) {
       if (fixtures.producers instanceof Error) throw fixtures.producers;
@@ -220,5 +221,56 @@ describe("lot.health executed with rows in camera_health_events (review on #2929
     install({ anchor: [], today: [], producers: new Error("camera_health_events read timed out") });
     const failed = await health();
     expect(failed.cameras.map((c) => c.producersLast60m)).toEqual([null, null, null]);
+  });
+});
+
+describe("lot.health: dead unregistered camera rows are RETIRED, live ones still count (F3)", () => {
+  beforeEach(() => {
+    resetStorableHeartbeatColumns();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(NOW_MS));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const unregistered = (camera: string, ageSeconds: number) => ({
+    ...signRuntime, camera, producerInstanceId: `${camera}-p`, ageSeconds, receivedAtEpoch: NOW_EPOCH - ageSeconds,
+    observedAtEdgeEpoch: NOW_EPOCH - ageSeconds, lastHealthyFrameAtEpoch: NOW_EPOCH - ageSeconds, inferenceAgeSeconds: ageSeconds,
+  });
+
+  it("'right' 23 days silent is retired: off the cards and out of the fleet verdict, listed in retiredCameras", async () => {
+    install({ anchor: [], today: [] }, [signRuntime, unregistered("right", 23 * 86400), unregistered("guardprobe", 42 * 86400)]);
+    const res = await health();
+    expect(res.cameras.map((c) => c.camera)).toEqual(["sign", "inside", "office"]);
+    expect(res.retiredCameras).toEqual([
+      { camera: "right", lastHeartbeatAt: new Date((NOW_EPOCH - 23 * 86400) * 1000).toISOString() },
+      { camera: "guardprobe", lastHeartbeatAt: new Date((NOW_EPOCH - 42 * 86400) * 1000).toISOString() },
+    ]);
+    const fleet = summarizeCameraFleet(res);
+    expect(fleet.problems.map((p) => p.camera)).not.toContain("right");
+  });
+
+  it("CONTROL: an unregistered camera heartbeating 5 minutes ago is still a fleet member and still a problem", async () => {
+    install({ anchor: [], today: [] }, [signRuntime, unregistered("mystery", 300)]);
+    const res = await health();
+    const mystery = res.cameras.find((c) => c.camera === "mystery")!;
+    expect(mystery.registered).toBe(false);
+    expect(res.retiredCameras).toEqual([]);
+    expect(summarizeCameraFleet(res).problems.map((p) => p.camera)).toContain("mystery");
+  });
+
+  it("the 7-day line: 6 days silent still counts, 8 days is retired", async () => {
+    install({ anchor: [], today: [] }, [signRuntime, unregistered("six", 6 * 86400), unregistered("eight", 8 * 86400)]);
+    const res = await health();
+    expect(res.cameras.map((c) => c.camera)).toContain("six");
+    expect(res.retiredCameras.map((c) => c.camera)).toEqual(["eight"]);
+  });
+
+  it("an unknown heartbeat age is never retired (unknown is not dead)", async () => {
+    install({ anchor: [], today: [] }, [signRuntime, { ...unregistered("noclock", 0), ageSeconds: null, receivedAtEpoch: null }]);
+    const res = await health();
+    expect(res.cameras.map((c) => c.camera)).toContain("noclock");
+    expect(res.retiredCameras).toEqual([]);
   });
 });
