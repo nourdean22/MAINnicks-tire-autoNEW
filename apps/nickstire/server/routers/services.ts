@@ -147,7 +147,8 @@ export const garageRouter = router({
 /**
  * Staff heads-up for a public submission (2026-10-19). The admin screens that listed
  * referrals and questions were retired, so without this a saved submission reached
- * nobody. First name only, never a phone or email. Fail-soft and detached: callers
+ * nobody. First name only, never a phone; the one email is the qa.ask reply address, so
+ * staff can answer by email. Fail-soft and detached: callers
  * do not await it (a slow or unreachable Telegram would otherwise hold the customer's
  * response for the transport timeout after the row is saved, inviting a retry and a
  * duplicate), and it never throws.
@@ -242,7 +243,7 @@ export const qaRouter = router({
     .mutation(async ({ input }) => {
       const saved = await createQuestion(input);
       void notifyStaffOfSubmission(
-        `❓ New question from ${firstNameOf(input.questionerName)}: "${input.question.slice(0, 300)}"`,
+        `❓ New question from ${firstNameOf(input.questionerName)}: "${input.question.slice(0, 300)}"\n${input.questionerEmail ? `Reply to: ${input.questionerEmail}` : "No email left, so there is no way to reply."}`,
       );
       return saved;
     }),

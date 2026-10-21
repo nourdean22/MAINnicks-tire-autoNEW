@@ -86,13 +86,24 @@ describe("a public referral reaches the shop", () => {
 });
 
 describe("a public question reaches the shop", () => {
-  it("saves it and sends one staff Telegram with the first name and the question", async () => {
+  it("saves it and sends one staff Telegram with the first name, the question and the reply email", async () => {
     await expect(publicCaller().qa.ask(QUESTION)).resolves.toEqual({ success: true, id: 2 });
     await vi.waitFor(() => expect(h.sendTelegram).toHaveBeenCalledTimes(1));
     const text = String(h.sendTelegram.mock.calls[0][0]);
     expect(text).toContain("Pat");
     expect(text).toContain("How often should I rotate my tires?");
-    expect(text).not.toMatch(/Doe|pat@example\.com/);
+    expect(text).toContain("Reply to: pat@example.com");
+    expect(text).not.toMatch(/Doe/);
+  });
+
+  it("no email given: the Telegram says so instead of a blank reply line", async () => {
+    const { questionerEmail: _omit, ...noEmail } = QUESTION;
+    await publicCaller().qa.ask(noEmail);
+    await vi.waitFor(() => expect(h.sendTelegram).toHaveBeenCalledTimes(1));
+    const text = String(h.sendTelegram.mock.calls[0][0]);
+    expect(text).toContain("How often should I rotate my tires?");
+    expect(text).not.toContain("Reply to:");
+    expect(text).toContain("No email left");
   });
 
   it("a Telegram failure does not fail the submit", async () => {

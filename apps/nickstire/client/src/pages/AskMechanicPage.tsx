@@ -1,6 +1,7 @@
 /**
- * /ask — Ask a Mechanic public Q&A page
- * Customers ask questions, Nick's team answers publicly. Builds authority and SEO.
+ * /ask — Ask a Mechanic question form
+ * Customers send a question; the shop replies by email when one is left. Answers already
+ * published still list below, but nothing publishes new ones (qa.answer was retired).
  */
 
 import PageLayout from "@/components/PageLayout";
@@ -62,7 +63,7 @@ export default function AskMechanicPage() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Ask a Mechanic | Nick's Tire & Auto Cleveland"
-        description="Got a car question? Ask our mechanics for free. Browse answered questions about brakes, engine problems, tires, and more at Nick's Tire & Auto."
+        description="Got a car question? Ask our mechanics for free. Leave your email and the shop replies. Brakes, engine problems, tires, and more at Nick's Tire & Auto."
         canonicalPath="/ask"
       />
       
@@ -83,7 +84,7 @@ export default function AskMechanicPage() {
                 <span className="text-primary">MECHANIC</span>
               </h1>
               <p className="mt-4 text-foreground/70 text-lg max-w-2xl leading-relaxed">
-                Got a car question? Ask the shop. We answer it publicly so every driver gets the same straight answer.
+                Got a car question? Ask the shop. Leave your email and we'll reply.
               </p>
               <p className="mt-3 text-foreground/60 text-sm max-w-2xl leading-relaxed">
                 Got a car already? Free check. Written quote. <span className="text-primary font-semibold">You don't pay until you say yes.</span>
@@ -114,7 +115,7 @@ export default function AskMechanicPage() {
                         <input id="ask-name" type="text" required value={form.questionerName} onChange={(e) => setForm({ ...form, questionerName: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                       <div>
-                        <label htmlFor="ask-email" className="block text-foreground/60 text-sm mb-1">Email (optional, for reply)</label>
+                        <label htmlFor="ask-email" className="block text-foreground/60 text-sm mb-1">Email (so we can reply)</label>
                         <input id="ask-email" type="email" value={form.questionerEmail} onChange={(e) => setForm({ ...form, questionerEmail: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                     </div>
@@ -156,7 +157,7 @@ export default function AskMechanicPage() {
               <FadeIn>
                 <CheckCircle className="w-12 h-12 text-primary mx-auto mb-4" />
                 <h2 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">QUESTION SUBMITTED</h2>
-                <p className="text-foreground/60 mb-6">Our team will review and answer your question. Check back soon.</p>
+                <p className="text-foreground/60 mb-6">The shop has your question. If you left an email, we'll reply there. Without one we can't reply.</p>
                 <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                   ASK ANOTHER QUESTION
                 </button>
