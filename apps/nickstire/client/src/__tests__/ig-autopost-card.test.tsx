@@ -357,3 +357,21 @@ describe("Pause and resume", () => {
     expect(h.toggleMutate).not.toHaveBeenCalled();
   });
 });
+
+describe("Phone targets (48 px)", () => {
+  it("Run a slot now, the pause switch and the disclosure hold a 48 px floor", () => {
+    h.status = measured();
+    const { container } = render(<Controls />);
+    expect(runNow().className).toMatch(/\bmin-h-12\b/);
+    expect(screen.getByRole("button", { name: /pause lane|resume lane/i }).className).toMatch(/\bmin-h-12\b/);
+    const disclosures = Array.from(container.querySelectorAll("summary"));
+    expect(disclosures.length).toBeGreaterThan(0);
+    for (const s of disclosures) expect(s.className).toMatch(/\bmin-h-12\b/);
+  });
+
+  it("Retry on a failed read holds a 48 px floor", () => {
+    h.status = ERROR_STATUS;
+    render(<Controls />);
+    expect(screen.getByRole("button", { name: "Retry" }).className).toMatch(/\bmin-h-12\b/);
+  });
+});

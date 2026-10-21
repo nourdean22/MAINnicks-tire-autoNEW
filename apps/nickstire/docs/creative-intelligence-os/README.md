@@ -64,7 +64,7 @@ SKIPPED. IG publishing is LIVE: Reels at ~04:10 UTC daily, images at 12:17 / 17:
 |---|---|---|---|
 | Concept Tournament (4 directors, anonymised judge, 100-pt rubric, 5 hard rejects) | BUILT + WIRED (admin lane) · judge LIVE gate on image lane · SHADOW on reel lane | `conceptTournament.ts`; `igAutopost.ts:1653`; `dailyReelPost.ts:1077` | judge is text-only, never sees frames |
 | Creative Genome / creativeMemory fingerprints (territory, moment, metaphor, action) | WIRED, admin lane only | `creativeMemory.ts`, `genomeGen.ts` | not consulted by the daily reel cron |
-| Pattern Lab (`social_reel_patterns`, rotation → prior after maturity; 3-post / 2-pattern / 12-post floors; 1-in-4 exploration) | LIVE | `reelStructurePrior.ts`, `shared/reelStructureLearning.ts` | no UI; `PatternLab.tsx` is hand-captured structures |
+| Pattern Lab (`social_reel_patterns`, rotation → prior after maturity; 3-post / 2-pattern / 12-post floors; 1-in-4 exploration) | LIVE | `reelStructurePrior.ts`, `shared/reelStructureLearning.ts` | no UI: the Pattern Lab screen was cut in the admin-prune W3, so structures can no longer be added or removed from the admin; rotation reads the stored rows |
 | hookPerformance (skip-rate scoreboard into the brief after 6 samples) | LIVE (prompt steer) | `hookPerformance.ts` → `reelBriefGen.ts:1008` | — |
 | Rendered QA (18 codes; Gemini vision, 1 call + 1 observed-bible call) | LIVE (`RENDERED_QA_ENABLED=true` per docs) | `renderedQa.ts`, `visualBibleObserved.ts` | PLASTIC_AI_LOOK / GENERIC_STOCK / IMPOSSIBLE_PHYSICALITY are warn-only; craft repairs declined by `clampVerdict` |
 | criticPanel (7 lenses) | DESIGNED / DORMANT | `criticPanel.ts` | 0 production callers (its own header says so) |

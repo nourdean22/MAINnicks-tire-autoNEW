@@ -25,8 +25,8 @@ interface StudioProps {
    * had just tapped a real review card in StudioV2 arrived here at step "source"
    * facing an empty raw-record-id box, and had to re-find the same record by its
    * database id. The cross-view handoff contract (igViews.ts `CreateHandoff`)
-   * already existed and was already consumed by StudioV2 from Inbox / Learn /
-   * DraftBoard — only this one hop was missing.
+   * already existed and was already consumed by StudioV2 from Learn /
+   * Strategy — only this one hop was missing.
    */
   initialSource?: { type: string; recordId?: string; detail?: string };
 }

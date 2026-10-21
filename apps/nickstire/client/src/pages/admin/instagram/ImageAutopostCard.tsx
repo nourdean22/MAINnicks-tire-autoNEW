@@ -98,7 +98,7 @@ export function ImageAutopostCard() {
   };
 
   const pauseButton = (paused: boolean | null, disabled: boolean) => (
-    <Button variant="outline" onClick={() => onToggle(paused)} disabled={disabled || paused === null} className="min-h-11 text-base">
+    <Button variant="outline" onClick={() => onToggle(paused)} disabled={disabled || paused === null} className="min-h-12 text-base">
       {paused ? "Resume lane" : "Pause lane"}
     </Button>
   );
@@ -139,7 +139,7 @@ export function ImageAutopostCard() {
         </CardHeader>
         <CardContent className="space-y-2 text-base">
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => q.refetch()} className="min-h-11 text-base">
+            <Button variant="outline" onClick={() => q.refetch()} className="min-h-12 text-base">
               <RefreshCw className="mr-2 h-4 w-4" /> Retry
             </Button>
             {pauseButton(paused, toggle.isPending)}
@@ -232,7 +232,7 @@ export function ImageAutopostCard() {
             </div>
 
             <details className="group">
-              <summary className="flex min-h-11 cursor-pointer items-center rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <summary className="flex min-h-12 cursor-pointer items-center rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 Last 20 runs
               </summary>
               <ul className="mt-1 divide-y divide-border">
@@ -255,7 +255,7 @@ export function ImageAutopostCard() {
         )}
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={onRunNow} disabled={busy || inFlight} className="min-h-11 text-base">
+          <Button onClick={onRunNow} disabled={busy || inFlight} className="min-h-12 text-base">
             {run.isPending ? "Starting a run..." : "Run a slot now"}
           </Button>
           {pauseButton(s.paused, busy)}

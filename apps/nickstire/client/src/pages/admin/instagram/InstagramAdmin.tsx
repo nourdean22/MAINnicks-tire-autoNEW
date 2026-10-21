@@ -82,7 +82,7 @@ export function InstagramAdmin() {
           {metaChip && <Badge variant="outline" className={metaChip.className}>{metaChip.label}</Badge>}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="More surfaces" className="relative h-11 w-11">
+              <Button variant="outline" size="icon" aria-label="More surfaces" className="relative h-12 w-12">
                 <Settings2 className="h-4 w-4" />
                 {attentionUnknown ? (
                   <span
@@ -106,7 +106,7 @@ export function InstagramAdmin() {
               <DropdownMenuLabel>More surfaces</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {IG_SECONDARY_VIEWS.map((view) => (
-                <DropdownMenuItem key={view.key} onSelect={() => navigate(view.key)}>
+                <DropdownMenuItem key={view.key} className="min-h-12" onSelect={() => navigate(view.key)}>
                   {view.label}
                   {view.key === "actions" && attentionUnknown && (
                     <Badge variant="outline" className="ml-2 border-amber-500/40 text-amber-500" title="Held reels unknown: read failed">?</Badge>
@@ -155,7 +155,7 @@ export function InstagramAdmin() {
 
       {isSecondary && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <button type="button" className="underline min-h-11" onClick={() => navigate("today")}>← Back to Today</button>
+          <button type="button" className="underline min-h-12" onClick={() => navigate("today")}>← Back to Today</button>
           <span>·</span>
           <span className="font-medium text-foreground">{IG_SECONDARY_VIEWS.find((v) => v.key === activeView)?.label}</span>
         </div>

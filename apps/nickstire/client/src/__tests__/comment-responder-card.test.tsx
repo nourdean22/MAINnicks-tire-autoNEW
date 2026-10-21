@@ -218,3 +218,26 @@ describe("Pause and resume", () => {
     expect(h.confirmDialog).not.toHaveBeenCalled();
   });
 });
+
+describe("Phone targets (48 px)", () => {
+  it("Pause replies holds a 48 px floor", () => {
+    h.status = measured();
+    render(<Controls />);
+    expect(pauseBtn().className).toMatch(/\bmin-h-12\b/);
+  });
+
+  it("Resume replies and the log disclosure hold a 48 px floor", () => {
+    h.status = measured({ paused: true });
+    const { container } = render(<Controls />);
+    expect(resumeBtn().className).toMatch(/\bmin-h-12\b/);
+    const disclosures = Array.from(container.querySelectorAll("summary"));
+    expect(disclosures.length).toBeGreaterThan(0);
+    for (const s of disclosures) expect(s.className).toMatch(/\bmin-h-12\b/);
+  });
+
+  it("Retry on a failed read holds a 48 px floor", () => {
+    h.status = FAILURE;
+    render(<Controls />);
+    expect(screen.getByRole("button", { name: "Retry" }).className).toMatch(/\bmin-h-12\b/);
+  });
+});

@@ -85,7 +85,7 @@ export function CommentResponderCard() {
       variant="outline"
       onClick={() => onToggle(paused)}
       disabled={toggle.isPending || paused === null}
-      className="min-h-11 text-base"
+      className="min-h-12 text-base"
     >
       {paused ? "Resume replies" : "Pause replies"}
     </Button>
@@ -122,7 +122,7 @@ export function CommentResponderCard() {
         </CardHeader>
         <CardContent className="space-y-2 text-base">
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => q.refetch()} className="min-h-11 text-base">
+            <Button variant="outline" onClick={() => q.refetch()} className="min-h-12 text-base">
               <RefreshCw className="mr-2 h-4 w-4" /> Retry
             </Button>
             {pauseButton(paused)}
@@ -175,7 +175,7 @@ export function CommentResponderCard() {
             </div>
 
             <details className="group">
-              <summary className="flex min-h-11 cursor-pointer items-center rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <summary className="flex min-h-12 cursor-pointer items-center rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 Last 20 reply attempts
               </summary>
               <ul className="mt-1 divide-y divide-border">

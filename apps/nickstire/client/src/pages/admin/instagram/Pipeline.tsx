@@ -77,7 +77,7 @@ export function Pipeline() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={() => q.refetch()} className="min-h-11">
+          <Button variant="outline" onClick={() => q.refetch()} className="min-h-12">
             <RefreshCw className="mr-2 h-4 w-4" /> Try again
           </Button>
         </CardContent>
@@ -101,7 +101,7 @@ export function Pipeline() {
                 One reel a day. {d.daysCovered} of the next 30 days have a finished reel waiting.
               </CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => q.refetch()} className="min-h-11">
+            <Button variant="ghost" size="sm" onClick={() => q.refetch()} className="min-h-12 min-w-12" aria-label="Refresh pipeline health">
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>

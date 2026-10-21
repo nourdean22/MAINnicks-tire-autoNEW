@@ -436,11 +436,13 @@
           "source": "#812 review"
         }
       ],
-      "deferredScope": [],
+      "deferredScope": [
+        "Retired by the admin-prune W3: the Planning board (DraftBoardPanel) is no longer mounted. Saved carousel drafts have no render or publish screen."
+      ],
       "lastVerifiedAt": "2026-07-17",
-      "codeState": "merged",
+      "codeState": "retired",
       "operationalState": "integration_verified",
-      "exposure": "operator_only"
+      "exposure": "disabled"
     },
     {
       "capabilityId": "rendered-creative-qa",

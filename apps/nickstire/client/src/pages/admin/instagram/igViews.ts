@@ -76,10 +76,10 @@ export function writeIgViewToUrl(view: IgView): void {
 }
 
 /**
- * The Create handoff contract (Wave 5). "Create Post" in Community and
- * "Build a truthful sequel" in Insights used to be bare tab switches — the
- * review theme, winning post, and source identity were displayed on screen
- * and then thrown away. The handoff rides the URL so it survives the PWA
+ * The Create handoff contract (Wave 5). "Build a truthful sequel" in Insights
+ * (and, before the W3 prune, "Create Post" in Community) used to be a bare tab
+ * switch — the review theme, winning post, and source identity were displayed
+ * on screen and then thrown away. The handoff rides the URL so it survives the PWA
  * reload and needs no shared store; Create consumes it once on mount and
  * scrubs the params.
  */
