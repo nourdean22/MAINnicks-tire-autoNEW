@@ -14,6 +14,10 @@ const IDENTIFIERS = [
 const businessPayload = () => ({
   source: "nickstire",
   bookings: { total: 4, thisWeek: 1, topServices: [{ service: "Brakes for Jane Roe, call 2165550101", count: 3 }] },
+  // labels that came from public input: a utm_source, a landing page, a lead source
+  leads: { total: 9, thisWeek: 2, topSources: [{ source: "Maria Stone 2165550103", count: 2 }] },
+  calls: { total: 5, thisWeek: 1, topPages: [{ page: "/john-doe-2165550102", count: 1 }] },
+  attribution: { bookingsBySource: [{ source: "Sam Hill", count: 1 }], leadsBySource: [{ source: "jane@example.test", count: 1 }] },
   customerIntelligence: {
     available: true,
     totalCustomers: 40,
@@ -38,7 +42,7 @@ const businessPayload = () => ({
     topItems: [{
       workOrderId: "wo-1", orderNumber: "WO-1001", customer: "Maria Stone", phone: "2165550103",
       vehicle: "2014 Ford F-150", value: 800, hasSafety: true,
-      lines: [{ description: "Front pads", total: 300, declineReason: "Sam Hill said next payday", safetyRelated: true, outreachAt: null, recoveryMethod: "texted John Doe", recoveryNotes: "Left a voicemail for Maria" }],
+      lines: [{ description: "Front pads for Jane Roe, call 2165550101", total: 300, declineReason: "Sam Hill said next payday", safetyRelated: true, outreachAt: null, recoveryMethod: "texted John Doe", recoveryNotes: "Left a voicemail for Maria" }],
     }],
   },
   nickAI: { memories: [{ type: "pattern", content: "FULL CONVERSION: Customer \"Sam Hill\" completed full journey" }], memoryCount: 1 },
@@ -54,6 +58,9 @@ describe("redactBusinessSyncForStatenour", () => {
   it("keeps the counts, ages, totals and ids statenour reads", () => {
     const out = redactBusinessSyncForStatenour(businessPayload()) as Record<string, any>;
     expect(out.bookings).toEqual({ total: 4, thisWeek: 1 });
+    expect(out.leads).toEqual({ total: 9, thisWeek: 2 });
+    expect(out.calls).toEqual({ total: 5, thisWeek: 1 });
+    expect(out.attribution).toEqual({});
     expect(out.customerIntelligence).toEqual({
       available: true, totalCustomers: 40, activeCustomers: 12, retentionRate: 33,
       topSpenders: [{ total: 900, visits: 6 }],
@@ -67,7 +74,7 @@ describe("redactBusinessSyncForStatenour", () => {
       measured: true, totalRecoverable: 800, customerCount: 1, safetyItemCount: 1,
       topItems: [{
         workOrderId: "wo-1", orderNumber: "WO-1001", vehicle: "2014 Ford F-150", value: 800, hasSafety: true,
-        lines: [{ description: "Front pads", total: 300, safetyRelated: true, outreachAt: null }],
+        lines: [{ total: 300, safetyRelated: true, outreachAt: null }],
       }],
     });
     expect(out.nickAI).toEqual({ memoryCount: 1 });
@@ -107,15 +114,17 @@ describe("redactBusinessSyncForStatenour", () => {
 
 describe("redactEventDataForStatenour", () => {
   it.each([
-    ["nickstire:booking", { bookingId: 7, customer: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "2012 Civic", urgency: "normal", refCode: "REF7" }, { bookingId: 7, service: "brakes", urgency: "normal", refCode: "REF7" }],
+    ["nickstire:booking", { bookingId: 7, customer: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "2012 Civic", urgency: "normal", refCode: "REF7" }, { bookingId: 7, urgency: "normal", refCode: "REF7" }],
     // Codex on #3186: booking.create falls back to a free-form 200-character vehicle string, so a booking event never carries one
-    ["booking_created", { id: 9, name: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "Jane Roe 2165550101 blue truck" }, { id: 9, service: "brakes" }],
+    ["booking_created", { id: 9, name: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "Jane Roe 2165550101 blue truck" }, { id: 9 }],
     ["nickstire:lead", { leadId: 8, customer: "Jane Roe", phone: "2165550101", source: "web", urgencyScore: 3, interest: "call me Jane" }, { leadId: 8, source: "web", urgencyScore: 3 }],
     ["nickstire:callback", { customer: "John Doe", phone: "2165550102", reason: "call John at 2165550102" }, {}],
     ["nickstire:emergency", { name: "John Doe", phone: "2165550102", description: "flat on I-90, I am John", urgency: "high" }, { urgency: "high" }],
     ["nickstire:review", { rating: 5, reviewText: "Sam Hill fixed it", customerName: "Sam Hill" }, { rating: 5 }],
     ["nickstire:revenue", { kind: "invoice_paid", invoiceNumber: "INV-1", customer: "Jane Roe", totalAmount: 200, method: "card" }, { kind: "invoice_paid", invoiceNumber: "INV-1", totalAmount: 200, method: "card" }],
-    ["nickstire:estimate", { kind: "repair", vehicle: "2012 Civic", symptom: "John says it grinds", service: "brakes", issueCount: 2, source: "ai_estimate_static" }, { kind: "repair", vehicle: "2012 Civic", issueCount: 2, source: "ai_estimate_static" }],
+    ["nickstire:estimate", { kind: "repair", vehicle: "2012 Civic", symptom: "John says it grinds", service: "brakes", issueCount: 2, source: "ai_estimate_static" }, { kind: "repair", issueCount: 2, source: "ai_estimate_static" }],
+    // Codex on #3186: an estimate's vehicle is a make and a model the customer typed (50 characters each)
+    ["estimate_generated", { vehicle: "2012 Jane Roe 2165550101", symptom: "grinding", issueCount: 1 }, { issueCount: 1 }],
     // `service` on these is free text: a work-order note, a work order's description, the customer's complaint.
     ["nickstire:booking:complete", { bookingId: 9, customer: "Sam Hill", service: "Told Sam Hill it is ready", invoiceNumber: null, totalAmount: null }, { bookingId: 9, invoiceNumber: null, totalAmount: null }],
     ["nickstire:work_order:status", { workOrderId: "wo-1", orderNumber: "WO-1", fromStatus: "open", toStatus: "in_progress", service: "John says it grinds when he brakes" }, { workOrderId: "wo-1", orderNumber: "WO-1", fromStatus: "open", toStatus: "in_progress" }],

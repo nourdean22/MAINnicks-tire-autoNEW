@@ -147,8 +147,8 @@ describe("bridge_outbox key derivation", () => {
       timestamp: "2026-09-29T20:00:00.000Z",
       source: "test",
       priority: "high",
-      // Redacted like the wire copy (wave 4): no name or phone, the row id and the booked service stay.
-      data: { id: 9, service: "brakes" },
+      // Redacted like the wire copy (wave 4): no name or phone, and not the free-text service either; the row id stays.
+      data: { id: 9 },
       idempotencyKey: "v1:shop.booking.created:booking:9",
     });
     expect(payload as string).not.toContain(PHONE);

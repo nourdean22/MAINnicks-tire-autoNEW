@@ -49,10 +49,10 @@ const DECLINED_KEYS = ["measured", "source", "sourceNote", "totalRecoverable", "
 const DECLINED_ITEM_KEYS = ["workOrderId", "orderNumber", "vehicle", "value", "hasSafety"] as const;
 /**
  * Left out as staff-written text: recoveryNotes (outreach notes, "left a voicemail for ..."),
- * declineReason (varchar 100) and recoveryMethod (an unchecked string). description is the
- * work-order line item (parts and labor).
+ * declineReason (varchar 100) and recoveryMethod (an unchecked string). description goes too: it is
+ * the work-order line item, an unrestricted string an admin can type a name or a note into (Codex on #3186).
  */
-const DECLINED_LINE_KEYS = ["description", "total", "safetyRelated", "outreachAt"] as const;
+const DECLINED_LINE_KEYS = ["total", "safetyRelated", "outreachAt"] as const;
 
 function declinedWork(dw: unknown): Rec | null {
   if (!isRec(dw)) return null;
@@ -66,26 +66,31 @@ function declinedWork(dw: unknown): Rec | null {
 }
 
 /**
- * bookings keeps its counts but not topServices: `service` is booking.create's free text (up to 500
- * characters), so a name, a phone or a note can sit in it (Codex on #3186).
+ * Lists whose labels come from public input are not sent; the counts beside them stay (Codex on #3186):
+ * bookings.topServices (booking.create's `service`, 500 characters of free text), leads.topSources,
+ * calls.topPages (logCall's `sourcePage`, 500 characters) and attribution.*BySource (a public utm_source).
+ * A name, a phone or a note can sit in any of them. Nothing in apps/statenour reads these lists.
  */
-function bookings(b: unknown): unknown {
-  if (!isRec(b)) return b;
-  const out: Rec = { ...b };
-  delete out.topServices;
+function withoutKeys(block: unknown, keys: readonly string[]): unknown {
+  if (!isRec(block)) return block;
+  const out: Rec = { ...block };
+  for (const k of keys) delete out[k];
   return out;
 }
 
 /**
- * The business sync body for StateNour. Top-level blocks are aggregates except the six
- * replaced here. nickAI keeps only the count: a memory is free text that can name a customer
+ * The business sync body for StateNour. Top-level blocks are aggregates except the ones
+ * rewritten or trimmed here. nickAI keeps only the count: a memory is free text that can name a customer
  * ("FULL CONVERSION: Customer ...", "VIP customers: ..."). operatorPatterns drops its topic: the
  * first three words of Nour's own Nick commands, which can be a customer's name.
  */
 export function redactBusinessSyncForStatenour(payload: Rec): Rec {
   return {
     ...payload,
-    bookings: bookings(payload.bookings),
+    bookings: withoutKeys(payload.bookings, ["topServices"]),
+    leads: withoutKeys(payload.leads, ["topSources"]),
+    calls: withoutKeys(payload.calls, ["topPages"]),
+    attribution: withoutKeys(payload.attribution, ["bookingsBySource", "leadsBySource"]),
     customerIntelligence: customerIntelligence(payload.customerIntelligence),
     customerJourneys: pickEach(payload.customerJourneys, ["events", "hoursActive"]),
     declinedWork: declinedWork(payload.declinedWork),
@@ -122,16 +127,13 @@ const EVENT_DATA_KEYS = [
 ] as const;
 
 /**
- * `service` goes only where it is the service the customer booked or the one a cross-sell
- * predicted. Elsewhere it is free text: an estimate's repair description (the customer's own
- * complaint), a work order's service description, or a work-order note on booking_completed.
+ * `service` goes only where the SHOP chose it: the service a cross-sell predicted. A booking's `service` is
+ * booking.create's free text (500 characters), an estimate's is the customer's own complaint, a work order's is
+ * a service description and booking_completed's is a work-order note. `vehicle` is never sent: a booking's is a
+ * free-form 200-character fallback and an estimate's is joined from a make and a model the customer typed
+ * (50 characters each); neither is a validated vocabulary (Codex on #3186).
  */
 const TYPE_KEYS: Record<string, readonly string[]> = {
-  // an estimate's vehicle is built from the validated year, make and model fields
-  "nickstire:estimate": ["vehicle"],
-  estimate_generated: ["vehicle"],
-  "nickstire:booking": ["service"],
-  booking_created: ["service"], // the bus spelling, as bridge_outbox stores it
   campaign_sent: ["service"],
 };
 
