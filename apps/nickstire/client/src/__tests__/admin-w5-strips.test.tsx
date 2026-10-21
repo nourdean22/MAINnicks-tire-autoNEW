@@ -60,15 +60,11 @@ vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, Se
 vi.mock("@/pages/admin/instagram/Today", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/StudioV2", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/QueueV2", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/instagram/Inbox", () => ({ Inbox: h.Null }));
 vi.mock("@/pages/admin/instagram/Learn", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/Settings", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/DraftBoardPanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/instagram/PatternLab", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/Strategy", () => ({ default: h.Null }));
-vi.mock("@/components/admin/AutonomyCommandCenter", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/ActionCenter", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/instagram/Pipeline", () => ({ Pipeline: h.Null }));
+vi.mock("@/pages/admin/instagram/Controls", () => ({ Controls: h.Null }));
 
 import OutreachHubSection from "@/pages/admin/OutreachHubSection";
 import SettingsSection from "@/pages/admin/SettingsSection";

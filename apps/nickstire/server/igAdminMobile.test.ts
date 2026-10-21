@@ -53,16 +53,6 @@ describe("touch-hostile controls are gone", () => {
   it("legacy Studio's clear-media button is no longer hover-revealed (invisible-but-tappable on iOS)", () => {
     expect(read("instagram/Studio.tsx")).not.toMatch(/opacity-0 group-hover:opacity-100/);
   });
-
-  it("Inbox cards use dvh so the reply composer survives the iOS keyboard", () => {
-    const i = read("instagram/Inbox.tsx");
-    expect(i).toMatch(/h-\[70dvh\] lg:h-\[600px\]/);
-    expect(i).not.toMatch(/flex flex-col h-\[600px\]/);
-  });
-
-  it("Inbox tone chips meet the 44px minimum (a mis-tap silently changed the AI reply's tone)", () => {
-    expect(read("instagram/Inbox.tsx")).toMatch(/min-h-11 px-3 text-xs rounded border capitalize/);
-  });
 });
 
 describe("scheduling is explicit about time", () => {

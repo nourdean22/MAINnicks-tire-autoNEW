@@ -133,35 +133,6 @@ describe("storage copy names the delivery path instead of asserting CloudFront",
   });
 });
 
-describe("Community states what it actually read", () => {
-  const inbox = read("client/src/pages/admin/instagram/Inbox.tsx");
-
-  it("no longer blames Instagram credentials for a read that never happened", () => {
-    expect(inbox).not.toContain("Make sure Instagram credentials are set");
-  });
-
-  it("the feed distinguishes unavailable from verified empty", () => {
-    expect(inbox).toContain('feedStatus.state === "unavailable"');
-    // Copy corrected in self-audit: loadCache() returns null both when the file
-    // is ABSENT and when reading it THROWS, so "the cache was read" overclaimed.
-    // The client can only report what it received.
-    expect(inbox).toContain("The feed cache returned no posts.");
-  });
-
-  it("the cluster panel has an unavailable branch at all — it previously had none", () => {
-    expect(inbox).toContain('optStatus.state === "unavailable"');
-    // The confident-empty string may remain, but only AFTER the unavailable
-    // branch. Both anchors are JSX-shaped so they cannot match the explanatory
-    // comments in this file or in Inbox.tsx — the mistake this assertion caught
-    // on its first run.
-    const unavailableAt = inbox.indexOf(') : optStatus.state === "unavailable" ? (');
-    const emptyAt = inbox.indexOf(">No prominent themes found right now.</div>");
-    expect(unavailableAt, "the unavailable JSX branch is missing").toBeGreaterThan(-1);
-    expect(emptyAt, "the verified-empty JSX is missing").toBeGreaterThan(-1);
-    expect(emptyAt).toBeGreaterThan(unavailableAt);
-  });
-});
-
 describe("a scan that never ran is not a clean database", () => {
   const panel = read("client/src/pages/admin/settings/DatabaseHygienePanel.tsx");
 

@@ -6,7 +6,7 @@
  *
  *   Queue.tsx                  failed getAllDrafts    -> "No drafts found"
  *   QueueV2.tsx                failed list query      -> "No Studio V2 drafts match"
- *   DraftBoardPanel.tsx        DB + Sheet both down   -> an empty board
+ *   DraftBoardPanel.tsx        DB + Sheet both down   -> an empty board (view cut in W3, 2026-10-19)
  *   Settings.tsx               failedJobs === null    -> banner never renders
  *   AutonomyCommandCenter.tsx  table unavailable      -> "No reel jobs yet"
  *
@@ -41,12 +41,6 @@ describe("every list screen distinguishes empty from unreadable", () => {
     const s = read("client/src/pages/admin/instagram/QueueV2.tsx");
     expect(s).toMatch(/list\.isError \?/);
     expect(s.indexOf("list.isError ?")).toBeLessThan(s.indexOf("rows.length === 0"));
-  });
-
-  it("DraftBoardPanel surfaces a read failure as its own banner", () => {
-    const s = read("client/src/pages/admin/DraftBoardPanel.tsx");
-    expect(s).toMatch(/readFailure/);
-    expect(s).toMatch(/UNKNOWN, not empty/);
   });
 
   it("AutonomyCommandCenter no longer shares one sentence for two facts", () => {

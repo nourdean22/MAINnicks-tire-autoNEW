@@ -61,6 +61,19 @@ describe("a loaded assistant", () => {
     expect(onNavigate).toHaveBeenCalledWith("create");
   });
 
+  // Pattern Lab and Pipeline health stopped being views in W3 (2026-10-19): the cards must land on views that exist.
+  it.each([
+    ["fatigue", "strategy"],
+    ["quality", "controls"],
+    ["experiment", "strategy"],
+  ])("a %s card opens %s", (type, view) => {
+    h.result = payload([card({ type, title: `${type} card`, firstAction: `go ${type}` })]);
+    const onNavigate = vi.fn();
+    render(<CreativeAssistantCards onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: `go ${type}` }));
+    expect(onNavigate).toHaveBeenCalledWith(view);
+  });
+
   it("names a source the server could not read as missing, not absent", () => {
     h.result = payload([card()], { topicSignals: 7, ledger: "error: timeout" });
     render(<CreativeAssistantCards onNavigate={() => {}} />);
