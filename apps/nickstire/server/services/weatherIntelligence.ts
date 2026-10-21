@@ -37,7 +37,7 @@ export interface WeatherData {
   tempMin: number;
   /** First forecast period at or below 32°F, or an active NWS freeze alert. */
   freezeAt: Date | null;
-  /** Heavy rain in the next 48h (named in the forecast, >=80% rain chance with no snow words, or a rain-driven flood alert). */
+  /** Heavy rain in the next 48h (named in the forecast, >=80% rain chance with no snow or ice words, or a rain-driven flood alert beside >=50% rain). */
   heavyRain: boolean;
   /** Snow in the next 72h (>=50% chance) or an active winter-weather alert. */
   snowExpected: boolean;
@@ -113,6 +113,9 @@ function deriveWeatherData(periods: NwsPeriod[], alerts: NwsAlert[], now: Date):
   const freezeAlert = alerts.find((a) => FREEZE_ALERT.test(a.event));
   const text = (p: NwsPeriod) => `${p.shortForecast} ${p.detailedForecast}`;
   const pop = (p: NwsPeriod) => p.precipChancePct ?? 0;
+  /** Rain words with no snow or ice word, at or above `minPop` percent. */
+  const rainy = (p: NwsPeriod, minPop: number) =>
+    /rain|showers|thunderstorm/i.test(p.shortForecast) && !FROZEN_PRECIP.test(p.shortForecast) && pop(p) >= minPop;
 
   let freezeAt: Date | null = freezePeriod ? new Date(freezePeriod.startTime) : null;
   if (!freezeAt && freezeAlert) freezeAt = new Date(freezeAlert.onset ?? now.toISOString());
@@ -122,12 +125,10 @@ function deriveWeatherData(periods: NwsPeriod[], alerts: NwsAlert[], now: Date):
     tempMin: Math.min(...temps),
     freezeAt,
     heavyRain:
-      periods.some(
-        (p) =>
-          withinHours(p, now, 48) &&
-          (/heavy rain/i.test(text(p)) ||
-            (/rain|showers|thunderstorm/i.test(p.shortForecast) && !FROZEN_PRECIP.test(p.shortForecast) && pop(p) >= 80)),
-      ) || alerts.some((a) => RAIN_FLOOD_ALERT.test(a.event)),
+      periods.some((p) => withinHours(p, now, 48) && (/heavy rain/i.test(text(p)) || rainy(p, 80))) ||
+      // A flood alert is not proof of rain (snowmelt, ice jams and dam failures raise the same products): it counts
+      // only beside an independent rain signal in the next 48h.
+      (alerts.some((a) => RAIN_FLOOD_ALERT.test(a.event)) && periods.some((p) => withinHours(p, now, 48) && rainy(p, 50))),
     snowExpected:
       periods.some((p) => withinHours(p, now, 72) && /snow/i.test(p.shortForecast) && pop(p) >= 50) ||
       alerts.some((a) => WINTER_ALERT.test(a.event)),
@@ -201,7 +202,7 @@ const WEATHER_CANDIDATE_POOL = 50;
  * `held` is the send_pause reason when a pause stopped the run (at the start or
  * mid-loop), so checkWeatherTriggers can put it in cron_log details.
  */
-async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: string | null }> {
+async function sendWeatherSms(triggerId: string, textedThisRun: Set<string>): Promise<{ sent: number; held: string | null }> {
   const none = { sent: 0, held: null };
   const { isEnabled } = await import("./featureFlags");
   if (!(await isEnabled("weather_triggered_sms"))) return none;
@@ -229,7 +230,7 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
     const { customers, smsMessages, smsConversations } = await import("../../drizzle/schema");
     const { sendSms, withOptOut } = await import("../sms");
     const { logOutboundSms } = await import("./smsInstrumentation");
-    const { sql, and, isNotNull, eq, gte, like, desc, notExists } = await import("drizzle-orm");
+    const { sql, and, isNotNull, eq, ne, gte, like, desc, notExists } = await import("drizzle-orm");
 
     const db = await getDb();
     if (!db) return none;
@@ -238,12 +239,16 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
     const variantKey = `weather_${triggerId}`;
     const cooldownStart = new Date(Date.now() - WEATHER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
     // An outbound weather_ text of ANY trigger to a conversation whose phone ends in `phoneLike`, inside the window.
+    // A `failed` row is a definitive refusal (cap reached, consent unverifiable, takeover): nothing was delivered, so
+    // it starts no cooldown. Every other status, including one this code has never seen, still counts: fail toward
+    // NOT texting.
     const recentWeatherText = (phoneLike: string | SQL) =>
       and(
         like(smsConversations.phone, phoneLike),
         eq(smsMessages.direction, "outbound"),
         gte(smsMessages.createdAt, cooldownStart),
         like(smsMessages.variantKey, WEATHER_VARIANT_LIKE),
+        ne(smsMessages.status, "failed"),
       );
 
     // Find customers who haven't visited in 60+ days, have valid phone, not opted out, and have had no weather
@@ -274,6 +279,10 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
     for (const [i, c] of targets.entries()) {
       if (attempts >= WEATHER_SMS_CAP) break;
       if (!c.phone) continue;
+      // Already attempted by an earlier trigger in this run: a queued send persists its row after the fact and the
+      // caller skips logOutboundSms for it, so the audience query cannot see it yet. Not an attempt.
+      const phoneKey = c.phone.replace(/\D/g, "").slice(-10);
+      if (textedThisRun.has(phoneKey)) continue;
       // C5.5 round 2: re-read the pause before every send (a fresh read: the start gate's cached answer may be stale).
       const midRunHold = await sendPauseHoldReason("weather_sms", "automated", { fresh: true });
       if (midRunHold) {
@@ -283,11 +292,10 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
 
       // Second guard, same rule as the query's NOT EXISTS: skip anyone texted by ANY weather trigger in the last
       // 30 days. Cheap (one indexed read per target) and it catches a text logged since the audience query ran.
-      const normalized = c.phone.replace(/\D/g, "").slice(-10);
       const recent = await db.select({ id: smsMessages.id })
         .from(smsMessages)
         .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
-        .where(recentWeatherText(`%${normalized}`))
+        .where(recentWeatherText(`%${phoneKey}`))
         .limit(1);
       if (recent.length > 0) continue;
 
@@ -297,7 +305,11 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
       try {
         const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true, variantKey });
         returned = true;
-        if (!result.heldOut) attempts++; // the cap counts real attempts; a held-out control was never contacted
+        if (!result.heldOut) {
+          // The cap counts real attempts, and so does the run-wide set; a held-out control was never contacted.
+          attempts++;
+          textedThisRun.add(phoneKey);
+        }
         // Log with the weather variantKey so the cooldown above sees this
         // send on the next run and the admin SMS tile counts it.
         // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
@@ -312,7 +324,11 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
         if (wo === "sent") sent++;
         else if (wo !== "failed") log.info(`Weather SMS ${wo} for customer #${c.id} (not counted as sent)`);
       } catch (err) {
-        if (!returned) attempts++; // sendSms itself threw: the gateway was called, so the cap still counts it
+        if (!returned) {
+          // sendSms itself threw: the gateway was called, so the cap and the run-wide set still count it
+          attempts++;
+          textedThisRun.add(phoneKey);
+        }
         log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });
       }
     }
@@ -359,6 +375,9 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
   const { periods, alerts } = await readForecast();
   const { data, triggered, imminent, details } = evaluateForecast(periods, alerts);
   const holds: string[] = [];
+  // Customers any trigger already attempted in THIS run (normalized 10-digit phones), so two imminent triggers
+  // cannot text the same person twice before the first one's row is visible to the audience query.
+  const textedThisRun = new Set<string>();
 
   for (const id of triggered) {
     const trigger = TRIGGERS.find((t) => t.id === id)!;
@@ -378,7 +397,7 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
 
     // A forecast days out drafts and alerts; only an imminent one may text.
     if (!imminent.includes(id)) continue;
-    const { sent: smsSent, held } = await sendWeatherSms(trigger.id);
+    const { sent: smsSent, held } = await sendWeatherSms(trigger.id, textedThisRun);
     if (held) holds.push(`Skipped · ${held}`);
     if (smsSent > 0) {
       alertSystem(

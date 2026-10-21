@@ -29,6 +29,10 @@ const h = vi.hoisted(() => ({
   targets: [] as unknown[][],
   /** Phone suffixes (last 10 digits) the per-row cooldown guard reports as already texted. */
   guardHits: new Set<string>(),
+  /** One entry per audience query, in order, when a test needs the two triggers to see different candidates. */
+  targetsQueue: [] as unknown[][][],
+  /** Weather rows already in sms_messages; the per-row guard evaluates its own rendered params against them. */
+  messages: [] as Array<{ phone: string; status: string; variantKey: string; direction: string; createdAt: string }>,
 }));
 
 const { sendSms, logOutboundSms, sendPauseHoldReason, isEnabled, alertSystem } = vi.hoisted(() => ({
@@ -42,11 +46,22 @@ const { sendSms, logOutboundSms, sendPauseHoldReason, isEnabled, alertSystem } =
 const fakeClient = {
   query: async (q: { sql: string }, params: unknown[]) => {
     h.sent.push({ sql: q.sql, params });
-    if (/from `customers`/i.test(q.sql)) return [h.targets, []]; // the audience query
+    if (/from `customers`/i.test(q.sql)) return [h.targetsQueue.length ? h.targetsQueue.shift()! : h.targets, []]; // the audience query
     if (/from `sms_messages`/i.test(q.sql)) {
-      // the per-row guard: first param is `%<last 10 digits>`
+      // the per-row guard, params in render order: `%<last 10 digits>`, direction, cut-off, variantKey pattern, [status to ignore], limit
       const suffix = String(params[0] ?? "").replace(/\D/g, "");
-      return [h.guardHits.has(suffix) ? [[7]] : [], []];
+      const [, direction, cutoff, pattern, ...rest] = params;
+      const ignoredStatus = /`sms_messages`\.`status` <> \?/i.test(q.sql) ? rest[0] : null;
+      const prefix = String(pattern).replace("\\_%", "_");
+      const seen = h.messages.some(
+        (m) =>
+          m.phone.endsWith(suffix) &&
+          m.direction === direction &&
+          m.createdAt >= String(cutoff) &&
+          m.variantKey.startsWith(prefix) &&
+          m.status !== ignoredStatus,
+      );
+      return [h.guardHits.has(suffix) || seen ? [[7]] : [], []];
     }
     return [[], []];
   },
@@ -102,6 +117,7 @@ function audienceProblems({ sql, params }: Sent): string[] {
     if (/`variantKey` = \?/i.test(sub)) out.push("cooldown compares variantKey for equality (it is per trigger)");
     if (!/`sms_messages`\.`direction` = \?/i.test(sub)) out.push("cooldown ignores direction");
     if (!/`sms_messages`\.`createdAt` >= \?/i.test(sub)) out.push("cooldown has no 30-day window");
+    if (!/`sms_messages`\.`status` <> \?/i.test(sub)) out.push("cooldown counts failed rows (a definitive refusal would block every trigger for 30 days)");
     if (!/like CONCAT\('%', RIGHT\(REGEXP_REPLACE\(`customers`\.`phone`, '\[\^0-9\]', ''\), 10\)\)/i.test(sub)) {
       out.push("cooldown is not correlated to the customer's last 10 phone digits");
     }
@@ -118,6 +134,7 @@ function audienceProblems({ sql, params }: Sent): string[] {
   if (!params.includes("weather\\_%")) out.push("params carry no weather\\_% pattern");
   if (!params.includes(COOLDOWN_START)) out.push(`params carry no 30-day cut-off (${COOLDOWN_START})`);
   if (!params.includes("outbound")) out.push("params carry no outbound direction");
+  if (!params.includes("failed")) out.push("params carry no failed status to ignore");
   if (/weather_(first_freeze|heavy_rain|pothole_season|extreme_heat|salt_season_end)/.test(JSON.stringify(params))) {
     out.push("params carry a trigger-specific weather_<id> key");
   }
@@ -133,9 +150,9 @@ const GOOD_SQL =
   "and `customers`.`phone` is not null and DATEDIFF(CURDATE(), `customers`.`lastVisitDate`) >= 60 " +
   "and not exists (select 1 from `sms_messages` inner join `sms_conversations` on `sms_messages`.`conversationId` = `sms_conversations`.`id` " +
   "where (`sms_conversations`.`phone` like CONCAT('%', RIGHT(REGEXP_REPLACE(`customers`.`phone`, '[^0-9]', ''), 10)) " +
-  "and `sms_messages`.`direction` = ? and `sms_messages`.`createdAt` >= ? and `sms_messages`.`variantKey` like ?))) " +
+  "and `sms_messages`.`direction` = ? and `sms_messages`.`createdAt` >= ? and `sms_messages`.`variantKey` like ? and `sms_messages`.`status` <> ?))) " +
   "order by `customers`.`lastVisitDate` desc limit ?";
-const GOOD_PARAMS = [0, "outbound", COOLDOWN_START, "weather\\_%", 50];
+const GOOD_PARAMS = [0, "outbound", COOLDOWN_START, "weather\\_%", "failed", 50];
 
 describe("the checker itself: it passes the right query and names every planted defect", () => {
   it("CONTROL: the right shape has no problems", () => {
@@ -152,15 +169,23 @@ describe("the checker itself: it passes the right query and names every planted 
 
   it("a per-trigger variantKey equality is named", () => {
     const sql = GOOD_SQL.replace("`sms_messages`.`variantKey` like ?", "`sms_messages`.`variantKey` = ?");
-    const p = audienceProblems({ sql, params: [0, "outbound", COOLDOWN_START, "weather_heavy_rain", 10] });
+    const p = audienceProblems({ sql, params: [0, "outbound", COOLDOWN_START, "weather_heavy_rain", "failed", 50] });
     expect(p).toContain("cooldown does not LIKE-match the variantKey (it is per trigger)");
     expect(p).toContain("cooldown compares variantKey for equality (it is per trigger)");
     expect(p).toContain("params carry a trigger-specific weather_<id> key");
   });
 
+  it("a cooldown that counts failed rows is named", () => {
+    const sql = GOOD_SQL.replace(" and `sms_messages`.`status` <> ?", "");
+    expect(sql).not.toBe(GOOD_SQL);
+    const p = audienceProblems({ sql, params: [0, "outbound", COOLDOWN_START, "weather\\_%", 50] });
+    expect(p).toContain("cooldown counts failed rows (a definitive refusal would block every trigger for 30 days)");
+    expect(p).toContain("params carry no failed status to ignore");
+  });
+
   it("a moved window, a moved limit and ORDER BY after LIMIT are named", () => {
-    const p = audienceProblems({ sql: GOOD_SQL, params: [0, "outbound", "2026-09-22 15:30:00.000", "weather\\_%", 11] });
-    expect(audienceProblems({ sql: GOOD_SQL, params: [0, "outbound", COOLDOWN_START, "weather\\_%", 10] })).toContain("LIMIT is 10, not 50");
+    const p = audienceProblems({ sql: GOOD_SQL, params: [0, "outbound", "2026-09-22 15:30:00.000", "weather\\_%", "failed", 11] });
+    expect(audienceProblems({ sql: GOOD_SQL, params: [0, "outbound", COOLDOWN_START, "weather\\_%", "failed", 10] })).toContain("LIMIT is 10, not 50");
     expect(p).toContain(`params carry no 30-day cut-off (${COOLDOWN_START})`);
     expect(p).toContain("LIMIT is 11, not 50");
     const swapped = GOOD_SQL.replace("order by `customers`.`lastVisitDate` desc limit ?", "limit ? order by `customers`.`lastVisitDate` desc");
@@ -188,6 +213,8 @@ beforeEach(() => {
   __resetWeatherAlertMemoryForTests();
   h.sent.length = 0;
   h.targets = [];
+  h.targetsQueue.length = 0;
+  h.messages.length = 0;
   h.guardHits.clear();
   sendSms.mockReset();
   sendSms.mockResolvedValue({ success: true, sid: "SM1" });
@@ -246,21 +273,27 @@ describe("sendWeatherSms · who the audience query reaches (real drizzle SQL)", 
   it("texts keep their per-trigger variantKey (analytics and the holdout lane key off it), in database order", async () => {
     rainAndFreezeTonight();
     process.env.WEATHER_SMS_SEND = "1";
-    h.targets = [
-      [1, "Pat", "2165550141"],
-      [2, "Sam", "2165550142"],
+    // The second trigger's query sees 02 again (a queued text is not yet a row the query can see) plus a new customer.
+    h.targetsQueue = [
+      [
+        [1, "Pat", "2165550141"],
+        [2, "Sam", "2165550142"],
+      ],
+      [
+        [2, "Sam", "2165550142"],
+        [3, "Lee", "2165550143"],
+      ],
     ];
     await checkWeatherTriggers();
     const keys = sendSms.mock.calls.map((c) => [c[0], (c[2] as { variantKey: string }).variantKey]);
     expect(keys).toEqual([
       ["2165550141", "weather_first_freeze"],
       ["2165550142", "weather_first_freeze"],
-      ["2165550141", "weather_heavy_rain"],
-      ["2165550142", "weather_heavy_rain"],
+      ["2165550143", "weather_heavy_rain"],
     ]);
   });
 
-  it("CONTROL: with no guard hit every returned target is texted; a guard hit skips only that customer", async () => {
+  it("CONTROL: with no guard hit every returned target is texted once; a guard hit skips that customer for every trigger", async () => {
     rainAndFreezeTonight();
     process.env.WEATHER_SMS_SEND = "1";
     h.targets = [
@@ -269,14 +302,13 @@ describe("sendWeatherSms · who the audience query reaches (real drizzle SQL)", 
       [3, "Lee", "2165550143"],
     ];
     await checkWeatherTriggers();
-    expect(sendSms).toHaveBeenCalledTimes(6); // 3 customers x 2 triggers
+    expect(sendSms).toHaveBeenCalledTimes(3); // 3 customers, once each across both triggers
 
     sendSms.mockClear();
     h.guardHits.add("2165550142");
     await checkWeatherTriggers();
     const to = sendSms.mock.calls.map((c) => c[0]);
-    expect(to).not.toContain("2165550142");
-    expect(to.filter((p) => p === "2165550141")).toHaveLength(2);
+    expect(to).toEqual(["2165550141", "2165550143"]);
   });
 
   it("stays shadow: with WEATHER_SMS_SEND unset the audience query is never built and nothing is sent", async () => {
@@ -360,5 +392,143 @@ describe("sendWeatherSms · the cap counts real send attempts, held-out controls
     for (const n of [1, 2, 3]) h.guardHits.add(`21655501${String(n).padStart(2, "0")}`);
     await checkWeatherTriggers();
     expect(attemptedNumbers()).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]); // 3 skipped, then 10 attempts, 14 never tried
+  });
+});
+
+const phoneOf = (n: number) => `21655501${String(n).padStart(2, "0")}`;
+const row = (n: number, phone = phoneOf(n)) => [n, `C${n}`, phone];
+const lastTwo = (phone: unknown) => Number(String(phone).replace(/\D/g, "").slice(-2));
+
+/**
+ * One customer is texted at most once per RUN, whatever the trigger (2026-10-21, Codex P2). A queued send persists its
+ * sms_messages row in an unawaited step and the caller skips logOutboundSms for it, so the second trigger's audience
+ * query can still return a customer the first trigger already texted. checkWeatherTriggers keeps one set of normalized
+ * phones for the whole run.
+ */
+describe("checkWeatherTriggers · no customer is attempted twice in one run", () => {
+  const phonesAttempted = () => sendSms.mock.calls.map((c) => String(c[0]).replace(/\D/g, "").slice(-10));
+
+  it("two imminent triggers with overlapping candidates: no phone is attempted twice", async () => {
+    rainAndFreezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    h.targetsQueue = [[row(1), row(2), row(3)], [row(2), row(3), row(4)]];
+    await checkWeatherTriggers();
+    const phones = phonesAttempted();
+    expect(phones).toEqual([phoneOf(1), phoneOf(2), phoneOf(3), phoneOf(4)]);
+    expect(new Set(phones).size).toBe(phones.length);
+  });
+
+  it("the same customer in a different phone format is still the same customer", async () => {
+    rainAndFreezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    h.targetsQueue = [[row(1)], [row(1, "(216) 555-0101"), row(2, "+1 216-555-0102")]];
+    await checkWeatherTriggers();
+    expect(phonesAttempted()).toEqual([phoneOf(1), phoneOf(2)]);
+  });
+
+  it("a skipped duplicate is not a real attempt: it does not eat the second trigger's cap of 10", async () => {
+    rainAndFreezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    const first = Array.from({ length: 10 }, (_, i) => row(i + 1));
+    h.targetsQueue = [first, [...first, row(11), row(12), row(13)]];
+    await checkWeatherTriggers();
+    expect(sendSms).toHaveBeenCalledTimes(13); // 10 by the first trigger, then only the 3 new ones
+  });
+
+  it("a held-out control was never contacted, so a later trigger may text that customer", async () => {
+    rainAndFreezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    h.targetsQueue = [[row(1), row(2)], [row(1), row(2)]];
+    sendSms.mockImplementation(async (phone: string, _m: string, o: { variantKey: string }) =>
+      o.variantKey === "weather_first_freeze" && lastTwo(phone) === 1 ? { success: true, heldOut: true } : { success: true, sid: "SM1" },
+    );
+    await checkWeatherTriggers();
+    expect(sendSms.mock.calls.map((c) => [lastTwo(c[0]), (c[2] as { variantKey: string }).variantKey])).toEqual([
+      [1, "weather_first_freeze"], // held out
+      [2, "weather_first_freeze"],
+      [1, "weather_heavy_rain"], // not contacted by the first trigger, so the second may
+    ]);
+  });
+
+  it("a send that threw was still an attempt: the next trigger does not retry that customer", async () => {
+    rainAndFreezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    h.targetsQueue = [[row(1)], [row(1), row(2)]];
+    sendSms.mockImplementation(async (phone: string) => {
+      if (lastTwo(phone) === 1) throw new Error("gateway down");
+      return { success: true, sid: "SM1" };
+    });
+    await checkWeatherTriggers();
+    expect(sendSms.mock.calls.map((c) => lastTwo(c[0]))).toEqual([1, 2]);
+  });
+
+  it("the set belongs to ONE run: the next run starts empty", async () => {
+    rainAndFreezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    h.targets = [row(1)];
+    await checkWeatherTriggers();
+    await checkWeatherTriggers();
+    expect(sendSms).toHaveBeenCalledTimes(2); // once per run (the cooldown rows, not this set, carry it across runs)
+  });
+});
+
+/**
+ * A definitive refusal is logged as a `failed` row (cap reached, consent unverifiable, takeover). It means no text was
+ * delivered, so it must not start a 30-day weather cooldown. sms_messages.status holds queued | sent | delivered |
+ * failed | received | sending; "uncertain" is stored as `sending`. Every status except failed still cools the customer
+ * down, so a status this code has never heard of fails toward NOT texting.
+ */
+describe("sendWeatherSms · a failed row does not cool a customer down (per-row guard evaluated on its rendered params)", () => {
+  const freezeOnlyTonight = () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(OCT_NOW);
+    stubNwsFetch({ forecast: editForecast(nwsFixtures.forecast(), 28, { [TONIGHT]: 30 }) });
+    process.env.WEATHER_SMS_SEND = "1";
+    h.targets = [row(1)];
+  };
+  const weatherRow = (status: string, over: Partial<(typeof h.messages)[number]> = {}) => ({
+    phone: phoneOf(1),
+    status,
+    variantKey: "weather_first_freeze",
+    direction: "outbound",
+    createdAt: "2026-10-01 00:00:00.000",
+    ...over,
+  });
+
+  it("CONTROL: with no weather row in the window the customer is texted", async () => {
+    freezeOnlyTonight();
+    await checkWeatherTriggers();
+    expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed weather row in the window does not cool the customer down", async () => {
+    freezeOnlyTonight();
+    h.messages.push(weatherRow("failed"));
+    await checkWeatherTriggers();
+    expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["sent", "delivered", "queued", "sending", "received", "some_future_status"])(
+    "a %s weather row in the window cools the customer down",
+    async (status) => {
+      freezeOnlyTonight();
+      h.messages.push(weatherRow(status));
+      await checkWeatherTriggers();
+      expect(sendSms).not.toHaveBeenCalled();
+    },
+  );
+
+  it("a failed row does not hide a real one: failed + sent in the window still cools down", async () => {
+    freezeOnlyTonight();
+    h.messages.push(weatherRow("failed"), weatherRow("sent", { variantKey: "weather_pothole_season" }));
+    await checkWeatherTriggers();
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: the evaluator is live, a sent row OUTSIDE the window or of another lane does not cool down", async () => {
+    freezeOnlyTonight();
+    h.messages.push(weatherRow("sent", { createdAt: "2026-09-01 00:00:00.000" }), weatherRow("sent", { variantKey: "winback" }));
+    await checkWeatherTriggers();
+    expect(sendSms).toHaveBeenCalledTimes(1);
   });
 });

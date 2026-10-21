@@ -181,12 +181,36 @@ describe("heavy_rain · real rain only (pure)", () => {
     expect(r.triggered).not.toContain("heavy_rain");
   });
 
-  it.each(["Flood Watch", "Flood Warning", "Flood Advisory", "Flash Flood Watch", "Flash Flood Warning"])(
-    "the %s alert is rain-driven and fires it",
-    (event) => {
-      expect(rainTriggered(parsePeriods(shiftedForecast({})), [alertOf(event)])).toBe(true);
+  // A flood alert alone is not proof of rain: snowmelt, ice jams and dam or levee failures raise the same products
+  // (weather.gov/safety/flood-hazards). It counts only beside an independent rain signal in the forecast.
+  const FLOOD_ALERTS = ["Flood Watch", "Flood Warning", "Flood Advisory", "Flash Flood Watch", "Flash Flood Warning"];
+  const DRY = () => parsePeriods(shiftedForecast({}));
+
+  it.each(FLOOD_ALERTS)("the %s alert beside a dry forecast does NOT fire it (snowmelt and ice jams flood too)", (event) => {
+    expect(rainTriggered(DRY(), [alertOf(event)])).toBe(false);
+  });
+
+  it.each(FLOOD_ALERTS)("the %s alert beside 60%% rain showers fires it", (event) => {
+    expect(rainTriggered(withThursday("Rain Showers", 60), [alertOf(event)])).toBe(true);
+  });
+
+  it("the rain signal beside a flood alert starts at 50%: 50 fires, 49 does not", () => {
+    expect(rainTriggered(withThursday("Rain Showers", 50), [alertOf("Flood Warning")])).toBe(true);
+    expect(rainTriggered(withThursday("Rain Showers", 49), [alertOf("Flood Warning")])).toBe(false);
+  });
+
+  it.each(["Snow Showers", "Freezing Rain", "Rain And Sleet"])(
+    "a flood warning beside %s at 60%% does not fire it (the signal is frozen, not rain)",
+    (shortForecast) => {
+      expect(rainTriggered(withThursday(shortForecast, 60), [alertOf("Flood Warning")])).toBe(false);
     },
   );
+
+  it("a flood warning beside rain more than 48h out does not fire it", () => {
+    const f = shiftedForecast({});
+    f.properties.periods[6] = { ...f.properties.periods[6], shortForecast: "Rain Showers", probabilityOfPrecipitation: { value: 90 } };
+    expect(rainTriggered(parsePeriods(f), [alertOf("Flood Warning")])).toBe(false);
+  });
 
   it.each([
     "Lakeshore Flood Advisory",
@@ -195,12 +219,12 @@ describe("heavy_rain · real rain only (pure)", () => {
     "Coastal Flood Advisory",
     "Coastal Flood Warning",
     "Coastal Flood Watch",
-  ])("the %s alert is lake level, not rain, and does not fire it", (event) => {
-    expect(rainTriggered(parsePeriods(shiftedForecast({})), [alertOf(event)])).toBe(false);
+  ])("the %s alert is lake level, not rain, and does not fire it even beside 60%% rain showers", (event) => {
+    expect(rainTriggered(withThursday("Rain Showers", 60), [alertOf(event)])).toBe(false);
   });
 
   it("alert matching ignores case and padding", () => {
-    expect(rainTriggered(parsePeriods(shiftedForecast({})), [alertOf("  flash flood WARNING ")])).toBe(true);
+    expect(rainTriggered(withThursday("Rain Showers", 60), [alertOf("  flash flood WARNING ")])).toBe(true);
   });
 });
 
