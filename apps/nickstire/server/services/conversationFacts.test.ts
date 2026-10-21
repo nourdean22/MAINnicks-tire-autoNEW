@@ -32,9 +32,11 @@ const reply = (content: string): InvokeResult => ({
   choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
 });
 
+/** ears-v2 requires every field (Codex on #3213); these older tests are about facts, so the rest default empty. */
+const V2_EMPTY = { account: null, accountSegments: [], noiseOnly: false, flags: [] };
 const replyWith = (payload: unknown) =>
   (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-    reply(JSON.stringify(payload)),
+    reply(JSON.stringify({ ...V2_EMPTY, ...(payload as object) })),
   );
 
 beforeEach(() => vi.clearAllMocks());
@@ -96,7 +98,7 @@ describe("conversation facts — the gateway CONTRACT, pinned after production t
     // self-inflicted extraction failure that looks exactly like a provider outage.
     const fenced = [
       "```json",
-      JSON.stringify({ facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1, confidence: 0.95 }] }),
+      JSON.stringify({ ...V2_EMPTY, facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1, confidence: 0.95 }] }),
       "```",
     ].join(String.fromCharCode(10));
     (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(reply(fenced));
@@ -283,31 +285,30 @@ describe("conversation facts — camera context (office watch)", () => {
   });
 });
 
-describe("conversation facts — gist (what the conversation was about)", () => {
-  it("returns a gist that cites a real segment, even with no actionable facts", async () => {
-    replyWith({ facts: [], gist: "Customer asking when their car will be ready", gistSegments: [0] });
+describe("conversation facts — the account, stored as gist (ears-v2 field names: account / accountSegments)", () => {
+  it("returns an account that cites a real segment, even with no actionable facts", async () => {
+    replyWith({ facts: [], account: "Customer asking when their car will be ready", accountSegments: [0] });
     const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
     expect(r.facts).toEqual([]);
     expect(r.summary).toBeNull();
     expect(r.gist).toBe("Customer asking when their car will be ready");
   });
 
-  it("withholds a gist that cites no existing segment (invented provenance)", async () => {
-    replyWith({ facts: [], gist: "Customer asking about tires", gistSegments: [99] });
+  it("withholds an account that cites no existing segment (invented provenance)", async () => {
+    replyWith({ facts: [], account: "Customer asking about tires", accountSegments: [99] });
     const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
     expect(r.gist).toBeNull();
-    expect(r.dropped).toContainEqual({ reason: "gist withheld (no existing segment cited)", count: 1 });
+    expect(r.dropped).toContainEqual({ reason: "account withheld (no existing segment cited)", count: 1 });
   });
 
-  it("withholds a gist when transcript coverage is too low", async () => {
-    replyWith({ facts: [], gist: "Customer asking about tires", gistSegments: [0] });
+  it("ears-v2: low coverage no longer withholds the account (it labels its own guesses); facts stay gated", async () => {
+    replyWith({ facts: [], account: "Customer asking about tires (inferred: a flat).", accountSegments: [0] });
     const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 37.4, totalSeconds: 90 });
-    expect(r.gist).toBeNull();
-    expect(r.dropped).toContainEqual({ reason: "gist withheld (transcript coverage too low)", count: 1 });
+    expect(r.gist).toBe("Customer asking about tires (inferred: a flat).");
   });
 
-  it("a model that says it cannot tell (null gist) yields null, not an error", async () => {
-    replyWith({ facts: [], gist: null, gistSegments: [] });
+  it("a model that says it cannot tell (null account) yields null, not an error", async () => {
+    replyWith({ facts: [], account: null, accountSegments: [] });
     const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
     expect(r.ok).toBe(true);
     expect(r.gist).toBeNull();
@@ -333,7 +334,7 @@ describe("conversation facts — a transcriber repetition loop is not speech", (
   it("a real conversation with one repeated word-for-word line is NOT a loop", async () => {
     // Positive control: people do repeat themselves ("thirty five dollars" twice) — one repeat
     // among distinct lines must still reach the model.
-    replyWith({ facts: [], gist: "Tire repair discussion", gistSegments: [0] });
+    replyWith({ facts: [], account: "Tire repair discussion", accountSegments: [0] });
     const segs = [...SEGMENTS, { index: 3, start: 14, end: 16, text: "We can patch that, thirty five dollars." }];
     const r = await extractConversationFacts(segs, { coveredSeconds: 16, totalSeconds: 16 });
     expect(invokeLLM).toHaveBeenCalledTimes(1);

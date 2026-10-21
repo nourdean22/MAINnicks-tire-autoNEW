@@ -21,6 +21,8 @@
  * why a low-level capture downgrades every confidence rather than being ignored.
  */
 import { invokeLLM, type JsonSchema } from "../_core/llm";
+import { CONVERSATION_FLAG_KINDS, NOISE_ONLY_ACCOUNT, isConversationFlagKind, type ConversationFlagKind } from "../../shared/conversationFlags";
+import { cutAtMarkerBoundary, heardText, isNonSpeechText } from "../lib/conversationQuality";
 
 /** One timed segment as `transcribeAudio()` returns them. */
 export type TranscriptSegment = {
@@ -79,14 +81,17 @@ const SUMMARY_ORDER: readonly FactKind[] = [
  * every statement inherits evidence the server has already verified.
  */
 function evidenceBackedSummary(facts: ConversationFact[]): string | null {
-  if (!facts.length) return null;
+  // Business facts only: a flag (ears-v2) is about people, not the job, and is the owner's alone.
+  const business = facts.filter((f) => FACT_KINDS.includes(f.kind as FactKind));
+  if (!business.length) return null;
 
   const grouped = new Map<FactKind, string[]>();
-  for (const fact of [...facts].sort((a, b) => a.evidenceSegment - b.evidenceSegment)) {
-    const values = grouped.get(fact.kind) ?? [];
+  for (const fact of [...business].sort((a, b) => a.evidenceSegment - b.evidenceSegment)) {
+    const kind = fact.kind as FactKind;
+    const values = grouped.get(kind) ?? [];
     const normalized = fact.value.trim();
     if (normalized && !values.includes(normalized)) values.push(normalized);
-    grouped.set(fact.kind, values);
+    grouped.set(kind, values);
   }
 
   const parts = SUMMARY_ORDER.flatMap((kind) => {
@@ -97,7 +102,8 @@ function evidenceBackedSummary(facts: ConversationFact[]): string | null {
 }
 
 export type ConversationFact = {
-  kind: FactKind;
+  /** A business fact kind, or (ears-v2) a "worth knowing" flag kind whose value is the exact quote. */
+  kind: FactKind | ConversationFlagKind;
   /** What was said, in the extractor's words — short, specific, no interpretation. */
   value: string;
   /** Index into the transcript segments. THE PROVENANCE. A fact without it is discarded. */
@@ -121,15 +127,53 @@ export type ExtractionResult = {
   ok: boolean;
   error: string | null;
   /**
-   * One plain sentence on what the conversation was ABOUT ("customer asking when the brakes will
-   * be done", "staff small talk, not about a vehicle"). Unlike `summary` it does not need an
-   * actionable fact, so a real conversation with nothing to act on still says what it was. It
-   * must cite segments that exist, and it is withheld on the same coverage / level gates as
-   * facts: a gist of a gappy transcript is the fluent-and-wrong summary this file exists to stop.
-   * Optional so callers and fixtures that predate it keep compiling; absent = not produced.
+   * ears-v2: the ACCOUNT of what happened, 1-4 sentences with guesses wrapped "(inferred: ...)" and
+   * unheard stretches named "[inaudible: ...]", stored in the `gist` column. It must cite a speech
+   * segment that exists, or be the fixed noise line for a clip with no speech. Coverage and level no
+   * longer withhold it: it labels its own guesses. Absent = extraction did not produce one (failed).
    */
   gist?: string | null;
+  /** True when the clip held no intelligible speech; gist is then exactly NOISE_ONLY_ACCOUNT. */
+  noiseOnly?: boolean;
+  /** Flags kept (stored in `facts` with a flag kind). */
+  flagCount?: number;
+  /** EXTRACTION_PROMPT_VERSION of the rules that produced this result. */
+  promptVersion?: string;
 };
+
+const EXTRACTION_PROMPT_VERSION = "ears-v2-2026-10-21";
+const MAX_ACCOUNT_CHARS = 1200;
+/** A silence between segments this long gets its own unnumbered line in the transcript the model reads. */
+const GAP_LINE_SECONDS = 2;
+
+/** Fillers that are not words for the noise-only check. */
+const FILLERS = new Set(["uh", "um", "hmm", "mm", "mhm", "ah", "oh", "huh", "er"]);
+
+/** True when a segment holds at least one real word once sound tags are removed. */
+function hasRealWords(text: string): boolean {
+  return normalizeWords(heardText(text)).split(" ").some((w) => w.length >= 2 && !FILLERS.has(w));
+}
+/** Case, whitespace and punctuation removed, so a quote is compared on its words. */
+function normalizeWords(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+/**
+ * The transcript as the model reads it: numbered speech segments, plus UNNUMBERED lines for
+ * silences of 2 s or more and for whisper non-speech tokens. Unnumbered lines can never be cited.
+ */
+function renderTranscript(segments: TranscriptSegment[], totalSeconds: number | null | undefined): string {
+  const out: string[] = [];
+  const gapLine = (s: number) => `[gap ${s.toFixed(1)} s: no words transcribed]`;
+  let prevEnd = 0;
+  for (const s of [...segments].sort((a, b) => a.start - b.start)) {
+    if (s.start - prevEnd >= GAP_LINE_SECONDS) out.push(gapLine(s.start - prevEnd));
+    out.push(isNonSpeechText(s.text) ? `(noise: ${s.text.trim() || "silence"})` : `[${s.index}] ${s.text}`);
+    prevEnd = Math.max(prevEnd, s.end);
+  }
+  if (typeof totalSeconds === "number" && totalSeconds - prevEnd >= GAP_LINE_SECONDS) out.push(gapLine(totalSeconds - prevEnd));
+  return out.join("\n");
+}
 
 /**
  * Below this a fact is dropped at the boundary rather than stored.
@@ -203,10 +247,34 @@ export function stripFence(text: string): string {
   return m ? m[1] : text;
 }
 
-const SYSTEM = `You extract structured facts from a transcript of a conversation at an auto
-repair shop's service counter.
+const SYSTEM = `You listen through a microphone on a camera at a working tire and auto repair shop: the
+office counter, the shop floor or the outside lot (the message says which). Impact wrenches,
+compressors, tire machines, a radio, traffic and wind are normal there, so expect gaps and
+mis-heard words. Lines written [gap ...] are stretches where no words were transcribed, and lines
+written (noise: ...) are sounds, not speech. Neither is a segment: only numbered lines [N] are
+segments, and only they may be cited.
 
-RULES, in order of importance:
+Return JSON with these fields.
+
+account: 1 to 4 plain sentences on what actually happened, as specific as the words allow: what
+was discussed, between which roles, any vehicle, job, part or money mentioned, and the tone. Use
+roles only (a staff member, a customer, someone), never a name, not even one you hear. State what
+was heard plainly. Wrap anything you infer or guess, from context or from the camera description,
+exactly as (inferred: ...). Name a stretch you could not hear as [inaudible: what it sounded like,
+for example banging]. A bare category is not an account: if people chatted, say what they chatted
+about. If nothing intelligible was said, set noiseOnly to true and the account to exactly
+"Only shop noise, no speech."
+accountSegments: the segment numbers the account rests on.
+noiseOnly: true only when there is no intelligible speech at all; then return no facts and no flags.
+flags: things the owner would want to know, each { kind, evidenceSegment, quote, confidence }.
+Kinds: NEGATIVE_TALK (negative talk about the shop, the owner, the work or the prices),
+CUSTOMER_COMPLAINT, STAFF_CONFLICT, SAFETY, LEAVING_OR_COMPETITOR (going to another shop or
+leaving), MONEY_OR_DISCOUNT (cash, discounts, side deals). quote is the exact words of that one
+segment, copied, never paraphrased. Never flag anything you inferred: a flag rests only on words
+heard. Confidence is about the transcript.
+facts: actionable facts, under the rules below.
+
+FACT RULES, in order of importance:
 
 1. NEVER invent. If something is unclear, omit it. A missing fact costs nothing here; an
    invented quote or promise gets read back to a customer and is worse than useless.
@@ -218,13 +286,8 @@ RULES, in order of importance:
    single most damaging thing you can do.
 4. Confidence is about the TRANSCRIPT, not your writing. If the words are ambiguous or the
    segment looks garbled, score low. Do not round up.
-5. Do not add uncited prose. The server builds the operator summary later from facts that
-   survive provenance and confidence validation.
-6. ALSO return "gist": ONE plain sentence saying what the conversation is about, even when it
-   holds no actionable fact (e.g. "Customer asking when their car will be ready", "Staff
-   discussing a parts order", "Small talk, not about a vehicle"). No names, no phone numbers,
-   no numbers you would not quote exactly. Put the segment indices it rests on in
-   "gistSegments". If the transcript is too garbled to tell what it is about, set gist to null.
+5. Do not add uncited prose to facts. The server builds the operator summary later from facts
+   that survive provenance and confidence validation.
 
 Fact kinds: CUSTOMER_CONCERN (what is wrong), REQUESTED_WORK (what they asked for), QUOTE (a
 price discussed), PROMISE (a commitment about time or outcome), APPROVAL (customer agreed),
@@ -255,10 +318,24 @@ const OUTPUT_SCHEMA: JsonSchema = {
         required: ["kind", "value", "evidenceSegment", "confidence"],
       },
     },
-    gist: { type: ["string", "null"] },
-    gistSegments: { type: "array", items: { type: "integer" } },
+    account: { type: ["string", "null"] },
+    accountSegments: { type: "array", items: { type: "integer" } },
+    noiseOnly: { type: "boolean" },
+    flags: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...CONVERSATION_FLAG_KINDS] },
+          evidenceSegment: { type: "integer" },
+          quote: { type: "string" },
+          confidence: { type: "number" },
+        },
+        required: ["kind", "evidenceSegment", "quote", "confidence"],
+      },
+    },
   },
-  required: ["facts"],
+  required: ["facts", "account", "accountSegments", "noiseOnly", "flags"],
   },
 };
 
@@ -286,6 +363,8 @@ export async function extractConversationFacts(
      * provenance rule below is unchanged.
      */
     visualContext?: string | null;
+    /** Where the microphone is, in words (conversationSourceLabel: "Office"); shown to the model. */
+    location?: string | null;
   } = {},
 ): Promise<ExtractionResult> {
   const dropped: { reason: string; count: number }[] = [];
@@ -301,16 +380,23 @@ export async function extractConversationFacts(
     return { facts: [], summary: null, dropped, engine: null, latencyMs: null, ok: true, error: null };
   }
 
+  const v2 = { promptVersion: EXTRACTION_PROMPT_VERSION, flagCount: 0 };
+
+  // Only non-speech tokens ([BLANK_AUDIO], (banging)...): the clip is noise, said as such, with no
+  // model call. Checked before the loop detector, which would call repeated tokens a loop.
+  if (segments.every((s) => isNonSpeechText(s.text))) {
+    return { facts: [], summary: null, dropped, engine: null, latencyMs: null, ok: true, error: null, gist: NOISE_ONLY_ACCOUNT, noiseOnly: true, ...v2 };
+  }
+
   if (isTranscriberLoop(segments)) {
     // Not an extraction failure (ok:true) and not silence: we looked, and what came back was
     // the transcriber repeating itself. No LLM call — there is nothing in it to spend on.
     bump("transcript is a transcriber repetition loop");
-    return { facts: [], summary: null, dropped, engine: null, latencyMs: null, ok: true, error: null, gist: null };
+    return { facts: [], summary: null, dropped, engine: null, latencyMs: null, ok: true, error: null, gist: null, noiseOnly: false, ...v2 };
   }
 
-  const numbered = segments
-    .map((s) => `[${s.index}] ${s.text}`)
-    .join("\n");
+  const numbered = renderTranscript(segments, opts.totalSeconds);
+  const location = opts.location?.trim() ? `Microphone: ${opts.location.trim().slice(0, 60)}\n\n` : "";
 
   const started = Date.now();
   let raw: unknown;
@@ -321,9 +407,9 @@ export async function extractConversationFacts(
         { role: "system", content: SYSTEM },
         {
           role: "user",
-          content: opts.visualContext?.trim()
+          content: location + (opts.visualContext?.trim()
             ? `Camera context (what the office camera saw during this conversation; background only, it is NOT a transcript segment and must never be cited as evidence):\n${opts.visualContext.trim().slice(0, 800)}\n\nTranscript segments:\n\n${numbered}`
-            : `Transcript segments:\n\n${numbered}`,
+            : `Transcript segments:\n\n${numbered}`),
         },
       ],
       outputSchema: OUTPUT_SCHEMA,
@@ -338,6 +424,17 @@ export async function extractConversationFacts(
     const text = typeof content === "string" ? content : "";
     if (!text.trim()) throw new Error("LLM returned no content for fact extraction");
     raw = JSON.parse(stripFence(text));
+    // Every ears-v2 field is required (Codex on #3213): a reply of only { facts: [] } would
+    // otherwise read as "no account, no flags" when the model never answered those questions.
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const missing = [
+      Array.isArray(r.facts) ? null : "facts",
+      typeof r.account === "string" || r.account === null ? null : "account",
+      Array.isArray(r.accountSegments) ? null : "accountSegments",
+      typeof r.noiseOnly === "boolean" ? null : "noiseOnly",
+      Array.isArray(r.flags) ? null : "flags",
+    ].filter((m): m is string => m !== null);
+    if (missing.length) throw new Error(`LLM reply missing ears-v2 fields: ${missing.join(", ")}`);
   } catch (err) {
     // A failed extraction must NOT read as "no facts found". That is the empty-vs-error
     // confusion this whole file is arranged against.
@@ -348,8 +445,13 @@ export async function extractConversationFacts(
   }
 
   const latencyMs = Date.now() - started;
-  const parsed = (raw ?? {}) as { facts?: unknown[]; gist?: unknown; gistSegments?: unknown };
-  const byIndex = new Map(segments.map((s) => [s.index, s]));
+  const parsed = (raw ?? {}) as { facts?: unknown[]; account?: unknown; accountSegments?: unknown; noiseOnly?: unknown; flags?: unknown[] };
+  // Facts, flags and the account may cite SPEECH only: a noise line was never shown numbered
+  // (Codex on #3213: business facts used to resolve against every segment, noise included).
+  const speechByIndex = new Map(segments.filter((s) => !isNonSpeechText(s.text)).map((s) => [s.index, s]));
+  const modelSaysNoise = parsed.noiseOnly === true;
+  const rawFacts = Array.isArray(parsed.facts) ? parsed.facts : [];
+  const rawFlags = Array.isArray(parsed.flags) ? parsed.flags : [];
   const quiet = typeof opts.meanVolumeDb === "number" && opts.meanVolumeDb < LOW_LEVEL_DB;
 
   // Computed only when BOTH numbers are present. A missing measurement is not evidence of
@@ -363,13 +465,13 @@ export async function extractConversationFacts(
   const gappy = coverage !== null && coverage < MIN_TRANSCRIPT_COVERAGE;
 
   const facts: ConversationFact[] = [];
-  for (const item of Array.isArray(parsed.facts) ? parsed.facts : []) {
+  for (const item of rawFacts) {
     const f = item as Partial<ConversationFact>;
     if (!f || typeof f !== "object") { bump("malformed"); continue; }
     if (!FACT_KINDS.includes(f.kind as FactKind)) { bump("unknown kind"); continue; }
     if (typeof f.value !== "string" || !f.value.trim()) { bump("empty value"); continue; }
 
-    const seg = byIndex.get(Number(f.evidenceSegment));
+    const seg = speechByIndex.get(Number(f.evidenceSegment));
     if (!seg) {
       // A cited segment that does not exist means the model invented its provenance. Discard
       // rather than repair: a fact whose evidence is fabricated is exactly the thing this
@@ -400,21 +502,68 @@ export async function extractConversationFacts(
     });
   }
 
-  const summary = evidenceBackedSummary(facts);
-
-  // The gist rides the same gates as facts. A gist with no real cited segment is invented
-  // provenance; a gist of a gappy or inaudible capture is fluent and probably wrong.
-  let gist: string | null = null;
-  const rawGist = typeof parsed.gist === "string" ? parsed.gist.trim() : "";
-  if (rawGist) {
-    const cited = Array.isArray(parsed.gistSegments)
-      ? parsed.gistSegments.filter((i) => byIndex.has(Number(i)))
-      : [];
-    if (!cited.length) bump("gist withheld (no existing segment cited)");
-    else if (gappy) bump("gist withheld (transcript coverage too low)");
-    else if (quiet) bump("gist withheld (inaudible capture)");
-    else gist = rawGist.slice(0, 300);
+  // FLAGS (ears-v2). The provenance rule lives HERE, never in the prompt: a flag survives only
+  // when its quote, compared on words alone, is really in the speech segment it cites, carries no
+  // guess or gap marker, and clears 0.7. The coverage cap does NOT apply (the flag shows its exact
+  // heard words and the owner can open the transcript); the quiet cap does.
+  let flagCount = 0;
+  for (const item of rawFlags) {
+    const f = item as { kind?: unknown; evidenceSegment?: unknown; quote?: unknown; confidence?: unknown };
+    if (!f || typeof f !== "object") { bump("flag malformed"); continue; }
+    if (!isConversationFlagKind(f.kind)) { bump("flag unknown kind"); continue; }
+    // Strict: Number(null), Number("") and Number(false) are 0, which would repair a malformed
+    // citation into segment 0 (Codex on #3213).
+    const seg = Number.isInteger(f.evidenceSegment) ? speechByIndex.get(f.evidenceSegment as number) : undefined;
+    if (!seg) { bump("flag evidence segment does not exist"); continue; }
+    const quote = typeof f.quote === "string" ? f.quote.trim() : "";
+    if (!normalizeWords(quote)) { bump("flag quote empty"); continue; }
+    if (/\(inferred|\[inaudible|\[gap/i.test(quote)) { bump("flag quote is inferred or a gap marker"); continue; }
+    // Whole words, matched against the segment with its sound tags removed, so "door slams I'm
+    // leaving" cannot match inside "(door slams)"; "char" is not heard in "charge". The STORED value
+    // is the matching slice of what was heard, never the model's string (skeptic review of #3213):
+    // "20% off, $cash" from the model stores as "20 off cash" if that is what the segment says.
+    const heard = heardText(seg.text);
+    const tokens = [...heard.matchAll(/[\p{L}\p{N}]+/gu)];
+    const want = normalizeWords(quote).split(" ");
+    let value: string | null = null;
+    for (let i = 0; i + want.length <= tokens.length && value === null; i++) {
+      if (want.every((w, k) => tokens[i + k][0].toLowerCase() === w)) {
+        const last = tokens[i + want.length - 1];
+        value = heard.slice(tokens[i].index, (last.index ?? 0) + last[0].length);
+      }
+    }
+    if (value === null) { bump("flag quote not in cited segment"); continue; }
+    const base = typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0;
+    const conf = quiet ? Math.min(base, 0.6) : base;
+    if (conf < MIN_FACT_CONFIDENCE) { bump(quiet ? "flag below threshold (inaudible capture)" : "flag below threshold"); continue; }
+    facts.push({ kind: f.kind, value, evidenceSegment: seg.index, evidenceText: seg.text, confidence: conf });
+    flagCount++;
   }
 
-  return { facts, summary, dropped, engine, latencyMs, ok: true, error: null, gist };
+  const summary = evidenceBackedSummary(facts);
+
+  // The model's noiseOnly is honoured only when the server agrees (skeptic review of #3213): no
+  // business fact and no flag survived, and no segment holds a real word. Otherwise it is ignored
+  // and said so, and the account below is judged like any other.
+  const noiseOnly = modelSaysNoise && facts.length === 0 && !segments.some((s) => hasRealWords(s.text));
+  if (modelSaysNoise && !noiseOnly) bump("noiseOnly ignored (the server kept facts or heard words)");
+
+  // THE ACCOUNT (ears-v2). It labels its own guesses, so coverage and level no longer withhold it;
+  // it still has to rest on a speech segment that exists. noiseOnly overrides whatever the model
+  // wrote with the fixed line, so a clip with no speech can never read as a conversation.
+  let gist: string | null = null;
+  if (noiseOnly) {
+    gist = NOISE_ONLY_ACCOUNT;
+  } else {
+    const rawAccount = typeof parsed.account === "string" ? parsed.account.trim() : "";
+    if (rawAccount) {
+      const cited = Array.isArray(parsed.accountSegments)
+        ? parsed.accountSegments.filter((i) => Number.isInteger(i) && speechByIndex.has(i as number))
+        : [];
+      if (!cited.length) bump("account withheld (no existing segment cited)");
+      else gist = cutAtMarkerBoundary(rawAccount, MAX_ACCOUNT_CHARS);
+    }
+  }
+
+  return { facts, summary, dropped, engine, latencyMs, ok: true, error: null, gist, noiseOnly, flagCount, promptVersion: EXTRACTION_PROMPT_VERSION };
 }

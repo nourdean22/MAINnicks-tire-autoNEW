@@ -34,6 +34,7 @@ import {
   type OfficeVisual,
 } from "../services/officeVisual";
 import { createLogger } from "../lib/logger";
+import { conversationSourceLabel, speechCoveredSeconds } from "../lib/conversationQuality";
 
 const log = createLogger("routes:conversationEpisodes");
 
@@ -191,12 +192,18 @@ export function registerConversationEpisodeRoute(app: Express): void {
       ? [early.summary, early.activities.length ? `Activities: ${early.activities.join(", ")}.` : ""]
           .filter(Boolean).join(" ")
       : null;
+    // The coverage gate reads SPEECH seconds the server measures from the posted segments, never the
+    // producer's coveredSeconds, which counts [BLANK_AUDIO] and (banging) spans (Codex on #3213).
+    // The producer's number stays a receipt (reply + log).
+    const speechSeconds = speechCoveredSeconds(segments, e.totalSeconds);
+    const speechCoverage = speechSeconds === null ? null : Number((speechSeconds / e.totalSeconds).toFixed(3));
     const [extracted, visual] = await Promise.all([
       extractConversationFacts(segments, {
         meanVolumeDb: e.meanVolumeDb ?? null,
-        coveredSeconds: e.coveredSeconds,
+        coveredSeconds: speechSeconds,
         totalSeconds: e.totalSeconds,
         visualContext,
+        location: conversationSourceLabel(e.source),
       }),
       visualPromise,
     ]);
@@ -267,6 +274,23 @@ export function registerConversationEpisodeRoute(app: Express): void {
           UPDATE conversation_episodes SET gist = ${extracted.gist ?? null} WHERE episodeId = ${e.episodeId}
         `);
       }
+      // 0149 · how the account and flags were produced (model, prompt version, noise-only, flag
+      // count, drop reasons). Counts and reasons only, never words. Only once the column exists:
+      // the INSERT above is unchanged. A run that failed or was skipped CLEARS it, so a re-post of
+      // the same episode never keeps another run's receipt (Codex on #3213).
+      if (await conversationEpisodeColumnReady(d, "extraction")) {
+        if (extracted.ok && extracted.promptVersion) {
+          const extraction = {
+            model: extracted.engine, promptVersion: extracted.promptVersion,
+            noiseOnly: extracted.noiseOnly ?? false, flagCount: extracted.flagCount ?? 0, dropped: extracted.dropped,
+          };
+          await d.execute(sql`
+            UPDATE conversation_episodes SET extraction = ${JSON.stringify(extraction)} WHERE episodeId = ${e.episodeId}
+          `);
+        } else {
+          await d.execute(sql`UPDATE conversation_episodes SET extraction = NULL WHERE episodeId = ${e.episodeId}`);
+        }
+      }
     } catch (err) {
       return res.status(500).json({
         error: "write failed",
@@ -278,8 +302,11 @@ export function registerConversationEpisodeRoute(app: Express): void {
     // transcript or the gist text (customer speech stays out of logs).
     log.info("conversation extracted", {
       episodeId: e.episodeId, transcriptStatus: status, segments: segments.length,
+      // the producer's claim (a receipt); speechCoverage is what the coverage gate used
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
+      speechCoverage,
       facts: extracted.facts.length, summary: Boolean(extracted.summary), gist: Boolean(extracted.gist),
+      flags: extracted.flagCount ?? 0, noiseOnly: extracted.noiseOnly ?? false,
       dropped: extracted.dropped, engine: extracted.engine, error: storedError,
     });
 
@@ -313,7 +340,9 @@ export function registerConversationEpisodeRoute(app: Express): void {
       summaryStored: Boolean(extracted.summary),
       gistStored: Boolean(extracted.gist),
       dropped: extracted.dropped,
+      // the producer's claim (a receipt); speechCoverage is what the coverage gate used
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
+      speechCoverage,
       engine: extracted.engine,
       speakerCount: e.speakerCount ?? null,
       framesReceived: frames.length,

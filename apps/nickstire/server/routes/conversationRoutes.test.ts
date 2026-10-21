@@ -132,17 +132,36 @@ describe("conversation ingest — diarization stays evidence, not identity", () 
 });
 
 describe("conversation ingest — the coverage gate is REACHED through the route", () => {
-  it("forwards coveredSeconds/totalSeconds to the extractor", async () => {
+  it("forwards covered/total seconds to the extractor: the SPEECH seconds the server measured from the posted segments (Codex on #3213)", async () => {
     // THE CANARY. The extractor leaves its gate OFF when either number is missing, so a
     // route that dropped them would produce confident facts from a 44%-recovered
-    // transcript while the extractor's own tests stayed green.
+    // transcript while the extractor's own tests stayed green. The producer's coveredSeconds
+    // counts [BLANK_AUDIO] spans, so the gate reads the server's own speech-only measure.
     const h = mount();
     const { res } = fakeRes();
     await h({ headers: { "x-sync-key": KEY }, body: body({ coveredSeconds: 37.4, totalSeconds: 90 }) }, res);
     expect(extract).toHaveBeenCalledWith(
       expect.any(Array),
-      expect.objectContaining({ coveredSeconds: 37.4, totalSeconds: 90 }),
+      expect.objectContaining({ coveredSeconds: 4, totalSeconds: 90 }),
     );
+  });
+
+  it("P1-b: 9.4 s of noise tokens + 0.6 s of speech -> the gate sees ~6%, whatever the producer claims", async () => {
+    const h = mount();
+    const { res, out } = fakeRes();
+    const noisy = [
+      { index: 0, start: 0, end: 4, text: "[BLANK_AUDIO]" },
+      { index: 1, start: 4, end: 9.4, text: "(banging)" },
+      { index: 2, start: 9.4, end: 10, text: "okay then" },
+    ];
+    await h({ headers: { "x-sync-key": KEY }, body: body({ segments: noisy, coveredSeconds: 10, totalSeconds: 10 }) }, res);
+    const opts = extract.mock.calls[0][1] as { coveredSeconds: number; totalSeconds: number };
+    expect(opts.totalSeconds).toBe(10);
+    expect(opts.coveredSeconds).toBeCloseTo(0.6, 6);
+    // the producer's number survives only as a receipt
+    expect(out.body).toMatchObject({ coverage: 1, speechCoverage: 0.06 });
+    const line = logSpy.info.mock.calls.find((c) => c[0] === "conversation extracted");
+    expect(line?.[1]).toMatchObject({ coverage: 1, speechCoverage: 0.06 });
   });
 
   it("REFUSES a payload that omits the coverage numbers", async () => {
@@ -443,13 +462,78 @@ describe("conversation ingest — office visual frames", () => {
     logSpy.info.mockClear();
     execute.mockClear();
     await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
-    expect(execute).toHaveBeenCalledTimes(2);
+    // INSERT, the gist UPDATE, then (0149 present, this fixture has no ears-v2 receipt) the
+    // extraction receipt cleared to NULL.
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify(execute.mock.calls[2][0])).toContain("SET extraction = NULL");
     const upd = JSON.stringify(execute.mock.calls[1][0]);
     expect(upd).toContain("UPDATE conversation_episodes SET gist");
     expect(upd).toContain("Customer asking when the car will be ready");
     const line = logSpy.info.mock.calls.find((c) => c[0] === "conversation extracted");
     expect(line?.[1]).toMatchObject({ facts: 0, gist: true });
     expect(JSON.stringify(line)).not.toContain("Customer asking");
+  });
+
+  it("(j) ears-v2: extraction metadata is written by its own UPDATE only once 0149 exists; unmigrated, the route still answers 200 and the gist is still written", async () => {
+    const colReady = conversationEpisodeColumnReady as unknown as ReturnType<typeof vi.fn>;
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    extract.mockResolvedValue({
+      ...okExtract, gist: "A customer said the prices are too high.", noiseOnly: false, flagCount: 1,
+      promptVersion: "ears-v2-2026-10-21", dropped: [{ reason: "flag quote not in cited segment", count: 1 }],
+      facts: [{ kind: "NEGATIVE_TALK", value: "way too much", evidenceSegment: 0, evidenceText: "you charge way too much", confidence: 0.9 }],
+    });
+
+    try {
+    colReady.mockImplementation(async (_d: unknown, col: string) => col === "gist");
+    const a = fakeRes();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, a.res);
+    expect(a.out.code).toBe(200);
+    const texts = execute.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(texts.some((t) => t.includes("UPDATE conversation_episodes SET gist"))).toBe(true);
+    expect(texts.some((t) => t.includes("SET extraction"))).toBe(false);
+    // the caller names where the microphone is
+    expect(extract.mock.calls[0][1].location).toBe("Office");
+
+    colReady.mockImplementation(async () => true);
+    execute.mockClear();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
+    const upd = execute.mock.calls.map((c) => JSON.stringify(c[0])).find((t) => t.includes("SET extraction"));
+    expect(upd).toBeDefined();
+    expect(upd).toContain("ears-v2-2026-10-21");
+    expect(upd).toContain('\\"flagCount\\":1');
+    expect(upd).not.toContain("way too much");
+    const line = logSpy.info.mock.calls.find((c) => c[0] === "conversation extracted");
+    expect(JSON.stringify(line)).not.toContain("way too much");
+    } finally {
+      colReady.mockResolvedValue(false);
+    }
+  });
+
+  it("P2-d: a FAILED extraction clears the extraction receipt (NULL) and writes no gist, so a re-post never keeps another run's receipt", async () => {
+    const colReady = conversationEpisodeColumnReady as unknown as ReturnType<typeof vi.fn>;
+    try {
+      colReady.mockImplementation(async () => true);
+      const execute = vi.fn().mockResolvedValue(undefined);
+      db.mockResolvedValue({ execute });
+      extract.mockResolvedValue({ ...okExtract, ok: false, error: "upstream timeout" });
+      const a = fakeRes();
+      await mount()({ headers: { "x-sync-key": KEY }, body: body() }, a.res);
+      expect(a.out.body).toMatchObject({ transcriptStatus: "FAILED" });
+      const texts = execute.mock.calls.map((c) => JSON.stringify(c[0]));
+      expect(texts.some((t) => t.includes("SET gist"))).toBe(false);
+      const cleared = execute.mock.calls.find((c) => JSON.stringify(c[0]).includes("SET extraction"));
+      expect(cleared).toBeDefined();
+      expect(JSON.stringify(cleared![0])).toContain("SET extraction = NULL");
+
+      // a SKIPPED re-post (no segments) clears it too
+      execute.mockClear();
+      extract.mockResolvedValue(okExtract);
+      await mount()({ headers: { "x-sync-key": KEY }, body: body({ segments: [] }) }, fakeRes().res);
+      expect(execute.mock.calls.some((c) => JSON.stringify(c[0]).includes("SET extraction = NULL"))).toBe(true);
+    } finally {
+      colReady.mockResolvedValue(false);
+    }
   });
 
   it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {

@@ -5077,6 +5077,14 @@ export const conversationEpisodes = mysqlTable("conversation_episodes", {
 
   facts: json("facts"),
   summary: text("summary"),
+  /**
+   * 0149 (ears-v2, hand-applied; NOT applied in production as of 2026-10-21): { model, promptVersion,
+   * noiseOnly, flagCount, dropped }. Written by its own UPDATE only once information_schema shows it
+   * (routes/conversationRoutes.ts). No code reads this table through drizzle; a projection-less
+   * select().from(conversationEpisodes) would name this column and fail until 0149 is applied.
+   * (`visual` 0140 and `gist` 0141 are deliberately not declared here, for the same reason.)
+   */
+  extraction: json("extraction"),
 
   vehicleVisitId: varchar("vehicleVisitId", { length: 64 }),
   workOrderId: varchar("workOrderId", { length: 64 }),

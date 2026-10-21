@@ -208,7 +208,7 @@ const READY_TTL_MS = 10 * 60 * 1000;
  */
 export async function conversationEpisodeColumnPresent(
   d: { execute: (q: SQL) => Promise<unknown> },
-  column: "visual" | "gist",
+  column: "visual" | "gist" | "extraction",
   now = Date.now(),
 ): Promise<boolean> {
   const cached = readyCache.get(column);
@@ -231,7 +231,7 @@ export async function conversationEpisodeColumnPresent(
  */
 export async function conversationEpisodeColumnReady(
   d: { execute: (q: SQL) => Promise<unknown> },
-  column: "visual" | "gist",
+  column: "visual" | "gist" | "extraction",
   now = Date.now(),
 ): Promise<boolean> {
   const cached = readyCache.get(column);

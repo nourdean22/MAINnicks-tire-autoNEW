@@ -5548,7 +5548,8 @@
           "Server lane runs: 11 related files 111 passed (v1); lotOfficeDigest, lotVisualReview, rawSqlTablesExist, conversationFacts, conversationQuality 63 passed (v2); pnpm run check exit 0."
         ],
         "liveRuns": [],
-        "deploymentId": "railway main auto-deploy of #3137: nickstire /api/health deploy.commit 353f9355e18d6d8a194beafc5de2584cb6cfa897 observed 2026-10-18T01:39:08Z; owner walkthrough in Chrome 2026-10-18 ~06:10 ET rendered the Last 6 hours block (six rows No conversations, correct while closed) and facts with quotes"
+        "deploymentId": "railway main auto-deploy of #3137: nickstire /api/health deploy.commit 353f9355e18d6d8a194beafc5de2584cb6cfa897 observed 2026-10-18T01:39:08Z; owner walkthrough in Chrome 2026-10-18 ~06:10 ET rendered the Last 6 hours block (six rows No conversations, correct while closed) and facts with quotes",
+        "limits": "ears-v2 (job 2026-10-21-shop-ears-v2, prompt version ears-v2-2026-10-21) writes a labelled account into gist: guesses wrapped as (inferred: ...), unheard stretches as [inaudible: ...], noise-only clips as \"Only shop noise, no speech.\". Worth-knowing flags are stored as facts and kept only when their quote is really in the cited speech segment, enforced in server/services/conversationFacts.ts, never trusted to the prompt; the account, flags, lot.worthKnowing and lot.officeDigest are owner-only. Migration 0149 (conversation_episodes.extraction) is UNAPPLIED, so per-episode model and prompt-version receipts start only after Nour applies it through Admin > Run migrations; live proof of ears-v2 is owed after deploy."
       },
       "blockers": [
         {
