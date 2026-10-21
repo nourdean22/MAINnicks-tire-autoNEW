@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { sliceBlock } from "../testUtils/sourceBlock";
 
 const m = vi.hoisted(() => ({
   inserted: [] as Array<Record<string, unknown>>,
@@ -122,7 +123,7 @@ describe("success means the invoices were read", () => {
 
   it("runFullMirror itself reports how many invoices it fetched on every path", () => {
     const src = readFileSync(resolve(process.cwd(), "server/services/shopDriverMirror.ts"), "utf8");
-    const body = src.slice(src.indexOf("export async function runFullMirror"), src.indexOf("// ─── ALERT HELPER"));
+    const body = sliceBlock(src, "export async function runFullMirror", "// ─── ALERT HELPER", { label: "shopDriverMirror.ts" });
     const returns = body.match(/return \{ recordsProcessed[^}]*\}/g) ?? [];
     expect(returns.length).toBe(3);
     for (const r of returns) expect(r, r).toMatch(/invoicesFetched/);
