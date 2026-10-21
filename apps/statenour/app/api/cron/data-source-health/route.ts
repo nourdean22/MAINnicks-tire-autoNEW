@@ -47,9 +47,9 @@ export const GET = cronHandler(async () => {
       priority: businessDown ? "P0" : "P1",
       title: `Data feeder down · ${failures.length} probe${failures.length > 1 ? "s" : ""} failing`,
       body: businessDown
-        ? `Failing: ${names}. A business-data feeder (nickstire bridge / shop) is unreachable — surfaces reading it may show $0 or stale numbers. Check /system/health.`
-        : `Failing: ${names}. A personal-data feeder is erroring. Check /system/health.`,
-      deepLink: "/system/health",
+        ? `Failing: ${names}. A business-data feeder (nickstire bridge / shop) is unreachable — surfaces reading it may show $0 or stale numbers. Check /system.`
+        : `Failing: ${names}. A personal-data feeder is erroring. Check /system.`,
+      deepLink: "/system",
       surfaces: ["scoreboard", "brain"],
       expiresAt: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
     });

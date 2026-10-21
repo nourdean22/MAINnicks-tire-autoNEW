@@ -41,9 +41,9 @@ function inspectQuery(ref: EntityRef): string {
 /**
  * The page that OWNS each kind. Hash anchors match the ids the pages render
  * (`task-<id>` in mission-task-row.tsx, `bd-<id>` in journal, `pin-<id>` in
- * pins); query-addressed kinds open through the inspector on their page.
+ * the Brain Memory pinned-context panel); query-addressed kinds open through the inspector on their page.
  */
-export function homeRouteFor(ref: EntityRef): string {
+export function homeRouteFor(ref: EntityRef): string | null {
   const id = encodeURIComponent(ref.id);
   switch (ref.kind) {
     case "task":
@@ -63,10 +63,10 @@ export function homeRouteFor(ref: EntityRef): string {
     case "journal":
       return `/journal#bd-${id}`;
     case "pin":
-      return `/pins#pin-${id}`;
+      return `/brain?tab=memory#pin-${id}`;
     case "claim":
     case "experiment":
-      return "/proof";
+      return null; // the Proof page that owned them was cut 2026-10-19: "Open on its page" is hidden
     case "alert":
       return "/system/alerts";
     case "cron":
@@ -146,12 +146,16 @@ export function routeOwnsKind(pathname: string | null | undefined, kind: EntityK
   return owned ? owned.includes(kind) : false;
 }
 
-/** Actions applicable to this selection: kind-filtered, and multi-only when there is more than one. */
+/**
+ * Actions applicable to this selection: kind-filtered, multi-only when there is more than one, and a
+ * navigate action whose target is null is dropped (a claim has no page, so "Open on its page" is not offered).
+ */
 export function actionsFor(refs: readonly EntityRef[]): EntityAction[] {
   if (refs.length === 0) return [];
   const kinds = new Set(refs.map((r) => r.kind));
   return ENTITY_ACTIONS.filter((a) => {
     if (refs.length > 1 && !a.multi) return false;
+    if (a.kind === "navigate" && !a.href?.(refs, {})) return false;
     if (a.kinds === "*") return true;
     return [...kinds].every((k) => (a.kinds as readonly EntityKind[]).includes(k));
   });

@@ -33,7 +33,7 @@ describe("pickSmartNow · priority order", () => {
       pathname: "/chat",
       pulse: pulse({ errorsFatal24h: 3, errorsFatal6h: 3 }),
     });
-    expect(result?.href).toBe("/system/health");
+    expect(result?.href).toBe("/system");
     expect(result?.urgency).toBe("high");
     expect(result?.label).toMatch(/3 system issues/);
   });
@@ -43,7 +43,7 @@ describe("pickSmartNow · priority order", () => {
       pathname: "/chat",
       pulse: pulse({ cronFails1h: 2 }),
     });
-    expect(result?.href).toBe("/system/health");
+    expect(result?.href).toBe("/system");
     expect(result?.urgency).toBe("high");
   });
 
@@ -70,7 +70,7 @@ describe("pickSmartNow · priority order", () => {
       pathname: "/chat",
       pulse: pulse({ aiErrorRate1h: 45 }),
     });
-    expect(result?.href).toBe("/system/health");
+    expect(result?.href).toBe("/system");
     expect(result?.urgency).toBe("medium");
     expect(result?.label).toMatch(/45% AI errors/);
   });
@@ -84,7 +84,7 @@ describe("pickSmartNow · priority order", () => {
         aiErrorRate1h: 50, // quality
       }),
     });
-    expect(result?.href).toBe("/system/health"); // critical wins
+    expect(result?.href).toBe("/system"); // critical wins
   });
 
   it("pending beats quality when no critical", () => {
@@ -144,14 +144,14 @@ describe("pickSmartNow · time-of-day defaults", () => {
 });
 
 describe("pickSmartNow · skip when already on target", () => {
-  it("returns null when on /system/health-grid with critical issue", () => {
+  it("skips the suggestion when already on the System hub with a critical issue", () => {
     const result = pickSmartNow({
-      pathname: "/system/health",
+      pathname: "/system",
       pulse: pulse({ errorsFatal6h: 3 }),
     });
     // Critical suggests health-grid · skip + fall through to time-of-day
     // (or null if no other applicable signal)
-    expect(result?.href).not.toBe("/system/health");
+    expect(result?.href).not.toBe("/system");
   });
 
   it("returns null when on /missions during afternoon (already executing)", () => {
@@ -172,7 +172,7 @@ describe("pickSmartNow · skip when already on target", () => {
       pulse: pulse({ aiErrorRate1h: 45 }),
       hour: 7,
     });
-    expect(result?.href).toBe("/system/health");
+    expect(result?.href).toBe("/system");
   });
 
   it("returns null when on /chat at late night with no signals", () => {

@@ -89,7 +89,7 @@ export function relatedEmptyMessage(
 
 /** The deep link this component's header has always promised. */
 export function wisdomFocusHref(key: string): string {
-  return `/brain?tab=wisdom&focus=${encodeURIComponent(key)}`;
+  return `/brain?tab=memory&focus=${encodeURIComponent(key)}`;
 }
 
 /**

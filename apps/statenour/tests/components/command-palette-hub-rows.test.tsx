@@ -35,15 +35,9 @@ const navHrefs = new Set(
 /** The System and Diagnostics rows as they were hand-written on main a34b7149d: id -> keywords. */
 const OLD_KEYWORDS: Record<string, string[]> = {
   "sys-crons": ["cron", "schedule", "job", "kill", "manual", "silent", "slow", "diagnose"],
-  "sys-errors": ["error", "log", "stack", "fingerprint"],
-  "sys-logs": ["log", "request", "stream", "api", "generation"],
-  "sys-ai-cost": ["cost", "nick", "tokens", "budget", "burn"],
   "sys-actions": ["action", "autonomous", "rule", "audit", "approval"],
-  "sys-health": ["health", "diagnostics", "probe", "env", "vectors", "backlog", "push", "pull", "oauth", "pulse", "stale", "cron", "rescan", "diagnose", "all"],
-  "sys-calibration": ["calibration", "quality", "state", "mood", "hit rate", "suggestion", "judge", "eval", "operator state"],
   "sys-alerts": ["alert", "inspect", "category", "coach"],
   "sys-inbox": ["inbox", "quarantine", "memory", "contradiction", "review"],
-  "sys-cockpit": ["cockpit", "observability", "trace", "metric", "decay", "prompt version"],
   "sys-ui-lab": ["ui", "lab", "gallery", "inspector", "fixture", "metric", "evidence", "reality mode"],
   "diag-stale": ["stale", "purge", "clean", "orphan", "dismissed"],
 };
@@ -51,9 +45,9 @@ const OLD_KEYWORDS: Record<string, string[]> = {
 const rows = hubPaletteRows(navHrefs);
 
 describe("hubPaletteRows · the System group comes from the hub list", () => {
-  it("the subject is real: the hub has fourteen tiles and most become rows", () => {
-    expect(CARDS.length).toBe(14);
-    expect(rows.length).toBeGreaterThanOrEqual(12);
+  it("the subject is real: the hub has seven tiles (14 before the 2026-10-19 cut) and most become rows", () => {
+    expect(CARDS.length).toBe(7);
+    expect(rows.length).toBeGreaterThanOrEqual(6);
   });
 
   it("every hub href has exactly one palette door (a System row or a Navigate row)", () => {
@@ -64,7 +58,7 @@ describe("hubPaletteRows · the System group comes from the hub list", () => {
   });
 
   it("the doors that were missing now exist", () => {
-    for (const href of ["/system/fleet"]) {
+    for (const href of ["/system/inbox"]) {
       expect(rows.some((r) => r.href === href), href).toBe(true);
     }
   });
@@ -77,6 +71,14 @@ describe("hubPaletteRows · the System group comes from the hub list", () => {
       "/system/chat-states",
       "/intelligence/brief",
       "/system/proactive-preview",
+      // wave 2V (2026-10-19): the six tiles Nour cut, and Errors, which was a view of Logs
+      "/system/fleet",
+      "/system/health",
+      "/system/logs",
+      "/system/logs?view=errors",
+      "/system/ai-cost",
+      "/system/calibration",
+      "/system/cockpit-observability",
     ];
     for (const href of retired) {
       expect(CARDS.some((c) => c.href === href), href).toBe(false);
@@ -108,11 +110,6 @@ describe("hubPaletteRows · the System group comes from the hub list", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("the calibration row keeps the State Calibration name and none of the other page's words (10-X3)", () => {
-    const r = rows.find((x) => x.href === "/system/calibration")!;
-    expect(r.label).toContain("State Calibration");
-    expect([r.label, ...r.keywords].join(" ")).not.toMatch(/drift|coverage|\blens\b|accuracy/i);
-  });
 
   it("POSITIVE CONTROL: a card a Navigate row already reaches gets no second door", () => {
     expect(rows.some((r) => r.href === "/brain?tab=memory")).toBe(false);
@@ -159,8 +156,8 @@ describe("command palette · renders the hub rows", () => {
   });
 
   it("a new door opens its page", () => {
-    act(() => item("Fleet Truth")!.click());
-    expect(h.push).toHaveBeenCalledWith("/system/fleet");
+    act(() => item("Memory Inbox")!.click());
+    expect(h.push).toHaveBeenCalledWith("/system/inbox");
   });
 
   it("a Lab row opens its page and says Lab", () => {

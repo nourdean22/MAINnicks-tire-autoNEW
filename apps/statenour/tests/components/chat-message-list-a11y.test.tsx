@@ -222,10 +222,9 @@ describe("ChatMessageList . receipt chip does not over-claim", () => {
 
   // R3-05 (10-X4): the observability page reads no ?search= param, so the
   // link promised a filtered trace and opened the unfiltered page.
-  it("links to the observability page by its real name, with no dead query", () => {
+  it("no longer links to the cut observability page, and promises no filtered trace", () => {
     const markup = renderWithTrace();
-    expect(markup).toContain('href="/system/cockpit-observability"');
-    expect(markup).toContain("Observability");
+    expect(markup).not.toContain("/system/cockpit-observability");
     expect(markup).not.toContain("?search=");
     expect(markup).not.toContain("View trace");
   });

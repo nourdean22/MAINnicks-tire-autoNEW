@@ -78,7 +78,7 @@ describe("hub grid · the Lab disclosure", () => {
 
   it("POSITIVE CONTROL: a live tile stays outside the Lab", () => {
     const panel = document.getElementById(labButton()!.getAttribute("aria-controls")!);
-    for (const href of ["/system/health", "/system/calibration", "/system/crons", "/system/logs"]) {
+    for (const href of ["/system/crons", "/system/alerts", "/system/actions", "/system/inbox"]) {
       expect(panel!.contains(link(href)), href).toBe(false);
     }
   });

@@ -1183,6 +1183,16 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
 
 // ─── API CLIENT ──────────────────────────────────────────
 
+/**
+ * Longest an admin READ may wait on Vapi (recent calls, the two transfer cards).
+ * tRPC batches wait for their slowest member: 7 days of Railway logs to
+ * 2026-10-19 showed Today stalling 15.0-15.1 s (vapiFetch's cap) and the Voice
+ * page 19.5 s (no cap). 3 s sits under the 4 s ceiling
+ * adminReadLatencyBound.test.ts asserts; a healthy Vapi list answers in well
+ * under a second (INFERRED, not measured here), so only a stall hits it.
+ */
+export const VAPI_ADMIN_READ_BOUND_MS = 3_000;
+
 async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const apiKey = process.env.VAPI_API_KEY;
   if (!apiKey) throw new Error("VAPI_API_KEY not configured");
@@ -2200,7 +2210,12 @@ export function buildOutboundRecoveryPrompt(params: {
 // and a sales message left on voicemail needs a toll-free opt-out number the
 // shop does not have (47 CFR 64.1200(b)(3)). The lane leaves no voicemail.
 
-export async function getRecentCalls(limit = 20): Promise<{
+/**
+ * `opts.signal` lets a caller choose its own deadline. Without it the call keeps
+ * vapiFetch's 15 s cap, which a 200-call backfill (scripts/backfills/
+ * backfill-vapi-duration.ts) needs; only the admin router asks for the 3 s bound.
+ */
+export async function getRecentCalls(limit = 20, opts: { signal?: AbortSignal } = {}): Promise<{
   success: boolean;
   calls: Array<{
     id: string;
@@ -2217,7 +2232,7 @@ export async function getRecentCalls(limit = 20): Promise<{
   error?: string;
 }> {
   try {
-    const res = await vapiFetch(`/call?limit=${limit}`);
+    const res = await vapiFetch(`/call?limit=${limit}`, { signal: opts.signal });
     if (!res.ok) {
       return { success: false, calls: [], error: `${res.status}: ${(await res.text()).slice(0, 200)}` };
     }

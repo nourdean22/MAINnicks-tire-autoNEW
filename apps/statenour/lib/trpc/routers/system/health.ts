@@ -62,6 +62,17 @@ export const healthProcedures = {
     }),
 
   /**
+   * Wave 2V (2026-10-19) · owner-only · the dead-letter count the /system outbox row shows next to its
+   * Redrive button (the Fleet page that rendered it was cut). Same read the fleet-truth API uses; a failed
+   * read throws, so the row renders UNKNOWN and never a 0.
+   */
+  outboxHealth: operatorProcedure.query(async () => {
+    const { getOutboxHealth } = await import("@/lib/services/chat/post-turn-outbox");
+    const h = await getOutboxHealth();
+    return { dead: h.dead, oldestDeadAt: h.oldestDeadAt };
+  }),
+
+  /**
    * Wave-3 (2026-07-29) · owner-only · delivery truth from the
    * IntelligenceOutcome ledger: shown / decided / accepted counts plus
    * which producers wrote rows in the window. Raw counts only — no

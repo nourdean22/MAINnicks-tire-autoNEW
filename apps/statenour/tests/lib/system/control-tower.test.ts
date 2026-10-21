@@ -68,7 +68,7 @@ describe("controlTower: one verdict, then the exceptions", () => {
     ]);
     expect(v.headline).toBe("6 REQUIRE ATTENTION");
     expect(v.exceptions.find((e) => e.key === "errors")?.line).toBe("3 errors in the last 24h");
-    expect(v.exceptions.find((e) => e.key === "errors")?.href).toBe("/system/logs");
+    expect(v.exceptions.find((e) => e.key === "errors")?.href).toBeUndefined();
   });
 
   it("says REQUIRES for exactly one exception", () => {
@@ -81,7 +81,7 @@ describe("controlTower: one verdict, then the exceptions", () => {
     expect(v.exceptions[0]?.line).toBe("1 error in the last 24h");
   });
 
-  it("device exceptions carry no link: /system/fleet has no device rows (10-X2)", () => {
+  it("device exceptions carry no link: no page shows device rows (10-X2)", () => {
     const v = controlTower({
       diagnostics: { ...clean, db: { connected: false, latency_ms: 0 }, devices: { online: 1, offline: 2, error: 1, total: 4 } },
       health: null,
@@ -89,8 +89,11 @@ describe("controlTower: one verdict, then the exceptions", () => {
     });
     expect(v.exceptions.find((e) => e.key === "devices-error")?.href).toBeUndefined();
     expect(v.exceptions.find((e) => e.key === "devices-offline")?.href).toBeUndefined();
-    // control: the db exception keeps its link, so the assertion above is about devices, not hrefs in general
-    expect(v.exceptions.find((e) => e.key === "db")?.href).toBe("/system/health");
+    // control: an exception that still has a destination keeps it. The tower renders ON /system, so the exceptions
+    // that used to link to the cut /system/health and /system/logs pages carry none (a self-link).
+    expect(v.exceptions.find((e) => e.key === "db")?.href).toBeUndefined();
+    expect(controlTower({ diagnostics: clean, health: { alerts: { unresolved: 2 } } as never, diagnosticsReadFailed: false })
+      .exceptions.find((e) => e.key === "alerts")?.href).toBe("/system/alerts");
   });
 
   it("never-reported devices are their own amber exception, not dropped (R3-01 hand-off A)", () => {

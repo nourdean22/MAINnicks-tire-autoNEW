@@ -57,7 +57,7 @@ describe("StandardPage descriptions with live values stay visible at every width
 
   it("every app page passes", () => {
     const files = pages(join(ROOT, "app"));
-    expect(files.length).toBeGreaterThan(20);
+    expect(files.length).toBeGreaterThan(10);
     const bad = files.flatMap((f) => liveDescriptionsWithoutAlways(readFileSync(f, "utf8"), relative(ROOT, f).replace(/\\/g, "/")));
     expect(bad).toEqual([]);
   });

@@ -192,7 +192,7 @@ export async function recordCoachEvent(input: CoachEventInput): Promise<CoachEve
             title: input.title,
             body: input.body ?? input.title,
             level: "critical",
-            url: input.deepLink ?? "/system/health",
+            url: input.deepLink ?? "/system",
             tag: key,
           }),
         )

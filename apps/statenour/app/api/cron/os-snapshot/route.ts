@@ -67,7 +67,7 @@ export const GET = cronHandler(async () => {
       body: topRegression
         ? `Worst: ${topRegression.metric} · ${topRegression.severity} · today ${topRegression.today.toFixed(1)} vs ${topRegression.baseline.toFixed(1)} avg (${topRegression.pctDelta > 0 ? "+" : ""}${(topRegression.pctDelta * 100).toFixed(0)}%)`
         : `Worst severity: ${report.worst}`,
-      deepLink: "/system/health",
+      deepLink: "/system",
       surfaces: ["scoreboard", "brain"],
       extra: {
         date: today,

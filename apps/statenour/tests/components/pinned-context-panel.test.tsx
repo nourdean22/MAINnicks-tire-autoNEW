@@ -74,6 +74,7 @@ vi.mock("@/lib/trpc/client", () => {
         deletePin: { useMutation: () => mutation },
       },
       operator: { commandCenterState: { useQuery: () => stubs.ccState } },
+      system: { flushPromptCache: { useMutation: () => mutation } },
     },
   };
 });

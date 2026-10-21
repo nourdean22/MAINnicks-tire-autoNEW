@@ -55,6 +55,7 @@ vi.mock("@/components/brain-dump-modal", () => ({ CAPTURE_OPEN_EVENT: "capture:o
 vi.mock("@/components/mastery/nick-side-pane", () => ({ NICK_PANE_OPEN_EVENT: "nick:open", NICK_PANE_MOUNTED_ATTR: "nickPane" }));
 
 import { MoreSheet } from "@/components/layout/more-sheet";
+import { NAV } from "@/components/layout/nav-items";
 import { FIXED_TIME } from "../e2e/fixtures/time";
 
 let container: HTMLDivElement;
@@ -91,9 +92,14 @@ const click = (el: Element) => {
 describe("MoreSheet pin control", () => {
   it("every flat row has a Pin button; hubs and Settings do not", () => {
     const el = render();
-    for (const label of ["Stats", "Pinned Memory", "People", "Proof"]) {
+    // The live flat rows come from NAV, so a future cut or add cannot leave this list stale (wave 2V cut
+    // Pinned Memory and Proof; the list is pinned below so a change is a deliberate edit, not silent drift).
+    const flat = NAV.filter((n) => n.flatRow && !n.footer && !n.bottomTab).map((n) => n.label);
+    expect(flat).toEqual(["Stats", "Photo Improver", "People"]);
+    for (const label of flat) {
       expect(pinButton(el, label), label).not.toBeNull();
     }
+    for (const label of ["Pinned Memory", "Proof"]) expect(pinButton(el, label), `${label} was cut`).toBeNull();
     for (const label of ["Brain", "System", "Settings"]) expect(pinButton(el, label), label).toBeNull();
   });
 

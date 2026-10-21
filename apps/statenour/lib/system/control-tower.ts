@@ -70,7 +70,6 @@ export function controlTower(input: TowerInput): TowerVerdict {
               key: "diagnostics",
               line: "diagnostics read failed — nothing on this page is a measurement",
               tone: "rose",
-              href: "/system/health",
             },
           ],
         }
@@ -86,14 +85,13 @@ export function controlTower(input: TowerInput): TowerVerdict {
     });
   }
   if (!d.db.connected) {
-    exceptions.push({ key: "db", line: "database unreachable", tone: "rose", href: "/system/health" });
+    exceptions.push({ key: "db", line: "database unreachable", tone: "rose" });
   }
   if (d.kpis.errors_24h > 0) {
     exceptions.push({
       key: "errors",
       line: `${plural(d.kpis.errors_24h, "error", "errors")} in the last 24h`,
       tone: d.kpis.errors_24h >= 10 ? "rose" : "amber",
-      href: "/system/logs",
     });
   }
   const unresolved = input.health?.alerts?.unresolved ?? 0;
@@ -111,7 +109,7 @@ export function controlTower(input: TowerInput): TowerVerdict {
       key: "devices-error",
       line: `${plural(devError, "device", "devices")} in error`,
       tone: "rose",
-      // no href: /system/fleet shows capability artifacts, not device rows (10-X2)
+      // no href: no page shows device rows
     });
   }
   const devOffline = d.devices?.offline ?? 0;
@@ -136,7 +134,6 @@ export function controlTower(input: TowerInput): TowerVerdict {
         key: `integration-${i.name}`,
         line: `${i.name} integration ${i.status.toLowerCase()}`,
         tone: "amber",
-        href: "/system/health",
       });
     }
   }

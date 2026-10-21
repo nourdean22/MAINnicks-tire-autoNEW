@@ -107,7 +107,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
     name: "Health digest 7d trend",
     endpoint: "/api/system/health-trend",
     status: "LIVE",
-    notes: "4 days of history · direction=improving · sparkline renders on /system/health (moved from /settings 2026-10-02).",
+    notes: "4 days of history · direction=improving · sparkline was drawn on the Diagnostics page, cut 2026-10-19; the API stays.",
   },
   {
     name: "Per-route error rate",
@@ -123,7 +123,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
   },
   {
     name: "Time-travel snapshot UI",
-    endpoint: "/brain?tab=continuity#time-travel (consumes /api/brain/time-travel)",
+    endpoint: "/brain?tab=health#time-travel (consumes /api/brain/time-travel)",
     status: "LIVE",
     notes: "2026-10-01 · folded into Brain → Changed. Pick a date to reconstruct the ET-day counts, memory categories, health frame, decisions, reflections, and brain dumps.",
   },

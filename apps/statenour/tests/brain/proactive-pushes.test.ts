@@ -192,7 +192,7 @@ describe("Proactive Pushes Dry-Run Logic", () => {
       expect(src.title).toBe("Anticipated Question");
       expect(src.summary).toContain("What is Nour's target today?");
       expect(src.confidence).toBe("high");
-      expect(src.href).toBe("/brain?tab=board");
+      expect(src.href).toBe("/chat");
       expect(src.summary.length).toBeLessThan(150);
     });
 

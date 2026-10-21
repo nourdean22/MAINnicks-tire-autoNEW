@@ -159,7 +159,8 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
       const shopHour = sql<number>`HOUR(CONVERT_TZ(${bookings.createdAt}, '+00:00', 'America/New_York'))`;
       const buckets = await d.select({ dow: shopDow, hour: shopHour, n: sql<number>`COUNT(*)` }).from(bookings)
         .where(gte(bookings.createdAt, ninetyDaysAgo))
-        .groupBy(shopDow, shopHour);
+        // By ordinal: drizzle renders createdAt unqualified in SELECT but `bookings`.`createdAt` in GROUP BY and TiDB's only_full_group_by rejects the pair (1055), same class as NICKSTIRE-1 (customerEvents.ts).
+        .groupBy(sql`1`, sql`2`);
 
       for (const b of buckets) {
         const dow = Number(b.dow) - 1; // NULL createdAt -> NULL -> NaN: skipped

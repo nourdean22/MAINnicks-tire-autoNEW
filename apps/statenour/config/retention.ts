@@ -30,7 +30,7 @@ export const RETENTION: Retention[] = [
   { model: "IdentitySnapshot", days: "forever", why: "8-axis self-model timeline.", enforcedBy: "none" },
 
   // ── Cron: enforced by data-cleanup ─────────────────────────────────
-  { model: "SystemMetric",     days: 90,  why: "Hot metrics window. Roll-ups feed /system/ai-cost + /system/requests.", enforcedBy: "data-cleanup" },
+  { model: "SystemMetric",     days: 90,  why: "Hot metrics window. Roll-ups feed /api/system/ai-cost + /system/requests.", enforcedBy: "data-cleanup" },
   { model: "ApiRequestLog",    days: 30,  why: "Debugging window. Volume aggregates live in SystemMetric beyond this.", enforcedBy: "data-cleanup" },
   { model: "ErrorLog",         days: 30,  why: "Recurring-error detection window.", enforcedBy: "data-cleanup" },
   { model: "DeviceEvent",      days: 90,  why: "Device anomaly detection. Shorter = blind to weekly patterns.", enforcedBy: "data-cleanup" },

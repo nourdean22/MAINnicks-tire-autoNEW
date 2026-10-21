@@ -276,7 +276,7 @@ export function WisdomTab() {
     async (id: string) => {
       const ok = await confirm({
         title: "Deprecate this wisdom?",
-        body: "Soft-deletes the row · stops appearing in recall · can be restored from /system/logs.",
+        body: "Soft-deletes the row · stops appearing in recall.",
         confirmLabel: "Deprecate",
         cancelLabel: "Keep",
         tone: "danger",

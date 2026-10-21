@@ -20,11 +20,8 @@ const SHORTCUTS = [
   { keys: ["G", "M"], action: "Go to Stats (Mastery)", section: "Navigation" },
   { keys: ["G", "Y"], action: "Go to Body",            section: "Navigation" },
   { keys: ["G", "S"], action: "Go to System",          section: "Navigation" },
-  { keys: ["G", "D"], action: "Go to Fleet",           section: "System Ops" },
   { keys: ["G", "C"], action: "Go to Crons",           section: "System Ops" },
-  { keys: ["G", "E"], action: "Go to Error Logs",      section: "System Ops" },
   { keys: ["G", "A"], action: "Go to Actions",         section: "System Ops" },
-  { keys: ["G", "Q"], action: "Go to Calibration",     section: "System Ops" },
   { keys: ["G", "P"], action: "Go to System Hub",      section: "System Ops" },
   { keys: ["R"],      action: "Refresh Data",          section: "Actions" },
   { keys: ["Esc"],    action: "Close Panel / Dialog",  section: "Actions" },
@@ -53,11 +50,8 @@ const GO_ROUTES: Record<string, string> = {
   s: "/system",
   // system ops deck · canonical destinations only. Keep P as a
   // legacy muscle-memory alias to the hub rather than a fake /system/power page.
-  d: "/system/fleet",           // fleet truth (capability artifacts)
   c: "/system/crons",           // formerly /command (which is gone — now at /)
-  e: "/system/logs?view=errors",
   a: "/system/actions",
-  q: "/system/calibration",     // quality/evals consolidated here
   p: "/system",                 // legacy "power" alias · hub owns the controls
   // legacy / integrations
   i: "/settings",
