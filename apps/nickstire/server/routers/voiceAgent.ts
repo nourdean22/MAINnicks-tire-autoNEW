@@ -135,7 +135,10 @@ function formatUsPhone(tenDigits: string): string {
  * is an ordinary job and must not jump the day or read TOW COMING.
  */
 const isTow = (service: string) =>
-  /\b(tow(ed)?\s+(incoming|coming|on\s+(its|the)\s+way|truck)|being\s+towed|get(ting)?\s+(it\s+)?towed|towing\s+it(\s+in)?|towed\s+in)\b/i.test(service);
+  /\b(tow(ed)?\s+(incoming|coming|on\s+(its|the)\s+way)|(on|by)\s+(a\s+|the\s+)?tow\s+truck|tow\s+truck\s+(is\s+)?(bringing|coming|on\s+(its|the)\s+way)|being\s+towed|get(ting)?\s+(it\s+)?towed|towing\s+it(\s+in)?|towed\s+in)\b/i.test(service);
+
+/** The heads-up text must finish well inside VAPI's 20 s tool-call timeout. */
+const HEADS_UP_SEND_MS = 12_000;
 
 /**
  * A preferredDay that names today in so many words. parseExpectedDate maps
@@ -209,7 +212,17 @@ async function sendArrivalHeadsUp(input: { name?: string; phone?: string; caller
     const body = arrivalHeadsUpText(input, name);
     const { textOnDutyManager } = await import("../services/eventBus");
     const send = async (): Promise<TelegramSendResult> => {
-      const r = await textOnDutyManager(body);
+      // A cold on-duty lookup + gateway probe + send can outrun the tool call.
+      // On the cut, keep the claim (the send may still finish) and file the row.
+      const sending = textOnDutyManager(body);
+      sending.catch(() => {});
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const r = await Promise.race([sending, new Promise<null>((done) => { timer = setTimeout(() => done(null), HEADS_UP_SEND_MS); })]);
+      clearTimeout(timer);
+      if (r === null) {
+        reason = "timeout";
+        return { status: "held" };
+      }
       reason = r.reason ?? r.status;
       // pending -> held: sendOncePerState keeps the claim (no second text), and it is not "delivered".
       return { status: r.status === "sent" ? "delivered" : r.status === "pending" ? "held" : "failed" };
@@ -532,7 +545,9 @@ export const voiceAgentRouter = router({
       const { parseExpectedDate, toShopDateStr } = await import("../services/expectedArrivals");
       const day = (input.preferredDay ?? "").trim();
       const saysToday = (!day || SAID_TODAY.test(day)) && parseExpectedDate(input.preferredDay, now) === toShopDateStr(now);
+      let fellBack = false;
       if (isTow(input.service) || saysToday) {
+        fellBack = true;
         if (await sendArrivalHeadsUp(input)) {
           return {
             success: true,
@@ -545,8 +560,10 @@ export const voiceAgentRouter = router({
       // A name under two letters is not a name: the record for the caller-ID number
       // is tried first, so a known caller is never asked. Thrown, it reaches the caller
       // as "Tool execution failed"; returned, the model asks once for the full name.
+      // A heads-up that fell back never re-asks: the claim may already be held, so a
+      // retry would return shop_texted and leave no row. File it with no name instead.
       const name = await resolveCallerName(input.name, input.callerNumber);
-      if (!name) {
+      if (!name && !fellBack) {
         return {
           success: false,
           reference: "WALKIN-INFO",
@@ -654,8 +671,10 @@ export const voiceAgentRouter = router({
 
         // Same bus dispatch as the website's callback form (routers/callback.ts):
         // texts the on-duty manager, Telegram, NOUR OS. Never blocks the tool.
+        // The bus is the one Telegram sender for this callback; urgency rides in the reason.
+        const busReason = input.urgency === "high" ? `HIGH URGENCY: ${input.reason}` : input.reason;
         import("../services/eventBus").then(({ emit }) =>
-          emit.callbackRequested({ id: insertedCallback?.insertId ? Number(insertedCallback.insertId) : null, name, phone, reason: input.reason }),
+          emit.callbackRequested({ id: insertedCallback?.insertId ? Number(insertedCallback.insertId) : null, name, phone, reason: busReason }),
         ).catch((e) => log.warn("escalate → event bus dispatch failed", { err: e instanceof Error ? e.message : String(e) }));
 
         // LINK THE CALLBACK TO THE CALL — same trail mechanism as tireInquiry's
@@ -730,24 +749,6 @@ export const voiceAgentRouter = router({
         }
 
         // Ping Nick via Telegram immediately on high-urgency
-        if (input.urgency === "high") {
-          try {
-            // wave-122 (MEDIUM S3) — mask phone in Telegram body. Last-4
-            // is enough for operator recognition; full number is in
-            // callback_requests row for the admin tool.
-            const phoneTail = phone.slice(-4);
-            const { sendTelegram } = await import("../services/telegram");
-            await sendTelegram(
-              `🚨 VOICE AGENT ESCALATION — HIGH URGENCY\n\n` +
-              `${name} · ...${phoneTail}\n` +
-              `Reason: ${input.reason}\n` +
-              (input.callId ? `Call: ${input.callId}\n` : "") +
-              `\nCall back ASAP — full number in admin > Callbacks.`,
-            );
-          } catch (e) {
-            log.warn("Telegram escalation alert failed", { err: e instanceof Error ? e.message : String(e) });
-          }
-        }
         log.info("Voice agent escalated", { nameGiven: Boolean(input.name), urgency: input.urgency });
         return {
           success: true,

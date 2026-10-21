@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   warn: vi.fn(),
   sendSms: vi.fn(),
   onDuty: vi.fn(),
+  sendTelegram: vi.fn(),
   claims: new Set<string>(),
   customerRows: [] as Array<Record<string, unknown>>,
   inserted: [] as Array<Record<string, unknown>>,
@@ -71,6 +72,7 @@ const MOCKED = [
   "../services/eventBus",
   "../services/vapi",
   "../sms",
+  "../services/telegram",
 ];
 
 async function loadCaller(opts: { realEventBus?: boolean } = {}) {
@@ -106,6 +108,7 @@ async function loadCaller(opts: { realEventBus?: boolean } = {}) {
   }));
   vi.doMock("../services/voice-call-state", () => ({ recordCallState: vi.fn(async () => {}) }));
   vi.doMock("../services/promiseLedger", () => ({ createVoicePromise: vi.fn(async () => ({ skipped: true, reason: "test" })) }));
+  vi.doMock("../services/telegram", () => ({ sendTelegram: h.sendTelegram }));
   if (opts.realEventBus) {
     vi.doMock("../services/vapi", async (orig) => ({
       ...(await orig<typeof import("../services/vapi")>()),
@@ -147,7 +150,7 @@ afterEach(() => {
   for (const m of MOCKED) vi.doUnmock(m);
   vi.resetModules();
   vi.useRealTimers();
-  for (const f of [h.recordExpectedArrival, h.textOnDutyManager, h.callbackRequested, h.isEnabled, h.warn, h.sendSms, h.onDuty]) f.mockReset();
+  for (const f of [h.recordExpectedArrival, h.textOnDutyManager, h.callbackRequested, h.isEnabled, h.warn, h.sendSms, h.onDuty, h.sendTelegram]) f.mockReset();
 });
 
 const bodyOf = (n = 0) => String(h.textOnDutyManager.mock.calls[n]?.[0] ?? "");
@@ -246,6 +249,64 @@ describe("textOnDutyManager reports a queued or uncertain send as pending (revie
     const res = await caller.bookSlot({ ...TOW, callId: `call_p_${reason}` });
     expect(res.status).toBe("walk_in_guidance");
     expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Codex review on PR 3212", () => {
+  it("P1: a fallback from the heads-up never re-asks the name; the row files with no name", async () => {
+    h.textOnDutyManager.mockResolvedValue({ status: "pending", reason: "queued" });
+    const res = await (await loadCaller()).bookSlot({ service: "brake check", callId: "call_c1", callerNumber: CALLER });
+    expect(res.status).not.toBe("name_incomplete");
+    expect(res.success).toBe(true);
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+    expect(h.recordExpectedArrival.mock.calls[0][0].name ?? null).toBeNull();
+  });
+
+  it("P1: a send that never returns is cut at 12 s; the row files and the claim is kept", async () => {
+    const caller = await loadCaller();
+    // Warm every lazy import on this path with real timers (vitest's loader stalls under faked setTimeout).
+    await caller.bookSlot({ ...TOW, callId: "call_warm" });
+    h.recordExpectedArrival.mockClear();
+    h.textOnDutyManager.mockReset();
+    h.textOnDutyManager.mockImplementation(() => new Promise(() => {}));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let settled: { status?: string } | null = null;
+    void caller.bookSlot({ ...TOW, callId: "call_c2" }).then((r) => { settled = r; });
+    // Real ticks until the send starts (dynamic imports resolve on real I/O); the cut timer is armed in the same tick.
+    for (let i = 0; i < 2000 && h.textOnDutyManager.mock.calls.length === 0; i++) await new Promise((r) => setImmediate(r));
+    expect(h.textOnDutyManager, "the send started").toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(11_900);
+    expect(settled, "still waiting just before 12 s").toBeNull();
+    await vi.advanceTimersByTimeAsync(100);
+    for (let i = 0; i < 2000 && !settled; i++) await new Promise((r) => setImmediate(r));
+    expect(settled, "bookSlot returned at 12 s").not.toBeNull();
+    expect(settled!.status).toBe("walk_in_guidance");
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+    expect([...h.claims].some((k) => k.startsWith("voice-arrival:call_c2|"))).toBe(true);
+  });
+
+  it("P2: a high-urgency escalate sends no direct Telegram; the bus event carries HIGH URGENCY", async () => {
+    await (await loadCaller()).escalate({ reason: "brakes gone", urgency: "high", callerNumber: CALLER, callId: "call_c3" });
+    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ reason: "HIGH URGENCY: brakes gone" }));
+    expect(h.sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("P2: a medium escalate passes the reason as said", async () => {
+    await (await loadCaller()).escalate({ reason: "status check", callerNumber: CALLER });
+    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ reason: "status check" }));
+  });
+
+  it.each(["need a tow truck", "tow truck referral", "tow truck number"])("P2: %j on a later day is not a tow", async (service) => {
+    await (await loadCaller()).bookSlot({ name: "Ray", service, preferredDay: "tomorrow", callerNumber: CALLER });
+    expect(h.textOnDutyManager).not.toHaveBeenCalled();
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["it's coming on a tow truck", "tow truck is bringing it"])("P2: %j → TOW COMING", async (service) => {
+    await (await loadCaller()).bookSlot({ name: "Ray", service, preferredDay: "tomorrow", callId: "call_c5", callerNumber: CALLER });
+    expect(bodyOf().split("\n")[0]).toBe("TOW COMING (phone)");
   });
 });
 
