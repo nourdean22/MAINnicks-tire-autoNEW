@@ -13,7 +13,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { readStatus, readStatusOfList, unavailableCopy } from "../client/src/lib/queryState";
+import { readStatus, unavailableCopy } from "../client/src/lib/queryState";
+
+// The list-emptiness predicate the deleted readStatusOfList helper passed to readStatus.
+const listIsEmpty = (d: unknown) => Array.isArray(d) && d.length === 0;
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -21,29 +24,29 @@ describe("readStatus classifies the state react-query cannot express with isLoad
   it("PAUSED (offline) is unavailable, NOT empty — the whole reason this exists", () => {
     // The exact shape react-query leaves behind when the browser is offline.
     const paused = { isError: false, isLoading: false, isPending: true, fetchStatus: "paused" as const, data: undefined };
-    const s = readStatusOfList(paused);
+    const s = readStatus(paused, listIsEmpty);
     expect(s.state).toBe("unavailable");
     expect(s.reason).toBe("not_attempted");
   });
 
   it("an ERROR is unavailable and distinguishable from a paused read", () => {
-    const s = readStatusOfList({ isError: true, isLoading: false, data: undefined });
+    const s = readStatus({ isError: true, isLoading: false, data: undefined }, listIsEmpty);
     expect(s.state).toBe("unavailable");
     expect(s.reason).toBe("error");
   });
 
   it("a genuinely fetching query is loading", () => {
-    expect(readStatusOfList({ isError: false, isLoading: true, fetchStatus: "fetching", data: undefined }).state)
+    expect(readStatus({ isError: false, isLoading: true, fetchStatus: "fetching", data: undefined }, listIsEmpty).state)
       .toBe("loading");
   });
 
   it("a SUCCESSFUL read of zero rows is empty — a real zero must survive", () => {
-    const s = readStatusOfList({ isError: false, isLoading: false, fetchStatus: "idle", data: [] });
+    const s = readStatus({ isError: false, isLoading: false, fetchStatus: "idle", data: [] }, listIsEmpty);
     expect(s.state).toBe("empty");
   });
 
   it("a successful read with rows is ready", () => {
-    expect(readStatusOfList({ isError: false, isLoading: false, fetchStatus: "idle", data: [{ id: 1 }] }).state)
+    expect(readStatus({ isError: false, isLoading: false, fetchStatus: "idle", data: [{ id: 1 }] }, listIsEmpty).state)
       .toBe("ready");
   });
 
