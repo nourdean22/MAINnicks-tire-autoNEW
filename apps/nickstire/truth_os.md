@@ -119,6 +119,33 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-21 - Billed card gets Today and Yesterday; ShopDriver now syncs on admin page loads (branch worktree-agent-a8848ccfdd81e4e12, NOT yet merged)
+
+- **BUILT, not deployed, not proven live:** the Billed card on the Today page has Today and Yesterday chips (7 days stays the default). A day newer
+  than the last successful ShopDriver probe renders "Not synced yet today." (or "for yesterday") with no figure; a day a probe has covered shows its figure
+  labelled "so far today, as of <ET time>" and a zero-sale day is a real $0. Synced is read from the newest successful probe in `alg_probe_log`
+  (`sync`, `windowSynced` in `server/services/shopSales.ts`), not from the newest invoice: a manual or booking invoice moves that, a zero-sale day never does.
+  "Successful" is outcome `success` only, and `success` now means the invoice fetch returned rows: `runFullMirror` reports `invoicesFetched`, and
+  `algProbeBudget` logs a 0-invoice run as `error` (a rejected login stays `auth_failed`), whatever the estimate sync did, and so is a run where any fetched invoice failed to SAVE (`upsertInvoices` counts those as `failed`, no longer as `skipped`; the row says "N of M invoices failed to save"). One invoice that always fails to save therefore keeps the day "Not synced" and the freshness card red: a real data problem, shown rather than hidden. `empty` is no longer written.
+  The watermark is read before the invoice aggregate, so a probe landing between the two reads can only make fresh data look unsynced. An unreadable
+  probe log shows "Sync status unknown", never synced. While any probe runs (this load's refresh, OAuth, chat, a second tab, a manual sync-now) the read
+  carries `syncInFlight` and the card re-reads every 15 s for 3 minutes, then every 60 s while the latest read still says so, giving up after 20 minutes.
+- **When ALG syncs, as of this branch (Nour's decision, 2026-10-21, "Refresh syncs anytime"):** on a full admin page load or refresh, at most once per
+  30 minutes, at any hour (probe reason `admin_refresh`, `lib/adminActivity.ts`); plus 3 AM and 8 PM ET, the OAuth login, the manual refresh buttons and
+  the Nick chat. Each sync re-authenticates ShopDriver and logs the shop counter out; Nour accepted that. The old 6 h "resume edge" rule is deleted.
+  The trigger is the admin shell (`useSyncOnAdminLoad` in `pages/Admin.tsx`, after adminReady), once per document, so a refresh of any tab syncs, not
+  only Today; a refused first call (MFA not yet cleared) does not use up the load. The earlier claim that a `POST /api/admin/ping` route and bridge
+  calls touch the activity tracker was false: only the adminProcedure middleware calls it.
+- **How the 30 minutes is held:** the SQL age of the newest auth-attempting row in `alg_probe_log` (`TIMESTAMPDIFF` against `NOW()`, restart-proof) AND
+  an in-memory floor from the probe budget's `lastProbeStartedAt`, stamped when any probe starts, because `writeProbeLog` swallows insert errors and a
+  probe that could not log would otherwise look due at once. Both must be 30 minutes or more. `forceSyncNow` and the two bridge refreshes (`trigger-mirror`,
+  `full-sync`) run outside the budget on purpose (a manual sync must run) but through `recordExternalSync`, which stamps that floor and writes a row
+  (reasons `force_sync`, `bridge_mirror`, `bridge_full_sync`). Each row's `startedAt` is `NOW()` minus the probe's duration, written by the database
+  clock, so a fetch begun at 11:59 PM and logged at 12:01 AM counts as the night before. `shopdriver.syncInvoices` (a 50-ticket pull, not the mirror)
+  only stamps the floor and is not logged as a sync.
+- **Known limit:** that is not an atomic claim. A deploy overlap can start two probes once. If the log ever shows two `admin_refresh` rows within a
+  minute, make the claim a conditional write.
+
 ## 2026-10-19 - Admin prune W2a: 168 uncalled tRPC procedures and 4 idle crons gone, admin SSE stream fixed (branch nickstire/admin-prune-w2, NOT yet merged)
 
 - **BUILT, not deployed:** 172 procedures with no caller in the repo and 0 HTTP calls in 14 days (Railway logs 2026-10-05..19) were cut and 4

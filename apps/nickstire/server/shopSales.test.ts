@@ -12,10 +12,31 @@
  * UTC-derived "today" is the NEXT calendar day, which silently shifts a whole
  * day of invoices into the wrong bucket. It is asserted directly.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { salesWindow, SALES_DEFINITION_VERSION, type ShopSales } from "./services/shopSales";
+import {
+  salesWindow,
+  paidInvoiceRevenue,
+  SALES_PERIODS,
+  SALES_DEFINITION_VERSION,
+  type ShopSales,
+} from "./services/shopSales";
+
+// paidInvoiceRevenue loads the db lazily; the mock answers its three statements in order
+// (the sync watermark, the window aggregate, then MAX(invoiceDate)).
+const dbMock = vi.hoisted(() => ({ execute: vi.fn() }));
+vi.mock("./db", () => ({ getDb: async () => ({ execute: dbMock.execute }) }));
+
+// Whether a probe is running now: the budget's state and the page-load refresh's own flag.
+const live = vi.hoisted(() => ({ budgetInFlight: false, refreshInFlight: false, stateThrows: false }));
+vi.mock("./services/algProbeBudget", () => ({
+  getProbeBudgetState: () => {
+    if (live.stateThrows) throw new Error("state unavailable");
+    return { inFlight: live.budgetInFlight };
+  },
+}));
+vi.mock("./lib/adminActivity", () => ({ isAdminRefreshProbeInFlight: () => live.refreshInFlight }));
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -193,5 +214,294 @@ describe("the definition travels with the number", () => {
     const src = read("server/services/shopSales.ts");
     expect(src).toMatch(/ticket-lifecycle string/);
     expect(src).toMatch(/unknown or empty maps to 'paid'/);
+  });
+});
+
+describe("today and yesterday are single Eastern days", () => {
+  it("a normal day: today is [d, d+1), yesterday is [d-1, d)", () => {
+    const noon = new Date("2026-09-15T16:00:00Z"); // 12:00 ET, Sep 15
+    expect(salesWindow("today", noon)).toEqual({ from: "2026-09-15", to: "2026-09-16" });
+    expect(salesWindow("yesterday", noon)).toEqual({ from: "2026-09-14", to: "2026-09-15" });
+  });
+
+  it("23:00 ET and 01:00 ET straddle midnight: the day advances once, in Eastern time", () => {
+    const lateEvening = new Date("2026-09-07T03:00:00Z"); // 23:00 EDT Sep 6
+    const nextMorning = new Date("2026-09-07T05:00:00Z"); // 01:00 EDT Sep 7
+    expect(salesWindow("today", lateEvening)).toEqual({ from: "2026-09-06", to: "2026-09-07" });
+    expect(salesWindow("today", nextMorning)).toEqual({ from: "2026-09-07", to: "2026-09-08" });
+    expect(salesWindow("yesterday", lateEvening)).toEqual({ from: "2026-09-05", to: "2026-09-06" });
+    expect(salesWindow("yesterday", nextMorning)).toEqual({ from: "2026-09-06", to: "2026-09-07" });
+  });
+
+  it("22:00 ET is still the same ET day although UTC has already rolled over", () => {
+    const at = new Date("2026-09-07T02:00:00Z"); // 22:00 EDT Sep 6; UTC date is Sep 7
+    expect(salesWindow("today", at).from).toBe("2026-09-06");
+    expect(salesWindow("yesterday", at).to).toBe("2026-09-06");
+  });
+
+  it("spring forward (2026-03-08, a 23-hour day): the day rolls at local midnight, not at 24 hours", () => {
+    // 00:00 EST Mar 8 = 05:00Z; 00:00 EDT Mar 9 = 04:00Z.
+    expect(salesWindow("today", new Date("2026-03-08T05:00:00Z"))).toEqual({ from: "2026-03-08", to: "2026-03-09" });
+    expect(salesWindow("today", new Date("2026-03-08T07:30:00Z"))).toEqual({ from: "2026-03-08", to: "2026-03-09" }); // 03:30 EDT
+    expect(salesWindow("today", new Date("2026-03-09T03:59:59Z"))).toEqual({ from: "2026-03-08", to: "2026-03-09" }); // 23:59:59 EDT
+    expect(salesWindow("today", new Date("2026-03-09T04:00:00Z"))).toEqual({ from: "2026-03-09", to: "2026-03-10" });
+    expect(salesWindow("yesterday", new Date("2026-03-09T16:00:00Z"))).toEqual({ from: "2026-03-08", to: "2026-03-09" });
+  });
+
+  it("fall back (2026-11-01, a 25-hour day): both 01:30 readings are the same day, and it ends at local midnight", () => {
+    // 00:00 EDT Nov 1 = 04:00Z; 00:00 EST Nov 2 = 05:00Z.
+    expect(salesWindow("today", new Date("2026-11-01T05:30:00Z"))).toEqual({ from: "2026-11-01", to: "2026-11-02" }); // 01:30 EDT
+    expect(salesWindow("today", new Date("2026-11-01T06:30:00Z"))).toEqual({ from: "2026-11-01", to: "2026-11-02" }); // 01:30 EST
+    expect(salesWindow("today", new Date("2026-11-02T04:59:59Z"))).toEqual({ from: "2026-11-01", to: "2026-11-02" }); // 23:59:59 EST
+    expect(salesWindow("today", new Date("2026-11-02T05:00:00Z"))).toEqual({ from: "2026-11-02", to: "2026-11-03" });
+    expect(salesWindow("yesterday", new Date("2026-11-02T17:00:00Z"))).toEqual({ from: "2026-11-01", to: "2026-11-02" });
+  });
+
+  it("yesterday crosses a month, a year and a leap day correctly", () => {
+    expect(salesWindow("yesterday", new Date("2026-10-01T16:00:00Z"))).toEqual({ from: "2026-09-30", to: "2026-10-01" });
+    expect(salesWindow("yesterday", new Date("2027-01-01T17:00:00Z"))).toEqual({ from: "2026-12-31", to: "2027-01-01" });
+    expect(salesWindow("yesterday", new Date("2028-03-01T17:00:00Z"))).toEqual({ from: "2028-02-29", to: "2028-03-01" });
+    expect(salesWindow("today", new Date("2028-02-29T17:00:00Z"))).toEqual({ from: "2028-02-29", to: "2028-03-01" });
+  });
+
+  it("each holds exactly one date, and every period is non-empty and half-open", () => {
+    const at = new Date("2026-09-15T16:00:00Z");
+    expect(datesIn(salesWindow("today", at))).toEqual(["2026-09-15"]);
+    expect(datesIn(salesWindow("yesterday", at))).toEqual(["2026-09-14"]);
+    for (const p of SALES_PERIODS) {
+      const w = salesWindow(p, at);
+      expect(w.from < w.to, `${p} produced an empty or inverted range`).toBe(true);
+    }
+  });
+
+  it("the default 7-day window is unchanged", () => {
+    expect(salesWindow("last_7d", new Date("2026-09-15T16:00:00Z"))).toEqual({ from: "2026-09-08", to: "2026-09-15" });
+  });
+});
+
+describe("whether a window is synced comes from the ShopDriver sync log, not from the newest invoice", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    dbMock.execute.mockReset();
+    live.budgetInFlight = false;
+    live.refreshInFlight = false;
+    live.stateThrows = false;
+  });
+
+  const aggRow = {
+    paidCount: 0, paidCents: 0, pendingCount: 0, pendingCents: 0, partialCount: 0, partialCents: 0,
+    refundedCount: 0, refundedCents: 0, blankInvoiceNumbers: 0,
+  };
+  const NOW_ISO = "2026-10-21T15:59:00Z"; // 11:59 ET on Wed 2026-10-21 (the screenshot's moment)
+  type Period = (typeof SALES_PERIODS)[number];
+  const epoch = (iso: string) => Date.parse(iso) / 1000;
+
+  // The three statements, in order: the newest SUCCESSFUL probe (UNIX_TIMESTAMP, a number: no
+  // driver Date to shift), the window aggregate, then MAX(invoiceDate) over shopdriver rows.
+  async function read(
+    period: Period,
+    opts: { now?: string; agg?: Record<string, number>; through?: Date | null; probe?: string | null | "reject" } = {},
+  ) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(opts.now ?? NOW_ISO));
+    if (opts.probe === "reject") dbMock.execute.mockRejectedValueOnce(new Error("alg_probe_log unreadable"));
+    else dbMock.execute.mockResolvedValueOnce([opts.probe ? [{ probeEpoch: epoch(opts.probe) }] : []]);
+    dbMock.execute
+      .mockResolvedValueOnce([[{ ...aggRow, ...opts.agg }]])
+      .mockResolvedValueOnce([[{ throughDate: opts.through ?? null }]]);
+    const r = await paidInvoiceRevenue(period);
+    if (!r.available) throw new Error(`unexpected unavailable: ${r.reason}`);
+    return r;
+  }
+
+  const sqlText = (call: unknown[]) =>
+    (call[0] as { queryChunks: Array<{ value?: string[] } | unknown> }).queryChunks
+      .map((c) => (c && typeof c === "object" && Array.isArray((c as { value?: string[] }).value) ? (c as { value: string[] }).value.join("") : "?"))
+      .join("");
+
+  it("a zero-sale day with a successful probe today is a real, synced $0", async () => {
+    const t = await read("today", { probe: "2026-10-21T15:42:00Z" });
+    expect(t.cents).toBe(0);
+    expect(t.invoiceCount).toBe(0);
+    expect(t.windowSynced).toBe(true);
+    expect(t.sync).toEqual({ state: "ok", lastAt: "2026-10-21T15:42:00.000Z", etDate: "2026-10-21", etTime: "11:42 AM" });
+  });
+
+  it("a manual invoice today with no probe today is NOT synced, whatever the newest invoice date says", async () => {
+    // A booking or tire-order write stamped today; the last ShopDriver probe was last night's 8 PM.
+    const t = await read("today", {
+      agg: { paidCount: 1, paidCents: 25000 },
+      through: new Date("2026-10-21T04:00:00Z"),
+      probe: "2026-10-21T00:00:00Z", // 20:00 ET Oct 20
+    });
+    expect(t.windowSynced).toBe(false);
+    expect(t.sync).toMatchObject({ state: "ok", etDate: "2026-10-20", etTime: "8:00 PM" });
+  });
+
+  it("the probe lookup counts only `success`: the outcome that means the invoices were read", async () => {
+    await read("today", { probe: "2026-10-21T15:42:00Z" });
+    const text = sqlText(dbMock.execute.mock.calls[0]!);
+    expect(text).toMatch(/FROM alg_probe_log/);
+    expect(text).toMatch(/WHERE outcome = 'success'/);
+    // `empty` was also what a failed invoice fetch was logged as, so it can no longer vouch for a sync.
+    for (const bad of ["empty", "auth_failed", "error", "dedup", "skipped_recent"]) expect(text).not.toContain(bad);
+    expect(text).toMatch(/UNIX_TIMESTAMP\(startedAt\)/);
+  });
+
+  it("the sync watermark is read BEFORE the invoice aggregate", async () => {
+    // A probe that lands between the two reads can then only make us say "not synced" about data
+    // that is already fresh. In the other order the aggregate could miss the probe's rows while
+    // the watermark saw the probe, and we would say "synced" about stale data.
+    await read("today", { probe: "2026-10-21T15:42:00Z" });
+    const [first, second, third] = dbMock.execute.mock.calls.map(sqlText);
+    expect(first).toMatch(/FROM alg_probe_log/);
+    expect(second).toMatch(/paidCount[\s\S]*FROM invoices\s+WHERE invoiceDate >=/);
+    expect(third).toMatch(/MAX\(invoiceDate\)/);
+  });
+
+  it("a probe that landed between the two reads can only make the day look unsynced, never synced", async () => {
+    // The watermark read saw last night's probe; the aggregate (read after) already holds rows
+    // the new probe wrote. Result: fresh rows labelled "not synced". The reverse order would give
+    // a stale aggregate labelled with the new probe's time.
+    const t = await read("today", { agg: { paidCount: 4, paidCents: 120000 }, probe: "2026-10-21T00:00:00Z" });
+    expect(t.windowSynced).toBe(false);
+    expect(t.cents).toBe(120000);
+  });
+
+  it("a day with no successful probe on record is not synced", async () => {
+    const t = await read("today", { probe: null });
+    expect(t.sync).toEqual({ state: "never" });
+    expect(t.windowSynced).toBe(false);
+  });
+
+  it("an unreadable probe log is UNKNOWN: the read still answers, but never claims synced", async () => {
+    const t = await read("today", { agg: { paidCount: 3, paidCents: 90000 }, probe: "reject" });
+    expect(t.sync).toMatchObject({ state: "unreadable" });
+    expect(t.windowSynced).toBeNull();
+    for (const p of SALES_PERIODS) {
+      const r = await read(p, { probe: "reject" });
+      expect(r.windowSynced, p).toBeNull();
+    }
+  });
+
+  it("the data date is read from ShopDriver rows only", async () => {
+    await read("yesterday", { probe: "2026-10-21T15:42:00Z" });
+    expect(sqlText(dbMock.execute.mock.calls[2]!)).toMatch(/MAX\(invoiceDate\) AS throughDate FROM invoices WHERE source = 'shopdriver'/);
+  });
+
+  it("every period is judged against the probe: with a probe at 11:42 ET today they are all synced", async () => {
+    const got: Record<string, boolean | null> = {};
+    for (const p of SALES_PERIODS) got[p] = (await read(p, { probe: "2026-10-21T15:42:00Z" })).windowSynced;
+    expect(got).toEqual({ today: true, yesterday: true, last_7d: true, last_30d: true, month_to_date: true, prev_month: true });
+  });
+
+  it("with only last night's 8 PM probe, anything that includes the end of yesterday or today is not synced", async () => {
+    const got: Record<string, boolean | null> = {};
+    for (const p of SALES_PERIODS) got[p] = (await read(p, { probe: "2026-10-21T00:00:00Z" })).windowSynced;
+    expect(got).toEqual({
+      today: false, // nothing ran today
+      yesterday: false, // the probe ran before yesterday ended
+      last_7d: false,
+      last_30d: false,
+      month_to_date: false,
+      prev_month: true, // a whole month that ended Oct 1, probed after
+    });
+  });
+
+  it.each([
+    // [label, now, period, probe instant, windowSynced]
+    ["probe at 23:59:59 ET last night does not cover today (UTC date is already today)", "2026-10-21T15:59:00Z", "today", "2026-10-21T03:59:59Z", false],
+    ["probe at 00:00:01 ET today covers today", "2026-10-21T15:59:00Z", "today", "2026-10-21T04:00:01Z", true],
+    ["probe at 00:00:01 ET today covers yesterday (it ran after yesterday ended)", "2026-10-21T15:59:00Z", "yesterday", "2026-10-21T04:00:01Z", true],
+    ["probe at 23:59:59 ET last night does not cover yesterday (yesterday had only just ended)", "2026-10-21T15:59:00Z", "yesterday", "2026-10-21T03:59:59Z", false],
+    ["22:00 ET Oct 21, probe 21:30 ET the same day: today synced", "2026-10-22T02:00:00Z", "today", "2026-10-22T01:30:00Z", true],
+    ["month end: yesterday is Sep 30, probe on Oct 1 covers it", "2026-10-01T15:59:00Z", "yesterday", "2026-10-01T12:00:00Z", true],
+    ["month end: yesterday is Sep 30, probe Sep 30 evening does not", "2026-10-01T15:59:00Z", "yesterday", "2026-10-01T00:30:00Z", false],
+    ["year end: yesterday is Dec 31, probe Jan 1 covers it", "2027-01-01T17:00:00Z", "yesterday", "2027-01-01T15:00:00Z", true],
+    ["fall back day (2026-11-01): probe 01:30 EST covers today", "2026-11-01T17:00:00Z", "today", "2026-11-01T06:30:00Z", true],
+    ["spring forward day (2026-03-08): probe 23:30 EST the day before does not cover today", "2026-03-08T17:00:00Z", "today", "2026-03-08T04:30:00Z", false],
+  ] as const)("windowSynced: %s", async (_label, now, period, probe, expected) => {
+    expect((await read(period, { now, probe })).windowSynced).toBe(expected);
+  });
+
+  it("a driver that hands the epoch back as a string still decides", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW_ISO));
+    dbMock.execute
+      .mockResolvedValueOnce([[{ probeEpoch: String(epoch("2026-10-21T15:42:00Z")) }]])
+      .mockResolvedValueOnce([[aggRow]])
+      .mockResolvedValueOnce([[{ throughDate: null }]]);
+    const r = await paidInvoiceRevenue("today");
+    expect(r.available && r.windowSynced).toBe(true);
+  });
+
+  it("a fetch begun at 23:59 ET that was logged at 00:01 ET covers yesterday's night, not today", async () => {
+    // writeProbeLog stores startedAt as NOW() minus the duration, so the row says 23:59 even
+    // though it was inserted after midnight. Read at 00:01 ET: not a probe today.
+    expect((await read("today", { now: "2026-10-21T04:01:00Z", probe: "2026-10-21T03:59:30Z" })).windowSynced).toBe(false);
+    expect((await read("today", { now: "2026-10-21T04:01:00Z", probe: "2026-10-21T04:00:30Z" })).windowSynced).toBe(true);
+  });
+});
+
+describe("syncInFlight: the read says whether a probe is running, so the card can follow it", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    dbMock.execute.mockReset();
+    live.budgetInFlight = false;
+    live.refreshInFlight = false;
+    live.stateThrows = false;
+  });
+  const aggRow = { paidCount: 0, paidCents: 0, pendingCount: 0, pendingCents: 0, partialCount: 0, partialCents: 0, refundedCount: 0, refundedCents: 0, blankInvoiceNumbers: 0 };
+  async function inFlight() {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-21T15:59:00Z"));
+    dbMock.execute.mockResolvedValueOnce([[]]).mockResolvedValueOnce([[aggRow]]).mockResolvedValueOnce([[{ throughDate: null }]]);
+    const r = await paidInvoiceRevenue("today");
+    if (!r.available) throw new Error("unexpected unavailable");
+    return r.syncInFlight;
+  }
+
+  it("is false when nothing is running", async () => {
+    expect(await inFlight()).toBe(false);
+  });
+  it("is true while the probe budget has a probe or a manual sync running (OAuth callback, chat, another tab, sync-now)", async () => {
+    live.budgetInFlight = true;
+    expect(await inFlight()).toBe(true);
+  });
+  it("is true while this page-load refresh is starting its probe", async () => {
+    live.refreshInFlight = true;
+    expect(await inFlight()).toBe(true);
+  });
+  it("is false, not an error, when the probe state cannot be read", async () => {
+    live.stateThrows = true;
+    expect(await inFlight()).toBe(false);
+  });
+});
+
+describe("the period list is one contract across router, service and card", () => {
+  const listIn = (src: string, re: RegExp) => {
+    const m = re.exec(src);
+    expect(m, `${re} not found`).not.toBeNull();
+    return [...m![1]!.matchAll(/"([a-z_0-9]+)"/g)].map((x) => x[1]!).sort();
+  };
+  const expected = () => [...SALES_PERIODS].sort();
+
+  it("offers today and yesterday, and keeps the other four", () => {
+    expect(expected()).toEqual(["last_30d", "last_7d", "month_to_date", "prev_month", "today", "yesterday"]);
+  });
+
+  it("controlCenter.shopSales builds its input enum from the service's list, not a copy", () => {
+    const router = read("server/routers/controlCenter.ts");
+    expect(router).toMatch(/import \{ SALES_PERIODS \} from "\.\.\/services\/shopSales"/);
+    expect(router).toMatch(/shopSales: adminProcedure\s*\.input\(z\.object\(\{ period: z\.enum\(SALES_PERIODS\)/);
+  });
+
+  it("every chip the card offers is a period the router accepts, and 7 days stays the default", () => {
+    const card = read("client/src/pages/admin/SalesCard.tsx");
+    const ids = [...(/const PERIODS[^=]*=\s*\[([\s\S]*?)\n\];/.exec(card)?.[1] ?? "").matchAll(/id: "([a-z_0-9]+)"/g)].map((x) => x[1]!);
+    expect([...ids].sort()).toEqual(expected());
+    expect(card).toMatch(/useState<Period>\("last_7d"\)/);
+    const router = read("server/routers/controlCenter.ts");
+    expect(router).toMatch(/\.default\("last_7d"\)/);
   });
 });
