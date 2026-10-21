@@ -97,6 +97,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/operator-asks.mjs\" --refresh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/infra-approve.mjs\"",
+            "timeout": 10
           }
         ]
       }
