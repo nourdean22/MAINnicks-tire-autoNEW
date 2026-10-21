@@ -16,11 +16,15 @@
  *    can earn a stronger word — that is an operator-verified event, not a
  *    styling decision.
  *
- * 2. It does not default to TODAY. The ALG mirror runs a day behind, so today's
+ * 2. It does not default to TODAY, though Today and Yesterday are chips (the owner
+ *    asked for the day, 2026-10-21). The ALG mirror runs a day behind, so today's
  *    invoice count is structurally 0 every morning; a "$0 today" tile reads as a
  *    dead shop rather than a sync lag. It defaults to a completed 7-day window
  *    and always prints the through-date, which is the same reasoning that made
- *    controlCenter.todayPulse exclude "sales today" deliberately.
+ *    controlCenter.todayPulse exclude "sales today" deliberately. A single day
+ *    newer than the mirror (`windowAfterThrough`) renders "Not synced yet" and the
+ *    through-date INSTEAD of the figure: not synced is not $0. A synced day with
+ *    no invoices (a holiday) is a real $0 and still shows it.
  *
  * 3. It never renders a failed read as $0. The procedure returns a discriminated
  *    union, so the unavailable branch has no number to show.
@@ -34,9 +38,11 @@ import { useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
-type Period = "last_7d" | "last_30d" | "month_to_date" | "prev_month";
+type Period = "today" | "yesterday" | "last_7d" | "last_30d" | "month_to_date" | "prev_month";
 
 const PERIODS: { id: Period; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "yesterday", label: "Yesterday" },
   { id: "last_7d", label: "7 days" },
   { id: "last_30d", label: "30 days" },
   { id: "month_to_date", label: "This month" },
@@ -53,6 +59,9 @@ export default function SalesCard() {
   const [showDetail, setShowDetail] = useState(false);
   const query = trpc.controlCenter.shopSales.useQuery({ period });
   const data = query.data;
+  // Decided from the period the server answered for, not the chip just tapped.
+  const notSynced =
+    data?.available === true && (data.period === "today" || data.period === "yesterday") && data.windowAfterThrough;
 
   return (
     <section
@@ -97,7 +106,16 @@ export default function SalesCard() {
         </div>
       )}
 
-      {data?.available === true && (
+      {/* A day newer than the mirror has no invoices YET: say so, print no figure. */}
+      {data?.available === true && notSynced && (
+        <div className="text-sm text-foreground/70">
+          {data.throughDate
+            ? `Not synced yet. The invoice mirror is current through ${data.throughDate}.`
+            : "Not synced yet. The invoice mirror has no through-date."}
+        </div>
+      )}
+
+      {data?.available === true && !notSynced && (
         <>
           <div className="flex items-baseline gap-3 flex-wrap">
             <span className="text-3xl font-semibold tabular-nums">{dollars(data.cents)}</span>

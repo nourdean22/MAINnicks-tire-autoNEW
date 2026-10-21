@@ -271,6 +271,7 @@ export const HANDLERS = {
     period: "last_7d",
     window: { fromISO: "2026-10-07", toISO: "2026-10-13", label: "Last 7 days" },
     throughDate: "2026-10-13",
+    windowAfterThrough: false,
     basis: "invoice_date",
     grossOrNet: "gross_tax_inclusive",
     definitionVersion: "demo",

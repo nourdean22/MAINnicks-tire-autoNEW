@@ -1091,7 +1091,7 @@ export const controlCenterRouter = router({
    * render, so an unreadable period cannot become $0.
    */
   shopSales: adminProcedure
-    .input(z.object({ period: z.enum(["last_7d", "last_30d", "month_to_date", "prev_month"]).default("last_7d") }).optional())
+    .input(z.object({ period: z.enum(["today", "yesterday", "last_7d", "last_30d", "month_to_date", "prev_month"]).default("last_7d") }).optional())
     .query(async ({ input }) => {
       const { paidInvoiceRevenue } = await import("../services/shopSales");
       return paidInvoiceRevenue(input?.period ?? "last_7d");

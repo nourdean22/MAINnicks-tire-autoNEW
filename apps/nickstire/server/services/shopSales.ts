@@ -69,6 +69,9 @@
  * successful read. The ALG mirror runs a day behind, so a caller that renders
  * "today's sales" without it will show a structural $0 every morning — the exact
  * reason controlCenter.todayPulse deliberately refuses to report sales TODAY.
+ * The "today" and "yesterday" periods exist for the owner who wants the day, so
+ * every read also carries `windowAfterThrough`: TRUE means the window runs past
+ * the mirror, and a caller must say "not synced yet" instead of printing the $0.
  */
 import { createLogger } from "../lib/logger";
 
@@ -81,7 +84,13 @@ const log = createLogger("shop-sales");
  */
 export const SALES_DEFINITION_VERSION = "shop-sales-v2-invoice-date-gross-completed-days";
 
-export type SalesPeriod = "last_7d" | "last_30d" | "month_to_date" | "prev_month";
+/**
+ * The one list of periods. The tRPC input enum (routers/controlCenter.ts) and the
+ * card's chips (client SalesCard.tsx) repeat it by hand; shopSales.test.ts fails
+ * if any of the three drifts, because a chip the router rejects is a dead button.
+ */
+export const SALES_PERIODS = ["today", "yesterday", "last_7d", "last_30d", "month_to_date", "prev_month"] as const;
+export type SalesPeriod = (typeof SALES_PERIODS)[number];
 
 export interface SalesExclusions {
   /** Not a sale yet. Includes ALG tickets still "open". */
@@ -111,6 +120,14 @@ export type ShopSales =
       window: { fromISO: string; toISO: string; label: string };
       /** Newest invoiceDate in the mirror. The operator must see the lag. */
       throughDate: string | null;
+      /**
+       * TRUE when the window's last date is newer than `throughDate` (or the mirror
+       * holds no invoices at all): part or all of the window has not been synced
+       * yet, so its figure is incomplete. For a single day it means "not synced",
+       * which a card must not render as $0. Set for EVERY period: month_to_date is
+       * partial on any morning too.
+       */
+      windowAfterThrough: boolean;
       basis: "invoice_date";
       grossOrNet: "gross_tax_inclusive";
       definitionVersion: string;
@@ -126,6 +143,8 @@ export type ShopSales =
     };
 
 const PERIOD_LABEL: Record<SalesPeriod, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
   last_7d: "Last 7 days",
   last_30d: "Last 30 days",
   month_to_date: "Month to date",
@@ -161,6 +180,13 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
   const tomorrow = addDays(today, 1);
 
   switch (period) {
+    // 2026-10-21 · single Eastern days, for "what did we sell today / yesterday".
+    // Today is offered but never the card's default: the mirror runs a day behind,
+    // so `windowAfterThrough` tells the card when the day has no data YET.
+    case "today":
+      return { from: fmt(today), to: fmt(tomorrow) };
+    case "yesterday":
+      return { from: fmt(addDays(today, -1)), to: fmt(today) };
     // 2026-09-08 · the rolling windows are COMPLETED Eastern days ending
     // yesterday: [today-7, today) is exactly 7 dates, [today-30, today) exactly
     // 30. Until this fix both ran to TOMORROW (exclusive) and so spanned 8 and
@@ -184,6 +210,21 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
       return { from: fmt(asUTC(py, pm, 1)), to: fmt(lastMonthEnd) };
     }
   }
+}
+
+/**
+ * Does the half-open window [from, to) end after the newest invoice date the
+ * mirror holds? Both sides are yyyy-mm-dd strings of the same kind: `throughDate`
+ * is the stored shop-day digits of MAX(invoiceDate) and the window bounds are the
+ * ET dates the SQL compares those digits against, so like meets like and a UTC
+ * midnight shift cannot move either side by a day. A null through-date (empty
+ * mirror) is "nothing synced", so the window is after it.
+ */
+export function isWindowAfterThrough(window: { from: string; to: string }, throughDate: string | null): boolean {
+  if (!throughDate) return true;
+  // `to` is exclusive, so the last date inside the window is the day before it.
+  const lastDate = new Date(Date.parse(`${window.to}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  return lastDate > throughDate;
 }
 
 /**
@@ -235,13 +276,15 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
     const n = (v: unknown) => Number(v ?? 0);
 
     const throughRaw = through.throughDate;
+    const throughDate = throughRaw ? new Date(throughRaw as string).toISOString().slice(0, 10) : null;
     return {
       available: true,
       cents: n(agg.paidCents),
       invoiceCount: n(agg.paidCount),
       period,
       window: { fromISO: from, toISO: to, label: PERIOD_LABEL[period] },
-      throughDate: throughRaw ? new Date(throughRaw as string).toISOString().slice(0, 10) : null,
+      throughDate,
+      windowAfterThrough: isWindowAfterThrough({ from, to }, throughDate),
       basis: "invoice_date",
       grossOrNet: "gross_tax_inclusive",
       definitionVersion: SALES_DEFINITION_VERSION,

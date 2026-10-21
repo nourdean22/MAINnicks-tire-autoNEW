@@ -11,16 +11,24 @@
  *    without its through-date invites the operator to read it as "now".
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import React from "react";
 
 const h = vi.hoisted(() => ({
   result: { data: undefined as unknown, isLoading: false, isError: false },
+  inputs: [] as Array<{ period: string }>,
 }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    controlCenter: { shopSales: { useQuery: () => h.result } },
+    controlCenter: {
+      shopSales: {
+        useQuery: (input: { period: string }) => {
+          h.inputs.push(input);
+          return h.result;
+        },
+      },
+    },
   },
 }));
 
@@ -33,6 +41,7 @@ const ok = {
   period: "last_7d" as const,
   window: { fromISO: "2026-08-31", toISO: "2026-09-07", label: "Last 7 days" },
   throughDate: "2026-09-06",
+  windowAfterThrough: false,
   basis: "invoice_date" as const,
   grossOrNet: "gross_tax_inclusive" as const,
   definitionVersion: "shop-sales-v1-invoice-date-gross",
@@ -46,7 +55,10 @@ const ok = {
   caveats: ["Billed, not collected — invoice date basis. There is no payment-date column."],
 };
 
-beforeEach(() => { h.result = { data: undefined, isLoading: false, isError: false }; });
+beforeEach(() => {
+  h.result = { data: undefined, isLoading: false, isError: false };
+  h.inputs = [];
+});
 afterEach(cleanup);
 
 describe("an unreadable period is UNKNOWN, never $0", () => {
@@ -132,10 +144,148 @@ describe("the exclusions are one tap away, and they are counted", () => {
 });
 
 describe("phone ergonomics", () => {
-  it("period controls meet a 44px touch target", () => {
+  it("every period control meets a 44px touch target", () => {
     h.result = { data: ok, isLoading: false, isError: false };
     render(<SalesCard />);
-    const btn = screen.getByRole("button", { name: "7 days" });
-    expect(btn.className).toMatch(/min-h-\[44px\]/);
+    const chips = within(screen.getByRole("group", { name: "Sales period" })).getAllByRole("button");
+    expect(chips).toHaveLength(6);
+    for (const chip of chips) expect(chip.className).toMatch(/min-h-\[44px\]/);
+  });
+});
+
+/**
+ * Today and Yesterday. The mirror runs a day behind, so a day newer than its through-date has
+ * no invoices YET. That is not "$0 of sales": it is "not synced", and the card must say so
+ * without printing any figure, while a synced day with no invoices is still a real $0.
+ */
+describe("Today and Yesterday period chips", () => {
+  const chipNames = () =>
+    within(screen.getByRole("group", { name: "Sales period" })).getAllByRole("button").map((b) => b.textContent);
+
+  const day = (over: Record<string, unknown>) => ({ ...ok, ...over });
+  const notSynced = /Not synced yet\. The invoice mirror is current through 2026-10-20\./;
+
+  it("offers Today, Yesterday, 7 days, 30 days, This month, Last month in that order", () => {
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    expect(chipNames()).toEqual(["Today", "Yesterday", "7 days", "30 days", "This month", "Last month"]);
+  });
+
+  it("still opens on 7 days, and asks the server for it", () => {
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    expect(screen.getByRole("button", { name: "7 days" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Today" }).getAttribute("aria-pressed")).toBe("false");
+    expect(h.inputs[0]).toEqual({ period: "last_7d" });
+  });
+
+  it("tapping Today and Yesterday asks the server for those periods", () => {
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(h.inputs[h.inputs.length - 1]).toEqual({ period: "today" });
+    expect(screen.getByRole("button", { name: "Today" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Yesterday" }));
+    expect(h.inputs[h.inputs.length - 1]).toEqual({ period: "yesterday" });
+  });
+
+  it("today, mirror through yesterday: says not synced, names the through-date, prints no dollar figure", () => {
+    h.result = {
+      data: day({
+        period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" },
+        cents: 0, invoiceCount: 0, throughDate: "2026-10-20", windowAfterThrough: true,
+      }),
+      isLoading: false, isError: false,
+    };
+    const { container } = render(<SalesCard />);
+    expect(screen.getByText(notSynced)).toBeTruthy();
+    expect(container.textContent).not.toContain("$");
+    expect(container.textContent).not.toMatch(/\d+ invoices?/);
+    expect(screen.queryByRole("button", { name: /What this excludes/i })).toBeNull();
+  });
+
+  it("does not trust a number the server sent for an unsynced day", () => {
+    h.result = {
+      data: day({
+        period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" },
+        cents: 987600, invoiceCount: 9, throughDate: "2026-10-20", windowAfterThrough: true,
+      }),
+      isLoading: false, isError: false,
+    };
+    const { container } = render(<SalesCard />);
+    expect(screen.getByText(notSynced)).toBeTruthy();
+    expect(container.textContent).not.toContain("$");
+    expect(container.textContent).not.toContain("9,876");
+  });
+
+  it("yesterday with the mirror two days behind is also not synced", () => {
+    h.result = {
+      data: day({
+        period: "yesterday", window: { fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" },
+        cents: 0, invoiceCount: 0, throughDate: "2026-10-19", windowAfterThrough: true,
+      }),
+      isLoading: false, isError: false,
+    };
+    const { container } = render(<SalesCard />);
+    expect(screen.getByText(/Not synced yet\. The invoice mirror is current through 2026-10-19\./)).toBeTruthy();
+    expect(container.textContent).not.toContain("$");
+  });
+
+  it("an empty mirror says the through-date is unknown instead of naming one", () => {
+    h.result = {
+      data: day({ period: "today", cents: 0, invoiceCount: 0, throughDate: null, windowAfterThrough: true }),
+      isLoading: false, isError: false,
+    };
+    const { container } = render(<SalesCard />);
+    expect(screen.getByText(/Not synced yet\. The invoice mirror has no through-date\./)).toBeTruthy();
+    expect(container.textContent).not.toContain("$");
+  });
+
+  it("today, mirror through today: shows the figure and the count", () => {
+    h.result = {
+      data: day({
+        period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" },
+        cents: 123400, invoiceCount: 5, throughDate: "2026-10-21", windowAfterThrough: false,
+      }),
+      isLoading: false, isError: false,
+    };
+    render(<SalesCard />);
+    expect(screen.getByText("$1,234")).toBeTruthy();
+    expect(screen.getByText(/5 invoices · Today/)).toBeTruthy();
+    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+  });
+
+  it("a synced day with no invoices is a real $0, not 'not synced'", () => {
+    h.result = {
+      data: day({
+        period: "yesterday", window: { fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" },
+        cents: 0, invoiceCount: 0, throughDate: "2026-10-20", windowAfterThrough: false,
+      }),
+      isLoading: false, isError: false,
+    };
+    render(<SalesCard />);
+    expect(screen.getByText("$0")).toBeTruthy();
+    expect(screen.getByText(/0 invoices · Yesterday/)).toBeTruthy();
+    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+  });
+
+  it("a multi-day period keeps its figure when the mirror lags, with only the existing through-date line", () => {
+    h.result = {
+      data: day({ period: "month_to_date", throughDate: "2026-10-20", windowAfterThrough: true }),
+      isLoading: false, isError: false,
+    };
+    render(<SalesCard />);
+    expect(screen.getByText("$42,135")).toBeTruthy();
+    expect(screen.getByText(/mirror current through 2026-10-20/)).toBeTruthy();
+    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+  });
+
+  it("a failed read on Today is still UNKNOWN, not 'not synced' and not $0", () => {
+    h.result = { data: { available: false, reason: "Database not available" }, isLoading: false, isError: false };
+    const { container } = render(<SalesCard />);
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(screen.getByText(/UNKNOWN, not \$0/i)).toBeTruthy();
+    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+    expect(screen.queryByText(/^\$[\d,]+$/)).toBeNull();
   });
 });
