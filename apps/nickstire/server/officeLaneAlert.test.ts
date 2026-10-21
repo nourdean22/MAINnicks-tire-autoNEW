@@ -106,14 +106,14 @@ afterEach(() => {
 });
 
 describe("office lane: CONVERSATIONS_NOT_POSTING on the camera-health pass", () => {
-  it("open + fresh heartbeat + a capture 10 min ago + last post 75 min ago: pages once, in plain words, keyed on the silence", async () => {
-    const row = lane();
+  it("open + fresh heartbeat + a capture 15 min ago + last post 75 min ago: pages once, in plain words, keyed on the silence", async () => {
+    const row = lane({ captureAgeSeconds: 15 * 60 });
     const executed = install(row);
     await runCameraHealthAlerts();
     expect(laneClaims(executed)).toEqual([`office_lane:office:e${row.postEpoch}:CONVERSATIONS_NOT_POSTING`]);
     const texts = laneTexts();
     expect(texts).toHaveLength(1);
-    expect(texts[0]).toContain("The office camera is recording but no conversation has reached the server for 75 minutes.");
+    expect(texts[0]).toContain("The office camera recorded a conversation 15 minutes ago and none has reached the server since; the last one arrived 75 minutes ago.");
   });
 
   it("a second pass inside the 30-minute cooldown does not page again", async () => {
@@ -152,11 +152,40 @@ describe("office lane: CONVERSATIONS_NOT_POSTING on the camera-health pass", () 
     expect(laneClaims(executed)).toEqual([]);
   });
 
-  it("captures counted this hour but no post ever recorded (NULL): pages", async () => {
-    const executed = install(lane({ captureAgeSeconds: null, postAgeSeconds: null }));
+  it("a capture 15 min ago and no post ever recorded (NULL): pages, day-keyed", async () => {
+    const executed = install(lane({ captureAgeSeconds: 15 * 60, postAgeSeconds: null }));
+    await runCameraHealthAlerts();
+    expect(laneClaims(executed)).toEqual(["office_lane:office:CONVERSATIONS_NOT_POSTING"]);
+  });
+
+  it("only the hourly capture count known (capture time NULL): not judged, no page", async () => {
+    const executed = install(lane({ captureAgeSeconds: null, postAgeSeconds: null, conversationCapturesLast60m: 4 }));
+    await runCameraHealthAlerts();
+    expect(laneClaims(executed)).toEqual([]);
+  });
+
+  it("the first capture after opening (2 min ago, last post 14 h ago) is still in flight: no page (manager review of db2c1ebe7)", async () => {
+    const executed = install(lane({ captureAgeSeconds: 2 * 60, postAgeSeconds: 14 * 3600 }));
+    await runCameraHealthAlerts();
+    expect(laneClaims(executed)).toEqual([]);
+  });
+
+  it("the 10-minute grace: a capture 9 min old does not page, 10 min old does", async () => {
+    let executed = install(lane({ captureAgeSeconds: 9 * 60 }));
+    await runCameraHealthAlerts();
+    expect(laneClaims(executed)).toEqual([]);
+    executed = install(lane({ captureAgeSeconds: 10 * 60 }));
     await runCameraHealthAlerts();
     expect(laneClaims(executed)).toHaveLength(1);
-    expect(laneClaims(executed)[0]).toMatch(/^office_lane:office:CONVERSATIONS_NOT_POSTING$/);
+  });
+
+  it("the last post must predate the capture by more than 10 min: capture 55 min ago, post 60m05s ago does not page, 66 min does", async () => {
+    let executed = install(lane({ captureAgeSeconds: 55 * 60, postAgeSeconds: 3605 }));
+    await runCameraHealthAlerts();
+    expect(laneClaims(executed)).toEqual([]);
+    executed = install(lane({ captureAgeSeconds: 55 * 60, postAgeSeconds: 66 * 60 }));
+    await runCameraHealthAlerts();
+    expect(laneClaims(executed)).toHaveLength(1);
   });
 
   it("capture data unknown (both NULL): no page -- unknown is not a fault for this rule", async () => {

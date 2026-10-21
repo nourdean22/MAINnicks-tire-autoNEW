@@ -20,6 +20,13 @@ import { cameraAlertCooldownSeconds } from "./cameraHealthAlertPolicy";
 
 /** Captures in the last hour with no post for longer than this pages. */
 const NOT_POSTING_AFTER_SECONDS = 60 * 60;
+/**
+ * A capture's post lands 20-60 s after it (transcript + extraction). Only a capture at least this
+ * old, with the last post older than it by at least this much, is a post that should have landed
+ * and did not (manager review of db2c1ebe7: the first capture after opening, still in flight,
+ * met the old rule against an overnight 14 h-old post and paged every morning).
+ */
+const POST_GRACE_SECONDS = 10 * 60;
 
 type OfficeLaneState = "CONVERSATIONS_NOT_POSTING" | "CONVERSATIONS_POSTING" | "NOT_JUDGED";
 
@@ -27,10 +34,9 @@ export function officeLaneVerdict(input: {
   shopOpen: boolean;
   heartbeatAgeSeconds: number | null;
   captureAgeSeconds: number | null;
-  capturesLast60m: number | null;
   postAgeSeconds: number | null;
 }): { state: OfficeLaneState; reason: string } {
-  const { heartbeatAgeSeconds: hb, captureAgeSeconds: cap, capturesLast60m: caps, postAgeSeconds: post } = input;
+  const { heartbeatAgeSeconds: hb, captureAgeSeconds: cap, postAgeSeconds: post } = input;
   if (!input.shopOpen) return { state: "NOT_JUDGED", reason: "shop closed" };
   if (hb === null || hb > HEALTH_THRESHOLDS.staleAfterSeconds) {
     return { state: "NOT_JUDGED", reason: "office heartbeat not fresh; the camera alert covers it" };
@@ -38,14 +44,19 @@ export function officeLaneVerdict(input: {
   if (post !== null && post <= NOT_POSTING_AFTER_SECONDS) {
     return { state: "CONVERSATIONS_POSTING", reason: `last conversation reached the server ${Math.floor(post / 60)} minutes ago` };
   }
-  // Unknown capture activity (both NULL) lands here too: unknown is not a fault for this rule.
-  const captured = (cap !== null && cap <= NOT_POSTING_AFTER_SECONDS) || (caps !== null && caps > 0);
-  if (!captured) return { state: "NOT_JUDGED", reason: "no capture known in the last 60 minutes (quiet or not reported); not a fault for this rule" };
+  // An unknown capture time is not a fault for this rule: an hourly count alone cannot say whether
+  // the latest capture is still in flight.
+  if (cap === null || cap > NOT_POSTING_AFTER_SECONDS) {
+    return { state: "NOT_JUDGED", reason: "no capture time known in the last 60 minutes (quiet or not reported); not a fault for this rule" };
+  }
+  if (cap < POST_GRACE_SECONDS) return { state: "NOT_JUDGED", reason: "the latest capture may still be posting" };
+  if (post !== null && post <= cap + POST_GRACE_SECONDS) return { state: "NOT_JUDGED", reason: "the last post is close to the latest capture" };
+  const capMin = Math.floor(cap / 60);
   return {
     state: "CONVERSATIONS_NOT_POSTING",
     reason: post === null
-      ? "The office camera is recording but no conversation has ever reached the server."
-      : `The office camera is recording but no conversation has reached the server for ${Math.floor(post / 60)} minutes.`,
+      ? `The office camera recorded a conversation ${capMin} minutes ago and none has ever reached the server.`
+      : `The office camera recorded a conversation ${capMin} minutes ago and none has reached the server since; the last one arrived ${Math.floor(post / 60)} minutes ago.`,
   };
 }
 

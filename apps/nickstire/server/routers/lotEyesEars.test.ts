@@ -271,6 +271,16 @@ describe("lot.now: ghost open rows stop counting as cars on the property (F1)", 
     expect(agg).toContain(`SUM(CASE WHEN departedAt IS NULL THEN 1 ELSE 0 END) - SUM(CASE WHEN ${WINDOW} THEN 1 ELSE 0 END) AS staleOpenRows`);
   });
 
+  it("the operator-mark reads use the same window through the joined alias, so markedShare cannot exceed onProperty", async () => {
+    const { seen } = await run({ total: 50 });
+    const marks = seen.filter((t) => t.includes("FROM vehicle_visit_marks m JOIN vehicle_visits v"));
+    expect(marks).toHaveLength(2);
+    for (const q of marks) {
+      expect(q).toContain("v.departedAt IS NULL AND COALESCE(v.arrivedAt, v.createdAt) >= NOW() - INTERVAL 7 DAY");
+      expect(q).not.toMatch(/WHERE v\.departedAt IS NULL AND v\.dataClass/);
+    }
+  });
+
   it("the bays read (open, in a bay) is windowed too", async () => {
     const { seen } = await run({ total: 50 });
     const bays = seen.find((t) => t.includes("GROUP BY bay"))!;

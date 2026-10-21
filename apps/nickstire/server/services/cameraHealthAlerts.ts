@@ -293,7 +293,6 @@ export async function recordDerivedHealthTransition(
  * One office-lane judgement (officeLaneAlert.ts) through the same claim, cooldown and delivery
  * rail as the camera pages. A read failure THROWS (the caller fails the run, never "not
  * posting"); an undeliverable page is returned, its claim already released for the next tick.
- * The 0144 window count is read only once production has the column.
  */
 async function judgeOfficeLane(
   db: Db,
@@ -301,13 +300,11 @@ async function judgeOfficeLane(
   label: string,
   shopOpen: boolean,
 ): Promise<{ state: string; sent: boolean; held: boolean; deliveryError: unknown }> {
-  const hasWindow = await cameraRuntimeHasColumns(db, ["conversationCapturesLast60m"]);
   const [rows] = await db.execute(sql`
     SELECT UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationCaptureAt) AS captureAgeSeconds,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationPostAt) AS postAgeSeconds,
            UNIX_TIMESTAMP(lastConversationPostAt) AS postEpoch
-           ${hasWindow ? sql`, conversationCapturesLast60m` : sql``}
       FROM camera_runtime
      WHERE camera = ${camera}
   `);
@@ -316,7 +313,6 @@ async function judgeOfficeLane(
     shopOpen,
     heartbeatAgeSeconds: row ? numberOrNull(row.ageSeconds) : null,
     captureAgeSeconds: row ? numberOrNull(row.captureAgeSeconds) : null,
-    capturesLast60m: row ? numberOrNull(row.conversationCapturesLast60m) : null,
     postAgeSeconds: row ? numberOrNull(row.postAgeSeconds) : null,
   });
   const none = { state: verdict.state, sent: false, held: false, deliveryError: null };

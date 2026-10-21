@@ -123,7 +123,11 @@ const RETIRE_UNREGISTERED_AFTER_SECONDS = 7 * 24 * 3600;
  * onProperty). The floor board and the counters read this one fragment; rows outside it are
  * disclosed as `staleOpenRows`, never dropped silently.
  */
-const OPEN_VISIT = sql`departedAt IS NULL AND COALESCE(arrivedAt, createdAt) >= NOW() - INTERVAL 7 DAY`;
+const openVisit = (alias?: "v") => {
+  const p = alias ? `${alias}.` : "";
+  return sql.raw(`${p}departedAt IS NULL AND COALESCE(${p}arrivedAt, ${p}createdAt) >= NOW() - INTERVAL 7 DAY`);
+};
+const OPEN_VISIT = openVisit();
 
 /**
  * WHAT THIS CAMERA CAN AND CANNOT KNOW ABOUT SERVICE.
@@ -767,14 +771,14 @@ export const lotRouter = router({
           SELECT m.mark, COUNT(DISTINCT m.visitId) AS n
           FROM vehicle_visit_marks m
           JOIN vehicle_visits v ON v.visitId = m.visitId
-          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION' AND ${inForce}
+          WHERE ${openVisit("v")} AND v.dataClass = 'PRODUCTION' AND ${inForce}
           GROUP BY m.mark
         `));
         const openMarked = rowsOf(await d.execute(sql`
           SELECT COUNT(DISTINCT m.visitId) AS n
           FROM vehicle_visit_marks m
           JOIN vehicle_visits v ON v.visitId = m.visitId
-          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION' AND ${inForce}
+          WHERE ${openVisit("v")} AND v.dataClass = 'PRODUCTION' AND ${inForce}
         `));
         const countOf = (mark: string) => num(byMark.find((row) => String(row.mark) === mark)?.n ?? 0);
         marks.available = true;
