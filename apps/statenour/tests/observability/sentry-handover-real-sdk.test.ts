@@ -26,7 +26,16 @@
  *
  * Nothing leaves the process: the DSN points at a closed local port, tracing
  * transactions are dropped by `beforeSendTransaction`, and no error is captured.
+ *
+ * A second way to break it without touching Sentry (2026-10-21, Dependabot PR 3202):
+ * the lockfile gave `ai` @opentelemetry/api 1.10.0 while Sentry stayed on 1.9.1.
+ * The API refuses a global registered by an older minor ("1.4 package may NOT use
+ * 1.3 global", @opentelemetry/api dist/internal/semver), so `ai` got a no-op tracer
+ * and every AI span vanished. The last test below names that cause directly.
  */
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as Sentry from "@sentry/nextjs";
 import { generateText } from "ai";
@@ -69,6 +78,26 @@ async function runTracedAiCall(functionId: string): Promise<string> {
   return result.text;
 }
 
+type OtelApiLike = {
+  trace: { getTracer(name: string): { startSpan(name: string): { isRecording(): boolean; end(): void } } };
+};
+
+/** The @opentelemetry/api copy the installed `ai` itself imports (file-relative, as at runtime), and its version. */
+function aiOwnOtelApi(): { api: OtelApiLike; version: string } {
+  const fromAi = createRequire(createRequire(import.meta.url).resolve("ai"));
+  const entry = fromAi.resolve("@opentelemetry/api");
+  // The package exports no ./package.json, so walk up from its entry file to find it.
+  for (let dir = dirname(entry); dir !== dirname(dir); dir = dirname(dir)) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: string; version?: string };
+      if (pkg.name === "@opentelemetry/api") return { api: fromAi(entry) as OtelApiLike, version: String(pkg.version) };
+    } catch {
+      // no package.json at this level; keep walking
+    }
+  }
+  throw new Error(`no package.json above ${entry}`);
+}
+
 const savedEnv = { ...process.env };
 
 describe("Sentry -> Langfuse span handover, on the INSTALLED @sentry/nextjs", () => {
@@ -104,7 +133,8 @@ describe("Sentry -> Langfuse span handover, on the INSTALLED @sentry/nextjs", ()
       langfuse.ended.filter((name) => name.includes("q15-handover-probe")),
       "The installed @sentry/nextjs did not deliver spans to `openTelemetrySpanProcessors`. " +
         "If Sentry was upgraded past 10.x, that option is gone and Langfuse is receiving nothing. " +
-        "Revert the upgrade, or move the app to its own tracer provider first (WP-O).",
+        "Revert the upgrade, or move the app to its own tracer provider first (WP-O). " +
+        "If Sentry did not move, read the @opentelemetry/api test below first.",
     ).toHaveLength(1);
     expect(langfuse.ended).toContain("generate_content mock-model-id");
   });
@@ -113,5 +143,22 @@ describe("Sentry -> Langfuse span handover, on the INSTALLED @sentry/nextjs", ()
     Sentry.startSpan({ name: "GET /api/health" }, () => {});
     expect(everything.ended, "control: the span must exist for its absence to mean anything").toContain("GET /api/health");
     expect(langfuse.ended).not.toContain("GET /api/health");
+  });
+
+  it("the @opentelemetry/api copy `ai` imports can see the tracer provider Sentry registered", () => {
+    const { api, version } = aiOwnOtelApi();
+    const registered = (globalThis as Record<symbol, { version?: string } | undefined>)[
+      Symbol.for("opentelemetry.js.api.1")
+    ]?.version;
+    // Not the "ai" tracer name, so this probe never lands in the Langfuse recorder above.
+    const span = api.trace.getTracer("q15-api-split-probe").startSpan("q15-api-split-probe");
+    const recording = span.isRecording();
+    span.end();
+    expect(
+      recording,
+      `ai imports @opentelemetry/api ${version}, but the global tracer provider was registered by ${registered}. ` +
+        "A newer API minor refuses an older global, so every AI span is a no-op and Langfuse gets nothing. " +
+        "Keep one @opentelemetry/api version in the lockfile (a root pnpm.overrides pin).",
+    ).toBe(true);
   });
 });
