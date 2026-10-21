@@ -5,10 +5,10 @@
   "sessionKind": "unknown",
   "sessionId": "58594c88-64eb-4407-bf85-b7e0d2775660",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\ai-referrals-d03f49",
-  "claimedBy": "2026-10-21-ai-referrals",
-  "claimedAt": "2026-10-21T17:50:19.704Z",
-  "expiresAt": "2026-10-22T05:50:19.704Z",
+  "claimedBy": "",
+  "claimedAt": "2026-10-21T22:42:44.262Z",
+  "expiresAt": "2026-10-22T10:42:44.262Z",
   "releasedAt": null,
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "ad66dc42bebf770f45d136e045e2fab7c020dcf7"
 }
