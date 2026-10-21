@@ -8,6 +8,7 @@ wrong summaries -- so both are asserted here.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -209,3 +210,79 @@ def test_whisper_threads_are_passed_as_dash_t_only_when_set(monkeypatch):
     capped, default = seen
     assert capped[capped.index("-t") + 1] == "2"
     assert "-t" not in default
+
+
+# ------------------------------------------------------------------ noise-robust flags (2026-10-21)
+# OFFICE_WHISPER_NOISE_ARGS=auto asks `whisper-cli --help` once which noise flags this build has
+# and adds only those. The whisper-cli build on the shop PC is UNKNOWN: a flag it lacks would make
+# every transcription exit non-zero and every episode FAILED, so an absent flag is never passed.
+
+TODAY = ["whisper-cli", "-m", "m.bin", "-f", "x.wav", "--output-json", "--no-prints", "-mc", "0", "-t", "2"]
+HELP_NEW = """
+usage: whisper-cli [options] file0 file1 ...
+  -sns,      --suppress-nst      [false  ] suppress non-speech tokens
+  -nth N,    --no-speech-thold N [0.60   ] no speech threshold
+"""
+HELP_OLD = """
+usage: whisper-cli [options] file0.wav file1.wav ...
+  -mc N,     --max-context N     [-1     ] maximum number of text context tokens to store
+  -nf,       --no-fallback       [false  ] do not use temperature fallback while decoding
+"""
+
+
+def _help_run(text, seen=None, rc=0):
+    def run(cmd, *a, **k):
+        if seen is not None:
+            seen.append(cmd)
+        return _Proc(rc=rc, stdout="", stderr=text)  # whisper.cpp prints usage to stderr
+    return run
+
+
+def test_noise_flags_are_added_only_when_the_binary_lists_them():
+    from vision.officepost import noise_args
+
+    seen = []
+    assert noise_args("whisper-cli", "auto", run=_help_run(HELP_NEW, seen)) == (
+        "--suppress-nst", "--no-speech-thold", "0.6")
+    assert seen == [["whisper-cli", "--help"]]
+    assert noise_args("whisper-cli", "auto", run=_help_run(HELP_OLD)) == ()
+    # A flag name that merely CONTAINS ours is not ours.
+    assert noise_args("whisper-cli", "auto", run=_help_run("  --suppress-nst-extra  x\n")) == ()
+
+
+def test_noise_flags_off_never_runs_the_binary():
+    from vision.officepost import noise_args
+
+    seen = []
+    assert noise_args("whisper-cli", "off", run=_help_run(HELP_NEW, seen)) == ()
+    assert seen == []
+
+
+def test_a_help_probe_that_cannot_run_adds_nothing():
+    from vision.officepost import noise_args
+
+    def missing(*a, **k):
+        raise FileNotFoundError("no whisper")
+
+    def hangs(cmd, *a, **k):
+        raise subprocess.TimeoutExpired(cmd, 15)
+
+    assert noise_args("whisper-cli", "auto", run=missing) == ()
+    assert noise_args("whisper-cli", "auto", run=hangs) == ()
+
+
+def test_the_transcriber_command_is_byte_identical_without_noise_flags(monkeypatch):
+    seen = []
+
+    def run(cmd, *a, **k):
+        seen.append(cmd)
+        return _Proc(rc=2, stderr="stop here")
+
+    monkeypatch.setattr("vision.officepost.subprocess.run", run)
+    transcribe("x.wav", model="m.bin", threads=2)
+    transcribe("x.wav", model="m.bin", threads=2, extra_args=())
+    transcribe("x.wav", model="m.bin", threads=2, extra_args=("--suppress-nst", "--no-speech-thold", "0.6"))
+    assert seen[0] == TODAY and seen[1] == TODAY
+    noisy = seen[2]
+    assert noisy[: len(TODAY)] == TODAY  # "-mc 0" and everything else kept
+    assert noisy[len(TODAY):] == ["--suppress-nst", "--no-speech-thold", "0.6"]

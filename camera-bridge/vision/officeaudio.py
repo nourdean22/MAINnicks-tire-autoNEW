@@ -135,9 +135,20 @@ def probe_level(
     *,
     binary: Optional[str] = None,
     input_format: str = "auto",
+    wav_path: Optional[str] = None,
 ) -> tuple[Optional[float], Optional[float]]:
-    """Measure a short live source without writing or retaining probe audio."""
+    """Measure a short live source. Writes nothing unless `wav_path` is given.
+
+    `wav_path` (the speech wake gate, OFFICE_WAKE_GATE=speech) keeps the same probe as 16 kHz
+    mono PCM for whisper; the levels are measured in the same pass, before the resample. The
+    caller owns the file and deletes it.
+    """
     ff = _ffmpeg(binary)
+    if wav_path:
+        os.makedirs(os.path.dirname(wav_path) or ".", exist_ok=True)
+        output = ["-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", "-y", wav_path]
+    else:
+        output = ["-f", "null", os.devnull]
     proc = subprocess.run(
         [
             ff,
@@ -148,9 +159,7 @@ def probe_level(
             str(max(0.5, float(seconds))),
             "-af",
             "volumedetect",
-            "-f",
-            "null",
-            os.devnull,
+            *output,
         ],
         capture_output=True,
         text=True,
