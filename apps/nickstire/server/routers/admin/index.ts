@@ -14,4 +14,5 @@ export { adminDashboardRouter } from "./dashboard";
 export { followUpsRouter } from "./followUps";
 export { callTrackingRouter } from "./callTracking";
 export { customerEventsRouter } from "./customerEvents";
+export { aiReferralsRouter } from "./aiReferrals";
 export { marketAdminRouter } from "./market";

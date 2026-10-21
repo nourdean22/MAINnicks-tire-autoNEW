@@ -1421,7 +1421,7 @@ const EXCLUDED_PAGES: RouteEntry[] = [
   { path: "/lp/emergency", priority: 0, changefreq: "monthly", title: "Emergency Auto Repair — Nick's Tire & Auto", description: "Emergency auto repair at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
 ];
 
-// ─── TIRE SIZE PAGES (30 programmatic SEO pages) ────────────
+// ─── TIRE SIZE PAGES (31 programmatic SEO pages) ────────────
 import { TIRE_SIZE_PAGES } from "./tireSizes";
 
 const TIRE_SIZE_ROUTE_PAGES: RouteEntry[] = TIRE_SIZE_PAGES.map(t => ({

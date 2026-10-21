@@ -1,7 +1,8 @@
 /**
  * Programmatic tire size pages — each targets "225/65R17 tires cleveland" etc.
  * These are high-intent commercial keywords with strong purchase intent.
- * 30 pages targeting the most searched tire sizes in the US.
+ * 31 pages targeting the most searched tire sizes in the US (205/60R16 added
+ * 2026-10-21 on local demand).
  */
 
 export interface TireSizePage {
@@ -69,6 +70,17 @@ export const TIRE_SIZE_PAGES: TireSizePage[] = [
     category: "Sedan",
     metaTitle: "205/55R16 Tires Cleveland | New & Used | Nick's Tire & Auto",
     metaDescription: "Buy 205/55R16 tires in Cleveland. Fits Honda Civic, Toyota Corolla, Chevy Cruze, Ford Focus. New & used options. Free installation. Walk-ins welcome. (216) 862-0005",
+  },
+  // 2026-10-21 · a customer came in for this size after ChatGPT named the shop.
+  // Vehicles: Nissan Sentra from server/routers/voiceAgent.ts fitment; Ford Fusion
+  // (2006-2012 16-inch trims). Others left out rather than guessed.
+  {
+    size: "205/60R16",
+    slug: "205-60r16",
+    commonVehicles: ["Nissan Sentra", "Ford Fusion"],
+    category: "Sedan",
+    metaTitle: "205/60R16 Tires Cleveland | New & Used | Nick's Tire & Auto",
+    metaDescription: "Buy 205/60R16 tires in Cleveland. Fits Nissan Sentra, Ford Fusion. New & used options. Free installation. Walk-ins welcome. (216) 862-0005",
   },
   {
     size: "235/55R19",

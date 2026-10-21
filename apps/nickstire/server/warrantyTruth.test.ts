@@ -18,7 +18,8 @@ const FABRICATED = /12,000[- ]mile|12 months \/ 12,000|12mo\/12k|24,000 miles|24
 describe("AI prompts state the real warranty", () => {
   for (const file of [
     "server/gemini.ts",
-    "server/_core/index.ts",
+    // 2026-10-21 · the /llms.txt body moved out of index.ts into its builder.
+    "server/_core/llmsTxt.ts",
     "server/services/adStudio/adCopyGen.ts",
     "server/services/gbpContentGenerator.ts",
   ]) {
