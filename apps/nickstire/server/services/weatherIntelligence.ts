@@ -13,6 +13,7 @@
  * first set on Railway that day), which saw weather only once it arrived.
  */
 
+import type { SQL } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { alertSystem } from "./telegram";
 import { getActiveAlerts, getForecastPeriods, type NwsAlert, type NwsPeriod } from "../lib/nwsWeather";
@@ -36,7 +37,7 @@ export interface WeatherData {
   tempMin: number;
   /** First forecast period at or below 32°F, or an active NWS freeze alert. */
   freezeAt: Date | null;
-  /** Heavy rain in the next 48h (named in the forecast, >=80% rain chance, or a flood alert). */
+  /** Heavy rain in the next 48h (named in the forecast, >=80% rain chance with no snow words, or a rain-driven flood alert). */
   heavyRain: boolean;
   /** Snow in the next 72h (>=50% chance) or an active winter-weather alert. */
   snowExpected: boolean;
@@ -96,7 +97,10 @@ const HOUR = 60 * 60 * 1000;
 const FREEZE_ALERT = /freeze/i;
 const WINTER_ALERT = /winter storm|winter weather|lake effect snow|blizzard|ice storm/i;
 const HEAT_ALERT = /heat/i;
-const FLOOD_ALERT = /flood/i;
+// Rain-driven flood products only. "Lakeshore Flood ..." and "Coastal Flood ..." are lake-level (wind and seiche), not rain.
+const RAIN_FLOOD_ALERT = /^\s*(?:flash )?flood (?:watch|warning|advisory)\s*$/i;
+// A forecast that names any of these is snow-lane weather ("Snow Showers" also matches /showers/), never heavy rain.
+const FROZEN_PRECIP = /snow|sleet|flurries|wintry/i;
 
 function withinHours(p: NwsPeriod, now: Date, hours: number): boolean {
   const start = Date.parse(p.startTime);
@@ -118,8 +122,12 @@ function deriveWeatherData(periods: NwsPeriod[], alerts: NwsAlert[], now: Date):
     tempMin: Math.min(...temps),
     freezeAt,
     heavyRain:
-      periods.some((p) => withinHours(p, now, 48) && (/heavy rain/i.test(text(p)) || (/rain|showers|thunderstorm/i.test(p.shortForecast) && pop(p) >= 80))) ||
-      alerts.some((a) => FLOOD_ALERT.test(a.event)),
+      periods.some(
+        (p) =>
+          withinHours(p, now, 48) &&
+          (/heavy rain/i.test(text(p)) ||
+            (/rain|showers|thunderstorm/i.test(p.shortForecast) && !FROZEN_PRECIP.test(p.shortForecast) && pop(p) >= 80)),
+      ) || alerts.some((a) => RAIN_FLOOD_ALERT.test(a.event)),
     snowExpected:
       periods.some((p) => withinHours(p, now, 72) && /snow/i.test(p.shortForecast) && pop(p) >= 50) ||
       alerts.some((a) => WINTER_ALERT.test(a.event)),
@@ -175,6 +183,11 @@ const WEATHER_SMS_TEMPLATES: Record<string, string> = {
   salt_season_end: "Hi {name}, salt season is over — time to check for rust damage. Free undercarriage inspection at Nick's. (216) 862-0005",
 };
 
+/** A customer texted by ANY weather trigger inside this window is skipped by every weather trigger. */
+const WEATHER_COOLDOWN_DAYS = 30;
+/** LIKE pattern for every weather_<trigger> variantKey; the underscore is escaped so it is not a wildcard. */
+const WEATHER_VARIANT_LIKE = "weather\\_%";
+
 /**
  * Send weather-triggered SMS to lapsed customers (60+ days since last visit).
  * Max 10 SMS per trigger event to keep costs controlled.
@@ -209,16 +222,27 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
     const { customers, smsMessages, smsConversations } = await import("../../drizzle/schema");
     const { sendSms, withOptOut } = await import("../sms");
     const { logOutboundSms } = await import("./smsInstrumentation");
-    const { sql, and, isNotNull, eq, gte, like } = await import("drizzle-orm");
+    const { sql, and, isNotNull, eq, gte, like, desc, notExists } = await import("drizzle-orm");
 
     const db = await getDb();
     if (!db) return none;
 
-    // Per-customer cooldown window for this weather trigger.
+    // What this text is tagged with. The cooldown below does NOT use it: it spans every weather_ trigger.
     const variantKey = `weather_${triggerId}`;
-    const cooldownStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const cooldownStart = new Date(Date.now() - WEATHER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+    // An outbound weather_ text of ANY trigger to a conversation whose phone ends in `phoneLike`, inside the window.
+    const recentWeatherText = (phoneLike: string | SQL) =>
+      and(
+        like(smsConversations.phone, phoneLike),
+        eq(smsMessages.direction, "outbound"),
+        gte(smsMessages.createdAt, cooldownStart),
+        like(smsMessages.variantKey, WEATHER_VARIANT_LIKE),
+      );
 
-    // Find customers who haven't visited in 60+ days, have valid phone, not opted out
+    // Find customers who haven't visited in 60+ days, have valid phone, not opted out, and have had no weather
+    // text from any trigger in the window. The cooldown is decided IN the query, before the limit: applied per row
+    // after a limit, the same ten customers came back on every run and nobody else was ever reached.
+    // Most recently lapsed first (likeliest to come back).
     const targets = await db.select({
       id: customers.id,
       firstName: customers.firstName,
@@ -228,9 +252,15 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
         isNotNull(customers.lastVisitDate),
         eq(customers.smsOptOut, 0),
         isNotNull(customers.phone),
-        sql`DATEDIFF(CURDATE(), ${customers.lastVisitDate}) >= 60`
+        sql`DATEDIFF(CURDATE(), ${customers.lastVisitDate}) >= 60`,
+        notExists(
+          db.select({ one: sql`1` })
+            .from(smsMessages)
+            .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+            .where(recentWeatherText(sql`CONCAT('%', RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10))`)),
+        ),
       )
-    ).limit(10);
+    ).orderBy(desc(customers.lastVisitDate)).limit(10);
 
     let sent = 0;
     for (const [i, c] of targets.entries()) {
@@ -242,20 +272,13 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
         return { sent, held: `${midRunHold} · not_attempted=${targets.length - i}` };
       }
 
-      // Per-customer cooldown — skip anyone already texted for THIS
-      // weather trigger in the last 30 days. Without it, sendWeatherSms
-      // re-texts the same lapsed customers on every run a weather
-      // condition persists (rain for hours -> 'heavy_rain' fires each run).
+      // Second guard, same rule as the query's NOT EXISTS: skip anyone texted by ANY weather trigger in the last
+      // 30 days. Cheap (one indexed read per target) and it catches a text logged since the audience query ran.
       const normalized = c.phone.replace(/\D/g, "").slice(-10);
       const recent = await db.select({ id: smsMessages.id })
         .from(smsMessages)
         .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
-        .where(and(
-          like(smsConversations.phone, `%${normalized}`),
-          eq(smsMessages.direction, "outbound"),
-          gte(smsMessages.createdAt, cooldownStart),
-          eq(smsMessages.variantKey, variantKey),
-        ))
+        .where(recentWeatherText(`%${normalized}`))
         .limit(1);
       if (recent.length > 0) continue;
 
