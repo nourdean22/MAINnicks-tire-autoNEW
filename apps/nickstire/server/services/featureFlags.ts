@@ -125,6 +125,7 @@ export const FLAG_DEFINITIONS = [
   // a PAUSE, false (the failure value) means "not paused" → keeps sending →
   // current behaviour preserved. The safe state and the failure state match.
   { key: "vapi_forward_followup_paused", description: "OFF-SWITCH (inverted). Set TRUE to STOP the immediate follow-up SMS sent when a VAPI call is forwarded to a human. Leave FALSE for normal operation — this path ships live and false is the safe default. Unlike the missed_call_recovery cron this fires straight off the webhook, so this is the only way to stop it without a redeploy." },
+  { key: "vapi_arrival_text_paused", description: "OFF-SWITCH (inverted). Set TRUE to STOP the internal text to the on-duty manager when a caller says they're coming in now or a tow is coming; the call then files the old 'said they're coming' row instead. Leave FALSE for normal operation — false is the safe default." },
   // GLOBAL SMS PAUSE — same inverted PAUSE polarity as vapi_forward_followup_paused,
   // same rationale. This is the shop-wide emergency stop for automated customer
   // SMS: sendSms() HOLDS (durably queues) customer_marketing/customer_followup

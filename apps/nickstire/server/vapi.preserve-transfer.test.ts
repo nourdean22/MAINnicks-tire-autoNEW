@@ -30,6 +30,19 @@ describe("wave-141 · preserveLiveTransferDestinations", () => {
     expect(transferNumber(cfg)).not.toBe(codeDefault); // proves the merge actually mutated
   });
 
+  // 2026-10-21: the live message was still the retired stacked-filler line, kept
+  // alive only by this merge. Number, description and transferPlan stay live;
+  // the spoken line comes from code.
+  it("takes the spoken message from code, never the live value", () => {
+    const cfg = buildAssistantConfig(SERVER);
+    preserveLiveTransferDestinations(cfg, [
+      { type: "transferCall", destinations: [{ type: "number", number: "+12166122782", message: "Hold on, I'll get you over to the manager.", description: "live desc", transferPlan: { mode: "warm-transfer-say-message", message: "Live intro." } }] },
+    ]);
+    const dest = (cfg as { model: { tools: Array<LooseTool & { destinations?: Array<Record<string, unknown>> }> } }).model.tools.find((t) => t.type === "transferCall")!.destinations![0];
+    expect(dest.message).toBe("Connecting you to the shop now.");
+    expect(dest).toMatchObject({ number: "+12166122782", description: "live desc", transferPlan: { message: "Live intro." } });
+  });
+
   it("keeps the code default when the live assistant has no transferCall tool", () => {
     const cfg = buildAssistantConfig(SERVER);
     const codeDefault = transferNumber(cfg);

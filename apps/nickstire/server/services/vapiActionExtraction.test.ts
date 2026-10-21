@@ -319,4 +319,22 @@ describe("loadCallCaptureEvidence — one bounded read, fails open", () => {
     execute.mockRejectedValueOnce(new Error("ETIMEDOUT"));
     await expect(loadCallCaptureEvidence("call-abc-123")).resolves.toEqual({});
   });
+
+  // 2026-10-21: a "coming now" / tow call texts the shop instead of filing an
+  // expected_arrivals row. Its only trace is the voice-arrival claim row, so the
+  // arrival flag must read that too, or every texted call grows a DRAFT booking.
+  it("hasArrival also counts this call's voice-arrival text claim", async () => {
+    execute.mockResolvedValueOnce([[{ leadId: null, callbackId: null, convertedToLead: 1, hasCallback: 0, hasArrival: 1 }], []]);
+    const ev = await loadCallCaptureEvidence("call-abc-123");
+    const q = execute.mock.calls.at(-1)?.[0] as { queryChunks: unknown[] };
+    const text = q.queryChunks.map((c) => (Array.isArray((c as { value?: unknown }).value) ? (c as { value: string[] }).value.join("") : "?")).join("");
+    const params = q.queryChunks.filter((c) => !Array.isArray((c as { value?: unknown })?.value));
+    expect(text).toMatch(/hasArrival/);
+    expect(text).toMatch(/cron_alerts_fired[\s\S]*alert_key = \?[\s\S]*\) AS hasArrival/);
+    expect(params).toContain("voice-arrival:call-abc-123");
+    const drafts = parseExtraction(
+      '{"actions":[{"kind":"create_callback","reason":"call me back","confidence":90},{"kind":"create_booking_request","reason":"on the way now","confidence":80}]}',
+    );
+    expect(dropAlreadyOwned(drafts, meta({ hasExpectedArrival: ev.hasExpectedArrival })).kept.map((a) => a.kind)).toEqual(["create_callback"]);
+  });
 });
