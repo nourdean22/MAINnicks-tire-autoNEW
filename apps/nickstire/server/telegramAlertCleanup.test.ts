@@ -11,6 +11,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { sliceBlock } from "./testUtils/sourceBlock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -253,7 +254,7 @@ describe("behaviour", () => {
 describe("#138 the ALG mirror alert keeps its 2 h cooldown during a long outage", () => {
   it("no failure count bypasses the cooldown", () => {
     const src = stripComments(readFileSync(join(SERVER, "services/shopDriverMirror.ts"), "utf8"));
-    const body = src.slice(src.indexOf("async function sendMirrorAlert"), src.indexOf("async function sendMirrorAlert") + 600);
+    const body = sliceBlock(src, "async function sendMirrorAlert", "\n}\n", { label: "services/shopDriverMirror.ts" });
     expect(body).toMatch(/ALERT_COOLDOWN_MS\) return;/);
     expect(body).not.toMatch(/consecutiveFailures/);
   });
