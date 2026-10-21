@@ -26,7 +26,7 @@ bugs that would otherwise have shipped as green tests of nothing:**
 
 Cost of running the control: none. That is the point.
 
-## Two ways a canary lies
+## Three ways a canary lies
 
 1. **A mutation that SURVIVES.** Two independent layers rejected the
    input, so removing either left behaviour correct and the suite green.
@@ -36,6 +36,13 @@ Cost of running the control: none. That is the point.
    `mockResolvedValueOnce` queue, so the "failure" was a harness artifact.
    **A red you did not diagnose is not a passing canary** — read the
    message, not the colour.
+3. **The scanner matched NOTHING.** A detector that returns an empty list for
+   every input looks like a clean subject, and a mutation arm does not always
+   catch it (#2359: a depth counter started at 0 after the opening brace, so
+   the live-tree arm was green over a dead detector). Add an arm that asserts
+   the scanner LOCATED its subject: a non-zero count of matched units and the
+   exact expected count of each named one
+   (`scripts/agent-os/ciMemorySampler.test.mjs:189-200`).
 
 ## Fixing a noisy alarm
 
@@ -64,6 +71,13 @@ finding."
 dishonestly.** If a comment or an unrelated string can satisfy it, scope
 it (strip comments, anchor the pattern, name the file).
 
+**And the dual: once the scanner strips comments, the mutation must target
+the LIVE text.** `String.replace` takes the first match, which after a repair
+is usually inside the comment documenting it; the stripper then erases the
+mutation and the arm passes having changed nothing the scanner reads
+(`ciMemorySampler.test.mjs:154-165`). Anchor the mutation on the executable
+line and assert it occurs exactly once before mutating.
+
 ## Checklist
 
 1. Write the test.
@@ -81,6 +95,13 @@ it (strip comments, anchor the pattern, name the file).
    directory, not the cwd. Spawn the consumer's runtime (a `tsx`/`node`
    child with `NODE_PATH` removed, cwd as in production), import the REAL
    symbol, and run step 5 against that child.
+8. **A scan or grep control must find a PLANTED positive in the same
+   invocation shape as the real scan** (same cwd, same path form, same shell).
+   Two shapes return empty with a success exit code, the same as "nothing
+   found" (2026-10-20, secret-history scan): `git grep --no-index` given a
+   path outside the working directory matches nothing; and Windows PowerShell
+   5.1 strips `"` from native-command arguments, so a regex containing `"`
+   never matches.
 
 Related: `assert-the-consumer` · `empty-vs-error` · `guard-red-team`
 (the same discipline for deny-lists and guard regexes).

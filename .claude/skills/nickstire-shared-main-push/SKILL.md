@@ -102,6 +102,15 @@ If `git push` fails with the pre-push hook citing the OTHER app's build:
    rerun once; if it recurs, the lever is `--concurrency=1` in
    `.github/workflows/test.yml`, never a code hunt.
 
+4. **The reviewed SHA must equal the head you merge.** (a) Mark the PR
+   ready-for-review when you OPEN it, not when you merge: `chatgpt-codex-connector`
+   fires on draft-to-ready (about 4 min) while the sweep takes about 13, so
+   un-drafting at merge time landed the review after the squash on 3 of 3
+   merges (#2359, #2362, #2364, 2026-09-16, under 15 s each). (b) After ANY push
+   that moves the head, comment `@codex review`: the reviewer does not fire on
+   pushes (verified on #2370). Before merging, compare the reviewed commit in
+   the review summary with the PR head; if they differ, nothing looked at it.
+
 ## A red gate whose own log says "unmodified tree" is main's condition, not yours
 
 Minutes after a merge, every sibling PR (including a docs-only one) can show

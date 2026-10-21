@@ -176,7 +176,9 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   - `heavy.mjs run -- <cmd>`: one machine-wide lease for heavy runs (20 min expiry, dead-pid takeover); waits while the
     `chrome` slot is held (`take`/`release --slot chrome`, 30 min) or free RAM is under 1500 MB. lefthook's
     agent-os-verify, both typechecks and build:affected go through it with `--max-wait 90s`: a hook waits at most
-    90 s, then warns and runs unleased (a commit is killed by its caller long before 35 min). A plain `heavy run`
+    90 s, then fails the hook ("heavy lease busy: retry the commit", exit 1, no child; since 2026-10-21, after four
+    unleased fall-throughs ran out of memory on 2026-10-19). A hook that cannot get the lease fails the commit: retry,
+    never bypass. A plain `heavy run`
     waits up to 35 min, then exits 3. Its own errors (an unwritable lock dir) fail open: it runs unleased. A signal
     kills the child before the lease is released. `heavy.mjs status` shows the holders.
   - `board.mjs` (UserPromptSubmit `hook`): at most 3 lines of what changed since this session last looked (main moved,

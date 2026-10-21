@@ -38,11 +38,47 @@ const WATCHED = /^(node|e2e)\b/i;
 const nameOf = (c) => c.name ?? c.context ?? "(unnamed check)";
 const firstLine = (e) => String(e?.message ?? e).split("\n")[0];
 
+const startMs = (c) => {
+  const t = Date.parse(c.startedAt);
+  return Number.isFinite(t) && t > Date.UTC(2000, 0, 1) ? t : null;
+};
+/** The Actions run id in a check's detailsUrl (/actions/runs/<runId>/job/<jobId>), or null. */
+export const runIdOf = (c) => /\/actions\/runs\/(\d+)(?:\/|$)/.exec(String(c.detailsUrl ?? ""))?.[1] ?? null;
+const groupKey = (c) => `${c.workflowName ?? ""}\u0000${nameOf(c)}`;
+
+/** Run ids that take part in a same-workflow, same-name duplicate: the only runs whose trigger event the gate needs to read. */
+export function duplicateRunIds(rollup) {
+  const groups = new Map();
+  for (const c of rollup) groups.set(groupKey(c), [...(groups.get(groupKey(c)) ?? []), c]);
+  const ids = new Set();
+  for (const g of groups.values()) if (g.length > 1) for (const c of g) if (runIdOf(c)) ids.add(runIdOf(c));
+  return [...ids];
+}
+
+/**
+ * After a close and reopen (PR 3194, 2026-10-21) the rollup keeps the superseded run of a check beside its newer run on the same
+ * head. A later entry replaces an earlier one of the SAME workflow + check name only when (a) both belong to one Actions run (a
+ * re-run attempt) or (b) the later entry's run was triggered by `pull_request` (`events`: run id -> event, read by main()).
+ * A manual `workflow_dispatch` pass must not hide a failed pull_request check (Codex P1 on PR 3195; no branch protection here).
+ * FAIL CLOSED: no readable start time or run id, no known event, any event but pull_request, or a start-time tie keeps both entries.
+ */
+export function latestRuns(rollup, events = new Map()) {
+  const supersedes = (later, earlier) => {
+    const lt = startMs(later);
+    const et = startMs(earlier);
+    if (lt === null || et === null || lt <= et || groupKey(later) !== groupKey(earlier)) return false;
+    const lr = runIdOf(later);
+    if (lr === null) return false;
+    return lr === runIdOf(earlier) || events.get(lr) === "pull_request";
+  };
+  return rollup.filter((c) => !rollup.some((o) => o !== c && supersedes(o, c)));
+}
+
 /**
  * Sorts the reasons this PR must not be merged right now. `hard` is something wrong; `soft` is "not yet" (CI not started,
  * a check running, GitHub computing). `view` is `gh pr view --json state,isDraft,mergeStateStatus,headRefOid,statusCheckRollup`.
  */
-export function assess(view, expectedSha) {
+export function assess(view, expectedSha, events = new Map()) {
   const hard = [];
   const soft = [];
   if (view.state !== "OPEN") hard.push(`state is ${view.state}, not OPEN`);
@@ -51,7 +87,7 @@ export function assess(view, expectedSha) {
   else if (view.mergeStateStatus !== "CLEAN") hard.push(`mergeStateStatus is ${view.mergeStateStatus}, not CLEAN (BEHIND or DIRTY: update the branch)`);
   if (view.headRefOid !== expectedSha) hard.push(`head is ${view.headRefOid}, not the ${expectedSha} you verified: re-verify the new head`);
   // An empty list is right after an open or a push, before Actions has created its runs: this repo has no branch protection, so nothing else stops a merge of a head that never ran CI.
-  const rollup = view.statusCheckRollup ?? [];
+  const rollup = latestRuns(view.statusCheckRollup ?? [], events);
   if (!rollup.length) soft.push("no checks have reported yet: wait for CI to start, a head that never ran CI must not merge");
   for (const c of rollup) {
     // A CheckRun has status + conclusion; a commit StatusContext has only state.
@@ -64,8 +100,8 @@ export function assess(view, expectedSha) {
 }
 
 /** Reasons this PR must not be merged right now. Empty means READY. */
-export const blockers = (view, expectedSha) => {
-  const { hard, soft } = assess(view, expectedSha);
+export const blockers = (view, expectedSha, events) => {
+  const { hard, soft } = assess(view, expectedSha, events);
   return [...hard, ...soft];
 };
 
@@ -218,7 +254,16 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
     log(`ERROR before any merge call, nothing was merged: ${firstLine(e)}`);
     return 5;
   }
-  const { hard, soft } = assess(before, sha);
+  // Trigger events of the runs in a same-name duplicate only. A failed or empty read leaves the run out of the map, and the
+  // gate then keeps both entries (fail closed); it never aborts the gate or counts as pull_request.
+  const events = new Map();
+  for (const id of duplicateRunIds(before.statusCheckRollup ?? [])) {
+    try {
+      const ev = String(gh(["api", `repos/{owner}/{repo}/actions/runs/${id}`, "--jq", ".event"])).trim();
+      if (ev) events.set(id, ev);
+    } catch {}
+  }
+  const { hard, soft } = assess(before, sha, events);
   hard.push(...codex.hard);
   soft.push(...codex.soft);
   hard.forEach((w) => log(`BLOCKED: ${w}`));

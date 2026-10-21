@@ -50,7 +50,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    `node scripts/agent-os/repo-status.mjs`. A row that names a PR: `gh pr view <n> --json state`; a MERGED PR under an
    open row is stale, fix the row in your PR. A request that matches an open job resumes it; never start a duplicate. Pasted plan? `plan-gate` first.
 2. **Spec.** Fill `.agents/core/templates/task-spec.md`. Record the base SHA (`git rev-parse origin/main`). A design choice gets two
-   alternatives that differ in kind, the 10x option and kill criteria in writing first (Plan mode, [references/sessions-and-plans.md](references/sessions-and-plans.md)).
+   alternatives that differ in kind, the 10x option and kill criteria in writing first (Plan mode, [references/sessions-and-plans.md](references/sessions-and-plans.md)). A vendor-portal job settles egress and device trust first (job-lessons).
 3. **Split.** Name each lane and its exact paths. Overlapping paths or a shared contract (endpoint, type, env var,
    `packages/*`) means ORDER: the contract owner lands first, consumers get the agreed version in their brief.
    Only truly independent lanes run in parallel.
@@ -65,7 +65,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    decision and a first line of REPLY NEEDED or NO REPLY NEEDED; never ask twice ([references/sessions-and-plans.md](references/sessions-and-plans.md)).
    Set the Agent tool's `model` and `effort` from the brief's MODEL / EFFORT line (routing table in the template); a lane never picks its own.
    Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
-   Name the brief file so it ends in `brief.md` (for example `<lane>-brief.md`); rule `lane-dispatch-brief` refuses any other name.
+   Name the brief file so it ends in `brief.md` (for example `<lane>-brief.md`); rule `lane-dispatch-brief` refuses any other name. Write the dispatch time (UTC) into the ledger row's Next cell; a guard brief names IDENTIFYING fields only ([references/job-lessons.md](references/job-lessons.md)).
 6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths (from the lane
    worktree: `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <base SHA>`, exit 1 = reject;
    exit 2 = not checked, an error or an EMPTY diff from a lane that owns paths, never a pass); re-run its verify command or one
@@ -83,7 +83,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    mistyped native permission rule is a silent no-op. [references/verify.md](references/verify.md)
 9. **Read the primary source.** A decision-critical external fact gets a short quote YOU read from the primary page, with URL
    and date, labelled FACT, STRONG INFERENCE or CLAIM. An agent's "not documented" is a CLAIM until you search the page.
-   [references/verify.md](references/verify.md)
+   [references/verify.md](references/verify.md) A vendor doc site: `llms.txt` and `.md` slugs first (job-lessons).
 10. **Review before the PR opens.** Lenses find, skeptics try to refute each finding: `.claude/workflows/adversarial-review.js`
     (needs Nour's workflow opt-in; without it, the same lenses as `lane-research` calls, at most 2 at a time because they count
     toward the heavy-run limit, with any lens that must run code given to a `general-purpose` agent whose scratch is the OS temp dir only).
@@ -93,7 +93,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     gates ON THE COMBINED TREE; lane greens do not prove the merge works. Prefer one push. A job that adds
     a skill also runs `skill-forge`'s `check <dir> --git`, and one that rewrites a skill's description `check <dir> --existing --git`,
     on the branch before the squash erases the commit order (a wording change inside a skill's body is exempt: edit it directly).
-    Run the DoD compiler and the app preflight on the integration tip, never only on a lane branch (a lane branch cannot see requirements derived from client code).
+    Run the DoD compiler and the app preflight on the integration tip, never only on a lane branch (a lane branch cannot see requirements derived from client code). Push a lane branch from a checkout whose HEAD is its tip, or a hook-free clone; never `--no-verify` (job-lessons).
     Protected operations stop here with the exact one-liner for Nour.
 12. **Consumer check.** Anything that enforces: prove the real consumer applies it, in a FRESH session (`assert-the-consumer`).
     Hooks and permission rules load from the PRIMARY checkout's settings, not a worktree's: test them after the primary has the change
@@ -107,7 +107,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     rung reached. Merge is not deploy: report live verification separately (nickstire `/api/health` `.deploy.commit`,
     statenour heartbeat).
 15. **Log and learn.** Add `docs/agent-os/ledger/<job-id>.md` in the SAME PR: the job's ledger row as `MERGED` with PR cell
-    `this PR` (never `pending`) and its metrics row under it; one file per job, so no sibling PR conflicts with it.
+    `this PR` (never `pending`) and its metrics row under it; one file per job, so no sibling PR conflicts with it. Copy both table headers verbatim from an existing ledger file (job-lessons).
     A lesson repeated in an earlier row, or one severe incident, ->
     `session-observer` proposal in `docs/skill-proposals.md`. Proposals only; Nour approves skill and policy edits. Never edit
     evaluators or guards to make a job pass. [references/ledger-and-metrics.md](references/ledger-and-metrics.md)

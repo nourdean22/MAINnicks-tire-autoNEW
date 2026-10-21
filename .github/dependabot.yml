@@ -34,13 +34,40 @@ updates:
       dev-minor:
         dependency-type: "development"
         update-types: ["minor", "patch"]
+      # 2026-10-21: one 96-update prod-minor PR could not be reviewed or even recreated by Dependabot, so
+      # production is split. A dependency joins the FIRST group it matches, so the named groups
+      # (next-react, db) must stay above prod-patch / prod-minor.
+      next-react:
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "@next/*"
+      db:
+        patterns:
+          - "@prisma/*"
+          - "prisma"
+          - "drizzle-orm"
+          - "drizzle-kit"
+          - "mysql2"
+          - "pg"
+          - "@neondatabase/*"
+      prod-patch:
+        dependency-type: "production"
+        update-types: ["patch"]
       prod-minor:
         dependency-type: "production"
-        update-types: ["minor", "patch"]
+        update-types: ["minor"]
     ignore:
       # Major-version bumps go through hand review
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Pinned in code, so a bump PR can never pass: bump by hand together with the pin.
+      # The CLI version is pinned by apps/nickstire/server/higgsfieldBinaryVersion.test.ts and ships with its binary.
+      - dependency-name: "@higgsfield/cli"
+      # The deploy Dockerfiles pin the lockfile's turbo (apps/statenour/tests/repo/dockerfile-turbo-pin.test.ts).
+      # Bump by hand with the #3014 recipe (docs: deploy-image turbo pin).
+      - dependency-name: "turbo"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"

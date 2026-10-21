@@ -18,6 +18,9 @@ multiple sessions.
    and the heavy lease is kept (from PowerShell `bash` is not on PATH and the run fails with "'bash' is not recognized"); expect
    it to wait while another session holds the heavy lease or the chrome slot. It catches the proc-census, knip orphan-gate and
    fail-open-slice reds that a lane's own test files miss (witnessed 2026-10-18: 3 real reds).
+   A test that reads a DATA file at runtime (`readFileSync`) is selected only by the text scan, never by `vitest related`
+   (witnessed #3152: preflight green, CI red on `completionAuthority.test.ts`): after any `docs/operations/*.json` edit run
+   `node scripts/preflight-text-scan.mjs <file>` and the tests it names.
 1. `pnpm run check` — `tsc --noEmit`. Must be 0 errors.
 2. `pnpm test` — vitest. Must end `Test Files N passed (N)`, exit 0.
 3. `pnpm run build` — `vite build` + esbuild server + maybe-prerender.
@@ -118,9 +121,10 @@ because only sub-gate 1 was documented:
   contract reviewer on schema + cross-app, client/docs reviewer) over the
   full diff found 24 more, including two P0 regressions the wave itself
   introduced and three corrections to its audit claims. Before calling a
-  wave done, dispatch reviewers per subsystem with a file:line brief and a
-  "verified OK / not checked" answer shape, then verify their top findings
-  yourself. A single author pass over more than ~20 files has not once been
+  wave done, run a hostile per-subsystem pass over the full diff, in-session
+  unless the operator asked for agents (he rejected two unrequested Explore
+  spawns on 2026-10-08), with a file:line checklist and a "verified OK / not
+  checked" answer shape, then verify the top findings yourself. A single author pass over more than ~20 files has not once been
   sufficient (2026-08-12 onward).
 - **A numeric test fixture is a claim about the PRODUCER's scale or
   domain.** Before inventing a value (0.05 vs 5.0, cents vs dollars,
@@ -174,6 +178,12 @@ because only sub-gate 1 was documented:
   Run the command ALONE and read `Test Files … passed/failed`. If no
   summary line was printed at all, the run did not finish — see the
   teardown-crash trap below.
+  The same holds for EVERY gate, not only vitest: never pipe a gate's output.
+  `node merge-gate.mjs ... | tail -4; echo EXIT=$?` printed `tail`'s exit, and
+  `pnpm run check | tail -3` read as "tsc exit=0" while tsc had failed
+  (2026-10-18, twice in one session). Redirect to a file, then read the file
+  and the exit code separately (`cmd > log 2>&1; echo $?`). `merge-gate.mjs`
+  needs the FULL 40-character sha: a short sha prints usage and exits 64.
 - **`pnpm run verify` can hit a pnpm-bootstrap glitch.** If `verify`
   fails before any of the inner gates run (no actionable output),
   fall back to running each gate individually (check / test / build).
@@ -264,6 +274,42 @@ because only sub-gate 1 was documented:
   emails). The mechanism is `// pii-allow: <reason>` on the line, and the
   reason is required. Read `scripts/lint-pii.mjs` before assuming a hit
   is real; it also allowlists the shop's own public numbers.
+- **Do not fake timers around a sub-2 s REAL sleep that sits behind
+  `await import()`.** `advanceTimersByTimeAsync` can run before the dynamic
+  imports reach the `setTimeout`, so the sleep never fires; local speed hides it.
+  `server/postInvoiceFollowUp.test.ts` passed locally and timed out at 30 s in
+  CI (2026-10-02, fixed in `faa36e64`). Use real timers with an explicit
+  per-test timeout, or inject the sleep.
+- **Run the fail-open-slice gate when a diff adds a test that slices source
+  text:** `pnpm exec vitest run server/failOpenSliceGate.test.ts` (3 ms), and use
+  `sliceBlock()` from `server/testUtils/sourceBlock.ts`, never raw
+  `slice(indexOf(...))`. Red in CI on 2026-10-01 (#2865), 2026-10-02 and again
+  2026-10-08 (`tierCadence.test.ts`, `declaredSourceAtGeneration.test.ts`); the
+  full suite is the only other place it shows.
+- **Do not `export` a value only so a test can read it.** knip's orphan gate
+  does not count a test as a consumer (`ASS_CAPTION_MARGIN_V`,
+  `DUE_CHECK_SLACK_MS`, 2026-10-08: found after a 474 s suite, twice). Derive
+  the value in the test from the function's behaviour or its output. When the
+  diff adds an `export`, run `pnpm run lint:orphans` in the targeted loop.
+- **Before changing a call site, find the source-shape pins on it:**
+  `grep -rn '<fnName>(' --include='*.test.ts*'`. A test that asserts source
+  text goes red only at full-suite time
+  (`contentExperimentArmKey.test.ts`, 2026-10-08).
+- **A render or pixel test uses the PRODUCTION asset** (font, overlay, LUT). OS
+  faces are fallbacks only: `captionSafeZone.test.ts` rendered with DejaVu Sans
+  Bold as "wider, so conservative" and measured 936 px against an 894 px
+  budget on every Linux box, while production's Anton measures 600 px.
+- **A script that rewrites a committed data file aborts on a failed round-trip
+  check, it does not print.** A Python edit of `angle-bank.json` printed
+  `round-trip identical: False`, wrote anyway, and turned a 7-line change into
+  a 1,515-line diff. `sys.exit` on mismatch; a file with its own layout gets a
+  line edit.
+- **A refusal on a path a scheduler calls must throw what the caller's catch
+  types.** `dailyReelPost` advances the rotation only on
+  `ReelPreflightBlockedError`; four bare `Error` throws in `enqueueReelJob`
+  would have cost every following day's Reel (2026-10-08, one was a new gate
+  whose test pinned the bare throw). `reelEnqueueRefusalAdvance.test.ts` now
+  fails on any new one; a test that pins the throw's text pins the bug.
 - **`pnpm run lint:hooks` audits hook-after-early-return.** A hook
   called after an `if (...) return null` silently breaks React. The
   lint catches it; don't bypass.

@@ -7,7 +7,7 @@
  * coordination was hand-sent "MACHINE HOLD" chat messages. This turns that into a lock file every session obeys.
  *
  *   node scripts/agent-os/heavy.mjs run -- <cmd...>      wait for the lease, run, release (exit code passed through)
- *   node scripts/agent-os/heavy.mjs run --max-wait 90s -- <cmd...>   hook form: after 90 s, warn and run unleased
+ *   node scripts/agent-os/heavy.mjs run --max-wait 90s -- <cmd...>   hook form: after 90 s, exit 1 and run nothing (retry the commit)
  *   node scripts/agent-os/heavy.mjs run --slot chrome -- <cmd...>
  *   node scripts/agent-os/heavy.mjs take --slot chrome   hold the chrome slot (no pid: expires after 30 min)
  *   node scripts/agent-os/heavy.mjs release --slot chrome
@@ -239,7 +239,7 @@ async function main(args) {
     const slot = slotArg(opts);
     if (process.env.HEAVY_LEASE_HELD) return runChild(argv, process.env); // nested: our parent holds the lease
     // --max-wait <90s|2m>: the hook form. A git hook is killed by the caller long before 35 min, so after a short wait
-    // it WARNS and runs unleased instead of failing the commit. Without it: the long wait, then exit 3.
+    // it FAILS the hook (exit 1, no child) and the session retries the commit. Without it: the long wait, then exit 3.
     const mw = opts.indexOf("--max-wait");
     const short = mw >= 0 ? parseDuration(opts[mw + 1]) : null;
     let rec = null;
@@ -252,8 +252,10 @@ async function main(args) {
     }
     if (!rec && !short) return 3;
     if (!rec) {
-      process.stderr.write("[heavy] WARNING: proceeding unleased after the --max-wait limit\n");
-      return runChild(argv, process.env);
+      // 2026-10-19: running unleased here let four hooks that gave up together start four ~3.6 GB tsc runs at once (free RAM 8 MB,
+      // git "Out of memory"). Fail the hook instead; the session retries the commit. Never a bypass.
+      process.stderr.write("[heavy] heavy lease busy: retry the commit (the hook did not run its command; do not bypass the hook)\n");
+      return 1;
     }
     const free = () => {
       try {

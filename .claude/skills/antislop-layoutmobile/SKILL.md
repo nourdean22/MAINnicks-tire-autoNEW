@@ -109,6 +109,12 @@ triggers: mobile layout, reflow, screen sizes, phone to desktop, grids, overflow
 - **Why:** a child sized in absolute px does not care how much room its parent has. On mobile the parent shrinks and the child stays wide, so it overflows the container and the page (R-03).
 - **Fix:** size children with relative units and let them wrap (`flex-wrap`, fluid widths, `min-width: 0` on grid children). A child should be allowed to shrink with its container, not hold a desktop size.
 
+### Width-Conditional Default Is Not a Restore
+
+- **Tell:** a prop flip or a list move meant to bring a hidden element back, while the new default is still width-conditional (an `md-up` default).
+- **Why:** moving `/missions` off the core-page list only changed its description from `never` to the `md-up` default, which is still hidden at 390 px; the CI distance stayed at 0.342 (2026-10-16, missions/phone).
+- **Fix:** before calling a flip a fix, state what the new default renders at the width the gate measures. The real fix was `descriptionVisibility="always"`.
+
 ## Tap Targets
 
 ### Under-Sized Targets

@@ -21,8 +21,11 @@ $env:GITHUB_TOKEN=$null
 gh pr list --head <branch> --state all --json number,state,title
 ```
 
-- **A MERGED PR = zombie. Stop. Never re-merge**, whatever `git cherry`
-  says.
+- **A MERGED PR whose commit list CONTAINS the branch head = zombie. Stop.
+  Never re-merge**, whatever `git cherry` says. A merged PR alone is not
+  enough: a branch reused after a squash merge keeps the merged PR attached
+  while new unlanded work sits on top. Run the `gh pr view <pr> --json commits`
+  probe below BEFORE concluding zombie, not only when a count looks odd.
 - Measured 2026-08-04: `git cherry origin/main <branch>` reported `+N`
   (unmerged) on **5 of 6 branches whose PRs had in fact merged** — squash
   merges plus post-review edits break patch-id matching, so cherry
@@ -79,6 +82,16 @@ starts from the answer. Known zombie set as of 2026-08-04:
 `statenour/render-queue-lease`, `statenour/wire-reviews-cron`,
 `chore/record-render-lease-migration`, plus every `+N`-cherry branch
 whose PR shows MERGED (see the agent-os memory).
+
+## Reusing a branch name after its PR squash-merged (fallback only)
+
+Root `AGENTS.md` already says: delete the ref, branch fresh. Only when ref
+deletion is unavailable (HTTP 403 from a remote-agent credential) and the name
+must be kept: re-point the local branch at `origin/main`, then
+`git merge -s ours <old remote tip>` so the branch descends from what the
+remote holds and the next push fast-forwards with no force (rewriting pushed
+history is a Protected Operation). Disclose the bookkeeping merge in the PR
+body. Witnessed 5 times on 2026-09-16 and twice more on 2026-10-02.
 
 ## When NOT to use
 

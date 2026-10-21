@@ -95,6 +95,32 @@ same actions as single plain commands after the operator added a rule.
   shape that passed; it injects the real environment so no key is ever
   pasted into a command.
 
+- **On a Windows/PowerShell device, single-quote every comma-separated
+  argument** (`--only '0127,0128'`, id lists). Unquoted, PowerShell converts it
+  to an array of NUMBERS: leading zeros vanish and commas become spaces
+  (2026-10-02: `--only 0127,0128,...` reached node as `127 128 ...`; the script
+  refused and wrote nothing, benign only because it refuses unmatched
+  prefixes).
+
+## A scripts-only prod run from the operator PC
+
+`scripts/worktree-setup.ps1` sat over 10 minutes in its repo-wide recursive
+scans on NattyNour (2026-10-02) and copied nothing. A run that needs only
+`scripts/`, `drizzle/` and `mysql2` needs no full setup:
+
+1. `git worktree add -b <tmp> <dir> origin/main`;
+2. two `mklink /j`: root `node_modules` and `apps/nickstire/node_modules`;
+3. `railway run --service ... -- node scripts/<x>.mjs` (dry run first);
+4. tear down with `worktree-teardown.ps1`; add `-ForceDirtyRelease` only after
+   `git rev-list --count origin/main..<tmp>` is 0 and the status is clean.
+
+## A Neon child branch has its own role password
+
+The branch's role password is NOT the parent's (2026-10-20: scrub rehearsal
+auth failures). Rehearse with the connection string from `get_connection_string`
+for that branch, and check by hash, never by printing, that it differs from the
+production string before use. A string equal to production is not the branch.
+
 ## Verify read-only instead
 
 Almost every "does this work in prod?" question has a read-only answer:

@@ -114,9 +114,13 @@ jobs:
       - name: Contradiction detector (claims vs evidence vs ledger vs PR body)
         if: ${{ github.event_name == 'pull_request' && !cancelled() }}
         env:
+          # 2026-10-21: the LIVE body, not the payload a re-run reuses (an edited body must be seen). PR_BODY is only the fallback.
+          GH_TOKEN: ${{ github.token }}
+          PR_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
+          node scripts/agent-os/read-pr-body.mjs --out /tmp/pr-body.txt
           node apps/nickstire/scripts/detect-contradictions.mjs --pr-body-file /tmp/pr-body.txt --enforce
 
       # ─── Secret scanning (was .github/workflows/secret-scan.yml) ───
@@ -182,12 +186,18 @@ jobs:
         env:
           # Via env, never interpolated into the script body — a PR title or
           # body is attacker-controlled text and must not reach the shell.
+          # 2026-10-21: read-pr-body.mjs asks the API for the LIVE body (a re-run reuses the frozen
+          # event payload, so a citation added after the first run was never seen: PR 3194);
+          # PR_BODY below is only its fallback, and the step prints which source it used.
+          GH_TOKEN: ${{ github.token }}
+          PR_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --no-tags origin "$BASE_REF"
           git diff "origin/$BASE_REF...HEAD" > /tmp/pr.diff
-          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
+          node scripts/agent-os/read-pr-body.mjs --out /tmp/pr-body.txt
           wc -l /tmp/pr.diff /tmp/pr-body.txt
 
       - name: check source citation

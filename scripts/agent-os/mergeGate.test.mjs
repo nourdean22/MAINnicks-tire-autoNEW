@@ -68,7 +68,7 @@ const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: 
  * comments, comments2 = the second comments page, threads, after, merge, repo, delete). Comments page like GitHub's
  * comments(last: 50, before: cursor), newest page first; `endless` makes hasPreviousPage always true (a broken API).
  */
-function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "MERGED" }, threads = [], hasNextPage = false, endless = false, fail = {} } = {}) {
+function fakeGh({ prs = { 3100: view() }, events = {}, others = [], afterMerge = { state: "MERGED" }, threads = [], hasNextPage = false, endless = false, fail = {} } = {}) {
   const calls = [];
   const pick = (obj, keys) => Object.fromEntries(keys.split(",").filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
   const boom = (what) => {
@@ -101,6 +101,11 @@ function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "ME
       const start = Math.max(0, end - 50);
       const nodes = all.slice(start, end).map((c) => ({ author: c.author, body: c.body }));
       return JSON.stringify({ data: { repository: { pullRequest: { comments: { pageInfo: { hasPreviousPage: endless || start > 0, startCursor: String(endless ? Math.max(start, 1) : start) }, nodes } } } } });
+    }
+    const evRun = args[0] === "api" && args.length === 4 && args[2] === "--jq" && args[3] === ".event" ? /^repos\/\{owner\}\/\{repo\}\/actions\/runs\/(\d+)$/.exec(args[1]) : null;
+    if (evRun) {
+      if (fail.event || events[evRun[1]] === undefined) return boom("run event");
+      return `${events[evRun[1]]}\n`;
     }
     if (same(args, REPO)) return fail.repo ? boom("repo view") : "o/r\n";
     if (args[0] === "api" && args[1] === "-X" && args[2] === "DELETE" && args.length === 4) return fail.delete ? boom("delete") : "";
@@ -593,4 +598,77 @@ test("a comment list that never ends is BLOCKED at the page cap, never an endles
   assert.deepEqual(mergeCalls(g), []);
   assert.ok(logs.some((l) => /^BLOCKED: .*comments/.test(l)), JSON.stringify(logs));
   assert.ok(commentPages(g) <= 40, `${commentPages(g)} pages`);
+});
+
+// 2026-10-21 (PR 3194): after a close and reopen the rollup keeps the superseded failed run of a check beside its newer
+// run on the same head, and the gate blocked a PR whose latest run was green. A later entry replaces an earlier one of the same
+// workflow + check only when (a) both are attempts of one Actions run, or (b) the later run was triggered by `pull_request`.
+// Codex P1 on PR 3195: a manual workflow_dispatch pass must NOT hide a failed pull_request check (no branch protection here).
+const AT = (min) => new Date(T0 + min * MIN).toISOString();
+const wfRun = (name, conclusion, min, runId, workflowName = "CI", status = "COMPLETED") => ({
+  ...run(name, conclusion, status, AT(min)),
+  workflowName,
+  ...(runId === undefined ? {} : { detailsUrl: `https://github.com/o/r/actions/runs/${runId}/job/${runId}9` }),
+});
+const events = (o) => new Map(Object.entries(o));
+const rb = (rollup, ev) => blockers(view({ statusCheckRollup: rollup }), SHA, ev);
+
+test("rollup: a pull_request rerun in a NEW run replaces the earlier failed run (the 3194 close/reopen shape)", () => {
+  const rollup = [wfRun("node", "FAILURE", 0, 100), wfRun("node", "SUCCESS", 10, 200), run("security")];
+  assert.deepEqual(rb(rollup, events({ 100: "pull_request", 200: "pull_request" })), []);
+  assert.deepEqual(rb(rollup.slice().reverse(), events({ 100: "pull_request", 200: "pull_request" })), [], "array order must not decide which run is latest");
+});
+
+test("rollup: a workflow_dispatch PASS after a pull_request FAIL stays blocked (the Codex P1 case)", () => {
+  const rollup = [wfRun("node", "FAILURE", 0, 100), wfRun("node", "SUCCESS", 10, 200)];
+  assert.deepEqual(rb(rollup, events({ 100: "pull_request", 200: "workflow_dispatch" })), ['check "node" FAILURE']);
+  for (const other of ["schedule", "push"]) assert.deepEqual(rb(rollup, events({ 100: "pull_request", 200: other })), ['check "node" FAILURE'], other);
+});
+
+test("rollup: two attempts of the SAME run id collapse to the latest, whatever the event", () => {
+  const rollup = [wfRun("node", "FAILURE", 0, 300), wfRun("node", "SUCCESS", 10, 300)];
+  assert.deepEqual(rb(rollup, events({ 300: "workflow_dispatch" })), []);
+  assert.deepEqual(rb(rollup, new Map()), [], "no event read is needed for a same-run attempt");
+});
+
+test("rollup: FAIL CLOSED when the event read failed or is empty, or the detailsUrl cannot be parsed", () => {
+  const rollup = [wfRun("node", "FAILURE", 0, 100), wfRun("node", "SUCCESS", 10, 200)];
+  assert.deepEqual(rb(rollup, new Map()), ['check "node" FAILURE'], "no event known for the later run");
+  assert.deepEqual(rb(rollup, events({ 200: "" })), ['check "node" FAILURE'], "empty event");
+  const noUrl = [wfRun("node", "FAILURE", 0), wfRun("node", "SUCCESS", 10)];
+  assert.deepEqual(rb(noUrl, events({ 100: "pull_request", 200: "pull_request" })), ['check "node" FAILURE'], "no detailsUrl");
+  const badUrl = [{ ...wfRun("node", "FAILURE", 0, 100), detailsUrl: "https://example.org/x" }, { ...wfRun("node", "SUCCESS", 10, 200), detailsUrl: "not a url" }];
+  assert.deepEqual(rb(badUrl, events({ 200: "pull_request" })), ['check "node" FAILURE'], "unparsable detailsUrl");
+});
+
+test("rollup: the LATEST run decides, so an older success never hides a newer failure", () => {
+  const rollup = [wfRun("node", "SUCCESS", 0, 100), wfRun("node", "FAILURE", 10, 200)];
+  assert.deepEqual(rb(rollup, events({ 100: "pull_request", 200: "pull_request" })), ['check "node" FAILURE']);
+});
+
+test("rollup: a newer pull_request run still in progress is 'not finished' (soft), not a hard failure from the older run", () => {
+  const rollup = [wfRun("node", "FAILURE", 0, 100), wfRun("node", "", 10, 200, "CI", "IN_PROGRESS")];
+  assert.deepEqual(rb(rollup, events({ 200: "pull_request" })), ['check "node" has not finished (IN_PROGRESS)']);
+});
+
+test("rollup: same name in different workflows, no start time, or a start-time tie are NOT collapsed (fail closed)", () => {
+  const ev = events({ 100: "pull_request", 200: "pull_request" });
+  assert.deepEqual(rb([wfRun("node", "FAILURE", 0, 100, "A"), wfRun("node", "SUCCESS", 10, 200, "B")], ev), ['check "node" FAILURE']);
+  const bare = (conclusion, id) => ({ __typename: "CheckRun", name: "node", status: "COMPLETED", conclusion, workflowName: "CI", detailsUrl: `https://github.com/o/r/actions/runs/${id}/job/1` });
+  assert.deepEqual(rb([bare("FAILURE", 100), bare("SUCCESS", 200)], ev), ['check "node" FAILURE']);
+  assert.deepEqual(rb([wfRun("node", "FAILURE", 5, 100), wfRun("node", "SUCCESS", 5, 200)], ev), ['check "node" FAILURE'], "a tie on the start time keeps both");
+});
+
+test("mergeGate end to end: a workflow_dispatch pass does not hide the failed pull_request check; a pull_request rerun does", async () => {
+  const dispatch = fakeGh({ prs: { 3100: view({ statusCheckRollup: [wfRun("node", "FAILURE", 0, 100), wfRun("node", "SUCCESS", 10, 200)] }) }, events: { 100: "pull_request", 200: "workflow_dispatch" } });
+  const d = await logsOf(dispatch);
+  assert.equal(d.code, 2, JSON.stringify(d.logs));
+  assert.deepEqual(mergeCalls(dispatch), []);
+  const rerun = fakeGh({ prs: { 3100: view({ statusCheckRollup: [wfRun("node", "FAILURE", 0, 100), wfRun("node", "SUCCESS", 10, 200)] }) }, events: { 100: "pull_request", 200: "pull_request" } });
+  assert.equal(await mergeGate(opts(rerun)), 0);
+  assert.equal(mergeCalls(rerun).length, 1);
+  const unread = fakeGh({ prs: { 3100: view({ statusCheckRollup: [wfRun("node", "FAILURE", 0, 100), wfRun("node", "SUCCESS", 10, 200)] }) }, events: { 200: "pull_request" }, fail: { event: true } });
+  const u = await logsOf(unread);
+  assert.equal(u.code, 2, "an event read that throws must keep both entries, not abort the gate or merge");
+  assert.deepEqual(mergeCalls(unread), []);
 });

@@ -99,7 +99,7 @@ invoke did not apply: naming it in prose is not invocation. If you claim a stanc
 work, the Skill call must be in the transcript.
 - `i-have-adhd` + `antislop` — always on (operator, 2026-10-10): every reply shaped for an ADHD reader (answer first, numbered
   steps, one next action); UI, copy or mobile work reads `.claude/skills/antislop/SKILL.md` then the task skill, mode per its Two Usage Modes.
-- `karpathy-guidelines` — every code task · simplest thing · surgical edits. `verification-before-completion`: no done without a fresh check.
+- `karpathy-guidelines` — every code task · simplest thing · surgical edits. `verification-before-completion`: no done without a fresh check. A reply that did work ends `Skills: <names>` or `Skills: none, because <reason>` (2026-10-15; `skills-check.mjs` blocks a no-Skill working turn once).
 - `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10; always on here and globally): if a skill might
   apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. Compaction re-arm is machine-local (NattyNour ~/.claude hook); a fresh clone has none.
 - `brainstorming` — before building anything new · vague ideas -> validated design.
@@ -133,7 +133,7 @@ Red flags that mean STOP and re-check: "I'll refactor it later" · "we might nee
 SUBAGENT POLICY
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explore / general-purpose / etc.) are encouraged for parallelization, research, and bounded execution. Every invocation MUST follow these rules:
+Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explore / general-purpose / etc.) are encouraged for parallelization, research, and bounded execution, except that Explore/census-style spawns happen only when the operator asks (he rejected two unrequested ones on 2026-10-08); otherwise run the pass in-session. Lane dispatch under `monorepo-manager` is the standing exception. Every invocation MUST follow these rules:
 
 1. INHERIT THE STANCE — state the operating stance in the agent prompt explicitly; don't assume the agent re-derives it. Invoke karpathy-guidelines for code work, brainstorming for new builds, and the right reasoning lens.
 

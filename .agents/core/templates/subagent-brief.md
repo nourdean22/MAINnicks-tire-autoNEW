@@ -27,6 +27,7 @@ RESUME: if a RESUME message arrives, run git status and git log on your branch f
 LANE FILE GOVERNS: owned paths, budget, checkpoints, antislop mode, commit trailer and cost rules (the lane's .claude/agents file); state here only what differs.
 CODEMOD RULE: after any class or attribute sweep, re-read each element's rendered text children and fix what the removed class used to hide (case, spacing, separators).
 CONTROLS RULE: a numeric control (threshold, distance, cap) is calibrated per viewport or per input size, never copied from another.
+GUARD RULE: a brief for an approval or deny guard says the approved target matches IDENTIFYING fields only (ids), never any value in the call, and asks for a canary with the id inside a free-text field (PR 3193: an approved branch id in `name` let update_branch reach production).
 FIRST: if your cwd is under .claude/worktrees/ and tsc/vitest are "not recognized", run skill harness-worktree-setup.
 SKILLS TO INVOKE FIRST: the lane file's frontmatter list by exact name, then <lane skills, playbook skills>, plus the `node scripts/agent-os/skill-recall.mjs --file <brief>` output
 VERIFY WITH: <exact command(s) and what passing looks like>

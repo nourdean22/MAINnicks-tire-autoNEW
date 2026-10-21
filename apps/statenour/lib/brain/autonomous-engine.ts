@@ -589,15 +589,46 @@ const RULES: ActionRule[] = [
         };
       }
 
-      // Promote to wisdom
-      await prisma.brainMemory.update({
-        where: { id: memory.id },
-        data: {
-          category: BRAIN_CATEGORIES.WISDOM,
-          confidence: Math.min(1, memory.confidence + 0.2),
-          content: `[PROMOTED TO WISDOM] ${memory.content}`,
-        },
+      // KEY GUARD — promotion re-categorizes this row and keeps its key, and
+      // BrainMemory is unique on (category, key). A wisdom row with the same key
+      // (soft-deleted ones count, the constraint ignores deletedAt) made the
+      // update below throw P2002 every morning from 2026-10-11, because the same
+      // top-seenCount candidate was re-picked each cycle. Skip it the way the
+      // dupe path does: drop its confidence so it stops being picked. A failed
+      // lookup throws; it must not read as "no existing row".
+      const skipKeyCollision = async (existingId: string) => {
+        // min(0.5, ...) so any starting confidence ends below the 0.6 trigger
+        // (1.0 - 0.3 = 0.7 would be re-picked every cycle).
+        await prisma.brainMemory.update({
+          where: { id: memory.id },
+          data: { confidence: Math.min(0.5, Math.max(0.3, memory.confidence - 0.3)) },
+        });
+        return { result: "skipped", payload: { reason: "wisdom_key_exists", existing: existingId } };
+      };
+      const keyHolder = await prisma.brainMemory.findFirst({
+        where: { category: BRAIN_CATEGORIES.WISDOM, key: memory.key, id: { not: memory.id } },
+        select: { id: true },
       });
+      if (keyHolder) return skipKeyCollision(keyHolder.id);
+
+      // Promote to wisdom
+      try {
+        await prisma.brainMemory.update({
+          where: { id: memory.id },
+          data: {
+            category: BRAIN_CATEGORIES.WISDOM,
+            confidence: Math.min(1, memory.confidence + 0.2),
+            content: `[PROMOTED TO WISDOM] ${memory.content}`,
+          },
+        });
+      } catch (err) {
+        // Race: the wisdom row appeared between the key lookup and the update.
+        // Matched on the Prisma error code, never on message text.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          return skipKeyCollision("unknown");
+        }
+        throw err;
+      }
       await sendTelegram(
         `🧠 <b>Memory → Wisdom</b>\n\nPromoted (referenced ${memory.seenCount}x):\n"${memory.content.slice(0, 150)}"\n\nThis pattern has proven itself. It's now permanent wisdom.`
       );
@@ -607,7 +638,7 @@ const RULES: ActionRule[] = [
     // quality gates deciding "skipped" is inside the stated intent, so
     // a skip is plan-conformant, not a silent divergence.
     plan: (memory) =>
-      `Evaluate memory ${memory.id} (seen ${memory.seenCount}x) through the dupe guard + wisdom quality gate; promote to wisdom ONLY if both pass, else drop its pick-up confidence. Expected result: success (promoted) or skipped (gated).`,
+      `Evaluate memory ${memory.id} (seen ${memory.seenCount}x) through the dupe guard + wisdom quality gate + wisdom key check; promote to wisdom ONLY if all pass, else drop its pick-up confidence. Expected result: success (promoted) or skipped (gated, or a wisdom row already holds its key).`,
     approval: "auto",
     actionType: "promote_memory",
     targetType: "memory",

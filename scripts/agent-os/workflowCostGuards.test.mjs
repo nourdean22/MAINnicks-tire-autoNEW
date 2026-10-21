@@ -21,6 +21,7 @@
  *   node-filter       a diff to the dependency scanner (or its imports) selects node; a README diff does not
  *   policy-orderthe folded PR gates run before the verifier, which carries its own step timeout
  *   diag-no-pr        the always-green typecheck diagnostic does not run on every PR
+ *   live-pr-body      the PR-body gates (contradictions, source citation) read the LIVE body, not the payload a re-run reuses
  *
  * Every rule is proven twice: the live tree must be clean, and a mutated COPY of the workflows (temp dir) must
  * trip exactly that rule. Zero dependencies (this runs in the Node-only agent-policy job), so the workflow
@@ -304,6 +305,22 @@ export function checkWorkflows(root) {
   for (const frag of ["run: cd apps/nickstire && node scripts/lint-curdate.mjs", "--package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml apps/statenour/app", "dlx depcruise --config config/adoption-gates/.dependency-cruiser.cjs apps/statenour/app"]) {
     if (!text("adoption-gates.yml").includes(frag)) flag("folded-steps", `adoption-gates.yml no longer runs \`${frag}\``);
   }
+  // live-pr-body (2026-10-21): the two PR-body gates must read the LIVE body, not the event payload a re-run reuses.
+  // The run block is a block scalar the reader above skips, so it is sliced from the raw text; the behaviour of the
+  // script it calls is pinned in readPrBody.test.mjs. The event body stays ONLY as the fallback env, never as the file.
+  const polText = text("agent-policy.yml");
+  for (const name of ["Contradiction detector (claims vs evidence vs ledger vs PR body)", "collect PR diff and body"]) {
+    const at = polText.indexOf(`- name: ${name}\n`);
+    const block = at < 0 ? "" : polText.slice(at + 1).split(/\n {6}- (?:name|uses):/)[0];
+    if (!block) { flag("live-pr-body", `agent-policy.yml has no step "${name}"`); continue; }
+    if (!block.includes("node scripts/agent-os/read-pr-body.mjs --out /tmp/pr-body.txt")) flag("live-pr-body", `step "${name}" does not read the live PR body through read-pr-body.mjs`);
+    if (/printf '%s' "\$PR_BODY" > \/tmp\/pr-body\.txt/.test(block)) flag("live-pr-body", `step "${name}" still writes the event-payload body straight to /tmp/pr-body.txt`);
+    for (const [k, v] of [["GH_TOKEN", "${{ github.token }}"], ["PR_REPO", "${{ github.repository }}"], ["PR_NUMBER", "${{ github.event.pull_request.number }}"], ["PR_BODY", "${{ github.event.pull_request.body }}"]]) {
+      if (!block.includes(`${k}: ${v}`)) flag("live-pr-body", `step "${name}" lacks env ${k}: ${v}`);
+    }
+  }
+  if (!existsSync(join(REPO, "scripts", "agent-os", "read-pr-body.mjs"))) flag("live-pr-body", "scripts/agent-os/read-pr-body.mjs is missing: the steps call a script that does not exist");
+
   // policy-order (Codex review of #3083): a verifier that hits a JOB timeout cancels the whole job, and `!cancelled()` cannot
   // save the gates behind it. So the cheap gates run first and the verifier has its own, smaller STEP timeout.
   const pol = wfs["agent-policy.yml"]?.jobs?.policy;
@@ -483,6 +500,14 @@ const MUTANTS = [
   ["folded-steps", "the review gate keeps its name but stops enforcing", wf("agent-policy.yml"), (t) => t.replace("check-review-gate.mjs ${{ github.event.pull_request.number }} --enforce", "check-review-gate.mjs ${{ github.event.pull_request.number }}")],
   ["folded-steps", "a PR-only step loses its guard and would run on main pushes", wf("agent-policy.yml"),
     (t) => t.replace("      - name: check source citation\n        if: ${{ github.event_name == 'pull_request' && !cancelled() }}\n", "      - name: check source citation\n")],
+  ["live-pr-body", "the contradiction step goes back to the frozen event body", wf("agent-policy.yml"),
+    (t) => t.replace("node scripts/agent-os/read-pr-body.mjs --out /tmp/pr-body.txt\n          node apps/nickstire/scripts/detect-contradictions.mjs", "printf '%s' \"$PR_BODY\" > /tmp/pr-body.txt\n          node apps/nickstire/scripts/detect-contradictions.mjs")],
+  ["live-pr-body", "the citation step goes back to the frozen event body", wf("agent-policy.yml"),
+    (t) => t.replace("node scripts/agent-os/read-pr-body.mjs --out /tmp/pr-body.txt\n          wc -l", "printf '%s' \"$PR_BODY\" > /tmp/pr-body.txt\n          wc -l")],
+  ["live-pr-body", "the citation step loses its token, so the live read cannot authenticate", wf("agent-policy.yml"),
+    (t) => t.replace("          GH_TOKEN: ${{ github.token }}\n          PR_REPO: ${{ github.repository }}\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n          PR_BODY: ${{ github.event.pull_request.body }}\n          BASE_REF", "          PR_REPO: ${{ github.repository }}\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n          PR_BODY: ${{ github.event.pull_request.body }}\n          BASE_REF")],
+  ["live-pr-body", "the contradiction step loses its fallback body", wf("agent-policy.yml"),
+    (t) => t.replace(/(Contradiction detector[^\n]*\n(?: {8}.*\n)*?) {10}PR_BODY: .*\n/, "$1")],
   ["folded-steps", "the folded curdate gate is neutered", wf("adoption-gates.yml"), (t) => t.replace("run: cd apps/nickstire && node scripts/lint-curdate.mjs", "run: cd apps/nickstire && true")],
   ["folded-steps", "the secret-scan workflow comes back beside its folded copy", wf("secret-scan.yml"),
     () => "name: Secret Scanning\non:\n  pull_request:\n    branches: [main]\njobs:\n  gitleaks:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Install gitleaks\n        run: true\n"],
