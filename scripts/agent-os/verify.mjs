@@ -15,22 +15,28 @@
  * Exit 0 = all green · 1 = a check failed · 2 = the harness itself is broken.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareAgentChildEnv } from "./gitLocalEnv.mjs";
+import { createRunTmp } from "./runTmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
 
 const results = [];
 
+// Every fixture the spawned tests leave in os.tmpdir() lands in this run's own temp dir,
+// removed on any exit (2026-10-21: the suite leaked thousands of fixture repos per day).
+const RUN_TMP = createRunTmp("agent-os-run-");
+Object.assign(process.env, RUN_TMP.env);
+process.on("exit", () => RUN_TMP.cleanup());
+
 // GitHub API budget meter (2026-09-23): every ghFetch() in every spawned test appends
 // one line here (github-client.mjs), and the summary below prints the run's total and
 // top consumers. CI's token gets ~1,000 requests/hour per repo; a live canary that
 // silently grew to 657 requests per run exhausted it before anyone saw the number.
-const GH_CALL_LOG = process.env.AGENT_OS_GH_CALL_LOG || join(mkdtempSync(join(tmpdir(), "agent-os-gh-")), "calls.jsonl");
+const GH_CALL_LOG = process.env.AGENT_OS_GH_CALL_LOG || join(RUN_TMP.dir, "gh-calls.jsonl");
 process.env.AGENT_OS_GH_CALL_LOG = GH_CALL_LOG;
 
 function run(label, argv) {

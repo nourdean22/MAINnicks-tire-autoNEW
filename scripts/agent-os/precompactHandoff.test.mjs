@@ -121,7 +121,10 @@ test(`recall: a note longer than ${RECALL_CAP} chars is truncated with a marker 
   const file = writeNote({ cwd, sessionId: "big", trigger: "auto", env });
   writeFileSync(file, "x".repeat(RECALL_CAP + 500));
   const text = recallText(cwd, env);
-  assert.ok(text.length < RECALL_CAP + 400, `recall output not capped: ${text.length} chars`);
+  // Exactly RECALL_CAP chars of the note survive. Not a total-length bound: the header and the
+  // marker both carry the note's path, whose length depends on where the temp dir lives.
+  assert.ok(text.includes("x".repeat(RECALL_CAP)), "the first RECALL_CAP chars of the note must be kept");
+  assert.ok(!text.includes("x".repeat(RECALL_CAP + 1)), `recall output not capped: ${text.length} chars`);
   assert.match(text, /truncated at 4000 chars; full note at /);
 });
 
