@@ -122,16 +122,21 @@ detailed in `docs/CURRENT-TRUTH.md`:
 ## 2026-10-21 - Billed card gets Today and Yesterday; ShopDriver now syncs on admin page loads (branch worktree-agent-a8848ccfdd81e4e12, NOT yet merged)
 
 - **BUILT, not deployed, not proven live:** the Billed card on the Today page has Today and Yesterday chips (7 days stays the default). A day newer
-  than the invoice mirror's through-date renders "Not synced yet. The invoice mirror is current through <date>." with no figure
-  (`windowAfterThrough` from `server/services/shopSales.ts`); a synced day with no invoices is a real $0.
+  than the last successful ShopDriver probe renders "Not synced yet today." (or "for yesterday") with no figure; a day a probe has covered shows its figure
+  labelled "so far today, as of <ET time>" and a zero-sale day is a real $0. Synced is read from the newest successful probe in `alg_probe_log`
+  (`sync`, `windowSynced` in `server/services/shopSales.ts`), not from the newest invoice: a manual or booking invoice moves that, a zero-sale day never does.
+  An unreadable probe log shows "Sync status unknown", never synced.
 - **When ALG syncs, as of this branch (Nour's decision, 2026-10-21, "Refresh syncs anytime"):** on a full admin page load or refresh, at most once per
   30 minutes, at any hour (probe reason `admin_refresh`, `lib/adminActivity.ts`); plus 3 AM and 8 PM ET, the OAuth login, the manual refresh buttons and
   the Nick chat. Each sync re-authenticates ShopDriver and logs the shop counter out; Nour accepted that. The old 6 h "resume edge" rule is deleted.
   The trigger is the Billed card's first mount per document (`shopdriver.syncOnAdminLoad`): a deep link straight to another admin page does not sync
   until Today is opened. The earlier claim that a `POST /api/admin/ping` route and bridge calls touch the activity tracker was false: only the
   adminProcedure middleware calls it.
-- **Known limit:** the 30-minute check is the `alg_probe_log` read plus an in-process flag, not an atomic claim. A deploy overlap can start two probes
-  once. If the log ever shows two `admin_refresh` rows within a minute, make the claim a conditional write.
+- **How the 30 minutes is held:** the SQL age of the newest auth-attempting row in `alg_probe_log` (`TIMESTAMPDIFF` against `NOW()`, restart-proof) AND
+  an in-memory floor from the probe budget's `lastProbeStartedAt`, stamped when any probe starts, because `writeProbeLog` swallows insert errors and a
+  probe that could not log would otherwise look due at once. Both must be 30 minutes or more.
+- **Known limit:** that is not an atomic claim. A deploy overlap can start two probes once. If the log ever shows two `admin_refresh` rows within a
+  minute, make the claim a conditional write.
 
 ## 2026-10-19 - Admin prune W2a: 168 uncalled tRPC procedures and 4 idle crons gone, admin SSE stream fixed (branch nickstire/admin-prune-w2, NOT yet merged)
 

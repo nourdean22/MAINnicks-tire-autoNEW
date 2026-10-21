@@ -23,11 +23,15 @@ const m = vi.hoisted(() => ({
   selects: 0,
   getDb: vi.fn(),
   requestAlgProbe: vi.fn(),
+  getProbeBudgetState: vi.fn(),
   refreshCustomerMetrics: vi.fn(),
 }));
 
 vi.mock("../db", () => ({ getDb: m.getDb }));
-vi.mock("../services/algProbeBudget", () => ({ requestAlgProbe: m.requestAlgProbe }));
+vi.mock("../services/algProbeBudget", () => ({
+  requestAlgProbe: m.requestAlgProbe,
+  getProbeBudgetState: m.getProbeBudgetState,
+}));
 vi.mock("../services/customerMetricsRefresh", () => ({ refreshCustomerMetrics: m.refreshCustomerMetrics }));
 
 const MIN = 60 * 1000;
@@ -67,6 +71,8 @@ beforeEach(() => {
       }),
     }),
   }));
+  m.getProbeBudgetState.mockReset();
+  m.getProbeBudgetState.mockReturnValue({ lastProbeStartedAt: null }); // this process has started no probe
   m.requestAlgProbe.mockReset();
   m.requestAlgProbe.mockResolvedValue({ outcome: "success", recordsProcessed: 3, durationMs: 10, reason: "admin_refresh" });
   m.refreshCustomerMetrics.mockReset();
@@ -175,6 +181,77 @@ describe("the 30 min decision is the database's age, never a JS subtraction", ()
     const src = readFileSync(resolve(process.cwd(), "server/lib/adminActivity.ts"), "utf8");
     expect(src).toMatch(/TIMESTAMPDIFF\(SECOND, \$\{algProbeLog\.startedAt\}, NOW\(\)\)/);
     expect(src).not.toMatch(/Date\.now\(\) - new Date\(lastAuthAttempt/);
+  });
+});
+
+/**
+ * writeProbeLog swallows its insert errors, so a probe that authenticated but failed to log
+ * leaves NO durable row, and the SQL age alone would call the next load "due" straight away
+ * (and the budget's own success TTL is 5 min; empty / auth_failed / error have none). The
+ * floor is in memory: every auth attempt THIS process started, stamped when it starts, not when
+ * it logs (algProbeBudget's lastProbeStartedAt). Both ages must be 30 min or more to fire.
+ */
+describe("a probe that could not log still holds off the next one", () => {
+  // A budget stand-in that behaves like the real one: stamps the start, then "fails to log".
+  function budgetThatLosesItsLogRow(outcome: string) {
+    let startedAtMs: number | null = null;
+    m.getProbeBudgetState.mockImplementation(() => ({
+      lastProbeStartedAt: startedAtMs === null ? null : new Date(startedAtMs).toISOString(),
+    }));
+    m.requestAlgProbe.mockImplementation(async () => {
+      startedAtMs = Date.now(); // set when the probe STARTS
+      return { outcome, recordsProcessed: 0, durationMs: 5, reason: "admin_refresh" };
+    });
+  }
+
+  it("the log insert throws, then a load 6 min later does not fire", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    budgetThatLosesItsLogRow("success");
+    m.rows = []; // the insert failed: the database knows nothing about the first probe
+    const first = await maybeFireAdminRefreshProbe("page-load");
+    await first.done;
+    expect(first.started).toBe(true);
+
+    vi.setSystemTime(new Date(NOW.getTime() + 6 * MIN));
+    const second = await maybeFireAdminRefreshProbe("page-load");
+    expect(second.started).toBe(false);
+    expect(m.requestAlgProbe).toHaveBeenCalledTimes(1);
+  });
+
+  it("an auth_failed probe that could not log holds off the next load too (no success TTL covers it)", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    budgetThatLosesItsLogRow("auth_failed");
+    m.rows = [];
+    await (await maybeFireAdminRefreshProbe("page-load")).done;
+    vi.setSystemTime(new Date(NOW.getTime() + 6 * MIN));
+    expect((await maybeFireAdminRefreshProbe("page-load")).started).toBe(false);
+  });
+
+  it("any auth attempt this process started counts, whoever asked for it (cron, OAuth, chat)", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    m.getProbeBudgetState.mockReturnValue({ lastProbeStartedAt: new Date(NOW.getTime() - 10 * MIN).toISOString() });
+    m.rows = [];
+    expect((await maybeFireAdminRefreshProbe("page-load")).started).toBe(false);
+    expect(m.getDb).not.toHaveBeenCalled(); // the memory check alone settles it
+  });
+
+  it("after 30 min of memory and a stale log, the next load fires", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    budgetThatLosesItsLogRow("success");
+    m.rows = [];
+    await (await maybeFireAdminRefreshProbe("page-load")).done;
+    vi.setSystemTime(new Date(NOW.getTime() + 31 * MIN));
+    lastAttemptAgo(31 * MIN);
+    const third = await maybeFireAdminRefreshProbe("page-load");
+    await third.done;
+    expect(third.started).toBe(true);
+  });
+
+  it("both must agree: a recent LOGGED attempt still blocks when memory is empty (restart-proof)", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    m.getProbeBudgetState.mockReturnValue({ lastProbeStartedAt: null }); // fresh process after a deploy
+    lastAttemptAgo(10 * MIN);
+    expect((await maybeFireAdminRefreshProbe("page-load")).started).toBe(false);
   });
 });
 

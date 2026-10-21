@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   refetchIntervals: [] as unknown[],
   syncCalls: 0,
   syncStarted: false,
+  /** "reject": the server refuses the call (MFA not cleared); "hang": no answer yet. */
+  syncMode: "accept" as "accept" | "reject" | "hang",
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -35,10 +37,11 @@ vi.mock("@/lib/trpc", () => ({
     },
     shopdriver: {
       syncOnAdminLoad: {
-        useMutation: (opts?: { onSuccess?: (r: { started: boolean }) => void }) => ({
+        useMutation: (opts?: { onSuccess?: (r: { started: boolean }) => void; onError?: (e: Error) => void }) => ({
           mutate: () => {
             h.syncCalls++;
-            opts?.onSuccess?.({ started: h.syncStarted });
+            if (h.syncMode === "reject") opts?.onError?.(new Error("MFA required"));
+            else if (h.syncMode === "accept") opts?.onSuccess?.({ started: h.syncStarted });
           },
         }),
       },
@@ -60,7 +63,8 @@ const ok = {
   period: "last_7d" as const,
   window: { fromISO: "2026-08-31", toISO: "2026-09-07", label: "Last 7 days" },
   throughDate: "2026-09-06",
-  windowAfterThrough: false,
+  sync: { state: "ok" as const, lastAt: "2026-09-07T00:00:00.000Z", etDate: "2026-09-06", etTime: "8:00 PM" },
+  windowSynced: true as boolean | null,
   basis: "invoice_date" as const,
   grossOrNet: "gross_tax_inclusive" as const,
   definitionVersion: "shop-sales-v1-invoice-date-gross",
@@ -80,6 +84,7 @@ beforeEach(() => {
   h.refetchIntervals = [];
   h.syncCalls = 0;
   h.syncStarted = false;
+  h.syncMode = "accept";
   newDocument();
 });
 afterEach(() => {
@@ -245,35 +250,65 @@ describe("syncs the invoice mirror once per page load, then shows what lands", (
   it("while syncing, an unsynced Today still shows no figure", () => {
     h.syncStarted = true;
     h.result = {
-      data: { ...ok, period: "today", cents: 0, invoiceCount: 0, throughDate: "2026-10-20", windowAfterThrough: true },
+      data: { ...ok, period: "today", cents: 0, invoiceCount: 0, windowSynced: false, sync: lastNight },
       isLoading: false, isError: false,
     };
     const { container } = render(<SalesCard />);
-    expect(screen.getByText(/Not synced yet\. The invoice mirror is current through 2026-10-20\./)).toBeTruthy();
+    expect(screen.getByText(/Not synced yet today\./)).toBeTruthy();
     expect(container.textContent).not.toContain("$");
+  });
+
+  it("a first call the server refuses (MFA not cleared) does not use up the page load: the next mount asks again", () => {
+    h.syncMode = "reject";
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    expect(h.syncCalls).toBe(1);
+    cleanup();
+    h.syncMode = "accept"; // MFA cleared
+    render(<SalesCard />);
+    expect(h.syncCalls).toBe(2);
+    cleanup();
+    render(<SalesCard />); // accepted now: the page load is used up
+    expect(h.syncCalls).toBe(2);
+  });
+
+  it("a call still waiting for its answer is not doubled by a second mount", () => {
+    h.syncMode = "hang";
+    h.result = { data: ok, isLoading: false, isError: false };
+    render(<SalesCard />);
+    cleanup();
+    render(<SalesCard />);
+    expect(h.syncCalls).toBe(1);
   });
 });
 
+const lastNight = { state: "ok" as const, lastAt: "2026-10-21T00:00:00.000Z", etDate: "2026-10-20", etTime: "8:00 PM" };
+const thisMorning = { state: "ok" as const, lastAt: "2026-10-21T15:42:00.000Z", etDate: "2026-10-21", etTime: "11:42 AM" };
+
 /**
- * Today and Yesterday. The mirror runs a day behind, so a day newer than its through-date has
- * no invoices YET. That is not "$0 of sales": it is "not synced", and the card must say so
- * without printing any figure, while a synced day with no invoices is still a real $0.
+ * Today and Yesterday. Whether a day has been synced is decided from the ShopDriver sync log
+ * (the newest successful probe), NOT from the newest invoice: a manual invoice written today
+ * says nothing about whether ShopDriver's rows for today have arrived, and a zero-sale day
+ * leaves the newest invoice where it was. An unsynced day shows no figure; a synced day with no
+ * invoices is a real $0; an unreadable sync log is unknown, never synced.
  */
 describe("Today and Yesterday period chips", () => {
   const chipNames = () =>
     within(screen.getByRole("group", { name: "Sales period" })).getAllByRole("button").map((b) => b.textContent);
 
   const day = (over: Record<string, unknown>) => ({ ...ok, ...over });
-  const notSynced = /Not synced yet\. The invoice mirror is current through 2026-10-20\./;
+  const today = { period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" } };
+  const yesterday = { period: "yesterday", window: { fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" } };
+  const show = (data: unknown) => { h.result = { data, isLoading: false, isError: false }; };
 
   it("offers Today, Yesterday, 7 days, 30 days, This month, Last month in that order", () => {
-    h.result = { data: ok, isLoading: false, isError: false };
+    show(ok);
     render(<SalesCard />);
     expect(chipNames()).toEqual(["Today", "Yesterday", "7 days", "30 days", "This month", "Last month"]);
   });
 
   it("still opens on 7 days, and asks the server for it", () => {
-    h.result = { data: ok, isLoading: false, isError: false };
+    show(ok);
     render(<SalesCard />);
     expect(screen.getByRole("button", { name: "7 days" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Today" }).getAttribute("aria-pressed")).toBe("false");
@@ -281,7 +316,7 @@ describe("Today and Yesterday period chips", () => {
   });
 
   it("tapping Today and Yesterday asks the server for those periods", () => {
-    h.result = { data: ok, isLoading: false, isError: false };
+    show(ok);
     render(<SalesCard />);
     fireEvent.click(screen.getByRole("button", { name: "Today" }));
     expect(h.inputs[h.inputs.length - 1]).toEqual({ period: "today" });
@@ -290,95 +325,103 @@ describe("Today and Yesterday period chips", () => {
     expect(h.inputs[h.inputs.length - 1]).toEqual({ period: "yesterday" });
   });
 
-  it("today, mirror through yesterday: says not synced, names the through-date, prints no dollar figure", () => {
-    h.result = {
-      data: day({
-        period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" },
-        cents: 0, invoiceCount: 0, throughDate: "2026-10-20", windowAfterThrough: true,
-      }),
-      isLoading: false, isError: false,
-    };
+  it("today, no ShopDriver sync yet today: says so, names the last sync, prints no figure", () => {
+    show(day({ ...today, cents: 0, invoiceCount: 0, windowSynced: false, sync: lastNight }));
     const { container } = render(<SalesCard />);
-    expect(screen.getByText(notSynced)).toBeTruthy();
+    expect(screen.getByText(/Not synced yet today\. Last ShopDriver sync: 2026-10-20 8:00 PM ET\./)).toBeTruthy();
     expect(container.textContent).not.toContain("$");
     expect(container.textContent).not.toMatch(/\d+ invoices?/);
     expect(screen.queryByRole("button", { name: /What this excludes/i })).toBeNull();
   });
 
-  it("does not trust a number the server sent for an unsynced day", () => {
-    h.result = {
-      data: day({
-        period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" },
-        cents: 987600, invoiceCount: 9, throughDate: "2026-10-20", windowAfterThrough: true,
-      }),
-      isLoading: false, isError: false,
-    };
+  it("a manual invoice written today does not make today synced: the server's flag decides, not the invoice", () => {
+    // throughDate is today and the read holds a $250 invoice, but no ShopDriver probe ran today.
+    show(day({ ...today, cents: 25000, invoiceCount: 1, throughDate: "2026-10-21", windowSynced: false, sync: lastNight }));
     const { container } = render(<SalesCard />);
-    expect(screen.getByText(notSynced)).toBeTruthy();
+    expect(screen.getByText(/Not synced yet today\./)).toBeTruthy();
+    expect(container.textContent).not.toContain("$");
+    expect(container.textContent).not.toContain("250");
+  });
+
+  it("does not trust a number the server sent for an unsynced day", () => {
+    show(day({ ...today, cents: 987600, invoiceCount: 9, windowSynced: false, sync: lastNight }));
+    const { container } = render(<SalesCard />);
+    expect(screen.getByText(/Not synced yet today\./)).toBeTruthy();
     expect(container.textContent).not.toContain("$");
     expect(container.textContent).not.toContain("9,876");
   });
 
-  it("yesterday with the mirror two days behind is also not synced", () => {
-    h.result = {
-      data: day({
-        period: "yesterday", window: { fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" },
-        cents: 0, invoiceCount: 0, throughDate: "2026-10-19", windowAfterThrough: true,
-      }),
-      isLoading: false, isError: false,
-    };
+  it("yesterday not yet covered by a sync that ran after it ended is also not synced", () => {
+    show(day({ ...yesterday, cents: 0, invoiceCount: 0, windowSynced: false, sync: lastNight }));
     const { container } = render(<SalesCard />);
-    expect(screen.getByText(/Not synced yet\. The invoice mirror is current through 2026-10-19\./)).toBeTruthy();
+    expect(screen.getByText(/Not synced yet for yesterday\. Last ShopDriver sync: 2026-10-20 8:00 PM ET\./)).toBeTruthy();
     expect(container.textContent).not.toContain("$");
   });
 
-  it("an empty mirror says the through-date is unknown instead of naming one", () => {
-    h.result = {
-      data: day({ period: "today", cents: 0, invoiceCount: 0, throughDate: null, windowAfterThrough: true }),
-      isLoading: false, isError: false,
-    };
+  it("no successful sync on record says that, and prints no figure", () => {
+    show(day({ ...today, cents: 0, invoiceCount: 0, windowSynced: false, sync: { state: "never" } }));
     const { container } = render(<SalesCard />);
-    expect(screen.getByText(/Not synced yet\. The invoice mirror has no through-date\./)).toBeTruthy();
+    expect(screen.getByText(/Not synced yet today\. No ShopDriver sync on record\./)).toBeTruthy();
     expect(container.textContent).not.toContain("$");
   });
 
-  it("today, mirror through today: shows the figure and the count", () => {
-    h.result = {
-      data: day({
-        period: "today", window: { fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" },
-        cents: 123400, invoiceCount: 5, throughDate: "2026-10-21", windowAfterThrough: false,
-      }),
-      isLoading: false, isError: false,
-    };
+  it("an unreadable sync log is UNKNOWN: no figure, and it does not say 'not synced' or 'synced'", () => {
+    for (const d of [today, yesterday]) {
+      show(day({ ...d, cents: 0, invoiceCount: 0, windowSynced: null, sync: { state: "unreadable", reason: "db down" } }));
+      const { container } = render(<SalesCard />);
+      expect(screen.getByText(/Sync status unknown/)).toBeTruthy();
+      expect(container.textContent).not.toContain("$");
+      expect(screen.queryByText(/Not synced yet/)).toBeNull();
+      expect(container.textContent).not.toMatch(/so far today|current as of/);
+      cleanup();
+      newDocument();
+    }
+  });
+
+  it("a zero-sale day with a sync today shows a real $0, labelled with the sync time", () => {
+    show(day({ ...today, cents: 0, invoiceCount: 0, windowSynced: true, sync: thisMorning }));
+    render(<SalesCard />);
+    expect(screen.getByText("$0")).toBeTruthy();
+    expect(screen.getByText(/0 invoices · Today/)).toBeTruthy();
+    expect(screen.getByText(/so far today, as of 11:42 AM ET/)).toBeTruthy();
+    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+  });
+
+  it("today, synced: shows the figure and the count with the sync time", () => {
+    show(day({ ...today, cents: 123400, invoiceCount: 5, windowSynced: true, sync: thisMorning }));
     render(<SalesCard />);
     expect(screen.getByText("$1,234")).toBeTruthy();
     expect(screen.getByText(/5 invoices · Today/)).toBeTruthy();
-    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+    expect(screen.getByText(/so far today, as of 11:42 AM ET/)).toBeTruthy();
   });
 
-  it("a synced day with no invoices is a real $0, not 'not synced'", () => {
-    h.result = {
-      data: day({
-        period: "yesterday", window: { fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" },
-        cents: 0, invoiceCount: 0, throughDate: "2026-10-20", windowAfterThrough: false,
-      }),
-      isLoading: false, isError: false,
-    };
+  it("yesterday, synced after it ended: a real $0 is shown as current as of that sync", () => {
+    show(day({ ...yesterday, cents: 0, invoiceCount: 0, windowSynced: true, sync: thisMorning }));
     render(<SalesCard />);
     expect(screen.getByText("$0")).toBeTruthy();
     expect(screen.getByText(/0 invoices · Yesterday/)).toBeTruthy();
-    expect(screen.queryByText(/Not synced yet/)).toBeNull();
+    expect(screen.getByText(/current as of 2026-10-21 11:42 AM ET/)).toBeTruthy();
+    expect(screen.queryByText(/so far today/)).toBeNull();
   });
 
-  it("a multi-day period keeps its figure when the mirror lags, with only the existing through-date line", () => {
-    h.result = {
-      data: day({ period: "month_to_date", throughDate: "2026-10-20", windowAfterThrough: true }),
-      isLoading: false, isError: false,
-    };
+  it("a multi-day period keeps its figure and says when it was current", () => {
+    show(day({ period: "month_to_date", windowSynced: false, sync: lastNight, throughDate: "2026-10-20" }));
     render(<SalesCard />);
     expect(screen.getByText("$42,135")).toBeTruthy();
     expect(screen.getByText(/mirror current through 2026-10-20/)).toBeTruthy();
+    expect(screen.getByText(/current as of 2026-10-20 8:00 PM ET/)).toBeTruthy();
     expect(screen.queryByText(/Not synced yet/)).toBeNull();
+  });
+
+  it("a multi-day period with an unreadable or empty sync log keeps its figure and says the sync time is not known", () => {
+    show(day({ windowSynced: null, sync: { state: "unreadable", reason: "db down" } }));
+    const first = render(<SalesCard />);
+    expect(screen.getByText("$42,135")).toBeTruthy();
+    expect(screen.getByText(/sync time unknown/)).toBeTruthy();
+    first.unmount();
+    show(day({ windowSynced: false, sync: { state: "never" } }));
+    render(<SalesCard />);
+    expect(screen.getByText(/no ShopDriver sync on record/)).toBeTruthy();
   });
 
   it("a failed read on Today is still UNKNOWN, not 'not synced' and not $0", () => {
@@ -388,5 +431,6 @@ describe("Today and Yesterday period chips", () => {
     expect(screen.getByText(/UNKNOWN, not \$0/i)).toBeTruthy();
     expect(screen.queryByText(/Not synced yet/)).toBeNull();
     expect(screen.queryByText(/^\$[\d,]+$/)).toBeNull();
+    expect(container.textContent).not.toMatch(/Sync status unknown/);
   });
 });

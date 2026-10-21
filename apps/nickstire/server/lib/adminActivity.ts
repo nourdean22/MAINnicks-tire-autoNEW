@@ -104,6 +104,17 @@ export async function maybeFireAdminRefreshProbe(source: string): Promise<AdminR
   refreshProbeInFlight = true;
   let handedOff = false;
   try {
+    // In-memory floor: every auth attempt THIS process started, stamped when it STARTED (the
+    // budget sets lastProbeStartedAt before the probe runs, not when it logs). writeProbeLog
+    // swallows insert errors, so a probe that authenticated but could not log leaves no durable
+    // row, and the SQL age below would call the next load due at once (the budget's own success
+    // TTL is only 5 min, and empty / auth_failed / error have none). Both ages must be 30 min.
+    const { getProbeBudgetState } = await import("../services/algProbeBudget");
+    const lastStartedIso = getProbeBudgetState().lastProbeStartedAt;
+    if (lastStartedIso && Date.now() - new Date(lastStartedIso).getTime() < REFRESH_PROBE_MIN_INTERVAL_MS) {
+      return { started: false, done: Promise.resolve() };
+    }
+
     const { getDb } = await import("../db");
     const d = await getDb();
     if (!d) return { started: false, done: Promise.resolve() };

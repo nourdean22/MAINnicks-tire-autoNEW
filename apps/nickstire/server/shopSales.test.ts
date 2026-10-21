@@ -269,7 +269,7 @@ describe("today and yesterday are single Eastern days", () => {
   });
 });
 
-describe("paidInvoiceRevenue ships windowAfterThrough on every successful read", () => {
+describe("whether a window is synced comes from the ShopDriver sync log, not from the newest invoice", () => {
   afterEach(() => {
     vi.useRealTimers();
     dbMock.execute.mockReset();
@@ -279,92 +279,126 @@ describe("paidInvoiceRevenue ships windowAfterThrough on every successful read",
     paidCount: 0, paidCents: 0, pendingCount: 0, pendingCents: 0, partialCount: 0, partialCents: 0,
     refundedCount: 0, refundedCents: 0, blankInvoiceNumbers: 0,
   };
+  const NOW_ISO = "2026-10-21T15:59:00Z"; // 11:59 ET on Wed 2026-10-21 (the screenshot's moment)
+  type Period = (typeof SALES_PERIODS)[number];
+  const epoch = (iso: string) => Date.parse(iso) / 1000;
 
-  // 11:59 ET on 2026-10-21 (the screenshot's moment). The driver hands MAX(invoiceDate) back as a
-  // Date whose UTC digits are the stored shop day: 04:00:00 is a date-only ticket at local midnight.
-  async function readAt(period: (typeof SALES_PERIODS)[number], through: Date | null) {
+  // The three statements, in order: the window aggregate, MAX(invoiceDate) over shopdriver rows,
+  // then the newest SUCCESSFUL probe (UNIX_TIMESTAMP, a number: no driver Date to shift).
+  async function read(
+    period: Period,
+    opts: { now?: string; agg?: Record<string, number>; through?: Date | null; probe?: string | null | "reject" } = {},
+  ) {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-21T15:59:00Z"));
-    dbMock.execute.mockResolvedValueOnce([[aggRow]]).mockResolvedValueOnce([[{ throughDate: through }]]);
+    vi.setSystemTime(new Date(opts.now ?? NOW_ISO));
+    dbMock.execute
+      .mockResolvedValueOnce([[{ ...aggRow, ...opts.agg }]])
+      .mockResolvedValueOnce([[{ throughDate: opts.through ?? null }]]);
+    if (opts.probe === "reject") dbMock.execute.mockRejectedValueOnce(new Error("alg_probe_log unreadable"));
+    else dbMock.execute.mockResolvedValueOnce([opts.probe ? [{ probeEpoch: epoch(opts.probe) }] : []]);
     const r = await paidInvoiceRevenue(period);
     if (!r.available) throw new Error(`unexpected unavailable: ${r.reason}`);
     return r;
   }
 
-  const mirrorThroughYesterday = new Date("2026-10-20T04:00:00Z");
+  const sqlText = (call: unknown[]) =>
+    (call[0] as { queryChunks: Array<{ value?: string[] } | unknown> }).queryChunks
+      .map((c) => (c && typeof c === "object" && Array.isArray((c as { value?: string[] }).value) ? (c as { value: string[] }).value.join("") : "?"))
+      .join("");
 
-  it("the mirror is through yesterday: today is after it, yesterday is not", async () => {
-    const t = await readAt("today", mirrorThroughYesterday);
-    expect(t.throughDate).toBe("2026-10-20");
-    expect(t.window).toMatchObject({ fromISO: "2026-10-21", toISO: "2026-10-22", label: "Today" });
-    expect(t.windowAfterThrough).toBe(true);
-
-    const y = await readAt("yesterday", mirrorThroughYesterday);
-    expect(y.window).toMatchObject({ fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" });
-    expect(y.windowAfterThrough).toBe(false);
+  it("a zero-sale day with a successful probe today is a real, synced $0", async () => {
+    const t = await read("today", { probe: "2026-10-21T15:42:00Z" });
+    expect(t.cents).toBe(0);
+    expect(t.invoiceCount).toBe(0);
+    expect(t.windowSynced).toBe(true);
+    expect(t.sync).toEqual({ state: "ok", lastAt: "2026-10-21T15:42:00.000Z", etDate: "2026-10-21", etTime: "11:42 AM" });
   });
 
-  it("is computed for every period, not only the two single-day ones", async () => {
-    const got: Record<string, boolean> = {};
-    for (const p of SALES_PERIODS) got[p] = (await readAt(p, mirrorThroughYesterday)).windowAfterThrough;
+  it("a manual invoice today with no probe today is NOT synced, whatever the newest invoice date says", async () => {
+    // A booking or tire-order write stamped today; the last ShopDriver probe was last night's 8 PM.
+    const t = await read("today", {
+      agg: { paidCount: 1, paidCents: 25000 },
+      through: new Date("2026-10-21T04:00:00Z"),
+      probe: "2026-10-21T00:00:00Z", // 20:00 ET Oct 20
+    });
+    expect(t.windowSynced).toBe(false);
+    expect(t.sync).toMatchObject({ state: "ok", etDate: "2026-10-20", etTime: "8:00 PM" });
+  });
+
+  it("the probe lookup counts only probes that read the mirror (success, empty), never failures", async () => {
+    await read("today", { probe: "2026-10-21T15:42:00Z" });
+    const text = sqlText(dbMock.execute.mock.calls[2]!);
+    expect(text).toMatch(/FROM alg_probe_log/);
+    expect(text).toMatch(/outcome IN \('success', 'empty'\)/);
+    for (const bad of ["auth_failed", "error", "dedup", "skipped_recent"]) expect(text).not.toContain(bad);
+    expect(text).toMatch(/UNIX_TIMESTAMP\(startedAt\)/);
+  });
+
+  it("a day with no successful probe on record is not synced", async () => {
+    const t = await read("today", { probe: null });
+    expect(t.sync).toEqual({ state: "never" });
+    expect(t.windowSynced).toBe(false);
+  });
+
+  it("an unreadable probe log is UNKNOWN: the read still answers, but never claims synced", async () => {
+    const t = await read("today", { agg: { paidCount: 3, paidCents: 90000 }, probe: "reject" });
+    expect(t.sync).toMatchObject({ state: "unreadable" });
+    expect(t.windowSynced).toBeNull();
+    for (const p of SALES_PERIODS) {
+      const r = await read(p, { probe: "reject" });
+      expect(r.windowSynced, p).toBeNull();
+    }
+  });
+
+  it("the data date is read from ShopDriver rows only", async () => {
+    await read("yesterday", { probe: "2026-10-21T15:42:00Z" });
+    expect(sqlText(dbMock.execute.mock.calls[1]!)).toMatch(/MAX\(invoiceDate\) AS throughDate FROM invoices WHERE source = 'shopdriver'/);
+  });
+
+  it("every period is judged against the probe: with a probe at 11:42 ET today they are all synced", async () => {
+    const got: Record<string, boolean | null> = {};
+    for (const p of SALES_PERIODS) got[p] = (await read(p, { probe: "2026-10-21T15:42:00Z" })).windowSynced;
+    expect(got).toEqual({ today: true, yesterday: true, last_7d: true, last_30d: true, month_to_date: true, prev_month: true });
+  });
+
+  it("with only last night's 8 PM probe, anything that includes the end of yesterday or today is not synced", async () => {
+    const got: Record<string, boolean | null> = {};
+    for (const p of SALES_PERIODS) got[p] = (await read(p, { probe: "2026-10-21T00:00:00Z" })).windowSynced;
     expect(got).toEqual({
-      today: true,
-      yesterday: false,
+      today: false, // nothing ran today
+      yesterday: false, // the probe ran before yesterday ended
       last_7d: false,
       last_30d: false,
-      month_to_date: true, // includes today, so partial every morning
-      prev_month: false,
+      month_to_date: false,
+      prev_month: true, // a whole month that ended Oct 1, probed after
     });
   });
 
-  // The truth table, driven through the real read. `now` is noon ET unless noted; the mirror
-  // reports MAX(invoiceDate) as a Date whose UTC digits are the stored shop day.
-  const through = (day: string) => new Date(`${day}T04:00:00Z`);
-  async function windowAfterAt(nowISO: string, period: (typeof SALES_PERIODS)[number], day: string | null) {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(nowISO));
-    dbMock.execute.mockResolvedValueOnce([[aggRow]]).mockResolvedValueOnce([[{ throughDate: day ? through(day) : null }]]);
-    const r = await paidInvoiceRevenue(period);
-    if (!r.available) throw new Error("unexpected unavailable");
-    return r.windowAfterThrough;
-  }
-
   it.each([
-    // [label, now, period, mirror through, windowAfterThrough]
-    ["today, mirror through yesterday (the normal morning)", "2026-10-21T15:59:00Z", "today", "2026-10-20", true],
-    ["today, mirror through today", "2026-10-21T15:59:00Z", "today", "2026-10-21", false],
-    ["yesterday, mirror through yesterday", "2026-10-21T15:59:00Z", "yesterday", "2026-10-20", false],
-    ["yesterday, mirror one day older", "2026-10-21T15:59:00Z", "yesterday", "2026-10-19", true],
-    ["7 days, mirror through yesterday", "2026-10-21T15:59:00Z", "last_7d", "2026-10-20", false],
-    ["7 days, mirror two days behind", "2026-10-21T15:59:00Z", "last_7d", "2026-10-19", true],
-    ["30 days, mirror through yesterday", "2026-10-21T15:59:00Z", "last_30d", "2026-10-20", false],
-    ["month to date, mirror through yesterday (partial on any morning)", "2026-10-21T15:59:00Z", "month_to_date", "2026-10-20", true],
-    ["month to date, mirror through today", "2026-10-21T15:59:00Z", "month_to_date", "2026-10-21", false],
-    ["last month, mirror far ahead", "2026-10-21T15:59:00Z", "prev_month", "2026-10-20", false],
-    ["last month, mirror through its last day", "2026-10-21T15:59:00Z", "prev_month", "2026-09-30", false],
-    ["last month, mirror one day short of its last day", "2026-10-21T15:59:00Z", "prev_month", "2026-09-29", true],
-    ["mirror dated after the window (a future-dated row)", "2026-10-21T15:59:00Z", "today", "2026-10-25", false],
-    ["no invoices in the mirror at all: nothing is synced", "2026-10-21T15:59:00Z", "today", null, true],
-    ["month end: yesterday is Sep 30, mirror through Sep 30", "2026-10-01T15:59:00Z", "yesterday", "2026-09-30", false],
-    ["month end: yesterday is Sep 30, mirror through Sep 29", "2026-10-01T15:59:00Z", "yesterday", "2026-09-29", true],
-    ["year end: yesterday is Dec 31, mirror through Dec 31", "2027-01-01T17:00:00Z", "yesterday", "2026-12-31", false],
-    ["year end: today is Jan 2, mirror through Dec 31", "2027-01-02T17:00:00Z", "today", "2026-12-31", true],
-    ["22:00 ET Oct 21 (UTC is already Oct 22): today is still Oct 21", "2026-10-22T02:00:00Z", "today", "2026-10-21", false],
-  ] as const)("windowAfterThrough: %s", async (_label, nowISO, period, day, expected) => {
-    expect(await windowAfterAt(nowISO, period, day)).toBe(expected);
+    // [label, now, period, probe instant, windowSynced]
+    ["probe at 23:59:59 ET last night does not cover today (UTC date is already today)", "2026-10-21T15:59:00Z", "today", "2026-10-21T03:59:59Z", false],
+    ["probe at 00:00:01 ET today covers today", "2026-10-21T15:59:00Z", "today", "2026-10-21T04:00:01Z", true],
+    ["probe at 00:00:01 ET today covers yesterday (it ran after yesterday ended)", "2026-10-21T15:59:00Z", "yesterday", "2026-10-21T04:00:01Z", true],
+    ["probe at 23:59:59 ET last night does not cover yesterday (yesterday had only just ended)", "2026-10-21T15:59:00Z", "yesterday", "2026-10-21T03:59:59Z", false],
+    ["22:00 ET Oct 21, probe 21:30 ET the same day: today synced", "2026-10-22T02:00:00Z", "today", "2026-10-22T01:30:00Z", true],
+    ["month end: yesterday is Sep 30, probe on Oct 1 covers it", "2026-10-01T15:59:00Z", "yesterday", "2026-10-01T12:00:00Z", true],
+    ["month end: yesterday is Sep 30, probe Sep 30 evening does not", "2026-10-01T15:59:00Z", "yesterday", "2026-10-01T00:30:00Z", false],
+    ["year end: yesterday is Dec 31, probe Jan 1 covers it", "2027-01-01T17:00:00Z", "yesterday", "2027-01-01T15:00:00Z", true],
+    ["fall back day (2026-11-01): probe 01:30 EST covers today", "2026-11-01T17:00:00Z", "today", "2026-11-01T06:30:00Z", true],
+    ["spring forward day (2026-03-08): probe 23:30 EST the day before does not cover today", "2026-03-08T17:00:00Z", "today", "2026-03-08T04:30:00Z", false],
+  ] as const)("windowSynced: %s", async (_label, now, period, probe, expected) => {
+    expect((await read(period, { now, probe })).windowSynced).toBe(expected);
   });
 
-  it("an empty mirror reports the window as after it, with an unknown through-date", async () => {
-    const t = await readAt("yesterday", null);
-    expect(t.throughDate).toBeNull();
-    expect(t.windowAfterThrough).toBe(true);
-  });
-
-  it("a synced day with no invoices stays a real zero: windowAfterThrough is false", async () => {
-    const t = await readAt("today", new Date("2026-10-21T04:00:00Z")); // mirror reached today
-    expect(t.windowAfterThrough).toBe(false);
-    expect(t.cents).toBe(0);
-    expect(t.invoiceCount).toBe(0);
+  it("a driver that hands the epoch back as a string still decides", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW_ISO));
+    dbMock.execute
+      .mockResolvedValueOnce([[aggRow]])
+      .mockResolvedValueOnce([[{ throughDate: null }]])
+      .mockResolvedValueOnce([[{ probeEpoch: String(epoch("2026-10-21T15:42:00Z")) }]]);
+    const r = await paidInvoiceRevenue("today");
+    expect(r.available && r.windowSynced).toBe(true);
   });
 });
 

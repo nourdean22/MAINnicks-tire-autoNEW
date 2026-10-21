@@ -65,13 +65,15 @@
  * two existing revenue surfaces do NOT (admin-stats shopFloor zeroes on catch;
  * masterIntelligence maps a dead engine to "absent from the score").
  *
- * `throughDate` is the newest invoiceDate in the mirror, shipped on every
+ * `throughDate` is the newest invoiceDate among ShopDriver rows, shipped on every
  * successful read. The ALG mirror runs a day behind, so a caller that renders
- * "today's sales" without it will show a structural $0 every morning — the exact
- * reason controlCenter.todayPulse deliberately refuses to report sales TODAY.
+ * "today's sales" without sync state will show a structural $0 every morning — the
+ * exact reason controlCenter.todayPulse deliberately refuses to report sales TODAY.
  * The "today" and "yesterday" periods exist for the owner who wants the day, so
- * every read also carries `windowAfterThrough`: TRUE means the window runs past
- * the mirror, and a caller must say "not synced yet" instead of printing the $0.
+ * every read also carries the durable sync state: `sync` (the newest SUCCESSFUL
+ * probe in alg_probe_log) and `windowSynced`. The newest invoice date is NOT that
+ * watermark: a manual or booking invoice moves it, and a zero-sale day never does.
+ * windowSynced false means "not synced yet": say so instead of printing the $0.
  */
 import { createLogger } from "../lib/logger";
 
@@ -107,6 +109,21 @@ export interface SalesExclusions {
   blankInvoiceNumbers: number;
 }
 
+type ShopSync =
+  | {
+      state: "ok";
+      /** When the probe started, UTC ISO. */
+      lastAt: string;
+      /** That instant on the shop's (America/New_York) calendar, yyyy-mm-dd. */
+      etDate: string;
+      /** ... and on the shop's clock, e.g. "11:42 AM". */
+      etTime: string;
+    }
+  /** The log is readable and holds no successful probe. */
+  | { state: "never" }
+  /** The log could not be read. Never rendered as synced. */
+  | { state: "unreadable"; reason: string };
+
 export type ShopSales =
   | {
       available: false;
@@ -119,16 +136,23 @@ export type ShopSales =
       invoiceCount: number;
       period: SalesPeriod;
       window: { fromISO: string; toISO: string; label: string };
-      /** Newest invoiceDate in the mirror. The operator must see the lag. */
-      throughDate: string | null;
       /**
-       * TRUE when the window's last date is newer than `throughDate` (or the mirror
-       * holds no invoices at all): part or all of the window has not been synced
-       * yet, so its figure is incomplete. For a single day it means "not synced",
-       * which a card must not render as $0. Set for EVERY period: month_to_date is
-       * partial on any morning too.
+       * Newest invoiceDate among SHOPDRIVER rows (source = 'shopdriver') only. A same-day
+       * manual, booking or Stripe row also moves a plain MAX(invoiceDate), which would make
+       * a stale mirror look current. This is a data date, NOT the sync watermark: that is
+       * `sync` below.
        */
-      windowAfterThrough: boolean;
+      throughDate: string | null;
+      /** The newest SUCCESSFUL ShopDriver probe in alg_probe_log: the durable sync state. */
+      sync: ShopSync;
+      /**
+       * Has a successful probe run after this window's data could have been complete
+       * (after the window ended, or, for a window that includes today, today)? null when the
+       * probe log could not be read: unknown is not synced and not unsynced. For a single
+       * day, false means "not synced", which a card must not render as $0. Set for EVERY
+       * period.
+       */
+      windowSynced: boolean | null;
       basis: "invoice_date";
       grossOrNet: "gross_tax_inclusive";
       definitionVersion: string;
@@ -152,6 +176,9 @@ const PERIOD_LABEL: Record<SalesPeriod, string> = {
   prev_month: "Last month",
 };
 
+// en-CA gives yyyy-mm-dd; the timeZone option does the ET conversion.
+const etDate = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
 /**
  * Window boundaries as Eastern wall-clock dates.
  *
@@ -165,8 +192,6 @@ const PERIOD_LABEL: Record<SalesPeriod, string> = {
  * the correct pairing. Returns inclusive `from`, exclusive `to`.
  */
 export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from: string; to: string } {
-  // en-CA gives yyyy-mm-dd; the timeZone option does the ET conversion.
-  const etDate = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const todayET = etDate(now);
   const [y, m, d] = todayET.split("-").map(Number);
 
@@ -183,7 +208,7 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
   switch (period) {
     // 2026-10-21 · single Eastern days, for "what did we sell today / yesterday".
     // Today is offered but never the card's default: the mirror runs a day behind,
-    // so `windowAfterThrough` tells the card when the day has no data YET.
+    // so `windowSynced` tells the card when the day has no data YET.
     case "today":
       return { from: fmt(today), to: fmt(tomorrow) };
     case "yesterday":
@@ -214,20 +239,45 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
 }
 
 /**
- * Does the half-open window [from, to) end after the newest invoice date the
- * mirror holds? Both sides are yyyy-mm-dd strings of the same kind: `throughDate`
- * is the stored shop-day digits of MAX(invoiceDate) and the window bounds are the
- * ET dates the SQL compares those digits against, so like meets like and a UTC
- * midnight shift cannot move either side by a day. A null through-date (empty
- * mirror) is "nothing synced", so the window is after it.
+ * Has a successful ShopDriver probe run late enough to cover this window?
+ *
+ * The newest invoice date cannot say: a same-day manual or booking invoice moves it while
+ * ShopDriver's rows are stale, and a zero-sale day leaves it where it was however fresh the
+ * sync. The durable watermark is the newest SUCCESSFUL probe in alg_probe_log.
+ *
+ * A window's data can be complete once a probe has run after the window ended; a window that
+ * includes today can only ever be "so far", so for it a probe today is the best there is. So
+ * the probe's ET date must be at or after min(window end, today): today needs a probe today,
+ * yesterday needs one on or after today (it ran after yesterday ended), last month needs one
+ * on or after the 1st. yyyy-mm-dd strings compare as calendar days. null: log unreadable.
  */
-function isWindowAfterThrough(window: { from: string; to: string }, throughDate: string | null): boolean {
-  if (!throughDate) return true;
-  // `to` is exclusive, so the last date inside the window is the day before it.
-  const lastDate = new Date(Date.parse(`${window.to}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
-  return lastDate > throughDate;
+function windowSyncedFor(window: { to: string }, sync: ShopSync, todayET: string): boolean | null {
+  if (sync.state === "unreadable") return null;
+  if (sync.state === "never") return false;
+  const needed = window.to < todayET ? window.to : todayET;
+  return sync.etDate >= needed;
 }
 
+/**
+ * Turn the "newest successful probe" lookup into a ShopSync. The lookup selects
+ * UNIX_TIMESTAMP(startedAt): an exact epoch computed in SQL (startedAt is a TIMESTAMP written
+ * by its column default), so no driver-parsed, ET-shifted Date is ever turned into a day
+ * (apps/nickstire/AGENTS.md > Time). The ET date and clock are formatted from that instant.
+ * No row: "never". A row without a readable epoch: "unreadable", never "never".
+ */
+function syncFromProbeRows(rows: unknown): ShopSync {
+  const head = Array.isArray(rows) ? (Array.isArray(rows[0]) ? rows[0][0] : rows[0]) : rows;
+  if (head === undefined || head === null) return { state: "never" };
+  const epoch = Number((head as { probeEpoch?: unknown }).probeEpoch);
+  if (!Number.isFinite(epoch) || epoch <= 0) return { state: "unreadable", reason: "probe time unreadable" };
+  const at = new Date(epoch * 1000);
+  return {
+    state: "ok",
+    lastAt: at.toISOString(),
+    etDate: etDate(at),
+    etTime: at.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }),
+  };
+}
 /**
  * The single sales read. Every admin surface that wants "what did the shop
  * sell" should call this rather than writing another window.
@@ -244,7 +294,8 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
   }
   if (!db) return { available: false, reason: "Database not available" };
 
-  const { from, to } = salesWindow(period);
+  const now = new Date();
+  const { from, to } = salesWindow(period, now);
 
   try {
     // One statement. The buckets are computed in SQL over the same window and
@@ -265,7 +316,27 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
       WHERE invoiceDate >= ${from} AND invoiceDate < ${to}
     `);
 
-    const throughRows = await db.execute(sql`SELECT MAX(invoiceDate) AS throughDate FROM invoices`);
+    // ShopDriver rows only: a same-day manual or booking invoice must not move the data date.
+    const throughRows = await db.execute(sql`SELECT MAX(invoiceDate) AS throughDate FROM invoices WHERE source = 'shopdriver'`);
+
+    // The sync watermark: the newest SUCCESSFUL ShopDriver probe (success or empty, the outcomes
+    // that read the mirror; never auth_failed or error). Its own try: an unreadable log makes the
+    // sync UNKNOWN, it does not make the invoice figures unavailable.
+    let sync: ShopSync;
+    try {
+      sync = syncFromProbeRows(
+        await db.execute(sql`
+          SELECT UNIX_TIMESTAMP(startedAt) AS probeEpoch
+          FROM alg_probe_log
+          WHERE outcome IN ('success', 'empty')
+          ORDER BY startedAt DESC
+          LIMIT 1
+        `),
+      );
+    } catch (err) {
+      log.warn("[shopSales] alg_probe_log read failed", { error: err instanceof Error ? err.message : String(err) });
+      sync = { state: "unreadable", reason: err instanceof Error ? err.message : "probe log read failed" };
+    }
 
     const unwrap = (r: unknown): Record<string, unknown> => {
       const arr = Array.isArray(r) ? (r[0] as unknown) : r;
@@ -285,7 +356,8 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
       period,
       window: { fromISO: from, toISO: to, label: PERIOD_LABEL[period] },
       throughDate,
-      windowAfterThrough: isWindowAfterThrough({ from, to }, throughDate),
+      sync,
+      windowSynced: windowSyncedFor({ to }, sync, etDate(now)),
       basis: "invoice_date",
       grossOrNet: "gross_tax_inclusive",
       definitionVersion: SALES_DEFINITION_VERSION,

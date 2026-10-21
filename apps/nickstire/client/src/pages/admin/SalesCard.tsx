@@ -21,10 +21,12 @@
  *    invoice count is structurally 0 every morning; a "$0 today" tile reads as a
  *    dead shop rather than a sync lag. It defaults to a completed 7-day window
  *    and always prints the through-date, which is the same reasoning that made
- *    controlCenter.todayPulse exclude "sales today" deliberately. A single day
- *    newer than the mirror (`windowAfterThrough`) renders "Not synced yet" and the
- *    through-date INSTEAD of the figure: not synced is not $0. A synced day with
- *    no invoices (a holiday) is a real $0 and still shows it.
+ *    controlCenter.todayPulse exclude "sales today" deliberately. A single day that
+ *    no successful ShopDriver sync has covered (`windowSynced` false, read from the
+ *    sync log, never from the newest invoice) renders "Not synced yet" INSTEAD of the
+ *    figure: not synced is not $0. A day a sync has covered with no invoices (a
+ *    holiday) is a real $0 and still shows it, labelled with the sync time. An
+ *    unreadable sync log (`windowSynced` null) is "Sync status unknown", never synced.
  *
  * 3. It never renders a failed read as $0. The procedure returns a discriminated
  *    union, so the unavailable branch has no number to show.
@@ -62,15 +64,40 @@ function dollars(cents: number): string {
  * an in-app return to the page is not a load; a browser refresh resets it. A deep link
  * to another admin page does not sync until Today is opened (move this to the shell to
  * change that). The marker is a property of `window`, so a test starts a new document
- * by deleting it.
+ * by deleting it. It is set to "pending" when the call goes out, "done" only once the
+ * server ACCEPTED it, and cleared when the call is rejected: with MFA on the first call
+ * is refused by adminProcedure, and a marker set before the answer would swallow the only
+ * sync of the load.
  */
 const LOAD_SYNC_MARK = "__shopSalesLoadSyncAsked";
-function claimLoadSync(): boolean {
-  const w = window as unknown as Record<string, boolean | undefined>;
-  if (w[LOAD_SYNC_MARK]) return false;
-  w[LOAD_SYNC_MARK] = true;
-  return true;
+type LoadSyncMark = "pending" | "done";
+const loadSyncMarks = () => window as unknown as Record<string, LoadSyncMark | undefined>;
+type SyncState =
+  | { state: "ok"; etDate: string; etTime: string }
+  | { state: "never" }
+  | { state: "unreadable" };
+
+/** When the figure was last current, from the ShopDriver sync log. Never invents a time. */
+function syncCaption(period: Period, sync: SyncState): string {
+  if (sync.state === "ok") {
+    return period === "today"
+      ? `so far today, as of ${sync.etTime} ET`
+      : `current as of ${sync.etDate} ${sync.etTime} ET`;
+  }
+  return sync.state === "never" ? "no ShopDriver sync on record" : "sync time unknown";
 }
+
+/** What a single day shows INSTEAD of a figure when no sync covers it, or the log is unreadable. */
+function dayNotShownText(period: Period, windowSynced: boolean | null, sync: SyncState): string {
+  const which = period === "today" ? "today" : "yesterday";
+  if (windowSynced === null) {
+    return `Sync status unknown: the ShopDriver sync log could not be read, so ${which}'s total is not shown.`;
+  }
+  const head = period === "today" ? "Not synced yet today." : "Not synced yet for yesterday.";
+  if (sync.state === "ok") return `${head} Last ShopDriver sync: ${sync.etDate} ${sync.etTime} ET.`;
+  return `${head} No ShopDriver sync on record.`;
+}
+
 const SYNC_POLL_MS = 15_000;
 const SYNC_POLL_MAX_MS = 3 * 60_000;
 
@@ -81,11 +108,17 @@ export default function SalesCard() {
   const [syncing, setSyncing] = useState(false);
   const { mutate: syncOnLoad } = trpc.shopdriver.syncOnAdminLoad.useMutation({
     onSuccess: (r) => {
+      loadSyncMarks()[LOAD_SYNC_MARK] = "done";
       if (r.started) setSyncing(true);
+    },
+    onError: () => {
+      delete loadSyncMarks()[LOAD_SYNC_MARK];
     },
   });
   useEffect(() => {
-    if (claimLoadSync()) syncOnLoad();
+    if (loadSyncMarks()[LOAD_SYNC_MARK]) return;
+    loadSyncMarks()[LOAD_SYNC_MARK] = "pending";
+    syncOnLoad();
   }, [syncOnLoad]);
   useEffect(() => {
     if (!syncing) return;
@@ -97,9 +130,10 @@ export default function SalesCard() {
     { refetchInterval: syncing ? SYNC_POLL_MS : false },
   );
   const data = query.data;
-  // Decided from the period the server answered for, not the chip just tapped.
-  const notSynced =
-    data?.available === true && (data.period === "today" || data.period === "yesterday") && data.windowAfterThrough;
+  // Decided from the period the server answered for, not the chip just tapped. A single day
+  // shows its figure only when a successful ShopDriver sync covers it (windowSynced === true).
+  const singleDay = data?.available === true && (data.period === "today" || data.period === "yesterday");
+  const dayNotShown = singleDay && data.windowSynced !== true;
 
   return (
     <section
@@ -150,16 +184,12 @@ export default function SalesCard() {
         </div>
       )}
 
-      {/* A day newer than the mirror has no invoices YET: say so, print no figure. */}
-      {data?.available === true && notSynced && (
-        <div className="text-sm text-foreground/70">
-          {data.throughDate
-            ? `Not synced yet. The invoice mirror is current through ${data.throughDate}.`
-            : "Not synced yet. The invoice mirror has no through-date."}
-        </div>
+      {/* A day no ShopDriver sync has covered has no invoices YET: say so, print no figure. */}
+      {data?.available === true && dayNotShown && (
+        <div className="text-sm text-foreground/70">{dayNotShownText(data.period, data.windowSynced, data.sync)}</div>
       )}
 
-      {data?.available === true && !notSynced && (
+      {data?.available === true && !dayNotShown && (
         <>
           <div className="flex items-baseline gap-3 flex-wrap">
             <span className="text-3xl font-semibold tabular-nums">{dollars(data.cents)}</span>
@@ -172,6 +202,7 @@ export default function SalesCard() {
           <div className="mt-1 text-xs text-foreground/50">
             Billed (invoice date), gross incl. tax · not yet reconciled to the shop report
             {data.throughDate ? ` · mirror current through ${data.throughDate}` : " · mirror through-date unknown"}
+            {` · ${syncCaption(data.period, data.sync)}`}
           </div>
 
           <button
