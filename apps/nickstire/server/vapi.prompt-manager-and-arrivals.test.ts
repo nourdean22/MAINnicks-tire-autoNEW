@@ -46,7 +46,7 @@ describe("no questions before a transfer or a callback", () => {
 describe("coming now / tow coming is a heads-up text", () => {
   it("bookSlot requires name + service only and takes an eta", () => {
     const bs = tool("bookSlot");
-    expect(bs.parameters?.required).toEqual(["name", "service"]);
+    expect(bs.parameters?.required).toEqual(["service"]); // review P2-3: caller ID record supplies the name
     expect(bs.parameters?.properties?.eta).toBeDefined();
     expect(bs.parameters?.properties?.phone?.description).toMatch(/never ask for it/);
   });
@@ -55,11 +55,11 @@ describe("coming now / tow coming is a heads-up text", () => {
     const tow = section("## BROKEN-DOWN / TOWED", "\n\n");
     expect(tow).toContain('bookSlot({ name, service: "tow incoming: <what happened>", vehicle, eta })');
     expect(tow).not.toContain("name + phone + vehicle");
-    expect(tow).toContain("Don't let them off the line without name + vehicle.");
+    expect(tow).toContain("Don't let them off the line without the vehicle and where it is.");
   });
 
   it("FLOW 2 books with eta, not phone", () => {
-    expect(ASSISTANT_SYSTEM_PROMPT).toContain("→ bookSlot({ name, service, vehicle, eta }) → sendConfirmationSms");
+    expect(ASSISTANT_SYSTEM_PROMPT).toContain("→ bookSlot({ name, service, vehicle, preferredDay, eta }) → sendConfirmationSms");
     expect(ASSISTANT_SYSTEM_PROMPT).not.toContain("bookSlot({ name, phone, service, vehicle })");
   });
 
@@ -76,7 +76,6 @@ describe("coming now / tow coming is a heads-up text", () => {
 // pins their replacements. What stays out of scope is pinned here.
 describe("out-of-scope caller lines stay as they were", () => {
   it.each([
-    "Switch to simple Spanish/Arabic. If it gets complex, capture phone + transferCall.",
     "→ sendConfirmationSms → transferCall (if the transfer fails, the shop already has the text).",
   ])("still contains %j", (line) => {
     expect(ASSISTANT_SYSTEM_PROMPT).toContain(line);

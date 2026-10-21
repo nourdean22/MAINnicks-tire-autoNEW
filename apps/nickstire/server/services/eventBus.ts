@@ -622,9 +622,11 @@ async function ensureInitialized(): Promise<void> {
  * Text the on-duty manager: whoever the live VAPI transfer number points at
  * (5-min cache). The only recipient this can reach; callers never pick it.
  * "skipped" = no number configured, or the number is the shop gateway itself
- * (it can't text itself). "failed" = sendSms said so.
+ * (it can't text itself). "failed" = sendSms said so. "pending" = sendSms took
+ * it but did not confirm it: queued (gateway offline, delivered later) or
+ * uncertain (gateway timeout, may have gone out). Never retry a pending send.
  */
-export async function textOnDutyManager(body: string): Promise<{ status: "sent" | "skipped" | "failed"; reason?: string }> {
+export async function textOnDutyManager(body: string): Promise<{ status: "sent" | "pending" | "skipped" | "failed"; reason?: string }> {
   const { getOnDutyManagerPhone } = await import("./vapi");
   const managerPhone = await getOnDutyManagerPhone();
   if (!managerPhone) {
@@ -645,7 +647,10 @@ export async function textOnDutyManager(body: string): Promise<{ status: "sent" 
   // Twilio + fires a Telegram alert — the caller doesn't have to
   // think about it.
   const res = await sendSms(managerPhone, body, { via: "shop", messageClass: "internal" });
-  return res.success ? { status: "sent" } : { status: "failed", reason: res.error ?? "send failed" };
+  if (!res.success) return { status: "failed", reason: res.error ?? "send failed" };
+  if (res.queued) return { status: "pending", reason: "queued" };
+  if (res.uncertain) return { status: "pending", reason: "uncertain" };
+  return { status: "sent" };
 }
 
 // ─── DISPATCH (the main function) ─────────────────────

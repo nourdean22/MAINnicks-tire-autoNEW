@@ -191,6 +191,64 @@ describe("bookSlot: coming in today / tow → one internal text, no expected_arr
   });
 });
 
+describe("a queued or uncertain text is not a delivered one (review P1-1)", () => {
+  it.each(["queued", "uncertain"])("%s → the row path files the visit, the claim is kept, a second bookSlot sends nothing", async (reason) => {
+    h.textOnDutyManager.mockResolvedValue({ status: "pending", reason });
+    const caller = await loadCaller();
+    const first = await caller.bookSlot(TOW);
+    expect(first.status).toBe("walk_in_guidance");
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+    expect([...h.claims].some((k) => k.startsWith("voice-arrival:call_test_1|"))).toBe(true);
+    await caller.bookSlot(TOW);
+    expect(h.textOnDutyManager).toHaveBeenCalledTimes(1);
+  });
+
+  it("plain success → 0 rows", async () => {
+    h.textOnDutyManager.mockResolvedValue({ status: "sent" });
+    await (await loadCaller()).bookSlot(TOW);
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+  });
+});
+
+describe("bookSlot needs no name when caller ID has a record (review P2-3, P2-9)", () => {
+  it("no name, later day, record on file → no zod error, the row carries the record name", async () => {
+    h.customerRows = [{ firstName: "Raymond", lastName: "Smith" }];
+    const res = await (await loadCaller()).bookSlot({ service: "brake check", preferredDay: "tomorrow", callId: "call_n1", callerNumber: CALLER });
+    expect(res.status).toBe("walk_in_guidance");
+    expect(h.recordExpectedArrival).toHaveBeenCalledWith(expect.objectContaining({ name: "Raymond S." }));
+  });
+
+  it("no name, today, record on file → the text carries the record name", async () => {
+    h.customerRows = [{ firstName: "Raymond", lastName: "Smith" }];
+    await (await loadCaller()).bookSlot({ service: "brake check", callId: "call_n2", callerNumber: CALLER });
+    expect(bodyOf()).toContain("Raymond S. - (216) 555-0123");
+  });
+
+  it("no name, later day, no record → still asks once (name_incomplete)", async () => {
+    const res = await (await loadCaller()).bookSlot({ service: "brake check", preferredDay: "tomorrow", callerNumber: CALLER });
+    expect(res.status).toBe("name_incomplete");
+  });
+
+  it("a name in Arabic script uses the record name instead of 'Name not given'", async () => {
+    h.customerRows = [{ firstName: "Raymond", lastName: "Smith" }];
+    await (await loadCaller()).bookSlot({ ...TOW, name: "محمد" });
+    expect(bodyOf()).toContain("Raymond S. - (216) 555-0123");
+  });
+});
+
+describe("textOnDutyManager reports a queued or uncertain send as pending (review P1-1)", () => {
+  it.each([[{ success: true, queued: true }, "queued"], [{ success: true, uncertain: true }, "uncertain"]])("%o → pending:%s, and bookSlot files the row", async (smsResult, reason) => {
+    h.onDuty.mockResolvedValue("+12165550188");
+    h.sendSms.mockResolvedValue(smsResult);
+    const caller = await loadCaller({ realEventBus: true });
+    const { textOnDutyManager } = await import("../services/eventBus");
+    await expect(textOnDutyManager("x")).resolves.toEqual({ status: "pending", reason });
+    const res = await caller.bookSlot({ ...TOW, callId: `call_p_${reason}` });
+    expect(res.status).toBe("walk_in_guidance");
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("a tow means a car being towed in, not tow gear", () => {
   it("'tow hitch install' on saturday → the row path, no TOW COMING text", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });

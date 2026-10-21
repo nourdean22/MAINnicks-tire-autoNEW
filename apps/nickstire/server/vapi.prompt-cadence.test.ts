@@ -127,6 +127,27 @@ describe("no phone capture before a tire transfer (part 2 cleanup)", () => {
     expect(core).not.toMatch(/quantity\/phone/);
   });
 
+  it("the Spanish/Arabic path transfers with no questions first (review P1-2)", () => {
+    const es = section("## SPANISH / ARABIC", "\n\n");
+    expect(es).toContain("If it gets complex, transferCall (no questions first).");
+    expect(es).not.toMatch(/\bphone\b/);
+  });
+
+  it("NO QUESTIONS BEFORE A TRANSFER is scoped to a caller-requested transfer (review P2-10)", () => {
+    const nq = section("NO QUESTIONS BEFORE A TRANSFER", "\n");
+    expect(nq).toContain("alongside a transfer the caller asked for");
+    expect(section("## BROKEN-DOWN / TOWED", "\n\n")).toContain("Don't let them off the line without the vehicle and where it is.");
+  });
+
+  it("bookSlot examples in FLOW 1 and FLOW 2 carry preferredDay (review P2-4)", () => {
+    for (const flow of [section("## FLOW 1", "## FLOW 2"), section("## FLOW 2", "## FLOW 3")]) {
+      const calls = flow.match(/bookSlot\(\{[^}]*\}\)/g) ?? [];
+      expect(calls.length, "a bookSlot example").toBeGreaterThan(0);
+      for (const c of calls) expect(c).toContain("preferredDay");
+    }
+    expect(P).toContain("preferredDay = the day they named; leave it out only when they're coming now or today.");
+  });
+
   it("tireInquiry no longer requires a name or a phone", () => {
     const ti = (VAPI_TOOLS as unknown as Array<{ function?: { name?: string; parameters?: { required?: string[] } } }>).find((t) => t.function?.name === "tireInquiry")!;
     expect(ti.function!.parameters!.required).toEqual([]);

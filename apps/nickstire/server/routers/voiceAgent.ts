@@ -190,9 +190,11 @@ async function markCallConverted(callId: string | undefined): Promise<void> {
  * Coming in now/today or a tow: text the on-duty manager once per call instead
  * of filing an expected_arrivals row (Nour, 2026-10-21). True when the shop has
  * the text, or another tool call in this call already sent it. False means the
- * caller must file the row so the visit is not lost (paused, no number, failed).
+ * caller must file the row so the visit is not lost (paused, no number, failed,
+ * or queued/uncertain: the claim is kept so no second text goes out, and the
+ * manager still gets the late one).
  */
-async function sendArrivalHeadsUp(input: { name: string; phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string; callId?: string }): Promise<boolean> {
+async function sendArrivalHeadsUp(input: { name?: string; phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string; callId?: string }): Promise<boolean> {
   await markCallConverted(input.callId);
   let reason = "unknown";
   try {
@@ -201,12 +203,16 @@ async function sendArrivalHeadsUp(input: { name: string; phone?: string; callerN
       log.info("arrival heads-up text paused (vapi_arrival_text_paused); filing the arrival row", { callId: input.callId });
       return false;
     }
-    const body = arrivalHeadsUpText(input, await resolveCallerName(input.name, input.callerNumber));
+    let name = await resolveCallerName(input.name, input.callerNumber);
+    // A name in a non-Latin script folds to nothing in an ASCII text; the record's name reads.
+    if (name && !asciiClip(name, 40)) name = await resolveCallerName(undefined, input.callerNumber);
+    const body = arrivalHeadsUpText(input, name);
     const { textOnDutyManager } = await import("../services/eventBus");
     const send = async (): Promise<TelegramSendResult> => {
       const r = await textOnDutyManager(body);
       reason = r.reason ?? r.status;
-      return { status: r.status === "sent" ? "delivered" : "failed" };
+      // pending -> held: sendOncePerState keeps the claim (no second text), and it is not "delivered".
+      return { status: r.status === "sent" ? "delivered" : r.status === "pending" ? "held" : "failed" };
     };
     // Persisted claim: a call's tool calls can land on different replicas.
     const { sendOncePerState } = await import("../services/alertClaim");
@@ -505,8 +511,9 @@ export const voiceAgentRouter = router({
   // signed dispatch) or VOICE_AGENT_INTERNAL_SECRET header.
   bookSlot: voiceAgentInternalProcedure
     .input(z.object({
-      // No min length here: a short name is a normal result below, not a thrown error.
-      name: z.string().max(200),
+      // Optional: caller ID's customer record supplies it. A short or missing
+      // name with no record is a normal result below, not a thrown error.
+      name: z.string().max(200).optional(),
       // Caller ID supplies the number; this is only a different callback number the caller gave.
       phone: z.string().max(20).optional(),
       vehicle: z.string().max(200).optional(),
@@ -535,9 +542,11 @@ export const voiceAgentRouter = router({
           };
         }
       }
-      // A name under two letters is not a name. Thrown, it reaches the caller as
-      // "Tool execution failed"; returned, the model asks once for the full name.
-      if (input.name.trim().length < 2) {
+      // A name under two letters is not a name: the record for the caller-ID number
+      // is tried first, so a known caller is never asked. Thrown, it reaches the caller
+      // as "Tool execution failed"; returned, the model asks once for the full name.
+      const name = await resolveCallerName(input.name, input.callerNumber);
+      if (!name) {
         return {
           success: false,
           reference: "WALKIN-INFO",
@@ -560,7 +569,7 @@ export const voiceAgentRouter = router({
           const { recordExpectedArrival } = await import("../services/expectedArrivals");
           recorded = await recordExpectedArrival({
             phone: arrivalPhone,
-            name: input.name,
+            name,
             vehicle: input.vehicle,
             service: input.service,
             preferredDay: input.preferredDay,
