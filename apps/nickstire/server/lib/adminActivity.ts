@@ -108,15 +108,23 @@ export async function maybeFireAdminRefreshProbe(source: string): Promise<AdminR
     const d = await getDb();
     if (!d) return { started: false, done: Promise.resolve() };
     const { algProbeLog } = await import("../../drizzle/schema");
-    const { desc, inArray } = await import("drizzle-orm");
+    const { desc, inArray, sql } = await import("drizzle-orm");
+    // The age is computed IN SQL (apps/nickstire/AGENTS.md > Time): the driver hands a
+    // timestamp back shifted by the ET offset, so `Date.now() - startedAt` in JS can be hours
+    // off in either direction. startedAt is written by the column default (CURRENT_TIMESTAMP,
+    // see algProbeBudget.writeProbeLog, which never sets it), so NOW() is the same clock.
     const [lastAuthAttempt] = await d
-      .select({ startedAt: algProbeLog.startedAt })
+      .select({ ageSeconds: sql<number | null>`TIMESTAMPDIFF(SECOND, ${algProbeLog.startedAt}, NOW())` })
       .from(algProbeLog)
       .where(inArray(algProbeLog.outcome, [...AUTH_ATTEMPTING_OUTCOMES]))
       .orderBy(desc(algProbeLog.startedAt))
       .limit(1);
-    if (lastAuthAttempt?.startedAt && Date.now() - new Date(lastAuthAttempt.startedAt).getTime() < REFRESH_PROBE_MIN_INTERVAL_MS) {
-      return { started: false, done: Promise.resolve() }; // an auth already happened recently — don't kick the counter again
+    if (lastAuthAttempt) {
+      const ageSeconds = Number(lastAuthAttempt.ageSeconds);
+      // A row whose age cannot be read is UNKNOWN, not "due": do not probe.
+      if (!Number.isFinite(ageSeconds) || ageSeconds * 1000 < REFRESH_PROBE_MIN_INTERVAL_MS) {
+        return { started: false, done: Promise.resolve() }; // an auth already happened recently — don't kick the counter again
+      }
     }
 
     handedOff = true;

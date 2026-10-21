@@ -11,14 +11,15 @@
  *   - an in-flight probe is not doubled; a failed probe never throws into the request;
  *   - the interval is real elapsed time, not wall-clock digits, across both DST changes.
  *
- * Time is mocked with fake Date; instants are written as UTC and labelled with their ET reading.
+ * The 30 min age is the database's (TIMESTAMPDIFF against NOW()), never a JS subtraction on a
+ * driver-parsed Date: see "the 30 min decision is the database's age" below.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const m = vi.hoisted(() => ({
-  rows: [] as Array<{ startedAt: Date }>,
+  rows: [] as Array<{ ageSeconds?: unknown; startedAt?: Date }>,
   selects: 0,
   getDb: vi.fn(),
   requestAlgProbe: vi.fn(),
@@ -37,8 +38,10 @@ async function load() {
   return import("./adminActivity");
 }
 
-const lastAttemptAgo = (ms: number, at: Date = NOW) => {
-  m.rows = [{ startedAt: new Date(at.getTime() - ms) }];
+// The age the DATABASE computed (TIMESTAMPDIFF(SECOND, startedAt, NOW())): the only number the
+// code may decide on. The row carries no startedAt on purpose; a JS comparison would find nothing.
+const lastAttemptAgo = (ms: number) => {
+  m.rows = [{ ageSeconds: ms / 1000 }];
 };
 
 // Date is faked but timers are real: let any background work the code under test started settle.
@@ -117,27 +120,61 @@ describe("a page load syncs when the last auth attempt is 30 min old or older", 
     const { maybeFireAdminRefreshProbe } = await load();
     for (const iso of ["2026-10-21T07:00:00Z", "2026-10-21T18:00:00Z"]) {
       vi.setSystemTime(new Date(iso));
-      lastAttemptAgo(45 * MIN, new Date(iso));
+      lastAttemptAgo(45 * MIN);
       const r = await maybeFireAdminRefreshProbe("page-load");
       await r.done;
       expect(r.started, iso).toBe(true);
     }
   });
+});
 
-  it("counts elapsed time, not wall-clock digits, across fall-back (2026-11-01 01:10 EST is 31 min after 01:39 EDT)", async () => {
+/**
+ * apps/nickstire/AGENTS.md > Time: a driver-parsed TiDB timestamp comes back shifted by the ET
+ * offset, so an age computed in JS (Date.now() - startedAt) can be hours off in either direction.
+ * The decision must come from the number SQL computed (TIMESTAMPDIFF against NOW(), the same
+ * clock that wrote startedAt via the column default). Each case below hands the code a row whose
+ * driver-parsed Date disagrees with the SQL age and asserts the SQL age wins.
+ */
+describe("the 30 min decision is the database's age, never a JS subtraction", () => {
+  const HOURS_4 = 4 * 60 * MIN;
+
+  it("a Date 4 h in the past but a SQL age of 10 min does NOT fire (the shifted-read case)", async () => {
     const { maybeFireAdminRefreshProbe } = await load();
-    const now = new Date("2026-11-01T06:10:00Z"); // 01:10 EST (second pass through 1 AM)
-    vi.setSystemTime(now);
-    lastAttemptAgo(31 * MIN, now); // 05:39Z = 01:39 EDT: the wall clock reads LATER than now
+    m.rows = [{ ageSeconds: 10 * 60, startedAt: new Date(NOW.getTime() - HOURS_4) }];
+    const r = await maybeFireAdminRefreshProbe("page-load");
+    expect(r.started).toBe(false);
+    expect(m.requestAlgProbe).not.toHaveBeenCalled();
+  });
+
+  it("a Date 4 h in the future (negative JS age) but a SQL age of 45 min DOES fire", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    m.rows = [{ ageSeconds: 45 * 60, startedAt: new Date(NOW.getTime() + HOURS_4) }];
+    const r = await maybeFireAdminRefreshProbe("page-load");
+    await r.done;
+    expect(r.started).toBe(true);
+  });
+
+  it("the SQL age arrives as a string from some drivers and still decides", async () => {
+    const { maybeFireAdminRefreshProbe } = await load();
+    m.rows = [{ ageSeconds: "600" }];
+    expect((await maybeFireAdminRefreshProbe("page-load")).started).toBe(false);
+    m.rows = [{ ageSeconds: "1900" }];
     expect((await maybeFireAdminRefreshProbe("page-load")).started).toBe(true);
   });
 
-  it("counts elapsed time across spring-forward (01:45 EST to 03:14 EDT is only 29 min)", async () => {
+  it("an age the database could not compute is UNKNOWN, not due: no probe", async () => {
     const { maybeFireAdminRefreshProbe } = await load();
-    const now = new Date("2026-03-08T07:14:00Z"); // 03:14 EDT
-    vi.setSystemTime(now);
-    lastAttemptAgo(29 * MIN, now); // 06:45Z = 01:45 EST: the wall clock says 89 min
-    expect((await maybeFireAdminRefreshProbe("page-load")).started).toBe(false);
+    for (const bad of [null, undefined, "n/a"]) {
+      m.rows = [{ ageSeconds: bad, startedAt: new Date(NOW.getTime() - HOURS_4) }];
+      expect((await maybeFireAdminRefreshProbe("page-load")).started, String(bad)).toBe(false);
+    }
+    expect(m.requestAlgProbe).not.toHaveBeenCalled();
+  });
+
+  it("the query asks SQL for the age; the module never subtracts a driver Date", () => {
+    const src = readFileSync(resolve(process.cwd(), "server/lib/adminActivity.ts"), "utf8");
+    expect(src).toMatch(/TIMESTAMPDIFF\(SECOND, \$\{algProbeLog\.startedAt\}, NOW\(\)\)/);
+    expect(src).not.toMatch(/Date\.now\(\) - new Date\(lastAuthAttempt/);
   });
 });
 
