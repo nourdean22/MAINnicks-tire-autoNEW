@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/ai-referrals",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "58594c88-64eb-4407-bf85-b7e0d2775660",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\ai-referrals-d03f49",
+  "claimedBy": "2026-10-21-ai-referrals",
+  "claimedAt": "2026-10-21T17:50:19.704Z",
+  "expiresAt": "2026-10-22T05:50:19.704Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
