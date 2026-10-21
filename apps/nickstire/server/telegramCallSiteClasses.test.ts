@@ -67,8 +67,6 @@ const TABLE: Row[] = [
   ["routers/booking.ts", "UPSELL added", "receipt"],
   ["routers/gatewayTire.ts", "TIRES SHIPPING", "receipt"],
   ["routers/gatewayTire.ts", "INSTALLED —", "receipt"],
-  ["_core/statenour-bridge-routes.ts", "Bulk SMS DRY RUN", "receipt"],
-  ["_core/statenour-bridge-routes.ts", "Bulk SMS LIVE", "receipt"],
   // approvals: a draft that needs Nour's yes must never be held by default
   ["services/gbpAutoPost.ts", "GBP POST", "approval"],
   ["_core/bridge-routes.ts", "Win-back campaign DRAFTED", "approval"],

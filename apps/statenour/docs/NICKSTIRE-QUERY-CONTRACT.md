@@ -352,98 +352,12 @@ X-Snap-Signature: <hmac-sha256>
 
 ---
 
-## 6. POST `/api/bridge/bulk-sms-send`
+## 6. POST `/api/bridge/bulk-sms-send` (removed in v11.14)
 
-Dispatch target for statenour's `bulk-sms-approval` Inngest workflow
-(`apps/statenour/lib/inngest/functions/bulk-sms-approval.ts`). By the time
-a request reaches this endpoint, the operator has already approved the
-campaign via the Telegram approval gate (`bulk-sms/proposed` →
-`step.waitForEvent` → `/approve`) — this endpoint IS the send, not a
-second approval point.
-
-**This is a mutating endpoint** (creates an SMS campaign + sends
-messages), unlike every `/api/bridge/*` GET endpoint above. It reuses
-nickstire's existing admin-campaigns pipeline
-(`routers/campaigns.ts: getSegmentCustomers` + `processCampaignSends`) so
-a bridge-triggered campaign gets the same resumable/gateway-aware/rate-
-limited send loop, and the same per-phone daily cap + cooldown + opt-out
-+ TCPA footer inside `sendSms()`, that admin-UI-triggered campaigns get.
-
-**Request:**
-```
-POST /api/bridge/bulk-sms-send
-X-Statenour-Sync-Key: <key>
-Content-Type: application/json
-
-{
-  "campaignId": "winback-high-ltv-2026-07-09",
-  "segment": "lapsed",
-  "messageTemplate": "It's been a while — 10% off your next visit. {firstName}, walk in any day.",
-  "maxRecipients": 150,
-  "dryRun": true
-}
-```
-
-- `campaignId` — required string, ≤80 chars. Cross-system correlation id
-  (statenour's label), also used to build the `variantKey` tag
-  (`bulk_campaign:<campaignId>`) on every `smsMessages` row so per-
-  campaign attribution round-trips.
-- `segment` — required, one of `recent | lapsed | all` — the SAME three
-  segments `routers/campaigns.ts` defines. Deliberately NOT an arbitrary
-  filter object: a cross-network filter is both a SQL-surface risk and a
-  way to accidentally over-target. Callers needing different targeting
-  should get a named segment added here, not raw filters.
-- `messageTemplate` — required string, ≤1600 chars. Supports `{firstName}`
-  interpolation. This is the FULL message, not a preview.
-- `maxRecipients` — optional. Capped server-side regardless of what's
-  requested — see `BULK_BRIDGE_MAX_RECIPIENTS` in
-  `_core/statenour-bridge-routes.ts` (currently 300). Bridge-triggered
-  campaigns are meant to be targeted pushes, not full-database blasts.
-- `dryRun` — defaults to `true`. Only `dryRun: false` risks a real send.
-  A dry run does DB reads only (no campaign row, no send) and returns the
-  target count + a rendered preview so the caller can sanity-check first.
-
-**Response (dry run):**
-```json
-{
-  "success": true,
-  "dryRun": true,
-  "targetCount": 142,
-  "truncated": false,
-  "preview": "It's been a while — 10% off your next visit. Jane, walk in any day.\n\nReply STOP to opt out.",
-  "variantKey": "bulk_campaign:winback-high-ltv-2026-07-09"
-}
-```
-
-**Response (live send started):**
-```json
-{
-  "success": true,
-  "dryRun": false,
-  "campaignDbId": 47,
-  "targetCount": 142,
-  "truncated": false,
-  "variantKey": "bulk_campaign:winback-high-ltv-2026-07-09"
-}
-```
-
-`campaignDbId` is the `sms_campaigns.id` row — poll `campaigns.getById`
-(admin tRPC) for live sent/failed counts as `processCampaignSends` works
-through the batch (1 SMS/sec, gateway-offline holds and resumes via the
-existing `resumeStuckCampaigns` 5-min cron — nothing bridge-specific
-needed there).
-
-**Errors:** `400` for invalid `campaignId`/`segment`/`messageTemplate`,
-or an empty target segment on a live (non-dry-run) request. `503` if the
-DB is unavailable. `401` for a missing/invalid sync key (same
-`statenourAuth` middleware as every other `/api/bridge/*` endpoint).
-
-**Don't:** call this with `dryRun: false` in a loop or on retry after a
-timeout — a timeout here is ambiguous (the send may have already
-started) and retrying risks double-sending a customer segment. The
-statenour-side caller (`postNickstireBridge` in
-`apps/statenour/lib/nickstire/query.ts`) deliberately does not retry
-this endpoint for that reason.
+Removed 2026-10-19 (job 2026-10-18-bdnick-prune, wave 4). Its only caller, statenour's
+`bulk-sms-approval` function, was removed with wave 1. Customer texting stays in Nick's
+Admin (`server/routers/campaigns.ts`); bdnick.info does not send to customers. The
+section number is kept so sections 7 and 8 keep their numbers.
 
 ---
 
@@ -518,7 +432,6 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `marketing_attribution` | `from?, to?` (YYYY-MM-DD shop-local calendar days, both inclusive; default the 30 shop days ending on `to`, and `to` defaults to today, America/New_York) | `{ from, to, sources: [{ source, utmSource, leadCount, bookedCount, completedCount, lostCount, conversionCount, conversionRate, totalDollars, avgTicketDollars }], totals: { leadCount, conversionCount, conversionRate, totalDollars }, topSource, note }`: leads by source with their booking/invoice conversions and revenue (`conversionRate` in %). A lead counts on its New York day: `leads.createdAt` is stored UTC, so the day bounds are converted to UTC instants. A malformed date or `from` after `to` returns `{ error }` without querying. |
 | `master_report` | none | Synthesized health score + top alert/opp/risk + 13-component breakdown + sub-reports. See "master_report shape" below. Returns `{ ok: false, error }` if generation fails. Cache TTL 60s server-side. |
 | `quotes_pending` | `sinceHours?` (integer 1-17520, default 720), `withDetail?: true`, `limit?` (1-500, default 200) | `{ sinceHours, count, bookedCount, bookedCountIsLowerBound, quotes? }`: ALG counter quotes (`alg_estimates`) dated in the window, and how many are matched to an invoice (`matched_invoice_id IS NOT NULL`). `bookedCountIsLowerBound` is always `true`: no column records a booking, so "booked" comes only from the estimate-to-invoice matcher (`services/shopDriverEstimateSync.ts`), which leaves a paid quote unmatched when the phone differs or is short, the invoice falls outside the amount or date band, two invoices tie, or the invoice never mirrored. Read `bookedCount` as "at least" and `count - bookedCount` as "at most this many still pending". `withDetail` adds `quotes: [{ grandTotal (dollars), status: "booked" \| "pending" }]`, newest first. `ageDays` / `hasEmail` (a customer follow-up list) return `{ error }`: the declined-work recovery cron owns quote follow-up. Consumers: statenour `suggest_pricing_adjustment`, `quote_conversion_insight`, `lib/ai/predictive-prefetch.ts`. |
-| `recent_customer_ids` | `sinceDays?: number` (default 90, max 365) | `{ customerIds: string[], count, sinceDays }` — drives statenour daily customer-preferences cron · cap 500 |
 | `recent_invoices` | `days?` (1-1000, default 30) | `{ invoices: [{ id, totalAmount, invoiceDate }], count, days }`: newest first, at most 1000; `totalAmount` is in cents. |
 | `recent_leads` | `days?` (1-1000, default 30) | `{ leads: [{ id, fullName, createdAt, status, urgencyScore, source }], count, days }`: newest first, at most 1000. |
 | `revenue_range` | `from?, to?` (YYYY-MM-DD shop-local calendar days, both inclusive; `to` defaults to today, America/New_York, and `from` to `to`) | `{ from, to, totalDollars, invoiceCount, avgTicket }` (dollars) over every invoice dated `from` through the whole of `to`: `invoiceDate >= from AND < to + 1 day`, on the stored shop-local day. A malformed date or `from` after `to` returns `{ error }` without querying, as does a missing database. Exception: rows stamped `new Date()` (gatewayTire online orders, booking, a manual invoice) hold the UTC wall clock, so one written after 20:00 ET lands on the next day. |
@@ -771,6 +684,12 @@ retry-after-timeout) reports as SUCCESS/"already sent", never as failure.
   is a lower bound (`bookedCountIsLowerBound`), since "booked" is only an invoice match.
   `bookings_pending_stale` returns at most 50 unconfirmed requests. Both are probed by
   `scripts/contract-pre-flight.ts` as production actions.
+
+- **v11.14** (2026-10-19): `recent_customer_ids` and `POST /api/bridge/bulk-sms-send` removed
+  (job 2026-10-18-bdnick-prune, wave 4; their statenour callers left with waves 1 and 3).
+  The pushed copies (`/api/sync/business`, `/api/sync/events`, `/api/webhooks/nickstire`,
+  the `nour-os` memory insight) no longer carry customer names, phones or written text
+  (`server/lib/statenourOutbound.ts`).
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

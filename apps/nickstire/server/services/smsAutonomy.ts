@@ -291,13 +291,14 @@ export const SMS_AUTOMATION_REGISTRY: readonly SmsAutomationPolicy[] = [
     path: "campaign_router",
     level: 4,
     sendClass: "customer_marketing",
-    evidenceRequirement: "operator-armed winback with Telegram gate; 300 cap (bulk-sms bridge contract)",
-    caps: "300 per campaign · Telegram-gated arming",
+    // The statenour bulk-sms bridge (its 300 cap and Telegram arming) was removed 2026-10-19; winback runs from the admin campaigns screen.
+    evidenceRequirement: "operator-started winback from the admin campaigns screen",
+    caps: "segment read capped at 5000 customers per campaign · sends in batches of 50",
     quietHours: true,
     optOutBehavior: "fail_closed_index",
     takeoverBehavior: "suppressed_at_chokepoint",
     fallback: "pause = unset flag",
-    armedBy: "operator arming (bulk-sms bridge)",
+    armedBy: "operator, admin campaigns screen",
   },
   {
     key: "sms_blast",

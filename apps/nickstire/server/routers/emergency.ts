@@ -155,8 +155,7 @@ export const emergencyRouter = router({
 
         const nextOpenTime = getNextOpenTime();
 
-        // Unified event bus — CRITICAL priority (→ NOUR OS + learning). nickstire sends no Telegram
-        // for this event: statenour's bridge route alerts on it and retries an undelivered alert.
+        // Unified event bus — CRITICAL priority (→ NOUR OS + learning).
         import("../services/eventBus").then(({ emit }) =>
           emit.emergencyRequest({
             id: emergencyId,
@@ -199,7 +198,7 @@ export const emergencyRouter = router({
         // 216-862-0005 (the F25e itself), which would loop. Twilio path
         // is correct here since the shop owner sees alerts from a
         // different number (Twilio 216-769-9977 = clearly NOT a customer).
-        withRetry(
+        const ownerSms: Promise<"sent" | "failed"> = withRetry(
           () =>
             sendSmsOrThrow(
               STORE_OWNER_PHONE,
@@ -207,16 +206,28 @@ export const emergencyRouter = router({
               { messageClass: "internal" }
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-owner-sms" }
-        ).catch((err) => {
-          log.error("[Emergency] Owner SMS failed:", err);
-          logIntegrationFailure({
-            failureType: "sms",
-            entityId: emergencyId,
-            entityType: "lead",
-            errorMessage: err instanceof Error ? err.message : String(err),
-            errorDetails: err,
-          });
-        });
+        ).then(
+          () => "sent" as const,
+          (err) => {
+            log.error("[Emergency] Owner SMS failed:", err);
+            logIntegrationFailure({
+              failureType: "sms",
+              entityId: emergencyId,
+              entityType: "lead",
+              errorMessage: err instanceof Error ? err.message : String(err),
+              errorDetails: err,
+            });
+            return "failed" as const;
+          },
+        );
+
+        // Nour's emergency Telegram is sent from here, with its own bounded retry (2026-10-19): bdnick.info
+        // no longer receives the customer's name or phone, and the bridge no longer posts emergencies to
+        // statenour's alerting webhook. Fire and forget: it never throws, and if every try fails its error
+        // line says whether the owner SMS above reached Nour.
+        import("../services/emergencyAlert").then(({ sendEmergencyTelegram }) =>
+          sendEmergencyTelegram({ emergencyId, name, phone, problem: problem || "No description" }, ownerSms)
+        ).catch((err) => log.error("[Emergency] Telegram alert failed to start:", err));
 
         // SMS confirmation to customer with next open time
         // Wave-108: customer-facing → shop gateway so they see it from 216-862-0005

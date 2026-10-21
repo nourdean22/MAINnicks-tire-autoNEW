@@ -6372,6 +6372,11 @@
       "reason": "OPERATOR-TYPED DRY RUN, no automated invoker by design: the -DryRun form of scripts/bootstrap_repo.ps1 for a new machine; the live bootstrap:repo is the one scripts and docs name. Its only text mention was graphify-out/GRAPH_REPORT.md, a generated file untracked in #3180 (2026-10-19). Added 2026-10-19 (job 2026-10-19-graph-live-mcp)."
     },
     {
+      "file": "apps/nickstire/server/routers/campaigns.ts",
+      "symbol": "processCampaignSends",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The resumable at-most-once campaign sender. Its runtime consumers are in this same module: the admin send and resume mutations and resumeStuckCampaigns, which cron/index.ts and cron/scheduler.ts call for the campaign-resume job, so the sender is live, not vacuous. Its one caller outside the module, the statenour bulk-sms bridge endpoint in _core/statenour-bridge-routes.ts, was removed 2026-10-19 (job 2026-10-18-bdnick-prune wave 4), which left the export imported only by server/__tests__/contactHoldoutLanes.test.ts, which drives the holdout lanes through it directly. Tests are excluded from knip project globs by design."
+    },
+    {
       "file": "apps/nickstire/server/services/contentManufacturing.ts",
       "symbol": "explodeTopic",
       "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
