@@ -191,6 +191,46 @@ describe("bookSlot: coming in today / tow → one internal text, no expected_arr
   });
 });
 
+describe("a tow means a car being towed in, not tow gear", () => {
+  it("'tow hitch install' on saturday → the row path, no TOW COMING text", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-21T16:00:00Z")); // Wed 12:00 PM in Cleveland
+    const res = await (await loadCaller()).bookSlot({ name: "Ray", service: "tow hitch install", preferredDay: "saturday", callId: "call_h1", callerNumber: CALLER });
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+    expect(h.textOnDutyManager).not.toHaveBeenCalled();
+    expect(res.status).toBe("walk_in_guidance");
+  });
+
+  it("'tow hitch install' today → 0 rows, one COMING IN text", async () => {
+    await (await loadCaller()).bookSlot({ name: "Ray", service: "tow hitch install", preferredDay: "today", callId: "call_h2", callerNumber: CALLER });
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+    expect(h.textOnDutyManager).toHaveBeenCalledTimes(1);
+    expect(bodyOf().split("\n")[0]).toBe("COMING IN (phone)");
+    expect(bodyOf()).toContain("For: tow hitch install");
+  });
+
+  it.each(["tow package", "tow mirrors", "tow bar install", "tow hook", "tow straps", "tow rating check"])("%j on a later day is not a tow", async (service) => {
+    await (await loadCaller()).bookSlot({ name: "Ray", service, preferredDay: "tomorrow", callId: "call_h3", callerNumber: CALLER });
+    expect(h.textOnDutyManager).not.toHaveBeenCalled();
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    "tow incoming: won't start",
+    "getting it towed",
+    "tow coming, won't start",
+    "tow on the way",
+    "car being towed",
+    "towing it in",
+    "tow truck bringing it",
+  ])("%j on a later day → TOW COMING now", async (service) => {
+    await (await loadCaller()).bookSlot({ name: "Ray", service, preferredDay: "tomorrow", callId: "call_h4", callerNumber: CALLER });
+    expect(h.textOnDutyManager).toHaveBeenCalledTimes(1);
+    expect(bodyOf().split("\n")[0]).toBe("TOW COMING (phone)");
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+  });
+});
+
 describe("only a caller who says today gets the text (part 2: strict routing)", () => {
   it.each(["next week", "this weekend", "soon", "sometime"])("%j → the row path: 1 row, 0 texts", async (preferredDay) => {
     const res = await (await loadCaller()).bookSlot({ name: "Ray", service: "brake check", preferredDay, callId: "call_r1", callerNumber: CALLER });

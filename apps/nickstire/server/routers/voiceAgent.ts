@@ -130,7 +130,12 @@ function formatUsPhone(tenDigits: string): string {
   return `(${tenDigits.slice(0, 3)}) ${tenDigits.slice(3, 6)}-${tenDigits.slice(6)}`;
 }
 
-const isTow = (service: string) => /\btow/i.test(service);
+/**
+ * A vehicle being towed in, not tow gear: "tow hitch install" or "tow package"
+ * is an ordinary job and must not jump the day or read TOW COMING.
+ */
+const isTow = (service: string) =>
+  /\b(tow(ed)?\s+(incoming|coming|on\s+(its|the)\s+way|truck)|being\s+towed|get(ting)?\s+(it\s+)?towed|towing\s+it(\s+in)?|towed\s+in)\b/i.test(service);
 
 /**
  * A preferredDay that names today in so many words. parseExpectedDate maps
