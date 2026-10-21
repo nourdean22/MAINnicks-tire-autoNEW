@@ -25,11 +25,16 @@ vendor's live API without a sandbox credential: the probe proves nothing and may
 creates an order on load). When a keyed client cannot be exercised, capture the contract and the build plan; do not ship a
 dormant client, because it is tested only against your own reading of the docs.
 
-## Step 11: push a lane branch from the primary checkout
+## Step 11: where to push a lane branch from
 
-`git push -u origin <branch>` from the primary pushes the local ref, and the pre-push hook runs where `node_modules` exists. From a
-harness lane worktree it failed with "'turbo' is not recognized" and "node_modules missing" (2026-10-18), while the same branch
-pushed from the primary in 1.5 s. Never `--no-verify` from the worktree.
+A pre-push hook in another checkout proves nothing about the pushed ref: lefthook's `build:affected` ignores the ref on stdin and
+builds the HEAD of the working tree it runs in. Pushing a lane branch from the primary therefore builds the primary's HEAD and can
+pass while the lane's changes were never built. A harness lane worktree failed the hook with "'turbo' is not recognized" and
+"node_modules missing" (2026-10-18). Push from one of two places, never `--no-verify`:
+
+- a checkout whose HEAD is the lane tip and that has dependencies (a worktree with junctioned `node_modules`), so the hook builds
+  what is pushed; or
+- the hook-free clone (`AGENTS.md`: "If pre-push is blocked ... push from a hook-free clone"), and let CI carry the real gate.
 
 ## Step 15: copy the ledger headers, do not invent them
 

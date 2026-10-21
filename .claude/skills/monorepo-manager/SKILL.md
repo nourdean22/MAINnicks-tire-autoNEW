@@ -93,7 +93,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     gates ON THE COMBINED TREE; lane greens do not prove the merge works. Prefer one push. A job that adds
     a skill also runs `skill-forge`'s `check <dir> --git`, and one that rewrites a skill's description `check <dir> --existing --git`,
     on the branch before the squash erases the commit order (a wording change inside a skill's body is exempt: edit it directly).
-    Run the DoD compiler and the app preflight on the integration tip, never only on a lane branch (a lane branch cannot see requirements derived from client code). Push a lane branch from the primary checkout, never `--no-verify` (job-lessons).
+    Run the DoD compiler and the app preflight on the integration tip, never only on a lane branch (a lane branch cannot see requirements derived from client code). Push a lane branch from a checkout whose HEAD is its tip, or a hook-free clone; never `--no-verify` (job-lessons).
     Protected operations stop here with the exact one-liner for Nour.
 12. **Consumer check.** Anything that enforces: prove the real consumer applies it, in a FRESH session (`assert-the-consumer`).
     Hooks and permission rules load from the PRIMARY checkout's settings, not a worktree's: test them after the primary has the change

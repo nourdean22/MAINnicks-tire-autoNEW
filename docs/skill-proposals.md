@@ -2408,7 +2408,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** one failed push and one retry, about 5 minutes.
 - **Proposed edit:** step 11: "push a lane branch from the primary checkout (`git push -u origin <branch>` there pushes the local ref; the pre-push hook runs where node_modules exists); never `--no-verify` from the worktree."
 - **Confidence:** medium (once, clear; the memory `harness-worktree-commit-path` records the same shape from 2026-10-15)
-- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 11, and references/job-lessons.md)
+- **Status:** applied this PR (.claude/skills/monorepo-manager/SKILL.md, step 11, and references/job-lessons.md; the proposed "push from the primary" recipe was revised after Codex P2 on PR 3195, because a pre-push hook in another checkout builds that checkout's HEAD: push from a checkout whose HEAD is the lane tip, or the hook-free clone)
 
 ### P4 · monorepo-manager (step 15) and references/ledger-and-metrics.md
 - **Trigger (witnessed):** the manager wrote `docs/agent-os/ledger/2026-10-18-private-tag-memory.md` with an invented metrics header (`Lanes | Dispatches | Returns rejected | ...`) and prose rows; the lane's pre-commit `agent-os verify` failed twice on the two real-ledger canaries and the lane had to move the file out to commit. The correct header is the 8-cell one every existing file carries (`After the PR opened (Codex, human) | Manager catches before it opened | Red-first ... | Mutation ... | Cycle time ... | Rework pushes | Source`).
@@ -2512,7 +2512,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** a blocked gate on a PR whose latest run of the check was not the failed one.
 - **Proposed edit:** group the rollup by check name and judge only the newest run (by completion time) of each name; keep an arm where an older failed run plus a newer green run of one name passes, and an arm where the newer run is the failed one and the gate still blocks.
 - **Confidence:** medium (one PR)
-- **Status:** applied this PR (scripts/agent-os/merge-gate.mjs latestRuns() + mergeGate.test.mjs (red 2f/66p, then 68/68; mutation = no dedupe, 2 fail))
+- **Status:** applied this PR (scripts/agent-os/merge-gate.mjs latestRuns() + mergeGate.test.mjs; a later run replaces an earlier one only for the same Actions run id or a pull_request-triggered run, fail closed otherwise (Codex P1 on PR 3195: a workflow_dispatch pass must not hide a failed pull_request check))
 
 ### P5 · nickstire-verify / nickstire-tidb-ddl (Drizzle renders a column unqualified in SELECT but qualified in GROUP BY)
 - **Trigger (witnessed twice, PR 3189):** TiDB `only_full_group_by` rejects the pair; first NICKSTIRE-1 on 2026-09-08, then the customerIntelligence queries from 2026-10-09 to 2026-10-20. Typecheck and unit tests passed both times because no test rendered the real SQL.
