@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json weather-triggered-marketing, 2026-10-20 weather SMS targeting fix: codeCommit and tests extended with the heavy_rain snow and lake-flood exclusions, the cooldown across every weather_ variantKey, and the NOT EXISTS plus ORDER BY lastVisitDate DESC audience query; the P3 'LIMIT 10 before the cooldown, no ORDER BY' blocker rewritten as fixed with its residual (held-out controls never cool down). States unchanged (unit_verified, internal); REALITY-LEDGER.md re-rendered."
+    }
+  }
+}
