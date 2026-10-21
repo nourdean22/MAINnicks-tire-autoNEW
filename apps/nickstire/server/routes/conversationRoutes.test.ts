@@ -452,6 +452,59 @@ describe("conversation ingest — office visual frames", () => {
     expect(JSON.stringify(line)).not.toContain("Customer asking");
   });
 
+  it("(j) ears-v2: extraction metadata is written by its own UPDATE only once 0149 exists; unmigrated, the route still answers 200 and the gist is still written", async () => {
+    const colReady = conversationEpisodeColumnReady as unknown as ReturnType<typeof vi.fn>;
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    extract.mockResolvedValue({
+      ...okExtract, gist: "A customer said the prices are too high.", noiseOnly: false, flagCount: 1,
+      promptVersion: "ears-v2-2026-10-21", dropped: [{ reason: "flag quote not in cited segment", count: 1 }],
+      facts: [{ kind: "NEGATIVE_TALK", value: "way too much", evidenceSegment: 0, evidenceText: "you charge way too much", confidence: 0.9 }],
+    });
+
+    try {
+    colReady.mockImplementation(async (_d: unknown, col: string) => col === "gist");
+    const a = fakeRes();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, a.res);
+    expect(a.out.code).toBe(200);
+    const texts = execute.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(texts.some((t) => t.includes("UPDATE conversation_episodes SET gist"))).toBe(true);
+    expect(texts.some((t) => t.includes("SET extraction"))).toBe(false);
+    // the caller names where the microphone is
+    expect(extract.mock.calls[0][1].location).toBe("Office");
+
+    colReady.mockImplementation(async () => true);
+    execute.mockClear();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
+    const upd = execute.mock.calls.map((c) => JSON.stringify(c[0])).find((t) => t.includes("SET extraction"));
+    expect(upd).toBeDefined();
+    expect(upd).toContain("ears-v2-2026-10-21");
+    expect(upd).toContain('\\"flagCount\\":1');
+    expect(upd).not.toContain("way too much");
+    const line = logSpy.info.mock.calls.find((c) => c[0] === "conversation extracted");
+    expect(JSON.stringify(line)).not.toContain("way too much");
+    } finally {
+      colReady.mockResolvedValue(false);
+    }
+  });
+
+  it("a FAILED extraction writes no extraction metadata and no gist", async () => {
+    const colReady = conversationEpisodeColumnReady as unknown as ReturnType<typeof vi.fn>;
+    try {
+      colReady.mockImplementation(async () => true);
+      const execute = vi.fn().mockResolvedValue(undefined);
+      db.mockResolvedValue({ execute });
+      extract.mockResolvedValue({ ...okExtract, ok: false, error: "upstream timeout" });
+      const a = fakeRes();
+      await mount()({ headers: { "x-sync-key": KEY }, body: body() }, a.res);
+      expect(a.out.body).toMatchObject({ transcriptStatus: "FAILED" });
+      const texts = execute.mock.calls.map((c) => JSON.stringify(c[0]));
+      expect(texts.some((t) => t.includes("SET extraction") || t.includes("SET gist"))).toBe(false);
+    } finally {
+      colReady.mockResolvedValue(false);
+    }
+  });
+
   it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {
     process.env.OFFICE_VISUAL_ANALYSIS = "0";
     visualReady.mockResolvedValue(true);

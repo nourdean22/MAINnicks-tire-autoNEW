@@ -39,7 +39,21 @@ export function storedFacts(value: unknown): StoredFact[] {
   });
 }
 
-type TimedSegment = { start?: unknown; end?: unknown };
+/**
+ * True when a transcript segment holds no words: empty, or only whisper's non-speech tokens
+ * ([BLANK_AUDIO], [MUSIC], (banging), *noise*, music notes). A line that mixes a token with words
+ * ("(laughs) yeah it is") is speech.
+ */
+export function isNonSpeechText(text: string): boolean {
+  return /^(?:\s|\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|[♪♫.…\-–—])*$/u.test(text);
+}
+
+/** Where a conversation source's microphone is, in words (eufy-office -> "Office"); anything else names itself. */
+export function conversationSourceLabel(source: string): string {
+  return source === "eufy-office" ? "Office" : source;
+}
+
+type TimedSegment = { start?: unknown; end?: unknown; text?: unknown };
 
 /**
  * Fraction of the clip covered by transcript segments, using the UNION of intervals.
@@ -64,6 +78,8 @@ export function transcriptCoverage(
     .flatMap((raw) => {
       if (!raw || typeof raw !== "object") return [];
       const seg = raw as TimedSegment;
+      // A clip of bangs is not a covered conversation (ears-v2): non-speech tokens are not words.
+      if (typeof seg.text === "string" && isNonSpeechText(seg.text)) return [];
       const start = Number(seg.start);
       const end = Number(seg.end);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];

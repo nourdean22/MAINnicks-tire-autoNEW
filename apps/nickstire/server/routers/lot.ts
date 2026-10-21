@@ -78,7 +78,8 @@ import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
 import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
 import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
-import { jsonArray, storedFacts, transcriptCoverage } from "../lib/conversationQuality";
+import { conversationSourceLabel, jsonArray, storedFacts, transcriptCoverage } from "../lib/conversationQuality";
+import { isConversationFlagKind } from "../../shared/conversationFlags";
 import { officeHourDigest } from "../services/officeDigest";
 import { readVehicleCounterTrust } from "../services/vehicleCounterTrust";
 import { conversationEpisodeColumnPresent, officeVisualColumnPresent, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
@@ -448,7 +449,12 @@ export const lotRouter = router({
 
         return {
           ok: true as const,
-          conversations: rows.map((r) => ({
+          conversations: rows.map((r) => {
+            // ears-v2: the detailed account (gist) and the "worth knowing" flags are about staff
+            // and customers, so they are the OWNER's; every other role gets business facts only.
+            const allFacts = storedFacts(r.facts);
+            const shown = quotes ? allFacts : allFacts.filter((f) => !isConversationFlagKind(f.kind));
+            return {
             episodeId: String(r.episodeId),
             source: String(r.source),
             cameraSerial: r.cameraSerial == null ? null : String(r.cameraSerial),
@@ -468,15 +474,17 @@ export const lotRouter = router({
             // How many timed segments were stored (NULL = never transcribed). The words themselves
             // are read one conversation at a time, owner only, through conversationTranscript.
             segmentCount: numOrNull(r.segmentCount),
-            factCount: jsonArray(r.facts).length,
-            facts: storedFacts(r.facts).slice(0, 12).map((f) => (quotes ? f : { ...f, evidenceText: "" })),
+            factCount: quotes ? jsonArray(r.facts).length : shown.length,
+            facts: shown.slice(0, 12).map((f) => (quotes ? f : { ...f, evidenceText: "" })),
+            flagKinds: quotes ? [...new Set(allFacts.map((f) => f.kind).filter(isConversationFlagKind))] : [],
             summary: r.summary == null ? null : String(r.summary),
             candidateVehicleVisitId: r.vehicleVisitId == null ? null : String(r.vehicleVisitId),
             candidateWorkOrderId: r.workOrderId == null ? null : String(r.workOrderId),
             linkConfidence: numOrNull(r.linkConfidence),
             visual: storedVisual(r.visual),
-            gist: r.gist == null ? null : String(r.gist),
-          })),
+            gist: quotes && r.gist != null ? String(r.gist) : null,
+            };
+          }),
           visualAvailable: visualReady,
           // The same owner rule as the quotes above: whether conversationTranscript will answer.
           wordsVisible: quotes,
@@ -551,6 +559,60 @@ export const lotRouter = router({
     }),
 
   /**
+   * "Worth knowing" (ears-v2): every kept flag of one shop day, newest first, each with the exact
+   * words heard and the conversation's account. OWNER ONLY, refused before any read. The ET day and
+   * its UTC bounds are computed in SQL; unknown bounds (no timezone tables) or a failed read is
+   * ok:false, never an empty day.
+   */
+  worthKnowing: adminProcedure
+    .input(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      if (ctx.adminSecurity.adminRole !== "owner") return { ok: false as const, reason: "Only the owner can see this." };
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const dayExpr = input?.day ? sql`DATE(${input.day})` : sql`DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))`;
+        const [bounds] = rowsOf(await d.execute(sql`
+          SELECT DATE_FORMAT(${dayExpr}, '%Y-%m-%d') AS day,
+                 UNIX_TIMESTAMP(CONVERT_TZ(${dayExpr}, 'America/New_York', '+00:00')) AS startEpoch,
+                 UNIX_TIMESTAMP(CONVERT_TZ(DATE_ADD(${dayExpr}, INTERVAL 1 DAY), 'America/New_York', '+00:00')) AS endEpoch
+        `));
+        const day = bounds?.day == null ? null : String(bounds.day);
+        const startEpoch = numOrNull(bounds?.startEpoch);
+        const endEpoch = numOrNull(bounds?.endEpoch);
+        if (day === null || startEpoch === null || endEpoch === null) {
+          return { ok: false as const, reason: "could not compute the shop day's bounds" };
+        }
+        const gistReady = await conversationEpisodeColumnPresent(d, "gist");
+        const rows = rowsOf(await d.execute(sql`
+          SELECT episodeId, source, facts,
+                 ROUND(UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) * 1000) AS startedAtMs
+                 ${gistReady ? sql`, gist` : sql``}
+            FROM conversation_episodes
+           WHERE source <> 'selftest' AND facts IS NOT NULL
+             AND UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) >= ${startEpoch}
+             AND UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) < ${endEpoch}
+           ORDER BY COALESCE(startedAt, createdAt) DESC
+           LIMIT 300
+        `));
+        const items = rows.flatMap((r) => storedFacts(r.facts)
+          .filter((f) => isConversationFlagKind(f.kind))
+          .map((f) => ({
+            episodeId: String(r.episodeId),
+            source: String(r.source),
+            cameraLabel: conversationSourceLabel(String(r.source)),
+            startedAtMs: numOrNull(r.startedAtMs),
+            kind: f.kind,
+            quote: f.value,
+            account: r.gist == null ? null : String(r.gist),
+          })));
+        return { ok: true as const, day, items };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "worth-knowing read failed" };
+      }
+    }),
+
+  /**
    * Hourly office digest (contract office-digest v3): the last N clock hours, newest first,
    * including the current partial hour. Same privacy boundary as `conversations`: the digest
    * is built from gists and validated fact kind/value pairs only (services/officeDigest.ts).
@@ -568,7 +630,11 @@ export const lotRouter = router({
    */
   officeDigest: adminProcedure
     .input(z.object({ hours: z.number().int().min(1).max(12).default(6) }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // ears-v2: the digest is built from the detailed accounts and the flag facts, which are the
+      // owner's. Refused before any read, so the in-process memo can never serve an owner-built
+      // digest to another role.
+      if (ctx.adminSecurity.adminRole !== "owner") return { ok: false as const, reason: "Only the owner can see this." };
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
 

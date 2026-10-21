@@ -183,6 +183,9 @@ export async function handleRunMigrations() {
       `ALTER TABLE financing_clicks MODIFY COLUMN provider ENUM('acima','snap','koalafi','american-first','kafene') NOT NULL`,
       // 2026-10-18 · drizzle/0148_kafene_leases.sql. Kafene lease rows; idempotent create.
       `CREATE TABLE IF NOT EXISTS kafene_leases (id INT AUTO_INCREMENT PRIMARY KEY, orderNumber VARCHAR(50) NOT NULL, uid VARCHAR(64) NULL, status VARCHAR(24) NOT NULL DEFAULT 'started', merchandiseCents INT NOT NULL, activationDate DATE NULL, activatedAt DATETIME NULL, activatedBy VARCHAR(191) NULL, cancelledAt DATETIME NULL, lastError VARCHAR(255) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY kafene_leases_uid_unique (uid), INDEX idx_kafene_leases_order (orderNumber)) DEFAULT CHARSET=utf8mb4`,
+      // 2026-10-21 · drizzle/0149_conversation_episodes_extraction.sql: how an account and its flags
+      // were produced (ears-v2). conversationRoutes checks information_schema and stays inert until applied.
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS extraction JSON NULL`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,

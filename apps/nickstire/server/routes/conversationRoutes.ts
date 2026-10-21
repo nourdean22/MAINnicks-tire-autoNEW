@@ -34,6 +34,7 @@ import {
   type OfficeVisual,
 } from "../services/officeVisual";
 import { createLogger } from "../lib/logger";
+import { conversationSourceLabel } from "../lib/conversationQuality";
 
 const log = createLogger("routes:conversationEpisodes");
 
@@ -197,6 +198,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
         coveredSeconds: e.coveredSeconds,
         totalSeconds: e.totalSeconds,
         visualContext,
+        location: conversationSourceLabel(e.source),
       }),
       visualPromise,
     ]);
@@ -267,6 +269,18 @@ export function registerConversationEpisodeRoute(app: Express): void {
           UPDATE conversation_episodes SET gist = ${extracted.gist ?? null} WHERE episodeId = ${e.episodeId}
         `);
       }
+      // 0149 · how the account and flags were produced (model, prompt version, noise-only, flag
+      // count, drop reasons). Counts and reasons only, never words. Only for an extraction that
+      // ran and succeeded, and only once the column exists: the INSERT above is unchanged.
+      if (extracted.ok && extracted.promptVersion && await conversationEpisodeColumnReady(d, "extraction")) {
+        const extraction = {
+          model: extracted.engine, promptVersion: extracted.promptVersion,
+          noiseOnly: extracted.noiseOnly ?? false, flagCount: extracted.flagCount ?? 0, dropped: extracted.dropped,
+        };
+        await d.execute(sql`
+          UPDATE conversation_episodes SET extraction = ${JSON.stringify(extraction)} WHERE episodeId = ${e.episodeId}
+        `);
+      }
     } catch (err) {
       return res.status(500).json({
         error: "write failed",
@@ -280,6 +294,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       episodeId: e.episodeId, transcriptStatus: status, segments: segments.length,
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
       facts: extracted.facts.length, summary: Boolean(extracted.summary), gist: Boolean(extracted.gist),
+      flags: extracted.flagCount ?? 0, noiseOnly: extracted.noiseOnly ?? false,
       dropped: extracted.dropped, engine: extracted.engine, error: storedError,
     });
 

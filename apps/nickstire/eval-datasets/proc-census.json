@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-21T18:20:17.338Z",
-  "count": 647,
+  "generatedAt": "2026-10-21T18:22:00.225Z",
+  "count": 648,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -503,6 +503,7 @@
     "query.lot.now",
     "query.lot.officeDigest",
     "query.lot.visits",
+    "query.lot.worthKnowing",
     "query.loyalty.rewards",
     "query.loyalty.summary",
     "query.loyalty.transactions",

@@ -35,3 +35,24 @@ describe("transcriptCoverage", () => {
     ], 10)).toBeCloseTo(0.6, 6);
   });
 });
+
+describe("transcriptCoverage: non-speech tokens are not covered speech (job 2026-10-21-shop-ears-v2, l)", () => {
+  it("a clip of bangs with one short word does not read 94% covered", () => {
+    const segs = [
+      { start: 0, end: 4, text: "[BLANK_AUDIO]" },
+      { start: 4, end: 7, text: " (banging) " },
+      { start: 7, end: 9.4, text: "[MUSIC]" },
+      { start: 9.4, end: 10, text: "okay" },
+    ];
+    expect(transcriptCoverage(segs, 10)).toBeCloseTo(0.06, 6);
+  });
+
+  it("CONTROL: real words still count, and a line mixing a token with words is speech", () => {
+    expect(transcriptCoverage([{ start: 0, end: 5, text: "the tire is flat" }, { start: 5, end: 9, text: "(laughs) yeah it is" }], 10)).toBeCloseTo(0.9, 6);
+  });
+
+  it("an empty text is not speech either; a segment without a text field still counts as before", () => {
+    expect(transcriptCoverage([{ start: 0, end: 5, text: "  " }], 10)).toBe(0);
+    expect(transcriptCoverage([{ start: 0, end: 5 }], 10)).toBeCloseTo(0.5, 6);
+  });
+});
