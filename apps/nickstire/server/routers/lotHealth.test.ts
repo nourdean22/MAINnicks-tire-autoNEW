@@ -80,7 +80,7 @@ const signRuntime = {
   stateForSeconds: 4 * 3600, stateSinceEpoch: NOW_EPOCH - 4 * 3600, openVisits: 0,
 };
 
-type Fixtures = { anchor: Array<Record<string, unknown>>; today: Array<Record<string, unknown>> };
+type Fixtures = { anchor: Array<Record<string, unknown>>; today: Array<Record<string, unknown>>; producers?: Array<Record<string, unknown>> | Error };
 
 function install(fixtures: Fixtures, runtime: Record<string, unknown> = signRuntime): Flat[] {
   const executed: Flat[] = [];
@@ -91,6 +91,10 @@ function install(fixtures: Fixtures, runtime: Record<string, unknown> = signRunt
     if (t.includes("INFORMATION_SCHEMA.COLUMNS")) return [[], []];
     if (t.includes("FROM camera_runtime r")) return [[runtime], []];
     if (t.includes("FROM camera_health_events ORDER BY at DESC LIMIT 20")) return [[], []];
+    if (t.includes("COUNT(DISTINCT producerInstanceId)")) {
+      if (fixtures.producers instanceof Error) throw fixtures.producers;
+      return [fixtures.producers ?? [], []];
+    }
     if (t.includes("GROUP BY camera")) return [[], []];
     if (t.includes("WHERE at >= FROM_UNIXTIME(?)")) return [fixtures.today, []];
     if (t.includes("AND at < FROM_UNIXTIME(?)")) return [f.params[0] === "sign" ? fixtures.anchor : [], []];
@@ -200,5 +204,21 @@ describe("lot.health executed with rows in camera_health_events (review on #2929
     expect(sign.stateForSeconds).toBe(9000);
     expect(sign.timeline.current).toEqual({ state: "EXPECTED_SOLAR_OFFLINE", sinceMs: (nightEpoch - 9000) * 1000, forSeconds: 9000 });
     expect(sign.timeline.segments.map((s) => s.state)).toEqual(["UNKNOWN", "EXPECTED_SOLAR_OFFLINE"]);
+  });
+
+  it("producersLast60m: distinct producers per camera over the last hour, 0 with no events, null when the read failed (job 2026-10-21-shop-eyes-ears-pro)", async () => {
+    const executed = install({ anchor: [], today: [], producers: [{ camera: "sign", producers: 20 }] });
+    const res = await health();
+    const byCam = Object.fromEntries(res.cameras.map((c) => [c.camera, c.producersLast60m]));
+    expect(byCam).toEqual({ sign: 20, inside: 0, office: 0 });
+    // One grouped query for every camera, over the last 60 minutes.
+    const q = executed.filter((x) => x.text.includes("COUNT(DISTINCT producerInstanceId)"));
+    expect(q).toHaveLength(1);
+    expect(q[0].text).toContain("INTERVAL 60 MINUTE");
+    expect(q[0].text).toContain("GROUP BY camera");
+
+    install({ anchor: [], today: [], producers: new Error("camera_health_events read timed out") });
+    const failed = await health();
+    expect(failed.cameras.map((c) => c.producersLast60m)).toEqual([null, null, null]);
   });
 });

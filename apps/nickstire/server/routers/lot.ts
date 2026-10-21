@@ -80,6 +80,7 @@ import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, storedFacts, transcriptCoverage } from "../lib/conversationQuality";
 import { officeHourDigest } from "../services/officeDigest";
+import { readVehicleCounterTrust } from "../services/vehicleCounterTrust";
 import { conversationEpisodeColumnPresent, officeVisualColumnPresent, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
 
 const log = createLogger("routers:lot");
@@ -417,6 +418,7 @@ export const lotRouter = router({
                  ROUND(UNIX_TIMESTAMP(startedAt) * 1000) AS startedAtMs,
                  durationSeconds, meanVolumeDb,
                  transcriptStatus, transcriptError, transcript,
+                 JSON_LENGTH(transcript) AS segmentCount,
                  sttEngine, sttModel, sttLatencyMs, speakerCount,
                  facts, summary,
                  vehicleVisitId, workOrderId, linkConfidence
@@ -447,6 +449,9 @@ export const lotRouter = router({
             sttLatencyMs: numOrNull(r.sttLatencyMs),
             speakerCount: numOrNull(r.speakerCount),
             coverage: transcriptCoverage(r.transcript, r.durationSeconds),
+            // How many timed segments were stored (NULL = never transcribed). The words themselves
+            // are read one conversation at a time, owner only, through conversationTranscript.
+            segmentCount: numOrNull(r.segmentCount),
             factCount: jsonArray(r.facts).length,
             facts: storedFacts(r.facts).slice(0, 12).map((f) => (quotes ? f : { ...f, evidenceText: "" })),
             summary: r.summary == null ? null : String(r.summary),
@@ -457,12 +462,75 @@ export const lotRouter = router({
             gist: r.gist == null ? null : String(r.gist),
           })),
           visualAvailable: visualReady,
+          // The same owner rule as the quotes above: whether conversationTranscript will answer.
+          wordsVisible: quotes,
         };
       } catch (err) {
         return {
           ok: false as const,
           reason: err instanceof Error ? err.message : "conversation read failed",
         };
+      }
+    }),
+
+  /**
+   * What was actually said in ONE office conversation, for the owner (operator 2026-10-21: "i want
+   * to know what the small talk is"). The gist on the card is a model's one-line reading; these are
+   * the stored timed segments it was read from.
+   *
+   * Same boundary as the quotes in `conversations`: OWNER ROLE ONLY, decided before the database is
+   * touched, so a manager's request never reads a transcript. Speaker labels are never returned.
+   * NULL (never transcribed) and [] (transcribed, nothing said) stay distinct, and an unreadable
+   * stored value is refused rather than shown as silence. At most 80 segments of at most 500
+   * characters each; `truncated` says when anything stored was left out. Nothing here logs text.
+   */
+  conversationTranscript: adminProcedure
+    .input(z.object({ episodeId: z.string().min(1).max(64) }))
+    .query(async ({ input, ctx }) => {
+      if (ctx.adminSecurity.adminRole !== "owner") {
+        return { ok: false as const, reason: "Only the owner can read what was said." };
+      }
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const [row] = rowsOf(await d.execute(sql`
+          SELECT episodeId, durationSeconds, transcript
+            FROM conversation_episodes WHERE episodeId = ${input.episodeId} LIMIT 1
+        `));
+        if (!row) return { ok: false as const, reason: "Conversation not found." };
+        if (row.transcript === null || row.transcript === undefined) {
+          return { ok: false as const, reason: "No transcript was stored for this conversation." };
+        }
+        let stored: unknown = row.transcript;
+        if (typeof stored === "string") {
+          try {
+            stored = JSON.parse(stored);
+          } catch {
+            stored = null;
+          }
+        }
+        if (!Array.isArray(stored)) {
+          return { ok: false as const, reason: "The stored transcript could not be read." };
+        }
+        const readable = stored.flatMap((raw) => {
+          if (!raw || typeof raw !== "object") return [];
+          const s = raw as { start?: unknown; end?: unknown; text?: unknown };
+          const start = Number(s.start);
+          const end = Number(s.end);
+          if (!Number.isFinite(start) || !Number.isFinite(end) || typeof s.text !== "string") return [];
+          return [{ start, end, text: s.text }];
+        }).sort((a, b) => a.start - b.start);
+        const kept = readable.slice(0, 80);
+        const truncated = readable.length < stored.length || readable.length > kept.length || kept.some((s) => s.text.length > 500);
+        return {
+          ok: true as const,
+          episodeId: String(row.episodeId),
+          durationSeconds: numOrNull(row.durationSeconds),
+          truncated,
+          segments: kept.map((s) => ({ start: s.start, end: s.end, text: s.text.slice(0, 500) })),
+        };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "transcript read failed" };
       }
     }),
 
@@ -737,6 +805,10 @@ export const lotRouter = router({
         SELECT COUNT(*) AS n FROM vehicle_visits WHERE dataClass <> 'PRODUCTION'
       `))[0];
 
+      // The counter judged against billed jobs over the last complete days. Never throws: a
+      // failed read is UNKNOWN with null counts, and must not cost the counter card.
+      const counterTrust = await readVehicleCounterTrust(d);
+
       const total = num(r.total);
       const onProperty = num(r.onProperty);
       return {
@@ -800,6 +872,7 @@ export const lotRouter = router({
           // The share never ships without its denominator: cars on the property right now.
           markedShare: marks.available && onProperty > 0 ? marks.openMarked / onProperty : null,
         },
+        counterTrust,
       };
     } catch (err) {
       // A missing table (migration not applied yet) lands here too. Reporting the
@@ -1185,6 +1258,23 @@ export const lotRouter = router({
       `));
       const byStability = new Map(stability.map((s) => [String(s.camera), s]));
 
+      // HOW MANY PRODUCERS SPOKE FOR EACH CAMERA in the last hour. One is normal; a restart adds
+      // one; 20 (the sign camera, 2026-10-21) is a supervisor restarting it every few minutes, and
+      // every restart resets the edge's rolling windows. Its own read: a failure here is null on
+      // every card (not measured), never 0 and never a failed Lot page.
+      let producersByCamera: Map<string, number> | null = null;
+      try {
+        const producers = rowsOf(await d.execute(sql`
+          SELECT camera, COUNT(DISTINCT producerInstanceId) AS producers
+          FROM camera_health_events
+          WHERE at >= DATE_SUB(NOW(), INTERVAL 60 MINUTE)
+          GROUP BY camera
+        `));
+        producersByCamera = new Map(producers.map((p) => [String(p.camera), num(p.producers)]));
+      } catch (err) {
+        log.warn("producers-per-camera read failed; producersLast60m is null", { error: logSafeErrorMessage(err) });
+      }
+
       // THE DAY AS A TIMELINE, and how much of business time the lot was WATCHED (audit N2 + N6).
       //
       // "steady today" above counts rows; this reads them as time. The day's rows plus the one
@@ -1318,6 +1408,7 @@ export const lotRouter = router({
                 transitionsToday: num(byStability.get(camera)!.transitions),
               }
             : null,
+          producersLast60m: producersByCamera === null ? null : producersByCamera.get(camera) ?? 0,
           mode: r ? String(r.mode ?? "PRODUCTION") : null,
           commissioningRunId: r ? str(r.commissioningRunId) : null,
           producer: r
