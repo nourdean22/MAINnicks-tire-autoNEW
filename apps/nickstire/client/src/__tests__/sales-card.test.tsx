@@ -167,7 +167,7 @@ describe("phone ergonomics", () => {
 /**
  * The sync is started by the admin shell on a page load (sync-on-admin-load.test.tsx). The card
  * only FOLLOWS it: while the read says a probe is running (`syncInFlight`) it re-reads on a short
- * interval so the new numbers appear without a manual refresh, for at most 3 minutes. It does not
+ * interval so the new numbers appear without a manual refresh: every 15 s for 3 minutes, then every 60 s while it still says so, stopping after 20 minutes. It does not
  * depend on its own call having started one, so it also follows a probe started by the shell, the
  * OAuth callback, chat or a second tab. It only ever shows what the read returned.
  */
@@ -200,30 +200,87 @@ describe("follows a running sync, then shows what lands", () => {
     expect(intervalFor({ available: false, reason: "down" })).toBe(false);
   });
 
-  it("stops re-reading after 3 minutes, so a probe that never ends does not poll forever", () => {
+  /**
+   * Plays react-query's part: after each read it asks refetchInterval how long to wait, waits that
+   * long on the fake clock, and reads again. `serverAt(elapsedMs)` is what the server would answer
+   * then. Returns every wait it was asked for, and stops when the card says to stop (false) or
+   * after `maxReads` reads. The clock starts at the first read.
+   */
+  function follow(view: ReturnType<typeof render>, serverAt: (elapsedMs: number) => unknown, maxReads = 200) {
+    const waits: number[] = [];
+    let elapsed = 0;
+    h.result = { data: serverAt(0), isLoading: false, isError: false };
+    view.rerender(<SalesCard />);
+    for (let i = 0; i < maxReads; i++) {
+      const wait = intervalFor(serverAt(elapsed));
+      if (wait === false) break;
+      waits.push(wait as number);
+      act(() => { vi.advanceTimersByTime(wait as number); });
+      elapsed += wait as number;
+      h.result = { data: serverAt(elapsed), isLoading: false, isError: false };
+      view.rerender(<SalesCard />);
+    }
+    return { waits, elapsed };
+  }
+  const fresh = { ...ok, cents: 5555500, invoiceCount: 41, syncInFlight: false };
+  const stale = { ...ok, syncInFlight: true };
+
+  it("a 5-minute probe ends with the FRESH total on the card: 15 s for 3 minutes, then every 60 s", () => {
     vi.useFakeTimers();
-    const running = { ...ok, syncInFlight: true };
-    h.result = { data: running, isLoading: false, isError: false };
-    render(<SalesCard />);
-    expect(intervalFor(running)).toBe(15_000);
-    act(() => { vi.advanceTimersByTime(3 * 60_000 + 1); });
-    expect(intervalFor(running)).toBe(false);
+    const view = render(<SalesCard />);
+    const { waits, elapsed } = follow(view, (ms) => (ms >= 5 * 60_000 ? fresh : stale));
+    expect(waits.slice(0, 12)).toEqual(Array(12).fill(15_000)); // the first 3 minutes
+    expect(waits.slice(12)).toEqual([60_000, 60_000]); // minutes 3 to 5
+    expect(elapsed).toBe(5 * 60_000);
+    expect(screen.getByText("$55,555")).toBeTruthy(); // the post-sync total, not the pre-sync $42,135
+    expect(screen.queryByText("$42,135")).toBeNull();
     expect(screen.queryByText(/Syncing the invoice mirror/)).toBeNull();
   });
 
-  it("the cap resets once the probe ends, so the next one is followed again", () => {
+  it("keeps the syncing line on for as long as the server still says a probe is running", () => {
     vi.useFakeTimers();
-    const running = { ...ok, syncInFlight: true };
-    h.result = { data: running, isLoading: false, isError: false };
     const view = render(<SalesCard />);
-    act(() => { vi.advanceTimersByTime(3 * 60_000 + 1); });
-    h.result = { data: ok, isLoading: false, isError: false }; // it ended
+    follow(view, (ms) => (ms >= 10 * 60_000 ? fresh : stale));
+    // (the loop ended on the fresh read: the line is gone)
+    expect(screen.queryByText(/Syncing the invoice mirror/)).toBeNull();
+    h.result = { data: stale, isLoading: false, isError: false };
     view.rerender(<SalesCard />);
-    h.result = { data: running, isLoading: false, isError: false }; // another one started
-    view.rerender(<SalesCard />);
-    expect(intervalFor(running)).toBe(15_000);
+    act(() => { vi.advanceTimersByTime(4 * 60_000); }); // past the old 3 minute cap
+    expect(screen.getByText(/Syncing the invoice mirror/)).toBeTruthy();
+    expect(intervalFor(stale)).toBe(60_000);
   });
 
+  it("when the server flips to not-running it stops after that read, with no extra waiting", () => {
+    vi.useFakeTimers();
+    const view = render(<SalesCard />);
+    const { waits } = follow(view, (ms) => (ms >= 30_000 ? fresh : stale));
+    expect(waits).toEqual([15_000, 15_000]);
+    expect(intervalFor(fresh)).toBe(false);
+  });
+
+  it("a probe that never ends is followed for 20 minutes at most, then the card stops asking", () => {
+    vi.useFakeTimers();
+    const view = render(<SalesCard />);
+    const { waits, elapsed } = follow(view, () => stale);
+    expect(elapsed).toBeGreaterThanOrEqual(20 * 60_000);
+    expect(elapsed).toBeLessThan(21 * 60_000 + 1);
+    expect(waits.filter((w) => w === 15_000)).toHaveLength(12);
+    expect(waits.filter((w) => w === 60_000).length).toBeGreaterThanOrEqual(16);
+    expect(intervalFor(stale)).toBe(false);
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(screen.queryByText(/Syncing the invoice mirror/)).toBeNull(); // no longer being followed, so no claim that it is
+  });
+
+  it("the schedule restarts for the next probe once one has ended", () => {
+    vi.useFakeTimers();
+    const view = render(<SalesCard />);
+    follow(view, (ms) => (ms >= 5 * 60_000 ? fresh : stale));
+    h.result = { data: { ...ok, syncInFlight: false }, isLoading: false, isError: false };
+    view.rerender(<SalesCard />);
+    h.result = { data: stale, isLoading: false, isError: false }; // a second probe starts
+    view.rerender(<SalesCard />);
+    expect(intervalFor(stale)).toBe(15_000);
+  });
   it("the card itself no longer asks the server to sync", () => {
     h.result = { data: ok, isLoading: false, isError: false };
     render(<SalesCard />);

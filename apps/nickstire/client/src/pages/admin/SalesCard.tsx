@@ -36,7 +36,7 @@
  * reconciling it needs pending/partial/refunded, and they are the same person on
  * a different day.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -82,38 +82,55 @@ function dayNotShownText(period: Period, windowSynced: boolean | null, sync: Syn
   return `${head} No ShopDriver sync on record.`;
 }
 
-const SYNC_POLL_MS = 15_000;
-const SYNC_POLL_MAX_MS = 3 * 60_000;
+// How the card follows a running probe: every 15 s for the first 3 minutes, then every 60 s while
+// the latest read still says one is running, and it gives up after 20 minutes. A probe that takes
+// longer than 3 minutes (a slow ShopDriver) used to freeze the card on the pre-sync numbers.
+const SYNC_POLL_FAST_MS = 15_000;
+const SYNC_POLL_FAST_FOR_MS = 3 * 60_000;
+const SYNC_POLL_SLOW_MS = 60_000;
+const SYNC_POLL_GIVE_UP_MS = 20 * 60_000;
 
 export default function SalesCard() {
   const [period, setPeriod] = useState<Period>("last_7d");
   const [showDetail, setShowDetail] = useState(false);
   // The sync itself is started by the admin shell on a page load (useSyncOnAdminLoad). This card
   // only follows it: while the read says a probe is running (`syncInFlight`: this load's refresh,
-  // an OAuth callback, chat, a second tab, a manual sync-now) it re-reads every 15 s, for at most
-  // 3 minutes, so the new numbers appear without a manual refresh. It shows only what the read
-  // returned.
-  const [capped, setCapped] = useState(false);
+  // an OAuth callback, chat, a second tab, a manual sync-now) it keeps re-reading on the schedule
+  // above, so the new numbers appear without a manual refresh. The read that says "not running"
+  // is itself the final read: its in-flight check runs before its data reads. It shows only what
+  // the read returned.
+  const followStartedAt = useRef<number | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
   const query = trpc.controlCenter.shopSales.useQuery(
     { period },
     {
       refetchInterval: (q) => {
         const d = q.state.data;
-        return !capped && d?.available === true && d.syncInFlight ? SYNC_POLL_MS : false;
+        if (d?.available !== true || !d.syncInFlight) {
+          followStartedAt.current = null;
+          return false;
+        }
+        followStartedAt.current ??= Date.now();
+        const since = Date.now() - followStartedAt.current;
+        if (since >= SYNC_POLL_GIVE_UP_MS) return false;
+        return since < SYNC_POLL_FAST_FOR_MS ? SYNC_POLL_FAST_MS : SYNC_POLL_SLOW_MS;
       },
     },
-  );  const data = query.data;
+  );
+  const data = query.data;
   const inFlight = data?.available === true && data.syncInFlight;
   useEffect(() => {
     if (!inFlight) {
-      setCapped(false);
+      followStartedAt.current = null;
+      setGaveUp(false);
       return;
     }
-    const t = setTimeout(() => setCapped(true), SYNC_POLL_MAX_MS);
+    followStartedAt.current ??= Date.now();
+    const t = setTimeout(() => setGaveUp(true), SYNC_POLL_GIVE_UP_MS);
     return () => clearTimeout(t);
   }, [inFlight]);
-  const following = inFlight && !capped;
-  // Decided from the period the server answered for, not the chip just tapped. A single day
+  // The line is on for as long as the server says a probe runs AND we are still following it.
+  const following = inFlight && !gaveUp;  // Decided from the period the server answered for, not the chip just tapped. A single day
   // shows its figure only when a successful ShopDriver sync covers it (windowSynced === true).
   const singleDay = data?.available === true && (data.period === "today" || data.period === "yesterday");
   const dayNotShown = singleDay && data.windowSynced !== true;

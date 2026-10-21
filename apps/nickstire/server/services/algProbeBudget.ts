@@ -208,7 +208,7 @@ async function runProbe(reason: ProbeReason, options: ProbeOptions): Promise<Pro
       outcome,
       recordsProcessed: totalRecords,
       durationMs,
-      errorMessage: outcome !== "success" ? mirrorResult.details : undefined,
+      errorMessage: outcome !== "success" ? mirrorFailureMessage(mirrorResult) : undefined,
     });
 
     log.info(`Probe complete: ${outcome}`, { reason, totalRecords, durationMs });
@@ -219,7 +219,7 @@ async function runProbe(reason: ProbeReason, options: ProbeOptions): Promise<Pro
       durationMs,
       reason,
       detail: options.detail,
-      errorMessage: outcome !== "success" ? mirrorResult.details : undefined,
+      errorMessage: outcome !== "success" ? mirrorFailureMessage(mirrorResult) : undefined,
     };
   } catch (err) {
     const durationMs = Date.now() - start;
@@ -255,19 +255,33 @@ export function noteAuthAttemptStarted(): void {
   lastProbeStartedAt = Date.now();
 }
 
+type MirrorLike = { invoicesFetched?: number; invoiceWriteErrors?: number; details: string };
+
 /**
- * What a mirror run MEANS in alg_probe_log. `success` only when the invoices were actually
- * fetched (invoicesFetched above 0): runFullMirror reports 0 when the invoice fetch failed
- * (login rejected, session invalidated), and the sales card reads `success` as "ShopDriver was
- * read". A rejected login is auth_failed; any other zero is an error. Estimates processing rows
- * change nothing here. (`empty`, "authenticated and found nothing", is no longer written: it
- * was also what a failed invoice fetch looked like.)
+ * What a mirror run MEANS in alg_probe_log. `success` only when the invoices were fetched
+ * (invoicesFetched above 0) AND every one of them was saved (invoiceWriteErrors 0): the sales
+ * card reads `success` as "ShopDriver was read and stored". runFullMirror reports 0 fetched when
+ * the invoice fetch failed (login rejected, session invalidated), and a fetched invoice whose
+ * write threw is counted in invoiceWriteErrors, not hidden among the unchanged ones. A rejected
+ * login is auth_failed; any other shortfall is an error. Estimates processing rows change nothing
+ * here. (`empty`, "authenticated and found nothing", is no longer written: it was also what a
+ * failed invoice fetch looked like.)
+ *
+ * Known consequence, accepted (2026-10-21): one invoice that ALWAYS fails to save keeps every
+ * probe an `error`, so the day stays "Not synced" and the freshness card stays red. That is a
+ * real data problem, and it surfaces here instead of hiding behind a green "synced".
  */
-function mirrorOutcome(mirror: { invoicesFetched?: number; details: string }): "success" | "auth_failed" | "error" {
+function mirrorOutcome(mirror: MirrorLike): "success" | "auth_failed" | "error" {
   if (mirror.details.includes("Auth failed") || mirror.details.includes("auth_failed")) return "auth_failed";
-  return (mirror.invoicesFetched ?? 0) > 0 ? "success" : "error";
+  return (mirror.invoicesFetched ?? 0) > 0 && (mirror.invoiceWriteErrors ?? 0) === 0 ? "success" : "error";
 }
 
+/** The log row's errorMessage for a run that was not a success. */
+function mirrorFailureMessage(mirror: MirrorLike): string {
+  const failed = mirror.invoiceWriteErrors ?? 0;
+  const fetched = mirror.invoicesFetched ?? 0;
+  return failed > 0 && fetched > 0 ? `${failed} of ${fetched} invoices failed to save` : mirror.details;
+}
 /**
  * Run a ShopDriver sync that must NOT go through requestAlgProbe's dedup / fresh-data refusal
  * (a manual "sync now" has to run) and still be seen: it stamps lastProbeStartedAt when it
@@ -276,7 +290,7 @@ function mirrorOutcome(mirror: { invoicesFetched?: number; details: string }): "
  * same outcome rules, so the sales card's sync watermark and the freshness card see it.
  * The sync's own result (or error) goes back to the caller unchanged.
  */
-export async function recordExternalSync<T extends { recordsProcessed: number; invoicesFetched?: number; details: string }>(
+export async function recordExternalSync<T extends MirrorLike & { recordsProcessed: number }>(
   reason: ProbeReason,
   run: () => Promise<T>,
 ): Promise<T> {
@@ -292,7 +306,7 @@ export async function recordExternalSync<T extends { recordsProcessed: number; i
       outcome,
       recordsProcessed: result.recordsProcessed,
       durationMs: Date.now() - start,
-      errorMessage: outcome !== "success" ? result.details : undefined,
+      errorMessage: outcome !== "success" ? mirrorFailureMessage(result) : undefined,
     });
     return result;
   } catch (err) {

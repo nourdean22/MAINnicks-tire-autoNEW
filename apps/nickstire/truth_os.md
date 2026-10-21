@@ -126,10 +126,10 @@ detailed in `docs/CURRENT-TRUTH.md`:
   labelled "so far today, as of <ET time>" and a zero-sale day is a real $0. Synced is read from the newest successful probe in `alg_probe_log`
   (`sync`, `windowSynced` in `server/services/shopSales.ts`), not from the newest invoice: a manual or booking invoice moves that, a zero-sale day never does.
   "Successful" is outcome `success` only, and `success` now means the invoice fetch returned rows: `runFullMirror` reports `invoicesFetched`, and
-  `algProbeBudget` logs a 0-invoice run as `error` (a rejected login stays `auth_failed`), whatever the estimate sync did. `empty` is no longer written.
+  `algProbeBudget` logs a 0-invoice run as `error` (a rejected login stays `auth_failed`), whatever the estimate sync did, and so is a run where any fetched invoice failed to SAVE (`upsertInvoices` counts those as `failed`, no longer as `skipped`; the row says "N of M invoices failed to save"). One invoice that always fails to save therefore keeps the day "Not synced" and the freshness card red: a real data problem, shown rather than hidden. `empty` is no longer written.
   The watermark is read before the invoice aggregate, so a probe landing between the two reads can only make fresh data look unsynced. An unreadable
   probe log shows "Sync status unknown", never synced. While any probe runs (this load's refresh, OAuth, chat, a second tab, a manual sync-now) the read
-  carries `syncInFlight` and the card re-reads every 15 s for at most 3 minutes.
+  carries `syncInFlight` and the card re-reads every 15 s for 3 minutes, then every 60 s while the latest read still says so, giving up after 20 minutes.
 - **When ALG syncs, as of this branch (Nour's decision, 2026-10-21, "Refresh syncs anytime"):** on a full admin page load or refresh, at most once per
   30 minutes, at any hour (probe reason `admin_refresh`, `lib/adminActivity.ts`); plus 3 AM and 8 PM ET, the OAuth login, the manual refresh buttons and
   the Nick chat. Each sync re-authenticates ShopDriver and logs the shop counter out; Nour accepted that. The old 6 h "resume edge" rule is deleted.

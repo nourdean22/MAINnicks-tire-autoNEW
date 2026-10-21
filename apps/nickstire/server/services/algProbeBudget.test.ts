@@ -40,7 +40,7 @@ vi.mock("./shopDriverEstimateSync", () => ({ runEstimateMirror: m.runEstimateMir
 const NOW = new Date("2026-10-21T15:59:00Z"); // 11:59 ET
 
 const mirrorOk = (over: Record<string, unknown> = {}) => ({
-  recordsProcessed: 0, invoicesFetched: 40, details: "Customers: 0 new | Invoices: 0 new, 0 updated, 40 unchanged (40 fetched)", ...over,
+  recordsProcessed: 0, invoicesFetched: 40, invoiceWriteErrors: 0, details: "Customers: 0 new | Invoices: 0 new, 0 updated, 40 unchanged (40 fetched)", ...over,
 });
 const mirrorNoInvoices = (over: Record<string, unknown> = {}) => ({
   recordsProcessed: 0, invoicesFetched: 0, details: "0 invoices fetched — session invalidated (fail #1)", ...over,
@@ -97,6 +97,24 @@ describe("success means the invoices were read", () => {
     expect(r.outcome).toBe("error");
   });
 
+  it("invoices fetched but some failed to SAVE is an error: a fetch is not a persisted mirror", async () => {
+    const { requestAlgProbe } = await load();
+    m.runFullMirror.mockResolvedValue(mirrorOk({ invoiceWriteErrors: 3, recordsProcessed: 37, details: "Invoices: 20 new, 17 updated, 0 unchanged, 3 failed (40 fetched)" }));
+    const r = await requestAlgProbe("manual_refresh", { force: true });
+    expect(r.outcome).toBe("error");
+    expect(r.errorMessage).toBe("3 of 40 invoices failed to save");
+    expect(m.inserted[0]).toMatchObject({ outcome: "error", errorMessage: "3 of 40 invoices failed to save" });
+  });
+
+  it("one failed save is enough, and it does not start the 5 min 'fresh data' skip", async () => {
+    const { requestAlgProbe } = await load();
+    m.runFullMirror.mockResolvedValueOnce(mirrorOk({ invoiceWriteErrors: 1 }));
+    expect((await requestAlgProbe("manual_refresh", { force: true })).outcome).toBe("error");
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+    expect((await requestAlgProbe("chat_query")).outcome).toBe("success");
+    expect(m.runFullMirror).toHaveBeenCalledTimes(2);
+  });
+
   it("a rejected login is still auth_failed", async () => {
     const { requestAlgProbe } = await load();
     m.runFullMirror.mockResolvedValue(mirrorAuthFailed());
@@ -127,6 +145,18 @@ describe("success means the invoices were read", () => {
     const returns = body.match(/return \{ recordsProcessed[^}]*\}/g) ?? [];
     expect(returns.length).toBe(3);
     for (const r of returns) expect(r, r).toMatch(/invoicesFetched/);
+    for (const r of returns) expect(r, r).toMatch(/invoiceWriteErrors/);
+  });
+
+  it("upsertInvoices counts a failed write as `failed`, never as `skipped` (skipped is unchanged rows only)", () => {
+    const src = readFileSync(resolve(process.cwd(), "server/services/shopDriverMirror.ts"), "utf8");
+    const body = sliceBlock(src, "async function upsertInvoices", "function normalizePaymentMethod", { label: "shopDriverMirror.ts" });
+    const catchBlock = sliceBlock(body, "} catch (err) {\n      log.warn(`Failed to upsert invoice", "\n    }\n  }\n", { label: "upsertInvoices catch" });
+    expect(catchBlock).toMatch(/failed\+\+/);
+    expect(catchBlock).not.toMatch(/skipped\+\+/);
+    expect(body).toMatch(/return \{ created, updated, skipped, failed \}/);
+    // No database handle: nothing was stored, so every fetched invoice failed to save.
+    expect(body).toMatch(/if \(!d\) return \{ created: 0, updated: 0, skipped: 0, failed: rawInvoices\.length \}/);
   });
 });
 
@@ -179,6 +209,12 @@ describe("recordExternalSync: syncs that bypass the budget still leave a row and
       ["bridge_full_sync", "auth_failed"],
     ]);
     expect(String(chunks(m.inserted[0]!.startedAt).join("?"))).toMatch(/DATE_SUB\(NOW\(\)/);
+  });
+
+  it("the same rule for the manual and bridge syncs: a failed save is an error row", async () => {
+    const { recordExternalSync } = await load();
+    await recordExternalSync("force_sync", async () => mirrorOk({ invoiceWriteErrors: 2 }));
+    expect(m.inserted[0]).toMatchObject({ reason: "force_sync", outcome: "error", errorMessage: "2 of 40 invoices failed to save" });
   });
 
   it("is not refused by the budget: a manual sync-now right after another still runs", async () => {

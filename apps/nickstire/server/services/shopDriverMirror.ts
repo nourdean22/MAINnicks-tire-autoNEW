@@ -853,14 +853,21 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
   return { created, updated };
 }
 
-async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: number; updated: number; skipped: number }> {
+/**
+ * `skipped` is rows that needed no change (and tickets with no invoice number). `failed` is rows
+ * whose write threw: they used to be counted as `skipped`, which made a mirror that stored
+ * nothing look the same as one with nothing to store.
+ */
+async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: number; updated: number; skipped: number; failed: number }> {
   const d = await getDb();
-  if (!d) return { created: 0, updated: 0, skipped: 0 };
+  // No database handle: nothing was stored, so every fetched invoice failed to save.
+  if (!d) return { created: 0, updated: 0, skipped: 0, failed: rawInvoices.length };
 
   const { invoices, customers } = await import("../../drizzle/schema");
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  let failed = 0;
 
   // 2026-05-23 · N+1 collapse · was 1 SELECT for invoice + 1 SELECT for
   // customer-by-phone + 1 SELECT for customer-by-name × N rows. 500-
@@ -869,7 +876,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
   // + per-row UPDATE/INSERT only. ~3 + 500 round-trips for the worst
   // case, ~3-30 if most are updates with no changes.
   const valid = rawInvoices.filter(ri => ri.invoiceNumber);
-  if (valid.length === 0) return { created: 0, updated: 0, skipped: rawInvoices.length };
+  if (valid.length === 0) return { created: 0, updated: 0, skipped: rawInvoices.length, failed: 0 };
 
   // Bulk prefetch invoices by number
   const invoiceNumbers = [...new Set(valid.map(ri => ri.invoiceNumber))];
@@ -1094,11 +1101,11 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
       }
     } catch (err) {
       log.warn(`Failed to upsert invoice ${ri.invoiceNumber}`, { error: err instanceof Error ? err.message : String(err) });
-      skipped++;
+      failed++;
     }
   }
 
-  return { created, updated, skipped };
+  return { created, updated, skipped, failed };
 }
 
 function normalizePaymentMethod(raw?: string): "cash" | "card" | "check" | "financing" | "other" {
@@ -1139,6 +1146,8 @@ export async function runFullMirror(): Promise<{
    * the mirror when this is above 0 (algProbeBudget turns it into the log outcome).
    */
   invoicesFetched: number;
+  /** Fetched invoices whose write failed. A fetch is not a persisted mirror: above 0 is not a success. */
+  invoiceWriteErrors: number;
   details: string;
 }> {
   const start = Date.now();
@@ -1150,7 +1159,7 @@ export async function runFullMirror(): Promise<{
     const msg = `🚨 ALG MIRROR DOWN: Auth failed (attempt #${consecutiveFailures}). No credentials or login rejected. Dashboard data is STALE.`;
     log.error(msg);
     await sendMirrorAlert(msg);
-    return { recordsProcessed: 0, invoicesFetched: 0, details: "Auth failed — no credentials or login rejected" };
+    return { recordsProcessed: 0, invoicesFetched: 0, invoiceWriteErrors: 0, details: "Auth failed — no credentials or login rejected" };
   }
 
   // Fetch in parallel
@@ -1214,7 +1223,7 @@ export async function runFullMirror(): Promise<{
       await upsertCustomers(rawCustomers);
     }
 
-    return { recordsProcessed: 0, invoicesFetched: 0, details: `0 invoices fetched — session invalidated (fail #${consecutiveFailures})` };
+    return { recordsProcessed: 0, invoicesFetched: 0, invoiceWriteErrors: 0, details: `0 invoices fetched — session invalidated (fail #${consecutiveFailures})` };
   }
 
   // Store customers first (so invoice linking works)
@@ -1231,7 +1240,7 @@ export async function runFullMirror(): Promise<{
 
   const details = [
     `Customers: ${custResult.created} new, ${custResult.updated} updated (${rawCustomers.length} fetched)`,
-    `Invoices: ${invResult.created} new, ${invResult.updated} updated, ${invResult.skipped} unchanged (${rawInvoices.length} fetched)`,
+    `Invoices: ${invResult.created} new, ${invResult.updated} updated, ${invResult.skipped} unchanged, ${invResult.failed} failed (${rawInvoices.length} fetched)`,
     `Duration: ${duration}ms`,
   ].join(" | ");
 
@@ -1323,7 +1332,7 @@ export async function runFullMirror(): Promise<{
     } catch (e) { log.warn("[shopDriverMirror:mirror] memory save for mirror insight failed:", e); }
   }
 
-  return { recordsProcessed: total, invoicesFetched: rawInvoices.length, details };
+  return { recordsProcessed: total, invoicesFetched: rawInvoices.length, invoiceWriteErrors: invResult.failed, details };
 }
 
 // ─── ALERT HELPER ──────────────────────────────────────
@@ -1572,7 +1581,7 @@ export async function runHistoricalBackfill(): Promise<{
 
   // Upsert to DB
   let custResult = { created: 0, updated: 0 };
-  let invResult = { created: 0, updated: 0, skipped: 0 };
+  let invResult = { created: 0, updated: 0, skipped: 0, failed: 0 };
 
   if (allCustomers.length > 0) {
     custResult = await upsertCustomers(allCustomers);
@@ -1585,7 +1594,7 @@ export async function runHistoricalBackfill(): Promise<{
   const total = custResult.created + custResult.updated + invResult.created + invResult.updated;
 
   const details = [
-    `Invoices: ${invResult.created} new, ${invResult.updated} updated, ${invResult.skipped} unchanged (${uniqueInvoices.length} fetched)`,
+    `Invoices: ${invResult.created} new, ${invResult.updated} updated, ${invResult.skipped} unchanged, ${invResult.failed} failed (${uniqueInvoices.length} fetched)`,
     `Customers: ${custResult.created} new, ${custResult.updated} updated (${allCustomers.length} fetched)`,
     `Probes: ${probeResults.join(" | ") || "no working endpoints found"}`,
     `Duration: ${duration}ms`,
