@@ -2483,3 +2483,47 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** (a) `session-health.mjs` gains one informational item: count of plugin MCP server processes per plugin name across the machine, printed when any plugin has more than 3 copies, with the plugin named; (b) Nour decides per plugin: disable `opencode-subagent-mcp` until the CLI is installed, and keep or drop Desktop Commander (the pretool guard covers it, so it is safe but not free). Not a code change to the plugins themselves: they are vendored.
 - **Confidence:** medium (measured once; the counts will differ by day)
 - **Status:** proposed
+
+## 2026-10-21 · leftover backlog + approve-per-action (job 2026-10-21-platform-hygiene)
+
+### P1 · monorepo-manager / subagent-brief (a guard brief must say the target matches IDENTIFYING fields only)
+- **Trigger (witnessed 2026-10-21, PR 3193 round 1):** the manager's own probe of the approve-one-production-call guard found that a `name` field carrying an approved branch id let `update_branch` hit the production branch: the guard matched the approved id against ANY value in the call, not against the fields that identify the target.
+- **Cost:** found in round 1 of review; a miss in a guard of this kind is a production write.
+- **Proposed edit:** the subagent-brief template and the monorepo-manager spec step gain one line for any approval or deny guard brief: "the approved target matches IDENTIFYING fields only (id, branch id, project id, service id), never any value in the call; ship a canary where the id sits in a free-text field such as `name` and the call is still refused".
+- **Confidence:** high (found by a probe, fixed and canaried in 3193)
+- **Status:** proposed
+
+### P2 · positive-control-first (two silent-instrument shapes in scan controls)
+- **Trigger (witnessed 2026-10-20, the secret-history scan control):** (a) `git grep --no-index` given a path outside the working directory matches nothing and exits 0; (b) Windows PowerShell 5.1 strips `"` from native-command arguments, so a regex containing `"` silently never matches. Each shape returns an empty result with a success exit code, the same as a real "nothing found".
+- **Cost:** a scan control that could not have found anything reads as a clean history.
+- **Proposed edit:** the checklist gains a step 8: "a scan or grep control must find a PLANTED positive in the same invocation shape as the real scan (same cwd, same path form, same shell); `git grep --no-index` with an outside path and a regex containing a double quote under PowerShell 5.1 both return empty with exit 0".
+- **Confidence:** high (two shapes, both reproduced)
+- **Status:** proposed
+
+### P3 · prod-db-guard (a Neon child branch's role password is not the parent's)
+- **Trigger (witnessed 2026-10-20, scrub rehearsal):** rehearsing a scrub on a Neon child branch failed authentication because the branch's role password differs from production's.
+- **Cost:** failed rehearsal logins; the risk side is the reverse mistake, pointing a rehearsal at the production string.
+- **Proposed edit:** one line in the rehearsal section: "rehearse with the connection string from `get_connection_string` for the branch, and check by hash (never print it) that it differs from the production string before use; a string that matches production is not the branch".
+- **Confidence:** medium (one rehearsal)
+- **Status:** proposed
+
+### P4 · `scripts/agent-os/merge-gate.mjs` (code: judge only the latest run per check name)
+- **Trigger (witnessed 2026-10-21, PR 3194):** after a close and reopen the status rollup kept the superseded failed run of the same check on the same head, and the gate blocked a PR whose latest run was green.
+- **Cost:** a blocked gate on a PR whose latest run of the check was not the failed one.
+- **Proposed edit:** group the rollup by check name and judge only the newest run (by completion time) of each name; keep an arm where an older failed run plus a newer green run of one name passes, and an arm where the newer run is the failed one and the gate still blocks.
+- **Confidence:** medium (one PR)
+- **Status:** proposed
+
+### P5 · nickstire-verify / nickstire-tidb-ddl (Drizzle renders a column unqualified in SELECT but qualified in GROUP BY)
+- **Trigger (witnessed twice, PR 3189):** TiDB `only_full_group_by` rejects the pair; first NICKSTIRE-1 on 2026-09-08, then the customerIntelligence queries from 2026-10-09 to 2026-10-20. Typecheck and unit tests passed both times because no test rendered the real SQL.
+- **Cost:** the same class of production query error twice, the second time across the 2026-10-09 to 2026-10-20 window.
+- **Proposed edit:** for any grouped query, prove it by rendering the real Drizzle builder over a recording fake mysql2 client and asserting the SELECT and GROUP BY column forms match; add that one line to both skills.
+- **Confidence:** high (recurred twice)
+- **Status:** proposed
+
+### P6 · production-health-report / deploy checks (a merge can produce no Railway deployment for the touched service)
+- **Trigger (witnessed 2026-10-20 19:05-19:23Z, three pushes):** merges to main produced NO deployment for the touched service while untouched services got SKIPPED records. The project has no deploy webhook, so nothing paged.
+- **Cost:** merged code that was not live, found by reading the deployment list rather than by any alert.
+- **Proposed edit:** after a merge, read `list-deployments` for each touched service and confirm a deployment exists for the merge commit; a missing one is a finding, not a pass. The report skill gains a "merged but not deployed" class.
+- **Confidence:** medium (one window, three pushes)
+- **Status:** proposed
