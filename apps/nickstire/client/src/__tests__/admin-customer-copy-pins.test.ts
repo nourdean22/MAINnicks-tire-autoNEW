@@ -27,8 +27,6 @@ const PINS: Array<[file: string, line: string]> = [
     'body={`Hi ${(cb.name || "there").split(" ")[0]}, it\'s Nick\'s Tire. Returning your call ' + D + " give us a ring back when you can: (216) 862-0005.`}"],
   ["client/src/pages/admin/money/DeclinedEstimatesSection.tsx",
     'body={`Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick\'s Tire & Auto following up on your recent estimate. Car problems usually get worse over time ' + D + " ready to take care of it? Call us at (216) 862-0005 or just stop by.`}"],
-  ["client/src/pages/admin/money/UnpaidInvoicesSection.tsx",
-    'body={`Hi ${firstName}, this is Nick\'s Tire & Auto. We have an open balance on your invoice${inv.invoiceNumber ? ` #${inv.invoiceNumber}` : ""}. You can take care of it over the phone at (216) 862-0005 or stop by anytime ' + D + " thanks!`}"],
   ["client/src/pages/admin/OverviewSection.tsx",
     'body={`Hi ${item.name.split(" ")[0]}, it\'s Nick\'s Tire following up on your ${requestLabel(item)}.`}'],
   // Outbound but not SMS: a testimonial copied for sharing, an article topic and two content seeds.
@@ -44,7 +42,8 @@ const PINS: Array<[file: string, line: string]> = [
 
 const lines = (file: string) => read(file).split("\n").map((l) => l.trim());
 
-const OUTBOUND_COUNT = 5;
+// 4 since 2026-10-21: the Unpaid tab's open-balance text prefill was deleted with the tab.
+const OUTBOUND_COUNT = 4;
 // 33 since 2026-10-18: GatewayOrderPanel's "Place this order with D&K?" confirm (operator text, not customer copy).
 // 28 since 2026-10-19: admin prune W1 deleted five confirm dialogs with their surfaces
 // (Coupons, Loyalty, Technician referrals, QC review / Technicians, Inspection capture).

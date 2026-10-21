@@ -1701,14 +1701,8 @@ function buildTiers(): void {
           return { recordsProcessed: count, details: `${count} memories synced to statenour` };
         },
       },
-      {
-        name: "nick-intelligence", // FOURTH: analyze with fresh data
-        businessHoursOnly: true,
-        handler: async () => {
-          const { runProactiveCheck } = await import("../services/nickIntelligence");
-          return runProactiveCheck();
-        },
-      },
+      // nick-intelligence (the 2-hourly "Proactive Check" Telegram) was deleted 2026-10-21: its lines
+      // repeated the escalation and churn alerts and canned weekday reminders.
       {
         name: "nick-auto-actions", // FIFTH: act on intelligence
         businessHoursOnly: true,
@@ -1829,41 +1823,6 @@ function buildTiers(): void {
               );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
-        },
-      },
-      {
-        name: "stale-estimate-alert",
-        businessHoursOnly: true,
-        handler: async () => {
-          try {
-            const { getDb } = await import("../db");
-            const { sql: rawSql } = await import("drizzle-orm");
-            const d = await getDb();
-            if (!d) return { details: "No DB" };
-            const [rows] = await d.execute(rawSql`
-              SELECT id, customerName, totalAmount, invoiceDate, DATEDIFF(NOW(), invoiceDate) as daysOld
-              FROM invoices WHERE paymentStatus = 'pending'
-              AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
-              ORDER BY totalAmount DESC LIMIT 5
-            `);
-            const stale = rows as Record<string, unknown>[];
-            // Once per ET day per LIST of invoices (by id: two invoices can share a name and an amount;
-            // daysOld is left out of the fingerprint because it ticks daily).
-            if (stale.length > 0) {
-              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
-              const { sendTelegramResult } = await import("../services/telegram");
-              const staleState = stateFingerprint(stale.map((e) => String(e.id ?? `${e.customerName}:${e.totalAmount}`)));
-              const totalPotential = stale.reduce((s: number, e) => s + Number(e.totalAmount || 0), 0);
-              await sendOncePerState(`stale-estimate:${staleState}`, () =>
-                sendTelegramResult(
-                  `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
-                  stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
-                  `\n\nFollow up NOW — every day = lost conversion probability.`, "digest"
-                ),
-              );
-            }
-            return { recordsProcessed: stale.length, details: `${stale.length} stale estimates found` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
@@ -2352,17 +2311,8 @@ function buildTiers(): void {
           return processPredictionOutcomesResolve();
         },
       },
-      // wave-181.x · Tier A · SEO Forensic · daily SERP rank-shift
-      // detection on top-30 GSC queries. Catches drops from rank 4 →
-      // rank 18 the DAY AFTER they happen instead of weeks later
-      // when revenue cliffs. Telegram alert on warning/alert shifts.
-      {
-        name: "seo-forensic",
-        handler: async () => {
-          const { processSeoForensic } = await import("./jobs/seoForensic");
-          return processSeoForensic();
-        },
-      },
+      // seo-forensic (a daily rank-shift Telegram, read-only otherwise) was deleted 2026-10-21:
+      // the Monday GSC digest carries the search summary.
       // wave-181.x · Tier A · Monte-Carlo revenue forecast · weekly
       // (Mondays only). 10,000 trials over 13-week sample window.
       // Telegram digest with P10/P50/P90 band + top variance driver.
@@ -2604,13 +2554,19 @@ function buildTiers(): void {
             }
             const plan = await getCustomerActionPlan();
             if (data.atRiskCustomers.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(
-                `📉 DAILY CHURN CHECK\n\n` +
-                `At-risk: ${data.atRiskCustomers.length} customers\n` +
-                `Lapsed: ${data.lapsedCustomers} | Lost: ${data.lostCustomers}\n` +
-                `Retention: ${data.retentionRate}%\n` +
-                (plan ? `\n${plan.slice(0, 500)}` : "")
+              const { sendTelegramResult } = await import("../services/telegram");
+              const { sendOncePerStateEver, stateFingerprint } = await import("../services/alertClaim");
+              // Once per SET of at-risk customers, for good (2026-10-21): the same 10 were sent every day.
+              // The key is a hash of the phones; no customer data is stored in it.
+              const atRiskState = stateFingerprint(data.atRiskCustomers.map((c) => c.phone || c.name));
+              await sendOncePerStateEver(`daily-churn-check:${atRiskState}`, () =>
+                sendTelegramResult(
+                  `📉 DAILY CHURN CHECK\n\n` +
+                  `At-risk: ${data.atRiskCustomers.length} customers\n` +
+                  `Lapsed: ${data.lapsedCustomers} | Lost: ${data.lostCustomers}\n` +
+                  `Retention: ${data.retentionRate}%\n` +
+                  (plan ? `\n${plan.slice(0, 500)}` : ""),
+                ),
               );
 
               // AUTO-ENROLL at-risk customers into drip campaign (Gap 1+6 fix)
@@ -2807,13 +2763,9 @@ function buildTiers(): void {
       // businessHoursOnly, and this tier is a 24h interval phased by
       // process start — a pod that booted outside 07:00-20:59 ET skipped
       // them every single day. Do not move them back.
-      {
-        name: "pricing-intelligence", // Payment-status collections signal (name kept for cron_log continuity; no price advice — see services/pricingIntelligence.ts header)
-        handler: async () => {
-          const { runPricingIntelligenceJob } = await import("../services/pricingIntelligence");
-          return runPricingIntelligenceJob();
-        },
-      },
+      // 2026-10-21 · `pricing-intelligence` (unpaid-invoice concentrations) was
+      // deleted: an invoice here is a closed job, and money is collected on a
+      // separate register, so "unpaid" was never knowable.
       // ROS-081 · `opportunity-queue-refresh` and `promise-sweep` were also
       // MOVED OUT of this tier to the 2h hourly tier, for the same reason.
       // Prod cron_log 2026-07-29 caught the first one: it ran 1 time in 7
@@ -2890,16 +2842,9 @@ function buildTiers(): void {
           try {
             const { runGscPipeline, detectRankingChanges } = await import("../pipelines/gsc-data");
             const result = await runGscPipeline();
+            // The daily SEO RANKING DROPS Telegram was deleted 2026-10-21 (the Monday GSC digest has it).
             const changes = await detectRankingChanges();
             const drops = changes.filter((c) => c.direction === "dropped" && Math.abs(c.delta) >= 5);
-            if (drops.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(
-                `📉 SEO RANKING DROPS: ${drops.length} queries lost 5+ positions!\n\n` +
-                drops.slice(0, 5).map((d) => `"${d.query}" dropped ${Math.abs(d.delta)} spots (now #${d.currentPosition})`).join("\n") +
-                `\n\nInvestigate content or technical issues.`
-              );
-            }
             return { recordsProcessed: result.sync?.fetched || 0, details: `${result.sync?.fetched || 0} rows synced, ${drops.length} ranking drops` };
           } catch (e) {
             // RETHROW. This catch used to return `{ details: "GSC pipeline
@@ -2917,12 +2862,11 @@ function buildTiers(): void {
         },
       },
       {
-        name: "full-intelligence-digest", // Compound intelligence report → Telegram
+        name: "full-intelligence-digest", // Compound intelligence report → Nick's memory (the Telegram was deleted 2026-10-21: the morning brief covers it)
         handler: async () => {
           try {
             const { generateFullIntelligenceReport } = await import("../services/intelligenceEngines");
             const report = await generateFullIntelligenceReport();
-            const { sendTelegram } = await import("../services/telegram");
             const { remember } = await import("../services/nickMemory");
 
             // Build digest from report
@@ -2964,9 +2908,8 @@ function buildTiers(): void {
               );
             }
 
-            await sendTelegram(parts.join("\n\n"));
             await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), identity: "daily_digest", source: "daily_digest", confidence: 0.9 });
-            return { recordsProcessed: 1, details: "Full digest sent" };
+            return { recordsProcessed: 1, details: "Full digest stored in memory" };
           } catch (e: unknown) { log.warn("[cron/scheduler] digest failed:", e); throw e; /* audit F-9 */ }
         },
       },
@@ -3113,13 +3056,7 @@ function buildTiers(): void {
           return { recordsProcessed: result.triggered.length, details: result.details };
         },
       },
-      {
-        name: "daily-wins-digest",
-        handler: async () => {
-          const { sendDailyWinsDigest } = await import("../services/liveFeed");
-          return sendDailyWinsDigest();
-        },
-      },
+      // daily-wins-digest (TODAY WINS) was deleted 2026-10-21: the DAILY SUMMARY covers the evening.
       {
         name: "weekly-strategic-insight", // AI strategic brief — only fires on Sundays
         handler: async () => {

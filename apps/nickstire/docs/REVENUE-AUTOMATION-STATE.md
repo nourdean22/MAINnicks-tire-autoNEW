@@ -13,7 +13,7 @@
 | Missed-call recovery | `[VERIFIED]` `server/cron/jobs/missedCallRecovery.ts` | flag `missed_call_recovery` + env `MISSED_CALL_RECOVERY_SEND=1` (shadow otherwise) | SMS (via shared rails) | **AUDITED 2026-07-28: CLEAN** — pure tested eligibility, shadow-by-default, durable claim-before-send, no invented numbers, shadow preview refuses to quote copy (anti-drift). Audience now also lands in the opportunity queue (`collectMissedCalls`, human call-back framing) |
 | Declined-work recovery (5-touch) | `[VERIFIED]` `cron/jobs/declinedWorkRecovery.ts` + `services/declinedRecoverySequence.ts` | `FEATURE_DECLINED_RECOVERY=1` env; without it: dry-run + daily Telegram nag | SMS when flag ON | `[FIXED revenue-truth-correction]` — see below |
 | Recovery targeting/scoring | `[VERIFIED]` `services/recoveryTargeting.ts` | used inside the cron above | copy feeds SMS | `[FIXED]` fabricated calibration provenance + price-guarantee copy |
-| Pricing intelligence | `[VERIFIED]` `services/pricingIntelligence.ts`, cron `pricing-intelligence` | always-on cron | Telegram (operator only) | `[FIXED]` — was invalid, rewritten as payment-status/collections signal |
+| Pricing intelligence | `[DELETED 2026-10-21]` `services/pricingIntelligence.ts` and cron `pricing-intelligence` are gone | none | none | an invoice is a closed job and money is collected on a separate register, so the collections signal could not be true |
 | Inventory demand forecast | `[VERIFIED]` `cron/jobs/inventoryDemandForecast.ts` | always-on cron (tier 4) | Telegram (operator only) | `[FIXED]` — reframed as Unmatched Tire Demand Signal |
 | Tire inventory intelligence | `[VERIFIED]` `services/dataPipelines.ts` `analyzeTireInventory` | cron `tire-inventory-intelligence` | Telegram (operator only) | `[VERIFIED]` clean — real orders + real Gateway stock |
 | Morning brief | `[VERIFIED]` `cron/jobs/morningBrief.ts` | daily cron | Telegram (operator only) | `[FIXED]` — $10K hardcode, cohort-mismatched "conversion", "WALK RATE", invented "recoverable" |
@@ -35,7 +35,7 @@
 ## Doctrine locks (tests that keep this true)
 
 - `server/services/declinedRecoverySequence.test.ts` — evidence-only routing + banned-claims sweep across all 20 variants
-- `server/services/pricingIntelligence.test.ts` — price recommender stays dead + coaching claims trace to canon
+- `server/services/pricingIntelligence.test.ts` — deleted 2026-10-21 with the module (its coaching exports had no production caller)
 
 ## Runtime flag truth (read from prod 2026-07-28, end of arc)
 

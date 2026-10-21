@@ -27,7 +27,6 @@ interface Alert {
 interface FinancialMetrics {
   dailyRevenueVsAvg: number;
   unusualTransactions: number;
-  unpaidInvoicesTotal: number;
   refundRate: number;
 }
 
@@ -41,7 +40,6 @@ interface ReputationMetrics {
 interface OperationalMetrics {
   stalePendingJobs: number;
   missedCallbacks: number;
-  overdueFollowups: number;
   smsOptOutRate: number;
   cronFailureRate: number;
 }
@@ -71,7 +69,6 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
   const metrics: FinancialMetrics = {
     dailyRevenueVsAvg: 100,
     unusualTransactions: 0,
-    unpaidInvoicesTotal: 0,
     refundRate: 0,
   };
 
@@ -138,20 +135,6 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
           message: `${metrics.unusualTransactions} invoice(s) today exceed 3x average ($${Math.round(avgInv * 3 / 100)}) — verify accuracy`,
         });
       }
-    }
-
-    // Unpaid invoices total
-    const [unpaidRows] = await db.execute(sql`
-      SELECT COALESCE(SUM(totalAmount), 0) as unpaidTotal
-      FROM invoices
-      WHERE paymentStatus IN ('pending', 'partial')
-    `);
-    metrics.unpaidInvoicesTotal = Number((unpaidRows as unknown as Record<string, unknown>[])?.[0]?.unpaidTotal || 0);
-    if (metrics.unpaidInvoicesTotal > 500000) { // >$5K in cents
-      alerts.push({
-        severity: "warning",
-        message: `Unpaid invoices total $${Math.round(metrics.unpaidInvoicesTotal / 100)} — cash flow risk`,
-      });
     }
 
     // Refund rate (last 30 days)
@@ -289,7 +272,6 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
   const metrics: OperationalMetrics = {
     stalePendingJobs: 0,
     missedCallbacks: 0,
-    overdueFollowups: 0,
     smsOptOutRate: 0,
     cronFailureRate: 0,
   };
@@ -356,21 +338,6 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       alerts.push({
         severity: "warning",
         message: `${unconfirmedCount} bookings unconfirmed >24h — leads going cold`,
-      });
-    }
-
-    // Overdue follow-ups (pending invoices >7 days)
-    const [overdueRows] = await db.execute(sql`
-      SELECT COUNT(*) as cnt
-      FROM invoices
-      WHERE paymentStatus = 'pending'
-        AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY)
-    `);
-    metrics.overdueFollowups = Number((overdueRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
-    if (metrics.overdueFollowups > 5) {
-      alerts.push({
-        severity: "warning",
-        message: `${metrics.overdueFollowups} invoices pending >7 days without follow-up`,
       });
     }
 
@@ -718,7 +685,11 @@ export async function runFullSafetyCheck(): Promise<{
 // ─── Telegram Alert Formatting ──────────────────────
 
 async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyCheck>>): Promise<void> {
-  const { sendTelegramMessage } = await import("./telegram");
+  const { sendTelegramResult } = await import("./telegram");
+  const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+  // Once per ET day per set of lines, digits stripped (2026-10-21): the same lines with a drifting
+  // score or count went out every 2 hours. A new kind of line is a new state and sends.
+  const linesState = (alerts: Alert[]) => stateFingerprint(alerts.map((a) => a.message.replace(/\d+/g, "#")));
 
   // Always send critical alerts regardless of feature flag
   const criticals = [
@@ -737,7 +708,7 @@ async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyC
       ``,
       `⏰ ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
     ];
-    await sendTelegramMessage(lines.join("\n"), "critical");
+    await sendOncePerState(`safety-critical:${linesState(criticals)}`, () => sendTelegramResult(`[CRITICAL] ${lines.join("\n")}`));
   }
 
   // Gate non-critical alerts behind feature flag
@@ -763,7 +734,7 @@ async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyC
       ``,
       `📊 Financial: ${result.financial.alerts.length} | Reputation: ${result.reputation.alerts.length} | Ops: ${result.operational.alerts.length} | Data: ${result.data.alerts.length} | Compliance: ${result.compliance.alerts.length}`,
     ];
-    await sendTelegramMessage(lines.join("\n"), "system");
+    await sendOncePerState(`safety-check:${linesState(warnings)}`, () => sendTelegramResult(`[SYSTEM] ${lines.join("\n")}`));
   }
 }
 

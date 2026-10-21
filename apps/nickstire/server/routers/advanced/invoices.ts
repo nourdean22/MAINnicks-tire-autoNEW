@@ -17,7 +17,7 @@ const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
  * MONTHLY_TARGET (dollars), which made the real cutoff $1,000 (2026-10-02 currency audit).
  */
 const HIGH_VALUE_CUSTOMER_CENTS = 200_000;
-import { eq, desc, gte, lte, and, sql, asc, inArray } from "drizzle-orm";
+import { eq, desc, gte, lte, and, sql, inArray } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
@@ -99,82 +99,6 @@ export const invoicesRouter = router({
       const [countResult] = await d.select({ count: sql<number>`count(*)` }).from(invoices).where(where);
       return { items, total: countResult?.count ?? 0 };
     }),
-  /**
-   * Unpaid invoices queue — issued invoices still awaiting payment
-   * (pending / partial), highest balance first then oldest. Powers the
-   * admin Money "Unpaid" tab. Read-only; no outreach side effects.
-   */
-  unpaidList: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { items: [], totalCents: 0 };
-    const items = await d.select({
-      id: invoices.id,
-      invoiceNumber: invoices.invoiceNumber,
-      customerName: invoices.customerName,
-      customerPhone: invoices.customerPhone,
-      totalAmount: invoices.totalAmount,
-      paymentStatus: invoices.paymentStatus,
-      invoiceDate: invoices.invoiceDate,
-      serviceDescription: invoices.serviceDescription,
-      vehicleInfo: invoices.vehicleInfo,
-      customerId: invoices.customerId,
-    })
-      .from(invoices)
-      .where(inArray(invoices.paymentStatus, ["pending", "partial"]))
-      .orderBy(desc(invoices.totalAmount), asc(invoices.invoiceDate))
-      .limit(500);
-    // 2026-08-25 · collections state per row, plus how much has aged past the
-    // 7-90 day window. Measured at the time: 5 inside it ($2,221.35) and 3
-    // aged out ($1,606.62, oldest 138 days).
-    const {
-      collectionsState, invoiceAgeDays,
-      COLLECTIONS_MIN_AGE_DAYS, COLLECTIONS_MAX_AGE_DAYS,
-    } = await import("../../services/collectionsWindow");
-
-    // NOT REAL MONEY. Measured 2026-08-25: 3 of the 5 rows inside the window
-    // were seeded test rows - two on the reserved 216-555-9999, one on an
-    // 11-digit 77777777777 - so $1,167.27 of the $2,221.35 shown was fiction.
-    // A figure the shop cannot collect is the same lying-surface class this
-    // section guards against with `unknown is not zero`, failing the other way.
-    // The excluded rows are REPORTED, not silently dropped.
-    const { partitionNonCustomers } = await import("../../services/nonCustomerFilter");
-    const split = partitionNonCustomers<(typeof items)[number]>(items);
-
-    const now = new Date();
-    const decorated = split.real.map((r: (typeof items)[number]) => {
-      const ageDays = invoiceAgeDays(r.invoiceDate, now);
-      return { ...r, ageDays, collectionsState: collectionsState(ageDays) };
-    });
-
-    let totalCents = 0;
-    let agedOutCents = 0;
-    let tooNewCents = 0;
-    for (const r of decorated) {
-      const c = r.totalAmount ?? 0;
-      totalCents += c;
-      if (r.collectionsState === "aged-out") agedOutCents += c;
-      else if (r.collectionsState === "too-new") tooNewCents += c;
-    }
-
-    return {
-      items: decorated,
-      totalCents,
-      collections: {
-        agedOutCents,
-        tooNewCents,
-        agedOutCount: decorated.filter((r: (typeof decorated)[number]) => r.collectionsState === "aged-out").length,
-        minAgeDays: COLLECTIONS_MIN_AGE_DAYS,
-        maxAgeDays: COLLECTIONS_MAX_AGE_DAYS,
-        /**
-         * How many rows were withheld as non-customers, and why. Surfaced so
-         * the operator can see WHY the figure is lower than the raw unpaid
-         * count rather than wondering where the money went.
-         */
-        excludedNonCustomers: split.excluded.length,
-        excludedReasons: split.excluded.map((e: { reason: string }) => e.reason),
-      },
-    };
-  }),
 
   /** Create an invoice */
   create: adminProcedure

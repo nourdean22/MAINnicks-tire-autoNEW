@@ -522,7 +522,8 @@ Systems over motivation. Let's go.`;
  */
 export async function sendUrgentBrief(reason: string, details: string): Promise<void> {
   try {
-    const { sendTelegram } = await import("../../services/telegram");
+    const { sendTelegramResult } = await import("../../services/telegram");
+    const { sendOncePerState, stateFingerprint } = await import("../../services/alertClaim");
     const msg = `🚨 NICK AI ALERT
 
 ${reason}
@@ -531,8 +532,9 @@ ${details}
 
 Command Center: https://nickstire.org/admin`;
 
-    await sendTelegram(msg);
-    log.info(`Urgent brief sent: ${reason}`);
+    // Once per ET day per reason and details (2026-10-21): the same drift re-sent every 15 minutes.
+    const sent = await sendOncePerState(`nick-ai-alert:${stateFingerprint([reason, details])}`, () => sendTelegramResult(msg));
+    if (sent) log.info(`Urgent brief ${sent.status}: ${reason}`);
   } catch (err) {
     log.error("Urgent brief failed:", { error: err instanceof Error ? err.message : String(err) });
   }

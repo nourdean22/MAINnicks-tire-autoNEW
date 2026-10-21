@@ -2,9 +2,9 @@
  * Telegram alert diet · the three repeating business-hours alerts send once per
  * Cleveland day per STATE, not once per tick.
  *
- * Before: revenue-pulse (every 15 min once the day was big), promise-risk and
- * stale-estimate (every 2 h) re-sent the same message while the state never
- * changed. Now each claims a cron_alerts_fired row (INSERT IGNORE, the camera
+ * Before: revenue-pulse (every 15 min once the day was big) and promise-risk
+ * (every 2 h) re-sent the same message while the state never changed (the third,
+ * stale-estimate, was deleted 2026-10-21: a pending invoice is not an estimate). Now each claims a cron_alerts_fired row (INSERT IGNORE, the camera
  * pattern) BEFORE sending; the key names the state and fired_for is the ET day.
  *
  * The fake db implements the INSERT IGNORE semantics (first insert of a
@@ -22,7 +22,6 @@ const h = vi.hoisted(() => ({
   claimFails: false,
   todayRevenue: 100_000,
   atRisk: [{ risk: "overdue", orderNumber: "WO-1", workOrderId: 1, customerName: "Ann" }] as Array<Record<string, unknown>>,
-  stale: [{ id: 1, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }] as Array<Record<string, unknown>>,
   /** What the transport answers to a once-per-state send. */
   status: "delivered" as "delivered" | "held" | "failed" | "throw",
 }));
@@ -75,7 +74,7 @@ const fakeDb = {
       h.claims.add(k);
       return [{ affectedRows: 1 }];
     }
-    return [h.stale, []];
+    return [[], []];
   },
 };
 vi.mock("./db", async (importOriginal) => ({
@@ -92,7 +91,6 @@ const WED_0030_ET = "2026-10-14T04:30:00Z"; // Wednesday in Cleveland
 const JOBS = [
   { name: "revenue-pulse", marker: "Big day building" },
   { name: "promise-risk-check", marker: "PROMISE RISK" },
-  { name: "stale-estimate-alert", marker: "STALE ESTIMATES" },
 ] as const;
 
 function at(iso: string) {
@@ -110,7 +108,6 @@ describe("repeating business-hours alerts claim before they send", () => {
     h.claimFails = false;
     h.todayRevenue = 100_000;
     h.atRisk = [{ risk: "overdue", orderNumber: "WO-1", workOrderId: 1, customerName: "Ann" }];
-    h.stale = [{ id: 1, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }];
     h.status = "delivered";
   });
   afterEach(() => {
@@ -212,29 +209,5 @@ describe("repeating business-hours alerts claim before they send", () => {
     await runTierJobHandlerUnlocked("promise-risk-check");
     expect(h.sends).toHaveLength(2);
     expect(h.sends[1]).toContain("WO-2");
-  });
-
-  it("stale-estimate: a different invoice with the same name and amount is a new state and sends once", async () => {
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    // invoice 1 got paid; invoice 2 (same customer, same amount) took its place in the top five
-    h.stale = [{ id: 2, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-05", daysOld: 8 }];
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    expect(h.sends).toHaveLength(2);
-  });
-
-  it("stale-estimate: the same invoices aging a day do not make a new state", async () => {
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    h.stale = h.stale.map((e) => ({ ...e, daysOld: Number(e.daysOld) + 1 }));
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    expect(h.sends).toHaveLength(1);
-  });
-
-  it("stale-estimate: a changed list is a new state and sends once", async () => {
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    h.stale = [{ customerName: "Dee", totalAmount: 99_000, invoiceDate: "2026-10-02", daysOld: 8 }, ...h.stale];
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    await runTierJobHandlerUnlocked("stale-estimate-alert");
-    expect(h.sends).toHaveLength(2);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * DeclinedEstimatesSection — Recovery pipeline for estimates that didn't convert.
- * Shows pending invoices (walked-away customers), total recoverable revenue,
- * and one-click follow-up actions.
+ * Shows estimates that never became an invoice (walked-away customers), total
+ * recoverable revenue, and one-click follow-up actions.
  */
 import { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
@@ -78,8 +78,7 @@ export default function DeclinedEstimatesSection() {
    * A failed read fell through `?? 0` into "$0 RECOVERABLE" on an emerald card,
    * while the aged-money banner below SELF-HID (it returns null on
    * `agedDollars <= 0`). So the surface actively asserted "there is no declined
-   * money to chase" at exactly the moment it could not see any. Same idiom as
-   * money/UnpaidInvoicesSection.tsx:29 — em dash on the cards, amber banner
+   * money to chase" at exactly the moment it could not see any. The fix: an em dash on the cards, an amber banner
    * above, and the genuine `0` (a real counted zero) left alone.
    */
   const unknown = isError;

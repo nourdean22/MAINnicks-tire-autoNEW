@@ -488,7 +488,6 @@
     "query.invoices.stats",
     "query.invoices.tireSalesReport",
     "query.invoices.topCustomers",
-    "query.invoices.unpaidList",
     "query.kafene.config",
     "query.kafene.status",
     "query.lead.deliveryEvents",

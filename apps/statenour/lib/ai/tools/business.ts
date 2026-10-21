@@ -219,7 +219,7 @@ export const businessTools = {
   }),
 
   getAttentionAlerts: tool({
-    description: "What needs Nour's attention NOW — stale leads, unanswered callbacks, overdue WOs, unpaid invoices",
+    description: "What needs Nour's attention NOW — stale leads, unanswered callbacks, overdue WOs",
     inputSchema: z.object({}),
     execute: async () => {
       const { queryNick } = await import("@/lib/nickstire/query");
@@ -446,7 +446,7 @@ export const businessTools = {
       return {
         pulse: fenceBridgeResult("getEstimateLeaks", pulse),
         attention: fenceBridgeResult("getEstimateLeaks", attention),
-        analysis: `Check invoices with paymentStatus='pending' older than 3 days. Each one is a potential lost sale. Follow up aggressively.`,
+        analysis: `An estimate that never became an invoice means the customer walked; those are the leaks to follow up. Invoice payment status is not a signal: payment is collected on a separate register.`,
         daysBack,
       };
     },

@@ -16,8 +16,9 @@
  *             wins, "other" fallback. scripts/ingest-reports.mjs (the LIVE report
  *             path, which cannot be imported: it runs main()) carries the same
  *             table, held byte-identical by the last test in this file.
- *   - payment (pricingIntelligence.ts): Title Case labels shown in the
- *             collections alert, lowercase SUBSTRING keywords, first match.
+ *   - payment (pricingIntelligence.ts, DELETED 2026-10-21 with the unpaid-
+ *             invoice alert it labelled): the third column of each row is the
+ *             recorded history of that classifier and is no longer asserted.
  *   - engines (engines/shared.ts, the canonical multi-label view): 10 keys,
  *             EVERY matching key returned (string[]), [] when nothing matches.
  * Deriving either single-label view from the engines one changed 62 (report)
@@ -47,8 +48,7 @@
  * Every assertion goes through an existing export, never a test-only one:
  * parseTotalSalesReport (report - note its parse/analytics exports have no
  * production caller today, they sit in the knip orphan baseline),
- * getServicePaymentBreakdown (payment - feeds the pricing-intelligence cron
- * alert), the canonical categorizeService, and forecastSeasonalDemand +
+ * the canonical categorizeService, and forecastSeasonalDemand +
  * analyzeChatDemand (the two intelligenceEngines consumer shapes: the
  * function and the bare table). The DB is mocked; nothing opens a connection.
  */
@@ -67,12 +67,11 @@ vi.mock("../db", () => {
   };
   return { getDb: async () => fake };
 });
-// pricingIntelligence imports it at module load; keep the test network-free.
+// Keep the test network-free if any importer reaches the reviews client.
 vi.mock("../google-reviews", () => ({ getGoogleReviews: vi.fn().mockResolvedValue(null) }));
 
 import { categorizeService, SERVICE_CATEGORIES } from "./engines/shared";
 import { parseTotalSalesReport } from "./reportIngestion";
-import { getServicePaymentBreakdown } from "./pricingIntelligence";
 import { analyzeChatDemand, forecastSeasonalDemand } from "./intelligenceEngines";
 
 type Row = [description: string, report: string, payment: string, engines: string[]];
@@ -268,20 +267,6 @@ describe("reportIngestion - ShopDriver report taxonomy (single label, first matc
     // comparison below would pass vacuously over a short list.
     expect(invoices.length).toBe(GOLDEN.length);
     expect(mismatches((_r, i) => invoices[i].serviceCategory, (r) => r[1])).toEqual([]);
-  });
-});
-
-describe("pricingIntelligence - payment-alert labels (single label, first match)", () => {
-  it("getServicePaymentBreakdown files every description under the recorded label", async () => {
-    const observed: string[] = [];
-    for (const [d] of GOLDEN) {
-      // 3 rows: the breakdown drops categories with fewer data points.
-      dbState.rows = [0, 1, 2].map(() => ({ serviceDescription: d, paymentStatus: "paid" }));
-      const breakdown = await getServicePaymentBreakdown(30);
-      expect(breakdown, `breakdown for ${JSON.stringify(d)}`).toHaveLength(1);
-      observed.push(breakdown[0].service);
-    }
-    expect(mismatches((_r, i) => observed[i], (r) => r[2])).toEqual([]);
   });
 });
 

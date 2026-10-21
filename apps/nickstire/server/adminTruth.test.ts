@@ -14,13 +14,8 @@ import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), `client/src/pages/admin/${p}`), "utf8");
 
-describe("money never reports collected when it could not look", () => {
-  it("UnpaidInvoices captures isError and refuses the paid-in-full empty state on failure", () => {
-    const s = read("money/UnpaidInvoicesSection.tsx");
-    expect(s).toMatch(/isError/);
-    expect(s).toMatch(/UNKNOWN IS NOT ZERO/);
-  });
-});
+// 2026-10-21: the "money never reports collected when it could not look" pin read the Unpaid tab, which was
+// deleted (payment is taken on a separate register, so the system cannot know who paid).
 
 describe("Settings cannot say All clear over checks that never ran", () => {
   it("the hook reports failedChecks per query", () => {

@@ -103,28 +103,15 @@ export async function runDailyBackup(): Promise<{ recordsProcessed?: number; det
       log.error("Statenour digest push FAILED — nothing was archived", { error: archiveError });
     }
 
-    // Send summary to Telegram
-    try {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
-        `📦 DAILY DIGEST — ${dateStr}\n` +
-        `Counts only — not a restorable backup (TiDB Cloud's native backups are).\n\n` +
-        `DB Totals:\n` +
-        `• ${snapshot.counts.leads} leads\n` +
-        `• ${snapshot.counts.bookings} bookings\n` +
-        `• ${snapshot.counts.invoices} invoices\n` +
-        `• ${snapshot.counts.customers} customers\n` +
-        `• ${snapshot.counts.tireOrders} tire orders\n\n` +
-        `Last 24h:\n` +
-        `• ${snapshot.recent24h.leads} new leads\n` +
-        `• ${snapshot.recent24h.bookings} new bookings\n` +
-        `• ${snapshot.recent24h.invoices} new invoices\n\n` +
-        // Was hardcoded to the success line regardless of what happened.
-        (archived
-          ? `✅ Digest archived to StateNour`
-          : `🚨 DIGEST ARCHIVE FAILED\n${archiveError}\n\nThe counts above were read, but no record left this server.`), "digest"
-      );
-    } catch (e) { log.warn("[services/dbBackup] operation failed:", e); }
+    // Telegram only when the archive FAILED (2026-10-21): the daily counts digest was a receipt.
+    if (!archived) {
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `🚨 DIGEST ARCHIVE FAILED — ${dateStr}\n${archiveError}\n\nThe counts were read, but no record left this server.`, "digest"
+        );
+      } catch (e) { log.warn("[services/dbBackup] operation failed:", e); }
+    }
 
     // Throw so scheduler.ts records status='failed'. checkDataSafety derives
     // "last successful backup" from cron_log status='completed', so returning

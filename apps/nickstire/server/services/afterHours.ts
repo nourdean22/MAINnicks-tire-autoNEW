@@ -10,7 +10,6 @@
 
 import { createLogger } from "../lib/logger";
 import { sendSms } from "../sms";
-import { alertAfterHours } from "./telegram";
 
 import { BUSINESS } from "@shared/business";
 import { businessState } from "@shared/shopState";
@@ -82,12 +81,8 @@ export async function handleAfterHoursCapture(params: {
     log.warn("After-hours SMS failed", { err });
   }
 
-  // Alert Nour via Telegram
-  await alertAfterHours({
-    name: params.name,
-    phone: params.phone,
-    type: params.type,
-  });
+  // No Telegram here (2026-10-21): the same submission already alerted through the event bus
+  // (lead_captured / callback_requested), which has no business-hours gate.
 
   return true;
 }

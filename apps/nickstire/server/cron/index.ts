@@ -701,14 +701,6 @@ export function registerAllJobs(): void {
     return runSelfHealingChecks();
   });
 
-  // Nick AI Proactive Intelligence (every 2 hours during business hours)
-  registerJob("nick-intelligence", 2 * 60 * 60 * 1000, async () => {
-    const hour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
-    // Only run during business-ish hours (7 AM - 9 PM ET)
-    if (hour < 7 || hour > 21) return { recordsProcessed: 0, details: "Outside business hours" };
-    const { runProactiveCheck } = await import("../services/nickIntelligence");
-    return runProactiveCheck();
-  });
 
   // Daily IG reel auto-poster — hourly tick, posts one pre-made reel in the 9am
   // ET window (one per day, reels 5-30). Laptop-independent: runs on the Railway

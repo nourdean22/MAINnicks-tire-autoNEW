@@ -437,23 +437,6 @@ export function alertGoodReview(review: {
   return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews", "receipt");
 }
 
-/** After-hours lead/request — CRITICAL channel (immediate) */
-export function alertAfterHours(request: {
-  name: string;
-  phone?: string;
-  type: "lead" | "booking" | "emergency" | "callback";
-}) {
-  const lines = [
-    `🌙 ${bold(`AFTER-HOURS ${request.type.toUpperCase()}`)}`,
-    divider(),
-    `👤 ${bold(request.name)}`,
-    request.phone ? `📱 ${link(request.phone, `tel:${request.phone.replace(/\D/g, "")}`)}` : "",
-    `⏰ ${formatTimestamp()}`,
-    `💡 Auto-SMS sent to customer`,
-  ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "critical");
-}
-
 /** Revenue milestone — DIGEST channel (batched) */
 export function alertRevenueMilestone(data: {
   period: string;

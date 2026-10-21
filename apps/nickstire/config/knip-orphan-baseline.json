@@ -2377,21 +2377,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
-      "symbol": "analyzeObjections",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
-      "symbol": "getServicePaymentBreakdown",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
-      "symbol": "getObjectionCoaching",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/pipelines/orchestrator.ts",
       "symbol": "runPipeline",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

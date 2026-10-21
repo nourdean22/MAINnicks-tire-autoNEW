@@ -167,13 +167,6 @@ describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
     expect(dayKeys.flat().every((p) => typeof p === "string")).toBe(true);
   });
 
-  it("statenourSync's unpaid-invoice alert cutoff is the date key three shop days back, not NOW() in UTC", async () => {
-    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
-    await syncToStatenour();
-    // Oct 12 less three shop days is Oct 9; a NOW() cutoff would move with the UTC clock.
-    expect(paramsOf(/paymentStatus='pending' AND invoiceDate < \?/)).toEqual([["2026-10-09"]]);
-  });
-
   it("statenourSync's week and month revenue bind the shop's week and month keys", async () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();
@@ -208,12 +201,6 @@ describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
     await runIntelligenceAutopilot();
     expect(paramsOf(/FROM invoices\s+WHERE DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/)).toContainEqual([DAY_OCT_12]);
     expect(paramsOf(/FROM bookings\s+WHERE createdAt >= \? AND createdAt < \? AND status IN/)).toContainEqual(SHOP_DAY_OCT_12);
-  });
-
-  it("intelligenceAutopilot's estimate counts bind the seven-day key on both the pending and the paid branch", async () => {
-    const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
-    await runIntelligenceAutopilot();
-    expect(paramsOf(/COUNT\(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= \? THEN 1 END\) as estimates,\s+COUNT\(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= \? THEN 1 END\) as closed\s+FROM invoices/)).toEqual([[WEEK_KEY, WEEK_KEY]]);
   });
 
   it("intelligenceAutopilot's seven-day inspection window binds the Oct 5 key", async () => {

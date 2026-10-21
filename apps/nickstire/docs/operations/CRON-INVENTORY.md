@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-10-19 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-21 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -17,12 +17,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 |---|---|---|
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 23 / 0 |
-| hourly | every 2h | 35 / 1 |
-| daily | every 1d | 49 / 0 |
-| briefings | every 12h | 6 / 0 |
+| hourly | every 2h | 33 / 1 |
+| daily | every 1d | 47 / 0 |
+| briefings | every 12h | 5 / 0 |
 | nightly | every 1d | 1 / 0 |
 
-**Total: 121 tiered jobs (118 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 116 tiered jobs (113 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -81,7 +81,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `memory-sync-to-statenour` | no | no | yes | — |
 | `missed-call-recovery` | yes | no | yes | — |
 | `nick-auto-actions` | yes | no | yes | — |
-| `nick-intelligence` | yes | no | yes | Analyze with fresh data |
 | `opportunity-queue-refresh` | yes | yes | yes | — |
 | `post-invoice-followup` | yes | no | yes | — |
 | `predictive-escalation` | yes | no | yes | — |
@@ -95,7 +94,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `safety-check` | no | no | yes | — |
 | `service-affinity-compute` | no | no | yes | — |
 | `sms-learning-digest` | no | yes | **STAGED — HTTP trigger only** | — |
-| `stale-estimate-alert` | yes | no | yes | — |
 | `stale-lead-followup` | yes | no | yes | Re-engage leads after intelligence is fresh |
 | `sync-visit-dates` | no | no | yes | — |
 | `vip-auto-recognition` | yes | yes | yes | — |
@@ -138,7 +136,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `pipelines-auto-run` | no | no | yes | — |
 | `plate-retention-scrub` | no | no | yes | Nulls plate text on `vehicle_visits` rows past the 30-day ADR-0017 window, sparing EXACT customer matches. Reads nothing until a plate recogniser is wired. |
 | `prediction-outcomes-resolve` | no | no | yes | — |
-| `pricing-intelligence` | no | no | yes | — |
 | `prompt-evolution-weekly` | no | no | yes | — |
 | `psycho-profile-refresh` | no | no | yes | — |
 | `qc-comeback-detection` | no | no | yes | — |
@@ -147,7 +144,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `revenue-reconciliation` | no | no | yes | — |
 | `review-monitor` | no | no | yes | Monitor Google reviews, alert on negatives |
 | `review-pipeline` | no | no | yes | — |
-| `seo-forensic` | no | no | yes | — |
 | `stale-booking-cleanup` | no | no | yes | — |
 | `tire-inventory-intelligence` | no | no | yes | — |
 | `vapi-call-eval` | no | no | yes | — |
@@ -164,7 +160,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 |---|---|---|---|---|
 | `chat-faq-pipeline` | no | no | yes | — |
 | `daily-report` | no | no | yes | End-of-day operational report |
-| `daily-wins-digest` | no | no | yes | — |
 | `nick-morning-brief` | no | no | yes | Owner morning brief (Telegram) |
 | `weather-intel` | no | no | yes | Weather impact on demand (snow → tire surge, etc.) |
 | `weekly-strategic-insight` | no | no | yes | — |

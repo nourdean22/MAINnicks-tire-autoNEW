@@ -284,18 +284,6 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     }
   } catch (e) { log.warn("[intelligence:proactiveAlerts] aging estimates check failed:", e); }
 
-  // Check pending payments (invoices sent but not paid)
-  try {
-    const { invoices } = await import("../../drizzle/schema");
-    const [pendingPayments] = await d.select({ count: sql<number>`count(*)`, total: sql<number>`SUM(totalAmount)` }).from(invoices)
-      .where(eq(invoices.paymentStatus, "pending"));
-    const pendingCount = pendingPayments?.count ?? 0;
-    const pendingTotal = Math.round((pendingPayments?.total ?? 0) / 100);
-    if (pendingCount > 3 && pendingTotal > 500) {
-      alerts.push(`💳 $${pendingTotal} in ${pendingCount} unpaid invoices — follow up on outstanding payments`);
-    }
-  } catch (e) { log.warn("[intelligence:proactiveAlerts] pending payments check failed:", e); }
-
   // Check if review requests are being sent
   try {
     const { reviewRequests } = await import("../../drizzle/schema");
@@ -388,47 +376,6 @@ INSIGHTS: ${pipeline.insights.join("; ") || "None"}`;
   }
 }
 
-// ─── PROACTIVE CHECK (runs every 2 hours) ─────────────
-
-export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; details?: string }> {
-  const alerts = await generateProactiveAlerts();
-  const pipeline = await analyzeConversionPipeline();
-
-  // Combine critical alerts + pipeline insights
-  const allAlerts = [...alerts, ...pipeline.insights.filter(i => i.startsWith("LOST") || i.startsWith("STALE"))];
-
-  if (allAlerts.length > 0) {
-    try {
-      const { sendTelegram } = await import("./telegram");
-      const insight = await generateWeeklyInsight();
-
-      await sendTelegram(
-        `🧠 NICK AI — Proactive Check\n\n` +
-        allAlerts.join("\n") +
-        `\n\n💡 INSIGHT: ${insight}\n\n` +
-        `Command Center: https://nickstire.org/admin`, "digest"
-      );
-
-      // Track alert outcomes — schedule a check to see if action was taken
-      try {
-        const { trackAlertOutcome } = await import("./feedbackLoop");
-        // Record each alert type for outcome tracking
-        for (const alert of allAlerts) {
-          const alertType = alert.includes("STALE") ? "stale_leads" : alert.includes("LOST") ? "lost_revenue" : "proactive";
-          // For now mark as unknown — a follow-up check in the feedback cycle will verify
-          await trackAlertOutcome(alertType, "unknown");
-        }
-      } catch (e) { log.warn("[intelligence:proactiveCheck] alert outcome tracking failed:", e); }
-
-      log.info(`Proactive check: ${allAlerts.length} alerts sent`);
-    } catch (err) {
-      log.error("Proactive alert failed:", { error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  return { recordsProcessed: allAlerts.length, details: `${allAlerts.length} alerts, pipeline: ${pipeline.estimateToInvoice}% est→job` };
-}
-
 // ─── AUTO-ACTIONS (Nick AI acts without being asked) ──
 
 export async function runAutoActions(): Promise<{ recordsProcessed?: number; details?: string }> {
@@ -437,7 +384,6 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
   const pulse = await getShopPulse();
   const pipeline = await analyzeConversionPipeline();
-  const { sendTelegram } = await import("./telegram");
   let actions = 0;
 
   // Load memories for smarter decisions
@@ -448,122 +394,16 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     memoryInsights = memories.map(m => m.content);
   } catch (e) { log.warn("[intelligence:autoActions] memory recall for patterns failed:", e); }
 
-  // AUTO-ACTION 1: High walk rate alert + suggestion
-  if (pulse.thisWeek.walkRate > 40 && pulse.thisWeek.jobsClosed > 5) {
-    try {
-      await sendTelegram(
-        `⚠️ NICK AI AUTO-ACTION: Walk Rate ${pulse.thisWeek.walkRate}%\n\n` +
-        `${Math.round(pulse.thisWeek.walkRate)}% of customers this week got estimates but didn't convert.\n\n` +
-        `Suggestions:\n` +
-        `• Follow up on recent estimates — call them back\n` +
-        `• Consider running a "come back" promo ($25 off with estimate)\n` +
-        `• Review pricing vs competitors\n` +
-        `• Are techs explaining value clearly during inspections?`
-      );
-      actions++;
-    } catch (e) { log.warn("[intelligence:autoAction1] high walk rate alert failed:", e); }
-  }
-
-  // AUTO-ACTION 2: Great day celebration
-  const revenue = await projectRevenue();
-  if (pulse.today.revenue > revenue.avgDailyRevenue * 1.5 && pulse.today.revenue > 500) {
-    try {
-      await sendTelegram(
-        `🎉 GREAT DAY! Revenue $${pulse.today.revenue.toLocaleString()} — ` +
-        `${Math.round((pulse.today.revenue / Math.max(revenue.avgDailyRevenue, 1)) * 100)}% of daily average!\n\n` +
-        `${pulse.today.jobsClosed} jobs closed. Avg ticket: $${pulse.today.avgTicket}. Keep it going!`
-      );
-      actions++;
-    } catch (e) { log.warn("[intelligence:autoAction2] great day celebration alert failed:", e); }
-  }
-
-  // AUTO-ACTION 3: Slow day by noon — push marketing + measure revenue impact
-  const hour = new Date().getHours();
+  // AUTO-ACTIONS 1-6 (walk rate, great day, slow day, estimate leads, revenue anomaly, callback
+  // backlog) were deleted 2026-10-21: each repeated another alert every 2 hours, and the revenue
+  // ones read intra-day invoices that the ShopDriver sync has not imported yet.
   const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
-  if (hour >= 12 && hour <= 14 && pulse.today.jobsClosed < 2 && pulse.shopStatus === "slow") {
-    const beforeRevenue = pulse.today.revenue;
-    await sendTelegram(
-      `📉 NICK AI: Slow day alert — only ${pulse.today.jobsClosed} jobs by noon.\n\n` +
-      `Suggestions:\n` +
-      `• Post a same-day special on Instagram/Facebook\n` +
-      `• Text recent estimate customers: "Still need that repair? Come in today"\n` +
-      `• Check if there are pending callbacks to return`
-    );
 
-    // Measure if this alert drove action — check revenue later
-    try {
-      const { measureRevenueImpact, trackAlertOutcome } = await import("./feedbackLoop");
-      // Schedule revenue comparison (will run on next feedback cycle)
-      measureRevenueImpact("slow_day_push", beforeRevenue).catch(e => log.warn("[intelligence:autoAction3] revenue impact measurement failed:", e));
-      await trackAlertOutcome("slow_day_push", "unknown");
-    } catch (e) { log.warn("[intelligence:autoAction3] slow day feedback tracking failed:", e); }
-
-    actions++;
-  }
-
-  // AUTO-ACTION 4: Auto-follow-up on hot estimates (>$500, no invoice within 4h)
-  try {
-    const { leads: leadsTable, invoices: invoicesTable } = await import("../../drizzle/schema");
-    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-
-    const hotEstimates = await d.select().from(leadsTable)
-      .where(and(
-        sql`${leadsTable.recommendedService} IS NOT NULL`,
-        eq(leadsTable.status, "new"),
-        gte(leadsTable.createdAt, todayStart),
-        sql`${leadsTable.createdAt} <= ${fourHoursAgo}`
-      ))
-      .limit(5);
-
-    if (hotEstimates.length > 0) {
-      await sendTelegram(
-        `🔥 NICK AUTO-ACTION: ${hotEstimates.length} estimate leads need follow-up!\n\n` +
-        hotEstimates.slice(0, 3).map((l: typeof hotEstimates[number]) =>
-          `${l.name || "?"} (${l.phone || "no phone"}) — ${l.recommendedService || "estimate"} — ${Math.round((Date.now() - new Date(l.createdAt).getTime()) / 3600000)}h ago`
-        ).join("\n") +
-        `\n\n⚡ Call them NOW — estimates convert 3x better within 4 hours.`
-      );
-      actions++;
-    }
-  } catch (e) { log.warn("[intelligence:autoAction4] hot estimate follow-up failed:", e); }
-
-  // AUTO-ACTION 5: Detect revenue anomaly (today vs same day last week)
-  try {
-    const revenue = await projectRevenue();
-    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
-    if (etHour >= 14 && pulse.today.revenue < revenue.avgDailyRevenue * 0.3 && revenue.avgDailyRevenue > 200) {
-      await sendTelegram(
-        `📉 NICK AUTO-ACTION: Revenue anomaly detected\n\n` +
-        `Today: $${pulse.today.revenue} (only ${Math.round((pulse.today.revenue / revenue.avgDailyRevenue) * 100)}% of daily average)\n` +
-        `Average: $${revenue.avgDailyRevenue}/day\n` +
-        `Jobs: ${pulse.today.jobsClosed}\n\n` +
-        `Possible causes: slow traffic, missed leads, or tracking issue.\n` +
-        `Check: Are callbacks returned? Are estimates being followed up?`
-      );
-      actions++;
-    }
-  } catch (e) { log.warn("[intelligence:autoAction5] revenue anomaly detection failed:", e); }
-
-  // AUTO-ACTION 6: Detect callback backlog (>3 unanswered)
-  if (pulse.today.callbacksWaiting > 3) {
-    try {
-      await sendTelegram(
-        `📞 NICK AUTO-ACTION: ${pulse.today.callbacksWaiting} callbacks waiting!\n\n` +
-        `These customers are expecting a call back. Every hour of delay = lower conversion.\n` +
-        `⚡ Clear the callback queue NOW.`
-      );
-      actions++;
-    } catch (e) { log.warn("[intelligence:autoAction6] callback backlog alert failed:", e); }
-  }
-
-  // AUTO-ACTION 7: Evening debrief (auto-generated at 5-6pm with AI analysis)
+  // AUTO-ACTION 7: day score at 5-6pm ET, kept in memory. The Telegram evening debrief was deleted
+  // 2026-10-21: the DAILY SUMMARY already covers the evening.
   try {
     const etHour2 = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     if (etHour2 >= 17 && etHour2 <= 18) {
-      const { analyzeCustomers, getCustomerActionPlan } = await import("./customerIntelligence");
-      const ci = await analyzeCustomers();
-      const plan = await getCustomerActionPlan();
       const rev = await projectRevenue();
 
       // Calculate today's score (0-100)
@@ -573,36 +413,6 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       const dayScore = Math.round((revenueScore + walkScore + callbackScore) / 3);
 
       const grade = dayScore >= 90 ? "A+" : dayScore >= 80 ? "A" : dayScore >= 70 ? "B" : dayScore >= 60 ? "C" : dayScore >= 50 ? "D" : "F";
-
-      // Calculate remaining days + daily target for $10K/month
-      const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-      const dayOfMonth = new Date().getDate();
-      const remainingDays = Math.max(1, daysInMonth - dayOfMonth);
-      const monthTarget = 10000;
-      const earnedSoFar = rev.thisMonthProjection ? Math.round(rev.thisMonthProjection * (dayOfMonth / daysInMonth)) : pulse.thisWeek.revenue;
-      const remainingToTarget = Math.max(0, monthTarget - earnedSoFar);
-      const dailyTargetRemaining = Math.round(remainingToTarget / remainingDays);
-
-      await sendTelegram(
-        `📊 NICK EVENING DEBRIEF — ${grade} DAY (${dayScore}/100)\n\n` +
-        `💰 Revenue: $${pulse.today.revenue} (${revenueScore}% of target)\n` +
-        `🔧 Jobs: ${pulse.today.jobsClosed} completed | ${pulse.today.customersWalked} walked\n` +
-        `📊 Walk rate: ${pulse.thisWeek.walkRate}% | Avg ticket: $${pulse.today.avgTicket}\n` +
-        `📞 Callbacks: ${pulse.today.callbacksWaiting} still pending\n` +
-        `📈 Week: $${Math.round(pulse.thisWeek.revenue)} / $${rev.thisWeekProjection} projected\n` +
-        `📅 Month: $${rev.thisMonthProjection} projected (${rev.trend})\n\n` +
-        `SCORING: Revenue ${revenueScore}/100 | Walk ${walkScore}/100 | Callbacks ${callbackScore}/100\n\n` +
-        `🎯 $10K TARGET: $${remainingToTarget} left → need $${dailyTargetRemaining}/day for ${remainingDays} remaining days\n\n` +
-        `PERSONAL CHECK:\n` +
-        `- Did you work out today? Body affects business.\n` +
-        `- Did you follow up on yesterday's priorities?\n` +
-        `- Are you building or drifting? Boring repetition > intensity spikes.\n\n` +
-        (ci.unavailable || ci.atRiskUnavailable
-          ? `⚠️ At-risk customers: unknown — the customer read failed\n`
-          : ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers — call them FIRST tomorrow\n` : "") +
-        (plan ? `\n${plan.slice(0, 300)}` : "") +
-        `\n\n${pulse.shopInsight}`
-      );
 
       // Store daily score in memory
       const { remember: remScore } = await import("./nickMemory");
@@ -616,7 +426,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
       actions++;
     }
-  } catch (e) { log.warn("[intelligence:autoAction7] evening debrief generation failed:", e); }
+  } catch (e) { log.warn("[intelligence:autoAction7] day score failed:", e); }
 
   // AUTO-ACTION 8: Learn day-of-week patterns
   try {
@@ -650,35 +460,6 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
   } catch (e) { log.warn("[intelligence:autoAction8] day-of-week pattern learning failed:", e); }
 
   // ═══ VERSION 2.1 AUTO-ACTIONS ═══
-
-  // AUTO-ACTION 9: Invoice aging escalation (unpaid >7d, >14d, >30d)
-  try {
-    const { invoices: invTable } = await import("../../drizzle/schema");
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-
-    const agingInvoices = await d.select().from(invTable)
-      .where(and(eq(invTable.paymentStatus, "pending"), sql`${invTable.invoiceDate} <= ${sevenDaysAgo}`))
-      .orderBy(sql`${invTable.invoiceDate} ASC`)
-      .limit(10);
-
-    if (agingInvoices.length > 0) {
-      const critical = agingInvoices.filter((inv: typeof agingInvoices[number]) => new Date(inv.invoiceDate) < fourteenDaysAgo);
-      const totalOwed = Math.round(agingInvoices.reduce((s: number, inv: typeof agingInvoices[number]) => s + inv.totalAmount, 0) / 100);
-
-      await sendTelegram(
-        `💰 INVOICE AGING ALERT\n\n` +
-        `${agingInvoices.length} unpaid invoices >7 days ($${totalOwed} total)\n` +
-        (critical.length > 0 ? `🔴 ${critical.length} are >14 days old — ESCALATE\n\n` : "\n") +
-        agingInvoices.slice(0, 5).map((inv: typeof agingInvoices[number]) => {
-          const days = Math.round((Date.now() - new Date(inv.invoiceDate).getTime()) / (24 * 60 * 60 * 1000));
-          return `${inv.customerName || "?"}: $${Math.round(inv.totalAmount / 100)} — ${days}d overdue`;
-        }).join("\n") +
-        `\n\n⚡ Call these customers today for payment`
-      );
-      actions++;
-    }
-  } catch (e) { log.warn("[intelligence:autoAction9] invoice aging escalation failed:", e); }
 
   // AUTO-ACTION 10: Cross-sell intelligence (service pattern → recommendation)
   try {
@@ -729,10 +510,15 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     const utilizationPct = totalBays > 0 ? Math.round(((totalBays - freeBays) / totalBays) * 100) : 0;
 
     if (clockedIn > 0 && freeBays === totalBays && etHour >= 10 && etHour <= 15) {
-      await sendTelegram(
-        `🔧 CAPACITY ALERT: ${totalBays} bays ALL EMPTY with ${clockedIn} techs clocked in\n\n` +
-        `Utilization: ${utilizationPct}%\n` +
-        `⚡ Push walk-in traffic or follow up on pending estimates`
+      // Once per ET day (2026-10-21): it re-sent every 2 hours from 10 to 3.
+      const { sendTelegramResult } = await import("./telegram");
+      const { sendOncePerState } = await import("./alertClaim");
+      await sendOncePerState("capacity-alert:all-bays-empty", () =>
+        sendTelegramResult(
+          `🔧 CAPACITY ALERT: ${totalBays} bays ALL EMPTY with ${clockedIn} techs clocked in\n\n` +
+          `Utilization: ${utilizationPct}%\n` +
+          `⚡ Push walk-in traffic or follow up on pending estimates`,
+        ),
       );
       actions++;
     }
@@ -830,7 +616,6 @@ export async function getShopPulse(): Promise<{
     revenue: number;         // Today's paid invoice total
     avgTicket: number;       // Average ticket today
     dropOffs: number;        // Bookings/walk-ins today
-    pendingPayments: number; // Invoices with pending payment
     callbacksWaiting: number;
   };
   thisWeek: {
@@ -844,7 +629,7 @@ export async function getShopPulse(): Promise<{
 }> {
   const d = await db();
   const empty = {
-    today: { jobsClosed: 0, customersWalked: 0, revenue: 0, avgTicket: 0, dropOffs: 0, pendingPayments: 0, callbacksWaiting: 0 },
+    today: { jobsClosed: 0, customersWalked: 0, revenue: 0, avgTicket: 0, dropOffs: 0, callbacksWaiting: 0 },
     thisWeek: { jobsClosed: 0, revenue: 0, avgTicket: 0, walkRate: 0 },
     shopStatus: "unknown" as string,
     shopInsight: "No data",
@@ -860,7 +645,7 @@ export async function getShopPulse(): Promise<{
   const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
 
   const [
-    todayInvoicesPaid, todayInvoicesPending, todayEstimateLeads,
+    todayInvoicesPaid, todayEstimateLeads,
     todayBookings, todayCallbacks,
     weekInvoicesPaid, weekEstimateLeads,
   ] = await Promise.all([
@@ -868,11 +653,6 @@ export async function getShopPulse(): Promise<{
     d.select().from(invoices).where(and(
       sql`${invoices.invoiceDate} >= ${todayKey}`,
       eq(invoices.paymentStatus, "paid")
-    )),
-    // Today's pending payments
-    d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(
-      sql`${invoices.invoiceDate} >= ${todayKey}`,
-      eq(invoices.paymentStatus, "pending")
     )),
     // Today's estimates (potential walks) — use recommendedService IS NOT NULL as estimate indicator
     d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
@@ -944,7 +724,6 @@ export async function getShopPulse(): Promise<{
       revenue: todayRevenue,
       avgTicket: todayAvgTicket,
       dropOffs: todayBookings[0]?.count ?? 0,
-      pendingPayments: todayInvoicesPending[0]?.count ?? 0,
       callbacksWaiting: todayCallbacks[0]?.count ?? 0,
     },
     thisWeek: {
@@ -1067,17 +846,21 @@ export async function sendEscalationAlerts(): Promise<{ sent: number }> {
   if (urgent.length === 0) return { sent: 0 };
 
   try {
-    const { sendTelegram } = await import("./telegram");
+    const { sendTelegramResult } = await import("./telegram");
+    const { sendOncePerStateEver, stateFingerprint } = await import("./alertClaim");
     const lines = urgent.map(a => {
       const icon = a.severity === "overdue" ? "🔴" : "🟡";
       return `${icon} [${a.type.toUpperCase()}] ${a.message}${a.phone ? ` — tel:${a.phone}` : ""}`;
     });
 
-    await sendTelegram(
-      `⚠️ NICK AI ESCALATION (${urgent.length} items)\n\n${lines.join("\n")}`
+    // Once per SET of escalated items, for good (2026-10-21): the same untouched lead was re-sent every 2 h.
+    // Keyed by type and row id, never by name or phone.
+    const state = stateFingerprint(urgent.map((a) => `${a.type}:${a.id}`));
+    const result = await sendOncePerStateEver(`nick-ai-escalation:${state}`, () =>
+      sendTelegramResult(`⚠️ NICK AI ESCALATION (${urgent.length} items)\n\n${lines.join("\n")}`),
     );
 
-    return { sent: urgent.length };
+    return { sent: result?.status === "delivered" ? urgent.length : 0 };
   } catch (err) {
     log.error("Failed to send escalation alerts", { error: String(err) });
     return { sent: 0 };

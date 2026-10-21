@@ -136,58 +136,6 @@ export function getBriefEngagement(): { sent: string | null; responded: string |
 
 // ─── REVENUE IMPACT TRACKING ─────────────────────────
 
-/**
- * Compare revenue before and after an action was taken.
- * Called after alerts to measure if they drove results.
- */
-// Store pending impact measurements — checked in the feedback cycle
-const pendingImpacts: Array<{ action: string; beforeRevenue: number; timestamp: number; date: string }> = [];
-
-export async function measureRevenueImpact(actionName: string, beforeRevenue: number): Promise<void> {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
-  pendingImpacts.push({ action: actionName, beforeRevenue, timestamp: Date.now(), date: today });
-  // Cap to prevent unbounded growth
-  if (pendingImpacts.length > 20) pendingImpacts.splice(0, pendingImpacts.length - 20);
-}
-
-/** Check stored impact measurements — called from feedback cycle */
-export async function checkPendingImpacts(): Promise<number> {
-  if (pendingImpacts.length === 0) return 0;
-  const now = Date.now();
-  const twoHoursMs = 2 * 60 * 60 * 1000;
-  let checked = 0;
-
-  // Only check impacts that are at least 2 hours old AND same day (cross-day comparison is invalid)
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
-  const ready = pendingImpacts.filter(p => now - p.timestamp > twoHoursMs && p.date === today);
-  // Discard stale cross-day entries
-  const stale = pendingImpacts.filter(p => p.date !== today && now - p.timestamp > twoHoursMs);
-  for (const s of stale) { const idx = pendingImpacts.indexOf(s); if (idx !== -1) pendingImpacts.splice(idx, 1); }
-  if (ready.length === 0) return 0;
-
-  try {
-    const { getShopPulse } = await import("./nickIntelligence");
-    const { remember } = await import("./nickMemory");
-    const pulse = await getShopPulse();
-    const currentRevenue = pulse.today.revenue;
-
-    for (const impact of ready) {
-      const delta = currentRevenue - impact.beforeRevenue;
-      const idx = pendingImpacts.indexOf(impact);
-      if (idx !== -1) pendingImpacts.splice(idx, 1);
-
-      await remember({
-        type: "lesson",
-        content: `After "${impact.action}" action, revenue ${delta > 0 ? "increased" : "changed"} by $${delta} over ${Math.round((now - impact.timestamp) / 3600000)}h. ${delta > 100 ? "This intervention type appears effective." : delta > 0 ? "Modest impact." : "No measurable revenue impact."}`,
-        source: "feedback_loop",
-        confidence: delta > 100 ? 0.8 : 0.5,
-      });
-      checked++;
-    }
-  } catch (e) { log.warn("[feedbackLoop:checkPendingImpacts] revenue impact comparison failed:", e); }
-  return checked;
-}
-
 // ─── FULL FEEDBACK CYCLE ─────────────────────────────
 
 /**
@@ -201,7 +149,6 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   const anomalies = detectAnomalies();
   if (anomalies.length > 0) {
     try {
-      const { sendTelegram } = await import("./telegram");
       const { remember } = await import("./nickMemory");
 
       for (const a of anomalies) {
@@ -214,10 +161,17 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
         processed++;
       }
 
-      if (anomalies.some(a => a.deviation === "HIGH")) {
-        await sendTelegram(
-          `📊 NICK AI — Event anomaly detected\n\n` +
-          anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) — ${a.deviation}`).join("\n")
+      const high = anomalies.filter(a => a.deviation === "HIGH");
+      if (high.length > 0) {
+        // Once per ET day per set of surging event types (2026-10-21): the counts move every tick,
+        // so the state is the types, not the numbers.
+        const { sendTelegramResult } = await import("./telegram");
+        const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+        await sendOncePerState(`event-anomaly:${stateFingerprint(high.map(a => a.type))}`, () =>
+          sendTelegramResult(
+            `📊 NICK AI — Event anomaly detected\n\n` +
+            anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) — ${a.deviation}`).join("\n"),
+          ),
         );
       }
     } catch (e) { log.warn("[feedbackLoop:feedbackCycle] anomaly detection + memory save failed:", e); }
@@ -228,12 +182,6 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   if (brief.sent && !brief.responded) {
     processed++;
   }
-
-  // 3. Check pending revenue impact measurements
-  try {
-    const impactChecked = await checkPendingImpacts();
-    processed += impactChecked;
-  } catch (e) { log.warn("[feedbackLoop:feedbackCycle] pending impact check failed:", e); }
 
   // 4. Memory decay — reduce stale memories, prune dead ones
   try {
@@ -250,39 +198,18 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
     const { getProactiveMemoryAlerts } = await import("./nickMemory");
     const memAlerts = await getProactiveMemoryAlerts();
     if (memAlerts.length > 0) {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
-        `🧠 NICK AI — Proactive (from memory)\n\n` +
-        memAlerts.join("\n\n"), "digest"
+      const { sendTelegramResult } = await import("./telegram");
+      const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+      // Once per ET day per set of memory lines (2026-10-21): the same lines went out every 2 hours.
+      await sendOncePerState(`proactive-memory:${stateFingerprint(memAlerts)}`, () =>
+        sendTelegramResult(
+          `🧠 NICK AI — Proactive (from memory)\n\n` +
+          memAlerts.join("\n\n"), "digest",
+        ),
       );
       processed += memAlerts.length;
     }
   } catch (e) { log.warn("[feedbackLoop:feedbackCycle] proactive memory alerts failed:", e); }
-
-  // 5. Revenue pacing — check if today is tracking ahead or behind
-  try {
-    const { getShopPulse, projectRevenue } = await import("./nickIntelligence");
-    const [pulse, revenue] = await Promise.all([getShopPulse(), projectRevenue()]);
-    const currentHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
-    const hoursOpen = Math.max(1, currentHour - 7); // Shop opens at 7am
-    const totalBusinessHours = 14; // 7am-9pm = 14 hours
-    const expectedByNow = revenue.avgDailyRevenue * (hoursOpen / totalBusinessHours);
-    const pacing = pulse.today.revenue / Math.max(expectedByNow, 1);
-
-    if (pacing < 0.5 && pulse.today.revenue > 0 && expectedByNow > 100) {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
-        `📉 Revenue pacing: $${pulse.today.revenue} today vs $${Math.round(expectedByNow)} expected by now (${Math.round(pacing * 100)}% of pace). Avg daily: $${revenue.avgDailyRevenue}.`, "digest"
-      );
-      processed++;
-    } else if (pacing > 1.5 && pulse.today.revenue > 200) {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
-        `🔥 Revenue pacing: $${pulse.today.revenue} today — ${Math.round(pacing * 100)}% of expected! Ahead of daily average ($${revenue.avgDailyRevenue}).`, "digest"
-      );
-      processed++;
-    }
-  } catch (e) { log.warn("[feedbackLoop:feedbackCycle] revenue pacing check failed:", e); }
 
   return { recordsProcessed: processed, details: `${anomalies.length} anomalies, brief: ${brief.engagementRate}` };
 }

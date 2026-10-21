@@ -107,10 +107,8 @@ describe("runDailyBackup · counts-only digest (Q-29)", () => {
     expect(out.recordsProcessed).toBe(RECENT * 3);
     expect(out.details).toContain(`${RECENT * 3} new in 24h`);
     expect(out.details).toContain(`${TOTAL * 5} total`);
-    const telegram = String(sendTelegramMock.mock.calls[0]?.[0] ?? "");
-    expect(telegram).toContain("DAILY DIGEST");
-    expect(telegram).toMatch(/not a restorable backup/i);
-    for (const marker of MARKERS) expect(telegram).not.toContain(marker);
+    // 2026-10-21: a landed archive sends no Telegram (the counts digest was a receipt); only a failed one pages.
+    expect(sendTelegramMock).not.toHaveBeenCalled();
   });
 
   it("still fails the run when the archive rejects the POST", async () => {

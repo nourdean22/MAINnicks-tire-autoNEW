@@ -1073,7 +1073,7 @@
   },
   {
     "name": "getAttentionAlerts",
-    "description": "What needs Nour's attention NOW — stale leads, unanswered callbacks, overdue WOs, unpaid invoices",
+    "description": "What needs Nour's attention NOW — stale leads, unanswered callbacks, overdue WOs",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},

@@ -677,10 +677,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // renders, but consumers know the data isn't trustworthy.
     log.error("[AdminStats] FATAL: dashboard pipeline failure — returning degraded data", error);
     try {
-      const { sendTelegramMessage } = await import("./services/telegram");
-      await sendTelegramMessage(
-        `🔴 Admin dashboard stats pipeline FAILED\n\nOne or more queries in getDashboardStats() threw. Dashboard is showing degraded (all-zero) data until fixed.\n\nError: ${error instanceof Error ? error.message : String(error)}\n\nCheck Sentry / Railway logs for the full stack.`,
-        "critical"
+      const { sendTelegramResult } = await import("./services/telegram");
+      const { sendOncePerState, stateFingerprint } = await import("./services/alertClaim");
+      const errorText = error instanceof Error ? error.message : String(error);
+      // Once per ET day per error (2026-10-21): every failing dashboard load and 15-minute sync paged.
+      // The key is a hash of the error text, never the text.
+      await sendOncePerState(`dashboard-stats-failed:${stateFingerprint([errorText])}`, () =>
+        sendTelegramResult(
+          `[CRITICAL] 🔴 Admin dashboard stats pipeline FAILED\n\nOne or more queries in getDashboardStats() threw. Dashboard is showing degraded (all-zero) data until fixed.\n\nError: ${errorText}\n\nCheck Sentry / Railway logs for the full stack.`,
+        ),
       );
     } catch {
       // Telegram itself can fail — don't let that mask the original error.

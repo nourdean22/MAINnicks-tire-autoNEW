@@ -1338,11 +1338,9 @@ export async function runFullMirror(): Promise<{
 // ─── ALERT HELPER ──────────────────────────────────────
 // Rate-limited Telegram alerts for mirror failures
 async function sendMirrorAlert(msg: string): Promise<void> {
-  // Don't spam — cooldown between alerts
-  if (lastAlertSent && Date.now() - lastAlertSent.getTime() < ALERT_COOLDOWN_MS) {
-    // But escalate if it's been failing a LOT (>6 consecutive = 1.5 hours of failure)
-    if (consecutiveFailures < 6) return;
-  }
+  // Don't spam — cooldown between alerts. No failure count bypasses it (2026-10-21): the old
+  // 6-failure escalation re-sent on every call through a long outage.
+  if (lastAlertSent && Date.now() - lastAlertSent.getTime() < ALERT_COOLDOWN_MS) return;
 
   try {
     const { sendTelegram } = await import("./telegram");

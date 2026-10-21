@@ -76,7 +76,7 @@ const KNOWN_ORPHANS: Record<string, string> = {
   churn_prediction_alerts:
     "Telegram alert to the operator only; no customer effect. runIntelligenceAutopilot sends unconditionally.",
   pricing_intelligence_alerts:
-    "Telegram alert to the operator only; no customer effect. runPricingIntelligenceJob sends unconditionally.",
+    "Operator Telegram only; no customer effect. Its alert (the pricing-intelligence job) was deleted 2026-10-21, so the flag gates nothing: retire it with the flag table.",
 };
 
 describe("feature flags are wired to something", () => {

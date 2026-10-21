@@ -77,9 +77,8 @@ export default function TireOrdersSection() {
 
   /**
    * ROS-083 · every tile below reads `stats?.x ?? 0`, so a failed read used to
-   * paint six confident zeros — including "Tire Revenue $0". Same idiom as
-   * money/UnpaidInvoicesSection.tsx:29: em dash on the numbers, one static
-   * amber strip. Static and not a toast because this query refetches every
+   * paint six confident zeros — including "Tire Revenue $0". The fix: an em
+   * dash on the numbers and one static amber strip. Static and not a toast because this query refetches every
    * 60s on the counter screen.
    */
   const statsUnknown = statsError;
