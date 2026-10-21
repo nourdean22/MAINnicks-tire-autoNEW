@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/telegram-alert-cleanup",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "93ac076b-0dc3-4c53-b37d-3093f20e0964",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\telegram-alert-cleanup-ef0255",
+  "claimedBy": "2026-10-21-telegram-alert-cleanup",
+  "claimedAt": "2026-10-21T17:13:59.153Z",
+  "expiresAt": "2026-10-22T05:13:59.153Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
