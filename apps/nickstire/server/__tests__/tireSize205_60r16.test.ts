@@ -51,6 +51,10 @@ describe("205/60R16 size page", () => {
     expect(html).toMatch(/"@type":\s*"FAQPage"/);
     expect(html).toMatch(/"@type":\s*"Service"/);
     expect(html).not.toMatch(/isn.t on the wall/i);
-    expect(html).not.toMatch(/localhost|127\.0\.0\.1|DATABASE_URL/);
+    // No render-host or env leak. (The Meta pixel config URL carries domain=localhost in every
+    // committed artifact, CI-rendered ones included, so a bare /localhost/ is not the signal.)
+    expect(html).not.toMatch(/localhost:\d|127\.0\.0\.1|:4173|prerender-dummy|DATABASE_URL|mysql:\/\//);
+    // The new-tire floor is a site-wide offer, never a price on this size.
+    expect(html).not.toMatch(/205\/60R16[^.<]*\$89|\$89[^.<]*205\/60R16/);
   });
 });
