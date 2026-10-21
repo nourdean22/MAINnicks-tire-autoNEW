@@ -5,8 +5,9 @@
  * through: he types a line `APPROVE <tool> <target>` in a prompt. The UserPromptSubmit hook scripts/agent-os/infra-approve.mjs records it in
  * %LOCALAPPDATA%/nourcity/approvals/<session>.json. pretool.mjs, when only infra-mutation-tool denies an MCP call, lets it through when ALL hold:
  *   - an unused record in THIS session's store whose tool equals the call's last name segment (case-insensitive),
- *   - the record's target (or one of its aliases in policy.json > infraApprovals.aliases) equals a string VALUE in the tool input (whole value,
- *     case-insensitive, any field, any depth; never a substring),
+ *   - the input has at least one IDENTIFYING field (a key at any depth that is `id` or ends in _id, -id, Id or ID, except the scope keys
+ *     project/environment/org/workspace/team id) and EVERY identifying value equals the record's target or one of its aliases in
+ *     policy.json > infraApprovals.aliases (whole value, case-insensitive; free text such as name or message never counts),
  *   - the record is 0 to 30 minutes old,
  *   - the same APPROVE line is in a genuine operator message of the session transcript (operator-asks.mjs > operatorAsk: no tool result, no other
  *     session's message, no /loop re-fire), 0 to 30 minutes old,
@@ -159,6 +160,42 @@ test("a different tool, a different target, a substring and a superstring of the
   assert.ok(denied(call(sb, `${RAILWAY}redeploy`, { ...REDEPLOY_INPUT, serviceId: `x ${SW}` })), "the target inside a longer string");
   assert.ok(denied(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", [SW]: "x" })), "the target as a KEY, not a value");
   assert.ok(allowed(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", nested: [{ deep: { serviceId: SW.toUpperCase() } }] })), "control: a nested whole value, any case, passes");
+});
+
+// Manager probe 2026-10-20: the first version matched the target against ANY input value, so a free-text field could carry it.
+const PROD_BRANCH = "br-green-firefly-am8jubqi";
+const NICKSTIRE = "a6234c8d-1ff4-478f-9085-654954b54e97";
+test("only IDENTIFYING fields name the target: free text echoing it, a second id field, and an input with only scope ids are denied", async () => {
+  await mod();
+  const sb = sandbox();
+  say(sb, `APPROVE update_branch ${BRANCH}`);
+  say(sb, "APPROVE redeploy statenour-web", { ts: iso(Date.now() + 1) });
+  const prod = call(sb, `${NEON}update_branch`, { project_id: "spring-art-47050555", branch_id: PROD_BRANCH, name: BRANCH });
+  assert.ok(denied(prod), `(1) the PRODUCTION branch with the approved id in 'name' must be denied: ${prod.code} ${prod.err}`);
+  assert.ok(denied(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", environmentId: "e-1", serviceId: NICKSTIRE, message: "statenour-web" })), "(3) nickstire service, alias only in a message");
+  assert.ok(denied(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", environmentId: "e-1", serviceId: SW, deploymentId: "dep-other" })), "(6) one id matches, the other does not");
+  const scope = call(sb, `${RAILWAY}redeploy`, { projectId: SW, environmentId: SW });
+  assert.ok(denied(scope), "(5) only scope ids, even holding the target");
+  assert.match(scope.err, /needs an id-bearing target/, "(5) the denial says why");
+  assert.ok(denied(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", serviceId: [SW, NICKSTIRE] })), "a list id field with one other id");
+  assert.ok(denied(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", serviceId: 7 })), "a non-string id never matches");
+  assert.ok(allowed(call(sb, `${NEON}update_branch`, BRANCH_INPUT)), "(2) the legit update_branch passes");
+  assert.ok(denied(call(sb, `${NEON}update_branch`, BRANCH_INPUT)), "(2) once");
+  assert.ok(allowed(call(sb, `${RAILWAY}redeploy`, { projectId: "p-1", environmentId: "e-1", serviceId: SW, message: "anything" })), "(4) alias approval, serviceId is the statenour-web id");
+});
+
+test("identifying keys: id, *_id, *-id, *Id, *ID count; scope keys and free-text keys do not", async () => {
+  const { consumeApproval } = await mod();
+  const now = Date.now();
+  const ok = (input) => {
+    const sb = sandbox();
+    plant(sb, [rec(sb, "update_branch", "t-1", now)], [userLine("APPROVE update_branch t-1", iso(now))]);
+    return consumeApproval({ toolName: `${NEON}update_branch`, input, sessionId: sb.session, transcriptPath: sb.transcript, policy, env: envOf(sb), now }).ok;
+  };
+  for (const key of ["id", "branch_id", "endpoint-id", "serviceId", "volumeID"]) assert.equal(ok({ project_id: "p", [key]: "t-1" }), true, `${key} identifies`);
+  for (const key of ["project_id", "projectId", "environment_id", "environmentId", "org_id", "orgId", "workspace_id", "workspaceId", "team_id", "teamId", "name", "message", "valid", "paid"]) {
+    assert.equal(ok({ [key]: "t-1" }), false, `${key} alone does not identify`);
+  }
 });
 
 test("an approval target that is a substring of the real id does not match it (br-dark vs br-dark-poetry-amzuf3je)", async () => {
@@ -331,7 +368,8 @@ test("a command runner whose TEXT is an infra tool name is not approvable, even 
   const sb = sandbox();
   const now = Date.now();
   plant(sb, [rec(sb, "run_in_terminal", "c-x", now)], [userLine("APPROVE run_in_terminal c-x", iso(now))]);
-  const r = call(sb, "mcp__terminal__run_in_terminal", { command: `${RAILWAY}redeploy`, cwd: "c-x" });
+  // terminal_id is an identifying field holding the target, so ONLY the runner-text guard in pretool.mjs can deny this
+  const r = call(sb, "mcp__terminal__run_in_terminal", { command: `${RAILWAY}redeploy`, terminal_id: "c-x" });
   assert.ok(denied(r), `${r.code} ${r.err}`);
   assert.ok(!readdirSync(sb.dir).some((f) => f.endsWith(".used")), "nothing spent");
 });

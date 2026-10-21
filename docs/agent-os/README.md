@@ -616,18 +616,25 @@ his dashboard to his chat. It is not an override: it lifts one call of one tool 
 
 - **How Nour approves.** He types a line of its own in a prompt: `APPROVE <tool> <target>`, for example `APPROVE redeploy statenour-web`
   or `APPROVE update_branch br-dark-poetry-amzuf3je`. The keyword is any case; the tool is the last segment of the MCP name. Within
-  30 minutes exactly one call of that tool whose input holds that target passes; a second call, another tool, another target or a
+  30 minutes exactly one call of that tool whose id fields all name that target passes; a second call, another tool, another target or a
   call after 30 minutes is denied with the usual `infra-mutation-tool` reason plus one line on how to approve.
 - **Writer.** `scripts/agent-os/infra-approve.mjs`, a UserPromptSubmit hook in `.claude/settings.json`, reads only the prompt text and
   appends `{id, tool, target, at, session_id, used:false}` to `%LOCALAPPDATA%/nourcity/approvals/<session>.json`. A line that is not
   an infra tool name ("APPROVE the plan") records nothing; a never-approvable tool is refused out loud. It prints what it recorded.
 - **Reader.** `pretool.mjs`, only when `infra-mutation-tool` is the one rule denying an MCP call, calls `consumeApproval()`. It needs all
   of: an unused record of THIS session for that tool (case-insensitive); the target, or one of its `aliases` in `policy.json` >
-  `infraApprovals`, equal to a whole string value anywhere in the input (case-insensitive, never a substring, never a key); the record
+  `infraApprovals`, equal to EVERY identifying field of the input (case-insensitive whole value, never a substring); the record
   0 to 30 minutes old (the window is a code constant, inclusive, a future date fails); the same APPROVE line in a genuine operator
   message of the session transcript, 0 to 30 minutes old (`operator-asks.mjs` > `operatorAsk`: a tool result, a message from another
   session, an sdk-started prompt, a /loop re-fire or a lane brief does not count); and the exclusive create of `<session>.<id>.used`,
   so when two calls race on one approval exactly one passes. The pass prints a notice naming the approval it spent.
+- **What "target" means.** An identifying field is a key at any depth that is `id` or ends in `_id`, `-id`, `Id` or `ID` (`branch_id`,
+  `serviceId`, `deploymentId`, `endpoint_id`), except the scope keys `project_id`/`projectId`, `environment_id`/`environmentId`,
+  `org_id`/`orgId`, `workspace_id`/`workspaceId` and `team_id`/`teamId`. The input needs at least one, and every one must equal the
+  target or an alias: free text (`name`, `message`, `description`) never counts, so `APPROVE update_branch br-dark-poetry-amzuf3je` does
+  not pass an `update_branch` on another branch whose `name` echoes that id (manager probe, 2026-10-20). A call whose input has only scope
+  ids is denied with "needs an id-bearing target". A redeploy that also names a `deploymentId` needs that id to match too, so approve the
+  plain service redeploy.
 - **Never approvable.** `neverApprovable` in `policy.json`: `railway-agent` (it can do anything), `delete_project`, `delete-service`,
   `set_default_branch`, `accept_project_transfer_request`, `buy_domain`. A malformed list makes NOTHING approvable; a malformed alias
   map adds nothing. An approval never lifts another rule: a destructive migration stays denied by `destructive-sql` and spends nothing.
@@ -639,8 +646,8 @@ his dashboard to his chat. It is not an override: it lifts one call of one tool 
   reader module that does not load all mean no approval: the call stays denied (the rest of `pretool.mjs` still fails open on its own bugs).
 - **Limits.** (a) A command that builds the path from pieces (`'nour'+'city'`) or writes a forged transcript line is not caught: this is a
   guard rail against an agent doing it by accident, not a security boundary. (b) LOCALAPPDATA only locates the store. (c) A message typed
-  while a turn runs may not fire UserPromptSubmit: type the APPROVE line as its own message. (d) A target that is a project id matches
-  every call on that project: name the most specific id. Canaries: `scripts/agent-os/infraApprove.test.mjs`.
+  while a turn runs may not fire UserPromptSubmit: type the APPROVE line as its own message. (d) A project id is a scope id, never a
+  target: name the resource's own id (service, branch, endpoint). Canaries: `scripts/agent-os/infraApprove.test.mjs`.
 - **Live check owed.** In a fresh session Nour types `APPROVE redeploy <a service id>`; the next redeploy of that service passes with the
   notice, the same call again is `BLOCKED by repo policy: infra-mutation-tool` with the approve line.
 

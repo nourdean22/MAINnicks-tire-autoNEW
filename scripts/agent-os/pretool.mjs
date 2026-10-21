@@ -93,7 +93,7 @@ async function main() {
     toolName,
     verdict?.never
       ? `${leaf} is never approvable: Nour runs it himself.`
-      : `To allow it once: Nour types APPROVE ${leaf} <target> in chat (one call whose input names that target, within 30 minutes). Not applied: ${verdict?.why ?? "unknown"}.`,
+      : `To allow it once: Nour types APPROVE ${leaf} <target> in chat (one call whose id fields all name that target, within 30 minutes). Not applied: ${verdict?.why ?? "unknown"}.`,
   );
 }
 

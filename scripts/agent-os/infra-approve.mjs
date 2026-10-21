@@ -4,8 +4,8 @@
  *
  * WHY. Rule infra-mutation-tool denies the Railway, Neon, Vercel and Prisma mutation tools by name, so Nour had to click every redeploy in a
  * dashboard. AGENTS.md > Protected operations asks for his explicit instruction for the specific action, every time; this moves that
- * instruction from his dashboard to his chat. He types a line `APPROVE <tool> <target>`; exactly one call of that tool whose input holds
- * that target passes, within 30 minutes. Nothing else changes.
+ * instruction from his dashboard to his chat. He types a line `APPROVE <tool> <target>`; exactly one call of that tool whose identifying
+ * fields (ids other than project/environment/org/workspace/team scope ids; never free text) ALL name that target passes, within 30 minutes.
  *
  *   node infra-approve.mjs   UserPromptSubmit hook (WRITER): records each APPROVE line of the prompt in the session's store, prints what it recorded.
  *   consumeApproval()        imported by pretool.mjs (READER): only when infra-mutation-tool alone denies an MCP call.
@@ -62,12 +62,21 @@ const approvable = (tool, policy, never) => {
   return Boolean(rule && new RegExp(rule.pattern).test(`mcp__approve__${tool}`)) && never !== null && !never.has(tool);
 };
 
-/** Every string VALUE of the tool input (not keys), lowercased, bounded. */
-function valuesOf(v, out = new Set(), depth = 0) {
-  if (out.size > 10000 || depth > 32) return out;
-  if (typeof v === "string") out.add(v.toLowerCase());
-  else if (Array.isArray(v)) for (const x of v) valuesOf(x, out, depth + 1);
-  else if (v && typeof v === "object") for (const x of Object.values(v)) valuesOf(x, out, depth + 1);
+// The fields that NAME what a call acts on: a key, at any depth, that is `id` or ends in `_id`, `-id`, `Id` or `ID` (branch_id, serviceId,
+// deploymentId, endpoint_id). Scope keys say where, not what, and never count. Free text (name, message, description) never counts: a manager
+// probe 2026-10-20 showed an approval for one branch passing update_branch on the PRODUCTION branch because `name` echoed the approved id.
+const IDENTIFYING = /^id$|[_-]id$|[a-z0-9]Id$|ID$/;
+const SCOPE = new Set(["projectid", "environmentid", "orgid", "workspaceid", "teamid"]);
+const identifying = (key) => IDENTIFYING.test(key) && !SCOPE.has(key.toLowerCase().replace(/[_-]/g, ""));
+
+/** Every identifying field's value as a lowercase string, or null when it is not a string (never matches). Bounded. */
+function identifyingValues(v, out = [], depth = 0) {
+  if (out.length > 10000 || depth > 32 || !v || typeof v !== "object") return out;
+  for (const [k, x] of Array.isArray(v) ? v.map((e) => ["", e]) : Object.entries(v)) {
+    if (k && identifying(k)) {
+      for (const e of Array.isArray(x) ? x : [x]) out.push(typeof e === "string" ? e.toLowerCase() : null);
+    } else identifyingValues(x, out, depth + 1);
+  }
   return out;
 }
 
@@ -100,15 +109,17 @@ export function consumeApproval({ toolName, input, sessionId, transcriptPath, po
     const { never, aliases } = settingsOf(policy);
     if (never === null || never.has(tool)) return { ok: false, never: true, why: `${tool} is never approvable` };
     if (!session) return { ok: false, why: "no session id" };
+    const ids = identifyingValues(input);
+    if (!ids.length) return { ok: false, why: `${tool} needs an id-bearing target: its input has no identifying field (only scope ids or free text), so no approval can name it` };
     const dir = approvalsDir(env);
     const list = JSON.parse(readFileSync(join(dir, `${session}.json`), "utf8"));
     if (!Array.isArray(list)) return { ok: false, why: "the approvals store is malformed" };
-    const values = valuesOf(input);
     for (const a of list) {
       if (!a || typeof a.tool !== "string" || typeof a.target !== "string" || typeof a.at !== "string" || !ID.test(String(a.id))) continue;
       if (a.used !== false || a.session_id !== session || a.tool.toLowerCase() !== tool || !fresh(a.at, now)) continue;
       const target = a.target.toLowerCase();
-      if (![target, ...(aliases.get(target) ?? [])].some((t) => values.has(t))) continue;
+      const names = new Set([target, ...(aliases.get(target) ?? [])]);
+      if (!ids.every((v) => v !== null && names.has(v))) continue; // EVERY identifying field names the approved target
       if (!typedByNour(transcriptPath, tool, target, now)) continue;
       try {
         closeSync(openSync(join(dir, `${session}.${a.id}.used`), "wx")); // the one-shot claim: exactly one create succeeds
