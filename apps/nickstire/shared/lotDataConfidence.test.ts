@@ -324,3 +324,34 @@ describe("lotDataConfidence -- coverage reads the expected-watch share, scaled p
     expect(v.headline).toContain("55%");
   });
 });
+
+describe("lotDataConfidence -- counter judged against billed jobs (job 2026-10-21-shop-eyes-ears-pro)", () => {
+  const undercounting = {
+    level: "UNDERCOUNTING" as const,
+    reason: "The camera counted 1 arrivals in the last 7 days while 30 jobs were billed. Every billed job is a car that came in, so the counter is missing cars.",
+  };
+  const normalMorning = activity({ today: { 8: 4, 9: 5, 10: 3, 11: 4 } });
+
+  it("UNDERCOUNTING forces LOW, puts the trust reason first and says the counts are not trustworthy", () => {
+    const base = lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon });
+    expect(base.level).toBe("OK");
+    const v = lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon, counterTrust: undercounting });
+    expect(v.level).toBe("LOW");
+    expect(v.reasons[0]).toBe(undercounting.reason);
+    expect(v.headline).toMatch(/not trustworthy/i);
+    expect(v.observedArrivals).toBe(16);
+  });
+
+  it("UNDERCOUNTING is LOW even when today's own verdict would be UNKNOWN (the evidence is a week of billed jobs, not today)", () => {
+    const v = lotDataConfidence({ activity: activity({ priorDays: 1 }), sign: healthySign, clock: noon, counterTrust: undercounting });
+    expect(v.level).toBe("LOW");
+    expect(v.reasons[0]).toBe(undercounting.reason);
+  });
+
+  it("OK, UNKNOWN, null and absent trust change nothing", () => {
+    const base = lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon });
+    for (const counterTrust of [null, undefined, { level: "OK" as const, reason: "fine" }, { level: "UNKNOWN" as const, reason: "could not read billed jobs" }]) {
+      expect(lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon, counterTrust })).toEqual(base);
+    }
+  });
+});

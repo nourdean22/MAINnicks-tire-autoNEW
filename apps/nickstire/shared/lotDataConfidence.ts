@@ -68,6 +68,13 @@ export interface LotConfidenceInput {
     solarMinutes?: number;
     hours?: readonly LotConfidenceCoverageHour[];
   } | null;
+  /**
+   * The counter judged against billed jobs over the last complete days (`lot.now` counterTrust,
+   * shared/vehicleCounterTrust.ts). UNDERCOUNTING forces LOW: the baseline below is the counter's
+   * own history, so a counter that has been missing cars for a week reads its own shortfall as
+   * normal. OK, UNKNOWN, null or absent change nothing.
+   */
+  counterTrust?: { level: "OK" | "UNDERCOUNTING" | "UNKNOWN"; reason: string } | null;
 }
 
 export interface LotConfidenceCoverageHour {
@@ -167,6 +174,17 @@ function watchedShareByHour(hours: readonly LotConfidenceCoverageHour[] | undefi
 }
 
 export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
+  const v = judgeCounts(input);
+  if (input.counterTrust?.level !== "UNDERCOUNTING") return v;
+  return {
+    ...v,
+    level: "LOW",
+    headline: `Counts are not trustworthy: ${input.counterTrust.reason}`,
+    reasons: [input.counterTrust.reason, ...v.reasons],
+  };
+}
+
+function judgeCounts(input: LotConfidenceInput): LotConfidence {
   const unknown = (headline: string, reasons: string[], extra: Partial<LotConfidence> = {}): LotConfidence => ({
     level: "UNKNOWN", headline, reasons, expectedSoFar: null, observedArrivals: null, ...extra,
   });

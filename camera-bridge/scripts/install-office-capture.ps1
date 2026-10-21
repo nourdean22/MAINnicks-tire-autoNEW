@@ -35,6 +35,8 @@ param(
   [double]$AudioActivityMeanDb = -50,
   [double]$AudioActivityMaxDb = -34,
   [double]$AudioFallbackCooldownSeconds = 180,
+  [ValidateSet("energy", "speech")][string]$WakeGate = "energy",
+  [ValidateSet("off", "auto")][string]$WhisperNoiseArgs = "off",
   [double]$RetentionHours = 6,
   [double]$RetentionMaxMb = 256,
   [double]$MinFreeMb = 768,
@@ -200,6 +202,8 @@ $envs = @{
   "OFFICE_AUDIO_ACTIVITY_MEAN_DB" = [string]$AudioActivityMeanDb
   "OFFICE_AUDIO_ACTIVITY_MAX_DB" = [string]$AudioActivityMaxDb
   "OFFICE_AUDIO_FALLBACK_COOLDOWN_SECONDS" = [string]$AudioFallbackCooldownSeconds
+  "OFFICE_WAKE_GATE" = $WakeGate.ToLowerInvariant()
+  "OFFICE_WHISPER_NOISE_ARGS" = $WhisperNoiseArgs.ToLowerInvariant()
   "OFFICE_RAW_AUDIO_RETENTION_HOURS" = [string]$RetentionHours
   "OFFICE_RAW_AUDIO_MAX_MB" = [string]$RetentionMaxMb
   "OFFICE_MIN_FREE_MB" = [string]$MinFreeMb
@@ -246,6 +250,7 @@ Write-Host "  trigger camera: $OfficeSerial"
 Write-Host "  audio: $episodeSource / $SourceUrl"
 Write-Host "  capture: $WindowSeconds sec max, $CooldownSeconds sec cooldown"
 Write-Host ("  audio fallback: " + $(if ($EnableAudioFallback) { "enabled ($AudioProbeSeconds sec probe every $AudioProbeIntervalSeconds sec; wake >= $AudioActivityMaxDb dBFS peak; $AudioFallbackCooldownSeconds sec fallback cooldown)" } else { "disabled" }))
+Write-Host "  wake gate: $WakeGate; whisper noise flags: $WhisperNoiseArgs"
 Write-Host "  raw audio: <= $RetentionHours h, <= $RetentionMaxMb MB, disk floor $MinFreeMb MB"
 Write-Host "  status: $StatusPath"
 Write-Host "  summaries: https://nickstire.org/admin -> Lot -> Office intelligence"

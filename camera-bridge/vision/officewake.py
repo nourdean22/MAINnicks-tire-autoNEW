@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import shutil
 import time
 import uuid
@@ -156,10 +157,19 @@ class OfficeWakeConfig:
     # POST /api/camera/heartbeat for camera "office" from this process (shop PC, no Eufy agent).
     # Empty = off: NicksMax keeps its Eufy agent as the office producer. OFFICE_CAMERA_HEARTBEAT_URL.
     camera_heartbeat_url: str = ""
+    # What wakes an audio-fallback capture: "energy" (loudness alone, the original rule) or
+    # "speech" (loudness, then whisper must hear words in the probe). OFFICE_WAKE_GATE.
+    wake_gate: str = "energy"
+    # "off" or "auto" (add the NOISE_FLAGS this whisper-cli lists). OFFICE_WHISPER_NOISE_ARGS.
+    whisper_noise_mode: str = "off"
+    # The flags `auto` found, resolved once at startup by main(); () is today's command.
+    whisper_noise_args: tuple[str, ...] = ()
 
     def startup_blockers(self) -> list[str]:
         blockers: list[str] = []
-        if not self.bridge_url:
+        # No bridge is a valid shop-PC setup (direct RTSP) when the audio fallback can still wake
+        # captures; without either, nothing would ever wake.
+        if not self.bridge_url and not (self.capture_mode and self.audio_fallback_enabled):
             blockers.append("EUFY bridge URL is not configured")
         if not self.capture_mode:
             return blockers
@@ -234,12 +244,16 @@ class RuntimeReceipt:
         self._failure_day = ""
         self.write_failures = 0
         self.last_write_error: Optional[str] = None
+        engine = os.path.basename(config.transcriber) or config.transcriber
+        if config.whisper_noise_args:
+            # camera_runtime column is 128 chars; the flags say which decoder settings ran.
+            engine = f"{engine} {' '.join(config.whisper_noise_args)}"[:128]
         self.state: dict[str, Any] = {
             "conversationWorkerOk": True,
             "conversationWorkerState": "STARTING",
             "conversationAudioSource": config.source_name,
             "conversationCaptureHost": config.capture_host or os.environ.get("COMPUTERNAME", ""),
-            "conversationSttEngine": os.path.basename(config.transcriber) or config.transcriber,
+            "conversationSttEngine": engine,
             "conversationWhisperModel": os.path.basename(config.model) if config.model else None,
             "conversationWhisperModelSource": config.model_source,
             "conversationQueueDepth": 0,
@@ -647,6 +661,8 @@ def process_phase(
     coverages: list[Optional[float]] = []
     errors: list[str] = []
     stt_kwargs: dict[str, Any] = {"threads": config.whisper_threads} if config.whisper_threads else {}
+    if config.whisper_noise_args:
+        stt_kwargs["extra_args"] = config.whisper_noise_args
     for segment in segments:
         try:
             transcript = transcribe_fn(
@@ -826,6 +842,8 @@ class OfficeWakeDaemon:
         self.current_capture_started_at: Optional[float] = None
         self._trigger_times: deque[float] = deque()
         self._capture_windows: deque[tuple[float, float, bool]] = deque()
+        # OFFICE_WAKE_GATE=speech outcomes since start (conversationSpeechGate in the status file).
+        self.speech_counts = {"wakes": 0, "rejected": 0, "errors": 0, "skippedBacklog": 0}
         # Operator decoder switch without an elevated shell: see resolve_whisper_model.
         self.model_override_watch = WhisperModelOverrideWatch(config.model_override_dir or config.out_dir)
         # True once the override file was seen to change: intake refuses new wakes while the
@@ -1214,6 +1232,99 @@ def audio_activity_detected(
     )
 
 
+#: Whisper's usual output for a clip with no talking in it, once bracketed sound tags are gone:
+#: these phrases come back from noise and silence, not from people.
+NON_SPEECH_PHRASES = frozenset({"you", "thank you", "thanks for watching", "thank you for watching", "bye"})
+#: [BLANK_AUDIO], [MUSIC], (banging), (wind blowing), *clank*: sound tags, never words.
+_SOUND_TAG = re.compile(r"\[[^\]]*\]|\([^)]*\)|\*[^*]*\*")
+_WORD = re.compile(r"\w+(?:['\u2019]\w+)*")
+#: The speech check reads a 5 s probe; a slow run must not hold the probe loop for long.
+SPEECH_PROBE_TIMEOUT_SECONDS = 20.0
+_SPEECH_COUNTER = {"speech": "wakes", "no_speech": "rejected", "error": "errors", "skipped_backlog": "skippedBacklog"}
+
+
+def is_speech_text(text: Any) -> bool:
+    """True when a whisper segment holds words a person said: at least two word characters left
+    after removing sound tags, and not one of the NON_SPEECH_PHRASES."""
+    rest = _SOUND_TAG.sub(" ", str(text or ""))
+    if len(re.findall(r"\w", rest)) < 2:
+        return False
+    return " ".join(_WORD.findall(rest.lower())) not in NON_SPEECH_PHRASES
+
+
+def speech_probe(
+    config: OfficeWakeConfig,
+    wav_path: str,
+    *,
+    transcribe_fn: Optional[Callable[..., Any]] = None,
+) -> dict[str, Any]:
+    """Run the capture transcriber over a probe wav: "speech", "no_speech" or "error".
+
+    "error" (whisper missing, timed out, exited non-zero) is NOT "no_speech": nobody knows what
+    was in the probe, and the caller falls back to the energy decision. Never returns the text.
+    """
+    from . import officepost
+
+    transcribe_fn = transcribe_fn or officepost.transcribe
+    kwargs: dict[str, Any] = {
+        "binary": config.transcriber,
+        "model": config.model,
+        "timeout_s": SPEECH_PROBE_TIMEOUT_SECONDS,
+    }
+    if config.whisper_threads:
+        kwargs["threads"] = config.whisper_threads
+    if config.whisper_noise_args:
+        kwargs["extra_args"] = config.whisper_noise_args
+    started = time.time()
+    try:
+        transcript = transcribe_fn(wav_path, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        return {"decision": "error", "words": None, "latencyMs": int((time.time() - started) * 1000),
+                "error": f"{type(exc).__name__}: {exc}"[:300]}
+    latency = transcript.latency_ms
+    if latency is None:
+        latency = int((time.time() - started) * 1000)
+    if transcript.error is not None:
+        return {"decision": "error", "words": None, "latencyMs": latency, "error": str(transcript.error)[:300]}
+    spoken = [seg.get("text") for seg in transcript.segments if is_speech_text(seg.get("text"))]
+    words = sum(len(_WORD.findall(_SOUND_TAG.sub(" ", str(text)))) for text in spoken)
+    return {"decision": "speech" if spoken else "no_speech", "words": words, "latencyMs": latency, "error": None}
+
+
+async def _speech_gate(
+    daemon: "OfficeWakeDaemon",
+    wav_path: Optional[str],
+    speech_fn: Optional[Callable[..., Any]],
+    mean_db: Optional[float],
+    max_db: Optional[float],
+) -> bool:
+    """Whether a probe that passed the energy pre-gate wakes a capture under OFFICE_WAKE_GATE=speech."""
+    if wav_path is None:
+        # A capture is being transcribed: a second whisper run now would pile up on the CPU of a
+        # staff machine. The energy decision stands for this probe.
+        verdict: dict[str, Any] = {"decision": "skipped_backlog", "words": None, "latencyMs": None, "error": None}
+    else:
+        verdict = await asyncio.to_thread(speech_probe, daemon.config, wav_path, transcribe_fn=speech_fn)
+    daemon.speech_counts[_SPEECH_COUNTER[verdict["decision"]]] += 1
+    daemon.ledger.note("speech_probe", {**verdict, "meanDb": mean_db, "maxDb": max_db})
+    daemon.runtime.update(
+        conversationSpeechGate={
+            **daemon.speech_counts,
+            "lastDecision": verdict["decision"],
+            "lastLatencyMs": verdict["latencyMs"],
+        }
+    )
+    return verdict["decision"] != "no_speech"
+
+
+def _remove_quietly(*paths: str) -> None:
+    for path in paths:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 def audio_fallback_in_cooldown(
     last_finished_at: Optional[float],
     *,
@@ -1230,8 +1341,14 @@ async def audio_fallback_worker(
     daemon: OfficeWakeDaemon,
     *,
     probe_fn: Optional[Callable[..., tuple[Optional[float], Optional[float]]]] = None,
+    speech_fn: Optional[Callable[..., Any]] = None,
 ) -> None:
-    """Wake capture from brief local audio-energy probes when Eufy semantic pushes are absent."""
+    """Wake capture from brief local audio-energy probes when Eufy semantic pushes are absent.
+
+    OFFICE_WAKE_GATE=speech adds a second check to a probe that passed the energy thresholds:
+    whisper must hear words in it (`speech_probe`), so a bang or an impact wrench no longer starts
+    a capture. The default "energy" never writes the probe or runs whisper on it.
+    """
     if not daemon.config.audio_fallback_enabled:
         return
     from . import officeaudio
@@ -1275,35 +1392,53 @@ async def audio_fallback_worker(
             await asyncio.sleep(interval)
             continue
 
+        speech_gate = daemon.config.wake_gate == "speech"
+        probe_kwargs: dict[str, Any] = {
+            "binary": os.environ.get("FFMPEG_BIN") or None,
+            "input_format": daemon.config.input_format,
+        }
+        # The probe keeps its audio only when whisper will read it; with a capture still in
+        # transcription the speech check is skipped, so nothing is written either.
+        wav_path: Optional[str] = None
+        if speech_gate and daemon.transcribe_backlog() == 0:
+            wav_path = os.path.join(daemon.config.out_dir, f"speechprobe-{uuid.uuid4().hex[:12]}.wav")
+            probe_kwargs["wav_path"] = wav_path
         try:
-            mean_db, max_db = await asyncio.to_thread(
-                probe_fn,
-                daemon.config.source_url,
-                daemon.config.audio_probe_seconds,
-                binary=os.environ.get("FFMPEG_BIN") or None,
-                input_format=daemon.config.input_format,
-            )
-        except Exception as exc:  # noqa: BLE001
-            detail = f"{type(exc).__name__}: {exc}"[:500]
-            daemon.ledger.note("audio_fallback_error", {"error": detail})
-            daemon.runtime.update(
-                conversationFallbackOk=False,
-                conversationFallbackState="DEGRADED",
-                conversationFallbackLastError=detail,
-                conversationFallbackLastProbeAt=_iso_utc(now),
-            )
-            await asyncio.sleep(interval)
-            continue
+            try:
+                mean_db, max_db = await asyncio.to_thread(
+                    probe_fn,
+                    daemon.config.source_url,
+                    daemon.config.audio_probe_seconds,
+                    **probe_kwargs,
+                )
+            except Exception as exc:  # noqa: BLE001
+                detail = f"{type(exc).__name__}: {exc}"[:500]
+                daemon.ledger.note("audio_fallback_error", {"error": detail})
+                daemon.runtime.update(
+                    conversationFallbackOk=False,
+                    conversationFallbackState="DEGRADED",
+                    conversationFallbackLastError=detail,
+                    conversationFallbackLastProbeAt=_iso_utc(now),
+                )
+                await asyncio.sleep(interval)
+                continue
 
-        active = audio_activity_detected(
-            mean_db,
-            max_db,
-            mean_threshold_db=daemon.config.audio_activity_mean_db,
-            max_threshold_db=daemon.config.audio_activity_max_db,
-        )
+            active = audio_activity_detected(
+                mean_db,
+                max_db,
+                mean_threshold_db=daemon.config.audio_activity_mean_db,
+                max_threshold_db=daemon.config.audio_activity_max_db,
+            )
+            fallback_state = "ACTIVE" if active else "QUIET"
+            if active and speech_gate and not await _speech_gate(daemon, wav_path, speech_fn, mean_db, max_db):
+                active, fallback_state = False, "NOISE"
+        finally:
+            if wav_path:
+                # Probe audio is never retained; whisper-cli leaves <wav>.json beside it.
+                _remove_quietly(wav_path, wav_path + ".json")
         daemon.runtime.update(
             conversationFallbackOk=True,
-            conversationFallbackState="ACTIVE" if active else "QUIET",
+            conversationFallbackState=fallback_state,
             conversationFallbackLastError=None,
             conversationFallbackLastProbeAt=_iso_utc(now),
             conversationFallbackMeanDb=mean_db,
@@ -1545,6 +1680,13 @@ async def listen_forever(
     seen = 0
     delay = 2.0
     try:
+        if not daemon.config.bridge_url:
+            # Shop PC (direct RTSP): no Eufy bridge exists, so there is nothing to connect to and
+            # nothing to retry. Wakes come from the audio fallback; the status worker keeps the
+            # state READY / OFF_HOURS. Until 2026-10-21 this read BRIDGE_RETRY all day.
+            daemon.ledger.note("bridge_not_configured", {"wakeSource": "audioActivity"})
+            await asyncio.gather(worker_task, transcribe_task, retention_task, status_task)
+            return
         while True:
             try:
                 async with websockets.connect(
@@ -1752,6 +1894,12 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
     if visual_source not in {"bridge", "rtsp"}:
         raise ValueError(f"OFFICE_VISUAL_SOURCE must be bridge or rtsp, got {args.visual_source!r}")
     threads_raw = str(args.whisper_threads or "").strip()
+    wake_gate = str(args.wake_gate or "energy").strip().lower()
+    if wake_gate not in {"energy", "speech"}:
+        raise ValueError(f"OFFICE_WAKE_GATE must be energy or speech, got {args.wake_gate!r}")
+    noise_mode = str(args.whisper_noise_args or "off").strip().lower()
+    if noise_mode not in {"off", "auto"}:
+        raise ValueError(f"OFFICE_WHISPER_NOISE_ARGS must be off or auto, got {args.whisper_noise_args!r}")
     return OfficeWakeConfig(
         bridge_url=str(args.bridge_url or "").strip(),
         office_serial=str(args.office_serial or "").strip(),
@@ -1793,6 +1941,8 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         whisper_threads=max(1, int(threads_raw)) if threads_raw else None,
         transcribe_backlog_max=max(1, int(args.transcribe_backlog_max)),
         camera_heartbeat_url=str(args.camera_heartbeat_url or "").strip(),
+        wake_gate=wake_gate,
+        whisper_noise_mode=noise_mode,
     )
 
 
@@ -1870,6 +2020,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("OFFICE_CAMERA_HEARTBEAT_URL", ""),
         help="post the office camera heartbeat from this process (shop PC); empty = off",
     )
+    parser.add_argument(
+        "--wake-gate",
+        default=os.environ.get("OFFICE_WAKE_GATE") or "energy",
+        help="energy: loud probes wake (default); speech: whisper must also hear words in the probe",
+    )
+    parser.add_argument(
+        "--whisper-noise-args",
+        default=os.environ.get("OFFICE_WHISPER_NOISE_ARGS") or "off",
+        help="off (default) or auto: add the noise flags this whisper-cli lists in --help",
+    )
     parser.add_argument("--retention-hours", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_RETENTION_HOURS", "6")))
     parser.add_argument("--retention-max-mb", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_MAX_MB", "256")))
     parser.add_argument("--min-free-mb", type=float, default=float(os.environ.get("OFFICE_MIN_FREE_MB", "768")))
@@ -1890,6 +2050,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(json.dumps({"error": "blocked", "blockers": blockers}))
         return 3
 
+    from . import officepost
+
+    # Once per worker start: which noise flags this whisper-cli build has ("off" runs nothing).
+    config.whisper_noise_args = officepost.noise_args(config.transcriber, config.whisper_noise_mode)
     ledger = ReceiptLedger(args.ledger or None)
     ledger.note(
         "startup",
@@ -1909,6 +2073,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             "visual": config.visual_enabled,
             "visualSource": config.visual_source,
             "cameraHeartbeat": bool(config.camera_heartbeat_url),
+            "bridge": bool(config.bridge_url),
+            "wakeGate": config.wake_gate,
+            "whisperNoiseMode": config.whisper_noise_mode,
+            "whisperNoiseArgs": list(config.whisper_noise_args),
         },
     )
     daemon = OfficeWakeDaemon(config, ledger=ledger)
