@@ -149,7 +149,6 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   const anomalies = detectAnomalies();
   if (anomalies.length > 0) {
     try {
-      const { sendTelegram } = await import("./telegram");
       const { remember } = await import("./nickMemory");
 
       for (const a of anomalies) {
@@ -162,10 +161,17 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
         processed++;
       }
 
-      if (anomalies.some(a => a.deviation === "HIGH")) {
-        await sendTelegram(
-          `📊 NICK AI — Event anomaly detected\n\n` +
-          anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) — ${a.deviation}`).join("\n")
+      const high = anomalies.filter(a => a.deviation === "HIGH");
+      if (high.length > 0) {
+        // Once per ET day per set of surging event types (2026-10-21): the counts move every tick,
+        // so the state is the types, not the numbers.
+        const { sendTelegramResult } = await import("./telegram");
+        const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+        await sendOncePerState(`event-anomaly:${stateFingerprint(high.map(a => a.type))}`, () =>
+          sendTelegramResult(
+            `📊 NICK AI — Event anomaly detected\n\n` +
+            anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) — ${a.deviation}`).join("\n"),
+          ),
         );
       }
     } catch (e) { log.warn("[feedbackLoop:feedbackCycle] anomaly detection + memory save failed:", e); }
@@ -192,10 +198,14 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
     const { getProactiveMemoryAlerts } = await import("./nickMemory");
     const memAlerts = await getProactiveMemoryAlerts();
     if (memAlerts.length > 0) {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
-        `🧠 NICK AI — Proactive (from memory)\n\n` +
-        memAlerts.join("\n\n"), "digest"
+      const { sendTelegramResult } = await import("./telegram");
+      const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+      // Once per ET day per set of memory lines (2026-10-21): the same lines went out every 2 hours.
+      await sendOncePerState(`proactive-memory:${stateFingerprint(memAlerts)}`, () =>
+        sendTelegramResult(
+          `🧠 NICK AI — Proactive (from memory)\n\n` +
+          memAlerts.join("\n\n"), "digest",
+        ),
       );
       processed += memAlerts.length;
     }

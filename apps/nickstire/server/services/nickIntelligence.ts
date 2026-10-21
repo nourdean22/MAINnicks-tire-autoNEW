@@ -384,7 +384,6 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
   const pulse = await getShopPulse();
   const pipeline = await analyzeConversionPipeline();
-  const { sendTelegram } = await import("./telegram");
   let actions = 0;
 
   // Load memories for smarter decisions
@@ -511,10 +510,15 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     const utilizationPct = totalBays > 0 ? Math.round(((totalBays - freeBays) / totalBays) * 100) : 0;
 
     if (clockedIn > 0 && freeBays === totalBays && etHour >= 10 && etHour <= 15) {
-      await sendTelegram(
-        `🔧 CAPACITY ALERT: ${totalBays} bays ALL EMPTY with ${clockedIn} techs clocked in\n\n` +
-        `Utilization: ${utilizationPct}%\n` +
-        `⚡ Push walk-in traffic or follow up on pending estimates`
+      // Once per ET day (2026-10-21): it re-sent every 2 hours from 10 to 3.
+      const { sendTelegramResult } = await import("./telegram");
+      const { sendOncePerState } = await import("./alertClaim");
+      await sendOncePerState("capacity-alert:all-bays-empty", () =>
+        sendTelegramResult(
+          `🔧 CAPACITY ALERT: ${totalBays} bays ALL EMPTY with ${clockedIn} techs clocked in\n\n` +
+          `Utilization: ${utilizationPct}%\n` +
+          `⚡ Push walk-in traffic or follow up on pending estimates`,
+        ),
       );
       actions++;
     }
@@ -842,17 +846,21 @@ export async function sendEscalationAlerts(): Promise<{ sent: number }> {
   if (urgent.length === 0) return { sent: 0 };
 
   try {
-    const { sendTelegram } = await import("./telegram");
+    const { sendTelegramResult } = await import("./telegram");
+    const { sendOncePerStateEver, stateFingerprint } = await import("./alertClaim");
     const lines = urgent.map(a => {
       const icon = a.severity === "overdue" ? "🔴" : "🟡";
       return `${icon} [${a.type.toUpperCase()}] ${a.message}${a.phone ? ` — tel:${a.phone}` : ""}`;
     });
 
-    await sendTelegram(
-      `⚠️ NICK AI ESCALATION (${urgent.length} items)\n\n${lines.join("\n")}`
+    // Once per SET of escalated items, for good (2026-10-21): the same untouched lead was re-sent every 2 h.
+    // Keyed by type and row id, never by name or phone.
+    const state = stateFingerprint(urgent.map((a) => `${a.type}:${a.id}`));
+    const result = await sendOncePerStateEver(`nick-ai-escalation:${state}`, () =>
+      sendTelegramResult(`⚠️ NICK AI ESCALATION (${urgent.length} items)\n\n${lines.join("\n")}`),
     );
 
-    return { sent: urgent.length };
+    return { sent: result?.status === "delivered" ? urgent.length : 0 };
   } catch (err) {
     log.error("Failed to send escalation alerts", { error: String(err) });
     return { sent: 0 };

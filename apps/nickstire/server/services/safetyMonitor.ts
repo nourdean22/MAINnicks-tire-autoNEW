@@ -685,7 +685,11 @@ export async function runFullSafetyCheck(): Promise<{
 // ─── Telegram Alert Formatting ──────────────────────
 
 async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyCheck>>): Promise<void> {
-  const { sendTelegramMessage } = await import("./telegram");
+  const { sendTelegramResult } = await import("./telegram");
+  const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+  // Once per ET day per set of lines, digits stripped (2026-10-21): the same lines with a drifting
+  // score or count went out every 2 hours. A new kind of line is a new state and sends.
+  const linesState = (alerts: Alert[]) => stateFingerprint(alerts.map((a) => a.message.replace(/\d+/g, "#")));
 
   // Always send critical alerts regardless of feature flag
   const criticals = [
@@ -704,7 +708,7 @@ async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyC
       ``,
       `⏰ ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
     ];
-    await sendTelegramMessage(lines.join("\n"), "critical");
+    await sendOncePerState(`safety-critical:${linesState(criticals)}`, () => sendTelegramResult(`[CRITICAL] ${lines.join("\n")}`));
   }
 
   // Gate non-critical alerts behind feature flag
@@ -730,7 +734,7 @@ async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyC
       ``,
       `📊 Financial: ${result.financial.alerts.length} | Reputation: ${result.reputation.alerts.length} | Ops: ${result.operational.alerts.length} | Data: ${result.data.alerts.length} | Compliance: ${result.compliance.alerts.length}`,
     ];
-    await sendTelegramMessage(lines.join("\n"), "system");
+    await sendOncePerState(`safety-check:${linesState(warnings)}`, () => sendTelegramResult(`[SYSTEM] ${lines.join("\n")}`));
   }
 }
 

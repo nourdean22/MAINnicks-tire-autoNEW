@@ -724,6 +724,8 @@ export function getSyncStatus(): {
 /** Track which vendors were previously down so we can detect recovery */
 // "unknown" = no probe ran (see VendorHealthResult in services/vendorHealth.ts).
 const previousVendorStates = new Map<string, "healthy" | "degraded" | "down" | "not_configured" | "unknown">();
+/** Vendors with a VENDOR DOWN page out: only these get a VENDOR RECOVERED (in memory, like the map above). */
+const vendorDownPaged = new Set<string>();
 
 /**
  * Dispatch vendor health snapshot to NOUR OS.
@@ -759,16 +761,6 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         errors: result.checks.filter(c => !c.passed).map(c => c.error).filter(Boolean),
       });
 
-      // Also fire Telegram alert for vendor down
-      try {
-        const { alertVendorDown } = await import("./services/telegram");
-        const firstError = result.checks.find(c => !c.passed)?.error;
-        alertVendorDown(result.vendor, firstError);
-      } catch (e) {
-        log.warn("[nour-os-bridge] operation failed:", e);
-        // Telegram alert is best-effort
-      }
-
       log.error(`[ALERT] Vendor ${result.vendor} degraded: ${prev} -> ${result.status}`);
     }
 
@@ -780,15 +772,33 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         currentStatus: result.status,
       });
 
+      console.info(`[bridge:recovery] Vendor ${result.vendor} recovered: ${prev} -> ${result.status}`);
+    }
+
+    // Telegram (2026-10-21): VENDOR DOWN only on a transition to "down" (degraded flapped ~15 times a day),
+    // once per vendor per ET day; VENDOR RECOVERED only after a DOWN page went out. The statenour events
+    // above are unchanged.
+    if (prev && prev !== "down" && result.status === "down") {
+      try {
+        const { alertVendorDown } = await import("./services/telegram");
+        const { sendOncePerState } = await import("./services/alertClaim");
+        const firstError = result.checks.find(c => !c.passed)?.error;
+        const paged = await sendOncePerState(`vendor-down:${result.vendor}`, async () =>
+          ((await alertVendorDown(result.vendor, firstError)) ? { status: "delivered" as const } : { status: "failed" as const }),
+        );
+        if (paged && paged.status !== "failed") vendorDownPaged.add(result.vendor);
+      } catch (e) {
+        log.warn("[nour-os-bridge] vendor down alert failed:", e);
+      }
+    }
+    if (result.status === "healthy" && vendorDownPaged.has(result.vendor)) {
+      vendorDownPaged.delete(result.vendor);
       try {
         const { alertVendorRecovered } = await import("./services/telegram");
-        alertVendorRecovered(result.vendor);
+        await alertVendorRecovered(result.vendor);
       } catch (e) {
-        log.warn("[nour-os-bridge] operation failed:", e);
-        // Telegram alert is best-effort
+        log.warn("[nour-os-bridge] vendor recovered alert failed:", e);
       }
-
-      console.info(`[bridge:recovery] Vendor ${result.vendor} recovered: ${prev} -> ${result.status}`);
     }
 
     previousVendorStates.set(result.vendor, result.status);

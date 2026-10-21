@@ -2554,13 +2554,19 @@ function buildTiers(): void {
             }
             const plan = await getCustomerActionPlan();
             if (data.atRiskCustomers.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(
-                `📉 DAILY CHURN CHECK\n\n` +
-                `At-risk: ${data.atRiskCustomers.length} customers\n` +
-                `Lapsed: ${data.lapsedCustomers} | Lost: ${data.lostCustomers}\n` +
-                `Retention: ${data.retentionRate}%\n` +
-                (plan ? `\n${plan.slice(0, 500)}` : "")
+              const { sendTelegramResult } = await import("../services/telegram");
+              const { sendOncePerStateEver, stateFingerprint } = await import("../services/alertClaim");
+              // Once per SET of at-risk customers, for good (2026-10-21): the same 10 were sent every day.
+              // The key is a hash of the phones; no customer data is stored in it.
+              const atRiskState = stateFingerprint(data.atRiskCustomers.map((c) => c.phone || c.name));
+              await sendOncePerStateEver(`daily-churn-check:${atRiskState}`, () =>
+                sendTelegramResult(
+                  `📉 DAILY CHURN CHECK\n\n` +
+                  `At-risk: ${data.atRiskCustomers.length} customers\n` +
+                  `Lapsed: ${data.lapsedCustomers} | Lost: ${data.lostCustomers}\n` +
+                  `Retention: ${data.retentionRate}%\n` +
+                  (plan ? `\n${plan.slice(0, 500)}` : ""),
+                ),
               );
 
               // AUTO-ENROLL at-risk customers into drip campaign (Gap 1+6 fix)

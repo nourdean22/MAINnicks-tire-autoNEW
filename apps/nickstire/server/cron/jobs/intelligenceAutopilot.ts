@@ -85,14 +85,18 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       if (revCorrectionOn && pacePercent < 60 && dayOfMonth >= 15) {
         // 15+ days in and behind 60% → generate emergency recommendations
         try {
-          const { sendTelegram } = await import("../../services/telegram");
-          await sendTelegram(
-            `🔴 REVENUE EMERGENCY: ${pacePercent}% of pace at day ${dayOfMonth}.\n\n` +
-            `RECOMMENDED ACTIONS:\n` +
-            `1. Post a flash special on GBP (20% off oil changes this week)\n` +
-            `2. Send SMS blast to lapsed 90+ day customers\n` +
-            `3. Activate referral bonus double-up ($50 instead of $25)\n` +
-            `4. Push tire sale on social media`
+          const { sendTelegramResult } = await import("../../services/telegram");
+          const { sendOncePerStateEver } = await import("../../services/alertClaim");
+          // Once per Cleveland month (2026-10-21): it re-sent every 2 hours from day 15.
+          await sendOncePerStateEver(`revenue-emergency:${getBusinessDateKey().slice(0, 7)}`, () =>
+            sendTelegramResult(
+              `🔴 REVENUE EMERGENCY: ${pacePercent}% of pace at day ${dayOfMonth}.\n\n` +
+              `RECOMMENDED ACTIONS:\n` +
+              `1. Post a flash special on GBP (20% off oil changes this week)\n` +
+              `2. Send SMS blast to lapsed 90+ day customers\n` +
+              `3. Activate referral bonus double-up ($50 instead of $25)\n` +
+              `4. Push tire sale on social media`,
+            ),
           );
         } catch (e) { log.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
       }
@@ -270,13 +274,19 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
     // ── Send Alerts ────────────────────────────────────────
     if (alerts.length > 0) {
       try {
-        const { sendTelegram } = await import("../../services/telegram");
+        const { sendTelegramResult } = await import("../../services/telegram");
+        const { sendOncePerState, stateFingerprint } = await import("../../services/alertClaim");
         const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", minute: "2-digit", hour12: true });
 
-        await sendTelegram(
-          `🧠 INTELLIGENCE AUTOPILOT — ${now}${healthScore ? ` | Health: ${healthScore}/100` : ""}\n\n` +
-          alerts.join("\n\n") +
-          `\n\n📊 ${actionsPerformed} records analyzed`, "digest"
+        // Once per ET day per KIND of lines (digits stripped, so a moving dollar figure is the same state):
+        // the same 6 lines went out every 2 hours (2026-10-21).
+        const state = stateFingerprint(alerts.map((line) => line.replace(/\d+/g, "#")));
+        await sendOncePerState(`intelligence-autopilot:${state}`, () =>
+          sendTelegramResult(
+            `🧠 INTELLIGENCE AUTOPILOT — ${now}${healthScore ? ` | Health: ${healthScore}/100` : ""}\n\n` +
+            alerts.join("\n\n") +
+            `\n\n📊 ${actionsPerformed} records analyzed`, "digest",
+          ),
         );
       } catch (e: unknown) {
         log.warn("Telegram alert failed:", { error: (e as Error).message });

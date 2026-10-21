@@ -92,14 +92,18 @@ export async function detectOverdueWorkOrders(): Promise<{ recordsProcessed: num
 
     if (overdue.length === 0) return { recordsProcessed: 0, details: "No overdue WOs" };
 
-    const { sendTelegram } = await import("./telegram");
-    await sendTelegram(
-      `⏰ OVERDUE WORK ORDERS: ${overdue.length}\n\n` +
-      overdue.map((wo: any) => {
-        const hrs = Math.round((Date.now() - new Date(wo.promisedAt!).getTime()) / 3600000);
-        return `WO#${wo.orderNumber} — ${wo.serviceDescription?.slice(0, 40) || "N/A"} (${hrs}h late) [${wo.status}]${wo.assignedTech ? ` — Tech: ${wo.assignedTech}` : ""}`;
-      }).join("\n") +
-      `\n\n⚡ Call these customers or update promise times.`
+    const { sendTelegramResult } = await import("./telegram");
+    const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
+    // Once per ET day per set of work orders (2026-10-21): the same list went out every 15 minutes.
+    await sendOncePerState(`overdue-work-orders:${stateFingerprint(overdue.map((wo: { id: number }) => String(wo.id)))}`, () =>
+      sendTelegramResult(
+        `⏰ OVERDUE WORK ORDERS: ${overdue.length}\n\n` +
+        overdue.map((wo: any) => {
+          const hrs = Math.round((Date.now() - new Date(wo.promisedAt!).getTime()) / 3600000);
+          return `WO#${wo.orderNumber} — ${wo.serviceDescription?.slice(0, 40) || "N/A"} (${hrs}h late) [${wo.status}]${wo.assignedTech ? ` — Tech: ${wo.assignedTech}` : ""}`;
+        }).join("\n") +
+        `\n\n⚡ Call these customers or update promise times.`,
+      ),
     );
 
     return { recordsProcessed: overdue.length, details: `${overdue.length} overdue WOs alerted` };

@@ -217,16 +217,18 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
       return age > 2 * 24 * 60 * 60 * 1000; // >2 days
     });
 
+    // Both checks send once per ET day per set of orders (2026-10-21): they re-sent every 15 minutes.
+    const { sendOncePerState, stateFingerprint } = await import("./alertClaim");
     if (staleOrders.length > 0) {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
+      const { sendTelegramResult } = await import("./telegram");
+      await sendOncePerState(`stale-tire-orders:${stateFingerprint(staleOrders.map((o: TireOrder) => o.orderNumber))}`, () => sendTelegramResult(
         `⚠️ STALE TIRE ORDERS — ${staleOrders.length} orders still "received" after 2+ days:\n\n` +
         staleOrders.map((o: TireOrder) => {
           const days = Math.round((Date.now() - new Date(o.createdAt).getTime()) / 86400000);
           return `${o.orderNumber}: ${o.quantity}x ${o.tireBrand} ${o.tireModel} (${o.tireSize}) — ${days}d old — ${o.customerName}`;
         }).join("\n") +
         `\n\n🔧 Log into Gateway (b2b.dktire.com) and place these orders, then update status.`, "digest"
-      );
+      ));
     }
 
     // Check for orders that might have been delivered (ordered > 3 days)
@@ -237,12 +239,12 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
     });
 
     if (possiblyDelivered.length > 0) {
-      const { sendTelegram } = await import("./telegram");
-      await sendTelegram(
+      const { sendTelegramResult } = await import("./telegram");
+      await sendOncePerState(`tire-delivery-check:${stateFingerprint(possiblyDelivered.map((o: TireOrder) => o.orderNumber))}`, () => sendTelegramResult(
         `📦 TIRE DELIVERY CHECK — ${possiblyDelivered.length} orders "ordered" 3+ days ago:\n\n` +
         possiblyDelivered.map((o: TireOrder) => `${o.orderNumber}: ${o.tireBrand} ${o.tireModel} — ${o.customerName}`).join("\n") +
         `\n\n✅ If tires arrived, update status to "delivered". If not, check tracking.`, "digest"
-      );
+      ));
     }
 
     return {
