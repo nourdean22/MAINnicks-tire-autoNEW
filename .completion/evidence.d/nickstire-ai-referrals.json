@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "2026-10-21 ai-referrals client lane. Admin -> Leads (Pipeline tab) now shows an 'AI referrals, last 30 days' card above the leads brief: '<n> logged at the counter' and '<m> arrived on the website from an assistant', each with a per-assistant breakdown of non-zero entries. A failed or offline (paused) read shows '?' and 'not checked' for that half only, never 0, with a Retry. The 48 px 'Log a customer an AI sent' button opens a bottom sheet: pick ChatGPT, Meta AI / Muse, Gemini, Copilot, Perplexity, Claude or Other AI, optionally Tires / Repair / Other, then Save; success closes the sheet, toasts 'Logged' and refreshes the count; a failed save keeps the sheet open with the server message and a 'Try again' button. Crawlers: the LocalBusiness JSON-LD 'New Tire Sales & Installation' Offer now carries minPrice '89' from BUSINESS.newTires.startingDollars and the description 'New tires from $89 installed with the free install package'; the committed prerendered HTML keeps the old Offer text until the next prerender refresh. Proof: client/src/__tests__/admin-ai-referrals-card.test.tsx (12 tests) and client/src/__tests__/local-business-new-tire-price.test.tsx (2 tests), both run red first."
+    }
+  }
+}

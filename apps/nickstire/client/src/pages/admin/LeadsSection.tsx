@@ -43,6 +43,7 @@ import { TechnicianReferralsPanel } from "./leads/TechnicianReferralsPanel";
 import { TabBar } from "./shared/table";
 import { resolveInnerTab } from "./innerTabs";
 import { CandidatesPanel } from "./leads/CandidatesPanel";
+import { AiReferralsCard } from "./leads/AiReferralsCard";
 
 /**
  * Sales Pipeline. 2026-10-19 (admin prune W1): the Opportunities section folded in
@@ -291,6 +292,7 @@ function LeadsPipeline() {
           <strong>Leads could not be read.</strong> Everything below is unknown: NOT zero, and nothing here means nobody has contacted the shop. {error?.message}
         </div>
       )}
+      <AiReferralsCard />
       <LeadsBrief
         onSlaAction={() => {
           // wave-181.x Leads Phase 2 Â· SLA-breach CTA Â· code-review agent

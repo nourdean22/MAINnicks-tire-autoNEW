@@ -177,7 +177,7 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "New Tire Sales & Installation", description: "Free install package with every tire purchase." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Installation FREE with tire purchase" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: String(BUSINESS.newTires.startingDollars), description: `New tires ${BUSINESS.newTires.priceDisplay} with the free install package` },
         },
         {
           "@type": "Offer",
