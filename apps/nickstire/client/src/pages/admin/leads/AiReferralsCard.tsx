@@ -4,7 +4,8 @@
  * Nour, 2026-10-21: two customers came in because assistants sent them, and nothing in the shop
  * recorded how a customer heard about us. Two facts here, each from aiReferrals.summary:
  *   logged  = customers the counter logged with the sheet below (aiReferrals.log);
- *   web     = website arrivals whose referrer was an assistant.
+ *   web     = booking, lead and call-tap ROWS whose referrer was an assistant. Rows, not people:
+ *             one visitor who taps the phone number twice counts twice, so the label names the rows.
  * Each half is null when its own read failed, so one half can be unknown while the other is real.
  * A failed or paused read (offline PWA: no data and no error) renders "?" and "not checked",
  * never 0: zero would say "no assistant sent anyone", which nobody measured.
@@ -100,7 +101,7 @@ export function AiReferralsCard() {
       ) : (
         <div className="space-y-1">
           <Fact testId="ai-referrals-logged" half={logged} label="logged at the counter" />
-          <Fact testId="ai-referrals-web" half={web} label="arrived on the website from an assistant" />
+          <Fact testId="ai-referrals-web" half={web} label="website bookings, leads or call taps from an assistant" />
           {noneYet && (
             <p className="text-[13px] text-foreground/60">
               None logged yet. When a customer says an AI assistant sent them, log it here.

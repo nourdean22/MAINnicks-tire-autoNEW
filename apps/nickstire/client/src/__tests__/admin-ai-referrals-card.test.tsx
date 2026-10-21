@@ -94,7 +94,7 @@ describe("AiReferralsCard: what the summary says", () => {
     expect(counter.textContent).toContain("Meta AI / Muse 1");
     const web = screen.getByTestId("ai-referrals-web");
     expect(web.textContent).toContain("1");
-    expect(web.textContent).toContain("arrived on the website from an assistant");
+    expect(web.textContent).toContain("website bookings, leads or call taps from an assistant");
     expect(web.textContent).toContain("Perplexity 1");
     // Only non-zero entries, and no unknown marker anywhere.
     expect(screen.queryByText(/Gemini/)).toBeNull();
