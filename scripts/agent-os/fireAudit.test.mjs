@@ -86,8 +86,12 @@ test("(b) long_path(): adds the extended-length prefix on win32 for a path past 
 test("(c) win32: a transcript path over 260 characters is scanned and counted end to end", { skip: !PY ? "python not installed" : !WIN ? "Windows MAX_PATH only" : false }, () => {
   const base = mkdtempSync(join(tmpdir(), "fire-audit-c-"));
   const projects = join(base, "projects");
-  let dir = join(projects, "C--Users-nourd-AppData-Local-Temp-claude-" + "x".repeat(120) + "-workspac-hppf4t");
-  while (dir.length + 42 < 270) dir = join(dir, "deeper-" + "y".repeat(40));
+  // A 242-char directory holding a file whose full path passes 260, whatever the temp dir's depth
+  // (the test runners now nest it one level deeper). A directory itself past ~248 is not walked by
+  // fire_audit.py at all: a separate, known gap, not what this arm pins.
+  const head = "C--Users-nourd-AppData-Local-Temp-claude-", tail = "-workspac-hppf4t";
+  const dir = join(projects, head + "x".repeat(Math.max(1, 242 - projects.length - 1 - head.length - tail.length)) + tail);
+  assert.ok(dir.length < 248, `temp dir too deep for this fixture: directory is ${dir.length} chars`);
   mkdirSync(dir, { recursive: true });
   const transcript = join(dir, "19d3f1ef-0000-4000-8000-000000000000.jsonl");
   assert.ok(transcript.length > 260, `fixture path is only ${transcript.length} chars`);

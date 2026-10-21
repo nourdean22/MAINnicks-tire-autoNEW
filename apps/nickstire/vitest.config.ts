@@ -74,6 +74,10 @@ export default defineConfig({
       ["client/src/__tests__/**", "jsdom"],
     ],
     setupFiles: ["client/src/__tests__/setup.ts"],
+    // Points TEMP/TMP/TMPDIR at one dir per run and deletes it at the end: tests leave
+    // their mkdtemp fixtures behind (renderedQa alone left ~700 dirs in two days).
+    // Wiring test: server/__tests__/testRunTmp.test.ts.
+    globalSetup: [path.resolve(templateRoot, "../../scripts/agent-os/runTmp.mjs")],
     coverage: {
       provider: "v8",
       reporter: ["text", "text-summary", "json-summary"],
