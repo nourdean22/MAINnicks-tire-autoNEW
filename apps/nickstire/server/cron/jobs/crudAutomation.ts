@@ -28,8 +28,15 @@ type RawRow = Record<string, unknown>;
 export async function processReminders(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
     const { processReminderQueue } = await import("../../routers/reminders");
-    const result = await processReminderQueue();
-    return { recordsProcessed: result?.sent || 0, details: `${result?.sent || 0} reminders sent` };
+    const { plan, send } = await processReminderQueue();
+    const byType = Object.entries(plan.byType).map(([k, n]) => `${k} ${n}`).join(", ") || "none";
+    if (!send) {
+      return { recordsProcessed: 0, details: `shadow: would plan ${plan.planned} reminders (${byType}); nothing written or sent` };
+    }
+    return {
+      recordsProcessed: send.sent,
+      details: `planned ${plan.planned} (${byType}), new ${plan.inserted}, closed ${plan.closed}; due ${send.due}: sent ${send.sent}, queued ${send.queued}, uncertain ${send.uncertain}, held out ${send.heldOut}, failed ${send.failed}, awaiting approval ${send.awaitingApproval}, deferred ${send.deferred}, too late ${send.tooLate}, over daily cap ${send.capped}`,
+    };
   } catch (e: unknown) {
     throw new Error(`Reminders failed: ${(e as Error).message}`, { cause: e });
   }

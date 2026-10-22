@@ -72,7 +72,7 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
 |---|---|---|---|---|
 | 1 | Homepage "live" badge stops claiming free bays from a stale tracker | Google live busyness (shown only with enough recent data); Waitwhile, Yelp | S | **BUILT, PR 3225** |
 | 2 | Pull what was done (line items, mileage) from ShopDriver tickets | Shopmonkey canned-service campaigns; Mitchell 1 SocialCRM | M | needs Nour's go for one read-only probe |
-| 3 | Maintenance reminders from closed jobs, closed the moment the customer returns | Shopmonkey (service + elapsed time after the job); Mitchell 1 follow-up suppression | M | design awaiting approval |
+| 3 | Maintenance reminders from closed jobs, closed the moment the customer returns | Shopmonkey (service + elapsed time after the job); Mitchell 1 follow-up suppression | M | **BUILT behind a flag (OFF)**; texts await Nour's approval by name |
 | 4 | One cap on marketing texts per customer across all senders | Klaviyo Smart Sending; Braze global frequency capping | S-M | needs Nour's go for one column |
 | 5 | Record the "no" at the counter, so declines are observed, not guessed | Tekmetric / Shopmonkey per-line approve or decline; Mitchell 1 recommendation record | S | Nour's decision: how the counter records it |
 | 6 | Fill the estimate service category that two features already read | already built here (`categorizeService`) | S | ready to build |
@@ -140,13 +140,18 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
   stamp what has been followed up so it leaves the next query (Mitchell 1); none of the vendors
   documents what closes a reminder, so ours closes it on the customer's next closed job (CLAIM for
   the vendor behaviour, thread 3).
-- **Design (awaiting approval).** Plan from ShopDriver counter invoices only (`source = 'shopdriver'`;
-  app-made online orders are not closed jobs) with `categorizeService`, one reminder per customer
-  and category from their latest job, intervals from code defaults overridable in
-  `reminder_settings`; close on any later closed job; new flag default OFF with a shadow run first;
-  skip when a retention or drip text went out that week; 15% no-text holdout; delete the booking
-  path. Coverage today: 228 customers a year (18% of closed jobs), more after #2. Base rate to beat:
-  21% of customers come back for a second job within a year.
+- **Built (flag OFF, `server/services/serviceReminders.ts`).** Plans from ShopDriver counter
+  invoices only (`source = 'shopdriver'`; app-made online orders are not closed jobs) with
+  `categorizeService`, one reminder per customer and category from their latest job. Intervals and
+  texts sit in one config object (`SERVICE_REMINDER_PLAN`: tires 6 months, brakes 12, oil 4,
+  cooling 12, battery/electrical 12, suspension 12). Any later closed job closes earlier reminders.
+  Two gates: the `service_reminders_from_invoices` flag (OFF = shadow: the `reminder-queue` job
+  counts what it would plan and writes nothing) and each category's text approved by Nour by name.
+  Each row is claimed by compare-and-swap before its send. Skips a customer texted by retention or
+  drip that week, or with an inferred decline in the last 30 days; a reminder replaces that
+  customer's D90/D180 text that fortnight; 15% no-text holdout through `contactExperiment`. The
+  booking-driven path is deleted. Coverage today: 228 customers a year (18% of closed jobs), more
+  after #2. Base rate to beat: 21% of customers come back for a second job within a year.
 
 ### 4. One cap on marketing texts per customer
 

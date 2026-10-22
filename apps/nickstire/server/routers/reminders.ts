@@ -7,11 +7,8 @@ import { router, adminProcedure, publicProcedure, dbAdminProcedure } from "../_c
 import { TRPCError } from "@trpc/server";
 import {
   getReminderSettings, upsertReminderSetting, seedDefaultReminderSettings,
-  getServiceReminders, getDueReminders, markReminderSent, snoozeReminder,
-  getReminderStats,
+  getServiceReminders, snoozeReminder, getReminderStats,
 } from "../db";
-import { sendSms, maintenanceReminderSms } from "../sms";
-import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
 
@@ -79,58 +76,20 @@ export const remindersRouter = router({
 });
 
 /**
- * Process all due reminders — called by the periodic timer and manual trigger.
+ * Plan reminders from closed jobs, then send the due ones — called by the
+ * `reminder-queue` cron and the admin trigger. Unarmed (the default), the
+ * planner only counts and nothing is written or sent: before 2026-10-22 this
+ * function texted every due row with no flag at all.
  */
 export async function processReminderQueue() {
-  const due = await getDueReminders();
-  let sent = 0;
-  let queued = 0;
-  let uncertain = 0; // attempted, unconfirmed (gateway timeout) — consumed, never re-sent
-  let failed = 0;
-
-  for (const reminder of due) {
-    try {
-      const settings = await getReminderSettings();
-      const setting = settings.find((s: any) => s.serviceType === reminder.serviceType);
-      const template = setting?.messageTemplate;
-
-      let message: string;
-      if (template) {
-        message = template
-          .replace("{firstName}", reminder.customerName.split(" ")[0])
-          .replace("{service}", setting?.serviceLabel || reminder.serviceType)
-          .replace("{phone}", BUSINESS.phone.display);
-      } else {
-        const mileageNote = reminder.nextDueMileage
-          ? `Your vehicle may be approaching ${reminder.nextDueMileage.toLocaleString()} miles.`
-          : undefined;
-        message = maintenanceReminderSms(
-          reminder.customerName,
-          setting?.serviceLabel || reminder.serviceType,
-          mileageNote,
-        );
-      }
-
-      // Wave-108: appointment reminder via shop gateway (1:1 transactional)
-      const result = await sendSms(reminder.phone, message, { via: "shop" });
-      // 2026-09-01 (audit F-3): a reminder parked for the 8 AM window is
-      // marked (it will go out — no re-send) but counted as queued, not sent.
-      const { smsOutcome, smsClaimConsumed } = await import("../lib/smsOutcome");
-      const outcome = smsOutcome(result);
-      if (smsClaimConsumed(result)) {
-        // sent, queued AND uncertain all consume the reminder: an uncertain
-        // (gateway-timeout) text may have been delivered, and leaving the
-        // reminder "scheduled" re-texted the customer every tick.
-        await markReminderSent(reminder.id, result.sid);
-        if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
-      } else {
-        failed++;
-      }
-    } catch (err) {
-      log.error(`[Reminders] Failed to send reminder #${reminder.id}:`, err);
-      failed++;
-    }
-  }
-
-  return { processed: due.length, sent, queued, uncertain, failed };
+  const { getDb } = await import("../db");
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable: reminders not planned or sent");
+  const { isEnabled } = await import("../services/featureFlags");
+  const armed = await isEnabled("service_reminders_from_invoices");
+  const { syncServiceReminders, sendDueServiceReminders } = await import("../services/serviceReminders");
+  const plan = await syncServiceReminders(db, armed);
+  const send = armed ? await sendDueServiceReminders(db) : null;
+  log.info("reminder queue", { mode: plan.mode, planned: plan.planned, inserted: plan.inserted, closed: plan.closed, sent: send?.sent ?? 0 });
+  return { plan, send };
 }

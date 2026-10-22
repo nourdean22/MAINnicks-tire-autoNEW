@@ -221,6 +221,17 @@ async function processRetentionTier(tier: RetentionTier): Promise<{ contacted: n
     pendingBookingsResult.map((b: { phone: string }) => b.phone.replace(/\D/g, "").slice(-10)),
   );
 
+  // A maintenance reminder (sent in the last 14 days, or approved and due in the next 14) replaces
+  // the generic D90/D180 text that fortnight (decision 2026-10-22). Empty while the lane is unarmed.
+  const reminderThisFortnight =
+    tier.days === 90 || tier.days === 180
+      ? await (await import("../../services/serviceReminders")).phonesWithReminderThisFortnight(
+          db,
+          await isEnabled("service_reminders_from_invoices"),
+          targetPhones.map((p) => p.replace(/\D/g, "").slice(-10)),
+        )
+      : new Set<string>();
+
   let processed = 0;
   let heldOut = 0;
   let perRowErrors = 0;
@@ -235,7 +246,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<{ contacted: n
 
       // Skip customers with a pending booking
       const normalizedPhone = c.phone.replace(/\D/g, "").slice(-10);
-      if (phonesWithPendingBooking.has(normalizedPhone)) {
+      if (phonesWithPendingBooking.has(normalizedPhone) || reminderThisFortnight.has(normalizedPhone)) {
         continue;
       }
 

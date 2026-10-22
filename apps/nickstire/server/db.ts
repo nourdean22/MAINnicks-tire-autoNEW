@@ -2486,16 +2486,6 @@ export async function getDueReminders() {
     .orderBy(serviceReminders.nextDueDate);
 }
 
-export async function markReminderSent(id: number, twilioSid?: string) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(serviceReminders).set({
-    status: "sent",
-    sentAt: new Date(),
-    twilioSid: twilioSid || null,
-  }).where(eq(serviceReminders.id, id));
-}
-
 export async function snoozeReminder(id: number, snoozeDays: number) {
   const db = await getDb();
   if (!db) return;
@@ -2525,65 +2515,6 @@ export async function getReminderStats() {
     snoozed: stats?.snoozed ?? 0,
     dueNow: stats?.dueNow ?? 0,
   };
-}
-
-/**
- * Schedule reminders for a completed booking based on the service type.
- * Matches service keywords to reminder settings and creates future reminders.
- */
-export async function scheduleRemindersForBooking(booking: {
-  id: number;
-  name: string;
-  phone: string;
-  service: string;
-  vehicle?: string | null;
-}) {
-  const db = await getDb();
-  if (!db) return [];
-  const settings = await getReminderSettings();
-  const enabledSettings = settings.filter((s: any) => s.enabled === 1);
-  const serviceLower = booking.service.toLowerCase();
-  const created: number[] = [];
-
-  for (const setting of enabledSettings) {
-    // Match service type keywords
-    const keywords = getServiceKeywords(setting.serviceType);
-    const matches = keywords.some(kw => serviceLower.includes(kw));
-    if (!matches) continue;
-
-    // Calculate next due date
-    const nextDueDate = new Date();
-    nextDueDate.setMonth(nextDueDate.getMonth() + setting.intervalMonths);
-
-    const result = await createServiceReminder({
-      bookingId: booking.id,
-      customerName: booking.name,
-      phone: booking.phone.replace(/\D/g, "").slice(-10),
-      vehicleInfo: booking.vehicle || undefined,
-      serviceType: setting.serviceType,
-      lastServiceDate: new Date(),
-      lastServiceMileage: undefined,
-      nextDueDate,
-      nextDueMileage: setting.intervalMiles > 0 ? setting.intervalMiles : undefined,
-      status: "scheduled",
-    });
-    created.push(result.id);
-  }
-  return created;
-}
-
-function getServiceKeywords(serviceType: string): string[] {
-  const map: Record<string, string[]> = {
-    "oil-change": ["oil", "lube", "synthetic"],
-    "brakes": ["brake", "rotor", "pad", "caliper"],
-    "tires": ["tire", "rotation", "balance", "mount"],
-    "coolant": ["coolant", "radiator", "cooling", "flush"],
-    "transmission": ["transmission", "trans"],
-    "alignment": ["alignment", "align"],
-    "battery": ["battery", "electrical", "alternator"],
-    "air-filter": ["air filter", "cabin filter", "filter"],
-  };
-  return map[serviceType] || [serviceType];
 }
 
 // ─── SMS CONVERSATIONS ──────────────────────────────────

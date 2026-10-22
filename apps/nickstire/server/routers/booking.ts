@@ -16,7 +16,7 @@ import { shopWallClock } from "../lib/timezoneAssert";
 import { sendSms, sendSmsOrThrow, bookingConfirmationSms, statusUpdateSms } from "../sms";
 import { requireCapiDelivery, sendLeadEvent, sendScheduleEvent } from "../meta-capi";
 import { scheduleReviewRequest } from "./reviewRequests";
-import { scheduleRemindersForBooking, getNextInvoiceNumber, createInvoice } from "../db";
+import { getNextInvoiceNumber, createInvoice } from "../db";
 import { shopSettings } from "../../drizzle/schema";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -620,27 +620,8 @@ export const bookingRouter = router({
                 });
               });
 
-            // Auto-schedule maintenance reminders based on service type
-            scheduleRemindersForBooking({
-              id: booking.id,
-              name: booking.name,
-              phone: booking.phone,
-              service: booking.service,
-              vehicle: booking.vehicle,
-            })
-              .then((ids: number[]) => {
-                // Reminders scheduled
-              })
-              .catch((err: unknown) => {
-                log.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err);
-                logIntegrationFailure({
-                  failureType: "reminders",
-                  entityId: booking.id,
-                  entityType: "booking",
-                  errorMessage: err instanceof Error ? err.message : String(err),
-                  errorDetails: err,
-                });
-              });
+            // Maintenance reminders come from closed jobs (ShopDriver invoices),
+            // not bookings: server/services/serviceReminders.ts.
 
             // Unified event bus (→ NOUR OS + learning)
             import("../services/eventBus").then(({ emit }) =>
