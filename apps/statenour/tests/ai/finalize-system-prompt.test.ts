@@ -279,3 +279,31 @@ describe("finalizeSystemPrompt · NICK_DEPTH_UNCAP (master depth ceilings)", () 
     expect(prompt).toContain("go as deep as the answer needs");
   });
 });
+
+describe("finalizeSystemPrompt · citation protocol counts the claim-vs-record block (2026-10-22)", () => {
+  async function withBlocks(blocks: ContextBlocksFired) {
+    const userContent = "should I keep the shop open until 7 every weekday this winter?";
+    const turnSignal = classifyTurn(userContent);
+    const queryShape = detectQueryShape(userContent);
+    const { systemPrompt } = await finalizeSystemPrompt({
+      systemPrompt: "BASE PROMPT",
+      provider: "ollama",
+      personality: "master",
+      userContent,
+      turnSignal,
+      contextBlocksFired: blocks,
+      mode: "standard" as never,
+      queryShape,
+      log: silentLog,
+    });
+    return systemPrompt;
+  }
+
+  it("CONTROL: no brain block fired, no citation protocol", async () => {
+    expect(await withBlocks(NO_BLOCKS)).not.toContain("## Citation protocol");
+  });
+
+  it("only the claim-vs-record block fired: the citation protocol is appended", async () => {
+    expect(await withBlocks({ ...NO_BLOCKS, claimGap: true })).toContain("## Citation protocol");
+  });
+});

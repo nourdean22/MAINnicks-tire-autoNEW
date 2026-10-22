@@ -40,11 +40,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
-import { getEmbedding } from "@/lib/ai/provider";
+import { getEmbedding, getEmbeddingWithModel, type EmbeddingResult } from "@/lib/ai/provider";
 import { cosineSimilarity } from "./embedding-utils";
 import type { Contradiction, ContradictionStatus } from "./contradiction-surfacer";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { today } from "@/lib/utils/datetime";
 
 const SIMILARITY_THRESHOLD = 0.7;
 const LOOKBACK_DAYS = 60;
@@ -285,6 +286,204 @@ export function buildContradictionAlertBlock(hit: RelevantContradiction): string
     "weave the contradiction into a single closing line. If they answer,",
     `call the resolveContradiction tool with contradictionKey: "${hit.key}"`,
     "and currentBelief set to whichever side they confirmed.",
+  ].join("\n");
+}
+
+// ── Claim vs record (2026-10-22) ───────────────────────────────────
+// The nightly thinking engine (lib/brain/thinking-engine.ts, L7) writes
+// "he said X, the record shows Y" rows to the `contradictions` TABLE — a
+// different store from the BrainMemory rows above, which the surfacer has
+// never written (0 rows, all time, measured 2026-10-22). The table had 76 open
+// rows and nothing read them: 555 of 555 closures were the 30-day auto-expiry.
+// Audit: docs/research/2026-10-22-insight-engines-audit.md.
+//
+// Two steps on purpose (PR #3219 review): findRelevantClaimGap only READS, and the
+// caller claims the day with claimClaimGapDay once it knows the block will be used.
+// A lookup that outlives the caller's timeout therefore cannot spend the day.
+
+/**
+ * Measured 2026-10-22 (prod vector_embeddings, read-only): best cosine of each
+ * of the 250 newest chat turns against 40 analysis-style memories was p50
+ * 0.387, p90 0.459, p95 0.482, max 0.576. 0.47 sits near p92 of that, so a
+ * gap clears it on roughly one turn in twelve before the once-a-day cap.
+ * Calibrate from the `[claim-gap] score` log line, not from this guess.
+ */
+export const CLAIM_GAP_THRESHOLD = 0.47;
+const CLAIM_GAP_LOOKBACK_DAYS = 30; // memory-consolidation auto-resolves at 30
+const CLAIM_GAP_TOPIC_COOLDOWN_DAYS = 7;
+const CLAIM_GAP_FETCH = 60; // open rows read before the cooldown filter
+const CLAIM_GAP_MAX_CANDIDATES = 24; // scored after it
+const CLAIM_GAP_KEY_PREFIX = "claim-gap:";
+/** Candidate embeddings in flight at once: a cold cache must not burst the provider chain. */
+const CLAIM_GAP_EMBED_CONCURRENCY = 4;
+/**
+ * Candidate vectors by row id, with the model that made them: every provider
+ * returns 1024 dims, so only the model id tells two embedding spaces apart.
+ * Without the cache every chat turn re-embeds the candidates (the provider memo lasts 45s).
+ */
+const gapVecCache = new Map<string, EmbeddingResult>();
+
+export interface ClaimGap {
+  id: string;
+  /** The ET calendar day the thinking engine recorded the row (thinking-engine.ts writes today()). */
+  date: string;
+  claim: string;
+  reality: string;
+  gap: string;
+  category: string;
+  createdAt: Date;
+  similarity: number;
+}
+
+/**
+ * The open claim-vs-record row that best matches this turn, or null. Read-only.
+ * Returns null when today's gap was already shown, and never offers a category
+ * raised in the last week. Never throws.
+ */
+export async function findRelevantClaimGap(ctx: { userMessage: string }): Promise<ClaimGap | null> {
+  if (!ctx.userMessage || ctx.userMessage.length < 8) return null;
+  try {
+    const rows = await prisma.contradiction.findMany({
+      where: {
+        resolved: false,
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - CLAIM_GAP_LOOKBACK_DAYS * 86400_000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: CLAIM_GAP_FETCH,
+      select: { id: true, date: true, claim: true, reality: true, gap: true, category: true, createdAt: true },
+    });
+    if (rows.length === 0) return null;
+
+    const recent = await prisma.brainMemory.findMany({
+      where: {
+        category: "contradiction_injection_log",
+        key: { startsWith: CLAIM_GAP_KEY_PREFIX },
+        createdAt: { gte: new Date(Date.now() - CLAIM_GAP_TOPIC_COOLDOWN_DAYS * 86400_000) },
+      },
+      select: { key: true, content: true },
+    });
+    if (recent.some((r) => r.key === `${CLAIM_GAP_KEY_PREFIX}${today()}`)) return null;
+    const raisedTopics = new Set(
+      recent.map((r) => {
+        try {
+          return String(JSON.parse(r.content).category ?? "");
+        } catch {
+          return "";
+        }
+      }),
+    );
+    // Cooldown BEFORE the cap, so recently raised topics cannot crowd out the rest.
+    const candidates = rows.filter((r) => !raisedTopics.has(r.category)).slice(0, CLAIM_GAP_MAX_CANDIDATES);
+    if (candidates.length === 0) return null;
+
+    // The chat route embedded this same text a moment ago, so this is a memo hit; it is
+    // called here (not passed in) because only this call reports the model.
+    const user = await getEmbeddingWithModel(ctx.userMessage).catch(
+      (): EmbeddingResult => ({ vec: [], model: null }),
+    );
+    if (user.vec.length === 0 || !user.model) return null;
+
+    const scoreOne = async (c: (typeof candidates)[number]) => {
+      let emb = gapVecCache.get(c.id);
+      if (!emb || emb.model !== user.model) {
+        emb = await getEmbeddingWithModel(`${c.claim}\n${c.reality}\n${c.gap}`).catch(
+          (): EmbeddingResult => ({ vec: [], model: null }),
+        );
+        if (emb.vec.length) {
+          if (gapVecCache.size >= 200) gapVecCache.clear();
+          gapVecCache.set(c.id, emb);
+        }
+      }
+      // Scores across two embedding spaces mean nothing: an unmatched candidate is not scored.
+      const sim = emb.vec.length && emb.model === user.model ? cosineSimilarity(user.vec, emb.vec) : NaN;
+      return { ...c, similarity: sim };
+    };
+    // Bounded: at most CLAIM_GAP_EMBED_CONCURRENCY provider calls at once (PR #3219 review).
+    const scored: Array<ClaimGap> = [];
+    for (let i = 0; i < candidates.length; i += CLAIM_GAP_EMBED_CONCURRENCY) {
+      scored.push(...(await Promise.all(candidates.slice(i, i + CLAIM_GAP_EMBED_CONCURRENCY).map(scoreOne))));
+    }
+    const best = scored
+      .filter((s) => Number.isFinite(s.similarity))
+      .sort((a, b) => b.similarity - a.similarity)[0];
+    const fired = !!best && best.similarity >= CLAIM_GAP_THRESHOLD;
+    console.info(
+      "[claim-gap] score",
+      JSON.stringify({
+        threshold: CLAIM_GAP_THRESHOLD,
+        bestSim: best ? Number(best.similarity.toFixed(4)) : null,
+        candidates: candidates.length,
+        fired,
+      }),
+    );
+    return fired ? best : null;
+  } catch (err) {
+    logError("brain.contradiction-injector", err, { fn: "findRelevantClaimGap" });
+    return null;
+  }
+}
+
+/**
+ * Claim today's single claim-vs-record slot for `hit`. The day's key is the
+ * claim, so two racing turns cannot both win. Any failed write returns false and
+ * the caller shows nothing: the once-a-day cap holds even when the database does not.
+ */
+export async function claimClaimGapDay(hit: ClaimGap, conversationId?: string | null): Promise<boolean> {
+  try {
+    // brain-memory-direct-write: the once-a-day claim row (a dedupe marker, not a belief); create must fail on a duplicate key, which remember()'s upsert never does.
+    await prisma.brainMemory.create({
+      data: {
+        category: "contradiction_injection_log",
+        key: `${CLAIM_GAP_KEY_PREFIX}${today()}`,
+        content: JSON.stringify({
+          contradictionId: hit.id,
+          category: hit.category,
+          similarity: hit.similarity,
+          conversationId: conversationId ?? null,
+        }),
+        confidence: 1,
+        source: "contradiction_injector",
+        expiresAt: new Date(Date.now() + (CLAIM_GAP_TOPIC_COOLDOWN_DAYS + 1) * 86400_000),
+      },
+    });
+    return true;
+  } catch (err) {
+    // P2002: another turn claimed today first. Anything else is logged; both fail closed.
+    if ((err as { code?: string })?.code !== "P2002") {
+      logError("brain.contradiction-injector", err, { fn: "claimClaimGapDay" });
+    }
+    return false;
+  }
+}
+
+/** Prompt block for a claim-vs-record hit. The row text is model-written, so it is fenced. */
+export function buildClaimGapBlock(hit: ClaimGap, todayEt: string = today()): string {
+  // Both days are ET calendar dates (the row's stored `date` and the shop clock's today), so a
+  // row written at 10 pm ET is not reported as recorded the next day.
+  const dayNum = (ymd: string) => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400_000;
+  const recorded = hit.date;
+  const ageDays = Math.max(0, Math.round(dayNum(todayEt) - dayNum(recorded)));
+  return [
+    "# CLAIM VS RECORD",
+    fenceContent(
+      "claimGap",
+      "memory_recall",
+      [
+        `Recorded ${recorded} (${ageDays} day${ageDays === 1 ? "" : "s"} ago); any "last N days" below counts back from then.`,
+        `He said (${hit.category}): "${hit.claim}"`,
+        `The record shows: "${hit.reality}"`,
+        `The gap: "${hit.gap}"`,
+      ].join("\n"),
+    ),
+    "",
+    "Answer his actual question first. Only if this gap bears on what he is asking, add ONE",
+    "closing line that names the gap in plain words, says how old the record is when it is",
+    "more than a few days, and asks one question: is the record wrong (something is not being",
+    "logged) or is the plan wrong? If he says the record is wrong, believe him and say what",
+    "would have to be logged to fix it. No lecture, and do not raise it again in this",
+    "conversation. Give it no [brain:...] citation tag (no page shows these records yet);",
+    "name the record's date instead.",
   ].join("\n");
 }
 

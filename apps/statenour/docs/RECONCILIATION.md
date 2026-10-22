@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-22 · insight engines audit + claim vs record in chat (branch `claude/statenour-insight-brain-32f96f`) · 1 statenour PR
+>
+> Nour asked for a more insightful Nick and a more organized brain. A read-only audit of 15 insight engines against prod (`docs/research/2026-10-22-insight-engines-audit.md`) found the gap is wiring, not detection; design in `docs/design/2026-10-22-what-you-are-not-seeing.md`.
+>
+> - **Claim vs record.** The thinking engine's open `contradictions` table rows ("he said X, the record shows Y": 76 open, 555 closed, every closure the 30-day auto-expiry) now reach Nick's chat as a CLAIM VS RECORD block when one matches the turn (cosine >= 0.47, measured on prod vectors, scored only within one embedding model). The lookup only reads; the day is claimed (the day's log key is the claim) only for a hit the turn uses, and a failed claim shows nothing. At most one a day, never a topic twice in a week (cooldown applied before the candidate cap), never on a private turn; the block carries the record's ET date and age. Candidate embeddings run 4 at a time. Counted in `contextBlocks.claimGap` and lights the chat's existing Contradictions badge; no citation tag (no page shows these rows yet). Kill switch `NICK_CLAIM_GAP=0` or the Settings panel's off.
+> - **Telemetry denylist.** `contradiction_injection_log` joins `TELEMETRY_CATEGORIES`, so the injector's dedupe rows are never embedded or recalled.
+>
+> **Flagged · NOT fixed (next PRs in the design)**
+> - The contradiction surfacer has written 0 BrainMemory rows ever; the chat Contradiction Alert and the contradiction nudge read that empty set. Likely cause (strong inference): its only input, `chat_importance`, joined the embedding denylist on 2026-09-22, so its neighbour search cannot find an eligible row.
+> - 208 of 224 live `blind_spot` rows are near-duplicates (August copies from before the key fix). They are recall-eligible but none was recalled after 2026-09-06, so no read-side filter was built; archiving them is optional cleanup and a prod write for Nour.
+> - 28 of 29 decision replays are past review, none ever reviewed. 7 of 11 nudge sources have no live input. `lib/brain/insight-meta.ts` is orphaned; the situation card has no page.
+
 > ## 2026-10-19 · bdnick prune wave 2V: Nour's visible cuts, Pinned Memory and Proof pages gone, Brain from 9 tabs to 3, 7 System tiles and 6 pages gone (branch `statenour/prune-bdnick-w2v`) · 1 statenour PR
 >
 > Not live until merged and deployed. After wave 1 Nour asked why bdnick.info still looked the same; he picked these cuts himself on 2026-10-19 (14-day visits: Proof 5, Brain 4 across all 9 tabs, the six System pages 0). Based on wave 3, which merges first.

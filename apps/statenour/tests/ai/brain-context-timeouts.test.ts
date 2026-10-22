@@ -31,6 +31,8 @@ const HOT_PATH_FETCHERS = [
   "recallMemoriesForQuery",
   "buildTruthGroundingBlock",
   "findRelevantContradictions",
+  "findRelevantClaimGap",
+  "claimClaimGapDay",
   "anticipateMemories",
 ];
 
