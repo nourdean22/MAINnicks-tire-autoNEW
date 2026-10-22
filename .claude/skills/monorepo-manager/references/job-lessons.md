@@ -55,4 +55,7 @@ Each line was a sentence of the old procedure; the step number is the new one.
 - Step 7: a lane that builds a database tool needs a real-engine sandbox receipt before any operator-facing step ([verify.md](verify.md)).
 - Step 13: prefer one push; run the DoD compiler and the app preflight on the INTEGRATION tip, never only on a lane branch (a lane
   branch cannot see requirements derived from client code).
+- Step 13: before `gh pr create`, run `node apps/nickstire/scripts/dod-compiler.mjs --base origin/main --enforce` on the tip and
+  write the receipt in your notes: `DoD compiler: N derived, all passed or deferred, exit 0`. `merge-gate.mjs` blocks a PR touching
+  `apps/nickstire/{drizzle,server/cron,server/services}/` with no `.completion/evidence.d/` fragment (PR 3240 went red on it).
 - Step 17: a `session-observer` proposal goes in `docs/skill-proposals.md`; proposals only, Nour approves skill and policy edits.

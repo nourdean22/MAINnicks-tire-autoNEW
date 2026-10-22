@@ -12,6 +12,7 @@
  *      until someone reads it), in this same process as the merge, so nothing can change in between;
  *      and the Codex review (assessCodex) has completed on that SHA with no unresolved finding and no unresolved Codex
  *      thread; with no Codex marker for the SHA it waits --codex-wait-minutes from the push, then merges with a WARN line;
+ *      and a PR touching apps/nickstire/{drizzle,server/cron,server/services}/ carries a DoD evidence fragment (missingDodFragment);
  *   3. merges with --match-head-commit, so GitHub itself refuses if the head moved after step 2;
  *   4. re-reads the PR and deletes the branch through the API ONLY once it reads MERGED. Deleting the head branch of an
  *      unmerged PR closes it (happened on #2948), and `--delete-branch` can fail locally after the remote merge succeeded.
@@ -182,6 +183,22 @@ export async function holdWhileBusy({ list, self, minutes, sleep, now, everyMs =
   }
 }
 
+// PR 3240 (2026-10-22) touched these with no evidence fragment and went red in CI on apps/nickstire/scripts/dod-compiler.mjs.
+const DOD_PATHS = ["apps/nickstire/drizzle/", "apps/nickstire/server/cron/", "apps/nickstire/server/services/"];
+const FRAGMENT_STATUSES = new Set(["added", "modified"]);
+
+/**
+ * The BLOCKED reason when the PR touches a DoD path (or renames a file out of one) and adds or modifies no evidence fragment
+ * (.completion/evidence.d/*.json, or the legacy .completion/evidence.json); null otherwise. `files` is the REST
+ * pulls/<n>/files list (filename, status, previous_filename). Paths only, never PR text. Does not run the compiler.
+ */
+export function missingDodFragment(files, branch) {
+  const touched = files.some((f) => [f.filename, f.previous_filename].some((p) => DOD_PATHS.some((d) => String(p ?? "").startsWith(d))));
+  const fragment = files.some((f) => FRAGMENT_STATUSES.has(f.status) && (/^\.completion\/evidence\.d\/[^/]+\.json$/.test(f.filename) || f.filename === ".completion/evidence.json"));
+  if (!touched || fragment) return null;
+  return `this PR touches a DoD path (${DOD_PATHS.join(", ")}) but adds no evidence fragment: add .completion/evidence.d/${String(branch).replace(/\//g, "-")}.json (see apps/nickstire/scripts/dod-compiler.mjs) and run the compiler before pushing`;
+}
+
 const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
 const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
@@ -249,6 +266,11 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
     const extra = [];
     if (!complete) extra.push(`more than ${COMMENT_PAGES * 50} comments and no Codex marker for the head among them: this gate cannot prove Codex never reported; check by hand`);
     if (threads.pageInfo?.hasNextPage) extra.push("more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand");
+    // Paginated REST, not `gh pr view --json files`, which stops at 100 files (PR 3185: 100 of 149). REST itself stops at 3000;
+    // per_page=100 is the documented maximum (the default is 30, so a 3000-file PR would take 100 requests instead of 30).
+    const files = json(["api", "--paginate", "--slurp", `repos/{owner}/{repo}/pulls/${pr}/files?per_page=100`]).flat();
+    const dod = files.length >= 3000 ? "3000 or more changed files: GitHub lists no more, so this gate cannot see every path; check the DoD fragment by hand" : missingDodFragment(files, before.headRefName);
+    if (dod) extra.push(dod);
     if (extra.length) codex = { ...codex, hard: [...codex.hard, ...extra] };
   } catch (e) {
     log(`ERROR before any merge call, nothing was merged: ${firstLine(e)}`);

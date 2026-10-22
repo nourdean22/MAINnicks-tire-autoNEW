@@ -38,6 +38,10 @@ const commentsArgv = (n, before) => ["api", "graphql", "-F", "owner={owner}", "-
 const COMMENTS = commentsArgv(3100).join(" ");
 const human = (i) => ({ author: { login: "nourdean22" }, body: `comment ${i}`, createdAt: "2026-10-18T10:00:00Z" });
 const humans = (n) => Array.from({ length: n }, (_, i) => human(i));
+const filesArgv = (n) => ["api", "--paginate", "--slurp", `repos/{owner}/{repo}/pulls/${n}/files?per_page=100`];
+const FILES = filesArgv(3100).join(" ");
+// REST pulls/<n>/files entry shape, read from PR 3185 on 2026-10-22 (filename, status, previous_filename).
+const file = (filename, status = "modified", previous_filename = null) => ({ filename, status, previous_filename });
 const LIST = ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,statusCheckRollup"];
 const MERGE = ["pr", "merge", "3100", "--squash", "--match-head-commit", SHA];
 const REPO = ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"];
@@ -61,7 +65,7 @@ const thread = (isResolved, login = CODEX, n = 1) => ({ isResolved, path: "apps/
 
 // startedAt defaults to the fixture PR's open time: CI starts on the push, and the Codex wait is timed from it.
 const run = (name, conclusion = "SUCCESS", status = "COMPLETED", startedAt = "2026-10-18T10:31:43Z") => ({ __typename: "CheckRun", name, status, conclusion, startedAt });
-const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", ...over });
+const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", files: [file("apps/nickstire/client/src/App.tsx")], ...over });
 
 /**
  * A gh with the real contract. `prs` is keyed by PR number; `fail` names calls that throw (list, view, codex, push,
@@ -107,6 +111,13 @@ function fakeGh({ prs = { 3100: view() }, events = {}, others = [], afterMerge =
       if (fail.event || events[evRun[1]] === undefined) return boom("run event");
       return `${events[evRun[1]]}\n`;
     }
+    // REST pages hold 100 files; --slurp wraps the pages in one outer array, as real gh does.
+    const filesOf = Object.keys(prs).find((n) => same(args, filesArgv(n)));
+    if (filesOf) {
+      if (fail.files) return boom("files");
+      const all = prs[filesOf].files ?? [];
+      return JSON.stringify(Array.from({ length: Math.max(1, Math.ceil(all.length / 100)) }, (_, i) => all.slice(i * 100, i * 100 + 100)));
+    }
     if (same(args, REPO)) return fail.repo ? boom("repo view") : "o/r\n";
     if (args[0] === "api" && args[1] === "-X" && args[2] === "DELETE" && args.length === 4) return fail.delete ? boom("delete") : "";
     throw new Error(`unexpected gh call: ${args.join(" ")}`);
@@ -125,14 +136,14 @@ const logsOf = async (g, over) => {
 test("control: a clean PR merges pinned to the verified head, then reads MERGED, then the branch is deleted; every call is the exact argv", async () => {
   const g = fakeGh();
   assert.equal(await mergeGate(opts(g)), 0);
-  assert.deepEqual(g.calls, [LIST.join(" "), ["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" "), MERGE.join(" "), "pr view 3100 --json state,mergeCommit", REPO.join(" "), "api -X DELETE repos/o/r/git/refs/heads/chore/some-branch"]);
+  assert.deepEqual(g.calls, [LIST.join(" "), ["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" "), FILES, MERGE.join(" "), "pr view 3100 --json state,mergeCommit", REPO.join(" "), "api -X DELETE repos/o/r/git/refs/heads/chore/some-branch"]);
 });
 
 test("without --merge it judges only: READY (Codex included), and no list, no merge, no delete", async () => {
   const g = fakeGh();
   const { code, logs } = await logsOf(g, { merge: false });
   assert.equal(code, 0);
-  assert.deepEqual(g.calls, [["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" ")]);
+  assert.deepEqual(g.calls, [["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" "), FILES]);
   assert.match(logs[0], /^READY: #3100/);
 });
 
@@ -671,4 +682,64 @@ test("mergeGate end to end: a workflow_dispatch pass does not hide the failed pu
   const u = await logsOf(unread);
   assert.equal(u.code, 2, "an event read that throws must keep both entries, not abort the gate or merge");
   assert.deepEqual(mergeCalls(unread), []);
+});
+
+// DoD fragment rule (job 2026-10-22-skill-proposals-applied, proposal P1): PR 3240 touched apps/nickstire/server/services and
+// drizzle with no .completion/evidence.d/ fragment and went red in CI on the DoD compiler (one extra run, one extra push).
+// The gate reads the PR's file list over paginated REST: `gh pr view --json files` stops at 100 (PR 3185: 100 of 149).
+const SVC = "apps/nickstire/server/services/reminders.ts";
+const FRAG = ".completion/evidence.d/chore-some-branch.json";
+const dod = (files) => gate.missingDodFragment(files, "chore/some-branch");
+
+test("DoD rule: a PR touching nickstire services with no evidence fragment is BLOCKED (exit 2), names the fragment to add, and makes no merge call", async () => {
+  const g = fakeGh({ prs: { 3100: view({ files: [file(SVC), file("apps/nickstire/client/src/App.tsx")] }) } });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 2, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => l.startsWith("BLOCKED: ") && l.includes(FRAG) && l.includes("dod-compiler.mjs")), JSON.stringify(logs));
+});
+
+test("DoD rule control: the same PR WITH a fragment merges; a client-only PR with no fragment merges", async () => {
+  for (const files of [[file(SVC), file(FRAG, "added")], [file("apps/nickstire/client/src/App.tsx")]]) {
+    const g = fakeGh({ prs: { 3100: view({ files }) } });
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 0, JSON.stringify({ files, logs }));
+    assert.equal(mergeCalls(g).length, 1);
+  }
+});
+
+test("DoD rule: each of the three trigger prefixes trips it, a rename OUT of one does too, and a lookalike path does not", () => {
+  for (const p of ["apps/nickstire/drizzle/0150_x.sql", "apps/nickstire/server/cron/reminders.ts", SVC]) assert.match(dod([file(p)]) ?? "", /evidence\.d/, p);
+  assert.match(dod([file("apps/nickstire/server/lib/x.ts", "renamed", SVC)]) ?? "", /evidence\.d/, "moved out of services");
+  for (const p of ["apps/nickstire/server/servicesX/a.ts", "apps/statenour/server/services/a.ts", "docs/apps/nickstire/drizzle/a.sql", "apps/nickstire/client/src/drizzle/a.ts"]) assert.equal(dod([file(p)]), null, p);
+});
+
+test("DoD rule: only an ADDED or MODIFIED .json under .completion/evidence.d/, or the legacy evidence.json, satisfies it", () => {
+  for (const f of [file(FRAG, "added"), file(FRAG, "modified"), file(".completion/evidence.json", "modified")]) assert.equal(dod([file(SVC), f]), null, JSON.stringify(f));
+  for (const f of [file(FRAG, "removed"), file(FRAG, "renamed", ".completion/evidence.d/old.json"), file(".completion/evidence.d/README.md", "added"), file("apps/nickstire/evidence.d/x.json", "added"), file("docs/.completion/evidence.d/x.json", "added")]) assert.match(dod([file(SVC), f]) ?? "", /evidence\.d/, JSON.stringify(f));
+});
+
+test("DoD rule: a fragment past the first 100 files is still seen (all REST pages are read), and a services file past 100 still trips it", async () => {
+  const filler = Array.from({ length: 120 }, (_, i) => file(`apps/nickstire/client/src/f${i}.tsx`));
+  const g = fakeGh({ prs: { 3100: view({ files: [...filler, file(SVC), file(FRAG, "added")] }) } });
+  assert.equal(await mergeGate(opts(g)), 0);
+  const blocked = fakeGh({ prs: { 3100: view({ files: [...filler, file(SVC)] }) } });
+  assert.equal(await mergeGate(opts(blocked)), 2);
+  assert.deepEqual(mergeCalls(blocked), []);
+});
+
+test("DoD rule: a gh failure reading the file list exits 5 and makes no merge call", async () => {
+  const g = fakeGh({ fail: { files: true } });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 5);
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /ERROR before any merge call.*gh files exploded/.test(l)), JSON.stringify(logs));
+});
+
+test("DoD rule: 3000 files (the REST cap) is BLOCKED as unprovable even with a fragment in view, never assumed clean", async () => {
+  const g = fakeGh({ prs: { 3100: view({ files: [file(FRAG, "added"), ...Array.from({ length: 2999 }, (_, i) => file(`apps/nickstire/client/src/f${i}.tsx`))] }) } });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 2, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /^BLOCKED: 3000 or more changed files/.test(l)), JSON.stringify(logs));
 });

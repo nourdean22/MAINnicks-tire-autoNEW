@@ -51,6 +51,12 @@ Before "done", for every writer the change introduces:
    fallback (no row) and a failed settle (row still EXECUTING) both told the
    model a durable transition had happened. Canaries: make the store write
    reject → the field is absent; make the store absent → the field is absent.
+5. **Before saying X is never read or never confirmed, grep the whole app
+   tree for the writer's counterpart (status, callback, webhook), not one
+   folder, and name the file that would have held it.** Witnessed
+   2026-10-22: "texts are never confirmed delivered" came from a grep of
+   `routes/` and `_core/` only; `routes/webhooks/smsGateway.ts` records
+   delivered and failed receipts for shop-line texts.
 
 ## Grep your own comment out
 

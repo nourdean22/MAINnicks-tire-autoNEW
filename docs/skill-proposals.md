@@ -2535,18 +2535,18 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** one extra CI run (about 45 runner-minutes) and one extra push.
 - **Proposed edit:** make step 13's compiler run a named receipt the manager writes before `gh pr create` ("DoD compiler: N derived, all passed or deferred, exit 0"), and have `merge-gate.mjs` refuse a PR whose branch touches `apps/nickstire/{drizzle,server/cron,server/services}` and carries no fragment under `.completion/evidence.d/`.
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied this PR (receipt in monorepo-manager references/job-lessons.md Step 13, since SKILL.md sits at its 120-line cap; gate in merge-gate.mjs missingDodFragment)
 
 ### P2 · statenour-verify (the TZ pin in vitest.setup.ts is dead)
 - **Trigger (witnessed):** `apps/statenour/vitest.setup.ts:1` sets `process.env.TZ = "America/New_York"` but `vitest.config.ts:27` lists only `tests/setup/auth-guard-mock.ts` in `setupFiles`, so the file never loads. A new due-date test passed locally (this laptop's clock is Eastern) and failed in CI (UTC) on PR #3239 at 707fc48ad.
 - **Cost:** one red CI run and one extra push.
 - **Proposed edit:** add to statenour-verify's Traps: "vitest.setup.ts is not wired; never assume a timezone in a test. Run any date test once with `TZ=UTC` from Git Bash before trusting a local green." Separately decide whether to wire the file (changes the whole suite's zone) or delete it.
 - **Confidence:** high (file state read; the CI failure reproduced it)
-- **Status:** proposed
+- **Status:** applied this PR
 
 ### P3 · assert-the-consumer ("no caller" claims need the whole tree)
 - **Trigger (witnessed):** the manager told Nour that text delivery is never confirmed after grepping `routes/` and `_core/` only; `server/sms.ts:1544` holds a Twilio delivery handler with no caller, and shop-line texts get delivered/failed receipts from `routes/webhooks/smsGateway.ts` (the lane the reminders use). Corrected within the hour.
 - **Cost:** one wrong claim reached the operator.
 - **Proposed edit:** add one line to assert-the-consumer: "Before saying X is never read or never confirmed, grep the whole app tree for the writer's counterpart (status, callback, webhook), not one folder; name the file that would have held it."
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied this PR
