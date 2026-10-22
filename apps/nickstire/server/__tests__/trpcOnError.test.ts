@@ -29,17 +29,17 @@ beforeEach(() => {
 });
 
 describe("onTrpcError", () => {
-  it("client-caused codes are logged but kept out of error telemetry and Sentry", () => {
-    for (const code of ["UNAUTHORIZED", "FORBIDDEN", "BAD_REQUEST", "NOT_FOUND", "PRECONDITION_FAILED", "TOO_MANY_REQUESTS", "PARSE_ERROR"] as const) {
+  it("client-caused codes (HTTP status under 500) are logged but kept out of error telemetry and Sentry", () => {
+    for (const code of ["UNAUTHORIZED", "FORBIDDEN", "BAD_REQUEST", "NOT_FOUND", "PRECONDITION_FAILED", "TOO_MANY_REQUESTS", "PARSE_ERROR", "CONFLICT"] as const) {
       call(code);
     }
     expect(h.record).not.toHaveBeenCalled();
-    expect(h.logs).toHaveLength(7);
+    expect(h.logs).toHaveLength(8);
     expect(h.logs[0]).toBe("[tRPC] /api/trpc/admin.secret: boom UNAUTHORIZED");
   });
 
   it("server faults are still recorded with route and request id", () => {
-    for (const code of ["INTERNAL_SERVER_ERROR", "TIMEOUT", "CONFLICT", "METHOD_NOT_SUPPORTED"] as const) call(code);
+    for (const code of ["INTERNAL_SERVER_ERROR", "NOT_IMPLEMENTED", "BAD_GATEWAY", "SERVICE_UNAVAILABLE"] as const) call(code);
     expect(h.record).toHaveBeenCalledTimes(4);
     expect(h.record.mock.calls[0][1]).toEqual({ route: "/api/trpc/admin.secret", requestId: "r1" });
     expect(h.logs).toHaveLength(4);

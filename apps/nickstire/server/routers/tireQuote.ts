@@ -26,6 +26,7 @@ import { db } from "../lib/db-helper";
 import { tireOrders } from "../../drizzle/schema";
 import { evaluateOrderPrice, generateQuoteNumber, getIdempotencyKey, isDuplicateKeyError } from "../lib/tire-order-guards";
 import { getTireMarkup } from "../lib/tireMarkup";
+import { dropPriceOutliers } from "../lib/tirePriceRanges";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:tireQuote");
@@ -149,16 +150,26 @@ async function feedTiresForSize(tireSize: string): Promise<FeedTire[] | null> {
   const cents = (cost: number) => Math.round((Math.ceil(cost * (1 + markup / 100) * 100) / 100) * 100);
   const sizeClean = tireSize.replace(/[/Rr\s-]/g, "");
   const { getCachedPrices } = await import("../services/dataPipelines");
+  // Price outliers are dropped exactly as publicSearch drops them, so a quote can only name a price the storefront shows.
   const cached = getCachedPrices(sizeClean);
-  if (cached) return cached.filter((t) => t.wholesaleCost > 0).map((t) => ({ brand: t.brand, model: t.model, priceCents: cents(t.wholesaleCost) }));
+  if (cached) {
+    return dropPriceOutliers(cached, "publicSearch:cache")
+      .filter((t) => t.wholesaleCost > 0)
+      .map((t) => ({ brand: t.brand, model: t.model, priceCents: cents(t.wholesaleCost) }));
+  }
   const { searchTiresBySize, pickWholesaleCost } = await import("../services/gatewayClient");
-  const raw = await searchTiresBySize(sizeClean.length >= 7 ? `${sizeClean.slice(0, 3)}/${sizeClean.slice(3, 5)}R${sizeClean.slice(5)}` : tireSize);
+  const sizeFormatted = sizeClean.length >= 7 ? `${sizeClean.slice(0, 3)}/${sizeClean.slice(3, 5)}R${sizeClean.slice(5)}` : tireSize;
+  const raw = await searchTiresBySize(sizeFormatted);
   if (!raw) return null;
-  return raw.flatMap((item) => {
-    const cost = pickWholesaleCost(item);
-    if (cost <= 0) return [];
-    return [{ brand: String(item.make || "").toUpperCase(), model: String(item.minor_name || "").replace(/^[A-Z]+\s*-\s*/, ""), priceCents: cents(cost) }];
-  });
+  const rows = raw.map((item) => ({
+    wholesaleCost: pickWholesaleCost(item),
+    brand: String(item.make || ""),
+    model: String(item.minor_name || ""),
+    size: String(item.invent_size || sizeFormatted),
+  }));
+  return dropPriceOutliers(rows, "publicSearch:live")
+    .filter((t) => t.wholesaleCost > 0)
+    .map((t) => ({ brand: t.brand.toUpperCase(), model: t.model.replace(/^[A-Z]+\s*-\s*/, ""), priceCents: cents(t.wholesaleCost) }));
 }
 
 async function storeAndText(input: QuoteInput): Promise<QuoteResult> {

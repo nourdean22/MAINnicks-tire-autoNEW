@@ -12,6 +12,7 @@
  * shadow run that counts and writes nothing), and each category's text carrying Nour's approval by
  * name in SERVICE_REMINDER_PLAN below.
  */
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 import { invoices, serviceReminders } from "../../drizzle/schema";
@@ -414,18 +415,28 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       r.awaitingApproval += group.length; // the combined wording is not approved: send nothing, touch nothing
       continue;
     }
+    const ids = group.map((g) => g.id);
     try {
-      // Claim each row by compare-and-swap; only the rows this run won are texted and marked.
-      const claimed: typeof group = [];
-      for (const g of group) {
-        const claim = await db
-          .update(serviceReminders)
-          .set({ status: "sent", sentAt: new Date() })
-          .where(and(eq(serviceReminders.id, g.id), eq(serviceReminders.status, "scheduled")));
-        if (((claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 1) claimed.push(g);
+      // Claim the WHOLE group in one compare-and-swap, so the cron and the admin button can never
+      // split one customer's group and both text them. The token in twilioSid marks this run's rows
+      // until the send settles; it is how a partial claim hands back only what it took.
+      const token = `claim-${randomUUID()}`;
+      const claim = await db
+        .update(serviceReminders)
+        .set({ status: "sent", sentAt: new Date(), twilioSid: token })
+        .where(and(eq(serviceReminders.phone, d.phone), inArray(serviceReminders.id, ids), eq(serviceReminders.status, "scheduled")));
+      const won = (claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0;
+      if (won !== group.length) {
+        if (won > 0) {
+          await db
+            .update(serviceReminders)
+            .set({ status: "scheduled", sentAt: null, twilioSid: null })
+            .where(and(inArray(serviceReminders.id, ids), eq(serviceReminders.twilioSid, token), eq(serviceReminders.status, "sent")));
+        }
+        r.deferred += group.length; // another run holds some or all of them; the next run decides
+        continue;
       }
-      if (claimed.length === 0) continue; // another run claimed them
-      const ids = claimed.map((c) => c.id);
+      const claimed = group;
 
       const text = claimed.length === 1
         ? approvedReminderText(claimed[0].serviceType)!
@@ -446,6 +457,7 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
           .set({
             status: smsRefusalIsPermanent(result.error) ? "cancelled" : "scheduled",
             sentAt: null,
+            twilioSid: null,
             errorMessage: String(result.error ?? "send failed").slice(0, 500),
           })
           .where(and(inArray(serviceReminders.id, ids), eq(serviceReminders.status, "sent")));
@@ -453,15 +465,16 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
         r.heldOut++;
         await db
           .update(serviceReminders)
-          .set({ status: "cancelled", sentAt: null, errorMessage: "no-text holdout (contactExperiment)" })
+          .set({ status: "cancelled", sentAt: null, twilioSid: null, errorMessage: "no-text holdout (contactExperiment)" })
           .where(and(inArray(serviceReminders.id, ids), eq(serviceReminders.status, "sent")));
       } else {
         r[outcome]++;
-        if (result.sid) await db.update(serviceReminders).set({ twilioSid: result.sid }).where(inArray(serviceReminders.id, ids));
+        // Always overwrite the claim token: with the provider sid, or NULL when there is none.
+        await db.update(serviceReminders).set({ twilioSid: result.sid ?? null }).where(inArray(serviceReminders.id, ids));
       }
     } catch (err) {
       r.failed++;
-      log.warn("service reminder failed", { ids: group.map((g) => g.id), error: err instanceof Error ? err.message : String(err) });
+      log.warn("service reminder failed", { ids, error: err instanceof Error ? err.message : String(err) });
     }
   }
   log.info("service reminders sent", { ...r });

@@ -346,6 +346,25 @@ describe("tireQuote.text", () => {
     expect(h.sms).toHaveLength(0);
   });
 
+  it("a feed row the storefront hides as a price outlier cannot be quoted (cache and live alike)", async () => {
+    // Three $100-cost tires and one at $30 cost: under 0.4 of the size median, so publicSearch drops it.
+    const rows = [
+      { brand: "Michelin", model: "Defender 2", wholesaleCost: 100 },
+      { brand: "Michelin", model: "CrossClimate 2", wholesaleCost: 100 },
+      { brand: "Michelin", model: "Pilot Sport 4", wholesaleCost: 100 },
+      { brand: "Michelin", model: "Budget Tread", wholesaleCost: 30 },
+    ];
+    const outlier = { ...QUOTE, tireModel: "Budget Tread", pricePerTireCents: 6000 };
+    h.feed = rows.map((r) => ({ ...r, size: "215/60R16", localQty: 4, fetchedAt: Date.now() }));
+    expect(await caller().text(outlier)).toEqual({ ok: false, reason: "price" });
+    h.feed = null;
+    h.live = rows.map((r) => ({ make: r.brand, minor_name: r.model, cost: r.wholesaleCost, invent_size: "215/60R16" }));
+    expect(await caller().text({ ...outlier, tireBrand: "MICHELIN" })).toEqual({ ok: false, reason: "price" });
+    expect(h.sms).toHaveLength(0);
+    // Control: a row the storefront shows still quotes.
+    expect(await caller().text({ ...QUOTE, tireBrand: "MICHELIN", pricePerTireCents: 20000 })).toMatchObject({ ok: true, sms: "sent" });
+  });
+
   it("the row and the text carry the feed's own brand and model, not the client's spelling", async () => {
     await caller().text({ ...QUOTE, tireBrand: "MICHELIN", tireModel: "defender 2" });
     expect(h.tables.tire_orders[0]).toMatchObject({ tireBrand: "Michelin", tireModel: "Defender 2", pricePerTire: 15300 });

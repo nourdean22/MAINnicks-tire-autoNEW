@@ -224,15 +224,16 @@ describe("sendDueServiceReminders", () => {
     expect(updates).toEqual([]);
   });
 
-  it("claims the row with a compare-and-swap on id AND status before sending", async () => {
+  it("claims the row with a compare-and-swap on phone, id AND status before sending", async () => {
     (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
     h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
     const r = await sendDueServiceReminders(fakeDb());
     const claim = updates[0];
     expect(claim.set.status).toBe("sent");
+    expect(String(claim.set.twilioSid)).toMatch(/^claim-/);
     const q = new MySqlDialect().sqlToQuery(claim.where as SQL);
-    expect(q.sql).toMatch(/`id` = \?.*`status` = \?/);
-    expect(q.params).toEqual([7, "scheduled"]);
+    expect(q.sql).toMatch(/`phone` = \?.*`id` in \(\?\).*`status` = \?/);
+    expect(q.params).toEqual(["2165550105", 7, "scheduled"]);
     expect(h.sendSms).toHaveBeenCalledWith("2165550105", expect.stringContaining("tire"), expect.objectContaining({ variantKey: "service_reminder_tires", skipPersist: true }));
     expect(r.sent).toBe(1);
   });
@@ -270,15 +271,51 @@ describe("sendDueServiceReminders", () => {
       { id: 7, phone: "2165550105", serviceType: "brakes", nextDueDate: new Date(now - 20 * 86_400_000) },
       { id: 9, phone: "2165550105", serviceType: "tires", nextDueDate: new Date(now - 2 * 86_400_000) },
     ] as never;
+    claimRows = 2; // the one claim statement took both rows
     h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
     const r = await sendDueServiceReminders(fakeDb());
     expect(h.sendSms).toHaveBeenCalledTimes(1);
     expect(h.sendSms).toHaveBeenCalledWith("2165550105", expect.stringContaining("Your brake and tire work with us is due for a look"), expect.objectContaining({ variantKey: "service_reminder_combined" }));
     expect(r).toMatchObject({ sent: 1, deferred: 0, failed: 0 });
+    // The whole group is claimed in ONE statement, so two senders can never split it between them.
     const claimed = updates.filter((u) => u.set.status === "sent").map((u) => new MySqlDialect().sqlToQuery(u.where as SQL).params);
-    expect(claimed).toEqual([[7, "scheduled"], [9, "scheduled"]]);
+    expect(claimed).toEqual([["2165550105", 7, 9, "scheduled"]]);
     const sid = updates.find((u) => u.set.twilioSid === "SM1")!;
     expect(new MySqlDialect().sqlToQuery(sid.where as SQL).params).toEqual([7, 9]);
+  });
+
+  it("two senders race for one customer's group: the one that claims every row texts, the other texts nothing", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+    h.due = [
+      { id: 7, phone: "2165550105", serviceType: "tires" },
+      { id: 9, phone: "2165550105", serviceType: "brakes" },
+    ];
+    claimRows = 2; // cron sender wins both rows
+    await sendDueServiceReminders(fakeDb());
+    claimRows = 0; // admin sender read the same rows a moment earlier and loses them all
+    await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it("a partial claim (the other sender took part of the group) releases only its own rows and texts nothing", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+    h.due = [
+      { id: 7, phone: "2165550105", serviceType: "tires" },
+      { id: 9, phone: "2165550105", serviceType: "brakes" },
+    ];
+    claimRows = 1;
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).not.toHaveBeenCalled();
+    expect(r.deferred).toBe(2);
+    const token = updates[0].set.twilioSid;
+    const release = updates.find((u) => u.set.status === "scheduled")!;
+    expect(release.set).toEqual({ status: "scheduled", sentAt: null, twilioSid: null });
+    // Pinned to this run's claim token, so it can never hand back a row the other sender holds.
+    expect(new MySqlDialect().sqlToQuery(release.where as SQL).params).toEqual([7, 9, token, "sent"]);
   });
 
   it("the combined text waits for approval: nothing sent, rows untouched, counted as awaiting approval", async () => {
