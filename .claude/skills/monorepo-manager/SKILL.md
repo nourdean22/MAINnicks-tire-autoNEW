@@ -17,7 +17,8 @@ skill sets who does what; when work spans lanes or sessions, this skill leads.
 Two replays tie every step to a real defect: the 2026-10-15 guard job (a lane's canaries green while the real hook let a
 DROP through: [references/replay-2026-10-15.md](references/replay-2026-10-15.md)) and the 2026-10-22 relay day (six
 manager mistakes, four now caught by hooks: [references/replay-2026-10-22.md](references/replay-2026-10-22.md)). The
-narrower skills to invoke at each step, by exact name: [references/skill-map.md](references/skill-map.md).
+narrower skills to invoke at each step, by exact name: [references/skill-map.md](references/skill-map.md); the seven subagent
+rules (inherit the stance, brief like a colleague, verify don't trust, scope tight): [references/subagent-policy.md](references/subagent-policy.md).
 
 ## Every turn (the turn contract; details and the relay check: [references/relay.md](references/relay.md))
 
