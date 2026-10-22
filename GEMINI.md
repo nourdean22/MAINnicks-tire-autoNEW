@@ -1,11 +1,12 @@
 # GEMINI.md — NOURCITY monorepo (Gemini CLI adapter)
 
 Canonical agent policy is [`AGENTS.md`](./AGENTS.md), imported below via the memory import
-processor. `NOUR-COMMAND.md` is imported too as the default execution framework. Before editing
+processor. Its short form, `docs/agent-os/NOUR-RUNTIME-KERNEL.md`, is imported too (open the full
+`NOUR-COMMAND.md` before a non-trivial task). Before editing
 inside an app, read the nearest `apps/<app>/AGENTS.md`; root policy maps the route.
 
 @AGENTS.md
-@NOUR-COMMAND.md
+@docs/agent-os/NOUR-RUNTIME-KERNEL.md
 @.agents/core/CORE.md
 
 ## Gemini-specific

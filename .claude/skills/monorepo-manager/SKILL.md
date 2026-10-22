@@ -17,6 +17,7 @@ Nesting: Claude Code allows subagents to spawn subagents, but this design is del
 Why steps 7-10 and 12 exist: in the 2026-10-15 guard job every lane canary was green while the real hook let a DROP
 through at array element 201. A lane's green proves the lane's imagination; your own probes test the adversary's.
 Every upgrade is tied to a defect that job really had: [references/replay-2026-10-15.md](references/replay-2026-10-15.md).
+The seven subagent rules (inherit the stance, brief like a colleague, verify don't trust, scope tight) in full: [references/subagent-policy.md](references/subagent-policy.md).
 
 ## Modes (say which one you are in)
 
