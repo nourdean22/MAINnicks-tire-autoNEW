@@ -274,7 +274,11 @@ export async function phonesToDefer(db: Db, phones: readonly string[]): Promise<
       AND estimate_date >= NOW() - INTERVAL 30 DAY
       AND RIGHT(REGEXP_REPLACE(customer_phone, '[^0-9]', ''), 10) IN (${list})
   `);
-  for (const row of [...(texted as Array<{ p: string }>), ...(declined as Array<{ p: string }>)]) out.add(row.p);
+  const [reminded] = await db.execute(sql`
+    SELECT DISTINCT phone AS p FROM service_reminders
+    WHERE status = 'sent' AND sentAt >= NOW() - INTERVAL 7 DAY AND phone IN (${list})
+  `);
+  for (const row of [...(texted as Array<{ p: string }>), ...(declined as Array<{ p: string }>), ...(reminded as Array<{ p: string }>)]) out.add(row.p);
   return out;
 }
 
@@ -341,6 +345,7 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
     WHERE status = 'sent' AND sentAt >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE
   `);
   let room = DAILY_SEND_CAP - Number((usedRows as Array<{ n?: unknown }>)[0]?.n ?? 0);
+  const textedThisRun = new Set<string>(); // one reminder per customer per run, whatever the category
 
   for (const d of sendable) {
     if (d.nextDueDate && d.nextDueDate.getTime() < Date.now() - LATE_GRACE_MS) {
@@ -351,7 +356,7 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
         .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
       continue;
     }
-    if (defer.has(d.phone)) {
+    if (defer.has(d.phone) || textedThisRun.has(d.phone)) {
       r.deferred++;
       continue;
     }
@@ -373,8 +378,10 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       if (!result.queued && !result.heldOut) await logOutboundSms(d.phone, text, result, variantKey);
 
       const outcome = smsOutcome(result);
+      if (outcome !== "failed") textedThisRun.add(d.phone);
       if (outcome === "failed") {
         r.failed++;
+        room++; // nothing was delivered, so a number that cannot take texts does not eat the day's slots
         // A definite failure was not delivered: give the row back so the next run retries it.
         await db
           .update(serviceReminders)

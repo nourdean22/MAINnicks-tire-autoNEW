@@ -105,6 +105,7 @@ describe("phonesWithReminderThisFortnight", () => {
 
 describe("sendDueServiceReminders", () => {
   const original = SERVICE_REMINDER_PLAN.tires.approvedBy;
+  const originalBrakes = SERVICE_REMINDER_PLAN.brakes.approvedBy;
   let updates: Array<{ set: Record<string, unknown>; where: unknown }>;
   let claimRows: number;
 
@@ -131,6 +132,7 @@ describe("sendDueServiceReminders", () => {
   });
   afterEach(() => {
     SERVICE_REMINDER_PLAN.tires.approvedBy = original;
+    SERVICE_REMINDER_PLAN.brakes.approvedBy = originalBrakes;
   });
 
   it("does not send a category whose text is not approved", async () => {
@@ -176,6 +178,47 @@ describe("sendDueServiceReminders", () => {
     expect(h.sendSms).not.toHaveBeenCalled();
     expect(updates[0].set.status).toBe("cancelled");
     expect(r.tooLate).toBe(1);
+  });
+
+  it("one customer gets one reminder a run: a second category due the same day is deferred", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
+    h.due = [
+      { id: 7, phone: "2165550105", serviceType: "tires" },
+      { id: 9, phone: "2165550105", serviceType: "brakes" },
+    ];
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).toHaveBeenCalledTimes(1);
+    expect(r.deferred).toBe(1);
+  });
+
+  it("a reminder already sent in the last 7 days defers the next one", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+    const db = {
+      ...fakeDb(),
+      // Only the "reminded this week" read names the phone; every other read is empty.
+      execute: async (q: unknown) => {
+        const s = new MySqlDialect().sqlToQuery(q as SQL).sql;
+        return /FROM service_reminders\s+WHERE status = 'sent' AND sentAt >= NOW\(\) - INTERVAL 7 DAY/.test(s) ? [[{ p: "2165550105" }], []] : [[], []];
+      },
+    };
+    const r = await sendDueServiceReminders(db);
+    expect(h.sendSms).not.toHaveBeenCalled();
+    expect(r.deferred).toBe(1);
+  });
+
+  it("a number that cannot take texts does not use up the day's slots", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    h.due = Array.from({ length: 41 }, (_, i) => ({ id: 100 + i, phone: `21655${String(i).padStart(5, "0")}`, serviceType: "tires" }));
+    h.sendSms.mockImplementation(async (phone: string) =>
+      phone === "2165500040" ? { success: true, sid: "SM41" } : { success: false, error: "landline" },
+    );
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).toHaveBeenCalledTimes(41);
+    expect(r.sent).toBe(1);
+    expect(r.failed).toBe(40);
   });
 
   it("a definite send failure gives the row back for the next run", async () => {
