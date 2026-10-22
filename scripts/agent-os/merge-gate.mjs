@@ -266,8 +266,9 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
     const extra = [];
     if (!complete) extra.push(`more than ${COMMENT_PAGES * 50} comments and no Codex marker for the head among them: this gate cannot prove Codex never reported; check by hand`);
     if (threads.pageInfo?.hasNextPage) extra.push("more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand");
-    // Paginated REST, not `gh pr view --json files`, which stops at 100 files (PR 3185: 100 of 149). REST itself stops at 3000.
-    const files = json(["api", "--paginate", "--slurp", `repos/{owner}/{repo}/pulls/${pr}/files`]).flat();
+    // Paginated REST, not `gh pr view --json files`, which stops at 100 files (PR 3185: 100 of 149). REST itself stops at 3000;
+    // per_page=100 is the documented maximum (the default is 30, so a 3000-file PR would take 100 requests instead of 30).
+    const files = json(["api", "--paginate", "--slurp", `repos/{owner}/{repo}/pulls/${pr}/files?per_page=100`]).flat();
     const dod = files.length >= 3000 ? "3000 or more changed files: GitHub lists no more, so this gate cannot see every path; check the DoD fragment by hand" : missingDodFragment(files, before.headRefName);
     if (dod) extra.push(dod);
     if (extra.length) codex = { ...codex, hard: [...codex.hard, ...extra] };

@@ -38,7 +38,7 @@ const commentsArgv = (n, before) => ["api", "graphql", "-F", "owner={owner}", "-
 const COMMENTS = commentsArgv(3100).join(" ");
 const human = (i) => ({ author: { login: "nourdean22" }, body: `comment ${i}`, createdAt: "2026-10-18T10:00:00Z" });
 const humans = (n) => Array.from({ length: n }, (_, i) => human(i));
-const filesArgv = (n) => ["api", "--paginate", "--slurp", `repos/{owner}/{repo}/pulls/${n}/files`];
+const filesArgv = (n) => ["api", "--paginate", "--slurp", `repos/{owner}/{repo}/pulls/${n}/files?per_page=100`];
 const FILES = filesArgv(3100).join(" ");
 // REST pulls/<n>/files entry shape, read from PR 3185 on 2026-10-22 (filename, status, previous_filename).
 const file = (filename, status = "modified", previous_filename = null) => ({ filename, status, previous_filename });
