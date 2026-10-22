@@ -146,6 +146,9 @@ describe("lot.officeDigest", () => {
     expect(prompt).not.toContain("SECRET-VERBATIM");
     expect(params.temperature).toBe(0);
     expect(params.outputSchema?.schema).toBeTruthy();
+    // The prod reasoning model spends its thinking out of max_tokens; the 4096 default came back
+    // empty in a 2026-10-22 probe (see conversationFacts.ts EXTRACTION_MAX_TOKENS).
+    expect(params.maxTokens).toBeGreaterThanOrEqual(16_384);
   });
 
   it("excludes selftest captures and buckets in SQL", async () => {

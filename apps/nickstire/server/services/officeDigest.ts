@@ -32,6 +32,9 @@ const CURRENT_HOUR_REFRESH_MS = 10 * 60_000;
 const FAILED_RETRY_MS = 5 * 60_000;
 /** A busy Ollama queue fails the hour fast instead of holding the admin read open. */
 const SLOT_WAIT_MS = 20_000;
+/** The prod reasoning model spends its thinking out of max_tokens (4096 came back empty in a
+ *  2026-10-22 probe); same budget as conversationFacts.ts EXTRACTION_MAX_TOKENS. */
+const DIGEST_MAX_TOKENS = 16_384;
 const MEMO_KEEP_MS = 13 * 3_600_000;
 
 export type DigestEpisode = { episodeId: string; gist: string | null; facts: Array<{ kind: string; value: string }> };
@@ -137,6 +140,7 @@ async function generate(hourStartMs: number, episodes: DigestEpisode[]): Promise
       ],
       outputSchema: OUTPUT_SCHEMA,
       temperature: 0,
+      maxTokens: DIGEST_MAX_TOKENS,
       timeoutMs: 45_000,
       // Priority stays the default background P2; only the wait for a slot is capped.
       slotWaitMs: SLOT_WAIT_MS,

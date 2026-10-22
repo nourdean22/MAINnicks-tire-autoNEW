@@ -40,6 +40,14 @@ const log = createLogger("routes:conversationEpisodes");
 
 /** How long fact extraction waits for the camera's description before going without it. */
 const VISUAL_CONTEXT_WAIT_MS = 15_000;
+/**
+ * Extraction gets what is LEFT of this budget, counted from the moment the post arrived, so the
+ * visual wait comes out of it and the reply still beats the producer's 120 s post timeout for an
+ * episode with frames (camera-bridge/vision/officewake.py:714; Codex on #3229). A frame-less post
+ * waits only 30 s on the producer side; Express keeps working after that client gives up, so a
+ * long extraction is still stored, and only the producer's receipt counts the post as failed.
+ */
+const EXTRACTION_ROUTE_BUDGET_MS = 110_000;
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -112,6 +120,7 @@ const episodeSchema = z.object({
 
 export function registerConversationEpisodeRoute(app: Express): void {
   app.post("/api/conversation-episodes", async (req: Request, res: Response) => {
+    const receivedAt = Date.now();
     const key = process.env.CAMERA_INGEST_KEY || process.env.STATENOUR_SYNC_KEY || "";
     const provided = (req.headers["x-sync-key"] as string) || "";
     if (!key || !safeCompare(key, provided)) {
@@ -180,9 +189,9 @@ export function registerConversationEpisodeRoute(app: Express): void {
         })()
       : Promise.resolve(null);
     // Extraction waits for the camera context at most VISUAL_CONTEXT_WAIT_MS. Vision's own worst
-    // case is 40 s per lane x 2 lanes; serialising that ahead of a 60 s extraction would outrun
-    // the producer's 120 s post timeout. Past the wait, facts are extracted without context and
-    // the description is still awaited and stored.
+    // case is 40 s per lane x 2 lanes; serialising that ahead of the extraction would outrun
+    // the producer's 120 s post timeout (the wait comes out of EXTRACTION_ROUTE_BUDGET_MS). Past
+    // the wait, facts are extracted without context and the description is still awaited and stored.
     let waitTimer: ReturnType<typeof setTimeout> | undefined;
     const early = await Promise.race([
       visualPromise,
@@ -204,6 +213,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
         totalSeconds: e.totalSeconds,
         visualContext,
         location: conversationSourceLabel(e.source),
+        timeoutMs: Math.max(1, receivedAt + EXTRACTION_ROUTE_BUDGET_MS - Date.now()),
       }),
       visualPromise,
     ]);
