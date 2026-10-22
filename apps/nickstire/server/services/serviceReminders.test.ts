@@ -37,10 +37,13 @@ const job = (phone: string, day: string, desc: string | null): ClosedJob => ({
 
 describe("planServiceReminders", () => {
   it("plans from each customer's latest closed job, one reminder per category", () => {
-    const plan = planServiceReminders([
-      job("(216) 555-0101", "2026-03-02", "4 tires mount and balance; front brake pads"),
-      job("2165550101", "2026-03-02", "tire rotation"),
-    ]);
+    const plan = planServiceReminders(
+      [
+        job("(216) 555-0101", "2026-03-02", "4 tires mount and balance; front brake pads"),
+        job("2165550101", "2026-03-02", "tire rotation"),
+      ],
+      new Date("2026-03-03T15:00:00Z"),
+    );
     expect(plan.map((p) => p.serviceType).sort()).toEqual(["brakes", "tires"]);
     expect(plan.every((p) => p.phone === "2165550101")).toBe(true);
     expect(plan.find((p) => p.serviceType === "tires")!.nextDueDate.toISOString().slice(0, 10)).toBe("2026-09-02");
@@ -53,6 +56,14 @@ describe("planServiceReminders", () => {
       job("2165550102", "2026-04-01", null),
     ]);
     expect(plan).toEqual([]);
+  });
+
+  it("skips a reminder more than 30 days past due, so no text claims the wrong time", () => {
+    const now = new Date("2026-10-22T15:00:00Z");
+    // Tires on 2025-10-20 were due 2026-04-20: six months late, the "about 6 months" text would be false.
+    expect(planServiceReminders([job("2165550107", "2025-10-20", "tire rotation")], now)).toEqual([]);
+    // Tires on 2026-04-10 are due 2026-10-10: twelve days late, still true.
+    expect(planServiceReminders([job("2165550107", "2026-04-10", "tire rotation")], now)).toHaveLength(1);
   });
 
   it("plans nothing for blank descriptions, uncovered categories or unusable phones", () => {
@@ -147,6 +158,24 @@ describe("sendDueServiceReminders", () => {
     claimRows = 0;
     await sendDueServiceReminders(fakeDb());
     expect(h.sendSms).not.toHaveBeenCalled();
+  });
+
+  it("stops at the daily cap: with the shop day's quota used, nothing is claimed or sent", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    const db = { ...fakeDb(), execute: async () => [[{ n: 40 }], []] };
+    const r = await sendDueServiceReminders(db);
+    expect(h.sendSms).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+    expect(r.capped).toBe(1);
+  });
+
+  it("cancels a row more than 30 days past due instead of sending it", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    h.due = [{ id: 8, phone: "2165550108", serviceType: "tires", nextDueDate: new Date(Date.now() - 45 * 86_400_000) } as never];
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).not.toHaveBeenCalled();
+    expect(updates[0].set.status).toBe("cancelled");
+    expect(r.tooLate).toBe(1);
   });
 
   it("a definite send failure gives the row back for the next run", async () => {

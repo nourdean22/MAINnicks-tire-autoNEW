@@ -33,37 +33,37 @@ export const SERVICE_REMINDER_PLAN = {
     months: 6,
     approvedBy: null,
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about 6 months since your tire work with us. A rotation and tread check now helps the tires wear evenly. Walk in any day, first come, first served. ${p}`,
+      `Nick's Tire & Auto here. It's been about 6 months since your tire work with us. A rotation now helps all four wear evenly, so none of them gets to be the favorite. Walk in any day, first come, first served. ${p}`,
   },
   brakes: {
     months: 12,
     approvedBy: null,
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your brake work with us, a good time to have the pads and rotors checked. Walk in any day, first come, first served. ${p}`,
+      `Nick's Tire & Auto here. It's been about a year since your brake work with us, a good time to check the pads and rotors. Brakes are the one part of a car that should stay boring. Walk in any day, first come, first served. ${p}`,
   },
   oil: {
     months: 4,
     approvedBy: null,
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about 4 months since your oil change with us, so the next one may be coming due. Walk in any day, no appointment needed. ${p}`,
+      `Nick's Tire & Auto here. It's been about 4 months since your oil change with us, so the next one may be coming due. Fresh oil costs less than a new engine and causes less drama. Walk in any day, no appointment needed. ${p}`,
   },
   cooling: {
     months: 12,
     approvedBy: null,
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since we worked on your cooling system. A quick look at the coolant and hoses can catch a leak early. Walk in any day, first come, first served. ${p}`,
+      `Nick's Tire & Auto here. It's been about a year since we worked on your cooling system. A quick look at the coolant and hoses catches a leak early. Steam is great for coffee, not so much for engines. Walk in any day, first come, first served. ${p}`,
   },
   electrical: {
     months: 12,
     approvedBy: null,
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your battery or electrical work with us. A battery and charging test takes a few minutes. Walk in any day, first come, first served. ${p}`,
+      `Nick's Tire & Auto here. It's been about a year since your battery or electrical work with us. A battery and charging test takes a few minutes, and batteries rarely give notice before they retire. Walk in any day, first come, first served. ${p}`,
   },
   suspension: {
     months: 12,
     approvedBy: null,
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your suspension work with us. It's worth having the steering and alignment checked. Walk in any day, first come, first served. ${p}`,
+      `Nick's Tire & Auto here. It's been about a year since your suspension work with us. It's worth having the steering and alignment checked, so the car goes where you point it. Walk in any day, first come, first served. ${p}`,
   },
 } satisfies Record<string, ReminderPlanEntry>;
 
@@ -114,8 +114,17 @@ function addMonths(d: Date, months: number): Date {
   return out;
 }
 
+/**
+ * A reminder more than this far past due is never sent: its "about 6 months" text would be false,
+ * and the generic retention texts already cover that customer.
+ */
+const LATE_GRACE_MS = 30 * 86_400_000;
+
+/** Shop-wide cap on reminder texts per shop day, like declined recovery's carrier-safe batches. */
+const DAILY_SEND_CAP = 40;
+
 /** Pure: one reminder per customer x category, from that customer's latest closed-job day only. */
-export function planServiceReminders(jobs: readonly ClosedJob[]): PlannedReminder[] {
+export function planServiceReminders(jobs: readonly ClosedJob[], now: Date = new Date()): PlannedReminder[] {
   const latestDay = new Map<string, string>();
   for (const j of jobs) {
     const p = phone10(j.customerPhone);
@@ -130,13 +139,15 @@ export function planServiceReminders(jobs: readonly ClosedJob[]): PlannedReminde
     if (!p || dayKey(j.invoiceDate) !== latestDay.get(p) || !j.serviceDescription) continue;
     for (const cat of categorizeService(j.serviceDescription)) {
       if (!isReminderCategory(cat) || out.has(`${p}|${cat}`)) continue;
+      const nextDueDate = addMonths(j.invoiceDate, SERVICE_REMINDER_PLAN[cat].months);
+      if (nextDueDate.getTime() < now.getTime() - LATE_GRACE_MS) continue;
       out.set(`${p}|${cat}`, {
         phone: p,
         serviceType: cat,
         customerName: (j.customerName ?? "").trim() || "Customer",
         vehicleInfo: j.vehicleInfo,
         lastServiceDate: j.invoiceDate,
-        nextDueDate: addMonths(j.invoiceDate, SERVICE_REMINDER_PLAN[cat].months),
+        nextDueDate,
       });
     }
   }
@@ -300,6 +311,8 @@ export interface SendResult {
   failed: number;
   awaitingApproval: number;
   deferred: number;
+  tooLate: number;
+  capped: number;
 }
 
 /**
@@ -312,19 +325,38 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
   const { smsOutcome } = await import("../lib/smsOutcome");
   const { getDueReminders } = await import("../db");
 
-  const due: Array<{ id: number; phone: string; serviceType: string }> = await getDueReminders();
+  const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
 
-  const r: SendResult = { due: due.length, sent: 0, queued: 0, uncertain: 0, heldOut: 0, failed: 0, awaitingApproval: 0, deferred: 0 };
+  const due: Array<{ id: number; phone: string; serviceType: string; nextDueDate?: Date }> = await getDueReminders();
+
+  const r: SendResult = { due: due.length, sent: 0, queued: 0, uncertain: 0, heldOut: 0, failed: 0, awaitingApproval: 0, deferred: 0, tooLate: 0, capped: 0 };
   const sendable = due.filter((d) => {
     if (approvedReminderText(d.serviceType)) return true;
     r.awaitingApproval++;
     return false;
   });
   const defer = await phonesToDefer(db, [...new Set(sendable.map((d) => d.phone))]);
+  const [usedRows] = await db.execute(sql`
+    SELECT COUNT(*) AS n FROM service_reminders
+    WHERE status = 'sent' AND sentAt >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE
+  `);
+  let room = DAILY_SEND_CAP - Number((usedRows as Array<{ n?: unknown }>)[0]?.n ?? 0);
 
   for (const d of sendable) {
+    if (d.nextDueDate && d.nextDueDate.getTime() < Date.now() - LATE_GRACE_MS) {
+      r.tooLate++;
+      await db
+        .update(serviceReminders)
+        .set({ status: "cancelled", errorMessage: "more than 30 days past due; not sent" })
+        .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
+      continue;
+    }
     if (defer.has(d.phone)) {
       r.deferred++;
+      continue;
+    }
+    if (room <= 0) {
+      r.capped++;
       continue;
     }
     try {
@@ -333,6 +365,7 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
         .set({ status: "sent", sentAt: new Date() })
         .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
       if (((claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) !== 1) continue; // another run claimed it
+      room--;
 
       const text = approvedReminderText(d.serviceType)!;
       const variantKey = `service_reminder_${d.serviceType}`;
