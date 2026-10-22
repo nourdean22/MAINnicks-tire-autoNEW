@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/reminder-texts-approved",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "2f8e28b5-7f60-4f2c-a7af-cf38e85e6155",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\reels-batch-ops-1688b1",
+  "claimedBy": "upgrade-scout reminders approval",
+  "claimedAt": "2026-10-22T15:09:28.507Z",
+  "expiresAt": "2026-10-23T03:09:28.507Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
