@@ -18,12 +18,15 @@ vi.mock("../db", () => ({ getDb: vi.fn(), getDueReminders: vi.fn(async () => h.d
 vi.mock("../sms", () => ({ sendSms: h.sendSms }));
 vi.mock("./smsInstrumentation", () => ({ logOutboundSms: h.logOutboundSms }));
 
+import { invoices } from "../../drizzle/schema";
 import {
+  COMBINED_REMINDER,
   SERVICE_REMINDER_PLAN,
   approvedReminderText,
   phonesWithReminderThisFortnight,
   planServiceReminders,
   sendDueServiceReminders,
+  syncServiceReminders,
   type ClosedJob,
 } from "./serviceReminders";
 
@@ -121,6 +124,57 @@ describe("SERVICE_REMINDER_PLAN", () => {
   });
 });
 
+describe("COMBINED_REMINDER", () => {
+  it("carries Nour's approval and his wording, with the categories in the customer's words (2026-10-22)", () => {
+    expect(COMBINED_REMINDER.approvedBy).toBe("Nour 2026-10-22");
+    expect(COMBINED_REMINDER.text(["suspension", "electrical", "brakes"], "(216) 862-0005")).toBe(
+      "Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. Your brake, suspension and battery work with us is due for a look, all around the same time, so one visit covers it. Walk in any day, first come, first served. Let me know please, thanks. (216) 862-0005",
+    );
+    expect(COMBINED_REMINDER.text(["oil", "tires"], "P")).toContain("Your tire and oil change work with us");
+    const all = COMBINED_REMINDER.text(Object.keys(SERVICE_REMINDER_PLAN) as never, "(216) 862-0005");
+    expect(all).toContain("Your brake, tire, suspension, battery, cooling and oil change work");
+    expect(all).not.toMatch(/\$|—/);
+    expect(all.length).toBeLessThanOrEqual(360); // three SMS segments with the STOP footer, like the single texts
+  });
+});
+
+describe("syncServiceReminders", () => {
+  it("a second sync that read the table before the first one wrote neither throws nor stores a second row", async () => {
+    const stored: Array<Record<string, unknown>> = [];
+    const key = (r: Record<string, unknown>) => `${r.phone}|${r.serviceType}|${(r.lastServiceDate as Date).getTime()}`;
+    const jobs = [job("2165550111", "2026-10-01", "front brake pads")];
+    const db = {
+      // Both runs read an empty service_reminders table (they overlapped), the unique key decides.
+      select: () => ({ from: (t: unknown) => (t === invoices ? { where: async () => jobs } : Promise.resolve([])) }),
+      // The unique key: a duplicate raises ER_DUP_ENTRY unless the insert is INSERT IGNORE, which skips it.
+      insert: () => {
+        let ignore = false;
+        const api = {
+          ignore: () => { ignore = true; return api; },
+          values: async (rows: Array<Record<string, unknown>>) => {
+            let affectedRows = 0;
+            for (const row of rows) {
+              if (stored.some((s) => key(s) === key(row))) {
+                if (ignore) continue;
+                throw Object.assign(new Error("Duplicate entry for key 'uq_service_reminders_phone_type_date'"), { code: "ER_DUP_ENTRY", errno: 1062 });
+              }
+              stored.push(row);
+              affectedRows++;
+            }
+            return [{ affectedRows }];
+          },
+        };
+        return api;
+      },
+    };
+    const first = await syncServiceReminders(db, true);
+    const second = await syncServiceReminders(db, true);
+    expect(first.inserted).toBe(1);
+    expect(second.inserted).toBe(0);
+    expect(stored).toHaveLength(1);
+  });
+});
+
 describe("phonesWithReminderThisFortnight", () => {
   it("never reads the database or silences retention while the lane is not armed", async () => {
     const db = new Proxy({}, { get: () => { throw new Error("db touched"); } });
@@ -131,6 +185,7 @@ describe("phonesWithReminderThisFortnight", () => {
 describe("sendDueServiceReminders", () => {
   const original = SERVICE_REMINDER_PLAN.tires.approvedBy;
   const originalBrakes = SERVICE_REMINDER_PLAN.brakes.approvedBy;
+  const originalCombined = COMBINED_REMINDER.approvedBy;
   let updates: Array<{ set: Record<string, unknown>; where: unknown }>;
   let claimRows: number;
 
@@ -158,6 +213,7 @@ describe("sendDueServiceReminders", () => {
   afterEach(() => {
     SERVICE_REMINDER_PLAN.tires.approvedBy = original;
     SERVICE_REMINDER_PLAN.brakes.approvedBy = originalBrakes;
+    COMBINED_REMINDER.approvedBy = originalCombined;
   });
 
   it("does not send a category whose text is not approved", async () => {
@@ -206,17 +262,37 @@ describe("sendDueServiceReminders", () => {
     expect(r.tooLate).toBe(1);
   });
 
-  it("one customer gets one reminder a run: a second category due the same day is deferred", async () => {
+  it("several reminders due for one customer within 30 days: one combined text, every row marked sent with its sid", async () => {
     (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
     (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
+    const now = Date.now();
+    h.due = [
+      { id: 7, phone: "2165550105", serviceType: "brakes", nextDueDate: new Date(now - 20 * 86_400_000) },
+      { id: 9, phone: "2165550105", serviceType: "tires", nextDueDate: new Date(now - 2 * 86_400_000) },
+    ] as never;
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).toHaveBeenCalledTimes(1);
+    expect(h.sendSms).toHaveBeenCalledWith("2165550105", expect.stringContaining("Your brake and tire work with us is due for a look"), expect.objectContaining({ variantKey: "service_reminder_combined" }));
+    expect(r).toMatchObject({ sent: 1, deferred: 0, failed: 0 });
+    const claimed = updates.filter((u) => u.set.status === "sent").map((u) => new MySqlDialect().sqlToQuery(u.where as SQL).params);
+    expect(claimed).toEqual([[7, "scheduled"], [9, "scheduled"]]);
+    const sid = updates.find((u) => u.set.twilioSid === "SM1")!;
+    expect(new MySqlDialect().sqlToQuery(sid.where as SQL).params).toEqual([7, 9]);
+  });
+
+  it("the combined text waits for approval: nothing sent, rows untouched, counted as awaiting approval", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
+    (COMBINED_REMINDER as { approvedBy: string | null }).approvedBy = null;
     h.due = [
       { id: 7, phone: "2165550105", serviceType: "tires" },
       { id: 9, phone: "2165550105", serviceType: "brakes" },
     ];
-    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
     const r = await sendDueServiceReminders(fakeDb());
-    expect(h.sendSms).toHaveBeenCalledTimes(1);
-    expect(r.deferred).toBe(1);
+    expect(h.sendSms).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+    expect(r.awaitingApproval).toBe(2);
   });
 
   it("a reminder already sent in the last 7 days defers the next one", async () => {
@@ -235,18 +311,19 @@ describe("sendDueServiceReminders", () => {
     expect(r.deferred).toBe(1);
   });
 
-  it("the held-back second reminder is not dropped: it stays scheduled and sends once the 7 days pass", async () => {
+  it("two reminders due 45 days apart are not combined: the second is held back and sends once the 7 days pass", async () => {
     (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
     (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
     h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
     const dueDay = new Date("2026-10-22T15:00:00Z");
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
-      // Run 1, the day both come due: tires goes out, brakes is held back and left untouched.
+      // Run 1: tires goes out, brakes (due 45 days later) is held back and left untouched.
       vi.setSystemTime(dueDay);
+      const brakesDue = new Date(dueDay.getTime() + 45 * 86_400_000);
       h.due = [
         { id: 7, phone: "2165550105", serviceType: "tires", nextDueDate: dueDay },
-        { id: 9, phone: "2165550105", serviceType: "brakes", nextDueDate: dueDay },
+        { id: 9, phone: "2165550105", serviceType: "brakes", nextDueDate: brakesDue },
       ] as never;
       const first = await sendDueServiceReminders(fakeDb());
       expect(first.sent).toBe(1);
@@ -257,7 +334,7 @@ describe("sendDueServiceReminders", () => {
       updates = [];
       h.sendSms.mockClear();
       vi.setSystemTime(new Date(dueDay.getTime() + 8 * 86_400_000));
-      h.due = [{ id: 9, phone: "2165550105", serviceType: "brakes", nextDueDate: dueDay }] as never;
+      h.due = [{ id: 9, phone: "2165550105", serviceType: "brakes", nextDueDate: brakesDue }] as never;
       const second = await sendDueServiceReminders(fakeDb());
       expect(second.sent).toBe(1);
       expect(second.tooLate).toBe(0);
