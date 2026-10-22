@@ -817,7 +817,9 @@ export async function buildBrainContext(
       qualitative: !!qBlock,
       beliefs: !!bBlock,
       nudges: !!nBlock,
-      contradictions: !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock,
+      // A claim-vs-record gap is a contradiction too: it lights the chat's existing
+      // Contradictions badge (the client knows no claimGap key) and claimGap counts it alone.
+      contradictions: !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock || !!claimGapBlock,
       claimGap: !!claimGapBlock,
       concerns: !!concernsBlock,
       anticipated: !!anticipatedBlock,

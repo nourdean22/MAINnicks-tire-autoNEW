@@ -314,6 +314,8 @@ const CLAIM_GAP_TOPIC_COOLDOWN_DAYS = 7;
 const CLAIM_GAP_FETCH = 60; // open rows read before the cooldown filter
 const CLAIM_GAP_MAX_CANDIDATES = 24; // scored after it
 const CLAIM_GAP_KEY_PREFIX = "claim-gap:";
+/** Candidate embeddings in flight at once: a cold cache must not burst the provider chain. */
+const CLAIM_GAP_EMBED_CONCURRENCY = 4;
 /**
  * Candidate vectors by row id, with the model that made them: every provider
  * returns 1024 dims, so only the model id tells two embedding spaces apart.
@@ -323,6 +325,8 @@ const gapVecCache = new Map<string, EmbeddingResult>();
 
 export interface ClaimGap {
   id: string;
+  /** The ET calendar day the thinking engine recorded the row (thinking-engine.ts writes today()). */
+  date: string;
   claim: string;
   reality: string;
   gap: string;
@@ -347,7 +351,7 @@ export async function findRelevantClaimGap(ctx: { userMessage: string }): Promis
       },
       orderBy: { createdAt: "desc" },
       take: CLAIM_GAP_FETCH,
-      select: { id: true, claim: true, reality: true, gap: true, category: true, createdAt: true },
+      select: { id: true, date: true, claim: true, reality: true, gap: true, category: true, createdAt: true },
     });
     if (rows.length === 0) return null;
 
@@ -380,23 +384,26 @@ export async function findRelevantClaimGap(ctx: { userMessage: string }): Promis
     );
     if (user.vec.length === 0 || !user.model) return null;
 
-    const scored = await Promise.all(
-      candidates.map(async (c) => {
-        let emb = gapVecCache.get(c.id);
-        if (!emb || emb.model !== user.model) {
-          emb = await getEmbeddingWithModel(`${c.claim}\n${c.reality}\n${c.gap}`).catch(
-            (): EmbeddingResult => ({ vec: [], model: null }),
-          );
-          if (emb.vec.length) {
-            if (gapVecCache.size >= 200) gapVecCache.clear();
-            gapVecCache.set(c.id, emb);
-          }
+    const scoreOne = async (c: (typeof candidates)[number]) => {
+      let emb = gapVecCache.get(c.id);
+      if (!emb || emb.model !== user.model) {
+        emb = await getEmbeddingWithModel(`${c.claim}\n${c.reality}\n${c.gap}`).catch(
+          (): EmbeddingResult => ({ vec: [], model: null }),
+        );
+        if (emb.vec.length) {
+          if (gapVecCache.size >= 200) gapVecCache.clear();
+          gapVecCache.set(c.id, emb);
         }
-        // Scores across two embedding spaces mean nothing: an unmatched candidate is not scored.
-        const sim = emb.vec.length && emb.model === user.model ? cosineSimilarity(user.vec, emb.vec) : NaN;
-        return { ...c, similarity: sim };
-      }),
-    );
+      }
+      // Scores across two embedding spaces mean nothing: an unmatched candidate is not scored.
+      const sim = emb.vec.length && emb.model === user.model ? cosineSimilarity(user.vec, emb.vec) : NaN;
+      return { ...c, similarity: sim };
+    };
+    // Bounded: at most CLAIM_GAP_EMBED_CONCURRENCY provider calls at once (PR #3219 review).
+    const scored: Array<ClaimGap> = [];
+    for (let i = 0; i < candidates.length; i += CLAIM_GAP_EMBED_CONCURRENCY) {
+      scored.push(...(await Promise.all(candidates.slice(i, i + CLAIM_GAP_EMBED_CONCURRENCY).map(scoreOne))));
+    }
     const best = scored
       .filter((s) => Number.isFinite(s.similarity))
       .sort((a, b) => b.similarity - a.similarity)[0];
@@ -451,9 +458,12 @@ export async function claimClaimGapDay(hit: ClaimGap, conversationId?: string | 
 }
 
 /** Prompt block for a claim-vs-record hit. The row text is model-written, so it is fenced. */
-export function buildClaimGapBlock(hit: ClaimGap, now: Date = new Date()): string {
-  const ageDays = Math.max(0, Math.floor((now.getTime() - hit.createdAt.getTime()) / 86400_000));
-  const recorded = hit.createdAt.toISOString().slice(0, 10);
+export function buildClaimGapBlock(hit: ClaimGap, todayEt: string = today()): string {
+  // Both days are ET calendar dates (the row's stored `date` and the shop clock's today), so a
+  // row written at 10 pm ET is not reported as recorded the next day.
+  const dayNum = (ymd: string) => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400_000;
+  const recorded = hit.date;
+  const ageDays = Math.max(0, Math.round(dayNum(todayEt) - dayNum(recorded)));
   return [
     "# CLAIM VS RECORD",
     fenceContent(
@@ -472,7 +482,8 @@ export function buildClaimGapBlock(hit: ClaimGap, now: Date = new Date()): strin
     "more than a few days, and asks one question: is the record wrong (something is not being",
     "logged) or is the plan wrong? If he says the record is wrong, believe him and say what",
     "would have to be logged to fix it. No lecture, and do not raise it again in this",
-    `conversation. If you raise it, cite it as [brain:contradiction:${ageDays}d].`,
+    "conversation. Give it no [brain:...] citation tag (no page shows these records yet);",
+    "name the record's date instead.",
   ].join("\n");
 }
 

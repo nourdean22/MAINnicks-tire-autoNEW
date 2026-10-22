@@ -36,6 +36,7 @@ let seq = 0;
 function row(overrides: Record<string, unknown> = {}) {
   return {
     id: `c${++seq}`,
+    date: "2026-10-20",
     claim: "I work 40 hours a week on the shop floor",
     reality: "The time log shows 22 hours this week",
     gap: "Stated 40 hours, logged 22",
@@ -155,6 +156,27 @@ describe("findRelevantClaimGap", () => {
   });
 });
 
+describe("findRelevantClaimGap · cold cache", () => {
+  it("keeps at most 4 candidate embeddings in flight at once", async () => {
+    mock(prisma.contradiction.findMany).mockResolvedValue(Array.from({ length: 20 }, () => row()));
+    let inFlight = 0;
+    let peak = 0;
+    mock(getEmbeddingWithModel).mockImplementation(async (text: string) => {
+      if (text === USER) return ALIGNED;
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 2));
+      inFlight--;
+      return ORTHOGONAL;
+    });
+
+    await findRelevantClaimGap({ userMessage: USER });
+
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThanOrEqual(4);
+  });
+});
+
 describe("claimClaimGapDay", () => {
   const hit = { ...row(), similarity: 0.6 } as never;
 
@@ -179,13 +201,21 @@ describe("claimClaimGapDay", () => {
 
 describe("buildClaimGapBlock", () => {
   it("fences the row text, dates the record and tells Nick to answer first and ask record-or-plan", () => {
-    const block = buildClaimGapBlock({ ...row(), similarity: 0.6 } as never, new Date("2026-10-31T12:00:00Z"));
+    const block = buildClaimGapBlock({ ...row(), similarity: 0.6 } as never, "2026-10-30");
     expect(block).toContain("# CLAIM VS RECORD");
     expect(block).toContain("22 hours");
-    expect(block).toContain("Recorded 2026-10-21 (10 days ago)");
-    expect(block).toContain("[brain:contradiction:10d]");
+    expect(block).toContain("Recorded 2026-10-20 (10 days ago)");
+    expect(block).not.toMatch(/\[brain:contradiction/);
     expect(block).toMatch(/answer .*first/i);
     expect(block).toMatch(/record is wrong|record wrong/i);
     expect(block).toMatch(/<[^>]*memory_recall/);
+  });
+});
+
+describe("buildClaimGapBlock · the record date is the ET day it was written", () => {
+  it("a row written at 10 pm ET (03:00 UTC next day) keeps its ET date", () => {
+    const lateNight = { ...row({ date: "2026-10-21", createdAt: new Date("2026-10-22T03:00:00Z") }), similarity: 0.6 };
+    const block = buildClaimGapBlock(lateNight as never, "2026-10-22");
+    expect(block).toContain("Recorded 2026-10-21 (1 day ago)");
   });
 });

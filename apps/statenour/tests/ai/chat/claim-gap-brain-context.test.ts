@@ -14,6 +14,7 @@ vi.mock("@/lib/prisma", () => {
   const WRITE = new Set(["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]);
   const gapRow = {
     id: "gap_1",
+    date: "2026-10-21",
     claim: "I close out every estimate within a day",
     reality: "Nine estimates are older than a week with no follow-up",
     gap: "Stated next-day follow-up, record shows week-old estimates",
@@ -126,6 +127,8 @@ describe("buildBrainContext · claim vs record", () => {
     expect(out.systemPromptAddendum).toContain("# CLAIM VS RECORD");
     expect(out.systemPromptAddendum).toContain("Nine estimates are older than a week");
     expect(out.contextBlocksFired.claimGap).toBe(true);
+    // Lights the chat's existing Contradictions badge: the client has no claimGap key.
+    expect(out.contextBlocksFired.contradictions).toBe(true);
   }, 30_000);
 
   it("CONTROL · NICK_CLAIM_GAP=0 leaves it out", async () => {
