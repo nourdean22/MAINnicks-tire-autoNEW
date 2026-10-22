@@ -257,6 +257,56 @@ describe("textOnDutyManager reports a queued or uncertain send as pending (revie
   });
 });
 
+describe("name ask before the shop text (2026-10-22)", () => {
+  const NEEDED = "Not sent yet. Ask once: 'Who should we expect?' Then call bookSlot again with their first name. If they won't say, call bookSlot again with name 'not given'.";
+
+  it("coming now, no name, no record → name_needed: no text, no claim, no row", async () => {
+    const res = await (await loadCaller()).bookSlot({ service: "brake check", callId: "call_n10", callerNumber: CALLER });
+    expect(res).toMatchObject({ success: false, reference: "WALKIN-INFO", status: "name_needed", message: NEEDED });
+    expect(h.textOnDutyManager).not.toHaveBeenCalled();
+    expect(h.claimTries).toBe(0);
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+  });
+
+  it("tow, no name, no record → name_needed too", async () => {
+    const res = await (await loadCaller()).bookSlot({ ...TOW, name: undefined, callId: "call_n11" });
+    expect(res.status).toBe("name_needed");
+    expect(h.textOnDutyManager).not.toHaveBeenCalled();
+    expect(h.recordExpectedArrival).not.toHaveBeenCalled();
+  });
+
+  it("coming now, no name, record on file → no ask; the text carries the record name", async () => {
+    h.customerRows = [{ firstName: "Raymond", lastName: "Smith" }];
+    const res = await (await loadCaller()).bookSlot({ service: "brake check", callId: "call_n12", callerNumber: CALLER });
+    expect(res.status).toBe("shop_texted");
+    expect(bodyOf()).toContain("Raymond S. - (216) 555-0123");
+  });
+
+  it("coming now, given name → no ask; the text carries it", async () => {
+    const res = await (await loadCaller()).bookSlot({ name: "Dana", service: "brake check", callId: "call_n13", callerNumber: CALLER });
+    expect(res.status).toBe("shop_texted");
+    expect(bodyOf()).toContain("Dana - (216) 555-0123");
+  });
+
+  it.each(["not given", "  Not Given ", "NOT GIVEN"])("sentinel %j → the text goes out with 'Name not given', never the literal as a name", async (name) => {
+    const res = await (await loadCaller()).bookSlot({ name, service: "brake check", callId: "call_n14", callerNumber: CALLER });
+    expect(res.status).toBe("shop_texted");
+    expect(bodyOf().split("\n")[1]).toBe("Name not given - (216) 555-0123");
+  });
+
+  it("sentinel on a fallback files the row with no name, not the literal", async () => {
+    h.textOnDutyManager.mockResolvedValue({ status: "failed", reason: "gateway down" });
+    await (await loadCaller()).bookSlot({ name: "not given", service: "brake check", callId: "call_n15", callerNumber: CALLER });
+    expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
+    expect(h.recordExpectedArrival.mock.calls[0][0].name ?? null).toBeNull();
+  });
+
+  it("later day, no name, no record → unchanged: name_incomplete", async () => {
+    const res = await (await loadCaller()).bookSlot({ service: "brake check", preferredDay: "tomorrow", callerNumber: CALLER });
+    expect(res.status).toBe("name_incomplete");
+  });
+});
+
 describe("Codex re-review: one callback event per call", () => {
   // The emit is fire-and-forget behind a cold dynamic import, so wait on observed
   // state (claim attempts, emits), never on a fixed number of ticks.
@@ -302,7 +352,8 @@ describe("Codex re-review: one callback event per call", () => {
 describe("Codex review on PR 3212", () => {
   it("P1: a fallback from the heads-up never re-asks the name; the row files with no name", async () => {
     h.textOnDutyManager.mockResolvedValue({ status: "pending", reason: "queued" });
-    const res = await (await loadCaller()).bookSlot({ service: "brake check", callId: "call_c1", callerNumber: CALLER });
+    // 2026-10-22: with no name and no record the heads-up asks first; "not given" is the post-ask call.
+    const res = await (await loadCaller()).bookSlot({ name: "not given", service: "brake check", callId: "call_c1", callerNumber: CALLER });
     expect(res.status).not.toBe("name_incomplete");
     expect(res.success).toBe(true);
     expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
@@ -508,8 +559,12 @@ describe("the name never blocks the heads-up", () => {
     expect(bodyOf()).toContain("Raymond S. - (216) 555-0123");
   });
 
-  it("empty name, no record → 'Name not given', and nothing re-asks", async () => {
-    const res = await (await loadCaller()).bookSlot({ ...TOW, name: "" });
+  // 2026-10-22: an empty name with no record now asks once (name_needed); the
+  // sentinel "not given" is how the model says they wouldn't tell.
+  it("empty name, no record → asks once; 'not given' then sends 'Name not given'", async () => {
+    const caller = await loadCaller();
+    expect((await caller.bookSlot({ ...TOW, name: "" })).status).toBe("name_needed");
+    const res = await caller.bookSlot({ ...TOW, name: "not given" });
     expect(res.status).toBe("shop_texted");
     expect(bodyOf()).toContain("Name not given - (216) 555-0123");
   });
