@@ -34,10 +34,11 @@ function runtimeStage(text: string): string {
     .join("\n");
 }
 
-/** True when an active `pip install ... pillow==13.0.0` runs after the moviepy install. */
+/** True when an active `pip install ... pillow==13.0.0` runs after the LAST moviepy install. */
 function overrideAfterMoviepy(runtime: string): boolean {
-  const moviepyAt = runtime.indexOf("moviepy==");
-  const pillowAt = runtime.search(/pip install[^\n]*pillow==13\.0\.0/);
+  const moviepyAt = runtime.lastIndexOf("moviepy==");
+  const overrides = [...runtime.matchAll(/pip install[^\n]*pillow==13\.0\.0/g)];
+  const pillowAt = overrides.length ? overrides[overrides.length - 1].index : -1;
   return moviepyAt >= 0 && pillowAt > moviepyAt;
 }
 
@@ -63,9 +64,11 @@ describe("statenour runtime image Pillow override", () => {
     const commented = "RUN pip install moviepy==2.2.1\n# RUN pip install pillow==13.0.0";
     const before = "RUN pip install pillow==13.0.0\nRUN pip install moviepy==2.2.1";
     const inline = "RUN pip install moviepy==2.2.1 \\\n && true # pip install pillow==13.0.0";
+    const reinstalled = `${active}\nRUN pip install moviepy==2.2.1`;
     expect(overrideAfterMoviepy(stage(active))).toBe(true);
     expect(overrideAfterMoviepy(stage(commented))).toBe(false);
     expect(overrideAfterMoviepy(stage(before))).toBe(false);
     expect(overrideAfterMoviepy(stage(inline))).toBe(false);
+    expect(overrideAfterMoviepy(stage(reinstalled))).toBe(false);
   });
 });
