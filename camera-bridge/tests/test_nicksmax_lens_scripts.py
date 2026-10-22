@@ -47,9 +47,10 @@ TODAY_CROP_ARGS = [
 
 
 def _run(script: Path, *args: str) -> subprocess.CompletedProcess:
+    # cwd = the script's folder: a stray relative write lands where a test can see it.
     return subprocess.run(
         [_pwsh(), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script), *args],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, timeout=60, cwd=str(script.parent),
     )
 
 
@@ -90,6 +91,38 @@ def test_an_unknown_lens_is_refused_rather_than_cropping_something():
     r = _run(CROP, "-Lens", "left", "-PrintArgs")
     assert r.returncode != 0
     assert "crop=" not in r.stdout
+    # Name the refusal: a script that dies for any other reason (a missing drive) also exits non-zero.
+    assert "does not belong to the set" in r.stdout + r.stderr, r.stdout + r.stderr
+
+
+def _absent_drive() -> str:
+    for letter in "QZYXWVU":
+        if not Path(f"{letter}:\\").exists():
+            return letter
+    raise AssertionError("no unused drive letter to stand in for a host without C:")
+
+
+def _on_a_host_without_c(script: Path, tmp_path: Path) -> Path:
+    """The script with every C:\\ path moved to a drive that does not exist. Linux CI has no C:
+    drive, and PowerShell's Join-Path throws on a missing drive, so this is the CI host on
+    Windows. -PrintArgs and the refusal path must survive it."""
+    copy = tmp_path / script.name
+    copy.write_text(script.read_text(encoding="utf-8").replace("C:\\", f"{_absent_drive()}:\\"), encoding="utf-8")
+    return copy
+
+
+def test_print_args_and_refusals_never_touch_the_hosts_drives(tmp_path: Path):
+    assert _lines(_run(_on_a_host_without_c(CROP, tmp_path), "-PrintArgs")) == TODAY_CROP_ARGS
+    inside = _on_a_host_without_c(INSIDE, tmp_path)
+    r = _run(inside, "-PrintArgs")
+    assert r.returncode == 2 and "REFUSE inside edge" in r.stdout, r.stdout + r.stderr
+    cal = tmp_path / "calib-inside.json"
+    cal.write_text("{}", encoding="utf-8")
+    args = _lines(_run(inside, "-SourceUrl", "rtsp://127.0.0.1:8556/inside", "-Calibration", str(cal), "-PrintArgs"))
+    assert args[args.index("--mode") + 1] == "shadow"
+    # On Linux a "C:\...\x.log" path is a legal FILE NAME in the working directory; the refusal's
+    # log line must not create one there.
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted([CROP.name, INSIDE.name, cal.name])
 
 
 def test_the_status_log_names_the_lens_and_keeps_todays_words_for_the_default():

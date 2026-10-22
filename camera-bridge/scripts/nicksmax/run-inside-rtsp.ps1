@@ -19,13 +19,15 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = "C:\Users\nourd\NicksMax\repos\NOURCITY\camera-bridge"
-$python = Join-Path $root ".venv\Scripts\python.exe"
-$config = Join-Path $root "data\config-nicksmax-inside.yaml"
-$model = Join-Path $root "ov_models\vehicle-detection-0200\FP16\vehicle-detection-0200.xml"
-$statusLog = Join-Path $root "logs\edge-NicksMaxInside.status.log"
-$outLog = Join-Path $root "logs\edge-NicksMaxInside.stdout.log"
-$errLog = Join-Path $root "logs\edge-NicksMaxInside.stderr.log"
-$wrapperLockPath = Join-Path $root "data\.nicksmax-inside.lock"
+# String paths, not Join-Path: Join-Path throws on a host with no C: drive (Linux CI), before
+# -PrintArgs and the refusal can run.
+$python = "$root\.venv\Scripts\python.exe"
+$config = "$root\data\config-nicksmax-inside.yaml"
+$model = "$root\ov_models\vehicle-detection-0200\FP16\vehicle-detection-0200.xml"
+$statusLog = "$root\logs\edge-NicksMaxInside.status.log"
+$outLog = "$root\logs\edge-NicksMaxInside.stdout.log"
+$errLog = "$root\logs\edge-NicksMaxInside.stderr.log"
+$wrapperLockPath = "$root\data\.nicksmax-inside.lock"
 
 # The supervisor's writer, verbatim: Windows PowerShell 5.1's Add-Content and Set-Content fail
 # beside any open reader.
@@ -41,8 +43,13 @@ function Write-SharedFile([string]$path, [string]$text, [switch]$Append) {
   }
 }
 
+# Only into an existing logs folder: on a host without it the path is a bare file name in the cwd.
 function Log([string]$m) {
-  try { Write-SharedFile $statusLog ("{0} {1}`r`n" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m) -Append } catch {}
+  try {
+    if (Test-Path -LiteralPath "$root\logs") {
+      Write-SharedFile $statusLog ("{0} {1}`r`n" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m) -Append
+    }
+  } catch {}
 }
 
 # Keep the last run's output beside the new one; fall back to removing it if it cannot move.
@@ -68,11 +75,11 @@ $args = @(
   "--calibration",$Calibration,
   "--model",$model,
   "--device","CPU",
-  "--hard-cases",(Join-Path $root "data\nicksmax-inside-hard-cases"),
+  "--hard-cases","$root\data\nicksmax-inside-hard-cases",
   "--hard-case-max-gb","0.15",
   "--hard-case-episodes","both",
-  "--ledger",(Join-Path $root "data\nicksmax-inside.sqlite"),
-  "--trajectories",(Join-Path $root "data\nicksmax-inside-trajectories.sqlite"),
+  "--ledger","$root\data\nicksmax-inside.sqlite",
+  "--trajectories","$root\data\nicksmax-inside-trajectories.sqlite",
   "--mode","shadow",
   "--dry-run",
   "--log-level","INFO",
@@ -96,7 +103,7 @@ try {
 
 $env:INSIDE_CAMERA_SOURCE_URL = $SourceUrl
 $env:OPENCV_FFMPEG_CAPTURE_OPTIONS = "rtsp_transport;tcp|timeout;5000000"
-$env:EDGE_PROGRESS_LEASE = Join-Path $root "data\.nicksmax-inside.progress"
+$env:EDGE_PROGRESS_LEASE = "$root\data\.nicksmax-inside.progress"
 Write-SharedFile $env:EDGE_PROGRESS_LEASE ((Get-Date -Format o) + "`r`n")
 
 try {

@@ -23,10 +23,11 @@ $ErrorActionPreference = "Stop"
 $lensY = @{ top = 0; middle = 1080; bottom = 2160 }[$Lens]
 $root = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay"
 $ffmpeg = "C:\Users\nourd\NicksMax\lab\ffmpeg-essentials\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe"
-$outLog = Join-Path $root "sign-crop.stdout.log"
-$errLog = Join-Path $root "sign-crop.stderr.log"
-$statusLog = Join-Path $root "sign-crop-status.log"
-$instanceLockPath = Join-Path $root ".sign-crop.lock"
+# String paths, not Join-Path: Join-Path throws on a host with no C: drive (Linux CI), before -PrintArgs.
+$outLog = "$root\sign-crop.stdout.log"
+$errLog = "$root\sign-crop.stderr.log"
+$statusLog = "$root\sign-crop-status.log"
+$instanceLockPath = "$root\.sign-crop.lock"
 
 # The supervisor's writer, verbatim (a test keeps the copies identical): Windows PowerShell 5.1's
 # Add-Content fails beside any open reader.

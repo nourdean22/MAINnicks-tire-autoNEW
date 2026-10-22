@@ -71,6 +71,9 @@ param(
     [double]$Fps = 4.0,
     [double]$HeartbeatSeconds = 30.0,
     [double]$StallExitSeconds = 180.0,
+    # 0 = exit on --stall-exit-seconds alone (today). N > 0 keeps a stalled RTSP edge up while its
+    # own reader is still reopening, until N reopens have failed. No effect on the WGC lane.
+    [int]$StallReopenAttempts = 0,
     # EVERY CAPABILITY ADDED TO THE PRODUCER NEEDS A ROUTE THROUGH HERE, or it exists only
     # for whoever hand-runs edge_main.py. Scene localisation, the hard-case corpus, the
     # shadow ledger and the replay lane were all shipped, tested and live-verified while
@@ -344,7 +347,7 @@ cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"
 echo ==== edge start %DATE% %TIME% ==== >> "$pctLog"
-"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$serviceReviewArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
+"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$serviceReviewArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds --stall-reopen-attempts $StallReopenAttempts >> "$pctLog" 2>&1
 set RC=%ERRORLEVEL%
 echo ==== edge exit %RC% %DATE% %TIME% ==== >> "$pctLog"
 exit /b %RC%
