@@ -3,17 +3,22 @@
 # Mirrors run-sign-rtsp-production.ps1 for camera "inside", with three differences that keep it
 # unarmed until the bay camera is commissioned:
 #   1. --mode shadow, always. Production is a later, reviewed edit of this file, never a flag.
-#   2. No machine secrets are read and --dry-run is passed: nothing posts to the shop or to
-#      StateNour. Visits, hard cases and trajectories stay in this machine's local files.
-#   3. It refuses to start without -SourceUrl and an existing -Calibration file: an inside edge
-#      with no calibration would run census mode and report nothing useful.
-# Nothing registers or supervises it; run it by hand once the bay camera has an RTSP URL:
+#   2. Nothing is posted anywhere. --no-shop-ingest turns the shop lane off (no visits, no
+#      heartbeats, no authority claim) even if camera-bridge\.env or the config carries a shop
+#      URL and CAMERA_INGEST_KEY; --dry-run turns StateNour off. No machine secret is read.
+#      Visits, hard cases and trajectories stay in this machine's local files.
+#   3. It refuses to start without INSIDE_CAMERA_SOURCE_URL in its environment and an existing
+#      -Calibration file: an inside edge with no calibration would run census mode.
+# The URL is never a parameter: this launcher lives for the whole run, so its own command line
+# stays in the process listing. Set the variable once as a User or Machine environment variable,
+# then run it by hand (nothing registers or supervises it):
+#   [Environment]::SetEnvironmentVariable("INSIDE_CAMERA_SOURCE_URL", "<rtsp url>", "User")
 #   powershell -NoProfile -ExecutionPolicy Bypass -File run-inside-rtsp.ps1 `
-#     -SourceUrl rtsp://127.0.0.1:8556/inside -Calibration <root>\data\calib-nicksmax-inside.json
-# -PrintArgs prints the edge arguments and exits. The URL travels in an environment variable,
-# never on the command line, so a credential-bearing URL does not land in a process listing.
+#     -Calibration <root>\data\calib-nicksmax-inside.json
+# -PrintArgs prints the edge arguments and exits. CmdletBinding makes an unknown parameter (an old
+# -SourceUrl habit) an error instead of a silent extra argument on a long-lived command line.
+[CmdletBinding()]
 param(
-  [string]$SourceUrl = "",
   [string]$Calibration = "",
   [switch]$PrintArgs
 )
@@ -59,8 +64,8 @@ function Rotate-Log([string]$path) {
   catch { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
 }
 
-if (-not $SourceUrl -or -not $Calibration -or -not (Test-Path -LiteralPath $Calibration -PathType Leaf)) {
-  $why = "REFUSE inside edge: needs -SourceUrl and an existing -Calibration file (got calibration '{0}')" -f $Calibration
+if (-not $env:INSIDE_CAMERA_SOURCE_URL -or -not $Calibration -or -not (Test-Path -LiteralPath $Calibration -PathType Leaf)) {
+  $why = "REFUSE inside edge: needs INSIDE_CAMERA_SOURCE_URL in the environment and an existing -Calibration file (got calibration '{0}')" -f $Calibration
   Log $why
   Write-Output $why
   exit 2
@@ -82,6 +87,7 @@ $args = @(
   "--trajectories","$root\data\nicksmax-inside-trajectories.sqlite",
   "--mode","shadow",
   "--dry-run",
+  "--no-shop-ingest",
   "--log-level","INFO",
   "--fps","4",
   "--heartbeat-seconds","30",
@@ -101,7 +107,6 @@ try {
   exit 0
 }
 
-$env:INSIDE_CAMERA_SOURCE_URL = $SourceUrl
 $env:OPENCV_FFMPEG_CAPTURE_OPTIONS = "rtsp_transport;tcp|timeout;5000000"
 $env:EDGE_PROGRESS_LEASE = "$root\data\.nicksmax-inside.progress"
 Write-SharedFile $env:EDGE_PROGRESS_LEASE ((Get-Date -Format o) + "`r`n")
@@ -109,12 +114,11 @@ Write-SharedFile $env:EDGE_PROGRESS_LEASE ((Get-Date -Format o) + "`r`n")
 try {
   Rotate-Log $outLog
   Rotate-Log $errLog
-  Log "START inside RTSP edge in SHADOW (dry run, local files only)"
+  Log "START inside RTSP edge in SHADOW (no shop ingest, dry run, local files only)"
   $p = Start-Process -FilePath $python -ArgumentList $args -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru -Wait
   Log ("EXIT rc={0}" -f $p.ExitCode)
   exit $p.ExitCode
 } finally {
-  Remove-Item Env:\INSIDE_CAMERA_SOURCE_URL -ErrorAction SilentlyContinue
   Remove-Item Env:\OPENCV_FFMPEG_CAPTURE_OPTIONS -ErrorAction SilentlyContinue
   Remove-Item Env:\EDGE_PROGRESS_LEASE -ErrorAction SilentlyContinue
   if ($wrapperLockHandle) { $wrapperLockHandle.Dispose() }

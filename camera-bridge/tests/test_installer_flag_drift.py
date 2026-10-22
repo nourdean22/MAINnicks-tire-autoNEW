@@ -58,6 +58,9 @@ DELIBERATELY_UNREACHABLE = {
                                         "install would trade a known false-continuation risk "
                                         "for coverage; that is a code change with a test, not "
                                         "an installer parameter.",
+    "--no-shop-ingest": "a local-only commissioning switch for hand-run launchers "
+                        "(scripts/nicksmax/run-inside-rtsp.ps1). An installed producer either "
+                        "feeds the shop or is not installed.",
 }
 
 

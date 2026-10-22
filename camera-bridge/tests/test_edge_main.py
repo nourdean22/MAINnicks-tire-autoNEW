@@ -601,6 +601,46 @@ class StallReopenTest(unittest.TestCase):
         self.assertEqual(edge_main.parse_args(["--stall-reopen-attempts", "7"]).stall_reopen_attempts, 7)
 
 
+class NoShopIngestTest(unittest.TestCase):
+    """`--no-shop-ingest` (Codex P1 on #3216): a hand-run commissioning edge must not reach the
+    live shop even when a shop URL and CAMERA_INGEST_KEY arrive from config or camera-bridge/.env.
+    `--dry-run` only silences StateNour, and shadow mode still tags rows PRODUCTION."""
+
+    def _build(self, **over):
+        from test_main import RAW
+        from visitd.config import build_config
+
+        raw = dict(RAW, backend=dict(RAW["backend"], shopUrl="https://nickstire.org/api/camera/visits"))
+        cfg = build_config(raw, environ={"CAMERA_INGEST_KEY": "k"})
+        return edge_main.build_edge(cfg, _args(calibration=None, **over))[0]
+
+    def test_control_a_configured_shop_is_enabled_without_the_flag(self):
+        pipeline = self._build()
+        try:
+            self.assertTrue(pipeline.shop.enabled, "control: url + key in config means the shop lane is on")
+        finally:
+            pipeline.ledger.close()
+
+    def test_the_flag_disables_the_shop_lane_however_it_was_configured(self):
+        pipeline = self._build(no_shop_ingest=True)
+        try:
+            self.assertFalse(pipeline.shop.enabled)
+            rec = Recorder()
+            pipeline.shop.transport = rec
+            loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource())
+            self.assertFalse(loop.send_heartbeat(1000.0), "no heartbeat, so no authority claim")
+            _real_emissions(pipeline, camera="lot", persist=True)
+            self.assertEqual(pipeline.ledger.shop_outbox_depth(), 0, "no visit row is queued for the shop")
+            loop.shutdown()
+            self.assertEqual(rec.calls, [], "nothing was POSTed")
+        finally:
+            pipeline.ledger.close()
+
+    def test_the_flag_defaults_off(self):
+        self.assertFalse(edge_main.parse_args([]).no_shop_ingest)
+        self.assertTrue(edge_main.parse_args(["--no-shop-ingest"]).no_shop_ingest)
+
+
 class VisitLineageTest(unittest.TestCase):
     """Every vehicle_visits row since the NicksMax cutover had NULL detectorName and
     calibrationVersion: the camera config's all-None provenance dict is truthy, so it beat the
@@ -729,6 +769,7 @@ def _args(**over):
         relocate_seconds=120.0,
         challenger_model=None,
         replay=False,
+        no_shop_ingest=False,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)

@@ -1939,6 +1939,13 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         policy=cfg.policy,
     )
     cloud = CloudClient(cfg.backend, ledger, REGISTRY, dry_run=args.dry_run)
+    if args.no_shop_ingest:
+        # Cleared before the mirror exists, so no URL or key from config or .env can re-arm it:
+        # no visit POST, no heartbeat, no authority claim. Rows stay in the local ledger.
+        import dataclasses
+
+        cfg = dataclasses.replace(cfg, backend=dataclasses.replace(cfg.backend, shop_url=None, shop_sync_key=None))
+        log.info("shop ingest OFF (--no-shop-ingest): nothing is posted to the shop")
     pipeline = Pipeline(cfg, ledger, cloud, REGISTRY, producer_instance_id=PRODUCER_INSTANCE_ID)
 
     camera = args.camera
@@ -2201,6 +2208,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "PRODUCTION, so a replay lane can post real rows against live data "
                          "without touching the lot truth.")
     ap.add_argument("--dry-run", action="store_true", help="never POST to StateNour; the shop lane is unaffected")
+    ap.add_argument("--no-shop-ingest", action="store_true",
+                    help="never POST to the shop either: no visits, no heartbeats, no authority claim, "
+                         "whatever URL and key the config or .env carry. For hand-run commissioning")
     ap.add_argument("--log-level", default="INFO")
     return ap.parse_args(argv)
 

@@ -8,6 +8,7 @@ ffmpeg, opens a lock on NicksMax paths, or reads a secret.
 """
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 from pathlib import Path
@@ -46,11 +47,18 @@ TODAY_CROP_ARGS = [
 ]
 
 
-def _run(script: Path, *args: str) -> subprocess.CompletedProcess:
-    # cwd = the script's folder: a stray relative write lands where a test can see it.
+INSIDE_URL = "rtsp://127.0.0.1:8556/inside"
+
+
+def _run(script: Path, *args: str, source_url: str | None = None) -> subprocess.CompletedProcess:
+    # cwd = the script's folder: a stray relative write lands where a test can see it. The inside
+    # launcher reads its URL only from INSIDE_CAMERA_SOURCE_URL, so the test controls that variable.
+    env = {k: v for k, v in os.environ.items() if k != "INSIDE_CAMERA_SOURCE_URL"}
+    if source_url is not None:
+        env["INSIDE_CAMERA_SOURCE_URL"] = source_url
     return subprocess.run(
         [_pwsh(), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script), *args],
-        capture_output=True, text=True, timeout=60, cwd=str(script.parent),
+        capture_output=True, text=True, timeout=60, cwd=str(script.parent), env=env,
     )
 
 
@@ -118,7 +126,7 @@ def test_print_args_and_refusals_never_touch_the_hosts_drives(tmp_path: Path):
     assert r.returncode == 2 and "REFUSE inside edge" in r.stdout, r.stdout + r.stderr
     cal = tmp_path / "calib-inside.json"
     cal.write_text("{}", encoding="utf-8")
-    args = _lines(_run(inside, "-SourceUrl", "rtsp://127.0.0.1:8556/inside", "-Calibration", str(cal), "-PrintArgs"))
+    args = _lines(_run(inside, "-Calibration", str(cal), "-PrintArgs", source_url=INSIDE_URL))
     assert args[args.index("--mode") + 1] == "shadow"
     # On Linux a "C:\...\x.log" path is a legal FILE NAME in the working directory; the refusal's
     # log line must not create one there.
@@ -194,23 +202,39 @@ def test_the_stills_refuse_plainly_when_8554_is_not_serving(tmp_path: Path):
 def test_the_inside_launcher_refuses_without_its_source_and_calibration(tmp_path: Path):
     cal = tmp_path / "calib-inside.json"
     cal.write_text("{}", encoding="utf-8")
-    for args in ([], ["-SourceUrl", "rtsp://127.0.0.1:8556/inside"], ["-Calibration", str(cal)],
-                 ["-SourceUrl", "rtsp://127.0.0.1:8556/inside", "-Calibration", str(tmp_path / "missing.json")]):
-        r = _run(INSIDE, *args, "-PrintArgs")
-        assert r.returncode != 0, args
-        assert "REFUSE" in (r.stdout + r.stderr), args
-        assert "edge_main.py" not in r.stdout, args
+    for args, url in (([], None), ([], INSIDE_URL), (["-Calibration", str(cal)], None),
+                      (["-Calibration", str(cal)], ""),
+                      (["-Calibration", str(tmp_path / "missing.json")], INSIDE_URL)):
+        r = _run(INSIDE, *args, "-PrintArgs", source_url=url)
+        assert r.returncode == 2, (args, url, r.stdout + r.stderr)
+        assert "REFUSE inside edge" in r.stdout, (args, url)
+        assert "edge_main.py" not in r.stdout, (args, url)
+
+
+def test_the_inside_url_never_rides_the_launchers_command_line(tmp_path: Path):
+    """Codex P2 on #3216: the launcher stays alive for the whole run, so a URL in its own
+    arguments is in the process listing for hours. There is no -SourceUrl to pass."""
+    cal = tmp_path / "calib-inside.json"
+    cal.write_text("{}", encoding="utf-8")
+    r = _run(INSIDE, "-SourceUrl", INSIDE_URL, "-Calibration", str(cal), "-PrintArgs", source_url=INSIDE_URL)
+    assert r.returncode != 0 and "edge_main.py" not in r.stdout
+    code = "\n".join(l for l in INSIDE.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("#"))
+    assert "$env:INSIDE_CAMERA_SOURCE_URL =" not in code and "Env:\\INSIDE_CAMERA_SOURCE_URL" not in code, \
+        "the operator owns the variable; the launcher neither sets nor removes it"
 
 
 def test_the_inside_launcher_runs_camera_inside_in_shadow_and_never_production(tmp_path: Path):
     cal = tmp_path / "calib-inside.json"
     cal.write_text("{}", encoding="utf-8")
-    args = _lines(_run(INSIDE, "-SourceUrl", "rtsp://127.0.0.1:8556/inside", "-Calibration", str(cal), "-PrintArgs"))
+    args = _lines(_run(INSIDE, "-Calibration", str(cal), "-PrintArgs", source_url=INSIDE_URL))
     assert args[args.index("--camera") + 1] == "inside"
+    assert "--no-shop-ingest" in args, "Codex P1 on #3216: a CAMERA_INGEST_KEY in .env must not arm the shop lane"
+    assert "--dry-run" in args
     assert args[args.index("--mode") + 1] == "shadow"
     assert args[args.index("--calibration") + 1] == str(cal)
     assert "production" not in " ".join(args).lower()
-    assert "rtsp://127.0.0.1:8556/inside" not in args, "the URL travels in an env var, never on the command line"
+    assert INSIDE_URL not in args, "the URL travels in an env var, never on the command line"
+    assert args[args.index("--source-url-env") + 1] == "INSIDE_CAMERA_SOURCE_URL"
 
 
 def test_the_inside_launcher_has_its_own_lock_logs_and_progress_lease():

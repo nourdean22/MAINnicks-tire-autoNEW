@@ -4,8 +4,11 @@ import { conversationSourceLabel, cutAtMarkerBoundary, isNonSpeechText, jsonArra
 describe("conversationSourceLabel", () => {
   it("names each microphone in words and lets an unknown source name itself", () => {
     expect(conversationSourceLabel("eufy-office")).toBe("Office");
-    expect(conversationSourceLabel("shop-floor")).toBe("Shop floor");
-    expect(conversationSourceLabel("bay-3")).toBe("bay-3");
+    // counter-mic is what install-office-capture.ps1 posts for the DirectShow counter microphone.
+    expect(conversationSourceLabel("counter-mic")).toBe("Front counter");
+    // No producer posts shop-floor; an unknown source names itself until one does.
+    expect(conversationSourceLabel("shop-floor")).toBe("shop-floor");
+    expect(conversationSourceLabel("constructor")).toBe("constructor");
   });
 });
 
