@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/voice-receptionist-name-ask",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "b33e976d-2f06-4a2d-a90c-5a68fdd2bd14",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\voice-receptionist-pro-b561fd",
+  "claimedBy": "2026-10-22-voice-receptionist-name-ask",
+  "claimedAt": "2026-10-22T12:49:24.345Z",
+  "expiresAt": "2026-10-23T00:49:24.345Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
