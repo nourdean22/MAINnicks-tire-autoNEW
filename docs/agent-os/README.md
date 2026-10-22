@@ -115,6 +115,40 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   This widens Stop on purpose, behind its canary (`skillsCheck.test.mjs`, 13/13 mutants killed, and
   `hookCommand.test.mjs`). Cost: 5-9 ms of script time on 36-45 MB transcripts; a compaction search over a whole
   16 MB file took 96-151 ms; past 24 MB it stops and allows.
+  Turn truth (2026-10-22, job `2026-10-22-manager-skill-best`; Nour: "fix it forever"): the hook also sends a REPLY back,
+  tools or not, once per reply START (the newest prompt or task notification: a notification-driven night is one prompt and
+  many replies), when a `Skills:` line (also `Skill:`, `Skills used:`) names a real skill, case ignored, with no Skill
+  call since the start (clauses holding a negation, "already" or "earlier", text after "used earlier" / "skipped" and after
+  the first sentence claim nothing), when a clause calls CI, checks or a PR green, passing or mergeable with no CI read since
+  the start (a command running `gh pr checks|view|status`, `gh run`, `gh api` on check runs or `node merge-gate.mjs <pr>`, or
+  `ccd_pr get_status`; local, preflight and pre-commit runs are not CI), or when it calls something live or deployed with
+  no production read (a command or WebFetch hitting `/api/health`, a heartbeat or either production domain, a Railway
+  status/logs/deployment read, or a deployment or log MCP tool). Reading or grepping a file is never a read. The reply text
+  is the Stop payload's `last_assistant_message` (the hooks docs: the transcript may not hold the final message at Stop).
+  Replayed over 155 real manager turns: 22 of 128 `Skills:` lines, 1 stale CI tally and 3 relayed "is live" claims sent
+  back, every one true; the 7 false alarms two replays and a skeptic found are now allow-examples.
+- **Stop** (`health-first.mjs`, 2026-10-22, same job). A SessionStart `[health] ... FIX FIRST:` line is the session's
+  first task: a stop is sent back once per such line unless a call that RUNS or EDITS something names one of its fixes (a
+  script, config file, task or cmdlet; a read or grep of the script does not count) or a reply line starting `Health:` says
+  fixed or why not. It reads only the bytes after the offset it last judged (state
+  `%LOCALAPPDATA%/nourcity/health-first/<session>.json`), fails open, never blocks when it cannot save the offset. The
+  manager session of 2026-10-21/22 ran with graphify DOWN for about a day past this exact line.
+  Canaries: `healthFirst.test.mjs` and `hookCommand.test.mjs`.
+- **SubagentStop** (`subagent-receipt-check.mjs`, same job; asked for by the manager session from its setup benchmark).
+  Matcher `^lane-` (the agent's frontmatter `name`); for a lane agent, a final report with no receipt line (a command and
+  its exit code on one line), no commit SHA and no diff is sent back to the LANE once (exit 2: the subagent keeps running
+  with the stderr line as its next instruction, per the hooks docs read 2026-10-22). The research lane may cite
+  `path:line` or a URL instead. It checks that evidence is present, not that it is true: the manager still re-runs one
+  receipt. One-shot per `agent_id` (state `%LOCALAPPDATA%/nourcity/receipt-check/`), `stop_hook_active` passes, fails
+  open. Canaries: `subagentReceipt.test.mjs` (a planted always-true copy of the gate lets the bare report through, so a
+  gate that stops checking turns the file red) and `hookCommand.test.mjs`.
+- **PreToolUse** rule `brief-shop-data` (same job): an Agent, Task or `mcp__ccd_session__start_session` brief that reads
+  Nick's Tire records (a record noun such as invoice, estimate, decline or customers, a place such as nickstire or a
+  nickstire lane, and a reading cue such as count, how many, SELECT or TiDB; file names are taken out first) must carry a
+  line starting `SHOP DATA:` whose block (to the next field or blank line) names invoices and estimates; every .md or .txt
+  file the prompt names is read too (up to 5, under 512 KB, the blank template skipped). A scout reported "0 declines ever
+  captured" from a brief without these meanings. Canaries: `agentDispatch.test.mjs` (one feeds the real USER.md meanings
+  to the rule). Not covered: SendMessage follow-ups to a running session, and agents a Workflow script starts.
 - **UserPromptSubmit** (`skills-first-reminder.mjs`) prints one line on every prompt: invoke the skills the recall
   lines name before any work. It is advice, not enforcement: it has no path to exit 2, so it never blocks a prompt,
   and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command verbatim and

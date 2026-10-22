@@ -8,7 +8,8 @@
  */
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -85,4 +86,134 @@ test("wiring: a configured PreToolUse matcher sends Agent and Task calls to pret
     );
     assert.ok(hit, `no PreToolUse matcher routes ${tool} to pretool.mjs`);
   }
+});
+
+// -- brief-shop-data (2026-10-22, job manager-skill-best) ------------------------------------------------------------
+// The upgrade scout reported "0 declines ever captured" because its brief carried none of the shop's data meanings
+// (an estimate with no invoice IS the decline). A brief that reads Nick's Tire records must carry the SHOP DATA block:
+// a line starting "SHOP DATA:" whose text names invoices and estimates (the meanings in .agents/core/USER.md).
+
+const SHOP_BLOCK =
+  "SHOP DATA: a ShopDriver counter invoice is a closed job (a sale), and its payment status means nothing (separate register);\n" +
+  "an estimate with no matching invoice most likely means the customer walked (declined work) but stays an inference. Key follow-ups to invoices.";
+const SHOP_TASK = "Count how many estimates in apps/nickstire turned into invoices last month and report the decline rate.";
+const shopDenied = (r, why) => {
+  assert.equal(r.code, 2, `${why}: expected a deny, got exit ${r.code}\n${r.out}`);
+  assert.match(r.out, /brief-shop-data/, `${why}: the deny must name the rule`);
+};
+const laneBrief = (body, extra = {}) =>
+  judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Brief: C:/x/retention-brief.md\nMODEL / EFFORT: sonnet / high\n${body}`, ...extra });
+
+test("shop data, positive control: a nickstire lane brief WITH the SHOP DATA block passes", () => {
+  const r = laneBrief(`${SHOP_TASK}\n${SHOP_BLOCK}`);
+  assert.equal(r.code, 0, r.out);
+});
+
+test("shop data arm 1: a brief that reads estimates and invoices without the SHOP DATA block is denied", () => {
+  shopDenied(laneBrief(SHOP_TASK), "no SHOP DATA line");
+  shopDenied(laneBrief("Count the estimates that never became invoices."), "a nickstire lane needs no place word: the lane type is the place");
+  assert.equal(
+    judge("Agent", { subagent_type: "lane-statenour", model: "sonnet", prompt: "Brief: C:/x/s-brief.md\nMODEL / EFFORT: sonnet / high\nCount the estimates that never became invoices." }).code,
+    0,
+    "control: the same words in a statenour lane with no shop place word are not shop data",
+  );
+});
+
+test("shop data arm 2: a hollow SHOP DATA line (no meanings) is denied; the label mentioned inside prose does not count", () => {
+  shopDenied(laneBrief(`${SHOP_TASK}\nSHOP DATA: n/a`), "hollow line");
+  shopDenied(laneBrief(`${SHOP_TASK} Remember the SHOP DATA rules about invoice and estimate.`), "mention, not a line");
+  shopDenied(laneBrief(`${SHOP_TASK} See the SHOP DATA: line in USER.md for invoice and estimate meanings.`), "a mid-line label is a pointer, not the pasted block");
+});
+
+test("shop data arm 3: the brief FILE is read: meanings missing there are denied, present there pass", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-brief-"));
+  const bare = join(dir, "bare-brief.md");
+  const full = join(dir, "full-brief.md");
+  writeFileSync(bare, `LANE: nickstire server\n${SHOP_TASK}\n`);
+  writeFileSync(full, `LANE: nickstire server\n${SHOP_TASK}\n${SHOP_BLOCK}\n`);
+  const viaFile = (file) => judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Your brief is ${file}\nMODEL / EFFORT: sonnet / high` });
+  shopDenied(viaFile(bare), "meanings missing in the file");
+  assert.equal(viaFile(full).code, 0, "the block inside the file counts");
+  assert.equal(viaFile(join(dir, "missing-brief.md")).code, 0, "an unreadable brief file is not judged for shop data (fail open on the file)");
+});
+
+test("shop data arm 4: non-lane agents and started sessions are judged too", () => {
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: `For Nick's Tire: ${SHOP_TASK}` }), "general-purpose agent");
+  shopDenied(judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Decline scout", prompt: SHOP_TASK, background: "Nour wants to know how often customers walk." }), "start_session");
+  assert.equal(
+    judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Decline scout", prompt: SHOP_TASK, background: SHOP_BLOCK }).code,
+    0,
+    "the block in `background` counts",
+  );
+  assert.equal(judge("mcp__ccd_session__start_session", { proposal_id: "task_ab12cd34" }).code, 0, "starting an existing proposal carries no brief to judge");
+});
+
+test("shop data, no false positives: work that does not read shop records is not judged", () => {
+  for (const [tool, input] of [
+    ["Agent", { subagent_type: "lane-statenour", model: "sonnet", prompt: "Brief: C:/x/ui-brief.md\nMODEL / EFFORT: sonnet / high\nRestyle the brain page cards." }],
+    ["Agent", { subagent_type: "Explore", prompt: "find where the Stripe invoice webhook for bdnick.info lives" }],
+    ["mcp__ccd_session__start_session", { initiation: "user_asked", title: "Hook fix", prompt: "Fix the board hook timeout in scripts/agent-os.", background: "x".repeat(90) }],
+  ]) {
+    const r = judge(tool, input);
+    assert.equal(r.code, 0, `${tool} ${JSON.stringify(input).slice(0, 80)}: ${r.out}`);
+  }
+});
+
+test("shop data wiring: a configured PreToolUse matcher sends start_session calls to pretool.mjs", () => {
+  const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
+  const tool = "mcp__ccd_session__start_session";
+  const hit = settings.hooks.PreToolUse.some(
+    (g) => g.matcher && new RegExp(`^(?:${g.matcher})$`).test(tool) && g.hooks.some((h) => h.command.includes("pretool.mjs")),
+  );
+  assert.ok(hit, `no PreToolUse matcher routes ${tool} to pretool.mjs`);
+});
+
+// -- Skeptic pass 2026-10-22 (evals/skeptic.md of monorepo-manager): each exact input below passed or was denied wrongly --
+test("skeptic: shop-data bypasses are denied now", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-skeptic-"));
+  const job = join(dir, "job7-brief.md");
+  const task = join(dir, "retention-task.md");
+  writeFileSync(job, `LANE: nickstire server\n${SHOP_TASK}\n`);
+  writeFileSync(task, `${SHOP_TASK}\n`);
+  shopDenied(
+    judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Shape: .agents/core/templates/subagent-brief.md. Your brief: ${job}\nMODEL / EFFORT: sonnet / high` }),
+    "a second brief file is read too, not only the first",
+  );
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: "Count Nick\u2019s Tire invoices and the estimates with no invoice." }), "a curly apostrophe");
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: "Pull last month nickstire repair orders from TiDB and say how many customers came back." }), "synonyms");
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: `Follow the task file ${task}` }), "a task file not named brief");
+  shopDenied(judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Retention", prompt: `Follow ${task}`, background: "x".repeat(90) }), "start_session with a task file");
+  shopDenied(laneBrief("SHOP DATA: none needed.\nGOAL: count nickstire estimates with no matching invoice"), "the block ends at the next field");
+});
+
+test("skeptic: briefs that read no shop records are not denied", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-skeptic-ok-"));
+  const ui = join(dir, "retention-brief.md");
+  writeFileSync(ui, "LANE: nickstire client\nGOAL: fix the header spacing on the tire page.\n");
+  for (const [label, tool, input] of [
+    ["estimate as a verb", "Agent", { subagent_type: "lane-nickstire-client", model: "sonnet", prompt: "Brief: C:/x/b-brief.md\nMODEL / EFFORT: sonnet / high\nGOAL: estimate the bundle size change for the nickstire client" }],
+    ["a prompt that mentions bookings", "Agent", { subagent_type: "general-purpose", prompt: "Review the nickstire voice receptionist prompt so it stops offering bookings." }],
+    ["a shop word only in the brief's file name", "Agent", { subagent_type: "lane-nickstire-client", model: "sonnet", prompt: `Brief: ${ui}\nMODEL / EFFORT: sonnet / high` }],
+    // The same with a reading cue in the prompt: only the file-name strip keeps "retention" out (mutant B9).
+    ["a shop word only in a file name, with a cue", "Agent", { subagent_type: "lane-nickstire-client", model: "sonnet", prompt: `Brief: ${ui}\nMODEL / EFFORT: sonnet / high\nReport the spacing fix.` }],
+  ]) {
+    const r = judge(tool, input);
+    assert.equal(r.code, 0, `${label}: ${r.out}`);
+  }
+});
+
+test("producer and consumer agree: the real USER.md shop data meanings, pasted after SHOP DATA:, satisfy the rule", () => {
+  const user = readFileSync(join(ROOT, ".agents", "core", "USER.md"), "utf8");
+  const meanings = user.match(/^- Shop data meanings:[\s\S]*?(?=\n- |\n\n)/m)?.[0];
+  assert.ok(meanings, "USER.md must keep its 'Shop data meanings' bullet (PR 3226); the rule's fix text points at it");
+  assert.equal(laneBrief(`${SHOP_TASK}\nSHOP DATA: ${meanings}`).code, 0, "the canonical text must pass the rule it is pasted to satisfy");
+});
+
+test("every named brief file is read: a harmless first file does not hide a shop brief named second", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-two-"));
+  const first = join(dir, "style-brief.md");
+  const second = join(dir, "job8-brief.md");
+  writeFileSync(first, "GOAL: restyle the cards.\n");
+  writeFileSync(second, `${SHOP_TASK}\n`);
+  shopDenied(judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Example: ${first}\nYour brief: ${second}\nMODEL / EFFORT: sonnet / high` }), "the second file");
 });
