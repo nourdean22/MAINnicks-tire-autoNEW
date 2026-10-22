@@ -8,6 +8,7 @@
  */
 import { BUSINESS } from "@shared/business";
 import { GBP_CID } from "@shared/const";
+import { BRAKE_PRICE, DIAGNOSTIC_PRICE } from "@shared/pricing";
 import { trpc } from "@/lib/trpc";
 
 interface Props {
@@ -192,7 +193,7 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Brake Repair", description: "Pads, rotors, calipers, ABS. Free brake check." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Free check · written quote · you don't pay until you say yes" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: String(BRAKE_PRICE.padsStarting), description: `Brake pads from $${BRAKE_PRICE.padsStarting} per axle, depending on vehicle. Free check and a written quote first; you don't pay until you say yes.` },
         },
         {
           "@type": "Offer",
@@ -207,7 +208,7 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Engine Diagnostics", description: "OBD-II code reading + live data, fee credited toward repair if you say yes." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Check fee credited toward repair · free if we do the work" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: `Code scan is free. Full diagnostic $${DIAGNOSTIC_PRICE.fee}, ${DIAGNOSTIC_PRICE.waiver}.` },
         },
         {
           "@type": "Offer",
