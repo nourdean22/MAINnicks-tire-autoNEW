@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/upgrade-scout-live-status",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "2f8e28b5-7f60-4f2c-a7af-cf38e85e6155",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\reels-batch-ops-1688b1",
+  "claimedBy": "upgrade-scout-2026-10-22",
+  "claimedAt": "2026-10-22T11:23:03.447Z",
+  "expiresAt": "2026-10-22T23:23:03.447Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
