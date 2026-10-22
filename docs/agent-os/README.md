@@ -152,6 +152,19 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   and floor, and prints at most four `[tool-recall] use: <name> (<kind>; <matched words>) <use>` lines, `[native: x]`
   when a repo skill already does the job; no match prints nothing. Fails open: `[tool-recall] off: <reason>`, exit 0.
   Canary `toolRecall.test.mjs` (real script, configured command verbatim, broken registry, no-floor mutant).
+- **UserPromptSubmit** (`memory-recall.mjs`, 2026-10-22, runs right after tool-recall) searches the agent-memory notes
+  themselves, not the MEMORY.md titles: every `*.md` in the machine-local `~/.claude/projects/<primary checkout>/memory`
+  with a frontmatter `description` (the same directory check-memory-index guards, found from a harness worktree through
+  `git --git-common-dir`; indexes, `_bak_*` copies and description-less files skipped), scored with skill-recall's exported
+  scorer and floor. Prints at most three `[memory-recall] read: <file> (<matched words>) <description> [<N>d old]` lines;
+  the age is the file's modified time, so a stale note reads as stale. No match, or no memory directory (a cloud session,
+  another machine), prints nothing. Fails open: `[memory-recall] off: <reason>`, exit 0. Canary `memoryRecall.test.mjs`
+  (planted memory directory, real script, configured command verbatim, three mutants: no floor, `_bak_` copies indexed,
+  no line cap; plus a consumer check that the default resolution finds the real directory where one exists).
+- **Always-loaded size** (2026-10-22): `CLAUDE.md` and `GEMINI.md` import `docs/agent-os/NOUR-RUNTIME-KERNEL.md` (4 KB),
+  not the full `NOUR-COMMAND.md` (11.7 KB), which AGENTS.md still routes to for non-trivial work; `check-adapters.mjs`
+  requires the kernel import and refuses a re-import of the full file. The skill-discovery and subagent essays live in
+  `.claude/skills/find-skill/references/` and `.claude/skills/monorepo-manager/references/`; the profile keeps the rules.
 - **SessionStart** (`session-surface.mjs`, 2026-10-18, every source) prints one `[surface]` line: user+project hook
   events, MCP names (user, local, `.mcp.json`; claude.ai connectors are "not readable here"), enabled plugins, and
   rtk/uv/gh/railway on PATH (looked up, never run). Each segment reads on its own; a failed read is `UNKNOWN (<reason>)`,

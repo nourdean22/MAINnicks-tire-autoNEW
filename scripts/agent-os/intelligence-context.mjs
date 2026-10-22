@@ -2,7 +2,7 @@
 /**
  * SessionStart intelligence receipt.
  *
- * Root CLAUDE.md already imports NOUR-COMMAND.md, so this stays deliberately small.
+ * Root CLAUDE.md already imports the NOUR-COMMAND kernel (docs/agent-os/NOUR-RUNTIME-KERNEL.md), so this stays deliberately small.
  * It proves the framework is active and gives one cheap local repo-state receipt.
  * Informational only. Never blocks session start.
  */

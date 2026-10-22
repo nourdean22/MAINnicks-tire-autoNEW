@@ -77,16 +77,8 @@ ERRORS & DRIFT
 SKILL DISCOVERY
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-A large skill library is installed (the fire
-audit's universe was 1,307 names) and almost none of it ever fires. The numbers live in ONE
-place — `.claude/skills/skill-fire-audit/SKILL.md`, re-run via its `fire_audit.py` for current
-values; its 2026-08-03 baseline: 46 of 1,307 names ever fired = 3.5%, project cohort 64%. (This
-paragraph used to carry its own copies — "~930", "62%" — which had already drifted from the source.
-A count in prose is a cache with no invalidation.) The lesson stands: narrow expertise beats
-generic instinct — never reach for "general-purpose" thinking when a domain-specific skill applies,
-and prefer a project skill (`.claude/skills/`), the cohort that actually fires, because each names
-one concrete repo action. If no skill fits, say so and proceed — do not invoke a loosely-related
-skill to satisfy this section.
+Full text, the fire-audit numbers and the history: `.claude/skills/find-skill/references/skill-discovery.md`. The rules:
+- Narrow expertise beats generic instinct: never reach for "general-purpose" thinking when a domain-specific skill applies; prefer a project skill (`.claude/skills/`), the cohort that actually fires. If no skill fits, say so and proceed; do not invoke a loosely-related skill to satisfy this section.
 
 Before every non-trivial task:
 1. Name the task in one sentence.
@@ -106,24 +98,11 @@ work, the Skill call must be in the transcript.
 - `find-skill` — every turn as a gate: one line on whether outside discovery would change the answer; searches only then.
 - `kaizen` - NOT INSTALLED (same check): for refactor / cleanup work apply `karpathy-guidelines` (surgical edits, YAGNI, standardize).
 
-Reasoning lenses — invoke the one whose trigger matches:
-- `database-architect` - NOT INSTALLED (same check). Trigger unchanged: ANY schema, migration, query or data-layer decision;
-  doctrine inline: access patterns first, backups + rollback before destructive moves. Schema / migration edits route to
-  `statenour-migration` (Prisma) or `nickstire-tidb-ddl` (TiDB), DB-touching scripts to `prod-db-guard`; query and ORM changes follow the doctrine.
-- `frontend-design:frontend-design` - NOT INSTALLED (neither the stale local copy nor the plugin copy; checked 2026-10-08).
-  Trigger unchanged: ANY new UI or visual reshaping. Invoke `antislop-ui` + `antislop-layoutmobile` instead (and
-  `nickstire-ios-pwa-primitives` for any confirm/alert/prompt); keep the doctrine: reject AI-slop (Inter, purple gradients,
-  symmetric layouts), one dominant aesthetic direction, DFII >= 8 (aesthetic + fit + feasibility + performance - risk).
-- FIRST-PRINCIPLES — inline doctrine, NO skill backs this · question -> delete -> simplify -> accelerate -> automate · 10x not 10% · apply when scoping or when a plan reads as additive.
-  There is no skill to invoke for this. The `elon-musk` skill was a Portuguese-language
-  persona simulator ("fale como Elon"), not a reasoning lens — archived 2026-08-03 with the rest of the persona panel. The doctrine above is the whole asset.
-  The `frontend-design` lens is namespaced deliberately: bare `frontend-design` resolves to a stale
-  local copy (520w); the plugin copy (1,297w) is its maintained successor. Do not "simplify" the name.
-
-The full curated skill reference lives at `~/.claude/session-skills.md` — consult it when choosing
-skills. **Machine-local, not in the repo** (on NattyNour, 2026-10-16: 32 entries, 4.6 KB, last touched 2026-10-08): it is a convenience
-index, not a source of truth. If it is missing or stale, fall back to the skill list this session
-was given and to `.claude/skills/` in this repo.
+Reasoning lenses (install status and the naming trap are in the reference file):
+- `database-architect` - NOT INSTALLED. ANY schema, migration, query or data-layer decision: access patterns first, backups + rollback before destructive moves; schema edits route to `statenour-migration` (Prisma) or `nickstire-tidb-ddl` (TiDB), DB-touching scripts to `prod-db-guard`.
+- `frontend-design:frontend-design` - NOT INSTALLED. ANY new UI or visual reshaping: invoke `antislop-ui` + `antislop-layoutmobile` (and `nickstire-ios-pwa-primitives` for any confirm/alert/prompt); reject AI-slop, one dominant aesthetic direction. Never rename it to bare `frontend-design` (that resolves to a stale copy).
+- FIRST-PRINCIPLES - inline doctrine, NO skill backs this: question -> delete -> simplify -> accelerate -> automate; 10x not 10%; apply when scoping or when a plan reads as additive.
+- `~/.claude/session-skills.md` is a machine-local convenience index, not a source of truth; if it is missing or stale, use the session's skill list and `.claude/skills/`.
 
 Every non-trivial request: check skills → state assumptions → plan the smallest change with verify-checks → apply the right lens → implement surgically, matching existing patterns → verify before declaring done.
 
@@ -132,20 +111,21 @@ Red flags that mean STOP and re-check: "I'll refactor it later" · "we might nee
 ━━━━━━━━━━━━━━━━━━━━━━━
 SUBAGENT POLICY
 ━━━━━━━━━━━━━━━━━━━━━━━
+Full text and evidence: `.claude/skills/monorepo-manager/references/subagent-policy.md`.
 
 Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explore / general-purpose / etc.) are encouraged for parallelization, research, and bounded execution, except that Explore/census-style spawns happen only when the operator asks (he rejected two unrequested ones on 2026-10-08); otherwise run the pass in-session. Lane dispatch under `monorepo-manager` is the standing exception. Every invocation MUST follow these rules:
 
 1. INHERIT THE STANCE — state the operating stance in the agent prompt explicitly; don't assume the agent re-derives it. Invoke karpathy-guidelines for code work, brainstorming for new builds, and the right reasoning lens.
 
-2. BRIEF LIKE A COLLEAGUE — terse command prompts produce shallow slop. Give the agent: what you're accomplishing and why · what you've learned or ruled out · file paths and line numbers · the form of the answer expected.
+2. BRIEF LIKE A COLLEAGUE — give the agent what you're accomplishing and why · what you've ruled out · file paths and line numbers · the form of the answer expected.
 
-3. VERIFY, DON'T TRUST — agent summaries describe intent, not reality. When an agent writes code, READ THE DIFF before reporting done. When it reports findings, spot-check 1-2 against the actual files. For any claim that a value/table/path is UNUSED, code-grep is NOT evidence in either direction — confirm against the running system before deleting, and before believing a "no rows" claim (2026-07-30: two mapper agents were refuted in OPPOSITE directions — 241 live rows behind a "no writer" claim, 2 rows behind a "zero rows" claim). Agents get no prod credentials; the orchestrator runs the probe.
+3. VERIFY, DON'T TRUST — agent summaries describe intent, not reality. READ THE DIFF when an agent writes code; spot-check 1-2 findings against the files. Code-grep is NOT evidence that a value/table/path is UNUSED, in either direction: confirm against the running system before deleting. Agents get no prod credentials; the orchestrator runs the probe.
 
 4. SAME QUALITY BAR — the red-flags list applies to agent output too. Reject "we might need this", "refactor later", and AI-slop visuals. No exceptions.
 
 5. PARALLELIZE INDEPENDENT WORK — independent agent calls go in ONE message with multiple Task blocks. Serial only when a downstream agent needs an upstream finding.
 
-6. CHOOSE THE RIGHT AGENT TYPE — Explore (narrow lookups) · code-explorer (architecture audits) · code-architect (blueprints) · code-reviewer (bug/security review) · code-simplifier (refactoring) · general-purpose (open-ended research only when nothing else fits).
+6. CHOOSE THE RIGHT AGENT TYPE — Explore (narrow lookups) · code-explorer · code-architect · code-reviewer · code-simplifier · general-purpose (open-ended research only when nothing else fits).
 
 7. SCOPE TIGHT — for audits say "read-only · do not modify files". For implementation, name exactly which files the agent may touch. Never let an agent free-roam edit.
 

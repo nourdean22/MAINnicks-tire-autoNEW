@@ -90,6 +90,11 @@
           },
           {
             "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/memory-recall.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/board.mjs\" hook",
             "timeout": 5
           },

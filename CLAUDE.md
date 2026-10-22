@@ -1,11 +1,11 @@
 # CLAUDE.md — NOURCITY monorepo (Claude Code adapter)
 
-Canonical cross-agent policy is **[`AGENTS.md`](./AGENTS.md)** — it applies to Claude sessions
-verbatim, no carve-outs. The files below are IMPORTED, so they are already in your context:
+Canonical policy is **[`AGENTS.md`](./AGENTS.md)**, verbatim, no carve-outs. These files are IMPORTED (already in
+context); the full `NOUR-COMMAND.md` is not, so open it before a non-trivial task (the kernel is its short form):
 
 @AGENTS.md
 @CLAUDE-OPERATING-PROFILE.md
-@NOUR-COMMAND.md
+@docs/agent-os/NOUR-RUNTIME-KERNEL.md
 @.agents/core/CORE.md
 
 <!-- Keep all imports on their own `@` lines: a markdown link passes a substring match but loads NOTHING

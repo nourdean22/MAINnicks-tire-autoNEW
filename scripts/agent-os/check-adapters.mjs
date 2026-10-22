@@ -136,6 +136,9 @@ function requireThin(p, max) {
 
 // ── 1 · Canonical root AGENTS.md ──────────────────────────────────────────────
 requireFile("NOUR-COMMAND.md", "default cross-agent execution framework");
+// 2026-10-22: CLAUDE.md and GEMINI.md import this 4 KB derivative, not the 11.7 KB framework above, so every session
+// pays for the short form and reads the full one on demand (AGENTS.md routes there).
+requireFile("docs/agent-os/NOUR-RUNTIME-KERNEL.md", "compact always-on execution kernel imported by the Claude and Gemini adapters");
 if (requireFile("AGENTS.md", "canonical cross-agent policy")) {
   for (const section of [
     "## Repo topology",
@@ -167,7 +170,8 @@ if (requireFile("CLAUDE.md", "Claude Code adapter")) {
   // Anchored: an unanchored /@AGENTS\.md/ passes on any prose mention, which is the exact
   // false-green that let a LINKED profile ship as if it loaded (2026-08-21).
   requireMatch("CLAUDE.md", /^@AGENTS\.md$/m, "must IMPORT the canonical policy on its own @ line");
-  requireMatch("CLAUDE.md", /^@NOUR-COMMAND\.md$/m, "must IMPORT Nour Command on its own @ line");
+  requireMatch("CLAUDE.md", /^@docs\/agent-os\/NOUR-RUNTIME-KERNEL\.md$/m, "must IMPORT the runtime kernel on its own @ line");
+  forbidLine("CLAUDE.md", /^@NOUR-COMMAND\.md$/, "re-imports the full Nour Command framework (11.7 KB in every session); import docs/agent-os/NOUR-RUNTIME-KERNEL.md instead");
   requireThin("CLAUDE.md", 60);
 }
 // ── 2a · Agent core (2026-10-11): soul, identity, operator profile, constitution ─────────
@@ -191,7 +195,8 @@ if (requireFile(".agents/core/CORE.md", "agent core index (imports soul, identit
 }
 if (requireFile("GEMINI.md", "Gemini CLI adapter")) {
   requireMatch("GEMINI.md", /@AGENTS\.md/, "must import the canonical policy (memport)");
-  requireMatch("GEMINI.md", /^@NOUR-COMMAND\.md$/m, "must import Nour Command via memport");
+  requireMatch("GEMINI.md", /^@docs\/agent-os\/NOUR-RUNTIME-KERNEL\.md$/m, "must import the runtime kernel via memport");
+  forbidLine("GEMINI.md", /^@NOUR-COMMAND\.md$/, "re-imports the full Nour Command framework (11.7 KB in every session); import docs/agent-os/NOUR-RUNTIME-KERNEL.md instead");
   requireThin("GEMINI.md", 40);
 }
 if (requireFile(".github/copilot-instructions.md", "Copilot adapter")) {
