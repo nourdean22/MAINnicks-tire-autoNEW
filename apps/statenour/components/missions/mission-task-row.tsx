@@ -63,6 +63,7 @@ export interface MissionTaskRowProps {
 // 2026-09-15 · tomorrow6am / nextMonday6am moved to lib/missions/snooze-presets.ts
 // so the task inspector's page actions snooze to the same instants as this row.
 import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
+import { formatDueHint } from "@/lib/missions/due-hint";
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 
 export function MissionTaskRow({
@@ -639,20 +640,6 @@ export function MissionTaskRow({
       )}
     </div>
   );
-}
-
-function formatDueHint(due: string | null | undefined): string | null {
-  if (!due) return null;
-  const d = new Date(due);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const days = Math.round((d.getTime() - now.getTime()) / msPerDay);
-  if (days < 0) return `${Math.abs(days)}d late`;
-  if (days === 0) return "today";
-  if (days === 1) return "tomorrow";
-  if (days < 7) return `${days}d`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /** Wave AV · 2026-05-28 · compact snooze-pill label. The pill is tiny

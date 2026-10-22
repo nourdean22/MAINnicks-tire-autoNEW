@@ -141,7 +141,7 @@ export async function withToolIdempotency<T>(
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
-      let existing: { expiresAt: Date | null; content: string | null } | null;
+      let existing: { expiresAt: Date | null; content: string } | null;
       try {
         existing = await prisma.brainMemory.findUnique({
           where,
@@ -162,20 +162,30 @@ export async function withToolIdempotency<T>(
         });
       }
 
+      // Compare-and-swap on the row we read (bug hunt 2026-10-22): two calls that both saw the
+      // expired marker used to both update by key and both run. Only one swap can match.
+      let winner: { expiresAt: Date | null; content: string } | null = null;
       try {
+        // No row to pin (it vanished after the P2002): same path as the old update-by-key failing.
+        if (!existing) throw new Error("reclaim: marker vanished before the swap");
         const reclaimedAt = now();
-        await prisma.brainMemory.update({
-          where,
+        const swapped = await prisma.brainMemory.updateMany({
+          where: { category: CATEGORY, key: dedupKey, expiresAt: existing.expiresAt, content: existing.content },
           data: {
             content: markerContent("claimed", reclaimedAt),
             expiresAt: new Date(reclaimedAt.getTime() + windowMs),
           },
         });
+        if (swapped.count === 0) {
+          winner = await prisma.brainMemory.findUnique({ where, select: { expiresAt: true, content: true } });
+          if (!winner) throw new Error("reclaim lost: marker vanished after the swap missed");
+        }
       } catch (reclaimError) {
         await logIdemError("reclaim-expired-marker", dedupKey, reclaimError);
         if (options.onClaimUnavailable) return options.onClaimUnavailable(reclaimError);
         return run();
       }
+      if (winner) return onDuplicate({ state: markerState(winner.content), expiresAt: winner.expiresAt });
     } else {
       if (options.onClaimUnavailable) return options.onClaimUnavailable(error);
       return run();
