@@ -155,6 +155,19 @@ describe("no phone capture before a tire transfer (part 2 cleanup)", () => {
     expect(P).toContain("preferredDay = the day they named; leave it out only when they're coming now or today.");
   });
 
+  it("bookSlot asks once 'Who should we expect?' on name_needed; transfers stay question-free (2026-10-22)", () => {
+    const line = section("· bookSlot(", "\n");
+    expect(line).toContain("name_needed");
+    expect(line).toContain("'Who should we expect?'");
+    expect(line).toContain("'not given'");
+    expect(section("NO QUESTIONS BEFORE A TRANSFER", "\n")).toBe(
+      "NO QUESTIONS BEFORE A TRANSFER: caller ID already has their number, and the person who picks up hears only a fixed \"customer holding\" intro, so asking for a name or number just slows the caller down. Go straight to transferCall. Do NOT ask for their name, number or reason, and do NOT call bookSlot or tireInquiry alongside a transfer the caller asked for.",
+    );
+    const bs = (VAPI_TOOLS as unknown as Array<{ function?: { name?: string; parameters?: { required?: string[]; properties?: Record<string, { description?: string }> } } }>).find((t) => t.function?.name === "bookSlot")!.function!;
+    expect(bs.parameters?.required).toEqual(["service"]);
+    expect(bs.parameters?.properties?.name?.description).toBe("Their first name, if they said it. If bookSlot answers name_needed, ask once and call it again; 'not given' if they won't say.");
+  });
+
   it("tireInquiry no longer requires a name or a phone", () => {
     const ti = (VAPI_TOOLS as unknown as Array<{ function?: { name?: string; parameters?: { required?: string[] } } }>).find((t) => t.function?.name === "tireInquiry")!;
     expect(ti.function!.parameters!.required).toEqual([]);

@@ -91,11 +91,16 @@ async function selectCustomerByPhone(d: VoiceDb, phoneDigits: string) {
   return c;
 }
 
+/** The model's answer when a caller won't give a name after "Who should we expect?". Never a name. */
+const isNameNotGiven = (name: string | undefined) => (name ?? "").trim().toLowerCase() === "not given";
+
 /**
  * The caller's name without asking: the name they gave if it has 2+ letters,
  * else the customer on file for the caller-ID number ("Raymond S."), else null.
+ * The "not given" sentinel counts as no name given.
  */
 async function resolveCallerName(given: string | undefined, callerNumber: string | undefined): Promise<string | null> {
+  if (isNameNotGiven(given)) given = undefined;
   if ((given ?? "").replace(/[^\p{L}]/gu, "").length >= 2) return (given as string).trim();
   const digits = (callerNumber ?? "").replace(/\D/g, "");
   if (digits.length < 10) return null;
@@ -197,7 +202,10 @@ async function markCallConverted(callId: string | undefined): Promise<void> {
  * or queued/uncertain: the claim is kept so no second text goes out, and the
  * manager still gets the late one).
  */
-async function sendArrivalHeadsUp(input: { name?: string; phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string; callId?: string }): Promise<boolean> {
+async function sendArrivalHeadsUp(
+  input: { phone?: string; callerNumber?: string; service: string; vehicle?: string; eta?: string; callId?: string },
+  resolvedName: string | null,
+): Promise<boolean> {
   await markCallConverted(input.callId);
   let reason = "unknown";
   try {
@@ -206,7 +214,7 @@ async function sendArrivalHeadsUp(input: { name?: string; phone?: string; caller
       log.info("arrival heads-up text paused (vapi_arrival_text_paused); filing the arrival row", { callId: input.callId });
       return false;
     }
-    let name = await resolveCallerName(input.name, input.callerNumber);
+    let name = resolvedName;
     // A name in a non-Latin script folds to nothing in an ASCII text; the record's name reads.
     if (name && !asciiClip(name, 40)) name = await resolveCallerName(undefined, input.callerNumber);
     const body = arrivalHeadsUpText(input, name);
@@ -546,9 +554,22 @@ export const voiceAgentRouter = router({
       const day = (input.preferredDay ?? "").trim();
       const saysToday = (!day || SAID_TODAY.test(day)) && parseExpectedDate(input.preferredDay, now) === toShopDateStr(now);
       let fellBack = false;
+      let headsUpName: string | null | undefined;
       if (isTow(input.service) || saysToday) {
+        headsUpName = await resolveCallerName(input.name, input.callerNumber);
+        // No name and no record for this number: ask once before the text goes out, so
+        // the manager's text names the caller (Nour, 2026-10-21). Nothing is sent,
+        // claimed or filed yet. "not given" means they wouldn't say: send without it.
+        if (!headsUpName && !isNameNotGiven(input.name)) {
+          return {
+            success: false,
+            reference: "WALKIN-INFO",
+            status: "name_needed",
+            message: "Not sent yet. Ask once: 'Who should we expect?' Then call bookSlot again with their first name. If they won't say, call bookSlot again with name 'not given'.",
+          };
+        }
         fellBack = true;
-        if (await sendArrivalHeadsUp(input)) {
+        if (await sendArrivalHeadsUp(input, headsUpName)) {
           return {
             success: true,
             reference: "WALKIN-INFO",
@@ -562,7 +583,7 @@ export const voiceAgentRouter = router({
       // as "Tool execution failed"; returned, the model asks once for the full name.
       // A heads-up that fell back never re-asks: the claim may already be held, so a
       // retry would return shop_texted and leave no row. File it with no name instead.
-      const name = await resolveCallerName(input.name, input.callerNumber);
+      const name = headsUpName !== undefined ? headsUpName : await resolveCallerName(input.name, input.callerNumber);
       if (!name && !fellBack) {
         return {
           success: false,
