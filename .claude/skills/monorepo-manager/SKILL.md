@@ -1,6 +1,6 @@
 ---
 name: monorepo-manager
-description: Use when Nour says manager, manage the repo, run the backlog, continue the job, stay on it or get it all done, when a job touches more than one lane (nickstire server or client, statenour, worker, platform, research), when several sessions or lane agents run at once and their results must be checked before Nour hears them, or before an overnight or unattended run. Splits and dispatches the work, pre-clears protected steps, checks every return and every relayed claim, integrates, merges through the gate and keeps the job ledger. Not for a one-area task (do it directly), one PR's merge or CI state (merge-gate.mjs and answer-first), a stranded branch (stranded-branch-rescue), deep research (Perplexity in Chrome), or reviewing a finished session (session-observer).
+description: Use when Nour says manager, manage the repo, run the backlog, continue the job, stay on it or get it all done, asks what is going on with the jobs or sessions that are running, when a job touches more than one lane (nickstire server or client, statenour, worker, platform, research), when several sessions or lane agents run at once and their results must be checked before Nour hears them, or before an overnight or unattended run. Splits and dispatches the work, pre-clears protected steps, checks every return and every relayed claim, integrates, merges through the gate and keeps the job ledger. Not for a one-area task even when phrased "get it all done" (do it directly, under nour-command), one PR's merge or CI state (merge-gate.mjs and answer-first), whether a merged PR is live (deploy-not-live, production-health-report), a stranded branch or stale worktrees (stranded-branch-rescue), deep research (Perplexity in Chrome), or reviewing a finished session (session-observer).
 triggers: manager, manage the repo, run the backlog, continue the job, stay on it, get it all done, more than one lane, dispatch lanes, sessions, relay, overnight, before I wake, job ledger, heartbeat jobs, integrate lanes, verify every diff
 ---
 
@@ -12,6 +12,8 @@ integrate, merge, report, log. A one-area task does not need this skill; skip it
 costs about 15 times a chat: [references/benchmark-2026-10-22.md](references/benchmark-2026-10-22.md) B5).
 
 Design is FLAT: lane agents carry `disallowedTools: Agent` and start no other CLI; the manager is the main session.
+`nour-command` (the execution stance for any non-trivial task) may load on the same prompt: it sets how hard to work, this
+skill sets who does what; when work spans lanes or sessions, this skill leads.
 Two replays tie every step to a real defect: the 2026-10-15 guard job (a lane's canaries green while the real hook let a
 DROP through: [references/replay-2026-10-15.md](references/replay-2026-10-15.md)) and the 2026-10-22 relay day (six
 manager mistakes, four now caught by hooks: [references/replay-2026-10-22.md](references/replay-2026-10-22.md)). The
@@ -34,6 +36,7 @@ Rows 1-3 are enforced at Stop by `scripts/agent-os/health-first.mjs` and `script
 | Execute | Nour authorized the job | lane worktrees or sessions, one integration branch and PR, a ledger row |
 | Recover | "continue", interrupted job, after a reboot or compaction | reads first; reconcile, then Execute |
 | Dry run | testing the manager | chat output only; never the real ledger, never a PR |
+| Cancel | "stop" / "cancel" | stop dispatching, mark the row CANCELLED, ignore late results for that job |
 
 ## Workers
 
@@ -55,16 +58,18 @@ workflow fan-outs and background suites count toward both (four concurrent suite
 
 1. **Recover state.** Read EVERY ledger row whose status is not MERGED/CANCELLED, plus the last 5:
    `node scripts/agent-os/ledger-render.mjs --open --tail 5` (one file per job in `docs/agent-os/ledger/`); run
-   `node scripts/agent-os/ledger-check.mjs`, `gh pr list --state open`, `node scripts/agent-os/repo-status.mjs`, the linked-sessions
-   note and the memory topic files for the area. A MERGED PR under an open row is stale: fix the row in your PR. A request that
+   `node scripts/agent-os/ledger-check.mjs`, `gh pr list --state open`, `node scripts/agent-os/repo-status.mjs`, the app's
+   linked-sessions note (`list_sessions` linked) and the memory topic files for the area. A MERGED PR under an open row is stale: fix the row in your PR. A request that
    matches an open job resumes it; never start a duplicate. Pasted plan? `plan-gate` first.
 2. **Spec.** Fill `.agents/core/templates/task-spec.md` with the base SHA (`git rev-parse origin/main`); KNOWN lists verified facts
    and guesses apart (B8). Size it: one area = no manager; most jobs 1-3 workers (B2). A design choice gets two alternatives that
    differ in kind, the 10x option, kill criteria and the best-in-class mechanism you benchmarked
    ([references/sessions-and-plans.md](references/sessions-and-plans.md)). A vendor-portal job settles egress and device trust first.
-3. **Pre-clear.** List every protected action the job can hit (deploy-config or Dockerfile change, Railway variable, migration,
-   customer send, production write, spend) and ask Nour for a go on each specific action NOW, before an overnight or
-   unattended stretch; record each yes verbatim in the ledger row. Anything not cleared parks; independent work continues (B11).
+3. **Pre-clear.** Before an overnight or unattended stretch, name each protected action the job can plausibly hit as a
+   SPECIFIC action (the change, the file, the condition: "merge a Dockerfile heap fix if the bdnick build dies of OOM") and ask
+   Nour for a go on each, in one message. A class-level yes is not a go (`AGENTS.md`); a Railway variable cannot be pre-cleared
+   at all (its approval lasts 30 minutes). The manager performs a cleared action itself; a session never acts on a relayed go.
+   Record each yes verbatim in the takeover memory file. Anything not cleared parks with its one-liner; the rest continues (B11).
 4. **Split.** Name each lane and its exact paths. Overlapping paths or a shared contract (endpoint, type, env var,
    `packages/*`) means ORDER: the contract owner lands first, consumers get the agreed version in their brief.
 5. **Claim.** Lease the integration branch: `node scripts/agent-os/agent-start.mjs --branch <integration-branch>
@@ -75,7 +80,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    Nour's verbatim words and the memory files by path. Shop data needs the `SHOP DATA:` block (rule `brief-shop-data` denies it
    missing). Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
    Set `model` and `effort` from the brief's MODEL / EFFORT line. Background, no polling; one decision per message
-   (REPLY NEEDED / NO REPLY NEEDED). Write the dispatch time (UTC) into the ledger row's Next cell
+   (REPLY NEEDED / NO REPLY NEEDED). Note the dispatch time (UTC) in your job notes; step 17 puts it in the ledger row
    ([references/job-lessons.md](references/job-lessons.md)).
 7. **Check every return.** Read the real diff; `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <sha>`
    (exit 1 reject, exit 2 not checked, never a pass); re-run one receipt yourself. Every RETURN fact is labelled FACT, INFERRED
@@ -112,7 +117,3 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     metrics row; every reversible decision made without Nour is one `Ruling: <what> - <why> - <cost if wrong>` line in the PR
     body (B19). A repeated lesson or a severe incident: `session-observer`; a statenour wave end: `statenour-wave-reconcile`.
     Never edit evaluators or guards to make a job pass ([references/ledger-and-metrics.md](references/ledger-and-metrics.md)).
-
-## Cancel
-
-"stop" / "cancel": stop dispatching, mark the row CANCELLED, ignore late results for that job.

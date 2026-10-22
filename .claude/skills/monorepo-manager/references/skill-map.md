@@ -25,8 +25,8 @@ does not have them, so say so and use the repo fallback named in the row).
 | 9 Probe it yourself | `prod-db-guard` | any script that touches a database | repo |
 | 12 Review before the PR opens | `requesting-code-review` | one reviewer on a small diff | machine (fallback: a `lane-research` lens) |
 | 12 Review before the PR opens | `receiving-code-review` | EVERY Codex or reviewer round, before changing anything | machine (fallback: read each finding against the file first) |
-| 12 Review before the PR opens | `differential-review` | a diff touching auth, payments, guards or customer data | machine (repo once PR 3227 merges) |
-| 12 Review before the PR opens | `supply-chain-risk-auditor` | the diff changes a dependency or `pnpm-lock.yaml` | machine (repo once PR 3227 merges) |
+| 12 Review before the PR opens | `differential-review` | a diff touching auth, payments, guards or customer data | repo |
+| 12 Review before the PR opens | `supply-chain-risk-auditor` | the diff changes a dependency or `pnpm-lock.yaml` | repo |
 | 13 Integrate | `nickstire-verify` | the combined tree touches `apps/nickstire` | repo |
 | 13 Integrate | `statenour-verify` | the combined tree touches `apps/statenour` | repo |
 | 13 Integrate | `skill-forge` | the job adds a skill or rewrites a skill description | repo |

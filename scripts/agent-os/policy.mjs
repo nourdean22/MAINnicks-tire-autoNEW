@@ -144,40 +144,57 @@ function briefFile(prompt) {
 // with no invoice IS the decline). Every dispatch line also gets shop-data=<n/a|yes|no>, which rule `brief-shop-data`
 // judges: n/a = the brief does not read Nick's Tire records; yes = it carries a line starting "SHOP DATA:" whose block
 // names invoices and estimates (the meanings in .agents/core/USER.md); no = it reads them without that block.
-// The text judged is the prompt, start_session's background, and the brief FILE the prompt names (read when it exists,
-// under 512 KB; an unreadable file is skipped, fail open on the file, never on the rule).
-const SHOP_NOUN = /\b(?:invoices?|estimates?|declin(?:e|es|ed|ing)|ShopDriver|paymentStatus|revenue|repeat customers?|retention|maintenance reminders?|bookings?)\b/i;
-const SHOP_PLACE = /apps[\\/]nickstire|\bnickstire\b|\bNick'?s Tire\b|\bshop data\b|\bthe shop\b/i;
+// The text judged is the prompt, start_session's background, and every .md or .txt file the prompt names (up to 5, each
+// under 512 KB, the brief template itself skipped; an unreadable file is skipped: fail open on the file, never the rule).
+// "Reads shop records" = a record noun AND a place (nickstire, or a nickstire lane) AND a reading cue (count, how many,
+// SELECT, TiDB, last month, ...), with file names taken out first so "retention-brief.md" is not a noun (skeptic 2026-10-22).
+const SHOP_NOUN = /\b(?:invoices?|estimates?|declin(?:e|es|ed|ing)|ShopDriver|paymentStatus|revenue|customers?|repair orders?|work orders?|retention|maintenance reminders?|bookings?)\b/i;
+const SHOP_PLACE = /apps[\\/]nickstire|\bnickstire\b|\bNick['\u2019]?s Tire\b|\bshop data\b|\bthe shop\b/i;
+const SHOP_READ = /\b(?:counts?|how many|rates?|totals?|sum|average|query|queries|SELECT|pull|report|analy[sz]e|trends?|per (?:day|week|month)|last (?:week|month|year|\d+ days)|since|TiDB|database|DB|rows?|records?)\b/i;
+const FILE_TOKEN = /\S*[\\/]\S*|\S+\.(?:md|mjs|cjs|js|ts|tsx|json|txt|sql)\b/g;
+const SHOP_FIELD_END = /^\s*$|^[A-Z][A-Z0-9 /()-]{2,}:/; // a blank line or the next brief field ends the SHOP DATA block
 const BRIEF_MAX_BYTES = 512 * 1024;
+const BRIEF_MAX_FILES = 5;
 export function shopDataState(text, laneType = "") {
-  if (!SHOP_NOUN.test(text) || !(SHOP_PLACE.test(text) || /^lane-nickstire-/i.test(laneType))) return "n/a";
-  const at = text.search(/^[ \t>*_-]*SHOP DATA\s*:/im);
-  if (at < 0) return "no";
-  const block = text.slice(at, at + 1200);
-  return /\binvoice/i.test(block) && /\bestimate/i.test(block) ? "yes" : "no";
-}
-function briefText(prompt, cwd) {
-  const file = briefFile(prompt);
-  if (!file) return "";
-  try {
-    const p = resolve(cwd || process.cwd(), file);
-    return statSync(p).size <= BRIEF_MAX_BYTES ? readFileSync(p, "utf8") : "";
-  } catch {
-    return "";
+  const words = text.replace(FILE_TOKEN, " ");
+  if (!SHOP_NOUN.test(words) || !SHOP_READ.test(words) || !(SHOP_PLACE.test(text) || /^lane-nickstire-/i.test(laneType))) return "n/a";
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^[ \t>*_-]*SHOP DATA\s*:/i.test(lines[i])) continue;
+    const block = [lines[i]];
+    for (let j = i + 1; j < lines.length && !SHOP_FIELD_END.test(lines[j]); j++) block.push(lines[j]);
+    const b = block.join("\n").slice(0, 1200);
+    if (/\binvoice/i.test(b) && /\bestimate/i.test(b)) return "yes"; // any block that carries the meanings
   }
+  return "no";
+}
+function briefTexts(prompt, cwd) {
+  const out = [];
+  for (const raw of prompt.split(/[\s"'`<>()[\]{},;]+/)) {
+    const tok = raw.replace(/[.:!?]+$/, "");
+    if (out.length >= BRIEF_MAX_FILES || /^[a-z][a-z0-9+.-]*:\/\//i.test(tok) || !/\.(?:md|txt)$/i.test(tok)) continue;
+    if (/(?:^|[\\/])\.agents[\\/]core[\\/]templates[\\/]/.test(tok)) continue; // the blank template is not the brief
+    try {
+      const p = resolve(cwd || process.cwd(), tok);
+      if (statSync(p).size <= BRIEF_MAX_BYTES) out.push(readFileSync(p, "utf8"));
+    } catch {
+      /* not a readable file: skipped */
+    }
+  }
+  return out.join("\n");
 }
 
 export function agentDispatchCall(toolName, input, cwd) {
   if (toolName === "mcp__ccd_session__start_session") {
     if (!input?.prompt && !input?.background) return null; // a proposal_id start carries no brief
     const text = [input.prompt, input.background].map((v) => String(v ?? "")).join("\n");
-    return { toolName: "Agent", command: `session-start shop-data=${shopDataState(`${text}\n${briefText(text, cwd)}`)}`, filePath: "", cwd };
+    return { toolName: "Agent", command: `session-start shop-data=${shopDataState(`${text}\n${briefTexts(text, cwd)}`)}`, filePath: "", cwd };
   }
   if (toolName !== "Agent" && toolName !== "Task") return null;
   const type = String(input?.subagent_type ?? "").trim().replace(/\s+/g, "_");
   const prompt = String(input?.prompt ?? "");
   const model = String(input?.model ?? "").trim().replace(/\s+/g, "_");
-  const shop = `shop-data=${shopDataState(`${prompt}\n${briefText(prompt, cwd)}`, type)}`;
+  const shop = `shop-data=${shopDataState(`${prompt}\n${briefTexts(prompt, cwd)}`, type)}`;
   const command = /^lane-/i.test(type)
     ? `lane-dispatch type=${type} model=${model || "-"} brief=${briefFile(prompt) ?? "no"} model-effort-line=${/MODEL\s*\/\s*EFFORT/.test(prompt) ? "yes" : "no"} ${shop}`
     : `agent type=${type || "-"} ${shop}`;

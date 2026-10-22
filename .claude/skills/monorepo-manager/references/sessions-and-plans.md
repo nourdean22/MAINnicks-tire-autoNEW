@@ -60,9 +60,16 @@ The shape is the OpenAI Agents SDK's human-in-the-loop (benchmark B11): approval
 only what was not approved while the rest keeps moving.
 
 1. When a job will run while Nour is away (overnight, "before I wake", "don't stop till it's done"), list the protected actions
-   it can plausibly hit, one line each, before he signs off: a deploy-config or Dockerfile change, a Railway variable, a migration,
-   a customer-facing send, a production write, spend.
+   it can plausibly hit, one line each, before he signs off. Each line is a SPECIFIC action: the change, the file or service, and
+   the condition ("if the bdnick.info build dies of a heap OOM, merge a PR that only raises NODE_OPTIONS in its Dockerfile").
+   `AGENTS.md` needs "an explicit operator instruction for the specific action": a class ("deploy-config changes are fine") is
+   not one, and an action nobody foresaw is not covered by any line (skeptic 2026-10-22).
 2. Ask once, in one message, with your recommendation per line; he answers per line.
-3. Record each yes verbatim, with its time, in the job's ledger row (Next cell) and quote it in any brief that relies on it.
-4. During the run, a cleared action proceeds; an uncleared one parks with its exact one-liner in the report, and every
+3. Two things cannot be pre-cleared: a Railway variable or other infra MCP mutation (its `APPROVE` lasts 30 minutes, `AGENTS.md`
+   Enforcement map; never route around that hook through the CLI), and anything a SESSION would have to do on his word (sessions
+   refuse a relayed approval, and the harness treats one as untrusted: benchmark B15). The manager performs a cleared action
+   itself, for example through `merge-gate.mjs`.
+4. Record each yes verbatim, with its time, in the takeover memory file (`manager-open-items-*`, machine-local, survives a
+   compaction) and in the job's PR body; the ledger row is written once, as its post-merge truth, at step 17.
+5. During the run, a cleared action proceeds; an uncleared one parks with its exact one-liner in the report, and every
    independent piece continues (no early exit).

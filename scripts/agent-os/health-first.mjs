@@ -25,7 +25,10 @@ import { join } from "node:path";
 
 const MAX_READ = 32 << 20;
 const HEALTH_LINE = /^\[health\][^\n]*\bFIX FIRST:[^\n]*/m;
-const HEALTH_REPLY = /^[\s>*_`-]*health[*_`]*\s*:/im;
+// "Health: fixed ..." or "Health: not fixed, because ..."; a bare "Health: ok" says nothing was done (skeptic 2026-10-22).
+const HEALTH_REPLY = /^[\s>*_`-]*health[*_`]*\s*:[^\n]*\b(?:fixed|because)\b/im;
+// Only a tool that runs or edits something can act on a fix; reading or grepping the script does not (skeptic 2026-10-22).
+const ACTOR = /^(?:Bash|PowerShell|Monitor|Edit|Write|MultiEdit|NotebookEdit)$|__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_block)$/;
 
 const stateDir = (env) => env.HEALTH_FIRST_DIR || join(env.LOCALAPPDATA || join(homedir(), ".local", "state"), "nourcity", "health-first");
 const parse = (line) => {
@@ -42,10 +45,19 @@ export function fixesOf(line) {
   const fixes = tail.split(/\(\d+\)\s*/).map((f) => f.trim()).filter(Boolean);
   const tokens = new Set();
   for (const f of fixes) {
-    const names = [...f.matchAll(/[\w.-]+\.(?:ps1|psm1|mjs|cjs|js|cmd|bat|py|sh)\b/gi), ...f.matchAll(/\/tn\s+"?([^"\s]+)/gi)].map((m) => (m[1] ?? m[0]).toLowerCase());
-    if (names.length) for (const n of names) tokens.add(n);
-    else tokens.add(f.split(/\s+/).slice(0, 3).join(" ").toLowerCase());
+    // What the fix names: a script or config file, a scheduled task (/tn), a PowerShell cmdlet, and the Bypass flag when
+    // the fix is to ADD it (a fix that is itself a "powershell -ExecutionPolicy Bypass -File x.ps1" launch must not let
+    // every PowerShell call count).
+    const pick = (re) => [...f.matchAll(re)].map((m) => (m[1] ?? m[0]).toLowerCase());
+    const names = [
+      ...pick(/[\w.-]+\.(?:ps1|psm1|mjs|cjs|js|cmd|bat|py|sh|json|toml)\b/gi),
+      ...pick(/\/tn\s+"?([^"\s]+)/gi),
+      ...pick(/\b[A-Z][a-z]+-[A-Z][A-Za-z]+\b/g),
+      ...(/^powershell\b/i.test(f) ? [] : pick(/-ExecutionPolicy Bypass/gi)),
+    ];
+    for (const n of names) tokens.add(n);
   }
+  // A fix that names nothing is acted on by any runner or editor call after the line (never a guessed phrase).
   return { fixes, tokens: [...tokens] };
 }
 
@@ -62,8 +74,9 @@ export function judge(entries, lastMessage = "") {
     if (!open.length || e.type !== "assistant") continue;
     for (const p of e.message?.content ?? []) {
       if (p?.type === "tool_use") {
+        if (!ACTOR.test(String(p.name ?? ""))) continue;
         const input = JSON.stringify(p.input ?? {}).toLowerCase();
-        for (const l of open) if (l.tokens.some((t) => input.includes(t))) l.acted = true;
+        for (const l of open) if (!l.tokens.length || l.tokens.some((t) => input.includes(t))) l.acted = true;
       } else if (p?.type === "text" && HEALTH_REPLY.test(p.text ?? "")) {
         for (const l of open) l.acted = true;
       }

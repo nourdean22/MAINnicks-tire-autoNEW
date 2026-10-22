@@ -49,4 +49,4 @@ Ask of every sentence you are about to pass on: who measured this, and did I che
 | "0 declines ever captured" (upgrade scout) | 0 RECORDED at the counter; unmatched estimates are the declines | step 2 above (shop meanings) |
 | "All 4 remaining PRs are green and mergeable" | read in an earlier turn, not this one | turn contract row 3 (now a hook) |
 | "The Telegram cleanup is live" (and two more, 05:23-05:27Z) | the sessions' own receipts; the manager ran no read | turn contract row 4 (now a hook), or quote the receipt with attribution |
-| `Skills:` lines naming uninvoked skills, 22 of 117 lines (2026-10-21T20Z on) | the names came from earlier turns | turn contract row 2 (now a hook) |
+| `Skills:` lines naming uninvoked skills, 22 of 128 lines (155 turns, 2026-10-21T20Z to 2026-10-22T14Z) | the names came from earlier turns | turn contract row 2 (now a hook) |

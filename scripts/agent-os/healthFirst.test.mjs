@@ -139,3 +139,31 @@ test("wiring: health-first.mjs is a configured Stop hook", () => {
   const hit = settings.hooks.Stop.some((g) => g.hooks.some((h) => h.command.includes("scripts/agent-os/health-first.mjs")));
   assert.ok(hit, "health-first.mjs must be configured under Stop in .claude/settings.json");
 });
+
+// -- Skeptic pass 2026-10-22 (evals/skeptic.md of monorepo-manager) ----------------------------------------------------
+test("skeptic: reading or grepping the fix is not running it; a bare 'Health: ok' is not a reason", () => {
+  for (const tool of [use("Read", { file_path: "C:/repo/scripts/local-mcp-servers.ps1" }), use("Grep", { pattern: "local-mcp-servers.ps1" })]) {
+    assert.equal(stop(fixture([health(FAIL_LINE), prompt("go"), tool, result(), say("Looked at it.")])).code, 2, tool.message.content[0].name);
+  }
+  assert.equal(stop(fixture([health(FAIL_LINE), ...TURN().slice(0, -1), say("Two PRs open.\nHealth: ok")])).code, 2, "'Health: ok' says nothing done");
+});
+
+test("skeptic: fixes that name no script are matched by what they say to do", () => {
+  const wrongService =
+    "[health] graphify WRONG SERVICE | FIX FIRST: (1) find the program on port 8765: Get-NetTCPConnection -LocalPort 8765 -State Listen; free the port or move graphify in config/agent-os/local-services.json";
+  const run = use("PowerShell", { command: "Get-NetTCPConnection -LocalPort 8765 -State Listen | Select-Object OwningProcess" });
+  assert.equal(stop(fixture([health(wrongService), prompt("go"), run, result(), say("Port held by pid 4242.")])).code, 0);
+  const hooksBlocked =
+    '[health] hooks BLOCKED graphify-session-context.ps1 | FIX FIRST: (1) add -ExecutionPolicy Bypass after "powershell -NoProfile" in the hook commands of graphify-session-context.ps1';
+  const edit = use("Edit", { file_path: "C:/repo/.claude/settings.json", old_string: "powershell -NoProfile -File", new_string: "powershell -NoProfile -ExecutionPolicy Bypass -File" });
+  assert.equal(stop(fixture([health(hooksBlocked), prompt("go"), edit, result(), say("Hook fixed.")])).code, 0);
+  assert.equal(stop(fixture([health(hooksBlocked), ...TURN()])).code, 2, "control: the same line with no edit is still sent back");
+});
+
+test("a script fix is matched by its script, not by the Bypass flag every PowerShell call carries; a fix naming nothing takes any run", () => {
+  const other = use("PowerShell", { command: "powershell -NoProfile -ExecutionPolicy Bypass -File C:/repo/scripts/something-else.ps1" });
+  assert.equal(stop(fixture([health(FAIL_LINE), prompt("go"), other, result(), say("Ran a script.")])).code, 2, "an unrelated Bypass call is not the fix");
+  const vague = "[health] graphify DOWN | FIX FIRST: (1) restart the graph service by hand";
+  assert.equal(stop(fixture([health(vague), prompt("go"), use("Bash", { command: "echo restarting" }), result(), say("Done.")])).code, 0, "a fix that names nothing is acted on by any run");
+  assert.equal(stop(fixture([health(vague), ...TURN().slice(0, 1), say("Two PRs open.")])).code, 2, "control: no run at all is still sent back");
+});

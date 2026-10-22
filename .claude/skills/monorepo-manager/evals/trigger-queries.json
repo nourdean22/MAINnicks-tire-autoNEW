@@ -96,7 +96,7 @@
     "origin": "written"
   },
   {
-    "query": "the bdnick.info deploy looks stuck, is the merged heap fix live yet",
+    "query": "the NOUR OS site deploy looks stuck, is the merged heap fix live yet",
     "should_trigger": false,
     "heldOut": false,
     "origin": "written"

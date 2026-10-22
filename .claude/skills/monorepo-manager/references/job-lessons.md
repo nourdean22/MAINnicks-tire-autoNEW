@@ -4,7 +4,8 @@ Each rule below came from a real job. The step in SKILL.md names it; the inciden
 
 ## Step 6: record the dispatch time, and brief guards by identifying fields
 
-- After dispatching, write the dispatch time (UTC) into the ledger row's Next cell; step 17 computes cycle time from it. Three
+- After dispatching, note the dispatch time (UTC) in your job notes (the session scratchpad); at step 17 it goes into the ledger
+  row, which is written once as its post-merge truth ([ledger-and-metrics.md](ledger-and-metrics.md)), and the cycle time is computed from it. Three
   jobs on 2026-10-15 had cycle time UNKNOWN because nothing recorded the first dispatch, and the metrics rule forbids a guess.
 - A brief for an approval or deny guard says the approved target matches IDENTIFYING fields only (ids), never any value in the
   call, and asks for a canary with the id inside a free-text field (PR 3193: an approved branch id in `name` let `update_branch`

@@ -167,3 +167,53 @@ test("shop data wiring: a configured PreToolUse matcher sends start_session call
   );
   assert.ok(hit, `no PreToolUse matcher routes ${tool} to pretool.mjs`);
 });
+
+// -- Skeptic pass 2026-10-22 (evals/skeptic.md of monorepo-manager): each exact input below passed or was denied wrongly --
+test("skeptic: shop-data bypasses are denied now", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-skeptic-"));
+  const job = join(dir, "job7-brief.md");
+  const task = join(dir, "retention-task.md");
+  writeFileSync(job, `LANE: nickstire server\n${SHOP_TASK}\n`);
+  writeFileSync(task, `${SHOP_TASK}\n`);
+  shopDenied(
+    judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Shape: .agents/core/templates/subagent-brief.md. Your brief: ${job}\nMODEL / EFFORT: sonnet / high` }),
+    "a second brief file is read too, not only the first",
+  );
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: "Count Nick\u2019s Tire invoices and the estimates with no invoice." }), "a curly apostrophe");
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: "Pull last month nickstire repair orders from TiDB and say how many customers came back." }), "synonyms");
+  shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: `Follow the task file ${task}` }), "a task file not named brief");
+  shopDenied(judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Retention", prompt: `Follow ${task}`, background: "x".repeat(90) }), "start_session with a task file");
+  shopDenied(laneBrief("SHOP DATA: none needed.\nGOAL: count nickstire estimates with no matching invoice"), "the block ends at the next field");
+});
+
+test("skeptic: briefs that read no shop records are not denied", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-skeptic-ok-"));
+  const ui = join(dir, "retention-brief.md");
+  writeFileSync(ui, "LANE: nickstire client\nGOAL: fix the header spacing on the tire page.\n");
+  for (const [label, tool, input] of [
+    ["estimate as a verb", "Agent", { subagent_type: "lane-nickstire-client", model: "sonnet", prompt: "Brief: C:/x/b-brief.md\nMODEL / EFFORT: sonnet / high\nGOAL: estimate the bundle size change for the nickstire client" }],
+    ["a prompt that mentions bookings", "Agent", { subagent_type: "general-purpose", prompt: "Review the nickstire voice receptionist prompt so it stops offering bookings." }],
+    ["a shop word only in the brief's file name", "Agent", { subagent_type: "lane-nickstire-client", model: "sonnet", prompt: `Brief: ${ui}\nMODEL / EFFORT: sonnet / high` }],
+    // The same with a reading cue in the prompt: only the file-name strip keeps "retention" out (mutant B9).
+    ["a shop word only in a file name, with a cue", "Agent", { subagent_type: "lane-nickstire-client", model: "sonnet", prompt: `Brief: ${ui}\nMODEL / EFFORT: sonnet / high\nReport the spacing fix.` }],
+  ]) {
+    const r = judge(tool, input);
+    assert.equal(r.code, 0, `${label}: ${r.out}`);
+  }
+});
+
+test("producer and consumer agree: the real USER.md shop data meanings, pasted after SHOP DATA:, satisfy the rule", () => {
+  const user = readFileSync(join(ROOT, ".agents", "core", "USER.md"), "utf8");
+  const meanings = user.match(/^- Shop data meanings:[\s\S]*?(?=\n- |\n\n)/m)?.[0];
+  assert.ok(meanings, "USER.md must keep its 'Shop data meanings' bullet (PR 3226); the rule's fix text points at it");
+  assert.equal(laneBrief(`${SHOP_TASK}\nSHOP DATA: ${meanings}`).code, 0, "the canonical text must pass the rule it is pasted to satisfy");
+});
+
+test("every named brief file is read: a harmless first file does not hide a shop brief named second", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shop-two-"));
+  const first = join(dir, "style-brief.md");
+  const second = join(dir, "job8-brief.md");
+  writeFileSync(first, "GOAL: restyle the cards.\n");
+  writeFileSync(second, `${SHOP_TASK}\n`);
+  shopDenied(judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Example: ${first}\nYour brief: ${second}\nMODEL / EFFORT: sonnet / high` }), "the second file");
+});
