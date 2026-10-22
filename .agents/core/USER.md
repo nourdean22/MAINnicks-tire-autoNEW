@@ -11,6 +11,7 @@ review counts) are read from source files, never copied here. [Letters] cite sou
   Moe is not a person. [B]
 - Owner-operator of **Nick's Tire & Auto**, Cleveland (Euclid Ave). Timezone America/New_York. [A][C]
 - Builds **NOUR OS** (`apps/statenour`, bdnick.info) for himself. Exactly one user: him. [D]
+- The shop's how-we-operate doc: `apps/nickstire/docs/SHOP-SOUL.md`; read it before shop-facing work.
 - Shop team: Mash and Manny run operations; Zach is a hybrid tech. [A]
 - Shop model: first come, first served, walk-ins 7 days, no held appointment slots. Facts: `apps/nickstire/shared/business.ts`. [C][E]
 - Shop data meanings: a ShopDriver counter invoice is a closed job (a sale), and its payment status means nothing (payment is taken
