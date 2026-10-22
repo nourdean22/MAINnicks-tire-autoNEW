@@ -41,6 +41,8 @@ import { queryNick } from "@/lib/nickstire/query";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { getFlag } from "@/lib/feature-flags";
+import { weekdayET } from "@/lib/utils/datetime";
 
 // v10.0.529.2 M6 fix · surface silent-degrade paths for the 5 parallel
 // personal-slice queries. Each `.catch` previously returned the fallback
@@ -97,11 +99,21 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
     timeZone: "America/New_York",
   });
 
-  const [personal, shop, wellbeing, anticipated] = await Promise.all([
+  // 2026-10-22 · weekly "What you're not seeing" (lib/services/not-seeing-note.ts): Mondays,
+  // and only when NICK_WEEKLY_GAP_NOTE is on (default OFF). Imported lazily so a brief
+  // without it never loads the module.
+  const weeklyGapNote = weekdayET() === 1 && getFlag("NICK_WEEKLY_GAP_NOTE")?.isOn === true;
+
+  const [personal, shop, wellbeing, anticipated, notSeeing] = await Promise.all([
     buildPersonalSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Personal")),
     buildShopSlice().catch((): MorningBriefSlice => failedSlice("Shop")),
     buildWellbeingSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Wellbeing")),
     buildAnticipatedSlice().catch((): MorningBriefSlice => failedSlice("Anticipated")),
+    weeklyGapNote
+      ? import("@/lib/services/not-seeing-note")
+          .then((m) => m.buildNotSeeingSlice(todayIso))
+          .catch((): MorningBriefSlice => failedSlice("What you're not seeing"))
+      : Promise.resolve(emptySlice()),
   ]);
 
   // Compose · header always present · each slice appends only when it
@@ -111,6 +123,7 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
   const sections: string[][] = [];
   if (personal.lines.length > 0) sections.push(personal.lines);
   if (shop.lines.length > 0) sections.push(shop.lines);
+  if (notSeeing.lines.length > 0) sections.push(notSeeing.lines);
   if (wellbeing.lines.length > 0) sections.push(wellbeing.lines);
   if (anticipated.lines.length > 0) sections.push(anticipated.lines);
 
@@ -135,6 +148,7 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
       shop: shop.payload,
       wellbeing: wellbeing.payload,
       anticipated: anticipated.payload,
+      ...(weeklyGapNote ? { notSeeing: notSeeing.payload } : {}),
       builtAt: new Date().toISOString(),
     },
   };

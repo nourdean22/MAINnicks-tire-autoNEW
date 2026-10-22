@@ -62,6 +62,18 @@ const QUIET_LOT = {
   data: { ok: true, date: "2026-10-15", lines: [QUIET_LOT_LINE], events: [], coverage: { pctExpected: 0.92 } },
 };
 
+// 2026-10-22 · the weekly "What you're not seeing" section: Mondays + NICK_WEEKLY_GAP_NOTE only.
+const weekly = vi.hoisted(() => ({ flagOn: false, weekday: 3, build: vi.fn() }));
+vi.mock("@/lib/feature-flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/feature-flags")>();
+  return { ...actual, getFlag: (key: string) => ({ key, isOn: key === "NICK_WEEKLY_GAP_NOTE" ? weekly.flagOn : false }) };
+});
+vi.mock("@/lib/utils/datetime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils/datetime")>();
+  return { ...actual, weekdayET: () => weekly.weekday };
+});
+vi.mock("@/lib/services/not-seeing-note", () => ({ buildNotSeeingSlice: weekly.build }));
+
 import { buildMorningBrief, readLotBriefLines } from "@/lib/services/morning-brief";
 
 let mockDriftEvents: any[] = [];
@@ -435,5 +447,45 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     const brief = await buildMorningBrief();
     expect(brief.text).toContain("UNAVAILABLE (read failed)");
     expect(brief.text).not.toContain("Drift: <b>LOW</b>");
+  });
+});
+
+describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => {
+  const SECTION = { lines: ["<b>What you're not seeing</b>", "· business: a gap"], payload: { openGaps: 1 } };
+
+  beforeEach(() => {
+    resetMocks();
+    weekly.flagOn = false;
+    weekly.weekday = 1;
+    weekly.build.mockReset();
+    weekly.build.mockResolvedValue(SECTION);
+  });
+
+  it("OFF by default: a Monday brief carries no section and never composes it", async () => {
+    const brief = await buildMorningBrief();
+    expect(brief.text).not.toContain("What you're not seeing");
+    expect(weekly.build).not.toHaveBeenCalled();
+  });
+
+  it("flag on, Monday: the section is in the brief", async () => {
+    weekly.flagOn = true;
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("What you're not seeing");
+    expect(brief.text).toContain("· business: a gap");
+    expect(brief.payload.notSeeing).toEqual({ openGaps: 1 });
+  });
+
+  it("flag on, Tuesday: no section", async () => {
+    weekly.flagOn = true;
+    weekly.weekday = 2;
+    const brief = await buildMorningBrief();
+    expect(brief.text).not.toContain("What you're not seeing");
+  });
+
+  it("a section that throws leaves a marker line, not silence", async () => {
+    weekly.flagOn = true;
+    weekly.build.mockRejectedValue(new Error("boom"));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("What you're not seeing slice unavailable");
   });
 });
