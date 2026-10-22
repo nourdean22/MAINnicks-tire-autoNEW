@@ -16,6 +16,7 @@
  *   - an uncertain gateway outcome is reported as uncertain and not retried;
  *   - the staff Telegram carries the phone's last four digits only;
  *   - a price under the $50 floor stores nothing and texts nothing;
+ *   - the tire and price must be a supplier-feed row for the size, and the feed's own names are texted;
  *   - with ENABLE_CUSTOMER_CONFIRMATIONS unset the row is stored and no text goes out.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,6 +35,9 @@ const h = vi.hoisted(() => {
     telegrams: [] as Array<{ text: string; cls: string }>,
     audits: [] as Row[],
     logs: [] as string[],
+    /** Pipeline price cache for the size (null = cold), and the live supplier answer (null = unreachable). */
+    feed: null as Row[] | null,
+    live: null as Row[] | null,
   };
   const nameOf = (t: unknown): string => {
     const sym = Object.getOwnPropertySymbols(t as object).find((s) => s.description === "drizzle:Name");
@@ -123,6 +127,16 @@ vi.mock("../services/telegram", () => ({
 vi.mock("../services/auditTrail", () => ({
   logAdminAction: async (d: Row) => { h.audits.push(d); },
 }));
+vi.mock("../services/dataPipelines", () => ({ getCachedPrices: () => h.feed }));
+vi.mock("../services/gatewayClient", () => ({
+  searchTiresBySize: async () => h.live,
+  pickWholesaleCost: (item: Row) => Number(item.cost),
+}));
+
+/** What publicSearch shows for 215/60R16 at the default 100% markup: $76.50 cost -> $153.00 a tire. */
+const FEED: Row[] = ["Defender 2", "CrossClimate 2", "Pilot Sport 4"].map((model) => ({
+  brand: "Michelin", model, size: "215/60R16", wholesaleCost: 76.5, localQty: 4, fetchedAt: Date.now(),
+}));
 
 import { _resetQuoteClaimsForTest, tireQuoteRouter } from "../routers/tireQuote";
 
@@ -154,6 +168,8 @@ describe("tireQuote.text", () => {
     h.telegrams = [];
     h.audits = [];
     h.logs = [];
+    h.feed = FEED;
+    h.live = null;
     process.env.ENABLE_CUSTOMER_CONFIRMATIONS = "true";
     _resetQuoteClaimsForTest();
     const { _resetSendPauseCacheForTest } = await import("../services/sendPause");
@@ -311,6 +327,63 @@ describe("tireQuote.text", () => {
     h.dbDown = true;
     const res = await caller().text(QUOTE);
     expect(res).toEqual({ ok: false, reason: "upstream_error" });
+    expect(h.sms).toHaveLength(0);
+  });
+
+  it("a tire name the supplier feed does not list for this size is refused: no row, no text (the text echoes the name)", async () => {
+    const res = await caller().text({ ...QUOTE, tireModel: "Defender 2 FREE ROTATIONS FOR LIFE" });
+    expect(res).toEqual({ ok: false, reason: "price" });
+    expect(h.tables.tire_orders).toHaveLength(0);
+    expect(h.sms).toHaveLength(0);
+    expect(h.telegrams).toHaveLength(0);
+  });
+
+  it("a price that is not the feed's price for that tire is refused, above the floor too", async () => {
+    for (const pricePerTireCents of [9900, 15299, 15301, 99900]) {
+      expect(await caller().text({ ...QUOTE, pricePerTireCents })).toEqual({ ok: false, reason: "price" });
+    }
+    expect(h.tables.tire_orders).toHaveLength(0);
+    expect(h.sms).toHaveLength(0);
+  });
+
+  it("a feed row the storefront hides as a price outlier cannot be quoted (cache and live alike)", async () => {
+    // Three $100-cost tires and one at $30 cost: under 0.4 of the size median, so publicSearch drops it.
+    const rows = [
+      { brand: "Michelin", model: "Defender 2", wholesaleCost: 100 },
+      { brand: "Michelin", model: "CrossClimate 2", wholesaleCost: 100 },
+      { brand: "Michelin", model: "Pilot Sport 4", wholesaleCost: 100 },
+      { brand: "Michelin", model: "Budget Tread", wholesaleCost: 30 },
+    ];
+    const outlier = { ...QUOTE, tireModel: "Budget Tread", pricePerTireCents: 6000 };
+    h.feed = rows.map((r) => ({ ...r, size: "215/60R16", localQty: 4, fetchedAt: Date.now() }));
+    expect(await caller().text(outlier)).toEqual({ ok: false, reason: "price" });
+    h.feed = null;
+    h.live = rows.map((r) => ({ make: r.brand, minor_name: r.model, cost: r.wholesaleCost, invent_size: "215/60R16" }));
+    expect(await caller().text({ ...outlier, tireBrand: "MICHELIN" })).toEqual({ ok: false, reason: "price" });
+    expect(h.sms).toHaveLength(0);
+    // Control: a row the storefront shows still quotes.
+    expect(await caller().text({ ...QUOTE, tireBrand: "MICHELIN", pricePerTireCents: 20000 })).toMatchObject({ ok: true, sms: "sent" });
+  });
+
+  it("the row and the text carry the feed's own brand and model, not the client's spelling", async () => {
+    await caller().text({ ...QUOTE, tireBrand: "MICHELIN", tireModel: "defender 2" });
+    expect(h.tables.tire_orders[0]).toMatchObject({ tireBrand: "Michelin", tireModel: "Defender 2", pricePerTire: 15300 });
+    expect(h.sms[0].body).toContain("Michelin Defender 2");
+  });
+
+  it("price cache cold: the live supplier feed is checked the way publicSearch shows it (brand upper-cased, BRAND - prefix stripped)", async () => {
+    h.feed = null;
+    h.live = [{ make: "Michelin", minor_name: "MICH - DEFENDER 2", cost: 76.5 }];
+    const res = await caller().text({ ...QUOTE, tireBrand: "MICHELIN", tireModel: "DEFENDER 2" });
+    expect(res).toMatchObject({ ok: true, sms: "sent" });
+    expect(h.tables.tire_orders[0]).toMatchObject({ tireBrand: "MICHELIN", tireModel: "DEFENDER 2" });
+  });
+
+  it("feed unreadable (cache cold, supplier unreachable): upstream_error, nothing stored or texted", async () => {
+    h.feed = null;
+    h.live = null;
+    expect(await caller().text(QUOTE)).toEqual({ ok: false, reason: "upstream_error" });
+    expect(h.tables.tire_orders).toHaveLength(0);
     expect(h.sms).toHaveLength(0);
   });
 

@@ -97,6 +97,7 @@ import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
 import { markInvoicePaid, stripeWebhookPreflight, webhookStatusForClaim } from "../lib/stripeWebhook";
 import { errorTelemetry } from "../lib/error-telemetry";
+import { onTrpcError } from "./trpcOnError";
 import { initSentry, flushSentry } from "../lib/sentry";
 import { registerObservabilityRoutes } from "../routes/observabilityRoutes";
 import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
@@ -556,12 +557,7 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
-      onError: ({ path, error, ctx }) => {
-        const route = path ? `/api/trpc/${path}` : "unknown";
-        const requestId = ctx?.res?.locals?.requestId as string | undefined;
-        serverLog.error(`[tRPC] ${route}: ${error.message}`, { route, requestId });
-        errorTelemetry.record(error, { route, requestId });
-      },
+      onError: onTrpcError,
     })
   );
   // <lastmod> — 2026-09-07. Every entry in all three sitemaps used to carry the

@@ -34,6 +34,7 @@ import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 import { PRICED_SIZES, cleanSize, computeSizePriceFloors, dropPriceOutliers, type SizePriceFloor } from "../lib/tirePriceRanges";
 
 import { db } from "../lib/db-helper";
+import { getTireMarkup } from "../lib/tireMarkup";
 import { affectedRowCount } from "../lib/db-affected";
 import { describeDbError } from "../lib/dbErrors";
 import { BUSINESS } from "@shared/business";
@@ -61,12 +62,7 @@ import { DkClient } from "../services/dkClient";
 export const getLastAuthFailure = getLastGatewayFailure;
 
 // ─── Pricing: 100% markup (cost × 2) ─────────────────
-async function getTireMarkup(): Promise<number> {
-  const d = await db();
-  if (!d) return 100; // Default 100% markup
-  const result = await d.select().from(shopSettings).where(eq(shopSettings.key, "tireMarkup")).limit(1);
-  return result.length > 0 ? parseFloat(result[0].value) : 100;
-}
+// getTireMarkup lives in ../lib/tireMarkup so tireQuote prices a quote the same way.
 
 // ─── Nick's Premium Installation Package ──────────────
 // This is the genius: $0 service fee. Everything is FREE.

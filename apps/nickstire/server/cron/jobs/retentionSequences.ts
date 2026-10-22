@@ -222,9 +222,9 @@ async function processRetentionTier(tier: RetentionTier): Promise<{ contacted: n
   );
 
   // A maintenance reminder (sent in the last 14 days, or approved and due in the next 14) replaces
-  // the generic D90/D180 text that fortnight (decision 2026-10-22). Empty while the lane is unarmed.
+  // the generic D90/D180/D365 text that fortnight (decision 2026-10-22). Empty while the lane is unarmed.
   const reminderThisFortnight =
-    tier.days === 90 || tier.days === 180
+    tier.days === 90 || tier.days === 180 || tier.days === 365
       ? await (await import("../../services/serviceReminders")).phonesWithReminderThisFortnight(
           db,
           await isEnabled("service_reminders_from_invoices"),

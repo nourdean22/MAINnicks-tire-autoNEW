@@ -70,3 +70,13 @@ export function smsWillReachCustomer(result: SmsOutcomeShape | null | undefined)
 export function smsClaimConsumed(result: SmsOutcomeShape | null | undefined): boolean {
   return smsOutcome(result) !== "failed";
 }
+
+/**
+ * A failed send that no later attempt can fix until a person changes something: a bad number, an
+ * internal line, an opt-out, a carrier block, no consent on file. Matched on sendSms's own error
+ * strings (server/sms.ts; the list is pinned in smsOutcome.test.ts). Anything else, including an
+ * unreadable opt-out or consent ledger, is temporary and may be retried.
+ */
+export function smsRefusalIsPermanent(error: string | null | undefined): boolean {
+  return /^(Invalid phone number|Refused: destination is an internal|Customer opted out of SMS|Recipient has blocked this number)|^No SMS consent on file.*\(no recorded opt-in\)$/.test(error ?? "");
+}
