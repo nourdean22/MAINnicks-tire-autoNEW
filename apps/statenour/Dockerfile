@@ -131,10 +131,18 @@ RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick p
       pydub==0.25.1 \
       litellm==1.86.2 \
       toml \
-      python-multipart==0.0.27 \
+      python-multipart==0.0.32 \
       pyyaml==6.0.3 \
-      yt-dlp==2025.1.15 \
+      yt-dlp==2026.8.19 \
+      "certifi>=2026.10.19" \
+      "anyio>=4.14.2" \
  && pip install --no-cache-dir --break-system-packages pillow==13.0.0
+# 2026-10-22 security floors (tests/repo/dockerfile-python-floors.test.ts). Dependabot reads
+# moneyprinter/uv.lock, not this list, so these pins are the image's only guard:
+#   certifi          - emSign roots with compromised intermediates (GHSA-6q48-6c7w-9gw2).
+#   anyio            - TLS hostname IDNA spoofing (GHSA-82r6-8w77-94w6).
+#   yt-dlp           - 2025.1.15 had seven advisories; the last fix landed in 2026.7.4.
+#   python-multipart - quadratic query-string parsing (0.0.30), negative Content-Length (0.0.31).
 
 # Non-root user for the runtime · standard hardening
 RUN addgroup --system --gid 1001 nodejs \
