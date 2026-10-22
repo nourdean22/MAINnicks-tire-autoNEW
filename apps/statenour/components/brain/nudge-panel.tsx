@@ -96,7 +96,7 @@ export function NudgePanel() {
           title="Nudges unavailable"
           provenance="ERROR"
           tone="warning"
-          why="The nudge query failed, so nothing is known about any of the nine subsystems it aggregates. This is NOT the same as having no nudges."
+          why="The nudge query failed, so nothing is known about the five sources it reads. This is NOT the same as having no nudges."
           unlock="Reload above. If it keeps failing, check the brain router and /api/health."
         />,
       );
@@ -120,7 +120,7 @@ export function NudgePanel() {
         title="In rhythm"
         provenance="ZERO"
         tone="positive"
-        why="Cross-system nudges aggregate signals from identity, contradictions, ghost accuracy, skills, beliefs, correlations, decision drift, prediction streaks, and blind-spots. A measured zero here means all subsystems are stable."
+        why="Cross-system nudges read five sources: identity axes, open contradictions, ghost accuracy, skills and correlation alerts. A measured zero means none of those five needs attention; nothing else is checked here."
         unlock="Keep shipping. New signals surface within 15s of a state change; dismissed ones return after 7d if still real."
       />,
     );
