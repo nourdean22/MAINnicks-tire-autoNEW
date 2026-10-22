@@ -3,12 +3,7 @@
  * Powers the live status marquee and customer-facing status page.
  */
 
-import { createLogger } from "../lib/logger";
-import { db } from "../lib/db-helper";
-import { sql } from "drizzle-orm";
-
 import { BUSINESS } from "@shared/business";
-const log = createLogger("shop-status");
 
 const TOTAL_BAYS = 4;
 
@@ -33,17 +28,16 @@ interface ShopStatus {
   statusMessage: string;
   /**
    * feat/home-v2 anti-fabrication gate: true only when currentJobs (and
-   * therefore openBays + the wait number) came from REAL data — the
-   * caller's activeOrderCount or the live bookings query. False means the
-   * time-of-day estimateCurrentJobs() fallback invented the numbers, and
+   * therefore openBays + the wait number) came from the caller's
+   * activeOrderCount. False means no complete occupancy source exists, and
    * clients must NOT render the wait/bay figures as fact.
    */
   waitIsFresh: boolean;
 }
 
 /**
- * Get current shop status.
- * Query database for active work orders with active stages.
+ * Get current shop status: open/closed from the hours, bays and wait only
+ * from a caller-supplied active-order count.
  */
 export async function getShopStatus(activeOrderCount?: number): Promise<ShopStatus> {
   // Use Eastern Time — Railway runs UTC, but business hours are ET
@@ -63,39 +57,13 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
     if (!isOpen) nextOpenTime = hour < 8 ? "8:00 AM today" : day === 6 ? "9:00 AM Sunday" : "8:00 AM tomorrow";
   }
 
-  // Bay usage from active orders (real) — or the time-of-day fallback,
-  // which is an INVENTED number and must be flagged stale (waitIsFresh).
-  let jobs: number;
-  let waitIsFresh: boolean;
-  if (activeOrderCount !== undefined) {
-    jobs = activeOrderCount;
-    waitIsFresh = true;
-  } else {
-    const d = await db();
-    if (d) {
-      try {
-        const { bookings } = await import("../../drizzle/schema");
-        const { and, inArray } = await import("drizzle-orm");
-        const activeBookings = await d.select({ id: bookings.id })
-          .from(bookings)
-          .where(
-            and(
-              inArray(bookings.stage, ["inspecting", "waiting-parts", "in-progress", "quality-check"]),
-              sql`status != 'cancelled'`
-            )
-          );
-        jobs = activeBookings.length;
-        waitIsFresh = true;
-      } catch (dbErr) {
-        log.warn("Failed to query active bookings for shop status:", dbErr);
-        jobs = estimateCurrentJobs(hour, day);
-        waitIsFresh = false;
-      }
-    } else {
-      jobs = estimateCurrentJobs(hour, day);
-      waitIsFresh = false;
-    }
-  }
+  // Bays and wait only from a caller-supplied count. Walk-ins are tracked
+  // in ShopDriver, so no table here covers the line: bookings.stage left one
+  // booking "in-progress" from April and read as "3 bays free" for six
+  // months (prod read 2026-10-22), and a stage moved today proves activity,
+  // not coverage. Without a complete source we claim no bays and no wait.
+  const jobs = activeOrderCount ?? 0;
+  const waitIsFresh = activeOrderCount !== undefined;
 
   const occupiedBays = Math.min(jobs, TOTAL_BAYS);
   const openBays = TOTAL_BAYS - occupiedBays;
@@ -139,16 +107,4 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
     statusMessage,
     waitIsFresh,
   };
-}
-
-/** Estimate current jobs based on time of day patterns */
-function estimateCurrentJobs(hour: number, day: number): number {
-  if (day === 0) return hour >= 10 && hour <= 14 ? 3 : 1; // Sunday lighter
-  // Weekday patterns
-  if (hour < 9) return 1;
-  if (hour < 11) return 3; // Morning rush
-  if (hour < 13) return 4; // Peak
-  if (hour < 15) return 3;
-  if (hour < 17) return 2;
-  return 1;
 }
