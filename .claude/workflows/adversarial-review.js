@@ -1,7 +1,7 @@
 export const meta = {
   name: 'adversarial-review',
   description: 'Read-only lens reviewers find defects in a branch, then skeptics try to refute each finding with a reproduction',
-  whenToUse: 'monorepo-manager step 10: review the integration branch before the PR opens. Needs the operator workflow opt-in.',
+  whenToUse: 'monorepo-manager step 12: review the integration branch before the PR opens. Needs the operator workflow opt-in.',
   phases: [
     { title: 'Review', detail: 'one read-only reviewer per lens over the diff' },
     { title: 'Verify', detail: 'skeptics in different roles try to refute each finding' },

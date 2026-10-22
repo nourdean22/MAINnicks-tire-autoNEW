@@ -1,0 +1,146 @@
+[
+  {
+    "query": "stay on it and get it all done across every session",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:6e5ba94d"
+  },
+  {
+    "query": "good, stay focused and keep going on the rest, let's get everything done and follow through on all of it",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:2b8af0f1"
+  },
+  {
+    "query": "be mindful of all the other sessions, don't step on each other's toes, and make sure they talk to each other as well as possible",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:506e402a"
+  },
+  {
+    "query": "I'm going to sleep, finish the AI work and the research before I wake up and don't stop till everything is merged and synced",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:e53e0760"
+  },
+  {
+    "query": "continue with the other stuff from yesterday and today too, are you on top of everything and knocking it all out",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:86aecc67"
+  },
+  {
+    "query": "what's going on, did you forget about the jobs that were running",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:5b6abed4"
+  },
+  {
+    "query": "what unfinished work is still sitting across the sessions and branches",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:0212ad9a"
+  },
+  {
+    "query": "go do everything and don't come back until it's all the way complete across both apps",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:e713dd5e"
+  },
+  {
+    "query": "the scout session says zero declined estimates were ever captured, pass that along in your status update",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "split this into a server lane and a client lane, dispatch both, check their diffs and merge when it's all green",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "check that one PR and merge it with the gate if CI is green",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:50ff60ea"
+  },
+  {
+    "query": "save all progress before you hit the limit so my other account can take over later",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:396993b1"
+  },
+  {
+    "query": "use perplexity deep research in chrome for this from now on, save that as a directive",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:6d2ed06a"
+  },
+  {
+    "query": "why do I feel like you stopped using the skills every turn like I wanted",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:2612c7d3"
+  },
+  {
+    "query": "then look at the stale worktrees and clean those up too",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:9359de83"
+  },
+  {
+    "query": "fix the typo in the footer on the tire shop site",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the bdnick.info deploy looks stuck, is the merged heap fix live yet",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "review this branch's diff for security problems before I merge it",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "turn the nightly backup back on too",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:a872776f"
+  },
+  {
+    "query": "yes, archive the cleanup session",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:bbdfbe1a"
+  },
+  {
+    "query": "ship it and then run the audit",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:c4101d1e"
+  },
+  {
+    "query": "write a reel script about winter tires for instagram",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "turn this tire guide PDF into a skill with citations",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "is the phone receptionist handling calls correctly today",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  }
+]

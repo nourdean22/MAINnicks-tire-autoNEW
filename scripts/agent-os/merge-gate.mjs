@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Merge protocol as one command (2026-10-15): the manager skill's step 13.
+ * Merge protocol as one command (2026-10-15): the manager skill's step 15 (step 13 before the 2026-10-22 rewrite).
  *
  *   node scripts/agent-os/merge-gate.mjs <pr> --sha <head sha you verified> [--wait-minutes 30] [--codex-wait-minutes 25] [--merge]
  *

@@ -1,6 +1,6 @@
-# Review before the PR opens, and the merge protocol (steps 10 and 13)
+# Review before the PR opens, and the merge protocol (steps 12 and 15)
 
-## Review (step 10)
+## Review (step 12)
 
 Five Codex findings landed on #3040 after it was open, and four on #3041. Each cost a push, a CI run and a round trip. A
 review that runs BEFORE the PR opens is cheaper and, with skeptics, less noisy. The shape below is taken from a working
@@ -65,7 +65,7 @@ Restarts and quota days (2026-10-16 and 2026-10-18):
   hour later; a merge on the fail-open path (`--codex-wait-minutes 0`, with Nour's go) gets the read-only skeptic lens as the
   substitute, recorded in the ledger row with the WARN line.
 
-## Merge protocol (step 13)
+## Merge protocol (step 15)
 
 Merge only when authorized. Then run ONE command, which re-verifies every condition in the same process as the merge:
 

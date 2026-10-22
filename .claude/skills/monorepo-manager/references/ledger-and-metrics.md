@@ -1,4 +1,4 @@
-# Ledger hygiene and job metrics (step 15, and step 1)
+# Ledger hygiene and job metrics (step 17, and step 1)
 
 ## The ledger row is written once, in the PR that merges it
 
@@ -48,7 +48,7 @@ well the process worked, so a pattern shows up before it costs a third job. Fiel
 | Field | Count or measure |
 |---|---|
 | review findings by class | each finding after the PR opened (Codex, human) and each manager probe or review finding before it, per class from the fixed list in `MANAGER-METRICS.md`: `bypass`, `test-gap`, `doc-claim`, `scope`, `name-or-fact`, `other` (a word of your own, such as "instrument", is mapped into one of them, never added) |
-| manager catches | how many of those the manager's own steps (7-10) found before the PR opened |
+| manager catches | how many of those the manager's own steps (8-12: relay, probes, names, sources, review) found before the PR opened |
 | red-first count | new tests/canaries recorded RED against the unfixed code, out of new tests |
 | mutation score | mutants killed / mutants tried, where a sweep ran |
 | cycle time | first dispatch to merge, in hours |

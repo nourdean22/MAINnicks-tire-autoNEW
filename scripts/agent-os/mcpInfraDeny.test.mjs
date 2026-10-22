@@ -764,7 +764,7 @@ test("AGENTS.md and CLAUDE.md say infra MCP mutation tools are DENIED by name, n
 // The ledger is state, not a spec: rows are appended, Status moves BUILT -> MERGED -> LIVE-VERIFIED and Next is rewritten as the job advances. A first version of this test pinned
 // "last row", Status BUILT and the guard row's Next text; the next PR that appended a row failed the every-PR policy job (2026-10-15). So this pins only what holds for the row's
 // whole life: one row, eight cells, no override mention, and, until verification completes, who acts and by when: this job's row and the guard row owe Next an owner and a date in
-// every Status except LIVE-VERIFIED and CANCELLED (a MERGED row with its live check outstanding is not done: monorepo-manager step 12). Row order, the Status word and Next text are NOT pinned.
+// every Status except LIVE-VERIFIED and CANCELLED (a MERGED row with its live check outstanding is not done: monorepo-manager step 14). Row order, the Status word and Next text are NOT pinned.
 const NEXT_EXEMPT_STATUS = new Set(["LIVE-VERIFIED", "CANCELLED"]);
 test("ledger: this job has ONE row with eight cells and no override mention; every row not yet LIVE-VERIFIED or CANCELLED (this job's and the guard row) names an owner and a date in Next; the guard row exists once with eight cells", () => {
   // a single snapshot cannot tell MERGED from a BUILT row that regressed to MERGED, so a Status regression is not detected here
