@@ -129,9 +129,11 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
   const sections: string[][] = [];
   if (personal.lines.length > 0) sections.push(personal.lines);
   if (shop.lines.length > 0) sections.push(shop.lines);
-  if (notSeeing.lines.length > 0) sections.push(notSeeing.lines);
   if (wellbeing.lines.length > 0) sections.push(wellbeing.lines);
   if (anticipated.lines.length > 0) sections.push(anticipated.lines);
+  // Last on purpose: the push preview is the first 200 characters (pushBodyFromBrief),
+  // and these gap lines are private enough to keep off a lock screen.
+  if (notSeeing.lines.length > 0) sections.push(notSeeing.lines);
 
   const text = [header, ...sections.flatMap((s, i) =>
     i === 0 ? s : ["<i>· · ·</i>", ...s],

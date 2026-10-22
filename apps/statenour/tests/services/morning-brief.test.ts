@@ -489,6 +489,19 @@ describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => 
     expect(brief.payload.notSeeing).toEqual({ gapsShown: 1 });
   });
 
+  it("the section comes after every other section, so it stays out of the 200-character push preview", async () => {
+    weekly.flagOn = true;
+    const { getTodaysAnticipated } = await import("@/lib/brain/anticipated-questions");
+    (getTodaysAnticipated as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      questions: [{ question: "What did the lot camera count yesterday?", topic: "shop" }],
+      answers: [null],
+    });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("What did the lot camera count yesterday?");
+    expect(brief.text.indexOf("What you're not seeing")).toBeGreaterThan(brief.text.indexOf("lot camera count"));
+    expect(brief.text.trimEnd().endsWith("· business: a gap")).toBe(true);
+  });
+
   it("flag on, Tuesday: no section", async () => {
     weekly.flagOn = true;
     weekly.weekday = 2;
