@@ -47,4 +47,4 @@ Rule 1 still bars AI footage framed as real). [L] Facts marked REFUTED in `apps/
 A newer explicit correction from Nour beats anything here. Fix this file and the source in the same PR, update
 any agent memory that repeats the old fact, and never re-derive the old fact from an older summary.
 
-Source letters [A]-[M] resolve in [USER-SOURCES.md](USER-SOURCES.md) (not auto-loaded; open when a fact is in doubt).
+Source letters [A]-[N] resolve in [USER-SOURCES.md](USER-SOURCES.md) (not auto-loaded; open when a fact is in doubt).
