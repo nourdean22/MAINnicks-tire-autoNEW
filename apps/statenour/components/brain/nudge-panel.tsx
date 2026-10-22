@@ -27,13 +27,8 @@ interface Nudge {
     | "contradiction"
     | "ghost"
     | "skill"
-    | "pin_hygiene"
-    | "belief_refresh"
     // v11.1 meta-intelligence
-    | "correlation"
-    | "decision_drift"
-    | "prediction_streak"
-    | "blind_spot";
+    | "correlation";
   text: string;
   link?: string;
 }
@@ -44,12 +39,7 @@ const SOURCE_META: Record<Nudge["source"], { label: string; tint: string }> = {
   contradiction: { label: "contradiction", tint: "text-amber-300" },
   ghost: { label: "ghost", tint: "text-violet-400" },
   skill: { label: "skill", tint: "text-emerald-300" },
-  pin_hygiene: { label: "pins", tint: "text-fg-secondary" },
-  belief_refresh: { label: "belief", tint: "text-sky-300" },
   correlation: { label: "correlation", tint: "text-fuchsia-300" },
-  decision_drift: { label: "decision drift", tint: "text-rose-300" },
-  prediction_streak: { label: "streak", tint: "text-emerald-300" },
-  blind_spot: { label: "blind spot", tint: "text-rose-400" },
 };
 
 const SEVERITY_GLYPH = {
