@@ -4,4 +4,4 @@
 
 | Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
 |---|---|---|---|---|---|---|---|
-| 2026-10-21-counter-lens-prep | UNKNOWN until review | UNKNOWN until the manager reads the diff | 28 failed / 156 passed across the four touched test files on the base (the passes are existing tests and controls) | 15/15 | UNKNOWN until merge | 0 | lane receipts: 172 passed in three camera-bridge files, 12 passed in conversationQuality.test.ts |
+| 2026-10-21-counter-lens-prep | UNKNOWN until review | 0 defects; manager re-ran 297 camera-bridge tests (218 + 79 supervisor), killed 1 mutation (base shop_mirror.py: 3 lineage tests red), checked visit widths against the heartbeat schema and the launcher flags against parse_args | 28 failed / 156 passed across the four touched test files on the base (the passes are existing tests and controls) | 15/15 | UNKNOWN until merge | 0 | lane receipts: 172 passed in three camera-bridge files, 12 passed in conversationQuality.test.ts |
