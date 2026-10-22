@@ -184,6 +184,24 @@ function renderTranscript(segments: TranscriptSegment[], totalSeconds: number | 
 const MIN_FACT_CONFIDENCE = 0.7;
 
 /**
+ * Output budget for the extraction call. The prod lane (deepseek-v4-pro on Ollama) spends its
+ * reasoning OUT OF max_tokens: probed 2026-10-22, llm.ts's default 4096 came back
+ * finish_reason=length with 0 content chars, while 16384 finished with 2,326 content chars
+ * (4,026 completion tokens in all). A 120 s office episode failed in production the same way.
+ */
+const EXTRACTION_MAX_TOKENS = 16_384;
+/** One retry when a reply comes back empty anyway (a longer transcript, more reasoning). */
+const EXTRACTION_RETRY_MAX_TOKENS = 32_768;
+/**
+ * Both attempts share ONE deadline. The route runs extraction inside the worker's POST, and the
+ * worker waits 120 s (camera-bridge/vision/officewake.py:714). The probe ran at about 160
+ * tokens/s, so the old 60 s per-call timeout would have capped a long reply near 9,600 tokens.
+ */
+const EXTRACTION_DEADLINE_MS = 105_000;
+/** A retry with less time than this left cannot finish a reasoning reply; fail honestly instead. */
+const EXTRACTION_MIN_RETRY_MS = 15_000;
+
+/**
  * LEVEL DOES NOT PREDICT INTELLIGIBILITY. Kept only to cap the genuinely inaudible.
  *
  * This started at -45 dBFS on the theory that a quiet capture yields a poor transcript. The
@@ -350,6 +368,7 @@ export async function extractConversationFacts(
   segments: TranscriptSegment[],
   opts: {
     meanVolumeDb?: number | null;
+    /** Total time for the model, the one retry included (default EXTRACTION_DEADLINE_MS). */
     timeoutMs?: number;
     /** Seconds the transcript actually covers, and the clip's full length. BOTH are needed
      *  for the coverage gate; omitting either leaves it OFF rather than assuming a value —
@@ -402,7 +421,7 @@ export async function extractConversationFacts(
   let raw: unknown;
   let engine: string | null = null;
   try {
-    const res = await invokeLLM({
+    const ask = (maxTokens: number, timeoutMs: number) => invokeLLM({
       messages: [
         { role: "system", content: SYSTEM },
         {
@@ -414,14 +433,27 @@ export async function extractConversationFacts(
       ],
       outputSchema: OUTPUT_SCHEMA,
       temperature: 0,
-      timeoutMs: opts.timeoutMs ?? 60_000,
+      maxTokens,
+      timeoutMs,
     });
-    engine = res.model ?? null;
     // `choices[0].message.content` is where InvokeResult carries the text. There is NO `res.text`
     // -- reading one returned undefined on every real call, and the hand-written mock in the
     // test file invented that field, so the suite certified the misunderstanding.
-    const content = res.choices?.[0]?.message?.content;
-    const text = typeof content === "string" ? content : "";
+    const textOf = (r: Awaited<ReturnType<typeof invokeLLM>>) => {
+      const content = r.choices?.[0]?.message?.content;
+      return typeof content === "string" ? content : "";
+    };
+    const budgetMs = opts.timeoutMs ?? EXTRACTION_DEADLINE_MS;
+    let res = await ask(EXTRACTION_MAX_TOKENS, budgetMs);
+    let text = textOf(res);
+    // An empty reply is the reasoning model spending the whole budget thinking: retry ONCE, bigger,
+    // inside what is left of the same deadline.
+    const leftMs = budgetMs - (Date.now() - started);
+    if (!text.trim() && leftMs >= EXTRACTION_MIN_RETRY_MS) {
+      res = await ask(EXTRACTION_RETRY_MAX_TOKENS, leftMs);
+      text = textOf(res);
+    }
+    engine = res.model ?? null;
     if (!text.trim()) throw new Error("LLM returned no content for fact extraction");
     raw = JSON.parse(stripFence(text));
     // Every ears-v2 field is required (Codex on #3213): a reply of only { facts: [] } would
