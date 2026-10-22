@@ -4,6 +4,9 @@
 > ship. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — the explicit no-touch file list; open it
 > before editing anything under `server/`.
 >
+> **Shop-facing work** (customer copy, prompts, texts, reports on shop data): read
+> [`docs/SHOP-SOUL.md`](./docs/SHOP-SOUL.md) first. It says how the shop runs and what its records mean.
+>
 > **Cross-cutting rules** (branching, worktrees, protected operations, the enforcement map, Windows):
 > root [`AGENTS.md`](../../AGENTS.md). This file adds only what is true of *this app*.
 

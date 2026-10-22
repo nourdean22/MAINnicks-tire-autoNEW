@@ -1,5 +1,10 @@
 # BUSINESS LANDSCAPE · Nick's Tire & Auto — How We Run
 
+> **SUPERSEDED 2026-10-22 by [`apps/nickstire/docs/SHOP-SOUL.md`](../../nickstire/docs/SHOP-SOUL.md).**
+> Kept as history: Nour's own words, the covenant and the positioning were carried over there. Some lines
+> below are wrong now ("urgency + FOMO" copy, the payment list, the retired AI provider). Where the two
+> disagree, SHOP-SOUL.md wins, and the "this doc is right" lines below no longer apply.
+
 > **Source of truth for any agent, human or AI, working on NOUR OS or nickstire.org.**
 > **Read this FIRST before building anything business-facing.**
 > **Updated continuously — keep it current. If behavior drifts from this doc, this doc is right.**

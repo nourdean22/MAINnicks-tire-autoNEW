@@ -68,6 +68,7 @@ Each bullet names the file pattern that arms it. Fire on the trigger, not on a v
 
 | When | Read |
 |---|---|
+| Writing anything shop-facing (copy, prompts, texts) or reading shop data | `docs/SHOP-SOUL.md`: how the shop runs, what invoices and estimates mean, words we never use |
 | Claiming what production does, or shipping a change to it | `truth_os.md` · `docs/CURRENT-TRUTH.md` — both **rank 4** in the root source-of-truth hierarchy |
 | Touching auth, VAPI, consent/quiet-hours, invoices, migrations, prerender, or the statenour bridge | `PROTECTED-CORE.md` (26 lines) — no-touch surfaces + 10 hard rules, incl. never weaken an auth or signature check to unblock a test |
 | Wiring or debugging a third-party call | `docs/integrations/INTEGRATION_REGISTRY.md` (38 lines) — per integration: required secrets, flag/trigger, owner, fallback, risk-if-down |

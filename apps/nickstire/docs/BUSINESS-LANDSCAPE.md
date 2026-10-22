@@ -1,5 +1,10 @@
 # Business Landscape — Nick's Tire & Auto
 
+> **SUPERSEDED 2026-10-22 by [`SHOP-SOUL.md`](./SHOP-SOUL.md).** Kept as history. Several facts below are
+> wrong now (the 36-month warranty, "$0 down financing", "keep prices off the site", the $20k target, the
+> AI provider). `SHOP-SOUL.md` section 10 lists them. Where the two disagree, `SHOP-SOUL.md` wins; the
+> "this doc wins" line below no longer applies.
+
 > **This document is the mirror.** When the business model, metrics hierarchy,
 > philosophy, or customer experience covenant changes, update this file **in the
 > same commit as the code change**. If a memory file (`~/.claude/projects/.../memory/*.md`)
