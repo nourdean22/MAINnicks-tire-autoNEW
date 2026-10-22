@@ -19,26 +19,25 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 ## Claude-specific
 
 - **Skills** (`.claude/skills/`, 84: 40 repo-specific + 19 always-on stance files + 25 vendored (SOURCE.md in each); invoke by exact name).
-  `nour-command` is the cross-cutting router; each `SKILL.md` carries
-  its own full trigger and rationale; this is only the index for picking one.
+  `nour-command` is the cross-cutting router; each `SKILL.md` has its own trigger; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
     recurring business/platform reports → `docs/reporting/REPORT-SKILL-SUITE.md` + the narrow reporting skill.
   - Schema/DDL → **statenour-migration** (Prisma) · **nickstire-tidb-ddl** (Drizzle/TiDB).
   - Any script that touches a DB from a worktree or local shell → **prod-db-guard**.
   - Authoring or editing a deny-list, guard regex, policy file or hook → **guard-red-team**.
   - `cwd` under `.claude/worktrees/*`, or `tsc` "not recognized" → **harness-worktree-setup**, FIRST.
-  - Pushing while sibling sessions run → **nickstire-shared-main-push**; a pushed branch with no
-    merged PR → **stranded-branch-rescue**; a cloud session's checkout (no `worktree-setup.ps1`) →
-    **session-authority**.
+  - Pushing while sibling sessions run → **nickstire-shared-main-push**; a pushed branch with no merged PR → **stranded-branch-rescue**;
+    a cloud session's checkout (no `worktree-setup.ps1`) → **session-authority**.
   - Confirm/alert/prompt UI in EITHER PWA → **nickstire-ios-pwa-primitives**.
-  - Reel content → **nickstire-reel-operator**; reel *pipeline code* →
-    **nickstire-verifier-reel-pipeline**.
+  - Reel content → **nickstire-reel-operator**; reel *pipeline code* → **nickstire-verifier-reel-pipeline**.
   - A pasted plan/audit/roadmap → **plan-gate**. "Turn this book/doc/repo into a skill" → **source-to-skill**.
     "Which skills actually fire?" → **skill-fire-audit**. Creating a skill, or rewriting a skill's description → **skill-forge**.
   - A read that RENDERS or SCORES → **empty-vs-error**; adding a WRITER (header, env var,
     column, tool registration) → **assert-the-consumer**; a new test or canary →
     **positive-control-first**; a new table/queue/tool/flag → **prior-art-grep**; a filtered ratio → **base-rate-check**.
   - A read-then-write that decides WHO acts (claim, lease, reclaim, dedupe marker) → **claim-before-act**.
+  - Security review of a diff → **differential-review**; dependency risk (direct deps only) → **supply-chain-risk-auditor**.
+  - Captures, bundles, devices of OUR OWN accounts or equipment → **reverse-engineer-anything** (static first; no evasion, keys, decoders).
   - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
     `docs/skill-proposals.md`). A job touching more than one lane → **monorepo-manager**.
