@@ -95,19 +95,17 @@ export const conversionRouter = router({
           };
         }
 
-        // "Today" = since Eastern midnight. CURDATE() started "today" at 8 PM
-        // ET the evening before (UTC midnight). A duration from the DB's own
-        // NOW() avoids any driver-shifted timestamp.
-        const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
-
-        // Active WOs touched TODAY. Was 7 days, so a job left in_progress
-        // last week rendered as a car "in shop right now".
+        // Active WOs (in-progress/waiting_parts/quality_check, last 7d)
         const activeWOs = await safeCount(d, sql`
           SELECT COUNT(*) as cnt FROM work_orders
           WHERE status IN ('in_progress', 'waiting_parts', 'quality_check')
-            AND COALESCE(updated_at, created_at) >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE
+            AND COALESCE(updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         `);
 
+        // Today's bookings, since Eastern midnight. CURDATE() started "today"
+        // at 8 PM ET the evening before (UTC midnight). A duration from the
+        // DB's own NOW() avoids any driver-shifted timestamp.
+        const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
         const todayBookings = await safeCount(d, sql`
           SELECT COUNT(*) as cnt FROM bookings
           WHERE createdAt >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE AND status IN ('new', 'confirmed')
