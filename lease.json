@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "worktree-agent-a0a88e3411a3d262e",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-a0a88e3411a3d262e",
+  "claimedBy": "",
+  "claimedAt": "2026-10-22T11:52:43.384Z",
+  "expiresAt": "2026-10-22T23:52:43.384Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
