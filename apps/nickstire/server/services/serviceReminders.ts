@@ -31,39 +31,39 @@ interface ReminderPlanEntry {
 export const SERVICE_REMINDER_PLAN = {
   tires: {
     months: 6,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about 6 months since your tire work with us. A rotation now helps all four wear evenly, so none of them gets to be the favorite. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about 6 months since your tire work with us. A rotation now helps all four wear evenly, so none of them gets to be the favorite. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   brakes: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your brake work with us, a good time to check the pads and rotors. Brakes are the one part of a car that should stay boring. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since your brake work with us, a good time to check the pads and rotors. Brakes are the one part of a car that should stay boring. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   oil: {
     months: 4,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about 4 months since your oil change with us, so the next one may be coming due. Fresh oil costs less than a new engine and causes less drama. Walk in any day, no appointment needed. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about 4 months since your oil change with us, so the next one may be coming due. Fresh oil costs less than a new engine and causes less drama. Walk in any day, no appointment needed. Let me know please, thanks. ${p}`,
   },
   cooling: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since we worked on your cooling system. A quick look at the coolant and hoses catches a leak early. Steam is great for coffee, not so much for engines. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since we worked on your cooling system. A quick look at the coolant and hoses catches a leak early. Steam is great for coffee, not so much for engines. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   electrical: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your battery or electrical work with us. A battery and charging test takes a few minutes, and batteries rarely give notice before they retire. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since your battery or electrical work with us. A battery and charging test takes a few minutes, and batteries rarely give notice before they retire. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   suspension: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your suspension work with us. It's worth having the steering and alignment checked, so the car goes where you point it. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since your suspension work with us. It's worth having the steering and alignment checked, so the car goes where you point it. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
 } satisfies Record<string, ReminderPlanEntry>;
 

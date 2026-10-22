@@ -79,11 +79,14 @@ describe("SERVICE_REMINDER_PLAN", () => {
     expect(months).toEqual({ tires: 6, brakes: 12, oil: 4, cooling: 12, electrical: 12, suspension: 12 });
   });
 
-  it("ships with no category approved, so nothing can send until Nour approves a text by name", () => {
+  it("every text carries Nour's approval by name and his opener and closer (2026-10-22)", () => {
     for (const key of Object.keys(SERVICE_REMINDER_PLAN)) {
-      expect(SERVICE_REMINDER_PLAN[key as keyof typeof SERVICE_REMINDER_PLAN].approvedBy).toBeNull();
-      expect(approvedReminderText(key)).toBeNull();
+      expect(SERVICE_REMINDER_PLAN[key as keyof typeof SERVICE_REMINDER_PLAN].approvedBy).toBe("Nour 2026-10-22");
+      const text = approvedReminderText(key)!;
+      expect(text.startsWith("Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about ")).toBe(true);
+      expect(text).toMatch(/Walk in any day[^.]*\. Let me know please, thanks\. \(216\) 862-0005$/);
     }
+    expect(approvedReminderText("engine")).toBeNull();
   });
 
   it("texts state no price and no em dash, and give the shop's number", () => {
@@ -91,7 +94,7 @@ describe("SERVICE_REMINDER_PLAN", () => {
       const text = entry.text("(216) 862-0005");
       expect(text).not.toMatch(/\$|—/);
       expect(text).toContain("(216) 862-0005");
-      expect(text.length).toBeLessThanOrEqual(300);
+      expect(text.length).toBeLessThanOrEqual(360); // three SMS segments with the STOP footer
     }
   });
 });
@@ -136,6 +139,7 @@ describe("sendDueServiceReminders", () => {
   });
 
   it("does not send a category whose text is not approved", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = null;
     const r = await sendDueServiceReminders(fakeDb());
     expect(h.sendSms).not.toHaveBeenCalled();
     expect(r.awaitingApproval).toBe(1);

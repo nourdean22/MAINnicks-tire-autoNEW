@@ -5755,8 +5755,8 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "No category text is approved yet (approvedBy null in SERVICE_REMINDER_PLAN), so even an armed lane sends nothing until Nour approves texts by name.",
-          "source": "build 2026-10-22"
+          "description": "All 6 texts approved by Nour on 2026-10-22 with his own opener and closer; the service_reminders_from_invoices flag stays OFF until his separate go, because switching it on sends real customer texts.",
+          "source": "approval 2026-10-22"
         },
         {
           "severity": "P2",

@@ -72,7 +72,7 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
 |---|---|---|---|---|
 | 1 | Homepage "live" badge stops claiming free bays from a stale tracker | Google live busyness (shown only with enough recent data); Waitwhile, Yelp | S | **BUILT, PR 3225** |
 | 2 | Pull what was done (line items, mileage) from ShopDriver tickets | Shopmonkey canned-service campaigns; Mitchell 1 SocialCRM | M | needs Nour's go for one read-only probe |
-| 3 | Maintenance reminders from closed jobs, closed the moment the customer returns | Shopmonkey (service + elapsed time after the job); Mitchell 1 follow-up suppression | M | **BUILT behind a flag (OFF)**; texts await Nour's approval by name |
+| 3 | Maintenance reminders from closed jobs, closed the moment the customer returns | Shopmonkey (service + elapsed time after the job); Mitchell 1 follow-up suppression | M | **BUILT behind a flag (OFF)**; texts approved by Nour 2026-10-22; switch stays off until his go |
 | 4 | One cap on marketing texts per customer across all senders | Klaviyo Smart Sending; Braze global frequency capping | S-M | needs Nour's go for one column |
 | 5 | Record the "no" at the counter, so declines are observed, not guessed | Tekmetric / Shopmonkey per-line approve or decline; Mitchell 1 recommendation record | S | Nour's decision: how the counter records it |
 | 6 | Fill the estimate service category that two features already read | already built here (`categorizeService`) | S | ready to build |
