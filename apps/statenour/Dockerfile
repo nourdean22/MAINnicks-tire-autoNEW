@@ -103,9 +103,12 @@ ARG RAILWAY_GIT_COMMIT_SHA
 ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 
 # Build the Next.js app · produces apps/statenour/.next/standalone/
+# 2026-10-22 · 4 GB heap for this command only: `next build`'s TypeScript step outgrew Node's
+# default ~2 GB old space (Railway builds 3d2dd55b, 78284042: heap out of memory at 2040 MB).
+# Same flag MAINnicks-tire-auto builds with. The runtime stage keeps the default.
 ENV NODE_ENV=production
 WORKDIR /repo/apps/statenour
-RUN pnpm run build
+RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:24-alpine3.23 AS runtime
