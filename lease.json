@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "claude/statenour-insight-brain-32f96f",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "701061a1-cb06-46b9-8576-a462a532ad57",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\epic-germain-4e0fc9",
+  "claimedBy": "statenour insight brain: audit + claim-vs-record PRs (job 2026-10-22-statenour-insight-brain)",
+  "claimedAt": "2026-10-22T03:28:03.545Z",
+  "expiresAt": "2026-10-22T15:28:03.545Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
