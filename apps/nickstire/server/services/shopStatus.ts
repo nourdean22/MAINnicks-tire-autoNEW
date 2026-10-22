@@ -74,18 +74,25 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
     const d = await db();
     if (d) {
       try {
+        // Only bookings whose stage moved TODAY (shop day, bounded in SQL:
+        // driver-parsed timestamps shift on ET). Walk-ins live in ShopDriver,
+        // so a tracker nobody touched today says nothing about the line: a
+        // booking left "in-progress" in April read as 1 car in the shop and
+        // "3 bays free" for six months (prod read 2026-10-22).
         const { bookings } = await import("../../drizzle/schema");
-        const { and, inArray } = await import("drizzle-orm");
-        const activeBookings = await d.select({ id: bookings.id })
+        const { and, ne } = await import("drizzle-orm");
+        const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
+        const movedToday = await d.select({ stage: bookings.stage, status: bookings.status })
           .from(bookings)
           .where(
             and(
-              inArray(bookings.stage, ["inspecting", "waiting-parts", "in-progress", "quality-check"]),
-              sql`status != 'cancelled'`
+              ne(bookings.stage, "received"),
+              sql`${bookings.stageUpdatedAt} >= NOW() - INTERVAL ${minutesSinceShopMidnight(now)} MINUTE`
             )
           );
-        jobs = activeBookings.length;
-        waitIsFresh = true;
+        const ACTIVE = new Set(["inspecting", "waiting-parts", "in-progress", "quality-check"]);
+        jobs = movedToday.filter((b: { stage: string; status?: string }) => ACTIVE.has(b.stage) && b.status !== "cancelled").length;
+        waitIsFresh = movedToday.length > 0;
       } catch (dbErr) {
         log.warn("Failed to query active bookings for shop status:", dbErr);
         jobs = estimateCurrentJobs(hour, day);
