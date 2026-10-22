@@ -18,10 +18,20 @@ import { fileURLToPath } from "node:url";
 
 const DOCKERFILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../Dockerfile");
 
-/** The runtime stage's ACTIVE lines: Dockerfile comment lines dropped, so a commented-out command never counts. */
+/**
+ * The runtime stage's EXECUTED text: Dockerfile comment lines dropped and inline shell comments
+ * (` # ...`) cut, so a commented-out command never counts. shortcut: a `#` inside a quoted string
+ * would be cut too; the runtime stage has none, revisit if one is added.
+ */
 function runtimeStage(text: string): string {
   const i = text.search(/^FROM .* AS runtime$/m);
-  return i < 0 ? "" : text.slice(i).split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+  if (i < 0) return "";
+  return text
+    .slice(i)
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .map((l) => l.replace(/\s#.*$/, ""))
+    .join("\n");
 }
 
 /** True when an active `pip install ... pillow==13.0.0` runs after the moviepy install. */
@@ -52,8 +62,10 @@ describe("statenour runtime image Pillow override", () => {
     const active = "RUN pip install moviepy==2.2.1 \\\n && pip install pillow==13.0.0";
     const commented = "RUN pip install moviepy==2.2.1\n# RUN pip install pillow==13.0.0";
     const before = "RUN pip install pillow==13.0.0\nRUN pip install moviepy==2.2.1";
+    const inline = "RUN pip install moviepy==2.2.1 \\\n && true # pip install pillow==13.0.0";
     expect(overrideAfterMoviepy(stage(active))).toBe(true);
     expect(overrideAfterMoviepy(stage(commented))).toBe(false);
     expect(overrideAfterMoviepy(stage(before))).toBe(false);
+    expect(overrideAfterMoviepy(stage(inline))).toBe(false);
   });
 });
