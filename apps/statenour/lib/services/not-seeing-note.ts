@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { queryNick, readBridge, type BridgeRead } from "@/lib/nickstire/query";
 import { shiftDate } from "@/lib/ai/outcome-calibration";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import { NOT_SEEING_HEADER } from "@/lib/services/brief-private";
 
 export interface NotSeeingSlice {
   /** Rendered HTML lines (the morning brief's format). */
@@ -63,7 +64,9 @@ export async function buildNotSeeingSlice(todayIso: string): Promise<NotSeeingSl
           createdAt: { gte: new Date(Date.now() - GAP_LOOKBACK_DAYS * 86400_000) },
         },
         orderBy: { createdAt: "desc" },
-        take: 40,
+        // Every open row in the window (76 open in total on 2026-10-22), so the one-per-topic
+        // pick below sees every topic; 500 only bounds a runaway table (PR #3221 review).
+        take: 500,
         select: { category: true, gap: true },
       })
       .catch((): null => null),
@@ -71,7 +74,7 @@ export async function buildNotSeeingSlice(todayIso: string): Promise<NotSeeingSl
     queryNick("revenue_range", range(-14, -8)).then((r) => readBridge<RevenueRange>(r), unknownRead),
   ]);
 
-  const lines: string[] = ["<b>What you're not seeing</b>"];
+  const lines: string[] = [NOT_SEEING_HEADER];
   // Rows read (capped by `take`), not the table total: payload only, never rendered as a count.
   let gapRowsRead: number | null = null;
   if (gapRows === null) {

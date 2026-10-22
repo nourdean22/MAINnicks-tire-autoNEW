@@ -68,6 +68,21 @@ describe("buildNotSeeingSlice", () => {
     expect(slice.payload.gapsShown).toBe(2);
   });
 
+  it("one gap per topic even when one topic dominates the newest rows", async () => {
+    // The mock honours `take`, so a cap applied before the per-topic pick would hide "business".
+    const rows = [
+      ...Array.from({ length: 45 }, (_, i) => ({ category: "habit", gap: `habit gap ${i}` })),
+      { category: "business", gap: "the older business gap" },
+    ];
+    h.findMany.mockImplementation(async (args: { take?: number }) => rows.slice(0, args.take ?? rows.length));
+    h.queryNick.mockResolvedValue({ data: { totalDollars: 1, invoiceCount: 1 } });
+
+    const slice = await buildNotSeeingSlice(TODAY);
+
+    expect(slice.lines.join("\n")).toContain("the older business gap");
+    expect(slice.lines.filter((l) => l.startsWith("· habit"))).toHaveLength(1);
+  });
+
   it("a failed gap read says unknown instead of 'no gaps'", async () => {
     h.findMany.mockRejectedValue(new Error("neon down"));
     h.queryNick.mockResolvedValue({ data: { totalDollars: 1, invoiceCount: 1 } });

@@ -7,12 +7,14 @@
  */
 import { apiHandler } from "@/lib/utils/http";
 import { buildNotSeeingSlice } from "@/lib/services/not-seeing-note";
-import { getFlag } from "@/lib/feature-flags";
+import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
 import { today } from "@/lib/utils/datetime";
 
 export const GET = apiHandler(
   async () => {
     const slice = await buildNotSeeingSlice(today());
+    // A cold process has not loaded the Settings-panel overrides yet (PR #3221 review).
+    await loadFeatureFlagOverrides().catch(() => {});
     return {
       text: slice.lines.join("\n"),
       lines: slice.lines,
