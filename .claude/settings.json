@@ -143,7 +143,7 @@
         ]
       },
       {
-        "matcher": "Agent|Task",
+        "matcher": "Agent|Task|mcp__ccd_session__start_session",
         "hooks": [
           {
             "type": "command",
@@ -199,6 +199,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/skills-check.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/health-first.mjs\"",
             "timeout": 10
           }
         ]

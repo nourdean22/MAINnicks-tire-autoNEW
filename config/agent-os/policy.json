@@ -879,6 +879,27 @@
       ]
     },
     {
+      "id": "brief-shop-data",
+      "tools": ["Agent"],
+      "pattern": "^(?:lane-dispatch|agent|session-start) (?:.* )?shop-data=no$",
+      "why": "Nour, 2026-10-22: a scout session reported '0 declines ever captured' because its brief carried none of the shop's data meanings (an estimate with no invoice IS the decline). A fresh agent or session does not load the manager's memory, so a brief that reads Nick's Tire records must carry them. Judged on the summary line policy.mjs > agentDispatchCall builds for Agent, Task and mcp__ccd_session__start_session.",
+      "fix": "Add a line starting 'SHOP DATA:' to the brief (prompt, start_session background, or the brief file) and paste the 'Shop data meanings' lines from .agents/core/USER.md (memory shop-data-meanings): a counter invoice is a closed job and its payment status means nothing (separate register); an estimate with no matching invoice most likely means the customer walked (declined work) but stays an inference; key follow-ups to invoices, not bookings.",
+      "denyExamples": [
+        "lane-dispatch type=lane-nickstire-server model=sonnet brief=C:/x/retention-brief.md model-effort-line=yes shop-data=no",
+        "agent type=general-purpose shop-data=no",
+        "agent type=- shop-data=no",
+        "session-start shop-data=no"
+      ],
+      "allowExamples": [
+        "lane-dispatch type=lane-nickstire-server model=sonnet brief=C:/x/retention-brief.md model-effort-line=yes shop-data=yes",
+        "lane-dispatch type=lane-statenour model=sonnet brief=C:/x/ui-brief.md model-effort-line=yes shop-data=n/a",
+        "agent type=Explore shop-data=n/a",
+        "session-start shop-data=yes",
+        "session-start shop-data=n/a",
+        "agent type=shop-data=no-helper shop-data=n/a"
+      ]
+    },
+    {
       "id": "infra-approvals-store-write",
       "tools": ["Write", "Edit", "NotebookEdit"],
       "pathPattern": "(?:^|/)nourc(?:ity|i~[0-9]+)[. ]*/(?:[^/]*/)*?approv(?:als|~[0-9]+)[. ]*(?:/|:|$)",

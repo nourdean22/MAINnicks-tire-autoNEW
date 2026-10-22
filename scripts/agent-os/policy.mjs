@@ -29,7 +29,7 @@
  *   pathPattern         — regex vs tool_input.file_path / notebook_path (Write/Edit/NotebookEdit)
  *   onlyWhenCwdMatches  — extra guard: rule applies only when cwd matches
  */
-import { lstatSync, opendirSync, readFileSync } from "node:fs";
+import { lstatSync, opendirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -139,14 +139,48 @@ function briefFile(prompt) {
   }
   return null;
 }
+// -- Shop data in briefs (2026-10-22, job manager-skill-best) -------------------------------------------------------
+// A scout reported "0 declines ever captured" because its brief carried none of the shop's data meanings (an estimate
+// with no invoice IS the decline). Every dispatch line also gets shop-data=<n/a|yes|no>, which rule `brief-shop-data`
+// judges: n/a = the brief does not read Nick's Tire records; yes = it carries a line starting "SHOP DATA:" whose block
+// names invoices and estimates (the meanings in .agents/core/USER.md); no = it reads them without that block.
+// The text judged is the prompt, start_session's background, and the brief FILE the prompt names (read when it exists,
+// under 512 KB; an unreadable file is skipped, fail open on the file, never on the rule).
+const SHOP_NOUN = /\b(?:invoices?|estimates?|declin(?:e|es|ed|ing)|ShopDriver|paymentStatus|revenue|repeat customers?|retention|maintenance reminders?|bookings?)\b/i;
+const SHOP_PLACE = /apps[\\/]nickstire|\bnickstire\b|\bNick'?s Tire\b|\bshop data\b|\bthe shop\b/i;
+const BRIEF_MAX_BYTES = 512 * 1024;
+export function shopDataState(text, laneType = "") {
+  if (!SHOP_NOUN.test(text) || !(SHOP_PLACE.test(text) || /^lane-nickstire-/i.test(laneType))) return "n/a";
+  const at = text.search(/^[ \t>*_-]*SHOP DATA\s*:/im);
+  if (at < 0) return "no";
+  const block = text.slice(at, at + 1200);
+  return /\binvoice/i.test(block) && /\bestimate/i.test(block) ? "yes" : "no";
+}
+function briefText(prompt, cwd) {
+  const file = briefFile(prompt);
+  if (!file) return "";
+  try {
+    const p = resolve(cwd || process.cwd(), file);
+    return statSync(p).size <= BRIEF_MAX_BYTES ? readFileSync(p, "utf8") : "";
+  } catch {
+    return "";
+  }
+}
+
 export function agentDispatchCall(toolName, input, cwd) {
+  if (toolName === "mcp__ccd_session__start_session") {
+    if (!input?.prompt && !input?.background) return null; // a proposal_id start carries no brief
+    const text = [input.prompt, input.background].map((v) => String(v ?? "")).join("\n");
+    return { toolName: "Agent", command: `session-start shop-data=${shopDataState(`${text}\n${briefText(text, cwd)}`)}`, filePath: "", cwd };
+  }
   if (toolName !== "Agent" && toolName !== "Task") return null;
   const type = String(input?.subagent_type ?? "").trim().replace(/\s+/g, "_");
   const prompt = String(input?.prompt ?? "");
   const model = String(input?.model ?? "").trim().replace(/\s+/g, "_");
+  const shop = `shop-data=${shopDataState(`${prompt}\n${briefText(prompt, cwd)}`, type)}`;
   const command = /^lane-/i.test(type)
-    ? `lane-dispatch type=${type} model=${model || "-"} brief=${briefFile(prompt) ?? "no"} model-effort-line=${/MODEL\s*\/\s*EFFORT/.test(prompt) ? "yes" : "no"}`
-    : `agent type=${type || "-"}`;
+    ? `lane-dispatch type=${type} model=${model || "-"} brief=${briefFile(prompt) ?? "no"} model-effort-line=${/MODEL\s*\/\s*EFFORT/.test(prompt) ? "yes" : "no"} ${shop}`
+    : `agent type=${type || "-"} ${shop}`;
   return { toolName: "Agent", command, filePath: "", cwd };
 }
 
