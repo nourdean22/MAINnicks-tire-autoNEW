@@ -29,3 +29,19 @@ describe("pushBodyFromBrief", () => {
     expect(body.length).toBeLessThanOrEqual(200);
   });
 });
+
+describe("pushBodyFromBrief · the weekly gap section never reaches a lock screen (2026-10-22)", () => {
+  it("cuts the body at the section header, even when the earlier sections are short", () => {
+    const body = pushBodyFromBrief(
+      "<b>Brief · 2026-10-26</b>\nDrift: <b>LOW</b>\n<b>What you're not seeing</b>\n· business: a private gap",
+    );
+    expect(body).toContain("Drift: LOW");
+    expect(body).not.toContain("private gap");
+    expect(body).not.toContain("not seeing");
+  });
+
+  it("CONTROL: a brief without the section is unchanged", () => {
+    expect(pushBodyFromBrief("<b>Drift:</b> 2 goals idle")).toBe("Drift: 2 goals idle");
+  });
+});
+

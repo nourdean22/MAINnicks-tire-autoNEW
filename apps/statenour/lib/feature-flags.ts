@@ -261,6 +261,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
       "OFF: findRelevantContradictions always uses its 0.7 SIMILARITY_THRESHOLD regardless of query-plan classification, exactly as before this flag existed.",
     ownerDoc: "lib/brain/contradiction-injector.ts",
   },
+  {
+    key: "NICK_WEEKLY_GAP_NOTE",
+    description:
+      "Weekly 'What you're not seeing' section (2026-10-22, lib/services/not-seeing-note.ts): open claim-vs-record gaps (one per topic) and last week's shop sales vs the week before, appended to the Monday morning brief. OFF by default because the brief reaches Nour's phone and he stopped the scheduled briefs on 2026-10-18; preview any day at GET /api/brain/not-seeing. Turning it on is Nour's call. Set NICK_WEEKLY_GAP_NOTE=true to enable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: false,
+    defaultBehavior:
+      "OFF: the morning brief is unchanged; the preview route still composes the section on request and sends nothing.",
+    ownerDoc: "docs/design/2026-10-22-what-you-are-not-seeing.md",
+  },
   // ── Memory-write gateway kill-switches (registered 2026-08-19) ────
   // Both were LIVE-by-default via raw `process.env.X !== "0"` reads in
   // memory-manager.ts and appeared NOWHERE on the flag board — the two

@@ -42,6 +42,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
+import { NOT_SEEING_HEADER } from "@/lib/services/brief-private";
 
 const log = rootLogger.withSurface("inngest/morning-brief");
 const inngest = getInngest();
@@ -139,7 +140,9 @@ async function composeBrief(): Promise<ComposedBrief> {
  * stripping could also cut a tag in half mid-notification.
  */
 export function pushBodyFromBrief(text: string): string {
-  return text
+  // The weekly gap section is private: a lock screen never shows any of it (PR #3221 review).
+  const cut = text.indexOf(NOT_SEEING_HEADER);
+  return (cut >= 0 ? text.slice(0, cut) : text)
     .replace(/<[^>]+>/g, "")
     .replace(/\n+/g, " · ")
     .replace(/\s+/g, " ")
