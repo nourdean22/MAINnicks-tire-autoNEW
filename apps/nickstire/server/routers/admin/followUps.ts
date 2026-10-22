@@ -123,7 +123,7 @@ export const followUpsRouter = router({
       }
       const { logAdminAction } = await import("../../services/auditTrail");
       logAdminAction({
-        action: outcome === "queued" ? "customer.sms_queued" : "customer.sms_sent",
+        action: outcome === "queued" ? "customer.sms_queued" : outcome === "failed" ? "customer.sms_failed" : "customer.sms_sent",
         entityType: "customer_notification",
         entityId: String(input.id),
         details: `Follow-up retry (${existing.notificationType}) → ${outcome}`,

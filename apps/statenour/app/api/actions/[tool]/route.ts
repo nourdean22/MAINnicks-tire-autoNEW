@@ -1,4 +1,6 @@
+import { readRequestBody } from "@modelcontextprotocol/server";
 import { assertBridgeAuth } from "@/lib/agent-bridge/auth";
+import { MAX_REQUEST_BODY_BYTES, MAX_TOOL_INPUT_ELEMENTS, exceedsToolInputElements } from "@/lib/agent-bridge/request-limits";
 import { getBridgeSafeTools, executeBridgeTool, bridgeCatalogIndex } from "@/lib/agent-bridge/tool-adapter";
 import { assertBridgeToolAllowed } from "@/lib/agent-bridge/tool-policy";
 import { auditBridgeCall, auditBridgeRejection, classifyBridgeFailure } from "@/lib/agent-bridge/audit";
@@ -57,14 +59,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ tool: s
       );
     }
 
+    // Same limits as /api/mcp (lib/agent-bridge/request-limits.ts): a body over the cap is
+    // refused before it is read in full, and an oversized argument tree before validation.
+    const body = await readRequestBody(req, MAX_REQUEST_BODY_BYTES);
+    if (body.tooLarge) {
+      return Response.json({ error: "Request body too large." }, { status: 413 });
+    }
     let args = {};
     try {
-      const text = await req.text();
-      if (text) {
-        args = JSON.parse(text);
+      if (body.text) {
+        args = JSON.parse(body.text);
       }
     } catch (e) {
       // empty or invalid JSON falls back to {}
+    }
+    if (exceedsToolInputElements(args)) {
+      return Response.json(
+        { error: `Arguments contain more than the maximum of ${MAX_TOOL_INPUT_ELEMENTS} elements.` },
+        { status: 400 },
+      );
     }
 
     const startTime = Date.now();

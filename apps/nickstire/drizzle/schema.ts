@@ -796,7 +796,10 @@ export const serviceReminders = mysqlTable("service_reminders", {
   snoozedUntil: timestamp("snoozedUntil"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  // 0150 (hand-applied): one reminder per customer, category and closed job; the planner inserts with IGNORE.
+  uniqueIndex("uq_service_reminders_phone_type_date").on(table.phone, table.serviceType, table.lastServiceDate),
+]);
 
 export type ServiceReminder = typeof serviceReminders.$inferSelect;
 export type InsertServiceReminder = typeof serviceReminders.$inferInsert;

@@ -12,10 +12,11 @@
  * shadow run that counts and writes nothing), and each category's text carrying Nour's approval by
  * name in SERVICE_REMINDER_PLAN below.
  */
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 import { invoices, serviceReminders } from "../../drizzle/schema";
-import { categorizeService } from "./engines/shared";
+import { SERVICE_CATEGORIES } from "./engines/shared";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("service-reminders");
@@ -80,6 +81,30 @@ export function approvedReminderText(serviceType: string): string | null {
   return entry.approvedBy ? entry.text(BUSINESS.phone.display) : null;
 }
 
+/** A category as the customer says it, in the order the combined text lists them. */
+const CATEGORY_WORDS: Record<ReminderCategory, string> = {
+  brakes: "brake",
+  tires: "tire",
+  suspension: "suspension",
+  electrical: "battery",
+  cooling: "cooling",
+  oil: "oil change",
+};
+
+/** "a", "a and b", "a, b and c" (no Oxford comma). */
+function joinAnd(words: readonly string[]): string {
+  return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+/** One text when several of a customer's reminders come due within 30 days of each other. */
+export const COMBINED_REMINDER = {
+  approvedBy: "Nour 2026-10-22" as string | null,
+  text: (categories: readonly ReminderCategory[], p: string) => {
+    const words = (Object.keys(CATEGORY_WORDS) as ReminderCategory[]).filter((c) => categories.includes(c)).map((c) => CATEGORY_WORDS[c]);
+    return `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. Your ${joinAnd(words)} work with us is due for a look, all around the same time, so one visit covers it. Walk in any day, first come, first served. Let me know please, thanks. ${p}`;
+  },
+};
+
 export function approvedCategories(): ReminderCategory[] {
   return (Object.keys(SERVICE_REMINDER_PLAN) as ReminderCategory[]).filter((k) => approvedReminderText(k) !== null);
 }
@@ -106,6 +131,20 @@ export function phone10(raw: string | null | undefined): string | null {
   return digits.length === 10 ? digits : null;
 }
 
+/**
+ * A reminder text names the job, so it needs tighter patterns than the shared classifier, whose
+ * bare "filter" turns a cabin air filter into an oil change and bare "mount" turns an engine mount
+ * (or a MOUNTAINEER) into a tire rotation (prod lines, 2026-10-22). Other categories as shared.
+ */
+const REMINDER_PATTERNS: Record<string, RegExp> = {
+  oil: /oil.?change|lube|oil\s*(?:&|and)?\s*filter/i,
+  tires: /tire|balance|rotation|alignment/i,
+};
+
+function reminderCategories(desc: string): string[] {
+  return SERVICE_CATEGORIES.filter((c) => (REMINDER_PATTERNS[c.key] ?? c.pattern).test(desc)).map((c) => c.key);
+}
+
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
 function addMonths(d: Date, months: number): Date {
@@ -119,6 +158,9 @@ function addMonths(d: Date, months: number): Date {
  * and the generic retention texts already cover that customer.
  */
 const LATE_GRACE_MS = 30 * 86_400_000;
+
+/** Reminders of one customer due this close together go out as one text. */
+const COMBINE_WINDOW_MS = 30 * 86_400_000;
 
 /** Pure: one reminder per customer x category, from that customer's latest closed-job day only. */
 export function planServiceReminders(jobs: readonly ClosedJob[], now: Date = new Date()): PlannedReminder[] {
@@ -134,7 +176,7 @@ export function planServiceReminders(jobs: readonly ClosedJob[], now: Date = new
   for (const j of jobs) {
     const p = phone10(j.customerPhone);
     if (!p || dayKey(j.invoiceDate) !== latestDay.get(p) || !j.serviceDescription) continue;
-    for (const cat of categorizeService(j.serviceDescription)) {
+    for (const cat of reminderCategories(j.serviceDescription)) {
       if (!isReminderCategory(cat) || out.has(`${p}|${cat}`)) continue;
       const nextDueDate = addMonths(j.invoiceDate, SERVICE_REMINDER_PLAN[cat].months);
       if (nextDueDate.getTime() < now.getTime() - LATE_GRACE_MS) continue;
@@ -231,18 +273,26 @@ export async function syncServiceReminders(db: Db, armed: boolean): Promise<Sync
   const have = new Set(stored.map((r) => `${r.phone}|${r.serviceType}|${dayKey(r.lastServiceDate)}`));
   const fresh = planned.filter((r) => !have.has(`${r.phone}|${r.serviceType}|${dayKey(r.lastServiceDate)}`));
   if (fresh.length > 0) {
-    await db.insert(serviceReminders).values(
-      fresh.map((r) => ({
-        phone: r.phone,
-        customerName: r.customerName,
-        vehicleInfo: r.vehicleInfo,
-        serviceType: r.serviceType,
-        lastServiceDate: r.lastServiceDate,
-        nextDueDate: r.nextDueDate,
-        status: "scheduled" as const,
-      })),
-    );
-    result.inserted = fresh.length;
+    // UNIQUE (phone, serviceType, lastServiceDate) (drizzle/0150): a run that read the table before
+    // another run wrote it skips the row it would duplicate instead of failing the whole insert.
+    // IGNORE, not a no-op ON DUPLICATE KEY UPDATE: mysql2 sets FOUND_ROWS, so a no-op update would
+    // count as affected and the receipt would over-count. IGNORE cannot truncate here: every value
+    // fits its column (same widths as invoices, status is a literal).
+    const res = await db
+      .insert(serviceReminders)
+      .ignore()
+      .values(
+        fresh.map((r) => ({
+          phone: r.phone,
+          customerName: r.customerName,
+          vehicleInfo: r.vehicleInfo,
+          serviceType: r.serviceType,
+          lastServiceDate: r.lastServiceDate,
+          nextDueDate: r.nextDueDate,
+          status: "scheduled" as const,
+        })),
+      );
+    result.inserted = (res as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0;
   }
   return result;
 }
@@ -280,7 +330,7 @@ export async function phonesToDefer(db: Db, phones: readonly string[]): Promise<
 }
 
 /**
- * For retention D90/D180: phones that got a service reminder in the last 14 days, or have an
+ * For retention D90/D180/D365: phones that got a service reminder in the last 14 days, or have an
  * approved-category reminder due in the next 14 days. The reminder replaces the generic text that
  * fortnight. Empty unless the lane is armed, so an unarmed lane never silences retention.
  */
@@ -318,11 +368,12 @@ export interface SendResult {
 /**
  * Sends due reminders (armed lane only; the caller checks the flag). Each row is CLAIMED before the
  * send by a compare-and-swap on its status, so the cron and the admin button can never both send it.
+ * A customer's reminders due within 30 days of each other go out as one COMBINED_REMINDER text.
  */
 export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
   const { sendSms } = await import("../sms");
   const { logOutboundSms } = await import("./smsInstrumentation");
-  const { smsOutcome } = await import("../lib/smsOutcome");
+  const { smsOutcome, smsRefusalIsPermanent } = await import("../lib/smsOutcome");
   const { getDueReminders } = await import("../db");
 
   const due: Array<{ id: number; phone: string; serviceType: string; nextDueDate?: Date }> = await getDueReminders();
@@ -334,8 +385,10 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
     return false;
   });
   const defer = await phonesToDefer(db, [...new Set(sendable.map((d) => d.phone))]);
-  const textedThisRun = new Set<string>(); // one reminder per customer per run, whatever the category
+  const textedThisRun = new Set<string>(); // one text per customer per run, whatever the categories
+  const dueAt = (d: { nextDueDate?: Date }) => d.nextDueDate?.getTime() ?? Date.now();
 
+  const live: typeof sendable = [];
   for (const d of sendable) {
     if (d.nextDueDate && d.nextDueDate.getTime() < Date.now() - LATE_GRACE_MS) {
       r.tooLate++;
@@ -345,19 +398,50 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
         .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
       continue;
     }
+    live.push(d);
+  }
+
+  const handled = new Set<number>();
+  for (const d of live) {
+    if (handled.has(d.id)) continue;
+    // Every reminder of this customer due within 30 days of this one goes out as ONE text (Nour 2026-10-22).
+    const group = live.filter((o) => !handled.has(o.id) && o.phone === d.phone && Math.abs(dueAt(o) - dueAt(d)) <= COMBINE_WINDOW_MS);
+    for (const g of group) handled.add(g.id);
     if (defer.has(d.phone) || textedThisRun.has(d.phone)) {
-      r.deferred++;
+      r.deferred += group.length;
       continue;
     }
+    if (group.length > 1 && !COMBINED_REMINDER.approvedBy) {
+      r.awaitingApproval += group.length; // the combined wording is not approved: send nothing, touch nothing
+      continue;
+    }
+    const ids = group.map((g) => g.id);
     try {
+      // Claim the WHOLE group in one compare-and-swap, so the cron and the admin button can never
+      // split one customer's group and both text them. The token in twilioSid marks this run's rows
+      // until the send settles; it is how a partial claim hands back only what it took.
+      const token = `claim-${randomUUID()}`;
       const claim = await db
         .update(serviceReminders)
-        .set({ status: "sent", sentAt: new Date() })
-        .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
-      if (((claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) !== 1) continue; // another run claimed it
+        .set({ status: "sent", sentAt: new Date(), twilioSid: token })
+        .where(and(eq(serviceReminders.phone, d.phone), inArray(serviceReminders.id, ids), eq(serviceReminders.status, "scheduled")));
+      const won = (claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0;
+      if (won !== group.length) {
+        if (won > 0) {
+          await db
+            .update(serviceReminders)
+            .set({ status: "scheduled", sentAt: null, twilioSid: null })
+            .where(and(inArray(serviceReminders.id, ids), eq(serviceReminders.twilioSid, token), eq(serviceReminders.status, "sent")));
+        }
+        r.deferred += group.length; // another run holds some or all of them; the next run decides
+        continue;
+      }
+      const claimed = group;
 
-      const text = approvedReminderText(d.serviceType)!;
-      const variantKey = `service_reminder_${d.serviceType}`;
+      const text = claimed.length === 1
+        ? approvedReminderText(claimed[0].serviceType)!
+        : COMBINED_REMINDER.text(claimed.map((c) => c.serviceType as ReminderCategory), BUSINESS.phone.display);
+      const variantKey = claimed.length === 1 ? `service_reminder_${claimed[0].serviceType}` : "service_reminder_combined";
       const result = await sendSms(d.phone, text, { via: "shop", skipPersist: true, variantKey });
       if (!result.queued && !result.heldOut) await logOutboundSms(d.phone, text, result, variantKey);
 
@@ -365,24 +449,32 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       if (outcome !== "failed") textedThisRun.add(d.phone);
       if (outcome === "failed") {
         r.failed++;
-        // A definite failure was not delivered: give the row back so the next run retries it.
+        // A definite failure was not delivered. A temporary one goes back for the next run; a
+        // permanent refusal (opted out, blocked, bad number) is cancelled, or every 2-hour run
+        // would retry it and write another failed row into the customer's thread.
         await db
           .update(serviceReminders)
-          .set({ status: "scheduled", sentAt: null, errorMessage: String(result.error ?? "send failed").slice(0, 500) })
-          .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "sent")));
+          .set({
+            status: smsRefusalIsPermanent(result.error) ? "cancelled" : "scheduled",
+            sentAt: null,
+            twilioSid: null,
+            errorMessage: String(result.error ?? "send failed").slice(0, 500),
+          })
+          .where(and(inArray(serviceReminders.id, ids), eq(serviceReminders.status, "sent")));
       } else if (outcome === "heldout") {
         r.heldOut++;
         await db
           .update(serviceReminders)
-          .set({ status: "cancelled", sentAt: null, errorMessage: "no-text holdout (contactExperiment)" })
-          .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "sent")));
+          .set({ status: "cancelled", sentAt: null, twilioSid: null, errorMessage: "no-text holdout (contactExperiment)" })
+          .where(and(inArray(serviceReminders.id, ids), eq(serviceReminders.status, "sent")));
       } else {
         r[outcome]++;
-        if (result.sid) await db.update(serviceReminders).set({ twilioSid: result.sid }).where(eq(serviceReminders.id, d.id));
+        // Always overwrite the claim token: with the provider sid, or NULL when there is none.
+        await db.update(serviceReminders).set({ twilioSid: result.sid ?? null }).where(inArray(serviceReminders.id, ids));
       }
     } catch (err) {
       r.failed++;
-      log.warn("service reminder row failed", { id: d.id, error: err instanceof Error ? err.message : String(err) });
+      log.warn("service reminder failed", { ids, error: err instanceof Error ? err.message : String(err) });
     }
   }
   log.info("service reminders sent", { ...r });

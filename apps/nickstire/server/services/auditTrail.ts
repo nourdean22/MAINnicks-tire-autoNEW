@@ -29,6 +29,8 @@ export type AuditAction =
   // 2026-09-01 · audit F-3: a text parked for the 8 AM window is not sent yet;
   // the receipt says queued so nobody reads it as delivered.
   | "customer.sms_queued"
+  // 2026-10-22 · a follow-up retry that did not go out (followUps.retry used to file it as sms_sent).
+  | "customer.sms_failed"
   | "customer.email_sent"
   | "customer.notes_updated"
   | "customer.segment_changed"
