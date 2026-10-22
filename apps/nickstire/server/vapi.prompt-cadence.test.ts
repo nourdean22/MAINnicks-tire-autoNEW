@@ -155,6 +155,17 @@ describe("no phone capture before a tire transfer (part 2 cleanup)", () => {
     expect(P).toContain("preferredDay = the day they named; leave it out only when they're coming now or today.");
   });
 
+  it("the tire close books a coming-today caller BEFORE the text (live miss, call 01a1652e 2026-10-22 19:56Z)", () => {
+    // That caller agreed to come today; the assistant sent the address text and never called bookSlot,
+    // so the manager got no heads-up. The close named the text first and bookSlot as an "also".
+    const close = section("Close = capture size", "\n");
+    const book = close.indexOf("bookSlot(");
+    expect(book, "the tire close names bookSlot").toBeGreaterThan(-1);
+    expect(close.slice(0, book)).toContain("coming now or today");
+    expect(close.slice(0, book)).not.toContain("sendConfirmationSms");
+    expect(close).not.toContain("also bookSlot");
+  });
+
   it("bookSlot asks once 'Who should we expect?' on name_needed; transfers stay question-free (2026-10-22)", () => {
     const line = section("· bookSlot(", "\n");
     expect(line).toContain("name_needed");
