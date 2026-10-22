@@ -112,6 +112,12 @@ RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:24-alpine3.23 AS runtime
+# 2026-10-22 · Pillow is forced to 13.0.0 by the second pip install: moviepy 2.2.1 (the latest)
+# declares pillow<12, but 11.3.0 carries 3 CRITICAL CVEs fixed only in 13.0.0 (CVE-2026-112393,
+# -112403, -112900; container-scan "os layer"). Nour picked forcing it over accepting the CVEs.
+# MoneyPrinter's video tests and a full subtitle render pass on 13.0.0 (PR body). pip prints a
+# moviepy/pillow conflict notice here and exits 0. Drop the override once a moviepy release
+# allows pillow>=13.
 RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick py3-pip py3-wheel \
  && pip install --no-cache-dir --break-system-packages \
       moviepy==2.2.1 \
@@ -127,7 +133,8 @@ RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick p
       toml \
       python-multipart==0.0.27 \
       pyyaml==6.0.3 \
-      yt-dlp==2025.1.15
+      yt-dlp==2025.1.15 \
+ && pip install --no-cache-dir --break-system-packages pillow==13.0.0
 
 # Non-root user for the runtime · standard hardening
 RUN addgroup --system --gid 1001 nodejs \

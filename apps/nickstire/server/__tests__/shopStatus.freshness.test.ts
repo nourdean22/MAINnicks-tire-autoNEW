@@ -9,7 +9,7 @@
  * fabricated fallbacks are flagged waitIsFresh=false and the message
  * stops asserting numbers.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const dbMock = vi.hoisted(() => ({ db: vi.fn() }));
 vi.mock("../lib/db-helper", () => dbMock);
@@ -47,5 +47,40 @@ describe("getShopStatus waitIsFresh gate", () => {
     if (status.isOpen) {
       expect(status.statusMessage).toMatch(/bays open — walk right in/i);
     }
+  });
+});
+
+// Upgrade scout 2026-10-22. Production read that day: one booking stuck in an
+// active stage since 2026-04-22, so the homepage badge said "OPEN · 3 BAYS
+// FREE" every open hour. Walk-ins are tracked in ShopDriver, so no table here
+// covers the line, and a booking moved today proves activity, not coverage
+// (Codex review on #3225). Same rule Google applies to live busyness: no
+// number without enough data.
+describe("getShopStatus claims no bays from the bookings tracker", () => {
+  const OPEN_TUESDAY_11AM_ET = new Date("2026-10-20T15:00:00Z");
+
+  beforeEach(() => {
+    dbMock.db.mockReset();
+    vi.useFakeTimers();
+    vi.setSystemTime(OPEN_TUESDAY_11AM_ET);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ["a booking stuck in an active stage", [{ stage: "in-progress" }]],
+    ["a booking moved to ready today", [{ stage: "ready" }]],
+    ["no bookings at all", []],
+  ])("%s: open, no bay count or wait, and the tracker is not read", async (_label, rows) => {
+    dbMock.db.mockResolvedValue({
+      select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+    });
+    const status = await getShopStatus();
+    expect(status.isOpen).toBe(true);
+    expect(status.waitIsFresh).toBe(false);
+    expect(status.statusMessage).not.toMatch(/bays? open|bays? available|walk right in|All bays full|minute/i);
+    expect(status.statusMessage).toMatch(/first come, first served/i);
+    expect(dbMock.db).not.toHaveBeenCalled();
   });
 });

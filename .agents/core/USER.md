@@ -13,6 +13,10 @@ review counts) are read from source files, never copied here. [Letters] cite sou
 - Builds **NOUR OS** (`apps/statenour`, bdnick.info) for himself. Exactly one user: him. [D]
 - Shop team: Mash and Manny run operations; Zach is a hybrid tech. [A]
 - Shop model: first come, first served, walk-ins 7 days, no held appointment slots. Facts: `apps/nickstire/shared/business.ts`. [C][E]
+- Shop data meanings: a ShopDriver counter invoice is a closed job (a sale), and its payment status means nothing (payment is taken
+  on a separate register); app-made online tire orders do track payment. An estimate with no matching invoice most likely means the
+  customer walked (declined work) but stays an inference unless the counter recorded the no. Key follow-ups to invoices, not bookings
+  (bookings are rare). [N]
 
 ## How to work with him
 
@@ -43,4 +47,4 @@ Rule 1 still bars AI footage framed as real). [L] Facts marked REFUTED in `apps/
 A newer explicit correction from Nour beats anything here. Fix this file and the source in the same PR, update
 any agent memory that repeats the old fact, and never re-derive the old fact from an older summary.
 
-Source letters [A]-[M] resolve in [USER-SOURCES.md](USER-SOURCES.md) (not auto-loaded; open when a fact is in doubt).
+Source letters [A]-[N] resolve in [USER-SOURCES.md](USER-SOURCES.md) (not auto-loaded; open when a fact is in doubt).

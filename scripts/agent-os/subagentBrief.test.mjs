@@ -33,7 +33,7 @@ const RESEARCH_FORBIDDEN_SKILLS = ["harness-worktree-setup"];
 // Matched as line starts inside the fenced block, so a field that survives only in the intro prose still fails.
 const FENCE_FIELDS = [
   "LANE:", "MODEL / EFFORT:", "GOAL:", "ACCEPTANCE:", "WHY:", "KNOWN:", "RULED OUT:", "DESIGN:", "FIXTURES:",
-  "PITFALLS:", "PATH EXCEPTIONS:", "YOU MAY NOT:", "DATA:", "LANE FILE GOVERNS:",
+  "PITFALLS:", "PATH EXCEPTIONS:", "YOU MAY NOT:", "DATA:", "SHOP DATA:", "LANE FILE GOVERNS:",
   "RESUME:", "CODEMOD RULE:", "CONTROLS RULE:", "FIRST:", "SKILLS TO INVOKE FIRST:",
   "VERIFY WITH:", "SELF-AUDIT (before you return):", "RETURN (exactly):",
 ];
@@ -197,6 +197,10 @@ test("POSITIVE CONTROL: planted template mutants are reported", () => {
   assert.ok(good.replace(selfAuditField, "").includes("SELF-AUDIT"));
   hit(good.replace(selfAuditField, ""), "SELF-AUDIT (before you return):");
   hit(good.replace("  7. Token", "  Token"), "RETURN item 7");
+  // Whole SHOP DATA line deleted: nothing else in the fence names it, so only the field check can notice.
+  const shopData = /^SHOP DATA:.*\r?\n/m;
+  assert.match(good, shopData);
+  hit(good.replace(shopData, ""), "SHOP DATA:");
   hit(good + "\n".repeat(TEMPLATE_MAX_LINES), "cap is under");
   hit(good.replace("GOAL:", "GOAL" + String.fromCharCode(0x2014)), "U+2014");
 });
