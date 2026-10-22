@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "Job 2026-10-22-voice-receptionist-name-ask: this diff only adds a name_needed answer to bookSlot's coming-now/tow path and one prompt sentence; it changes no capability's state, evidence or dates. The voice arrival behaviour it refines is recorded under arrival-invoice-reconciliation by job 2026-10-21-voice-receptionist-pro (PR 3212). Owner: the monorepo manager, to note the name ask in that entry's evidence text once the next live coming-now call shows a named text."
+    }
+  }
+}
