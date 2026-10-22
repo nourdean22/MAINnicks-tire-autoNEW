@@ -200,6 +200,12 @@ const EXTRACTION_RETRY_MAX_TOKENS = 32_768;
 const EXTRACTION_DEADLINE_MS = 105_000;
 /** A retry with less time than this left cannot finish a reasoning reply; fail honestly instead. */
 const EXTRACTION_MIN_RETRY_MS = 15_000;
+/**
+ * invokeLLM waits for an Ollama slot BEFORE its fetch timeout starts, indefinitely unless capped
+ * (llm.ts acquireOllamaSlot). Each attempt caps the wait and gives the fetch only what is left, so
+ * slot wait + request never outlive the attempt's share of the deadline (Codex on #3229).
+ */
+const EXTRACTION_SLOT_WAIT_MS = 15_000;
 
 /**
  * LEVEL DOES NOT PREDICT INTELLIGIBILITY. Kept only to cap the genuinely inaudible.
@@ -421,7 +427,9 @@ export async function extractConversationFacts(
   let raw: unknown;
   let engine: string | null = null;
   try {
-    const ask = (maxTokens: number, timeoutMs: number) => invokeLLM({
+    const ask = (maxTokens: number, timeLeftMs: number) => {
+      const slotWaitMs = Math.min(EXTRACTION_SLOT_WAIT_MS, Math.floor(timeLeftMs / 2));
+      return invokeLLM({
       messages: [
         { role: "system", content: SYSTEM },
         {
@@ -434,8 +442,10 @@ export async function extractConversationFacts(
       outputSchema: OUTPUT_SCHEMA,
       temperature: 0,
       maxTokens,
-      timeoutMs,
-    });
+      slotWaitMs,
+      timeoutMs: Math.max(1, timeLeftMs - slotWaitMs),
+      });
+    };
     // `choices[0].message.content` is where InvokeResult carries the text. There is NO `res.text`
     // -- reading one returned undefined on every real call, and the hand-written mock in the
     // test file invented that field, so the suite certified the misunderstanding.

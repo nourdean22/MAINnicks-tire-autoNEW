@@ -340,11 +340,33 @@ describe("ears-v2 output budget: reasoning must not eat the answer", () => {
   it("both attempts share one deadline under the worker's 120 s post timeout", async () => {
     llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
     await extractConversationFacts(SEGMENTS, GOOD);
-    const timeoutOf = (call: number) => (llm.mock.calls[call][0] as { timeoutMs: number }).timeoutMs;
+    // slot wait + request is what an attempt can really take (the fetch timeout starts after the slot)
+    const spanOf = (call: number) => {
+      const p = llm.mock.calls[call][0] as { timeoutMs: number; slotWaitMs?: number };
+      return p.timeoutMs + (p.slotWaitMs ?? Number.POSITIVE_INFINITY);
+    };
     // a long reasoning reply needs more than the old 60 s, but the pair must end inside 120 s
-    expect(timeoutOf(0)).toBeGreaterThan(60_000);
-    expect(timeoutOf(0)).toBeLessThan(120_000);
-    expect(timeoutOf(1)).toBeLessThanOrEqual(timeoutOf(0));
+    expect(spanOf(0)).toBeGreaterThan(60_000);
+    expect(spanOf(0)).toBeLessThanOrEqual(105_000);
+    expect(spanOf(1)).toBeLessThanOrEqual(spanOf(0));
+  });
+
+  it("every attempt caps its wait for an Ollama slot (an uncapped wait has no end)", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    await extractConversationFacts(SEGMENTS, GOOD);
+    for (const call of llm.mock.calls) {
+      const { slotWaitMs } = call[0] as { slotWaitMs?: number };
+      expect(Number.isFinite(slotWaitMs)).toBe(true);
+      expect(slotWaitMs).toBeLessThanOrEqual(15_000);
+    }
+  });
+
+  it("the caller's budget bounds both attempts together", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    await extractConversationFacts(SEGMENTS, { ...GOOD, timeoutMs: 95_000 });
+    const p = (call: number) => llm.mock.calls[call][0] as { timeoutMs: number; slotWaitMs: number };
+    expect(p(0).timeoutMs + p(0).slotWaitMs).toBeLessThanOrEqual(95_000);
+    expect(p(1).timeoutMs + p(1).slotWaitMs).toBeLessThanOrEqual(95_000);
   });
 
   it("no retry when too little of the deadline is left to finish one", async () => {
