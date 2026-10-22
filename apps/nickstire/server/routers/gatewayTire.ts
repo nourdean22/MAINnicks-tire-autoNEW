@@ -31,7 +31,7 @@ import {
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
-import { PRICED_SIZES, cleanSize, computeSizePriceFloors, type SizePriceFloor } from "../lib/tirePriceRanges";
+import { PRICED_SIZES, cleanSize, computeSizePriceFloors, dropPriceOutliers, type SizePriceFloor } from "../lib/tirePriceRanges";
 
 import { db } from "../lib/db-helper";
 import { affectedRowCount } from "../lib/db-affected";
@@ -270,6 +270,7 @@ export const gatewayTireRouter = router({
         const { getCachedPrices } = await import("../services/dataPipelines");
         const pipelineCached = getCachedPrices(sizeClean);
         if (pipelineCached && pipelineCached.length > 0) {
+          const keptCached = new Set(dropPriceOutliers(pipelineCached, "publicSearch:cache"));
           let tires: PublicTire[] = pipelineCached.flatMap((item, idx) => {
             // wave-fix-2026-05-25 (audit #152) · filter $0 cache tires.
             // wholesaleCost could be 0 if D&K returned a backorder row
@@ -281,6 +282,7 @@ export const gatewayTireRouter = router({
               log.warn(`[gatewayTire:publicSearch] filtered $0 cache tire: ${item.brand} ${item.model}`);
               return [];
             }
+            if (!keptCached.has(item)) return []; // feed price error, logged by dropPriceOutliers
             const shopPrice = Math.ceil(item.wholesaleCost * (1 + markup / 100) * 100) / 100;
             const pricePerTireCents = Math.round(shopPrice * 100);
             const cat = item.wholesaleCost < 60 ? "budget" : item.wholesaleCost < 90 ? "mid" : "premium";
@@ -328,6 +330,19 @@ export const gatewayTireRouter = router({
 
       if (rawTires && rawTires.length > 0) {
         try {
+          // Judge the WHOLE feed before sort or category filter, like the refresh does.
+          const keptLive = new Set(
+            dropPriceOutliers(
+              rawTires.map((item) => ({
+                item,
+                wholesaleCost: pickWholesaleCost(item),
+                brand: String(item.make || ""),
+                model: String(item.minor_name || ""),
+                size: String(item.invent_size || sizeFormatted),
+              })),
+              "publicSearch:live",
+            ).map((r) => r.item),
+          );
           let tires: PublicTire[] = rawTires.flatMap((item, idx) => {
             const cost = pickWholesaleCost(item);
             // wave-fix-2026-05-25 (audit #152) · filter $0 live tires.
@@ -338,6 +353,7 @@ export const gatewayTireRouter = router({
               log.warn(`[gatewayTire:publicSearch] filtered $0 live tire: ${item.make} ${item.minor_name}`);
               return [];
             }
+            if (!keptLive.has(item)) return []; // feed price error, logged by dropPriceOutliers
             // 100% markup: customer pays 2× wholesale
             const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
             const pricePerTireCents = Math.round(shopPrice * 100);
