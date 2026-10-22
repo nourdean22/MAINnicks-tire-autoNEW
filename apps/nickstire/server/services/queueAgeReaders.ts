@@ -45,7 +45,7 @@ async function oldestByAggregate(query: SQL, nowMs: number): Promise<QueueAgeRea
   }
 }
 
-/** Exactly what getDueReminders() (server/db.ts) selects for processReminderQueue. */
+/** Exactly what getDueReminders() (server/db.ts) selects for sendDueServiceReminders (services/serviceReminders.ts). */
 function readReminderQueue(nowMs: number): Promise<QueueAgeRead> {
   return oldestByAggregate(
     sql`SELECT MAX(TIMESTAMPDIFF(MINUTE, nextDueDate, NOW())) AS ageMinutes

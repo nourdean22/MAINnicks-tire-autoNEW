@@ -62,6 +62,7 @@ export const CUSTOMER_FACING_FLAGS: ReadonlySet<string> = new Set([
   "vip_auto_recognition",              // auto-SMS new VIPs a 10% off perk
   "referral_loop_closer",
   "predictive_maintenance_alerts",
+  "service_reminders_from_invoices",   // maintenance reminder texts from closed jobs
   "photo_assess_enabled",
   "legacy_autopost_live",              // live IG/FB posting
   "missed_call_recovery",
