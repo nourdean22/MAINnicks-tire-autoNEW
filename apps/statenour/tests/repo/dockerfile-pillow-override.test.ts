@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 const DOCKERFILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../Dockerfile");
 
 /**
- * The package arguments of every EXECUTED `pip install` in the runtime stage, in order. Comment
+ * The package arguments of every EXECUTED `pip install` in the runtime stage (up to the next
+ * `FROM`), in order. Comment
  * lines and inline ` # ...` comments are dropped, line continuations joined, and each RUN split
  * into its `&&` / `;` commands, so a mention (`RUN echo moviepy==2.2.1`, a comment) never counts
  * as an install. shortcut: a `#`, `&&` or `;` inside a quoted string would be mis-split; the
@@ -28,8 +29,9 @@ const DOCKERFILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../Docke
 function pipInstalls(text: string): string[][] {
   const i = text.search(/^FROM .* AS runtime$/m);
   if (i < 0) return [];
-  return text
-    .slice(i)
+  const stage = text.slice(i);
+  const next = stage.slice(1).search(/^FROM /m); // every FROM starts a new stage
+  return (next < 0 ? stage : stage.slice(0, next + 1))
     .split("\n")
     .filter((l) => !/^\s*#/.test(l))
     .map((l) => l.replace(/\s#.*$/, ""))
@@ -56,7 +58,13 @@ function overrideHolds(installs: string[][]): boolean {
 const pinsMoviepy = (installs: string[][]) => installs.flat().includes("moviepy==2.2.1");
 
 describe("statenour runtime image Pillow override", () => {
-  const installs = pipInstalls(readFileSync(DOCKERFILE, "utf8"));
+  const dockerfile = readFileSync(DOCKERFILE, "utf8");
+  const installs = pipInstalls(dockerfile);
+
+  it("the runtime stage is the last stage, the image Railway ships", () => {
+    const stages = [...dockerfile.matchAll(/^FROM .*$/gm)].map((m) => m[0]);
+    expect(stages.at(-1)).toMatch(/ AS runtime$/);
+  });
 
   it("the instrument finds the runtime stage's pip installs", () => {
     expect(installs.length).toBeGreaterThanOrEqual(2);
@@ -84,6 +92,8 @@ describe("statenour runtime image Pillow override", () => {
       downgraded: `${active}\nRUN pip install pillow==11.3.0`,
       moduleReinstall: `${active}\nRUN python3 -m pip install moviepy==2.2.1`,
       mentionOnly: "RUN echo moviepy==2.2.1 \\\n && pip install pillow==13.0.0",
+      laterStage: "RUN pip install moviepy==2.2.1\nFROM runtime AS mid\nRUN pip install pillow==13.0.0",
+      suffixedPillow: active.replace("pillow==13.0.0", "pillow==13.0.0rc1"),
     };
     for (const [shape, body] of Object.entries(broken)) {
       expect({ shape, holds: overrideHolds(stage(body)) }).toEqual({ shape, holds: false });
