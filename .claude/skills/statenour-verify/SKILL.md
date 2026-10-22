@@ -22,6 +22,13 @@ non-obvious and two of them silently lie if run carelessly.
 
 ## Traps
 
+- **`vitest.setup.ts` is not wired, so no test runs in a fixed timezone.**
+  `apps/statenour/vitest.setup.ts:1` sets `TZ` to America/New_York, but
+  `vitest.config.ts:27` lists only `tests/setup/auth-guard-mock.ts` in
+  `setupFiles`, so that file never loads. Never assume a timezone in a test:
+  run any date test once with `TZ=UTC` from Git Bash before trusting a local
+  green (this laptop runs Eastern, CI runs UTC). Witnessed 2026-10-22: a
+  due-date test passed locally and failed in CI on PR 3239.
 - **A script that loads env in its body must not statically import
   `lib/prisma` (directly or transitively).** ES imports are hoisted above a
   `process.loadEnvFile(...)` call, and `lib/prisma` reads only
