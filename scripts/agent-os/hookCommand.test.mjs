@@ -207,6 +207,51 @@ test("skills check (2026-10-17): the configured Stop string blocks a tool turn w
   }
 });
 
+test("health first (2026-10-22): the configured Stop string blocks an unhandled FIX FIRST line ONCE, then lets it stop", async () => {
+  const hook = nodeHooks.find((h) => h.event === "Stop" && h.command.includes("health-first.mjs"));
+  assert.ok(hook, "health-first.mjs must be configured as a Stop hook");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "health-hookcmd-"));
+  const transcript = join(dir, "t.jsonl");
+  const line = "[health] graphify DOWN | FIX FIRST: (1) powershell -File C:/repo/scripts/local-mcp-servers.ps1 -Start";
+  const entries = [
+    { type: "attachment", attachment: { type: "hook_success", hookEvent: "SessionStart", content: line, stdout: `${line}\n` } },
+    { type: "user", origin: { kind: "human" }, promptId: "p1", message: { role: "user", content: "status?" } },
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Two PRs open." }] } },
+  ];
+  writeFileSync(transcript, entries.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  process.env.HEALTH_FIRST_DIR = join(dir, "state");
+  try {
+    const payload = JSON.stringify({ session_id: `health-${process.pid}`, transcript_path: transcript, stop_hook_active: false, hook_event_name: "Stop" });
+    const first = runHook(hook.command, payload);
+    assert.equal(first.code, 2, `expected a block (exit 2), got ${first.code}\n${first.out}`);
+    assert.match(first.out, /\[health-first\][\s\S]*local-mcp-servers\.ps1/, "the block must be the hook's own, naming the fix");
+    const second = runHook(hook.command, payload);
+    assert.equal(second.code, 0, `the second stop must go through\n${second.out}`);
+  } finally {
+    delete process.env.HEALTH_FIRST_DIR;
+  }
+});
+
+test("receipt check (2026-10-22): the configured SubagentStop string sends a lane report with no evidence back ONCE", async () => {
+  const hook = nodeHooks.find((h) => h.event === "SubagentStop" && h.command.includes("subagent-receipt-check.mjs"));
+  assert.ok(hook, "subagent-receipt-check.mjs must be configured as a SubagentStop hook");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  process.env.RECEIPT_CHECK_DIR = mkdtempSync(join(tmpdir(), "receipt-hookcmd-"));
+  try {
+    const payload = JSON.stringify({ hook_event_name: "SubagentStop", stop_hook_active: false, agent_id: `a-${process.pid}`, agent_type: "lane-platform", last_assistant_message: "Status: DONE. All tests pass." });
+    const first = runHook(hook.command, payload);
+    assert.equal(first.code, 2, `expected a block (exit 2), got ${first.code}\n${first.out}`);
+    assert.match(first.out, /\[receipt-check\]/, "the block must be the hook's own");
+    const second = runHook(hook.command, payload);
+    assert.equal(second.code, 0, `the second stop must go through\n${second.out}`);
+  } finally {
+    delete process.env.RECEIPT_CHECK_DIR;
+  }
+});
+
 test("loop watchdog: the configured PostToolUseFailure string records failed calls (error payload), so 5 identical failures are denied", async () => {
   const fail = nodeHooks.find((h) => h.event === "PostToolUseFailure" && h.command.includes("stuck-watch.mjs"));
   const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));

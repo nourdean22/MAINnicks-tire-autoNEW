@@ -73,6 +73,11 @@ describe("contactExperiment", () => {
 
     // drip pools every drip campaign (incl. declined-estimate follow-ups) under
     // one key and its processor ignores the send outcome: not a lane.
+    expect(contactLaneForVariant("service_reminder_tires")).toMatchObject({
+      laneKey: "service_reminder",
+      flagKey: "contact_holdout_service_reminders",
+    });
+    expect(contactLaneForVariant("service_reminder_brakes")?.experimentId).toBe("contact:service_reminder:v1");
     expect(contactLaneForVariant("drip")).toBeNull();
     expect(contactLaneForVariant("declined_14")).toBeNull();
     expect(contactLaneForVariant("cross_sell")).toBeNull();

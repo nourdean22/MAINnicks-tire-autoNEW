@@ -115,6 +115,40 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   This widens Stop on purpose, behind its canary (`skillsCheck.test.mjs`, 13/13 mutants killed, and
   `hookCommand.test.mjs`). Cost: 5-9 ms of script time on 36-45 MB transcripts; a compaction search over a whole
   16 MB file took 96-151 ms; past 24 MB it stops and allows.
+  Turn truth (2026-10-22, job `2026-10-22-manager-skill-best`; Nour: "fix it forever"): the hook also sends a REPLY back,
+  tools or not, once per reply START (the newest prompt or task notification: a notification-driven night is one prompt and
+  many replies), when a `Skills:` line (also `Skill:`, `Skills used:`) names a real skill, case ignored, with no Skill
+  call since the start (clauses holding a negation, "already" or "earlier", text after "used earlier" / "skipped" and after
+  the first sentence claim nothing), when a clause calls CI, checks or a PR green, passing or mergeable with no CI read since
+  the start (a command running `gh pr checks|view|status`, `gh run`, `gh api` on check runs or `node merge-gate.mjs <pr>`, or
+  `ccd_pr get_status`; local, preflight and pre-commit runs are not CI), or when it calls something live or deployed with
+  no production read (a command or WebFetch hitting `/api/health`, a heartbeat or either production domain, a Railway
+  status/logs/deployment read, or a deployment or log MCP tool). Reading or grepping a file is never a read. The reply text
+  is the Stop payload's `last_assistant_message` (the hooks docs: the transcript may not hold the final message at Stop).
+  Replayed over 155 real manager turns: 22 of 128 `Skills:` lines, 1 stale CI tally and 3 relayed "is live" claims sent
+  back, every one true; the 7 false alarms two replays and a skeptic found are now allow-examples.
+- **Stop** (`health-first.mjs`, 2026-10-22, same job). A SessionStart `[health] ... FIX FIRST:` line is the session's
+  first task: a stop is sent back once per such line unless a call that RUNS or EDITS something names one of its fixes (a
+  script, config file, task or cmdlet; a read or grep of the script does not count) or a reply line starting `Health:` says
+  fixed or why not. It reads only the bytes after the offset it last judged (state
+  `%LOCALAPPDATA%/nourcity/health-first/<session>.json`), fails open, never blocks when it cannot save the offset. The
+  manager session of 2026-10-21/22 ran with graphify DOWN for about a day past this exact line.
+  Canaries: `healthFirst.test.mjs` and `hookCommand.test.mjs`.
+- **SubagentStop** (`subagent-receipt-check.mjs`, same job; asked for by the manager session from its setup benchmark).
+  Matcher `^lane-` (the agent's frontmatter `name`); for a lane agent, a final report with no receipt line (a command and
+  its exit code on one line), no commit SHA and no diff is sent back to the LANE once (exit 2: the subagent keeps running
+  with the stderr line as its next instruction, per the hooks docs read 2026-10-22). The research lane may cite
+  `path:line` or a URL instead. It checks that evidence is present, not that it is true: the manager still re-runs one
+  receipt. One-shot per `agent_id` (state `%LOCALAPPDATA%/nourcity/receipt-check/`), `stop_hook_active` passes, fails
+  open. Canaries: `subagentReceipt.test.mjs` (a planted always-true copy of the gate lets the bare report through, so a
+  gate that stops checking turns the file red) and `hookCommand.test.mjs`.
+- **PreToolUse** rule `brief-shop-data` (same job): an Agent, Task or `mcp__ccd_session__start_session` brief that reads
+  Nick's Tire records (a record noun such as invoice, estimate, decline or customers, a place such as nickstire or a
+  nickstire lane, and a reading cue such as count, how many, SELECT or TiDB; file names are taken out first) must carry a
+  line starting `SHOP DATA:` whose block (to the next field or blank line) names invoices and estimates; every .md or .txt
+  file the prompt names is read too (up to 5, under 512 KB, the blank template skipped). A scout reported "0 declines ever
+  captured" from a brief without these meanings. Canaries: `agentDispatch.test.mjs` (one feeds the real USER.md meanings
+  to the rule). Not covered: SendMessage follow-ups to a running session, and agents a Workflow script starts.
 - **UserPromptSubmit** (`skills-first-reminder.mjs`) prints one line on every prompt: invoke the skills the recall
   lines name before any work. It is advice, not enforcement: it has no path to exit 2, so it never blocks a prompt,
   and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command verbatim and
@@ -152,6 +186,19 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   and floor, and prints at most four `[tool-recall] use: <name> (<kind>; <matched words>) <use>` lines, `[native: x]`
   when a repo skill already does the job; no match prints nothing. Fails open: `[tool-recall] off: <reason>`, exit 0.
   Canary `toolRecall.test.mjs` (real script, configured command verbatim, broken registry, no-floor mutant).
+- **UserPromptSubmit** (`memory-recall.mjs`, 2026-10-22, runs right after tool-recall) searches the agent-memory notes
+  themselves, not the MEMORY.md titles: every `*.md` in the machine-local `~/.claude/projects/<primary checkout>/memory`
+  with a frontmatter `description` (the same directory check-memory-index guards, found from a harness worktree through
+  `git --git-common-dir`; indexes, `_bak_*` copies and description-less files skipped), scored with skill-recall's exported
+  scorer and floor. Prints at most three `[memory-recall] read: <file> (<matched words>) <description> [<N>d old]` lines;
+  the age is the file's modified time, so a stale note reads as stale. No match, or no memory directory (a cloud session,
+  another machine), prints nothing. Fails open: `[memory-recall] off: <reason>`, exit 0. Canary `memoryRecall.test.mjs`
+  (planted memory directory, real script, configured command verbatim, three mutants: no floor, `_bak_` copies indexed,
+  no line cap; plus a consumer check that the default resolution finds the real directory where one exists).
+- **Always-loaded size** (2026-10-22): `CLAUDE.md` and `GEMINI.md` import `docs/agent-os/NOUR-RUNTIME-KERNEL.md` (4 KB),
+  not the full `NOUR-COMMAND.md` (11.7 KB), which AGENTS.md still routes to for non-trivial work; `check-adapters.mjs`
+  requires the kernel import and refuses a re-import of the full file. The skill-discovery and subagent essays live in
+  `.claude/skills/find-skill/references/` and `.claude/skills/monorepo-manager/references/`; the profile keeps the rules.
 - **SessionStart** (`session-surface.mjs`, 2026-10-18, every source) prints one `[surface]` line: user+project hook
   events, MCP names (user, local, `.mcp.json`; claude.ai connectors are "not readable here"), enabled plugins, and
   rtk/uv/gh/railway on PATH (looked up, never run). Each segment reads on its own; a failed read is `UNKNOWN (<reason>)`,

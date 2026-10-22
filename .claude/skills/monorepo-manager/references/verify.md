@@ -1,9 +1,9 @@
-# Verify: labels, probes, names, sources, consumers (steps 6-9 and 12)
+# Verify: labels, probes, names, sources, consumers (steps 7, 9-11 and 14)
 
 Each section below is one step of the procedure, with the 2026-10-15 defect that earned it. The point of all of them:
 a lane's green is evidence about the lane's tests. These steps are the manager's own evidence about the thing.
 
-## Evidence labels (steps 6 and 14)
+## Evidence labels (steps 7 and 16)
 
 Every fact in a RETURN block and in your report carries one label.
 
@@ -16,9 +16,9 @@ Every fact in a RETURN block and in your report carries one label.
 For an external fact (a vendor doc, a platform behavior) use FACT only for a quote you read yourself; two consistent
 secondary sources or an observed behavior is STRONG INFERENCE; a summary, a memory note or another agent's word is a CLAIM.
 
-The two scales are one vocabulary used at two places (the first in RETURN blocks and the report, the second in step 9 and the PR body):
+The two scales are one vocabulary used at two places (the first in RETURN blocks and the report, the second in step 11 and the PR body):
 
-| RETURN and report (steps 6 and 14) | Step 9 and `NOUR-COMMAND.md` | Difference |
+| RETURN and report (steps 7 and 16) | Step 11 and `NOUR-COMMAND.md` | Difference |
 |---|---|---|
 | FACT | FACT | none: you ran it or read it |
 | INFERRED | STRONG INFERENCE | follows from named facts; a WEAK INFERENCE (plausible, material gaps) is written NOT CHECKED with the gap |
@@ -29,7 +29,7 @@ A commit or ledger row on a branch nobody has pushed is a CLAIM for every reader
 Then name the highest rung reached on `NOUR-COMMAND.md`'s ladder (claim, artifact, execution receipt, external effect,
 user or business outcome) and the first rung NOT reached. "Tested" is a rung; "live" is a higher one.
 
-## A DB tool needs a real-engine receipt (step 6)
+## A DB tool needs a real-engine receipt (step 7)
 
 A lane that tests a production-database tool against an in-memory fake can pass hundreds of tests and still ship SQL the real engine
 rejects. Measured 2026-10-15 by the status manager session and relayed here (CLAIM, not re-measured): the merged shop-clock backfill
@@ -47,7 +47,7 @@ tool passed 250 tests, then its first live `probe` (a SELECT) failed on producti
 5. The receipt (the script, its output and the positive control's failure) goes in the lane's return and the PR body. No receipt, no
    operator-facing step, and the report names the rung as "tested against a fake".
 
-## A granted one-line value change is reviewed like code (step 6)
+## A granted one-line value change is reviewed like code (step 7)
 
 When you grant a lane's cross-lane note (an href, a key, a label), grep every reader of the OLD value first, including
 guards that compare against it. Witnessed 2026-10-16: `lib/floating-home/smart-now.ts:62` changed `/system/actions` to
@@ -55,7 +55,7 @@ guards that compare against it. Witnessed 2026-10-16: `lib/floating-home/smart-n
 sheet kept suggesting the page the operator was already on (W1b review P1-1). Same shape in W1a: `toLowerCase()` hidden behind a
 removed `uppercase` class, and a mastery `icon` field whose readers only tsc found.
 
-## Probe it yourself (step 7)
+## Probe it yourself (step 9)
 
 1. Find the real entry point: the process the consumer runs, with the command string exactly as configured (a hook in
    `.claude/settings.json`, a CLI, an endpoint). A function call proves the function.
@@ -105,7 +105,7 @@ process.exit(bad ? 1 : 0);
 
 A probe run whose two controls are not both `ok` proves nothing: the harness, not the guard, is what failed.
 
-## Check the names (step 8)
+## Check the names (step 10)
 
 A rule that lists names (native `permissions.ask` entries, tool names, env vars, rule ids, file paths, skill or workflow
 names) fails silently when one name is mistyped: an ask rule that matches nothing prompts for nothing. The author cannot
@@ -124,9 +124,9 @@ Say NOT CHECKED for anything you could not resolve.
 
 Spot-check two rows yourself, one of them a "no". Witness (CLAIM: `6ba98aa6b` is on the guard session's unpushed branch): the 135 native
 ask rules in the guard job, each resolved with `ToolSearch select:` before it entered a fixture. The name list is a snapshot with no
-startup warning, so the fixture test pins it and a glob form still needs the live proof in step 12.
+startup warning, so the fixture test pins it and a glob form still needs the live proof in step 14.
 
-## Read the primary source (step 9)
+## Read the primary source (step 11)
 
 Decision-critical means the fact would change a design or a guard's behavior. Read the page yourself, quote at most 15
 words, record the URL and date, and label it. Put the label in the PR body.
@@ -136,10 +136,10 @@ the job brief). The Claude Code docs, read on 2026-10-15, said it does (FACT in 
 `6ba98aa6b`, unpushed, records the reading), and that led to native `permissions.ask` rules instead of more hook code. The live check of
 those rules then showed no prompt for Railway delete-service, Vercel pause_project or Prisma delete_prisma_postgres_database in a
 `bypassPermissions` session (CLAIM: the guard session's live check, cause not yet separated). So a quote is evidence about the docs, not about
-the thing: step 12 is what says it is constrained. The rule: search the page for the term before you accept "not documented"; if the page
+the thing: step 14 is what says it is constrained. The rule: search the page for the term before you accept "not documented"; if the page
 cannot be read, the answer is UNKNOWN and the design says so.
 
-## Consumer check (step 12)
+## Consumer check (step 14)
 
 An enforcement change is not done when its canaries pass; it is done when the thing it constrains is constrained
 (`assert-the-consumer`). Registration is not reachability.

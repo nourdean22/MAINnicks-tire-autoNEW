@@ -46,6 +46,7 @@ const CHECKER = join(HERE, "check-adapters.mjs");
 const FIXTURE_FILES = [
   "AGENTS.md",
   "NOUR-COMMAND.md",
+  "docs/agent-os/NOUR-RUNTIME-KERNEL.md",
   "CLAUDE.md",
   "GEMINI.md",
   "CLAUDE-OPERATING-PROFILE.md",
@@ -172,18 +173,34 @@ canary(
   "must route non-trivial work through Nour Command",
 );
 
+// 2026-10-22: the always-loaded adapters import the 4 KB runtime kernel, not the 11.7 KB NOUR-COMMAND.md (which stays
+// the on-demand full framework that AGENTS.md and the other vendor adapters route to).
 canary(
-  "root CLAUDE.md must IMPORT Nour Command, not merely mention it",
+  "root CLAUDE.md must IMPORT the runtime kernel, not merely mention it",
   "CLAUDE.md",
-  (s) => s.replace(/^@NOUR-COMMAND\.md$/m, "see [NOUR-COMMAND.md](./NOUR-COMMAND.md)"),
-  "must IMPORT Nour Command",
+  (s) => s.replace(/^@docs\/agent-os\/NOUR-RUNTIME-KERNEL\.md$/m, "see [the kernel](docs/agent-os/NOUR-RUNTIME-KERNEL.md)"),
+  "must IMPORT the runtime kernel",
 );
 
 canary(
-  "root GEMINI.md must import Nour Command through memport",
+  "root GEMINI.md must import the runtime kernel through memport",
   "GEMINI.md",
-  (s) => s.replace(/^@NOUR-COMMAND\.md$/m, "see NOUR-COMMAND.md"),
-  "must import Nour Command via memport",
+  (s) => s.replace(/^@docs\/agent-os\/NOUR-RUNTIME-KERNEL\.md$/m, "see docs/agent-os/NOUR-RUNTIME-KERNEL.md"),
+  "must import the runtime kernel via memport",
+);
+
+canary(
+  "root CLAUDE.md must not re-import the full NOUR-COMMAND.md (11.7 KB paid in every session)",
+  "CLAUDE.md",
+  (s) => s.replace(/^@\.agents\/core\/CORE\.md$/m, "@NOUR-COMMAND.md\n@.agents/core/CORE.md"),
+  "re-imports the full Nour Command framework",
+);
+
+canary(
+  "root GEMINI.md must not re-import the full NOUR-COMMAND.md",
+  "GEMINI.md",
+  (s) => s.replace(/^@\.agents\/core\/CORE\.md$/m, "@NOUR-COMMAND.md\n@.agents/core/CORE.md"),
+  "re-imports the full Nour Command framework",
 );
 
 canary(
@@ -299,6 +316,18 @@ test("fires: a required canonical file cannot simply vanish", () => {
     rmSync(join(root, "GEMINI.md"), { force: true });
     const { code, out } = runChecker(root);
     assert.notEqual(code, 0, "checker PASSED with GEMINI.md deleted — requireFile is inert");
+    assert.ok(out.includes("MISSING"), `expected a MISSING denial, got:\n${out}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("fires: the runtime kernel the adapters import cannot vanish", () => {
+  const root = makeFixture();
+  try {
+    rmSync(join(root, "docs", "agent-os", "NOUR-RUNTIME-KERNEL.md"), { force: true });
+    const { code, out } = runChecker(root);
+    assert.notEqual(code, 0, "checker PASSED with NOUR-RUNTIME-KERNEL.md deleted");
     assert.ok(out.includes("MISSING"), `expected a MISSING denial, got:\n${out}`);
   } finally {
     rmSync(root, { recursive: true, force: true });

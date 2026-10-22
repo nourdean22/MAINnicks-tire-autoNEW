@@ -95,6 +95,10 @@ export function contactLaneForVariant(
   if (/^weather_[a-z0-9_-]+$/i.test(variantKey)) {
     return lane(variantKey, variantKey, "contact_holdout_weather");
   }
+  if (/^service_reminder_[a-z]+$/i.test(variantKey)) {
+    // One lane for every category: a control customer gets no maintenance reminder at all.
+    return lane("service_reminder", variantKey, "contact_holdout_service_reminders");
+  }
   if (variantKey === "review_request") {
     return lane("review_request", variantKey, "contact_holdout_review_requests");
   }

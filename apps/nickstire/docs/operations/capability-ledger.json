@@ -5743,6 +5743,35 @@
         "tests": "server/lib/statenourOutbound.test.ts 22, server/statenourSyncNoCustomerData.test.ts 4 (the real syncToStatenour with every source returning names and phones, including memory text, operator topics, invoice service text and staff decline notes; plus fail-closed on a refused POST), server/services/nickMemory.statenourSync.test.ts 1, server/services/eventBus.statenourOnce.test.ts 47 (every bus type through the real routing: no name, phone or written text on any path, including a work-order note and an estimate complaint sent as service; ids still reach statenour), server/services/bridgeOutbox.test.ts 17 (stored shadow body redacted, row id kept). Red first: the consumer tests 3 failed / 1 passed on unwired code. Mutants 8/8 killed (bridge unredacted 11 failed, eventBus raw 4, allowlist widened with phone 14, redactor mutating its input 4, mutating list elements 2, memory text restored 1, service back on the global list plus servicePatterns.service kept 8, fail-closed rethrow removed 1). Emergency alert: server/services/emergencyAlert.test.ts 5 (text, fail-fail-succeed, all five fail reported with no name or phone in the log, 5 s wait before try 2), server/routers/emergency.alert.test.ts 2 (the real submit procedure calls it with the row id, name, phone and problem; a failed alert does not fail the request; unwiring it fails 1), eventBus.statenourOnce.test.ts 48 (an emergency never reaches the alerting webhook, a lead still does; removing the skip fails 1).",
         "liveProbe": "NOT RUN: owed after deploy (a SELECT-only statenour read, see the blocker)."
       }
+    },
+    {
+      "capabilityId": "service-reminders-from-invoices",
+      "name": "Maintenance reminders from closed jobs (ShopDriver counter invoices), gated by a default-OFF flag and per-category text approval",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "this PR (branch nickstire/service-reminders-from-invoices; first commit a4e810f95)",
+        "tests": "server/services/serviceReminders.test.ts (14: latest closed job only, a later job closes earlier reminders, no reminder more than 30 days past due, approved intervals pinned, nothing approved by default, texts carry no price or em dash and fit 300 characters, fortnight check never reads the DB unarmed, claim is a compare-and-swap on id and status, lost claim sends nothing, stale row cancelled not sent, no daily limit (Nour 2026-10-22: every due approved reminder sends on its run), one reminder per customer per run and none within 7 days, the held-back second reminder sends after the 7 days, definite failure gives the row back); server/__tests__/reminderQueueGate.test.ts (2: unarmed queue texts nothing, red on 713ef5a41 where the old queue texted an unarmed due row); contactExperiment.test.ts (service_reminder lane). 6/6 mutations killed. Preflight 13/13 on 66b078bfc."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "All 6 texts approved by Nour on 2026-10-22 with his own opener and closer; the service_reminders_from_invoices flag stays OFF until his separate go, because switching it on sends real customer texts.",
+          "source": "approval 2026-10-22"
+        },
+        {
+          "severity": "P2",
+          "description": "Only 253 of 1,381 counter invoices in 12 months name a remindable service (SELECT-only count 2026-10-22); coverage grows only if the ShopDriver mirror gains line items.",
+          "source": "upgrade scout 2026-10-22"
+        }
+      ],
+      "deferredScope": [
+        "mileage-based timing (the mirror reads no odometer)",
+        "a client page for reminder settings (the admin endpoints exist with no UI)"
+      ],
+      "lastVerifiedAt": "2026-10-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {

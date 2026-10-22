@@ -134,15 +134,12 @@ export async function schedulePostServiceReminders(
   reviewTime.setDate(reviewTime.getDate() + 3);
   reviewTime.setUTCHours(etHourToUtcHour(reviewTime, 10), 0, 0, 0);
 
-  // 6-month maintenance reminder — send at 10 AM Eastern
-  const maintenanceTime = new Date();
-  maintenanceTime.setMonth(maintenanceTime.getMonth() + 6);
-  maintenanceTime.setUTCHours(etHourToUtcHour(maintenanceTime, 10), 0, 0, 0);
-
+  // No 6-month maintenance text from bookings any more (2026-10-22): maintenance
+  // reminders come from closed jobs, server/services/serviceReminders.ts. Rows
+  // already queued as "maintenance-reminder" still drain below.
   const reminders = [
     { type: "thank-you", scheduledFor: thankYouTime },
     { type: "review-request", scheduledFor: reviewTime },
-    { type: "maintenance-reminder", scheduledFor: maintenanceTime },
   ];
 
   for (const r of reminders) {
