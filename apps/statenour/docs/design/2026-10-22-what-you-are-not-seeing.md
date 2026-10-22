@@ -19,7 +19,7 @@ best output reaches nobody, and the places Nick does read are fed by empty or du
 
 ## Build order (one PR each, smallest first)
 
-1. **Claim vs record in chat (this PR).** `findRelevantClaimGap` reads open rows from the
+1. **Claim vs record in chat** (merged, #3219). `findRelevantClaimGap` reads open rows from the
    `contradictions` table, matches them to the turn (cosine >= 0.47, calibrated on prod vectors), and
    adds one CLAIM VS RECORD block: answer first, then one line asking "is the record wrong or the
    plan?" At most one a day, never the same topic twice in a week, never on a private turn.
@@ -33,9 +33,9 @@ best output reaches nobody, and the places Nick does read are fed by empty or du
    ~~A tool to close a claim-vs-record row~~ **deferred:** Nour answers on the NEXT turn, where the
    block (and its row id) is no longer in context; the 7-day topic cooldown already stops repeats
    and the 30-day auto-expiry closes rows. Revisit if the kill-criterion read shows repeats.
-4. **Dead code.** Delete `insight-meta.ts` (orphaned) and the nudge sources that read categories
+4. **Dead code** (#3220). Delete `insight-meta.ts` (orphaned) and the nudge sources that read categories
    with no writer (`hq_pin_candidate`, `decision_drift`); keep sources whose writers still exist.
-5. **Weekly note, preview only.** "What you're not seeing this week": open gaps, overdue decisions,
+5. **Weekly note, preview only** (built: `lib/services/not-seeing-note.ts`, `GET /api/brain/not-seeing`, flag `NICK_WEEKLY_GAP_NOTE`, default OFF). "What you're not seeing this week": open gaps, overdue decisions,
    shop numbers that moved (cars counted, sales, estimate close rate over the existing bridge reads
    `cars_today`, `revenue_range`, `estimates_conversion`). Sending stays OFF until Nour says go; he
    stopped the old scheduled briefs on 2026-10-18.

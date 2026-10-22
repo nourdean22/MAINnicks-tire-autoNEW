@@ -1,5 +1,13 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-22 · insight wave, PRs 2 and 3: dead nudge sources gone, weekly "What you're not seeing" built preview-only (branches `statenour/insight-dead-code`, `statenour/insight-weekly-note`) · 2 statenour PRs (#3220, this PR)
+>
+> Follow-ups to the claim-vs-record PR, per `docs/design/2026-10-22-what-you-are-not-seeing.md`.
+>
+> - **Nudges.** The cross-system nudge stops reading five categories nothing writes (pin hygiene, belief refresh, decision drift, prediction streaks, `hq_pin_candidate`). `lib/brain/insight-meta.ts` (no importer) is deleted.
+> - **Weekly note.** `lib/services/not-seeing-note.ts` composes open claim-vs-record gaps (one per topic) and last week's sales vs the week before over `revenue_range`; a failed read says unknown. Preview: `GET /api/brain/not-seeing` (owner, sends nothing). Joins the Monday morning brief only with `NICK_WEEKLY_GAP_NOTE=true` (default OFF, Nour's call).
+> - **Dropped on evidence:** a recall filter for stale `blind_spot` rows (none recalled after 2026-09-06) and decision-review nudges (Nour rejected `decision_review_due` in prune wave 3).
+
 > ## 2026-10-22 · insight engines audit + claim vs record in chat (branch `claude/statenour-insight-brain-32f96f`) · 1 statenour PR
 >
 > Nour asked for a more insightful Nick and a more organized brain. A read-only audit of 15 insight engines against prod (`docs/research/2026-10-22-insight-engines-audit.md`) found the gap is wiring, not detection; design in `docs/design/2026-10-22-what-you-are-not-seeing.md`.
