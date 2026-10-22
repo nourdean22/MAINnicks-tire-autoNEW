@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ flagOn: true, writes: [] as Array<{ model: string; op: string }> }));
+const h = vi.hoisted(() => ({ flagOn: true, failClaim: false, writes: [] as Array<{ model: string; op: string }> }));
 
 vi.mock("@/lib/prisma", () => {
   const WRITE = new Set(["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]);
@@ -27,6 +27,7 @@ vi.mock("@/lib/prisma", () => {
         get: (_t, op: string) => {
           if (WRITE.has(op)) {
             return vi.fn(async () => {
+              if (h.failClaim && name === "brainMemory" && op === "create") throw new Error("connection reset");
               h.writes.push({ model: name, op });
               return { id: `${name}-row` };
             });
@@ -59,6 +60,7 @@ vi.mock("@/lib/ai/provider", async (importOriginal) => {
   return {
     ...actual,
     getEmbedding: vi.fn(async () => [1, 0, 0]),
+    getEmbeddingWithModel: vi.fn(async () => ({ vec: [1, 0, 0], model: "test-space" })),
     aiChat: vi.fn(async () => ({ content: "", provider: "none", model: "none" })),
   };
 });
@@ -114,6 +116,7 @@ async function build(opts: { privateMode?: boolean } = {}) {
 
 beforeEach(() => {
   h.flagOn = true;
+  h.failClaim = false;
   h.writes.length = 0;
 });
 
@@ -127,6 +130,13 @@ describe("buildBrainContext · claim vs record", () => {
 
   it("CONTROL · NICK_CLAIM_GAP=0 leaves it out", async () => {
     h.flagOn = false;
+    const out = await build();
+    expect(out.systemPromptAddendum).not.toContain("CLAIM VS RECORD");
+    expect(out.contextBlocksFired.claimGap).toBe(false);
+  }, 30_000);
+
+  it("a failed day-claim write shows nothing (the once-a-day cap fails closed)", async () => {
+    h.failClaim = true;
     const out = await build();
     expect(out.systemPromptAddendum).not.toContain("CLAIM VS RECORD");
     expect(out.contextBlocksFired.claimGap).toBe(false);

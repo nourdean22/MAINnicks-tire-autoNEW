@@ -4,7 +4,7 @@
 >
 > Nour asked for a more insightful Nick and a more organized brain. A read-only audit of 15 insight engines against prod (`docs/research/2026-10-22-insight-engines-audit.md`) found the gap is wiring, not detection; design in `docs/design/2026-10-22-what-you-are-not-seeing.md`.
 >
-> - **Claim vs record.** The thinking engine's open `contradictions` table rows ("he said X, the record shows Y": 76 open, 555 closed, every closure the 30-day auto-expiry) now reach Nick's chat as a CLAIM VS RECORD block when one matches the turn (cosine >= 0.47, measured on prod vectors). At most one a day (the day's log key is the claim), never a topic twice in a week, never on a private turn. Counted in `contextBlocks.claimGap`; kill switch `NICK_CLAIM_GAP=0`.
+> - **Claim vs record.** The thinking engine's open `contradictions` table rows ("he said X, the record shows Y": 76 open, 555 closed, every closure the 30-day auto-expiry) now reach Nick's chat as a CLAIM VS RECORD block when one matches the turn (cosine >= 0.47, measured on prod vectors, scored only within one embedding model). The lookup only reads; the day is claimed (the day's log key is the claim) only for a hit the turn uses, and a failed claim shows nothing. At most one a day, never a topic twice in a week (cooldown applied before the candidate cap), never on a private turn; the block carries the record's date. Counted in `contextBlocks.claimGap`, which also turns on the citation protocol; kill switch `NICK_CLAIM_GAP=0` or the Settings panel's off.
 > - **Telemetry denylist.** `contradiction_injection_log` joins `TELEMETRY_CATEGORIES`, so the injector's dedupe rows are never embedded or recalled.
 >
 > **Flagged · NOT fixed (next PRs in the design)**

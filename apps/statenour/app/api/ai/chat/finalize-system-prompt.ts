@@ -316,7 +316,8 @@ You are in Master mode - Nour's operator + strategist.
     contextBlocksFired.qualitative ||
     contextBlocksFired.beliefs ||
     contextBlocksFired.nudges ||
-    contextBlocksFired.contradictions;
+    contextBlocksFired.contradictions ||
+    contextBlocksFired.claimGap;
   if (anyBrainBlockFired && turnSignal.intent !== "casual") {
     systemPrompt += `\n\n${buildCitationPrompt()}`;
   }
