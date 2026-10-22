@@ -63,13 +63,10 @@ export interface Nudge {
     | "contradiction"
     | "ghost"
     | "skill"
-    | "pin_hygiene"
-    | "belief_refresh"
-    // v11.1 meta-intelligence sources (F2–F5)
-    | "correlation"
-    | "decision_drift"
-    | "prediction_streak"
-    | "blind_spot";
+    // v11.1 meta-intelligence source (F2). F3-F5 and the pin-hygiene / belief-refresh
+    // sources were removed 2026-10-22: each read a category nothing writes
+    // (docs/research/2026-10-22-insight-engines-audit.md).
+    | "correlation";
   text: string;
   link?: string;
 }
@@ -214,101 +211,25 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
     });
   }
 
-  // ── Pin hygiene cron output (Apr 20) ──
-  // The weekly /api/cron/pin-hygiene writes nudge_pin_hygiene rows
-  // and the nightly /api/cron/auto-calibrate writes
-  // belief_refresh_report rows. Both were going dark — the cron
-  // persisted them but nothing surfaced them. Read + surface now so
-  // the NudgePanel sees what maintenance ran.
-  const [pinHygiene, beliefRefresh] = await Promise.all([
-    prisma.brainMemory
-      .findFirst({
-        where: { category: BRAIN_CATEGORIES.NUDGE_PIN_HYGIENE, key: "weekly_pin_review" },
-        select: { content: true, metadata: true, updatedAt: true },
-      })
-      .catch(() => null),
-    prisma.brainMemory
-      .findFirst({
-        where: { category: BRAIN_CATEGORIES.BELIEF_REFRESH_REPORT },
-        orderBy: { updatedAt: "desc" },
-        select: { content: true, updatedAt: true, metadata: true },
-      })
-      .catch(() => null),
-  ]);
-
-  if (pinHygiene) {
-    const age = Date.now() - new Date(pinHygiene.updatedAt).getTime();
-    // Only surface if fresh this week (7d)
-    if (age < 7 * 86400_000) {
-      const meta = (pinHygiene.metadata as { findings?: Array<{ kind: string }> } | null) || null;
-      const findings = meta?.findings || [];
-      const veryStale = findings.filter((f) => f.kind === "very_stale").length;
-      nudges.push({
-        severity: veryStale > 0 ? "medium" : "low",
-        source: "pin_hygiene",
-        text: pinHygiene.content,
-        link: "/brain#pinned-context",
-      });
-    }
-  }
-
-  if (beliefRefresh) {
-    const age = Date.now() - new Date(beliefRefresh.updatedAt).getTime();
-    // Only surface same-day (18h — spans the morning)
-    if (age < 18 * 3600_000) {
-      const meta = (beliefRefresh.metadata as { changes?: Array<{ action: string }> } | null) || null;
-      const changes = meta?.changes || [];
-      const needsReview = changes.filter((c) => c.action === "queued_for_review").length;
-      nudges.push({
-        severity: needsReview > 0 ? "medium" : "low",
-        source: "belief_refresh",
-        text:
-          needsReview > 0
-            ? `Overnight: ${beliefRefresh.content} · tap to review`
-            : `Overnight: ${beliefRefresh.content}`,
-        link: "/brain",
-      });
-    }
-  }
-
-  // v11.1 meta-intelligence sources (F2-F5) — read BrainMemory rows
-  // the cron workers populate. Each cron writes a single canonical row
-  // per concern; here we read them cheaply in parallel and translate
-  // to nudges.
-  const [corrAlerts, driftRow, streakRows, blindSpots] = await Promise.all([
-    prisma.brainMemory.findMany({
-      // v10.0.65 · soft-delete bypass fix on all 3 findMany sites
-      // below — these feed the cross-system-nudge surface (HQ pulse
-      // ticker, /brain/continuity). Pre-fix soft-deleted alerts /
-      // streaks / pin candidates stayed in the nudge stream until
-      // hard-deleted by data-cleanup cron.
-      where: {
-        category: BRAIN_CATEGORIES.CORRELATION_ALERT,
-        updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-        deletedAt: null,
-      },
-      orderBy: { updatedAt: "desc" },
-      // W5b: read past the three it shows so dismissed pairs do not crowd out live ones.
-      take: 10,
-      select: { key: true, content: true, metadata: true },
-    }).catch((): never[] => []),
-    prisma.brainMemory.findUnique({
-      where: { category_key: { category: BRAIN_CATEGORIES.DECISION_DRIFT, key: "weekly" } },
-      select: { content: true, metadata: true, deletedAt: true },
-    }).catch((): null => null),
-    prisma.brainMemory.findMany({
-      where: { category: BRAIN_CATEGORIES.PREDICTION_STREAK, deletedAt: null },
-      orderBy: { updatedAt: "desc" },
-      take: 8,
-      select: { key: true, content: true, metadata: true },
-    }).catch((): never[] => []),
-    prisma.brainMemory.findMany({
-      where: { category: BRAIN_CATEGORIES.HQ_PIN_CANDIDATE, deletedAt: null },
-      orderBy: { updatedAt: "desc" },
-      take: 5,
-      select: { key: true, content: true, metadata: true },
-    }).catch((): never[] => []),
-  ]);
+  // v11.1 meta-intelligence source (F2) — correlation alerts the detector cron writes.
+  // 2026-10-22 · removed with their reads: pin hygiene + belief refresh (no writer since
+  // the wave AE cron prune), decision drift (read key "weekly" in `decision_drift`; the
+  // dormant writer uses `decision_quality_drift` keyed by week), prediction streaks (no
+  // writer, rows last touched 2026-08-14) and the `hq_pin_candidate` "blind spot" pins
+  // (no writer, 0 rows ever). Prod row counts in docs/research/2026-10-22-insight-engines-audit.md.
+  const corrAlerts = await prisma.brainMemory.findMany({
+    // v10.0.65 · soft-delete bypass fix: soft-deleted alerts stayed in the
+    // nudge stream until hard-deleted by the data-cleanup cron.
+    where: {
+      category: BRAIN_CATEGORIES.CORRELATION_ALERT,
+      updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      deletedAt: null,
+    },
+    orderBy: { updatedAt: "desc" },
+    // W5b: read past the three it shows so dismissed pairs do not crowd out live ones.
+    take: 10,
+    select: { key: true, content: true, metadata: true },
+  }).catch((): never[] => []);
 
   // F2 · correlation alerts — each NEW correlation surfaces once at
   // medium severity (the ambient-observation contract).
@@ -324,58 +245,6 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       source: "correlation",
       text: row.content,
       link: "/brain?tab=health#time-travel",
-    });
-  }
-
-  // F3 · decision-quality drift — severity from metadata
-  if (driftRow?.metadata && typeof driftRow.metadata === "object") {
-    const meta = driftRow.metadata as { deltaPct?: number; severity?: string };
-    const deltaPct = typeof meta.deltaPct === "number" ? meta.deltaPct : 0;
-    if (deltaPct < -15) {
-      nudges.push({
-        severity: "high",
-        source: "decision_drift",
-        text: `Decision-quality dropped ${Math.abs(Math.round(deltaPct))}% vs prior 3w · regrade + reflect`,
-        link: "/journal",
-      });
-    } else if (deltaPct < -5) {
-      nudges.push({
-        severity: "low",
-        source: "decision_drift",
-        text: `Decision-quality softening (${Math.round(deltaPct)}% vs prior) · watch`,
-        link: "/journal",
-      });
-    }
-  }
-
-  // F4 · prediction-streak state = "extending" (celebrate) or "broken"
-  // (reckon). "building" + "steady" → no nudge.
-  for (const row of streakRows) {
-    const meta = row.metadata as { state?: string; category?: string; currentStreak?: number; longestStreak?: number } | null;
-    if (!meta || typeof meta !== "object") continue;
-    if (meta.state === "extending" && typeof meta.currentStreak === "number" && meta.currentStreak >= 3) {
-      nudges.push({
-        severity: "low",
-        source: "prediction_streak",
-        text: `Nick on a ${meta.currentStreak}-streak for ${meta.category} predictions`,
-      });
-    } else if (meta.state === "broken" && typeof meta.longestStreak === "number" && meta.longestStreak >= 5) {
-      nudges.push({
-        severity: "medium",
-        source: "prediction_streak",
-        text: `${meta.category} streak ended at ${meta.longestStreak} · recalibrate the signals`,
-      });
-    }
-  }
-
-  // F5 · blind-spot critical pins — high severity, always surface
-  for (const row of blindSpots) {
-    const meta = row.metadata as { suggestedAction?: string; domain?: string } | null;
-    nudges.push({
-      severity: "high",
-      source: "blind_spot",
-      text: meta?.suggestedAction ? `BLIND SPOT · ${meta.domain}: ${meta.suggestedAction}` : row.content,
-      link: "/brain?tab=review",
     });
   }
 
@@ -454,11 +323,8 @@ export async function computeNudges(): Promise<Nudge[]> {
  * behind a freshness window that already dwarfs 300s, so wiring it up
  * would delete the cache on a schedule for zero user-visible gain —
  * which is just the un-cached version with extra steps:
- *   - pin_hygiene       · gated `age < 7d`   (weekly pin-review cron)
- *   - belief_refresh    · gated `age < 18h`  (nightly auto-calibrate)
  *   - correlation_alert · gated `updatedAt >= now-7d` (detector cron)
- *   - decision_drift    · a single `"weekly"` row (weekly cron)
- *   - prediction_streak · hq_pin_candidate · ghost accuracy — cron rows
+ *   - ghost accuracy    · cron rows
  *   - identity axes     · the DAILY-SCHEDULER recompute only. A MANUAL
  *     pin is NOT exempt and is now wired (see 3 above). The original
  *     version of this list claimed the nudge "fires on a WEAKNESS_FLOOR

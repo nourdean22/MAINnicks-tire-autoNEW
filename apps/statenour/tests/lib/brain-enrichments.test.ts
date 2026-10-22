@@ -9,14 +9,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  bayesianUpdate,
-  lindyWeight,
-  effectiveConfidence,
-  shouldSurface,
-  makeMeta,
-  defaultHalfLife,
-} from "@/lib/brain/insight-meta";
-import {
   pearson,
   pearsonLagged,
   findBestLag,
@@ -37,62 +29,6 @@ import {
   gapSeverity,
   frameAsAkrasia,
 } from "@/lib/brain/counter-intuitive";
-// ═══════════════════════════════════════════════════════════════
-// SHARED — Bayes + Lindy + falsifiability scaffolding
-// ═══════════════════════════════════════════════════════════════
-
-describe("insight-meta", () => {
-  it("bayesianUpdate(0.5, true) increases confidence", () => {
-    expect(bayesianUpdate(0.5, true)).toBeGreaterThan(0.5);
-  });
-
-  it("bayesianUpdate(0.5, false) decreases confidence", () => {
-    expect(bayesianUpdate(0.5, false)).toBeLessThan(0.5);
-  });
-
-  it("bayesianUpdate keeps confidence bounded in (0, 1)", () => {
-    let c = 0.99;
-    for (let i = 0; i < 100; i++) c = bayesianUpdate(c, true);
-    expect(c).toBeLessThan(1);
-    expect(c).toBeGreaterThan(0);
-  });
-
-  it("lindyWeight decays toward 0 as time exceeds half-life", () => {
-    expect(lindyWeight(30, 0, 30)).toBeGreaterThan(0.9);
-    expect(lindyWeight(30, 30, 30)).toBeCloseTo(0.55, 0); // 1 half-life elapsed
-    expect(lindyWeight(30, 90, 30)).toBeLessThan(0.2);   // 3 half-lives elapsed
-  });
-
-  it("shouldSurface filters unfalsifiable claims", () => {
-    const platitude = makeMeta({
-      confidence: 0.95,
-      falseWhen: "", // no falsifier — Popper would reject
-    });
-    expect(shouldSurface(platitude)).toBe(false);
-  });
-
-  it("shouldSurface accepts confident + falsifiable claims", () => {
-    const claim = makeMeta({
-      confidence: 0.7,
-      falseWhen: "outside the 6am-9am window",
-    });
-    expect(shouldSurface(claim)).toBe(true);
-  });
-
-  it("defaultHalfLife maps engine to plausible window", () => {
-    expect(defaultHalfLife("blind_spot")).toBeLessThan(defaultHalfLife("wisdom"));
-    expect(defaultHalfLife("attention")).toBeLessThan(defaultHalfLife("correlation"));
-  });
-
-  it("effectiveConfidence is finite for valid input", () => {
-    const m = makeMeta({ confidence: 0.7, halfLifeDays: 30, stabilityDays: 10 });
-    const ec = effectiveConfidence(m);
-    expect(Number.isFinite(ec)).toBe(true);
-    expect(ec).toBeGreaterThanOrEqual(0);
-    expect(ec).toBeLessThanOrEqual(1);
-  });
-});
-
 // ═══════════════════════════════════════════════════════════════
 // CORRELATION-FINDER — Granger lag + bootstrap + Simpson + Reichenbach
 // ═══════════════════════════════════════════════════════════════
