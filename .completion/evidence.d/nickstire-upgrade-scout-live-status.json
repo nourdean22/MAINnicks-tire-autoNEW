@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "ref": "Job 2026-10-22-upgrade-scout: no capability in docs/operations/capability-ledger.json covers what this diff changes (bookings-based bay counts in server/services/shopStatus.ts, and the today-only work-order count in conversion.shopCapacity). The only entry naming shopStatus is shopstate-lot-band, whose evidence and code path (shared/shopState.ts lotBand, server/services/shopState.ts lotInput) are untouched; its capacity band input now reads unknown unless a booking stage moved today, which that entry never claimed. Ledger left unchanged on purpose rather than given false evidence. Proof: shopStatus.freshness.test.ts (3 new) and shopCapacity.freshness.test.ts (1 new), red on 713ef5a41, green on this branch; preflight 13/13 green."
+      "ref": "Job 2026-10-22-upgrade-scout, after the Codex review on #3225: no capability in docs/operations/capability-ledger.json covers what this diff changes (server/services/shopStatus.ts no longer derives bays or wait from bookings.stage; conversion.ts is back to main). The only entry naming shopStatus is shopstate-lot-band, whose code path (shared/shopState.ts lotBand, server/services/shopState.ts lotInput) is untouched; its capacity band input now reads unknown, which that entry never claimed. Ledger left unchanged on purpose rather than given false evidence. Proof: shopStatus.freshness.test.ts, 3 cases red on 713ef5a41 and on 639878c67, 6/6 green on the fix."
     }
   }
 }

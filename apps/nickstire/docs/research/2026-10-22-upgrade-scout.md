@@ -1,23 +1,34 @@
 # Upgrade scout (2026-10-22): where the shop side is still basic, and what the best do instead
 
 **Answer.** The shop side is not short of features (440 services); it is short of *inputs*. Two of
-every three tickets carry no description of the work, nothing records declined work, and the
-"live" homepage badge reads a booking tracker nobody has touched since April. Ten upgrades are
-ranked below. Number 1 (the homepage badge) is built in this PR. Numbers 2 to 5 each need one
-decision or one go from Nour, named in the item.
+every three closed jobs carry no description of the work, so nothing can say "your brakes are due"
+to most customers, and only 1 in 5 customers comes back for a second job within a year. Declined
+work is captured (an estimate with no matching invoice) and already followed up, but too few
+customers sit in its no-text group to tell yet whether the follow-ups work. The "live" homepage
+badge read a booking tracker nobody has touched since April. Ten upgrades are ranked below.
+Number 1 (the homepage badge) is built in PR 3225. Numbers 2 to 4 each need a go or a decision from
+Nour, named in the item.
 
 Nour asked (2026-10-22): "reverse-engineer anything beneficial that we could use to upgrade our
 basic shit in the repo". The deep scouts of 2026-10-16 and 2026-10-17 already covered reels, the
 brain, voice, agents, evals and alerting (8 of their 10 items shipped). This pass covered what they
 skipped: the shop's customer-facing basics.
 
+**Correction (2026-10-22, same day).** The first version of this report said no declined work was
+ever captured and that the retention holdouts were off. Both were wrong. The shop's data meanings
+(Nour, 2026-10-15 and 2026-10-21): an invoice is a sale, a closed job; an estimate with no matching
+invoice means the customer walked, which is declined work; payment is taken on a separate register,
+so an invoice's `paymentStatus` means nothing and never drives an alert, card or text. Every number
+below uses those meanings.
+
 ## Method and labels
 
 1. Read our code at file:line for each candidate area (texting, reminders, walk-in status,
    declined work, invoices, flags, alerts).
-2. Two SELECT-only production probes on 2026-10-22 (counts only, no names, phones or amounts;
+2. Five SELECT-only production probes on 2026-10-22 (counts only, no names, phones or amounts;
    `railway run -s MAINnicks-tire-auto`, statement allowlist) and one read of the public status
-   endpoints.
+   endpoints. A phone is the last 10 digits; a visit is a closed job (invoice) or a walked estimate
+   (no matched invoice) on a distinct day.
 3. Three Perplexity Pro research threads in Chrome (slugs in the appendix), then the two most
    decision-critical claims re-read at the primary page.
 4. Labels: **FACT** = read in source, measured, or quoted from the primary page this session.
@@ -27,15 +38,19 @@ skipped: the shop's customer-facing basics.
 
 | Read | Result |
 |---|---|
-| `service_reminders` rows, ever | 0 |
-| `reminder_settings` rows | 0 |
-| `appointment_reminders` created in 90 days | 0 |
-| Bookings vs invoices, 90 days | 13 bookings (0 completed) vs 280 invoices (276 with a phone) |
+| History on file | invoices from 2024-01-09 (3,132 rows); estimates from 2024-01-24 (504 rows) |
+| Closed jobs (invoices), 12 months | 1,393; 926 (66%) with a blank description |
+| Closed jobs in a remindable category, 12 months (repo categorizer) | 264 of 1,393 (19%), 234 customers |
+| Estimates, 12 months | 282; 50 matched to an invoice; 232 with no invoice (walked); 196 still unmatched past the 60-day match window |
+| Estimates with a service category, 12 months | 0 of 282 (the column is read by two features and written by none) |
+| Declined follow-up experiment v3, all ages | texted group 11 of 94 came back (12%); no-text group 1 of 11 (9%) |
+| Customers, 24 months (visit = closed job or walked estimate) | 1,855: 1,436 one visit (77%), 419 two or more, 175 only walked |
+| Customers whose first closed job was 12 to 24 months ago | 732; 151 (21%) had a second closed job within 12 months |
+| Retention texts sent, 90 days (D7/D14/D45/D90/D180/D365, all ON) | 1,287; retention holdouts ON |
+| `service_reminders` rows, ever / `reminder_settings` rows | 0 / 0 |
+| Bookings vs invoices, 90 days | 13 bookings (0 completed) vs 280 invoices |
 | Bookings in an active stage / last stage move | 1 / 2026-04-22 23:01 UTC |
 | `work_orders` created in 30 days / last touched | 0 / 2026-05-07 |
-| Invoices with a blank service description, 12 months | 926 of 1,393 (66%) |
-| `declined_work_captures` rows, ever | 0 |
-| Phones by visits, 24 months | 1,680 phones: 1,291 one visit (77%), 389 repeat |
 | Customer-weeks with 2+ / 3+ outbound texts and no reply, 60 days | 666 / 116 (of 2,607 weeks with any outbound) |
 | `GET /api/trpc/shopStatus.getStatus` at 07:17 ET | `currentJobs: 1, openBays: 3, waitIsFresh: true` (closed hour) |
 
@@ -45,13 +60,13 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
 
 | # | Upgrade | Mechanism from | Size | State |
 |---|---|---|---|---|
-| 1 | Homepage "live" badge stops claiming free bays from a stale tracker | Google live busyness (shown only with enough recent data); Waitwhile, Yelp | S | **BUILT, this PR** |
-| 2 | Pull what was done (line items, mileage, recommendations) from ShopDriver tickets | Shopmonkey canned-service campaigns; Mitchell 1 SocialCRM | M | needs Nour's go for one read-only probe |
-| 3 | One cap on marketing texts per customer across all senders | Klaviyo Smart Sending; Braze global frequency capping | S-M | needs Nour's go for one column |
-| 4 | Decide the dead maintenance-reminder subsystem: delete it, or rebuild it off paid tickets | Shopmonkey (service + time after a fully paid invoice) | S / M | Nour's decision |
-| 5 | Declined work gets captured, then followed up | Mitchell 1 recommendations; Tekmetric booking resurfacing; Steer | M | blocked on #2 |
-| 6 | One Telegram alert dispatcher (group, repeat, resolve) | Prometheus Alertmanager | M | carried from deep scout v2 #6 |
-| 7 | Arm the retention holdouts to learn whether reminder texts bring anyone back | already built here (`contact_holdout_*` flags) | S | needs Nour's go (15% get no text) |
+| 1 | Homepage "live" badge stops claiming free bays from a stale tracker | Google live busyness (shown only with enough recent data); Waitwhile, Yelp | S | **BUILT, PR 3225** |
+| 2 | Pull what was done (line items, mileage) from ShopDriver tickets | Shopmonkey canned-service campaigns; Mitchell 1 SocialCRM | M | needs Nour's go for one read-only probe |
+| 3 | Maintenance reminders from closed jobs, closed the moment the customer returns | Shopmonkey (service + elapsed time after the job); Mitchell 1 follow-up suppression | M | design awaiting approval |
+| 4 | One cap on marketing texts per customer across all senders | Klaviyo Smart Sending; Braze global frequency capping | S-M | needs Nour's go for one column |
+| 5 | Fill the estimate service category that two features already read | already built here (`categorizeService`) | S | ready to build |
+| 6 | Read the declined follow-up experiment only when its no-text group is big enough | inspect_ai clustered error bars (deep scout v2 #1) | S | wait: 11 in the no-text group |
+| 7 | One Telegram alert dispatcher (group, repeat, resolve) | Prometheus Alertmanager | M | carried from deep scout v2 #6 |
 | 8 | Simulated callers graded on outcome, reported as pass^k | tau2-bench | M-L | carried from deep scout v2 #8 |
 | 9 | A real wait estimate once the car counter is trusted | Waitwhile custom mode (line x service time / bays), ranges, hide when stale | M | WATCH: needs the RTSP camera and counter trust |
 | 10 | Dead-man's switch for the scheduler | healthchecks.io | S | ADOPT-CANDIDATE since 2026-09-23, needs an account |
@@ -63,9 +78,8 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
   (`server/services/shopStatus.ts`), which counted bookings in an active stage with no time bound.
   One booking has sat in an active stage since 2026-04-22 and no stage has moved since, so every
   open hour said 3 of 4 bays were free and `waitIsFresh: true`. Walk-ins are tracked in
-  ShopDriver, not in `bookings.stage`. The same defect, 7-day form: `conversion.shopCapacity`
-  counted work orders touched in the last 7 days as "cars in shop right now". The voice agent was
-  already told (2026-07-20) never to state a wait; the website was not.
+  ShopDriver, not in `bookings.stage`. The voice agent was already told (2026-07-20) never to
+  state a wait; the website was not.
 - **Mechanism (FACT, primary page read 2026-10-22).** Google Business Profile help, answer 6263531,
   on live busyness: "it appears only if Google has sufficient visit data for your business."
   Waitwhile and Yelp estimate from the current queue plus measured service times and show a range
@@ -74,40 +88,62 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
 - **Equivalent here.** The `waitIsFresh` gate already existed for a DB outage, and the camera lane
   already withholds its band when stale (`shared/shopState.ts` `lotBand`). This change applies
   the same rule to the bookings source.
-- **Change.** Count only bookings whose stage moved during today's shop day (bounded in SQL with
-  `minutesSinceShopMidnight`, because driver-parsed timestamps shift on ET). No stage move today
-  means `waitIsFresh: false`: the badge reads `OPEN · WALK-INS OK` and the message says "Open now,
-  first come, first served. Call to check the line". The work-order count gets the same today-only
-  window. If staff start moving stages again, live numbers come back on their own.
-- **Proof.** Four new tests went red on the old code (stale tracker read as fresh; query not
-  bounded to today; 7-day work-order window) and pass after. Live proof after deploy: the status
+- **Change.** Bays and wait now come only from a caller-supplied count; the bookings read and the
+  time-of-day guess are deleted. The first version counted only bookings whose stage moved today;
+  Codex review on PR 3225 pointed out that a move today proves activity, not that walk-ins are
+  counted, so no table here may claim bays. The badge reads `OPEN · WALK-INS OK` and the message
+  says "Open now, first come, first served. Call to check the line". A real number comes back only
+  with a source that covers the line (item 9). A first-version change to the work-order count
+  (`conversion.shopCapacity`, 7 days to today) was reverted in the same review: it would drop
+  legitimate overnight jobs, and that table holds 0 rows in 30 days.
+- **Proof.** Three new test cases (stuck booking, booking moved to ready today, no bookings) fail
+  on main and on the PR's first version and pass on the fix. Live proof after deploy: the status
   endpoint returns `waitIsFresh: false` during open hours.
 
 ### 2. Pull what was done from ShopDriver (the input every other lane is missing)
 
-- **Problem (FACT).** 926 of 1,393 invoices in 12 months have no service description; only 17
-  mention oil, 5 brakes. The mirror reads 13 ticket fields and none is a line item or mileage
-  (`shopDriverMirror.ts:234`, `RawInvoice`). So no lane can say "your brakes are due", cross-sell
-  runs on guesses, and 77% of customers in 24 months visited once.
+- **Problem (FACT).** 926 of 1,393 closed jobs in 12 months have no service description. Run
+  through the repo's own categorizer, 264 (19%) say something remindable: suspension 91, tires 63,
+  brakes 45, cooling 28, electrical 26, oil 11. The mirror reads 13 ticket fields and none is a line
+  item or mileage (`shopDriverMirror.ts:234`, `RawInvoice`). Matched estimates do not fill the gap:
+  only 50 invoices in 12 months have one, and estimates carry no category either.
 - **Mechanism.** Shopmonkey's CRM campaigns trigger on a specific canned service plus a time after
-  the invoice was fully paid; Mitchell 1 SocialCRM projects mileage since the last visit and sends
-  30 days before a projected interval; Steer documents estimated odometer from past invoices with
-  a usage fallback (all CLAIM via help-center pages cited in thread 3).
+  the job; Mitchell 1 SocialCRM projects mileage since the last visit and sends 30 days before a
+  projected interval; Steer documents estimated odometer from past invoices with a usage fallback
+  (all CLAIM via help-center pages cited in thread 3).
 - **Equivalent here.** `probeAlgEndpoints()` (`shopDriverMirror.ts:1703`) already lists
   `/api/Vehicle/getVehicleHistory`, `/api/Recommendation/list` and ticket endpoints, read-only, but
   no result was ever recorded. Whether ShopDriver returns line items and odometer is UNKNOWN.
 - **Next step (needs Nour).** Run the existing probe once (it uses the shop's ShopDriver session in
   production, read-only) and record the response shapes. If line items and mileage are there,
-  extend the mirror; this unlocks #4 and #5.
+  extend the mirror; reminders (#3) then cover most jobs instead of 19%.
 
-### 3. One cap on marketing texts per customer
+### 3. Maintenance reminders from closed jobs (Nour wants them)
+
+- **Problem (FACT).** The existing reminder subsystem fires only from completed online bookings
+  (`db.ts:2534`, and the 6-month message in `sms-scheduler.ts`); there were 0 in 90 days against
+  280 invoices, and `service_reminders` and `reminder_settings` hold 0 rows. Its text
+  (`maintenanceReminderSms`, `sms.ts:2847`) says "Due for an oil change? $49..." whatever the
+  service was. `processReminderQueue` sends any due row with no flag gate.
+- **Mechanism.** Trigger on a specific service on a closed job plus elapsed time (Shopmonkey);
+  stamp what has been followed up so it leaves the next query (Mitchell 1); none of the vendors
+  documents what closes a reminder, so ours closes it on the customer's next closed job (CLAIM for
+  the vendor behaviour, thread 3).
+- **Design (awaiting approval).** Plan from invoices with `categorizeService`, one reminder per
+  customer and category from their latest job, intervals from code defaults overridable in
+  `reminder_settings`; close on any later closed job; new flag default OFF with a shadow run first;
+  skip when a retention or drip text went out that week; 15% no-text holdout; delete the booking
+  path. Coverage today: 234 customers a year (19% of jobs), more after #2. Base rate to beat: 21% of
+  customers come back for a second job within a year.
+
+### 4. One cap on marketing texts per customer
 
 - **Problem (FACT).** Marketing lanes (winback, retention D7 to D365, cross-sell, VIP, weather,
-  review requests) each send on their own; some have their own cooldown, none sees the others.
-  The only shared limit is 8 texts per phone per day, transactional and marketing alike
-  (`sms.ts:1973`). In 60 days, 666 customer-weeks got 2 or more texts with no reply, 116 got 3 or
-  more (some are legitimate threads; the split is UNKNOWN because the message class is not
-  stored anywhere).
+  review requests, declined follow-ups) each send on their own; some have their own cooldown, none
+  sees the others. The only shared limit is 8 texts per phone per day, transactional and marketing
+  alike (`sms.ts:1973`). In 60 days, 666 customer-weeks got 2 or more texts with no reply, 116 got 3
+  or more. Part of that is by design (D7 and D14 land a week apart; declined follow-ups at 3 and 7
+  days); the rest cannot be split out because the message class is not stored.
 - **Mechanism (FACT, Klaviyo help 115002779311 read 2026-10-22).** "By default, the SMS Smart
   Sending window is 24 hours"; "Transactional messages are never skipped"; "SMS Smart Sending uses
   the phone number"; "Messages skipped due to Smart Sending are not rescheduled automatically."
@@ -119,34 +155,29 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
   then arm.
 - **Proof.** Shadow count for 7 days, then the 2+/3+ weekly numbers above should fall.
 
-### 4. The maintenance-reminder subsystem has never sent a text
+### 5. Fill the estimate service category that two features already read
 
-- **Problem (FACT).** `scheduleRemindersForBooking` (`db.ts:2534`) and the 6-month message in
-  `sms-scheduler.ts` only fire from completed online bookings; there were 0 in 90 days. Zero
-  `service_reminders` and zero `reminder_settings` rows exist. Its text
-  (`maintenanceReminderSms`, `sms.ts:2847`) says "Due for an oil change? $49..." whatever the
-  service was.
-- **Decision for Nour.** Delete it (the retention D7 to D365 lanes already text returning
-  customers), or rebuild it off paid tickets once #2 lands. Recommendation: delete now, rebuild
-  later from #2's data, so nobody mistakes it for working.
+- **Problem (FACT).** `alg_estimates.service_category` is empty on all 282 estimates of the last 12
+  months. The customer engine's declined-work signal (`engines/customer.ts:251`) and the reel brief
+  builder (`reelBriefGen.ts:533`) both read it; nothing writes it.
+- **Change.** Set it from `categorizeService(service_description)` where the estimate sync writes the
+  row, plus a one-time backfill script for the existing rows (a prod write, so Nour's go for the
+  backfill only). Small, reversible, no send.
 
-### 5. Declined work: switched on, nothing to follow up
+### 6. Read the declined follow-up experiment only when it can answer
 
-- **Problem (FACT).** `declined_work_captures` has 0 rows ever, so the declined-recovery lane has
-  no source. ShopDriver lists no declines in what the mirror reads.
-- **Mechanism.** Mitchell 1 keeps a recommendation record with "Date of Work Needed" and stamps a
-  follow-up date that removes it from the next follow-up query; Tekmetric shows the 3 most recent
-  declined jobs (up to 18 months) when the customer books online (CLAIM, help pages in thread 3).
-- **Next step.** Depends on #2 (`/api/Recommendation/list`) or the counter actually using the
-  capture form.
+- **Fact.** Declined work is captured (an estimate with no matched invoice; the matcher runs before
+  every recovery pass) and followed up at 3, 7, 14, 30 and 45 days with a 15% no-text group
+  (`cron/jobs/declinedWorkRecovery.ts`). So far 11 of 94 texted customers came back and 1 of 11
+  untexted ones did. With 11 in the control group the difference is noise.
+- **Change.** None now. Re-read when the no-text group passes about 60, with the error bars from
+  deep scout v2 #1.
 
-### 6 to 10 (carried or waiting)
+### 7 to 10 (carried or waiting)
 
-- **6, alert dispatcher.** Still open: 249 `sendTelegram` references in 62 files against 14
+- **7, alert dispatcher.** Still open: 249 `sendTelegram` references in 62 files against 14
   `alertClaim` callers (FACT, origin/main 713ef5a41). Design stands as written in
   `docs/research/2026-10-17-deep-scout-v2.md` item 6.
-- **7, retention holdouts.** The 15% no-contact controls exist and are OFF. Without them nobody can
-  say whether the retention texts bring anyone back. Arming them means 15% get no text: Nour's go.
 - **8, simulated callers.** Deep scout v2 item 8, unchanged.
 - **9, real wait estimate.** Waitwhile's custom mode is roughly line length x service time / bays,
   shown as a range and hidden when stale (CLAIM). Ours has no trusted line count yet (CLAIM from
@@ -156,11 +187,15 @@ Rank = value to Nour (revenue, his time, trust) x confidence, divided by cost.
 
 ## Checked and already strong (no proposal)
 
+- **Declined-work recovery.** Estimate-to-invoice matcher on a schedule, fail-closed send lane,
+  3/7/14/30/45-day ladder, cross-loop suppression with cross-sell, and a 15% holdout.
+- **Retention texts and their holdouts.** D7 to D365 all ON; holdouts ON and read out in
+  `routers/smsPerformance.ts`.
 - **Opt-out words.** `smsResponseParser.ts:65` covers stop, stopall, unsubscribe, opt out, revoke,
   quit, with carve-outs ("stop by around 3") and tests; the send path fails closed when the opt-out
   list cannot be read.
-- **Quiet hours, consent gate (shadow), internal-line refusal, holdout plumbing** in `sendSms`.
-- **Feature flags.** DB-backed with a 60 s cache and per-lane holdout switches.
+- **Quiet hours, consent gate (shadow), internal-line refusal** in `sendSms`; DB-backed feature
+  flags with a 60 s cache.
 - **NOUR OS.** Brain and evals were covered by deep scout v2 (8 of 10 shipped) and the
   2026-10-22 insight-engines audit; the mem0, Graphiti and Letta verdicts in UPSTREAMS stand.
 
