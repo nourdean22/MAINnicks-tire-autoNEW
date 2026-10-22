@@ -13,6 +13,9 @@ review counts) are read from source files, never copied here. [Letters] cite sou
 - Builds **NOUR OS** (`apps/statenour`, bdnick.info) for himself. Exactly one user: him. [D]
 - Shop team: Mash and Manny run operations; Zach is a hybrid tech. [A]
 - Shop model: first come, first served, walk-ins 7 days, no held appointment slots. Facts: `apps/nickstire/shared/business.ts`. [C][E]
+- Shop data meanings: an invoice is a closed job (a sale); an estimate with no invoice is a customer who walked (declined work);
+  payment is taken on a separate register, so invoice payment status is never a signal; key follow-ups to invoices, not bookings
+  (bookings are rare). [N]
 
 ## How to work with him
 
