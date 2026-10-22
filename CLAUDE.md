@@ -36,7 +36,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
     column, tool registration) → **assert-the-consumer**; a new test or canary →
     **positive-control-first**; a new table/queue/tool/flag → **prior-art-grep**; a filtered ratio → **base-rate-check**.
   - A read-then-write that decides WHO acts (claim, lease, reclaim, dedupe marker) → **claim-before-act**.
-  - Security review of a diff → **differential-review**; dependency risk (direct deps only) → **supply-chain-risk-auditor**.
+  - Security review of a diff → **differential-review** (no checkout; report outside repo); dependency risk → **supply-chain-risk-auditor**.
   - Captures, bundles, devices of OUR OWN accounts or equipment → **reverse-engineer-anything** (static first; no evasion, keys, decoders).
   - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
