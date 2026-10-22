@@ -1,0 +1,7 @@
+| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
+|---|---|---|---|---|---|---|---|
+| 2026-10-22-statenour-insight-brain | 2026-10-22 | Nour ("make my assistant more insightful, the brain more organized, diagnose blind spots"): read-only audit of 15 insight engines against prod Neon, design (wire what exists vs one new engine; picked wiring), first build: the thinking engine's open claim-vs-record rows reach Nick's chat, at most once a day, kill switch NICK_CLAIM_GAP=0 | statenour | MERGED | this PR | First build merged. Next PRs per docs/design/2026-10-22-what-you-are-not-seeing.md: dead code (orphan + dead nudge sources), weekly note preview (send OFF). Dropped on evidence: blind-spot recall filter, decision-review nudges | The strongest insight engine had 555 closures, all by auto-expiry: count who READS an engine's table before tuning what it writes |
+
+| Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
+|---|---|---|---|---|---|---|---|
+| 2026-10-22-statenour-insight-brain | pending | contradiction_injection_log was not on the telemetry denylist (would have been embedded and recalled) | 10 / 10 unit tests red before the functions existed | 3 / 3 (day cap removed, block wiring removed, vector cache removed) | pending | 0 | apps/statenour/docs/research/2026-10-22-insight-engines-audit.md |

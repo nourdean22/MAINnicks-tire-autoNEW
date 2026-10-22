@@ -30,6 +30,9 @@ export const TELEMETRY_CATEGORIES = [
   "nick_quality",
   "data_source_probe",
   "objection_injection_log",
+  // 2026-10-22 · the contradiction injector's dedupe marker (confidence 1, so it clears the
+  // recall pool's 0.3 floor). Dormant until claim-gap made it a daily writer.
+  "contradiction_injection_log",
   "goal_lift",
   "score_event",
   "friction",

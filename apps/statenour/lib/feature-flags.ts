@@ -227,6 +227,19 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/brain/decision-forecast.ts",
   },
   {
+    key: "NICK_CLAIM_GAP",
+    description:
+      "Claim vs record in chat (2026-10-22, lib/brain/contradiction-injector.ts findRelevantClaimGap): the nightly thinking engine's open 'he said X, the record shows Y' rows (the contradictions table, read by nothing before this) ride into Nick's context when one matches the turn — at most one a day, never the same topic twice in a week, answer first and one closing line asking whether the record or the plan is wrong. KILL CRITERION: if it fires on more than 1 in 5 turns, or Nour waves it off 3 times in 2 weeks, raise CLAIM_GAP_THRESHOLD or turn it off; measure contextBlocks.claimGap in chat_messages.token_usage and the `[claim-gap] score` log line. LIVE by default; set NICK_CLAIM_GAP=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    // "false" too: the Settings flag panel writes "true"/"false" overrides, and an off-switch it cannot flip is no switch.
+    offValue: "false|0",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: a matching open claim-vs-record row adds one CLAIM VS RECORD block (at most once a day). Kill-switch NICK_CLAIM_GAP=0 (or the Settings flag panel's off) removes the block with no deploy; nothing else reads or writes differently.",
+    ownerDoc: "docs/research/2026-10-22-insight-engines-audit.md",
+  },
+  {
     key: "NICK_RECALL_ARBITER",
     description:
       "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 121-case corpus (manifest data/recall-corpus.manifest.json) or a 7-day prod judge-split (scripts/arbiter-judge-split.ts) shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
