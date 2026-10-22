@@ -18,9 +18,17 @@ import { fileURLToPath } from "node:url";
 
 const DOCKERFILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../Dockerfile");
 
+/** The runtime stage's ACTIVE lines: Dockerfile comment lines dropped, so a commented-out command never counts. */
 function runtimeStage(text: string): string {
   const i = text.search(/^FROM .* AS runtime$/m);
-  return i < 0 ? "" : text.slice(i);
+  return i < 0 ? "" : text.slice(i).split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+}
+
+/** True when an active `pip install ... pillow==13.0.0` runs after the moviepy install. */
+function overrideAfterMoviepy(runtime: string): boolean {
+  const moviepyAt = runtime.indexOf("moviepy==");
+  const pillowAt = runtime.search(/pip install[^\n]*pillow==13\.0\.0/);
+  return moviepyAt >= 0 && pillowAt > moviepyAt;
 }
 
 describe("statenour runtime image Pillow override", () => {
@@ -36,8 +44,16 @@ describe("statenour runtime image Pillow override", () => {
   });
 
   it("Pillow 13.0.0 is installed after moviepy, so the resolver cannot put 11.x back", () => {
-    const moviepyAt = runtime.indexOf("moviepy==");
-    const pillowAt = runtime.search(/pip install[^\n]*pillow==13\.0\.0/);
-    expect(pillowAt).toBeGreaterThan(moviepyAt);
+    expect(overrideAfterMoviepy(runtime)).toBe(true);
+  });
+
+  it("the check fails on a commented-out override and on one placed before moviepy (PR #3224 review)", () => {
+    const stage = (body: string) => runtimeStage(`FROM node:24-alpine3.23 AS runtime\n${body}`);
+    const active = "RUN pip install moviepy==2.2.1 \\\n && pip install pillow==13.0.0";
+    const commented = "RUN pip install moviepy==2.2.1\n# RUN pip install pillow==13.0.0";
+    const before = "RUN pip install pillow==13.0.0\nRUN pip install moviepy==2.2.1";
+    expect(overrideAfterMoviepy(stage(active))).toBe(true);
+    expect(overrideAfterMoviepy(stage(commented))).toBe(false);
+    expect(overrideAfterMoviepy(stage(before))).toBe(false);
   });
 });
