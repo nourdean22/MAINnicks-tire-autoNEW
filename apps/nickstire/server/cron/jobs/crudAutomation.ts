@@ -35,7 +35,7 @@ export async function processReminders(): Promise<{ recordsProcessed: number; de
     }
     return {
       recordsProcessed: send.sent,
-      details: `planned ${plan.planned} (${byType}), new ${plan.inserted}, closed ${plan.closed}; due ${send.due}: sent ${send.sent}, queued ${send.queued}, uncertain ${send.uncertain}, held out ${send.heldOut}, failed ${send.failed}, awaiting approval ${send.awaitingApproval}, deferred ${send.deferred}, too late ${send.tooLate}, over daily cap ${send.capped}`,
+      details: `planned ${plan.planned} (${byType}), new ${plan.inserted}, closed ${plan.closed}; due ${send.due}: sent ${send.sent}, queued ${send.queued}, uncertain ${send.uncertain}, held out ${send.heldOut}, failed ${send.failed}, awaiting approval ${send.awaitingApproval}, deferred ${send.deferred}, too late ${send.tooLate}`,
     };
   } catch (e: unknown) {
     throw new Error(`Reminders failed: ${(e as Error).message}`, { cause: e });

@@ -166,13 +166,13 @@ describe("sendDueServiceReminders", () => {
     expect(h.sendSms).not.toHaveBeenCalled();
   });
 
-  it("stops at the daily cap: with the shop day's quota used, nothing is claimed or sent", async () => {
+  it("no daily limit: every due, approved reminder sends on the run it comes due (Nour, 2026-10-22)", async () => {
     (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
-    const db = { ...fakeDb(), execute: async () => [[{ n: 40 }], []] };
-    const r = await sendDueServiceReminders(db);
-    expect(h.sendSms).not.toHaveBeenCalled();
-    expect(updates).toEqual([]);
-    expect(r.capped).toBe(1);
+    h.due = Array.from({ length: 45 }, (_, i) => ({ id: 200 + i, phone: `21677${String(i).padStart(5, "0")}`, serviceType: "tires" }));
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM" });
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(h.sendSms).toHaveBeenCalledTimes(45);
+    expect(r.sent).toBe(45);
   });
 
   it("cancels a row more than 30 days past due instead of sending it", async () => {
@@ -213,16 +213,36 @@ describe("sendDueServiceReminders", () => {
     expect(r.deferred).toBe(1);
   });
 
-  it("a number that cannot take texts does not use up the day's slots", async () => {
+  it("the held-back second reminder is not dropped: it stays scheduled and sends once the 7 days pass", async () => {
     (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
-    h.due = Array.from({ length: 41 }, (_, i) => ({ id: 100 + i, phone: `21655${String(i).padStart(5, "0")}`, serviceType: "tires" }));
-    h.sendSms.mockImplementation(async (phone: string) =>
-      phone === "2165500040" ? { success: true, sid: "SM41" } : { success: false, error: "landline" },
-    );
-    const r = await sendDueServiceReminders(fakeDb());
-    expect(h.sendSms).toHaveBeenCalledTimes(41);
-    expect(r.sent).toBe(1);
-    expect(r.failed).toBe(40);
+    (SERVICE_REMINDER_PLAN.brakes as { approvedBy: string | null }).approvedBy = "test";
+    h.sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+    const dueDay = new Date("2026-10-22T15:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // Run 1, the day both come due: tires goes out, brakes is held back and left untouched.
+      vi.setSystemTime(dueDay);
+      h.due = [
+        { id: 7, phone: "2165550105", serviceType: "tires", nextDueDate: dueDay },
+        { id: 9, phone: "2165550105", serviceType: "brakes", nextDueDate: dueDay },
+      ] as never;
+      const first = await sendDueServiceReminders(fakeDb());
+      expect(first.sent).toBe(1);
+      expect(first.deferred).toBe(1);
+      expect(updates.some((u) => new MySqlDialect().sqlToQuery(u.where as SQL).params.includes(9))).toBe(false);
+
+      // Run 2, eight days later: the 7-day read no longer names the phone, so brakes sends.
+      updates = [];
+      h.sendSms.mockClear();
+      vi.setSystemTime(new Date(dueDay.getTime() + 8 * 86_400_000));
+      h.due = [{ id: 9, phone: "2165550105", serviceType: "brakes", nextDueDate: dueDay }] as never;
+      const second = await sendDueServiceReminders(fakeDb());
+      expect(second.sent).toBe(1);
+      expect(second.tooLate).toBe(0);
+      expect(h.sendSms).toHaveBeenCalledWith("2165550105", expect.stringContaining("brake"), expect.anything());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a definite send failure gives the row back for the next run", async () => {

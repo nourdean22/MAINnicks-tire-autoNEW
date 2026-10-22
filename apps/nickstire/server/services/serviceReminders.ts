@@ -120,9 +120,6 @@ function addMonths(d: Date, months: number): Date {
  */
 const LATE_GRACE_MS = 30 * 86_400_000;
 
-/** Shop-wide cap on reminder texts per shop day, like declined recovery's carrier-safe batches. */
-const DAILY_SEND_CAP = 40;
-
 /** Pure: one reminder per customer x category, from that customer's latest closed-job day only. */
 export function planServiceReminders(jobs: readonly ClosedJob[], now: Date = new Date()): PlannedReminder[] {
   const latestDay = new Map<string, string>();
@@ -316,7 +313,6 @@ export interface SendResult {
   awaitingApproval: number;
   deferred: number;
   tooLate: number;
-  capped: number;
 }
 
 /**
@@ -329,22 +325,15 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
   const { smsOutcome } = await import("../lib/smsOutcome");
   const { getDueReminders } = await import("../db");
 
-  const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
-
   const due: Array<{ id: number; phone: string; serviceType: string; nextDueDate?: Date }> = await getDueReminders();
 
-  const r: SendResult = { due: due.length, sent: 0, queued: 0, uncertain: 0, heldOut: 0, failed: 0, awaitingApproval: 0, deferred: 0, tooLate: 0, capped: 0 };
+  const r: SendResult = { due: due.length, sent: 0, queued: 0, uncertain: 0, heldOut: 0, failed: 0, awaitingApproval: 0, deferred: 0, tooLate: 0 };
   const sendable = due.filter((d) => {
     if (approvedReminderText(d.serviceType)) return true;
     r.awaitingApproval++;
     return false;
   });
   const defer = await phonesToDefer(db, [...new Set(sendable.map((d) => d.phone))]);
-  const [usedRows] = await db.execute(sql`
-    SELECT COUNT(*) AS n FROM service_reminders
-    WHERE status = 'sent' AND sentAt >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE
-  `);
-  let room = DAILY_SEND_CAP - Number((usedRows as Array<{ n?: unknown }>)[0]?.n ?? 0);
   const textedThisRun = new Set<string>(); // one reminder per customer per run, whatever the category
 
   for (const d of sendable) {
@@ -360,17 +349,12 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       r.deferred++;
       continue;
     }
-    if (room <= 0) {
-      r.capped++;
-      continue;
-    }
     try {
       const claim = await db
         .update(serviceReminders)
         .set({ status: "sent", sentAt: new Date() })
         .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
       if (((claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) !== 1) continue; // another run claimed it
-      room--;
 
       const text = approvedReminderText(d.serviceType)!;
       const variantKey = `service_reminder_${d.serviceType}`;
@@ -381,7 +365,6 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       if (outcome !== "failed") textedThisRun.add(d.phone);
       if (outcome === "failed") {
         r.failed++;
-        room++; // nothing was delivered, so a number that cannot take texts does not eat the day's slots
         // A definite failure was not delivered: give the row back so the next run retries it.
         await db
           .update(serviceReminders)
