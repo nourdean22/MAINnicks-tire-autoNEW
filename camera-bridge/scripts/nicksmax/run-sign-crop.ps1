@@ -9,13 +9,25 @@
 #
 # The previous run's stdout/stderr are kept as .prev: deleting them at start meant a crashed
 # crop's own log was gone the moment the supervisor restarted it.
+#
+# -Lens picks which band of the stack to republish (counter prep, 2026-10-21). The supervisor
+# starts this with no arguments, so the default stays the middle lens and today's exact ffmpeg
+# command. A different lens needs a new sign calibration drawn on that lens: see
+# camera-bridge/docs/NICKSMAX-SIGN-LENS.md. -PrintArgs prints the ffmpeg arguments and exits.
+param(
+  [ValidateSet("top", "middle", "bottom")]
+  [string]$Lens = "middle",
+  [switch]$PrintArgs
+)
 $ErrorActionPreference = "Stop"
+$lensY = @{ top = 0; middle = 1080; bottom = 2160 }[$Lens]
 $root = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay"
 $ffmpeg = "C:\Users\nourd\NicksMax\lab\ffmpeg-essentials\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe"
-$outLog = Join-Path $root "sign-crop.stdout.log"
-$errLog = Join-Path $root "sign-crop.stderr.log"
-$statusLog = Join-Path $root "sign-crop-status.log"
-$instanceLockPath = Join-Path $root ".sign-crop.lock"
+# String paths, not Join-Path: Join-Path throws on a host with no C: drive (Linux CI), before -PrintArgs.
+$outLog = "$root\sign-crop.stdout.log"
+$errLog = "$root\sign-crop.stderr.log"
+$statusLog = "$root\sign-crop-status.log"
+$instanceLockPath = "$root\.sign-crop.lock"
 
 # The supervisor's writer, verbatim (a test keeps the copies identical): Windows PowerShell 5.1's
 # Add-Content fails beside any open reader.
@@ -42,18 +54,6 @@ function Rotate-Log([string]$path) {
   catch { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
 }
 
-try {
-  $instanceLock = [IO.File]::Open(
-    $instanceLockPath,
-    [IO.FileMode]::OpenOrCreate,
-    [IO.FileAccess]::ReadWrite,
-    [IO.FileShare]::None
-  )
-} catch {
-  Log "SKIP duplicate sign crop; lock held"
-  exit 0
-}
-
 $args = @(
   "-hide_banner",
   "-loglevel","warning",
@@ -63,7 +63,7 @@ $args = @(
   "-timeout","5000000",
   "-i","rtsp://127.0.0.1:8554/live",
   "-an",
-  "-vf","crop=1920:1080:0:1080,scale=640:360,fps=4,setpts=N/(4*TB)",
+  "-vf",("crop=1920:1080:0:{0},scale=640:360,fps=4,setpts=N/(4*TB)" -f $lensY),
   "-c:v","libx264",
   "-preset","ultrafast",
   "-tune","zerolatency",
@@ -76,11 +76,24 @@ $args = @(
   "-rtsp_transport","tcp",
   "rtsp://127.0.0.1:8555/sign"
 )
+if ($PrintArgs) { $args; exit 0 }
+
+try {
+  $instanceLock = [IO.File]::Open(
+    $instanceLockPath,
+    [IO.FileMode]::OpenOrCreate,
+    [IO.FileAccess]::ReadWrite,
+    [IO.FileShare]::None
+  )
+} catch {
+  Log "SKIP duplicate sign crop; lock held"
+  exit 0
+}
 
 try {
   Rotate-Log $outLog
   Rotate-Log $errLog
-  Log "START middle-lens crop proxy with wallclock timestamp normalization"
+  Log ("START {0}-lens crop proxy with wallclock timestamp normalization" -f $Lens)
   $p = Start-Process -FilePath $ffmpeg -ArgumentList $args -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru -Wait
   Log ("EXIT rc={0}" -f $p.ExitCode)
   exit $p.ExitCode

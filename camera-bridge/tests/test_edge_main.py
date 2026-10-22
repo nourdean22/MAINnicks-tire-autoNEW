@@ -545,6 +545,151 @@ class WatchdogTest(unittest.TestCase):
         self.assertEqual(loop.stalled, first)
 
 
+class StallReopenTest(unittest.TestCase):
+    """Counter prep 2026-10-21: an edge whose OWN reader is still reopening the RTSP source
+    keeps its tracker and its producer instance instead of exiting for the supervisor.
+
+    `--stall-reopen-attempts 0` (the default) is today's behaviour: exit on time alone.
+    """
+
+    def _stalled_loop(self, attempts, failures, last_attempt_age, stall=60.0):
+        pipeline = make_pipeline()
+        clock = _Clock(1000.0)
+        src = FakeSource(frames=[FakeFrame(1000.0)])
+        src.active.reopen_failures = failures
+        src.active.last_reopen_attempt_at = None if last_attempt_age is None else 1000.0 + stall + 1.0 - last_attempt_age
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), src, clock=clock,
+                     stall_exit_seconds=stall, stall_reopen_attempts=attempts)
+        loop.step()                       # one real frame
+        clock.advance(stall + 1.0)
+        loop.step()                       # nothing since
+        return loop
+
+    def test_the_default_exits_on_time_alone_exactly_as_today(self):
+        loop = self._stalled_loop(attempts=0, failures=0, last_attempt_age=1.0)
+        self.assertIn("stopped delivering", loop.stalled or "")
+
+    def test_a_reader_still_reopening_keeps_the_edge_alive(self):
+        loop = self._stalled_loop(attempts=5, failures=4, last_attempt_age=1.0)
+        self.assertIsNone(loop.stalled, "4 of 5 reopen attempts failed; the reader is still trying")
+
+    def test_it_exits_once_the_reopen_attempts_are_used_up_and_says_so(self):
+        loop = self._stalled_loop(attempts=5, failures=5, last_attempt_age=1.0)
+        self.assertIn("stopped delivering", loop.stalled or "")
+        self.assertIn("5 in-process reopen", loop.stalled or "")
+
+    def test_a_WEDGED_reader_that_stopped_attempting_still_exits(self):
+        """A reader stuck inside cv2 makes no attempts; waiting on its counter would keep a
+        blind producer alive forever on a fresh progress lease."""
+        loop = self._stalled_loop(attempts=5, failures=1, last_attempt_age=61.0)
+        self.assertIsNotNone(loop.stalled)
+        loop = self._stalled_loop(attempts=5, failures=0, last_attempt_age=None)
+        self.assertIsNotNone(loop.stalled, "no reopen was ever attempted: exit as today")
+
+    def test_a_source_without_reopen_state_exits_as_today(self):
+        pipeline = make_pipeline()
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(frames=[FakeFrame(1000.0)]),
+                     clock=clock, stall_exit_seconds=60.0, stall_reopen_attempts=5)
+        loop.step()
+        clock.advance(61.0)
+        loop.step()
+        self.assertIsNotNone(loop.stalled)
+
+    def test_the_flag_defaults_to_zero_so_a_copied_edge_behaves_as_today(self):
+        self.assertEqual(edge_main.parse_args([]).stall_reopen_attempts, 0)
+        self.assertEqual(edge_main.parse_args(["--stall-reopen-attempts", "7"]).stall_reopen_attempts, 7)
+
+
+class NoShopIngestTest(unittest.TestCase):
+    """`--no-shop-ingest` (Codex P1 on #3216): a hand-run commissioning edge must not reach the
+    live shop even when a shop URL and CAMERA_INGEST_KEY arrive from config or camera-bridge/.env.
+    `--dry-run` only silences StateNour, and shadow mode still tags rows PRODUCTION."""
+
+    def _build(self, **over):
+        from test_main import RAW
+        from visitd.config import build_config
+
+        raw = dict(RAW, backend=dict(RAW["backend"], shopUrl="https://nickstire.org/api/camera/visits"))
+        cfg = build_config(raw, environ={"CAMERA_INGEST_KEY": "k"})
+        return edge_main.build_edge(cfg, _args(calibration=None, **over))[0]
+
+    def test_control_a_configured_shop_is_enabled_without_the_flag(self):
+        pipeline = self._build()
+        try:
+            self.assertTrue(pipeline.shop.enabled, "control: url + key in config means the shop lane is on")
+        finally:
+            pipeline.ledger.close()
+
+    def test_the_flag_disables_the_shop_lane_however_it_was_configured(self):
+        pipeline = self._build(no_shop_ingest=True)
+        try:
+            self.assertFalse(pipeline.shop.enabled)
+            rec = Recorder()
+            pipeline.shop.transport = rec
+            loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource())
+            self.assertFalse(loop.send_heartbeat(1000.0), "no heartbeat, so no authority claim")
+            _real_emissions(pipeline, camera="lot", persist=True)
+            self.assertEqual(pipeline.ledger.shop_outbox_depth(), 0, "no visit row is queued for the shop")
+            loop.shutdown()
+            self.assertEqual(rec.calls, [], "nothing was POSTed")
+        finally:
+            pipeline.ledger.close()
+
+    def test_the_flag_defaults_off(self):
+        self.assertFalse(edge_main.parse_args([]).no_shop_ingest)
+        self.assertTrue(edge_main.parse_args(["--no-shop-ingest"]).no_shop_ingest)
+
+
+class VisitLineageTest(unittest.TestCase):
+    """Every vehicle_visits row since the NicksMax cutover had NULL detectorName and
+    calibrationVersion: the camera config's all-None provenance dict is truthy, so it beat the
+    edge's real provenance in the mirror. A row from the EDGE path must carry the edge's."""
+
+    def _edge_rows(self, args):
+        pipeline, _vision, _source, cal, detector, *_ = edge_main.build_edge(_cfg(), args)
+        try:
+            shop_enabled(pipeline)
+            _real_emissions(pipeline, camera="lot", persist=True)
+            import json
+            payloads = [json.loads(r[0]) for r in pipeline.ledger._conn.execute("SELECT payload FROM shop_outbox")]
+            return payloads, cal, detector
+        finally:
+            pipeline.ledger.close()
+
+    def test_an_edge_visit_row_carries_the_detector_and_the_calibration(self):
+        fd, cal_path = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write('{"lot": [[0, 0], [600, 0], [600, 300], [0, 300]]}')
+        try:
+            rows, cal, detector = self._edge_rows(_args(calibration=cal_path))
+        finally:
+            os.unlink(cal_path)
+        self.assertTrue(rows, "precondition: the edge queued a shop row")
+        self.assertTrue(cal and detector, "precondition: the edge knows both")
+        for row in rows:
+            self.assertEqual(row["detectorName"], detector)
+            self.assertEqual(row["calibrationVersion"], cal)
+
+    def test_an_edge_visit_row_carries_the_source_generation(self):
+        pipeline = make_pipeline()
+        shop_enabled(pipeline)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(restores=3, index=0))
+        self.assertEqual(loop.generation, "0.3.0")
+        row = pipeline.shop.row_for(_real_emissions(pipeline, camera="lot")[0], None,
+                                    pipeline.cfg.cameras["lot"].provenance())
+        self.assertEqual(row["sourceGeneration"], "0.3.0")
+
+    def test_a_value_the_camera_config_sets_still_wins(self):
+        """Merge, not replace: a deployment that pins a detector name in config keeps it."""
+        from visitd.shop_mirror import ShopMirror
+
+        shop = ShopMirror(None, None, provenance={"detectorName": "edge", "calibrationVersion": "sha256:edge"})
+        row = shop.row_for(_real_emissions(make_pipeline(), camera="lot")[0], None,
+                           {"detectorName": "pinned", "calibrationVersion": None, "cameraPose": None})
+        self.assertEqual((row["detectorName"], row["calibrationVersion"]), ("pinned", "sha256:edge"))
+
+
 class SourceGenerationTest(unittest.TestCase):
     def test_a_restore_or_a_failover_is_a_NEW_generation(self):
         """A track path must never cross a generation: an outside point from one lane
@@ -616,7 +761,7 @@ def _args(**over):
         motion_gate=False, evidence=None, fps=4.0, seconds=0.0, mode=None,
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
-        stall_exit_seconds=180.0, scene_atlas=None, scene=None,
+        stall_exit_seconds=180.0, stall_reopen_attempts=0, scene_atlas=None, scene=None,
         restart_rebind_seconds=20.0, restart_rebind_max_gap_seconds=120.0,
         adjudicator_model=None, adjudicator_device=None,
         hard_cases=None, hard_case_max_gb=2.0, hard_case_episodes="both", trajectories=None,
@@ -624,6 +769,7 @@ def _args(**over):
         relocate_seconds=120.0,
         challenger_model=None,
         replay=False,
+        no_shop_ingest=False,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)

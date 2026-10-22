@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { cutAtMarkerBoundary, isNonSpeechText, jsonArray, transcriptCoverage } from "./conversationQuality";
+import { conversationSourceLabel, cutAtMarkerBoundary, isNonSpeechText, jsonArray, transcriptCoverage } from "./conversationQuality";
+
+describe("conversationSourceLabel", () => {
+  it("names each microphone in words and lets an unknown source name itself", () => {
+    expect(conversationSourceLabel("eufy-office")).toBe("Office");
+    // counter-mic is what install-office-capture.ps1 posts for the DirectShow counter microphone.
+    expect(conversationSourceLabel("counter-mic")).toBe("Front counter");
+    // No producer posts shop-floor; an unknown source names itself until one does.
+    expect(conversationSourceLabel("shop-floor")).toBe("shop-floor");
+    expect(conversationSourceLabel("constructor")).toBe("constructor");
+  });
+});
 
 describe("jsonArray", () => {
   it("accepts parsed arrays and JSON strings, but not malformed JSON", () => {
