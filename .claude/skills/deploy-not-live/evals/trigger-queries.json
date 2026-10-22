@@ -1,0 +1,182 @@
+[
+  {
+    "query": "check the deploys for all the apps together and tell me what is actually running",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:72e4f9eb"
+  },
+  {
+    "query": "i merged my pr an hour ago and the site still shows the old thing, why isnt it live",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "railway looks stuck, nothing has deployed since last night and i have a pile of merged prs waiting",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the build failed again on the statenour side and none of my merged work is showing, what happened",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "is my pr live yet? merged it a while ago and i cant tell what the site is running",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the deploy keeps dying with a javascript heap out of memory error in the next build, work out why it isnt live and tell me what to approve",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "merged to main but the live site is on an older commit, compare which commit each app is running against what i merged",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "railway posted an incident notice, did it stop my merges from going live? check before i start guessing",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "i fixed that bug and merged it but customers still see the broken page. is this a deploy problem or did my fix not work",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the statenour site still shows yesterdays version after the merge, what is blocking the deploy",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "my change only touched one app, should the other one have redeployed? work out why the site has not changed",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the railway cli says unauthorized and i need to know if the last merge actually went out, can you tell without me logging in",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "merge it, then run it again once it has deployed",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:3f84cc14"
+  },
+  {
+    "query": "set those variables in railway for me using the command line",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:2eabb726"
+  },
+  {
+    "query": "that guard run has been going over an hour, is it actually working or is it stuck",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:4d17e15a"
+  },
+  {
+    "query": "what are those processes that have been running forever, are they stuck, and are you really finished with everything i asked",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:94605d03"
+  },
+  {
+    "query": "look in the railway logs for the line that records the vote, and the generated videos are poor quality so lets raise it",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:a0e2a217"
+  },
+  {
+    "query": "check the ci again and if the node job passed, merge it through the merge gate and send the wrap up",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:db5ac43c"
+  },
+  {
+    "query": "yes push the reel fix and merge it once the checks are green",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:b108f4b9"
+  },
+  {
+    "query": "tell me when it has deployed, then i will push the config and run it",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:c2e06963"
+  },
+  {
+    "query": "run step seven of the live check after merge in the agent os readme and report pass or fail",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:8c5ea054"
+  },
+  {
+    "query": "i pasted the camera key from railway into the shop pc and pressed enter, verify it took",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:369d735b"
+  },
+  {
+    "query": "audit railway, the database and github main and sort every feature into live, built but unwired, or broken",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "that branch is pushed but never got a pr, did we lose that work? check before anyone deletes it",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "run a script against the production database to count the rows from last week",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "run the statenour verify gates before i push this branch and tell me which are red",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the pre-push build keeps failing on my branch before i can even push, what broke",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the node job in ci is red on my pr after the last push, find which test broke",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "i merged a change that only touched the docs and the site looks exactly the same, is something wrong with the deploy",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the worker service might be stuck on railway, can you tell from outside whether it picked up the latest merge",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  }
+]

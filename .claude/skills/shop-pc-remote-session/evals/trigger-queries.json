@@ -1,0 +1,146 @@
+[
+  {
+    "query": "use chrome remote desktop to get into the front desk computer and look at it yourself, dont wait on me",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:d22b1b45"
+  },
+  {
+    "query": "ok the pin is already saved on the remote desktop tab, go ahead and connect",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:90e8351e"
+  },
+  {
+    "query": "I pasted the camera key into the admin shell on the shop pc myself and hit enter. check that it took.",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:369d735b"
+  },
+  {
+    "query": "nobody is at the shop pc and the ticket is saved, so go ahead and drive it now",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:6ea336a6"
+  },
+  {
+    "query": "I typed the pin and the shop pc desktop is up on screen. go ahead and install the update on it",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:82185f8a"
+  },
+  {
+    "query": "use the other computer name instead. ill type the pin in the remote desktop tab and then you take over",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "tx:f57ffb17"
+  },
+  {
+    "query": "everything the agent types into the shop computer comes out lowercase and the pipes vanish, why is that happening",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "push this file to the shop pc and tell me when its there",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "can you remote into the front desk computer and restart the camera office thing for me",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the claude extension says host access is restricted when I open the remote desktop tab, so now what",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "deploy the new bridge build on the shop pc tonight after we close",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "yes, tear down the two finished agent workspaces with the teardown script",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:2ae82fc3"
+  },
+  {
+    "query": "ok go ahead and run the first backup of the production database now",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:35dcfe65"
+  },
+  {
+    "query": "merge it but check the other sessions first so you dont step on their work",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:5aa7f8c4"
+  },
+  {
+    "query": "my agent worktree says tsc is not recognized, get it set up so I can run the checks",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "grab a lease on this branch first so another session cant collide with my uncommitted work",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "is the live site and the worker up right now? give me a production health report",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "write a script that reads the front desk camera feed and posts a still to the admin page, code only in the repo",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "run this one off script against the production database from my worktree, is it safe",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "push my branch while a sibling session is also pushing, whats the safe order",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "add a short how to page for the crew about our remote desktop setup to the admin docs",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "set the wake gate to speech on the front desk machine and restart the office lane task",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "my remote session from my phone keeps dropping, restart the service and run the commands again",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the file upload never lands on the admin media page, find out why and fix it",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  }
+]
