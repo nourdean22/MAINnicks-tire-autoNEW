@@ -178,6 +178,11 @@ class ShopMirror:
         Pure with respect to the network; safe to call in tests without a transport.
         """
         visit_id = emission.visit_id
+        # MERGE, never choose: a camera config's provenance() is a dict of Nones unless pinned,
+        # and a non-empty dict is truthy, so `provenance or self.provenance` dropped the edge's
+        # detector and calibration from every visit row after the NicksMax cutover.
+        prov = dict(self.provenance)
+        prov.update({k: v for k, v in (provenance or {}).items() if v is not None})
         with self._lock:
             row = self._visits.get(visit_id)
             pinned = self._pinned.get(visit_id)
@@ -209,10 +214,10 @@ class ShopMirror:
                     "preexisting": False,
                     "entryEvidence": None,
                     "estimatedFields": [],
-                    "sourceGeneration": (provenance or self.provenance).get("sourceGeneration"),
-                    "cameraPose": (provenance or self.provenance).get("cameraPose"),
-                    "detectorName": (provenance or self.provenance).get("detectorName"),
-                    "calibrationVersion": (provenance or self.provenance).get("calibrationVersion"),
+                    "sourceGeneration": prov.get("sourceGeneration"),
+                    "cameraPose": prov.get("cameraPose"),
+                    "detectorName": prov.get("detectorName"),
+                    "calibrationVersion": prov.get("calibrationVersion"),
                     # Episode trail (migration 0127). Seeded None: a producer without the
                     # stitcher never sets them, and NULL reads as "not reported" rather
                     # than as an empty trail.

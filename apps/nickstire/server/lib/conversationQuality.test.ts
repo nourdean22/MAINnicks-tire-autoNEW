@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cutAtMarkerBoundary, isNonSpeechText, jsonArray, transcriptCoverage } from "./conversationQuality";
+import { conversationSourceLabel, cutAtMarkerBoundary, isNonSpeechText, jsonArray, transcriptCoverage } from "./conversationQuality";
+
+describe("conversationSourceLabel", () => {
+  it("names each microphone in words and lets an unknown source name itself", () => {
+    expect(conversationSourceLabel("eufy-office")).toBe("Office");
+    expect(conversationSourceLabel("shop-floor")).toBe("Shop floor");
+    expect(conversationSourceLabel("bay-3")).toBe("bay-3");
+  });
+});
 
 describe("jsonArray", () => {
   it("accepts parsed arrays and JSON strings, but not malformed JSON", () => {

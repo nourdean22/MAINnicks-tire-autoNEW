@@ -89,9 +89,12 @@ export function cutAtMarkerBoundary(text: string, max: number): string {
   }
   return cut.trimEnd() + suffix;
 }
+// A Map, not an object literal: "constructor" must name itself, not Object's prototype.
+const SOURCE_LABELS = new Map([["eufy-office", "Office"], ["shop-floor", "Shop floor"]]);
+
 /** Where a conversation source's microphone is, in words (eufy-office -> "Office"); anything else names itself. */
 export function conversationSourceLabel(source: string): string {
-  return source === "eufy-office" ? "Office" : source;
+  return SOURCE_LABELS.get(source) ?? source;
 }
 
 type TimedSegment = { start?: unknown; end?: unknown; text?: unknown };

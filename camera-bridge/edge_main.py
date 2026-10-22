@@ -511,6 +511,7 @@ class EdgeLoop:
         heartbeat_seconds: float = 30.0,
         drain_seconds: float = 5.0,
         stall_exit_seconds: float = 180.0,
+        stall_reopen_attempts: int = 0,
         persist_seconds: float = 2.0,
         hard_cases: Any = None,
         trajectories: Any = None,
@@ -609,6 +610,9 @@ class EdgeLoop:
         self.drain_seconds = drain_seconds
         #: Deliver NOTHING for this long and the process asks to be restarted. 0 disables.
         self.stall_exit_seconds = stall_exit_seconds
+        #: With N > 0, a stall waits while the source's OWN reader is still reopening it (fewer
+        #: than N failed reopens, the latest within the stall window). 0 exits on time alone.
+        self.stall_reopen_attempts = int(stall_reopen_attempts)
         #: How stale persisted tracker state is allowed to get on quiet frames. See
         #: `_persist_due`. 0 persists on EVERY processed frame.
         self.persist_seconds = persist_seconds
@@ -634,6 +638,7 @@ class EdgeLoop:
         self.quiet_commits = 0
         #: The capture generation the vision pipeline is currently reasoning within.
         self.generation = source_generation(source)
+        self._stamp_source_generation()
         #: How many times the lane or the restore count changed under us.
         self.generation_breaks = 0
         # If authority-boundary invalidation fails, do not renew the server lease until
@@ -703,6 +708,7 @@ class EdgeLoop:
                 try:
                     self.vision.tracks.mark_degraded()
                     self.vision.census.note_reconnect(frame.ts)
+                    self._stamp_source_generation()
                 except Exception:
                     # FAIL CLOSED. If the invalidation itself failed, the old paths and an
                     # un-re-armed census are still live -- and feeding this frame in anyway
@@ -828,11 +834,28 @@ class EdgeLoop:
         age = now - since
         if age <= self.stall_exit_seconds:
             return None
+        reopens = ""
+        if self.stall_reopen_attempts > 0:
+            active = getattr(self.source, "active", self.source)
+            failures = getattr(active, "reopen_failures", None)
+            attempted_at = getattr(active, "last_reopen_attempt_at", None)
+            if failures is not None and attempted_at is not None:
+                # A reader that stopped attempting is wedged, not reopening: exit as before.
+                still_trying = now - attempted_at <= self.stall_exit_seconds
+                if still_trying and failures < self.stall_reopen_attempts:
+                    return None
+                reopens = f" and {failures} in-process reopen(s) failed"
         if self.last_frame_at is None:
             return (f"no frame was EVER captured in {age:.0f}s (limit {self.stall_exit_seconds:.0f}s) -- "
                     "the window or stream was never readable")
         return (f"no frame for {age:.0f}s (limit {self.stall_exit_seconds:.0f}s) after "
-                f"{self.frames} frame(s) -- the capture source stopped delivering")
+                f"{self.frames} frame(s){reopens} -- the capture source stopped delivering")
+
+    def _stamp_source_generation(self) -> None:
+        """Give the shop mirror the generation new visit rows are seeded with (sourceGeneration)."""
+        prov = getattr(getattr(self.pipeline, "shop", None), "provenance", None)
+        if isinstance(prov, dict):
+            prov["sourceGeneration"] = self.generation
 
     def _run_timers(self) -> None:
         now = self.clock()
@@ -2162,6 +2185,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="exit(3) after this long with NO frame at all so the supervisor restarts; "
                          "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
                          "reported as degraded vision, and restarting on it would only thrash")
+    ap.add_argument("--stall-reopen-attempts", type=int, default=0,
+                    help="with N > 0, a stalled RTSP edge stays up (tracker and producer instance "
+                         "kept) while its own reader is still reopening the stream, until N reopens "
+                         "have failed; 0 exits on --stall-exit-seconds alone, as before")
     ap.add_argument("--restart-rebind-seconds", type=float, default=20.0,
                     help="after a restart, how long (from the first frame) a car still parked where "
                          "the previous process last saw it may continue its visit; 0 departs every "
@@ -2292,7 +2319,8 @@ def run_edge(args: argparse.Namespace) -> int:
         model_sha256=_model_sha256(args.model),
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
-        stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
+        stall_exit_seconds=args.stall_exit_seconds, stall_reopen_attempts=args.stall_reopen_attempts,
+        persist_seconds=args.persist_seconds,
         hard_cases=recorder, trajectories=trajectories, shadow=shadow, challenger=challenger,
         relocate_seconds=args.relocate_seconds,
         service_review_seconds=args.service_review_seconds,

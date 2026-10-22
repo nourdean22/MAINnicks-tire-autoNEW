@@ -727,6 +727,14 @@ class RtspSource(CaptureSource):
         self._reader: Optional[threading.Thread] = None
         self._read_failures_before_reconnect = 10
         self._reconnect_delay = 0.25
+        #: Read by the edge's stall exit: failed reopens since the last one that produced a
+        #: frame, and when the latest attempt ended (None until one has been tried).
+        self.reopen_failures = 0
+        self.last_reopen_attempt_at: Optional[float] = None
+
+    def _note_reopen(self, ok: bool) -> None:
+        self.reopen_failures = 0 if ok else self.reopen_failures + 1
+        self.last_reopen_attempt_at = time.time()
 
     def _open_capture(self):
         import cv2
@@ -744,11 +752,17 @@ class RtspSource(CaptureSource):
     def open(self) -> None:
         if self._reader is not None and self._reader.is_alive():
             return
-        cap = self._open_capture()
+        try:
+            cap = self._open_capture()
+        except Exception:
+            self._note_reopen(False)
+            raise
         ok, img = cap.read()
         if not ok or img is None:
             cap.release()
+            self._note_reopen(False)
             raise ConnectionError(f"RTSP opened but produced no frame: {self.url}")
+        self._note_reopen(True)
         self._cap = cap
         self._stop.clear()
         self._store(img)
@@ -795,8 +809,10 @@ class RtspSource(CaptureSource):
             if ok and img is not None and not self._stop.is_set():
                 self._cap = cap
                 self.restores += 1
+                self._note_reopen(True)
                 self._store(img)
                 return True
+            self._note_reopen(False)
 
             if cap is not None:
                 try:
