@@ -209,6 +209,18 @@
         ]
       }
     ],
+    "SubagentStop": [
+      {
+        "matcher": "^lane-",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/subagent-receipt-check.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "",

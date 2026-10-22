@@ -79,7 +79,8 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    ([references/job-lessons.md](references/job-lessons.md)).
 7. **Check every return.** Read the real diff; `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <sha>`
    (exit 1 reject, exit 2 not checked, never a pass); re-run one receipt yourself. Every RETURN fact is labelled FACT, INFERRED
-   or NOT CHECKED. A failed or BLOCKED worker is re-dispatched only with a change: more context, a higher tier, a smaller task or
+   or NOT CHECKED; a lane report with no receipt, SHA or diff is sent back once by `scripts/agent-os/subagent-receipt-check.mjs`
+   (SubagentStop). A failed or BLOCKED worker is re-dispatched only with a change: more context, a higher tier, a smaller task or
    a ruling (B18). Two check-ins with no new commit or receipt: one message; a third: replace or re-plan (B9).
 8. **Relay.** Before Nour hears a worker's claim, classify it (shop or money, an absolute, a state, a plan), check it against
    USER.md's shop data meanings, memory and the source, forward the receipt verbatim with its source, and label what you

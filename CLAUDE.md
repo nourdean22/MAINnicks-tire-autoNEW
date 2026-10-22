@@ -49,11 +49,11 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   design, or PowerShell reliability. Skip it otherwise.
 - **Hooks** (`.claude/settings.json`; design notes [`docs/agent-os/README.md`](docs/agent-os/README.md))
   are enforcement, not advice, except the UserPromptSubmit skills reminder, which only prints. Don't disable one to unblock yourself.
-  - `PreToolUse` → `pretool.mjs` (23 rules, `config/agent-os/policy.json`, exit 2 blocks; **Claude-only**,
-    never cite as enforced repo-wide) then `lease-check.mjs` (Session Authority — **session-authority**
-    skill). Both fail OPEN on their own bugs — hook silence is not a green.
-  - `Stop` → `stop-check.mjs` (uncommitted changes on `main`; not a completion gate); once per prompt `skills-check.mjs` (no Skill
-    call, uninvoked `Skills:` names, CI/live claimed unread), `health-first.mjs` (FIX FIRST); `operator-asks.mjs` re-shows his words.
+  - `PreToolUse` → `pretool.mjs` (23 rules, `config/agent-os/policy.json`, exit 2 blocks; **Claude-only**, never cite as enforced
+    repo-wide) then `lease-check.mjs` (**session-authority** skill). Both fail OPEN on their own bugs — hook silence is not a green.
+  - `Stop` → `stop-check.mjs` (uncommitted changes on `main`); once each `skills-check.mjs` (no Skill call, uninvoked `Skills:`
+    names, CI/live claimed unread), `health-first.mjs` (FIX FIRST); `SubagentStop` → `subagent-receipt-check.mjs` (lane report
+    with no receipt); `operator-asks.mjs` re-shows Nour's words after compaction.
     `SessionStart` → `graphify-session-context.ps1`, `intelligence-context`, `check-memory-index`, `session-lease-status`, `session-health`.
 <!-- REMOVED 2026-08-21: the "`memory` MCP" bullet; it was never registered (docs/agent-audit/AUDIT-2026-08-21.md).
      Cross-session memory: AGENTS.md > "Memory / handoff". Re-add only once `claude mcp add` registers it. -->

@@ -129,6 +129,14 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   last judged (state `%LOCALAPPDATA%/nourcity/health-first/<session>.json`), fails open, never blocks when it cannot
   save the offset. The manager session of 2026-10-21/22 ran with graphify DOWN for about a day past this exact line.
   Canaries: `healthFirst.test.mjs` and `hookCommand.test.mjs`.
+- **SubagentStop** (`subagent-receipt-check.mjs`, same job; asked for by the manager session from its setup benchmark).
+  Matcher `^lane-` (the agent's frontmatter `name`); for a lane agent, a final report with no receipt line (a command and
+  its exit code on one line), no commit SHA and no diff is sent back to the LANE once (exit 2: the subagent keeps running
+  with the stderr line as its next instruction, per the hooks docs read 2026-10-22). The research lane may cite
+  `path:line` or a URL instead. It checks that evidence is present, not that it is true: the manager still re-runs one
+  receipt. One-shot per `agent_id` (state `%LOCALAPPDATA%/nourcity/receipt-check/`), `stop_hook_active` passes, fails
+  open. Canaries: `subagentReceipt.test.mjs` (a planted always-true copy of the gate lets the bare report through, so a
+  gate that stops checking turns the file red) and `hookCommand.test.mjs`.
 - **PreToolUse** rule `brief-shop-data` (same job): an Agent, Task or `mcp__ccd_session__start_session` brief that reads
   Nick's Tire records (a shop noun such as invoice, estimate or decline, plus nickstire or a nickstire lane) must carry
   a line starting `SHOP DATA:` that names invoices and estimates; the brief file the prompt names is read too (under
