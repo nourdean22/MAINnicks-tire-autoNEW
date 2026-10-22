@@ -4,6 +4,15 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { reportPageError } from "@/lib/observability/report-page-error";
+import { reloadOnceForDeploySkew } from "@/lib/observability/deploy-skew";
+
+function sessionStore(): Storage | undefined {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 export default function MasteryError({
   error,
@@ -13,6 +22,9 @@ export default function MasteryError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Every (mastery) page renders inside this boundary, so a chunk 404 after a
+    // deploy lands here, not in global-error.tsx: reload once, report a repeat.
+    if (reloadOnceForDeploySkew(error, sessionStore(), () => window.location.reload())) return;
     console.error("[NOUR OS] Page error:", error);
     reportPageError(error);
   }, [error]);

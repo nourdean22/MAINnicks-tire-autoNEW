@@ -251,7 +251,8 @@ export function ExecutionPanel({
           {task.dueDate && (
             <>
               <span className="text-fg-tertiary">·</span>
-              <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>
+              {/* dueDate is a calendar day stored as UTC midnight; read it in UTC or it shows the day before. */}
+              <span>Due {new Date(task.dueDate).toLocaleDateString(undefined, { timeZone: "UTC" })}</span>
             </>
           )}
           {task.effort && (
