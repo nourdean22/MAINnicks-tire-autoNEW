@@ -17,3 +17,4 @@ On demand. Excluded from graphify. Re-verify a row before relying on a fact olde
 | K | `AGENT-OPERATING-PROFILE.md` > Communication; `NOUR-COMMAND.md` > Recover context | 2026-08 |
 | L | `apps/nickstire/.remember/now.md`; memory `reels-campaign-state` | 2026-10 |
 | M | "Agent Core v2" mission brief Nour supplied (section 3) | 2026-10-11 |
+| N | Nour, 2026-10-15 (ShopDriver timestamp job) and 2026-10-21 (Telegram alert cleanup); enforced 2026-10-22 after a scout reported 0 declines | 2026-10-22 |

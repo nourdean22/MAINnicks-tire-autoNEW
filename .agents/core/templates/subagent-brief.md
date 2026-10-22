@@ -22,6 +22,7 @@ PITFALLS: <traps this job or the repo's skills already name, each with what it l
 PATH EXCEPTIONS: <"none", or each extra file with why and the exact lines or values you may change there. Only the manager grants one, here. Without one, an out-of-path edit is rejected. List every out-of-lane file the lane must commit (census files, truth docs, .completion fragments, config baselines): a pre-commit hook can run app-wide checks, and a lane that cannot commit should leave the work uncommitted and say so.>
 YOU MAY NOT: push, merge, deploy, write to prod, send to customers, install packages, start subagents or other CLIs.
 DATA: test fixtures only; never a production DATABASE_URL or real API keys in your shell.
+SHOP DATA: if the job reads shop data, paste the "Shop data meanings" lines from USER.md verbatim (fresh sessions do not load agent memory).
 MACHINE RULE: wrap every heavy run (agent-os verify, a full node --test sweep, any app suite, build) in `node scripts/agent-os/heavy.mjs run -- <cmd>`: it waits for the machine-wide lease and for 1500 MB free RAM. `heavy.mjs status` shows who holds it.
 RESUME: if a RESUME message arrives, run git status and git log on your branch first and continue from the last commit; do not redo finished steps.
 LANE FILE GOVERNS: owned paths, budget, checkpoints, antislop mode, commit trailer and cost rules (the lane's .claude/agents file); state here only what differs.
