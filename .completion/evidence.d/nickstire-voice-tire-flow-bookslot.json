@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "Job 2026-10-23-voice-tire-flow-bookslot: this diff reorders one sentence of the receptionist's tire close (bookSlot before the address text for a caller coming today); it changes no capability's state, evidence or dates. The voice arrival behaviour is recorded under arrival-invoice-reconciliation by job 2026-10-21-voice-receptionist-pro (PR 3212). Owner: the monorepo manager, to add the tire-flow case to that entry's evidence once a live tire caller who commits shows bookSlot and one internal text."
+    }
+  }
+}
