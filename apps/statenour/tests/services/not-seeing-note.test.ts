@@ -64,7 +64,8 @@ describe("buildNotSeeingSlice", () => {
     expect(slice.lines.join("\n")).not.toContain("an older business gap");
     expect(h.queryNick).toHaveBeenCalledWith("revenue_range", { from: "2026-10-19", to: "2026-10-25" });
     expect(h.queryNick).toHaveBeenCalledWith("revenue_range", { from: "2026-10-12", to: "2026-10-18" });
-    expect(slice.payload.openGaps).toBe(3);
+    expect(slice.payload.gapRowsRead).toBe(3);
+    expect(slice.payload.gapsShown).toBe(2);
   });
 
   it("a failed gap read says unknown instead of 'no gaps'", async () => {
@@ -75,7 +76,8 @@ describe("buildNotSeeingSlice", () => {
 
     expect(slice.lines.join("\n")).toContain("couldn't load (unknown, not empty)");
     expect(slice.lines.join("\n")).not.toContain("No open gaps");
-    expect(slice.payload.openGaps).toBeNull();
+    expect(slice.payload.gapRowsRead).toBeNull();
+    expect(slice.payload.gapsShown).toBeNull();
   });
 
   it("CONTROL: a measured empty gap list says so plainly", async () => {

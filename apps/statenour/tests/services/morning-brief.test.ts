@@ -455,7 +455,7 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
 });
 
 describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => {
-  const SECTION = { lines: ["<b>What you're not seeing</b>", "· business: a gap"], payload: { openGaps: 1 } };
+  const SECTION = { lines: ["<b>What you're not seeing</b>", "· business: a gap"], payload: { gapsShown: 1 } };
 
   beforeEach(() => {
     resetMocks();
@@ -486,7 +486,7 @@ describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => 
     const brief = await buildMorningBrief();
     expect(brief.text).toContain("What you're not seeing");
     expect(brief.text).toContain("· business: a gap");
-    expect(brief.payload.notSeeing).toEqual({ openGaps: 1 });
+    expect(brief.payload.notSeeing).toEqual({ gapsShown: 1 });
   });
 
   it("flag on, Tuesday: no section", async () => {

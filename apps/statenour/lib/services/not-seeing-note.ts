@@ -72,13 +72,14 @@ export async function buildNotSeeingSlice(todayIso: string): Promise<NotSeeingSl
   ]);
 
   const lines: string[] = ["<b>What you're not seeing</b>"];
-  let gapCount: number | null = null;
+  // Rows read (capped by `take`), not the table total: payload only, never rendered as a count.
+  let gapRowsRead: number | null = null;
   if (gapRows === null) {
     lines.push("Open gaps: couldn't load (unknown, not empty)");
   } else {
     const seen = new Set<string>();
     const picks = gapRows.filter((r) => !seen.has(r.category) && seen.add(r.category)).slice(0, MAX_GAPS);
-    gapCount = gapRows.length;
+    gapRowsRead = gapRows.length;
     if (picks.length === 0) lines.push("No open gaps between what you said and the record.");
     for (const p of picks) lines.push(`· ${escapeHtml(p.category)}: ${escapeHtml(p.gap.slice(0, 160))}`);
   }
@@ -87,7 +88,8 @@ export async function buildNotSeeingSlice(todayIso: string): Promise<NotSeeingSl
   return {
     lines,
     payload: {
-      openGaps: gapCount,
+      gapRowsRead,
+      gapsShown: gapRowsRead === null ? null : lines.filter((l) => l.startsWith("· ")).length,
       sales: { last: lastWeek.status, previous: prevWeek.status },
     },
   };
