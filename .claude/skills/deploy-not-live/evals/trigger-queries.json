@@ -115,7 +115,7 @@
   },
   {
     "query": "tell me when it has deployed, then i will push the config and run it",
-    "should_trigger": false,
+    "should_trigger": true,
     "heldOut": false,
     "origin": "tx:c2e06963"
   },
@@ -152,6 +152,30 @@
   {
     "query": "run the statenour verify gates before i push this branch and tell me which are red",
     "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the pre-push build keeps failing on my branch before i can even push, what broke",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the node job in ci is red on my pr after the last push, find which test broke",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "i merged a change that only touched the docs and the site looks exactly the same, is something wrong with the deploy",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "the worker service might be stuck on railway, can you tell from outside whether it picked up the latest merge",
+    "should_trigger": true,
     "heldOut": false,
     "origin": "written"
   }
