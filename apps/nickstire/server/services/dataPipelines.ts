@@ -150,7 +150,7 @@ export async function persistPriceFloorSnapshot(): Promise<number> {
   const { shopSettings } = await import("../../drizzle/schema");
   const { eq } = await import("drizzle-orm");
 
-  // Mirrors gatewayTire.getTireMarkup (local there; 100% default).
+  // Mirrors lib/tireMarkup.getTireMarkup (100% default), but a failed read keeps the default here.
   let markup = 100;
   try {
     const row = await d.select().from(shopSettings).where(eq(shopSettings.key, "tireMarkup")).limit(1);

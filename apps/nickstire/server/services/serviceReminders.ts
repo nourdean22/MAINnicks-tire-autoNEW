@@ -15,7 +15,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 import { invoices, serviceReminders } from "../../drizzle/schema";
-import { categorizeService } from "./engines/shared";
+import { SERVICE_CATEGORIES } from "./engines/shared";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("service-reminders");
@@ -106,6 +106,20 @@ export function phone10(raw: string | null | undefined): string | null {
   return digits.length === 10 ? digits : null;
 }
 
+/**
+ * A reminder text names the job, so it needs tighter patterns than the shared classifier, whose
+ * bare "filter" turns a cabin air filter into an oil change and bare "mount" turns an engine mount
+ * (or a MOUNTAINEER) into a tire rotation (prod lines, 2026-10-22). Other categories as shared.
+ */
+const REMINDER_PATTERNS: Record<string, RegExp> = {
+  oil: /oil.?change|lube|oil\s*(?:&|and)?\s*filter/i,
+  tires: /tire|balance|rotation|alignment/i,
+};
+
+function reminderCategories(desc: string): string[] {
+  return SERVICE_CATEGORIES.filter((c) => (REMINDER_PATTERNS[c.key] ?? c.pattern).test(desc)).map((c) => c.key);
+}
+
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
 function addMonths(d: Date, months: number): Date {
@@ -134,7 +148,7 @@ export function planServiceReminders(jobs: readonly ClosedJob[], now: Date = new
   for (const j of jobs) {
     const p = phone10(j.customerPhone);
     if (!p || dayKey(j.invoiceDate) !== latestDay.get(p) || !j.serviceDescription) continue;
-    for (const cat of categorizeService(j.serviceDescription)) {
+    for (const cat of reminderCategories(j.serviceDescription)) {
       if (!isReminderCategory(cat) || out.has(`${p}|${cat}`)) continue;
       const nextDueDate = addMonths(j.invoiceDate, SERVICE_REMINDER_PLAN[cat].months);
       if (nextDueDate.getTime() < now.getTime() - LATE_GRACE_MS) continue;
@@ -280,7 +294,7 @@ export async function phonesToDefer(db: Db, phones: readonly string[]): Promise<
 }
 
 /**
- * For retention D90/D180: phones that got a service reminder in the last 14 days, or have an
+ * For retention D90/D180/D365: phones that got a service reminder in the last 14 days, or have an
  * approved-category reminder due in the next 14 days. The reminder replaces the generic text that
  * fortnight. Empty unless the lane is armed, so an unarmed lane never silences retention.
  */
@@ -322,7 +336,7 @@ export interface SendResult {
 export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
   const { sendSms } = await import("../sms");
   const { logOutboundSms } = await import("./smsInstrumentation");
-  const { smsOutcome } = await import("../lib/smsOutcome");
+  const { smsOutcome, smsRefusalIsPermanent } = await import("../lib/smsOutcome");
   const { getDueReminders } = await import("../db");
 
   const due: Array<{ id: number; phone: string; serviceType: string; nextDueDate?: Date }> = await getDueReminders();
@@ -365,10 +379,16 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       if (outcome !== "failed") textedThisRun.add(d.phone);
       if (outcome === "failed") {
         r.failed++;
-        // A definite failure was not delivered: give the row back so the next run retries it.
+        // A definite failure was not delivered. A temporary one goes back for the next run; a
+        // permanent refusal (opted out, blocked, bad number) is cancelled, or every 2-hour run
+        // would retry it and write another failed row into the customer's thread.
         await db
           .update(serviceReminders)
-          .set({ status: "scheduled", sentAt: null, errorMessage: String(result.error ?? "send failed").slice(0, 500) })
+          .set({
+            status: smsRefusalIsPermanent(result.error) ? "cancelled" : "scheduled",
+            sentAt: null,
+            errorMessage: String(result.error ?? "send failed").slice(0, 500),
+          })
           .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "sent")));
       } else if (outcome === "heldout") {
         r.heldOut++;

@@ -11,10 +11,13 @@
  * The row's number is TQ-..., the persisted mark that keeps a quote out of checkout, the Kafene
  * lease lookups, placeOrder's dedupe and every order / revenue count (lib/tire-order-guards.ts).
  *
+ * The tire and price in the text are the supplier feed's, never the client's words: a quote whose
+ * brand, model and per-tire price are not a feed row for that size is refused (2026-10-22).
+ *
  * Rate limit: blockBatchedLimits + formLimiter in _core/index.ts (10 per hour per IP), plus a
  * five-minute dedupe on phone + tire + qty so a double tap never sends twice: an in-memory claim
- * taken before the first await (two concurrent requests on one replica) and a DB check (a retry
- * after a redeploy).
+ * read and taken with no await between them (two concurrent requests on one replica) and a DB
+ * check (a retry after a redeploy).
  */
 import { z } from "zod";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -22,6 +25,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import { db } from "../lib/db-helper";
 import { tireOrders } from "../../drizzle/schema";
 import { evaluateOrderPrice, generateQuoteNumber, getIdempotencyKey, isDuplicateKeyError } from "../lib/tire-order-guards";
+import { getTireMarkup } from "../lib/tireMarkup";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:tireQuote");
@@ -93,14 +97,31 @@ export const tireQuoteRouter = router({
       sessionId: z.string().max(64).nullish(),
     }))
     .mutation(async ({ input }): Promise<QuoteResult> => {
-      // shortcut: the $50 absolute floor only (placeOrder also re-derives the price from the
-      // supplier feed). The quoted figure can never be charged: createCheckout and the Kafene
-      // lookups refuse a TQ- number. Upgrade to re-derivation if a quote is ever shown as final.
       if (!evaluateOrderPrice(input.pricePerTireCents, null).ok) return { ok: false, reason: "price" };
 
-      // Claim the quote identity BEFORE the first await: a second request for the same quote
-      // waits for the first and reports it as the duplicate, so a race sends one text.
-      const key = getIdempotencyKey({ customerPhone: input.phone, tireBrand: input.tireBrand, tireModel: input.tireModel, tireSize: input.tireSize, quantity: input.quantity });
+      // The text goes out under the shop's name to any number, so the server names the tire and
+      // the price: they must be a row the supplier feed lists for this size, at its exact price,
+      // and the feed's own brand and model are what get stored and texted. A feed that cannot be
+      // read is an upstream error, never "no such tire".
+      let feed: FeedTire[] | null;
+      try {
+        feed = await feedTiresForSize(input.tireSize);
+      } catch (e) {
+        log.warn("quote feed lookup failed", { error: e instanceof Error ? e.message : String(e) });
+        feed = null;
+      }
+      if (!feed) return { ok: false, reason: "upstream_error" };
+      const norm = (s: string) => s.trim().toLowerCase();
+      const tire = feed.find((t) => norm(t.brand) === norm(input.tireBrand) && norm(t.model) === norm(input.tireModel) && t.priceCents === input.pricePerTireCents);
+      if (!tire) {
+        log.warn("quote refused: tire or price not in the supplier feed", { size: input.tireSize, priceCents: input.pricePerTireCents });
+        return { ok: false, reason: "price" };
+      }
+      const quote: QuoteInput = { ...input, tireBrand: tire.brand, tireModel: tire.model };
+
+      // Claim the quote identity with no await between the read and the write: a second request
+      // for the same quote waits for the first and reports it as the duplicate, so a race sends one text.
+      const key = getIdempotencyKey({ customerPhone: quote.phone, tireBrand: quote.tireBrand, tireModel: quote.tireModel, tireSize: quote.tireSize, quantity: quote.quantity });
       const now = Date.now();
       pruneClaims(now);
       const held = claims.get(key);
@@ -108,13 +129,37 @@ export const tireQuoteRouter = router({
         const first = await held.result;
         return first.ok ? { ...first, sms: "duplicate" } : first;
       }
-      const result = storeAndText(input);
+      const result = storeAndText(quote);
       claims.set(key, { at: now, result });
       const settled = await result;
       if (!settled.ok) claims.delete(key); // a failed attempt must not block the retry
       return settled;
     }),
 });
+
+type FeedTire = { brand: string; model: string; priceCents: number };
+
+/**
+ * The size's tires as publicSearch prices them: the pipeline price cache first, else the live
+ * supplier feed (brand upper-cased, "BRAND - " model prefix stripped, as publicSearch maps it).
+ * null when neither can be read.
+ */
+async function feedTiresForSize(tireSize: string): Promise<FeedTire[] | null> {
+  const markup = await getTireMarkup();
+  const cents = (cost: number) => Math.round((Math.ceil(cost * (1 + markup / 100) * 100) / 100) * 100);
+  const sizeClean = tireSize.replace(/[/Rr\s-]/g, "");
+  const { getCachedPrices } = await import("../services/dataPipelines");
+  const cached = getCachedPrices(sizeClean);
+  if (cached) return cached.filter((t) => t.wholesaleCost > 0).map((t) => ({ brand: t.brand, model: t.model, priceCents: cents(t.wholesaleCost) }));
+  const { searchTiresBySize, pickWholesaleCost } = await import("../services/gatewayClient");
+  const raw = await searchTiresBySize(sizeClean.length >= 7 ? `${sizeClean.slice(0, 3)}/${sizeClean.slice(3, 5)}R${sizeClean.slice(5)}` : tireSize);
+  if (!raw) return null;
+  return raw.flatMap((item) => {
+    const cost = pickWholesaleCost(item);
+    if (cost <= 0) return [];
+    return [{ brand: String(item.make || "").toUpperCase(), model: String(item.minor_name || "").replace(/^[A-Z]+\s*-\s*/, ""), priceCents: cents(cost) }];
+  });
+}
 
 async function storeAndText(input: QuoteInput): Promise<QuoteResult> {
       const d = await db();

@@ -66,6 +66,28 @@ describe("planServiceReminders", () => {
     expect(planServiceReminders([job("2165550107", "2026-04-10", "tire rotation")], now)).toHaveLength(1);
   });
 
+  it("a filter or a mount is not an oil change or a tire rotation (prod lines, 2026-10-22)", () => {
+    const now = new Date("2026-10-22T15:00:00Z");
+    const cats = (desc: string) => planServiceReminders([job("2165550109", "2026-10-01", desc)], now).map((p) => p.serviceType);
+    for (const desc of [
+      "Engine air filter",
+      "Cabin air filter",
+      "Fuel filter",
+      "CHANGE TRANSMISSION FLUID & FILTER",
+      "REMOVE & REPLACE CABIN AIR FILTER",
+    ]) expect(cats(desc), desc).not.toContain("oil");
+    for (const desc of [
+      "motor mount",
+      "transmission mount",
+      "REMOVE & REPLACE ENGINE MOUNTS (BOTH)",
+      "REMOVE & REPLACE ENGINE MOUNT (FRONT)",
+      "Auto Labor Guide: 2004 MERCURY MOUNTAINEER",
+    ]) expect(cats(desc), desc).not.toContain("tires");
+    // Positive control: the real oil and tire jobs still plan.
+    for (const desc of ["OIL CHANGE", "LUBE OIL & FILTER", "OIL & FILTER CHANGE", "synthetic oil and filter"]) expect(cats(desc), desc).toContain("oil");
+    for (const desc of ["MOUNT & BALANCE 4 TIRES", "4 WHEEL ALIGNMENT", "tire rotation", "wheel balance"]) expect(cats(desc), desc).toContain("tires");
+  });
+
   it("plans nothing for blank descriptions, uncovered categories or unusable phones", () => {
     expect(planServiceReminders([job("2165550103", "2026-05-01", "")])).toEqual([]);
     expect(planServiceReminders([job("2165550103", "2026-05-01", "check engine light diagnosis")])).toEqual([]);
@@ -251,5 +273,15 @@ describe("sendDueServiceReminders", () => {
     const r = await sendDueServiceReminders(fakeDb());
     expect(r.failed).toBe(1);
     expect(updates[1].set.status).toBe("scheduled");
+  });
+
+  it("a permanent refusal (opted out, blocked, internal line, bad number) cancels the row instead of retrying it every run", async () => {
+    (SERVICE_REMINDER_PLAN.tires as { approvedBy: string | null }).approvedBy = "test";
+    h.sendSms.mockResolvedValue({ success: false, error: "Customer opted out of SMS" });
+    const r = await sendDueServiceReminders(fakeDb());
+    expect(r.failed).toBe(1);
+    expect(updates[1].set).toMatchObject({ status: "cancelled", sentAt: null, errorMessage: "Customer opted out of SMS" });
+    const q = new MySqlDialect().sqlToQuery(updates[1].where as SQL);
+    expect(q.params).toEqual([7, "sent"]); // only the row this run claimed
   });
 });
