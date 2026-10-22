@@ -31,39 +31,39 @@ interface ReminderPlanEntry {
 export const SERVICE_REMINDER_PLAN = {
   tires: {
     months: 6,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about 6 months since your tire work with us. A rotation now helps all four wear evenly, so none of them gets to be the favorite. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about 6 months since your tire work with us. A rotation now helps all four wear evenly, so none of them gets to be the favorite. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   brakes: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your brake work with us, a good time to check the pads and rotors. Brakes are the one part of a car that should stay boring. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since your brake work with us, a good time to check the pads and rotors. Brakes are the one part of a car that should stay boring. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   oil: {
     months: 4,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about 4 months since your oil change with us, so the next one may be coming due. Fresh oil costs less than a new engine and causes less drama. Walk in any day, no appointment needed. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about 4 months since your oil change with us, so the next one may be coming due. Fresh oil costs less than a new engine and causes less drama. Walk in any day, no appointment needed. Let me know please, thanks. ${p}`,
   },
   cooling: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since we worked on your cooling system. A quick look at the coolant and hoses catches a leak early. Steam is great for coffee, not so much for engines. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since we worked on your cooling system. A quick look at the coolant and hoses catches a leak early. Steam is great for coffee, not so much for engines. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   electrical: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your battery or electrical work with us. A battery and charging test takes a few minutes, and batteries rarely give notice before they retire. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since your battery or electrical work with us. A battery and charging test takes a few minutes, and batteries rarely give notice before they retire. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
   suspension: {
     months: 12,
-    approvedBy: null,
+    approvedBy: "Nour 2026-10-22",
     text: (p: string) =>
-      `Nick's Tire & Auto here. It's been about a year since your suspension work with us. It's worth having the steering and alignment checked, so the car goes where you point it. Walk in any day, first come, first served. ${p}`,
+      `Hi there, this is Nick's Tire & Auto on Euclid Ave, hope you're doing good. It's been about a year since your suspension work with us. It's worth having the steering and alignment checked, so the car goes where you point it. Walk in any day, first come, first served. Let me know please, thanks. ${p}`,
   },
 } satisfies Record<string, ReminderPlanEntry>;
 
@@ -119,9 +119,6 @@ function addMonths(d: Date, months: number): Date {
  * and the generic retention texts already cover that customer.
  */
 const LATE_GRACE_MS = 30 * 86_400_000;
-
-/** Shop-wide cap on reminder texts per shop day, like declined recovery's carrier-safe batches. */
-const DAILY_SEND_CAP = 40;
 
 /** Pure: one reminder per customer x category, from that customer's latest closed-job day only. */
 export function planServiceReminders(jobs: readonly ClosedJob[], now: Date = new Date()): PlannedReminder[] {
@@ -274,7 +271,11 @@ export async function phonesToDefer(db: Db, phones: readonly string[]): Promise<
       AND estimate_date >= NOW() - INTERVAL 30 DAY
       AND RIGHT(REGEXP_REPLACE(customer_phone, '[^0-9]', ''), 10) IN (${list})
   `);
-  for (const row of [...(texted as Array<{ p: string }>), ...(declined as Array<{ p: string }>)]) out.add(row.p);
+  const [reminded] = await db.execute(sql`
+    SELECT DISTINCT phone AS p FROM service_reminders
+    WHERE status = 'sent' AND sentAt >= NOW() - INTERVAL 7 DAY AND phone IN (${list})
+  `);
+  for (const row of [...(texted as Array<{ p: string }>), ...(declined as Array<{ p: string }>), ...(reminded as Array<{ p: string }>)]) out.add(row.p);
   return out;
 }
 
@@ -312,7 +313,6 @@ export interface SendResult {
   awaitingApproval: number;
   deferred: number;
   tooLate: number;
-  capped: number;
 }
 
 /**
@@ -325,22 +325,16 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
   const { smsOutcome } = await import("../lib/smsOutcome");
   const { getDueReminders } = await import("../db");
 
-  const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
-
   const due: Array<{ id: number; phone: string; serviceType: string; nextDueDate?: Date }> = await getDueReminders();
 
-  const r: SendResult = { due: due.length, sent: 0, queued: 0, uncertain: 0, heldOut: 0, failed: 0, awaitingApproval: 0, deferred: 0, tooLate: 0, capped: 0 };
+  const r: SendResult = { due: due.length, sent: 0, queued: 0, uncertain: 0, heldOut: 0, failed: 0, awaitingApproval: 0, deferred: 0, tooLate: 0 };
   const sendable = due.filter((d) => {
     if (approvedReminderText(d.serviceType)) return true;
     r.awaitingApproval++;
     return false;
   });
   const defer = await phonesToDefer(db, [...new Set(sendable.map((d) => d.phone))]);
-  const [usedRows] = await db.execute(sql`
-    SELECT COUNT(*) AS n FROM service_reminders
-    WHERE status = 'sent' AND sentAt >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE
-  `);
-  let room = DAILY_SEND_CAP - Number((usedRows as Array<{ n?: unknown }>)[0]?.n ?? 0);
+  const textedThisRun = new Set<string>(); // one reminder per customer per run, whatever the category
 
   for (const d of sendable) {
     if (d.nextDueDate && d.nextDueDate.getTime() < Date.now() - LATE_GRACE_MS) {
@@ -351,12 +345,8 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
         .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
       continue;
     }
-    if (defer.has(d.phone)) {
+    if (defer.has(d.phone) || textedThisRun.has(d.phone)) {
       r.deferred++;
-      continue;
-    }
-    if (room <= 0) {
-      r.capped++;
       continue;
     }
     try {
@@ -365,7 +355,6 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
         .set({ status: "sent", sentAt: new Date() })
         .where(and(eq(serviceReminders.id, d.id), eq(serviceReminders.status, "scheduled")));
       if (((claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) !== 1) continue; // another run claimed it
-      room--;
 
       const text = approvedReminderText(d.serviceType)!;
       const variantKey = `service_reminder_${d.serviceType}`;
@@ -373,6 +362,7 @@ export async function sendDueServiceReminders(db: Db): Promise<SendResult> {
       if (!result.queued && !result.heldOut) await logOutboundSms(d.phone, text, result, variantKey);
 
       const outcome = smsOutcome(result);
+      if (outcome !== "failed") textedThisRun.add(d.phone);
       if (outcome === "failed") {
         r.failed++;
         // A definite failure was not delivered: give the row back so the next run retries it.
