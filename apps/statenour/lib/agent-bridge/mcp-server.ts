@@ -20,6 +20,7 @@ import { getToolRiskClass } from "@/lib/ai/tools/catalog";
 import { env } from "@/lib/env";
 import { auditBridgeCall } from "./audit";
 import type { BridgeIdentity } from "./auth";
+import { MAX_REQUEST_BODY_BYTES, MAX_TOOL_INPUT_ELEMENTS, exceedsToolInputElements } from "./request-limits";
 import { BRIDGE_SCOPES, type BridgeScope } from "./scopes";
 import { assertBridgeToolAllowed } from "./tool-policy";
 import { bridgeCatalogIndex, executeBridgeTool, getBridgeSafeTools } from "./tool-adapter";
@@ -81,36 +82,6 @@ function invalidParams(message: string): never {
   throw ProtocolError.fromError(ProtocolErrorCode.InvalidParams, message);
 }
 
-// GHSA-46jr-4wx8-v453: one request under the body limit could exhaust memory in argument
-// validation. The SDK's maxToolInputElements exists only on McpServer, not the low-level
-// Server this bridge uses, so the same budget is enforced here (tests/agent-bridge/mcp-request-limits.test.ts).
-const MAX_REQUEST_BODY_BYTES = 1_048_576;
-const MAX_TOOL_INPUT_ELEMENTS = 10_000;
-
-/** Array elements plus object members, depth-first; stops counting once past `max` (mirrors the SDK). */
-function toolInputElementCount(value: unknown, max: number): number {
-  let count = 0;
-  const stack: unknown[] = [value];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    if (node === null || typeof node !== "object") continue;
-    if (Array.isArray(node)) {
-      for (const child of node) {
-        if (++count > max) return count;
-        if (child !== null && typeof child === "object") stack.push(child);
-      }
-      continue;
-    }
-    for (const key in node) {
-      if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
-      if (++count > max) return count;
-      const child = (node as Record<string, unknown>)[key];
-      if (child !== null && typeof child === "object") stack.push(child);
-    }
-  }
-  return count;
-}
-
 async function auditDeniedTool(
   identity: BridgeIdentity,
   known: ReturnType<typeof bridgeCatalogIndex>[number],
@@ -139,7 +110,7 @@ async function handleBridgeToolCall(
 ) {
   const name = params.name;
   const args = params.arguments ?? {};
-  if (toolInputElementCount(args, MAX_TOOL_INPUT_ELEMENTS) > MAX_TOOL_INPUT_ELEMENTS) {
+  if (exceedsToolInputElements(args)) {
     invalidParams(
       `Invalid arguments for tool ${name}: arguments contain more than the maximum of ${MAX_TOOL_INPUT_ELEMENTS} elements`,
     );
