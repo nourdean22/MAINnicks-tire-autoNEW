@@ -41,7 +41,7 @@ import { queryNick } from "@/lib/nickstire/query";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { getFlag } from "@/lib/feature-flags";
+import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
 import { weekdayET } from "@/lib/utils/datetime";
 
 // v10.0.529.2 M6 fix · surface silent-degrade paths for the 5 parallel
@@ -101,8 +101,14 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
 
   // 2026-10-22 · weekly "What you're not seeing" (lib/services/not-seeing-note.ts): Mondays,
   // and only when NICK_WEEKLY_GAP_NOTE is on (default OFF). Imported lazily so a brief
-  // without it never loads the module.
-  const weeklyGapNote = weekdayET() === 1 && getFlag("NICK_WEEKLY_GAP_NOTE")?.isOn === true;
+  // without it never loads the module. On Mondays the DB overrides are awaited first: the
+  // brief often runs in a cold process, where getFlag alone reads env only and would miss
+  // a Settings-panel switch.
+  let weeklyGapNote = false;
+  if (weekdayET() === 1) {
+    await loadFeatureFlagOverrides().catch(() => {});
+    weeklyGapNote = getFlag("NICK_WEEKLY_GAP_NOTE")?.isOn === true;
+  }
 
   const [personal, shop, wellbeing, anticipated, notSeeing] = await Promise.all([
     buildPersonalSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Personal")),

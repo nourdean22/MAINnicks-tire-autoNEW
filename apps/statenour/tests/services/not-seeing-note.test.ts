@@ -37,6 +37,11 @@ describe("salesLine", () => {
     expect(salesLine(ok(9000), unknown)).toContain("the week before couldn't load");
   });
 
+  it("leaves the invoice count out when the bridge omits it", () => {
+    const noCount = { status: "ok" as const, data: { totalDollars: 5000 } as never };
+    expect(salesLine(noCount, ok(5000))).toBe("Sales, last 7 days: $5,000, flat vs the week before ($5,000)");
+  });
+
   it("does not divide by an empty week", () => {
     expect(salesLine(ok(5000), ok(0))).toContain("the week before had no sales recorded");
   });

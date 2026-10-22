@@ -63,10 +63,14 @@ const QUIET_LOT = {
 };
 
 // 2026-10-22 · the weekly "What you're not seeing" section: Mondays + NICK_WEEKLY_GAP_NOTE only.
-const weekly = vi.hoisted(() => ({ flagOn: false, weekday: 3, build: vi.fn() }));
+const weekly = vi.hoisted(() => ({ flagOn: false, weekday: 3, build: vi.fn(), load: vi.fn(async () => {}) }));
 vi.mock("@/lib/feature-flags", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/feature-flags")>();
-  return { ...actual, getFlag: (key: string) => ({ key, isOn: key === "NICK_WEEKLY_GAP_NOTE" ? weekly.flagOn : false }) };
+  return {
+    ...actual,
+    loadFeatureFlagOverrides: weekly.load,
+    getFlag: (key: string) => ({ key, isOn: key === "NICK_WEEKLY_GAP_NOTE" ? weekly.flagOn : false }),
+  };
 });
 vi.mock("@/lib/utils/datetime", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/utils/datetime")>();
@@ -459,6 +463,16 @@ describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => 
     weekly.weekday = 1;
     weekly.build.mockReset();
     weekly.build.mockResolvedValue(SECTION);
+    weekly.load.mockClear();
+  });
+
+  it("Mondays await the flag overrides first (a cold process would read env only); other days skip it", async () => {
+    await buildMorningBrief();
+    expect(weekly.load).toHaveBeenCalledTimes(1);
+    weekly.weekday = 4;
+    weekly.load.mockClear();
+    await buildMorningBrief();
+    expect(weekly.load).not.toHaveBeenCalled();
   });
 
   it("OFF by default: a Monday brief carries no section and never composes it", async () => {

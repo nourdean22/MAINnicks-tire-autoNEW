@@ -35,7 +35,8 @@ export function salesLine(last: BridgeRead<RevenueRange>, prev: BridgeRead<Reven
   if (last.status !== "ok" || typeof last.data?.totalDollars !== "number") {
     return "Sales: couldn't load the last 7 days (unknown, not zero)";
   }
-  const now = `Sales, last 7 days: ${money(last.data.totalDollars)} on ${last.data.invoiceCount} invoices`;
+  const invoices = typeof last.data.invoiceCount === "number" ? ` on ${last.data.invoiceCount} invoices` : "";
+  const now = `Sales, last 7 days: ${money(last.data.totalDollars)}${invoices}`;
   if (prev.status !== "ok" || typeof prev.data?.totalDollars !== "number") {
     return `${now} (the week before couldn't load)`;
   }
