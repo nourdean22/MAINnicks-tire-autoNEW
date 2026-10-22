@@ -6,7 +6,7 @@
  * a future refactor doesn't break the alert-spam fix.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 
 // Note: NextResponse uses fetch globals — vitest's default env supports them.
@@ -16,6 +16,11 @@ import { safeParseBody, aiRouteError } from "@/lib/utils/http-parse";
 beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+// Vitest 4: vi.spyOn on an already-spied method returns the SAME spy, so without a restore
+// the calls of every earlier test stay in mock.calls and calls[0] is someone else's line.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 function makeReq(body: unknown, contentType = "application/json"): Request {
