@@ -164,6 +164,15 @@ describe("conversation ingest — the coverage gate is REACHED through the route
     expect(line?.[1]).toMatchObject({ coverage: 1, speechCoverage: 0.06 });
   });
 
+  it("extraction gets what is left of the route's 110 s budget, under the producer's 120 s post timeout", async () => {
+    const h = mount();
+    const { res } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body() }, res);
+    const { timeoutMs } = extract.mock.calls[0][1] as { timeoutMs?: number };
+    expect(timeoutMs).toBeGreaterThan(90_000);
+    expect(timeoutMs).toBeLessThanOrEqual(110_000);
+  });
+
   it("REFUSES a payload that omits the coverage numbers", async () => {
     // Omitting them is how a caller would silently get the ungated path. 400, not a
     // default -- a default here is a guess about audio quality.

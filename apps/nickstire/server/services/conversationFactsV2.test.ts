@@ -302,3 +302,83 @@ describe("skeptic review of #3213", () => {
     expect(r.facts.map((f) => f.value)).toEqual(["going to Firestone"]);
   });
 });
+describe("ears-v2 output budget: reasoning must not eat the answer", () => {
+  // Live probe 2026-10-22 against deepseek-v4-pro (the prod Ollama lane): at llm.ts's default
+  // max_tokens 4096 the reply came back finish_reason=length with 0 content chars, every token
+  // spent on reasoning; at 16384 it finished with 2,326 content chars. A 120 s office episode
+  // failed in production the same way ("LLM returned no content for fact extraction").
+  const VALID = { account: "A customer asked about the brakes.", accountSegments: [0], noiseOnly: false, facts: [], flags: [] };
+  const empty = (): InvokeResult => ({ ...reply(""), choices: [{ index: 0, message: { role: "assistant", content: "" }, finish_reason: "length" }] });
+  const budgetOf = (call: number) => (llm.mock.calls[call][0] as { maxTokens?: number }).maxTokens;
+
+  beforeEach(() => llm.mockReset());
+
+  it("the extraction call carries its own budget, well above the 4096 default", async () => {
+    replyWith(VALID);
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(r.ok).toBe(true);
+    expect(budgetOf(0)).toBeGreaterThanOrEqual(16_384);
+  });
+
+  it("an empty reply is retried once with a bigger budget, and the account is kept", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(llm).toHaveBeenCalledTimes(2);
+    expect(budgetOf(1)).toBeGreaterThan(budgetOf(0) ?? 0);
+    expect(r.ok).toBe(true);
+    expect(r.gist).toBe(VALID.account);
+  });
+
+  it("two empty replies fail honestly after exactly one retry", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(empty());
+    const r = await extractConversationFacts(SEGMENTS, GOOD);
+    expect(llm).toHaveBeenCalledTimes(2);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/no content/);
+  });
+
+  it("both attempts share one deadline under the worker's 120 s post timeout", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    await extractConversationFacts(SEGMENTS, GOOD);
+    // slot wait + request is what an attempt can really take (the fetch timeout starts after the slot)
+    const spanOf = (call: number) => {
+      const p = llm.mock.calls[call][0] as { timeoutMs: number; slotWaitMs?: number };
+      return p.timeoutMs + (p.slotWaitMs ?? Number.POSITIVE_INFINITY);
+    };
+    // a long reasoning reply needs more than the old 60 s, but the pair must end inside 120 s
+    expect(spanOf(0)).toBeGreaterThan(60_000);
+    expect(spanOf(0)).toBeLessThanOrEqual(105_000);
+    expect(spanOf(1)).toBeLessThanOrEqual(spanOf(0));
+  });
+
+  it("every attempt caps its wait for an Ollama slot (an uncapped wait has no end)", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    await extractConversationFacts(SEGMENTS, GOOD);
+    for (const call of llm.mock.calls) {
+      const { slotWaitMs } = call[0] as { slotWaitMs?: number };
+      expect(Number.isFinite(slotWaitMs)).toBe(true);
+      expect(slotWaitMs).toBeLessThanOrEqual(15_000);
+    }
+  });
+
+  it("the caller's budget bounds both attempts together", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    await extractConversationFacts(SEGMENTS, { ...GOOD, timeoutMs: 95_000 });
+    const p = (call: number) => llm.mock.calls[call][0] as { timeoutMs: number; slotWaitMs: number };
+    expect(p(0).timeoutMs + p(0).slotWaitMs).toBeLessThanOrEqual(95_000);
+    expect(p(1).timeoutMs + p(1).slotWaitMs).toBeLessThanOrEqual(95_000);
+  });
+
+  it("no retry when too little of the deadline is left to finish one", async () => {
+    llm.mockResolvedValueOnce(empty()).mockResolvedValueOnce(reply(JSON.stringify(VALID)));
+    const r = await extractConversationFacts(SEGMENTS, { ...GOOD, timeoutMs: 10_000 });
+    expect(llm).toHaveBeenCalledTimes(1);
+    expect(r.ok).toBe(false);
+  });
+
+  it("a reply with content is never retried", async () => {
+    replyWith(VALID);
+    await extractConversationFacts(SEGMENTS, GOOD);
+    expect(llm).toHaveBeenCalledTimes(1);
+  });
+});
