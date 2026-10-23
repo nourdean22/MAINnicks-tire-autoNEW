@@ -128,6 +128,16 @@ describe("ContradictionResolutionPanel · table rows", () => {
     expect(msg).not.toMatch(/outdated/i);
   });
 
+  it("a capped page says so: showing N of M", () => {
+    h.query.data = { contradictions: [TABLE_ROW], table: { total: 80, shown: 1 } };
+    expect(render().textContent).toContain("showing 1 of 80");
+  });
+
+  it("CONTROL · an uncapped page shows no truncation line", () => {
+    h.query.data = { contradictions: [TABLE_ROW], table: { total: 1, shown: 1 } };
+    expect(render().textContent).not.toMatch(/showing \d+ of \d+/);
+  });
+
   it("a failed read says state unknown, never a clean ledger", () => {
     h.query = { ...h.query, isError: true, error: new Error("boom") };
     const text = render().textContent ?? "";

@@ -1218,8 +1218,9 @@ export const brainTools = {
             return {
               ok: true,
               contradictionKey,
-              side,
-              // The STORED answer: when someone closed it first, that answer, not this one.
+              // The STORED answer: when someone closed it first, theirs, not the one asked for.
+              side: contradiction.status,
+              requestedSide: side,
               resolvedHow: resolvedHow ?? null,
               alreadyResolved: !!alreadyResolved,
               resolvedAt: contradiction.resolved_at ?? null,

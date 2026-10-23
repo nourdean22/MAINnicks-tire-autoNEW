@@ -284,28 +284,29 @@ function toPanelRow(r: TableRow): TableContradiction {
  */
 export async function listStoredContradictions(input: {
   includeResolved: boolean;
-}): Promise<{ contradictions: PanelContradiction[] }> {
-  const [memoryRows, tableRows] = await Promise.all([
+}): Promise<{ contradictions: PanelContradiction[]; table: { total: number; shown: number } }> {
+  // Open rows: all of them (the writer adds at most 4 a night and auto-expiry closes them at 30
+  // days, so ~120 is the ceiling); the 500 cap is a backstop that the total below discloses.
+  // History: a page of the newest closures, with the total beside it.
+  const where = input.includeResolved
+    ? { deletedAt: null, resolved: true, updatedAt: { gte: new Date(Date.now() - 90 * 86400_000) } }
+    : { deletedAt: null, resolved: false };
+  const [memoryRows, tableRows, total] = await Promise.all([
     input.includeResolved ? loadAllContradictions(90) : loadRecentContradictions(14, false),
-    input.includeResolved
-      ? prisma.contradiction.findMany({
-          where: { deletedAt: null, resolved: true, updatedAt: { gte: new Date(Date.now() - 90 * 86400_000) } },
-          orderBy: { updatedAt: "desc" },
-          take: 60,
-          select: TABLE_SELECT,
-        })
-      : prisma.contradiction.findMany({
-          where: { deletedAt: null, resolved: false },
-          orderBy: { createdAt: "desc" },
-          take: 60,
-          select: TABLE_SELECT,
-        }),
+    prisma.contradiction.findMany({
+      where,
+      orderBy: input.includeResolved ? { updatedAt: "desc" } : { createdAt: "desc" },
+      take: input.includeResolved ? 60 : 500,
+      select: TABLE_SELECT,
+    }),
+    prisma.contradiction.count({ where }),
   ]);
   return {
     contradictions: [
       ...tableRows.map(toPanelRow),
       ...memoryRows.map((m) => ({ ...m, source: "memory" as const })),
     ],
+    table: { total, shown: tableRows.length },
   };
 }
 

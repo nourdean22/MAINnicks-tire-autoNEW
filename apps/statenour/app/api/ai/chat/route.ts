@@ -825,10 +825,14 @@ async function chatTurn({
           userEmbedding: ue,
           forceRecall,
           messages,
-          // Private Lab: no conversation id at all. The "private" placeholder
-          // is truthy, so the contradiction injector wrote a dedupe row.
-          convId: privateMode ? undefined : cid,
+          // Private Lab and ephemeral turns: no conversation id at all, and never the
+          // "private"/"temp" placeholders (truthy, so per-conversation dedupe rows and day
+          // claims were written under one shared fake conversation).
+          convId: transcriptOff || cid === "private" || cid === "temp" ? undefined : cid,
           privateMode,
+          // The contradiction lanes need a real conversation and a turn allowed to resolve.
+          ephemeral,
+          actionPermission,
           posture,
           log,
         }),
@@ -1129,6 +1133,8 @@ ${priorsBlock}`;
     // already rides, so "why was this block in the prompt" survives past the
     // console.info window the same way recallReceipts answers "why this memory".
     contextReceipt: brainCtx.contextReceipt,
+    // The day's contradiction reservation becomes the "asked" receipt only after this reply persists.
+    contradictionClaim: brainCtx.contradictionClaim,
     startedAt,
     firstTokenRef: __firstTokenRef,
     partialRef: __partialRef,

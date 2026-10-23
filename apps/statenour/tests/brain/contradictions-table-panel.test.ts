@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  contradiction: { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+  contradiction: { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn(), count: vi.fn() },
   surfacer: {
     loadRecentContradictions: vi.fn(),
     loadAllContradictions: vi.fn(),
@@ -64,6 +64,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   h.surfacer.loadRecentContradictions.mockResolvedValue([MEMORY_ROW]);
   h.surfacer.loadAllContradictions.mockResolvedValue([MEMORY_ROW]);
+  h.contradiction.count.mockResolvedValue(1);
 });
 
 describe("listStoredContradictions · table rows reach the panel", () => {
@@ -116,6 +117,28 @@ describe("listStoredContradictions · table rows reach the panel", () => {
     const arg = h.contradiction.findMany.mock.calls[0][0];
     expect(arg.where.resolved).toBe(true);
     expect(arg.where.deletedAt).toBeNull();
+  });
+
+  it("the open list is not capped at 60, and any cap comes with its total (80 open, all returned)", async () => {
+    const eighty = Array.from({ length: 80 }, (_, i) => tableRow({ id: `o${i}` }));
+    h.contradiction.findMany.mockResolvedValue(eighty);
+    h.contradiction.count.mockResolvedValue(80);
+
+    const out = await listStoredContradictions({ includeResolved: false });
+
+    const take = h.contradiction.findMany.mock.calls[0][0].take;
+    expect(take === undefined || take >= 80, `open rows capped at ${take}`).toBe(true);
+    expect(out.contradictions.filter((c) => c.source === "table")).toHaveLength(80);
+    expect(out.table).toEqual({ total: 80, shown: 80 });
+    // The count reads the same population as the list.
+    expect(h.contradiction.count.mock.calls[0][0].where).toMatchObject({ resolved: false, deletedAt: null });
+  });
+
+  it("history is a capped page that SAYS so: shown vs total", async () => {
+    h.contradiction.findMany.mockResolvedValue([tableRow({ id: "r1", resolved: true, resolvedHow: "ignore" })]);
+    h.contradiction.count.mockResolvedValue(555);
+    const out = await listStoredContradictions({ includeResolved: true });
+    expect(out.table).toEqual({ total: 555, shown: 1 });
   });
 
   it("a FAILED table read rejects (the panel renders ERROR), never an empty list", async () => {

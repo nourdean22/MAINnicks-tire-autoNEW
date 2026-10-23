@@ -385,18 +385,12 @@ export async function findRelevantClaimGap(ctx: { userMessage: string }): Promis
         key: { startsWith: CLAIM_GAP_KEY_PREFIX },
         createdAt: { gte: new Date(Date.now() - CLAIM_GAP_TOPIC_COOLDOWN_DAYS * 86400_000) },
       },
-      select: { key: true, content: true },
+      select: { key: true, content: true, lastSeen: true },
     });
-    if (recent.some((r) => r.key === `${CLAIM_GAP_KEY_PREFIX}${today()}`)) return null;
-    const raisedTopics = new Set(
-      recent.map((r) => {
-        try {
-          return String(JSON.parse(r.content).category ?? "");
-        } catch {
-          return "";
-        }
-      }),
-    );
+    const todayKey = claimKey();
+    if (recent.some((r) => r.key === todayKey && claimHoldsDay(r))) return null;
+    // Only topics actually ASKED cool down; a reservation that was never delivered raised nothing.
+    const raisedTopics = new Set(recent.filter((r) => isAsked(r.content)).map((r) => String(parseClaim(r.content).category ?? "")));
     // Cooldown BEFORE the cap, so recently raised topics cannot crowd out the rest.
     const candidates = rows.filter((r) => !raisedTopics.has(r.category)).slice(0, CLAIM_GAP_MAX_CANDIDATES);
     if (candidates.length === 0) return null;
@@ -448,38 +442,124 @@ export async function findRelevantClaimGap(ctx: { userMessage: string }): Promis
   }
 }
 
+// ── The day claim: a RESERVATION first, the "asked" receipt only after delivery ──
+// One unique key per ET day (claim-gap:<day>) for both the claim gap and the daily
+// question. brain-context writes it as state "reserved" before generation; the
+// persist path (persist-assistant-turn.ts) promotes it to "asked" once the reply
+// is stored and asks a question. A reservation nobody promoted within
+// RESERVATION_STALE_MS (failed, cancelled or question-less turn) stops holding
+// the day and can be taken over by compare-and-swap. Only "asked" rows count as
+// asked: the follow-up, the topic cooldown and the kill criterion read those.
+
+const LOG_CATEGORY = "contradiction_injection_log";
+const RESERVATION_STALE_MS = 10 * 60_000;
+const RESERVED_MARK = '"state":"reserved"';
+
+/** What brain-context hands the persist path for this turn's claim. */
+export interface ContradictionClaim {
+  key: string;
+  contradictionId: string;
+  kind: "match" | "daily";
+}
+
+export function claimKey(day: string = today()): string {
+  return `${CLAIM_GAP_KEY_PREFIX}${day}`;
+}
+
+function parseClaim(content: string): { state?: string; contradictionId?: unknown; conversationId?: unknown; category?: unknown } {
+  try {
+    return JSON.parse(content) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** Rows written before reservations existed carry no state: they were asked. */
+const isAsked = (content: string) => (parseClaim(content).state ?? "asked") === "asked";
+
+/** Does this claim row hold its day? Asked: yes. Reserved: only while fresh. */
+function claimHoldsDay(row: { content: string; lastSeen: Date }): boolean {
+  if (isAsked(row.content)) return true;
+  return Date.now() - row.lastSeen.getTime() < RESERVATION_STALE_MS;
+}
+
 /**
- * Claim today's single claim-vs-record slot for `hit`. The day's key is the
- * claim, so two racing turns cannot both win. Any failed write returns false and
- * the caller shows nothing: the once-a-day cap holds even when the database does not.
+ * Reserve `key` for this turn. Create wins outright; on a duplicate key, a STALE
+ * reservation is taken over with a compare-and-swap on that exact state
+ * (claim-before-act), so two racing turns still cannot both win. Any other
+ * failure returns false and the caller shows nothing.
  */
-export async function claimClaimGapDay(hit: ClaimGap, conversationId?: string | null): Promise<boolean> {
+async function reserveDay(key: string, content: Record<string, unknown>, ttlDays: number, fn: string): Promise<boolean> {
+  const body = JSON.stringify({ ...content, state: "reserved" });
+  const expiresAt = new Date(Date.now() + ttlDays * 86400_000);
   try {
     // brain-memory-direct-write: the once-a-day claim row (a dedupe marker, not a belief); create must fail on a duplicate key, which remember()'s upsert never does.
     await prisma.brainMemory.create({
-      data: {
-        category: "contradiction_injection_log",
-        key: `${CLAIM_GAP_KEY_PREFIX}${today()}`,
-        content: JSON.stringify({
-          kind: "match",
-          contradictionId: hit.id,
-          category: hit.category,
-          similarity: hit.similarity,
-          conversationId: conversationId ?? null,
-        }),
-        confidence: 1,
-        source: "contradiction_injector",
-        expiresAt: new Date(Date.now() + (CLAIM_GAP_TOPIC_COOLDOWN_DAYS + 1) * 86400_000),
-      },
+      data: { category: LOG_CATEGORY, key, content: body, confidence: 1, source: "contradiction_injector", expiresAt, lastSeen: new Date() },
     });
     return true;
   } catch (err) {
-    // P2002: another turn claimed today first. Anything else is logged; both fail closed.
     if ((err as { code?: string })?.code !== "P2002") {
-      logError("brain.contradiction-injector", err, { fn: "claimClaimGapDay" });
+      logError("brain.contradiction-injector", err, { fn });
+      return false;
     }
+  }
+  try {
+    const took = await prisma.brainMemory.updateMany({
+      where: {
+        category: LOG_CATEGORY,
+        key,
+        content: { contains: RESERVED_MARK },
+        lastSeen: { lt: new Date(Date.now() - RESERVATION_STALE_MS) },
+      },
+      data: { content: body, lastSeen: new Date(), expiresAt },
+    });
+    return took.count === 1;
+  } catch (err) {
+    logError("brain.contradiction-injector", err, { fn: `${fn}.takeover` });
     return false;
   }
+}
+
+/**
+ * Promote this turn's reservation to the "asked" receipt, after the reply was
+ * persisted. Only when the stored reply asks a question, and only while the row
+ * is still this turn's reservation (CAS on the exact content read).
+ * shortcut: "asks a question" = the reply contains "?"; upgrade to a model check if it misfires.
+ */
+export async function markContradictionAsked(claim: ContradictionClaim, messageId: string, replyText: string): Promise<boolean> {
+  if (!replyText.includes("?")) return false;
+  try {
+    const row = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: LOG_CATEGORY, key: claim.key } },
+      select: { content: true, lastSeen: true },
+    });
+    if (!row) return false;
+    const parsed = parseClaim(row.content);
+    if (parsed.state !== "reserved" || parsed.contradictionId !== claim.contradictionId) return false;
+    const done = await prisma.brainMemory.updateMany({
+      where: { category: LOG_CATEGORY, key: claim.key, content: row.content },
+      data: { content: JSON.stringify({ ...parsed, state: "asked", messageId, askedAt: new Date().toISOString() }) },
+    });
+    return done.count === 1;
+  } catch (err) {
+    logError("brain.contradiction-injector", err, { fn: "markContradictionAsked" });
+    return false;
+  }
+}
+
+/**
+ * Reserve today's single contradiction slot for `hit` (shared with the daily
+ * question). Any failed write returns false and the caller shows nothing: the
+ * once-a-day cap holds even when the database does not.
+ */
+export async function claimClaimGapDay(hit: ClaimGap, conversationId?: string | null, day: string = today()): Promise<boolean> {
+  return reserveDay(
+    claimKey(day),
+    { kind: "match", contradictionId: hit.id, category: hit.category, similarity: hit.similarity, conversationId: conversationId ?? null },
+    CLAIM_GAP_TOPIC_COOLDOWN_DAYS + 1,
+    "claimClaimGapDay",
+  );
 }
 
 /** Prompt block for a claim-vs-record hit. The row text is model-written, so it is fenced. */
@@ -531,8 +611,14 @@ function claimGapResolveLines(id: string): string[] {
 // question. Same two steps: findDailyContradiction only READS; the caller claims
 // the day with claimDailyContradiction once it knows the block will be used.
 
-/** Open rows read for the pick (the table had 76 open on 2026-10-22). */
-const DAILY_FETCH = 200;
+/**
+ * Open rows read for the pick (76 open on 2026-10-22; the writer adds at most 4 a night
+ * and memory-consolidation closes them at 30 days, so ~120 is the ceiling).
+ * shortcut: the pick sees the 500 oldest open rows; past 500 open, page it.
+ */
+const DAILY_FETCH = 500;
+/** Claims the follow-up reads: one per day, alive for at most DAILY_CLAIM_TTL_DAYS. */
+const FOLLOW_UP_CLAIMS = 30;
 /** The claim row is the kill-criterion receipt (asked row ids): keep it past the 2-week read. */
 const DAILY_CLAIM_TTL_DAYS = 21;
 // The thinking engine writes mild|moderate|severe|critical (thinking-engine.ts prompt); anything else ranks last.
@@ -553,21 +639,18 @@ const ROW_SELECT = {
   id: true, date: true, claim: true, reality: true, gap: true, category: true, severity: true, claimSource: true, createdAt: true,
 } as const;
 
-/** Today's claim row: ONE unique key shared by the claim gap and the daily question. */
-function readTodayClaim() {
-  return prisma.brainMemory.findUnique({
-    where: { category_key: { category: "contradiction_injection_log", key: `${CLAIM_GAP_KEY_PREFIX}${today()}` } },
-    select: { id: true, content: true },
-  });
-}
-
 /**
- * Today's one open contradiction, or null when today's claim (daily question or
- * claim gap) is already taken (one a day, never two). Read-only. Never throws.
+ * Today's one open contradiction, or null while today's claim (daily question or
+ * claim gap) holds the day: asked, or reserved and fresh (one a day, never two).
+ * Read-only. Never throws.
  */
 export async function findDailyContradiction(): Promise<DailyContradiction | null> {
   try {
-    if (await readTodayClaim()) return null;
+    const claim = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: LOG_CATEGORY, key: claimKey() } },
+      select: { content: true, lastSeen: true },
+    });
+    if (claim && claimHoldsDay(claim)) return null;
     const rows = await prisma.contradiction.findMany({
       where: { resolved: false, deletedAt: null },
       orderBy: { createdAt: "asc" },
@@ -582,24 +665,31 @@ export async function findDailyContradiction(): Promise<DailyContradiction | nul
 }
 
 /**
- * The row asked earlier today in THIS conversation, while it is still open, so the
- * answer turn can resolve it (the ask block does not repeat on later turns). Null for
- * another conversation, a resolved row, no claim, or any failure. Read-only.
+ * The row last ASKED in THIS conversation, while it is still open and its claim is
+ * alive, so a later turn can resolve it (the ask block does not repeat). Keyed on the
+ * conversation, not the calendar day: an answer after midnight, or after another
+ * conversation took the new day, still finds it. Null for another conversation, a
+ * reservation never delivered, a resolved row, no claim, or any failure. Read-only.
  */
 export async function findClaimedContradictionFollowUp(conversationId?: string | null): Promise<DailyContradiction | null> {
   if (!conversationId) return null;
   try {
-    const claim = await readTodayClaim();
-    if (!claim) return null;
-    let parsed: { contradictionId?: unknown; conversationId?: unknown };
-    try {
-      parsed = JSON.parse(claim.content);
-    } catch {
-      return null;
-    }
-    if (parsed.conversationId !== conversationId || typeof parsed.contradictionId !== "string") return null;
+    const claims = await prisma.brainMemory.findMany({
+      where: {
+        category: LOG_CATEGORY,
+        key: { startsWith: CLAIM_GAP_KEY_PREFIX },
+        expiresAt: { gt: new Date() },
+        createdAt: { gte: new Date(Date.now() - (DAILY_CLAIM_TTL_DAYS + 1) * 86400_000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: FOLLOW_UP_CLAIMS,
+      select: { key: true, content: true, lastSeen: true },
+    });
+    const mine = claims.find((c) => parseClaim(c.content).conversationId === conversationId && isAsked(c.content));
+    const id = mine ? parseClaim(mine.content).contradictionId : undefined;
+    if (typeof id !== "string") return null;
     return await prisma.contradiction.findFirst({
-      where: { id: parsed.contradictionId, resolved: false, deletedAt: null },
+      where: { id, resolved: false, deletedAt: null },
       select: ROW_SELECT,
     });
   } catch (err) {
@@ -625,34 +715,21 @@ export function buildContradictionFollowUpBlock(row: DailyContradiction): string
   ].join("\n");
 }
 
-/** Claim today's daily question for `row` on the shared day key; any failed write returns false. */
-export async function claimDailyContradiction(row: DailyContradiction, conversationId?: string | null): Promise<boolean> {
-  try {
-    // brain-memory-direct-write: the once-a-day claim row (a dedupe marker, not a belief); create must fail on a duplicate key, which remember()'s upsert never does.
-    await prisma.brainMemory.create({
-      data: {
-        category: "contradiction_injection_log",
-        // The SAME unique key as claimClaimGapDay: the database lets exactly one of the two win.
-        key: `${CLAIM_GAP_KEY_PREFIX}${today()}`,
-        content: JSON.stringify({
-          kind: "daily",
-          contradictionId: row.id,
-          category: row.category,
-          severity: row.severity,
-          conversationId: conversationId ?? null,
-        }),
-        confidence: 1,
-        source: "contradiction_injector",
-        expiresAt: new Date(Date.now() + DAILY_CLAIM_TTL_DAYS * 86400_000),
-      },
-    });
-    return true;
-  } catch (err) {
-    if ((err as { code?: string })?.code !== "P2002") {
-      logError("brain.contradiction-injector", err, { fn: "claimDailyContradiction" });
-    }
-    return false;
-  }
+/**
+ * Reserve today's daily question for `row` on the SAME unique key as claimClaimGapDay,
+ * so the database lets exactly one of the two win. Any failed write returns false.
+ */
+export async function claimDailyContradiction(
+  row: DailyContradiction,
+  conversationId?: string | null,
+  day: string = today(),
+): Promise<boolean> {
+  return reserveDay(
+    claimKey(day),
+    { kind: "daily", contradictionId: row.id, category: row.category, severity: row.severity, conversationId: conversationId ?? null },
+    DAILY_CLAIM_TTL_DAYS,
+    "claimDailyContradiction",
+  );
 }
 
 /** Prompt block for the daily question. The row text is model-written, so it is fenced. */

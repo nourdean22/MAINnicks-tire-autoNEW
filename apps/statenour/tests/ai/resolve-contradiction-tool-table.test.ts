@@ -59,6 +59,15 @@ describe("resolveContradiction tool · tbl: keys", () => {
     expect(h.brainMemory.findUnique).not.toHaveBeenCalled();
   });
 
+  it("after a lost race the tool reports the STORED side, and the requested one separately", async () => {
+    h.contradiction.updateMany.mockResolvedValue({ count: 0 });
+    h.contradiction.findFirst.mockResolvedValue({ ...CLOSED, resolvedHow: "ignore" });
+
+    const out = await resolveTool.execute({ contradictionKey: "tbl:ck_9", side: "old_wins" });
+
+    expect(out).toMatchObject({ ok: true, alreadyResolved: true, side: "dismissed", requestedSide: "old_wins", resolvedHow: "ignore" });
+  });
+
   it("both_valid on a table row is refused, and nothing is written", async () => {
     const out = await resolveTool.execute({ contradictionKey: "tbl:ck_9", side: "both_valid" });
     expect(out.ok).toBe(false);

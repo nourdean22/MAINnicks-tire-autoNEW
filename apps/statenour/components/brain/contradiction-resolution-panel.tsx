@@ -86,6 +86,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
   const rows =
     (contraQuery.data?.contradictions as StoredContradiction[] | undefined) ?? null;
   const loading = contraQuery.isLoading;
+  // A capped page of the claim-vs-record table is never presented as the whole ledger.
+  const tableTotals = (contraQuery.data as { table?: { total: number; shown: number } } | undefined)?.table;
   const loadedAt = contraQuery.dataUpdatedAt || null;
 
   const load = useCallback(() => {
@@ -192,6 +194,12 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
           <Loader2 size={12} className="animate-spin" />
           loading…
         </div>
+      )}
+
+      {tableTotals && tableTotals.shown < tableTotals.total && (
+        <p className="mb-2 text-[11px] font-mono text-[var(--text-tertiary)]">
+          showing {tableTotals.shown} of {tableTotals.total} claim-vs-record rows
+        </p>
       )}
 
       <div className="space-y-2">
