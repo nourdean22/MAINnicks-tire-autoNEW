@@ -53,6 +53,7 @@ const h = vi.hoisted(() => {
     toastError: vi.fn(),
     confirm: vi.fn(async () => true),
     respond: (async () => ({ ok: true })) as Respond,
+    mutationOpts: null as Record<string, unknown> | null,
   };
 });
 
@@ -92,6 +93,8 @@ vi.mock("@/lib/trpc", () => ({
           onError?: (e: unknown, v: unknown, c: unknown) => unknown;
           onSettled?: (r: unknown, e: unknown, v: unknown, c: unknown) => unknown;
         }) => ({
+          // The same options object TanStack receives, so a test can read what it is told to do.
+          ...(h.mutationOpts = opts as Record<string, unknown>, {}),
           mutate: (vars: Record<string, unknown>) => {
             void (async () => {
               const ctx = await opts.onMutate?.(vars);
@@ -404,11 +407,39 @@ describe("the row updates at once and tells the truth when the save fails", () =
     render(<OpportunitiesSection />);
     fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
-    expect(String(h.toastError.mock.calls[0][0])).toMatch(/illegal transition contacted -> attempted/);
-    expect(String(h.toastError.mock.calls[0][0])).toMatch(/unchanged/i);
+    expect(String(h.toastError.mock.calls[0][0])).toBe("Someone else changed this row. It has been refreshed.");
     await waitFor(() => expect(screen.getByText(/Not contacted yet/)).toBeTruthy());
     expect(screen.queryByText(/^Called /, { selector: "p" })).toBeNull();
     expect(screen.getByText(/stay put/)).toBeTruthy();
+  });
+
+  it("a conflict or an illegal move never tells the crew to retry; any other refusal keeps its text without an em dash and says try again", async () => {
+    const EM = "—";
+    const cases: Array<[string, RegExp | string]> = [
+      [`conflict: state changed concurrently ${EM} re-read and retry`, "Someone else changed this row. It has been refreshed."],
+      ["illegal transition dismissed -> attempted", "Someone else changed this row. It has been refreshed."],
+      [`table not applied ${EM} migration 0099`, "Not saved: table not applied, migration 0099. The row is unchanged, try again."],
+    ];
+    for (const [error, expected] of cases) {
+      cleanup();
+      h.toastError.mockClear();
+      h.respond = async () => ({ ok: false, error });
+      load([row()]);
+      render(<OpportunitiesSection />);
+      fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
+      await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+      const text = String(h.toastError.mock.calls[0][0]);
+      expect(text, error).toBe(expected);
+      expect(text).not.toContain(EM);
+    }
+  });
+
+  it("is not paused offline: the mutation runs with networkMode always, so an offline tap fails into onError", () => {
+    // TanStack v5 runs onMutate BEFORE it pauses an offline mutation, so without this the
+    // optimistic row would read "Called <time>" while nothing was sent.
+    load([row()]);
+    render(<OpportunitiesSection />);
+    expect(h.mutationOpts?.networkMode).toBe("always");
   });
 
   it("a thrown error (network, permission) shows a toast and keeps the row", async () => {
@@ -422,7 +453,7 @@ describe("the row updates at once and tells the truth when the save fails", () =
     expect(screen.getByText(/Not contacted yet/)).toBeTruthy();
   });
 
-  it("a refused Not a customer brings the row back in its old place", async () => {
+  it("a refused Not a customer brings the row back, with its verbs", async () => {
     h.respond = async () => ({ ok: false, error: "conflict: state changed concurrently, re-read and retry" });
     load([row({ recommendedAction: "first" }), row({ recommendedAction: "second", createdAt: daysAgo(4) })]);
     render(<OpportunitiesSection />);
@@ -430,7 +461,8 @@ describe("the row updates at once and tells the truth when the save fails", () =
     fireEvent.click(within(firstRow).getByRole("button", { name: /^Not a customer/ }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
-    expect(screen.getAllByRole("listitem")[0].textContent).toMatch(/first/);
+    expect(screen.getByText(/first/)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Called/ })).toHaveLength(2);
   });
 
   it("the row's buttons are disabled while its save is in flight", async () => {
@@ -461,10 +493,14 @@ describe("only the verbs the server will accept are offered", () => {
     }
   });
 
-  it("a number without contact consent is shown as such: no Called or Texted, no tap-to-call", () => {
+  it("a flag that can mean an SMS opt-out OR do-not-contact says both, and keeps the number readable as plain text", () => {
+    // consentOk is false for an estimate row when the phone has any opt-out, so it cannot
+    // tell a texting opt-out from a do-not-contact row. The copy must not claim the stronger.
     load([row({ consentOk: false, customerPhone: "2165550199" })]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText(/consent is off/i)).toBeTruthy();
+    expect(screen.getByText("Opted out of texts or marked do-not-contact. Called and Texted are off for this row.")).toBeTruthy();
+    expect(screen.getByText("2165550199")).toBeTruthy();
+    expect(screen.queryByText(/consent is off/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /^Called/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Texted/ })).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();

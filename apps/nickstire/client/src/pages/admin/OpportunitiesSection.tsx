@@ -104,6 +104,16 @@ function attemptLine(r: Row): string {
   return `${verb} ${whenLabel(last.at)}${r.attempts > 1 ? `, attempt ${r.attempts}` : ""}`;
 }
 
+/**
+ * The server words a conflict ("state changed concurrently") and an illegal move for a developer, and
+ * "try again" cannot fix either: the row has changed under the crew and the list is already re-read.
+ * Anything else keeps the server's text, minus an em dash, and may be retried.
+ */
+function refusalMessage(reason: string): string {
+  if (/^(conflict|illegal)/i.test(reason)) return "Someone else changed this row. It has been refreshed.";
+  return `Not saved: ${reason.replace(/\s*—\s*/g, ", ")}. The row is unchanged, try again.`;
+}
+
 /** Nobody has tried yet comes first; inside each group the newest row is on top. */
 function worklistOrder(a: Row, b: Row): number {
   const untouched = Number(a.attempts !== 0) - Number(b.attempts !== 0);
@@ -127,13 +137,14 @@ export default function OpportunitiesSection() {
     utils.opportunityQueue.list.setData(LIST_INPUT, (old) => (old ? { ...old, items: fn(old.items) } : old));
 
   const transition = trpc.opportunityQueue.transition.useMutation({
+    // TanStack v5 runs onMutate BEFORE it pauses an offline mutation, so the default would show
+    // "Called <time>" on a row while nothing is sent. "always" sends now and fails into onError.
+    networkMode: "always",
     // Show the result before the server answers. The row is put back if the save fails.
     onMutate: async (vars) => {
       setBusy(vars.id, true);
       await utils.opportunityQueue.list.cancel(LIST_INPUT);
-      const before = utils.opportunityQueue.list.getData(LIST_INPUT)?.items ?? [];
-      const index = before.findIndex((r) => r.id === vars.id);
-      const prev = index >= 0 ? before[index] : undefined;
+      const prev = utils.opportunityQueue.list.getData(LIST_INPUT)?.items.find((r) => r.id === vars.id);
       patchItems((items) =>
         vars.to === "dismissed"
           ? items.filter((r) => r.id !== vars.id)
@@ -148,7 +159,7 @@ export default function OpportunitiesSection() {
                 : r,
             ),
       );
-      return { prev, index };
+      return { prev };
     },
     onSuccess: (res, vars, ctx) => {
       if (!res.ok) putBack(vars.id, ctx, res.error);
@@ -160,17 +171,11 @@ export default function OpportunitiesSection() {
     },
   });
 
-  function putBack(id: string, ctx: { prev?: Row; index: number } | undefined, reason: string) {
+  function putBack(id: string, ctx: { prev?: Row } | undefined, reason: string) {
     const prev = ctx?.prev;
-    const index = ctx?.index ?? 0;
-    if (prev) {
-      patchItems((items) =>
-        items.some((r) => r.id === id)
-          ? items.map((r) => (r.id === id ? prev : r))
-          : [...items.slice(0, index), prev, ...items.slice(index)],
-      );
-    }
-    toast.error(`Not saved: ${reason}. The row is unchanged, try again.`);
+    // Position needs no restoring: the list is re-sorted on every render.
+    if (prev) patchItems((items) => (items.some((r) => r.id === id) ? items.map((r) => (r.id === id ? prev : r)) : [...items, prev]));
+    toast.error(refusalMessage(reason));
   }
 
   async function hide(r: Row) {
@@ -283,9 +288,13 @@ export default function OpportunitiesSection() {
                     <p className="text-sm text-foreground/60 mt-1">No phone number on file.</p>
                   )
                 ) : (
-                  <p className="text-sm text-amber-400 mt-1">
-                    Consent is off for this number. Do not call or text it.
-                  </p>
+                  <>
+                    {/* The flag is false for any opt-out (texts only, or do-not-contact), so it cannot say which: show the number as plain text, not a link. */}
+                    {o.customerPhone && <p className="text-sm mt-1">{o.customerPhone}</p>}
+                    <p className="text-sm text-amber-400 mt-1">
+                      Opted out of texts or marked do-not-contact. Called and Texted are off for this row.
+                    </p>
+                  </>
                 )}
                 <p className="text-sm mt-1">{attemptLine(o)}</p>
               </div>
