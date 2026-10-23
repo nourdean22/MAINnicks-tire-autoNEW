@@ -24,12 +24,10 @@ vi.mock("@/lib/logger", () => ({
   logger: { withSurface: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
 }));
 vi.mock("@/lib/brain/outcome-tracker", () => ({ scorePendingPredictions: vi.fn(async () => []) }));
-vi.mock("@/lib/brain/counter-intuitive", () => ({ findCounterIntuitive: vi.fn(async () => []) }));
 vi.mock("@/lib/brain/wisdom-distiller", () => ({ distillWisdom: vi.fn(async () => []) }));
 vi.mock("@/lib/brain/learning-journal", () => ({ generateLearningJournal: vi.fn(async () => ({ date: "", selfAssessment: "" })) }));
 vi.mock("@/lib/brain/blind-spot-detector", () => ({ detectBlindSpots: vi.fn(async () => []) }));
 vi.mock("@/lib/brain/correlation-finder", () => ({ findCorrelations: vi.fn(async () => []) }));
-vi.mock("@/lib/brain/teaching-moments", () => ({ findTeachingMoments: vi.fn(async () => []) }));
 vi.mock("@/lib/brain/blind-spot-identity", () => ({ persistBlindSpot: vi.fn() }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 

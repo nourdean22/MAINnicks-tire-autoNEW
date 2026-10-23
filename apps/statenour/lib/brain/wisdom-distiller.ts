@@ -22,9 +22,8 @@ import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("wisdom-distiller");
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo } from "@/lib/utils/datetime";
+import { today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { logError } from "@/lib/utils/error-log";
 
 interface WisdomCandidate {
   theme: string;
@@ -404,108 +403,4 @@ If the evidence is too thin or generic for principle-shaped output, return an EM
   }
 
   return stored;
-}
-
-/**
- * Validate existing wisdom against recent data.
- * Checks if stored principles are still supported by evidence.
- * Run weekly to age out stale wisdom.
- */
-export async function validateWisdom(): Promise<{
-  validated: number;
-  aged: number;
-  contradicted: number;
-}> {
-  // v10.0.46 — added `deletedAt: null` + `take: 200` bound. Pre-fix
-  // unbounded scan of all wisdom rows including soft-deleted ones,
-  // and the per-row decay/reinforce updates would resurrect deleted
-  // wisdom by mutating its confidence. Bound prevents the weekly
-  // cron from blowing past the 60s envelope as the wisdom corpus
-  // grows.
-  const wisdom = await prisma.brainMemory.findMany({
-    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null },
-    orderBy: { confidence: "desc" },
-    take: 200,
-    select: { id: true, content: true, confidence: true, seenCount: true, createdAt: true, updatedAt: true },
-  });
-
-  let validated = 0, aged = 0, contradicted = 0;
-  let confWriteFails = 0;
-  let lastConfWriteErr: unknown = null;
-
-  for (const w of wisdom) {
-    const ageDays = Math.round((Date.now() - w.updatedAt.getTime()) / 86400000);
-
-    // Age decay: wisdom not reinforced in 30+ days loses confidence
-    if (ageDays > 30 && w.confidence > 0.3) {
-      const newConf = Math.max(0.2, w.confidence - 0.05);
-      await prisma.brainMemory.update({
-        where: { id: w.id },
-        data: { confidence: newConf },
-      }).catch((e) => { confWriteFails++; lastConfWriteErr = e; });
-      aged++;
-    }
-
-    // Reinforcement: wisdom seen 5+ times gets confidence boost
-    if ((w.seenCount ?? 0) >= 5 && w.confidence < 0.95) {
-      await prisma.brainMemory.update({
-        where: { id: w.id },
-        data: { confidence: Math.min(0.95, w.confidence + 0.05) },
-      }).catch((e) => { confWriteFails++; lastConfWriteErr = e; });
-      validated++;
-    }
-  }
-
-  // Aggregated: one log per run, never per row — a DB blip during the
-  // 200-row loop must not flood ErrorLog (phase-1 rule 1).
-  if (confWriteFails > 0) {
-    logError("brain.wisdom-distiller", lastConfWriteErr, { stage: "confidence-decay-reinforce", failedWrites: confWriteFails }, "warn");
-  }
-
-  // Check for contradictions: wisdom that conflicts with recent counter-intuitive findings
-  const recentCI = await prisma.brainMemory.findMany({
-    where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: new Date(Date.now() - 14 * 86400000) }, deletedAt: null }, // v10.0.66
-    select: { content: true },
-    take: 10,
-  }).catch((): never[] => []);
-
-  // v10.0.46 — collect contradiction pairs, dedupe by stable key,
-  // batch the writes outside the loop. Pre-fix this was N×M serial
-  // upserts with `Date.now()` in the key → a brand-new row written
-  // every weekly run for the same w.id × ci.content pair → never
-  // dedupes, accumulates indefinitely. Stable key is wisdom-id +
-  // ci-hash so re-detection of the same contradiction overwrites.
-  const contradictions: Array<{ wisdomId: string; ciHash: string; w: typeof wisdom[number]; ci: typeof recentCI[number] }> = [];
-  const ciHash = (s: string): string => {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-    return Math.abs(h).toString(36).slice(0, 8);
-  };
-  for (const ci of recentCI) {
-    // Simple keyword overlap check
-    const ciWords = new Set(ci.content.toLowerCase().split(/\s+/).filter((w: string) => w.length > 5));
-    for (const w of wisdom) {
-      const wisdomWords = w.content.toLowerCase().split(/\s+/).filter(wd => wd.length > 5);
-      const overlap = wisdomWords.filter(wd => ciWords.has(wd)).length;
-      if (overlap >= 3) {
-        contradictions.push({ wisdomId: w.id, ciHash: ciHash(ci.content), w, ci });
-        contradicted++;
-      }
-    }
-  }
-  // Batch the upserts via Promise.allSettled (independent, dedup-keyed).
-  if (contradictions.length > 0) {
-    await Promise.allSettled(
-      contradictions.map((c) =>
-        brainMemory.remember(
-          "wisdom_contradiction",
-          `contradiction_${c.wisdomId}_${c.ciHash}`,
-          `CONTRADICTION: Wisdom "${c.w.content.slice(0, 80)}" may conflict with recent finding "${c.ci.content.slice(0, 80)}"`,
-          "wisdom-validator",
-        ),
-      ),
-    );
-  }
-
-  return { validated, aged, contradicted };
 }

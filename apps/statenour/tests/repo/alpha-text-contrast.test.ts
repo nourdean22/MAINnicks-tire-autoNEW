@@ -214,12 +214,10 @@ const KNOWN_FADED: Record<string, number> = {
   "components/settings/ai-settings-panel.tsx -> text-red-300/60": 1,
   "components/stats/journey-panel.tsx -> text-fg-secondary/60": 1,
   "components/ultron/bottom-pulse-ticker.tsx -> text-emerald-400/80": 1,
-  "components/ultron/contradictions-card.tsx -> text-emerald-400/80": 1,
   "components/ultron/observability/cost-slo-tile.tsx -> text-rose-300/70": 1,
   "components/ultron/persona-drift-card.tsx -> text-amber-400/80": 1,
   "components/ultron/preferences-card.tsx -> text-amber-400/80": 1,
   "components/ultron/preferences-card.tsx -> text-emerald-400/80": 1,
-  "components/ultron/signal/situation-card.tsx -> text-emerald-400/60": 1,
 };
 
 describe("09-X7: faded text stays readable (4.5:1 over every dark surface)", () => {

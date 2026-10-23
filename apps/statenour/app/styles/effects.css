@@ -760,20 +760,6 @@ select.pwa-select {
 select.pwa-select:focus {
   border-color: var(--gold);
   outline: none;
-}/* ═══════════════════════════════════════════════════════
-   CONTRADICTION TENSION GRADIENT
-   Left-edge 2px rule that visualizes temporal polarity gap.
-   Gold top (current truth) fading to amber bottom (stale
-   position). Used in contradictions-card.tsx.
-   ═══════════════════════════════════════════════════════ */
-.contradiction-tension-gradient {
-  background: linear-gradient(
-    180deg,
-    var(--gold) 0%,
-    var(--gold) 38%,
-    rgb(251 191 36 / 0.65) 62%,
-    rgb(251 191 36 / 0.25) 100%
-  );
 }
 
 /* ── Keyframes referenced by NAME from inline style strings (not by class) ─────────

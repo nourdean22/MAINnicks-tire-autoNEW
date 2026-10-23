@@ -82,7 +82,7 @@ const ACTIONS: ActionSpec[] = [
     tier: "production",
     consumer: "weeklyReview tool, /api/system/hud (v10.0.331+)",
   },
-  { query: "shop_pulse", tier: "production", consumer: "HQ SituationCard" },
+  { query: "shop_pulse", tier: "production", consumer: "shop pulse" },
   { query: "attention_needed", tier: "production", consumer: "morning brief" },
   {
     query: "lot_brief",

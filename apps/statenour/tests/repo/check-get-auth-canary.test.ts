@@ -213,7 +213,7 @@ describe("scan set", () => {
 describe("routes the hardened gate flagged on 2026-10-10 now pass it", () => {
   // Owner-private: must pass by real auth, never by a `// public:` marker.
   const OWNER = [
-    "ultron/personal-pulse", "ultron/pulse", "ultron/situation", "ultron/ticker", "ultron/todo-desk",
+    "ultron/personal-pulse", "ultron/pulse", "ultron/ticker", "ultron/todo-desk",
     "ultron/work-context", "ultron/pulse-digest", "ultron/calibrate", "ultron/health-digest",
     "ultron/narrator", "health/governor/today", "system/deploy-info",
   ];

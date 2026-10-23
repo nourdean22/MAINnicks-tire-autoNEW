@@ -64,9 +64,9 @@ vi.mock("@/lib/brain/embedding-utils", () => ({
 /**
  * NOT every engine here is "100% DB-dominated", despite this file's header.
  *
- * `findTeachingMoments` takes four inputs, and only two of them are Prisma.
- * The other two — `recentShopJobs` / `recentShopLeads` in
- * `lib/brain/legacy-shims.ts` — reach the NICKSTIRE BRIDGE over HTTP via
+ * The correlation-finder (and the teaching-moments engine this note was
+ * written for, deleted 2026-10-23) reads `recentShopJobs` / `recentShopLeads`
+ * from `lib/brain/legacy-shims.ts`, which reach the NICKSTIRE BRIDGE over HTTP via
  * `queryNick`, which the `@/lib/prisma` mock above cannot intercept. So the
  * "empty DB" premise was never established for that engine: the mock emptied
  * Prisma while the bridge kept answering with live shop data.
@@ -114,39 +114,6 @@ describe("wisdom-distiller", () => {
     const { distillWisdom } = await import("@/lib/brain/wisdom-distiller");
     const result = await distillWisdom();
     expect(Array.isArray(result)).toBe(true);
-  });
-
-  it("validateWisdom returns an object with expected shape", async () => {
-    const { validateWisdom } = await import("@/lib/brain/wisdom-distiller");
-    const result = await validateWisdom();
-    expect(typeof result).toBe("object");
-    expect(result).not.toBeNull();
-  });
-});
-
-describe("teaching-moments", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("findTeachingMoments returns array gracefully on empty DB", async () => {
-    const { findTeachingMoments } = await import(
-      "@/lib/brain/teaching-moments"
-    );
-    const result = await findTeachingMoments();
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(0);
-  });
-});
-
-describe("counter-intuitive", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("findCounterIntuitive returns array gracefully", async () => {
-    const { findCounterIntuitive } = await import(
-      "@/lib/brain/counter-intuitive"
-    );
-    const result = await findCounterIntuitive();
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(0);
   });
 });
 

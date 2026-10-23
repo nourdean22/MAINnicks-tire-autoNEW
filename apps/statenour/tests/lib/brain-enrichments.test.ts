@@ -23,12 +23,6 @@ import {
   violationRate,
   findCounterWisdom,
 } from "@/lib/brain/wisdom-distiller";
-import {
-  countRationalizations,
-  revealedPreferenceRanking,
-  gapSeverity,
-  frameAsAkrasia,
-} from "@/lib/brain/counter-intuitive";
 // ═══════════════════════════════════════════════════════════════
 // CORRELATION-FINDER — Granger lag + bootstrap + Simpson + Reichenbach
 // ═══════════════════════════════════════════════════════════════
@@ -152,60 +146,5 @@ describe("wisdom-distiller enrichments", () => {
     expect(findCounterWisdom("be patient")).toContain("procrastination");
     expect(findCounterWisdom("trust your gut")).toContain("tired");
     expect(findCounterWisdom("random nonsense")).toBe(null);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// COUNTER-INTUITIVE — Festinger + Sartre + Samuelson + Aristotle
-// ═══════════════════════════════════════════════════════════════
-
-describe("counter-intuitive enrichments", () => {
-  it("countRationalizations finds Sartre-style 'had to' patterns", () => {
-    const r = countRationalizations(
-      "I had to skip the gym this time, it made sense at the time, special circumstance",
-    );
-    expect(r.count).toBeGreaterThan(2);
-  });
-
-  it("countRationalizations handles clean text", () => {
-    const r = countRationalizations(
-      "I made a deliberate choice to cancel, weighed the trade-offs",
-    );
-    expect(r.count).toBe(0);
-  });
-
-  it("revealedPreferenceRanking flips rank when revealed differs from stated", () => {
-    const stated = [
-      { value: "family", rank: 1 },
-      { value: "revenue", rank: 2 },
-      { value: "body", rank: 3 },
-    ];
-    const actions = [
-      { value: "revenue", weight: 50 },
-      { value: "revenue", weight: 30 },
-      { value: "body", weight: 5 },
-      { value: "family", weight: 2 },
-    ];
-    const result = revealedPreferenceRanking(stated, actions);
-    const family = result.find((r) => r.value === "family")!;
-    const revenue = result.find((r) => r.value === "revenue")!;
-    expect(revenue.delta).toBeLessThan(0); // revealed rank LOWER number = higher position
-    expect(family.delta).toBeGreaterThan(0); // revealed rank HIGHER number = lower position
-  });
-
-  it("gapSeverity classifies wide gaps", () => {
-    expect(gapSeverity(0.9, 0.2).severity).toBe("wide");
-    expect(gapSeverity(0.7, 0.5).severity).toBe("moderate");
-    expect(gapSeverity(0.7, 0.6).severity).toBe("small");
-  });
-
-  it("frameAsAkrasia uses Aristotelian framing, not identity attack", () => {
-    const text = frameAsAkrasia(
-      "you skipped 4 of last 5 workouts",
-      "always train at 7am",
-    );
-    expect(text.toLowerCase()).toContain("akrasia");
-    expect(text.toLowerCase()).toContain("recoverable");
-    expect(text.toLowerCase()).not.toContain("you're inconsistent");
   });
 });
