@@ -400,24 +400,20 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
   }
 }
 
-async function fetchBrainPulseItems(): Promise<TickerItem[]> {
+export async function fetchBrainPulseItems(): Promise<TickerItem[]> {
   try {
     // 2026-08-27 · the maturity ROUTE module was also imported here, then
     // discarded unused (`void maturityMod`) - deleted when the reverse-layer
     // depcruise gate flagged lib -> app as its first real catch.
     const [nudgeMod, contradictionMod, identityMod] = await Promise.all([
       import("@/lib/brain/cross-system-nudge"),
-      import("@/lib/brain/contradiction-surfacer"),
+      import("@/lib/services/contradictions"),
       import("@/lib/brain/identity-snapshot"),
     ]);
-    const [nudges, recentContradictions, snap] = await Promise.all([
+    const [nudges, openContradictions, snap] = await Promise.all([
       nudgeMod.computeNudges().catch(() => []),
-      // 2026-08-16 · was countUnresolved(14), which returns a bare number —
-      // so the item below could only ever link at "/brain" generally. The
-      // receiving panel has read `?resolve=<key>` and scrolled that row into
-      // view since it shipped; only the sender was missing. Same 14-day
-      // window, now carrying the keys.
-      contradictionMod.loadRecentContradictions(14, false).catch(() => []),
+      // The panel's own open total (contradictions table). A failed read stays null, never 0.
+      contradictionMod.countUnresolvedContradictions().catch((): null => null),
       identityMod.loadIdentitySnapshot().catch(() => null),
     ]);
     const items: TickerItem[] = [];
@@ -448,20 +444,25 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
       });
     }
 
-    // Open contradictions counter — deep-links to the specific row when
-    // there is exactly one thing to look at, and to the panel otherwise.
-    const openContradictions = recentContradictions.length;
-    if (openContradictions > 0) {
-      const only = openContradictions === 1 ? recentContradictions[0] : null;
+    // Open contradictions: a count chip that links to the panel, never row text (80 open rows
+    // would flood the ticker). An unreadable count says so; it is not "0 open" and not silence.
+    if (openContradictions === null) {
+      items.push({
+        id: `brain-contradict`,
+        category: BRAIN_CATEGORIES.BRAIN,
+        symbol: "BRAIN",
+        label: "⚠ open contradictions unreadable",
+        severity: "warn",
+        href: "/brain?tab=memory",
+      });
+    } else if (openContradictions > 0) {
       items.push({
         id: `brain-contradict`,
         category: BRAIN_CATEGORIES.BRAIN,
         symbol: "BRAIN",
         label: `⚠ ${openContradictions} open contradiction${openContradictions > 1 ? "s" : ""}`,
         severity: "warn",
-        href: only
-          ? `/brain?tab=memory&resolve=${encodeURIComponent(only.key)}`
-          : "/brain?tab=memory#contradictions",
+        href: "/brain?tab=memory",
       });
     }
 

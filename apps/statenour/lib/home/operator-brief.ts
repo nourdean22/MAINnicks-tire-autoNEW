@@ -45,7 +45,7 @@ import { buildSystemHub } from "@/lib/services/system-hub";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { listPendingActions } from "@/lib/automation/approval-queue";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
-import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
+import { countUnresolvedContradictions } from "@/lib/services/contradictions";
 import { listProposed } from "@/lib/services/commitments";
 import { getMit } from "@/lib/services/mit";
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
@@ -103,11 +103,9 @@ export interface BriefLeadSection {
 
 export type JudgmentItem =
   | {
+      /** A count and a link to the /brain panel, never row text: the daily question lives in chat. */
       kind: "contradiction";
-      key: string;
-      nowExcerpt: string;
-      beforeExcerpt: string;
-      daysApart: number;
+      count: number;
       href: string;
     }
   | {
@@ -185,6 +183,12 @@ async function guarded<T>(p: Promise<T>): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+/** One count row when anything is open, none on a measured zero. Rejects on a failed count (see guarded). */
+async function loadContradictionItems(): Promise<JudgmentItem[]> {
+  const count = await countUnresolvedContradictions();
+  return count > 0 ? [{ kind: "contradiction", count, href: "/brain?tab=memory" }] : [];
 }
 
 // ── Builder ─────────────────────────────────────────────────────────────
@@ -268,9 +272,8 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
         select: { id: true, createdAt: true, expiresAt: true, reason: true, actionType: true },
       }),
     ),
-    // 14-day unresolved window — parity with the bottom ticker's
-    // countUnresolved(14) and the retired ContradictionSlot.
-    guarded(loadRecentContradictions(14, false)),
+    // The panel's own open total (contradictions table), as a count row; null = the read failed.
+    guarded(loadContradictionItems()),
     guarded(
       prisma.agendaItem.findMany({
         where: { category: "FOLLOW_UP", status: "ACTIVE" },
@@ -425,16 +428,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     });
   }
 
-  for (const c of contradictions ?? []) {
-    judgmentAll.push({
-      kind: "contradiction",
-      key: c.key,
-      nowExcerpt: c.new_excerpt,
-      beforeExcerpt: c.old_excerpt,
-      daysApart: c.days_apart,
-      href: `/brain?tab=memory&resolve=${encodeURIComponent(c.key)}`,
-    });
-  }
+  judgmentAll.push(...(contradictions ?? []));
 
   for (const p of proposals ?? []) {
     judgmentAll.push({
@@ -859,7 +853,7 @@ function pendingApprovalRows(
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
 }
 
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

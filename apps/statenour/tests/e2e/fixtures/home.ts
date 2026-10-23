@@ -68,11 +68,8 @@ export const HOME_BRIEF: OperatorBrief = {
       { kind: "followup", id: "demo-followup-1", title: "Demo follow-up: ask Demo Contractor A about the floor plan" },
       {
         kind: "contradiction",
-        key: "demo-contradiction-1",
-        nowExcerpt: "Demo: the quote ships on Monday",
-        beforeExcerpt: "Demo: the quote ships on Friday",
-        daysApart: 4,
-        href: "/brain",
+        count: 4,
+        href: "/brain?tab=memory",
       },
     ],
     visibleCap: 3,

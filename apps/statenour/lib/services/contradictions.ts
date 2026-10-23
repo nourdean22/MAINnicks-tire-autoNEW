@@ -275,6 +275,17 @@ function toPanelRow(r: TableRow): TableContradiction {
   };
 }
 
+/** An open claim-vs-record row: the one definition the panel's list, its total and the Home/ticker chips share. */
+const OPEN_WHERE = { deletedAt: null, resolved: false } as const;
+
+/**
+ * How many claim-vs-record rows are open: the panel's own open total, for the Home row and the ticker chip.
+ * REJECTS on a failed read, so a chip renders "unknown" and never a 0 (empty-vs-error).
+ */
+export function countUnresolvedContradictions(): Promise<number> {
+  return prisma.contradiction.count({ where: OPEN_WHERE });
+}
+
 /**
  * List contradictions for the /brain panel · unresolved-only by
  * default, or the full 90-day history when `includeResolved`. Lifted
@@ -292,7 +303,7 @@ export async function listStoredContradictions(input: {
   // History: a page of the newest closures, with the total beside it.
   const where = input.includeResolved
     ? { deletedAt: null, resolved: true, updatedAt: { gte: new Date(Date.now() - 90 * 86400_000) } }
-    : { deletedAt: null, resolved: false };
+    : OPEN_WHERE;
   const [memoryRows, tableRows, total] = await Promise.all([
     input.includeResolved ? loadAllContradictions(90) : loadRecentContradictions(14, false),
     prisma.contradiction.findMany({
