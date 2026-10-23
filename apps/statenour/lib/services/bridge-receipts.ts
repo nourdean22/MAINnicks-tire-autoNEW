@@ -25,7 +25,7 @@
  *     `pending`, which the route answers with a retryable 503. Used by
  *     /api/sync/nour-os `open_loop`.
  *
- * The table is hand-migrated (prisma/migrations-pending/20260929090000_bridge_receipts).
+ * The table is hand-migrated (prisma/migrations/20260929090000_bridge_receipts; applied on prod 2026-10-23).
  * Until it exists every receipt call throws Prisma P2021; callers catch that
  * with `isReceiptTableMissing` and fall back to the legacy write, so a keyed
  * sender can never be failed closed by an unapplied migration.

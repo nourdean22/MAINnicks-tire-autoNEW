@@ -360,7 +360,7 @@ const MIGRATIONS: Record<string, string[]> = {
 
   // ADR-0019 phase 0b · the receiver's dedupe table for keyed nickstire writes.
   // One new table + one index, nothing else touched. Full reasoning and the
-  // promote/resolve steps: prisma/migrations-pending/20260929090000_bridge_receipts/migration.sql
+  // promote/resolve steps: prisma/migrations/20260929090000_bridge_receipts/migration.sql (promoted 2026-10-23)
   "20260929090000_bridge_receipts": [
     `CREATE TABLE IF NOT EXISTS "bridge_receipts" (
       "idempotency_key" VARCHAR(190) NOT NULL,
