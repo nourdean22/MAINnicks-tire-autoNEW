@@ -92,7 +92,6 @@ function compile<T>(code: string, deps: Deps, ret: string): T {
 }
 
 /** Named declarations (top level or nested; first by source order) from a gate file, live. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function load(file: string, names: string[], deps: Deps): Record<string, any> {
   const sf = sourceOf(file);
   const picked: ts.Node[] = [];
