@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   dailyOn: true,
   claimGapOn: false,
   failClaim: false,
+  claimedBy: null as string | null,
   writes: [] as Array<{ model: string; op: string; key?: string }>,
 }));
 
@@ -41,6 +42,15 @@ vi.mock("@/lib/prisma", () => {
             });
           }
           if (op === "findMany") return vi.fn(async () => (name === "contradiction" ? [openRow] : []));
+          // Today's claim row, when a test says an earlier turn already asked.
+          if (op === "findUnique" && name === "brainMemory") {
+            return vi.fn(async (arg?: { where?: { category_key?: { key?: string } } }) =>
+              h.claimedBy && arg?.where?.category_key?.key?.startsWith("claim-gap:")
+                ? { id: "claim", content: JSON.stringify({ contradictionId: "open_1", conversationId: h.claimedBy, kind: "daily" }) }
+                : null,
+            );
+          }
+          if (op === "findFirst" && name === "contradiction") return vi.fn(async () => openRow);
           if (op === "groupBy") return vi.fn(async () => []);
           if (op === "count") return vi.fn(async () => 0);
           if (op === "aggregate") return vi.fn(async () => ({}));
@@ -127,12 +137,13 @@ async function build(opts: { privateMode?: boolean } = {}) {
   } as never);
 }
 
-const dailyClaims = () => h.writes.filter((w) => w.key?.startsWith("claim-gap-daily:"));
+const dailyClaims = () => h.writes.filter((w) => w.key?.startsWith("claim-gap:"));
 
 beforeEach(() => {
   h.dailyOn = true;
   h.claimGapOn = false;
   h.failClaim = false;
+  h.claimedBy = null;
   h.writes.length = 0;
 });
 
@@ -171,6 +182,23 @@ describe("buildBrainContext · one open contradiction a day", () => {
     const out = await build();
     expect(out.systemPromptAddendum).toContain("# CLAIM VS RECORD");
     expect(out.systemPromptAddendum).not.toContain("ONE OPEN CONTRADICTION");
+    // Exactly one day claim: the claim gap's.
+    expect(dailyClaims()).toHaveLength(1);
+  }, 30_000);
+
+  it("the NEXT turn of the asking conversation still carries the key to resolve it, without asking again", async () => {
+    h.claimedBy = "conv_daily";
+    const out = await build();
+    expect(out.systemPromptAddendum).toContain("# CONTRADICTION ASKED EARLIER");
+    expect(out.systemPromptAddendum).toContain('contradictionKey "tbl:open_1"');
+    expect(out.systemPromptAddendum).not.toContain("# ONE OPEN CONTRADICTION");
     expect(dailyClaims()).toHaveLength(0);
+  }, 30_000);
+
+  it("CONTROL · another conversation gets no follow-up", async () => {
+    h.claimedBy = "conv_other";
+    const out = await build();
+    expect(out.systemPromptAddendum).not.toContain("ASKED EARLIER");
+    expect(out.systemPromptAddendum).not.toContain("tbl:open_1");
   }, 30_000);
 });

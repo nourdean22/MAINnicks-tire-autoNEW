@@ -189,11 +189,13 @@ const TABLE_KEY_PREFIX = "tbl:";
 /** The three answers Nour gives a claim-vs-record row, as stored in `resolved_how`. */
 export type TableResolvedHow = "true" | "outdated" | "ignore";
 
-/** Panel choice -> resolved_how. "true" = the record is right (the claim was wrong). */
-const RESOLVED_HOW: Record<ContradictionResolveChoice, TableResolvedHow> = {
+/**
+ * Panel choice -> resolved_how. "true" = the record is right (the claim was wrong).
+ * both_valid has no meaning for claim vs record and is refused (400), never stored as another answer.
+ */
+const RESOLVED_HOW: Record<Exclude<ContradictionResolveChoice, "both_valid">, TableResolvedHow> = {
   current_wins: "true",
   old_wins: "outdated",
-  both_valid: "outdated",
   dismissed: "ignore",
 };
 const STATUS_FROM_HOW: Record<string, ContradictionResolveChoice> = {
@@ -210,6 +212,8 @@ export interface TableContradiction
   gap: string;
   category: string;
   severity: string;
+  /** Where the claim came from; "ai_detected" (the thinking engine) is an inference, not his words. */
+  claim_source: string;
   /** The ET day the thinking engine recorded it. */
   recorded: string;
 }
@@ -223,6 +227,7 @@ const TABLE_SELECT = {
   gap: true,
   category: true,
   severity: true,
+  claimSource: true,
   resolved: true,
   resolvedHow: true,
   createdAt: true,
@@ -237,6 +242,7 @@ interface TableRow {
   gap: string;
   category: string;
   severity: string;
+  claimSource: string;
   resolved: boolean;
   resolvedHow: string | null;
   createdAt: Date;
@@ -254,6 +260,7 @@ function toPanelRow(r: TableRow): TableContradiction {
     gap: r.gap,
     category: r.category,
     severity: r.severity,
+    claim_source: r.claimSource,
     recorded: r.date,
     days_apart: Math.max(0, Math.round((Date.now() - r.createdAt.getTime()) / 86400_000)),
     surfaced_at: r.createdAt.toISOString(),
@@ -270,23 +277,29 @@ function toPanelRow(r: TableRow): TableContradiction {
  * List contradictions for the /brain panel · unresolved-only by
  * default, or the full 90-day history when `includeResolved`. Lifted
  * verbatim from GET /api/contradictions — the route and the tRPC
- * `brain.contradictions` procedure both call this. Table rows come first
- * (unresolved first). A failed table read REJECTS, so the panel renders its
- * ERROR state instead of an empty ledger.
+ * `brain.contradictions` procedure both call this. Table rows come first: the
+ * unresolved tab reads open rows, history reads RESOLVED rows directly (so the
+ * 60+ open rows cannot fill the page before the tab's filter runs). A failed
+ * table read REJECTS, so the panel renders its ERROR state, never an empty ledger.
  */
 export async function listStoredContradictions(input: {
   includeResolved: boolean;
 }): Promise<{ contradictions: PanelContradiction[] }> {
   const [memoryRows, tableRows] = await Promise.all([
     input.includeResolved ? loadAllContradictions(90) : loadRecentContradictions(14, false),
-    prisma.contradiction.findMany({
-      where: input.includeResolved
-        ? { deletedAt: null, createdAt: { gte: new Date(Date.now() - 90 * 86400_000) } }
-        : { deletedAt: null, resolved: false },
-      orderBy: [{ resolved: "asc" }, { createdAt: "desc" }],
-      take: 60,
-      select: TABLE_SELECT,
-    }),
+    input.includeResolved
+      ? prisma.contradiction.findMany({
+          where: { deletedAt: null, resolved: true, updatedAt: { gte: new Date(Date.now() - 90 * 86400_000) } },
+          orderBy: { updatedAt: "desc" },
+          take: 60,
+          select: TABLE_SELECT,
+        })
+      : prisma.contradiction.findMany({
+          where: { deletedAt: null, resolved: false },
+          orderBy: { createdAt: "desc" },
+          take: 60,
+          select: TABLE_SELECT,
+        }),
   ]);
   return {
     contradictions: [
@@ -305,6 +318,9 @@ async function resolveTableContradiction(
   id: string,
   status: ContradictionResolveChoice,
 ): Promise<{ contradiction: TableContradiction; alreadyResolved: boolean; resolvedHow: string | null }> {
+  if (status === "both_valid") {
+    throw new ServiceError("both_valid does not apply to a claim-vs-record row: the record is right, outdated, or ignore", 400);
+  }
   const won = await prisma.contradiction.updateMany({
     where: { id, resolved: false, deletedAt: null },
     data: { resolved: true, resolvedHow: RESOLVED_HOW[status] },

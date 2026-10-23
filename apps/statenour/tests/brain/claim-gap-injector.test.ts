@@ -93,17 +93,14 @@ describe("findRelevantClaimGap", () => {
     expect(await findRelevantClaimGap({ userMessage: USER })).toBeNull();
   });
 
-  it("stays silent on a day the daily question was already asked (one contradiction a day)", async () => {
+  it("stays silent on a day the daily question was already asked (one shared day key)", async () => {
     mock(prisma.contradiction.findMany).mockResolvedValue([row()]);
     mock(prisma.brainMemory.findMany).mockResolvedValue([
-      { key: "claim-gap-daily:2026-10-22", content: JSON.stringify({ category: "health" }) },
+      { key: "claim-gap:2026-10-22", content: JSON.stringify({ category: "health", kind: "daily" }) },
     ]);
     mock(getEmbeddingWithModel).mockResolvedValue(ALIGNED);
 
     expect(await findRelevantClaimGap({ userMessage: USER })).toBeNull();
-    // The log read must be able to return the daily row at all.
-    const prefix = mock(prisma.brainMemory.findMany).mock.calls[0][0].where.key.startsWith as string;
-    expect("claim-gap-daily:2026-10-22".startsWith(prefix)).toBe(true);
   });
 
   it("skips a topic already raised in the last week", async () => {

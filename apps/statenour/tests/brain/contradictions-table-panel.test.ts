@@ -38,6 +38,7 @@ function tableRow(overrides: Record<string, unknown> = {}) {
     gap: "Stated daily, logged twice",
     category: "habit",
     severity: "moderate",
+    claimSource: "ai_detected",
     resolved: false,
     resolvedHow: null,
     createdAt: new Date("2026-10-20T12:00:00Z"),
@@ -79,6 +80,8 @@ describe("listStoredContradictions · table rows reach the panel", () => {
       new_excerpt: "I water the plants every morning",
       old_excerpt: "The garden log has two entries in ten days",
       category: "habit",
+      // Provenance travels: an AI-inferred claim must not be labelled as his words.
+      claim_source: "ai_detected",
     });
     // The memory rows are still there, tagged.
     expect(contradictions.find((c) => c.key === "abc123")).toMatchObject({ source: "memory" });
@@ -107,6 +110,14 @@ describe("listStoredContradictions · table rows reach the panel", () => {
     expect(byKey["tbl:r4"].resolution_note).toContain("Auto-resolved");
   });
 
+  it("history queries RESOLVED rows directly, so 60+ open rows cannot crowd them out", async () => {
+    h.contradiction.findMany.mockResolvedValue([]);
+    await listStoredContradictions({ includeResolved: true });
+    const arg = h.contradiction.findMany.mock.calls[0][0];
+    expect(arg.where.resolved).toBe(true);
+    expect(arg.where.deletedAt).toBeNull();
+  });
+
   it("a FAILED table read rejects (the panel renders ERROR), never an empty list", async () => {
     h.contradiction.findMany.mockRejectedValue(new Error("connection reset"));
     await expect(listStoredContradictions({ includeResolved: false })).rejects.toThrow(/connection reset/);
@@ -117,7 +128,6 @@ describe("resolveStoredContradiction · tbl: keys close the table row", () => {
   it.each([
     ["current_wins", "true"],
     ["old_wins", "outdated"],
-    ["both_valid", "outdated"],
     ["dismissed", "ignore"],
   ] as const)("%s writes resolvedHow=%s with a compare-and-swap on resolved=false", async (status, how) => {
     h.contradiction.updateMany.mockResolvedValue({ count: 1 });
@@ -146,6 +156,15 @@ describe("resolveStoredContradiction · tbl: keys close the table row", () => {
     expect(out.alreadyResolved).toBe(true);
     expect(out.contradiction.status).toBe("dismissed");
     expect(h.contradiction.update).not.toHaveBeenCalled();
+  });
+
+  it("both_valid is not one of the three answers: a 400, and nothing is written", async () => {
+    h.contradiction.updateMany.mockResolvedValue({ count: 1 });
+    h.contradiction.findFirst.mockResolvedValue(tableRow());
+    await expect(resolveStoredContradiction({ key: "tbl:ck_open_1", status: "both_valid" })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(h.contradiction.updateMany).not.toHaveBeenCalled();
   });
 
   it("a missing table row is a 404", async () => {

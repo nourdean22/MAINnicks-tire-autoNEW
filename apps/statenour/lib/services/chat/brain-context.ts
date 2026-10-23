@@ -350,6 +350,7 @@ export async function buildBrainContext(
       contradictionHit,
       claimGapHit,
       dailyContradictionHit,
+      contradictionFollowUpHit,
       strategicLensBlock,
       greeneBlock,
       darkPsychBlock,
@@ -540,6 +541,11 @@ export async function buildBrainContext(
       contradictionInjectorMod && dailyContradictionOn && !privateMode
         ? withTimeout(contradictionInjectorMod.findDailyContradiction(), 1500, null)
         : Promise.resolve(null),
+      // The row asked earlier today in this conversation stays answerable (its key and the
+      // resolve instructions) until it is resolved or the day ends. Read-only.
+      contradictionInjectorMod && (claimGapOn || dailyContradictionOn) && !privateMode && convId
+        ? withTimeout(contradictionInjectorMod.findClaimedContradictionFollowUp(convId), 1500, null)
+        : Promise.resolve(null),
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
         : Promise.resolve(null),
@@ -622,6 +628,9 @@ export async function buildBrainContext(
     const dailyContradictionBlock = !claimGapBlock && dailyContradictionHit && contradictionInjectorMod
       && (await withTimeout(contradictionInjectorMod.claimDailyContradiction(dailyContradictionHit, convId), 1500, false))
       ? contradictionInjectorMod.buildDailyContradictionBlock(dailyContradictionHit)
+      : null;
+    const contradictionFollowUpBlock = contradictionFollowUpHit && contradictionInjectorMod
+      ? contradictionInjectorMod.buildContradictionFollowUpBlock(contradictionFollowUpHit)
       : null;
 
     const hybridRecallBlock = hybridRecallReport && memoryRecallMod
@@ -741,6 +750,7 @@ export async function buildBrainContext(
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
       { name: "Claim vs Record", content: claimGapBlock || "", critical: true },
       { name: "One Open Contradiction", content: dailyContradictionBlock || "", critical: true },
+      { name: "Contradiction Asked Earlier", content: contradictionFollowUpBlock || "", critical: true },
       { name: "Strategic Lens", content: strategicLensBlock || "", critical: true },
       { name: "Greene Strategy Frame", content: greeneBlock || "" },
       { name: "Dark Psychology Frame", content: darkPsychBlock || "" },

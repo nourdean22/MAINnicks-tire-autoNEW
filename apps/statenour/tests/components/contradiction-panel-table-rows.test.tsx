@@ -15,6 +15,7 @@ import { createRoot, type Root } from "react-dom/client";
 const h = vi.hoisted(() => ({
   query: { data: undefined as unknown, isLoading: false, isError: false, error: null as unknown, dataUpdatedAt: 0 },
   mutateAsync: vi.fn(),
+  toastSuccess: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc/client", () => ({
@@ -26,7 +27,7 @@ vi.mock("@/lib/trpc/client", () => ({
     useUtils: () => ({ brain: { contradictions: { invalidate: async () => {} } } }),
   },
 }));
-vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
+vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: () => {} } }));
 
 import { ContradictionResolutionPanel } from "@/components/brain/contradiction-resolution-panel";
 
@@ -39,6 +40,7 @@ const TABLE_ROW = {
   gap: "Stated weekly, logged zero of three",
   category: "habit",
   severity: "moderate",
+  claim_source: "ai_detected",
   recorded: "2026-10-19",
   days_apart: 3,
   surfaced_at: "2026-10-19T12:00:00.000Z",
@@ -57,6 +59,7 @@ beforeEach(() => {
   root = createRoot(container);
   h.query = { data: undefined, isLoading: false, isError: false, error: null, dataUpdatedAt: 0 };
   h.mutateAsync.mockReset().mockResolvedValue({ contradiction: { ...TABLE_ROW, status: "old_wins" } });
+  h.toastSuccess.mockReset();
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -72,13 +75,20 @@ const render = () => {
 const button = (text: string) =>
   [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === text);
 
+const click = async (label: string) => {
+  await act(async () => {
+    button(label)!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+};
+
 describe("ContradictionResolutionPanel · table rows", () => {
-  it("shows the claim, the record and the three answers", () => {
+  it("shows the claim, the record and the three answers; an AI-inferred claim is labelled inferred", () => {
     h.query.data = { contradictions: [TABLE_ROW] };
     const text = render().textContent ?? "";
     expect(text).toContain("I meal prep every Sunday");
     expect(text).toContain("The kitchen log shows no prep");
-    expect(text).toContain("You said");
+    expect(text).toContain("Inferred claim");
+    expect(text).not.toContain("You said");
     expect(text).toContain("Record shows");
     expect(button("Record is right")).toBeDefined();
     expect(button("Outdated")).toBeDefined();
@@ -87,18 +97,35 @@ describe("ContradictionResolutionPanel · table rows", () => {
     expect(button("Current wins")).toBeUndefined();
   });
 
+  it("CONTROL · a claim from his own chat is labelled You said", () => {
+    h.query.data = { contradictions: [{ ...TABLE_ROW, claim_source: "chat" }] };
+    expect(render().textContent).toContain("You said");
+  });
+
   it.each([
     ["Record is right", "current_wins"],
     ["Outdated", "old_wins"],
     ["Ignore", "dismissed"],
-  ])("%s resolves the tbl key as %s through the shared mutation", async (label, status) => {
+  ])("%s arms an in-DOM confirm first, then resolves the tbl key as %s", async (label, status) => {
     h.query.data = { contradictions: [TABLE_ROW] };
     render();
-    await act(async () => {
-      button(label)!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+    await click(label);
+    expect(h.mutateAsync, "first tap must only arm the confirm").not.toHaveBeenCalled();
+    await click("confirm");
     expect(h.mutateAsync).toHaveBeenCalledTimes(1);
     expect(h.mutateAsync.mock.calls[0][0]).toMatchObject({ key: "tbl:ck_1", status });
+  });
+
+  it("after a race, the toast reports the STORED answer, not the one tapped", async () => {
+    h.query.data = { contradictions: [TABLE_ROW] };
+    h.mutateAsync.mockResolvedValue({ contradiction: { ...TABLE_ROW, status: "dismissed" }, alreadyResolved: true });
+    render();
+    await click("Outdated");
+    await click("confirm");
+    const msg = String(h.toastSuccess.mock.calls[0]?.[0] ?? "");
+    expect(msg).toMatch(/already closed/i);
+    expect(msg).toMatch(/ignore/i);
+    expect(msg).not.toMatch(/outdated/i);
   });
 
   it("a failed read says state unknown, never a clean ledger", () => {

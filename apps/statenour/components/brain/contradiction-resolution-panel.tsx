@@ -39,6 +39,8 @@ interface StoredContradiction {
   category?: string;
   severity?: string;
   recorded?: string;
+  /** "ai_detected" = the thinking engine's inference from his records, not his words. */
+  claim_source?: string;
   new_excerpt: string;
   old_excerpt: string;
   days_apart: number;
@@ -52,6 +54,9 @@ interface StoredContradiction {
 type Tab = "unresolved" | "history";
 
 type ResolveStatus = "current_wins" | "old_wins" | "both_valid" | "dismissed";
+
+/** claim_source values that are his own words; anything else (the engine's "ai_detected") is inferred. */
+const OWN_WORDS_SOURCES = new Set(["chat", "brain_dump", "commitment"]);
 
 /** The three answers to a claim-vs-record row, on the panel's existing statuses (service maps them to resolved_how). */
 const TABLE_ANSWERS: ReadonlyArray<{ label: string; status: ResolveStatus; title: string }> = [
@@ -99,10 +104,13 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
     async (key: string, status: ResolveStatus, note?: string) => {
       setBusy(key);
       try {
-        await resolveMutation.mutateAsync({ key, status, note });
+        const res = await resolveMutation.mutateAsync({ key, status, note });
+        // A table row someone closed first keeps THEIR answer: report what is stored, not what was tapped.
+        const stored = res?.contradiction?.status ?? status;
+        const storedLabel = TABLE_ANSWERS.find((a) => a.status === stored)?.label.toLowerCase() ?? "closed";
         toast.success(
           key.startsWith("tbl:")
-            ? `closed · ${TABLE_ANSWERS.find((a) => a.status === status)?.label.toLowerCase() ?? status}`
+            ? `${res?.alreadyResolved ? "already closed" : "closed"} · ${storedLabel}`
             : status === "current_wins"
             ? "current position locked in · old deprecated"
             : status === "old_wins"
@@ -232,7 +240,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono text-fg-tertiary">{isTable ? "You said" : "Now"}</p>
+                  <p className="text-[11px] font-mono text-fg-tertiary">{isTable ? (OWN_WORDS_SOURCES.has(c.claim_source ?? "") ? "You said" : "Inferred claim") : "Now"}
+                  </p>
                   <p className="text-[11px] text-[var(--text-primary)] break-words">
                     "{c.new_excerpt}"
                   </p>
@@ -248,12 +257,12 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 </div>
               </div>
 
-              {open && isTable && (
+              {open && isTable && notingKey !== c.key && (
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                   {TABLE_ANSWERS.map((a) => (
                     <button
                       key={a.status}
-                      onClick={() => resolve(c.key, a.status)}
+                      onClick={() => beginResolve(c.key, a.status)}
                       disabled={rowBusy}
                       className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono"
                       title={a.title}
@@ -304,16 +313,25 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               {notingKey === c.key && pendingResolve && (
                 <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] font-mono text-fg-tertiary">
-                    Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
-                  </p>
-                  <textarea
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="optional: explain the reversal"
-                    rows={2}
-                    className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
-                  />
+                  {isTable ? (
+                    // The table has no note column: the confirm step is the whole second tap.
+                    <p className="text-[11px] font-mono text-fg-tertiary">
+                      Close as: {TABLE_ANSWERS.find((a) => a.status === pendingResolve)?.label.toLowerCase() ?? pendingResolve}?
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-mono text-fg-tertiary">
+                        Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
+                      </p>
+                      <textarea
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="optional: explain the reversal"
+                        rows={2}
+                        className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                      />
+                    </>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}

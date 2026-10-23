@@ -59,6 +59,12 @@ describe("resolveContradiction tool · tbl: keys", () => {
     expect(h.brainMemory.findUnique).not.toHaveBeenCalled();
   });
 
+  it("both_valid on a table row is refused, and nothing is written", async () => {
+    const out = await resolveTool.execute({ contradictionKey: "tbl:ck_9", side: "both_valid" });
+    expect(out.ok).toBe(false);
+    expect(h.contradiction.updateMany).not.toHaveBeenCalled();
+  });
+
   it("an unknown table id is not_found, not a thrown error", async () => {
     h.contradiction.updateMany.mockResolvedValue({ count: 0 });
     h.contradiction.findFirst.mockResolvedValue(null);

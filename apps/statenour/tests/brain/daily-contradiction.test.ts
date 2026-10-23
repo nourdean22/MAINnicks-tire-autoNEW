@@ -11,8 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    contradiction: { findMany: vi.fn() },
-    brainMemory: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+    contradiction: { findMany: vi.fn(), findFirst: vi.fn() },
+    brainMemory: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
   },
 }));
 vi.mock("@/lib/ai/provider", () => ({ getEmbedding: vi.fn(), getEmbeddingWithModel: vi.fn() }));
@@ -22,6 +22,9 @@ import {
   pickDailyContradiction,
   findDailyContradiction,
   claimDailyContradiction,
+  claimClaimGapDay,
+  findClaimedContradictionFollowUp,
+  buildContradictionFollowUpBlock,
   buildDailyContradictionBlock,
   buildClaimGapBlock,
 } from "@/lib/brain/contradiction-injector";
@@ -37,6 +40,7 @@ function row(overrides: Record<string, unknown> = {}) {
     gap: "Stated nightly, logged never",
     category: "habit",
     severity: "moderate",
+    claimSource: "ai_detected",
     createdAt: new Date("2026-10-10T15:00:00Z"),
     ...overrides,
   };
@@ -50,6 +54,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(LATE_EVENING_ET);
   mock(prisma.brainMemory.findFirst).mockResolvedValue(null);
+  mock(prisma.brainMemory.findUnique).mockResolvedValue(null);
   mock(prisma.brainMemory.create).mockResolvedValue({ id: "log" });
 });
 afterEach(() => vi.useRealTimers());
@@ -82,13 +87,12 @@ describe("findDailyContradiction", () => {
     expect(prisma.brainMemory.create).not.toHaveBeenCalled();
   });
 
-  it("returns null when today's daily question OR today's claim gap was already used (ET day)", async () => {
-    mock(prisma.brainMemory.findFirst).mockResolvedValue({ id: "claimed" });
+  it("returns null when today's one claim (daily question OR claim gap) is taken (ET day)", async () => {
+    mock(prisma.brainMemory.findUnique).mockResolvedValue({ id: "claimed", content: "{}" });
     mock(prisma.contradiction.findMany).mockResolvedValue([row()]);
     expect(await findDailyContradiction()).toBeNull();
-    const keys = mock(prisma.brainMemory.findFirst).mock.calls[0][0].where.key.in as string[];
-    expect(keys).toContain("claim-gap-daily:2026-10-22");
-    expect(keys).toContain("claim-gap:2026-10-22");
+    const where = mock(prisma.brainMemory.findUnique).mock.calls[0][0].where;
+    expect(where.category_key.key).toBe("claim-gap:2026-10-22");
   });
 
   it("a failed read returns null and never throws", async () => {
@@ -101,10 +105,22 @@ describe("claimDailyContradiction · once a day", () => {
   it("claims the ET day key; a second claim the same day loses (P2002)", async () => {
     expect(await claimDailyContradiction(row(), "conv_1")).toBe(true);
     const data = mock(prisma.brainMemory.create).mock.calls[0][0].data;
-    expect(data.key).toBe("claim-gap-daily:2026-10-22");
-    expect(JSON.parse(data.content).contradictionId).toBe("d1");
+    expect(data.key).toBe("claim-gap:2026-10-22");
+    expect(JSON.parse(data.content)).toMatchObject({ contradictionId: "d1", kind: "daily", conversationId: "conv_1" });
 
     mock(prisma.brainMemory.create).mockRejectedValueOnce(Object.assign(new Error("dup"), { code: "P2002" }));
+    expect(await claimDailyContradiction(row(), "conv_2")).toBe(false);
+  });
+
+  it("RACE · the claim gap and the daily question share ONE unique day key: the second claim loses", async () => {
+    // A unique index, as the database has on (category, key).
+    const taken = new Set<string>();
+    mock(prisma.brainMemory.create).mockImplementation(async ({ data }: { data: { key: string } }) => {
+      if (taken.has(data.key)) throw Object.assign(new Error("dup"), { code: "P2002" });
+      taken.add(data.key);
+      return { id: data.key };
+    });
+    expect(await claimClaimGapDay({ ...row(), similarity: 0.6 }, "conv_1")).toBe(true);
     expect(await claimDailyContradiction(row(), "conv_2")).toBe(false);
   });
 
@@ -125,11 +141,63 @@ describe("the blocks offer the three answers and the resolve path", () => {
     expect(block).toContain("resolveContradiction");
   });
 
+  it("an AI-inferred claim is never quoted as his words; a chat claim is", () => {
+    for (const block of [
+      buildDailyContradictionBlock(row(), "2026-10-22"),
+      buildClaimGapBlock({ ...row(), similarity: 0.6 }, "2026-10-22"),
+      buildContradictionFollowUpBlock(row()),
+    ]) {
+      expect(block).not.toContain("He said");
+      expect(block).toMatch(/inferred/i);
+    }
+    expect(buildDailyContradictionBlock(row({ claimSource: "chat" }), "2026-10-22")).toContain("He said");
+  });
+
   it("the claim-gap block's closing line offers the same three answers and the tbl key", () => {
     const block = buildClaimGapBlock({ ...row(), similarity: 0.6 }, "2026-10-22");
     expect(block).toMatch(/record is right/i);
     expect(block).toMatch(/outdated/i);
     expect(block).toMatch(/ignore/i);
     expect(block).toContain('contradictionKey "tbl:d1"');
+  });
+});
+
+describe("the asked row stays answerable on the next turn (Codex P1)", () => {
+  const claim = (conversationId: string) => ({
+    id: "claim",
+    content: JSON.stringify({ contradictionId: "d1", conversationId, kind: "daily" }),
+  });
+
+  it("the same conversation gets the claimed row back while it is open", async () => {
+    mock(prisma.brainMemory.findUnique).mockResolvedValue(claim("conv_1"));
+    mock(prisma.contradiction.findFirst).mockResolvedValue(row());
+    const hit = await findClaimedContradictionFollowUp("conv_1");
+    expect(hit?.id).toBe("d1");
+    expect(mock(prisma.brainMemory.findUnique).mock.calls[0][0].where.category_key.key).toBe("claim-gap:2026-10-22");
+    const where = mock(prisma.contradiction.findFirst).mock.calls[0][0].where;
+    expect(where).toMatchObject({ id: "d1", resolved: false, deletedAt: null });
+  });
+
+  it("another conversation, a resolved row, no claim or no conversation: nothing", async () => {
+    mock(prisma.brainMemory.findUnique).mockResolvedValue(claim("conv_1"));
+    mock(prisma.contradiction.findFirst).mockResolvedValue(row());
+    expect(await findClaimedContradictionFollowUp("conv_2")).toBeNull();
+    expect(await findClaimedContradictionFollowUp(null)).toBeNull();
+    mock(prisma.contradiction.findFirst).mockResolvedValue(null); // a resolved row fails the where
+    expect(await findClaimedContradictionFollowUp("conv_1")).toBeNull();
+    mock(prisma.brainMemory.findUnique).mockResolvedValue(null);
+    expect(await findClaimedContradictionFollowUp("conv_1")).toBeNull();
+  });
+
+  it("a failed read returns null and never throws", async () => {
+    mock(prisma.brainMemory.findUnique).mockRejectedValue(new Error("connection reset"));
+    expect(await findClaimedContradictionFollowUp("conv_1")).toBeNull();
+  });
+
+  it("the follow-up block is resolution-only: the key, the three answers, no new question", () => {
+    const block = buildContradictionFollowUpBlock(row());
+    expect(block).toContain('contradictionKey "tbl:d1"');
+    expect(block).toContain("resolveContradiction");
+    expect(block).toMatch(/do not ask (it )?again/i);
   });
 });

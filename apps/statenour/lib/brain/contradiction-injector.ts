@@ -331,8 +331,30 @@ export interface ClaimGap {
   reality: string;
   gap: string;
   category: string;
+  /** Where the claim came from. The thinking engine writes "ai_detected": its inference, not his words. */
+  claimSource?: string;
   createdAt: Date;
   similarity: number;
+}
+
+/** claimSource values that ARE his words (schema comment on Contradiction.claimSource). Anything else is inferred. */
+const OWN_WORDS_SOURCES = new Set(["chat", "brain_dump", "commitment"]);
+
+type ClaimRow = { claim: string; category: string; claimSource?: string };
+const isOwnWords = (row: ClaimRow) => !!row.claimSource && OWN_WORDS_SOURCES.has(row.claimSource);
+
+/** The claim line (inside the fence): quoted only when it is his words, otherwise labelled as an inference. */
+function claimLines(row: ClaimRow): string[] {
+  return isOwnWords(row)
+    ? [`He said (${row.category}): "${row.claim}"`]
+    : [`Inferred claim, not his words (${row.category}; source: ${row.claimSource ?? "unknown"}): "${row.claim}"`];
+}
+
+/** The matching instruction (outside the fence, where instructions belong). */
+function claimProvenanceLines(row: ClaimRow): string[] {
+  return isOwnWords(row)
+    ? []
+    : ["The claim is the engine's inference from his records, not his words: never say he said it; say the record suggests it."];
 }
 
 /**
@@ -351,22 +373,21 @@ export async function findRelevantClaimGap(ctx: { userMessage: string }): Promis
       },
       orderBy: { createdAt: "desc" },
       take: CLAIM_GAP_FETCH,
-      select: { id: true, date: true, claim: true, reality: true, gap: true, category: true, createdAt: true },
+      select: { id: true, date: true, claim: true, reality: true, gap: true, category: true, claimSource: true, createdAt: true },
     });
     if (rows.length === 0) return null;
 
     const recent = await prisma.brainMemory.findMany({
       where: {
         category: "contradiction_injection_log",
-        // "claim-gap" (no colon) also reads the daily question's claim-gap-daily: rows, so a day
-        // that asked its one open contradiction stays at one, and that topic cools down too.
-        key: { startsWith: "claim-gap" },
+        // One shared day key for this and the daily question (claimDailyContradiction), so a day
+        // that already asked a contradiction stays at one, and that topic cools down too.
+        key: { startsWith: CLAIM_GAP_KEY_PREFIX },
         createdAt: { gte: new Date(Date.now() - CLAIM_GAP_TOPIC_COOLDOWN_DAYS * 86400_000) },
       },
       select: { key: true, content: true },
     });
-    const day = today();
-    if (recent.some((r) => r.key === `${CLAIM_GAP_KEY_PREFIX}${day}` || r.key === `${DAILY_KEY_PREFIX}${day}`)) return null;
+    if (recent.some((r) => r.key === `${CLAIM_GAP_KEY_PREFIX}${today()}`)) return null;
     const raisedTopics = new Set(
       recent.map((r) => {
         try {
@@ -440,6 +461,7 @@ export async function claimClaimGapDay(hit: ClaimGap, conversationId?: string | 
         category: "contradiction_injection_log",
         key: `${CLAIM_GAP_KEY_PREFIX}${today()}`,
         content: JSON.stringify({
+          kind: "match",
           contradictionId: hit.id,
           category: hit.category,
           similarity: hit.similarity,
@@ -474,12 +496,13 @@ export function buildClaimGapBlock(hit: ClaimGap, todayEt: string = today()): st
       "memory_recall",
       [
         `Recorded ${recorded} (${ageDays} day${ageDays === 1 ? "" : "s"} ago); any "last N days" below counts back from then.`,
-        `He said (${hit.category}): "${hit.claim}"`,
+        ...claimLines(hit),
         `The record shows: "${hit.reality}"`,
         `The gap: "${hit.gap}"`,
       ].join("\n"),
     ),
     "",
+    ...claimProvenanceLines(hit),
     "Answer his actual question first. Only if this gap bears on what he is asking, add ONE",
     "closing line that names the gap in plain words, says how old the record is when it is",
     "more than a few days, and offers three answers: the record is right (the claim was wrong),",
@@ -508,7 +531,6 @@ function claimGapResolveLines(id: string): string[] {
 // question. Same two steps: findDailyContradiction only READS; the caller claims
 // the day with claimDailyContradiction once it knows the block will be used.
 
-const DAILY_KEY_PREFIX = "claim-gap-daily:";
 /** Open rows read for the pick (the table had 76 open on 2026-10-22). */
 const DAILY_FETCH = 200;
 /** The claim row is the kill-criterion receipt (asked row ids): keep it past the 2-week read. */
@@ -527,26 +549,30 @@ export function pickDailyContradiction<T extends { severity: string; createdAt: 
   );
 }
 
+const ROW_SELECT = {
+  id: true, date: true, claim: true, reality: true, gap: true, category: true, severity: true, claimSource: true, createdAt: true,
+} as const;
+
+/** Today's claim row: ONE unique key shared by the claim gap and the daily question. */
+function readTodayClaim() {
+  return prisma.brainMemory.findUnique({
+    where: { category_key: { category: "contradiction_injection_log", key: `${CLAIM_GAP_KEY_PREFIX}${today()}` } },
+    select: { id: true, content: true },
+  });
+}
+
 /**
- * Today's one open contradiction, or null when today's daily question or today's
- * claim gap was already used (one a day, never two). Read-only. Never throws.
+ * Today's one open contradiction, or null when today's claim (daily question or
+ * claim gap) is already taken (one a day, never two). Read-only. Never throws.
  */
 export async function findDailyContradiction(): Promise<DailyContradiction | null> {
   try {
-    const day = today();
-    const claimed = await prisma.brainMemory.findFirst({
-      where: {
-        category: "contradiction_injection_log",
-        key: { in: [`${DAILY_KEY_PREFIX}${day}`, `${CLAIM_GAP_KEY_PREFIX}${day}`] },
-      },
-      select: { id: true },
-    });
-    if (claimed) return null;
+    if (await readTodayClaim()) return null;
     const rows = await prisma.contradiction.findMany({
       where: { resolved: false, deletedAt: null },
       orderBy: { createdAt: "asc" },
       take: DAILY_FETCH,
-      select: { id: true, date: true, claim: true, reality: true, gap: true, category: true, severity: true, createdAt: true },
+      select: ROW_SELECT,
     });
     return pickDailyContradiction(rows);
   } catch (err) {
@@ -555,15 +581,61 @@ export async function findDailyContradiction(): Promise<DailyContradiction | nul
   }
 }
 
-/** Claim today's daily question for `row`. The ET day key is the claim; any failed write returns false. */
+/**
+ * The row asked earlier today in THIS conversation, while it is still open, so the
+ * answer turn can resolve it (the ask block does not repeat on later turns). Null for
+ * another conversation, a resolved row, no claim, or any failure. Read-only.
+ */
+export async function findClaimedContradictionFollowUp(conversationId?: string | null): Promise<DailyContradiction | null> {
+  if (!conversationId) return null;
+  try {
+    const claim = await readTodayClaim();
+    if (!claim) return null;
+    let parsed: { contradictionId?: unknown; conversationId?: unknown };
+    try {
+      parsed = JSON.parse(claim.content);
+    } catch {
+      return null;
+    }
+    if (parsed.conversationId !== conversationId || typeof parsed.contradictionId !== "string") return null;
+    return await prisma.contradiction.findFirst({
+      where: { id: parsed.contradictionId, resolved: false, deletedAt: null },
+      select: ROW_SELECT,
+    });
+  } catch (err) {
+    logError("brain.contradiction-injector", err, { fn: "findClaimedContradictionFollowUp" });
+    return null;
+  }
+}
+
+/** Resolution-only context for the turns after the ask: the key and the answers, never a new question. */
+export function buildContradictionFollowUpBlock(row: DailyContradiction): string {
+  return [
+    "# CONTRADICTION ASKED EARLIER",
+    fenceContent(
+      "contradictionFollowUp",
+      "memory_recall",
+      [...claimLines(row), `The record shows: "${row.reality}"`].join("\n"),
+    ),
+    "",
+    ...claimProvenanceLines(row),
+    "Earlier in this conversation you asked him about this gap. Do not ask it again. Only if his",
+    "message answers it (the record is right, the claim is outdated, or ignore it) close it.",
+    ...claimGapResolveLines(row.id),
+  ].join("\n");
+}
+
+/** Claim today's daily question for `row` on the shared day key; any failed write returns false. */
 export async function claimDailyContradiction(row: DailyContradiction, conversationId?: string | null): Promise<boolean> {
   try {
     // brain-memory-direct-write: the once-a-day claim row (a dedupe marker, not a belief); create must fail on a duplicate key, which remember()'s upsert never does.
     await prisma.brainMemory.create({
       data: {
         category: "contradiction_injection_log",
-        key: `${DAILY_KEY_PREFIX}${today()}`,
+        // The SAME unique key as claimClaimGapDay: the database lets exactly one of the two win.
+        key: `${CLAIM_GAP_KEY_PREFIX}${today()}`,
         content: JSON.stringify({
+          kind: "daily",
           contradictionId: row.id,
           category: row.category,
           severity: row.severity,
@@ -594,12 +666,13 @@ export function buildDailyContradictionBlock(row: DailyContradiction, todayEt: s
       "memory_recall",
       [
         `Recorded ${row.date} (${ageDays} day${ageDays === 1 ? "" : "s"} ago); any "last N days" below counts back from then.`,
-        `He said (${row.category}): "${row.claim}"`,
+        ...claimLines(row),
         `The record shows: "${row.reality}"`,
         `The gap: "${row.gap}"`,
       ].join("\n"),
     ),
     "",
+    ...claimProvenanceLines(row),
     "This is today's one open claim-vs-record question. Answer his message first. Then end with",
     "ONE short question that names the gap in plain words and offers three answers: the record",
     "is right (the claim was wrong), the claim is outdated (things moved on), or ignore it. Ask",
