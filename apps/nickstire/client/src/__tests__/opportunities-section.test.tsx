@@ -1,145 +1,482 @@
 /**
- * OpportunitiesSection — the four states it can be in, RENDERED.
+ * OpportunitiesSection, RENDERED.
  *
- * WHY A RENDER TEST AND NOT A SOURCE ASSERTION. The retired Decision Inbox's
- * own test file said it plainly: "A render test that mounted the panel with
- * queryable:false would prove more, but the panel pulls tRPC, auth and a
- * mutation, and the repo has no harness for that; a guard that ships beats a
- * harness that does not." That was true of the panel. It is not true here — this
- * component takes one query and one mutation, both mockable, so the stronger
- * proof is available and the weaker one is not an acceptable substitute.
+ * Two jobs in one file.
  *
- * THE STATE THAT MATTERS MOST is `queryable: false`. An unreadable queue must
- * render as UNKNOWN and must NOT also print "genuinely clear" underneath, which
- * is worse than either alone. A source assertion can see that the branch exists;
- * only a render can see that the two branches are mutually exclusive.
+ * 1. The honest states (unchanged contract). An unreadable queue renders as
+ *    UNKNOWN and must NOT also print "genuinely clear"; a source assertion can
+ *    see that each branch exists, only a render can see they are mutually
+ *    exclusive. A paused query (offline PWA) has no data and no error: it is a
+ *    state too, and it is not an empty list.
  *
- * NOT A VISUAL REVIEW. This asserts composition and copy, not layout, spacing or
- * how it reads on a phone. The authenticated admin cannot be rendered outside a
- * deployed, signed-in browser (OAuth), so a pixel review remains an operator
- * step and is listed as such in the PR.
+ * 2. The working path (2026-10-23, job admin-opportunities-path). 0 of 1,621
+ *    opportunities were ever attempted because the only button dismissed the
+ *    row. The row now has three verbs on the existing transition mutation:
+ *    Called and Texted record an attempt, Not a customer hides the row after a
+ *    confirm. The mutation REPORTS a refusal as `{ ok: false, error }` in a
+ *    successful response, so a failure test that only throws would miss it.
+ *
+ * Mutation fake: runs the real hook options (onMutate, onSuccess, onError,
+ * onSettled) in the order TanStack does, against a tiny external store, so the
+ * optimistic write and the rollback are both visible in the DOM.
+ *
+ * NOT A VISUAL REVIEW. Composition and copy are asserted, not spacing; the
+ * authenticated admin cannot be rendered outside a signed-in browser.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import React from "react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import React, { useSyncExternalStore } from "react";
+import {
+  OPPORTUNITY_STATES,
+  TERMINAL_STATES,
+  canTransition,
+} from "../../../server/services/opportunityQueue";
 
-const h = vi.hoisted(() => ({
-  queryResult: { data: undefined as unknown, isLoading: false, isError: false, isFetching: false },
-  mutate: vi.fn(),
-  invalidate: vi.fn(),
-  refetch: vi.fn(),
-}));
+type Respond = (vars: Record<string, unknown>) => Promise<unknown>;
+
+const h = vi.hoisted(() => {
+  const store = {
+    data: undefined as unknown,
+    listeners: new Set<() => void>(),
+    set(next: unknown) {
+      store.data = next;
+      store.listeners.forEach((l) => l());
+    },
+  };
+  return {
+    store,
+    flags: { isLoading: false, isError: false, isFetching: false },
+    queryInputs: [] as unknown[],
+    mutate: vi.fn(),
+    invalidate: vi.fn(),
+    refetch: vi.fn(),
+    toastError: vi.fn(),
+    confirm: vi.fn(async () => true),
+    respond: (async () => ({ ok: true })) as Respond,
+  };
+});
+
+vi.mock("sonner", () => ({ toast: { error: h.toastError, success: vi.fn(), message: vi.fn() } }));
+vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: () => null }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ opportunityQueue: { list: { invalidate: h.invalidate } } }),
+    useUtils: () => ({
+      opportunityQueue: {
+        list: {
+          invalidate: h.invalidate,
+          cancel: async () => {},
+          getData: () => h.store.data,
+          setData: (_input: unknown, updater: (old: unknown) => unknown) => h.store.set(updater(h.store.data)),
+        },
+      },
+    }),
     opportunityQueue: {
-      list: { useQuery: () => ({ ...h.queryResult, refetch: h.refetch }) },
-      transition: { useMutation: () => ({ mutate: h.mutate }) },
+      list: {
+        useQuery: (input: unknown) => {
+          h.queryInputs.push(input);
+          const data = useSyncExternalStore(
+            (cb) => {
+              h.store.listeners.add(cb);
+              return () => h.store.listeners.delete(cb);
+            },
+            () => h.store.data,
+          );
+          return { data, ...h.flags, refetch: h.refetch };
+        },
+      },
+      transition: {
+        useMutation: (opts: {
+          onMutate?: (v: unknown) => unknown;
+          onSuccess?: (r: unknown, v: unknown, c: unknown) => unknown;
+          onError?: (e: unknown, v: unknown, c: unknown) => unknown;
+          onSettled?: (r: unknown, e: unknown, v: unknown, c: unknown) => unknown;
+        }) => ({
+          mutate: (vars: Record<string, unknown>) => {
+            void (async () => {
+              const ctx = await opts.onMutate?.(vars);
+              h.mutate(vars);
+              let res: unknown;
+              let err: unknown = null;
+              try {
+                res = await h.respond(vars);
+                await opts.onSuccess?.(res, vars, ctx);
+              } catch (e) {
+                err = e;
+                await opts.onError?.(e, vars, ctx);
+              }
+              await opts.onSettled?.(res, err, vars, ctx);
+            })();
+          },
+        }),
+      },
     },
   },
 }));
 
 import OpportunitiesSection from "../pages/admin/OpportunitiesSection";
 
-const row = {
-  id: "11111111-2222-4333-8444-555555555555",
-  recommendedAction: "Call Maria about the declined brake estimate",
-  reason: "declined 9 days ago, no follow-up",
-  customerName: "Maria",
-  expectedRevenueCents: 84000,
-  sourceType: "unapproved_estimate",
-  dataQuality: "verified",
-  state: "new",
+const DAY = 86_400_000;
+const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
+
+let seq = 0;
+const row = (over: Record<string, unknown> = {}) => {
+  seq += 1;
+  return {
+    id: `11111111-2222-4333-8444-${String(seq).padStart(12, "0")}`,
+    recommendedAction: `Call back caller ${seq}`,
+    reason: "missed the call, no follow-up",
+    customerName: null,
+    customerPhone: "2165550100",
+    expectedRevenueCents: 84000,
+    sourceType: "missed_call",
+    dataQuality: "verified",
+    state: "new",
+    attempts: 0,
+    consentOk: true,
+    receipts: [] as Array<Record<string, unknown>>,
+    createdAt: daysAgo(1),
+    updatedAt: daysAgo(1),
+    ...over,
+  };
 };
 
+const load = (items: unknown[], queryable = true) => h.store.set({ items, queryable });
+
 beforeEach(() => {
-  h.queryResult = { data: undefined, isLoading: false, isError: false, isFetching: false };
+  seq = 0;
+  h.store.data = undefined;
+  h.flags = { isLoading: false, isError: false, isFetching: false };
+  h.queryInputs.length = 0;
   h.mutate.mockClear();
+  h.invalidate.mockClear();
+  h.toastError.mockClear();
+  h.confirm.mockReset();
+  h.confirm.mockImplementation(async () => true);
+  h.respond = async () => ({ ok: true });
 });
 afterEach(cleanup);
 
 describe("an unreadable queue is UNKNOWN, never 'clear'", () => {
-  beforeEach(() => {
-    h.queryResult = { data: { items: [], queryable: false }, isLoading: false, isError: false, isFetching: false };
-  });
-
-  it("says UNKNOWN, not clear", () => {
+  it("says UNKNOWN, not clear, and does NOT also claim the queue is genuinely clear", () => {
+    load([], false);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
-  });
-
-  it("does NOT also claim the queue is genuinely clear", () => {
-    // The regression the retired panel's test was written for: a banner plus a
-    // reassuring empty state, printed together.
-    render(<OpportunitiesSection />);
     expect(screen.queryByText(/genuinely clear/i)).toBeNull();
     expect(screen.queryByText(/No open opportunities/i)).toBeNull();
   });
-});
 
-describe("a queue that WAS read and is empty says so, with its provenance", () => {
-  it("claims 'clear' only when queryable === true", () => {
-    h.queryResult = { data: { items: [], queryable: true }, isLoading: false, isError: false, isFetching: false };
+  it("a network error is not an empty queue either, and names the next action", () => {
+    h.flags.isError = true;
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
+    expect(screen.getByText(/Press Refresh to try again/i)).toBeTruthy();
+    expect(screen.queryByText(/genuinely clear/i)).toBeNull();
+  });
+
+  it("a paused query (offline PWA: no data, no error, not loading) is not an empty queue", () => {
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/have not loaded yet/i)).toBeTruthy();
+    expect(screen.queryByText(/genuinely clear/i)).toBeNull();
+    expect(screen.queryByText(/No open opportunities/i)).toBeNull();
+  });
+
+  it("a queue that WAS read and is empty says so, with its provenance", () => {
+    load([]);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/genuinely clear/i)).toBeTruthy();
     expect(screen.queryByText(/UNKNOWN, not clear/i)).toBeNull();
+    expect(screen.queryByText(/have not loaded yet/i)).toBeNull();
   });
 });
 
-describe("a network error is not an empty queue either", () => {
-  it("shows the unknown banner on isError", () => {
-    h.queryResult = { data: undefined, isLoading: false, isError: true, isFetching: false };
+describe("what the list asks the server for", () => {
+  it("requests exactly the live states of the server lifecycle (client list cannot drift)", () => {
+    load([]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
-    expect(screen.queryByText(/genuinely clear/i)).toBeNull();
+    const input = h.queryInputs[0] as { states: string[]; limit: number };
+    const live = OPPORTUNITY_STATES.filter((s) => !TERMINAL_STATES.includes(s));
+    expect([...input.states].sort()).toEqual([...live].sort());
+  });
+
+  it("asks for more than the old 100-row window, which hid 150 of 250 live rows", () => {
+    load([]);
+    render(<OpportunitiesSection />);
+    expect((h.queryInputs[0] as { limit: number }).limit).toBeGreaterThan(250);
+  });
+
+  it("says so when the window is full, instead of implying the list is complete", () => {
+    load([]);
+    const { unmount } = render(<OpportunitiesSection />);
+    const full = (h.queryInputs[0] as { limit: number }).limit;
+    unmount();
+    load(Array.from({ length: full }, () => row()));
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(new RegExp(`first ${full} opportunities`, "i"))).toBeTruthy();
   });
 });
 
-describe("populated rows, and the only write this surface can make", () => {
-  beforeEach(() => {
-    h.queryResult = { data: { items: [row], queryable: true }, isLoading: false, isError: false, isFetching: false };
-  });
-
-  it("shows the action, the reason and the evidence tier", () => {
+describe("a row shows what it is, how old it is and whether anyone tried", () => {
+  it("shows the action, the reason, the evidence tier and dollars, not cents", () => {
+    load([row({ recommendedAction: "Call Maria about the declined brake estimate", reason: "declined 9 days ago, no follow-up", customerName: "Maria", sourceType: "unapproved_estimate" })]);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/Call Maria about the declined brake estimate/)).toBeTruthy();
     expect(screen.getByText(/declined 9 days ago/)).toBeTruthy();
     expect(screen.getByText(/evidence: verified/)).toBeTruthy();
-  });
-
-  it("renders a known value as dollars, not cents", () => {
-    render(<OpportunitiesSection />);
     expect(screen.getByText(/\$840/)).toBeTruthy();
   });
 
   it("says 'value unknown' rather than $0 when the value is not known", () => {
-    // $0 is a claim about the money. Absent is not zero — the same rule the
-    // retired panel's brief block followed.
-    h.queryResult = {
-      data: { items: [{ ...row, expectedRevenueCents: null }], queryable: true },
-      isLoading: false, isError: false, isFetching: false,
-    };
+    load([row({ expectedRevenueCents: null })]);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/value unknown/)).toBeTruthy();
     expect(screen.queryByText(/\$0/)).toBeNull();
   });
 
-  it("dismissing writes ONLY `dismissed` — never lost, never do_not_contact", () => {
+  it("names the type in words and the age in days", () => {
+    load([
+      row({ sourceType: "missed_call", createdAt: daysAgo(3) }),
+      row({ sourceType: "unapproved_estimate", createdAt: new Date() }),
+    ]);
     render(<OpportunitiesSection />);
-    fireEvent.click(screen.getByRole("button", { name: /Dismiss opportunity/i }));
-    expect(h.mutate).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Missed call")).toBeTruthy();
+    expect(screen.getByText("Unapproved estimate")).toBeTruthy();
+    expect(screen.getByText("3 days old")).toBeTruthy();
+    expect(screen.getByText("today")).toBeTruthy();
+  });
+
+  it("an untouched row says nobody has contacted them yet", () => {
+    load([row()]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/Not contacted yet/)).toBeTruthy();
+  });
+
+  it("READS BACK the recorded attempt from the server receipts: verb, time, attempt count", () => {
+    // The consumer of the write: a row the server returns with an attempted
+    // receipt must show it. A UI that only wrote and never read would pass every
+    // mutation test and still look untouched.
+    load([
+      row({
+        state: "attempted",
+        attempts: 2,
+        receipts: [
+          { at: "2026-10-22T14:05:00.000Z", by: "staff", from: "new", to: "attempted", note: "texted" },
+          { at: "2026-10-23T15:30:00.000Z", by: "staff", from: "attempted", to: "attempted", note: "called" },
+        ],
+      }),
+    ]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/^Called /, { selector: "p" })).toBeTruthy();
+    expect(screen.getByText(/attempt 2/)).toBeTruthy();
+    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
+  });
+
+  it("an attempt with a note we did not write (machine draft) is shown as an attempt, not as a call", () => {
+    load([row({ state: "attempted", attempts: 1, receipts: [{ at: "2026-10-23T15:30:00.000Z", by: "system", from: "new", to: "attempted", note: "draft sent for approval" }] })]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/Contact attempted/)).toBeTruthy();
+    expect(screen.queryByText(/^Called/, { selector: "p" })).toBeNull();
+  });
+
+  it("the phone number is a tap-to-call link, so the crew can work the row", () => {
+    load([row({ customerPhone: "2165550123" })]);
+    render(<OpportunitiesSection />);
+    const link = screen.getByRole("link", { name: /2165550123/ });
+    expect(link.getAttribute("href")).toBe("tel:2165550123");
+  });
+
+  it("untouched rows come first, then newest first", () => {
+    const attemptedNewest = row({ recommendedAction: "attempted newest", attempts: 1, state: "attempted", createdAt: daysAgo(0.1), receipts: [{ at: "2026-10-23T15:30:00.000Z", to: "attempted", note: "called" }] });
+    const untouchedOld = row({ recommendedAction: "untouched old", createdAt: daysAgo(5) });
+    const untouchedNew = row({ recommendedAction: "untouched new", createdAt: daysAgo(1) });
+    load([attemptedNewest, untouchedOld, untouchedNew]);
+    render(<OpportunitiesSection />);
+    const order = screen.getAllByRole("listitem").map((li) => /attempted newest|untouched old|untouched new/.exec(li.textContent ?? "")?.[0]);
+    expect(order).toEqual(["untouched new", "untouched old", "attempted newest"]);
+  });
+});
+
+describe("the three verbs write the right status through the existing mutation", () => {
+  it("Called records an attempt with the note 'called'", async () => {
+    const r = row();
+    load([r]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
+    await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(h.mutate.mock.calls[0][0]).toEqual({ id: r.id, to: "attempted", note: "called" });
+  });
+
+  it("Texted records an attempt with the note 'texted'", async () => {
+    const r = row();
+    load([r]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Texted/ }));
+    await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(h.mutate.mock.calls[0][0]).toEqual({ id: r.id, to: "attempted", note: "texted" });
+  });
+
+  it("Called and Texted never write lost, do_not_contact or dismissed", async () => {
+    load([row()]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
+    await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(h.mutate.mock.calls[0][0])).not.toMatch(/lost|do_not_contact|dismissed/);
+  });
+
+  it("Not a customer asks first, then writes ONLY dismissed", async () => {
+    const r = row();
+    load([r]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Not a customer/ }));
+    await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(h.confirm).toHaveBeenCalledTimes(1);
     const arg = h.mutate.mock.calls[0][0];
-    expect(arg.id).toBe(row.id);
-    expect(arg.to).toBe("dismissed");
+    expect(arg).toEqual({ id: r.id, to: "dismissed", note: "not a customer" });
     expect(JSON.stringify(arg)).not.toMatch(/lost|do_not_contact|stated_concern/);
   });
 
-  it("the dismiss control meets the 48px iOS PWA touch target", () => {
-    // apps/nickstire/AGENTS.md §6: this admin is an installed iOS PWA and the
-    // operator uses it on a phone; 48x48 minimum is a standing rule.
+  it("declining the confirm writes nothing and keeps the row", async () => {
+    h.confirm.mockImplementation(async () => false);
+    load([row({ recommendedAction: "keep me" })]);
     render(<OpportunitiesSection />);
-    const btn = screen.getByRole("button", { name: /Dismiss opportunity/i });
-    expect(btn.className).toMatch(/min-h-\[48px\]/);
+    fireEvent.click(screen.getByRole("button", { name: /^Not a customer/ }));
+    await waitFor(() => expect(h.confirm).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.mutate).not.toHaveBeenCalled();
+    expect(screen.getByText(/keep me/)).toBeTruthy();
+  });
+
+  it("Called and Texted do not ask for a confirm (they hide nothing)", async () => {
+    load([row()]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Texted/ }));
+    await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(h.confirm).not.toHaveBeenCalled();
+  });
+
+  it("never reaches for a native dialog", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const promptSpy = vi.spyOn(window, "prompt");
+    const alertSpy = vi.spyOn(window, "alert");
+    load([row()]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Not a customer/ }));
+    await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("the row updates at once and tells the truth when the save fails", () => {
+  it("Called shows on the row before the server answers (optimistic)", async () => {
+    let release: (v: unknown) => void = () => {};
+    h.respond = () => new Promise((res) => { release = res; });
+    load([row()]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
+    await waitFor(() => expect(screen.getByText(/^Called /, { selector: "p" })).toBeTruthy());
+    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
+    release({ ok: true });
+    await waitFor(() => expect(h.invalidate).toHaveBeenCalled());
+  });
+
+  it("Not a customer removes the row at once, and the list is re-read after", async () => {
+    load([row({ recommendedAction: "going away" })]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Not a customer/ }));
+    await waitFor(() => expect(screen.queryByText(/going away/)).toBeNull());
+    await waitFor(() => expect(h.invalidate).toHaveBeenCalled());
+  });
+
+  it("a refusal reported as { ok: false } shows a toast and puts the row back untouched", async () => {
+    h.respond = async () => ({ ok: false, error: "illegal transition contacted -> attempted" });
+    load([row({ recommendedAction: "stay put" })]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+    expect(String(h.toastError.mock.calls[0][0])).toMatch(/illegal transition contacted -> attempted/);
+    expect(String(h.toastError.mock.calls[0][0])).toMatch(/unchanged/i);
+    await waitFor(() => expect(screen.getByText(/Not contacted yet/)).toBeTruthy());
+    expect(screen.queryByText(/^Called /, { selector: "p" })).toBeNull();
+    expect(screen.getByText(/stay put/)).toBeTruthy();
+  });
+
+  it("a thrown error (network, permission) shows a toast and keeps the row", async () => {
+    h.respond = async () => { throw new Error("Failed to fetch"); };
+    load([row({ recommendedAction: "still here" })]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Texted/ }));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+    expect(String(h.toastError.mock.calls[0][0])).toMatch(/Failed to fetch/);
+    expect(screen.getByText(/still here/)).toBeTruthy();
+    expect(screen.getByText(/Not contacted yet/)).toBeTruthy();
+  });
+
+  it("a refused Not a customer brings the row back in its old place", async () => {
+    h.respond = async () => ({ ok: false, error: "conflict: state changed concurrently, re-read and retry" });
+    load([row({ recommendedAction: "first" }), row({ recommendedAction: "second", createdAt: daysAgo(4) })]);
+    render(<OpportunitiesSection />);
+    const firstRow = screen.getAllByRole("listitem")[0];
+    fireEvent.click(within(firstRow).getByRole("button", { name: /^Not a customer/ }));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
+    expect(screen.getAllByRole("listitem")[0].textContent).toMatch(/first/);
+  });
+
+  it("the row's buttons are disabled while its save is in flight", async () => {
+    h.respond = () => new Promise(() => {});
+    load([row()]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
+    await waitFor(() => expect((screen.getByRole("button", { name: /^Texted/ }) as HTMLButtonElement).disabled).toBe(true));
+  });
+});
+
+describe("only the verbs the server will accept are offered", () => {
+  it("Called and Texted appear for a state exactly when the server allows -> attempted", () => {
+    // The client must not carry its own copy of the lifecycle. Every live state is
+    // rendered and compared with the server's canTransition, so a change to the
+    // server rules fails here instead of producing a button that always errors.
+    const live = OPPORTUNITY_STATES.filter((s) => !TERMINAL_STATES.includes(s));
+    expect(live.length).toBeGreaterThan(0);
+    for (const state of live) {
+      cleanup();
+      load([row({ state })]);
+      render(<OpportunitiesSection />);
+      const offered = screen.queryByRole("button", { name: /^Called/ }) !== null;
+      expect(offered, `Called for state ${state}`).toBe(canTransition(state, "attempted"));
+      expect(screen.queryByRole("button", { name: /^Texted/ }) !== null, `Texted for state ${state}`).toBe(offered);
+      // Not a customer is always available on a live row.
+      expect(screen.queryByRole("button", { name: /^Not a customer/ }), `dismiss for ${state}`).not.toBeNull();
+    }
+  });
+
+  it("a number without contact consent is shown as such: no Called or Texted, no tap-to-call", () => {
+    load([row({ consentOk: false, customerPhone: "2165550199" })]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/consent is off/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Called/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Texted/ })).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Not a customer/ })).toBeTruthy();
+  });
+});
+
+describe("phone use", () => {
+  it("every verb meets the 48px touch target the admin uses on iOS", () => {
+    load([row()]);
+    render(<OpportunitiesSection />);
+    for (const name of [/^Called/, /^Texted/, /^Not a customer/]) {
+      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-\[48px\]/);
+    }
+    expect(screen.getByRole("link").className).toMatch(/min-h-\[48px\]/);
+  });
+
+  it("long text wraps instead of being cut off at 375px", () => {
+    load([row({ recommendedAction: "x".repeat(40), reason: "y".repeat(40) })]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/xxxx/).className).not.toMatch(/\btruncate\b/);
+    expect(screen.getByText(/yyyy/).className).not.toMatch(/\btruncate\b/);
   });
 });
