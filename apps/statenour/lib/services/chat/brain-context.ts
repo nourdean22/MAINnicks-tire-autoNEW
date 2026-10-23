@@ -60,6 +60,8 @@ export interface ContextBlocksFired {
   contradictions: boolean;
   /** 2026-10-22 · claim vs record (thinking-engine contradictions table) reached the prompt */
   claimGap: boolean;
+  /** 2026-10-23 · the day's one open contradiction question reached the prompt (NICK_DAILY_CONTRADICTION) */
+  dailyContradiction: boolean;
   /** v10.0.529.106 · Wave 62 · cross-session "open threads" carry-over */
   concerns: boolean;
   /** 2026-06-10 · anticipated-question cosine match (precomputed nightly take) */
@@ -126,7 +128,7 @@ export interface BuildBrainContextOutput {
 
 const EMPTY_FIRED: ContextBlocksFired = {
   recall: false, skills: false, identity: false, ghost: false,
-  qualitative: false, beliefs: false, nudges: false, contradictions: false, claimGap: false,
+  qualitative: false, beliefs: false, nudges: false, contradictions: false, claimGap: false, dailyContradiction: false,
   concerns: false, anticipated: false, physical: false,
 };
 
@@ -238,6 +240,7 @@ export async function buildBrainContext(
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
   const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
   const claimGapOn = getFlag("NICK_CLAIM_GAP")?.isOn ?? false;
+  const dailyContradictionOn = getFlag("NICK_DAILY_CONTRADICTION")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
   //
   // 2026-09-17 · `recentTurns` must be the turns BEFORE this one. query-plan.ts
@@ -346,6 +349,7 @@ export async function buildBrainContext(
       groundingBlock,
       contradictionHit,
       claimGapHit,
+      dailyContradictionHit,
       strategicLensBlock,
       greeneBlock,
       darkPsychBlock,
@@ -531,6 +535,11 @@ export async function buildBrainContext(
       userContent.length > 10 && contradictionInjectorMod && claimGapOn && !privateMode
         ? withTimeout(contradictionInjectorMod.findRelevantClaimGap({ userMessage: userContent }), 3000, null)
         : Promise.resolve(null),
+      // 2026-10-23 · the day's one open contradiction (read-only; claimed below only when no
+      // claim gap is shown this turn). A private turn skips it (the claim is a write).
+      contradictionInjectorMod && dailyContradictionOn && !privateMode
+        ? withTimeout(contradictionInjectorMod.findDailyContradiction(), 1500, null)
+        : Promise.resolve(null),
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
         : Promise.resolve(null),
@@ -607,6 +616,12 @@ export async function buildBrainContext(
     const claimGapBlock = claimGapHit && contradictionInjectorMod
       && (await withTimeout(contradictionInjectorMod.claimClaimGapDay(claimGapHit, convId), 1500, false))
       ? contradictionInjectorMod.buildClaimGapBlock(claimGapHit)
+      : null;
+    // One contradiction a day: the daily question only when no claim gap is shown this turn,
+    // and only once its day is claimed (a failed or slow claim shows nothing).
+    const dailyContradictionBlock = !claimGapBlock && dailyContradictionHit && contradictionInjectorMod
+      && (await withTimeout(contradictionInjectorMod.claimDailyContradiction(dailyContradictionHit, convId), 1500, false))
+      ? contradictionInjectorMod.buildDailyContradictionBlock(dailyContradictionHit)
       : null;
 
     const hybridRecallBlock = hybridRecallReport && memoryRecallMod
@@ -725,6 +740,7 @@ export async function buildBrainContext(
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
       { name: "Claim vs Record", content: claimGapBlock || "", critical: true },
+      { name: "One Open Contradiction", content: dailyContradictionBlock || "", critical: true },
       { name: "Strategic Lens", content: strategicLensBlock || "", critical: true },
       { name: "Greene Strategy Frame", content: greeneBlock || "" },
       { name: "Dark Psychology Frame", content: darkPsychBlock || "" },
@@ -819,8 +835,10 @@ export async function buildBrainContext(
       nudges: !!nBlock,
       // A claim-vs-record gap is a contradiction too: it lights the chat's existing
       // Contradictions badge (the client knows no claimGap key) and claimGap counts it alone.
-      contradictions: !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock || !!claimGapBlock,
+      contradictions:
+        !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock || !!claimGapBlock || !!dailyContradictionBlock,
       claimGap: !!claimGapBlock,
+      dailyContradiction: !!dailyContradictionBlock,
       concerns: !!concernsBlock,
       anticipated: !!anticipatedBlock,
       physical: !!physicalBlock,

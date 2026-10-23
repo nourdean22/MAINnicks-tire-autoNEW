@@ -478,6 +478,13 @@ export async function pruneTools(
     addMatching(/search|memory|conversation|reflection|greene|wisdom|simulate|anti.?pattern|brain|emotional|decision|skill|cold|contradiction|resolveContradiction|notebooklm/i);
   }
 
+  // 2026-10-23 · the three answers to a CLAIM VS RECORD / ONE OPEN CONTRADICTION question
+  // ("that's outdated", "ignore that", "the record is right"). Attaches only the resolve tool;
+  // Nick decides from the block whether the reply answers it.
+  if (/\b(outdated|out of date|ignore (that|it|this)|record(?:'s| is)? (right|correct|wrong))\b/.test(text)) {
+    addMatching(/^resolveContradiction$/);
+  }
+
   // Code / repo / GitHub / deploy
   // Operator is a developer · talks about code constantly
   if (/\b(code|files?|commits?|pull request|prs?|issues?|repos?|deploy|github|functions?|classes?|modules?|imports?|build|typecheck|lint|test fail|stack trace|architecture)\b/.test(text)) {

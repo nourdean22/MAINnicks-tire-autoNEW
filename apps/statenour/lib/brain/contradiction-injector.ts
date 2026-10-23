@@ -479,11 +479,128 @@ export function buildClaimGapBlock(hit: ClaimGap, todayEt: string = today()): st
     "",
     "Answer his actual question first. Only if this gap bears on what he is asking, add ONE",
     "closing line that names the gap in plain words, says how old the record is when it is",
-    "more than a few days, and asks one question: is the record wrong (something is not being",
-    "logged) or is the plan wrong? If he says the record is wrong, believe him and say what",
-    "would have to be logged to fix it. No lecture, and do not raise it again in this",
-    "conversation. Give it no [brain:...] citation tag (no page shows these records yet);",
-    "name the record's date instead.",
+    "more than a few days, and offers three answers: the record is right (the claim was wrong),",
+    "the claim is outdated (things moved on), or ignore it. No lecture, and do not raise it",
+    "again in this conversation.",
+    ...claimGapResolveLines(hit.id),
+  ].join("\n");
+}
+
+/** How Nick closes a table row once Nour picks an answer. One owner: lib/services/contradictions.ts. */
+function claimGapResolveLines(id: string): string[] {
+  return [
+    "If he picks one, call the resolveContradiction tool with",
+    `contradictionKey "tbl:${id}" and side "current_wins" for the record is right, "old_wins"`,
+    'for outdated, "dismissed" for ignore. If he says the record is wrong (something is not',
+    "being logged), believe him, say what would have to be logged, and close it as ignore.",
+    "Any other reply leaves it open. Give it no [brain:...] citation tag; name the record's",
+    "date instead (the row is also on /brain, Memory tab, Contradictions).",
+  ];
+}
+
+// ── One open contradiction a day (2026-10-23, NICK_DAILY_CONTRADICTION) ──
+// The claim gap above fires only when a row matches the turn, so most open rows
+// are never seen before the 30-day auto-expiry. On the first chat turn of an ET
+// day with no claim-gap hit, Nick asks the most severe, oldest open row as one
+// question. Same two steps: findDailyContradiction only READS; the caller claims
+// the day with claimDailyContradiction once it knows the block will be used.
+
+const DAILY_KEY_PREFIX = "claim-gap-daily:";
+/** Open rows read for the pick (the table had 76 open on 2026-10-22). */
+const DAILY_FETCH = 200;
+/** The claim row is the kill-criterion receipt (asked row ids): keep it past the 2-week read. */
+const DAILY_CLAIM_TTL_DAYS = 21;
+const SEVERITY_RANK: Record<string, number> = { critical: 4, severe: 3, high: 3, moderate: 2, mild: 1 };
+
+export type DailyContradiction = Omit<ClaimGap, "similarity"> & { severity: string };
+
+/** Most severe first, then oldest. Pure, so the ordering is pinned by a test. */
+export function pickDailyContradiction<T extends { severity: string; createdAt: Date }>(rows: T[]): T | null {
+  const rank = (s: string) => SEVERITY_RANK[s.toLowerCase()] ?? 0;
+  return (
+    [...rows].sort((a, b) => rank(b.severity) - rank(a.severity) || a.createdAt.getTime() - b.createdAt.getTime())[0] ??
+    null
+  );
+}
+
+/**
+ * Today's one open contradiction, or null when today's daily question or today's
+ * claim gap was already used (one a day, never two). Read-only. Never throws.
+ */
+export async function findDailyContradiction(): Promise<DailyContradiction | null> {
+  try {
+    const day = today();
+    const claimed = await prisma.brainMemory.findFirst({
+      where: {
+        category: "contradiction_injection_log",
+        key: { in: [`${DAILY_KEY_PREFIX}${day}`, `${CLAIM_GAP_KEY_PREFIX}${day}`] },
+      },
+      select: { id: true },
+    });
+    if (claimed) return null;
+    const rows = await prisma.contradiction.findMany({
+      where: { resolved: false, deletedAt: null },
+      orderBy: { createdAt: "asc" },
+      take: DAILY_FETCH,
+      select: { id: true, date: true, claim: true, reality: true, gap: true, category: true, severity: true, createdAt: true },
+    });
+    return pickDailyContradiction(rows);
+  } catch (err) {
+    logError("brain.contradiction-injector", err, { fn: "findDailyContradiction" });
+    return null;
+  }
+}
+
+/** Claim today's daily question for `row`. The ET day key is the claim; any failed write returns false. */
+export async function claimDailyContradiction(row: DailyContradiction, conversationId?: string | null): Promise<boolean> {
+  try {
+    // brain-memory-direct-write: the once-a-day claim row (a dedupe marker, not a belief); create must fail on a duplicate key, which remember()'s upsert never does.
+    await prisma.brainMemory.create({
+      data: {
+        category: "contradiction_injection_log",
+        key: `${DAILY_KEY_PREFIX}${today()}`,
+        content: JSON.stringify({
+          contradictionId: row.id,
+          category: row.category,
+          severity: row.severity,
+          conversationId: conversationId ?? null,
+        }),
+        confidence: 1,
+        source: "contradiction_injector",
+        expiresAt: new Date(Date.now() + DAILY_CLAIM_TTL_DAYS * 86400_000),
+      },
+    });
+    return true;
+  } catch (err) {
+    if ((err as { code?: string })?.code !== "P2002") {
+      logError("brain.contradiction-injector", err, { fn: "claimDailyContradiction" });
+    }
+    return false;
+  }
+}
+
+/** Prompt block for the daily question. The row text is model-written, so it is fenced. */
+export function buildDailyContradictionBlock(row: DailyContradiction, todayEt: string = today()): string {
+  const dayNum = (ymd: string) => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400_000;
+  const ageDays = Math.max(0, Math.round(dayNum(todayEt) - dayNum(row.date)));
+  return [
+    "# ONE OPEN CONTRADICTION",
+    fenceContent(
+      "dailyContradiction",
+      "memory_recall",
+      [
+        `Recorded ${row.date} (${ageDays} day${ageDays === 1 ? "" : "s"} ago); any "last N days" below counts back from then.`,
+        `He said (${row.category}): "${row.claim}"`,
+        `The record shows: "${row.reality}"`,
+        `The gap: "${row.gap}"`,
+      ].join("\n"),
+    ),
+    "",
+    "This is today's one open claim-vs-record question. Answer his message first. Then end with",
+    "ONE short question that names the gap in plain words and offers three answers: the record",
+    "is right (the claim was wrong), the claim is outdated (things moved on), or ignore it. Ask",
+    "it once; do not repeat it later today.",
+    ...claimGapResolveLines(row.id),
   ].join("\n");
 }
 

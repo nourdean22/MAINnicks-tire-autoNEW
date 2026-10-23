@@ -30,10 +30,15 @@ import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 interface StoredContradiction {
   key: string;
-  new_memory_id: string;
-  old_memory_id: string;
-  similarity: number;
-  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate";
+  /** "table" = the thinking engine's claim-vs-record row (key `tbl:<id>`); its excerpts are claim / record. */
+  source?: "table" | "memory";
+  new_memory_id?: string;
+  old_memory_id?: string;
+  similarity?: number;
+  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate" | "claim_gap";
+  category?: string;
+  severity?: string;
+  recorded?: string;
   new_excerpt: string;
   old_excerpt: string;
   days_apart: number;
@@ -47,6 +52,13 @@ interface StoredContradiction {
 type Tab = "unresolved" | "history";
 
 type ResolveStatus = "current_wins" | "old_wins" | "both_valid" | "dismissed";
+
+/** The three answers to a claim-vs-record row, on the panel's existing statuses (service maps them to resolved_how). */
+const TABLE_ANSWERS: ReadonlyArray<{ label: string; status: ResolveStatus; title: string }> = [
+  { label: "Record is right", status: "current_wins", title: "the record is right, the claim was wrong" },
+  { label: "Outdated", status: "old_wins", title: "the claim is outdated, things moved on" },
+  { label: "Ignore", status: "dismissed", title: "not worth tracking" },
+];
 
 export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string | null }) {
   const [tab, setTab] = useState<Tab>("unresolved");
@@ -89,7 +101,9 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
       try {
         await resolveMutation.mutateAsync({ key, status, note });
         toast.success(
-          status === "current_wins"
+          key.startsWith("tbl:")
+            ? `closed · ${TABLE_ANSWERS.find((a) => a.status === status)?.label.toLowerCase() ?? status}`
+            : status === "current_wins"
             ? "current position locked in · old deprecated"
             : status === "old_wins"
               ? "old position held · new deprecated"
@@ -176,6 +190,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         {visible.map((c) => {
           const rowBusy = busy === c.key;
           const focused = focusKey === c.key;
+          const isTable = c.source === "table";
+          const open = !c.status || c.status === "unresolved";
           return (
             <div
               id={`contradiction-row-${c.key}`}
@@ -190,18 +206,33 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               )}
             >
               <div className="flex items-center gap-2 mb-1.5 text-[11px] font-mono">
-                <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
-                <span className="text-[var(--text-tertiary)]">
-                  {c.days_apart}d apart · sim {Math.round(c.similarity * 100)}%
-                </span>
+                {isTable ? (
+                  <>
+                    <span className="text-red-400">claim vs record · {c.category}</span>
+                    <span className="text-[var(--text-tertiary)]">
+                      {c.severity} · recorded {c.recorded}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
+                    <span className="text-[var(--text-tertiary)]">
+                      {c.days_apart}d apart · sim {Math.round((c.similarity ?? 0) * 100)}%
+                    </span>
+                  </>
+                )}
                 {c.status && c.status !== "unresolved" && (
-                  <span className="text-emerald-400">· {c.status.replace(/_/g, " ")}</span>
+                  <span className="text-emerald-400">
+                    · {isTable && !c.resolution_note
+                      ? (TABLE_ANSWERS.find((a) => a.status === c.status)?.label.toLowerCase() ?? "closed")
+                      : isTable ? "closed" : c.status.replace(/_/g, " ")}
+                  </span>
                 )}
               </div>
 
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono text-fg-tertiary">Now</p>
+                  <p className="text-[11px] font-mono text-fg-tertiary">{isTable ? "You said" : "Now"}</p>
                   <p className="text-[11px] text-[var(--text-primary)] break-words">
                     "{c.new_excerpt}"
                   </p>
@@ -209,7 +240,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 <Split size={12} className="text-[var(--text-tertiary)] mt-3" />
                 <div className="min-w-0">
                   <p className="text-[11px] font-mono text-fg-tertiary">
-                    {c.days_apart}d ago
+                    {isTable ? "Record shows" : `${c.days_apart}d ago`}
                   </p>
                   <p className="text-[11px] text-[var(--text-secondary)] break-words">
                     "{c.old_excerpt}"
@@ -217,7 +248,23 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 </div>
               </div>
 
-              {(!c.status || c.status === "unresolved") && notingKey !== c.key && (
+              {open && isTable && (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  {TABLE_ANSWERS.map((a) => (
+                    <button
+                      key={a.status}
+                      onClick={() => resolve(c.key, a.status)}
+                      disabled={rowBusy}
+                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono"
+                      title={a.title}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {open && !isTable && notingKey !== c.key && (
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                   <button
                     onClick={() => beginResolve(c.key, "current_wins")}
@@ -310,7 +357,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               icon={Check}
               title="Clean ledger"
               provenance="ZERO"
-              why="No new memory contradicts any old one right now. Nick's stated positions are internally consistent."
+              why="No open claim-vs-record gap, and no new memory contradicts an old one right now."
               unlock="Contradictions surface when a new memory semantically flips an older one (negation, reversal, antonym). A measured zero says the LEDGER is empty — it does not say whether the detector has seen enough traffic to have an opinion."
               tone="positive"
             />
