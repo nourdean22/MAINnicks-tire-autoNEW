@@ -211,13 +211,19 @@ describe("the asked row stays answerable on later turns (Codex P1 + round 2)", (
     lastSeen: new Date(),
   });
 
+  // The open-row read honours `id: { in }` + resolved=false like the database would.
+  const openOnly = (open: string[]) =>
+    mock(prisma.contradiction.findMany).mockImplementation(async ({ where }: { where: { id?: { in?: string[] } } }) =>
+      (where.id?.in ?? []).filter((id) => open.includes(id)).map((id) => row({ id })),
+    );
+
   it("the same conversation gets its asked row back while it is open", async () => {
     mock(prisma.brainMemory.findMany).mockResolvedValue([claim("claim-gap:2026-10-22", "conv_1")]);
-    mock(prisma.contradiction.findFirst).mockResolvedValue(row());
+    openOnly(["d1"]);
     const hit = await findClaimedContradictionFollowUp("conv_1");
     expect(hit?.id).toBe("d1");
-    const where = mock(prisma.contradiction.findFirst).mock.calls[0][0].where;
-    expect(where).toMatchObject({ id: "d1", resolved: false, deletedAt: null });
+    const where = mock(prisma.contradiction.findMany).mock.calls[0][0].where;
+    expect(where).toMatchObject({ id: { in: ["d1"] }, resolved: false, deletedAt: null });
   });
 
   it("DAY ROLLOVER · yesterday's ask in this conversation, with another conversation holding today", async () => {
@@ -226,25 +232,43 @@ describe("the asked row stays answerable on later turns (Codex P1 + round 2)", (
       claim("claim-gap:2026-10-22", "conv_2", "asked", "d2"),
       claim("claim-gap:2026-10-21", "conv_1", "asked", "d1"),
     ]);
-    mock(prisma.contradiction.findFirst).mockResolvedValue(row());
+    openOnly(["d1", "d2"]);
     expect((await findClaimedContradictionFollowUp("conv_1"))?.id).toBe("d1");
-    expect(mock(prisma.contradiction.findFirst).mock.calls[0][0].where.id).toBe("d1");
+    expect(mock(prisma.contradiction.findMany).mock.calls[0][0].where.id.in).toEqual(["d1"]);
     // Only live claims are read.
     expect(mock(prisma.brainMemory.findMany).mock.calls[0][0].where.expiresAt).toBeDefined();
   });
 
+  it("the newest ask is resolved, an older one in the SAME conversation is still open: the older one", async () => {
+    mock(prisma.brainMemory.findMany).mockResolvedValue([
+      claim("claim-gap:2026-10-22", "conv_1", "asked", "d2"),
+      claim("claim-gap:2026-10-20", "conv_1", "asked", "d1"),
+    ]);
+    openOnly(["d1"]); // d2 was resolved
+    expect((await findClaimedContradictionFollowUp("conv_1"))?.id).toBe("d1");
+  });
+
+  it("CONTROL · both open: the NEWEST ask wins", async () => {
+    mock(prisma.brainMemory.findMany).mockResolvedValue([
+      claim("claim-gap:2026-10-22", "conv_1", "asked", "d2"),
+      claim("claim-gap:2026-10-20", "conv_1", "asked", "d1"),
+    ]);
+    openOnly(["d1", "d2"]);
+    expect((await findClaimedContradictionFollowUp("conv_1"))?.id).toBe("d2");
+  });
+
   it("a RESERVATION that was never delivered is not 'asked earlier'", async () => {
     mock(prisma.brainMemory.findMany).mockResolvedValue([claim("claim-gap:2026-10-22", "conv_1", "reserved")]);
-    mock(prisma.contradiction.findFirst).mockResolvedValue(row());
+    openOnly(["d1"]);
     expect(await findClaimedContradictionFollowUp("conv_1")).toBeNull();
   });
 
   it("another conversation, a resolved row, no claim or no conversation: nothing", async () => {
     mock(prisma.brainMemory.findMany).mockResolvedValue([claim("claim-gap:2026-10-22", "conv_1")]);
-    mock(prisma.contradiction.findFirst).mockResolvedValue(row());
+    openOnly(["d1"]);
     expect(await findClaimedContradictionFollowUp("conv_2")).toBeNull();
     expect(await findClaimedContradictionFollowUp(null)).toBeNull();
-    mock(prisma.contradiction.findFirst).mockResolvedValue(null); // a resolved row fails the where
+    openOnly([]); // a resolved row fails the where
     expect(await findClaimedContradictionFollowUp("conv_1")).toBeNull();
     mock(prisma.brainMemory.findMany).mockResolvedValue([]);
     expect(await findClaimedContradictionFollowUp("conv_1")).toBeNull();
@@ -264,8 +288,22 @@ describe("the asked row stays answerable on later turns (Codex P1 + round 2)", (
 });
 
 describe("the day is spent on DELIVERY, not on the attempt (Codex round 2)", () => {
-  const CLAIM = { key: "claim-gap:2026-10-22", contradictionId: "d1", kind: "daily" as const };
-  const reserved = JSON.stringify({ kind: "daily", state: "reserved", contradictionId: "d1", conversationId: "conv_1" });
+  const CLAIM = { key: "claim-gap:2026-10-22", contradictionId: "d1", kind: "daily" as const, token: "tok-A" };
+  const reserved = JSON.stringify({ kind: "daily", state: "reserved", contradictionId: "d1", conversationId: "conv_1", token: "tok-A" });
+
+  it("TOKEN · a later turn's replacement reservation on the SAME row is not promoted by the late original", async () => {
+    mock(prisma.brainMemory.findUnique).mockResolvedValue({
+      content: JSON.stringify({ kind: "daily", state: "reserved", contradictionId: "d1", conversationId: "conv_2", token: "tok-B" }),
+      lastSeen: new Date(),
+    });
+    expect(await markContradictionAsked(CLAIM, "msg_late", "Is the record right?")).toBe(false);
+    expect(prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("the reservation carries the turn's token", async () => {
+    expect(await claimDailyContradiction(row(), "conv_1", "2026-10-22", "tok-X")).toBe(true);
+    expect(JSON.parse(mock(prisma.brainMemory.create).mock.calls[0][0].data.content).token).toBe("tok-X");
+  });
 
   it("a persisted reply that asks promotes the reservation to asked, CAS on the exact content", async () => {
     mock(prisma.brainMemory.findUnique).mockResolvedValue({ content: reserved, lastSeen: new Date() });

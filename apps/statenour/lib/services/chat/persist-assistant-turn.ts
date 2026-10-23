@@ -669,6 +669,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
       const createdAssistantId: string | null = __persisted.createdAssistantId;
       cleanedText = __persisted.cleanedText;
+      // The contradiction question is spent the moment the reply row exists, BEFORE the
+      // verifier below: a verifier that throws must not leave the day free for a second ask.
+      if (deps.contradictionClaim && createdAssistantId) {
+        const { markContradictionAsked } = await import("@/lib/brain/contradiction-injector");
+        await markContradictionAsked(deps.contradictionClaim, createdAssistantId, cleanedText).catch(() => false);
+      }
 
       // persist-turn decomposition slice 5 (2026-07-25) · the post-
       // persist verification + telemetry stack (trackGeneration,
@@ -706,11 +712,6 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         log,
       });
       cleanedText = __postVerify.cleanedText;
-      // The contradiction question is spent only now: the reply row exists, with its final text.
-      if (deps.contradictionClaim && createdAssistantId) {
-        const { markContradictionAsked } = await import("@/lib/brain/contradiction-injector");
-        await markContradictionAsked(deps.contradictionClaim, createdAssistantId, cleanedText).catch(() => false);
-      }
       // 2026-10-10 (audit 04-F2 / 04-F14) - ONE announcement, after the L2
       // rewrite: the live stream for this trace gets the row id and the
       // FINAL stored text, then closes (sse-stream.ts) while the deferred

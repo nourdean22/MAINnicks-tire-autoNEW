@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ mark: vi.fn() }));
+const h = vi.hoisted(() => ({ mark: vi.fn(), verifierThrows: false }));
 
 vi.mock("@/lib/prisma", () => {
   const passthrough = {
@@ -51,7 +51,10 @@ vi.mock("@/lib/logger", () => {
 });
 vi.mock("@/lib/feature-flags", () => ({ getFlag: () => ({ isOn: false }) }));
 vi.mock("@/lib/services/chat/post-persist-verification", () => ({
-  runPostPersistVerification: async (a: { cleanedText: string }) => ({ cleanedText: a.cleanedText }),
+  runPostPersistVerification: async (a: { cleanedText: string }) => {
+    if (h.verifierThrows) throw new Error("verifier crashed");
+    return { cleanedText: a.cleanedText };
+  },
 }));
 vi.mock("@/lib/services/chat/post-turn-outbox", () => ({
   enqueuePostTurnWork: async () => "outbox-1",
@@ -103,11 +106,19 @@ const REPLY = "Start with the brake job. One thing: the stretch log has one entr
 
 beforeEach(() => {
   h.mark.mockReset().mockResolvedValue(true);
+  h.verifierThrows = false;
 });
 
 describe("buildOnFinish · the contradiction reservation becomes 'asked' after persist", () => {
   it("a persisted reply promotes the turn's claim with the row id and the stored text", async () => {
     await buildOnFinish(deps({ contradictionClaim: CLAIM }))({ text: REPLY, finishReason: "stop" } as never);
+    expect(h.mark).toHaveBeenCalledTimes(1);
+    expect(h.mark).toHaveBeenCalledWith(CLAIM, "m-1", expect.stringContaining("Is the record right"));
+  }, 30_000);
+
+  it("a verifier that throws after the row exists does not skip the promotion", async () => {
+    h.verifierThrows = true;
+    await buildOnFinish(deps({ contradictionClaim: CLAIM }))({ text: REPLY, finishReason: "stop" } as never).catch(() => {});
     expect(h.mark).toHaveBeenCalledTimes(1);
     expect(h.mark).toHaveBeenCalledWith(CLAIM, "m-1", expect.stringContaining("Is the record right"));
   }, 30_000);

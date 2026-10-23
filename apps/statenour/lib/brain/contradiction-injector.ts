@@ -38,6 +38,7 @@
  * trust in the surfacing.
  */
 
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { getEmbedding, getEmbeddingWithModel, type EmbeddingResult } from "@/lib/ai/provider";
@@ -460,13 +461,21 @@ export interface ContradictionClaim {
   key: string;
   contradictionId: string;
   kind: "match" | "daily";
+  /** This turn's reservation id: a later turn's takeover of the same row carries a different one. */
+  token: string;
 }
 
 export function claimKey(day: string = today()): string {
   return `${CLAIM_GAP_KEY_PREFIX}${day}`;
 }
 
-function parseClaim(content: string): { state?: string; contradictionId?: unknown; conversationId?: unknown; category?: unknown } {
+function parseClaim(content: string): {
+  state?: string;
+  contradictionId?: unknown;
+  conversationId?: unknown;
+  category?: unknown;
+  token?: unknown;
+} {
   try {
     return JSON.parse(content) ?? {};
   } catch {
@@ -536,7 +545,8 @@ export async function markContradictionAsked(claim: ContradictionClaim, messageI
     });
     if (!row) return false;
     const parsed = parseClaim(row.content);
-    if (parsed.state !== "reserved" || parsed.contradictionId !== claim.contradictionId) return false;
+    // The token, not the row id: a late turn must not promote a later turn's reservation of the same row.
+    if (parsed.state !== "reserved" || parsed.token !== claim.token) return false;
     const done = await prisma.brainMemory.updateMany({
       where: { category: LOG_CATEGORY, key: claim.key, content: row.content },
       data: { content: JSON.stringify({ ...parsed, state: "asked", messageId, askedAt: new Date().toISOString() }) },
@@ -553,10 +563,15 @@ export async function markContradictionAsked(claim: ContradictionClaim, messageI
  * question). Any failed write returns false and the caller shows nothing: the
  * once-a-day cap holds even when the database does not.
  */
-export async function claimClaimGapDay(hit: ClaimGap, conversationId?: string | null, day: string = today()): Promise<boolean> {
+export async function claimClaimGapDay(
+  hit: ClaimGap,
+  conversationId?: string | null,
+  day: string = today(),
+  token: string = randomUUID(),
+): Promise<boolean> {
   return reserveDay(
     claimKey(day),
-    { kind: "match", contradictionId: hit.id, category: hit.category, similarity: hit.similarity, conversationId: conversationId ?? null },
+    { kind: "match", contradictionId: hit.id, category: hit.category, similarity: hit.similarity, conversationId: conversationId ?? null, token },
     CLAIM_GAP_TOPIC_COOLDOWN_DAYS + 1,
     "claimClaimGapDay",
   );
@@ -697,13 +712,18 @@ export async function findClaimedContradictionFollowUp(conversationId?: string |
       take: FOLLOW_UP_CLAIMS,
       select: { key: true, content: true, lastSeen: true },
     });
-    const mine = claims.find((c) => parseClaim(c.content).conversationId === conversationId && isAsked(c.content));
-    const id = mine ? parseClaim(mine.content).contradictionId : undefined;
-    if (typeof id !== "string") return null;
-    return await prisma.contradiction.findFirst({
-      where: { id, resolved: false, deletedAt: null },
+    // Every row this conversation was asked, newest first: a resolved newest one must not hide an
+    // older one that is still open.
+    const ids = claims
+      .filter((c) => parseClaim(c.content).conversationId === conversationId && isAsked(c.content))
+      .map((c) => parseClaim(c.content).contradictionId)
+      .filter((id): id is string => typeof id === "string");
+    if (ids.length === 0) return null;
+    const open = await prisma.contradiction.findMany({
+      where: { id: { in: ids }, resolved: false, deletedAt: null },
       select: ROW_SELECT,
     });
+    return ids.map((id) => open.find((r) => r.id === id)).find((r) => r) ?? null;
   } catch (err) {
     logError("brain.contradiction-injector", err, { fn: "findClaimedContradictionFollowUp" });
     return null;
@@ -735,10 +755,11 @@ export async function claimDailyContradiction(
   row: DailyContradiction,
   conversationId?: string | null,
   day: string = today(),
+  token: string = randomUUID(),
 ): Promise<boolean> {
   return reserveDay(
     claimKey(day),
-    { kind: "daily", contradictionId: row.id, category: row.category, severity: row.severity, conversationId: conversationId ?? null },
+    { kind: "daily", contradictionId: row.id, category: row.category, severity: row.severity, conversationId: conversationId ?? null, token },
     DAILY_CLAIM_TTL_DAYS,
     "claimDailyContradiction",
   );

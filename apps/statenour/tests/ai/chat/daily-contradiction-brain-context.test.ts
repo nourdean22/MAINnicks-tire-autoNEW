@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   claimedBy: null as string | null,
   writes: [] as Array<{ model: string; op: string; key?: string }>,
   reservedStates: [] as string[],
+  memoryAlert: false,
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -59,11 +60,19 @@ vi.mock("@/lib/prisma", () => {
           }
           // The follow-up reads this conversation's live claims (not only today's key).
           if (op === "findMany" && name === "brainMemory") {
-            return vi.fn(async (arg?: { where?: { key?: { startsWith?: string } } }) =>
-              h.claimedBy && arg?.where?.key?.startsWith === "claim-gap:"
+            return vi.fn(async (arg?: { where?: { key?: { startsWith?: string }; category?: string } }) => {
+              // A BrainMemory contradiction (the dormant CONTRADICTION ALERT lane), when a test asks for one.
+              if (h.memoryAlert && arg?.where?.category === "contradiction") {
+                return [{
+                  key: "mem_alert_1",
+                  createdAt: new Date(),
+                  content: JSON.stringify({ new_excerpt: "I sleep eight hours now", old_excerpt: "I sleep five hours", days_apart: 12, signal: "negation", status: "unresolved" }),
+                }];
+              }
+              return h.claimedBy && arg?.where?.key?.startsWith === "claim-gap:"
                 ? [{ key: "claim-gap:2026-10-22", content: JSON.stringify({ contradictionId: "open_1", conversationId: h.claimedBy, kind: "daily", state: "asked" }), lastSeen: new Date() }]
-                : [],
-            );
+                : [];
+            });
           }
           if (op === "findMany") return vi.fn(async () => (name === "contradiction" ? [openRow] : []));
           if (op === "findFirst" && name === "contradiction") return vi.fn(async () => openRow);
@@ -141,7 +150,13 @@ import { buildBrainContext } from "@/lib/services/chat/brain-context";
 const USER = "morning, what should I knock out first today";
 
 async function build(
-  opts: { privateMode?: boolean; ephemeral?: boolean; actionPermission?: "read" | "draft" | "execute"; convId?: string } = {},
+  opts: {
+    privateMode?: boolean;
+    ephemeral?: boolean;
+    actionPermission?: "read" | "draft" | "execute";
+    convId?: string;
+    disabledTools?: string[];
+  } = {},
 ) {
   return buildBrainContext({
     userContent: USER,
@@ -153,6 +168,7 @@ async function build(
     privateMode: opts.privateMode,
     ephemeral: opts.ephemeral,
     actionPermission: opts.actionPermission,
+    disabledTools: opts.disabledTools,
     log: { info: () => {}, warn: () => {} },
   } as never);
 }
@@ -166,6 +182,7 @@ beforeEach(() => {
   h.claimedBy = null;
   h.writes.length = 0;
   h.reservedStates.length = 0;
+  h.memoryAlert = false;
 });
 
 describe("buildBrainContext · one open contradiction a day", () => {
@@ -243,6 +260,33 @@ describe("buildBrainContext · one open contradiction a day", () => {
     h.claimedBy = opts.convId ?? "conv_daily";
     const later = await build(opts);
     expect(later.systemPromptAddendum).not.toContain("ASKED EARLIER");
+  }, 30_000);
+
+  it("the claim descriptor carries the reservation's token (the promotion must match it)", async () => {
+    const out = await build();
+    expect(out.contradictionClaim?.token).toMatch(/^[0-9a-f-]{36}$/);
+  }, 30_000);
+
+  it("a memory CONTRADICTION ALERT on the turn takes the slot: no daily question, no day claim", async () => {
+    h.memoryAlert = true;
+    const out = await build();
+    expect(out.systemPromptAddendum).toContain("# CONTRADICTION ALERT");
+    expect(out.systemPromptAddendum).not.toContain("ONE OPEN CONTRADICTION");
+    expect(dailyClaims()).toHaveLength(0);
+  }, 30_000);
+
+  it("resolveContradiction disabled in ai_config: no lanes, no claim (the answer could not close the row)", async () => {
+    h.claimGapOn = true;
+    const out = await build({ disabledTools: ["resolveContradiction"] });
+    expect(out.systemPromptAddendum).not.toContain("ONE OPEN CONTRADICTION");
+    expect(out.systemPromptAddendum).not.toContain("CLAIM VS RECORD");
+    expect(dailyClaims()).toHaveLength(0);
+    expect(out.contradictionAskPending).toBe(false);
+  }, 30_000);
+
+  it("CONTROL · another tool disabled changes nothing", async () => {
+    const out = await build({ disabledTools: ["sendTelegram"] });
+    expect(out.systemPromptAddendum).toContain("# ONE OPEN CONTRADICTION");
   }, 30_000);
 
   it("CONTROL · Draft permission still asks (only Read refuses the resolve tool)", async () => {

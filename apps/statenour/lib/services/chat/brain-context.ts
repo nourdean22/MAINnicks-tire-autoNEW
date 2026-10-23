@@ -44,6 +44,7 @@ import { extractText, type ChatHistoryMessage } from "@/lib/ai/chat/extract-text
 import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
 import { TASK_QUEUE_UNAVAILABLE } from "@/lib/brain/task-context";
 import { today } from "@/lib/utils/datetime";
+import { randomUUID } from "node:crypto";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -97,6 +98,8 @@ export interface BuildBrainContextInput {
   ephemeral?: boolean;
   /** 2026-10-23 · the turn's action permission; "read" refuses mutating tools (lib/ai/tools.ts). */
   actionPermission?: "read" | "draft" | "execute" | null;
+  /** 2026-10-23 · ai_config.disabledTools: a disabled resolveContradiction turns the contradiction lanes off. */
+  disabledTools?: string[];
   /** 2026-07-22 · authority posture ("execute" suppresses the objection
    *  injector + resolves open objections; other values no-op here). */
   posture?: string;
@@ -190,8 +193,13 @@ export async function buildBrainContext(
   // answer in (ephemeral Home commands and the route's "private"/"temp" placeholders
   // have none) and a turn that may run that mutating tool (Read refuses it).
   const contradictionConvId = convId && convId !== "private" && convId !== "temp" ? convId : undefined;
+  // ...and the resolve tool itself must be offerable: prepare-tools strips an operator-disabled
+  // tool, and pruneTools drops a circuit-tripped one (same synchronous breaker read).
+  const { isToolBlocked } = await import("@/lib/ai/tool-telemetry").catch(() => ({ isToolBlocked: (_n: string) => false }));
+  const resolverAvailable =
+    !(input.disabledTools ?? []).includes("resolveContradiction") && !isToolBlocked("resolveContradiction");
   const contradictionLanesOk =
-    !privateMode && input.ephemeral !== true && input.actionPermission !== "read" && !!contradictionConvId;
+    !privateMode && input.ephemeral !== true && input.actionPermission !== "read" && !!contradictionConvId && resolverAvailable;
   let contradictionClaim: import("@/lib/brain/contradiction-injector").ContradictionClaim | undefined;
   let contradictionAskPending = false;
   // Authority posture (self-review #8): explicit "execute" pill suppresses the
@@ -640,13 +648,16 @@ export async function buildBrainContext(
     // markContradictionAsked); a late or never-promoted reservation frees the day after 10 min.
     // One ET day for the reservation AND the key handed to the persist path, even across midnight.
     const claimDay = today();
+    // This turn's reservation id: the persist path promotes only the reservation it made.
+    const claimToken = randomUUID();
     const claimGapBlock = claimGapHit && contradictionInjectorMod
-      && (await withTimeout(contradictionInjectorMod.claimClaimGapDay(claimGapHit, contradictionConvId, claimDay), 1500, false))
+      && (await withTimeout(contradictionInjectorMod.claimClaimGapDay(claimGapHit, contradictionConvId, claimDay, claimToken), 1500, false))
       ? contradictionInjectorMod.buildClaimGapBlock(claimGapHit)
       : null;
-    // One contradiction a day: the daily question only when no claim gap is shown this turn.
-    const dailyContradictionBlock = !claimGapBlock && dailyContradictionHit && contradictionInjectorMod
-      && (await withTimeout(contradictionInjectorMod.claimDailyContradiction(dailyContradictionHit, contradictionConvId, claimDay), 1500, false))
+    // One contradiction question a turn: the daily question only when neither the claim gap nor
+    // the memory CONTRADICTION ALERT already ends this reply with a question.
+    const dailyContradictionBlock = !claimGapBlock && !contradictionAlertBlock && dailyContradictionHit && contradictionInjectorMod
+      && (await withTimeout(contradictionInjectorMod.claimDailyContradiction(dailyContradictionHit, contradictionConvId, claimDay, claimToken), 1500, false))
       ? contradictionInjectorMod.buildDailyContradictionBlock(dailyContradictionHit)
       : null;
     if (contradictionInjectorMod && (claimGapBlock || dailyContradictionBlock)) {
@@ -654,6 +665,7 @@ export async function buildBrainContext(
         key: contradictionInjectorMod.claimKey(claimDay),
         contradictionId: claimGapBlock ? claimGapHit!.id : dailyContradictionHit!.id,
         kind: claimGapBlock ? "match" : "daily",
+        token: claimToken,
       };
     }
     const contradictionFollowUpBlock = contradictionFollowUpHit && contradictionInjectorMod

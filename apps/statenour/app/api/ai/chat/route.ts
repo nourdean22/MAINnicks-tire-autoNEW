@@ -833,6 +833,7 @@ async function chatTurn({
           // The contradiction lanes need a real conversation and a turn allowed to resolve.
           ephemeral,
           actionPermission,
+          disabledTools: aiConfig?.disabledTools ?? [],
           posture,
           log,
         }),
