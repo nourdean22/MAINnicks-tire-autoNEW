@@ -60,7 +60,6 @@ export interface BuildChatResponseInput {
    *  array is meaningless without this -- see RecallProvenance. */
   recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
   recallProvenanceReason?: string;
-  contradictions?: Array<{ id: string; claim: string; reality: string; severity: string }>;
   onFinishPromise?: Promise<void>;
 }
 
@@ -98,7 +97,6 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
     recalledMemories = [],
     recallProvenance,
     recallProvenanceReason,
-    contradictions = [],
     onFinishPromise = Promise.resolve(),
   } = input;
 
@@ -197,7 +195,6 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
     recalledMemories,
     recallProvenance,
     recallProvenanceReason,
-    contradictions,
     onFinishPromise,
   });
 

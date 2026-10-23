@@ -148,7 +148,6 @@ export function RecallInboxPanel() {
             {data.totalCount} items across {[
               data.pins.total > 0 ? 1 : 0,
               data.linkReview.total > 0 ? 1 : 0,
-              data.contradictions.total > 0 ? 1 : 0,
               data.alerts.total > 0 ? 1 : 0,
             ].reduce((a, b) => a + b, 0)} sources
           </span>
@@ -178,15 +177,6 @@ export function RecallInboxPanel() {
         error={data.linkReview.error}
         href="/brain?tab=review"
         tint="text-sky-300/80"
-      />
-      <SourceGroup
-        label="contradictions"
-        icon={AlertCircle}
-        items={data.contradictions.items}
-        total={data.contradictions.total}
-        error={data.contradictions.error}
-        href="/brain?tab=memory#contradictions"
-        tint="text-amber-300/80"
       />
       <SourceGroup
         label="alerts"

@@ -62,8 +62,6 @@ const {
   createAntiPattern: _cap,
   revisitAntiPattern: _rap,
   deleteAntiPattern: _dap,
-  contradictions: _c,
-  resolveContradiction: _rc,
   ...qualityOwn
 } = qualityProcedures;
 

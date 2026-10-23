@@ -472,20 +472,6 @@ export async function generateNarrations(): Promise<Narration[]> {
       });
     }
 
-    // Contradictions piling up = narrator escalation
-    const { countUnresolved } = await import("@/lib/brain/contradiction-surfacer");
-    const openContradictions = await countUnresolved(14).catch(() => 0);
-    if (openContradictions >= 2) {
-      narrations.push({
-        id: `brain-contra-${inputs.todayStr}-${inputs.hour}`,
-        voice: "analyst",
-        severity: "warn",
-        title: `${openContradictions} contradictions sitting open — worth 2 minutes in /brain to reconcile`,
-        triggers: patterns,
-        createdAt: now,
-      });
-    }
-
     // Identity axis shift nudge
     const identityMod = await import("@/lib/brain/identity-snapshot");
     const snap = await identityMod.loadIdentitySnapshot().catch(() => null);

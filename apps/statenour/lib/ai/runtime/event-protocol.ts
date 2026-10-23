@@ -15,7 +15,6 @@ export type CockpitEvent =
       type: "memory.recalled";
       payload: {
         hits: Array<{ id: string; content: string; similarity: number; category: string }>;
-        contradictions: Array<{ id: string; claim: string; reality: string; severity: string }>;
       };
     }
   | {

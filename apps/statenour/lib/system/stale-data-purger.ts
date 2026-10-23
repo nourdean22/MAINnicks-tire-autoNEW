@@ -107,93 +107,6 @@ async function purgeSkillCandidates(): Promise<PurgeResult> {
   };
 }
 
-/**
- * Build the canonical "dismissed" content payload for a contradiction
- * BrainMemory row. Extracted so tests + purger share one contract —
- * see tests/lib/stale-data-purger.test.ts.
- *
- * Returns `null` when the row is already resolved/dismissed (caller
- * should skip). Returns a stringified JSON otherwise, preserving any
- * extra fields on the original record.
- */
-export function buildDismissedContradictionContent(
-  currentContent: string,
-  todayIso: string,
-): string | null {
-  const dateStr = todayIso.slice(0, 10);
-  try {
-    const parsed = JSON.parse(currentContent) as {
-      status?: string;
-      why?: string;
-      resolved_at?: string | null;
-      [k: string]: unknown;
-    };
-    if (parsed.status && parsed.status !== "unresolved") return null;
-    return JSON.stringify({
-      ...parsed,
-      status: "dismissed",
-      resolved_at: todayIso,
-      why: `${parsed.why ?? ""}\n\n[auto-dismissed ${dateStr} · stale >60d]`.trim(),
-    });
-  } catch {
-    // Malformed row — overwrite with a minimal dismissed record so
-    // future scans skip it cleanly.
-    return JSON.stringify({
-      status: "dismissed",
-      resolved_at: todayIso,
-      why: `[auto-dismissed ${dateStr} · stale >60d · previously unparseable]`,
-    });
-  }
-}
-
-async function purgeContradictions(): Promise<PurgeResult> {
-  const since60d = new Date(Date.now() - 60 * 86400_000);
-  // Purge-semantics: rather than deleting, we REWRITE the JSON content
-  // with status="dismissed" + resolved_at + marker in `why`. Future
-  // contradiction-surfacer scans see the canonical dismissed status
-  // and skip these. Preserves full history for later audit.
-  //
-  // v11.2 fixes:
-  //   D5: per-row `await update()` in a loop was N round-trips to Neon.
-  //       Now wrapped in $transaction for one round-trip total.
-  //   D6: hardcoded date removed — dynamic.
-  //   D9: substring filter replaced with parsed-JSON status check.
-  const todayIso = new Date().toISOString();
-  const candidates = await prisma.brainMemory.findMany({
-    where: {
-      category: BRAIN_CATEGORIES.CONTRADICTION,
-      createdAt: { lt: since60d },
-    },
-    select: { id: true, content: true },
-  });
-  const unresolved: Array<{ id: string; newContent: string }> = [];
-  for (const c of candidates) {
-    const next = buildDismissedContradictionContent(c.content, todayIso);
-    if (next === null) continue;
-    unresolved.push({ id: c.id, newContent: next });
-  }
-  if (unresolved.length === 0) {
-    return {
-      category: "open_contradictions_60d",
-      purged: 0,
-      note: "No stale contradictions",
-    };
-  }
-  await prisma.$transaction(
-    unresolved.map((u) =>
-      prisma.brainMemory.update({
-        where: { id: u.id },
-        data: { content: u.newContent },
-      }),
-    ),
-  );
-  return {
-    category: "open_contradictions_60d",
-    purged: unresolved.length,
-    note: `Auto-dismissed ${unresolved.length} contradictions (>60d open)`,
-  };
-}
-
 async function purgeAbandonedTasks(): Promise<PurgeResult> {
   const since30d = new Date(Date.now() - 30 * 86400_000);
   const result = await prisma.task.updateMany({
@@ -341,7 +254,6 @@ const PURGERS: Record<StaleCategoryId, () => Promise<PurgeResult>> = {
   drift_alerts_unresolved_14d: purgeDriftAlerts,
   pending_actions_7d: purgePendingActions,
   skill_candidates_30d: purgeSkillCandidates,
-  open_contradictions_60d: purgeContradictions,
   abandoned_tasks_30d: purgeAbandonedTasks,
   orphan_conversations: purgeOrphanConvos,
   overdue_decisions_reviews: purgeOverdueDecisions,

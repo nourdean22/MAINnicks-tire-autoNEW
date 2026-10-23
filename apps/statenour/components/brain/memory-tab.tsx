@@ -22,12 +22,10 @@
  *   • Identity snapshot (8-axis + sparklines) + qualitative identity
  *   • Beliefs · Contradictions · Ghost Nick predictions · Nudges
  *
- * Accepts ?resolve=<key> query param — the bottom ticker deep-links here
- * when Nour clicks a contradiction chip, scrolling the row into view.
+ * The ticker and Home link here as #contradictions (the panel sits under the id).
  */
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { cn } from "@/lib/utils";
@@ -67,8 +65,6 @@ import { NickSuggestions } from "@/components/chat/nick-suggestions";
 import { WisdomSection } from "@/components/brain/wisdom-section";
 
 export function MemoryTab() {
-  const params = useSearchParams();
-  const focusContradictionKey = params.get("resolve");
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Idle-warm the chat lambda — if Nour navigates /brain → /chat,
@@ -200,7 +196,7 @@ export function MemoryTab() {
             <LearningVelocityScoreboard />
             <IdentityDeltaLine />
             <div id="contradictions" className="scroll-mt-24">
-              <ContradictionResolutionPanel focusKey={focusContradictionKey} />
+              <ContradictionResolutionPanel />
             </div>
             <DecisionReplayCard />
             <AntiPatternsPanel />

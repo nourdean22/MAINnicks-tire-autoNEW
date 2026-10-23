@@ -136,7 +136,6 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     stalledGoals,
     patterns,
     orphanNudge,
-    contradictions,
     unresolvedReflections,
     brokenPromises,
     stalePins,
@@ -238,16 +237,6 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         select: { metadata: true },
       })
       .catch(() => null),
-
-    prisma.brainMemory
-      .count({
-        where: {
-          category: BRAIN_CATEGORIES.CONTRADICTION,
-          deletedAt: null,
-          confidence: { gte: 0.6 },
-        },
-      })
-      .catch(() => 0),
 
     prisma.reflection
       .findMany({
@@ -442,20 +431,6 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         sourceContext: meta as Record<string, unknown>,
       });
     }
-  }
-
-  // ─── 7 · Contradictions to resolve
-  if (contradictions > 0) {
-    suggestions.push({
-      id: "contradictions",
-      ledgerId: null,
-      kind: "contradiction",
-      severity: "low",
-      label: `${contradictions} unresolved contradiction${contradictions === 1 ? "" : "s"}`,
-      seedPrompt: `walk me through my unresolved contradictions one by one · ask which side i still believe`,
-      actionHint: "resolve them",
-      sourceContext: { count: contradictions },
-    });
   }
 
   // ─── 8 · Unresolved reflections (Wave 33)

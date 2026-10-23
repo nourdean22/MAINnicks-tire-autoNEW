@@ -31,7 +31,6 @@ import {
   antiPatternCreateSchema,
   preferenceVectorSaveSchema,
   personaDriftResolveSchema,
-  contradictionResolveSchema,
   decisionReplayMarkSchema,
 } from "@/lib/validators/system";
 import {
@@ -42,10 +41,6 @@ import {
   listPersonaDrifts,
   resolvePersonaDrift,
 } from "@/lib/services/persona-drift";
-import {
-  listContradictions,
-  resolveContradictionEntry,
-} from "@/lib/services/contradictions";
 import {
   buildDecisionReplaysView,
   markDecisionReplay,
@@ -375,68 +370,6 @@ export const qualityProcedures = {
         return await resolvePersonaDrift({
           key: input.key,
           resolution: input.resolution,
-          note: input.note,
-        });
-      } catch (err) {
-        if (err instanceof ServiceError) {
-          throw new TRPCError({
-            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
-            message: err.message,
-          });
-        }
-        throw err;
-      }
-    }),
-
-  /**
-   * Phase B.6c · owner-only · unresolved (+ optionally resolved)
-   * contradictions (the ContradictionsCard that used it was deleted 2026-10-23), grouped by status with
-   * an unresolved-count badge. Replaces GET /api/system/contradictions
-   * · delegates to the shared `contradictions.listContradictions`
-   * service. No UI calls it since the card was deleted; a later PR
-   * decides whether the procedure stays.
-   *
-   * The legacy URL was `?days=14&includeResolved=true`; the typed input
-   * mirrors those two params (`days` clamped 1-180 · default 30, the
-   * route's QuerySchema defaults verbatim).
-   */
-  contradictions: operatorProcedure
-    .input(
-      z
-        .object({
-          days: z.number().int().min(1).max(180).default(30),
-          includeResolved: z.boolean().default(false),
-        })
-        .optional(),
-    )
-    .query(async ({ input }) =>
-      listContradictions({
-        days: input?.days ?? 30,
-        includeResolved: input?.includeResolved ?? false,
-      }),
-    ),
-
-  /**
-   * Phase B.6c · owner-only · resolve a contradiction (current_wins ·
-   * old_wins · both_valid · dismissed) with an optional note. Replaces
-   * POST /api/system/contradictions/[key]/resolve · delegates to the
-   * shared `contradictions.resolveContradictionEntry` service.
-   *
-   * Input is the SHARED `contradictionResolveSchema` from
-   * @/lib/validators/system (the EXACT schema the REST route's
-   * `resolveSchema` uses) PLUS a `key` scalar (the route's path param).
-   * A missing-or-corrupt row throws ServiceError(404) → NOT_FOUND so
-   * both transports reject identically.
-   */
-  resolveContradiction: operatorProcedure
-    .input(
-      contradictionResolveSchema.extend({ key: z.string().min(1).max(128) }),
-    )
-    .mutation(async ({ input }) => {
-      try {
-        return await resolveContradictionEntry({
-          key: input.key,
-          status: input.status,
           note: input.note,
         });
       } catch (err) {

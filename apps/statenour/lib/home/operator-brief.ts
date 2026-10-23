@@ -45,7 +45,7 @@ import { buildSystemHub } from "@/lib/services/system-hub";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { listPendingActions } from "@/lib/automation/approval-queue";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
-import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
+import { countUnresolvedContradictions } from "@/lib/services/contradictions";
 import { listProposed } from "@/lib/services/commitments";
 import { getMit } from "@/lib/services/mit";
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
@@ -103,11 +103,9 @@ export interface BriefLeadSection {
 
 export type JudgmentItem =
   | {
+      /** A count and a link to the /brain panel, never row text: the daily question lives in chat. */
       kind: "contradiction";
-      key: string;
-      nowExcerpt: string;
-      beforeExcerpt: string;
-      daysApart: number;
+      count: number;
       href: string;
     }
   | {
@@ -185,6 +183,33 @@ async function guarded<T>(p: Promise<T>): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+/** One count row when anything is open, none on a measured zero. Rejects on a failed count (see guarded). */
+async function loadContradictionItems(): Promise<JudgmentItem[]> {
+  const count = await countUnresolvedContradictions();
+  return count > 0 ? [{ kind: "contradiction", count, href: "/brain?tab=memory#contradictions" }] : [];
+}
+
+/** null = the count read failed (named in failedSources), [] = measured zero. */
+function loadContradictionsGuarded(): Promise<JudgmentItem[] | null> {
+  return guarded(loadContradictionItems());
+}
+
+/** The sources whose read failed, as the brief names them. null means failed; [] is a measured empty. */
+function collectFailedSources(r: {
+  contradictions: unknown;
+  proposals: unknown;
+  followUps: unknown;
+  pendingActions: unknown;
+  approvalRequests: unknown;
+}): string[] {
+  const failed: string[] = [];
+  if (r.contradictions === null) failed.push("contradictions");
+  if (r.proposals === null) failed.push("commitments");
+  if (r.followUps === null) failed.push("follow-ups");
+  if (r.pendingActions === null || r.approvalRequests === null) failed.push("approvals");
+  return failed;
 }
 
 // ── Builder ─────────────────────────────────────────────────────────────
@@ -268,9 +293,8 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
         select: { id: true, createdAt: true, expiresAt: true, reason: true, actionType: true },
       }),
     ),
-    // 14-day unresolved window — parity with the bottom ticker's
-    // countUnresolved(14) and the retired ContradictionSlot.
-    guarded(loadRecentContradictions(14, false)),
+    // The panel's own open total (contradictions table), as a count row; null = the read failed.
+    loadContradictionsGuarded(),
     guarded(
       prisma.agendaItem.findMany({
         where: { category: "FOLLOW_UP", status: "ACTIVE" },
@@ -397,11 +421,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
-  const failedSources: string[] = [];
-  if (contradictions === null) failedSources.push("contradictions");
-  if (proposals === null) failedSources.push("commitments");
-  if (followUps === null) failedSources.push("follow-ups");
-  if (pendingActions === null || approvalRequests === null) failedSources.push("approvals");
+  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests });
 
   const judgmentAll: JudgmentItem[] = [];
 
@@ -425,16 +445,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     });
   }
 
-  for (const c of contradictions ?? []) {
-    judgmentAll.push({
-      kind: "contradiction",
-      key: c.key,
-      nowExcerpt: c.new_excerpt,
-      beforeExcerpt: c.old_excerpt,
-      daysApart: c.days_apart,
-      href: `/brain?tab=memory&resolve=${encodeURIComponent(c.key)}`,
-    });
-  }
+  judgmentAll.push(...(contradictions ?? []));
 
   for (const p of proposals ?? []) {
     judgmentAll.push({
@@ -859,7 +870,7 @@ function pendingApprovalRows(
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
 }
 
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

@@ -396,11 +396,10 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
               break;
             }
             case "contradiction":
-              text = `Now: ${row.item.nowExcerpt}`;
-              detail = `Before: ${row.item.beforeExcerpt}${row.item.daysApart > 0 ? ` (${row.item.daysApart}d apart)` : ""}`;
+              text = `${row.item.count} open contradiction${row.item.count === 1 ? "" : "s"}`;
               action = (
                 <Link href={row.item.href} className={ACTION_LINK}>
-                  Resolve
+                  Review
                 </Link>
               );
               break;

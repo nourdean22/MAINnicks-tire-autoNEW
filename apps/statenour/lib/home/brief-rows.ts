@@ -71,7 +71,7 @@ export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<stri
         push({ key: `followup:${item.id}`, kind: "followup", item });
         break;
       case "contradiction":
-        push({ key: `contradiction:${item.key}`, kind: "contradiction", item });
+        push({ key: "contradiction:open", kind: "contradiction", item });
         break;
     }
   }

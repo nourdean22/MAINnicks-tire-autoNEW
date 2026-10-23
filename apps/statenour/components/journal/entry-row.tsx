@@ -224,16 +224,6 @@ export function JournalEntryRow({
             </p>
           )}
 
-          {/* 2026-05-24 · Wave S #1 · Margin contradictions on
-              brain-dump entries · queries contradictionsForEntry only
-              when expanded (lazy · saves the round-trip when operator
-              just scans the feed). Silent when no contradictions
-              found · matches the existing "silent unless signal"
-              page-level convention. */}
-          {entry.source === "dump" && (
-            <EntryContradictions brainMemoryId={entry.id} />
-          )}
-
           {/* 2026-05-24 · Wave S #2 · Prediction-line on decision
               entries · captures "you predict X by Y" so the existing
               predictions-grader cron can resolve it later. Persists
@@ -257,47 +247,6 @@ export function JournalEntryRow({
             )}
         </div>
       )}
-    </div>
-  );
-}
-
-/**
- * Wave S #1 · per-entry contradictions (2026-05-24).
- *
- * Lazy-fetches contradictions tied to a brain-dump's underlying
- * BrainMemory id. Renders only when results exist · operator sees
- * "⚠ 2 contradictions" with each on a row that shows the conflicting
- * excerpt + days-apart. No mutation here — resolving lives in the
- * MemoryCalibration ritual which the operator opens separately.
- */
-function EntryContradictions({ brainMemoryId }: { brainMemoryId: string }) {
-  const { data } = trpc.journal.contradictionsForEntry.useQuery(
-    { brainMemoryId },
-    { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 },
-  );
-  if (!data || data.length === 0) return null;
-  return (
-    <div className="space-y-1.5 rounded-control border border-amber-500/20 bg-amber-500/[0.03] p-2">
-      <p className="flex items-center gap-1 text-[11px] font-medium text-amber-300">
-        <AlertTriangle size={9} aria-hidden /> {data.length}{" "}
-        contradiction{data.length === 1 ? "" : "s"}
-      </p>
-      <ul className="space-y-1">
-        {data.map((c) => (
-          <li
-            key={c.key}
-            className="text-[11px] leading-snug text-fg-secondary"
-          >
-            <span className="font-mono text-amber-400/60 mr-1">
-              {c.signal}
-            </span>
-            <span className="italic">&ldquo;{c.excerpt.slice(0, 140)}&rdquo;</span>
-            <span className="ml-1 font-mono text-fg-tertiary">
-              · {c.daysApart}d apart
-            </span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

@@ -2180,32 +2180,31 @@
   },
   {
     "name": "resolveContradiction",
-    "description": "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which belief is current (e.g. 'the new one is right', 'I still believe the old one', 'both are true in different contexts', 'never mind that wasn't really a contradiction'). Required: contradictionKey from the alert block. side='current_wins' (today's statement is canonical), 'old_wins' (prior statement is canonical), 'both_valid' (context-dependent), or 'dismissed' (false positive). Optional currentBelief is a 1-2 sentence summary of the canonical position. Updates the contradiction status, deprecates the losing memory, and writes a resolved_contradiction memory for downstream recall. Also closes a CLAIM VS RECORD or ONE OPEN CONTRADICTION row: contradictionKey 'tbl:<id>' from that block, side 'current_wins' = the record is right, 'old_wins' = outdated, 'dismissed' = ignore.",
+    "description": "Close an open claim-vs-record contradiction after Nour answers a CLAIM VS RECORD, ONE OPEN CONTRADICTION or CONTRADICTION ASKED EARLIER block. Required: contradictionKey 'tbl:<id>' from that block. side 'current_wins' = the record is right, 'old_wins' = the claim is outdated, 'dismissed' = ignore. 'both_valid' is not offered: it does not apply to these rows. A key without the tbl: prefix is not found.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "contradictionKey": {
-          "description": "The key from the CONTRADICTION ALERT block (e.g. 'a1b2c3d4...').",
+          "description": "The key from the contradiction block ('tbl:<id>').",
           "maxLength": 64,
           "minLength": 1,
           "type": "string"
         },
         "currentBelief": {
-          "description": "Optional 1-2 sentence summary of the canonical belief for future recall.",
+          "description": "Not stored for table rows (the answer itself is the record). Leave empty.",
           "maxLength": 400,
           "type": "string"
         },
         "note": {
-          "description": "Optional operator note explaining the resolution.",
+          "description": "Not stored for table rows (the table has no note column). Leave empty.",
           "maxLength": 400,
           "type": "string"
         },
         "side": {
-          "description": "Which side is canonical. current_wins = today's statement. old_wins = prior statement. both_valid = context-dependent. dismissed = not actually a contradiction.",
+          "description": "How Nour answered a claim-vs-record row. current_wins = the record is right (his claim was wrong). old_wins = the claim is outdated (it was true once, things moved on). dismissed = ignore it. both_valid does not apply to these rows.",
           "enum": [
             "current_wins",
             "old_wins",
-            "both_valid",
             "dismissed"
           ],
           "type": "string"

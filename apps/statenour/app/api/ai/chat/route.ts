@@ -376,7 +376,6 @@ async function chatTurn({
   // panel cannot tell a real no-match from a failed read.
   let recallProvenance: "OK" | "ZERO" | "ERROR" | "UNMEASURED" | undefined;
   let recallProvenanceReason: string | undefined;
-  let detectedContradictions: any[] = [];
   // Validate the per-request provider override against the runtime list
   // (rejects retired `venice` + anything unsupported). A valid value is
   // honored at the getModel call below — UNLESS a tool-mandatory force
@@ -896,7 +895,6 @@ async function chatTurn({
   if (brainCtx.recalledHits) recalledHits = brainCtx.recalledHits;
   recallProvenance = brainCtx.recallProvenance;
   recallProvenanceReason = brainCtx.recallProvenanceReason;
-  if (brainCtx.detectedContradictions) detectedContradictions = brainCtx.detectedContradictions;
 
   // chat-route extract (2026-05-31) · the system-prompt finalization
   // block (per-provider truncation, Greene-law load, personality
@@ -1183,7 +1181,6 @@ ${priorsBlock}`;
       // Undefined on a fixed-mode turn: the classifier is skipped (derive-turn-signals.ts).
       classification,
       recalledHits,
-      detectedContradictions,
       deeperContextCount,
       deeperContextTypes,
       contextBlocksFired,
@@ -1433,7 +1430,6 @@ ${priorsBlock}`;
     recalledMemories: recalledHits,
     recallProvenance,
     recallProvenanceReason,
-    contradictions: detectedContradictions,
     onFinishPromise,
   });
 }

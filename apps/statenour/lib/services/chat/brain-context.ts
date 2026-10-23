@@ -132,7 +132,6 @@ export interface BuildBrainContextOutput {
    * `systemPromptAddendum`; see that module's file header.
    */
   contextReceipt?: ContextReceipt;
-  detectedContradictions?: any[];
   /** 2026-10-23 · this turn's day RESERVATION (claim gap or daily question); the persist path promotes it to "asked". */
   contradictionClaim?: import("@/lib/brain/contradiction-injector").ContradictionClaim;
   /** 2026-10-23 · a contradiction question is open (asked this turn, or the follow-up block fired): the pruner keeps resolveContradiction attached. */
@@ -269,7 +268,6 @@ export async function buildBrainContext(
   let evidencePack: { candidates: number; items: number; reranked: RerankBackend; rerankReason: RerankReason; droppedValidity: number | null } | undefined;
   let contextReceipt: ContextReceipt | undefined;
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
-  const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
   const claimGapOn = getFlag("NICK_CLAIM_GAP")?.isOn ?? false;
   const dailyContradictionOn = getFlag("NICK_DAILY_CONTRADICTION")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
@@ -294,7 +292,6 @@ export async function buildBrainContext(
     .filter(Boolean);
   if (__priorTurns[__priorTurns.length - 1] === userContent) __priorTurns.pop();
   const queryPlan = planQuery(userContent, { recentTurns: __priorTurns.slice(-4) });
-  let detectedContradictions: any[] = [];
 
   try {
     const [
@@ -378,7 +375,6 @@ export async function buildBrainContext(
       prefetchResults,
       hybridRecallReport,
       groundingBlock,
-      contradictionHit,
       claimGapHit,
       dailyContradictionHit,
       contradictionFollowUpHit,
@@ -540,27 +536,6 @@ export async function buildBrainContext(
             TRUTH_GROUNDING_UNAVAILABLE,
           )
         : Promise.resolve(null),
-      // 2026-09-17 · queryPlan.classes' "correction" class was computed and
-      // classified every turn but consumed by nothing (same dark-wire shape
-      // exactTerms had until 2026-09-15). NICK_CORRECTION_THRESHOLD_BOOST
-      // wires it into the ALREADY-LIVE contradiction injector rather than
-      // building a new premise-check mechanism: a turn asking "what
-      // changed" / "which is current" lowers the surfacing bar for THIS
-      // call only (contradiction-injector.ts stays free of query-plan
-      // knowledge — it just accepts an optional threshold override).
-      contradictionInjectorMod
-        ? withTimeout(
-            contradictionInjectorMod.findRelevantContradictions({
-              userMessage: userContent,
-              conversationId: convId,
-              ...(correctionBoostOn && queryPlan.classes.includes("correction")
-                ? { similarityThreshold: 0.6 }
-                : {}),
-            }),
-            3000,
-            null,
-          )
-        : Promise.resolve(null),
       // 2026-10-22 · claim vs record: the thinking engine's open contradictions TABLE rows,
       // which nothing read. Read-only here; the day is claimed below, only for a hit this turn uses.
       // A private turn skips it (the claim is a write).
@@ -644,10 +619,6 @@ export async function buildBrainContext(
       }).catch(() => {});
     }
 
-    const contradictionAlertBlock = contradictionHit && contradictionInjectorMod
-      ? contradictionInjectorMod.buildContradictionAlertBlock(contradictionHit)
-      : null;
-
     // RESERVE the day's single contradiction slot; a failed or slow reservation shows nothing.
     // It becomes the "asked" receipt only after the reply is persisted (persist-assistant-turn.ts
     // markContradictionAsked); a late or never-promoted reservation frees the day after 10 min.
@@ -659,9 +630,9 @@ export async function buildBrainContext(
       && (await withTimeout(contradictionInjectorMod.claimClaimGapDay(claimGapHit, contradictionConvId, claimDay, claimToken), 1500, false))
       ? contradictionInjectorMod.buildClaimGapBlock(claimGapHit)
       : null;
-    // One contradiction question a turn: the daily question only when neither the claim gap nor
-    // the memory CONTRADICTION ALERT already ends this reply with a question.
-    const dailyContradictionBlock = !claimGapBlock && !contradictionAlertBlock && dailyContradictionHit && contradictionInjectorMod
+    // One contradiction question a turn: the daily question only when the claim gap does not
+    // already end this reply with a question.
+    const dailyContradictionBlock = !claimGapBlock && dailyContradictionHit && contradictionInjectorMod
       && (await withTimeout(contradictionInjectorMod.claimDailyContradiction(dailyContradictionHit, contradictionConvId, claimDay, claimToken), 1500, false))
       ? contradictionInjectorMod.buildDailyContradictionBlock(dailyContradictionHit)
       : null;
@@ -792,7 +763,6 @@ export async function buildBrainContext(
       // path that is NOT a failed read.
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
-      { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
       { name: "Claim vs Record", content: claimGapBlock || "", critical: true },
       { name: "One Open Contradiction", content: dailyContradictionBlock || "", critical: true },
       { name: "Contradiction Asked Earlier", content: contradictionFollowUpBlock || "", critical: true },
@@ -891,7 +861,7 @@ export async function buildBrainContext(
       // A claim-vs-record gap is a contradiction too: it lights the chat's existing
       // Contradictions badge (the client knows no claimGap key) and claimGap counts it alone.
       contradictions:
-        !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock || !!claimGapBlock || !!dailyContradictionBlock,
+        !!(nBlock && /contradiction/i.test(nBlock)) || !!claimGapBlock || !!dailyContradictionBlock,
       claimGap: !!claimGapBlock,
       dailyContradiction: !!dailyContradictionBlock,
       concerns: !!concernsBlock,
@@ -984,7 +954,6 @@ export async function buildBrainContext(
         seenCount: typeof h.seenCount === "number" ? h.seenCount : undefined,
       }));
     }
-    if (contradictionHit) detectedContradictions = [contradictionHit];
 
     log.info("brain_blocks_assembled", {
       recall: !!recallBlock,
@@ -1098,7 +1067,6 @@ export async function buildBrainContext(
     queryPlan,
     evidencePack,
     contextReceipt,
-    detectedContradictions,
     contradictionClaim,
     contradictionAskPending,
   };

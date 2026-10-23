@@ -15,7 +15,6 @@ export type QueryClass =
   | "semantic_lookup"
   | "durable_personal"
   | "temporal"
-  | "correction"
   | "anaphoric_followup"
   | "multi_entity"
   | "multi_hop"
@@ -89,7 +88,6 @@ export interface QueryPlan {
 const CLASS_ORDER: QueryClass[] = [
   "exact_identifier",
   "temporal",
-  "correction",
   "anaphoric_followup",
   "multi_hop",
   "multi_entity",
@@ -164,23 +162,6 @@ const MONTH_CONTEXT_RE = new RegExp(
 const MONTH_TOKEN_RE = new RegExp(`\\b(${MONTH_TOKENS})\\b`, "i");
 const ISO_RE = /\b(20\d{2})-(\d{2})-(\d{2})\b/;
 const DURABLE_NOUNS = /\b(name|birthday|address|doctor|medication|meds|wife|husband|daughter|son|kid|car|plate|license|insurance|rent|mortgage|salary|passport|allerg\w*|blood type|routine|preference|prefer|always|never)\b/i;
-/**
- * 2026-09-17 · MEASURED and retuned. The first cut carried bare `updated?`,
- * `corrected?` and `instead of`, which are ordinary verbs and a preposition,
- * not premise checks: on a 36-case fixture set it classified 10 of 19 ordinary
- * turns as corrections ("update the shop hours to 8am", "send Moe an updated
- * invoice", "book the oil change instead of the rotation") while MISSING 10 of
- * 17 real ones ("has that changed?", "am i still paying 1900", "is that out of
- * date now") — 41% recall at a 53% false-positive rate. It cost nothing while
- * the class had no consumer; it gained one (NICK_CORRECTION_THRESHOLD_BOOST)
- * in this same PR, and a false correction there loosens contradiction
- * surfacing on an ordinary turn — the trust-killer contradiction-injector.ts's
- * own header warns about. Retuned to 17/17 recall at 0/19 false positives on
- * the same fixtures; both sets are pinned in tests/brain/query-plan.test.ts so
- * a future widening has to beat them, not just look reasonable.
- */
-const CORRECTION_RE =
-  /\b(what('?s| has)? changed|(has|have) (that|it|this|they|things) changed|which (one )?is (current|right|correct)|did (i|that|it|we) change|now vs|still (true|current|accurate|right|correct|the case|valid)|(am|are|is|do|does) (i|we|that|it|they) still|no longer|up[- ]to[- ]date|out of date|changed since|superseded)\b/i;
 /**
  * 2026-09-18 · `they`, `he` and `she` added. `them` was already here and
  * `they` was not — an oversight in the same list, not a judgement call.
@@ -355,8 +336,6 @@ export function planQuery(message: string, opts?: { recentTurns?: string[]; now?
 
   let asOf: Date | undefined;
   if (isTemporal(trimmed)) { matched.add("temporal"); asOf = parseAsOf(trimmed, now); reasons.push(asOf ? `temporal, asOf ${asOf.toISOString().slice(0, 10)}` : "temporal phrase without a resolvable instant"); }
-
-  if (CORRECTION_RE.test(trimmed)) { matched.add("correction"); reasons.push("asks what is current / what changed"); }
 
   let referent: string | undefined;
   const recent = (opts?.recentTurns ?? []).filter((t) => typeof t === "string" && t.trim().length > 0);

@@ -137,7 +137,7 @@ vi.mock("@/lib/services/chat/brain-context", async () => {
     buildBrainContext: vi.fn(async (input: Record<string, unknown>) => {
       h.seen.brainInput = input;
       h.seen.turnAtBrain = { ...currentTurn() };
-      return { systemPromptAddendum: "", contextBlocksFired: {}, deeperContextCount: 0, deeperContextTypes: [], recalledHits: [], detectedContradictions: [] };
+      return { systemPromptAddendum: "", contextBlocksFired: {}, deeperContextCount: 0, deeperContextTypes: [], recalledHits: [] };
     }),
   };
 });

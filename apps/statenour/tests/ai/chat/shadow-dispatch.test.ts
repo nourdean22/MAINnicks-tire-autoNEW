@@ -193,7 +193,6 @@ vi.mock("@/lib/services/chat/brain-context", () => ({
     deeperContextCount: 0,
     deeperContextTypes: [],
     recalledHits: [],
-    detectedContradictions: [],
   }),
 }));
 

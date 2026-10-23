@@ -9,7 +9,7 @@ import React from "react";
 
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 
-const props = { open: true, onClose: () => {}, hits: [], contradictions: [] };
+const props = { open: true, onClose: () => {}, hits: [] };
 const rootClass = (markup: string) => /^<div class="([^"]*)"/.exec(markup)![1];
 
 describe("MemoryInspectorSidebar docked", () => {

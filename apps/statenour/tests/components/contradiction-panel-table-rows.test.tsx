@@ -165,10 +165,11 @@ describe("ContradictionResolutionPanel · table rows", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toMatch(/close as/i);
   });
 
-  it("the footer's memory-row mechanics are scoped to memory rows", () => {
+  it("the footer names the thinking engine and carries no memory-row mechanics (that path is gone)", () => {
     h.query.data = { contradictions: [TABLE_ROW] };
     const text = render().textContent ?? "";
-    expect(text).toMatch(/memory rows:\s*"current wins"/i);
+    expect(text).toMatch(/nightly thinking engine/i);
+    expect(text).not.toMatch(/memory rows|current wins|deprecated/i);
   });
 
   it("a capped page says so: showing N of M", () => {

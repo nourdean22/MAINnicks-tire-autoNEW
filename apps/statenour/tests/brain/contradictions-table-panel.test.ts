@@ -11,22 +11,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   contradiction: { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn(), count: vi.fn() },
-  surfacer: {
-    loadRecentContradictions: vi.fn(),
-    loadAllContradictions: vi.fn(),
-    resolveContradiction: vi.fn(),
-  },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: { contradiction: h.contradiction } }));
-vi.mock("@/lib/brain/contradiction-surfacer", () => ({
-  loadRecentContradictions: h.surfacer.loadRecentContradictions,
-  loadAllContradictions: h.surfacer.loadAllContradictions,
-  resolveContradiction: h.surfacer.resolveContradiction,
-  countUnresolved: vi.fn(),
-  countContradictionsByStatus: vi.fn(),
-}));
-
 import { listStoredContradictions, resolveStoredContradiction } from "@/lib/services/contradictions";
 
 function tableRow(overrides: Record<string, unknown> = {}) {
@@ -47,28 +34,13 @@ function tableRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const MEMORY_ROW = {
-  key: "abc123",
-  new_memory_id: "m2",
-  old_memory_id: "m1",
-  similarity: 0.81,
-  signal: "negation",
-  new_excerpt: "I no longer drink coffee",
-  old_excerpt: "I drink coffee every day",
-  days_apart: 9,
-  surfaced_at: "2026-10-20T00:00:00.000Z",
-  createdAt: "2026-10-20T00:00:00.000Z",
-};
-
 beforeEach(() => {
   vi.resetAllMocks();
-  h.surfacer.loadRecentContradictions.mockResolvedValue([MEMORY_ROW]);
-  h.surfacer.loadAllContradictions.mockResolvedValue([MEMORY_ROW]);
   h.contradiction.count.mockResolvedValue(1);
 });
 
 describe("listStoredContradictions · table rows reach the panel", () => {
-  it("returns the table's open rows keyed tbl:<id> beside the memory rows", async () => {
+  it("returns the table's open rows keyed tbl:<id>", async () => {
     h.contradiction.findMany.mockResolvedValue([tableRow()]);
 
     const { contradictions } = await listStoredContradictions({ includeResolved: false });
@@ -84,8 +56,6 @@ describe("listStoredContradictions · table rows reach the panel", () => {
       // Provenance travels: an AI-inferred claim must not be labelled as his words.
       claim_source: "ai_detected",
     });
-    // The memory rows are still there, tagged.
-    expect(contradictions.find((c) => c.key === "abc123")).toMatchObject({ source: "memory" });
     // Unresolved tab reads open rows only.
     const where = h.contradiction.findMany.mock.calls[0][0].where;
     expect(where.resolved).toBe(false);
@@ -164,8 +134,6 @@ describe("resolveStoredContradiction · tbl: keys close the table row", () => {
     expect(arg.data).toEqual({ resolved: true, resolvedHow: how });
     expect(out.contradiction.key).toBe("tbl:ck_open_1");
     expect(out.contradiction.status).not.toBe("unresolved");
-    // The memory path is not touched for a table key.
-    expect(h.surfacer.resolveContradiction).not.toHaveBeenCalled();
     // No unconditional write by id.
     expect(h.contradiction.update).not.toHaveBeenCalled();
   });
@@ -208,10 +176,9 @@ describe("resolveStoredContradiction · tbl: keys close the table row", () => {
     });
   });
 
-  it("CONTROL · a memory key still goes to the surfacer", async () => {
-    h.surfacer.resolveContradiction.mockResolvedValue({ ...MEMORY_ROW, status: "dismissed" });
-    await resolveStoredContradiction({ key: "abc123", status: "dismissed" });
-    expect(h.surfacer.resolveContradiction).toHaveBeenCalledWith("abc123", "dismissed", undefined);
+  it("a key without the tbl: prefix is a 404 and writes nothing (the BrainMemory path is gone)", async () => {
+    await expect(resolveStoredContradiction({ key: "abc123", status: "dismissed" })).rejects.toMatchObject({ status: 404 });
     expect(h.contradiction.updateMany).not.toHaveBeenCalled();
+    expect(h.contradiction.findFirst).not.toHaveBeenCalled();
   });
 });

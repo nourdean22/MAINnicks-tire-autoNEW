@@ -136,7 +136,6 @@ vi.mock("@/lib/services/chat/brain-context", () => ({
     deeperContextCount: 0,
     deeperContextTypes: [],
     recalledHits: [],
-    detectedContradictions: [],
   })),
 }));
 vi.mock("@/app/api/ai/chat/prepare-tools", () => ({

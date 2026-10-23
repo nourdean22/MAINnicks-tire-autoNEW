@@ -32,7 +32,6 @@ vi.mock("@/lib/logger", () => ({
 import {
   ensureMemoryTransactionStart,
   resetTransactionTimeColumnCache,
-  restoreMemoryAsCurrent,
   supersedeMemoryVersion,
 } from "@/lib/brain/memory-transaction-time";
 
@@ -103,26 +102,6 @@ describe("Q-31 transaction-time write boundary", () => {
     expect(out).toEqual({ count: 0, transactionStamped: false });
     expect(h.txExecute).not.toHaveBeenCalled();
     expect(h.updateMany).not.toHaveBeenCalled();
-  });
-
-  it("restarts transaction time before a verdict-flipped winner is made current", async () => {
-    h.updateMany.mockImplementation(async () => {
-      h.events.push("restore");
-      return { count: 1 };
-    });
-    const at = new Date("2026-09-29T12:30:00Z");
-
-    const out = await restoreMemoryAsCurrent("mem-new", "mem-old", at);
-
-    expect(out).toEqual({ count: 1, transactionStamped: true });
-    expect(h.events).toEqual(["lock", "transaction-expire", "restore"]);
-    expect(h.txExecute.mock.calls[0][0]).toContain('"transaction_from_at" = $2');
-    expect(h.txExecute.mock.calls[0][0]).toContain('"transaction_expired_at" = NULL');
-    expect(h.updateMany.mock.calls[0][0].data).toMatchObject({
-      supersededById: null,
-      validUntil: null,
-      lastVerifiedAt: at,
-    });
   });
 
   it("materializes transaction start for an admitted row only when columns exist", async () => {

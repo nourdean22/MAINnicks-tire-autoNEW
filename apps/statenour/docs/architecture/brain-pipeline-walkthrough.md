@@ -720,7 +720,7 @@ lookup over 1,423 skills.
 - `conversation-recall` (chat tool only) → semantic over conversation_summary brain rows
 - `skill-recall` (auto-inject + chat tool) → semantic over 1,423-skill registry
 - `brain-context` (chat route stage D5) → 7 modules parallel · rerank by similarity:
-  skill-extractor · identity-snapshot · ghost-nick · qualitative-identity · belief-harvester · cross-system-nudge · contradiction-surfacer
+  skill-extractor · identity-snapshot · ghost-nick · qualitative-identity · belief-harvester · cross-system-nudge
 
 **Chat turn write paths** (`onFinish` in persist-assistant-turn.ts):
 - `processConversation` (pipeline-controller)

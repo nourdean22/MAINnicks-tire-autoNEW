@@ -203,10 +203,9 @@ export async function persistIfImportant(
    * histogram, so the number below is observed rather than guessed.
    *
    * THE PROBLEM · `chat_importance` held 10 rows in the 3.5 months to
-   * 2026-08-06. That starves the contradiction detector, which needs BOTH the
-   * fresh row AND its neighbour to be chat_importance, >= 7 days apart, and
-   * >= 0.78 similar. A 10-row pool cannot produce such a pair, which is why
-   * `contradiction` sat at 0 rows and its /chat block fired 0/1417 turns.
+   * 2026-08-06, too few for recall or the memory-promotion cron to work with.
+   * (It also starved a contradiction detector, since deleted: the BrainMemory
+   * contradiction path held 0 rows ever.)
    *
    * THE MEASUREMENT · 1,711 user messages over 113 days:
    *
@@ -221,8 +220,7 @@ export async function persistIfImportant(
    * month) while still demanding corroboration: score 4 means one strong
    * signal plus length or a person mention, or two moderate signals — never a
    * single bare keyword. Score 3 would admit one unsupported regex hit.
-   * Candidate PAIRS scale ~n², so ~3x the rows is ~10x the pairs the detector
-   * can actually work with.
+   * Roughly 3x the rows for recall and promotion to work with.
    *
    * WHY THE OLD GARBAGE-POOL FEAR DOES NOT APPLY · the v9.1.25 note below
    * records that low-score rows once formed "a multi-thousand-row garbage
@@ -300,21 +298,5 @@ export async function persistIfImportant(
       return null as { id: string } | null;
     });
 
-  // ── Contradiction surfacer ──
-  // When a new decision/preference/commitment lands, check whether
-  // it conflicts with a prior one. Fire-and-forget so the persist
-  // path stays non-blocking. The eligibility guard + similarity
-  // threshold live inside the surfacer — this call is always safe.
-  if (persisted?.id && (result.primary === "decision" || result.primary === "preference" || result.primary === "commitment")) {
-    void (async () => {
-      try {
-        const { surfaceContradictions } = await import("./contradiction-surfacer");
-        await surfaceContradictions(persisted.id);
-      } catch (err) {
-        log.warn("contradiction_surfacer_failed", { error: err instanceof Error ? err.message : String(err) });
-      }
-    })();
-  }
-
-  return { persisted: true, score: result.score, category: result.primary };
+  return { persisted: persisted !== null, score: result.score, category: result.primary };
 }

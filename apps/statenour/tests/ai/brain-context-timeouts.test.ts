@@ -30,7 +30,6 @@ const HOT_PATH_FETCHERS = [
   "prefetchIntents",
   "recallMemoriesForQuery",
   "buildTruthGroundingBlock",
-  "findRelevantContradictions",
   "findRelevantClaimGap",
   "claimClaimGapDay",
   "findDailyContradiction",

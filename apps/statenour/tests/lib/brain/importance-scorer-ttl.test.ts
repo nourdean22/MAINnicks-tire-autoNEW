@@ -47,6 +47,22 @@ describe("importance-scorer TTL & tiebreakers", () => {
     });
   });
 
+  describe("persistIfImportant reports what happened", () => {
+    it("a failed upsert returns persisted: false (the caller must not log importance_persisted)", async () => {
+      const content = "I keep noticing that when I wake up early, I am much more focused, but today I am super stuck and frustrated.";
+      mocks.brainMemory.upsert.mockRejectedValue(new Error("db down"));
+      const result = await persistIfImportant("msg-fail", content, "conv-fail", 5);
+      expect(result.persisted).toBe(false);
+      expect(result.score).toBe(5);
+    });
+
+    it("CONTROL · a successful upsert returns persisted: true", async () => {
+      const content = "I keep noticing that when I wake up early, I am much more focused, but today I am super stuck and frustrated.";
+      mocks.brainMemory.upsert.mockResolvedValue({ id: "m-ok" });
+      expect((await persistIfImportant("msg-ok", content, "conv-ok", 5)).persisted).toBe(true);
+    });
+  });
+
   describe("persistIfImportant TTL and confidence floors", () => {
     it("sets expiresAt to 30 days in the future for score < 8 (borderline)", async () => {
       // Score will be 3 (insight) + 2 (pain) = 5 (threshold: 5 to trigger persist)

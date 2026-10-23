@@ -42,7 +42,6 @@
     "lib/brain/anti-pattern-auto-promote.ts",
     "lib/brain/anticipated-questions.ts",
     "lib/brain/belief-harvester.ts",
-    "lib/brain/contradiction-surfacer.ts",
     "lib/brain/conversation-memory.ts",
     "lib/brain/correlation-alarm.ts",
     "lib/brain/decision-patterns.ts",

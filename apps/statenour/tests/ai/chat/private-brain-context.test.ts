@@ -31,21 +31,6 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => {
   const WRITE = new Set(["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]);
-  const contradictionRow = () => ({
-    key: "contra_1",
-    createdAt: new Date(),
-    content: JSON.stringify({
-      new_memory_id: "a",
-      old_memory_id: "b",
-      similarity: 0.9,
-      signal: "reversal",
-      new_excerpt: "renew the vendor contract",
-      old_excerpt: "cancel the vendor contract",
-      days_apart: 3,
-      surfaced_at: new Date().toISOString(),
-      status: "unresolved",
-    }),
-  });
   const model = (name: string) =>
     new Proxy(
       {},
@@ -58,9 +43,7 @@ vi.mock("@/lib/prisma", () => {
             });
           }
           if (op === "findMany") {
-            return vi.fn(async (args?: { where?: { category?: unknown } }) =>
-              name === "brainMemory" && args?.where?.category === "contradiction" ? [contradictionRow()] : [],
-            );
+            return vi.fn(async () => []);
           }
           if (op === "groupBy") return vi.fn(async () => []);
           if (op === "count") return vi.fn(async () => 0);
@@ -246,12 +229,11 @@ beforeEach(async () => {
 });
 
 describe("buildBrainContext · a private turn writes nothing and logs no user text", () => {
-  it("CONTROL · a normal turn writes the contradiction dedupe row, runs every lane, and logs the query plan", async () => {
+  it("CONTROL · a normal turn writes its per-turn rows, runs every lane, and logs the query plan", async () => {
     const consoleSpy = vi.spyOn(console, "info");
     const { log, lines } = makeLog();
     await build({ convId: "conv_ctl" }, log);
     await settle();
-    expect(perTurnWrites().some((w) => w.model === "brainMemory" && w.op === "create")).toBe(true);
     expect(perTurnWrites().some((w) => w.model === "systemMetric"), "the lens-fire metric lands on a normal turn").toBe(true);
     expect(h.recallOpts[0]?.sideEffects).not.toBe(false);
     expect(h.contextual).toHaveBeenCalled();

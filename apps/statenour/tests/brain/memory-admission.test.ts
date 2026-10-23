@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   remember: vi.fn(),
   findUnique: vi.fn(),
   update: vi.fn(),
-  shadow: vi.fn(),
 }));
 
 vi.mock("@/lib/brain/memory-manager", () => ({
@@ -20,9 +19,6 @@ vi.mock("@/lib/prisma", () => ({
       update: mocks.update,
     },
   },
-}));
-vi.mock("@/lib/brain/memory-contradiction-shadow", () => ({
-  shadowAdmissionContradictions: mocks.shadow,
 }));
 
 import {
@@ -42,7 +38,6 @@ beforeEach(() => {
     metadata: null,
   });
   mocks.update.mockResolvedValue({ id: "mem_1" });
-  mocks.shadow.mockResolvedValue({ scanned: 0, flagged: 0 });
 });
 
 describe("buildAdmissionEnvelope", () => {
@@ -158,7 +153,6 @@ describe("admitMemory", () => {
     });
 
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.shadow).not.toHaveBeenCalled();
   });
 
   it("leaves same-content no-op/reinforcement provenance untouched", async () => {
@@ -185,7 +179,6 @@ describe("admitMemory", () => {
     });
 
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.shadow).not.toHaveBeenCalled();
   });
 
   it("materializes AGENT_INFERRED for an accepted model-derived write", async () => {
@@ -213,34 +206,5 @@ describe("admitMemory", () => {
         source: "conversation_analysis",
       }),
     });
-
-    await vi.waitFor(() => {
-      expect(mocks.shadow).toHaveBeenCalledWith({
-        memoryId: "mem_2",
-        category: "insight",
-        content: "derived fact",
-      });
-    });
-  });
-
-  it("does not run contradiction shadow for accepted episodic rows", async () => {
-    mocks.remember.mockResolvedValue({
-      id: "mem_3",
-      content: "event happened",
-      source: "event_receipt",
-      metadata: null,
-    });
-
-    await admitMemory({
-      category: "timeline",
-      key: "e1",
-      content: "event happened",
-      source: "event_receipt",
-      memoryKind: "episodic",
-      extractionMethod: "receipt",
-    });
-
-    await Promise.resolve();
-    expect(mocks.shadow).not.toHaveBeenCalled();
   });
 });

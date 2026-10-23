@@ -16,7 +16,6 @@ const h = vi.hoisted(() => ({
   claimedBy: null as string | null,
   writes: [] as Array<{ model: string; op: string; key?: string }>,
   reservedStates: [] as string[],
-  memoryAlert: false,
   lockOn: false,
   lockThrows: false,
 }));
@@ -63,14 +62,6 @@ vi.mock("@/lib/prisma", () => {
           // The follow-up reads this conversation's live claims (not only today's key).
           if (op === "findMany" && name === "brainMemory") {
             return vi.fn(async (arg?: { where?: { key?: { startsWith?: string }; category?: string } }) => {
-              // A BrainMemory contradiction (the dormant CONTRADICTION ALERT lane), when a test asks for one.
-              if (h.memoryAlert && arg?.where?.category === "contradiction") {
-                return [{
-                  key: "mem_alert_1",
-                  createdAt: new Date(),
-                  content: JSON.stringify({ new_excerpt: "I sleep eight hours now", old_excerpt: "I sleep five hours", days_apart: 12, signal: "negation", status: "unresolved" }),
-                }];
-              }
               return h.claimedBy && arg?.where?.key?.startsWith === "claim-gap:"
                 ? [{ key: "claim-gap:2026-10-22", content: JSON.stringify({ contradictionId: "open_1", conversationId: h.claimedBy, kind: "daily", state: "asked" }), lastSeen: new Date() }]
                 : [];
@@ -191,7 +182,6 @@ beforeEach(() => {
   h.claimedBy = null;
   h.writes.length = 0;
   h.reservedStates.length = 0;
-  h.memoryAlert = false;
   h.lockOn = false;
   h.lockThrows = false;
 });
@@ -276,14 +266,6 @@ describe("buildBrainContext · one open contradiction a day", () => {
   it("the claim descriptor carries the reservation's token (the promotion must match it)", async () => {
     const out = await build();
     expect(out.contradictionClaim?.token).toMatch(/^[0-9a-f-]{36}$/);
-  }, 30_000);
-
-  it("a memory CONTRADICTION ALERT on the turn takes the slot: no daily question, no day claim", async () => {
-    h.memoryAlert = true;
-    const out = await build();
-    expect(out.systemPromptAddendum).toContain("# CONTRADICTION ALERT");
-    expect(out.systemPromptAddendum).not.toContain("ONE OPEN CONTRADICTION");
-    expect(dailyClaims()).toHaveLength(0);
   }, 30_000);
 
   it("resolveContradiction disabled in ai_config: no lanes, no claim (the answer could not close the row)", async () => {

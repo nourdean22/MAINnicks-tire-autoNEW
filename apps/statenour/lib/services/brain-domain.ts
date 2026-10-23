@@ -48,17 +48,7 @@ import {
   loadActiveBeliefs,
   loadBeliefCandidates,
 } from "@/lib/brain/belief-harvester";
-// `countUnresolved` is deliberately NOT imported any more — see the
-// ONE-POPULATION note inside `buildBrainMaturity`. It counted a 14-day
-// window while the resolve-rate denominator counted 90 days, so the two
-// numbers on the same card described different populations.
-// `loadAllContradictions` is still imported for the EXPORT path below, which
-// genuinely wants the rows. The maturity path takes counts instead — see the
-// note at its derivation for why a capped list cannot produce an honest rate.
-import {
-  countContradictionsByStatus,
-  loadAllContradictions,
-} from "@/lib/brain/contradiction-surfacer";
+import { countUnresolvedContradictions } from "@/lib/services/contradictions";
 import {
   getGhostPredictions,
   loadGhostAccuracy,
@@ -157,23 +147,6 @@ export async function buildActiveAlerts(args: {
 
 // ──────────────── brain maturity ────────────────
 
-/*
- * 2026-09-02 (self-audit) · a mirrored `CONTRADICTION_ROW_CAP = 40` and a
- * `truncated` flag used to live here. They described a real defect: the
- * surfacer applied `take: 40` BEFORE the status filter, so the resolve rate
- * was computed over the 40 newest rows — and the newest are the least likely
- * to be resolved.
- *
- * The rollup no longer reads that capped list. `countContradictionsByStatus`
- * counts in SQL with no cap, so nothing here can be truncated and the flag
- * could never again be true. Rather than ship a permanently-false flag with a
- * UI branch behind it — a dead alarm, which is the exact defect class this
- * wave spent its time removing — the flag, the mirrored constant and the
- * banner it rendered are all deleted. The banner's copy had also become
- * false: it told the operator that open/resolved "describe only the newest
- * rows", which is no longer how they are computed.
- */
-
 /**
  * The eleven subsystem reads `buildBrainMaturity` fans out. Named,
  * because a failed read has to be REPORTABLE — see the function header.
@@ -203,13 +176,13 @@ export type BrainMaturityRead =
  */
 export interface BrainMaturityView {
   /**
-   * 0-100 · `null` whenever `failedReads` is non-empty. A score summed
+   * 0-100 · `null` whenever a scored subsystem is in `failedReads`. A score summed
    * over subsystems that could not be read is a fabricated number, and
    * this one fabricated a specific, plausible value — see the function
    * header.
    */
   score: number | null;
-  /** Denominator for `score` — shrinks when a dimension cannot be measured. */
+  /** Denominator for `score`: a constant 90 (contradictions carry no points). */
   scoreMax: number;
   components: {
     skills: {
@@ -220,10 +193,8 @@ export interface BrainMaturityView {
     identity: { axes_filled: number | null; history_days: number | null };
     qualitative: { entries: number | null };
     beliefs: { active: number | null; candidates: number | null };
-    contradictions: {
-      open: number | null;
-      resolved: number | null;
-    };
+    /** The open claim-vs-record rows (contradictions table), the panel's own total. */
+    contradictions: { open: number | null };
     ghost: {
       hits: number | null;
       surprises: number | null;
@@ -272,18 +243,6 @@ export interface BrainMaturityView {
  * out in `failedReads`, every derived counter is `null` rather than 0,
  * and the score is suppressed entirely.
  *
- * ── ONE POPULATION, ONE WINDOW ──
- * `components.contradictions.open` used to come from `countUnresolved(14)`
- * — a 14-day, unresolved-only read — while `resolved` AND the resolve-rate
- * denominator came from `loadAllContradictions(90)`. Two windows, two
- * status sets, presented as one pair. An unresolved contradiction raised
- * 20 days ago was therefore INVISIBLE to `open` (header: "0", emerald)
- * while still dragging the resolve rate down — the card showed green for
- * a penalty it refused to display. Both numbers are now partitioned out
- * of the SAME list, so `open + resolved === list.length` by construction.
- * Consequence to expect: `openPenalty` now sees 90 days of unresolved
- * rows, so a brain with old, unresolved contradictions scores lower than
- * it did — that is the penalty finally being applied, not a regression.
  */
 export async function buildBrainMaturity(): Promise<BrainMaturityView> {
   const failedReads: BrainMaturityRead[] = [];
@@ -313,7 +272,7 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     qualitative,
     beliefsActive,
     beliefsPending,
-    allContradictions,
+    contradictionsOpen,
     ghostAcc,
     importanceCount,
     distilledCount,
@@ -325,7 +284,7 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     read("qualitative_identity", loadQualitativeIdentity()),
     read("beliefs_active", loadActiveBeliefs()),
     read("belief_candidates", loadBeliefCandidates()),
-    read("contradictions", countContradictionsByStatus(90)),
+    read("contradictions", countUnresolvedContradictions()),
     read("ghost_accuracy", loadGhostAccuracy()),
     // These two already logged before this change — they are routed
     // through the same helper so a failed count also suppresses the
@@ -370,23 +329,6 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
   const accuracy =
     !ghostFailed && ghostAcc && ghostTotal > 0 ? ghostAcc.hits / ghostTotal : null;
 
-  // ONE population, counted in SQL rather than filtered from a list.
-  //
-  // 2026-09-02 (second pass) · these came from `loadAllContradictions(90)`,
-  // which applies `take: 40` BEFORE the status is parsed out of the JSON body.
-  // Past 40 rows in the window you could only ever see the 40 newest, and the
-  // newest are the least likely to be resolved — so the resolve rate was
-  // systematically low and the open count systematically short. The first pass
-  // fixed the population MISMATCH and made the truncation visible; it did not
-  // make the numbers right. A count never needed the list.
-  const contradictionsOpen = allContradictions ? allContradictions.unresolved : null;
-  const resolvedContradictions = allContradictions ? allContradictions.resolved : null;
-  // The CLASSIFIED count, not `total`. 2026-09-02 from review: `total`
-  // includes rows whose content would not parse, and those appear in neither
-  // `resolved` nor `unresolved` — so dividing by it charged the score for
-  // every malformed row as though it were an open contradiction.
-  const contradictionsTotal = allContradictions ? allContradictions.classified : null;
-
   const pts = {
     skills:
       skillsActive && graduatedCount !== null
@@ -397,36 +339,6 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     qualitative:
       qualitativeEntries !== null ? Math.min(15, qualitativeEntries * 0.75) : 0,
     beliefs: beliefsActive ? Math.min(10, beliefsActive.length * 1) : 0,
-    // null = UNMEASURABLE, and it is excluded from the total AND from the
-    // maximum below rather than scored. Distinct from 0, which means measured
-    // and bad.
-    contradictions: ((): number | null => {
-      // An empty list because the READ FAILED is not a clean ledger — this
-      // branch is where the phantom 7 came from.
-      if (
-        allContradictions === null ||
-        contradictionsOpen === null ||
-        resolvedContradictions === null
-      ) {
-        return null;
-      }
-      // 2026-09-02 (self-audit of the same day's fix) · this returned a
-      // hardcoded 7 for an EMPTY table. The earlier pass split "read failed"
-      // from "empty" and stopped there, so an empty ledger kept collecting 7
-      // of 100 points — and production has never recorded a single
-      // contradiction in any of the three categories, so that branch is the
-      // one it takes on every render. Seven fabricated points, permanently.
-      //
-      // It is the identical shape lib/brain/learning-velocity.ts removed in
-      // the same wave: `resolutionRate = 1` for an empty table, where "never
-      // contradicted myself" scored exactly like "found and resolved every
-      // contradiction". Fixed there, missed here. A resolve rate over zero
-      // contradictions is not a good score, it is no score.
-      if (contradictionsTotal === null || contradictionsTotal === 0) return null;
-      const resolveRate = resolvedContradictions / Math.max(1, contradictionsTotal);
-      const openPenalty = Math.min(5, contradictionsOpen);
-      return Math.max(0, resolveRate * 10 - openPenalty);
-    })(),
     ghost: accuracy != null ? Math.min(10, accuracy * (10 / 0.6)) : 0,
     chat_memory:
       importanceCount !== null ? Math.min(5, importanceCount / 40) : 0,
@@ -438,23 +350,22 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
       pts.history +
       pts.qualitative +
       pts.beliefs +
-      (pts.contradictions ?? 0) +
       pts.ghost +
       pts.chat_memory,
   );
 
-  // The denominator shrinks with the numerator when a dimension cannot be
-  // measured, so an unmeasurable subsystem neither pays nor is paid. Scoring
-  // 93 of 100 because contradictions are unmeasurable is a worse lie than
-  // either 93/90 or "unknown" — it silently spends the operator's ceiling.
-  const CONTRADICTION_POINTS = 10;
-  const scoreMax = 100 - (pts.contradictions === null ? CONTRADICTION_POINTS : 0);
+  // Contradictions carry no points. The old resolve-rate dimension read a BrainMemory set that
+  // never held a row, so it was excluded on every render (max 90); the open count below now
+  // comes from the contradictions table, as a count only.
+  const scoreMax = 90;
+  const scoreBlockers = failedReads.filter((r) => r !== "contradictions");
 
   return {
-    // Any failed read makes the sum a statement about subsystems we did
-    // not read. There is no honest number to print, so there is none.
-    score: failedReads.length > 0 ? null : Math.max(0, Math.min(scoreMax, rawScore)),
-    /** What `score` is out of. Below 100 when a dimension is unmeasurable. */
+    // Any failed read of a SCORED subsystem makes the sum a statement about subsystems we did
+    // not read. There is no honest number to print, so there is none. The contradictions
+    // count carries no points, so its failure is named in failedReads but cannot move the score.
+    score: scoreBlockers.length > 0 ? null : Math.max(0, Math.min(scoreMax, rawScore)),
+    /** What `score` is out of: a constant 90. */
     scoreMax,
     components: {
       skills: {
@@ -471,10 +382,7 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
         active: beliefsActive ? beliefsActive.length : null,
         candidates: beliefsPending ? beliefsPending.length : null,
       },
-      contradictions: {
-        open: contradictionsOpen,
-        resolved: resolvedContradictions,
-      },
+      contradictions: { open: contradictionsOpen },
       ghost: {
         hits: ghostFailed ? null : (ghostAcc?.hits ?? 0),
         surprises: ghostFailed ? null : (ghostAcc?.surprises ?? 0),
@@ -514,7 +422,6 @@ export async function buildBrainExport(): Promise<unknown> {
     qualitative,
     beliefs,
     beliefCandidates,
-    contradictions,
     ghostBundle,
     ghostAccuracy,
   ] = await Promise.all([
@@ -525,20 +432,18 @@ export async function buildBrainExport(): Promise<unknown> {
     loadQualitativeIdentity().catch(() => null),
     loadActiveBeliefs().catch(() => []),
     loadBeliefCandidates().catch(() => []),
-    loadAllContradictions(180).catch(() => []),
     getGhostPredictions().catch(() => null),
     loadGhostAccuracy().catch(() => null),
   ]);
 
   return {
     exported_at: new Date().toISOString(),
-    schema_version: "2026.04.19",
+    schema_version: "2026.10.23", // 2026.10.23: the `contradictions` key was dropped (no reader parses the version)
     skills: { active: skillsActive, pending: skillsPending },
     identity,
     identity_history: identityHistory,
     qualitative_identity: qualitative,
     beliefs: { active: beliefs, candidates: beliefCandidates },
-    contradictions,
     ghost: { bundle: ghostBundle, accuracy: ghostAccuracy },
   };
 }

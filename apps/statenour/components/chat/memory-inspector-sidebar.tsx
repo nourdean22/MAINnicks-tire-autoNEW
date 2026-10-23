@@ -11,18 +11,10 @@ export interface MemoryHit {
   similarity: number;
 }
 
-export interface ContradictionLog {
-  id: string;
-  claim: string;
-  reality: string;
-  severity: string;
-}
-
 export interface MemoryInspectorSidebarProps {
   open: boolean;
   onClose: () => void;
   hits: MemoryHit[];
-  contradictions: ContradictionLog[];
   /** When the recall shown here was fetched — UI-2: evidence without a
    *  timestamp is a claim, not evidence. Null = not fetched yet. */
   fetchedAt?: Date | null;
@@ -57,7 +49,6 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   open,
   onClose,
   hits,
-  contradictions,
   fetchedAt,
   reply,
   recallProvenance,
@@ -287,38 +278,6 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           )}
         </div>
 
-        {/* Contradictions Section */}
-        <div>
-          <div className="flex items-center space-x-1 text-rose-400 mb-3">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span className="font-mono text-[11px] font-medium">
-              Evidence check: contradictions ({contradictions.length})
-            </span>
-          </div>
-          {contradictions.length === 0 ? (
-            <p className="text-[11px] text-fg-tertiary italic">No contradictions detected in this turn.</p>
-          ) : (
-            <div className="space-y-3">
-              {contradictions.map((c) => (
-                <div key={c.id} className="bg-rose-950/10 border border-rose-900/20 p-3 rounded-surface">
-                  <span className="font-mono text-[11px] font-medium text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded-micro">
-                    {c.severity} Severity
-                  </span>
-                  <div className="mt-2 space-y-1.5 text-[11px]">
-                    <div>
-                      <span className="text-fg-tertiary font-mono text-[11px]">Stated Claim:</span>
-                      <p className="text-fg-secondary italic">&ldquo;{c.claim}&rdquo;</p>
-                    </div>
-                    <div>
-                      <span className="text-fg-tertiary font-mono text-[11px]">Actual Reality:</span>
-                      <p className="text-fg-secondary font-sans font-semibold">&ldquo;{c.reality}&rdquo;</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

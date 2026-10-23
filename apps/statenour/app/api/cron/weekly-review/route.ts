@@ -38,7 +38,7 @@ export const GET = cronHandler(async () => {
 
   // Apr 19 · DailyScore + MasteryHabit retired. Brain-maturity
   // history + DAILY-task check-offs replace them.
-  const [identityHistory, alerts, dailyTasks, commitments, openContradictions, weekDumps, weekReflections, weekTakes] = await Promise.all([
+  const [identityHistory, alerts, dailyTasks, commitments, weekDumps, weekReflections, weekTakes] = await Promise.all([
     prisma.brainMemory
       .findMany({
         where: {
@@ -95,11 +95,6 @@ export const GET = cronHandler(async () => {
         },
         select: { description: true, status: true, deadline: true },
       })
-      .catch(() => null),
-    prisma.brainMemory
-      .count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(weekAgo) } } })
-      // null = read failed — the prompt must say "unavailable", never
-      // "No contradictions flagged." (the LLM narrates wins on top).
       .catch(() => null),
     // Synthesis wave (audit 2026-07-15) · the review finally reads the
     // JOURNAL. Pre-wave "journal days" was a regex over DAILY task
@@ -208,7 +203,6 @@ export const GET = cronHandler(async () => {
 ## Brain Maturity (${scores.length}/7 days with snapshot)
 ${identityHistory === null ? "Snapshot read FAILED — maturity unknown this week; do not infer stagnation." : scores.map((s) => `${s.date}: ${s.score}/100`).join("\n") || "No snapshots."}
 Week avg: ${avgScore}/100 | Workout days: ${workoutDays} | Journal days: ${journalDays}
-${openContradictions === null ? "Contradiction count unavailable (read failed) — treat as unknown, not zero." : openContradictions > 0 ? `Open contradictions: ${openContradictions}` : "No contradictions flagged."}
 
 ## Drift Alerts ${alerts === null ? "(read FAILED — unknown, not zero)" : `(${alerts.length} total, ${alerts.filter((a) => !a.resolved).length} unresolved)`}
 ${alerts === null ? "Unavailable — do not narrate drift status this week." : alerts.map((a) => `${a.date} [${a.severity.toUpperCase()}] ${a.ruleName}: ${a.message}`).join("\n") || "None."}

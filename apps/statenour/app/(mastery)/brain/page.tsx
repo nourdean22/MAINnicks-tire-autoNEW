@@ -66,8 +66,7 @@ export default function BrainPage() {
               HEALTH — is the substrate healthy, and what changed (the former Changed tab)
             Dropped: Map (a canvas gallery), Board and Reason (operator-started cognition Chat already does).
             Every old ?tab= key redirects in next.config.ts and is pinned in
-            tests/repo/retired-routes-gate.test.ts. Deep links that stay live: ?tab=memory&resolve=,
-            ?tab=memory&focus= (Wisdom cards), ?tab=health#time-travel. nav-items mirrors this list
+            tests/repo/retired-routes-gate.test.ts. Deep links that stay live: ?tab=memory&focus= (Wisdom cards), ?tab=health#time-travel. nav-items mirrors this list
             (tests/repo/brain-nav-tabs.test.ts). */}
         <PageTabs
           defaultKey={BRAIN_DEFAULT_TAB}
