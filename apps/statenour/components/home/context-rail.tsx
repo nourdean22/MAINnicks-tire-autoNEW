@@ -16,10 +16,17 @@
  * mounted: tests/e2e/desktop-density.spec.ts measures it as the second grid column.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { useMinWidth } from "@/hooks/use-min-width";
 import { cn } from "@/lib/utils/cn";
+
+/**
+ * Whether the rail's lines are on screen right now: the fold is open, or the viewport is xl where it is held
+ * open. A line that records "seen" (ChangeLine's last-visit cursor) reads this, so a closed fold never marks
+ * unread changes as read. Outside a rail the default is true.
+ */
+export const ContextShownContext = createContext(true);
 
 /** Lines that rendered: every line is one root element, or nothing. */
 export function countContextLines(body: { children: ArrayLike<unknown> }): number {
@@ -68,7 +75,7 @@ export function ContextRail({ children }: { children: ReactNode }) {
           </summary>
         )}
         <div ref={bodyRef} data-context-body className="mt-6 xl:mt-0">
-          {children}
+          <ContextShownContext.Provider value={wide || open}>{children}</ContextShownContext.Provider>
         </div>
       </details>
     </aside>
