@@ -16,7 +16,7 @@ Labels: FACT = pinned by a test in this repo. INFERRED = follows from the code. 
 |---|---|---|---|
 | Page leave and dwell | `components/brain/page-tracker.tsx` -> `POST /api/brain/page-leave` -> `recordPageLeave` | `AuditEvent`, `eventType = 'page_leave'`, `detail` = path, `payload` = `{ page, dwellMs, capped, reason, hour, timestamp }` | `tests/services/record-page-leave.test.ts` |
 | Tab views, including the default tab | `PageTracker` -> `brain.pageTabVisit` -> `recordPageTabVisit` | `AuditEvent`, `eventType = 'page_tab_visit'`, `detail` = path, `payload` = `{ page, tab, hour, timestamp }` | `tests/services/record-page-visit-tab.test.ts`, `tests/components/brain/page-tracker-default-tab.test.tsx` |
-| tRPC calls | middleware in `lib/trpc/trpc.ts` -> `lib/trpc/call-telemetry.ts` | `system_metrics`, `metric = 'trpc.call'`, `value` = ms, `source = 'trpc'`, `tags` = `{ procedure, type, ok, code?, batch }` | `tests/trpc/call-telemetry.test.ts` |
+| tRPC calls | middleware in `lib/trpc/trpc.ts` -> `lib/trpc/call-telemetry.ts` | `system_metrics`, `metric = 'trpc.call'`, `value` = total ms of the bucket, `source = 'trpc'`, `tags` = `{ procedure, type, ok, code?, count, max_ms }` (one row per procedure, type and outcome per minute) | `tests/trpc/call-telemetry.test.ts` |
 
 `tests/repo/usage-appendix-queries.test.ts` fails if a query below names a key or a value that a writer
 no longer stores.
@@ -47,6 +47,8 @@ page, `p50_seconds` is a typical visit.
   4 hours, not as the real figure.
 - A page with `page_visit` rows and no leaves was closed in a way the browser never reported (a killed
   iOS app). The dwell for those visits is missing, not zero. NOT CHECKED on a real phone yet.
+- A page opened in a background tab and left before it was ever shown writes no leave; time while hidden
+  is never counted.
 - Opt-out (`nour:no-track` = `1`) writes nothing, for visits and leaves alike.
 
 ## Query 2 - tab views by page and tab (14 days)
@@ -55,7 +57,7 @@ page, `p50_seconds` is a typical visit.
 SELECT detail AS page,
        payload->>'tab' AS tab,
        COUNT(*) AS views,
-       COUNT(DISTINCT date_trunc('day', "createdAt" AT TIME ZONE 'America/New_York')) AS days_seen
+       COUNT(DISTINCT date_trunc('day', ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')) AS days_seen
 FROM "AuditEvent"
 WHERE "eventType" = 'page_tab_visit'
   AND "createdAt" >= now() - interval '14 days'
@@ -72,13 +74,14 @@ default tab is now logged once per page open, and every tab click after that log
   not under the tab that shows its section.
 - A tab view is not a page open. `page_visit` stays the only open counter.
 
-## Query 3 - tRPC calls, errors and median time by procedure (14 days)
+## Query 3 - tRPC calls, errors, mean and slowest time by procedure (14 days)
 
 ```sql
 SELECT tags->>'procedure' AS procedure,
-       COUNT(*) AS calls,
-       COUNT(*) FILTER (WHERE tags->>'ok' = 'false') AS errors,
-       ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY value)) AS p50_ms
+       SUM((tags->>'count')::int) AS calls,
+       COALESCE(SUM((tags->>'count')::int) FILTER (WHERE tags->>'ok' = 'false'), 0) AS errors,
+       ROUND(SUM(value) / NULLIF(SUM((tags->>'count')::int), 0)) AS mean_ms,
+       MAX((tags->>'max_ms')::numeric) AS max_ms
 FROM system_metrics
 WHERE metric = 'trpc.call'
   AND source = 'trpc'
@@ -87,19 +90,27 @@ GROUP BY tags->>'procedure'
 ORDER BY calls DESC;
 ```
 
-Meaning: which procedures the UI really calls, how often they fail, and how long a typical call takes. This
-is the first widget-level evidence: a panel whose procedure is never called is a panel nobody opens.
+Meaning: which procedures the UI really calls, how often they fail, how long a call takes on average and
+the slowest one seen. This is the first widget-level evidence: a panel whose procedure is never called is a
+panel nobody opens.
 
-- One row per call, so a polled query counts every poll. Compare procedures that poll with procedures that
-  a person triggers by looking at `tags->>'type'` and the call spacing before drawing a conclusion.
-- `ok = false` includes UNAUTHORIZED and mutation-locked calls; add `tags->>'code'` to the SELECT to split
-  them from real failures.
-- `batch` (how many calls shared one HTTP request) is stored for latency questions: a call that waited on a
-  slow neighbour in the same batch has the batch's time, not its own.
-- Server-side callers that skip HTTP are not batched and record `batch = 1`.
+- A stored row is not one call. The server counts calls in memory and writes one row per procedure, type
+  and outcome per minute: `value` is the total ms of those calls, `tags->>'count'` how many, and
+  `tags->>'max_ms'` the slowest. So `calls` is a SUM of counts (never `COUNT(*)`), and `mean_ms` is total ms
+  over calls. A median is not recoverable from these rows; use `max_ms` for the tail.
+- A polled query counts every poll (two pages poll every 5 s). Compare procedures that poll with procedures
+  that a person triggers by looking at `tags->>'type'` and the counts per day before drawing a conclusion.
+- `ok = false` includes UNAUTHORIZED and mutation-locked calls; add `tags->>'code'` to the SELECT and the
+  GROUP BY to split them from real failures.
+- `created_at` is the flush time, so a row covers the minute before it. The count is lost for calls made in
+  the last minute before a crash; a redeploy flushes first (SIGTERM drain). A failed flush drops its buckets
+  and leaves one ErrorLog row (source `trpc-telemetry`).
+- The batch size of the HTTP request is not stored: a call that waited on a slow neighbour in the same batch
+  has the batch's time in `max_ms`.
 - Why `system_metrics` and not `api_request_logs`: see the header of `lib/trpc/call-telemetry.ts`.
-  Retention is 90 days. The daily row volume is NOT CHECKED until the first day of rows exists; if it is
-  above about 5,000 a day, sample the polled queries rather than raising retention.
+  Retention is 90 days. Volume is at most one row per active procedure-outcome per minute, so one day of
+  rows is read from the table before anything else is decided: `SELECT COUNT(*) FROM system_metrics WHERE
+  metric = 'trpc.call' AND created_at >= now() - interval '1 day'`. The unified logs feed excludes this metric.
 
 ## Proof owed after deploy
 

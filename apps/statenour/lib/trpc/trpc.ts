@@ -65,9 +65,10 @@ export const middleware = t.middleware;
 
 // ── Middleware · per-call telemetry (2026-10-23) ────────────────────
 // Outermost on every procedure, so an UNAUTHORIZED or mutation-locked call is recorded too. next() does
-// not throw in tRPC v11: a failing procedure comes back as { ok: false, error }. The write is
-// fire-and-forget (lib/trpc/call-telemetry.ts) and cannot fail or delay the call.
-const telemetryMiddleware = middleware(async ({ path, type, ctx, next }) => {
+// not throw in tRPC v11: a failing procedure comes back as { ok: false, error }. The call is only COUNTED
+// here, in memory; one batched write per minute happens elsewhere (lib/trpc/call-telemetry.ts), so
+// nothing touches the database on the call's path.
+const telemetryMiddleware = middleware(async ({ path, type, next }) => {
   const startedAt = Date.now();
   const result = await next();
   recordTrpcCall({
@@ -76,7 +77,6 @@ const telemetryMiddleware = middleware(async ({ path, type, ctx, next }) => {
     ok: result.ok,
     code: result.ok ? undefined : result.error.code,
     ms: Date.now() - startedAt,
-    batch: ctx.batchSize ?? 1,
   });
   return result;
 });
