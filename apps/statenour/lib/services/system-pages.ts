@@ -137,7 +137,7 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         prisma.deviceEvent.count(),
         prisma.chatMessage.count(),
         prisma.aiGeneration.count(),
-        prisma.systemMetric.count(),
+        prisma.systemMetric.count(), // physical census: trpc.call rows are rows too, left in on purpose
         prisma.brainMemory.count(), // modelCounts census (see comment above)
         prisma.automationRule.count(),
       ]).then(
