@@ -23,8 +23,6 @@
  *      join their precomputed embeddings from vector_embeddings, compute
  *      cosine against persona vector. Below the similarity floor =
  *      drift. Persist via upsert into BrainMemory(category="persona_drift").
- *   3. loadRecentDrifts() · helper for downstream surfaces (situation
- *      card meta-aggregator · future dedicated drift card).
  *
  * Idempotency contract:
  *   · Persist key = sha1(messageId) · re-runs of the scan don't
@@ -308,52 +306,6 @@ export async function scanRecentReplies(opts?: {
     drifted: events.length,
     events,
   };
-}
-
-// ── Read helper for downstream surfaces ──────────────────────────────
-
-/**
- * Load recent drift events for surface consumption. Soft-delete + the
- * 7d default window keep the result set tight · downstream surfaces
- * (SituationCard, future drift card) only want active signal.
- */
-export async function loadRecentDrifts(
-  windowDays: number = 7,
-): Promise<StoredDrift[]> {
-  const since = new Date(Date.now() - windowDays * 86400_000);
-  const rows = await prisma.brainMemory
-    .findMany({
-      where: {
-        category: "persona_drift",
-        createdAt: { gte: since },
-        deletedAt: null,
-      },
-      orderBy: { confidence: "desc" }, // strongest drift first
-      take: 20,
-      select: { key: true, content: true, createdAt: true },
-    })
-    .catch((): never[] => []);
-  const out: StoredDrift[] = [];
-  let malformed = 0;
-  for (const r of rows) {
-    try {
-      const parsed = JSON.parse(r.content) as DriftEvent;
-      out.push({ ...parsed, key: r.key, createdAt: r.createdAt.toISOString() });
-    } catch {
-      // skip malformed row · aggregated below — this loop is on the
-      // situation-card read path, and parse errors can embed excerpt content
-      malformed++;
-    }
-  }
-  if (malformed > 0) {
-    logError(
-      "brain.persona-drift-detector",
-      new Error(`${malformed} malformed persona_drift rows skipped`),
-      { fn: "loadRecentDrifts", malformed, scanned: rows.length },
-      "warn",
-    );
-  }
-  return out;
 }
 
 /** Count helper · cheap badge data for chips + situation card. */

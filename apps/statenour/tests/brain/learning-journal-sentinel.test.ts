@@ -55,3 +55,13 @@ describe("generateLearningJournal - provider sentinel", () => {
     expect(entry.selfAssessment).toBe("Quiet day: no new memories.");
   });
 });
+
+describe("generateLearningJournal - no counter-intuitive counter (2026-10-23)", () => {
+  it("the only writer of counter_intuitive rows is deleted, so the journal does not report a count that is 0 forever", async () => {
+    mockChat.mockResolvedValue({ content: "Quiet day.", provider: "ollama", model: "m" });
+    const entry = await generateLearningJournal();
+    expect(entry).not.toHaveProperty("counterIntuitiveFindings");
+    expect(JSON.stringify(mockChat.mock.calls[0])).not.toContain("counter-intuitive");
+    expect(String(remember.mock.calls[0][2])).not.toContain("counter-intuitive");
+  });
+});

@@ -166,7 +166,7 @@ export const GET = cronHandler(async () => {
     results.assistantPredictions = { error: err instanceof Error ? err.message : "failed" };
   }
 
-  // 3. Wisdom distillation
+  // 2. Wisdom distillation
   try {
     const wisdom = await distillWisdom();
     results.wisdom = { distilled: wisdom.length, principles: wisdom };
@@ -174,7 +174,7 @@ export const GET = cronHandler(async () => {
     results.wisdom = { error: err instanceof Error ? err.message : "failed" };
   }
 
-  // 4. Blind spot detection (store top spots as memories for prompt)
+  // 3. Blind spot detection (store top spots as memories for prompt)
   try {
     const spots = await detectBlindSpots();
     // v10.0.34 — count actual persisted writes. Pre-fix the
@@ -232,7 +232,7 @@ export const GET = cronHandler(async () => {
     results.blindSpots = { error: err instanceof Error ? err.message : "failed" };
   }
 
-  // 5. Learning journal
+  // 4. Learning journal
   try {
     const journal = await generateLearningJournal();
     results.journal = { date: journal.date, selfAssessment: journal.selfAssessment.slice(0, 200) };
@@ -240,7 +240,7 @@ export const GET = cronHandler(async () => {
     results.journal = { error: err instanceof Error ? err.message : "failed" };
   }
 
-  // 6. Hidden correlations
+  // 5. Hidden correlations
   try {
     const corrs = await findCorrelations();
     const surprising = corrs.filter((c) => c.surprising);
