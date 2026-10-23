@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search, X as XIcon, NotebookPen, Calendar } from "lucide-react";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 import { JournalEntryRow } from "@/components/journal/entry-row";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
@@ -13,6 +14,7 @@ export function JournalFeedView() {
     entries,
     counts,
     isLoading,
+    isOffline,
     isFetchingMore,
     degraded,
     error,
@@ -144,6 +146,8 @@ export function JournalFeedView() {
                   <ShimmerSkeleton key={i} className="h-20 rounded-surface border border-edge-subtle" />
                 ))}
               </div>
+            ) : isOffline && entries.length === 0 ? (
+              <ReadStateNote state="offline" label="The journal" className="rounded-surface border border-edge-subtle bg-content px-4 py-12 text-center" />
             ) : error && entries.length === 0 ? (
               <div role="alert" className="space-y-2 py-12 text-center rounded-surface border border-edge-subtle bg-content px-4">
                 <p className="text-[15px] font-semibold text-fg">The journal couldn&apos;t load. State unknown, not empty.</p>

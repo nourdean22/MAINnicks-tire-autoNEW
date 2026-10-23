@@ -26,6 +26,8 @@
  */
 
 import { useEffect, useState } from "react";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { useOnline } from "@/lib/query-state";
 
 interface ViolationRow {
   id: string;
@@ -47,45 +49,78 @@ interface ImproveResp { hypotheses?: ImproveHypothesis[]; judgmentCount?: number
 
 const FETCH_OPTIONS: RequestInit = { credentials: "same-origin", cache: "no-store" };
 
+export type InsightFeed = "violations" | "evolution" | "improve";
+
+export interface InsightFeeds {
+  violations: ViolationsResp | null;
+  evolution: EvolutionResp | null;
+  improve: ImproveResp | null;
+  /** Feeds that answered non-200 or threw. A failed feed is unknown, never an empty one. */
+  failed: InsightFeed[];
+}
+
+/** Reads the three feeds and records which ones failed (truth sweep 2026-10-23: a bare `.catch(() => null)` hid them). */
+export async function loadInsightFeeds(fetchFn: typeof fetch = fetch): Promise<InsightFeeds> {
+  const failed: InsightFeed[] = [];
+  const read = async <T,>(feed: InsightFeed, url: string): Promise<T | null> => {
+    try {
+      const r = await fetchFn(url, FETCH_OPTIONS);
+      if (r.ok) return (await r.json()) as T;
+    } catch {
+      // falls through to the failed list below
+    }
+    failed.push(feed);
+    return null;
+  };
+  const [violations, evolution, improve] = await Promise.all([
+    read<ViolationsResp>("violations", "/api/brain/wisdom/violations?days=7&limit=3"),
+    read<EvolutionResp>("evolution", "/api/brain/wisdom/evolution"),
+    read<ImproveResp>("improve", "/api/brain/improve-agent?days=7"),
+  ]);
+  return { violations, evolution, improve, failed };
+}
+
 export function BrainInsightsPanel() {
-  const [violations, setViolations] = useState<ViolationsResp | null>(null);
-  const [evolution, setEvolution] = useState<EvolutionResp | null>(null);
-  const [improve, setImprove] = useState<ImproveResp | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [feeds, setFeeds] = useState<InsightFeeds | null>(null);
+  const online = useOnline();
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const [v, e, i] = await Promise.all([
-        fetch("/api/brain/wisdom/violations?days=7&limit=3", FETCH_OPTIONS)
-          .then((r) => (r.ok ? (r.json() as Promise<ViolationsResp>) : null))
-          .catch(() => null),
-        fetch("/api/brain/wisdom/evolution", FETCH_OPTIONS)
-          .then((r) => (r.ok ? (r.json() as Promise<EvolutionResp>) : null))
-          .catch(() => null),
-        fetch("/api/brain/improve-agent?days=7", FETCH_OPTIONS)
-          .then((r) => (r.ok ? (r.json() as Promise<ImproveResp>) : null))
-          .catch(() => null),
-      ]);
-      if (cancelled) return;
-      setViolations(v);
-      setEvolution(e);
-      setImprove(i);
-      setLoading(false);
-    })();
+    void loadInsightFeeds().then((res) => {
+      if (!cancelled) setFeeds(res);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Hide entirely if every bucket is empty · clean weeks get no card
+  if (!feeds) return null;
+  return <BrainInsightsView {...feeds} offline={!online} />;
+}
+
+export function BrainInsightsView({
+  violations,
+  evolution,
+  improve,
+  failed,
+  offline,
+}: InsightFeeds & { offline: boolean }) {
+  // Hide entirely if every bucket is empty AND every feed answered · clean weeks get no card
   const hasSignal =
     (violations?.violations?.length ?? 0) > 0 ||
     (evolution?.totalCandidates ?? 0) > 0 ||
     (improve?.hypotheses?.length ?? 0) > 0;
 
-  if (loading) return null;
-  if (!hasSignal) return null;
+  if (!hasSignal && failed.length === 0) return null;
+
+  const failedNote =
+    failed.length === 0 ? null : offline ? (
+      <ReadStateNote state="offline" label="Brain insights" className="mb-3" />
+    ) : (
+      <p role="alert" className="mb-3 text-[13px] text-red-300">
+        Brain insights: {failed.length} of 3 feeds could not load. State unknown, not empty.
+      </p>
+    );
 
   return (
     <div className="rounded-surface border border-[var(--border-default)] bg-content p-4">
@@ -97,19 +132,22 @@ export function BrainInsightsPanel() {
           last 7d
         </span>
       </div>
+      {failedNote}
       {/* v10.0.486 · de-slopped from md:grid-cols-3 symmetric trio
           to a stacked feed. Three info-dense cards side-by-side
           read as "feature grid" — the most identifiable AI-design
           fingerprint. Stacked scan-down is the operator-grade
           editorial pattern. */}
       <div className="space-y-3">
-        <ViolationsCard rows={violations?.violations ?? []} />
-        <EvolutionCard
-          stale={evolution?.stale ?? []}
-          redundant={evolution?.redundant ?? []}
-          lowTrust={evolution?.lowTrust ?? []}
-        />
-        <ImproveCard hypotheses={improve?.hypotheses ?? []} />
+        {!failed.includes("violations") && <ViolationsCard rows={violations?.violations ?? []} />}
+        {!failed.includes("evolution") && (
+          <EvolutionCard
+            stale={evolution?.stale ?? []}
+            redundant={evolution?.redundant ?? []}
+            lowTrust={evolution?.lowTrust ?? []}
+          />
+        )}
+        {!failed.includes("improve") && <ImproveCard hypotheses={improve?.hypotheses ?? []} />}
       </div>
     </div>
   );

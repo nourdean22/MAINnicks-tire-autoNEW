@@ -6,6 +6,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Brain, Shield, AlertTriangle, Search, Info } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 
 interface ResolvedFlag {
@@ -33,10 +35,12 @@ export function IntelligenceFlagsPanel() {
 
   // Flags change on operator action, not by themselves — 10s polling was
   // the whole registry's payload every tick for nothing. 60s + focus refetch.
-  const { data, isLoading, refetch } = trpc.operator.featureFlags.useQuery(undefined, {
+  const flagsQuery = trpc.operator.featureFlags.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
+  const { data, isLoading, refetch } = flagsQuery;
+  const status = readState(flagsQuery);
 
   const setOverrideMutation = trpc.operator.setFeatureFlagOverride.useMutation();
 
@@ -85,6 +89,16 @@ export function IntelligenceFlagsPanel() {
     return (
       <GlassCard>
         <p className="text-[11px] text-[var(--text-tertiary)] animate-pulse">Loading intelligence flags...</p>
+      </GlassCard>
+    );
+  }
+
+  // A failed or paused read is not "0 flags": say so before drawing a count or a search miss.
+  if (status === "error" || status === "offline") {
+    return (
+      <GlassCard className="space-y-2">
+        <span className="text-[15px] font-semibold text-fg">Cognitive &amp; autonomy substrates</span>
+        <ReadStateNote state={status} label="Feature flags" onRetry={() => void refetch()} />
       </GlassCard>
     );
   }

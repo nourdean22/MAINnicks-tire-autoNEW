@@ -34,8 +34,8 @@ import { Sparkline } from "./sparkline";
 import { cn } from "@/lib/utils";
 
 export interface TrendCounterProps {
-  /** Current value · animated on change */
-  value: number;
+  /** Current value · animated on change. null = not measured: renders "n/a", never 0. */
+  value: number | null;
   /** Optional baseline for the delta arrow (avg, prev period, target). */
   baseline?: number | null;
   /** Optional inline sparkline · 4-12 values renders well. */
@@ -64,11 +64,11 @@ const TONE_CLASS: Record<NonNullable<TrendCounterProps["tone"]>, string> = {
 const DELTA_NEUTRAL = "text-[var(--text-tertiary)]";
 
 function deriveTone(
-  value: number,
+  value: number | null,
   baseline: number | null | undefined,
   goodWhen: "high" | "low" | "neutral",
 ): NonNullable<TrendCounterProps["tone"]> {
-  if (goodWhen === "neutral" || baseline == null) return "tertiary";
+  if (value === null || goodWhen === "neutral" || baseline == null) return "tertiary";
   if (value === baseline) return "tertiary";
   const trendingUp = value > baseline;
   if (goodWhen === "high") return trendingUp ? "emerald" : "rose";
@@ -97,8 +97,8 @@ export function TrendCounter({
   className,
 }: TrendCounterProps) {
   const resolvedTone = tone ?? deriveTone(value, baseline, goodWhen);
-  const hasBaseline = typeof baseline === "number";
-  const arrow = !hasBaseline || baseline === value
+  const hasBaseline = typeof baseline === "number" && value !== null;
+  const arrow = value === null || !hasBaseline || baseline === value
     ? null
     : value > (baseline ?? 0)
       ? "↑"
@@ -116,11 +116,13 @@ export function TrendCounter({
     <div className={cn("rounded-surface border border-edge-subtle bg-content px-3 py-2.5", className)}>
       <div className="flex items-baseline justify-between gap-2">
         <span className={cn("stat-number text-[22px] leading-none", TONE_CLASS[resolvedTone])}>
-          {format
-            ? format(value)
-            : <AnimatedCounter value={value} />}
+          {value === null
+            ? "n/a"
+            : format
+              ? format(value)
+              : <AnimatedCounter value={value} />}
         </span>
-        {arrow && hasBaseline && (
+        {arrow && hasBaseline && value !== null && baseline != null && (
           <span className={cn("text-[11px] font-mono tabular-nums shrink-0", TONE_CLASS[resolvedTone])}>
             {arrow} {formatDelta(value, baseline)}
           </span>

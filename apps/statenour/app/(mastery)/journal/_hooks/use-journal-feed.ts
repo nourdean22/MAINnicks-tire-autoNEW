@@ -90,6 +90,8 @@ export function useJournalFeed(
     counts,
     degraded: [...new Set(degraded)],
     isLoading: query.isLoading,
+    // Paused with no pages: no data, no error, not loading. Not "no entries" (truth sweep 2026-10-23).
+    isOffline: query.fetchStatus === "paused" && query.data === undefined,
     isFetching: query.isFetching,
     isFetchingMore: query.isFetchingNextPage,
     error: query.error?.message ?? null,

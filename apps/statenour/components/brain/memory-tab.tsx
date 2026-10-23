@@ -54,6 +54,8 @@ import { PinnedContextPanel } from "@/components/brain/pinned-context-panel";
 import { SuggestionTelemetryPanel } from "@/components/brain/suggestion-telemetry-panel";
 import { InsightRibbon } from "@/components/brain/insight-ribbon";
 import { BrainInsightsPanel } from "@/components/brain/brain-insights-panel";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { SelfCritiqueCard } from "@/components/brain/self-critique-card";
 import { RecallInboxPanel } from "@/components/brain/recall-inbox-panel";
 import { RecallPreviewPanel } from "@/components/brain/recall-preview-panel";
@@ -269,12 +271,15 @@ export function MemoryTab() {
  * noise.
  */
 function IdentityDeltaLine() {
-  const { data, isError } = trpc.brain.identityDelta.useQuery(undefined, {
+  const deltaQ = trpc.brain.identityDelta.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
+  const { data, isError } = deltaQ;
   // A failed read is NOT "nothing shifted today" — say which one it is.
   if (isError) return <ReadingUnavailable label="Identity delta" />;
+  // A paused read (offline) has no error either: not "nothing shifted" (truth sweep 2026-10-23).
+  if (readState(deltaQ) === "offline") return <ReadStateNote state="offline" label="Identity delta" />;
   if (!data?.delta) return null;
   return (
     <div className="flex items-start gap-2.5 rounded-control border border-violet-500/20 bg-violet-500/[0.04] px-3 py-2 text-[11px]">
@@ -327,14 +332,15 @@ function ReadingUnavailable({ label }: { label: string }) {
  *     It now renders out of the max actually available this run.
  */
 function LearningVelocityScoreboard() {
-  const { data, isError } = trpc.journal.learningVelocity.useQuery(undefined, {
+  const velocityQ = trpc.journal.learningVelocity.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
+  const { data, isError } = velocityQ;
   // This digest has no empty state — it always returns numbers — so the
-  // only reason data is missing is that the read failed. Say so.
+  // only reason data is missing is that the read failed (or is paused offline). Say so.
   if (isError) return <ReadingUnavailable label="Learning velocity" />;
-  if (!data) return null;
+  if (!data) return readState(velocityQ) === "offline" ? <ReadStateNote state="offline" label="Learning velocity" /> : null;
   const pct = data.memoryPctChange30d;
   return (
     <div className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2">
@@ -440,11 +446,13 @@ function ScoreboardCell({
  * It now keys on resolution time.
  */
 function CalibrationTile() {
-  const { data, isError } = trpc.brain.calibrationSummary.useQuery(
+  const calibrationQ = trpc.brain.calibrationSummary.useQuery(
     { days: 30 },
     { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 },
   );
+  const { data, isError } = calibrationQ;
   if (isError) return <ReadingUnavailable label="Calibration" />;
+  if (!data && readState(calibrationQ) === "offline") return <ReadStateNote state="offline" label="Calibration" />;
   if (!data || data.resolved === 0) return null;
   // Verdict map matches the helper's enum: "well-calibrated" |
   // "drift" | "unknown" · drift is the warning signal (>= 15% off).

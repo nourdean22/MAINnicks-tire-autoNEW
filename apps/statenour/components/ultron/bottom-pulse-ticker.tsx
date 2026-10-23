@@ -85,6 +85,8 @@ const TONE_RANK: Record<PulseItem["tone"], number> = { warn: 0, win: 1, info: 2,
 // being lost forever. Matches the top ticker.
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
+const RESOLVE_FAILED = "Could not update that promise. Try again.";
+
 export function BottomPulseTicker() {
   const { data, refetch: refetchPulse, isFetching: pulseFetching, isError: pulseError } = trpc.operator.personalPulse.useQuery(undefined, {
     refetchInterval: 300_000,
@@ -100,10 +102,14 @@ export function BottomPulseTicker() {
   // the sheet — the prior state was chat-only. The server mutation clears
   // its own 90s cache; refetch() here is what makes the client actually
   // notice within the same session instead of waiting up to 5 minutes.
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const resolveCommitment = trpc.operator.resolveCommitment.useMutation({
     onSuccess: () => {
+      setResolveError(null);
       void refetchPulse();
     },
+    // A rejected Done / Drop used to look like nothing happened (truth sweep 2026-10-23).
+    onError: () => setResolveError(RESOLVE_FAILED),
   });
 
   const items = useMemo<PulseItem[]>(() => {
@@ -181,6 +187,10 @@ export function BottomPulseTicker() {
 
   // 09-F30: a ticker whose every sub-feed failed answers 200 with softError, not an error.
   const tickerFailed = tickerError || Boolean(topData?.softError);
+  // Truth sweep 2026-10-23: a feed that failed beside one that works used to vanish without a word.
+  const feedsDown = [pulseError ? "Personal pulse" : null, tickerFailed ? "Market ticker" : null].filter(
+    (name): name is string => name !== null,
+  );
   if ((!data && !topData) || items.length === 0) {
     // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
     if (!pulseError && !tickerFailed) return null;
@@ -188,7 +198,7 @@ export function BottomPulseTicker() {
       <div
         role="region"
         aria-label="System pulse"
-        className="ui-material relative flex min-h-[32px] items-center border-t border-edge-subtle px-4 sm:h-5 sm:px-3"
+        className="relative flex min-h-[32px] items-center border-t border-edge-subtle bg-canvas px-4 sm:h-5 sm:px-3"
       >
         <p className="font-mono text-[12px] text-fg-tertiary">Pulse unavailable</p>
       </div>
@@ -212,7 +222,7 @@ export function BottomPulseTicker() {
       role="region"
       aria-label="System pulse"
       aria-live="off"
-      className="ui-material relative min-h-[32px] sm:h-5 border-t border-edge-subtle"
+      className="relative min-h-[32px] sm:h-5 border-t border-edge-subtle bg-canvas"
     >
       {/* gap-4 / px-4 on phones: the snooze button's pulled margin (p-4 -m-4) reaches 16px past
           its glyph, so a 12px gap or edge would overlap the pause button or the screen edge. */}
@@ -243,6 +253,11 @@ export function BottomPulseTicker() {
           <span key={current.id} className="pulse-fade flex flex-1 min-w-0">
             <PulseContent item={current} />
           </span>
+          {feedsDown.length > 0 && (
+            <span className="shrink-0 font-mono text-[11px] text-amber-400">
+              {feedsDown.length} {feedsDown.length === 1 ? "feed" : "feeds"} down
+            </span>
+          )}
         </button>
 
         {items.length > 1 && (
@@ -285,7 +300,12 @@ export function BottomPulseTicker() {
         activeIdx={safeIdx}
         onClose={() => setOpen(false)}
         onDismiss={(id, kind) => dismiss(id, { kind, source: "bottom", ttlMs: SNOOZE_MS })}
-        onResolve={(commitmentId, action) => resolveCommitment.mutate({ commitmentId, action })}
+        onResolve={(commitmentId, action) => {
+          setResolveError(null);
+          resolveCommitment.mutate({ commitmentId, action });
+        }}
+        feedsDown={feedsDown}
+        resolveError={resolveError}
         resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
         onPick={(i) => {
           setIdx(i);
@@ -351,6 +371,8 @@ export function PulseFeedSheet({
   resolvingId,
   onPick,
   returnFocusRef,
+  feedsDown = [],
+  resolveError = null,
 }: {
   open: boolean;
   items: PulseItem[];
@@ -364,6 +386,10 @@ export function PulseFeedSheet({
   onPick: (i: number) => void;
   /** The strip button that opened the sheet; focus returns to it on close. */
   returnFocusRef: React.RefObject<HTMLButtonElement | null>;
+  /** Names of feeds that failed while the others show: said above the list, never hidden. */
+  feedsDown?: string[];
+  /** A rejected Done / Drop, shown where the tap happened. */
+  resolveError?: string | null;
 }) {
   return (
     <Dialog
@@ -391,6 +417,16 @@ export function PulseFeedSheet({
             Close
           </button>
         </div>
+        {feedsDown.length > 0 && (
+          <p role="status" className="border-b border-edge-subtle px-3 py-2 text-[13px] text-amber-300">
+            {feedsDown.join(" and ")} could not load. The items below come from the other feed.
+          </p>
+        )}
+        {resolveError && (
+          <p role="alert" className="border-b border-edge-subtle px-3 py-2 text-[13px] text-red-300">
+            {resolveError}
+          </p>
+        )}
         <ul>
           {items.map((it, i) => (
             <li
@@ -483,7 +519,7 @@ function CommitmentResolveButtons({
           e.stopPropagation();
           onResolve(commitmentId, "drop");
         }}
-        aria-label="Drop this promise — no longer doing it"
+        aria-label="Drop this promise, no longer doing it"
         className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control px-2 font-mono text-[11px] text-fg-tertiary hover:text-rose-400 disabled:opacity-40 sm:min-h-9 sm:min-w-9"
       >
         Drop

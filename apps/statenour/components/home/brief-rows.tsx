@@ -38,6 +38,8 @@ import { AlertCircle, Check, X } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { useOnline } from "@/lib/query-state";
 import { useBriefFeedback } from "@/hooks/use-brief-feedback";
 import { hiddenKinds } from "@/lib/ui/brief-feedback";
 import { BRIEF_ROW_CAP, composeBriefRows, type BriefRow, type BriefRowKind, type BriefRowsInput } from "@/lib/home/brief-rows";
@@ -102,6 +104,7 @@ function failureNote(err: unknown): string {
 export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; loading: boolean }) {
   const utils = trpc.useUtils();
   const { feedback, hydrated, setVerdict, clear } = useBriefFeedback();
+  const online = useOnline();
   const { confirm, dialog } = useConfirmDialog();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -167,7 +170,14 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
       </section>
     );
   }
-  if (!brief) return null;
+  if (!brief) {
+    // Offline the read is paused: no brief, no error. Say so instead of drawing nothing.
+    return online ? null : (
+      <section aria-label="the brief" className="mt-10 border-t border-edge-subtle pt-6">
+        <ReadStateNote state="offline" label="The brief" />
+      </section>
+    );
+  }
 
   const failedSources = brief.judgment?.failedSources ?? [];
   const refresh = () => void utils.operator.brief.invalidate();

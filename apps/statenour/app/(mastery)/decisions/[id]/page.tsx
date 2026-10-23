@@ -30,6 +30,8 @@ import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { TrendCounter } from "@/components/ui/trend-counter";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import {
@@ -204,6 +206,22 @@ export default function DecisionDetailPage() {
     );
   }
 
+  // Paused (offline) has no data and no error: say so instead of a blank page.
+  if (!data && readState(detailQuery) === "offline") {
+    return (
+      <StandardPage
+        eyebrow="Journal · Decision"
+        title="Decision"
+        description="Decision evidence and outcome history."
+        width="xl"
+        className="px-3 py-6 sm:px-4"
+        parent={{ href: "/journal", label: "journal" }}
+      >
+        <ReadStateNote state="offline" label="This decision" />
+      </StandardPage>
+    );
+  }
+
   if (!data) return null;
 
   const { decision: d, lineage, timeline } = data;
@@ -372,7 +390,7 @@ export default function DecisionDetailPage() {
           tone="tertiary"
         />
         <TrendCounter
-          value={timeline.reviewDueDays ?? 0}
+          value={timeline.reviewDueDays}
           label={
             timeline.reviewDueDays === null
               ? "no review date set"
@@ -390,7 +408,7 @@ export default function DecisionDetailPage() {
           format={(n) => timeline.reviewDueDays === null ? "n/a" : `${Math.abs(n)}`}
         />
         <TrendCounter
-          value={siblingAvgGrade ?? 0}
+          value={siblingAvgGrade}
           label={
             siblingAvgGrade === null
               ? "no domain history"

@@ -26,6 +26,8 @@
 import { useState } from "react";
 import { Activity } from "lucide-react";
 import { ConfirmHold } from "@/components/ui/confirm-hold";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
@@ -43,8 +45,11 @@ export function OperatingRhythmToggle() {
   // while it is ENABLED. Disabling this cron is the destructive path.
   const [pendingDisable, setPendingDisable] = useState(false);
 
-  // Absent flag → ON (worker honors only an explicit false). While the
-  // query is loading, default to ON so the live region doesn't flicker.
+  // Absent flag → ON (worker honors only an explicit false). That default
+  // applies only to a SUCCESSFUL read: a failed, paused or in-flight read has
+  // no flag map, and drawing the switch ON then is a claim about a worker
+  // setting nobody read (truth sweep 2026-10-23).
+  const status = readState(query);
   const enabled = query.data?.flags?.[FLAG_KEY] !== false;
 
   function commit(next: boolean) {
@@ -85,6 +90,21 @@ export function OperatingRhythmToggle() {
       return;
     }
     commit(true);
+  }
+
+  if (status !== "ready") {
+    return (
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Activity size={14} className="text-fg-tertiary" />
+            <span className="text-[15px] font-semibold text-fg">Operating rhythm</span>
+          </div>
+          {status === "loading" && <div aria-hidden className="h-6 w-11 animate-pulse rounded-full bg-surface-interactive" />}
+        </div>
+        <ReadStateNote state={status} label="Operating rhythm" onRetry={() => void query.refetch()} />
+      </div>
+    );
   }
 
   return (

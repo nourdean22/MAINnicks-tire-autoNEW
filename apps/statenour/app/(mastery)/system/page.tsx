@@ -25,6 +25,8 @@ import { usePullRefresh } from "@/lib/hooks/use-pull-refresh";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { controlTower } from "@/lib/system/control-tower";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { SystemHubGrid } from "@/components/system/hub-grid";
 import { OutboxRedriveRow } from "@/components/system/outbox-redrive-row";
 import { AgendaDesk } from "@/components/system/agenda-desk";
@@ -288,6 +290,8 @@ export default function SystemPage() {
         >
           {tower.headline}
         </p>
+        {/* Paused (offline) is not "measuring": no data and no error, so the helper cannot say it. */}
+        {readState(diagnosticsQuery) === "offline" && <ReadStateNote state="offline" label="The tower" className="mt-3" />}
         {tower.exceptions.length > 0 && (
           <ul aria-label="exceptions" className="mt-6 divide-y divide-edge border-y border-edge">
             {tower.exceptions.map((e) => (

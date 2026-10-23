@@ -22,6 +22,8 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 
 interface CandidateMember {
   entrySource: "brain_dump" | "reflection" | "situation_log" | "decision_replay";
@@ -53,7 +55,7 @@ export function ThreadRadar({
     staleTime: 60_000,
   });
   const candidates: Candidate[] = convergenceQuery.data ?? [];
-  const error = convergenceQuery.error;
+  const status = readState(convergenceQuery);
   const loading = convergenceQuery.isLoading;
   const reload = () => convergenceQuery.refetch();
 
@@ -108,9 +110,19 @@ export function ThreadRadar({
 
   if (loading) return null; // silent on initial load
 
+  // A failed or paused read is not an empty radar: say which, and offer Retry.
+  if (status === "error" || status === "offline") {
+    return (
+      <section className="mb-8 space-y-3">
+        <MasterySectionLabel label="Pattern radar" />
+        <ReadStateNote state={status} label="Pattern radar" onRetry={() => void reload()} />
+      </section>
+    );
+  }
+
   // Empty-radar surface: still render so the operator has a "scan
   // now" affordance + sees the last-scan telemetry when one ran.
-  if (error || candidates.length === 0) {
+  if (candidates.length === 0) {
     // Only show the empty rail when there's a reason to (operator
     // just triggered a scan, OR there's a stale result to show).
     // Hide entirely if neither — keeps page calm when nothing yet.
@@ -120,7 +132,7 @@ export function ThreadRadar({
           <button
             type="button"
             onClick={triggerScan}
-            className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[32px] inline-flex items-center"
+            className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[44px] inline-flex items-center"
             title="run the convergence scan now · normally fires nightly at 22:00 UTC"
           >
             Scan radar now →

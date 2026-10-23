@@ -14,6 +14,7 @@
  * loads. Pinned by tests/components/stats-three-tabs-verdict.test.tsx.
  */
 
+import { offlineCopy, readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 
 /** The fields of lib/mastery/character-sheet.ts StatLevel the verdict reads. */
@@ -38,7 +39,7 @@ export function statsVerdict(stats: VerdictStat[]): string {
   return `${head} ${riser.shortLabel || riser.label} gained the most this week, +${formatXp(riser.rising7dXp)} XP.`;
 }
 
-export type StatsBlockState = "loading" | "error" | "empty";
+export type StatsBlockState = "loading" | "error" | "empty" | "offline";
 
 /** The page's one state block: says which state it is in words; a failure offers Retry. */
 export function StatsStateBlock({ state, message, onRetry }: { state: StatsBlockState; message: string; onRetry?: () => void }) {
@@ -75,6 +76,8 @@ export function StatsVerdict() {
       />
     );
   }
+  // Paused with no data has no error and is not loading: say so (truth sweep 2026-10-23).
+  if (readState(query) === "offline") return <StatsStateBlock state="offline" message={offlineCopy("Your stats")} />;
   if (query.isLoading || stats === null) return <StatsStateBlock state="loading" message="Reading your stats." />;
   if (stats.length === 0) {
     return <StatsStateBlock state="empty" message="No stats recorded yet. Log a workout, a weight entry or a mission task." />;
