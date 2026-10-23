@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/contradictions-consolidation-2026-10-23",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-contradictions-consolidation (manager 0900c49a)",
   "claimedAt": "2026-10-23T06:00:59.314Z",
   "expiresAt": "2026-10-23T18:00:59.314Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-23T07:25:10.187Z",
+  "releaseReason": "PR 3253 squash-merged as ac86d9f2f at 07:24Z; remote branch deleted by the merge",
+  "priorLeaseSha": "dae6cdf5b6a2fd8cb9ec42695f67b030fa2fc40a",
+  "releasedBy": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "foreignReleaseReason": null
 }
