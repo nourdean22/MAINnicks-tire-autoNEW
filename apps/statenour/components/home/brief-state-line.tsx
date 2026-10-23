@@ -105,14 +105,14 @@ export function BriefStateLine({
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1">
           <Link
             href="/system"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-control font-mono text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-control text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg"
             title={health?.detail || undefined}
           >
             <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", DOT[dotState])} />
             {HEALTH_LABEL[dotState]}
           </Link>
           {state && !state.queues.measured && !unreadable && (
-            <span className="font-mono text-[12px] text-amber-300">
+            <span className="text-[13px] text-amber-300">
               some queues unread
             </span>
           )}

@@ -33,8 +33,8 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
     return (
       <section aria-label="horizon">
         <h2 className="vt-eyebrow text-fg-secondary">Horizon</h2>
-        <p className="mt-3 font-mono text-[12px] text-amber-300/90">
-          Horizon unmeasured — reads failed
+        <p className="mt-3 text-[13px] text-amber-300/90">
+          Horizon unmeasured, reads failed
         </p>
       </section>
     );
