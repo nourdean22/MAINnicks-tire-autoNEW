@@ -137,7 +137,6 @@ export async function runAlternatePaths(args: {
   personality: Parameters<typeof import("@/lib/services/chat/response-shape").buildChatResponse>[0]["personality"];
   classification: Parameters<typeof import("@/lib/services/chat/response-shape").buildChatResponse>[0]["classification"];
   recalledHits: any[];
-  detectedContradictions: any[];
   deeperContextCount: number;
   deeperContextTypes: string[];
   contextBlocksFired: Parameters<
@@ -166,7 +165,6 @@ export async function runAlternatePaths(args: {
     personality,
     classification,
     recalledHits,
-    detectedContradictions,
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
@@ -489,7 +487,6 @@ export async function runAlternatePaths(args: {
           contextBlocksFired,
           classification,
           recalledMemories: recalledHits,
-          contradictions: detectedContradictions,
           onFinishPromise: Promise.resolve(),
         });
       } else if (regenOn) {
@@ -820,7 +817,6 @@ export async function runAlternatePaths(args: {
           contextBlocksFired,
           classification,
           recalledMemories: recalledHits,
-          contradictions: detectedContradictions,
           onFinishPromise: Promise.resolve(),
         });
       }

@@ -39,7 +39,6 @@ async function measure(scope: "home" | "full" | "semantic") {
     nodes: Node[];
     edges: Edge[];
     degraded?: string[];
-    contradictionCount?: number;
     meta?: Record<string, unknown>;
   };
   const ms = Date.now() - t0;
@@ -77,7 +76,6 @@ async function measure(scope: "home" | "full" | "semantic") {
   console.log(`missing labels             ${nodes.filter((n) => !n.label || !n.label.trim()).length}`);
   console.log(`task+journal nodes         ${ephemeral.length}  (${((100 * ephemeral.length) / Math.max(1, nodes.length)).toFixed(0)}%)`);
   console.log(`degraded[]                 ${JSON.stringify(payload.degraded ?? null)}`);
-  console.log(`contradictionCount         ${payload.contradictionCount ?? null}`);
   const unlinked = ((payload as unknown as { unlinked?: Node[] }).unlinked) ?? [];
   console.log(`unlinked[] (new)           ${unlinked.length}`);
   const dl = nodes.map((n) => String((n as unknown as { displayLabel?: string }).displayLabel ?? ""));

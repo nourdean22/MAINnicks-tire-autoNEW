@@ -59,7 +59,6 @@ const deepTurn = () =>
     personality: "x",
     classification: {},
     recalledHits: [],
-    detectedContradictions: [],
     deeperContextCount: 0,
     deeperContextTypes: [],
     contextBlocksFired: {},

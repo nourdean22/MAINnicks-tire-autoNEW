@@ -69,7 +69,6 @@ const base = (userContent: string, over: Partial<Parameters<typeof runAlternateP
     personality: "x",
     classification: {},
     recalledHits: [],
-    detectedContradictions: [],
     deeperContextCount: 0,
     deeperContextTypes: [],
     contextBlocksFired: {},

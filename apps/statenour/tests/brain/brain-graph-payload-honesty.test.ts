@@ -6,17 +6,12 @@
  * place; that older file established the location and the prisma harness
  * copied below.
  *
- * Three defects, each of which made the payload describe something other
+ * Two defects, each of which made the payload describe something other
  * than itself:
  *
- *  1. contradictionCount counted the CORPUS, not this payload. The
- *     increment sat above the membership test while the type documented
- *     "pairs present in this payload" — and the contradiction query takes
- *     200 rows against a memory domain of 30, so the two populations were
- *     not close.
- *  2. `limit` was declared, parsed by the route, forwarded, and never
+ *  1. `limit` was declared, parsed by the route, forwarded, and never
  *     read: `?scope=full&limit=10` returned everything.
- *  3. Person nodes shipped without `ageDays`, which is the only field the
+ *  2. Person nodes shipped without `ageDays`, which is the only field the
  *     client's LAST 30D lens matches on — a person added yesterday could
  *     never appear under "recent".
  *
@@ -80,13 +75,9 @@ function personRow(over: Record<string, unknown> = {}) {
   };
 }
 
-/** Route contradiction reads to one list and every other brainMemory read
- *  to another — the builder queries the same table for both. */
-function brainMemoryRouter(memories: unknown[], contradictions: unknown[]) {
-  return (args: { where?: { category?: unknown } }) =>
-    args?.where?.category === "contradiction"
-      ? Promise.resolve(contradictions)
-      : Promise.resolve(memories);
+/** Every brainMemory read answers with the same memory list (the contradiction read is gone). */
+function brainMemoryRouter(memories: unknown[]) {
+  return () => Promise.resolve(memories);
 }
 
 beforeEach(() => {
@@ -98,85 +89,6 @@ beforeEach(() => {
   }
 });
 
-describe("contradictionCount describes THIS payload", () => {
-  it("PLANTED POSITIVE · a pair whose endpoints are both present IS counted", async () => {
-    // Without this, the zero-assertions below would pass against a reader
-    // that never counts anything at all.
-    h.prisma.brainMemory.findMany.mockImplementation(
-      brainMemoryRouter(
-        [memoryRow(), memoryRow({ id: "mem-2", key: "insight_old", content: "Intensity wins." })],
-        [
-          {
-            content: JSON.stringify({
-              new_memory_id: "mem-1",
-              old_memory_id: "mem-2",
-              status: "unresolved",
-            }),
-          },
-        ],
-      ),
-    );
-
-    const g = await getBrainGraph({ scope: "full" });
-
-    expect(g.contradictionCount).toBe(1);
-    expect(g.edges.some((e) => e.type === "contradicts")).toBe(true);
-  });
-
-  it("does NOT count an unresolved pair whose memories are outside this payload", async () => {
-    // The defect. Both endpoints reference memories the memory domain did
-    // not return, so there is no edge and no halo anywhere in this graph —
-    // yet the old counter reported 1, and a UI rendering "1 contradiction"
-    // beside a picture containing none would have been telling the truth
-    // about a different population.
-    h.prisma.brainMemory.findMany.mockImplementation(
-      brainMemoryRouter(
-        [memoryRow()],
-        [
-          {
-            content: JSON.stringify({
-              new_memory_id: "absent-9",
-              old_memory_id: "absent-10",
-              status: "unresolved",
-            }),
-          },
-        ],
-      ),
-    );
-
-    const g = await getBrainGraph({ scope: "full" });
-
-    expect(g.edges.some((e) => e.type === "contradicts")).toBe(false);
-    expect(g.nodes.some((n) => n.contradicted)).toBe(false);
-    expect(
-      g.contradictionCount,
-      "contradictionCount must match the pairs actually drawn in this payload",
-    ).toBe(0);
-  });
-
-  it("counts ONLY the drawable pair when the corpus holds both kinds", async () => {
-    // The sharpest form: one visible pair, three invisible ones. The old
-    // code answered 4; the number beside the graph must be 1.
-    h.prisma.brainMemory.findMany.mockImplementation(
-      brainMemoryRouter(
-        [memoryRow(), memoryRow({ id: "mem-2", key: "insight_old", content: "Intensity wins." })],
-        [
-          { content: JSON.stringify({ new_memory_id: "mem-1", old_memory_id: "mem-2", status: "unresolved" }) },
-          { content: JSON.stringify({ new_memory_id: "gone-1", old_memory_id: "gone-2", status: "unresolved" }) },
-          { content: JSON.stringify({ new_memory_id: "gone-3", old_memory_id: "gone-4", status: "unresolved" }) },
-          { content: JSON.stringify({ new_memory_id: "mem-1", old_memory_id: "gone-5", status: "unresolved" }) },
-        ],
-      ),
-    );
-
-    const g = await getBrainGraph({ scope: "full" });
-
-    const drawn = g.edges.filter((e) => e.type === "contradicts").length;
-    expect(drawn).toBe(1);
-    expect(g.contradictionCount).toBe(drawn);
-  });
-});
-
 describe("`limit` is a real cap, not an advertised no-op", () => {
   const manyMemories = Array.from({ length: 25 }, (_, i) =>
     memoryRow({ id: `mem-${i}`, key: `insight_${i}`, seenCount: i + 1 }),
@@ -185,13 +97,13 @@ describe("`limit` is a real cap, not an advertised no-op", () => {
   it("PLANTED POSITIVE · without a limit the payload is larger than the cap under test", async () => {
     // If the unlimited payload were already <= 8 the cap assertion below
     // would pass without the cap doing anything.
-    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories, []));
+    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories));
     const g = await getBrainGraph({ scope: "full" });
     expect(g.nodes.length).toBeGreaterThan(8);
   });
 
   it("honours ?limit= on the scope branch", async () => {
-    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories, []));
+    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories));
     const g = await getBrainGraph({ scope: "full", limit: 8 });
     expect(
       g.nodes.length,
@@ -200,7 +112,7 @@ describe("`limit` is a real cap, not an advertised no-op", () => {
   });
 
   it("drops edges that lose an endpoint to the cap — never a dangling reference", async () => {
-    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories, []));
+    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories));
     const g = await getBrainGraph({ scope: "full", limit: 8 });
     const ids = new Set(g.nodes.map((n) => n.id));
     for (const e of g.edges) {
@@ -210,7 +122,7 @@ describe("`limit` is a real cap, not an advertised no-op", () => {
   });
 
   it("keeps the life-domain anchors rather than clipping them by weight", async () => {
-    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories, []));
+    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories));
     const g = await getBrainGraph({ scope: "full", limit: 8 });
     // The anchors are the map's skeleton; dropping one strands the domain
     // edges that point at it.
@@ -218,7 +130,7 @@ describe("`limit` is a real cap, not an advertised no-op", () => {
   });
 
   it("ignores junk limits instead of returning an empty graph", async () => {
-    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories, []));
+    h.prisma.brainMemory.findMany.mockImplementation(brainMemoryRouter(manyMemories));
     for (const bad of [0, -5, Number.NaN]) {
       const g = await getBrainGraph({ scope: "full", limit: bad });
       expect(g.nodes.length, `limit=${bad} should mean "no cap"`).toBeGreaterThan(8);

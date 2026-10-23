@@ -15,13 +15,6 @@ export interface MemoryHit {
   similarity: number;
 }
 
-export interface ContradictionLog {
-  id: string;
-  claim: string;
-  reality: string;
-  severity: string;
-}
-
 export type ChatUiState = {
   draft: string;
   /** "unknown" until the stream has been observed: nothing is measured on mount. */
@@ -34,7 +27,6 @@ export type ChatUiState = {
   memoryInspectorOpen: boolean | null;
   historyDrawerOpen: boolean;
   recalledHits: MemoryHit[];
-  contradictions: ContradictionLog[];
   // 2026-07-22 · Authority-kernel controls (audit Waves 1+7). Defaults =
   // today's behavior; the composer selectors set these and the transport
   // body ships only non-defaults.
@@ -82,7 +74,7 @@ export type ChatUiState = {
   toggleVoiceDock: () => void;
   setMemoryInspectorOpen: (open: boolean) => void;
   setHistoryDrawerOpen: (open: boolean) => void;
-  setMemoryData: (hits: MemoryHit[], contradictions: ContradictionLog[]) => void;
+  setMemoryData: (hits: MemoryHit[]) => void;
 };
 
 export const useChatUiStore = create<ChatUiState>((set) => ({
@@ -95,7 +87,6 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   memoryInspectorOpen: null,
   historyDrawerOpen: false,
   recalledHits: [],
-  contradictions: [],
   privateMode: false,
   posture: "auto",
   depth: "auto",
@@ -157,5 +148,5 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   toggleVoiceDock: () => set((s) => ({ isVoiceDocked: !s.isVoiceDocked })),
   setMemoryInspectorOpen: (open) => set({ memoryInspectorOpen: open }),
   setHistoryDrawerOpen: (open) => set({ historyDrawerOpen: open }),
-  setMemoryData: (hits, contradictions) => set({ recalledHits: hits, contradictions }),
+  setMemoryData: (hits) => set({ recalledHits: hits }),
 }));

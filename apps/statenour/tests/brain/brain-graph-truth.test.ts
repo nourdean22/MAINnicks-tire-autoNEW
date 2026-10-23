@@ -13,8 +13,6 @@
  *     age and TTL; weight follows re-sightings, never confidence-as-%.
  *  4. REAL DESTINATIONS — decision nodes deep-link to /decisions/<id>
  *     (the old /decisions has no page — it 404'd on every decision).
- *  5. CONTRADICTIONS ARE EDGES — unresolved pairs become `contradicts`
- *     edges and flag both endpoints.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -108,7 +106,7 @@ describe("getBrainGraph · no invented relationships", () => {
     const g = await getBrainGraph({ scope: "full" });
     for (const e of g.edges) {
       expect(e.origin).toBeDefined();
-      expect(["fk", "memory_edge", "semantic", "contradiction", "category", "domain"]).toContain(e.origin);
+      expect(["fk", "memory_edge", "semantic", "category", "domain"]).toContain(e.origin);
     }
   });
 
@@ -201,46 +199,5 @@ describe("getBrainGraph · trust and destinations", () => {
     for (const dead of ["ollama-glm", "gemini-backup", "provider-hud", "chat-ui", "brain-graph", "homepage-cc"]) {
       expect(g.nodes.some((n) => n.id === dead)).toBe(false);
     }
-  });
-});
-
-describe("getBrainGraph · contradictions become edges", () => {
-  it("renders an unresolved pair as a contradicts edge and flags both nodes", async () => {
-    h.prisma.brainMemory.findMany.mockImplementation((args: { where?: { category?: unknown } }) => {
-      if (args?.where?.category === "contradiction") {
-        return Promise.resolve([
-          {
-            content: JSON.stringify({
-              new_memory_id: "mem-1",
-              old_memory_id: "mem-2",
-              status: "unresolved",
-            }),
-          },
-        ]);
-      }
-      return Promise.resolve([memoryRow(), memoryRow({ id: "mem-2", key: "belief_old", content: "Intensity beats consistency." })]);
-    });
-
-    const g = await getBrainGraph({ scope: "full" });
-
-    const edge = g.edges.find((e) => e.type === "contradicts");
-    expect(edge?.origin).toBe("contradiction");
-    expect(g.contradictionCount).toBe(1);
-    expect(g.nodes.find((n) => n.id === "mem-1")!.contradicted).toBe(true);
-    expect(g.nodes.find((n) => n.id === "mem-2")!.contradicted).toBe(true);
-  });
-
-  it("ignores resolved contradictions", async () => {
-    h.prisma.brainMemory.findMany.mockImplementation((args: { where?: { category?: unknown } }) => {
-      if (args?.where?.category === "contradiction") {
-        return Promise.resolve([
-          { content: JSON.stringify({ new_memory_id: "mem-1", old_memory_id: "mem-2", status: "current_wins" }) },
-        ]);
-      }
-      return Promise.resolve([memoryRow()]);
-    });
-    const g = await getBrainGraph({ scope: "full" });
-    expect(g.edges.some((e) => e.type === "contradicts")).toBe(false);
-    expect(g.contradictionCount).toBe(0);
   });
 });

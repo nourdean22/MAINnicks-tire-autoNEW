@@ -15,14 +15,13 @@
  * 2. HONEST RELATIONSHIPS ONLY. The old graph invented edges: keyword
  *    matching (`title.includes("tire")`), and a blanket "connect every
  *    orphan to an anchor" pass. Every edge now has a real source: a
- *    foreign key, a MemoryEdge row, a SemanticEdge row, a contradiction
- *    pair, a goal's own domain field, or category membership (a memory
+ *    foreign key, a MemoryEdge row, a SemanticEdge row, a goal's own domain field, or category membership (a memory
  *    IS in its category — structural, not inferred). Unlinked nodes stay
  *    visibly unlinked; that isolation is signal, not a rendering bug.
  *
  * 3. EPISTEMIC CHROME. Memory nodes carry the commit gateway's evidence
  *    ladder (operator_stated → weak_inference), seenCount, age, TTL
- *    distance, and contradiction involvement — so the client can render
+ *    distance — so the client can render
  *    trust instead of pretending a re-sighting count is a probability.
  *    (Confidence here IS `0.5 + 0.1×(sightings−1)`; weight therefore
  *    derives from seenCount and is labeled as attention, never as truth.)
@@ -33,7 +32,6 @@
  */
 import { displayLabel } from "./display-label";
 import { prisma } from "@/lib/prisma";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   evidenceClassForSource,
   type MemoryEvidenceClass,
@@ -72,8 +70,6 @@ export type BrainGraphNode = {
   isNew?: boolean;
   /** Days until TTL expiry (null = no TTL). Negative = past due. */
   expiresInDays?: number | null;
-  /** This node is one side of an UNRESOLVED contradiction pair. */
-  contradicted?: boolean;
   metadata?: Record<string, unknown>;
 };
 
@@ -90,7 +86,7 @@ export type BrainGraphEdge = {
     | "contradicts";
   weight: number;
   /** Where this edge came from — every edge must name its evidence. */
-  origin: "fk" | "memory_edge" | "semantic" | "contradiction" | "category" | "domain";
+  origin: "fk" | "memory_edge" | "semantic" | "category" | "domain";
 };
 
 export type BrainGraphPayload = {
@@ -109,8 +105,6 @@ export type BrainGraphPayload = {
   /** Domains that failed or timed out during this build — the client
    *  must render these as DEGRADED, never as silently-absent data. */
   degraded: string[];
-  /** Unresolved contradiction pairs present in this payload. */
-  contradictionCount: number;
 };
 
 /**
@@ -160,7 +154,6 @@ function finalizeGraph(
      *  while the toggle reads off (review finding on #2087). */
     semantic: boolean;
     degraded: string[];
-    contradictionCount: number;
   },
 ): BrainGraphPayload {
   const isSemantic = input.semantic;
@@ -192,7 +185,6 @@ function finalizeGraph(
     generatedAt: new Date().toISOString(),
     scope: input.scope,
     degraded: input.degraded,
-    contradictionCount: input.contradictionCount,
     unlinked,
   };
 }
@@ -294,12 +286,6 @@ const DOMAIN_DEADLINE_MS = 8_000;
 /** Max out-of-window missions (and, separately, goals) loaded so a grounded
  *  entry's FK edge has both ends. */
 const ANCHOR_FETCH_CAP = 20;
-
-interface StoredContradictionContent {
-  new_memory_id?: string;
-  old_memory_id?: string;
-  status?: string;
-}
 
 export async function getBrainGraph(params: {
   scope?: "home" | "full" | "semantic";
@@ -758,9 +744,8 @@ export async function getBrainGraph(params: {
     }
   });
 
-  // ── 4. Stored edges + contradictions (bounded, degraded-aware) ──────
+  // ── 4. Stored edges (bounded, degraded-aware) ──────
   const currentIds = Array.from(nodeIds);
-  let contradictionCount = 0;
   if (currentIds.length > 0) {
     const edgeSettled = await Promise.allSettled([
       withDeadline(
@@ -781,23 +766,6 @@ export async function getBrainGraph(params: {
         }),
         DOMAIN_DEADLINE_MS,
         "semantic_edges",
-      ),
-      withDeadline(
-        prisma.brainMemory.findMany({
-          // BRAIN_CATEGORIES.CONTRADICTION, not a string literal — the
-          // surfacer writes through the same constant, so a rename can
-          // never silently blind this reader. Measured 2026-08-19: this
-          // store is currently EMPTY in prod (0 rows), so contradiction
-          // edges render zero today. That is a correct reader over an
-          // empty store, not a broken one — it lights up the moment
-          // surfaceContradictions() flags a pair.
-          where: { category: BRAIN_CATEGORIES.CONTRADICTION, deletedAt: null },
-          orderBy: { createdAt: "desc" },
-          take: 200,
-          select: { content: true },
-        }),
-        DOMAIN_DEADLINE_MS,
-        "contradictions",
       ),
     ]);
 
@@ -822,50 +790,6 @@ export async function getBrainGraph(params: {
       });
     } else degraded.push("semantic_edges");
 
-    if (edgeSettled[2].status === "fulfilled") {
-      const contradictedIds = new Set<string>();
-      edgeSettled[2].value.forEach((row) => {
-        let parsed: StoredContradictionContent = {};
-        try {
-          parsed = JSON.parse(row.content) as StoredContradictionContent;
-        } catch {
-          return; // non-JSON contradiction rows carry no pair — skip
-        }
-        const unresolved = !parsed.status || parsed.status === "unresolved";
-        if (!unresolved || !parsed.new_memory_id || !parsed.old_memory_id) return;
-        // The counter belongs INSIDE the membership test, not above it.
-        // `contradictionCount` is documented on BrainGraphPayload as
-        // "unresolved contradiction pairs present in THIS payload"; above
-        // the test it counted the CORPUS. The two populations are not
-        // close: this query takes 200 rows while the memory domain takes
-        // 30 (`counts.memories`), so most counted pairs had no edge and no
-        // halo anywhere in the picture the operator was looking at. A
-        // number that describes a different population than the graph
-        // beside it is a wrong number, not a bonus one.
-        //
-        // The corpus-wide total is deliberately NOT reported here. A
-        // surface that wants "unresolved pairs you CANNOT see in this
-        // view" — a real and useful reading — needs its own field, so
-        // that neither number has to be interpreted through a comment.
-        if (nodeIds.has(parsed.new_memory_id) && nodeIds.has(parsed.old_memory_id)) {
-          contradictionCount += 1;
-          addEdge({
-            source: parsed.new_memory_id,
-            target: parsed.old_memory_id,
-            type: "contradicts",
-            weight: 0.9,
-            origin: "contradiction",
-          });
-          contradictedIds.add(parsed.new_memory_id);
-          contradictedIds.add(parsed.old_memory_id);
-        }
-      });
-      if (contradictedIds.size > 0) {
-        nodes.forEach((n) => {
-          if (contradictedIds.has(n.id)) n.contradicted = true;
-        });
-      }
-    } else degraded.push("contradictions");
   }
 
   // Anchor spine — the OS relates its own domains; explicit, minimal.
@@ -926,7 +850,6 @@ export async function getBrainGraph(params: {
         scope: "focus",
         semantic: scope === "semantic",
         degraded,
-        contradictionCount,
       });
     }
   }
@@ -942,7 +865,6 @@ export async function getBrainGraph(params: {
       scope: "home",
       semantic: false,
       degraded,
-      contradictionCount,
     });
   }
 
@@ -953,6 +875,5 @@ export async function getBrainGraph(params: {
     scope: scope === "semantic" ? "semantic" : "full",
     semantic: scope === "semantic",
     degraded,
-    contradictionCount,
   });
 }

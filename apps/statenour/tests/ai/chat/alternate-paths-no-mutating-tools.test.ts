@@ -138,7 +138,6 @@ const base = (userContent: string, prunedTools: Record<string, ToolLike>, intent
     personality: "x",
     classification: {},
     recalledHits: [],
-    detectedContradictions: [],
     deeperContextCount: 0,
     deeperContextTypes: [],
     contextBlocksFired: {},

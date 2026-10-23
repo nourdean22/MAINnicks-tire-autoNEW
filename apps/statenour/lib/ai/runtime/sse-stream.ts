@@ -17,7 +17,6 @@ interface CreateCockpitSseStreamInput {
    *  array means nothing on its own -- see memory-recall.RecallProvenance. */
   recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
   recallProvenanceReason?: string;
-  contradictions: Array<{ id: string; claim: string; reality: string; severity: string }>;
   onFinishPromise: Promise<void>;
 }
 
@@ -62,7 +61,6 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
     recalledMemories,
     recallProvenance,
     recallProvenanceReason,
-    contradictions,
     onFinishPromise,
   } = input;
 
@@ -123,7 +121,6 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
       // 2. Publish memory.recalled
       sendEvent("memory.recalled", {
         hits: recalledMemories,
-        contradictions: contradictions,
         provenance: recallProvenance,
         provenanceReason: recallProvenanceReason,
       });

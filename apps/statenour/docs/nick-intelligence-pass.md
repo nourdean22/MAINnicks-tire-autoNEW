@@ -38,7 +38,6 @@ Remove (revert): `railway variables delete X --service statenour-web`.
 | `NICK_AUTONOMY` | Proactive engine (~22 rules) + nick-action queue — **fail-closed, /qa-gated** | `true` | ON |
 | `NICK_ANTICIPATORY_RECALL` | Anticipatory memory prefetch | `true` | ON |
 | `NICK_REFLECTION_TREES` | Higher-order reflection synthesis (rides reflect-categories cron) | `true` | ON |
-| `NICK_CONTRADICTION_CLEANUP` | Soft-deletes the losing side of resolved contradictions | `true` | ON |
 | `NICK_EPISODIC_SPLIT` | Reserves recall slots for episodic vs semantic memory | `true` | ON |
 | `NICK_OUTCOME_LEARNING` | Learns from proposal accept/reject history | `true` | ON |
 | `NICK_SELF_CONSISTENCY` | N-sample vote on numeric/high-stakes answers | `true` | ON |

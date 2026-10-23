@@ -149,7 +149,6 @@ export function ChatIsland() {
   const setHistoryDrawerOpen = useChatUiStore((state) => state.setHistoryDrawerOpen);
   const setActiveConversationId = useChatUiStore((state) => state.setActiveConversationId);
   const recalledHits = useChatUiStore((state) => state.recalledHits);
-  const contradictions = useChatUiStore((state) => state.contradictions);
   const setMemoryData = useChatUiStore((state) => state.setMemoryData);
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
   // W3b: below md the header shows History and More; auto-read, context and voice live in this sheet.
@@ -278,7 +277,7 @@ export function ChatIsland() {
     const onCockpitEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
-        setMemoryData(detail.payload?.hits || [], detail.payload?.contradictions || []);
+        setMemoryData(detail.payload?.hits || []);
         setMemoryFetchedAt(new Date());
         // 2026-09-10 · carry WHY the hit list is the length it is, so an
         // empty list can render as "read failed" rather than as "Nick
@@ -321,7 +320,7 @@ export function ChatIsland() {
         // memories and blanked the provenance on every open, and it bumped
         // lastSeen on what it showed. A failed read now lands in the catch.
         const report = await fetchInspectorRecall(lastUserText, controller.signal);
-        setMemoryData(report.hits, contradictions);
+        setMemoryData(report.hits);
         setMemoryFetchedAt(new Date());
         setRecallProvenance(report.provenance);
         setRecallProvenanceReason(report.provenanceReason);
@@ -337,7 +336,7 @@ export function ChatIsland() {
       }
     })();
     return () => controller.abort();
-  }, [contradictions, lastUserText, inspectorOpen, setMemoryData]);
+  }, [lastUserText, inspectorOpen, setMemoryData]);
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
@@ -505,7 +504,7 @@ export function ChatIsland() {
 
       {/* W3b (B1): docked at xl (the evidence beside the answer, on its own raised surface, closable
           from the header's Context button); the opt-in overlay below xl, as before. */}
-      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
+      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays rather than re-laying-out the chat column.
