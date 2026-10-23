@@ -194,33 +194,45 @@ describe("buildBrainMaturity · a failed read is not a zero", () => {
     expect(mocks.logger.warn).not.toHaveBeenCalled();
   });
 
-  it("one failed read is enough to withhold the score, and only its own counters", async () => {
-    mocks.countUnresolvedContradictions.mockRejectedValue(new Error("contradictions down"));
-    mocks.loadActiveSkills.mockResolvedValue([
-      { graduated: true },
-      { graduated: false },
-    ]);
+  it("a failed read of a scored subsystem withholds the score, and only its own counters", async () => {
+    mocks.loadActiveSkills.mockRejectedValue(new Error("skills down"));
+    mocks.loadPendingSkills.mockResolvedValue([{ id: "p1" }]);
 
     const view = await buildBrainMaturity();
 
     expect(view.score).toBeNull();
-    expect(view.failedReads).toEqual(["contradictions"]);
-    expect(view.components.contradictions.open).toBeNull();
+    expect(view.failedReads).toEqual(["skills_active"]);
     // The reads that DID land are still reported as measured numbers.
+    expect(view.components.skills.pending).toBe(1);
+    expect(view.components.contradictions.open).toBe(0);
+  });
+
+  it("a failed contradictions count is named in failedReads but does not null a score it carries no points in", async () => {
+    mocks.countUnresolvedContradictions.mockRejectedValue(new Error("contradictions down"));
+    mocks.loadActiveSkills.mockResolvedValue([{ graduated: true }, { graduated: false }]);
+
+    const view = await buildBrainMaturity();
+
+    expect(view.failedReads).toEqual(["contradictions"]);
+    expect(view.score).toBe(6); // (2 skills + 1 graduated) * 2: the score stays numeric
+    expect(view.components.contradictions.open).toBeNull();
     expect(view.components.skills.active).toBe(2);
-    expect(view.components.skills.graduated).toBe(1);
   });
 });
 
 describe("buildBrainMaturity · contradictions · the table's open count", () => {
-  it("reports the table count, and 80 open rows cost no points", async () => {
+  it("reports the table count, and 80 open rows cost no points against a NON-ZERO baseline", async () => {
+    mocks.loadActiveSkills.mockResolvedValue([{ graduated: true }, { graduated: true }, { graduated: false }]);
+
+    mocks.countUnresolvedContradictions.mockResolvedValue(0);
+    const clean = await buildBrainMaturity();
     mocks.countUnresolvedContradictions.mockResolvedValue(80);
+    const loaded = await buildBrainMaturity();
 
-    const view = await buildBrainMaturity();
-
-    expect(view.components.contradictions.open).toBe(80);
-    expect(view.failedReads).toEqual([]);
-    expect(view.score).toBe(0);
-    expect(view.scoreMax).toBe(90);
+    expect(clean.score).toBeGreaterThan(0); // a re-added open penalty would be visible against this
+    expect(loaded.components.contradictions.open).toBe(80);
+    expect(loaded.failedReads).toEqual([]);
+    expect(loaded.score).toBe(clean.score);
+    expect(loaded.scoreMax).toBe(90);
   });
 });

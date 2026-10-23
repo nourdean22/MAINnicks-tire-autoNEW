@@ -69,7 +69,7 @@ export const HOME_BRIEF: OperatorBrief = {
       {
         kind: "contradiction",
         count: 4,
-        href: "/brain?tab=memory",
+        href: "/brain?tab=memory#contradictions",
       },
     ],
     visibleCap: 3,

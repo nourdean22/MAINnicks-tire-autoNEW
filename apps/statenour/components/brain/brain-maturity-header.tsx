@@ -26,14 +26,14 @@ import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialo
 // FAILED — never zero. See UNKNOWN below.
 interface Maturity {
   score: number | null;        // aggregate · null when a read failed
-  /** What `score` is out of — below 100 when a dimension is unmeasurable. */
+  /** What `score` is out of: a constant 90. */
   scoreMax: number;
   components: {
     skills: { active: number | null; graduated: number | null; pending: number | null };
     identity: { axes_filled: number | null; history_days: number | null };
     qualitative: { entries: number | null };
     beliefs: { active: number | null; candidates: number | null };
-    contradictions: { open: number | null; resolved: number | null };
+    contradictions: { open: number | null };
     ghost: { hits: number | null; surprises: number | null; accuracy: number | null };
     chat_memory: { importance_rows: number | null; distilled_sessions: number | null };
   };
@@ -102,7 +102,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
   const resetBrain = useCallback(async () => {
     const first = await confirm({
       title: "Reset the ENTIRE brain state?",
-      body: "This clears skills, identity, beliefs, contradictions, ghost accuracy, qualitative identity, and chat importance rows. CANNOT be undone.",
+      body: "This clears skills, identity, beliefs, ghost accuracy, qualitative identity, and chat importance rows. The claim-vs-record contradictions list is not touched. CANNOT be undone.",
       confirmLabel: "Continue",
       tone: "danger",
     });
@@ -216,12 +216,8 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
         <div className="shrink-0">
           <p className={cn("text-[32px] font-mono tabular-nums leading-none", scoreColor)}>
             {score == null ? UNKNOWN : <AnimatedCounter value={score} duration={900} />}
-            {/* 2026-09-02 · the denominator is shown only when it is NOT 100,
-                so the common case stays uncluttered and the uncommon one
-                cannot be misread. Production currently has zero
-                contradictions ever recorded, so this renders /90 — a
-                dimension with no data is excluded from the score and from
-                its ceiling rather than paid a hardcoded 7. */}
+            {/* The denominator is shown only when it is NOT 100 (it is a constant 90 now:
+                contradictions carry no points), so the common case reads /90. */}
             {score != null && data.scoreMax !== 100 && (
               <span className="text-[15px] text-[var(--text-tertiary)]">/{data.scoreMax}</span>
             )}

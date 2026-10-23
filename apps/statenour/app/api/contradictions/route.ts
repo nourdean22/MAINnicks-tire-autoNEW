@@ -2,8 +2,8 @@
  * /api/contradictions — list + resolve Nour's stated-position conflicts.
  *
  *   GET ?all=1 → all (including resolved). Default: unresolved only.
- *   PATCH { key, status, note? } → apply resolution; deprecates the
- *     losing memory row if status is current_wins or old_wins.
+ *   PATCH { key, status } → close a claim-vs-record row (`tbl:<id>` keys only;
+ *     a compare-and-swap on resolved=false).
  *
  * Owner-auth.
  *

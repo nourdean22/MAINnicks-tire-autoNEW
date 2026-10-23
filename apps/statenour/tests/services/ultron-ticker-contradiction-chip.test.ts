@@ -27,7 +27,7 @@ describe("ticker contradiction chip", () => {
     h.count.mockResolvedValue(80);
     const chip = (await fetchBrainPulseItems()).find((i) => i.id === "brain-contradict");
     expect(chip?.label).toBe("⚠ 80 open contradictions");
-    expect(chip?.href).toBe("/brain?tab=memory");
+    expect(chip?.href).toBe("/brain?tab=memory#contradictions");
   });
 
   it("singular for one", async () => {

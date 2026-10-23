@@ -1170,7 +1170,7 @@ export const brainTools = {
    */
   resolveContradiction: tool({
     description:
-      "Close an open claim-vs-record contradiction after Nour answers a CLAIM VS RECORD, ONE OPEN CONTRADICTION or CONTRADICTION ASKED EARLIER block. Required: contradictionKey 'tbl:<id>' from that block. side 'current_wins' = the record is right, 'old_wins' = the claim is outdated, 'dismissed' = ignore. 'both_valid' does not apply to these rows and is refused. A key without the tbl: prefix is not found.",
+      "Close an open claim-vs-record contradiction after Nour answers a CLAIM VS RECORD, ONE OPEN CONTRADICTION or CONTRADICTION ASKED EARLIER block. Required: contradictionKey 'tbl:<id>' from that block. side 'current_wins' = the record is right, 'old_wins' = the claim is outdated, 'dismissed' = ignore. 'both_valid' is not offered: it does not apply to these rows. A key without the tbl: prefix is not found.",
     inputSchema: z.object({
       contradictionKey: z
         .string()
@@ -1178,20 +1178,20 @@ export const brainTools = {
         .max(64)
         .describe("The key from the contradiction block ('tbl:<id>')."),
       side: z
-        .enum(["current_wins", "old_wins", "both_valid", "dismissed"])
+        .enum(["current_wins", "old_wins", "dismissed"])
         .describe(
-          "Which side is canonical. current_wins = today's statement. old_wins = prior statement. both_valid = context-dependent. dismissed = not actually a contradiction.",
+          "How Nour answered a claim-vs-record row. current_wins = the record is right (his claim was wrong). old_wins = the claim is outdated (it was true once, things moved on). dismissed = ignore it. both_valid does not apply to these rows.",
         ),
       currentBelief: z
         .string()
         .max(400)
         .optional()
-        .describe("Optional 1-2 sentence summary of the canonical belief for future recall."),
+        .describe("Not stored for table rows (the answer itself is the record). Leave empty."),
       note: z
         .string()
         .max(400)
         .optional()
-        .describe("Optional operator note explaining the resolution."),
+        .describe("Not stored for table rows (the table has no note column). Leave empty."),
     }),
     execute: async ({ contradictionKey, side, currentBelief, note }) => {
       try {

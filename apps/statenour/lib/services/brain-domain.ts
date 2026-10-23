@@ -176,13 +176,13 @@ export type BrainMaturityRead =
  */
 export interface BrainMaturityView {
   /**
-   * 0-100 · `null` whenever `failedReads` is non-empty. A score summed
+   * 0-100 · `null` whenever a scored subsystem is in `failedReads`. A score summed
    * over subsystems that could not be read is a fabricated number, and
    * this one fabricated a specific, plausible value — see the function
    * header.
    */
   score: number | null;
-  /** Denominator for `score` — shrinks when a dimension cannot be measured. */
+  /** Denominator for `score`: a constant 90 (contradictions carry no points). */
   scoreMax: number;
   components: {
     skills: {
@@ -358,12 +358,14 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
   // never held a row, so it was excluded on every render (max 90); the open count below now
   // comes from the contradictions table, as a count only.
   const scoreMax = 90;
+  const scoreBlockers = failedReads.filter((r) => r !== "contradictions");
 
   return {
-    // Any failed read makes the sum a statement about subsystems we did
-    // not read. There is no honest number to print, so there is none.
-    score: failedReads.length > 0 ? null : Math.max(0, Math.min(scoreMax, rawScore)),
-    /** What `score` is out of. Below 100 when a dimension is unmeasurable. */
+    // Any failed read of a SCORED subsystem makes the sum a statement about subsystems we did
+    // not read. There is no honest number to print, so there is none. The contradictions
+    // count carries no points, so its failure is named in failedReads but cannot move the score.
+    score: scoreBlockers.length > 0 ? null : Math.max(0, Math.min(scoreMax, rawScore)),
+    /** What `score` is out of: a constant 90. */
     scoreMax,
     components: {
       skills: {
@@ -436,7 +438,7 @@ export async function buildBrainExport(): Promise<unknown> {
 
   return {
     exported_at: new Date().toISOString(),
-    schema_version: "2026.04.19",
+    schema_version: "2026.10.23", // 2026.10.23: the `contradictions` key was dropped (no reader parses the version)
     skills: { active: skillsActive, pending: skillsPending },
     identity,
     identity_history: identityHistory,

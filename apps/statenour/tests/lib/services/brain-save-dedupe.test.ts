@@ -121,12 +121,13 @@ describe("saveToBrain identity and near-duplicate semantics", () => {
           // 2026-09-08: the row carries the admission envelope beside the caller's metadata
           metadata: expect.objectContaining({
             via: "test",
-            nearDuplicateOf: "bm-old",
             admission: expect.objectContaining({ memoryKind: "semantic", evidenceClass: "operator_stated", extractionMethod: "explicit_save" }),
           }),
         }),
       }),
     );
+    // No metadata link to the old row: nothing reads it since the review queue is gone.
+    expect(JSON.stringify(mocks.brainMemory.create.mock.calls[0][0])).not.toContain("nearDuplicateOf");
     // The old row is untouched: no sighting bump, no soft-delete, no supersession.
     expect(mocks.brainMemory.update).not.toHaveBeenCalled();
     // The BrainMemory contradiction set is gone: the pair is linked in metadata only, nothing else is written.

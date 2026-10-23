@@ -233,7 +233,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getDarkPsychologyTactics: { family: "cognition", description: "Look up dark psychology tactics (cognitive biases, manipulation techniques, social engineering patterns) re..." },
   getPowerBalanceSummary: { family: "cognition", description: "Get power-balance scores for the top 5 people by interaction count. Returns each person's name, power balan..." },
   getSkillProtocol: { family: "cognition", description: "Load the full step-by-step protocol for a bundled skill by exact name (e.g. 'maxforge-alpha'). suggestSkill..." },
-  resolveContradiction: { family: "cognition", description: "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which..." },
+  resolveContradiction: { family: "cognition", description: "Close an open claim-vs-record contradiction after Nour answers a CLAIM VS RECORD, ONE OPEN CONTRADICTION o..." },
   runPython: { family: "cognition", description: "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE, CALCULATE, or PLOT anything in P..." },
   suggestSkills: { family: "cognition", description: "Find the best Claude skills (from the indexed skill registry) for the operator's current task or question...." },
 

@@ -143,7 +143,7 @@ describe("BriefRows", () => {
     const row = container.querySelector('[data-brief-row="contradiction"]');
     expect(row?.textContent).toContain("4 open contradictions");
     expect(row?.textContent).not.toMatch(/Now:|Before:/);
-    expect(row?.querySelector("a")?.getAttribute("href")).toBe("/brain?tab=memory");
+    expect(row?.querySelector("a")?.getAttribute("href")).toBe("/brain?tab=memory#contradictions");
   });
 
   it("decision detail sits on its own line: the commitment's domain and evidence", async () => {

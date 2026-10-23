@@ -31,7 +31,6 @@ import {
   antiPatternCreateSchema,
   preferenceVectorSaveSchema,
   personaDriftResolveSchema,
-  contradictionResolveSchema,
   decisionReplayMarkSchema,
 } from "@/lib/validators/system";
 import {

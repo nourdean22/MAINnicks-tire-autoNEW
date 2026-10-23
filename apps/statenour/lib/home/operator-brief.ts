@@ -188,7 +188,28 @@ async function guarded<T>(p: Promise<T>): Promise<T | null> {
 /** One count row when anything is open, none on a measured zero. Rejects on a failed count (see guarded). */
 async function loadContradictionItems(): Promise<JudgmentItem[]> {
   const count = await countUnresolvedContradictions();
-  return count > 0 ? [{ kind: "contradiction", count, href: "/brain?tab=memory" }] : [];
+  return count > 0 ? [{ kind: "contradiction", count, href: "/brain?tab=memory#contradictions" }] : [];
+}
+
+/** null = the count read failed (named in failedSources), [] = measured zero. */
+function loadContradictionsGuarded(): Promise<JudgmentItem[] | null> {
+  return guarded(loadContradictionItems());
+}
+
+/** The sources whose read failed, as the brief names them. null means failed; [] is a measured empty. */
+function collectFailedSources(r: {
+  contradictions: unknown;
+  proposals: unknown;
+  followUps: unknown;
+  pendingActions: unknown;
+  approvalRequests: unknown;
+}): string[] {
+  const failed: string[] = [];
+  if (r.contradictions === null) failed.push("contradictions");
+  if (r.proposals === null) failed.push("commitments");
+  if (r.followUps === null) failed.push("follow-ups");
+  if (r.pendingActions === null || r.approvalRequests === null) failed.push("approvals");
+  return failed;
 }
 
 // ── Builder ─────────────────────────────────────────────────────────────
@@ -273,7 +294,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       }),
     ),
     // The panel's own open total (contradictions table), as a count row; null = the read failed.
-    guarded(loadContradictionItems()),
+    loadContradictionsGuarded(),
     guarded(
       prisma.agendaItem.findMany({
         where: { category: "FOLLOW_UP", status: "ACTIVE" },
@@ -400,11 +421,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
-  const failedSources: string[] = [];
-  if (contradictions === null) failedSources.push("contradictions");
-  if (proposals === null) failedSources.push("commitments");
-  if (followUps === null) failedSources.push("follow-ups");
-  if (pendingActions === null || approvalRequests === null) failedSources.push("approvals");
+  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests });
 
   const judgmentAll: JudgmentItem[] = [];
 
@@ -853,7 +870,7 @@ function pendingApprovalRows(
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
 }
 
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

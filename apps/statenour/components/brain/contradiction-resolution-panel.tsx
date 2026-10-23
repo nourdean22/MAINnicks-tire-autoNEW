@@ -8,9 +8,6 @@
  *   old wins     → mark new as deprecated
  *   both valid   → context-dependent, dismiss from ticker
  *   dismiss      → false positive
- *
- * Accepts optional `focusKey` prop — when set, that row auto-expands
- * and scrolls into view (used by the ticker href).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,7 +23,6 @@ import { toast } from "sonner";
 // (mutation).
 import { trpc } from "@/lib/trpc/client";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 interface StoredContradiction {
   key: string;
@@ -72,7 +68,7 @@ const TABLE_ANSWERS: ReadonlyArray<{ label: string; status: ResolveStatus; title
   { label: "Ignore", status: "dismissed", title: "not worth tracking" },
 ];
 
-export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string | null }) {
+export function ContradictionResolutionPanel() {
   const [tab, setTab] = useState<Tab>("unresolved");
   const [busy, setBusy] = useState<string | null>(null);
   const [notingKey, setNotingKey] = useState<string | null>(null);
@@ -142,13 +138,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
     return rows.filter((r) => r.status && r.status !== "unresolved");
   }, [rows, tab]);
 
-  // Scroll focus row into view when panel opens via ticker href
-  useEffect(() => {
-    if (!focusKey || !rows) return;
-    const el = document.getElementById(`contradiction-row-${focusKey}`);
-    el?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
-  }, [focusKey, rows]);
-
   return (
     <GlassCard>
       <div className="flex items-center justify-between mb-3">
@@ -199,7 +188,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
       <div className="space-y-2">
         {visible.map((c) => {
           const rowBusy = busy === c.key;
-          const focused = focusKey === c.key;
           const open = !c.status || c.status === "unresolved";
           return (
             <div
@@ -210,7 +198,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 c.status && c.status !== "unresolved"
                   ? "bg-[var(--bg-base)] border-[var(--border-default)] opacity-70"
                   : "bg-red-500/5 border-red-500/20",
-                focused && "ring-1 ring-accent",
                 rowBusy && "opacity-60",
               )}
             >

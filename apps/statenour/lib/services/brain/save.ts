@@ -30,8 +30,8 @@
  *      exists and `cron/embed-backfill` indexes it later (it selects
  *      brain_memories with no vector_embeddings row);
  *   4. a near-duplicate (similar vector, different statement) is KEPT and
- *      queued for the operator through the contradiction review flow —
- *      never merged or superseded automatically. #2175 review threads.
+ *      reported in the reply — never merged or superseded automatically.
+ *      (The review queue that once held the pair is gone: known gap.)
  */
 
 import { stampAdmission } from "@/lib/brain/memory-admission";
@@ -82,8 +82,8 @@ export interface SaveToBrainInput {
  *   duplicate               — the same statement (whitespace/case-insensitive)
  *                             already exists; its sighting count was bumped
  *   created_near_duplicate  — similar text existed but the wording differs;
- *                             BOTH rows are kept, linked (metadata
- *                             .nearDuplicateOf) and queued for review
+ *                             BOTH rows are kept and the reply names
+ *                             the similar one (relatedId); nothing is queued
  */
 export type SaveOutcome = "created" | "duplicate" | "created_near_duplicate";
 
@@ -100,8 +100,6 @@ export interface SaveToBrainOutput {
    * is recalled lexically; vector search reaches it after embed-backfill.
    */
   embedded: boolean;
-  /** Contradiction-review row key when a near-duplicate was queued. */
-  reviewKey?: string;
 }
 
 /**
@@ -319,11 +317,11 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
   // 3 · Persist the operator's statement. Similar text with different wording
   // is NOT a duplicate: keep the new statement (it may be the correction),
   // keep the old one (it may be a distinct fact that merely embeds nearby),
-  // link them, and queue the pair for review below.
+  // and say so in the reply (relatedId).
   // 2026-09-08 · the row now says what it is (admission envelope); the identity-first
   // mechanics above are unchanged. brain-memory-direct-write: identity-first explicit save.
   const metadata = stampAdmission(
-    near ? { ...(input.metadata ?? {}), nearDuplicateOf: near.id } : (input.metadata ?? {}),
+    input.metadata ?? {},
     { source, memoryKind: "semantic", extractionMethod: "explicit_save", content: trimmed },
   );
   const row = await prisma.brainMemory.create({

@@ -453,7 +453,7 @@ export async function fetchBrainPulseItems(): Promise<TickerItem[]> {
         symbol: "BRAIN",
         label: "⚠ open contradictions unreadable",
         severity: "warn",
-        href: "/brain?tab=memory",
+        href: "/brain?tab=memory#contradictions",
       });
     } else if (openContradictions > 0) {
       items.push({
@@ -462,7 +462,7 @@ export async function fetchBrainPulseItems(): Promise<TickerItem[]> {
         symbol: "BRAIN",
         label: `⚠ ${openContradictions} open contradiction${openContradictions > 1 ? "s" : ""}`,
         severity: "warn",
-        href: "/brain?tab=memory",
+        href: "/brain?tab=memory#contradictions",
       });
     }
 

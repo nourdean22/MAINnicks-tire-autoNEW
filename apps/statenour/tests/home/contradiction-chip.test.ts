@@ -23,7 +23,7 @@ describe("Home contradiction row", () => {
   it("is one count row linking to the panel, with no row text", async () => {
     h.count.mockResolvedValue(80);
     const items = await __testInternals.loadContradictionItems();
-    expect(items).toEqual([{ kind: "contradiction", count: 80, href: "/brain?tab=memory" }]);
+    expect(items).toEqual([{ kind: "contradiction", count: 80, href: "/brain?tab=memory#contradictions" }]);
   });
 
   it("is absent on a measured zero", async () => {
