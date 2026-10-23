@@ -24,7 +24,7 @@ Labels: FACT = I ran the query or grep this session (scripts in the scratchpad q
 
 | Source | What it records | 14d rows | Verdict as a usage source |
 |---|---|---|---|
-| "AuditEvent" eventType page_visit (writer: components/brain/page-tracker.tsx -> trpc.brain.pageVisit -> lib/services/brain-domain.ts recordPageVisit; mounted app/(mastery)/layout.tsx:73) | one row per pathname change: path, referrer, ET hour. No device, no dwell, no leave | 196 (2,039 ever, since 2026-07-24) | GOOD for page opens. Undercounts time on a page: 50 chat messages on 10-20 made 2 chat opens |
+| "AuditEvent" eventType page_visit (writer: components/brain/page-tracker.tsx -> trpc.brain.pageVisit -> lib/services/brain-domain.ts recordPageVisit; mounted app/(mastery)/layout.tsx:73) | one row per pathname change: path, referrer, ET hour. No device, no dwell, no leave | 196 (2,039 ever, since 2026-07-24) | GOOD for page opens. Undercounts time on a page: a heavy chat day can show only a couple of chat opens |
 | "AuditEvent" eventType page_tab_visit (writer: brain.pageTabVisit, added 2026-10-19) | ?tab= views of /brain and /stats | 0 (0 ever) | NO DATA. Writer unproven: /brain was opened once since (10-19 19:22Z) and default tabs carry no ?tab=, so they never log |
 | api_request_logs (writer: lib/utils/http.ts apiHandler) | REST routes only. Success rows SAMPLED (every call over 1 s, else 10%); failures 100% | 5,452 (12,904 since 2026-09-22; 30d retention) | WEAK. 99.5% of desktop-UA rows are /api/habits + /api/health polling; /api/sync/* is machine traffic |
 | tRPC app/api/trpc/[trpc]/route.ts, lib/trpc/trpc.ts, context.ts | nothing: route.ts read in full, trpc.ts and context.ts grepped for prisma, log, telemetry, record (only comments and the ctx.db wiring) | n/a | NO DATA for per-procedure use |
@@ -56,29 +56,11 @@ There is no page-view table by that name; page_visit rows in "AuditEvent" are th
 
 "Next open under 10 s" = the next page_visit row (any path) came under 10 s later. It is a navigation proxy, NOT a bounce: nothing records leaving, so a reader who stays and closes the app is invisible. INFERRED.
 
-### A2. Hits per day, top routes (q1.cjs d_day_total, d2_path_day; FACT)
+### A2. Hits per day, top routes
 
-| ET day | Home | Chat | Missions | Journal | Other | Total |
-|---|---|---|---|---|---|---|
-| 10-08 (partial) | 0 | 0 | 2 | 0 | 0 | 2 |
-| 10-09 | 3 | 3 | 0 | 1 | 2 | 9 |
-| 10-10 | 6 | 6 | 0 | 0 | 9 | 21 |
-| 10-11 | 10 | 9 | 0 | 0 | 3 | 22 |
-| 10-12 | 7 | 10 | 4 | 1 | 1 | 23 |
-| 10-13 | 4 | 5 | 1 | 1 | 4 | 15 |
-| 10-14 | 2 | 2 | 2 | 0 | 1 | 7 |
-| 10-15 | 5 | 5 | 5 | 4 | 4 | 23 |
-| 10-16 | 2 | 4 | 2 | 0 | 0 | 8 |
-| 10-17 | 4 | 1 | 2 | 0 | 0 | 7 |
-| 10-18 | 9 | 6 | 2 | 1 | 3 | 21 |
-| 10-19 | 11 | 4 | 3 | 3 | 6 | 27 |
-| 10-20 | 4 | 2 | 1 | 0 | 0 | 7 |
-| 10-21 | 1 | 1 | 0 | 0 | 0 | 2 |
-| 10-22 (to 22:13) | 1 | 1 | 0 | 0 | 0 | 2 |
+Per-day and per-hour distributions of one person's activity are held in the manager's scratchpad copy, not published (public repo). The aggregate reading stays: route-change opens measure moves, not time, so a quiet stretch in the per-day counts is not a collapse in use.
 
-Do NOT read 10-20 to 10-22 as a collapse. Chat user messages per ET day (q3.cjs b_chat_day): 10-09 7, 10-10 16, 10-11 2, 10-12 11, 10-13 3, 10-14 3, 10-15 6, 10-16 11, 10-17 7, 10-18 8, 10-19 6, 10-20 50, 10-21 7, 10-22 1 (total 138). 10-20 was the biggest chat day of the window with 7 opens. Route-change opens measure moves, not time. The counts are FACT; the reading is INFERRED.
-
-More (FACT, q1/q4): opens by ET hour: 11h 34, 10h 24, 8h 16, 16h 16, 7h 15, 23h 15, 18h 13, 17h 11, 9h 10; after 11pm 15 of 196 (7.7%), none 00h-04h. Sessions (30-minute gap rule, INFERRED definition): 57, 3.4 opens each; first page of a session: Home 36 (63%), Chat 10, Missions 3, others 8.
+More (FACT, q1/q4): per-hour distribution of opens is held in the manager's scratchpad copy, not published. Sessions (30-minute gap rule, INFERRED definition): 57, 3.4 opens each; first page of a session: Home 36 (63%), Chat 10, Missions 3, others 8.
 Top moves within 30 minutes (q4 a_transitions): Home to Chat 30 (mean gap 99 s), Chat to Home 13, Home to Home 13, Chat to Missions 9, Home to Missions 7, Missions to Chat 7, Chat to Chat 5, Missions to Journal 4, Home to System 4.
 Referrer (q4 c_referrer_class, of 196): none 152, same-site 27, external 17.
 
@@ -105,7 +87,7 @@ Per non-cron REST path, 14d logged rows / of which errors / last logged (q2 d_no
 | Surface | 14d signal | Reading |
 |---|---|---|
 | Chat | 138 user msgs, 18 conversations (369 ever), 14 chat_renamed, 2 chat_feedback (10-20) | the core product |
-| Ticker | 161 acks on 9 days (10-09 24, 10-12 37, 10-15 17, 10-16 14, 10-17 12, 10-18 13, 10-19 15, 10-20 17, 10-21 12) | most-acted-on item on the site, phone only (A4). An ack may be a bulk action; NOT CHECKED |
+| Ticker | 161 acks on 9 of 14 days (per-day split held in the manager's scratchpad copy, not published) | most-acted-on item on the site, phone only (A4). An ack may be a bulk action; NOT CHECKED |
 | Home operator brief | operator-brief:decide shown 11, accepted 3, dismissed 0; operator-brief:hygiene shown 1, accepted 1 | the ONLY on-site surface whose decisions are recorded |
 | Missions deck | missions-deck:start shown 12, decided 0 | shown, no decision recorded |
 | /brain Memory nudges | nudge:identity 3 shown, nudge:ghost 1 shown, decided 0 | 7 of 11 nudge sources have no live input (audit) |
@@ -234,7 +216,7 @@ Notes for the PR author (INFERRED from the facts above):
    Effort: 2.5 hours (dry-run SELECT, backup table plus vector rows, compare-and-swap supersede, count check, rollback script). It writes prod, so it needs Nour approval.
    Deletes: 183 rows from the live recall pool (reversible); no code.
 4. Instrument before any redesign: a leave/dwell event, default-tab views, and a tRPC procedure name + duration counter.
-   Evidence: page_visit is the only usage signal; page_tab_visit 0 rows ever; tRPC unlogged; 10-20 shows 50 chat messages with 2 opens. 6 of 16 pages show 0 opens.
+   Evidence: page_visit is the only usage signal; page_tab_visit 0 rows ever; tRPC unlogged; a heavy chat day can show only a couple of opens. 6 of 16 pages show 0 opens.
    Effort: 3 hours, then 2 weeks of data before deciding on /people, /photo-improver, /system/alerts, /system/inbox.
    Deletes: nothing. Design guidance now (A1, A2): Home and Chat are the product (65% of opens) and Home to Chat is the top move (30 of 69 Home opens); do not redesign the /brain tabs or /stats blind (4 and 3 opens).
 5. Cut the two quiet statistical miners (counter-intuitive, teaching-moments) and prune the 7 dead nudge sources.
@@ -263,5 +245,5 @@ Every prod read: cd apps/statenour, then the Railway run helper (service stateno
 
 Greps (git grep on origin/main e2b690baa, comments filtered with the five-form regex from assert-the-consumer): readers of prisma.contradiction (12 hits, B1); callers of findRelevantClaimGap (brain-context.ts:532 only); validateWisdom (definition plus one smoke test); SituationCard (definition only); insightsRibbon (insight-ribbon.tsx:59); miner importers (B3); page_visit writer and readers (A0). Path existence confirmed first with git ls-tree for lib/brain/insight-meta.ts (absent) and for each file whose line count is quoted. curl https://bdnick.info/api/version: commit 9f9fbc020a69, started 2026-10-23T01:52Z; git merge-base --is-ancestor 258854db9 9f9fbc020: yes.
 
-Positive control for the usage queries: the last page_visit row (02:13:36Z) is the 22:13 ET open of Home and Chat that also tops d_day_total for 10-22, so the instrument reads known recent rows.
+Positive control for the usage queries: the last page_visit row (02:13:36Z) is the most recent open of Home and Chat, so the instrument reads known recent rows.
 NOT CHECKED: who sent the 401s to /api/brain/*; whether ticker acks are bulk; per-procedure tRPC use (no data); mobile vs desktop per page (no data); whether any test imports the REST insights route; whether systemBrain.resolveContradiction has another caller; why tool_telemetry shows only 4 tools.
