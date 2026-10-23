@@ -24,10 +24,9 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SQL } from "drizzle-orm";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
-import { sliceBlock } from "./testUtils/sourceBlock";
 
 let executed: string[] = [];
 let stored: Array<Record<string, unknown>> = [];
@@ -77,9 +76,21 @@ const fakeDb = {
   },
 };
 
-vi.mock("./db", () => ({ getDb: async () => fakeDb, getDbTyped: async () => fakeDb }));
+// The vi.mock registry is shared by every file in the serial run (apps/nickstire/AGENTS.md, Test hygiene).
+// A partial factory here would hand a LATER file that imports ./db for anything but these two
+// getters `undefined`, so keep every real export and override only the two we need, and drop the
+// mock when this file is done.
+vi.mock("./db", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getDb: async () => fakeDb,
+  getDbTyped: async () => fakeDb,
+}));
 
 import { listOpportunities, transitionOpportunity } from "./services/opportunityQueue";
+
+afterAll(() => {
+  vi.doUnmock("./db");
+});
 
 beforeEach(() => {
   executed = [];
@@ -166,23 +177,40 @@ describe("age is computed in SQL, in shop days", () => {
   });
 });
 
-describe("a waiting customer is always on the conversation list", () => {
-  const db = readFileSync(resolve(process.cwd(), "server/db.ts"), "utf8");
-  const block = sliceBlock(db, "export async function getConversations", "\n}\n");
-
-  it("positive control: the slice is the function and holds its limit", () => {
-    expect(block).toContain("limit(limit)");
-    expect(block).toContain("lastMessageAt");
+describe("a transition refuses a row that is no longer in the state the operator saw", () => {
+  // The row in the fake is `attempted`. A client that rendered it as `new` is looking at a stale
+  // row: another admin moved it, and a dismissal confirmed on the stale label would be recorded
+  // with a note that is false for the current state.
+  it("refuses with the conflict text and writes nothing when `from` differs from the state just read", async () => {
+    const r = await transitionOpportunity({ id: STALE_ROW.id, from: "new", to: "dismissed", by: "crew", note: "not a customer" });
+    expect(r).toEqual({ ok: false, error: "conflict: state changed concurrently" });
+    expect(executed.some((t) => t.includes("UPDATE revenue_opportunities"))).toBe(false);
+    expect(stored).toHaveLength(0);
   });
 
-  it("orders open human_pending threads first, then lastMessageAt desc, before the limit", () => {
-    const order = /orderBy\(([\s\S]*?)\)\s*\.limit\(limit\)/.exec(block)?.[1] ?? "";
-    expect(order, "no orderBy before limit(limit)").not.toBe("");
-    const waiting = order.indexOf("human_pending");
-    const recent = order.indexOf("lastMessageAt");
-    expect(waiting).toBeGreaterThanOrEqual(0);
-    expect(recent).toBeGreaterThan(waiting);
-    expect(order).toMatch(/sms_response_jobs/);
-    expect(order).toMatch(/EXISTS/);
+  it("proceeds when `from` matches (positive control: the guard is not a blanket refusal)", async () => {
+    const r = await transitionOpportunity({ id: STALE_ROW.id, from: "attempted", to: "attempted", by: "crew", note: "called" });
+    expect(r).toEqual({ ok: true });
+    expect(stored).toHaveLength(1);
+  });
+
+  it("is optional: a caller that sends no `from` behaves as before", async () => {
+    const r = await transitionOpportunity({ id: STALE_ROW.id, to: "dismissed", by: "crew", note: "not actionable" });
+    expect(r).toEqual({ ok: true });
+  });
+
+  it("the router accepts `from` as a state and passes it through", () => {
+    const router = readFileSync(resolve(process.cwd(), "server/routers/opportunityQueue.ts"), "utf8");
+    expect(router).toMatch(/from:\s*stateSchema\.optional\(\)/);
+    expect(router).toMatch(/from:\s*input\.from/);
+  });
+});
+
+describe("the conversation list reaches the waiting-first query through its helper", () => {
+  it("getConversations in db.ts calls selectConversationsWaitingFirst", () => {
+    const db = readFileSync(resolve(process.cwd(), "server/db.ts"), "utf8");
+    const fn = db.slice(db.indexOf("export async function getConversations"));
+    expect(fn.indexOf("selectConversationsWaitingFirst(")).toBeGreaterThan(-1);
+    expect(fn.indexOf("selectConversationsWaitingFirst(")).toBeLessThan(fn.indexOf("\n}\n"));
   });
 });

@@ -584,6 +584,8 @@ export async function topDecisions(n = 5): Promise<{
  */
 export async function transitionOpportunity(params: {
   id: string;
+  /** The state the caller saw. Optional; when given and the row is now elsewhere, the move is refused as a conflict. */
+  from?: OpportunityState;
   to: OpportunityState;
   by: string;
   note?: string;
@@ -605,6 +607,12 @@ export async function transitionOpportunity(params: {
     );
     if (rows.length === 0) return { ok: false, error: "not found" };
     const current = mapRow(rows[0]);
+
+    // Claim before act: the operator confirmed a label for the state THEY saw. The guard below
+    // only catches a change after this read, so compare against the row just read.
+    if (params.from !== undefined && current.state !== params.from) {
+      return { ok: false, error: "conflict: state changed concurrently" };
+    }
 
     if (!canTransition(current.state, params.to)) {
       return { ok: false, error: `illegal transition ${current.state} -> ${params.to}` };

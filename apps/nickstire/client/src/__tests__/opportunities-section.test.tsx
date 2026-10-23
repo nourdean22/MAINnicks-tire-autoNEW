@@ -358,7 +358,7 @@ describe("the three verbs write the right status through the existing mutation",
     render(<OpportunitiesSection />);
     fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
     await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
-    expect(h.mutate.mock.calls[0][0]).toEqual({ id: r.id, to: "attempted", note: "called" });
+    expect(h.mutate.mock.calls[0][0]).toEqual({ id: r.id, from: "new", to: "attempted", note: "called" });
   });
 
   it("Texted records an attempt with the note 'texted'", async () => {
@@ -367,7 +367,7 @@ describe("the three verbs write the right status through the existing mutation",
     render(<OpportunitiesSection />);
     fireEvent.click(screen.getByRole("button", { name: /^Texted/ }));
     await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
-    expect(h.mutate.mock.calls[0][0]).toEqual({ id: r.id, to: "attempted", note: "texted" });
+    expect(h.mutate.mock.calls[0][0]).toEqual({ id: r.id, from: "new", to: "attempted", note: "texted" });
   });
 
   it("Called and Texted never write lost, do_not_contact or dismissed", async () => {
@@ -386,7 +386,7 @@ describe("the three verbs write the right status through the existing mutation",
     await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
     expect(h.confirm).toHaveBeenCalledTimes(1);
     const arg = h.mutate.mock.calls[0][0];
-    expect(arg).toEqual({ id: r.id, to: "dismissed", note: "not a customer" });
+    expect(arg).toEqual({ id: r.id, from: "new", to: "dismissed", note: "not a customer" });
     expect(JSON.stringify(arg)).not.toMatch(/lost|do_not_contact|stated_concern/);
   });
 
@@ -421,7 +421,7 @@ describe("the three verbs write the right status through the existing mutation",
       expect(screen.queryByRole("button", { name: /^Not a customer/ }), state).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: /^Not relevant/ }));
       await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
-      expect(h.mutate.mock.calls[0][0], state).toEqual({ id: r.id, to: "dismissed", note: "not actionable" });
+      expect(h.mutate.mock.calls[0][0], state).toEqual({ id: r.id, from: state, to: "dismissed", note: "not actionable" });
       // The confirm follows the label.
       const asked = h.confirm.mock.calls[0] as unknown as [{ confirmLabel: string; message: string }];
       expect(asked[0].confirmLabel).toBe("Not relevant");
@@ -441,7 +441,7 @@ describe("the three verbs write the right status through the existing mutation",
       expect(screen.queryByRole("button", { name: /^Not relevant/ }), state).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: /^Not a customer/ }));
       await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
-      expect(h.mutate.mock.calls[0][0], state).toEqual({ id: r.id, to: "dismissed", note: "not a customer" });
+      expect(h.mutate.mock.calls[0][0], state).toEqual({ id: r.id, from: state, to: "dismissed", note: "not a customer" });
       const asked = h.confirm.mock.calls[0] as unknown as [{ confirmLabel: string }];
       expect(asked[0].confirmLabel).toBe("Not a customer");
     }

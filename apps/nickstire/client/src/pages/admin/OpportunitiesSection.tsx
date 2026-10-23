@@ -201,7 +201,7 @@ export default function OpportunitiesSection() {
       cancelLabel: "Keep it",
       tone: "danger",
     });
-    if (ok) transition.mutate({ id: r.id, to: "dismissed", note: verdict });
+    if (ok) transition.mutate({ id: r.id, from: r.state, to: "dismissed", note: verdict });
   }
 
   const queryable = query.data?.queryable;
@@ -336,7 +336,7 @@ export default function OpportunitiesSection() {
                   <>
                     <button
                       type="button"
-                      onClick={() => transition.mutate({ id: o.id, to: "attempted", note: "called" })}
+                      onClick={() => transition.mutate({ id: o.id, from: o.state, to: "attempted", note: "called" })}
                       disabled={busy}
                       className={BUTTON}
                       aria-label={`Called: ${o.recommendedAction}`}
@@ -345,7 +345,7 @@ export default function OpportunitiesSection() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => transition.mutate({ id: o.id, to: "attempted", note: "texted" })}
+                      onClick={() => transition.mutate({ id: o.id, from: o.state, to: "attempted", note: "texted" })}
                       disabled={busy}
                       className={BUTTON}
                       aria-label={`Texted: ${o.recommendedAction}`}
