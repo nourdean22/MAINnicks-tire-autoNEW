@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   writes: [] as Array<{ model: string; op: string; key?: string }>,
   reservedStates: [] as string[],
   memoryAlert: false,
+  lockOn: false,
+  lockThrows: false,
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -114,10 +116,17 @@ vi.mock("@/lib/feature-flags", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/feature-flags")>();
   return {
     ...actual,
-    getFlag: (key: string) => ({
-      key,
-      isOn: key === "NICK_DAILY_CONTRADICTION" ? h.dailyOn : key === "NICK_CLAIM_GAP" ? h.claimGapOn : false,
-    }),
+    getFlag: (key: string) => {
+      if (key === "NICK_MUTATION_LOCK" && h.lockThrows) throw new Error("flag store down");
+      return {
+        key,
+        isOn:
+          key === "NICK_DAILY_CONTRADICTION" ? h.dailyOn
+          : key === "NICK_CLAIM_GAP" ? h.claimGapOn
+          : key === "NICK_MUTATION_LOCK" ? h.lockOn
+          : false,
+      };
+    },
   };
 });
 vi.mock("@/lib/ai/context-reranker", async (importOriginal) => {
@@ -183,6 +192,8 @@ beforeEach(() => {
   h.writes.length = 0;
   h.reservedStates.length = 0;
   h.memoryAlert = false;
+  h.lockOn = false;
+  h.lockThrows = false;
 });
 
 describe("buildBrainContext · one open contradiction a day", () => {
@@ -282,6 +293,25 @@ describe("buildBrainContext · one open contradiction a day", () => {
     expect(out.systemPromptAddendum).not.toContain("CLAIM VS RECORD");
     expect(dailyClaims()).toHaveLength(0);
     expect(out.contradictionAskPending).toBe(false);
+  }, 30_000);
+
+  it.each([
+    ["NICK_MUTATION_LOCK on", { lockOn: true }],
+    ["NICK_MUTATION_LOCK unreadable (fails closed, as the tool gate does)", { lockThrows: true }],
+  ])("%s: no lanes, no claim, no block (the resolve tool would be refused)", async (_label, lock) => {
+    Object.assign(h, lock);
+    h.claimGapOn = true;
+    const out = await build();
+    expect(out.systemPromptAddendum).not.toContain("ONE OPEN CONTRADICTION");
+    expect(out.systemPromptAddendum).not.toContain("CLAIM VS RECORD");
+    expect(dailyClaims()).toHaveLength(0);
+    expect(out.contradictionAskPending).toBe(false);
+  }, 30_000);
+
+  it("CONTROL · lock off asks as before", async () => {
+    h.lockOn = false;
+    const out = await build();
+    expect(out.systemPromptAddendum).toContain("# ONE OPEN CONTRADICTION");
   }, 30_000);
 
   it("CONTROL · another tool disabled changes nothing", async () => {

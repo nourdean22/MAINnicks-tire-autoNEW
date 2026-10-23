@@ -45,6 +45,7 @@ import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
 import { TASK_QUEUE_UNAVAILABLE } from "@/lib/brain/task-context";
 import { today } from "@/lib/utils/datetime";
 import { randomUUID } from "node:crypto";
+import { readMutationLock } from "@/lib/ai/mutation-lock";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -196,8 +197,12 @@ export async function buildBrainContext(
   // ...and the resolve tool itself must be offerable: prepare-tools strips an operator-disabled
   // tool, and pruneTools drops a circuit-tripped one (same synchronous breaker read).
   const { isToolBlocked } = await import("@/lib/ai/tool-telemetry").catch(() => ({ isToolBlocked: (_n: string) => false }));
+  // The mutation lock too, read exactly as the tool gate reads it (lib/ai/tools.ts authorityGate
+  // refuses writes when it is on, or unreadable).
   const resolverAvailable =
-    !(input.disabledTools ?? []).includes("resolveContradiction") && !isToolBlocked("resolveContradiction");
+    !(input.disabledTools ?? []).includes("resolveContradiction") &&
+    !isToolBlocked("resolveContradiction") &&
+    readMutationLock() === "off";
   const contradictionLanesOk =
     !privateMode && input.ephemeral !== true && input.actionPermission !== "read" && !!contradictionConvId && resolverAvailable;
   let contradictionClaim: import("@/lib/brain/contradiction-injector").ContradictionClaim | undefined;
