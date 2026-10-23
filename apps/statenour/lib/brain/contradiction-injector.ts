@@ -358,12 +358,15 @@ export async function findRelevantClaimGap(ctx: { userMessage: string }): Promis
     const recent = await prisma.brainMemory.findMany({
       where: {
         category: "contradiction_injection_log",
-        key: { startsWith: CLAIM_GAP_KEY_PREFIX },
+        // "claim-gap" (no colon) also reads the daily question's claim-gap-daily: rows, so a day
+        // that asked its one open contradiction stays at one, and that topic cools down too.
+        key: { startsWith: "claim-gap" },
         createdAt: { gte: new Date(Date.now() - CLAIM_GAP_TOPIC_COOLDOWN_DAYS * 86400_000) },
       },
       select: { key: true, content: true },
     });
-    if (recent.some((r) => r.key === `${CLAIM_GAP_KEY_PREFIX}${today()}`)) return null;
+    const day = today();
+    if (recent.some((r) => r.key === `${CLAIM_GAP_KEY_PREFIX}${day}` || r.key === `${DAILY_KEY_PREFIX}${day}`)) return null;
     const raisedTopics = new Set(
       recent.map((r) => {
         try {
@@ -510,7 +513,8 @@ const DAILY_KEY_PREFIX = "claim-gap-daily:";
 const DAILY_FETCH = 200;
 /** The claim row is the kill-criterion receipt (asked row ids): keep it past the 2-week read. */
 const DAILY_CLAIM_TTL_DAYS = 21;
-const SEVERITY_RANK: Record<string, number> = { critical: 4, severe: 3, high: 3, moderate: 2, mild: 1 };
+// The thinking engine writes mild|moderate|severe|critical (thinking-engine.ts prompt); anything else ranks last.
+const SEVERITY_RANK: Record<string, number> = { critical: 4, severe: 3, moderate: 2, mild: 1 };
 
 export type DailyContradiction = Omit<ClaimGap, "similarity"> & { severity: string };
 
