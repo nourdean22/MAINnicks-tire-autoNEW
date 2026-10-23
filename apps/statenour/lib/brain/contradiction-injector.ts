@@ -530,14 +530,28 @@ async function reserveDay(key: string, content: Record<string, unknown>, ttlDays
   }
 }
 
+/** The three answer choices, in the order the blocks print them. */
+const CONTRADICTION_CHOICES = ["record is right", "outdated", "ignore"] as const;
+/** The fixed ending both blocks tell Nick to use; the promotion check looks for exactly these choices. */
+export const CONTRADICTION_QUESTION_SHAPE = `${CONTRADICTION_CHOICES[0]}, ${CONTRADICTION_CHOICES[1]}, or ${CONTRADICTION_CHOICES[2]}?`;
+
+/**
+ * Did the stored reply actually ask the contradiction question? All three choices
+ * (case-insensitive) plus a question mark. Any other "?" ("Want me to draft that?")
+ * does not count. Pure, so it is tested without Prisma.
+ */
+export function replyCarriesContradictionQuestion(replyText: string): boolean {
+  const t = replyText.toLowerCase();
+  return t.includes("?") && CONTRADICTION_CHOICES.every((c) => t.includes(c));
+}
+
 /**
  * Promote this turn's reservation to the "asked" receipt, after the reply was
- * persisted. Only when the stored reply asks a question, and only while the row
- * is still this turn's reservation (CAS on the exact content read).
- * shortcut: "asks a question" = the reply contains "?"; upgrade to a model check if it misfires.
+ * persisted. Only when the stored reply carries the contradiction question, and
+ * only while the row is still this turn's reservation (CAS on the exact content read).
  */
 export async function markContradictionAsked(claim: ContradictionClaim, messageId: string, replyText: string): Promise<boolean> {
-  if (!replyText.includes("?")) return false;
+  if (!replyCarriesContradictionQuestion(replyText)) return false;
   try {
     const row = await prisma.brainMemory.findUnique({
       where: { category_key: { category: LOG_CATEGORY, key: claim.key } },
@@ -601,8 +615,9 @@ export function buildClaimGapBlock(hit: ClaimGap, todayEt: string = today()): st
     "Answer his actual question first. Only if this gap bears on what he is asking, add ONE",
     "closing line that names the gap in plain words, says how old the record is when it is",
     "more than a few days, and offers three answers: the record is right (the claim was wrong),",
-    "the claim is outdated (things moved on), or ignore it. No lecture, and do not raise it",
-    "again in this conversation.",
+    "the claim is outdated (things moved on), or ignore it. End that line with exactly",
+    `"${CONTRADICTION_QUESTION_SHAPE}" so the answer choices are unmistakable. No lecture, and`,
+    "do not raise it again in this conversation.",
     ...claimGapResolveLines(hit.id),
   ].join("\n");
 }
@@ -785,8 +800,8 @@ export function buildDailyContradictionBlock(row: DailyContradiction, todayEt: s
     ...claimProvenanceLines(row),
     "This is today's one open claim-vs-record question. Answer his message first. Then end with",
     "ONE short question that names the gap in plain words and offers three answers: the record",
-    "is right (the claim was wrong), the claim is outdated (things moved on), or ignore it. Ask",
-    "it once; do not repeat it later today.",
+    "is right (the claim was wrong), the claim is outdated (things moved on), or ignore it. End",
+    `the question with exactly "${CONTRADICTION_QUESTION_SHAPE}". Ask it once; do not repeat it later today.`,
     ...claimGapResolveLines(row.id),
   ].join("\n");
 }

@@ -26,6 +26,8 @@ import {
   findClaimedContradictionFollowUp,
   buildContradictionFollowUpBlock,
   markContradictionAsked,
+  replyCarriesContradictionQuestion,
+  CONTRADICTION_QUESTION_SHAPE,
   buildDailyContradictionBlock,
   buildClaimGapBlock,
 } from "@/lib/brain/contradiction-injector";
@@ -309,10 +311,33 @@ describe("the day is spent on DELIVERY, not on the attempt (Codex round 2)", () 
     mock(prisma.brainMemory.findUnique).mockResolvedValue({ content: reserved, lastSeen: new Date() });
     mock(prisma.brainMemory.updateMany).mockResolvedValue({ count: 1 });
 
-    expect(await markContradictionAsked(CLAIM, "msg_1", "Done. One thing: is the reading log right, or is that claim outdated?")).toBe(true);
+    expect(
+      await markContradictionAsked(CLAIM, "msg_1", `Done. The reading log is empty for 12 days: ${CONTRADICTION_QUESTION_SHAPE}`),
+    ).toBe(true);
     const arg = mock(prisma.brainMemory.updateMany).mock.calls[0][0];
     expect(arg.where).toMatchObject({ key: "claim-gap:2026-10-22", content: reserved });
     expect(JSON.parse(arg.data.content)).toMatchObject({ state: "asked", messageId: "msg_1", contradictionId: "d1" });
+  });
+
+  it("an UNRELATED question mark does not spend the day (Codex round 4)", async () => {
+    mock(prisma.brainMemory.findUnique).mockResolvedValue({ content: reserved, lastSeen: new Date() });
+    mock(prisma.brainMemory.updateMany).mockResolvedValue({ count: 1 });
+    expect(await markContradictionAsked(CLAIM, "msg_1", "Start with the brake job. Want me to draft that?")).toBe(false);
+    expect(prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("replyCarriesContradictionQuestion: all three choices plus a question mark, case-insensitive", () => {
+    expect(replyCarriesContradictionQuestion(`So: ${CONTRADICTION_QUESTION_SHAPE}`)).toBe(true);
+    expect(replyCarriesContradictionQuestion("Is the RECORD IS RIGHT, Outdated, or Ignore?")).toBe(true);
+    expect(replyCarriesContradictionQuestion("Want me to draft that?")).toBe(false);
+    expect(replyCarriesContradictionQuestion("record is right, outdated, or ignore.")).toBe(false); // no question
+    expect(replyCarriesContradictionQuestion("Is the record right or is it outdated?")).toBe(false); // a choice missing
+  });
+
+  it("the prompt and the check share ONE shape: both blocks print it verbatim", () => {
+    expect(buildDailyContradictionBlock(row(), "2026-10-22")).toContain(CONTRADICTION_QUESTION_SHAPE);
+    expect(buildClaimGapBlock({ ...row(), similarity: 0.6 }, "2026-10-22")).toContain(CONTRADICTION_QUESTION_SHAPE);
+    expect(replyCarriesContradictionQuestion(CONTRADICTION_QUESTION_SHAPE)).toBe(true);
   });
 
   it("a reply with no question leaves the reservation unpromoted", async () => {
