@@ -14,6 +14,9 @@
  *                          checkBudget · 402 on cap · reserves on
  *                          allow · releases in finally
  *
+ *   · telemetry         · (2026-10-23) one system_metrics row per call,
+ *                          outermost, fire-and-forget; see call-telemetry.ts
+ *
  * publicProcedure · ungated · used for health-style reads
  * operatorProcedure · enforceOperator + sanitizeErrors
  * reasoningProcedure · operatorProcedure + budgetGate
@@ -23,6 +26,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
 import { type TRPCContext } from "./context";
 import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
+import { recordTrpcCall } from "./call-telemetry";
 
 const t = initTRPC.context<TRPCContext>().create({
   // H.7.1 parity · raw err.message leaks Prisma internals · the
@@ -58,7 +62,29 @@ const t = initTRPC.context<TRPCContext>().create({
 
 export const router = t.router;
 export const middleware = t.middleware;
-export const publicProcedure = t.procedure;
+
+// ── Middleware · per-call telemetry (2026-10-23) ────────────────────
+// Outermost on every procedure, so an UNAUTHORIZED or mutation-locked call is recorded too. next() does
+// not throw in tRPC v11: a failing procedure comes back as { ok: false, error }. The call is only COUNTED
+// here, in memory; one batched write per minute happens elsewhere (lib/trpc/call-telemetry.ts), so
+// nothing touches the database on the call's path.
+const telemetryMiddleware = middleware(async ({ path, type, next }) => {
+  const startedAt = Date.now();
+  const result = await next();
+  recordTrpcCall({
+    procedure: path,
+    type,
+    ok: result.ok,
+    code: result.ok ? undefined : result.error.code,
+    ms: Date.now() - startedAt,
+  });
+  return result;
+});
+
+/** Every procedure in the app starts from this builder, so every call is measured. */
+const baseProcedure = t.procedure.use(telemetryMiddleware);
+
+export const publicProcedure = baseProcedure;
 
 // ── Middleware · enforce operator session ───────────────────────────
  
@@ -127,7 +153,7 @@ const mutationGateMiddleware = middleware(async ({ ctx, next, type, path, getRaw
   return next();
 });
 
-export const operatorProcedure = t.procedure.use(enforceOperator).use(mutationGateMiddleware);
+export const operatorProcedure = baseProcedure.use(enforceOperator).use(mutationGateMiddleware);
 
 // ── Note · withBudgetGate middleware ──────────────────────────────
 //

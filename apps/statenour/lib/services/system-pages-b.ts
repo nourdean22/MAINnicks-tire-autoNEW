@@ -83,6 +83,7 @@ import { getCacheStats } from "@/lib/ai/system-prompt-cache";
 import { getProviderStatus } from "@/lib/ai/provider";
 import { REPOS, type RepoEntry } from "@/config/repos";
 import { getActorActivity, type AuditAction } from "@/lib/db/entity-audit";
+import { TRPC_CALL_METRIC } from "@/lib/trpc/call-telemetry";
 
 const log = rootLogger.withSurface("services/system-pages-b");
 
@@ -1298,7 +1299,9 @@ export async function buildSystemLogs(opts: {
       : [],
     wants("metrics")
       ? prisma.systemMetric.findMany({
-          where: { createdAt: { gte: since } },
+          // trpc.call is per-minute call telemetry (lib/trpc/call-telemetry.ts): it would fill every
+          // slot of this newest-N tail and push all other metrics out of the feed.
+          where: { createdAt: { gte: since }, metric: { not: TRPC_CALL_METRIC } },
           orderBy: { createdAt: "desc" },
           take: perSource,
         })

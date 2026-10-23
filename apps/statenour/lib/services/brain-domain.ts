@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { hourET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
 import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
+import { LEAVE_REASONS, MAX_DWELL_MS, type LeaveReason } from "@/lib/brain/page-dwell";
 import { getAlertSuppression, isAlertSuppressed } from "@/lib/brain/alert-suppression";
 import {
   KNOWN_BRAIN_CATEGORIES,
@@ -1182,6 +1183,45 @@ export async function recordPageTabVisit(args: { page: string; tab?: string | nu
     // Fail silently — tracking is non-critical.
   }
   return { ok: true };
+}
+
+/**
+ * Record that a page visit ENDED (route change, tab hidden, page closing). Its own eventType: a leave
+ * is not a visit, and every page_visit counter would double. `detail` is the bare path; the dwell, the
+ * reason and the ET hour are in `payload` (Appendix E reads payload->>'page' and payload->>'dwellMs').
+ * Dwell above MAX_DWELL_MS is stored AS the cap and marked capped. Unlike recordPageVisit this does not
+ * claim ok when nothing was stored: ok:false means no row (bad input or a failed write), and the
+ * route answers 4xx/5xx accordingly. It still never throws.
+ */
+export async function recordPageLeave(args: {
+  page: string;
+  dwellMs: number;
+  reason: LeaveReason;
+}): Promise<PageVisitResult> {
+  const { page, dwellMs, reason } = args;
+  if (!page || typeof page !== "string") return { ok: false };
+  if (typeof dwellMs !== "number" || !Number.isFinite(dwellMs) || dwellMs < 0) return { ok: false };
+  if (!LEAVE_REASONS.includes(reason)) return { ok: false };
+  try {
+    await prisma.auditEvent.create({
+      data: {
+        actor: "page_tracker",
+        eventType: "page_leave",
+        detail: page,
+        payload: {
+          page,
+          dwellMs: Math.min(Math.round(dwellMs), MAX_DWELL_MS),
+          capped: dwellMs > MAX_DWELL_MS,
+          reason,
+          hour: hourET(),
+          timestamp: new Date().toISOString(),
+        },
+      },
+    });
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 }
 
 // ──────────────── suggestion-cache telemetry ────────────────

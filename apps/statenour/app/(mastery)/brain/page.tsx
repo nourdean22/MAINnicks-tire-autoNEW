@@ -19,6 +19,7 @@ import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-out
 import { KnowledgeReviewTab } from "@/components/brain/knowledge-review-tab";
 import { DiscoverTab } from "@/components/brain/discover-tab";
 import { ResearchPipelineStatus } from "@/components/brain/research-pipeline-status";
+import { BRAIN_DEFAULT_TAB } from "@/lib/brain/default-tabs";
 
 function GovernedKnowledgeReview() {
   return (
@@ -69,7 +70,7 @@ export default function BrainPage() {
             ?tab=memory&focus= (Wisdom cards), ?tab=health#time-travel. nav-items mirrors this list
             (tests/repo/brain-nav-tabs.test.ts). */}
         <PageTabs
-          defaultKey="memory"
+          defaultKey={BRAIN_DEFAULT_TAB}
           tabs={[
             { key: "memory", label: "Memory", render: () => <MemoryTab /> },
             { key: "review", label: "Review", render: () => <GovernedKnowledgeReview /> },
