@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/usage-telemetry-2026-10-23",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-usage-telemetry (manager 0900c49a)",
   "claimedAt": "2026-10-23T04:26:23.968Z",
   "expiresAt": "2026-10-23T16:26:23.968Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-23T05:53:09.625Z",
+  "releaseReason": "PR 3251 squash-merged as 9a4942754 at 05:52Z; branch content identical to main (diff --stat empty); remote branch deleted by the merge",
+  "priorLeaseSha": "e81cab84394f463f6f2fec107270966f74e69dbc",
+  "releasedBy": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "foreignReleaseReason": null
 }
