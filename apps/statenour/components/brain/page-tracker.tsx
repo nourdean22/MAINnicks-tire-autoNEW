@@ -72,9 +72,10 @@ export function PageTracker() {
 
     // The visit ends once per foreground stretch: a route change (this effect's cleanup), the tab
     // being hidden, or pagehide. `open` is the dedupe: hidden followed by pagehide (what closing a tab
-    // does) sends one leave, not two. Coming back to a hidden tab opens a new stretch from that moment.
+    // does) sends one leave, not two. Coming back to a hidden tab opens a new stretch from that moment.    // A page mounted while the tab is already hidden (opened in the background) has no stretch yet: it
+    // starts on the first visible, so hidden time is never counted as dwell.
     let startedAt = Date.now();
-    let open = true;
+    let open = document.visibilityState !== "hidden";
     const end = (reason: LeaveReason) => {
       if (!open) return;
       open = false;

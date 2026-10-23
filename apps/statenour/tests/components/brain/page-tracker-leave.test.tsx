@@ -195,6 +195,26 @@ describe("coming back from a hidden tab", () => {
   });
 });
 
+describe("a page that mounts while the tab is already hidden", () => {
+  it("counts only the time it is shown: hidden at mount, shown ten minutes later, hidden again 5 s on is 5 s, not 605", () => {
+    setVisibility("hidden");
+    render(); // opened in the background
+    vi.setSystemTime(Date.now() + 600_000);
+    setVisibility("visible");
+    vi.setSystemTime(Date.now() + 5_000);
+    setVisibility("hidden");
+    expect(leaves().map((l) => l.body)).toEqual([{ page: "/chat", dwellMs: 5_000, reason: "hidden" }]);
+  });
+
+  it("a background-opened page that is left again before it was ever shown writes no leave", () => {
+    setVisibility("hidden");
+    render();
+    vi.setSystemTime(Date.now() + 30_000);
+    goTo("/missions");
+    expect(leaves()).toHaveLength(0);
+  });
+});
+
 describe("tracking opt-out and failure", () => {
   it("nour:no-track = 1 sends no leave at all", () => {
     window.localStorage.setItem("nour:no-track", "1");
