@@ -140,6 +140,8 @@ const row = (over: Record<string, unknown> = {}) => {
     receipts: [] as Array<Record<string, unknown>>,
     createdAt: daysAgo(1),
     updatedAt: daysAgo(1),
+    ageDays: 1 as number | null,
+    evidence: null as Record<string, unknown> | null,
     ...over,
   };
 };
@@ -208,6 +210,12 @@ describe("what the list asks the server for", () => {
     expect((h.queryInputs[0] as { limit: number }).limit).toBeGreaterThan(250);
   });
 
+  it('asks the server to order the window as a worklist BEFORE it is cut (untouched first, newest first)', () => {
+    load([]);
+    render(<OpportunitiesSection />);
+    expect((h.queryInputs[0] as { order?: string }).order).toBe("worklist");
+  });
+
   it("says so when the window is full, instead of implying the list is complete", () => {
     load([]);
     const { unmount } = render(<OpportunitiesSection />);
@@ -238,29 +246,64 @@ describe("a row shows what it is, how old it is and whether anyone tried", () =>
 
   it("names the type in words and the age in days", () => {
     load([
-      row({ sourceType: "missed_call", createdAt: daysAgo(3) }),
-      row({ sourceType: "unapproved_estimate", createdAt: new Date() }),
+      row({ sourceType: "missed_call", ageDays: 3 }),
+      row({ sourceType: "unapproved_estimate", ageDays: 0 }),
+      row({ ageDays: 1 }),
     ]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText("Missed call")).toBeTruthy();
+    expect(screen.getAllByText("Missed call")).toHaveLength(2);
     expect(screen.getByText("Unapproved estimate")).toBeTruthy();
     expect(screen.getByText("3 days old")).toBeTruthy();
     expect(screen.getByText("today")).toBeTruthy();
+    expect(screen.getByText("1 day old")).toBeTruthy();
   });
 
-  it("an untouched row says nobody has contacted them yet", () => {
+  it("the age is the number SQL computed, not date math on this phone: a createdAt that disagrees is ignored", () => {
+    // AGENTS.md (Time): a driver-parsed DATETIME is shifted on an ET host, so ages come from SQL.
+    load([row({ ageDays: 6, createdAt: new Date() })]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText("6 days old")).toBeTruthy();
+    expect(screen.queryByText("today")).toBeNull();
+  });
+
+  it("an age SQL could not compute is 'age unknown', never today", () => {
+    load([row({ ageDays: null })]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText("age unknown")).toBeTruthy();
+    expect(screen.queryByText("today")).toBeNull();
+  });
+
+  it("an untouched row claims only what the record holds: no attempt recorded HERE", () => {
+    // The source system may already have texted this customer (unapproved_estimate records
+    // recoveryTouchesSent, missed-call recovery runs on its own), so "Not contacted yet" was false.
     load([row()]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText(/Not contacted yet/)).toBeTruthy();
+    expect(screen.getByText("No attempt recorded here")).toBeTruthy();
+    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
   });
 
-  it("a row past 'new' with no attempt on record does not claim nobody has been in touch", () => {
-    // A scheduled or arrived row got there by another route; "Not contacted yet"
-    // would be a claim about the customer the record cannot back.
-    load([row({ state: "scheduled", attempts: 0 })]);
+  it("every state with 0 attempts says the same, and never 'not contacted'", () => {
+    for (const state of ["new", "assigned", "scheduled", "arrived"]) {
+      cleanup();
+      load([row({ state, attempts: 0 })]);
+      render(<OpportunitiesSection />);
+      expect(screen.getByText("No attempt recorded here"), state).toBeTruthy();
+    }
+  });
+
+  it("shows the automated texts the source system already sent, when the evidence says so", () => {
+    load([row({ sourceType: "unapproved_estimate", evidence: { estimateId: 9, recoveryTouchesSent: 2 } })]);
     render(<OpportunitiesSection />);
-    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
-    expect(screen.getByText(/No attempt recorded/)).toBeTruthy();
+    expect(screen.getByText("Automated texts sent: 2")).toBeTruthy();
+  });
+
+  it("says nothing about automated texts for 0, an absent key, or a value that is not a number", () => {
+    for (const evidence of [{ recoveryTouchesSent: 0 }, { estimateId: 9 }, null, { recoveryTouchesSent: "2" }]) {
+      cleanup();
+      load([row({ evidence })]);
+      render(<OpportunitiesSection />);
+      expect(screen.queryByText(/Automated texts sent/), JSON.stringify(evidence)).toBeNull();
+    }
   });
 
   it("READS BACK the recorded attempt from the server receipts: verb, time, attempt count", () => {
@@ -280,7 +323,7 @@ describe("a row shows what it is, how old it is and whether anyone tried", () =>
     render(<OpportunitiesSection />);
     expect(screen.getByText(/^Called /, { selector: "p" })).toBeTruthy();
     expect(screen.getByText(/attempt 2/)).toBeTruthy();
-    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
+    expect(screen.queryByText(/No attempt recorded here/)).toBeNull();
   });
 
   it("an attempt with a note we did not write (machine draft) is shown as an attempt, not as a call", () => {
@@ -366,6 +409,70 @@ describe("the three verbs write the right status through the existing mutation",
     expect(h.confirm).not.toHaveBeenCalled();
   });
 
+  it("on a row whose state proves a customer the dismiss reads Not relevant and writes 'not actionable'", async () => {
+    // scheduled / walk_in_expected / arrived mean the customer exists. "Not a customer" would be false.
+    for (const state of ["scheduled", "walk_in_expected", "arrived"]) {
+      cleanup();
+      h.mutate.mockClear();
+      h.confirm.mockClear();
+      const r = row({ state, attempts: 1 });
+      load([r]);
+      render(<OpportunitiesSection />);
+      expect(screen.queryByRole("button", { name: /^Not a customer/ }), state).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /^Not relevant/ }));
+      await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+      expect(h.mutate.mock.calls[0][0], state).toEqual({ id: r.id, to: "dismissed", note: "not actionable" });
+      // The confirm follows the label.
+      const asked = h.confirm.mock.calls[0] as unknown as [{ confirmLabel: string; message: string }];
+      expect(asked[0].confirmLabel).toBe("Not relevant");
+      expect(asked[0].message).toMatch(/not actionable/);
+      expect(asked[0].message).not.toMatch(/not a customer/i);
+    }
+  });
+
+  it("on new, assigned, attempted and no_response the dismiss stays Not a customer, and its confirm says so", async () => {
+    for (const state of ["new", "assigned", "attempted", "no_response"]) {
+      cleanup();
+      h.mutate.mockClear();
+      h.confirm.mockClear();
+      const r = row({ state });
+      load([r]);
+      render(<OpportunitiesSection />);
+      expect(screen.queryByRole("button", { name: /^Not relevant/ }), state).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /^Not a customer/ }));
+      await waitFor(() => expect(h.mutate).toHaveBeenCalledTimes(1));
+      expect(h.mutate.mock.calls[0][0], state).toEqual({ id: r.id, to: "dismissed", note: "not a customer" });
+      const asked = h.confirm.mock.calls[0] as unknown as [{ confirmLabel: string }];
+      expect(asked[0].confirmLabel).toBe("Not a customer");
+    }
+  });
+
+  it("a text waiting in Messages sends the crew to Messages: no Called or Texted, a link instead", () => {
+    // Called/Texted would record an attempt but leave sms_response_jobs human_pending, so the
+    // Messages count would keep saying the customer waits. The send / no-reply workflow resolves it.
+    const r = row({ sourceType: "human_pending_sms", customerPhone: "2165550177" });
+    load([r]);
+    render(<OpportunitiesSection />);
+    expect(screen.queryByRole("button", { name: /^Called/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Texted/ })).toBeNull();
+    const link = screen.getByRole("link", { name: "Reply from Messages" });
+    expect(link.getAttribute("href")).toBe("/admin?tab=campaigns&outreachTab=sms");
+    // No phone number rides in the URL.
+    expect(link.getAttribute("href")).not.toMatch(/\d{7}/);
+    expect(screen.getByRole("button", { name: /^Not a customer/ })).toBeTruthy();
+  });
+
+  it("the Messages link opens the Outreach section in-app", () => {
+    const events: Array<{ section: string }> = [];
+    const onNav = (e: Event) => events.push((e as CustomEvent<{ section: string }>).detail);
+    window.addEventListener("admin:navigate-section", onNav);
+    load([row({ sourceType: "human_pending_sms" })]);
+    render(<OpportunitiesSection />);
+    fireEvent.click(screen.getByRole("link", { name: "Reply from Messages" }));
+    window.removeEventListener("admin:navigate-section", onNav);
+    expect(events).toEqual([{ section: "campaigns" }]);
+  });
+
   it("never reaches for a native dialog", async () => {
     const confirmSpy = vi.spyOn(window, "confirm");
     const promptSpy = vi.spyOn(window, "prompt");
@@ -388,7 +495,7 @@ describe("the row updates at once and tells the truth when the save fails", () =
     render(<OpportunitiesSection />);
     fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
     await waitFor(() => expect(screen.getByText(/^Called /, { selector: "p" })).toBeTruthy());
-    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
+    expect(screen.queryByText(/No attempt recorded here/)).toBeNull();
     release({ ok: true });
     await waitFor(() => expect(h.invalidate).toHaveBeenCalled());
   });
@@ -408,7 +515,7 @@ describe("the row updates at once and tells the truth when the save fails", () =
     fireEvent.click(screen.getByRole("button", { name: /^Called/ }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
     expect(String(h.toastError.mock.calls[0][0])).toBe("Someone else changed this row. It has been refreshed.");
-    await waitFor(() => expect(screen.getByText(/Not contacted yet/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/No attempt recorded here/)).toBeTruthy());
     expect(screen.queryByText(/^Called /, { selector: "p" })).toBeNull();
     expect(screen.getByText(/stay put/)).toBeTruthy();
   });
@@ -450,7 +557,7 @@ describe("the row updates at once and tells the truth when the save fails", () =
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
     expect(String(h.toastError.mock.calls[0][0])).toMatch(/Failed to fetch/);
     expect(screen.getByText(/still here/)).toBeTruthy();
-    expect(screen.getByText(/Not contacted yet/)).toBeTruthy();
+    expect(screen.getByText(/No attempt recorded here/)).toBeTruthy();
   });
 
   it("a refused Not a customer brings the row back, with its verbs", async () => {
@@ -489,7 +596,7 @@ describe("only the verbs the server will accept are offered", () => {
       expect(offered, `Called for state ${state}`).toBe(canTransition(state, "attempted"));
       expect(screen.queryByRole("button", { name: /^Texted/ }) !== null, `Texted for state ${state}`).toBe(offered);
       // Not a customer is always available on a live row.
-      expect(screen.queryByRole("button", { name: /^Not a customer/ }), `dismiss for ${state}`).not.toBeNull();
+      expect(screen.queryByRole("button", { name: /^(Not a customer|Not relevant)/ }), `dismiss for ${state}`).not.toBeNull();
     }
   });
 

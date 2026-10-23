@@ -51,6 +51,7 @@ import { AlertTriangle, Inbox, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import { navigateToAdminUrl } from "./shared/navigation";
 
 type Row = RouterOutputs["opportunityQueue"]["list"]["items"][number];
 
@@ -62,9 +63,14 @@ const CAN_ATTEMPT: readonly string[] = ["new", "assigned", "attempted", "no_resp
 
 /** 250 rows were live on 2026-10-23 and the old window of 100 hid 150 of them. 500 is the router's maximum. */
 const LIMIT = 500;
-const LIST_INPUT = { states: [...RELEVANT_STATES], limit: LIMIT };
+// "worklist": the server puts untouched rows first and the newest first BEFORE it cuts the window to LIMIT.
+const LIST_INPUT = { states: [...RELEVANT_STATES], limit: LIMIT, order: "worklist" as const };
 
-const DAY_MS = 86_400_000;
+/** These states prove a customer exists, so "Not a customer" would be false on them. */
+const STATE_PROVES_CUSTOMER: readonly string[] = ["scheduled", "walk_in_expected", "arrived"];
+
+/** No phone number rides in this URL: the waiting threads are listed first in Messages. */
+const MESSAGES_HREF = "/admin?tab=campaigns&outreachTab=sms";
 
 const BUTTON = "min-h-[48px] min-w-[48px] px-4 rounded border border-border/50 text-sm disabled:opacity-50";
 
@@ -78,12 +84,17 @@ function typeLabel(sourceType: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function ageLabel(created: Date | string): string {
-  const t = new Date(created).getTime();
-  if (Number.isNaN(t)) return "age unknown";
-  const days = Math.floor((Date.now() - t) / DAY_MS);
-  if (days <= 0) return "today";
-  return days === 1 ? "1 day old" : `${days} days old`;
+/** Shop days since creation, computed in SQL (a driver-parsed DATETIME is shifted on an ET host). null = unknown. */
+function ageLabel(ageDays: number | null): string {
+  if (ageDays === null || !Number.isFinite(ageDays)) return "age unknown";
+  if (ageDays <= 0) return "today";
+  return ageDays === 1 ? "1 day old" : `${ageDays} days old`;
+}
+
+/** Texts the SOURCE system already sent (unapproved estimates record this; it never touches attempts). */
+function automatedTexts(r: Row): number {
+  const n = r.evidence?.recoveryTouchesSent;
+  return typeof n === "number" && n > 0 ? n : 0;
 }
 
 function whenLabel(iso: unknown): string {
@@ -97,8 +108,9 @@ function attemptLine(r: Row): string {
   const last = [...r.receipts].reverse().find((x) => x.to === "attempted");
   if (!last) {
     if (r.attempts > 0) return "Contact attempted, time not recorded";
-    // Only a new or assigned row can honestly be called untouched; later states got there another way.
-    return r.state === "new" || r.state === "assigned" ? "Not contacted yet" : "No attempt recorded";
+    // "Here" matters: the source system may already have texted this customer (see automatedTexts),
+    // and missed-call recovery runs on its own, so the record cannot say nobody has been in touch.
+    return "No attempt recorded here";
   }
   const verb = last.note === "called" ? "Called" : last.note === "texted" ? "Texted" : "Contact attempted";
   return `${verb} ${whenLabel(last.at)}${r.attempts > 1 ? `, attempt ${r.attempts}` : ""}`;
@@ -179,14 +191,17 @@ export default function OpportunitiesSection() {
   }
 
   async function hide(r: Row) {
+    // A scheduled, walk-in or arrived row has a customer by definition: say "not actionable", not "not a customer".
+    const customerKnown = STATE_PROVES_CUSTOMER.includes(r.state);
+    const verdict = customerKnown ? "not actionable" : "not a customer";
     const ok = await confirmDialog({
       title: "Hide this opportunity?",
-      message: "It leaves this list as not a customer. Nothing else changes, and it cannot be undone here.",
-      confirmLabel: "Not a customer",
+      message: `It leaves this list as ${verdict}. Nothing else changes, and it cannot be undone here.`,
+      confirmLabel: customerKnown ? "Not relevant" : "Not a customer",
       cancelLabel: "Keep it",
       tone: "danger",
     });
-    if (ok) transition.mutate({ id: r.id, to: "dismissed", note: "not a customer" });
+    if (ok) transition.mutate({ id: r.id, to: "dismissed", note: verdict });
   }
 
   const queryable = query.data?.queryable;
@@ -204,7 +219,7 @@ export default function OpportunitiesSection() {
           <p className="text-sm text-foreground/60">
             Open customer opportunities collected from calls, estimates, bookings and forms. Called and
             Texted record what you did outside the admin, and this page sends nothing. Not a customer
-            hides the row.
+            or Not relevant hides the row.
           </p>
         </div>
         <button
@@ -262,13 +277,19 @@ export default function OpportunitiesSection() {
       <ul className="space-y-4">
         {items.map((o) => {
           const busy = busyIds.has(o.id);
-          const canAttempt = o.consentOk && CAN_ATTEMPT.includes(o.state);
+          // A text waiting on a reply is closed by sending or by "No reply needed" in Messages, not by
+          // an attempt recorded here: Called/Texted would leave the Messages count saying the customer waits.
+          const inMessages = o.sourceType === "human_pending_sms";
+          const canAttempt = o.consentOk && !inMessages && CAN_ATTEMPT.includes(o.state);
+          const customerKnown = STATE_PROVES_CUSTOMER.includes(o.state);
+          const dismissLabel = customerKnown ? "Not relevant" : "Not a customer";
+          const texts = automatedTexts(o);
           return (
             <li key={o.id} className="rounded border border-border/40 p-3 space-y-3">
               <div className="min-w-0">
                 <div className="flex items-baseline justify-between gap-3 text-xs text-foreground/60">
                   <span className="font-medium text-foreground/80">{typeLabel(o.sourceType)}</span>
-                  <span className="shrink-0">{ageLabel(o.createdAt)}</span>
+                  <span className="shrink-0">{ageLabel(o.ageDays)}</span>
                 </div>
                 <div className="font-medium break-words mt-1">{o.recommendedAction}</div>
                 <div className="text-sm text-foreground/60 break-words">{o.reason}</div>
@@ -297,8 +318,20 @@ export default function OpportunitiesSection() {
                   </>
                 )}
                 <p className="text-sm mt-1">{attemptLine(o)}</p>
+                {texts > 0 && <p className="text-sm text-foreground/60">Automated texts sent: {texts}</p>}
               </div>
               <div className="flex flex-wrap gap-2">
+                {inMessages && (
+                  <a
+                    href={MESSAGES_HREF}
+                    onClick={(e) => {
+                      if (navigateToAdminUrl(e, MESSAGES_HREF, "campaigns")) e.preventDefault();
+                    }}
+                    className={`${BUTTON} inline-flex items-center`}
+                  >
+                    Reply from Messages
+                  </a>
+                )}
                 {canAttempt && (
                   <>
                     <button
@@ -326,9 +359,9 @@ export default function OpportunitiesSection() {
                   onClick={() => void hide(o)}
                   disabled={busy}
                   className={BUTTON}
-                  aria-label={`Not a customer: ${o.recommendedAction}`}
+                  aria-label={`${dismissLabel}: ${o.recommendedAction}`}
                 >
-                  Not a customer
+                  {dismissLabel}
                 </button>
               </div>
             </li>

@@ -2590,8 +2590,13 @@ export async function recentInboundExists(conversationId: number, body: string):
 export async function getConversations(limit = 50): Promise<SmsConversation[]> {
   const db = await getDb();
   if (!db) return [];
+  // A customer waiting on a human is ALWAYS inside the cap: humanPendingSummary counts them from
+  // sms_response_jobs, and a thread outside the newest `limit` conversations could not be acted on.
   const convos: SmsConversation[] = await db.select().from(smsConversations)
-    .orderBy(desc(smsConversations.lastMessageAt)).limit(limit);
+    .orderBy(
+      sql`EXISTS (SELECT 1 FROM sms_response_jobs j WHERE j.conversationId = ${smsConversations.id} AND j.status = 'human_pending') DESC`,
+      desc(smsConversations.lastMessageAt),
+    ).limit(limit);
 
   // Backfill the display name from the customers table for conversations that
   // never captured one — inbound texts from numbers we already know as customers

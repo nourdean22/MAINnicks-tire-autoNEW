@@ -174,6 +174,12 @@ export interface OpportunityRow {
   outcomeInvoiceId: number | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * Shop days (America/New_York) since the row was created, computed in SQL by
+   * listOpportunities. null = not computed (any other read path) or SQL could not
+   * (CONVERT_TZ is NULL without the time-zone tables): UNKNOWN, never 0.
+   */
+  ageDays: number | null;
 }
 
 // ─── DB plumbing with graceful degrade ──────────────────────────────
@@ -223,6 +229,7 @@ function mapRow(r: Record<string, unknown>): OpportunityRow {
     outcomeInvoiceId: r.outcome_invoice_id == null ? null : Number(r.outcome_invoice_id),
     createdAt: new Date(r.created_at as string),
     updatedAt: new Date(r.updated_at as string),
+    ageDays: r.age_days == null ? null : Number(r.age_days),
   };
 }
 
@@ -439,10 +446,15 @@ export async function upsertOpportunity(
  * Returns `{ items, queryable }`, deliberately not a bare array, so the honest
  * shape cannot be ignored by a future caller: `.length` on the result is a type
  * error rather than a silent zero.
+ *
+ * `order: "worklist"` puts rows nobody has tried (attempts = 0) first, then newest created,
+ * BEFORE the LIMIT, so a full window keeps the work that is waiting. Default: updated_at DESC.
+ * Every row also carries `ageDays` (shop days, computed in SQL).
  */
 export async function listOpportunities(opts?: {
   states?: OpportunityState[];
   limit?: number;
+  order?: "worklist";
 }): Promise<{ items: OpportunityRow[]; queryable: boolean }> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
@@ -452,15 +464,11 @@ export async function listOpportunities(opts?: {
   const limit = Math.min(opts?.limit ?? 100, 500);
   const states = opts?.states?.length ? opts.states : null;
   try {
-    const result = states
-      ? await db.execute(sql`
-          SELECT * FROM revenue_opportunities
-          WHERE state IN (${sql.join(states.map((s) => sql`${s}`), sql`, `)})
-          ORDER BY updated_at DESC LIMIT ${limit}
-        `)
-      : await db.execute(sql`
-          SELECT * FROM revenue_opportunities ORDER BY updated_at DESC LIMIT ${limit}
-        `);
+    // Shop days, computed in SQL: a driver-parsed DATETIME is shifted on an ET host (AGENTS.md, Time).
+    const ageDays = sql`DATEDIFF(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', 'America/New_York'), CONVERT_TZ(created_at, '+00:00', 'America/New_York')) AS age_days`;
+    const where = states ? sql`WHERE state IN (${sql.join(states.map((s) => sql`${s}`), sql`, `)})` : sql``;
+    const orderBy = opts?.order === "worklist" ? sql`ORDER BY (attempts = 0) DESC, created_at DESC` : sql`ORDER BY updated_at DESC`;
+    const result = await db.execute(sql`SELECT *, ${ageDays} FROM revenue_opportunities ${where} ${orderBy} LIMIT ${limit}`);
     return { items: rowsFromExecute(result).map(mapRow), queryable: true };
   } catch (err) {
     if (isMissingTableError(err)) {
@@ -609,13 +617,15 @@ export async function transitionOpportunity(params: {
       to: params.to,
       ...(params.note ? { note: params.note } : {}),
     };
-    const receipts = [...current.receipts, receipt];
     const attemptsBump = params.to === "attempted" ? 1 : 0;
 
+    // The receipt is appended INSIDE the UPDATE, never read in JS and written back: attempted ->
+    // attempted passes the state guard twice, and a read-modify-write let the second write erase
+    // the first receipt while attempts still counted both (claim-before-act).
     const result = await db.execute(sql`
       UPDATE revenue_opportunities
       SET state = ${params.to},
-          receipts_json = ${JSON.stringify(receipts)},
+          receipts_json = JSON_ARRAY_APPEND(COALESCE(receipts_json, JSON_ARRAY()), '$', CAST(${JSON.stringify(receipt)} AS JSON)),
           attempts = attempts + ${attemptsBump},
           owner = ${params.owner !== undefined ? params.owner : current.owner},
           due_at = ${params.dueAt !== undefined ? params.dueAt : current.dueAt},
