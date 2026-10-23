@@ -231,7 +231,10 @@ export function BottomPulseTicker() {
         <button
           ref={openerRef}
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            setResolveError(null); // a rejected Done / Drop from an earlier open must not greet the next one
+            setOpen((o) => !o);
+          }}
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control text-left sm:-my-0.5 sm:min-h-6"
           aria-label={open ? "Close pulse feed" : "Open pulse feed"}
           aria-haspopup="dialog"
