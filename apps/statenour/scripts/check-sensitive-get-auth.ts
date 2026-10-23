@@ -160,7 +160,21 @@ const isFn = (n: ts.Node): n is Fn =>
   (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n)) &&
   n.body !== undefined;
 
-const skip = (n: ts.Node): ts.Node => (ts.isExpression(n) ? ts.skipOuterExpressions(n) : n);
+// ts.skipOuterExpressions exists at runtime but is internal (absent from typescript.d.ts); same kinds, public guards.
+const skipOuterExpressions = (e: ts.Expression): ts.Expression => {
+  while (
+    ts.isParenthesizedExpression(e) ||
+    ts.isAsExpression(e) ||
+    ts.isTypeAssertionExpression(e) ||
+    ts.isSatisfiesExpression(e) ||
+    ts.isNonNullExpression(e) ||
+    ts.isExpressionWithTypeArguments(e)
+  ) {
+    e = e.expression;
+  }
+  return e;
+};
+const skip = (n: ts.Node): ts.Node => (ts.isExpression(n) ? skipOuterExpressions(n) : n);
 const some = (n: ts.Node, f: (c: ts.Node) => boolean): boolean => !!ts.forEachChild(n, (c) => f(c) || undefined);
 
 /** Binds `name` (or every name in a destructuring pattern) into `scope`. */
@@ -234,7 +248,7 @@ export function checkSource(src: string, fileName = "route.ts"): string[] {
 
   /** Is this call an auth check? Guards by name, compares by secret argument, same-file helpers by their body. */
   const isAuthCall = (call: ts.CallExpression, locals: Scope): boolean => {
-    const callee = ts.skipOuterExpressions(call.expression);
+    const callee = skipOuterExpressions(call.expression);
     const member = ts.isPropertyAccessExpression(callee);
     const name = member ? callee.name.text : ts.isIdentifier(callee) ? callee.text : undefined;
     if (!name) return false;
@@ -255,7 +269,7 @@ export function checkSource(src: string, fileName = "route.ts"): string[] {
     const walk = (c: ts.Node): boolean => {
       if (ts.isFunctionLike(c)) return false;
       if (ts.isCallExpression(c)) {
-        const callee = ts.skipOuterExpressions(c.expression);
+        const callee = skipOuterExpressions(c.expression);
         if (ts.isPropertyAccessExpression(callee) && callee.name.text === "catch") return false;
         if (isAuthCall(c, locals)) return true;
       }
@@ -289,7 +303,7 @@ export function checkSource(src: string, fileName = "route.ts"): string[] {
     // When `e` evaluated to `truthy`, did an auth call run? Follows `!`, &&, || and local consts,
     // so `const ok = Boolean(secret) && safeEqual(...); if (!ok) return 401` counts (cron/mega).
     const passed = (node: ts.Expression, truthy: boolean, depth = 0): boolean => {
-      const e = ts.skipOuterExpressions(node);
+      const e = skipOuterExpressions(node);
       if (depth > 8) return ran(e);
       if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.ExclamationToken) {
         return passed(e.operand, !truthy, depth + 1);
