@@ -76,7 +76,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
   const [tab, setTab] = useState<Tab>("unresolved");
   const [busy, setBusy] = useState<string | null>(null);
   const [notingKey, setNotingKey] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState("");
   const [pendingResolve, setPendingResolve] = useState<ResolveStatus | null>(null);
 
   const utils = trpc.useUtils();
@@ -117,19 +116,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         // A table row someone closed first keeps THEIR answer: report what is stored, not what was tapped.
         const stored = res?.contradiction?.status ?? status;
         const storedLabel = tableStatusLabel(stored);
-        toast.success(
-          key.startsWith("tbl:")
-            ? `${res?.alreadyResolved ? "already closed" : "closed"} · ${storedLabel}`
-            : status === "current_wins"
-            ? "current position locked in · old deprecated"
-            : status === "old_wins"
-              ? "old position held · new deprecated"
-              : status === "both_valid"
-                ? "marked as context-dependent"
-                : "dismissed as false positive",
-        );
+        toast.success(`${res?.alreadyResolved ? "already closed" : "closed"} · ${storedLabel}`);
         setNotingKey(null);
-        setNoteText("");
         setPendingResolve(null);
         await utils.brain.contradictions.invalidate();
       } catch (e) {
@@ -143,7 +131,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
   const beginResolve = useCallback((key: string, status: ResolveStatus) => {
     setNotingKey(key);
-    setNoteText("");
     setPendingResolve(status);
   }, []);
 
@@ -213,7 +200,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         {visible.map((c) => {
           const rowBusy = busy === c.key;
           const focused = focusKey === c.key;
-          const isTable = c.source === "table";
           const open = !c.status || c.status === "unresolved";
           return (
             <div
@@ -229,31 +215,18 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               )}
             >
               <div className="flex items-center gap-2 mb-1.5 text-[11px] font-mono">
-                {isTable ? (
-                  <>
-                    <span className="text-red-400">claim vs record · {c.category}</span>
-                    <span className="text-[var(--text-tertiary)]">
-                      {c.severity} · recorded {c.recorded}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
-                    <span className="text-[var(--text-tertiary)]">
-                      {c.days_apart}d apart · sim {Math.round((c.similarity ?? 0) * 100)}%
-                    </span>
-                  </>
-                )}
+                <span className="text-red-400">claim vs record · {c.category}</span>
+                <span className="text-[var(--text-tertiary)]">
+                  {c.severity} · recorded {c.recorded}
+                </span>
                 {c.status && c.status !== "unresolved" && (
-                  <span className="text-emerald-400">
-                    · {isTable ? tableStatusLabel(c.status) : c.status.replace(/_/g, " ")}
-                  </span>
+                  <span className="text-emerald-400">· {tableStatusLabel(c.status)}</span>
                 )}
               </div>
 
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono text-fg-tertiary">{isTable ? (OWN_WORDS_SOURCES.has(c.claim_source ?? "") ? "You said" : "Inferred claim") : "Now"}
+                  <p className="text-[11px] font-mono text-fg-tertiary">{OWN_WORDS_SOURCES.has(c.claim_source ?? "") ? "You said" : "Inferred claim"}
                   </p>
                   <p className="text-[11px] text-[var(--text-primary)] break-words">
                     "{c.new_excerpt}"
@@ -262,7 +235,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 <Split size={12} className="text-[var(--text-tertiary)] mt-3" />
                 <div className="min-w-0">
                   <p className="text-[11px] font-mono text-fg-tertiary">
-                    {isTable ? "Record shows" : `${c.days_apart}d ago`}
+                    Record shows
                   </p>
                   <p className="text-[11px] text-[var(--text-secondary)] break-words">
                     "{c.old_excerpt}"
@@ -270,7 +243,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 </div>
               </div>
 
-              {open && isTable && notingKey !== c.key && (
+              {open && notingKey !== c.key && (
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                   {TABLE_ANSWERS.map((a) => (
                     <button
@@ -286,79 +259,24 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 </div>
               )}
 
-              {open && !isTable && notingKey !== c.key && (
-                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                  <button
-                    onClick={() => beginResolve(c.key, "current_wins")}
-                    disabled={rowBusy}
-                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-edge-subtle text-fg-secondary hover:bg-surface-hover text-[11px] font-mono gap-1"
-                    title="lock in current position, deprecate old"
-                  >
-                    <Check size={9} />
-                    Current wins
-                  </button>
-                  <button
-                    onClick={() => beginResolve(c.key, "old_wins")}
-                    disabled={rowBusy}
-                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono gap-1"
-                    title="hold old position, deprecate new"
-                  >
-                    Old wins
-                  </button>
-                  <button
-                    onClick={() => beginResolve(c.key, "both_valid")}
-                    disabled={rowBusy}
-                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[11px] font-mono"
-                    title="context-dependent, both still true"
-                  >
-                    Both valid
-                  </button>
-                  <button
-                    onClick={() => resolve(c.key, "dismissed")}
-                    disabled={rowBusy}
-                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control sm:min-h-6 sm:min-w-6 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 justify-center"
-                    title="false positive"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              )}
-
               {notingKey === c.key && pendingResolve && (
                 <div className="mt-2 space-y-1.5">
-                  {isTable ? (
-                    // The table has no note column: the confirm step is the whole second tap.
-                    <p role="status" className="text-[11px] font-mono text-fg-tertiary">
-                      Close as: {tableStatusLabel(pendingResolve)}?
-                    </p>
-                  ) : (
-                    <>
-                      <p role="status" className="text-[11px] font-mono text-fg-tertiary">
-                        Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
-                      </p>
-                      <textarea
-                        // The tapped button is gone: focus moves here so VoiceOver and keyboard follow.
-                        autoFocus
-                        value={noteText}
-                        onChange={(e) => setNoteText(e.target.value)}
-                        placeholder="optional: explain the reversal"
-                        rows={2}
-                        className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
-                      />
-                    </>
-                  )}
+                  {/* The table has no note column: the confirm step is the whole second tap. */}
+                  <p role="status" className="text-[11px] font-mono text-fg-tertiary">
+                    Close as: {tableStatusLabel(pendingResolve)}?
+                  </p>
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}
+                      onClick={() => resolve(c.key, pendingResolve)}
                       disabled={rowBusy}
-                      // Table rows have no note box: the confirm button takes focus from the tapped answer.
-                      autoFocus={isTable}
+                      // The confirm button takes focus from the tapped answer.
+                      autoFocus
                       className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                     >
                       <Check size={9} /> confirm
                     </button>
                     <button
-                      onClick={() => { setNotingKey(null); setNoteText(""); setPendingResolve(null); }}
+                      onClick={() => { setNotingKey(null); setPendingResolve(null); }}
                       className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
                     >
                       <X size={9} /> Cancel
@@ -392,8 +310,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               icon={Check}
               title="Clean ledger"
               provenance="ZERO"
-              why="No open claim-vs-record gap, and no new memory contradicts an old one right now."
-              unlock="Contradictions surface when a new memory semantically flips an older one (negation, reversal, antonym). A measured zero says the LEDGER is empty — it does not say whether the detector has seen enough traffic to have an opinion."
+              why="No open claim-vs-record gap right now."
+              unlock="The nightly thinking engine records a gap when what you said does not match the record. A measured zero says the LEDGER is empty — it does not say whether the engine has had enough to compare."
               tone="positive"
             />
           ) : (
@@ -401,7 +319,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               icon={Split}
               title="No resolved contradictions yet"
               provenance="ZERO"
-              why="Every resolution gets logged here — current wins, old wins, both valid, or dismissed."
+              why="Every answer gets logged here — record is right, outdated, ignore, or expired after 30 days."
               unlock="Switch to Unresolved, work through the list, then come back."
               tone="neutral"
             />
@@ -410,9 +328,6 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
       </div>
 
       <p className="text-[11px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
-        Memory rows: "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
-        does the same to the new one. "both valid" or "dismissed" just closes the loop without
-        touching the memory rows. Threshold: sim ≥ 0.78 · age ≥ 7d · negation / reversal / antonym.
         Claim-vs-record rows come from the nightly thinking engine; your answer is stored on the row,
         and rows nobody answers expire after 30 days.
       </p>

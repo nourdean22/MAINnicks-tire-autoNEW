@@ -1,15 +1,13 @@
 /**
  * lib/services/recall-inbox.ts · Wave W Phase 4 (2026-05-24).
  *
- * Single aggregator that fuses the four "needs your attention"
+ * Single aggregator that fuses the three "needs your attention"
  * surfaces operator currently checks across 3 separate pages:
  *
  *   1. Pinned memories          → via listPins() (lib/services/pins.ts)
  *   2. Unreviewed link-review   → semantic-edge proposals
  *      candidates                 (BrainMemory category=link_review · status=pending)
- *   3. Unresolved contradictions→ via loadRecentContradictions()
- *                                  (lib/brain/contradiction-surfacer.ts)
- *   4. Active alerts             → drift/persona/stagnation alerts
+ *   3. Active alerts             → drift/persona/stagnation alerts
  *                                  (BrainMemory category=active_alert · unacknowledged)
  *
  * Pre-Wave-W these lived behind 3 separate /brain sub-pages. Wave V's
@@ -51,12 +49,6 @@ export interface RecallInbox {
   pins: { items: RecallItem[]; total: number; error: string | null };
   /** Top-3 link-review candidates awaiting decision. */
   linkReview: { items: RecallItem[]; total: number; error: string | null };
-  /** Top-3 unresolved contradictions. */
-  contradictions: {
-    items: RecallItem[];
-    total: number;
-    error: string | null;
-  };
   /** Top-3 active alerts. */
   alerts: { items: RecallItem[]; total: number; error: string | null };
   /** Overall count for the inbox header badge. */
@@ -138,30 +130,6 @@ async function readLinkReview(): Promise<RecallInbox["linkReview"]> {
   }
 }
 
-async function readContradictions(): Promise<RecallInbox["contradictions"]> {
-  try {
-    const { loadRecentContradictions } = await import(
-      "@/lib/brain/contradiction-surfacer"
-    );
-    const all = await loadRecentContradictions(30, false); // unresolved only
-    return {
-      items: all.slice(0, 3).map((c) => ({
-        id: c.key,
-        preview: clipPreview(c.new_excerpt),
-        meta: `${c.signal} · ${c.days_apart}d apart`,
-        at: c.surfaced_at,
-      })),
-      total: all.length,
-      error: null,
-    };
-  } catch (err) {
-    log.warn("recall_inbox_contradictions_failed", {
-      error: sanitizeError(err),
-    });
-    return { ...EMPTY_BUCKET, error: "contradictions_read_failed" };
-  }
-}
-
 async function readAlerts(): Promise<RecallInbox["alerts"]> {
   try {
     const { buildActiveAlerts } = await import(
@@ -210,19 +178,17 @@ async function readAlerts(): Promise<RecallInbox["alerts"]> {
  * throws to React).
  */
 export async function buildRecallInbox(): Promise<RecallInbox> {
-  const [pins, linkReview, contradictions, alerts] = await Promise.all([
+  const [pins, linkReview, alerts] = await Promise.all([
     readPins(),
     readLinkReview(),
-    readContradictions(),
     readAlerts(),
   ]);
   return {
     pins,
     linkReview,
-    contradictions,
     alerts,
     totalCount:
-      pins.total + linkReview.total + contradictions.total + alerts.total,
+      pins.total + linkReview.total + alerts.total,
     generatedAt: new Date().toISOString(),
   };
 }

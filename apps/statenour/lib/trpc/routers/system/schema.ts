@@ -40,7 +40,6 @@ const STALE_CATEGORIES: ReadonlySet<StaleCategoryId> =
     "drift_alerts_unresolved_14d",
     "pending_actions_7d",
     "skill_candidates_30d",
-    "open_contradictions_60d",
     "abandoned_tasks_30d",
     "orphan_conversations",
     "overdue_decisions_reviews",

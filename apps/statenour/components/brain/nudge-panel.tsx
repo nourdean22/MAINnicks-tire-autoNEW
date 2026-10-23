@@ -24,7 +24,6 @@ interface Nudge {
   severity: "high" | "medium" | "low";
   source:
     | "identity"
-    | "contradiction"
     | "ghost"
     | "skill"
     // v11.1 meta-intelligence
@@ -36,7 +35,6 @@ interface Nudge {
 // Per-source label + tint, mirroring the server-side taxonomy.
 const SOURCE_META: Record<Nudge["source"], { label: string; tint: string }> = {
   identity: { label: "identity", tint: "text-violet-300" },
-  contradiction: { label: "contradiction", tint: "text-amber-300" },
   ghost: { label: "ghost", tint: "text-violet-400" },
   skill: { label: "skill", tint: "text-emerald-300" },
   correlation: { label: "correlation", tint: "text-fuchsia-300" },

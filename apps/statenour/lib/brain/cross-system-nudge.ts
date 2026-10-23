@@ -23,7 +23,6 @@
  */
 
 import { loadIdentitySnapshot, type AxisKey, type AxisDirection } from "./identity-snapshot";
-import { countUnresolved } from "./contradiction-surfacer";
 import { loadGhostAccuracy } from "./ghost-nick";
 import { loadActiveSkills, loadPendingSkills } from "./skill-extractor";
 import { prisma } from "@/lib/prisma";
@@ -60,7 +59,6 @@ export interface Nudge {
   severity: "high" | "medium" | "low";
   source:
     | "identity"
-    | "contradiction"
     | "ghost"
     | "skill"
     // v11.1 meta-intelligence source (F2). F3-F5 and the pin-hygiene / belief-refresh
@@ -126,9 +124,8 @@ const AXIS_NUDGE_TEXT: Partial<Record<AxisKey, (value: number, arrow: string) =>
  * accidentally bypassed on the chat hot path.
  */
 async function computeNudgesUncached(): Promise<Nudge[]> {
-  const [snap, unresolvedCount, accuracy, activeSkills, pendingSkills] = await Promise.all([
+  const [snap, accuracy, activeSkills, pendingSkills] = await Promise.all([
     loadIdentitySnapshot().catch(() => null),
-    countUnresolved(14).catch(() => 0),
     loadGhostAccuracy().catch(() => null),
     loadActiveSkills().catch(() => []),
     loadPendingSkills().catch(() => []),
@@ -152,16 +149,6 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
         });
       }
     }
-  }
-
-  // ── Contradictions ──
-  if (unresolvedCount > 0) {
-    nudges.push({
-      severity: unresolvedCount >= 3 ? "high" : "medium",
-      source: "contradiction",
-      text: `${unresolvedCount} unresolved contradiction${unresolvedCount > 1 ? "s" : ""} · reconcile in /brain`,
-      link: "/brain",
-    });
   }
 
   // ── Ghost Nick accuracy signal ──
@@ -306,15 +293,7 @@ export async function computeNudges(): Promise<Nudge[]> {
  *
  *   1. `dismissNudge` (below) — writes the `nudge_ack` row that the
  *      suppression filter reads. Operator taps dismiss in NudgePanel.
- *   2. `resolveContradiction` (lib/brain/contradiction-surfacer.ts) —
- *      flips a contradiction row off `"unresolved"`, which is precisely
- *      what `countUnresolved(14)` counts, and that count IS the
- *      contradiction nudge. Operator taps resolve in
- *      ContradictionResolutionPanel / ContradictionsCard, or Nick calls
- *      the `resolveContradiction` AI tool mid-turn. All five entry
- *      points (trpc brain.* + system.*, both REST routes, the AI tool)
- *      funnel through that one function, so one call covers them all.
- *   3. `setManualOverride` (lib/brain/identity-snapshot.ts) — writes the
+ *   2. `setManualOverride` (lib/brain/identity-snapshot.ts) — writes the
  *      identity row whose axes this module compares against
  *      WEAKNESS_FLOOR. Added 2026-08-06 after review; see the
  *      identity-axes note below for why the original exclusion was wrong.
@@ -326,21 +305,12 @@ export async function computeNudges(): Promise<Nudge[]> {
  *   - correlation_alert · gated `updatedAt >= now-7d` (detector cron)
  *   - ghost accuracy    · cron rows
  *   - identity axes     · the DAILY-SCHEDULER recompute only. A MANUAL
- *     pin is NOT exempt and is now wired (see 3 above). The original
+ *     pin is NOT exempt and is now wired (see 2 above). The original
  *     version of this list claimed the nudge "fires on a WEAKNESS_FLOOR
  *     crossing, not on the raw number" and used that to exclude identity
  *     writes wholesale — wrong, because a manual pin from 40 to 70 IS a
  *     floor crossing, and clearing that nudge is usually the operator's
  *     whole reason for pinning.
- *   - NEW contradiction rows from `surfaceContradictions`
- *     (lib/brain/contradiction-surfacer.ts, fire-and-forget from
- *     importance-scorer on a chat turn) · these RAISE
- *     `countUnresolved(14)`, so this one genuinely does move on
- *     turn time, not cron time. Excluded on a cost/benefit call, not
- *     because it cannot move: a nudge appearing up to 300s late is
- *     cheap, whereas a DISMISSED nudge coming BACK reads as the app
- *     ignoring the operator. Wire it only if late-arriving
- *     contradiction nudges ever become a real complaint.
  *   - skill / skill_pending · the nudge needs >= 5 pending candidates
  *     or a 30d-stale skill; a single triage on /brain (memory tab) cannot flip
  *     either condition, so at worst a count reads one stale for 300s

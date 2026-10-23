@@ -45,7 +45,6 @@ import {
   VECTOR_DIM_1536,
 } from "@/lib/db/pgvector";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
-import { surfaceNearDuplicate } from "@/lib/brain/contradiction-surfacer";
 
 export type SaveCategory =
   | "decision"
@@ -374,29 +373,9 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     }
   }
 
-  // 5 · Queue the near-duplicate pair for the operator. Same storage and
-  // panel as every other contradiction; resolving it writes the supersession
-  // columns recall filters on. Loud on failure, never blocking.
-  let reviewKey: string | undefined;
-  if (near) {
-    try {
-      reviewKey = await surfaceNearDuplicate({
-        newMemoryId: row.id,
-        oldMemoryId: near.id,
-        newContent: trimmed,
-        oldContent: near.content,
-        similarity: near.similarity,
-        oldCreatedAt: near.createdAt ?? null,
-      });
-    } catch (err) {
-      console.warn("[saveToBrain] near-duplicate review enqueue failed:", err);
-    }
-  }
-
   const parts = [`Saved as ${category} · ${previewOf(trimmed)}`];
   if (near) {
     parts.push(`similar memory kept: ${previewOf(near.content, 60)}`);
-    parts.push(reviewKey ? "queued for review" : "review enqueue failed");
   }
   if (vec.length === 0) parts.push("search index pending");
 
@@ -408,6 +387,5 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     outcome: near ? "created_near_duplicate" : "created",
     ...(near ? { relatedId: near.id } : {}),
     embedded,
-    ...(reviewKey ? { reviewKey } : {}),
   };
 }

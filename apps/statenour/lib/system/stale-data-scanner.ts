@@ -31,7 +31,6 @@ export type StaleCategoryId =
   | "drift_alerts_unresolved_14d"
   | "pending_actions_7d"
   | "skill_candidates_30d"
-  | "open_contradictions_60d"
   | "abandoned_tasks_30d"
   | "orphan_conversations"
   | "overdue_decisions_reviews"
@@ -96,25 +95,6 @@ export function isOrphanConversation(c: {
 }
 
 /**
- * Predicate used by the open-contradictions category. Contradictions
- * are persisted as JSON in BrainMemory.content with shape
- *   { status: "unresolved" | "resolved" | "dismissed" | "both_valid", ... }
- * per lib/brain/contradiction-surfacer.ts.
- *
- * Returns true when the row is NOT resolved yet — i.e., it still
- * represents open tension on /brain. Malformed content is treated as
- * unresolved so Nour still sees it (fail-open for surfacing).
- */
-export function isUnresolvedContradiction(c: { content: string }): boolean {
-  try {
-    const parsed = JSON.parse(c.content) as { status?: string };
-    return !parsed.status || parsed.status === "unresolved";
-  } catch {
-    return true;
-  }
-}
-
-/**
  * Run the full audit. Every category is independently safe-queried so
  * a broken one doesn't poison the report.
  */
@@ -147,7 +127,6 @@ export async function scanStaleData(): Promise<StaleReport> {
     driftAlerts,
     pendingActions,
     skillCandidates,
-    openContradictions,
     abandonedTasks,
     orphanConvos,
     overdueDecisions,
@@ -233,41 +212,6 @@ export async function scanStaleData(): Promise<StaleReport> {
       },
       { count: 0, rows: [] as Array<{ id: string; key: string; createdAt: Date }> },
       { label: "stale.skillCandidates", onFallback: onStaleFallback("stale.skillCandidates") },
-    ),
-
-    // 4. Contradictions left open (status=unresolved) > 60 days.
-    //    These loiter forever on /brain and poison the resolution flow.
-    //
-    //    v11.2 fix (D9) — was `content: { not: { contains: "resolved" } }`
-    //    which false-excluded any contradiction whose content mentioned
-    //    "resolved" in prose (e.g., "I resolved to ..."). Now we pull
-    //    candidates by category + date, then parse the JSON-serialized
-    //    content in JS to check the canonical `status` field, which is
-    //    "unresolved" | "resolved" | "dismissed" | "both_valid" per
-    //    lib/brain/contradiction-surfacer.ts.
-    safeQuery(
-      async () => {
-        const candidates = await prisma.brainMemory.findMany({
-          where: {
-            category: BRAIN_CATEGORIES.CONTRADICTION,
-            createdAt: { lt: since60d },
-          },
-          orderBy: { createdAt: "asc" },
-          take: 500,
-          select: { id: true, key: true, content: true, createdAt: true },
-        });
-        const unresolved = candidates.filter(isUnresolvedContradiction);
-        return {
-          count: unresolved.length,
-          rows: unresolved.slice(0, 5).map((c) => ({
-            id: c.id,
-            key: c.key,
-            createdAt: c.createdAt,
-          })),
-        };
-      },
-      { count: 0, rows: [] as Array<{ id: string; key: string; createdAt: Date }> },
-      { label: "stale.contradictions", onFallback: onStaleFallback("stale.contradictions") },
     ),
 
     // 5. Tasks stuck in READY/DOING with no updates in 30+ days.
@@ -420,19 +364,6 @@ export async function scanStaleData(): Promise<StaleReport> {
       purgeAction: "Deletes the candidate BrainMemory rows.",
       count: skillCandidates.count,
       examples: skillCandidates.rows.map((r) => ({
-        id: r.id,
-        label: r.key,
-        ageDays: daysSince(r.createdAt),
-      })),
-    },
-    {
-      id: "open_contradictions_60d",
-      title: "Contradictions unresolved > 60 days",
-      description:
-        "Surfaced by the contradiction-surfacer. Each one is a belief-vs-behavior mismatch that Nour never addressed. /brain shows them as active tension.",
-      purgeAction: "Marks each contradiction resolved with note: 'auto-closed · stale >60d'.",
-      count: openContradictions.count,
-      examples: openContradictions.rows.map((r) => ({
         id: r.id,
         label: r.key,
         ageDays: daysSince(r.createdAt),

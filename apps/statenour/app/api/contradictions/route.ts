@@ -19,7 +19,7 @@ import {
   listStoredContradictions,
   resolveStoredContradiction,
 } from "@/lib/services/contradictions";
-import { type ContradictionStatus } from "@/lib/brain/contradiction-surfacer";
+import { type ContradictionStatus } from "@/lib/services/contradictions";
 import { ServiceError } from "@/lib/utils/service-error";
 
 export const GET = apiHandler(

@@ -183,20 +183,6 @@ export async function admitMemory(input: AdmitMemoryInput): Promise<AdmitMemoryR
       data: patch as never,
     });
 
-    // Shadow only: measurable contradiction candidates, no live ticker/page.
-    // Keep it off the write latency path and never let detector failure reject
-    // an otherwise valid memory admission.
-    if (input.memoryKind !== "episodic") {
-      void import("@/lib/brain/memory-contradiction-shadow")
-        .then(({ shadowAdmissionContradictions }) =>
-          shadowAdmissionContradictions({
-            memoryId: row.id,
-            category: input.category,
-            content: input.content,
-          }),
-        )
-        .catch(() => undefined);
-    }
   }
 
   return { id: row.id, evidenceClass: envelope.evidenceClass, memoryKind: envelope.memoryKind };

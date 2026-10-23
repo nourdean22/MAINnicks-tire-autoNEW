@@ -201,7 +201,7 @@ const KNOWN_FADED: Record<string, number> = {
   "components/goals/goal-board.tsx -> text-sky-400/70": 1,
   "components/goals/goal-board.tsx -> text-violet-400/80": 1,
   "components/home/horizon-line.tsx -> text-fg-tertiary/80": 1,
-  "components/journal/entry-row.tsx -> text-amber-400/60": 2,
+  "components/journal/entry-row.tsx -> text-amber-400/60": 1,
   "components/journal/entry-row.tsx -> text-emerald-400/50": 1,
   "components/journal/entry-row.tsx -> text-emerald-400/80": 1,
   "components/journal/journal-insights-preview.tsx -> text-amber-400/80": 2,

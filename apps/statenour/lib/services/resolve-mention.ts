@@ -24,7 +24,7 @@ async function resolveYesterday(): Promise<string> {
   y.setDate(y.getDate() - 1);
   const date = y.toISOString().slice(0, 10);
 
-  const [identityRow, dumps, doneCount, contradictionCount] = await Promise.all([
+  const [identityRow, dumps, doneCount] = await Promise.all([
     prisma.brainMemory
       .findUnique({
         where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: `history:${date}` } },
@@ -48,18 +48,6 @@ async function resolveYesterday(): Promise<string> {
         },
       })
       .catch(() => 0),
-    prisma.brainMemory
-      .count({
-        where: {
-          category: BRAIN_CATEGORIES.CONTRADICTION,
-          deletedAt: null,
-          createdAt: {
-            gte: new Date(`${date}T00:00:00Z`),
-            lt: new Date(`${date}T23:59:59Z`),
-          },
-        },
-      })
-      .catch(() => 0),
   ]);
 
   const parts: string[] = [`[yesterday ${date}:`];
@@ -76,7 +64,6 @@ async function resolveYesterday(): Promise<string> {
     }
   }
   parts.push(`${doneCount} task${doneCount === 1 ? "" : "s"} done`);
-  if (contradictionCount > 0) parts.push(`${contradictionCount} contradiction${contradictionCount > 1 ? "s" : ""} flagged`);
   if (dumps.length > 0) {
     parts.push(
       `dumps: ${dumps

@@ -13,7 +13,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   loadIdentitySnapshot: vi.fn(),
-  countUnresolved: vi.fn(),
   loadGhostAccuracy: vi.fn(),
   loadActiveSkills: vi.fn(),
   loadPendingSkills: vi.fn(),
@@ -25,10 +24,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/brain/identity-snapshot", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/brain/identity-snapshot")>();
   return { ...actual, loadIdentitySnapshot: mocks.loadIdentitySnapshot };
-});
-vi.mock("@/lib/brain/contradiction-surfacer", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/brain/contradiction-surfacer")>();
-  return { ...actual, countUnresolved: mocks.countUnresolved };
 });
 vi.mock("@/lib/brain/embedding-utils", () => ({ semanticSearch: vi.fn() }));
 vi.mock("@/lib/brain/ghost-nick", () => ({ loadGhostAccuracy: mocks.loadGhostAccuracy }));
@@ -79,7 +74,6 @@ function snapshotWith(
 
 beforeEach(() => {
   invalidate("brain_nudges_v1");
-  mocks.countUnresolved.mockResolvedValue(0);
   mocks.loadGhostAccuracy.mockResolvedValue(null);
   mocks.loadActiveSkills.mockResolvedValue([]);
   mocks.loadPendingSkills.mockResolvedValue([]);

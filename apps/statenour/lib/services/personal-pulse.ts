@@ -106,7 +106,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       lastReflection,
       latestWin,
       todaysInsights,
-      recentContradictions,
       identitySnap,
       memoryOfDayPick,
     ] = await Promise.all([
@@ -168,24 +167,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
             id: number;
             detail: string;
             actor: string;
-            createdAt: Date;
-          }> => [],
-        ),
-      prisma.brainMemory
-        .findMany({
-          where: {
-            category: BRAIN_CATEGORIES.CONTRADICTION,
-            createdAt: { gte: new Date(now - 7 * 86400_000) },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 6,
-          select: { id: true, key: true, content: true, createdAt: true },
-        })
-        .catch(
-          (): Array<{
-            id: string;
-            key: string;
-            content: string;
             createdAt: Date;
           }> => [],
         ),
@@ -386,42 +367,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
         href: "/brain",
       });
       if (seenInsightKeys.size >= 3) break; // cap at 3 per ticker loop
-    }
-
-    // ── Contradictions — up to 2 unresolved rows from last 7d ──
-    const contradictions = recentContradictions as Array<{
-      id: string;
-      key: string;
-      content: string;
-      createdAt: Date;
-    }>;
-    let renderedContradictions = 0;
-    for (const row of contradictions) {
-      if (renderedContradictions >= 2) break;
-      try {
-        const parsed = JSON.parse(row.content) as {
-          new_excerpt: string;
-          old_excerpt: string;
-          days_apart: number;
-          signal: string;
-          status?: string;
-        };
-        if (parsed.status && parsed.status !== "unresolved") continue;
-        const newPart = parsed.new_excerpt.slice(0, 60).trim();
-        const oldPart = parsed.old_excerpt.slice(0, 60).trim();
-        items.push({
-          id: `contradiction-${row.id}`,
-          kind: "contradiction",
-          glyph: "⚠",
-          label: "CONTRADICTION",
-          text: `"${newPart}" conflicts with ${parsed.days_apart}d-old: "${oldPart}"`,
-          tone: "warn",
-          href: `/?resolve=${encodeURIComponent(row.key)}#contradictions`,
-        });
-        renderedContradictions++;
-      } catch {
-        // skip malformed row
-      }
     }
 
     // ── MIND (brain maturity) ──

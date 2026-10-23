@@ -154,7 +154,6 @@ export async function POST(req: Request) {
       doneToday,
       openTasks,
       overdueCommitments,
-      openContradictions,
       identitySnap,
       activeSkills,
       attentionTopics,
@@ -167,15 +166,6 @@ export async function POST(req: Request) {
         .catch(() => 0),
       prisma.commitment
         .count({ where: { status: "active", deadline: { lt: todayLocal }, deletedAt: null } })
-        .catch(() => 0),
-      prisma.brainMemory
-        .count({
-          where: {
-            category: BRAIN_CATEGORIES.CONTRADICTION,
-            deletedAt: null,
-            createdAt: { gte: daysAgo(14) },
-          },
-        })
         .catch(() => 0),
       prisma.brainMemory
         .findUnique({
@@ -238,9 +228,6 @@ export async function POST(req: Request) {
       overdueCommitments > 0
         ? `Overdue commitments: ${overdueCommitments} (past their deadline)`
         : `Overdue commitments: 0`,
-      openContradictions > 0
-        ? `Open contradictions (last 14d): ${openContradictions} — positions that conflict with prior stated positions`
-        : `Open contradictions: 0`,
       weakestAxis
         ? `Weakest identity axis: ${weakestAxis.name} at ${weakestAxis.value}/100`
         : `Identity snapshot: not yet computed`,

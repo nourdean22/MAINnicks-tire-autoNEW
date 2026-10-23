@@ -13,22 +13,11 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: { contradiction: h.contradiction } }));
-const surfacer = vi.hoisted(() => ({ loadRecentContradictions: vi.fn(), loadAllContradictions: vi.fn() }));
-vi.mock("@/lib/brain/contradiction-surfacer", () => ({
-  loadRecentContradictions: surfacer.loadRecentContradictions,
-  loadAllContradictions: surfacer.loadAllContradictions,
-  resolveContradiction: vi.fn(),
-  countUnresolved: vi.fn(),
-  countContradictionsByStatus: vi.fn(),
-}));
-
 import { countUnresolvedContradictions, listStoredContradictions } from "@/lib/services/contradictions";
 
 beforeEach(() => {
   vi.resetAllMocks();
   h.contradiction.findMany.mockResolvedValue([]);
-  surfacer.loadRecentContradictions.mockResolvedValue([]);
-  surfacer.loadAllContradictions.mockResolvedValue([]);
 });
 
 describe("countUnresolvedContradictions", () => {

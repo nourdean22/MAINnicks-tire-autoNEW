@@ -264,17 +264,6 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md",
   },
   {
-    key: "NICK_CORRECTION_THRESHOLD_BOOST",
-    description:
-      "Premise-check wiring (2026-09-17): lib/brain/query-plan.ts already classifies a turn as `correction` (\"what changed\", \"which is current\", \"still true\", \"no longer\") but nothing consumed that classification — a dark wire, same shape `exactTerms` had until 2026-09-15. When on, a correction-classified turn lowers findRelevantContradictions' surfacing bar from 0.7 to 0.6: the user already signalled they are checking a premise, so a marginal contradiction hit is worth showing instead of requiring the same bar as an unprompted mid-conversation nudge. Off until measured against real correction-shaped turns — the 0.6 choice is a conservative starting guess, not calibrated. Set NICK_CORRECTION_THRESHOLD_BOOST=1 to enable.",
-    status: "experimental",
-    onValue: "true",
-    defaultOn: false,
-    defaultBehavior:
-      "OFF: findRelevantContradictions always uses its 0.7 SIMILARITY_THRESHOLD regardless of query-plan classification, exactly as before this flag existed.",
-    ownerDoc: "lib/brain/contradiction-injector.ts",
-  },
-  {
     key: "NICK_WEEKLY_GAP_NOTE",
     description:
       "Weekly 'What you're not seeing' section (2026-10-22, lib/services/not-seeing-note.ts): open claim-vs-record gaps (one per topic) and last week's shop sales vs the week before, appended to the Monday morning brief. OFF by default because the brief reaches Nour's phone and he stopped the scheduled briefs on 2026-10-18; preview any day at GET /api/brain/not-seeing. Turning it on is Nour's call. Set NICK_WEEKLY_GAP_NOTE=true to enable.",
@@ -470,14 +459,6 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
 
   // ── v-truth · 2nd-tier intelligence (2026-06-03) · all DEFAULT-OFF ──
-  {
-    key: "NICK_CONTRADICTION_CLEANUP",
-    description: "When a contradiction is resolved, soft-deletes (deletedAt) the SUPERSEDED memory so the stale belief leaves the recall pool — Nick stops confidently citing outdated facts. Conservative: only the explicitly-losing side, soft-delete (reversible), never hard-delete. OFF = both contradicting rows stay in recall (today).",
-    status: "experimental",
-    onValue: "true",
-    defaultBehavior: "Contradictions are surfaced as nudges only; the losing memory stays recallable.",
-    ownerDoc: "lib/brain/contradiction-cleanup.ts",
-  },
   {
     key: "NICK_EPISODIC_SPLIT",
     description: "Reserves recall slots for episodic ('what happened') vs semantic ('what's true') memories so a time-anchored query ('what did I do last week') isn't crowded out by timeless wisdom, and vice-versa (Generative-Agents episodic/semantic split). OFF = single ranked pool (today).",

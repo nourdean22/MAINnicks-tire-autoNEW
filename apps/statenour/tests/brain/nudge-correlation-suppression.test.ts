@@ -19,10 +19,6 @@ vi.mock("@/lib/brain/identity-snapshot", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/brain/identity-snapshot")>();
   return { ...actual, loadIdentitySnapshot: h.loadIdentitySnapshot };
 });
-vi.mock("@/lib/brain/contradiction-surfacer", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/brain/contradiction-surfacer")>();
-  return { ...actual, countUnresolved: vi.fn(async () => 0) };
-});
 vi.mock("@/lib/brain/embedding-utils", () => ({ semanticSearch: vi.fn() }));
 vi.mock("@/lib/brain/ghost-nick", () => ({ loadGhostAccuracy: vi.fn(async () => null) }));
 vi.mock("@/lib/brain/skill-extractor", () => ({

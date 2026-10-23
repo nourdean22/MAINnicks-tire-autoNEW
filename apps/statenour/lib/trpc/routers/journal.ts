@@ -42,7 +42,6 @@ import { getLatestLearningJournalEntry } from "@/lib/brain/learning-journal";
 // all paid-for · just not connected to the operator's eye.
 import { measureLearningVelocity } from "@/lib/brain/learning-velocity";
 import { getGhostPredictions } from "@/lib/brain/ghost-nick";
-import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
 import { computeDriftScore } from "@/lib/brain/drift-detector";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -410,53 +409,6 @@ export const journalRouter = router({
       return null;
     }
   }),
-
-  /**
-   * Wave S #1 · Contradictions for a specific entry.
-   *
-   * The brainMemoryId is the FeedEntry.id when the entry is a
-   * BrainDump (the page's natural granularity). Returns up to 3
-   * contradictions tied to entries within ~30d of the target ·
-   * matches the operator's natural recall window.
-   */
-  contradictionsForEntry: operatorProcedure
-    .input(z.object({ brainMemoryId: z.string().min(1).max(64) }))
-    .query(async ({ input }) => {
-      try {
-        // Second arg is includeResolved boolean · default false (only
-        // unresolved). Loader caps at 40 rows internally · ample for
-        // the 30d window we hit here.
-        const all = await loadRecentContradictions(30, false);
-        const related = all
-          .filter(
-            (c) =>
-              c.new_memory_id === input.brainMemoryId ||
-              c.old_memory_id === input.brainMemoryId,
-          )
-          .slice(0, 3);
-        return related.map((c) => ({
-          key: c.key,
-          otherId:
-            c.new_memory_id === input.brainMemoryId
-              ? c.old_memory_id
-              : c.new_memory_id,
-          signal: c.signal,
-          excerpt:
-            c.new_memory_id === input.brainMemoryId
-              ? c.old_excerpt
-              : c.new_excerpt,
-          status: c.status,
-          daysApart: c.days_apart,
-        }));
-      } catch (err) {
-        log.warn("contradictions_for_entry_failed", {
-          error: sanitizeError(err),
-        });
-        return [];
-      }
-    }),
-
-
 
   /**
    * Wave S #2 · Save prediction tied to a decision entry.

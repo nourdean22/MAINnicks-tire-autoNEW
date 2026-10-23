@@ -2,15 +2,13 @@ import { router } from "../trpc";
 import { devicesProcedures } from "./system/devices";
 import { qualityProcedures } from "./system/quality";
 
-// Extract brain-bus and anti-patterns/contradictions
+// Extract brain-bus and anti-patterns
 const { brainBusEvents } = devicesProcedures;
 const { 
   antiPatterns, 
   createAntiPattern, 
   revisitAntiPattern, 
   deleteAntiPattern,
-  contradictions,
-  resolveContradiction
 } = qualityProcedures;
 
 export const systemBrainRouter = router({
@@ -19,6 +17,4 @@ export const systemBrainRouter = router({
   createAntiPattern,
   revisitAntiPattern,
   deleteAntiPattern,
-  contradictions,
-  resolveContradiction,
 });

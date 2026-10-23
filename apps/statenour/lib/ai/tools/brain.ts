@@ -636,16 +636,6 @@ export const brainTools = {
     },
   }),
 
-  // v10.0.526 · Arc B Feature 5 · resolveContradiction — when a
-  // CONTRADICTION ALERT was injected into the system prompt and Nour
-  // answered "which is current?", this tool persists the canonical
-  // belief. The underlying handler (a) updates the existing
-  // BrainMemory(category="contradiction") row's status + resolved_at
-  // (b) deprecates the losing side's BrainMemory by dropping its
-  // confidence to 0.1 (c) writes a NEW BrainMemory(category=
-  // "resolved_contradiction") capturing the canonical belief in
-  // human-readable form.
-  // No parallel table; everything lives in BrainMemory.
   classifyThought: tool({
     description: "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"text\":\"maybe I should redo the whole homepage again\"}",
     inputSchema: z.object({
@@ -1180,13 +1170,13 @@ export const brainTools = {
    */
   resolveContradiction: tool({
     description:
-      "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which belief is current (e.g. 'the new one is right', 'I still believe the old one', 'both are true in different contexts', 'never mind that wasn't really a contradiction'). Required: contradictionKey from the alert block. side='current_wins' (today's statement is canonical), 'old_wins' (prior statement is canonical), 'both_valid' (context-dependent), or 'dismissed' (false positive). Optional currentBelief is a 1-2 sentence summary of the canonical position. Updates the contradiction status, deprecates the losing memory, and writes a resolved_contradiction memory for downstream recall. Also closes a CLAIM VS RECORD or ONE OPEN CONTRADICTION row: contradictionKey 'tbl:<id>' from that block, side 'current_wins' = the record is right, 'old_wins' = outdated, 'dismissed' = ignore.",
+      "Close an open claim-vs-record contradiction after Nour answers a CLAIM VS RECORD, ONE OPEN CONTRADICTION or CONTRADICTION ASKED EARLIER block. Required: contradictionKey 'tbl:<id>' from that block. side 'current_wins' = the record is right, 'old_wins' = the claim is outdated, 'dismissed' = ignore. 'both_valid' does not apply to these rows and is refused. A key without the tbl: prefix is not found.",
     inputSchema: z.object({
       contradictionKey: z
         .string()
         .min(1)
         .max(64)
-        .describe("The key from the CONTRADICTION ALERT block (e.g. 'a1b2c3d4...')."),
+        .describe("The key from the contradiction block ('tbl:<id>')."),
       side: z
         .enum(["current_wins", "old_wins", "both_valid", "dismissed"])
         .describe(
@@ -1236,70 +1226,7 @@ export const brainTools = {
             throw err;
           }
         }
-        const { resolveContradiction: resolve } = await import(
-          "@/lib/brain/contradiction-surfacer"
-        );
-        const resolved = await resolve(contradictionKey, side, note);
-        if (!resolved) {
-          return {
-            ok: false,
-            error: "contradiction_not_found",
-            contradictionKey,
-          };
-        }
-
-        // Write the canonical belief as its own resolved_contradiction
-        // BrainMemory so downstream recall (search, hybrid recall,
-        // contextual-recall) can cite it the next time the topic
-        // comes up. Confidence high — Nour just explicitly resolved.
-        if (currentBelief && currentBelief.trim().length > 0) {
-          const beliefKey = `belief:${contradictionKey}`;
-          await prisma.brainMemory
-            .upsert({
-              where: {
-                category_key: {
-                  category: "resolved_contradiction",
-                  key: beliefKey,
-                },
-              },
-              create: {
-                category: "resolved_contradiction",
-                key: beliefKey,
-                content: currentBelief.trim(),
-                confidence: 0.95,
-                source: "resolve_contradiction_tool",
-                metadata: {
-                  side,
-                  contradictionKey,
-                  resolvedAt: new Date().toISOString(),
-                  note: note ?? null,
-                } as unknown as object,
-              },
-              update: {
-                content: currentBelief.trim(),
-                confidence: 0.95,
-                lastSeen: new Date(),
-              },
-            })
-            .catch(() => {
-              // Non-fatal — the resolve already succeeded
-            });
-        }
-
-        return {
-          ok: true,
-          contradictionKey,
-          side,
-          resolvedAt: resolved.resolved_at,
-          newExcerpt: resolved.new_excerpt,
-          oldExcerpt: resolved.old_excerpt,
-          canonical:
-            side === "current_wins"
-              ? resolved.new_excerpt
-              : side === "old_wins"
-                ? resolved.old_excerpt
-                : null,
-        };
+        return { ok: false, error: "contradiction_not_found", contradictionKey };
       } catch (err) {
         return {
           ok: false,

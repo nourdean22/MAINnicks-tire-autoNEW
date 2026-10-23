@@ -300,21 +300,5 @@ export async function persistIfImportant(
       return null as { id: string } | null;
     });
 
-  // ── Contradiction surfacer ──
-  // When a new decision/preference/commitment lands, check whether
-  // it conflicts with a prior one. Fire-and-forget so the persist
-  // path stays non-blocking. The eligibility guard + similarity
-  // threshold live inside the surfacer — this call is always safe.
-  if (persisted?.id && (result.primary === "decision" || result.primary === "preference" || result.primary === "commitment")) {
-    void (async () => {
-      try {
-        const { surfaceContradictions } = await import("./contradiction-surfacer");
-        await surfaceContradictions(persisted.id);
-      } catch (err) {
-        log.warn("contradiction_surfacer_failed", { error: err instanceof Error ? err.message : String(err) });
-      }
-    })();
-  }
-
   return { persisted: true, score: result.score, category: result.primary };
 }

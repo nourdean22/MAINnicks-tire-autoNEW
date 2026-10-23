@@ -62,27 +62,14 @@ async function main() {
     },
   });
 
-  const recentContradictions = await prisma.brainMemory.findMany({
-    where: {
-      category: BRAIN_CATEGORIES.CONTRADICTION,
-      createdAt: { gte: daysAgo(14) },
-    },
-    select: { content: true },
-  });
-  const contradictionText = recentContradictions
-    .map((c) => c.content.toLowerCase())
-    .join(" ");
-
   console.log("─".repeat(70));
   console.log(`AUTO-CALIBRATE DRY RUN — ${now.toISOString()}`);
   console.log("─".repeat(70));
   console.log(`candidates: ${candidates.length}`);
-  console.log(`recent contradictions (last 14d): ${recentContradictions.length}`);
   console.log(`mode: ${apply ? "APPLY (writes enabled)" : "DRY (no writes)"}`);
   console.log("─".repeat(70));
 
   let verified = 0;
-  let queued = 0;
   let retired = 0;
   let untouched = 0;
 
@@ -94,7 +81,6 @@ async function main() {
       .split(/\s+/)
       .filter((w) => w.length > 4)
       .slice(0, 8);
-    const hasContradiction = keyWords.some((w) => contradictionText.includes(w));
 
     const preview = c.content.slice(0, 60).replace(/\s+/g, " ");
     const prefix = `[${c.category}] ${c.key.slice(0, 24)}  conf=${c.confidence.toFixed(2)} age=${ageDays}d seen=${c.seenCount}`;
@@ -107,24 +93,6 @@ async function main() {
         await prisma.brainMemory.update({
           where: { id: c.id },
           data: { expiresAt: now },
-        });
-      }
-      continue;
-    }
-    if (hasContradiction) {
-      queued++;
-      console.log(`⚠️  REVIEW   ${prefix}`);
-      console.log(`           ${preview}`);
-      if (apply) {
-        await prisma.brainMemory.update({
-          where: { id: c.id },
-          data: {
-            metadata: {
-              flag: "needs_review",
-              flaggedBy: "auto-calibrate",
-              flaggedAt: now.toISOString(),
-            } as any,
-          },
         });
       }
       continue;
@@ -150,11 +118,11 @@ async function main() {
 
   console.log("─".repeat(70));
   console.log(
-    `SUMMARY: verified=${verified}  queued_for_review=${queued}  retired=${retired}  untouched=${untouched}`
+    `SUMMARY: verified=${verified}  retired=${retired}  untouched=${untouched}`
   );
   console.log("─".repeat(70));
 
-  if (!apply && (verified + queued + retired > 0)) {
+  if (!apply && (verified + retired > 0)) {
     console.log("\n(dry-run only — pass --apply to actually write, or let the cron do it at 2:30am ET)");
   }
 
