@@ -3,7 +3,7 @@
   "totals": {
     "uppercase": 5,
     "emDash": 162,
-    "emoji": 18,
+    "emoji": 14,
     "transitionAll": 45,
     "slowDuration": 7,
     "smallInput": 75
@@ -238,12 +238,6 @@
     "components/mastery/nick-side-pane.tsx": {
       "transitionAll": 2
     },
-    "components/missions/deck-lanes.tsx": {
-      "emoji": 1
-    },
-    "components/missions/deck-next-move.tsx": {
-      "emoji": 1
-    },
     "components/missions/execution-panel.tsx": {
       "smallInput": 4
     },
@@ -252,12 +246,8 @@
       "slowDuration": 1
     },
     "components/missions/mission-card.tsx": {
-      "emoji": 1,
       "transitionAll": 1,
       "slowDuration": 1
-    },
-    "components/missions/streak-badge.tsx": {
-      "emoji": 1
     },
     "components/power-atlas/DossierEditor.tsx": {
       "emDash": 1,

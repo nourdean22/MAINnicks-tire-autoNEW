@@ -19,10 +19,7 @@ export function StreakBadge({ streak }: StreakBadgeProps) {
   return (
     <>
       <span className="streak-badge" title={`${streak}-day streak`}>
-        <span className="streak-glyph" aria-hidden="true">
-          🔥
-        </span>
-        <span className="streak-count">{streak}</span>
+        <span className="streak-count">{streak}-day streak</span>
       </span>
       <style jsx>{`
         .streak-badge {

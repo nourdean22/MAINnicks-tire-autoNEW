@@ -505,7 +505,7 @@ export function MissionCard({
                 onClick={() => actions.handleCompleteMission(mission.id)}
                 className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-fg hover:underline"
               >
-                Complete mission ↗
+                Complete mission
               </button>
               <button
                 type="button"

@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import type { Task, Project } from "@/components/actions/shared";
 
-export function useExecutionFocus(
+/** The focus pick, pure so it is testable: active, queued, the deck hero, then the deck's own order. */
+export function pickFocusTask(
   tasks: Task[],
-  missions: Project[],
   queuedTaskId: string | null,
   activeTaskId?: string,
   /** Execution Deck (2026-09-01): the server-picked next move. One ordering
@@ -11,8 +11,10 @@ export function useExecutionFocus(
    *  instead of re-deriving a different pick from the stale autoPriority
    *  column. The heuristic below survives only as the offline fallback. */
   deckHeroTaskId?: string | null,
-) {
-  const focusedTask = useMemo(() => {
+  /** deck.taskOrder: live open tasks in the deck's one order (DOING first, then score). */
+  taskOrder: readonly string[] = [],
+): Task | null {
+  {
     // 1. First choice: active task from CommandCenterState
     if (activeTaskId) {
       const doingTask = tasks.find((t) => t.id === activeTaskId);
@@ -52,7 +54,16 @@ export function useExecutionFocus(
       return null;
     }
 
-    // Refined heuristic: prioritize AI-scored tasks.
+    // 3. The deck's own order (live score), the same order the cards sort by.
+    if (taskOrder.length > 0) {
+      const openById = new Map(openTasks.map((t) => [t.id, t]));
+      for (const id of taskOrder) {
+        const hit = openById.get(id);
+        if (hit) return hit;
+      }
+    }
+
+    // Offline fallback (no deck order): the old heuristic.
     // Order: Overdue > AI autoPriority > Due Date > Oldest
     const now = Date.now();
     const sortedOpen = [...openTasks].sort((a, b) => {
@@ -96,7 +107,21 @@ export function useExecutionFocus(
     });
 
     return sortedOpen[0] || null;
-  }, [tasks, queuedTaskId, activeTaskId, deckHeroTaskId]);
+  }
+}
+
+export function useExecutionFocus(
+  tasks: Task[],
+  missions: Project[],
+  queuedTaskId: string | null,
+  activeTaskId?: string,
+  deckHeroTaskId?: string | null,
+  taskOrder: readonly string[] = [],
+) {
+  const focusedTask = useMemo(
+    () => pickFocusTask(tasks, queuedTaskId, activeTaskId, deckHeroTaskId, taskOrder),
+    [tasks, queuedTaskId, activeTaskId, deckHeroTaskId, taskOrder],
+  );
 
   const focusedTaskMission = useMemo(() => {
     if (!focusedTask || !focusedTask.missionId) return null;

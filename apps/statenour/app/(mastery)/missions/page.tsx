@@ -76,6 +76,7 @@ export default function MissionsPage() {
 }
 
 const HABIT_LOOPS_CLIENT = new Set(["DAILY", "WEEKLY"]);
+const EMPTY_ORDER: readonly string[] = [];
 
 function MissionsPageInner() {
   const telemetry = useMissionSurfaceTelemetry("missions");
@@ -122,6 +123,7 @@ function MissionsPageInner() {
     queuedTaskId,
     ccStateQuery.data?.commands?.active?.id,
     deck?.nextMove?.task.id ?? null,
+    deck?.taskOrder ?? EMPTY_ORDER,
   );
 
   // 2026-10-02 · the deck's pick is a ledgered recommendation (lib/missions/
