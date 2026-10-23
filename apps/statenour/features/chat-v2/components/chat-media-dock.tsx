@@ -54,7 +54,7 @@ export function ChatMediaDock() {
   return (
     <section
       aria-label={`Media player: ${item.title}`}
-      className="ui-material relative z-10 border-t border-edge-subtle"
+      className="relative z-10 border-t border-edge-subtle bg-canvas"
     >
       <div className="flex items-center gap-2 px-3 pt-2 sm:px-4">
         <div className="min-w-0 flex-1">

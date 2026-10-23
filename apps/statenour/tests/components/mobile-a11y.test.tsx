@@ -390,8 +390,9 @@ describe("chat-island header controls clear the touch floor", () => {
     // not min-h/min-w pills — same floor, different literal. R3-05 added the
     // fourth: the auto-read toggle moved up from every reply row. W3b added
     // the fifth: More, which holds three of them below md (the three carry
-    // max-md:hidden, not a smaller box). The floor is unchanged.
-    const matches = src.match(/flex h-11 w-11 items-center justify-center rounded-control/g) ?? [];
+    // max-md:hidden, not a smaller box). The floor is unchanged. 2026-10-23: the Context
+    // control became the word "Context" (antislop R-04), so its box is h-11 min-w-11, still 44 px.
+    const matches = src.match(/flex h-11 (?:w-11|min-w-11) items-center justify-center rounded-control/g) ?? [];
     expect(matches.length).toBe(5);
   });
 

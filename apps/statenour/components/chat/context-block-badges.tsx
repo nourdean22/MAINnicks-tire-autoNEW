@@ -30,12 +30,12 @@ export interface ContextBlocks {
 }
 
 const BLOCK_META: Record<keyof ContextBlocks, { icon: typeof Brain; label: string; color: string }> = {
-  recall: { icon: MessagesSquare, label: "Past chat recall", color: "text-blue-400" },
+  recall: { icon: MessagesSquare, label: "Past chat recall", color: "text-sky-400" },
   skills: { icon: Target, label: "Active skills", color: "text-fg-secondary" },
   identity: { icon: Compass, label: "Identity snapshot", color: "text-emerald-400" },
-  ghost: { icon: Ghost, label: "Ghost Nick", color: "text-violet-400" },
+  ghost: { icon: Ghost, label: "Ghost Nick", color: "text-fg-secondary" },
   qualitative: { icon: Eye, label: "Qualitative identity", color: "text-amber-400" },
-  beliefs: { icon: BookOpen, label: "Beliefs", color: "text-blue-300" },
+  beliefs: { icon: BookOpen, label: "Beliefs", color: "text-sky-300" },
   nudges: { icon: Brain, label: "Cross-system nudges", color: "text-[var(--text-primary)]" },
   contradictions: { icon: AlertTriangle, label: "Contradictions", color: "text-red-400" },
 };

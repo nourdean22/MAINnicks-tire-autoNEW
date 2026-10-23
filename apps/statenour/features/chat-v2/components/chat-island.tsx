@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, Brain, History, Mic, MicOff, MoreHorizontal, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowDown, History, Mic, MicOff, MoreHorizontal, PanelRight, Volume2, VolumeX, X } from "lucide-react";
 import { isNearBottom, nextFollow } from "../lib/scroll-position";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -367,8 +367,9 @@ export function ChatIsland() {
               {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>
           )}
-          <button onClick={() => setMemoryInspectorOpen(!inspectorOpen)} aria-label="Context and memory" aria-pressed={inspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${inspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
-            <Brain size={16} /><span className="sr-only">Context</span>
+          {/* A word, not the Brain glyph (antislop R-04): the glyph said "AI", the word says what opens. */}
+          <button onClick={() => setMemoryInspectorOpen(!inspectorOpen)} aria-label="Context and memory" aria-pressed={inspectorOpen} className={`flex h-11 min-w-11 items-center justify-center rounded-control px-2.5 text-[13px] font-medium max-md:hidden transition-colors duration-[var(--motion-state)] ${inspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+            Context
           </button>
           <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <History size={16} /><span className="sr-only">History</span>
@@ -401,7 +402,7 @@ export function ChatIsland() {
             </button>
           )}
           <button type="button" aria-pressed={inspectorOpen} onClick={() => { setMemoryInspectorOpen(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
-            <Brain size={16} />
+            <PanelRight size={16} />
             Context and memory
           </button>
           <button type="button" aria-pressed={isVoiceDocked} onClick={() => { toggleVoiceDock(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
@@ -458,7 +459,7 @@ export function ChatIsland() {
           <button
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="ui-material absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge-default text-fg-secondary shadow-l1 transition-colors hover:text-fg active:scale-95"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge-default bg-surface-interactive text-fg-secondary shadow-l1 transition-colors hover:text-fg active:scale-95"
           >
             <ArrowDown size={18} />
           </button>

@@ -134,7 +134,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
         </div>
         <button
           onClick={onClose}
-          className="w-11 h-11 md:w-10 md:h-10 rounded-control flex items-center justify-center text-fg-tertiary hover:text-fg hover:bg-surface-interactive transition-all active:scale-90"
+          className="w-11 h-11 md:w-10 md:h-10 rounded-control flex items-center justify-center text-fg-tertiary hover:text-fg hover:bg-surface-interactive transition-[color,background-color,transform] duration-[var(--motion-micro)] active:scale-90"
           aria-label="Close voice mode"
         >
           <X size={20} className="md:!w-[18px] md:!h-[18px]" />

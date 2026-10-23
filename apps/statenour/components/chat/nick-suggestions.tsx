@@ -104,10 +104,10 @@ const KIND_META: Record<
   "stalled-goal": { icon: TrendingDown, tone: "amber" },
   pattern: { icon: GitBranch, tone: "sky" },
   "orphan-nudge": { icon: Tag, tone: "zinc" },
-  contradiction: { icon: Brain, tone: "violet" },
+  contradiction: { icon: Brain, tone: "muted" },
   drift: { icon: AlertTriangle, tone: "amber" },
   // v10.0.529.89 · Wave 33.
-  "unresolved-reflection": { icon: NotebookPen, tone: "violet" },
+  "unresolved-reflection": { icon: NotebookPen, tone: "muted" },
   "broken-promise": { icon: HandshakeIcon, tone: "rose" },
   "stale-pin": { icon: Pin, tone: "zinc" },
 };
@@ -291,7 +291,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
                   meta.tone === "rose" && "text-rose-400",
                   meta.tone === "sky" && "text-sky-400",
                   meta.tone === "zinc" && "text-fg-tertiary",
-                  meta.tone === "violet" && "text-violet-400",
+                  meta.tone === "muted" && "text-fg-secondary",
                 )}
               />
               <span className="text-[11px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">

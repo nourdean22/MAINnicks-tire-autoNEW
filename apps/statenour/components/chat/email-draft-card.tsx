@@ -196,7 +196,7 @@ function StateLabel({ state, apiResult }: { state: SendState; apiResult?: any })
   if (state.kind === "error") {
     return (
       <span className="text-[11px] text-rose-300 font-mono truncate max-w-[60%]">
-        ⚠ {state.message}
+        ! {state.message}
       </span>
     );
   }
@@ -209,7 +209,7 @@ function StateLabel({ state, apiResult }: { state: SendState; apiResult?: any })
   }
   if (apiResult && !apiResult.error && apiResult.draftId) {
     return (
-      <span className="text-[11px] text-cyan-300 font-mono">
+      <span className="text-[11px] text-emerald-300 font-mono">
         ✓ saved in Gmail drafts (ID: {apiResult.draftId.slice(0, 8)})
       </span>
     );
@@ -217,7 +217,7 @@ function StateLabel({ state, apiResult }: { state: SendState; apiResult?: any })
   if (apiResult?.error) {
     return (
       <span className="text-[11px] text-amber-300 font-mono truncate max-w-[60%]">
-        ⚠ Gmail draft failed: {apiResult.error}
+        ! Gmail draft failed: {apiResult.error}
       </span>
     );
   }
@@ -248,7 +248,7 @@ function Field({
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 bg-[var(--bg-void)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none"
+          className="flex-1 bg-[var(--bg-void)] border border-[var(--border-default)] rounded-control px-2 py-1 text-base text-[var(--text-primary)] focus:border-accent outline-none"
         />
       ) : (
         <span className="flex-1 text-[12px] text-[var(--text-primary)] truncate">{value}</span>
@@ -276,7 +276,7 @@ function BodyField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={Math.min(12, Math.max(4, value.split("\n").length + 1))}
-          className="w-full bg-[var(--bg-void)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none font-sans leading-relaxed resize-y"
+          className="w-full bg-[var(--bg-void)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-base text-[var(--text-primary)] focus:border-accent outline-none font-sans leading-relaxed resize-y"
         />
       ) : (
         <pre className="text-[12px] text-[var(--text-secondary)] font-sans leading-relaxed whitespace-pre-wrap break-words">

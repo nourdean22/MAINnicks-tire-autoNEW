@@ -45,7 +45,7 @@ export function SlashCommandDropdown({
             <span className="ml-2 font-mono text-[11px] text-fg-tertiary">{command.cmd}</span>
           </div>
           {command.navigate && <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">nav</span>}
-          {command.action && <span className="shrink-0 font-mono text-[11px] text-blue-400/70">action</span>}
+          {command.action && <span className="shrink-0 font-mono text-[11px] text-sky-400/70">action</span>}
         </button>
       ))}
     </div>
