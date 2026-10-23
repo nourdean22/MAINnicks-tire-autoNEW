@@ -38,6 +38,8 @@ describe("POST /api/brain/page-leave", () => {
     ["no page", { dwellMs: 5, reason: "route" }, false],
     ["dwell not a number", { page: "/", dwellMs: "5", reason: "route" }, false],
     ["unknown reason", { page: "/", dwellMs: 5, reason: "nope" }, false],
+    ["dwell negative", { page: "/", dwellMs: -5, reason: "route" }, false],
+    ["page longer than 512 characters", { page: "/" + "a".repeat(512), dwellMs: 5, reason: "route" }, false],
   ])("answers 400 and stores nothing when the body is %s", async (_n, body, raw) => {
     const res = await post(body, raw as boolean);
     expect(res.status).toBe(400);
@@ -53,6 +55,6 @@ describe("POST /api/brain/page-leave", () => {
   it("answers 5xx (not 204) when the write failed, so a dead writer is not read as stored", async () => {
     create.mockRejectedValue(new Error("db down"));
     const res = await post({ page: "/chat", dwellMs: 5, reason: "route" });
-    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(res.status).toBe(503);
   });
 });

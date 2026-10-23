@@ -26,13 +26,14 @@ export async function POST(req: Request) {
     page.length === 0 ||
     page.length > 512 ||
     typeof dwellMs !== "number" ||
+    !Number.isFinite(dwellMs) ||
+    dwellMs < 0 ||
     !(LEAVE_REASONS as readonly unknown[]).includes(reason)
   ) {
     return new Response(null, { status: 400 });
   }
 
   const { ok } = await recordPageLeave({ page, dwellMs, reason: reason as LeaveReason });
-  // recordPageLeave rejects a negative or non-finite dwell too; that is the caller's bad input.
-  if (!ok) return new Response(null, { status: Number.isFinite(dwellMs) && dwellMs >= 0 ? 503 : 400 });
-  return new Response(null, { status: 204 });
+  // Input is valid here, so ok:false means the write failed.
+  return new Response(null, { status: ok ? 204 : 503 });
 }
