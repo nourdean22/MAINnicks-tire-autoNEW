@@ -7,12 +7,19 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/brain/page-leave (2026-10-23, usage telemetry). The end of a page visit: PageTracker sends
  * `{ page, dwellMs, reason }` with a keepalive fetch, because a tRPC mutation cannot run while the page
- * is closing. Same session guard as the page-visit path. A keepalive request has no readable response,
- * so success is a bare 204; a malformed body is a 400 and a failed write a 503, never a quiet 204.
+ * is closing. Same session guard as the page-visit path, answered as 401 with no write. A keepalive
+ * request has no readable response, so success is a bare 204; a malformed body is a 400 and a failed
+ * write a 503, never a quiet 204.
  * The body is the only input and only these three fields are read: no query string, no tab, no text.
  */
 export async function POST(req: Request) {
-  await requireSession(req);
+  // /api/brain is a public prefix in lib/security/route-policy.ts, so this guard is the only gate. A
+  // thrown ServiceError would surface as a 500 and a Sentry event for every expired PWA tab: answer 401.
+  try {
+    await requireSession(req);
+  } catch {
+    return new Response(null, { status: 401 });
+  }
   // sendBeacon-style callers send text/plain, so parse the text rather than trusting the content type.
   const body = await req.text().then((t) => JSON.parse(t) as unknown).catch(() => null);
   const { page, dwellMs, reason } = (body && typeof body === "object" ? body : {}) as {

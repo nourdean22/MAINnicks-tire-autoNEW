@@ -9,6 +9,7 @@ const create = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: { auditEvent: { create } } }));
 
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { POST } from "@/app/api/brain/page-leave/route";
 
 const post = (body: unknown, raw = false) =>
@@ -46,9 +47,33 @@ describe("POST /api/brain/page-leave", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("runs the session guard before anything else, and a refused session stores nothing", async () => {
-    vi.mocked(requireSession).mockRejectedValueOnce(new Error("Unauthorized"));
-    await expect(post({ page: "/chat", dwellMs: 5, reason: "route" })).rejects.toThrow("Unauthorized");
+  it("answers 401 (not a 500) when there is no session, and stores nothing", async () => {
+    // /api/brain is a public prefix in lib/security/route-policy.ts, so this route is the only gate.
+    // A thrown ServiceError would be a 500 plus a Sentry event for every expired PWA tab.
+    vi.mocked(requireSession).mockRejectedValueOnce(new ServiceError("Unauthorized", 401));
+    const res = await post({ page: "/chat", dwellMs: 5, reason: "route" });
+    expect(res.status).toBe(401);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("any failure of the session guard is a 401 and stores nothing", async () => {
+    vi.mocked(requireSession).mockRejectedValueOnce(new Error("auth backend down"));
+    const res = await post({ page: "/chat", dwellMs: 5, reason: "route" });
+    expect(res.status).toBe(401);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("the guard runs before the body is read: a malformed body without a session is 401, not 400", async () => {
+    vi.mocked(requireSession).mockRejectedValueOnce(new ServiceError("Unauthorized", 401));
+    const res = await post("{oops", true);
+    expect(res.status).toBe(401);
+  });
+
+  it("answers 400 for a dwell of 1e999 (JSON parses it to Infinity) and for an empty page", async () => {
+    const infinite = await post('{"page":"/chat","dwellMs":1e999,"reason":"route"}', true);
+    const empty = await post({ page: "", dwellMs: 5, reason: "route" });
+    expect(infinite.status).toBe(400);
+    expect(empty.status).toBe(400);
     expect(create).not.toHaveBeenCalled();
   });
 
