@@ -81,6 +81,8 @@ Browser support facts used (webstatus / MDN browser-compat-data, read 2026-10-15
 | Library | Content, Links, Photo improver, Learn, Pins, Decisions/[id] | Global rules only (caps, header, em dash) |
 | Edge | Sign-in, shell (tab bar, spine, palette, inspector), redirects | Pin-to-tab-bar, Command tab, palette System group built from the hub list |
 
+Deck dials: ENERGY 3 / RHYTHM 3 / MOTION 1, read from SURFACE-DNA.md:36-44 (inferred, not measured; RHYTHM 3 is the target, Chat is one reading column today).
+
 ## 7. Session protocol (so sessions do not collide)
 
 - Before each wave: footprint check on the claimed paths (`git -C <worktree> diff --name-only origin/main...HEAD -- <paths>` and `git -c core.fsmonitor=false -C <worktree> status --porcelain -- <paths>`), GitHub lease refs, open PRs. Then lease `statenour/ui-v3-<wave>`.
