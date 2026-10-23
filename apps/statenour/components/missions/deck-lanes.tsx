@@ -60,7 +60,7 @@ export function DeckLanes({ lanes, tasks }: Props) {
                   {isOpen ? "▾" : "▸"}
                 </span>
                 <span className="min-w-0 truncate text-[13px] font-medium text-fg">
-                  {lane.isShop ? "Shop — needs your judgment" : lane.title}
+                  {lane.isShop ? "Shop: needs your judgment" : lane.title}
                 </span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
                   {lane.openCount} open

@@ -81,7 +81,7 @@ export function MissionRetroModal({
         }>(await res.json(), res.status);
         if (data.warning === "retro_write_failed") {
           setError(
-            "Mission archived, but the retro note didn't save. Try again — your text is still here.",
+            "Mission archived, but the retro note didn't save. Try again. Your text is still here.",
           );
           setSubmitting(false);
           return;

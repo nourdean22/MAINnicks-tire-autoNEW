@@ -1,21 +1,20 @@
 "use client";
 
 /**
- * /missions — the Execution Deck (2026-09-01 rebuild).
+ * /missions: the Execution Deck (2026-09-01 rebuild).
  *
  * The working surface of the personal OS, complementary to Home's
  * Command Surface (Home = what needs judgment; here = do the work and
  * manage the queue). Section order is the attention order:
  *
- *   1 · NEXT MOVE — one decided action (server-picked, term-explained)
- *   2 · readiness line — dark cockpit: renders only on exception/unknown
- *   3 · DECIDE — the triage airlock (captures · classify · unattached)
- *   4 · capture — quick add (raw intake lands in triage, never today)
- *   5 · MISSIONS — finite user projects, WIP-capped (board + filters)
- *   6 · LANES — eternal domain queues; shop lane links out to the admin
- *   7 · RHYTHMS — habits off the board, rolling-window consistency
- *   8 · WAITING — blocked work + Nick's desk
- *   9 · DONE TODAY — evidence + close the day
+ *   1 · NEXT MOVE: one decided action from live missions (readiness line under it on exception)
+ *   2 · RHYTHMS: the habit list, ticked in place (42 of 54 completions in 14 d were habits)
+ *   3 · DECIDE: one count line that opens the airlock, Waiting, and the closed-mission review
+ *   4 · MISSIONS: finite user projects, with capture and the domain lanes folded in
+ *   5 · DONE TODAY: evidence + close the day
+ *
+ * 2026-10-23 rebuild (job 2026-10-23-bdnick-pro-rebuild): five sections on first
+ * paint, every count read from the deck set it renders; see lib/missions/deck.ts.
  *
  * 2026-09-16 · Visible Transformation: NEXT MOVE spans the page as the
  * one display-type line; capture, decide and the board are ruled sections
@@ -23,7 +22,7 @@
  * separated by a hairline at >=1280px. Same data, same handlers.
  *
  * What left this page, deliberately: the LVL/XP pill (mis-aggregated,
- * reader-less — /stats keeps the character sheet), the on-page AI brief
+ * reader-less: /stats keeps the character sheet), the on-page AI brief
  * (Home compiles THE brief), the always-on readiness strip, the RPG copy,
  * and the level-up modal. One celebration survives: the completion
  * sparkle on the row checkbox.
@@ -40,10 +39,9 @@ import { MissionFeed } from "@/components/missions/mission-feed";
 import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
 import { DeckNextMove } from "@/components/missions/deck-next-move";
 import { DeckReadinessLine } from "@/components/missions/deck-readiness-line";
-import { DeckTriage } from "@/components/missions/deck-triage";
+import { DeckDecide } from "@/components/missions/deck-decide";
 import { DeckLanes } from "@/components/missions/deck-lanes";
 import { DeckRhythms } from "@/components/missions/deck-rhythms";
-import { DeckWaiting } from "@/components/missions/deck-waiting";
 import { DeckEvidence } from "@/components/missions/deck-evidence";
 
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
@@ -89,7 +87,7 @@ function MissionsPageInner() {
   const setQueuedTaskId = useMissionUIStore((s) => s.setQueuedTaskId);
   const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
-  // Data — one deck read + the raw lists the board's actions need.
+  // Data: one deck read + the raw lists the board's actions need.
   const { deckQuery, tasks, missions, tasksQuery, missionsQuery, ccStateQuery } = useMissionsData();
   const deck = deckQuery.data ?? null;
   const { customDomains, setCustomDomains } = useCustomDomains();
@@ -98,7 +96,7 @@ function MissionsPageInner() {
   const actions = useMissionActions({ tasks, missions });
 
   // The board renders FINITE user projects only. Anchor-lane tasks live in
-  // LANES, habits in RHYTHMS, mission-less tasks in the triage airlock —
+  // LANES, habits in RHYTHMS, mission-less tasks in the triage airlock , 
   // so the board's task set excludes all three.
   const userProjectIds = useMemo(
     () => new Set(missions.filter((m) => m.status === "ACTIVE" && isUserProject(m)).map((m) => m.id)),
@@ -128,7 +126,7 @@ function MissionsPageInner() {
 
   // 2026-10-02 · the deck's pick is a ledgered recommendation (lib/missions/
   // deck.ts ledgerNextMoveShown). Starting the hero is `accepted`; picking an
-  // alternate is `dismissed`. Fire-and-forget beside the action — the 2-week
+  // alternate is `dismissed`. Fire-and-forget beside the action: the 2-week
   // client telemetry below stays as the surface-usage instrument; this is the
   // durable learning row (docs/design/outcome-ledger-coverage-2026-10-02.md §5).
   // No id (the bounded ledger write answered late) → send the summary the row
@@ -168,16 +166,17 @@ function MissionsPageInner() {
       recordDeckDecision("dismissed", "dismiss:alternative");
       setQueuedTaskId(taskId);
       const alt = tasks.find((t) => t.id === taskId);
-      toast.success(`“${alt?.title ?? "Task"}” is the move — start when ready.`);
+      toast.success(`“${alt?.title ?? "Task"}” is the move. Start when ready.`);
     },
     [tasks, setQueuedTaskId, telemetry, recordDeckDecision],
   );
 
   const handleUnblock = useCallback(
     (taskId: string) => {
-      void actions.handleUpdateTaskFields(taskId, { waitingOn: null });
+      const t = tasks.find((x) => x.id === taskId);
+      void actions.handleUpdateTaskFields(taskId, { waitingOn: null, ...(t?.status === "WAITING" ? { status: "READY" } : {}) });
     },
-    [actions],
+    [actions, tasks],
   );
 
   const visibleTaskIds = useMemo(() => {
@@ -186,8 +185,8 @@ function MissionsPageInner() {
       if (focusedTask) set.add(focusedTask.id);
     } else {
       // Filters scope the BOARD; lanes, rhythms, triage and waiting render
-      // regardless. A lane task is not "hidden risk" — it is on screen in
-      // its lane — so only filter-hidden BOARD tasks count as hidden.
+      // regardless. A lane task is not "hidden risk": it is on screen in
+      // its lane: so only filter-hidden BOARD tasks count as hidden.
       for (const t of filters.filteredTasks) set.add(t.id);
       for (const t of tasks) {
         const habit = HABIT_LOOPS_CLIENT.has(((t as { loopKind?: string }).loopKind ?? "").toUpperCase());
@@ -227,6 +226,10 @@ function MissionsPageInner() {
   });
   const boardCounted = boardReadState === "ready" || boardReadState === "stale";
 
+  // The deck's one order and live set (lib/missions/deck.ts taskOrder): the cards and close-the-day read it.
+  const taskRank = useMemo(() => new Map((deck?.taskOrder ?? []).map((id, i) => [id, i])), [deck?.taskOrder]);
+  const liveIds = useMemo(() => new Set(deck?.taskOrder ?? []), [deck?.taskOrder]);
+
   const openBoardCount = boardTasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED").length;
 
   return (
@@ -250,7 +253,7 @@ function MissionsPageInner() {
           onQueueNext={handleQueueNext}
         />
 
-        {/* Completion outcome prompt — mounted OUTSIDE the exec-mode branch
+        {/* Completion outcome prompt: mounted OUTSIDE the exec-mode branch
             so handleCompleteTask can open it from the board AND from
             Execution Mode. Renders null when idle. */}
         {actions.outcomeDialog}
@@ -259,12 +262,12 @@ function MissionsPageInner() {
           focusedTask ? (
             <ExecutionPanel
               // Remount per task: the poll can swap focusedTask while an
-              // abandon/block/snooze confirm is open — without a key the open
+              // abandon/block/snooze confirm is open: without a key the open
               // confirm silently rebinds to the NEW task.
               key={focusedTask.id}
               task={focusedTask}
               mission={focusedTaskMission}
-              onComplete={actions.handleCompleteTask}
+              onComplete={async (id) => { await actions.handleCompleteTask(id); }}
               onStart={actions.handleStartTask}
               onDelete={actions.handleDeleteTask}
               onEdit={actions.handleEditTask}
@@ -290,7 +293,7 @@ function MissionsPageInner() {
           // page above the board; below it, the deck on the left and the
           // WAITING / DONE rail on the right at >=1280px (section 5.4, 2026-09-08).
           <>
-            {/* Pass the real promise — a `void` wrapper here made the modal
+            {/* Pass the real promise: a `void` wrapper here made the modal
                 clear its text + close while the create was still in flight,
                 losing the capture on failure. */}
             <OmniCaptureModal onCapture={(text) => actions.handleQuickAdd(text)} />
@@ -301,12 +304,12 @@ function MissionsPageInner() {
             />
             <CoachEventBanner surface="tasks" />
 
-            {/* 1 · NEXT MOVE — the one display line this page shouts */}
+            {/* 1 · NEXT MOVE: the one display line this page shouts */}
             {deckQuery.isLoading ? (
               <ShimmerSkeleton className="h-40 rounded-surface" />
             ) : deckQuery.isError ? (
               <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
-                Deck unreadable — the read failed. State unknown, not empty.
+                Deck unreadable: the read failed, so the state is unknown, not empty. Pull to refresh.
               </p>
             ) : (
               deck && (
@@ -319,8 +322,11 @@ function MissionsPageInner() {
               )
             )}
 
-            {/* 2 · readiness — dark cockpit, speaks only on exception */}
+            {/* 2 · readiness: dark cockpit, speaks only on exception */}
             {deck && <DeckReadinessLine readiness={deck.readiness} />}
+
+            {/* 2 · RHYTHMS: second on the page because ticking habits is the main job here */}
+            {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={actions.handleCompleteTask} />}
 
             {/* W2 (2026-10-16): the deck's two mode controls sit in one compact strip under the hero,
                 so the capture row below is the page's one capture control. 44px targets. */}
@@ -389,69 +395,58 @@ function MissionsPageInner() {
 
           <div className="space-y-10 xl:grid xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start xl:gap-12 xl:space-y-0" data-missions-layout="deck">
           <div className="min-w-0 space-y-10" data-missions-column="deck">
-            {/* 3 · DECIDE — the airlock */}
+            {/* 3 · DECIDE: one count line; the queue, Waiting and the closed-mission review open under it */}
             {deck && (
-              <DeckTriage
+              <DeckDecide
                 triage={deck.triage}
+                waiting={deck.waiting}
+                closed={deck.closed}
                 tasks={tasks}
                 onEditTask={actions.handleEditTask}
-                onSnoozeTask={(id, iso) => void actions.handleSnoozeTask(id, iso)}
-                onDeleteTask={(id) => void actions.handleDeleteTask(id)}
+                onSnoozeTask={actions.handleSnoozeTask}
+                onDeleteTask={actions.handleDeleteTask}
+                onUnblock={handleUnblock}
               />
             )}
 
-            {/* 4 · capture */}
-            <section aria-labelledby="capture-heading">
-              <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
-                <h2 id="capture-heading" className="vt-eyebrow text-fg-secondary">
-                  capture
-                </h2>
-                {/* W2: "New mission" folds into the capture row as its secondary action; the quick-add
-                    input is the one capture control (the FAB and the button row are gone). */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    openMissionEdit(null, undefined);
-                    telemetry.event("createMissionOpen", { source: "button" });
-                  }}
-                  className="inline-flex min-h-[44px] items-center rounded-control px-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
-                >
-                  New mission
-                </button>
-              </div>
-              <div className="mt-1">
-                <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
-              </div>
-              <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
-                lands in decide · nothing is scheduled for today
-              </p>
-            </section>
-
-            {/* 5 · MISSIONS — finite projects, WIP-capped */}
-            {/* data-selection-scope · 2026-09-15 · task rows carry data-entity, so
-                j/k/Space/Enter/x work here (hooks/use-selection-keyboard.ts). */}
+            {/* 4 · MISSIONS: finite projects; capture and the domain lanes fold in here */}
+            {/* data-selection-scope · task rows carry data-entity, so j/k/Space/Enter/x work here. */}
             <section aria-labelledby="mission-board-heading" className="space-y-4" data-selection-scope="missions">
               <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
                 <h2 id="mission-board-heading" className="vt-eyebrow text-fg-secondary">
-                  Active missions
+                  missions
                 </h2>
-                {/* A count is a claim: shown only once the board has answered (never "0 active" over a skeleton). */}
-                {boardCounted && (
-                  <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
-                    {boardMissions.length} active · {openBoardCount} open
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {/* A count is a claim: shown only once the board has answered. */}
+                  {boardCounted && (
+                    <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
+                      {boardMissions.length} active · {openBoardCount} open
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openMissionEdit(null, undefined);
+                      telemetry.event("createMissionOpen", { source: "button" });
+                    }}
+                    className="inline-flex min-h-[44px] items-center rounded-control px-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
+                  >
+                    New mission
+                  </button>
+                </div>
               </div>
-              {/* Unknown-is-not-empty (2026-08-19): a failed task/mission
-                  read used to fall through to <EmptyMissions /> — a dead
-                  fetch rendered as a cleared board. */}
+              <div>
+                <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
+                <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
+                  new tasks wait in decide until you file them
+                </p>
+              </div>
+              {/* Unknown is not empty: a failed task/mission read never renders as a cleared board. */}
               {boardReadState === "unreadable" ? (
                 <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
-                  Board unreadable — reads failed. State unknown, not empty.
+                  Board unreadable: the reads failed, so the state is unknown, not empty. Pull to refresh.
                 </p>
               ) : boardReadState === "loading" ? (
-                // W2: a board that has not answered yet is loading, not empty (the first fetch used
-                // to render "no active missions"). Three row-height shimmers, no text claim.
                 <div role="status" className="space-y-2" aria-busy aria-label="loading the board">
                   <ShimmerSkeleton className="h-12 rounded-surface" />
                   <ShimmerSkeleton className="h-12 rounded-surface" />
@@ -461,55 +456,38 @@ function MissionsPageInner() {
                 <>
                   {boardReadState === "stale" && (
                     <p className="border-l-2 border-amber-400/60 py-1 pl-4 text-[13px] text-amber-200/90">
-                      Showing the last confirmed board — the latest refresh failed.
+                      Showing the last confirmed board. The latest refresh failed.
                     </p>
                   )}
-                  <MissionFeed missions={boardMissions} tasks={boardTasks} />
+                  <MissionFeed missions={boardMissions} tasks={boardTasks} taskRank={taskRank} />
                 </>
               )}
+              {deck && <DeckLanes lanes={deck.lanes} tasks={tasks} />}
             </section>
-
-            {/* 6 · LANES */}
-            {deck && <DeckLanes lanes={deck.lanes} tasks={tasks} />}
-
-            {/* 7 · RHYTHMS */}
-            {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={(id) => void actions.handleCompleteTask(id)} />}
-
           </div>
           <aside
-            aria-label="waiting and evidence"
+            aria-label="done today"
             data-missions-column="context"
             className="space-y-10 border-t border-edge pt-8 xl:sticky xl:top-8 xl:border-l xl:border-t-0 xl:border-edge xl:pl-10 xl:pt-1"
           >
-            {/* 8 · WAITING */}
-            {deck && (
-              <DeckWaiting
-                waiting={deck.waiting}
-                tasks={tasks}
-                onEditTask={actions.handleEditTask}
-                onUnblock={handleUnblock}
-              />
-            )}
-
-            {/* 9 · DONE TODAY + close the day */}
+            {/* 5 · DONE TODAY + close the day */}
             {deck && (
               <DeckEvidence
                 evidence={deck.evidence}
                 tasks={tasks}
                 tasksState={tasksQuery.isError ? "error" : tasksQuery.data === undefined ? "loading" : "ready"}
-                liveIds={new Set(deck.taskOrder)}
+                liveIds={liveIds}
                 onSnoozeTask={actions.handleSnoozeTask}
               />
             )}
 
             {deck && deck.unmeasured.length > 0 && (
               <p className="font-mono text-[11px] text-fg-tertiary">
-                unmeasured this pass: {deck.unmeasured.join(" · ")}
+                not read this pass: {deck.unmeasured.join(" · ")}
               </p>
             )}
           </aside>
-          </div>
-          </>
+          </div>          </>
         )}
 
         <MissionModalsManager missions={missions} />
@@ -519,7 +497,7 @@ function MissionsPageInner() {
 }
 
 function MissionsPageSkeleton() {
-  // Same width as the page (max-w-5xl) — a narrower skeleton made the
+  // Same width as the page (max-w-5xl): a narrower skeleton made the
   // layout visibly jump on hydrate.
   return (
     <div className="mx-auto w-full max-w-5xl space-y-3">

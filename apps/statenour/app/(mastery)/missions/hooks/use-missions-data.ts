@@ -7,13 +7,13 @@ import type { Project, Task } from "@/components/actions/shared";
  * deck read plus the two raw lists the board's actions and filters need.
  *
  * Removed from the old five-poll setup, deliberately:
- *  · system.healthSummary — its read performed a bodyTracking UPSERT on
+ *  · system.healthSummary: its read performed a bodyTracking UPSERT on
  *    every 30s poll (a write-on-read), and its only consumer here was a
  *    decorative "AUTONOMIC" chip that belongs on /system.
- *  · operator.characterSheet — fed a header LVL/XP pill that summed five
+ *  · operator.characterSheet: fed a header LVL/XP pill that summed five
  *    per-domain levels (baseline floors included) into a number nothing
  *    read. /stats keeps the honest per-stat sheet.
- *  · task.byId(?taskId=) — fetched and discarded; no consumer ever read
+ *  · task.byId(?taskId=): fetched and discarded; no consumer ever read
  *    the result (deep links use #task-<id> anchors, not ?taskId=).
  * task.list also slows 15s → 30s: the deck carries the fresh-scored
  * ordering now, so the raw list only feeds actions/filters.

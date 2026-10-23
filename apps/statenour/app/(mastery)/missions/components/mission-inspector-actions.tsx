@@ -8,7 +8,7 @@
  * the page is up (useRegisterInspectorActions releases on unmount). Renders
  * nothing. The handlers are the SAME ones the row calls, so the inspector
  * gets the optimistic board update, the completion prompt and the telemetry
- * for free — there is one mutation path, not two.
+ * for free: there is one mutation path, not two.
  */
 
 import { useMemo } from "react";
@@ -21,7 +21,7 @@ export function MissionInspectorActions() {
   const { handleCompleteTask, handleSnoozeTask } = useMissionDispatch();
   const actions = useMemo<InspectorPageAction[]>(
     () => [
-      { id: "complete", label: "complete", tone: "primary", run: (id) => handleCompleteTask(id) },
+      { id: "complete", label: "complete", tone: "primary", run: async (id) => { await handleCompleteTask(id); } },
       { id: "snooze-tomorrow", label: "snooze · back tomorrow by 5 am", run: async (id) => { await handleSnoozeTask(id, tomorrowMorning()); } },
       { id: "snooze-next-week", label: "snooze · back Monday by 5 am", run: async (id) => { await handleSnoozeTask(id, nextMondayMorning()); } },
     ],

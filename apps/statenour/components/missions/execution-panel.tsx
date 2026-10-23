@@ -84,7 +84,7 @@ export function ExecutionPanel({
   const isDone = task.status === "DONE";
 
   // Focus session keeps the screen alive while a task is in flight
-  // (Screen Wake Lock — full iOS PWA support since 18.4). Best-effort:
+  // (Screen Wake Lock: full iOS PWA support since 18.4). Best-effort:
   // every path is try/caught, and visibility loss releases it anyway.
   useEffect(() => {
     if (!isDoing) return;
@@ -98,7 +98,7 @@ export function ExecutionPanel({
         if (cancelled) void acquired.release();
         else lock = acquired;
       } catch {
-        /* denied or unsupported — a focus session works without it */
+        /* denied or unsupported: a focus session works without it */
       }
     };
     void request();
@@ -282,10 +282,10 @@ export function ExecutionPanel({
               maxLength={500}
               value={parkNote}
               onChange={(e) => setParkNote(e.target.value)}
-              placeholder="e.g. drywall cut — tape the seam next"
+              placeholder="e.g. drywall cut, tape the seam next"
               className="w-full rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent placeholder:text-fg-tertiary"
             />
-            {/* U5 · resume record — what future-you needs after 48 h away */}
+            {/* U5 · resume record: what future-you needs after 48 h away */}
             <button
               type="button"
               onClick={() => setShowRecord((v) => !v)}

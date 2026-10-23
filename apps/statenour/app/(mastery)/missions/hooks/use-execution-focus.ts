@@ -7,7 +7,7 @@ export function useExecutionFocus(
   queuedTaskId: string | null,
   activeTaskId?: string,
   /** Execution Deck (2026-09-01): the server-picked next move. One ordering
-   *  brain — when the deck has an answer, focus mode agrees with the hero
+   *  brain: when the deck has an answer, focus mode agrees with the hero
    *  instead of re-deriving a different pick from the stale autoPriority
    *  column. The heuristic below survives only as the offline fallback. */
   deckHeroTaskId?: string | null,
@@ -31,7 +31,7 @@ export function useExecutionFocus(
       if (queuedTask) return queuedTask;
     }
 
-    // 2. The deck's decided move — same selector the hero shows.
+    // 2. The deck's decided move: same selector the hero shows.
     if (deckHeroTaskId) {
       const heroTask = tasks.find(
         (t) =>

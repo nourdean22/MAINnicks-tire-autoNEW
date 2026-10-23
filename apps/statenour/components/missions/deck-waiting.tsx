@@ -1,16 +1,12 @@
 "use client";
 
 /**
- * deck-waiting.tsx — blocked work + Nick's desk (§10.8).
+ * deck-waiting.tsx · blocked work and Nick's desk, inside the DECIDE sheet.
  *
- * Every waitingOn row ages visibly; rows handed to Nick show as
- * delegated with a one-tap way to open the pane and check. Renders
- * nothing when nothing waits — quiet is healthy.
- *
- * 2026-09-16 · Visible Transformation: the rail's WAITING / BLOCKED
- * column — an eyebrow h2 and hairline rows, no card; the violet marker is
- * gone (program §5.2: AI attribution is a mark, not a hue); every verb is
- * a 44px target.
+ * Every waiting row ages visibly; rows handed to Nick offer a prefilled check
+ * in. A WAITING task with no reason on file shows here too (map F12) and says
+ * so. Unblock goes through the parent's confirm. Renders nothing when nothing
+ * waits.
  */
 import type { MissionsDeck } from "@/lib/missions/deck";
 import type { Task } from "@/components/actions/shared";
@@ -32,33 +28,25 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
   const openNick = (title: string) => {
     window.dispatchEvent(
       new CustomEvent("statenour:open-nick", {
-        // PREFILL-ONLY ($0 doctrine): the operator sends it, never page load.
-        detail: { pendingPrompt: `Status check: "${title}" — what have you got so far?`, submitOnMount: false },
+        // Prefill only: the operator sends it, never page load.
+        detail: { pendingPrompt: `Status check on "${title}": what have you got so far?`, submitOnMount: false },
       }),
     );
   };
 
   return (
-    <section aria-labelledby="waiting-heading">
-      <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
-        <h2 id="waiting-heading" className="vt-eyebrow text-fg-secondary">
-          waiting · blocked
-        </h2>
-        <span className="stat-number text-2xl leading-none text-amber-300">{waiting.length}</span>
-      </div>
+    <div>
+      <h3 className="vt-eyebrow border-b border-edge pb-3 text-fg-secondary">waiting · {waiting.length}</h3>
       <ul className="divide-y divide-edge">
         {waiting.map((w) => {
           const task = taskById.get(w.id);
+          const reason = w.delegatedToNick ? "with Nick" : w.waitingOn ? `waiting on ${w.waitingOn}` : "no reason on file";
           return (
             <li key={w.id} className="flex flex-wrap items-center gap-3 py-3">
-              <span aria-hidden className="shrink-0 font-mono text-[12px] text-fg-tertiary">
-                {w.delegatedToNick ? "◐" : "⏸"}
-              </span>
               <div className="min-w-0 flex-1 basis-40">
                 <p className="truncate text-[15px] text-fg">{w.title}</p>
                 <p className="truncate font-mono text-[11px] text-fg-tertiary">
-                  {w.delegatedToNick ? "with Nick" : `waiting on ${w.waitingOn}`} ·{" "}
-                  {w.ageDays === 0 ? "today" : `${w.ageDays}d`}
+                  {reason} · {w.ageDays === 0 ? "today" : `${w.ageDays}d`}
                 </p>
               </div>
               {w.delegatedToNick ? (
@@ -68,7 +56,7 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
               ) : (
                 task && (
                   <button type="button" onClick={() => onEditTask(task)} className={VERB}>
-                    Nudge
+                    {w.waitingOn ? "Nudge" : "Add a reason"}
                   </button>
                 )
               )}
@@ -79,6 +67,6 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
           );
         })}
       </ul>
-    </section>
+    </div>
   );
 }

@@ -143,7 +143,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
               </div>
             )}
             <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
-              {parkedAge ?? "parked"} · a memory aid, not a plan — verify the last step before acting on it
+              {parkedAge ?? "parked"} · a memory aid, not a plan. Verify the last step before acting on it
             </p>
           </dl>
         )}

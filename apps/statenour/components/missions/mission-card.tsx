@@ -19,7 +19,7 @@
  * task list visibility. Tap task checkbox → complete. Tap add input
  * → create new task pre-attached to this mission.
  *
- * Phase 2 will add "Nick's pick" — a single highlighted top task per
+ * Phase 2 will add "Nick's pick": a single highlighted top task per
  * mission. Phase 3 will add the complete-mission cascade (close all
  * remaining tasks + open retro modal).
  */
@@ -48,9 +48,8 @@ export interface MissionCardProps {
   /** Optional · Phase 2 · the single Nick-picked task for this mission.
    *  When provided, the row renders pinned at the top with a gold
    *  treatment + a "Nick's pick" eyebrow. */
-  nicksPickTaskId?: string;
-  /** Optional · Phase 2 · Nick's 1-line rationale for the pick. */
-  nicksPickRationale?: string;
+  /** Rank of each live open task in the deck's one order (deck.taskOrder, map F15). */
+  taskRank?: Map<string, number>;
   /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
    *  so the card can disable arrows at the ends. */
   missionIdx?: number;
@@ -72,8 +71,7 @@ export function MissionCard({
   mission,
   tasks,
   defaultExpanded = true,
-  nicksPickTaskId,
-  nicksPickRationale,
+  taskRank,
   missionIdx,
   totalMissions,
   isDragged,
@@ -102,19 +100,18 @@ export function MissionCard({
     useMemo(() => derivedMetrics(mission, tasks), [mission, tasks]);
 
   // Sort: Nick's pick first, then DOING, then autoPriority (higher =
-  // more urgent — canonical polarity), then by due date (urgent first),
+  // more urgent: canonical polarity), then by due date (urgent first),
   // then by createdAt. Done tasks sink to the bottom (visible but dimmed).
   const sortedOpen = useMemo(() => {
     return [...openTasks].sort((a, b) => {
-      if (nicksPickTaskId === a.id) return -1;
-      if (nicksPickTaskId === b.id) return 1;
       if (a.status === "DOING" && b.status !== "DOING") return -1;
       if (b.status === "DOING" && a.status !== "DOING") return 1;
 
-      const aPri = a.autoPriority ?? -Infinity;
-      const bPri = b.autoPriority ?? -Infinity;
-      if (aPri !== bPri) {
-        return bPri - aPri;
+      // One ordering brain: the deck's live score (lib/missions/deck.ts taskOrder), never the stored autoPriority.
+      const aRank = taskRank?.get(a.id) ?? Infinity;
+      const bRank = taskRank?.get(b.id) ?? Infinity;
+      if (aRank !== bRank) {
+        return aRank - bRank;
       }
 
       const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
@@ -127,7 +124,7 @@ export function MissionCard({
       const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return aCreated - bCreated;
     });
-  }, [openTasks, nicksPickTaskId]);
+  }, [openTasks, taskRank]);
 
   const handleTaskDragStart = (e: React.DragEvent, taskIndex: number) => {
     setDraggedTaskIdx(taskIndex);
@@ -290,7 +287,7 @@ export function MissionCard({
          *  "how close to finished", which only means something for a mission
          *  that CAN finish. On a life-area bucket the figure fell whenever the
          *  operator captured a task and sat near 79% forever. Buckets now show
-         *  the open count — the number they can act on. Percentage returns
+         *  the open count: the number they can act on. Percentage returns
          *  automatically once a deadline or completionCriteria is set. */}
         {openTasks.length + doneTasks.length > 0 &&
           (hasEndState ? (
@@ -319,7 +316,7 @@ export function MissionCard({
         )}
         {/* Wave AJ · 2026-05-28 · mission reorder · operator complaint
          *  "how come i cant resort or change the orders of the missions
-         *  or the tasks?" — ↑/↓ buttons swap rank with neighbor. Mobile-
+         *  or the tasks?": ↑/↓ buttons swap rank with neighbor. Mobile-
          *  first · no drag-drop complexity (drag is finicky on iOS) ·
          *  stopPropagation so the outer expand toggle doesn't fire.
          *  Disabled at the ends (no wraparound · arrows fade visually).
@@ -418,18 +415,6 @@ export function MissionCard({
       {/* Body · task list + add row + footer */}
       {expanded && (
         <div className="border-t border-edge pb-2">
-          {/* Nick's pick rationale (Phase 2 · only shown when set) */}
-          {nicksPickTaskId && nicksPickRationale && (
-            <div className="border-b border-edge px-3 py-2 sm:px-4">
-              <p className="font-mono text-[11px] text-fg-tertiary">
-                Nick&apos;s pick
-              </p>
-              <p className="mt-0.5 text-[14px] leading-snug text-fg-secondary">
-                {nicksPickRationale}
-              </p>
-            </div>
-          )}
-
           {/* Task list */}
           <div className="divide-y divide-edge/60">
             {sortedOpen.length === 0 && doneTasks.length === 0 && (
@@ -438,18 +423,10 @@ export function MissionCard({
               </p>
             )}
             {sortedOpen.map((task, taskIdx) => {
-              const isNicksPick = nicksPickTaskId === task.id;
               return (
-                <div
-                  key={task.id}
-                  className={cn(
-                    isNicksPick && "border-l-2 border-l-edge-strong",
-                  )}
-                >
+                <div key={task.id}>
                   <MissionTaskRow
                     task={task}
-                    isNicksPick={isNicksPick}
-                    rationale={isNicksPick ? nicksPickRationale : undefined}
                     index={taskIdx}
                     totalTasks={sortedOpen.length}
                     onDragStart={(e) => handleTaskDragStart(e, taskIdx)}
@@ -559,7 +536,7 @@ export function derivedMetrics(
   openTasks: Task[];
   doneTasks: Task[];
   progress: number;
-  /** True only when the mission declares a finish — a deadline or explicit
+  /** True only when the mission declares a finish: a deadline or explicit
    *  completionCriteria. A life-area bucket has no 100%, so it gets an open
    *  count instead of a percentage. See missionHasEndState for the measured
    *  reasoning and why successMetric deliberately does NOT count. */

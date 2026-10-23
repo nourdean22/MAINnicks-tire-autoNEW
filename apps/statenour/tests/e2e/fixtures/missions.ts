@@ -224,7 +224,14 @@ export const MISSIONS_DECK: MissionsDeck = {
     { id: ALPHA, title: ALPHA_TITLE, deadline: "2026-10-22T04:00:00.000Z", openCount: 4, doneCount: 2 },
     { id: BRAVO, title: BRAVO_TITLE, deadline: "2026-11-05T05:00:00.000Z", openCount: 3, doneCount: 1 },
   ],
-  missionSlotsOpen: 1,
+  closed: {
+    count: 2,
+    rows: [
+      { id: "demo-task-closed-1", title: "Demo task: in a stopped demo mission", missionState: "KILLED" },
+      { id: "demo-task-closed-2", title: "Demo task: in a finished demo mission", missionState: "COMPLETE" },
+    ],
+  },
+  taskOrder: [],
   lanes: [
     { id: LANE_ADMIN, title: "Demo lane: Admin", canonicalDomain: "admin", isShop: false, openCount: 2, oldestOpenDays: 6 },
     { id: LANE_HEALTH, title: "Demo lane: Health", canonicalDomain: "health", isShop: false, openCount: 1, oldestOpenDays: 2 },
