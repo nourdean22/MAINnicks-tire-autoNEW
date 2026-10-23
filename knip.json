@@ -18,8 +18,6 @@
         "components/hud/global-top-ticker.tsx",
         "components/operator/compound-chain.tsx",
         "components/ultron/ask/omni-capture.tsx",
-        "components/ultron/contradictions-card.tsx",
-        "components/ultron/signal/situation-card.tsx",
         "components/ultron/today/active-task-companion.tsx",
         "components/ultron/today/next-action-whisperer.tsx",
         "components/ultron/top-strip/hq-status-chips.tsx",
