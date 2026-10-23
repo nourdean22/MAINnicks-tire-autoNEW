@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "apps/nickstire/client/src/pages/admin/OpportunitiesSection.tsx: each row now has Called, Texted and Not a customer on the existing opportunityQueue.transition; Not a customer asks first through the house confirmDialog; a failed save (thrown error or the mutation's { ok: false } refusal) puts the row back and shows a sonner toast; each row shows type, age in days and the last attempt read back from the server receipts; untouched rows first, newest first; read window 500 (router maximum) with a notice when full; a paused query is its own unknown state. apps/nickstire/client/src/pages/admin/outreach/WaitingOnUs.tsx: the Messages header shows smsConversations.humanPendingSummary (count, measured zero, or unknown on error or paused) instead of the unreadCount sum (129 beside a real 1 on 2026-10-23). Verified by render tests only: apps/nickstire/client/src/__tests__/opportunities-section.test.tsx (32, red-first 27 failed / 5 passed on the unchanged component) and sms-waiting-on-us.test.tsx (12, red-first 10 failed / 2 passed); 14 files, 363 passed, exit 0; lint:source, lint:hooks, lint:orphans exit 0; contrast 5.27:1 and 10.76:1 on the graphite card (50% text failed at 4.47:1 and was raised to 60%). Owed after deploy: the first revenue_opportunities row with attempts > 0 and a receipt note of called or texted written by a human verb (0 of 1,621 on 2026-10-23), the header showing the human_pending number, and Nour's look on his phone at 375 px."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger.json entry covers the Opportunities tab or the Messages header (0 entries mention either), and this PR changes no server procedure or capability state: client-only, the existing transition mutation already accepted attempted with a note and dismissed from every live state. A ledger entry for the opportunity worklist is a separate docs step once the first human-written attempted rows exist in prod."
+    }
+  }
+}
