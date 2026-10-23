@@ -22,8 +22,13 @@ describe("pickFocusTask · no hero", () => {
     expect(pickFocusTask(tasks, null, undefined, null, ["t-done", "t-next"])?.id).toBe("t-next");
   });
 
-  it("control: with no deck order (offline), the old heuristic still answers", () => {
+  it("deck loaded but no live open task: nothing to focus, never a dead-mission or snoozed task from the raw list", () => {
+    const tasks = [t("t-dead-overdue", 99, { dueDate: "2026-01-01T00:00:00Z" }), t("t-snoozed", 1, { status: "WAITING" })];
+    expect(pickFocusTask(tasks, null, undefined, null, [])).toBeNull();
+  });
+
+  it("control: deck read failed (no order at all), the old heuristic still answers", () => {
     const tasks = [t("t-low", 1), t("t-high", 99)];
-    expect(pickFocusTask(tasks, null, undefined, null, [])?.id).toBe("t-high");
+    expect(pickFocusTask(tasks, null, undefined, null, null)?.id).toBe("t-high");
   });
 });

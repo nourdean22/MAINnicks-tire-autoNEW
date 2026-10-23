@@ -60,9 +60,12 @@ describe("enrichTaskLinkage · candidates are live missions only", () => {
     expect(offered).toEqual(["m-live"]);
   });
 
-  it("a task filed in a closed mission counts as unfiled and gets classified", async () => {
-    mocks.task.findUnique.mockResolvedValue({ id: "t2", title: "x", nextPhysicalAction: null, missionId: "m-killed", goalId: "g1", statHints: ["s"] });
+  // Lens review 2026-10-23: phase progression spawns tasks into PAUSED projects on purpose;
+  // a task filed in any mission that is not an inbox is a choice the classifier never clobbers.
+  it("a task filed in a PAUSED mission (fully linked otherwise) is left where it is", async () => {
+    mocks.task.findUnique.mockResolvedValue({ id: "t2", title: "x", nextPhysicalAction: null, missionId: "m-paused", goalId: "g1", statHints: ["s"] });
     await enrichTaskLinkage("t2");
-    expect(mocks.classifyTaskLinkage).toHaveBeenCalledOnce();
+    expect(mocks.classifyTaskLinkage).not.toHaveBeenCalled();
+    expect(mocks.task.updateMany).not.toHaveBeenCalled();
   });
 });

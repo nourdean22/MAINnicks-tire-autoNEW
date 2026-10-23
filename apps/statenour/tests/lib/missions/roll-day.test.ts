@@ -13,8 +13,7 @@ describe("rollStragglers", () => {
     expect(r).toEqual({ rolled: 2, failed: 1 });
     const msg = rollSummary(r, 4);
     expect(msg.ok).toBe(false);
-    expect(msg.text).toMatch(/1 could not be moved/);
-    expect(msg.text).not.toMatch(/3 rolled/);
+    expect(msg.text).toBe("2 moved to tomorrow, 1 could not be moved. They are still open; try again.");
   });
 
   it("a thrown snooze counts as failed, not rolled", async () => {

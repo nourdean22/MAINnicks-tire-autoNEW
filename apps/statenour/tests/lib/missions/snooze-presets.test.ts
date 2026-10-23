@@ -15,7 +15,8 @@ import { nextMondayMorning, RESURFACE_HOUR_UTC, inDaysMorning, tomorrowMorning }
 /** The first resurface run at or after `until`: the instant the task is back on the page. */
 function revivedAt(untilIso: string): Date {
   const until = new Date(untilIso);
-  const run = new Date(Date.UTC(until.getUTCFullYear(), until.getUTCMonth(), until.getUTCDate(), RESURFACE_HOUR_UTC));
+  // The run itself lands up to 60 s late (cron_job_logs: 09:00:19Z to 09:00:42Z over 6 days); take the worst case.
+  const run = new Date(Date.UTC(until.getUTCFullYear(), until.getUTCMonth(), until.getUTCDate(), RESURFACE_HOUR_UTC, 1));
   return run.getTime() >= until.getTime() ? run : new Date(run.getTime() + 86_400_000);
 }
 const etParts = (d: Date) =>

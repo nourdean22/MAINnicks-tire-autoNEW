@@ -13,7 +13,7 @@
  *   ┌─ MISSIONS (5 active) ──────────────────────────────┐
  *   │ ▼ POWER ATLAS v2          64% · 8d                │
  *   │ ▼ MOBILE POLISH           22% · 14d               │
- *   │ ▶ VAPI EVAL CRON          70% ·:                 │
+ *   │ ▶ VAPI EVAL CRON          70% ·                 │
  *   │ ▶ HOLY GRAIL              ...                      │
  *   ├─ UNATTACHED (3) ──────────────────────────────────┤
  *   │ ○ "Call Dr. Khoury Monday"  📍 attach?            │

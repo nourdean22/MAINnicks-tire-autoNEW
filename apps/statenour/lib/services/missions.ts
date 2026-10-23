@@ -507,11 +507,16 @@ export async function resolveGeneralAnchorId(
   try {
     const found = await prisma.mission.findUnique({
       where: { id },
-      select: { id: true, deletedAt: true },
+      select: { id: true, deletedAt: true, status: true },
     });
-    if (found && !found.deletedAt) {
-      _generalAnchorCache.set(domain, found.id);
-      return found.id;
+    // 2026-10-23 · only a live anchor is a filing target. Prod holds 4 COMPLETE
+    // anchors; a closed or deleted one returns null so the task stays in Inbox.
+    if (found) {
+      if (!found.deletedAt && found.status === "ACTIVE") {
+        _generalAnchorCache.set(domain, found.id);
+        return found.id;
+      }
+      return null;
     }
     const created = await prisma.mission.create({
       data: {
@@ -533,9 +538,9 @@ export async function resolveGeneralAnchorId(
   } catch {
     // Race (another request created it) OR columns not migrated yet.
     const retry = await prisma.mission
-      .findUnique({ where: { id }, select: { id: true } })
+      .findUnique({ where: { id }, select: { id: true, deletedAt: true, status: true } })
       .catch(() => null);
-    if (retry) {
+    if (retry && !retry.deletedAt && retry.status === "ACTIVE") {
       _generalAnchorCache.set(domain, retry.id);
       return retry.id;
     }

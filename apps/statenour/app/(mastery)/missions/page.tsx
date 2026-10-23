@@ -76,7 +76,6 @@ export default function MissionsPage() {
 }
 
 const HABIT_LOOPS_CLIENT = new Set(["DAILY", "WEEKLY"]);
-const EMPTY_ORDER: readonly string[] = [];
 
 function MissionsPageInner() {
   const telemetry = useMissionSurfaceTelemetry("missions");
@@ -97,7 +96,7 @@ function MissionsPageInner() {
   const actions = useMissionActions({ tasks, missions });
 
   // The board renders FINITE user projects only. Anchor-lane tasks live in
-  // LANES, habits in RHYTHMS, mission-less tasks in the triage airlock , 
+  // LANES, habits in RHYTHMS, mission-less tasks in the triage airlock, 
   // so the board's task set excludes all three.
   const userProjectIds = useMemo(
     () => new Set(missions.filter((m) => m.status === "ACTIVE" && isUserProject(m)).map((m) => m.id)),
@@ -123,7 +122,7 @@ function MissionsPageInner() {
     queuedTaskId,
     ccStateQuery.data?.commands?.active?.id,
     deck?.nextMove?.task.id ?? null,
-    deck?.taskOrder ?? EMPTY_ORDER,
+    deckQuery.isError ? null : (deck?.taskOrder ?? null),
   );
 
   // 2026-10-02 · the deck's pick is a ledgered recommendation (lib/missions/
@@ -328,7 +327,7 @@ function MissionsPageInner() {
             {deck && <DeckReadinessLine readiness={deck.readiness} />}
 
             {/* 2 · RHYTHMS: second on the page because ticking habits is the main job here */}
-            {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={actions.handleCompleteTask} />}
+            {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={(id, loopKind) => actions.handleCompleteTask(id, { loopKind })} />}
 
             {/* W2 (2026-10-16): the deck's two mode controls sit in one compact strip under the hero,
                 so the capture row below is the page's one capture control. 44px targets. */}
@@ -408,6 +407,7 @@ function MissionsPageInner() {
                 onSnoozeTask={actions.handleSnoozeTask}
                 onDeleteTask={actions.handleDeleteTask}
                 onUnblock={handleUnblock}
+                unmeasured={deck.unmeasured}
               />
             )}
 
@@ -440,7 +440,7 @@ function MissionsPageInner() {
               <div>
                 <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
                 <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
-                  new tasks wait in decide until you file them
+                  captures file themselves when Nick is sure; the rest wait in decide
                 </p>
               </div>
               {/* Unknown is not empty: a failed task/mission read never renders as a cleared board. */}

@@ -83,6 +83,39 @@ describe("resolveInboxMissionId · never a deleted or closed inbox (job 2026-10-
   });
 });
 
+// Lens review 2026-10-23 (F4 via the anchor fallback): prod holds 4 COMPLETE general anchors
+// and 1 ACTIVE; a closed anchor is never a filing target, on the fast path or the retry.
+describe("resolveGeneralAnchorId · only a live anchor is a target", () => {
+  afterEach(() => {
+    mocks.mission.findUnique.mockReset();
+    mocks.mission.create.mockReset();
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it("a COMPLETE anchor yields null (the task stays in Inbox), and nothing is created over it", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-general-health", deletedAt: null, status: "COMPLETE" });
+    mocks.mission.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    const { resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    await expect(resolveGeneralAnchorId("health" as never)).resolves.toBeNull();
+  });
+
+  it("a soft-deleted anchor yields null", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-general-health", deletedAt: new Date("2026-09-01"), status: "ACTIVE" });
+    mocks.mission.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    const { resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    await expect(resolveGeneralAnchorId("health" as never)).resolves.toBeNull();
+  });
+
+  it("control: an ACTIVE anchor is returned", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-general-health", deletedAt: null, status: "ACTIVE" });
+    const { resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    await expect(resolveGeneralAnchorId("health" as never)).resolves.toBe("m-general-health");
+  });
+});
+
 describe("resolveInboxMissionId", () => {
   beforeEach(async () => {
     vi.clearAllMocks();

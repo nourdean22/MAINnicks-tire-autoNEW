@@ -796,11 +796,11 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     for (const m of missions) {
       if (/^inbox\b/i.test(m.title ?? "") || isGeneralAnchor(m)) inboxIds.add(m.id);
     }
-    // A task in a mission that is no longer live (absent from the ACTIVE list) is unfiled too.
-    const liveIds = new Set(missions.map((m) => m.id));
-    const missionUnset = !task.missionId || inboxIds.has(task.missionId) || !liveIds.has(task.missionId);
+    // A task filed in any non-inbox mission (PAUSED and COMPLETE included: phase
+    // progression spawns into paused projects on purpose) is a choice, never re-filed.
+    const missionUnset = !task.missionId || inboxIds.has(task.missionId);
     // Every re-file below is a compare-and-set on the mission value read above.
-    const unsetFrom = [...inboxIds, ...(task.missionId && !liveIds.has(task.missionId) ? [task.missionId] : [])];
+    const unsetFrom = [...inboxIds];
     const goalUnset = !task.goalId;
     const statsUnset = !task.statHints || task.statHints.length === 0;
     // Already fully linked → skip the AI call (gap-fill only).

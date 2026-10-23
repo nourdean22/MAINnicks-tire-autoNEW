@@ -280,8 +280,15 @@ describe("POST /api/sync/nour-os open_loop · keyed replay (ADR-0019 T9)", () =>
   it("not migrated (P2021): the fallback check runs under one lock per key, so two racers cannot both miss", async () => {
     receiptFault.code = "P2021";
     await post({ "idempotency-key": OPEN_KEY });
-    expect(prismaMock.$executeRaw).toHaveBeenCalled();
-    expect(prismaMock.$transaction).toHaveBeenCalled();
+    expect(prismaMock.$executeRaw).toHaveBeenCalledOnce();
+    // tagged template: (strings, ...values); the one value is the lock key
+    const [strings, lockKey] = prismaMock.$executeRaw.mock.calls[0] as unknown as [TemplateStringsArray, string];
+    expect(strings.join("?")).toMatch(/pg_advisory_xact_lock\(hashtext\(\?\)\)/);
+    expect(lockKey).toBe(`sync/nour-os:open_loop|${OPEN_KEY}`);
+    // the lock is taken BEFORE the existing-task lookup, or two racers can both miss
+    const lockOrder = prismaMock.$executeRaw.mock.invocationCallOrder[0];
+    const lookupOrder = prismaMock.task.findFirst.mock.invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(lookupOrder);
   });
 });
 

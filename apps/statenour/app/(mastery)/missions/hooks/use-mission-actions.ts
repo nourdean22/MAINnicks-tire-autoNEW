@@ -82,10 +82,12 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   const handleCompleteTask = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (id: string, opts?: { loopKind?: string }): Promise<boolean> => {
       const task = tasks.find((t) => t.id === id);
       const wasOpen = task && task.status !== "DONE";
-      const loopKind = (task as unknown as { loopKind?: string } | undefined)?.loopKind;
+      // Rhythms pass the deck row's loopKind: a habit tick must never take the
+      // one-off path because task.list is still loading or failed.
+      const loopKind = opts?.loopKind ?? (task as unknown as { loopKind?: string } | undefined)?.loopKind;
       const isDaily = loopKind === "DAILY";
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
@@ -254,7 +256,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   // Execution Deck (2026-09-01) · hand a task to Nick: the row parks as
-  // waiting-on-Nick and the side pane opens PREFILLED (never auto-sent , 
+  // waiting-on-Nick and the side pane opens PREFILLED (never auto-sent, 
   // $0 doctrine: the operator fires the turn). Draft-first delegation:
   // Nick's output comes back through chat/approvals, never as applied change.
   const handleDelegateTask = useCallback(
@@ -392,7 +394,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       try {
         telemetry.event("reorderMission", { missionId, direction });
         const res = await reorderMissionMut.mutateAsync({ missionId, direction });
-        // Multi-step drags pass skipRefetch and settle once at the end , 
+        // Multi-step drags pass skipRefetch and settle once at the end, 
         // the old per-step refetch made an 8-position drag 32 round trips.
         if (res.ok && !opts?.skipRefetch) await refetchAll();
       } catch (err) {

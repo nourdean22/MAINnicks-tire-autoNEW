@@ -24,6 +24,7 @@ import { Loader2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { unwrapApi } from "@/lib/utils/api-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 export interface MissionRetroModalProps {
   missionId: string;
@@ -42,6 +43,11 @@ export function MissionRetroModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // The retro route never marks DAILY/WEEKLY loops DONE (job 2026-10-23, map F10); say how many stay open.
+  const listed = trpc.useUtils().task.list.getData({}) as Array<{ missionId?: string; loopKind?: string | null; status?: string }> | undefined;
+  const habitsKept = listed
+    ? listed.filter((t) => t.missionId === missionId && (t.loopKind === "DAILY" || t.loopKind === "WEEKLY") && t.status !== "DONE" && t.status !== "ARCHIVED").length
+    : null;
 
   // Focus textarea on mount · iOS Safari blocks programmatic focus
   // outside a gesture but the operator tapped "complete mission" or
@@ -139,6 +145,13 @@ export function MissionRetroModal({
             What worked? What to do next time? Nick reads these so future picks
             land sharper. <span className="text-fg-tertiary">Skip if you&apos;d rather move on.</span>
           </p>
+          {habitsKept !== 0 && (
+            <p className="text-[13px] text-fg-secondary leading-snug">
+              {habitsKept === null
+                ? "Daily and weekly habits in this mission stay open in Rhythms."
+                : ` daily or weekly  open in Rhythms.`}
+            </p>
+          )}
 
           <textarea
             ref={textareaRef}

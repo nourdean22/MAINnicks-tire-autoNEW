@@ -122,7 +122,7 @@ function TaskEditSheetBody({
     try {
       // Diff against the initial task snapshot. Under
       // taskUpdateSchema.partial() an absent key means "don't change",
-      // so a cleared field mapped to `undefined` was a silent no-op , 
+      // so a cleared field mapped to `undefined` was a silent no-op, 
       // clearing dueDate/waitingOn must send an explicit `null`, and
       // clearing finishCondition an explicit empty string. Unchanged
       // fields stay out of the payload entirely.
@@ -183,6 +183,8 @@ function TaskEditSheetBody({
         await Promise.all([
           utils.task.list.invalidate(),
           utils.task.missions.invalidate(),
+          // DECIDE rows come from task.deck: without this a filed row stayed up to 45 s.
+          utils.task.deck.invalidate(),
         ]);
         onSaved?.();
       }
@@ -384,7 +386,7 @@ function TaskEditSheetBody({
                       // (app/styles/tokens.css). That bridge registers ONLY:
                       //   void base-layer raised elevated surface
                       //   fg fg-secondary fg-tertiary gold gold-dim glass edge edge-hover
-                      // `primary`, `border` and `muted-foreground` are NOT among them , 
+                      // `primary`, `border` and `muted-foreground` are NOT among them, 
                       // a bare `--primary` custom property does not create `bg-primary`.
                       // So every one of those classes emitted zero CSS and the selected
                       // button rendered pixel-identical to the unselected one. The only

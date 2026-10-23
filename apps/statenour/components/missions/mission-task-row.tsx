@@ -45,8 +45,6 @@ export interface MissionTaskRowProps {
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
-  isNicksPick?: boolean;
-  rationale?: string;
 }
 
 // 2026-09-15 · tomorrowMorning / nextMondayMorning moved to lib/missions/snooze-presets.ts
@@ -67,8 +65,6 @@ export function MissionTaskRow({
   onDragOver,
   onDragLeave,
   onDrop,
-  isNicksPick,
-  rationale,
 }: MissionTaskRowProps) {
   const actions = useMissionDispatch();
   const [busy, setBusy] = useState<
@@ -334,15 +330,9 @@ export function MissionTaskRow({
           isDoing ||
           isComplex ||
           task.waitingOn ||
-          (task as unknown as { loopKind?: string }).loopKind === "DAILY" ||
-          isNicksPick) && (
+          (task as unknown as { loopKind?: string }).loopKind === "DAILY") && (
           <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
             {isDoing && <span className="text-amber-400">Doing</span>}
-            {isNicksPick && (
-              <span className="text-fg-secondary px-1 py-0.5 rounded-micro border border-edge-default bg-surface-raised">
-                Nick's pick (hypothesis)
-              </span>
-            )}
             {isComplex && <span className="text-fg-secondary">Complex</span>}
             {task.waitingOn && (
               <span className="text-amber-200/80">Waiting on {task.waitingOn}</span>

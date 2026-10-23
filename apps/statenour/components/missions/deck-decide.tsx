@@ -26,6 +26,8 @@ type Props = {
   onSnoozeTask: (taskId: string, untilIso: string) => Promise<boolean>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onUnblock: (taskId: string) => void;
+  /** deck.unmeasured: a failed captures or rescue read makes the DECIDE count unknown, never 0. */
+  unmeasured: string[];
 };
 
 const STATE_WORD: Record<MissionsDeck["closed"]["rows"][number]["missionState"], string> = {
@@ -40,17 +42,20 @@ const CLOSED_FIRST_PAGE = 25;
 const VERB =
   "inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
-export function DeckDecide({ triage, waiting, closed, tasks, onEditTask, onSnoozeTask, onDeleteTask, onUnblock }: Props) {
+export function DeckDecide({ triage, waiting, closed, tasks, onEditTask, onSnoozeTask, onDeleteTask, onUnblock, unmeasured }: Props) {
   const [open, setOpen] = useState(false);
   const [showAllClosed, setShowAllClosed] = useState(false);
   const { confirm, dialog } = useConfirmDialog();
 
   const total = triage.totalCount + waiting.length;
-  if (total === 0 && closed.count === 0) return null;
+  const unread = ["captures", "rescue"].filter((s) => unmeasured.includes(s));
+  if (total === 0 && closed.count === 0 && unread.length === 0) return null;
 
   const taskById = new Map(tasks.map((t) => [t.id, t]));
   const parts = [
-    `${triage.totalCount} to decide`,
+    unread.length > 0
+      ? `${unread.map((s) => s[0].toUpperCase() + s.slice(1)).join(" and ")} not read, count unknown`
+      : `${triage.totalCount} to decide`,
     ...(waiting.length > 0 ? [`${waiting.length} waiting`] : []),
     ...(closed.count > 0 ? [`${closed.count} in closed missions`] : []),
   ];
@@ -81,7 +86,7 @@ export function DeckDecide({ triage, waiting, closed, tasks, onEditTask, onSnooz
 
       {open && (
         <div id="decide-sheet" className="mt-4 space-y-8">
-          <DeckTriage triage={triage} tasks={tasks} onEditTask={onEditTask} onSnoozeTask={onSnoozeTask} onDeleteTask={askDelete} />
+          <DeckTriage triage={triage} tasks={tasks} onEditTask={onEditTask} onSnoozeTask={onSnoozeTask} onDeleteTask={askDelete} incomplete={unread.length > 0} />
 
           <DeckWaiting waiting={waiting} tasks={tasks} onEditTask={onEditTask} onUnblock={(id) => void askUnblock(id)} />
 

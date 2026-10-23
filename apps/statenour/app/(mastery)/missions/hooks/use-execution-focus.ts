@@ -11,8 +11,8 @@ export function pickFocusTask(
    *  instead of re-deriving a different pick from the stale autoPriority
    *  column. The heuristic below survives only as the offline fallback. */
   deckHeroTaskId?: string | null,
-  /** deck.taskOrder: live open tasks in the deck's one order (DOING first, then score). */
-  taskOrder: readonly string[] = [],
+  /** deck.taskOrder (live open tasks, DOING first, then score); null when the deck has not been read. */
+  taskOrder: readonly string[] | null = null,
 ): Task | null {
   {
     // 1. First choice: active task from CommandCenterState
@@ -48,22 +48,26 @@ export function pickFocusTask(
     // We only care about open (non-DONE, non-WAITING, non-ARCHIVED) tasks for focus recommendations
     const openTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "WAITING" && t.status !== "ARCHIVED");
     if (openTasks.length === 0) {
-      // Fallback to any tasks that are not DONE or ARCHIVED if nothing else
+      if (taskOrder !== null) return null; // the deck answered: nothing live is open
+      // Deck not read: fall back to any tasks that are not DONE or ARCHIVED
       const anyNotDone = tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED");
       if (anyNotDone.length > 0) return anyNotDone[0];
       return null;
     }
 
     // 3. The deck's own order (live score), the same order the cards sort by.
-    if (taskOrder.length > 0) {
+    // Once the deck has answered, its order is the whole truth: no live open task
+    // means nothing to focus (the raw list holds dead-mission and snoozed rows).
+    if (taskOrder !== null) {
       const openById = new Map(openTasks.map((t) => [t.id, t]));
       for (const id of taskOrder) {
         const hit = openById.get(id);
         if (hit) return hit;
       }
+      return null;
     }
 
-    // Offline fallback (no deck order): the old heuristic.
+    // Deck not read (failed or not yet loaded): the old heuristic.
     // Order: Overdue > AI autoPriority > Due Date > Oldest
     const now = Date.now();
     const sortedOpen = [...openTasks].sort((a, b) => {
@@ -116,7 +120,7 @@ export function useExecutionFocus(
   queuedTaskId: string | null,
   activeTaskId?: string,
   deckHeroTaskId?: string | null,
-  taskOrder: readonly string[] = [],
+  taskOrder: readonly string[] | null = null,
 ) {
   const focusedTask = useMemo(
     () => pickFocusTask(tasks, queuedTaskId, activeTaskId, deckHeroTaskId, taskOrder),

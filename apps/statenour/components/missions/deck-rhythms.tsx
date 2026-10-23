@@ -16,7 +16,7 @@ import type { MissionsDeck } from "@/lib/missions/deck";
 type Props = {
   rhythms: MissionsDeck["rhythms"];
   /** Resolves true only on a confirmed write. */
-  onComplete: (taskId: string) => Promise<boolean>;
+  onComplete: (taskId: string, loopKind: string) => Promise<boolean>;
 };
 
 export function DeckRhythms({ rhythms, onComplete }: Props) {
@@ -25,9 +25,9 @@ export function DeckRhythms({ rhythms, onComplete }: Props) {
 
   if (rhythms.length === 0) return null;
 
-  const tick = async (id: string, title: string) => {
+  const tick = async (id: string, title: string, loopKind: string) => {
     setMarked((m) => ({ ...m, [id]: "pending" }));
-    const ok = await onComplete(id);
+    const ok = await onComplete(id, loopKind);
     setMarked((m) => ({ ...m, [id]: ok ? "done" : "failed" }));
     setAnnounce(ok ? `${title} done for today.` : `${title} could not be saved. Try again.`);
   };
@@ -56,7 +56,7 @@ export function DeckRhythms({ rhythms, onComplete }: Props) {
               <button
                 type="button"
                 disabled={done || state === "pending"}
-                onClick={() => void tick(r.id, r.title)}
+                onClick={() => void tick(r.id, r.title, r.loopKind)}
                 aria-label={done ? `${r.title}, done today` : `Mark ${r.title} done`}
                 className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control active:scale-[0.97]"
               >

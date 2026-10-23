@@ -20,14 +20,22 @@ type Props = {
   onEditTask: (task: Task) => void;
   onSnoozeTask: (taskId: string, untilIso: string) => Promise<boolean>;
   onDeleteTask: (taskId: string) => Promise<void> | void;
+  /** A source failed to read: an empty list is not "nothing to decide". */
+  incomplete?: boolean;
 };
 
 const VERB =
   "inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
-export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask }: Props) {
+export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask, incomplete = false }: Props) {
   if (triage.rows.length === 0) {
-    return <p className="text-[15px] text-fg-tertiary">Nothing to decide right now.</p>;
+    return (
+      <p className="text-[15px] text-fg-tertiary">
+        {incomplete
+          ? "Part of this queue could not be read, so it may not be empty. Pull to refresh."
+          : "Nothing to decide right now."}
+      </p>
+    );
   }
   const taskById = new Map(tasks.map((t) => [t.id, t]));
 
