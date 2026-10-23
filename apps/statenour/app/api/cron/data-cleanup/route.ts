@@ -4,7 +4,7 @@ import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_MEMORY_RETENTION } from "@/config/retention";
 import { purgeStaleCategory } from "@/lib/system/stale-data-purger";
 import { scrubExpiredPlates } from "@/lib/services/plate-retention";
-import { logError } from "@/lib/utils/error-log";
+import { logError, logErrorAwaited } from "@/lib/utils/error-log";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sweepEmbeddingShadow } from "@/lib/db/embedding-shadow";
 import { dropEmbeddingsForMemories } from "@/lib/brain/memory-tombstone";
@@ -394,8 +394,20 @@ export const GET = cronHandler(async () => {
   //
   // Never fails the cleanup: reconciliation is maintenance, and turning it into
   // a hard error would file a successful prune as a failed cron.
-  const shadowSweep = await sweepEmbeddingShadow().catch((err: unknown) => {
-    logError("cron.data-cleanup", err, { fn: "sweepEmbeddingShadow" }, "warn");
+  //
+  // Truth sweep 2026-10-23: when it throws, the failure reason carries the REAL error text (first
+  // 200 chars) and the error_logs row is awaited. The reason used to read "threw - see error_logs"
+  // and the row was fire-and-forget under a message that never said "shadow sweep", so two failed
+  // nights left a pointer to nothing a reader could find.
+  // The cast keeps TypeScript from narrowing this to `null`: it is assigned inside the catch callback.
+  let shadowSweepError = null as { text: string; logged: boolean } | null;
+  const shadowSweep = await sweepEmbeddingShadow().catch(async (err: unknown) => {
+    const text = (err instanceof Error ? err.message : String(err)).slice(0, 200);
+    const logged = await logErrorAwaited("cron.data-cleanup", err, {
+      message: `embedding shadow sweep threw: ${text}`,
+      extra: { fn: "sweepEmbeddingShadow" },
+    });
+    shadowSweepError = { text, logged };
     return null;
   });
 
@@ -497,7 +509,13 @@ export const GET = cronHandler(async () => {
   const failureReasons = [
     ...blockedSweeps.map((b) => b.reason),
     ...(keepers === null ? ["cron_job_logs keeper read failed; retention delete skipped, see error_logs"] : []),
-    ...(shadowSweep === null ? ["embedding shadow sweep threw — see error_logs"] : []),
+    ...(shadowSweep === null
+      ? [
+          `embedding shadow sweep threw: ${shadowSweepError?.text ?? "unknown error"}${
+            shadowSweepError && !shadowSweepError.logged ? " (error_logs write also failed)" : ""
+          }`,
+        ]
+      : []),
     ...(shadowSweep?.refused && shadowSweep.refusedReason
       ? [`embedding shadow sweep refused — ${shadowSweep.refusedReason}`]
       : []),
@@ -528,6 +546,6 @@ export const GET = cronHandler(async () => {
           refusedReason: shadowSweep.refusedReason,
           skipped,
         }
-      : { error: "sweep threw — see error_logs" },
+      : { error: `sweep threw: ${shadowSweepError?.text ?? "unknown error"}` },
   };
 });
