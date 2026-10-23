@@ -86,6 +86,7 @@ function world(opts: { backupRows?: number; backupExists?: boolean; cas?: number
     }
     if (s.includes("to_regclass")) return [{ present: opts.backupExists === true }];
     if (s.startsWith("CREATE TABLE")) return 0;
+    if (s.startsWith("INSERT INTO _bak_")) return 3;
     if (s.includes("FROM _bak_")) return [{ n: opts.backupRows ?? 3 }];
     if (s.startsWith("UPDATE brain_memories")) return opts.cas ?? 3;
     if (s.includes("superseded_by_id IS NOT NULL")) return [{ n: opts.cas ?? 3 }];
@@ -106,7 +107,10 @@ describe("execute - backup, swap, count, rollback, in that order", () => {
     expect(create).toBeGreaterThan(-1);
     expect(count).toBeGreaterThan(create);
     expect(update).toBeGreaterThan(count);
-    expect(normalize(w.calls[create].sql)).toContain("CREATE TABLE _bak_brain_memories_blindspot_dedup_20261023 AS SELECT * FROM brain_memories WHERE id = ANY($1::text[])");
+    expect(normalize(w.calls[create].sql)).toBe("CREATE TABLE _bak_brain_memories_blindspot_dedup_20261023 (LIKE brain_memories)");
+    const insert = w.calls.find((c) => normalize(c.sql).startsWith("INSERT INTO _bak_brain_memories_blindspot_dedup_20261023 SELECT * FROM brain_memories WHERE id = ANY($1::text[])"));
+    expect(insert?.params[0]).toEqual(["b", "c", "d"]);
+    expect(w.calls.indexOf(insert!)).toBeLessThan(count);
     // rollback is printed BEFORE the swap, then repeated at the end
     const text = log.join("\n");
     expect(text).toContain("FROM _bak_brain_memories_blindspot_dedup_20261023 k");

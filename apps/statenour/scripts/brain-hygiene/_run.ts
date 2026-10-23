@@ -156,3 +156,15 @@ export async function runHygiene(
 export function isEntry(metaUrl: string): boolean {
   return !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(metaUrl);
 }
+
+/** Exit without cutting off buffered output: set the code, let the loop drain, and force exit only if something keeps it alive. */
+export function finish(code: number): void {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), 500).unref();
+}
+
+/** An unexpected throw prints its message only (never a stack that could carry connection details) and exits 1. */
+export function fail(e: unknown): void {
+  console.error(`FAILED: ${e instanceof Error ? e.message.slice(0, 300) : "unknown error"}`);
+  finish(1);
+}

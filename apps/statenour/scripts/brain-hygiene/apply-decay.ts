@@ -20,7 +20,7 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/apply-decay.ts --execute --expect=<count from --read>
  */
 import Module from "node:module";
-import { backupExists, backupName, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
+import { backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
 
 export const BATCH = 1000;
 
@@ -90,7 +90,7 @@ export const spec: HygieneSpec = {
     `   plus this script's own exemption: category <> ALL(${JSON.stringify(EXTRA_EXEMPT)})`,
     "2. SELECT the candidates (id, confidence, last_seen; no content):",
     candidateSql("<buildDecayWhere>"),
-    "3. --execute only: CREATE TABLE _bak_brain_memories_decay_<yyyymmdd> AS SELECT id, confidence, updated_at FROM brain_memories WHERE id = ANY(<ids>);",
+    "3. --execute only: CREATE TABLE _bak_brain_memories_decay_<yyyymmdd> (id, confidence, updated_at); INSERT INTO it SELECT id, confidence, updated_at FROM brain_memories WHERE id = ANY(<ids>);",
     "   count source vs backup, abort on mismatch; refuse if the backup table already exists.",
     `4. --execute only: compare-and-swap, batches of ${BATCH}:`,
     CAS_SQL,
@@ -139,7 +139,8 @@ export const spec: HygieneSpec = {
       return 1;
     }
     const ids = rows.map((r) => r.id);
-    await db.exec(`CREATE TABLE ${bak} AS SELECT id, confidence, updated_at FROM brain_memories WHERE id = ANY($1::text[])`, ids);
+    await db.exec(`CREATE TABLE ${bak} AS SELECT id, confidence, updated_at FROM brain_memories WITH NO DATA`);
+    await db.exec(`INSERT INTO ${bak} SELECT id, confidence, updated_at FROM brain_memories WHERE id = ANY($1::text[])`, ids);
     const backedUp = toCount((await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM ${bak}`))[0]?.n);
     log(`backup ${bak}: ${backedUp} of ${ids.length} rows`);
     if (backedUp !== ids.length) {
@@ -169,5 +170,5 @@ export const spec: HygieneSpec = {
 };
 
 if (isEntry(import.meta.url)) {
-  runHygiene(spec).then((code) => process.exit(code));
+  runHygiene(spec).then(finish, fail);
 }

@@ -16,7 +16,7 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/dedupe-blind-spots.ts --execute --expect=183
  * Run it outside the 03:00-03:20Z mega-evening window (brain-intelligence 03:02, consolidate and dedup 03:17).
  */
-import { backupExists, backupName, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
+import { backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
 
 const LIVE = `deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) AND superseded_by_id IS NULL`;
 const THRESHOLD = 0.05;
@@ -138,7 +138,7 @@ export const spec: HygieneSpec = {
     "2. SELECT the versions of those rows (no content column):",
     ROWS_SQL,
     "3. Cluster in code. Keeper = oldest judged row, else oldest. A judged row is never a loser. Losers = the rest.",
-    "4. --execute only: CREATE TABLE _bak_brain_memories_blindspot_dedup_<yyyymmdd> AS SELECT * FROM brain_memories WHERE id = ANY(<losers>);",
+    "4. --execute only: CREATE TABLE _bak_brain_memories_blindspot_dedup_<yyyymmdd> (LIKE brain_memories); INSERT INTO it SELECT * FROM brain_memories WHERE id = ANY(<losers>);",
     "   count source vs backup, abort on mismatch; refuse if the backup table already exists.",
     `5. --execute only: compare-and-swap, batches of ${BATCH}:`,
     CAS_SQL,
@@ -174,7 +174,9 @@ export const spec: HygieneSpec = {
       return 1;
     }
     const ids = p.losers.map((l) => l.id);
-    await db.exec(`CREATE TABLE ${bak} AS SELECT * FROM brain_memories WHERE id = ANY($1::text[])`, ids);
+    // Two statements on purpose: a bind parameter inside CREATE TABLE ... AS is not something to bet a prod run on.
+    await db.exec(`CREATE TABLE ${bak} (LIKE brain_memories)`);
+    await db.exec(`INSERT INTO ${bak} SELECT * FROM brain_memories WHERE id = ANY($1::text[])`, ids);
     const backedUp = toCount((await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM ${bak}`))[0]?.n);
     log(`backup ${bak}: ${backedUp} of ${ids.length} rows`);
     if (backedUp !== ids.length) {
@@ -212,5 +214,5 @@ export const spec: HygieneSpec = {
 };
 
 if (isEntry(import.meta.url)) {
-  runHygiene(spec).then((code) => process.exit(code));
+  runHygiene(spec).then(finish, fail);
 }

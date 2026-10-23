@@ -37,6 +37,7 @@ function world(opts: { backupRows?: number; cas?: number; count?: number } = {})
     }
     if (s.includes("to_regclass")) return [{ present: false }];
     if (s.startsWith("CREATE TABLE")) return 0;
+    if (s.startsWith("INSERT INTO _bak_")) return n;
     if (s.includes("FROM _bak_")) return [{ n: opts.backupRows ?? n }];
     if (s.startsWith("UPDATE decision_replays")) return opts.cas ?? n;
     if (s.includes("reviewed = true")) return [{ n: opts.cas ?? n }];
@@ -50,7 +51,7 @@ describe("execute", () => {
     const log: string[] = [];
     expect(await spec.execute(w.db, { expect: 3, today: "20261023", log: (s) => log.push(s) })).toBe(0);
     const stmts = w.calls.map((c) => normalize(c.sql));
-    const create = stmts.findIndex((s) => s.startsWith("CREATE TABLE _bak_decision_replays_overdue_close_20261023 AS SELECT * FROM decision_replays"));
+    const create = stmts.findIndex((s) => s.startsWith("CREATE TABLE _bak_decision_replays_overdue_close_20261023 (LIKE decision_replays)"));
     const update = stmts.findIndex((s) => s.startsWith("UPDATE decision_replays"));
     expect(create).toBeGreaterThan(-1);
     expect(update).toBeGreaterThan(create);

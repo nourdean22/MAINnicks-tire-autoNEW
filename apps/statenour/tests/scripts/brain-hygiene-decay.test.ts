@@ -47,6 +47,7 @@ function world(n: number, opts: { backupRows?: number; changed?: number } = {}) 
     }
     if (s.includes("to_regclass")) return [{ present: false }];
     if (s.startsWith("CREATE TABLE")) return 0;
+    if (s.startsWith("INSERT INTO _bak_")) return n;
     if (s.includes("FROM _bak_") && s.includes("b.confidence < k.confidence")) return [{ n: opts.changed ?? n }];
     if (s.includes("FROM _bak_")) return [{ n: opts.backupRows ?? n }];
     if (s.startsWith("UPDATE brain_memories")) {

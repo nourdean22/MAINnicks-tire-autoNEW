@@ -132,7 +132,7 @@ describe("no script can remove a row", () => {
     readFileSync(`${APP_ROOT}/${rel}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
   it.each(SCRIPTS)("%s has no DELETE, DROP or TRUNCATE statement, and is not a stub", (rel) => {
     const src = code(rel);
-    expect(src, "POSITIVE CONTROL: the scan sees the script's real SQL").toMatch(/CREATE TABLE \$\{bak\} AS SELECT/);
+    expect(src, "POSITIVE CONTROL: the scan sees the script's real SQL").toMatch(/INSERT INTO \$\{bak\} SELECT/);
     expect(src).not.toMatch(/\bDELETE\s+FROM\b|\bDROP\s+(TABLE|INDEX|COLUMN)\b|\bTRUNCATE\b/i);
   });
   it("the planted positive is caught by the same scan", () => {

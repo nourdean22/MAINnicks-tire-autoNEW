@@ -15,7 +15,7 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/close-overdue-replays.ts --read       # counts and ids, SELECT only
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/close-overdue-replays.ts --execute --expect=28
  */
-import { backupExists, backupName, isEntry, runHygiene, toCount, type HygieneSpec } from "./_run";
+import { backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type HygieneSpec } from "./_run";
 
 export const OUTCOME = "not reviewed, expired";
 const BATCH = 1000;
@@ -54,7 +54,7 @@ export const spec: HygieneSpec = {
     "",
     "1. SELECT the overdue unreviewed replays (ids and due dates only):",
     READ_SQL,
-    "2. --execute only: CREATE TABLE _bak_decision_replays_overdue_close_<yyyymmdd> AS SELECT * FROM decision_replays WHERE id = ANY(<ids>);",
+    "2. --execute only: CREATE TABLE _bak_decision_replays_overdue_close_<yyyymmdd> (LIKE decision_replays); INSERT INTO it SELECT * FROM decision_replays WHERE id = ANY(<ids>);",
     "   count source vs backup, abort on mismatch; refuse if the backup table already exists.",
     `3. --execute only: compare-and-swap, batches of ${BATCH}:`,
     CAS_SQL,
@@ -86,7 +86,8 @@ export const spec: HygieneSpec = {
       return 1;
     }
     const ids = rows.map((r) => r.id);
-    await db.exec(`CREATE TABLE ${bak} AS SELECT * FROM decision_replays WHERE id = ANY($1::text[])`, ids);
+    await db.exec(`CREATE TABLE ${bak} (LIKE decision_replays)`);
+    await db.exec(`INSERT INTO ${bak} SELECT * FROM decision_replays WHERE id = ANY($1::text[])`, ids);
     const backedUp = toCount((await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM ${bak}`))[0]?.n);
     log(`backup ${bak}: ${backedUp} of ${ids.length} rows`);
     if (backedUp !== ids.length) {
@@ -118,5 +119,5 @@ export const spec: HygieneSpec = {
 };
 
 if (isEntry(import.meta.url)) {
-  runHygiene(spec).then((code) => process.exit(code));
+  runHygiene(spec).then(finish, fail);
 }
