@@ -76,7 +76,6 @@ export interface JournalEntry {
   predictionsScored: { confirmed: number; disproven: number };
   wisdomDistilled: number;
   blindSpotsFound: number;
-  counterIntuitiveFindings: number;
   selfAssessment: string;
   // Enhanced fields
   learningRate: { daily: number; weekly: number; monthly: number; trend: "accelerating" | "steady" | "decelerating" };
@@ -109,7 +108,6 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     predictionsDisproven,
     newWisdom,
     blindSpotMemories,
-    counterIntuitiveMemories,
     todayReflections,
     // Historical data for learning rate
     memoriesThisWeek,
@@ -132,7 +130,6 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     prisma.prediction.count({ where: { status: "disproven", updatedAt: { gte: todayStart } } }),
     prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: todayStart } } }),
     prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.BLIND_SPOT, createdAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: todayStart } } }),
     prisma.reflection.findMany({ where: { date: todayStr, deletedAt: null }, select: { insight: true }, take: 3 }),
     // Historical
     prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: sevenDaysAgo } } }),
@@ -300,7 +297,7 @@ Don't be generic — reference specific numbers.`,
 - ${memoriesCreated} new memories created (${learningTrend} trend, ${weeklyRate}/day avg this week)
 - ${memoriesDecayed} memories decayed
 - Predictions: ${predictionsConfirmed} confirmed, ${predictionsDisproven} wrong (calibration: ${calibrationScore}/100)
-- ${newWisdom} wisdom, ${blindSpotMemories} blind spots, ${counterIntuitiveMemories} counter-intuitive
+- ${newWisdom} wisdom, ${blindSpotMemories} blind spots
 - Weak spots: ${weakSpots.map(w => w.domain).join(", ") || "none"}
 - ${stagnationAlert ? `STAGNATION: ${stagnationAlert}` : "No stagnation detected"}
 - Reflections: ${todayReflections.map(r => r.insight.slice(0, 60)).join("; ") || "none"}`,
@@ -323,7 +320,6 @@ Don't be generic — reference specific numbers.`,
     predictionsScored: { confirmed: predictionsConfirmed, disproven: predictionsDisproven },
     wisdomDistilled: newWisdom,
     blindSpotsFound: blindSpotMemories,
-    counterIntuitiveFindings: counterIntuitiveMemories,
     selfAssessment,
     learningRate,
     domainVelocity,

@@ -26,6 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { EXPIRED_OUTCOME } from "@/lib/brain/decision-replay-outcome";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { markReplayed } from "@/lib/services/decision-replay-coach";
@@ -118,7 +119,9 @@ export async function buildDecisionReplaysView(): Promise<DecisionReplaysView> {
       .catch((): DueQueryRow[] => []),
     prisma.decisionReplay
       .findMany({
-        where: { reviewed: true },
+        // Rows the hygiene script closed unreviewed carry reviewedAt = close time and no score; they must not take
+        // the ten slots. The OR keeps real reviews with a NULL outcome (`not` alone drops NULL rows in SQL).
+        where: { reviewed: true, OR: [{ outcome: null }, { outcome: { not: EXPIRED_OUTCOME } }] },
         orderBy: { reviewedAt: "desc" },
         take: 10,
         select: {

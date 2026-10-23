@@ -52,8 +52,6 @@ export const PARKED: Record<string, string> = {
   // Ultron HQ island · the route is gone. (ask/omni-capture.tsx, a duplicate
   // of the live components/actions/omni-capture-modal.tsx, was deleted
   // 2026-09-01 rather than parked.)
-  "components/ultron/contradictions-card.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
-  "components/ultron/signal/situation-card.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
   "components/ultron/today/active-task-companion.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
   "components/ultron/today/next-action-whisperer.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
   // top-strip/ticker.tsx + top-strip/hq-status-chips.tsx — the children of

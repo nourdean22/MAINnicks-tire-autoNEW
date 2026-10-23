@@ -2,11 +2,11 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 190,
-    "emoji": 23,
-    "transitionAll": 48,
+    "emDash": 186,
+    "emoji": 21,
+    "transitionAll": 45,
     "slowDuration": 7,
-    "smallInput": 77
+    "smallInput": 76
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -176,7 +176,6 @@
     },
     "components/chat/tool-result-registry.tsx": {
       "emDash": 3,
-      "emoji": 1,
       "transitionAll": 2,
       "slowDuration": 2
     },
@@ -373,11 +372,6 @@
       "emDash": 1,
       "emoji": 1
     },
-    "components/ultron/contradictions-card.tsx": {
-      "emDash": 2,
-      "transitionAll": 2,
-      "smallInput": 1
-    },
     "components/ultron/decision-replay-card.tsx": {
       "emDash": 1,
       "smallInput": 2
@@ -390,11 +384,6 @@
     },
     "components/ultron/preferences-card.tsx": {
       "emoji": 1
-    },
-    "components/ultron/signal/situation-card.tsx": {
-      "emDash": 2,
-      "emoji": 1,
-      "transitionAll": 1
     },
     "components/ultron/today/active-task-companion.tsx": {
       "emDash": 2,

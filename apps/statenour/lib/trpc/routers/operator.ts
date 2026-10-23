@@ -81,7 +81,6 @@ import {
 } from "@/lib/validators/settings";
 import { buildTickerFeed } from "@/lib/services/ultron-ticker";
 import { buildPersonalPulse } from "@/lib/services/personal-pulse";
-import { buildSituation } from "@/lib/services/ultron-situation";
 import { buildTodoDesk } from "@/lib/services/todo-desk";
 import { buildMicroPlan, IntentTooShortError } from "@/lib/services/ultron-plan";
 import { getMit, setMit } from "@/lib/services/mit";
@@ -675,16 +674,6 @@ export const operatorRouter = router({
       }
       return { resolved };
     }),
-
-  /**
-   * Phase B.6a · owner-only · THE unified signal payload for the HQ
-   * SituationCard (the meta-aggregated narrative that replaced the
-   * 7-card stack). Replaces GET /api/ultron/situation · delegates to
-   * `ultron-situation.buildSituation` · drift impossible. Service owns
-   * its own 120s `cached()` window · React Query's 2-min
-   * refetchInterval mirrors the legacy poll. No input.
-   */
-  situation: operatorProcedure.query(async () => buildSituation()),
 
   /**
    * Phase B.6a · owner-only · force a live recompute of the system

@@ -390,11 +390,11 @@ export const qualityProcedures = {
 
   /**
    * Phase B.6c · owner-only · unresolved (+ optionally resolved)
-   * contradictions for the ContradictionsCard, grouped by status with
+   * contradictions (the ContradictionsCard that used it was deleted 2026-10-23), grouped by status with
    * an unresolved-count badge. Replaces GET /api/system/contradictions
    * · delegates to the shared `contradictions.listContradictions`
-   * service. ContradictionsCard polls this on a 5-min interval — now
-   * driven by refetchInterval.
+   * service. No UI calls it since the card was deleted; a later PR
+   * decides whether the procedure stays.
    *
    * The legacy URL was `?days=14&includeResolved=true`; the typed input
    * mirrors those two params (`days` clamped 1-180 · default 30, the
