@@ -28,6 +28,8 @@ export interface TRPCContext {
   db: typeof prisma;
   /** Request headers · useful for cache hints, locale, etc */
   headers?: Headers;
+  /** How many procedure calls shared this HTTP request (tRPC batching); absent for server callers. */
+  batchSize?: number;
 }
 
 /** Factory for the App Router fetch handler · the fetch Request is
@@ -52,7 +54,7 @@ export async function createTRPCContext(
   } catch {
     // Unauthenticated · session stays null
   }
-  return { session, db: prisma, headers: opts.req.headers };
+  return { session, db: prisma, headers: opts.req.headers, batchSize: opts.info?.calls?.length };
 }
 
 /** Factory for direct server-side callers (no HTTP req involved).
