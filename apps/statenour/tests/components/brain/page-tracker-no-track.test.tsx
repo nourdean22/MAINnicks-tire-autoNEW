@@ -41,7 +41,12 @@ function stubStorage(value: string | null, throws = false) {
         return k === "nour:no-track" ? value : null;
       },
     },
+    // 2026-10-23: the visit effect also registers the pagehide / visibilitychange leave listeners.
+    // Leave behaviour itself is pinned in page-tracker-leave.test.tsx (real React, jsdom).
+    addEventListener: () => {},
+    removeEventListener: () => {},
   });
+  vi.stubGlobal("document", { referrer: "", visibilityState: "visible", addEventListener: () => {}, removeEventListener: () => {} });
 }
 
 beforeEach(() => {
