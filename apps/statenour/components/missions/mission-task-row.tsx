@@ -60,9 +60,9 @@ export interface MissionTaskRowProps {
   rationale?: string;
 }
 
-// 2026-09-15 · tomorrow6am / nextMonday6am moved to lib/missions/snooze-presets.ts
+// 2026-09-15 · tomorrowMorning / nextMondayMorning moved to lib/missions/snooze-presets.ts
 // so the task inspector's page actions snooze to the same instants as this row.
-import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
+import { nextMondayMorning, tomorrowMorning } from "@/lib/missions/snooze-presets";
 import { formatDueHint } from "@/lib/missions/due-hint";
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 
@@ -147,7 +147,7 @@ export function MissionTaskRow({
   // 2026-08-23 · the operator finished his workout and this row read WAITING.
   // Nothing shown was false — WAITING is a correct answer to a question he was
   // not asking. describeCompletion returns a label AND the frame it is spoken
-  // in, so a recurring task completed today reads "done today · back at 6am"
+  // in, so a recurring task completed today reads "done today · back by 5 am"
   // instead of collapsing two true facts into the less useful one. Measured:
   // all four live WAITING dailies carry a real snoozedUntil seven hours out.
   const completionDisplay = describeCompletion(
@@ -328,7 +328,7 @@ export function MissionTaskRow({
         </p>
         {/* The completion frame, rendered as TEXT and not only as a tooltip:
           *  statenour is a standalone iOS PWA, where a title= attribute is dead.
-          *  A recurring task completed today reads "done today · back at 6am"
+          *  A recurring task completed today reads "done today · back by 5 am"
           *  instead of the bare WAITING that started this. Shown only when the
           *  frame is "both" — the case where one fact alone misleads; a one-off
           *  DONE already says everything with a line-through. */}
@@ -367,7 +367,7 @@ export function MissionTaskRow({
              *  create recurring tasks?" · the schema + cron resurfaced,
              *  but the daily row had no way to defer without breaking
              *  the streak. Pill opens a tiny popover · 2 presets ·
-             *  Tomorrow 6am · Next Mon 6am · resurface cron flips
+             *  Tomorrow · next Monday, midnight ET · resurface cron flips
              *  WAITING→READY when the mark matures. */}
             {isDaily && (
               <span
@@ -405,14 +405,14 @@ export function MissionTaskRow({
                         setBusy("snooze");
                         setSnoozeOpen(false);
                         try {
-                          await actions.handleSnoozeTask(task.id, tomorrow6am());
+                          await actions.handleSnoozeTask(task.id, tomorrowMorning());
                         } finally {
                           setBusy(null);
                         }
                       }}
                       className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg"
                     >
-                      Tomorrow · 6am
+                      Tomorrow · by 5 am
                     </button>
                     <button
                       type="button"
@@ -421,14 +421,14 @@ export function MissionTaskRow({
                         setBusy("snooze");
                         setSnoozeOpen(false);
                         try {
-                          await actions.handleSnoozeTask(task.id, nextMonday6am());
+                          await actions.handleSnoozeTask(task.id, nextMondayMorning());
                         } finally {
                           setBusy(null);
                         }
                       }}
                       className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg border-t border-edge-subtle"
                     >
-                      Next mon · 6am
+                      Monday · by 5 am
                     </button>
                     {isSnoozed && (
                       <button

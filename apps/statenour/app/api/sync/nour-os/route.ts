@@ -200,6 +200,7 @@ export const POST = syncHandler(async (req) => {
       // at-most-one task per key: nickstire re-escalating the same subject is
       // the same obligation. Without the header, behaviour is unchanged.
       const idempotencyKey = readIdempotencyKey(req.headers);
+      const openLoopTitle = String(data.title ?? "Untitled task").slice(0, 150);
       const once = await runOnceByKey(
         prisma,
         idempotencyKey,
@@ -208,7 +209,7 @@ export const POST = syncHandler(async (req) => {
           const inboxMissionId = await resolveInboxMissionId();
           const priorityLabel = String(data.priority ?? "medium");
           return createTask({
-            title: String(data.title ?? "Untitled task").slice(0, 150),
+            title: openLoopTitle,
             missionId: inboxMissionId,
             status: "INBOX",
             nextPhysicalAction: String(data.title ?? "").slice(0, 150) || "start",
@@ -223,7 +224,24 @@ export const POST = syncHandler(async (req) => {
         },
         // createTask returns its view model; `null` only if the re-read raced a delete.
         (task) => task?.id ?? "created",
-        { staleMs: OPEN_LOOP_RECEIPT_STALE_MS },
+        {
+          staleMs: OPEN_LOOP_RECEIPT_STALE_MS,
+          // Receipts table missing: the same obligation is an open task with the
+          // same title in the same mission (Task has no key column to match on).
+          findExisting: async () => {
+            const missionId = await resolveInboxMissionId();
+            const hit = await prisma.task.findFirst({
+              where: {
+                missionId,
+                deletedAt: null,
+                status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
+                title: { equals: openLoopTitle.trim(), mode: "insensitive" },
+              },
+              select: { id: true },
+            });
+            return hit?.id ?? null;
+          },
+        },
       );
       result = once.duplicate ? { duplicate: true, resultRef: once.resultRef } : once.value;
       break;

@@ -95,6 +95,7 @@ describe("POST /api/missions/[id]/retro · archive scoping + transaction", () =>
       missionId: "m1",
       deletedAt: null,
       status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
+      loopKind: { notIn: ["DAILY", "WEEKLY"] },
     });
     expect(args.data.status).toBe("DONE");
 
@@ -165,5 +166,21 @@ describe("POST /api/missions/[id]/retro · a closed mission stops its durable ru
     cancelExec.mockRejectedValue(new Error("inngest 500"));
     const res = await POST(makeRequest({ retroText: "done", archive: true }), ctx);
     expect(res.status).toBe(200);
+  });
+});
+
+describe("POST /api/missions/[id]/retro · anchors and habits (job 2026-10-23, map F10 + F11)", () => {
+  it("refuses a GENERAL anchor: no task closed, mission left ACTIVE", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m1", title: "Anchor", status: "ACTIVE", systemKind: "GENERAL" });
+    const res = await POST(makeRequest({ retroText: "", archive: true }), ctx);
+    expect(res.status).toBe(409);
+    expect(mocks.task.updateMany).not.toHaveBeenCalled();
+    expect(mocks.mission.update).not.toHaveBeenCalled();
+  });
+
+  it("closes one-off tasks only: DAILY and WEEKLY loops are never marked DONE", async () => {
+    await POST(makeRequest({ retroText: "", archive: true }), ctx);
+    expect(mocks.task.updateMany).toHaveBeenCalledOnce();
+    expect(mocks.task.updateMany.mock.calls[0][0].where.loopKind).toEqual({ notIn: ["DAILY", "WEEKLY"] });
   });
 });

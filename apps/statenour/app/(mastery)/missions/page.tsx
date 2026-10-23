@@ -439,7 +439,6 @@ function MissionsPageInner() {
                 {boardCounted && (
                   <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
                     {boardMissions.length} active · {openBoardCount} open
-                    {deck ? ` · ${deck.missionSlotsOpen} slot${deck.missionSlotsOpen === 1 ? "" : "s"} open` : ""}
                   </span>
                 )}
               </div>
@@ -497,7 +496,9 @@ function MissionsPageInner() {
               <DeckEvidence
                 evidence={deck.evidence}
                 tasks={tasks}
-                onSnoozeTask={(id, iso) => actions.handleSnoozeTask(id, iso)}
+                tasksState={tasksQuery.isError ? "error" : tasksQuery.data === undefined ? "loading" : "ready"}
+                liveIds={new Set(deck.taskOrder)}
+                onSnoozeTask={actions.handleSnoozeTask}
               />
             )}
 

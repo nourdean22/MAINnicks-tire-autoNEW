@@ -33,7 +33,7 @@ vi.mock("@/lib/services/task-rescue", () => ({
 const ledger = vi.hoisted(() => ({ recordShownBounded: vi.fn(async () => "led-deck") }));
 vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: ledger.recordShownBounded }));
 
-import { buildMissionsDeck, MISSION_WIP_CAP, nextMoveLedgerSummary } from "@/lib/missions/deck";
+import { buildMissionsDeck, nextMoveLedgerSummary } from "@/lib/missions/deck";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 
 const NOW = new Date("2026-09-01T15:00:00Z"); // 11:00 ET
@@ -248,7 +248,6 @@ describe("deck · sections tell the truth about their shapes", () => {
     const bathroom = deck.missions.find((m) => m.id === "m-bathroom");
     expect(bathroom?.openCount).toBe(1);
     expect(bathroom?.doneCount).toBe(1);
-    expect(deck.missionSlotsOpen).toBe(MISSION_WIP_CAP - 1);
     // Anchors are lanes, never missions.
     expect(deck.missions.map((m) => m.id)).not.toContain("m-general-business");
   });

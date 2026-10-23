@@ -9,6 +9,8 @@ import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
 import { useOutcomeDialog, type OutcomeRatingValue } from "@/components/ui/outcome-dialog";
+import { isUserProject } from "@/lib/services/mission-helpers";
+import { RESURFACE_PROMISE } from "@/lib/missions/snooze-presets";
 
 const log = rootLogger.withSurface("missions/actions");
 
@@ -145,8 +147,17 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
         if (wasOpen && task?.missionId && !isRecurring) {
           const mission = missions.find((m) => m.id === task.missionId);
-          if (mission && mission.status === "ACTIVE") {
-            const remaining = tasks.filter((t) => t.id !== id && t.missionId === task.missionId && t.status !== "DONE");
+          // Only a finite user project closes with a retro: an anchor lane or an
+          // inbox never "completes" (map F11), and habits never count as remaining work.
+          if (mission && mission.status === "ACTIVE" && isUserProject(mission)) {
+            const remaining = tasks.filter(
+              (t) =>
+                t.id !== id &&
+                t.missionId === task.missionId &&
+                t.status !== "DONE" &&
+                t.status !== "ARCHIVED" &&
+                !["DAILY", "WEEKLY"].includes(((t as { loopKind?: string }).loopKind ?? "").toUpperCase()),
+            );
             if (remaining.length === 0) setRetroState({ missionId: mission.id, title: mission.title });
           }
         }
@@ -268,8 +279,9 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     [updateTask, refetchAll, telemetry],
   );
 
+  /** Resolves true only on a confirmed write, so a caller (close the day) never reports a failed snooze as done. */
   const handleSnoozeTask = useCallback(
-    async (taskId: string, snoozedUntilIso: string) => {
+    async (taskId: string, snoozedUntilIso: string, opts?: { quiet?: boolean }): Promise<boolean> => {
       try {
         const clearing = !snoozedUntilIso;
         telemetry.event("snoozeTask", { taskId, clearing, snoozedUntil: snoozedUntilIso || null });
@@ -281,10 +293,12 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           },
         });
         await refetchAll();
-        toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
+        if (!opts?.quiet) toast.success(clearing ? "Snooze cleared." : `Snoozed. Back ${RESURFACE_PROMISE} on the day.`);
+        return true;
       } catch (err) {
         log.error("snoozeTask_failed", { err });
-        toast.error("Could not update snooze.");
+        if (!opts?.quiet) toast.error("Could not snooze the task. It is still open.");
+        return false;
       }
     },
     [updateTask, refetchAll, telemetry],

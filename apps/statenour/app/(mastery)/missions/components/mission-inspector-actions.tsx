@@ -14,7 +14,7 @@
 import { useMemo } from "react";
 import { useRegisterInspectorActions } from "@/hooks/use-inspector";
 import type { InspectorPageAction } from "@/lib/state/inspector-store";
-import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
+import { nextMondayMorning, tomorrowMorning } from "@/lib/missions/snooze-presets";
 import { useMissionDispatch } from "../context/mission-dispatch-context";
 
 export function MissionInspectorActions() {
@@ -22,8 +22,8 @@ export function MissionInspectorActions() {
   const actions = useMemo<InspectorPageAction[]>(
     () => [
       { id: "complete", label: "complete", tone: "primary", run: (id) => handleCompleteTask(id) },
-      { id: "snooze-tomorrow", label: "snooze · tomorrow 6am", run: (id) => handleSnoozeTask(id, tomorrow6am()) },
-      { id: "snooze-next-week", label: "snooze · next mon", run: (id) => handleSnoozeTask(id, nextMonday6am()) },
+      { id: "snooze-tomorrow", label: "snooze · back tomorrow by 5 am", run: async (id) => { await handleSnoozeTask(id, tomorrowMorning()); } },
+      { id: "snooze-next-week", label: "snooze · back Monday by 5 am", run: async (id) => { await handleSnoozeTask(id, nextMondayMorning()); } },
     ],
     [handleCompleteTask, handleSnoozeTask],
   );

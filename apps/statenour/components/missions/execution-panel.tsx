@@ -33,7 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Task, Project } from "@/components/actions/shared";
 // 2026-09-15 · the snooze instants are shared with the task row and the inspector (lib/missions/snooze-presets.ts).
-import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
+import { nextMondayMorning, tomorrowMorning } from "@/lib/missions/snooze-presets";
 
 interface ExecutionPanelProps {
   task: Task;
@@ -400,19 +400,19 @@ export function ExecutionPanel({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => handleSnooze(tomorrow6am())}
+                onClick={() => handleSnooze(tomorrowMorning())}
                 disabled={submitting === "snooze"}
                 className="flex min-h-[44px] items-center justify-center gap-1.5 p-2 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
-                <Clock size={12} /> Tomorrow 6am
+                <Clock size={12} /> Tomorrow, by 5 am
               </button>
               <button
                 type="button"
-                onClick={() => handleSnooze(nextMonday6am())}
+                onClick={() => handleSnooze(nextMondayMorning())}
                 disabled={submitting === "snooze"}
                 className="flex min-h-[44px] items-center justify-center gap-1.5 p-2 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
-                <Clock size={12} /> Next Mon 6am
+                <Clock size={12} /> Monday, by 5 am
               </button>
             </div>
             <div className="flex justify-end pt-1">

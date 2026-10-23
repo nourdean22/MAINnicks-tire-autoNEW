@@ -432,10 +432,12 @@ export async function resolveInboxMissionId(): Promise<string> {
   }
 
   // 1. Canonical seeded id
+  // 2026-10-23 (map F4) · a live inbox is non-deleted AND ACTIVE. Prod's m-inbox
+  // is PAUSED + soft-deleted; the old checks let new tasks land in it.
   const seeded = await prisma.mission
-    .findUnique({ where: { id: "m-inbox" }, select: { id: true, deletedAt: true } })
+    .findUnique({ where: { id: "m-inbox" }, select: { id: true, deletedAt: true, status: true } })
     .catch(() => null);
-  if (seeded && !seeded.deletedAt) {
+  if (seeded && !seeded.deletedAt && seeded.status === "ACTIVE") {
     _cachedInboxId = seeded.id;
     return _cachedInboxId;
   }
@@ -460,7 +462,8 @@ export async function resolveInboxMissionId(): Promise<string> {
   try {
     const created = await prisma.mission.create({
       data: {
-        id: "m-inbox",
+        // The canonical id is taken by a dead row: a fresh id, found by title next time.
+        ...(seeded ? {} : { id: "m-inbox" }),
         title: "Inbox",
         successMetric: "Catch-all for quick captures · sorted into projects later.",
         domain: "PERSONAL",
@@ -476,9 +479,9 @@ export async function resolveInboxMissionId(): Promise<string> {
   } catch {
     // Race · another request created it · re-read
     const retry = await prisma.mission
-      .findUnique({ where: { id: "m-inbox" }, select: { id: true } })
+      .findUnique({ where: { id: "m-inbox" }, select: { id: true, deletedAt: true, status: true } })
       .catch(() => null);
-    if (retry) {
+    if (retry && !retry.deletedAt && retry.status === "ACTIVE") {
       _cachedInboxId = retry.id;
       return _cachedInboxId;
     }
