@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/brain-contradictions-reach-nour",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-brain-contradictions (manager 0900c49a)",
   "claimedAt": "2026-10-23T02:13:47.481Z",
   "expiresAt": "2026-10-23T14:13:47.481Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-23T05:39:24.515Z",
+  "releaseReason": "PR 3249 squash-merged as c1f8c31ac at 05:37Z; the 2 commits are its ledger/round-6 commits, content identical to main (diff --stat empty); remote branch deleted by the merge",
+  "priorLeaseSha": "e1ba91556dd3be96ac9fd5144a68d339d48c2430",
+  "releasedBy": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "foreignReleaseReason": null
 }
