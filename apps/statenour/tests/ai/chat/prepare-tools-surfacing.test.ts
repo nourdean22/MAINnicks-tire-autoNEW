@@ -88,6 +88,16 @@ function args(overrides: Partial<Parameters<typeof prepareTools>[0]> = {}) {
   };
 }
 
+describe("prepareTools · a pending contradiction ask reaches the pruner", () => {
+  it("passes contradictionAskPending through to pruneTools", async () => {
+    const { pruneTools } = await import("@/lib/ai/chat-mode");
+    const spy = pruneTools as unknown as ReturnType<typeof vi.fn>;
+    spy.mockClear();
+    await prepareTools(args({ contradictionAskPending: true } as never));
+    expect(spy.mock.calls[0][4]).toMatchObject({ contradictionAskPending: true });
+  });
+});
+
 describe("prepareTools surfacing telemetry", () => {
   beforeEach(() => {
     recordMetricStrict.mockClear();

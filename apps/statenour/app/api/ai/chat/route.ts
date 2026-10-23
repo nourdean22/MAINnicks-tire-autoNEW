@@ -1054,6 +1054,8 @@ ${priorsBlock}`;
     researchCompilerMode,
     traceId: __traceId,
     conversationId: convId,
+    // An open contradiction question keeps resolveContradiction attached, whatever the reply says.
+    contradictionAskPending: brainCtx.contradictionAskPending,
     log,
   });
 

@@ -1223,6 +1223,10 @@ export const brainTools = {
               requestedSide: side,
               resolvedHow: resolvedHow ?? null,
               alreadyResolved: !!alreadyResolved,
+              // Honest about what was dropped: the table has no column for either.
+              ...(note?.trim() || currentBelief?.trim()
+                ? { notStored: "note and current belief are not stored for table rows" }
+                : {}),
               resolvedAt: contradiction.resolved_at ?? null,
             };
           } catch (err) {

@@ -87,22 +87,68 @@ function allTools(): Record<string, unknown> {
   for (const t of TOOL_CATALOG) out[(t as { name: string }).name] = {};
   return out;
 }
-async function offered(prompt: string): Promise<string[]> {
-  return Object.keys((await pruneTools("standard" as never, allTools(), prompt)) as Record<string, unknown>);
+async function offered(prompt: string, contradictionAskPending = false): Promise<string[]> {
+  return Object.keys(
+    (await pruneTools("standard" as never, allTools(), prompt, undefined, { contradictionAskPending })) as Record<string, unknown>,
+  );
 }
 
-describe("resolveContradiction is attached for the plain answers", () => {
+describe("resolveContradiction is attached whenever an ask is pending, whatever the words", () => {
   it.each([
     "that's outdated",
     "ignore that one",
-    "the record is right, I was off",
-    "yeah the record's right",
     "honestly that one is out of date now",
-  ])("attached for: %s", async (prompt) => {
-    expect(await offered(prompt)).toContain("resolveContradiction");
+    "the record\u2019s right", // iPhone curly apostrophe
+    "the claim was wrong",
+    "things moved on",
+    "ignore",
+    "drop it",
+    "the record is accurate",
+  ])("pending ask, attached for: %s", async (prompt) => {
+    expect(await offered(prompt, true)).toContain("resolveContradiction");
+  });
+});
+
+describe("with NO pending ask, only record-specific wording attaches it", () => {
+  it.each(["the record is right, I was off", "yeah the record\u2019s right", "the claim was wrong", "the record is accurate"])(
+    "attached for: %s",
+    async (prompt) => {
+      expect(await offered(prompt)).toContain("resolveContradiction");
+    },
+  );
+
+  it.each(["ignore this file please", "docs are out of date", "what are my tasks today"])(
+    "NOT attached for: %s",
+    async (prompt) => {
+      expect(await offered(prompt)).not.toContain("resolveContradiction");
+    },
+  );
+});
+
+describe("resolveContradiction tool · honest result fields", () => {
+  it("an auto-expired row reports side expired, not dismissed", async () => {
+    h.contradiction.updateMany.mockResolvedValue({ count: 0 });
+    h.contradiction.findFirst.mockResolvedValue({ ...CLOSED, resolvedHow: "Auto-resolved after 30 days without action" });
+    const out = await resolveTool.execute({ contradictionKey: "tbl:ck_9", side: "dismissed" });
+    expect(out).toMatchObject({ ok: true, side: "expired", alreadyResolved: true });
   });
 
-  it("CONTROL · an unrelated turn does not attach it", async () => {
-    expect(await offered("what are my tasks today")).not.toContain("resolveContradiction");
+  it("a note or current belief on a table row is reported as not stored", async () => {
+    h.contradiction.updateMany.mockResolvedValue({ count: 1 });
+    h.contradiction.findFirst.mockResolvedValue(CLOSED);
+    const out = await resolveTool.execute({
+      contradictionKey: "tbl:ck_9",
+      side: "old_wins",
+      note: "moved on in spring",
+      currentBelief: "I walk the dog once a day now",
+    });
+    expect(String(out.notStored)).toMatch(/not stored for table rows/);
+  });
+
+  it("CONTROL · no note, no notice", async () => {
+    h.contradiction.updateMany.mockResolvedValue({ count: 1 });
+    h.contradiction.findFirst.mockResolvedValue(CLOSED);
+    const out = await resolveTool.execute({ contradictionKey: "tbl:ck_9", side: "old_wins" });
+    expect(out.notStored).toBeUndefined();
   });
 });

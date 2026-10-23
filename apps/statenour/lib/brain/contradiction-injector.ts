@@ -628,7 +628,8 @@ export type DailyContradiction = Omit<ClaimGap, "similarity"> & { severity: stri
 
 /** Most severe first, then oldest. Pure, so the ordering is pinned by a test. */
 export function pickDailyContradiction<T extends { severity: string; createdAt: Date }>(rows: T[]): T | null {
-  const rank = (s: string) => SEVERITY_RANK[s.toLowerCase()] ?? 0;
+  // An off-vocabulary severity is the writer's own default ("moderate", thinking-engine.ts), not "below mild".
+  const rank = (s: string) => SEVERITY_RANK[s.toLowerCase()] ?? SEVERITY_RANK.moderate;
   return (
     [...rows].sort((a, b) => rank(b.severity) - rank(a.severity) || a.createdAt.getTime() - b.createdAt.getTime())[0] ??
     null
@@ -651,13 +652,24 @@ export async function findDailyContradiction(): Promise<DailyContradiction | nul
       select: { content: true, lastSeen: true },
     });
     if (claim && claimHoldsDay(claim)) return null;
+    // A row ASKED in the last week (by either lane) is not asked again: an unanswered critical
+    // row would otherwise come back every morning, and the kill criterion would count one nag.
+    const recent = await prisma.brainMemory.findMany({
+      where: {
+        category: LOG_CATEGORY,
+        key: { startsWith: CLAIM_GAP_KEY_PREFIX },
+        createdAt: { gte: new Date(Date.now() - CLAIM_GAP_TOPIC_COOLDOWN_DAYS * 86400_000) },
+      },
+      select: { content: true },
+    });
+    const askedIds = new Set(recent.filter((r) => isAsked(r.content)).map((r) => parseClaim(r.content).contradictionId));
     const rows = await prisma.contradiction.findMany({
       where: { resolved: false, deletedAt: null },
       orderBy: { createdAt: "asc" },
       take: DAILY_FETCH,
       select: ROW_SELECT,
     });
-    return pickDailyContradiction(rows);
+    return pickDailyContradiction(rows.filter((r) => !askedIds.has(r.id)));
   } catch (err) {
     logError("brain.contradiction-injector", err, { fn: "findDailyContradiction" });
     return null;

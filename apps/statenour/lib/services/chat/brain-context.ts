@@ -131,6 +131,8 @@ export interface BuildBrainContextOutput {
   detectedContradictions?: any[];
   /** 2026-10-23 · this turn's day RESERVATION (claim gap or daily question); the persist path promotes it to "asked". */
   contradictionClaim?: import("@/lib/brain/contradiction-injector").ContradictionClaim;
+  /** 2026-10-23 · a contradiction question is open (asked this turn, or the follow-up block fired): the pruner keeps resolveContradiction attached. */
+  contradictionAskPending?: boolean;
 }
 
 const EMPTY_FIRED: ContextBlocksFired = {
@@ -191,6 +193,7 @@ export async function buildBrainContext(
   const contradictionLanesOk =
     !privateMode && input.ephemeral !== true && input.actionPermission !== "read" && !!contradictionConvId;
   let contradictionClaim: import("@/lib/brain/contradiction-injector").ContradictionClaim | undefined;
+  let contradictionAskPending = false;
   // Authority posture (self-review #8): explicit "execute" pill suppresses the
   // objection injector this turn — same as the phrase detector. Explicit "spar"
   // / "counsel" mean the user WANTS engagement, so they override a phrase-
@@ -656,6 +659,7 @@ export async function buildBrainContext(
     const contradictionFollowUpBlock = contradictionFollowUpHit && contradictionInjectorMod
       ? contradictionInjectorMod.buildContradictionFollowUpBlock(contradictionFollowUpHit)
       : null;
+    contradictionAskPending = !!(claimGapBlock || dailyContradictionBlock || contradictionFollowUpBlock);
 
     const hybridRecallBlock = hybridRecallReport && memoryRecallMod
       ? memoryRecallMod.formatRecallForPrompt(hybridRecallReport.hits)
@@ -1079,5 +1083,6 @@ export async function buildBrainContext(
     contextReceipt,
     detectedContradictions,
     contradictionClaim,
+    contradictionAskPending,
   };
 }

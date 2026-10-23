@@ -206,9 +206,11 @@ const STATUS_FROM_HOW: Record<string, ContradictionResolveChoice> = {
 
 /** A claim-vs-record row in the panel's shape: claim on the left, record on the right. */
 export interface TableContradiction
-  extends Omit<StoredContradiction, "signal" | "similarity" | "new_memory_id" | "old_memory_id"> {
+  extends Omit<StoredContradiction, "signal" | "similarity" | "new_memory_id" | "old_memory_id" | "status"> {
   source: "table";
   signal: "claim_gap";
+  /** "expired" = closed by memory-consolidation's 30-day auto-resolve, never Nour's answer. */
+  status: ContradictionStatus | "expired";
   gap: string;
   category: string;
   severity: string;
@@ -265,9 +267,9 @@ function toPanelRow(r: TableRow): TableContradiction {
     days_apart: Math.max(0, Math.round((Date.now() - r.createdAt.getTime()) / 86400_000)),
     surfaced_at: r.createdAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
-    // A closure that is not one of the three answers (the 30-day auto-expiry) still reads as
-    // closed, with its own words as the note, so it is never counted as Nour's answer.
-    status: r.resolved ? (answered ?? "dismissed") : "unresolved",
+    // A closure that is not one of the three answers (the 30-day auto-expiry,
+    // memory-consolidation.ts) is "expired", with its own words as the note: never his "ignore".
+    status: r.resolved ? (answered ?? "expired") : "unresolved",
     resolution_note: r.resolved && !answered ? r.resolvedHow : null,
     resolved_at: r.resolved ? r.updatedAt.toISOString() : null,
   };

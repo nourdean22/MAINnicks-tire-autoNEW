@@ -45,7 +45,8 @@ interface StoredContradiction {
   old_excerpt: string;
   days_apart: number;
   surfaced_at: string;
-  status?: "unresolved" | "current_wins" | "old_wins" | "both_valid" | "dismissed";
+  /** "expired" (table rows only) = closed by the 30-day auto-resolve, not by Nour. */
+  status?: "unresolved" | "current_wins" | "old_wins" | "both_valid" | "dismissed" | "expired";
   resolution_note?: string | null;
   resolved_at?: string | null;
   createdAt: string;
@@ -54,6 +55,12 @@ interface StoredContradiction {
 type Tab = "unresolved" | "history";
 
 type ResolveStatus = "current_wins" | "old_wins" | "both_valid" | "dismissed";
+
+/** A table row's status in plain words: his answer, the 30-day expiry, or "closed". */
+function tableStatusLabel(status: string | undefined): string {
+  if (status === "expired") return "expired after 30 days";
+  return TABLE_ANSWERS.find((a) => a.status === status)?.label.toLowerCase() ?? "closed";
+}
 
 /** claim_source values that are his own words; anything else (the engine's "ai_detected") is inferred. */
 const OWN_WORDS_SOURCES = new Set(["chat", "brain_dump", "commitment"]);
@@ -109,7 +116,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         const res = await resolveMutation.mutateAsync({ key, status, note });
         // A table row someone closed first keeps THEIR answer: report what is stored, not what was tapped.
         const stored = res?.contradiction?.status ?? status;
-        const storedLabel = TABLE_ANSWERS.find((a) => a.status === stored)?.label.toLowerCase() ?? "closed";
+        const storedLabel = tableStatusLabel(stored);
         toast.success(
           key.startsWith("tbl:")
             ? `${res?.alreadyResolved ? "already closed" : "closed"} · ${storedLabel}`
@@ -239,9 +246,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 )}
                 {c.status && c.status !== "unresolved" && (
                   <span className="text-emerald-400">
-                    · {isTable && !c.resolution_note
-                      ? (TABLE_ANSWERS.find((a) => a.status === c.status)?.label.toLowerCase() ?? "closed")
-                      : isTable ? "closed" : c.status.replace(/_/g, " ")}
+                    · {isTable ? tableStatusLabel(c.status) : c.status.replace(/_/g, " ")}
                   </span>
                 )}
               </div>
@@ -323,15 +328,17 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 <div className="mt-2 space-y-1.5">
                   {isTable ? (
                     // The table has no note column: the confirm step is the whole second tap.
-                    <p className="text-[11px] font-mono text-fg-tertiary">
-                      Close as: {TABLE_ANSWERS.find((a) => a.status === pendingResolve)?.label.toLowerCase() ?? pendingResolve}?
+                    <p role="status" className="text-[11px] font-mono text-fg-tertiary">
+                      Close as: {tableStatusLabel(pendingResolve)}?
                     </p>
                   ) : (
                     <>
-                      <p className="text-[11px] font-mono text-fg-tertiary">
+                      <p role="status" className="text-[11px] font-mono text-fg-tertiary">
                         Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
                       </p>
                       <textarea
+                        // The tapped button is gone: focus moves here so VoiceOver and keyboard follow.
+                        autoFocus
                         value={noteText}
                         onChange={(e) => setNoteText(e.target.value)}
                         placeholder="optional: explain the reversal"
@@ -344,6 +351,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     <button
                       onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}
                       disabled={rowBusy}
+                      // Table rows have no note box: the confirm button takes focus from the tapped answer.
+                      autoFocus={isTable}
                       className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                     >
                       <Check size={9} /> confirm
@@ -401,9 +410,11 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
       </div>
 
       <p className="text-[11px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
-        "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
+        Memory rows: "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
         does the same to the new one. "both valid" or "dismissed" just closes the loop without
         touching the memory rows. Threshold: sim ≥ 0.78 · age ≥ 7d · negation / reversal / antonym.
+        Claim-vs-record rows come from the nightly thinking engine; your answer is stored on the row,
+        and rows nobody answers expire after 30 days.
       </p>
     </GlassCard>
   );

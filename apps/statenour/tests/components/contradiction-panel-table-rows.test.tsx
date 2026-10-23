@@ -128,6 +128,49 @@ describe("ContradictionResolutionPanel · table rows", () => {
     expect(msg).not.toMatch(/outdated/i);
   });
 
+  it("answering a row the 30-day expiry closed: the toast says expired, never ignore", async () => {
+    h.query.data = { contradictions: [TABLE_ROW] };
+    h.mutateAsync.mockResolvedValue({ contradiction: { ...TABLE_ROW, status: "expired" }, alreadyResolved: true });
+    render();
+    await click("Outdated");
+    await click("confirm");
+    const msg = String(h.toastSuccess.mock.calls[0]?.[0] ?? "");
+    expect(msg).toMatch(/expired/i);
+    expect(msg).not.toMatch(/ignore/i);
+  });
+
+  it("History shows Nour's answers and the auto-expiry apart", async () => {
+    h.query.data = {
+      contradictions: [
+        { ...TABLE_ROW, key: "tbl:a", status: "old_wins", resolved_at: "2026-10-21T00:00:00.000Z" },
+        { ...TABLE_ROW, key: "tbl:b", status: "expired", resolution_note: "Auto-resolved after 30 days without action" },
+      ],
+    };
+    render();
+    await click("history");
+    const rowA = container.querySelector("#contradiction-row-tbl\\:a")?.textContent ?? "";
+    const rowB = container.querySelector("#contradiction-row-tbl\\:b")?.textContent ?? "";
+    expect(rowA).toContain("outdated");
+    expect(rowB).toContain("expired");
+    expect(rowB).not.toContain("ignore");
+  });
+
+  it("the first tap moves focus into the confirm step (VoiceOver / keyboard)", async () => {
+    h.query.data = { contradictions: [TABLE_ROW] };
+    render();
+    await click("Outdated");
+    const confirmBtn = button("confirm");
+    expect(confirmBtn).toBeDefined();
+    expect(document.activeElement).toBe(confirmBtn);
+    expect(container.querySelector('[role="status"]')?.textContent).toMatch(/close as/i);
+  });
+
+  it("the footer's memory-row mechanics are scoped to memory rows", () => {
+    h.query.data = { contradictions: [TABLE_ROW] };
+    const text = render().textContent ?? "";
+    expect(text).toMatch(/memory rows:\s*"current wins"/i);
+  });
+
   it("a capped page says so: showing N of M", () => {
     h.query.data = { contradictions: [TABLE_ROW], table: { total: 80, shown: 1 } };
     expect(render().textContent).toContain("showing 1 of 80");

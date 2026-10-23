@@ -838,7 +838,8 @@ export const brainRouter = router({
       } catch (err) {
         if (err instanceof ServiceError) {
           throw new TRPCError({
-            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            // 400 = a wrong answer for this row (both_valid on a claim-vs-record row), not a server fault.
+            code: err.status === 404 ? "NOT_FOUND" : err.status === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
             message: err.message,
           });
         }

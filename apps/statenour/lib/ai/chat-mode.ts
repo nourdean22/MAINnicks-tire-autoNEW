@@ -198,6 +198,10 @@ export async function pruneTools(
      *  rows are written and behaviour is byte-identical to before. */
     turnId?: string;
     conversationId?: string;
+    /** 2026-10-23 · brain-context says a contradiction question is open in this
+     *  conversation (asked this turn or earlier): attach resolveContradiction
+     *  whatever words the answer uses ("drop it", "things moved on", ...). */
+    contradictionAskPending?: boolean;
   }
 ): Promise<Record<string, unknown>> {
   const isDeep = mode === "deep";
@@ -220,7 +224,9 @@ export async function pruneTools(
   const text = [userContent, opts?.conversationTail ?? ""]
     .filter(Boolean)
     .join("\n")
-    .toLowerCase();
+    .toLowerCase()
+    // iPhone keyboards type curly apostrophes; every family below is written with "'".
+    .replace(/[\u2018\u2019]/g, "'");
   // Core tools — always included in standard mode. These are cheap
   // reads Nick should always be able to reach for basic situational
   // awareness.
@@ -328,6 +334,9 @@ export async function pruneTools(
       exactMentioned.add(name);
     }
   }
+  // An open contradiction question: its answer is the reply, in any words. Same tier as a
+  // named tool, so the budget cannot cut it (the follow-up block tells Nick when it applies).
+  if (opts?.contradictionAskPending && allTools.resolveContradiction) exactMentioned.add("resolveContradiction");
 
   const keywordMatches = new Set<string>();
   // Keyword-based tool families
@@ -478,10 +487,10 @@ export async function pruneTools(
     addMatching(/search|memory|conversation|reflection|greene|wisdom|simulate|anti.?pattern|brain|emotional|decision|skill|cold|contradiction|resolveContradiction|notebooklm/i);
   }
 
-  // 2026-10-23 · the three answers to a CLAIM VS RECORD / ONE OPEN CONTRADICTION question
-  // ("that's outdated", "ignore that", "the record is right"). Attaches only the resolve tool;
-  // Nick decides from the block whether the reply answers it.
-  if (/\b(outdated|out of date|ignore (that|it|this)|record(?:'s| is)? (right|correct|wrong))\b/.test(text)) {
+  // 2026-10-23 · with NO open question (contradictionAskPending covers that case above), only
+  // claim-vs-record wording attaches the resolve tool. Generic words ("outdated", "ignore this")
+  // stay out: in developer chat they would hand a write-class tool to "ignore this file".
+  if (/\b(record(?:'s| is| was)? (right|correct|accurate|wrong)|claim (is|was) (wrong|outdated|out of date))\b/.test(text)) {
     addMatching(/^resolveContradiction$/);
   }
 

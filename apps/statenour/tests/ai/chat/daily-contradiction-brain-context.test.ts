@@ -250,6 +250,15 @@ describe("buildBrainContext · one open contradiction a day", () => {
     expect(out.systemPromptAddendum).toContain("# ONE OPEN CONTRADICTION");
   }, 30_000);
 
+  it("contradictionAskPending: true on the ask turn and on the follow-up turn, false otherwise", async () => {
+    expect((await build()).contradictionAskPending).toBe(true); // the daily question is asked now
+    h.claimedBy = "conv_daily";
+    expect((await build()).contradictionAskPending).toBe(true); // asked earlier, answer may come now
+    h.claimedBy = null;
+    h.dailyOn = false;
+    expect((await build()).contradictionAskPending).toBe(false);
+  }, 30_000);
+
   it("CONTROL · another conversation gets no follow-up", async () => {
     h.claimedBy = "conv_other";
     const out = await build();

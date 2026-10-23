@@ -77,6 +77,44 @@ describe("pickDailyContradiction", () => {
   it("an empty list picks nothing", () => {
     expect(pickDailyContradiction([])).toBeNull();
   });
+
+  it("an unknown severity ranks as moderate, not below mild", () => {
+    const rows = [
+      row({ id: "unknown-old", severity: "weird", createdAt: new Date("2026-10-01T00:00:00Z") }),
+      row({ id: "moderate-new", severity: "moderate", createdAt: new Date("2026-10-15T00:00:00Z") }),
+      row({ id: "mild-older", severity: "mild", createdAt: new Date("2026-09-01T00:00:00Z") }),
+    ];
+    expect(pickDailyContradiction(rows)?.id).toBe("unknown-old");
+  });
+});
+
+describe("findDailyContradiction · a row asked once is not asked again for 7 days", () => {
+  const asked = (key: string, contradictionId: string, state = "asked") => ({
+    key,
+    content: JSON.stringify({ kind: "daily", state, contradictionId, conversationId: "conv_1" }),
+    lastSeen: new Date(),
+  });
+
+  it("yesterday's asked row is skipped; the next one is asked", async () => {
+    mock(prisma.brainMemory.findMany).mockResolvedValue([asked("claim-gap:2026-10-21", "d1")]);
+    mock(prisma.contradiction.findMany).mockResolvedValue([
+      row({ id: "d1", severity: "critical" }),
+      row({ id: "d2", severity: "mild" }),
+    ]);
+    expect((await findDailyContradiction())?.id).toBe("d2");
+  });
+
+  it("when every open row was asked in the window, no question today", async () => {
+    mock(prisma.brainMemory.findMany).mockResolvedValue([asked("claim-gap:2026-10-21", "d1")]);
+    mock(prisma.contradiction.findMany).mockResolvedValue([row({ id: "d1", severity: "critical" })]);
+    expect(await findDailyContradiction()).toBeNull();
+  });
+
+  it("CONTROL · a reservation that was never delivered does not cool the row down", async () => {
+    mock(prisma.brainMemory.findMany).mockResolvedValue([asked("claim-gap:2026-10-21", "d1", "reserved")]);
+    mock(prisma.contradiction.findMany).mockResolvedValue([row({ id: "d1", severity: "critical" })]);
+    expect((await findDailyContradiction())?.id).toBe("d1");
+  });
 });
 
 describe("findDailyContradiction", () => {

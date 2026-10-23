@@ -106,8 +106,8 @@ describe("listStoredContradictions · table rows reach the panel", () => {
     expect(byKey["tbl:r1"].status).toBe("current_wins");
     expect(byKey["tbl:r2"].status).toBe("old_wins");
     expect(byKey["tbl:r3"].status).toBe("dismissed");
-    // An auto-expiry is closed but was not Nour's answer: it shows as closed with its own words.
-    expect(byKey["tbl:r4"].status).not.toBe("unresolved");
+    // An auto-expiry is closed but was NOT Nour's answer: its own status, never "dismissed" (his ignore).
+    expect(byKey["tbl:r4"].status).toBe("expired");
     expect(byKey["tbl:r4"].resolution_note).toContain("Auto-resolved");
   });
 
@@ -179,6 +179,16 @@ describe("resolveStoredContradiction · tbl: keys close the table row", () => {
     expect(out.alreadyResolved).toBe(true);
     expect(out.contradiction.status).toBe("dismissed");
     expect(h.contradiction.update).not.toHaveBeenCalled();
+  });
+
+  it("answering a row the 30-day expiry already closed reports expired, not ignore", async () => {
+    h.contradiction.updateMany.mockResolvedValue({ count: 0 });
+    h.contradiction.findFirst.mockResolvedValue(
+      tableRow({ resolved: true, resolvedHow: "Auto-resolved after 30 days without action" }),
+    );
+    const out = await resolveStoredContradiction({ key: "tbl:ck_open_1", status: "old_wins" });
+    expect(out.alreadyResolved).toBe(true);
+    expect(out.contradiction.status).toBe("expired");
   });
 
   it("both_valid is not one of the three answers: a 400, and nothing is written", async () => {
