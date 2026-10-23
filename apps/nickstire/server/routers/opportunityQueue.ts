@@ -28,6 +28,8 @@ export const opportunityQueueRouter = router({
         .object({
           states: z.array(stateSchema).optional(),
           limit: z.number().int().min(1).max(500).default(100),
+          /** "worklist": untouched rows first, newest first, applied before the limit. Default: updated_at DESC. */
+          order: z.enum(["worklist"]).optional(),
         })
         .optional(),
     )
@@ -35,6 +37,7 @@ export const opportunityQueueRouter = router({
       listOpportunities({
         states: input?.states as OpportunityState[] | undefined,
         limit: input?.limit ?? 100,
+        order: input?.order,
       }),
     ),
 
@@ -46,6 +49,8 @@ export const opportunityQueueRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        /** The state the caller rendered. When given, a row now in another state is refused as a conflict. */
+        from: stateSchema.optional(),
         to: stateSchema,
         note: z.string().max(500).optional(),
         owner: z.string().max(64).nullable().optional(),
@@ -55,6 +60,7 @@ export const opportunityQueueRouter = router({
     .mutation(async ({ input, ctx }) =>
       transitionOpportunity({
         id: input.id,
+        from: input.from,
         to: input.to,
         by: ctx.user?.email ?? "admin",
         note: input.note,

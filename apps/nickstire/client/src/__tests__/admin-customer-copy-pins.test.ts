@@ -47,7 +47,8 @@ const OUTBOUND_COUNT = 4;
 // 33 since 2026-10-18: GatewayOrderPanel's "Place this order with D&K?" confirm (operator text, not customer copy).
 // 28 since 2026-10-19: admin prune W1 deleted five confirm dialogs with their surfaces
 // (Coupons, Loyalty, Technician referrals, QC review / Technicians, Inspection capture).
-const CHROME_COUNT = 28;
+// 29 since 2026-10-23: the Opportunities "Hide this opportunity?" confirm (operator text, not customer copy).
+const CHROME_COUNT = 29;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [

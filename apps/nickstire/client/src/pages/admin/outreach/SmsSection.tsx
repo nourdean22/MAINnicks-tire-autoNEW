@@ -32,6 +32,7 @@ import { PageHeader } from "../shared";
 // wave-181.x Outreach Hub Phase 2 · GatewayPill hoisted to shared
 // component so all Outreach tabs show gateway state, not just Messages.
 import GatewayPill from "@/components/admin/GatewayPill";
+import WaitingOnUs from "./WaitingOnUs";
 import { SMS_TEMPLATES, renderSmsTemplate, type SmsTemplate } from "@shared/sms-templates";
 
 // wave-181.75 · operator preset SMS templates rendered as chips above
@@ -740,20 +741,14 @@ function ConversationList({
     );
   }, [list.data, searchQ]);
 
-  const totalUnread = useMemo(() =>
-    (list.data ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
-    [list.data]
-  );
-
   return (
     <div className="flex flex-col h-full bg-card border border-border/30 overflow-hidden">
       <header className="px-4 pt-4 pb-2 border-b border-border/20">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-semibold text-foreground tracking-tight text-[15px]">Messages</h2>
-            {totalUnread > 0 && (
-              <p className="text-[11px] text-primary font-medium mt-0.5">{totalUnread} unread</p>
-            )}
+            {/* Customers waiting on a human, from the server's own count. The old sum of unreadCount read 129 beside a real 1. */}
+            <WaitingOnUs />
           </div>
           <button
             onClick={onNew}
