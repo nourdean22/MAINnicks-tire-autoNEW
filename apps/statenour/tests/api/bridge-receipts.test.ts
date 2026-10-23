@@ -82,8 +82,10 @@ const prismaMock = {
   errorLog: { create: vi.fn().mockResolvedValue({}) },
   // Fallback dedupe reads: an open task with the same title in the same mission.
   task: {
-    findFirst: vi.fn(async ({ where }: { where: { missionId: string; title: { equals: string } } }) =>
-      createdTasks.find((t) => t.missionId === where.missionId && t.title.toLowerCase() === where.title.equals.toLowerCase()) ?? null,
+    findFirst: vi.fn(async ({ where }: { where: { missionId?: string; title: { equals: string } } }) =>
+      createdTasks.find(
+        (t) => (where.missionId === undefined || t.missionId === where.missionId) && t.title.toLowerCase() === where.title.equals.toLowerCase(),
+      ) ?? null,
     ),
   },
   $executeRaw: vi.fn(async () => 0),
@@ -273,6 +275,15 @@ describe("POST /api/sync/nour-os open_loop · keyed replay (ADR-0019 T9)", () =>
     const b = await post({ "idempotency-key": OPEN_KEY });
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);
+    expect(createTask).toHaveBeenCalledTimes(1);
+    expect(b.body.data.result).toEqual({ duplicate: true, resultRef: "task_1" });
+  });
+
+  it("not migrated (P2021): the first task was re-filed by enrich into a project; the replay still creates nothing", async () => {
+    receiptFault.code = "P2021";
+    await post({ "idempotency-key": OPEN_KEY });
+    createdTasks[0].missionId = "m-some-project"; // enrichTaskLinkage moved it
+    const b = await post({ "idempotency-key": OPEN_KEY });
     expect(createTask).toHaveBeenCalledTimes(1);
     expect(b.body.data.result).toEqual({ duplicate: true, resultRef: "task_1" });
   });

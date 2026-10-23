@@ -232,6 +232,7 @@ export const MISSIONS_DECK: MissionsDeck = {
     ],
   },
   taskOrder: [],
+  focusOrder: [],
   lanes: [
     { id: LANE_ADMIN, title: "Demo lane: Admin", canonicalDomain: "admin", isShop: false, openCount: 2, oldestOpenDays: 6 },
     { id: LANE_HEALTH, title: "Demo lane: Health", canonicalDomain: "health", isShop: false, openCount: 1, oldestOpenDays: 2 },

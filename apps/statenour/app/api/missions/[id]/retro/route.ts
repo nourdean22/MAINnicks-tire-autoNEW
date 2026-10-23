@@ -15,7 +15,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
-import { isGeneralAnchor } from "@/lib/services/mission-helpers";
+import { isGeneralAnchor, isInboxMission } from "@/lib/services/mission-helpers";
 
 const log = rootLogger.withSurface("api/missions/retro");
 
@@ -70,7 +70,8 @@ export async function POST(
   }
   // 2026-10-23 (map F11) · a GENERAL anchor is an eternal domain lane, never a
   // finite mission: completing one hid its open tasks from every section.
-  if (isGeneralAnchor(mission)) {
+  // An Inbox is a catch-all too (Codex P1, PR 3257): a stale POST must not DONE-wash it.
+  if (isGeneralAnchor(mission) || isInboxMission(mission.title)) {
     return NextResponse.json({ error: "anchor_cannot_complete" }, { status: 409 });
   }
 

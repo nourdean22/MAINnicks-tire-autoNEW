@@ -122,7 +122,7 @@ function MissionsPageInner() {
     queuedTaskId,
     ccStateQuery.data?.commands?.active?.id,
     deck?.nextMove?.task.id ?? null,
-    deckQuery.isError ? null : (deck?.taskOrder ?? null),
+    deckQuery.isError ? null : (deck?.focusOrder ?? null),
   );
 
   // 2026-10-02 · the deck's pick is a ledgered recommendation (lib/missions/

@@ -184,3 +184,13 @@ describe("POST /api/missions/[id]/retro · anchors and habits (job 2026-10-23, m
     expect(mocks.task.updateMany.mock.calls[0][0].where.loopKind).toEqual({ notIn: ["DAILY", "WEEKLY"] });
   });
 });
+
+describe("POST /api/missions/[id]/retro · an Inbox never completes (Codex P1, PR 3257)", () => {
+  it("refuses an Inbox mission: no task closed, mission left as it is", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m1", title: "Inbox", status: "ACTIVE", systemKind: null });
+    const res = await POST(makeRequest({ retroText: "", archive: true }), ctx);
+    expect(res.status).toBe(409);
+    expect(mocks.task.updateMany).not.toHaveBeenCalled();
+    expect(mocks.mission.update).not.toHaveBeenCalled();
+  });
+});

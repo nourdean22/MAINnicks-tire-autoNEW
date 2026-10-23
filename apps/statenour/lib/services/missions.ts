@@ -459,35 +459,59 @@ export async function resolveInboxMissionId(): Promise<string> {
   // create simultaneously (P2002 unique violation) by retrying the
   // read-by-id afterwards. Schema requires title + domain + priority +
   // roiScore + neglectCost · seed conservative values.
-  try {
-    const created = await prisma.mission.create({
-      data: {
-        // The canonical id is taken by a dead row: a fresh id, found by title next time.
-        ...(seeded ? {} : { id: "m-inbox" }),
-        title: "Inbox",
-        successMetric: "Catch-all for quick captures · sorted into projects later.",
-        domain: "PERSONAL",
-        status: "ACTIVE",
-        priority: 5, // 1-10 scale (was 50 -- saturated the rankMissions term)
-        roiScore: 50,
-        neglectCost: 50,
-      },
-      select: { id: true },
-    });
-    _cachedInboxId = created.id;
-    return _cachedInboxId;
-  } catch {
-    // Race · another request created it · re-read
-    const retry = await prisma.mission
-      .findUnique({ where: { id: "m-inbox" }, select: { id: true, deletedAt: true, status: true } })
-      .catch(() => null);
-    if (retry && !retry.deletedAt && retry.status === "ACTIVE") {
-      _cachedInboxId = retry.id;
-      return _cachedInboxId;
+  // 2026-10-23 (Codex P2, PR 3257) · when a canonical id is held by a dead row,
+  // the replacement takes the NEXT deterministic id (m-inbox-2, m-inbox-3, ...)
+  // instead of a random one: the primary key is the lock, so two cold-start
+  // callers collide on the same id and the loser re-reads the winner's row
+  // (claim-before-act), never a second ACTIVE Inbox.
+  for (let n = 1; n <= INBOX_ID_SLOTS; n++) {
+    const id = n === 1 ? "m-inbox" : `m-inbox-${n}`;
+    const existing =
+      n === 1
+        ? seeded
+        : await prisma.mission
+            .findUnique({ where: { id }, select: { id: true, deletedAt: true, status: true } })
+            .catch(() => null);
+    if (existing) {
+      if (!existing.deletedAt && existing.status === "ACTIVE") {
+        _cachedInboxId = existing.id;
+        return _cachedInboxId;
+      }
+      continue; // a dead row holds this id: try the next one
     }
-    throw new ServiceError("Failed to resolve Inbox mission", 500);
+    try {
+      const created = await prisma.mission.create({
+        data: {
+          id,
+          title: "Inbox",
+          successMetric: "Catch-all for quick captures · sorted into projects later.",
+          domain: "PERSONAL",
+          status: "ACTIVE",
+          priority: 5, // 1-10 scale (was 50 -- saturated the rankMissions term)
+          roiScore: 50,
+          neglectCost: 50,
+        },
+        select: { id: true },
+      });
+      _cachedInboxId = created.id;
+      return _cachedInboxId;
+    } catch {
+      // Race · another request created this id · re-read it
+      const retry = await prisma.mission
+        .findUnique({ where: { id }, select: { id: true, deletedAt: true, status: true } })
+        .catch(() => null);
+      if (retry && !retry.deletedAt && retry.status === "ACTIVE") {
+        _cachedInboxId = retry.id;
+        return _cachedInboxId;
+      }
+      if (!retry) break; // the create failed for another reason: do not walk on
+    }
   }
+  throw new ServiceError("Failed to resolve Inbox mission", 500);
 }
+
+/** How many deterministic inbox ids (m-inbox, m-inbox-2 ... m-inbox-9) a replacement may walk. */
+const INBOX_ID_SLOTS = 9;
 
 // ── GENERAL anchor missions · 2026-06-09 ───────────────────────────────────
 // The 6 system-managed per-domain catch-alls (the classifier's fallback when

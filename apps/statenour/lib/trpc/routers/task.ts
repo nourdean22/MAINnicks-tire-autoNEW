@@ -1245,7 +1245,16 @@ export const taskRouter = router({
     .mutation(async ({ input }) => {
       // 2026-10-23 · refuses a target that is not ACTIVE (lib/missions/accept-classification.ts).
       const { acceptTaskClassification } = await import("@/lib/missions/accept-classification");
-      return acceptTaskClassification(input.taskId);
+      try {
+        return await acceptTaskClassification(input.taskId);
+      } catch (err) {
+        // Map the service refusal so the chip's toast shows its message (Codex P2, PR 3257).
+        if (err instanceof ServiceError) {
+          const code = err.status === 409 ? "CONFLICT" : err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST";
+          throw new TRPCError({ code, message: err.message });
+        }
+        throw err;
+      }
     }),
 
   /**

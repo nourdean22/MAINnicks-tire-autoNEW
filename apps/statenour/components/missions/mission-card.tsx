@@ -26,8 +26,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   ChevronRight,
   Flag,
@@ -52,8 +50,6 @@ export interface MissionCardProps {
   taskRank?: Map<string, number>;
   /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
    *  so the card can disable arrows at the ends. */
-  missionIdx?: number;
-  totalMissions?: number;
   isDragged?: boolean;
 
   isDraggedOver?: boolean;
@@ -72,8 +68,6 @@ export function MissionCard({
   tasks,
   defaultExpanded = true,
   taskRank,
-  missionIdx,
-  totalMissions,
   isDragged,
   isDraggedOver,
   onDragStart,
@@ -84,8 +78,6 @@ export function MissionCard({
   onTaskDropOnMission,
 }: MissionCardProps) {
   const actions = useMissionDispatch();
-  const canMoveUp = typeof missionIdx === "number" && missionIdx > 0;
-  const canMoveDown = typeof missionIdx === "number" && typeof totalMissions === "number" && missionIdx < totalMissions - 1;
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -93,8 +85,6 @@ export function MissionCard({
 
   // Drag and drop states
   const [isMissionDraggable, setIsMissionDraggable] = useState(false);
-  const [draggedTaskIdx, setDraggedTaskIdx] = useState<number | null>(null);
-  const [draggedOverTaskIdx, setDraggedOverTaskIdx] = useState<number | null>(null);
 
   const { openTasks, doneTasks, progress, hasEndState, deadlineLabel, deadlineTone } =
     useMemo(() => derivedMetrics(mission, tasks), [mission, tasks]);
@@ -125,50 +115,6 @@ export function MissionCard({
       return aCreated - bCreated;
     });
   }, [openTasks, taskRank]);
-
-  const handleTaskDragStart = (e: React.DragEvent, taskIndex: number) => {
-    setDraggedTaskIdx(taskIndex);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleTaskDragOver = (e: React.DragEvent, taskIndex: number) => {
-    e.preventDefault();
-    if (draggedTaskIdx === null || draggedTaskIdx === taskIndex) return;
-    setDraggedOverTaskIdx(taskIndex);
-  };
-
-  const handleTaskDragLeave = () => {
-    setDraggedOverTaskIdx(null);
-  };
-
-  const handleTaskDrop = async (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
-    const sourceIndex = draggedTaskIdx;
-    setDraggedTaskIdx(null);
-    setDraggedOverTaskIdx(null);
-
-    if (sourceIndex === null || sourceIndex === targetIndex) return;
-
-    const task = sortedOpen[sourceIndex];
-    if (!task) return;
-
-    try {
-      // Execution Deck P0 (2026-09-01): per-step refetch skipped; settle once.
-      if (targetIndex < sourceIndex) {
-        for (let i = sourceIndex; i > targetIndex; i--) {
-          await actions.handleMoveTask(task.id, "up", { skipRefetch: true });
-        }
-      } else {
-        for (let i = sourceIndex; i < targetIndex; i++) {
-          await actions.handleMoveTask(task.id, "down", { skipRefetch: true });
-        }
-      }
-    } catch (err) {
-      console.error("Failed to reorder task via drag & drop", err);
-    } finally {
-      await actions.settleReorder();
-    }
-  };
 
   const handleAdd = async () => {
     const trimmed = newTaskTitle.trim();
@@ -314,61 +260,6 @@ export function MissionCard({
             {deadlineLabel}
           </span>
         )}
-        {/* Wave AJ · 2026-05-28 · mission reorder · operator complaint
-         *  "how come i cant resort or change the orders of the missions
-         *  or the tasks?": ↑/↓ buttons swap rank with neighbor. Mobile-
-         *  first · no drag-drop complexity (drag is finicky on iOS) ·
-         *  stopPropagation so the outer expand toggle doesn't fire.
-         *  Disabled at the ends (no wraparound · arrows fade visually).
-         *  Wave AT · 2026-05-28 · always-on background tint + grouping
-         *  border · pre-this-fix the buttons were color-tertiary at rest
-         *  with hover-only background · invisible on mobile · operators
-         *  didn't know reorder existed. Now they read as tappable at
-         *  idle. Tightened to w-8 to free horizontal budget on mobile. */}
-        {(canMoveUp || canMoveDown) && (
-          <span className="shrink-0 inline-flex rounded-control border border-edge-default bg-content overflow-hidden">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (canMoveUp) actions.handleMoveMission(mission.id, "up");
-              }}
-              disabled={!canMoveUp}
-              aria-label={`move mission ${mission.title} up`}
-              title="move up"
-              className={cn(
-                "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
-                canMoveUp
-                  ? "text-fg-secondary hover:text-fg hover:bg-surface-hover cursor-pointer"
-                  : "text-fg-tertiary/30 cursor-not-allowed",
-              )}
-            >
-              <ArrowUp size={14} strokeWidth={2} />
-            </button>
-            <span
-              aria-hidden
-              className="w-px bg-edge-default"
-            />
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (canMoveDown) actions.handleMoveMission(mission.id, "down");
-              }}
-              disabled={!canMoveDown}
-              aria-label={`move mission ${mission.title} down`}
-              title="move down"
-              className={cn(
-                "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
-                canMoveDown
-                  ? "text-fg-secondary hover:text-fg hover:bg-surface-hover cursor-pointer"
-                  : "text-fg-tertiary/30 cursor-not-allowed",
-              )}
-            >
-              <ArrowDown size={14} strokeWidth={2} />
-            </button>
-          </span>
-        )}
         {/* wave-AB.c · per-card edit pencil · stopPropagation so the
          *   outer expand toggle doesn't fire on tap.
          *   wave-AB.d-mobile · bumped from h-6 (24px) to h-11 (44px) ·
@@ -422,19 +313,11 @@ export function MissionCard({
                 No tasks yet. Add one below.
               </p>
             )}
-            {sortedOpen.map((task, taskIdx) => {
+            {sortedOpen.map((task) => {
               return (
                 <div key={task.id}>
                   <MissionTaskRow
                     task={task}
-                    index={taskIdx}
-                    totalTasks={sortedOpen.length}
-                    onDragStart={(e) => handleTaskDragStart(e, taskIdx)}
-                    onDragOver={(e) => handleTaskDragOver(e, taskIdx)}
-                    onDragLeave={handleTaskDragLeave}
-                    onDrop={(e) => handleTaskDrop(e, taskIdx)}
-                    isDragged={draggedTaskIdx === taskIdx}
-                    isDraggedOver={draggedOverTaskIdx === taskIdx}
                   />
                 </div>
               );

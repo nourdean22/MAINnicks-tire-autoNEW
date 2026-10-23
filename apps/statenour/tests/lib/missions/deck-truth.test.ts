@@ -193,3 +193,25 @@ describe("deck · waiting, slots, one ordering brain", () => {
     expect(deck.taskOrder).toEqual(["t-high", "t-low"]);
   });
 });
+
+describe("deck · Codex round (PR 3257)", () => {
+  it("only blocked or shop-lane open tasks: no next move and an empty Focus order", async () => {
+    const shop = { ...base, id: "m-shop", title: "Shop", status: "ACTIVE", systemKind: "GENERAL", canonicalDomain: "business", domain: "BUSINESS" };
+    mocks.mission.findMany.mockResolvedValue([live, shop]);
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-blocked", missionId: "m-live", waitingOn: "Supplier" }),
+      task({ id: "t-shop", missionId: "m-shop" }),
+    ]);
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.nextMove).toBeNull();
+    expect(deck.focusOrder).toEqual([]);
+  });
+
+  it("a blocked unfiled task is one attention slot: counted and listed once (Waiting), not also in DECIDE", async () => {
+    mocks.task.findMany.mockResolvedValue([task({ id: "t-both", missionId: "m-inbox2", waitingOn: "Supplier" })]);
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.waiting.map((w) => w.id)).toEqual(["t-both"]);
+    expect(deck.triage.rows.map((r) => r.taskId)).not.toContain("t-both");
+    expect(deck.triage.totalCount + deck.waiting.length).toBe(1);
+  });
+});

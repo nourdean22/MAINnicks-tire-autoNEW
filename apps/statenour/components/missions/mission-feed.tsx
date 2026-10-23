@@ -172,8 +172,6 @@ export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
               tasks={tasksByMission.get(mission.id) ?? []}
               defaultExpanded={activeMissions.length <= 3}
               taskRank={taskRank}
-              missionIdx={missionIdx}
-              totalMissions={activeMissions.length}
               isDragged={draggedMissionIdx === missionIdx}
               isDraggedOver={draggedOverMissionIdx === missionIdx}
               onDragStart={(e) => handleMissionDragStart(e, missionIdx)}

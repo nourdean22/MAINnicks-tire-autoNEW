@@ -64,15 +64,17 @@ describe("resolveInboxMissionId · never a deleted or closed inbox (job 2026-10-
     vi.resetModules();
   });
 
-  it("a soft-deleted m-inbox is never returned: a fresh Inbox is created under a new id", async () => {
-    mocks.mission.findUnique.mockResolvedValue({ id: "m-inbox", deletedAt: new Date("2026-08-01"), status: "PAUSED" });
+  it("a soft-deleted m-inbox is never returned: the replacement takes the next deterministic id", async () => {
+    mocks.mission.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "m-inbox" ? { id: "m-inbox", deletedAt: new Date("2026-08-01"), status: "PAUSED" } : null,
+    );
     mocks.mission.findFirst.mockResolvedValue(null);
     mocks.mission.create.mockImplementation(async ({ data }: { data: { id?: string } }) => {
       if (data.id === "m-inbox") throw Object.assign(new Error("unique"), { code: "P2002" });
-      return { id: "m-inbox-fresh" };
+      return { id: data.id };
     });
     const { resolveInboxMissionId } = await import("@/lib/services/missions");
-    await expect(resolveInboxMissionId()).resolves.toBe("m-inbox-fresh");
+    await expect(resolveInboxMissionId()).resolves.toBe("m-inbox-2");
   });
 
   it("a PAUSED (not deleted) m-inbox is not a live inbox either", async () => {
@@ -85,6 +87,39 @@ describe("resolveInboxMissionId · never a deleted or closed inbox (job 2026-10-
 
 // Lens review 2026-10-23 (F4 via the anchor fallback): prod holds 4 COMPLETE general anchors
 // and 1 ACTIVE; a closed anchor is never a filing target, on the fast path or the retry.
+describe("resolveInboxMissionId · a closed inbox is replaced exactly once (Codex P2, PR 3257)", () => {
+  afterEach(() => {
+    mocks.mission.findUnique.mockReset();
+    mocks.mission.findFirst.mockReset();
+    mocks.mission.create.mockReset();
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it("two concurrent cold-start resolves on a deleted m-inbox yield ONE replacement id", async () => {
+    const store = new Map<string, { id: string; deletedAt: Date | null; status: string }>([
+      ["m-inbox", { id: "m-inbox", deletedAt: new Date("2026-08-01"), status: "PAUSED" }],
+    ]);
+    let generated = 0;
+    mocks.mission.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => store.get(where.id) ?? null);
+    mocks.mission.findFirst.mockResolvedValue(null); // both callers miss the title lookup (the race window)
+    mocks.mission.create.mockImplementation(async ({ data }: { data: { id?: string } }) => {
+      const id = data.id ?? `cuid-${++generated}`;
+      if (store.has(id)) throw Object.assign(new Error("unique"), { code: "P2002" });
+      store.set(id, { id, deletedAt: null, status: "ACTIVE" });
+      return { id };
+    });
+    const a = await import("@/lib/services/missions");
+    vi.resetModules();
+    const b = await import("@/lib/services/missions"); // a second process: its own cache
+    const [x, y] = await Promise.all([a.resolveInboxMissionId(), b.resolveInboxMissionId()]);
+    expect(x).toBe(y);
+    expect([...store.values()].filter((m) => m.status === "ACTIVE" && !m.deletedAt)).toHaveLength(1);
+  });
+});
+
 describe("resolveGeneralAnchorId · only a live anchor is a target", () => {
   afterEach(() => {
     mocks.mission.findUnique.mockReset();

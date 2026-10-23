@@ -33,10 +33,6 @@ export interface MissionTaskRowProps {
   task: Task;
   /** Indent level · 0 = top, 1 = subtask. */
   indent?: 0 | 1;
-  /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
-   *  so the row can disable the arrows at the ends. */
-  index?: number;
-  totalTasks?: number;
 
   isDragged?: boolean;
   isDraggedOver?: boolean;
@@ -56,8 +52,6 @@ import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dis
 export function MissionTaskRow({
   task,
   indent = 0,
-  index,
-  totalTasks,
   isDragged,
   isDraggedOver,
   onDragStart,
@@ -122,11 +116,6 @@ export function MissionTaskRow({
     isDaily &&
     typeof snoozedUntil === "string" &&
     Date.parse(snoozedUntil) > Date.now();
-  const canMoveUp = typeof index === "number" && index > 0;
-  const canMoveDown =
-    typeof index === "number" &&
-    typeof totalTasks === "number" &&
-    index < totalTasks - 1;
 
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
@@ -543,16 +532,6 @@ export function MissionTaskRow({
               className={ROW_VERB}
             >
               Break it down
-            </button>
-          )}
-          {canMoveUp && (
-            <button type="button" disabled={busy !== null} onClick={() => void actions.handleMoveTask(task.id, "up")} className={ROW_VERB}>
-              Move up
-            </button>
-          )}
-          {canMoveDown && (
-            <button type="button" disabled={busy !== null} onClick={() => void actions.handleMoveTask(task.id, "down")} className={ROW_VERB}>
-              Move down
             </button>
           )}
           <button

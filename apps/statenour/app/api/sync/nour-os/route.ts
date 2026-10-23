@@ -227,12 +227,12 @@ export const POST = syncHandler(async (req) => {
         {
           staleMs: OPEN_LOOP_RECEIPT_STALE_MS,
           // Receipts table missing: the same obligation is an open task with the
-          // same title in the same mission (Task has no key column to match on).
+          // same title (Task has no key column). Searched across every mission,
+          // because enrichTaskLinkage may already have moved the first one out of
+          // the Inbox (Codex P2, PR 3257).
           findExisting: async () => {
-            const missionId = await resolveInboxMissionId();
             const hit = await prisma.task.findFirst({
               where: {
-                missionId,
                 deletedAt: null,
                 status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
                 title: { equals: openLoopTitle.trim(), mode: "insensitive" },

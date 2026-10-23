@@ -145,12 +145,8 @@ export function MissionRetroModal({
             What worked? What to do next time? Nick reads these so future picks
             land sharper. <span className="text-fg-tertiary">Skip if you&apos;d rather move on.</span>
           </p>
-          {habitsKept !== 0 && (
-            <p className="text-[13px] text-fg-secondary leading-snug">
-              {habitsKept === null
-                ? "Daily and weekly habits in this mission stay open in Rhythms."
-                : ` daily or weekly  open in Rhythms.`}
-            </p>
+          {habitsKeptLine(habitsKept) && (
+            <p className="text-[13px] text-fg-secondary leading-snug">{habitsKeptLine(habitsKept)}</p>
           )}
 
           <textarea
@@ -203,4 +199,13 @@ export function MissionRetroModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The retro route never marks DAILY/WEEKLY loops DONE; this line says how many stay open (null = count unknown). */
+export function habitsKeptLine(count: number | null): string | null {
+  if (count === null) return "Daily and weekly habits in this mission stay open in Rhythms.";
+  if (count === 0) return null;
+  return count === 1
+    ? "1 daily or weekly habit stays open in Rhythms."
+    : `${count} daily or weekly habits stay open in Rhythms.`;
 }
