@@ -30,15 +30,23 @@ import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 interface StoredContradiction {
   key: string;
-  new_memory_id: string;
-  old_memory_id: string;
-  similarity: number;
-  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate";
+  /** "table" = the thinking engine's claim-vs-record row (key `tbl:<id>`); its excerpts are claim / record. */
+  source?: "table" | "memory";
+  new_memory_id?: string;
+  old_memory_id?: string;
+  similarity?: number;
+  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate" | "claim_gap";
+  category?: string;
+  severity?: string;
+  recorded?: string;
+  /** "ai_detected" = the thinking engine's inference from his records, not his words. */
+  claim_source?: string;
   new_excerpt: string;
   old_excerpt: string;
   days_apart: number;
   surfaced_at: string;
-  status?: "unresolved" | "current_wins" | "old_wins" | "both_valid" | "dismissed";
+  /** "expired" (table rows only) = closed by the 30-day auto-resolve, not by Nour. */
+  status?: "unresolved" | "current_wins" | "old_wins" | "both_valid" | "dismissed" | "expired";
   resolution_note?: string | null;
   resolved_at?: string | null;
   createdAt: string;
@@ -47,6 +55,22 @@ interface StoredContradiction {
 type Tab = "unresolved" | "history";
 
 type ResolveStatus = "current_wins" | "old_wins" | "both_valid" | "dismissed";
+
+/** A table row's status in plain words: his answer, the 30-day expiry, or "closed". */
+function tableStatusLabel(status: string | undefined): string {
+  if (status === "expired") return "expired after 30 days";
+  return TABLE_ANSWERS.find((a) => a.status === status)?.label.toLowerCase() ?? "closed";
+}
+
+/** claim_source values that are his own words; anything else (the engine's "ai_detected") is inferred. */
+const OWN_WORDS_SOURCES = new Set(["chat", "brain_dump", "commitment"]);
+
+/** The three answers to a claim-vs-record row, on the panel's existing statuses (service maps them to resolved_how). */
+const TABLE_ANSWERS: ReadonlyArray<{ label: string; status: ResolveStatus; title: string }> = [
+  { label: "Record is right", status: "current_wins", title: "the record is right, the claim was wrong" },
+  { label: "Outdated", status: "old_wins", title: "the claim is outdated, things moved on" },
+  { label: "Ignore", status: "dismissed", title: "not worth tracking" },
+];
 
 export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string | null }) {
   const [tab, setTab] = useState<Tab>("unresolved");
@@ -69,6 +93,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
   const rows =
     (contraQuery.data?.contradictions as StoredContradiction[] | undefined) ?? null;
   const loading = contraQuery.isLoading;
+  // A capped page of the claim-vs-record table is never presented as the whole ledger.
+  const tableTotals = (contraQuery.data as { table?: { total: number; shown: number } } | undefined)?.table;
   const loadedAt = contraQuery.dataUpdatedAt || null;
 
   const load = useCallback(() => {
@@ -87,9 +113,14 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
     async (key: string, status: ResolveStatus, note?: string) => {
       setBusy(key);
       try {
-        await resolveMutation.mutateAsync({ key, status, note });
+        const res = await resolveMutation.mutateAsync({ key, status, note });
+        // A table row someone closed first keeps THEIR answer: report what is stored, not what was tapped.
+        const stored = res?.contradiction?.status ?? status;
+        const storedLabel = tableStatusLabel(stored);
         toast.success(
-          status === "current_wins"
+          key.startsWith("tbl:")
+            ? `${res?.alreadyResolved ? "already closed" : "closed"} · ${storedLabel}`
+            : status === "current_wins"
             ? "current position locked in · old deprecated"
             : status === "old_wins"
               ? "old position held · new deprecated"
@@ -172,10 +203,18 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         </div>
       )}
 
+      {tableTotals && tableTotals.shown < tableTotals.total && (
+        <p className="mb-2 text-[11px] font-mono text-[var(--text-tertiary)]">
+          showing {tableTotals.shown} of {tableTotals.total} claim-vs-record rows
+        </p>
+      )}
+
       <div className="space-y-2">
         {visible.map((c) => {
           const rowBusy = busy === c.key;
           const focused = focusKey === c.key;
+          const isTable = c.source === "table";
+          const open = !c.status || c.status === "unresolved";
           return (
             <div
               id={`contradiction-row-${c.key}`}
@@ -190,18 +229,32 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               )}
             >
               <div className="flex items-center gap-2 mb-1.5 text-[11px] font-mono">
-                <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
-                <span className="text-[var(--text-tertiary)]">
-                  {c.days_apart}d apart · sim {Math.round(c.similarity * 100)}%
-                </span>
+                {isTable ? (
+                  <>
+                    <span className="text-red-400">claim vs record · {c.category}</span>
+                    <span className="text-[var(--text-tertiary)]">
+                      {c.severity} · recorded {c.recorded}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
+                    <span className="text-[var(--text-tertiary)]">
+                      {c.days_apart}d apart · sim {Math.round((c.similarity ?? 0) * 100)}%
+                    </span>
+                  </>
+                )}
                 {c.status && c.status !== "unresolved" && (
-                  <span className="text-emerald-400">· {c.status.replace(/_/g, " ")}</span>
+                  <span className="text-emerald-400">
+                    · {isTable ? tableStatusLabel(c.status) : c.status.replace(/_/g, " ")}
+                  </span>
                 )}
               </div>
 
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono text-fg-tertiary">Now</p>
+                  <p className="text-[11px] font-mono text-fg-tertiary">{isTable ? (OWN_WORDS_SOURCES.has(c.claim_source ?? "") ? "You said" : "Inferred claim") : "Now"}
+                  </p>
                   <p className="text-[11px] text-[var(--text-primary)] break-words">
                     "{c.new_excerpt}"
                   </p>
@@ -209,7 +262,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 <Split size={12} className="text-[var(--text-tertiary)] mt-3" />
                 <div className="min-w-0">
                   <p className="text-[11px] font-mono text-fg-tertiary">
-                    {c.days_apart}d ago
+                    {isTable ? "Record shows" : `${c.days_apart}d ago`}
                   </p>
                   <p className="text-[11px] text-[var(--text-secondary)] break-words">
                     "{c.old_excerpt}"
@@ -217,7 +270,23 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 </div>
               </div>
 
-              {(!c.status || c.status === "unresolved") && notingKey !== c.key && (
+              {open && isTable && notingKey !== c.key && (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  {TABLE_ANSWERS.map((a) => (
+                    <button
+                      key={a.status}
+                      onClick={() => beginResolve(c.key, a.status)}
+                      disabled={rowBusy}
+                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono"
+                      title={a.title}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {open && !isTable && notingKey !== c.key && (
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                   <button
                     onClick={() => beginResolve(c.key, "current_wins")}
@@ -257,20 +326,33 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               {notingKey === c.key && pendingResolve && (
                 <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] font-mono text-fg-tertiary">
-                    Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
-                  </p>
-                  <textarea
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="optional: explain the reversal"
-                    rows={2}
-                    className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
-                  />
+                  {isTable ? (
+                    // The table has no note column: the confirm step is the whole second tap.
+                    <p role="status" className="text-[11px] font-mono text-fg-tertiary">
+                      Close as: {tableStatusLabel(pendingResolve)}?
+                    </p>
+                  ) : (
+                    <>
+                      <p role="status" className="text-[11px] font-mono text-fg-tertiary">
+                        Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
+                      </p>
+                      <textarea
+                        // The tapped button is gone: focus moves here so VoiceOver and keyboard follow.
+                        autoFocus
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="optional: explain the reversal"
+                        rows={2}
+                        className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                      />
+                    </>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}
                       disabled={rowBusy}
+                      // Table rows have no note box: the confirm button takes focus from the tapped answer.
+                      autoFocus={isTable}
                       className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                     >
                       <Check size={9} /> confirm
@@ -310,7 +392,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               icon={Check}
               title="Clean ledger"
               provenance="ZERO"
-              why="No new memory contradicts any old one right now. Nick's stated positions are internally consistent."
+              why="No open claim-vs-record gap, and no new memory contradicts an old one right now."
               unlock="Contradictions surface when a new memory semantically flips an older one (negation, reversal, antonym). A measured zero says the LEDGER is empty — it does not say whether the detector has seen enough traffic to have an opinion."
               tone="positive"
             />
@@ -328,9 +410,11 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
       </div>
 
       <p className="text-[11px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
-        "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
+        Memory rows: "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
         does the same to the new one. "both valid" or "dismissed" just closes the loop without
         touching the memory rows. Threshold: sim ≥ 0.78 · age ≥ 7d · negation / reversal / antonym.
+        Claim-vs-record rows come from the nightly thinking engine; your answer is stored on the row,
+        and rows nobody answers expire after 30 days.
       </p>
     </GlassCard>
   );

@@ -20,7 +20,7 @@
 import { brainTools } from "@/lib/ai/tools/brain";
 import { currentTurn } from "@/lib/agent/turn-context";
 import { isReadSafeTool, isReplaySafeTool } from "@/lib/ai/capability-registry";
-import { getFlag } from "@/lib/feature-flags";
+import { readMutationLock } from "@/lib/ai/mutation-lock";
 import { logger as rootLogger } from "@/lib/logger";
 import { sinkPolicyGate } from "@/lib/tools/sink-policy";
 import { criticalRiskGate, twoKeyGate } from "@/lib/tools/two-key";
@@ -159,10 +159,8 @@ function refuse(name: string, error: AuthorityRefusal["error"], reason: string, 
  */
 function authorityGate(name: string): AuthorityRefusal | null {
   if (isReadSafeTool(name)) return null;
-  let locked: boolean;
-  try {
-    locked = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
-  } catch {
+  const lock = readMutationLock();
+  if (lock === "unknown") {
     return refuse(
       name,
       "mutation_locked",
@@ -170,7 +168,7 @@ function authorityGate(name: string): AuthorityRefusal | null {
       "This was NOT performed; nothing changed. Tell Nour the mutation lock could not be checked, so writes are blocked for now. Do not retry it in this turn and never claim it happened.",
     );
   }
-  if (locked) {
+  if (lock === "on") {
     return refuse(
       name,
       "mutation_locked",

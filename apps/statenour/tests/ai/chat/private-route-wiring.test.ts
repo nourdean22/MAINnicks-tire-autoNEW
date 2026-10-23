@@ -232,6 +232,13 @@ describe("chat route · an ephemeral turn (home /task, /capture)", () => {
     await turn({ ephemeral: true });
     expect((h.seen.turnAtPrepare as Record<string, unknown>).actionPermission).toBe("draft");
   });
+
+  it("brain context gets NO conversation id (not the 'private' placeholder) and knows the turn is ephemeral", async () => {
+    await turn({ ephemeral: true });
+    const brain = h.seen.brainInput as Record<string, unknown>;
+    expect(brain.convId, "a placeholder id made every ephemeral turn share one conversation").toBeUndefined();
+    expect(brain.ephemeral).toBe(true);
+  });
 });
 
 describe("chat route · action permission reaches every reader (Task 4 relay)", () => {
@@ -239,6 +246,10 @@ describe("chat route · action permission reaches every reader (Task 4 relay)", 
     await turn({ actionPermission: "read" });
     expect((h.seen.turnAtStream as Record<string, unknown>).actionPermission).toBe("read");
     expect(h.persistUserTurn).toHaveBeenCalledWith(expect.objectContaining({ actionPermission: "read" }));
+    // The contradiction lanes need it too: Read refuses the resolve tool they ask Nick to call.
+    expect((h.seen.brainInput as Record<string, unknown>).actionPermission).toBe("read");
+    // And whether the operator disabled that tool (ai_config.disabledTools), so a question is never asked unanswerably.
+    expect(Array.isArray((h.seen.brainInput as Record<string, unknown>).disabledTools)).toBe(true);
   });
 
   it("CONTROL · an execute turn reads 'execute', not a stale or default value", async () => {

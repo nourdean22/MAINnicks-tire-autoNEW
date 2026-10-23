@@ -33,6 +33,9 @@ const HOT_PATH_FETCHERS = [
   "findRelevantContradictions",
   "findRelevantClaimGap",
   "claimClaimGapDay",
+  "findDailyContradiction",
+  "claimDailyContradiction",
+  "findClaimedContradictionFollowUp",
   "anticipateMemories",
 ];
 

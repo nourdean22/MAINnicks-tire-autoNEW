@@ -18,6 +18,7 @@
  * the public procedure type pinned regardless.
  */
 
+import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import {
   loadRecentContradictions,
@@ -177,33 +178,178 @@ export async function resolveContradictionEntry(input: {
 // a flat plain object parsed from a JSON content column (no Prisma Json
 // type), so there is no recursive type to firewall.
 
+// 2026-10-23 · the thinking engine's `contradictions` TABLE ("he said X, the
+// record shows Y") is where the real rows live: 631 ever, 0 closed by Nour,
+// because this panel read only the BrainMemory set (0 rows ever). Table rows
+// ride the same list and the same resolve call, keyed `tbl:<id>`.
+// Audit: docs/research/2026-10-22-insight-engines-audit.md.
+
+const TABLE_KEY_PREFIX = "tbl:";
+
+/** The three answers Nour gives a claim-vs-record row, as stored in `resolved_how`. */
+export type TableResolvedHow = "true" | "outdated" | "ignore";
+
+/**
+ * Panel choice -> resolved_how. "true" = the record is right (the claim was wrong).
+ * both_valid has no meaning for claim vs record and is refused (400), never stored as another answer.
+ */
+const RESOLVED_HOW: Record<Exclude<ContradictionResolveChoice, "both_valid">, TableResolvedHow> = {
+  current_wins: "true",
+  old_wins: "outdated",
+  dismissed: "ignore",
+};
+const STATUS_FROM_HOW: Record<string, ContradictionResolveChoice> = {
+  true: "current_wins",
+  outdated: "old_wins",
+  ignore: "dismissed",
+};
+
+/** A claim-vs-record row in the panel's shape: claim on the left, record on the right. */
+export interface TableContradiction
+  extends Omit<StoredContradiction, "signal" | "similarity" | "new_memory_id" | "old_memory_id" | "status"> {
+  source: "table";
+  signal: "claim_gap";
+  /** "expired" = closed by memory-consolidation's 30-day auto-resolve, never Nour's answer. */
+  status: ContradictionStatus | "expired";
+  gap: string;
+  category: string;
+  severity: string;
+  /** Where the claim came from; "ai_detected" (the thinking engine) is an inference, not his words. */
+  claim_source: string;
+  /** The ET day the thinking engine recorded it. */
+  recorded: string;
+}
+export type PanelContradiction = (StoredContradiction & { source: "memory" }) | TableContradiction;
+
+const TABLE_SELECT = {
+  id: true,
+  date: true,
+  claim: true,
+  reality: true,
+  gap: true,
+  category: true,
+  severity: true,
+  claimSource: true,
+  resolved: true,
+  resolvedHow: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+interface TableRow {
+  id: string;
+  date: string;
+  claim: string;
+  reality: string;
+  gap: string;
+  category: string;
+  severity: string;
+  claimSource: string;
+  resolved: boolean;
+  resolvedHow: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function toPanelRow(r: TableRow): TableContradiction {
+  const answered = r.resolvedHow ? STATUS_FROM_HOW[r.resolvedHow] : undefined;
+  return {
+    key: `${TABLE_KEY_PREFIX}${r.id}`,
+    source: "table",
+    signal: "claim_gap",
+    new_excerpt: r.claim,
+    old_excerpt: r.reality,
+    gap: r.gap,
+    category: r.category,
+    severity: r.severity,
+    claim_source: r.claimSource,
+    recorded: r.date,
+    days_apart: Math.max(0, Math.round((Date.now() - r.createdAt.getTime()) / 86400_000)),
+    surfaced_at: r.createdAt.toISOString(),
+    createdAt: r.createdAt.toISOString(),
+    // A closure that is not one of the three answers (the 30-day auto-expiry,
+    // memory-consolidation.ts) is "expired", with its own words as the note: never his "ignore".
+    status: r.resolved ? (answered ?? "expired") : "unresolved",
+    resolution_note: r.resolved && !answered ? r.resolvedHow : null,
+    resolved_at: r.resolved ? r.updatedAt.toISOString() : null,
+  };
+}
+
 /**
  * List contradictions for the /brain panel · unresolved-only by
  * default, or the full 90-day history when `includeResolved`. Lifted
  * verbatim from GET /api/contradictions — the route and the tRPC
- * `brain.contradictions` procedure both call this.
+ * `brain.contradictions` procedure both call this. Table rows come first: the
+ * unresolved tab reads open rows, history reads RESOLVED rows directly (so the
+ * 60+ open rows cannot fill the page before the tab's filter runs). A failed
+ * table read REJECTS, so the panel renders its ERROR state, never an empty ledger.
  */
 export async function listStoredContradictions(input: {
   includeResolved: boolean;
-}): Promise<{ contradictions: StoredContradiction[] }> {
-  const rows = input.includeResolved
-    ? await loadAllContradictions(90)
-    : await loadRecentContradictions(14, false);
-  return { contradictions: rows };
+}): Promise<{ contradictions: PanelContradiction[]; table: { total: number; shown: number } }> {
+  // Open rows: all of them (the writer adds at most 4 a night and auto-expiry closes them at 30
+  // days, so ~120 is the ceiling); the 500 cap is a backstop that the total below discloses.
+  // History: a page of the newest closures, with the total beside it.
+  const where = input.includeResolved
+    ? { deletedAt: null, resolved: true, updatedAt: { gte: new Date(Date.now() - 90 * 86400_000) } }
+    : { deletedAt: null, resolved: false };
+  const [memoryRows, tableRows, total] = await Promise.all([
+    input.includeResolved ? loadAllContradictions(90) : loadRecentContradictions(14, false),
+    prisma.contradiction.findMany({
+      where,
+      orderBy: input.includeResolved ? { updatedAt: "desc" } : { createdAt: "desc" },
+      take: input.includeResolved ? 60 : 500,
+      select: TABLE_SELECT,
+    }),
+    prisma.contradiction.count({ where }),
+  ]);
+  return {
+    contradictions: [
+      ...tableRows.map(toPanelRow),
+      ...memoryRows.map((m) => ({ ...m, source: "memory" as const })),
+    ],
+    table: { total, shown: tableRows.length },
+  };
 }
 
 /**
- * Resolve a contradiction from the /brain panel. Lifted verbatim from
- * PATCH /api/contradictions — `resolveContradiction` returns null when
- * the row is missing OR its content JSON is corrupt; the route mapped
- * both to 404, so this throws ServiceError(404). The route and the
- * tRPC `brain.resolveContradiction` procedure both call this.
+ * Close a claim-vs-record row. claim-before-act: the write is a compare-and-swap
+ * on resolved=false, so two racing answers cannot both write; the loser gets the
+ * row back with `alreadyResolved`. A missing or deleted row is a 404.
+ */
+async function resolveTableContradiction(
+  id: string,
+  status: ContradictionResolveChoice,
+): Promise<{ contradiction: TableContradiction; alreadyResolved: boolean; resolvedHow: string | null }> {
+  if (status === "both_valid") {
+    throw new ServiceError("both_valid does not apply to a claim-vs-record row: the record is right, outdated, or ignore", 400);
+  }
+  const won = await prisma.contradiction.updateMany({
+    where: { id, resolved: false, deletedAt: null },
+    data: { resolved: true, resolvedHow: RESOLVED_HOW[status] },
+  });
+  const row = await prisma.contradiction.findFirst({ where: { id, deletedAt: null }, select: TABLE_SELECT });
+  if (!row) throw new ServiceError("contradiction not found", 404);
+  return { contradiction: toPanelRow(row), alreadyResolved: won.count === 0, resolvedHow: row.resolvedHow };
+}
+
+/**
+ * Resolve a contradiction from the /brain panel or Nick's resolveContradiction
+ * tool. A `tbl:` key closes the thinking engine's table row; any other key is a
+ * BrainMemory row (lifted verbatim from PATCH /api/contradictions):
+ * `resolveContradiction` returns null when the row is missing OR its content
+ * JSON is corrupt, so both throw ServiceError(404). The route and the tRPC
+ * `brain.resolveContradiction` procedure both call this.
  */
 export async function resolveStoredContradiction(input: {
   key: string;
   status: ContradictionResolveChoice;
   note?: string;
-}): Promise<{ contradiction: StoredContradiction }> {
+}): Promise<{ contradiction: PanelContradiction; alreadyResolved?: boolean; resolvedHow?: string | null }> {
+  if (input.key.startsWith(TABLE_KEY_PREFIX)) {
+    // The table has no note column: the answer itself is the record.
+    return resolveTableContradiction(input.key.slice(TABLE_KEY_PREFIX.length), input.status);
+  }
   const resolved = await resolveContradiction(
     input.key,
     input.status,
@@ -212,5 +358,5 @@ export async function resolveStoredContradiction(input: {
   if (!resolved) {
     throw new ServiceError("contradiction not found", 404);
   }
-  return { contradiction: resolved };
+  return { contradiction: { ...resolved, source: "memory" } };
 }

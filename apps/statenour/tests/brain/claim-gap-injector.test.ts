@@ -93,6 +93,34 @@ describe("findRelevantClaimGap", () => {
     expect(await findRelevantClaimGap({ userMessage: USER })).toBeNull();
   });
 
+  it("stays silent on a day the daily question was already asked (one shared day key)", async () => {
+    mock(prisma.contradiction.findMany).mockResolvedValue([row()]);
+    mock(prisma.brainMemory.findMany).mockResolvedValue([
+      { key: "claim-gap:2026-10-22", content: JSON.stringify({ category: "health", kind: "daily" }) },
+    ]);
+    mock(getEmbeddingWithModel).mockResolvedValue(ALIGNED);
+
+    expect(await findRelevantClaimGap({ userMessage: USER })).toBeNull();
+  });
+
+  it("a FRESH reservation today holds the day too (a turn is asking right now)", async () => {
+    mock(prisma.contradiction.findMany).mockResolvedValue([row()]);
+    mock(prisma.brainMemory.findMany).mockResolvedValue([
+      { key: "claim-gap:2026-10-22", content: JSON.stringify({ category: "habit", state: "reserved" }), lastSeen: new Date() },
+    ]);
+    mock(getEmbeddingWithModel).mockResolvedValue(ALIGNED);
+    expect(await findRelevantClaimGap({ userMessage: USER })).toBeNull();
+  });
+
+  it("a reservation that was never delivered does NOT cool its topic down", async () => {
+    mock(prisma.contradiction.findMany).mockResolvedValue([row()]); // category "commitment"
+    mock(prisma.brainMemory.findMany).mockResolvedValue([
+      { key: "claim-gap:2026-10-20", content: JSON.stringify({ category: "commitment", state: "reserved" }), lastSeen: new Date("2026-10-20T12:00:00Z") },
+    ]);
+    mock(getEmbeddingWithModel).mockResolvedValue(ALIGNED);
+    expect(await findRelevantClaimGap({ userMessage: USER })).not.toBeNull();
+  });
+
   it("skips a topic already raised in the last week", async () => {
     mock(prisma.contradiction.findMany).mockResolvedValue([row()]);
     mock(prisma.brainMemory.findMany).mockResolvedValue([

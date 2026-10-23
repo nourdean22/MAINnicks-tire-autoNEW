@@ -43,6 +43,9 @@ import { buildRecallFailureNotice } from "@/lib/ai/chat/recall-failure-notice";
 import { extractText, type ChatHistoryMessage } from "@/lib/ai/chat/extract-text";
 import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
 import { TASK_QUEUE_UNAVAILABLE } from "@/lib/brain/task-context";
+import { today } from "@/lib/utils/datetime";
+import { randomUUID } from "node:crypto";
+import { readMutationLock } from "@/lib/ai/mutation-lock";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -60,6 +63,8 @@ export interface ContextBlocksFired {
   contradictions: boolean;
   /** 2026-10-22 · claim vs record (thinking-engine contradictions table) reached the prompt */
   claimGap: boolean;
+  /** 2026-10-23 · the day's one open contradiction question reached the prompt (NICK_DAILY_CONTRADICTION) */
+  dailyContradiction: boolean;
   /** v10.0.529.106 · Wave 62 · cross-session "open threads" carry-over */
   concerns: boolean;
   /** 2026-06-10 · anticipated-question cosine match (precomputed nightly take) */
@@ -90,6 +95,12 @@ export interface BuildBrainContextInput {
    * carries the query. convId is ignored.
    */
   privateMode?: boolean;
+  /** 2026-10-23 · ephemeral Home command turn (no transcript, placeholder conversation id). */
+  ephemeral?: boolean;
+  /** 2026-10-23 · the turn's action permission; "read" refuses mutating tools (lib/ai/tools.ts). */
+  actionPermission?: "read" | "draft" | "execute" | null;
+  /** 2026-10-23 · ai_config.disabledTools: a disabled resolveContradiction turns the contradiction lanes off. */
+  disabledTools?: string[];
   /** 2026-07-22 · authority posture ("execute" suppresses the objection
    *  injector + resolves open objections; other values no-op here). */
   posture?: string;
@@ -122,11 +133,15 @@ export interface BuildBrainContextOutput {
    */
   contextReceipt?: ContextReceipt;
   detectedContradictions?: any[];
+  /** 2026-10-23 · this turn's day RESERVATION (claim gap or daily question); the persist path promotes it to "asked". */
+  contradictionClaim?: import("@/lib/brain/contradiction-injector").ContradictionClaim;
+  /** 2026-10-23 · a contradiction question is open (asked this turn, or the follow-up block fired): the pruner keeps resolveContradiction attached. */
+  contradictionAskPending?: boolean;
 }
 
 const EMPTY_FIRED: ContextBlocksFired = {
   recall: false, skills: false, identity: false, ghost: false,
-  qualitative: false, beliefs: false, nudges: false, contradictions: false, claimGap: false,
+  qualitative: false, beliefs: false, nudges: false, contradictions: false, claimGap: false, dailyContradiction: false,
   concerns: false, anticipated: false, physical: false,
 };
 
@@ -174,6 +189,24 @@ export async function buildBrainContext(
   // A private turn has no conversation: with an id, the contradiction and
   // objection injectors write per-conversation dedupe rows.
   const convId = privateMode ? undefined : input.convId;
+  // The contradiction lanes (claim gap, daily question, follow-up) write a day claim and
+  // ask Nour to answer through resolveContradiction. They need a real conversation to
+  // answer in (ephemeral Home commands and the route's "private"/"temp" placeholders
+  // have none) and a turn that may run that mutating tool (Read refuses it).
+  const contradictionConvId = convId && convId !== "private" && convId !== "temp" ? convId : undefined;
+  // ...and the resolve tool itself must be offerable: prepare-tools strips an operator-disabled
+  // tool, and pruneTools drops a circuit-tripped one (same synchronous breaker read).
+  const { isToolBlocked } = await import("@/lib/ai/tool-telemetry").catch(() => ({ isToolBlocked: (_n: string) => false }));
+  // The mutation lock too, read exactly as the tool gate reads it (lib/ai/tools.ts authorityGate
+  // refuses writes when it is on, or unreadable).
+  const resolverAvailable =
+    !(input.disabledTools ?? []).includes("resolveContradiction") &&
+    !isToolBlocked("resolveContradiction") &&
+    readMutationLock() === "off";
+  const contradictionLanesOk =
+    !privateMode && input.ephemeral !== true && input.actionPermission !== "read" && !!contradictionConvId && resolverAvailable;
+  let contradictionClaim: import("@/lib/brain/contradiction-injector").ContradictionClaim | undefined;
+  let contradictionAskPending = false;
   // Authority posture (self-review #8): explicit "execute" pill suppresses the
   // objection injector this turn — same as the phrase detector. Explicit "spar"
   // / "counsel" mean the user WANTS engagement, so they override a phrase-
@@ -238,6 +271,7 @@ export async function buildBrainContext(
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
   const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
   const claimGapOn = getFlag("NICK_CLAIM_GAP")?.isOn ?? false;
+  const dailyContradictionOn = getFlag("NICK_DAILY_CONTRADICTION")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
   //
   // 2026-09-17 · `recentTurns` must be the turns BEFORE this one. query-plan.ts
@@ -346,6 +380,8 @@ export async function buildBrainContext(
       groundingBlock,
       contradictionHit,
       claimGapHit,
+      dailyContradictionHit,
+      contradictionFollowUpHit,
       strategicLensBlock,
       greeneBlock,
       darkPsychBlock,
@@ -528,8 +564,18 @@ export async function buildBrainContext(
       // 2026-10-22 · claim vs record: the thinking engine's open contradictions TABLE rows,
       // which nothing read. Read-only here; the day is claimed below, only for a hit this turn uses.
       // A private turn skips it (the claim is a write).
-      userContent.length > 10 && contradictionInjectorMod && claimGapOn && !privateMode
+      userContent.length > 10 && contradictionInjectorMod && claimGapOn && contradictionLanesOk
         ? withTimeout(contradictionInjectorMod.findRelevantClaimGap({ userMessage: userContent }), 3000, null)
+        : Promise.resolve(null),
+      // 2026-10-23 · the day's one open contradiction (read-only; claimed below only when no
+      // claim gap is shown this turn). A private turn skips it (the claim is a write).
+      contradictionInjectorMod && dailyContradictionOn && contradictionLanesOk
+        ? withTimeout(contradictionInjectorMod.findDailyContradiction(), 1500, null)
+        : Promise.resolve(null),
+      // The row asked earlier today in this conversation stays answerable (its key and the
+      // resolve instructions) until it is resolved or the day ends. Read-only.
+      contradictionInjectorMod && (claimGapOn || dailyContradictionOn) && contradictionLanesOk
+        ? withTimeout(contradictionInjectorMod.findClaimedContradictionFollowUp(contradictionConvId), 1500, null)
         : Promise.resolve(null),
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
@@ -602,12 +648,35 @@ export async function buildBrainContext(
       ? contradictionInjectorMod.buildContradictionAlertBlock(contradictionHit)
       : null;
 
-    // Claim the day's single claim-vs-record slot; a failed or slow claim shows nothing.
-    // shortcut: a claim write that lands after this 1.5s timeout spends the day unseen; rare (one insert).
+    // RESERVE the day's single contradiction slot; a failed or slow reservation shows nothing.
+    // It becomes the "asked" receipt only after the reply is persisted (persist-assistant-turn.ts
+    // markContradictionAsked); a late or never-promoted reservation frees the day after 10 min.
+    // One ET day for the reservation AND the key handed to the persist path, even across midnight.
+    const claimDay = today();
+    // This turn's reservation id: the persist path promotes only the reservation it made.
+    const claimToken = randomUUID();
     const claimGapBlock = claimGapHit && contradictionInjectorMod
-      && (await withTimeout(contradictionInjectorMod.claimClaimGapDay(claimGapHit, convId), 1500, false))
+      && (await withTimeout(contradictionInjectorMod.claimClaimGapDay(claimGapHit, contradictionConvId, claimDay, claimToken), 1500, false))
       ? contradictionInjectorMod.buildClaimGapBlock(claimGapHit)
       : null;
+    // One contradiction question a turn: the daily question only when neither the claim gap nor
+    // the memory CONTRADICTION ALERT already ends this reply with a question.
+    const dailyContradictionBlock = !claimGapBlock && !contradictionAlertBlock && dailyContradictionHit && contradictionInjectorMod
+      && (await withTimeout(contradictionInjectorMod.claimDailyContradiction(dailyContradictionHit, contradictionConvId, claimDay, claimToken), 1500, false))
+      ? contradictionInjectorMod.buildDailyContradictionBlock(dailyContradictionHit)
+      : null;
+    if (contradictionInjectorMod && (claimGapBlock || dailyContradictionBlock)) {
+      contradictionClaim = {
+        key: contradictionInjectorMod.claimKey(claimDay),
+        contradictionId: claimGapBlock ? claimGapHit!.id : dailyContradictionHit!.id,
+        kind: claimGapBlock ? "match" : "daily",
+        token: claimToken,
+      };
+    }
+    const contradictionFollowUpBlock = contradictionFollowUpHit && contradictionInjectorMod
+      ? contradictionInjectorMod.buildContradictionFollowUpBlock(contradictionFollowUpHit)
+      : null;
+    contradictionAskPending = !!(claimGapBlock || dailyContradictionBlock || contradictionFollowUpBlock);
 
     const hybridRecallBlock = hybridRecallReport && memoryRecallMod
       ? memoryRecallMod.formatRecallForPrompt(hybridRecallReport.hits)
@@ -725,6 +794,8 @@ export async function buildBrainContext(
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
       { name: "Claim vs Record", content: claimGapBlock || "", critical: true },
+      { name: "One Open Contradiction", content: dailyContradictionBlock || "", critical: true },
+      { name: "Contradiction Asked Earlier", content: contradictionFollowUpBlock || "", critical: true },
       { name: "Strategic Lens", content: strategicLensBlock || "", critical: true },
       { name: "Greene Strategy Frame", content: greeneBlock || "" },
       { name: "Dark Psychology Frame", content: darkPsychBlock || "" },
@@ -819,8 +890,10 @@ export async function buildBrainContext(
       nudges: !!nBlock,
       // A claim-vs-record gap is a contradiction too: it lights the chat's existing
       // Contradictions badge (the client knows no claimGap key) and claimGap counts it alone.
-      contradictions: !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock || !!claimGapBlock,
+      contradictions:
+        !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock || !!claimGapBlock || !!dailyContradictionBlock,
       claimGap: !!claimGapBlock,
+      dailyContradiction: !!dailyContradictionBlock,
       concerns: !!concernsBlock,
       anticipated: !!anticipatedBlock,
       physical: !!physicalBlock,
@@ -1026,5 +1099,7 @@ export async function buildBrainContext(
     evidencePack,
     contextReceipt,
     detectedContradictions,
+    contradictionClaim,
+    contradictionAskPending,
   };
 }

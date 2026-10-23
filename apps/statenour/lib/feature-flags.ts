@@ -240,6 +240,19 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "docs/research/2026-10-22-insight-engines-audit.md",
   },
   {
+    key: "NICK_DAILY_CONTRADICTION",
+    description:
+      "One open contradiction a day (2026-10-23, lib/brain/contradiction-injector.ts findDailyContradiction): on the first chat turn of an America/New_York day with no claim-gap hit, Nick asks the most severe, oldest open row of the contradictions table as ONE question with three answers (the record is right, outdated, ignore) and closes it through the resolveContradiction tool. Once a day, shared with NICK_CLAIM_GAP's day (never two). A row asked once is not asked again for 7 days. KILL CRITERION: if fewer than 1 in 5 DISTINCT asked rows are resolved after 2 weeks, turn it off; measure the asked ids in brain_memory contradiction_injection_log keys claim-gap:* whose content.kind is 'daily' and content.state is 'asked' (set only after the reply persisted; content.contradictionId) against contradictions.resolved_how. LIVE by default; set NICK_DAILY_CONTRADICTION=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    // "false" too: the Settings flag panel writes "true"/"false" overrides.
+    offValue: "false|0",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: the first chat turn of the day with no claim-gap hit adds one ONE OPEN CONTRADICTION block. Kill-switch NICK_DAILY_CONTRADICTION=0 (or the Settings flag panel's off) removes it with no deploy.",
+    ownerDoc: "docs/research/2026-10-22-insight-engines-audit.md",
+  },
+  {
     key: "NICK_RECALL_ARBITER",
     description:
       "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 121-case corpus (manifest data/recall-corpus.manifest.json) or a 7-day prod judge-split (scripts/arbiter-judge-split.ts) shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",

@@ -98,6 +98,8 @@ export async function prepareTools(args: {
   privateMode?: boolean;
   /** Prompt-compilation turns must be structurally unable to research or act. */
   researchCompilerMode?: ResearchCompilerMode | null;
+  /** 2026-10-23 · brain-context: a contradiction question is open in this conversation. */
+  contradictionAskPending?: boolean;
   /** Current turn identity for selection and recovery telemetry. */
   traceId?: string;
   conversationId?: string;
@@ -165,7 +167,7 @@ export async function prepareTools(args: {
         nourTools as unknown as Record<string, unknown>,
         userContent,
         userEmbedding,
-        { conversationTail, turnId: traceId, conversationId }
+        { conversationTail, turnId: traceId, conversationId, contradictionAskPending: args.contradictionAskPending }
       )) as typeof nourTools;
 
   // Apply the AI config's tool blocklist (#13). Tools in

@@ -1180,7 +1180,7 @@ export const brainTools = {
    */
   resolveContradiction: tool({
     description:
-      "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which belief is current (e.g. 'the new one is right', 'I still believe the old one', 'both are true in different contexts', 'never mind that wasn't really a contradiction'). Required: contradictionKey from the alert block. side='current_wins' (today's statement is canonical), 'old_wins' (prior statement is canonical), 'both_valid' (context-dependent), or 'dismissed' (false positive). Optional currentBelief is a 1-2 sentence summary of the canonical position. Updates the contradiction status, deprecates the losing memory, and writes a resolved_contradiction memory for downstream recall.",
+      "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which belief is current (e.g. 'the new one is right', 'I still believe the old one', 'both are true in different contexts', 'never mind that wasn't really a contradiction'). Required: contradictionKey from the alert block. side='current_wins' (today's statement is canonical), 'old_wins' (prior statement is canonical), 'both_valid' (context-dependent), or 'dismissed' (false positive). Optional currentBelief is a 1-2 sentence summary of the canonical position. Updates the contradiction status, deprecates the losing memory, and writes a resolved_contradiction memory for downstream recall. Also closes a CLAIM VS RECORD or ONE OPEN CONTRADICTION row: contradictionKey 'tbl:<id>' from that block, side 'current_wins' = the record is right, 'old_wins' = outdated, 'dismissed' = ignore.",
     inputSchema: z.object({
       contradictionKey: z
         .string()
@@ -1205,6 +1205,37 @@ export const brainTools = {
     }),
     execute: async ({ contradictionKey, side, currentBelief, note }) => {
       try {
+        // A claim-vs-record row (the thinking engine's table) closes through the same owner as
+        // the /brain panel: a compare-and-swap on resolved=false in lib/services/contradictions.ts.
+        if (contradictionKey.startsWith("tbl:")) {
+          const { resolveStoredContradiction } = await import("@/lib/services/contradictions");
+          const { ServiceError } = await import("@/lib/utils/service-error");
+          try {
+            const { contradiction, alreadyResolved, resolvedHow } = await resolveStoredContradiction({
+              key: contradictionKey,
+              status: side,
+            });
+            return {
+              ok: true,
+              contradictionKey,
+              // The STORED answer: when someone closed it first, theirs, not the one asked for.
+              side: contradiction.status,
+              requestedSide: side,
+              resolvedHow: resolvedHow ?? null,
+              alreadyResolved: !!alreadyResolved,
+              // Honest about what was dropped: the table has no column for either.
+              ...(note?.trim() || currentBelief?.trim()
+                ? { notStored: "note and current belief are not stored for table rows" }
+                : {}),
+              resolvedAt: contradiction.resolved_at ?? null,
+            };
+          } catch (err) {
+            if (err instanceof ServiceError && err.status === 404) {
+              return { ok: false, error: "contradiction_not_found", contradictionKey };
+            }
+            throw err;
+          }
+        }
         const { resolveContradiction: resolve } = await import(
           "@/lib/brain/contradiction-surfacer"
         );

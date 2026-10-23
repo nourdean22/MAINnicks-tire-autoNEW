@@ -138,6 +138,9 @@ export interface BuildOnFinishInput {
   // recallReceipts: alternate paths that skip buildBrainContext pass
   // nothing and persist nothing.
   contextReceipt?: ContextReceipt;
+  // 2026-10-23 · this turn's contradiction day RESERVATION (brain-context.ts). Promoted to the
+  // "asked" receipt below, only once the reply row exists. Absent on paths that never reserved.
+  contradictionClaim?: import("@/lib/brain/contradiction-injector").ContradictionClaim;
   // ─── timing refs ──────────────────────────────────────────────
   startedAt: number;
   firstTokenRef: FirstTokenRef;
@@ -666,6 +669,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
       const createdAssistantId: string | null = __persisted.createdAssistantId;
       cleanedText = __persisted.cleanedText;
+      // The contradiction question is spent the moment the reply row exists, BEFORE the
+      // verifier below: a verifier that throws must not leave the day free for a second ask.
+      if (deps.contradictionClaim && createdAssistantId) {
+        const { markContradictionAsked } = await import("@/lib/brain/contradiction-injector");
+        await markContradictionAsked(deps.contradictionClaim, createdAssistantId, cleanedText).catch(() => false);
+      }
 
       // persist-turn decomposition slice 5 (2026-07-25) · the post-
       // persist verification + telemetry stack (trackGeneration,
