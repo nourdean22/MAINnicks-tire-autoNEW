@@ -4,7 +4,6 @@ import { runIngestion } from "@/lib/intelligence/ingest";
 import { evaluatePredictions } from "@/lib/brain/predictive-engine";
 import { generateText } from "ai";
 import { prisma } from "@/lib/prisma";
-import { fetchFREDIndicators } from "@/lib/intelligence/connectors/fred";
 import { fetchMacroIndicators } from "@/lib/intelligence/connectors/macro";
 import { fetchNHTSARecalls } from "@/lib/intelligence/connectors/nhtsa";
 import { fetchGSCAndGBPMetrics } from "@/lib/intelligence/connectors/gsc";
@@ -60,11 +59,8 @@ vi.mock("@/lib/intelligence/connectors/macro", () => ({
   macroFetchFailure: vi.fn().mockReturnValue(null),
   renderMacroReport: vi.fn().mockReturnValue("Macro report: Interest rates rose to 5.33%"),
 }));
-vi.mock("@/lib/intelligence/connectors/fred", () => ({
-  fetchFREDIndicators: vi.fn().mockResolvedValue([
-    { name: "Federal Funds Rate", seriesId: "FEDFUNDS", value: 5.33, unit: "%", date: "2026-08-01" },
-  ]),
-}));
+// 2026-10-22 (vitest 4): the connectors/fred mock is gone. #1872 deleted that module, and
+// vitest 4 refuses to import a path that does not exist, which vitest 3 allowed for a mock.
 vi.mock("@/lib/intelligence/connectors/nhtsa", () => ({
   fetchNHTSARecalls: vi.fn().mockResolvedValue([]),
 }));
@@ -173,26 +169,12 @@ describe("Statenour OS V2 Wave 2 - Predictions & Narrative Status", () => {
   });
 
   describe("HERMETIC · this file must not touch the network", () => {
-    it("the macro connector is stubbed, not live", () => {
-      // The guard for the flake this file shipped with. `runIngestion`'s "macro"
-      // branch calls fetchFREDIndicators(), and without a mock that is a real
-      // HTTP request — which passed alone and failed in the full suite, where a
-      // slow or rate-limited call finally times out. runIngestion's outer catch
-      // turns any throw into claimsCount:0, so it surfaced as "expected spy to
-      // be called 1 times, but got 0" with nothing pointing at the network.
-      //
-      // Asserting the FIXTURE VALUE, not just that a function exists: a live
-      // call would return real FRED data (or throw), and either way this fails.
-      const fred = vi.mocked(fetchFREDIndicators);
-      expect(fred.getMockImplementation() ?? fred.mock).toBeDefined();
-      return expect(fetchFREDIndicators()).resolves.toEqual([
-        { name: "Federal Funds Rate", seriesId: "FEDFUNDS", value: 5.33, unit: "%", date: "2026-08-01" },
-      ]);
-    });
-
     it("the MACRO connector runIngestion actually calls since #1872 is the stub - not only the FRED one it no longer calls (review on #2486)", async () => {
-      // The FRED guard above pins a module ingestion stopped importing on 2026-08-25;
-      // this pins the one it imports now. Asserting the FIXTURE VALUE: a live
+      // The guard for the flake this file shipped with: runIngestion's "macro" branch makes a
+      // live HTTP call unless its connector is mocked, and the outer catch turns any throw into
+      // claimsCount:0 ("expected spy to be called 1 times, but got 0"). The older FRED guard
+      // pinned connectors/fred, which #1872 deleted (removed 2026-10-22 with the vitest 4 bump);
+      // this pins the module ingestion imports now. Asserting the FIXTURE VALUE: a live
       // multi-provider fetch would be slow, shaped by real data, or fail offline.
       expect(vi.isMockFunction(fetchMacroIndicators)).toBe(true);
       await expect(fetchMacroIndicators({} as never)).resolves.toMatchObject({
