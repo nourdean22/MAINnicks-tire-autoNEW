@@ -8,8 +8,8 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { backupName, dbHost, parseArgs, runHygiene, stamp, toCount, type Connection, type HygieneSpec } from "@/scripts/brain-hygiene/_run";
-import { APP_ROOT, spawnScript } from "./_lib/brain-hygiene-harness";
+import { backupExists, backupName, dbHost, findBackups, parseArgs, runHygiene, stamp, toCount, type Connection, type HygieneSpec } from "@/scripts/brain-hygiene/_run";
+import { APP_ROOT, fakeDb, normalize, spawnScript } from "./_lib/brain-hygiene-harness";
 
 const SCRIPTS = [
   "scripts/brain-hygiene/dedupe-blind-spots.ts",
@@ -124,6 +124,32 @@ describe("helpers", () => {
     expect(() => toCount(undefined)).toThrow();
     expect(() => toCount(-1)).toThrow();
     expect(() => toCount("x")).toThrow();
+  });
+});
+
+describe("catalog queries select no bare `name` column (rehearsal 2026-10-23)", () => {
+  // Prisma $queryRawUnsafe cannot deserialize Postgres type `name` (pg_tables.tablename is one). The fake Db cannot
+  // see Prisma's deserializer, so the SQL text is pinned here; the real-binary proof is the Neon-branch re-run.
+  it("findBackups casts tablename to text", async () => {
+    const w = fakeDb(() => [{ tablename: "_bak_brain_memories_decay_20261022" }]);
+    expect(await findBackups(w.db, "_bak_brain_memories_decay_")).toEqual(["_bak_brain_memories_decay_20261022"]);
+    const sql = normalize(w.calls[0].sql);
+    expect(sql).toContain("SELECT tablename::text AS tablename FROM pg_tables");
+    expect(sql).not.toMatch(/SELECT tablename FROM/);
+  });
+
+  it("backupExists selects a boolean, never a regclass", async () => {
+    const w = fakeDb(() => [{ present: false }]);
+    await backupExists(w.db, "_bak_x_y_20261023");
+    expect(normalize(w.calls[0].sql)).toBe("SELECT to_regclass($1) IS NOT NULL AS present");
+  });
+
+  it.each([...SCRIPTS, "scripts/brain-hygiene/_run.ts"])("%s: every catalog read casts what it selects", (rel) => {
+    const lines = readFileSync(`${APP_ROOT}/${rel}`, "utf8")
+      .split("\n")
+      .filter((l) => /pg_tables|pg_class|information_schema|pg_namespace|pg_catalog/.test(l) && /SELECT/i.test(l));
+    for (const l of lines) expect(l, "a catalog SELECT without ::text").toMatch(/::text|COUNT\(\*\)::int/);
+    if (rel.endsWith("_run.ts")) expect(lines.length, "POSITIVE CONTROL: the scan found the pg_tables read").toBeGreaterThan(0);
   });
 });
 

@@ -97,7 +97,8 @@ export function toCount(v: unknown): number {
 /** Every public table whose name starts with `prefix` (underscores escaped for LIKE). */
 export async function findBackups(db: Db, prefix: string): Promise<string[]> {
   const rows = await db.query<{ tablename: string }>(
-    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE $1`,
+    // tablename is Postgres type `name`, which Prisma's raw-query deserializer rejects: cast it.
+    `SELECT tablename::text AS tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE $1`,
     `${prefix.replace(/_/g, "\\_")}%`,
   );
   return rows.map((r) => r.tablename);
