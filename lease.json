@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/brain-job-receipts-2026-10-23",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-brain-ledger-receipts (manager 0900c49a)",
   "claimedAt": "2026-10-23T06:13:59.621Z",
   "expiresAt": "2026-10-23T18:13:59.621Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-23T06:20:34.736Z",
+  "releaseReason": "PR 3252 squash-merged as 6e28632a8 at 06:20Z; remote branch deleted by the merge",
+  "priorLeaseSha": "6d4ad8ec5a808a0d21a6ebe1094aeccd06f5c2a0",
+  "releasedBy": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "foreignReleaseReason": null
 }
