@@ -192,7 +192,6 @@ const KNOWN_FADED: Record<string, number> = {
   "components/brain/tool-telemetry-panel.tsx -> text-red-400/60": 1,
   "components/brain/tool-telemetry-panel.tsx -> text-red-400/90": 1,
   "components/chat/nick-message.tsx -> text-[var(--text-tertiary)]/60": 1,
-  "components/chat/slash-command-dropdown.tsx -> text-blue-400/70": 1,
   "components/chat/wisdom-pill.tsx -> text-[var(--text-tertiary)]/60": 1,
   "components/goals/goal-board.tsx -> text-amber-400/50": 1,
   "components/goals/goal-board.tsx -> text-amber-400/60": 1,
