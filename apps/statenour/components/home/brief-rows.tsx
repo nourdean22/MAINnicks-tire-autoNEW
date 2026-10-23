@@ -7,7 +7,8 @@
  * JudgmentQueue (eyebrow, count, kind chips) with ONE ruled list of at most BRIEF_ROW_CAP rows:
  * the lead CTA first, then the judgment items (decisions only; the horizon stays in the rail);
  * "N more" expands the rest in place, never a silent drop. Each row is one line of text (plus one line of decision detail where
- * the item has one) and one action, plus Keep / Less. Less hides that row kind on this device for
+ * the item has one) and one action, plus Keep / Less. Keep moves that row kind up the brief for seven days (under the
+ * lead, above the "N more" fold); Less hides it on this device for
  * seven days (lib/ui/brief-feedback.ts); Show hidden is always one tap away while anything is
  * hidden; a lead that reports an unreadable board or asks for a decision cannot be hidden. Nothing
  * is written to the server and the brief writer is unchanged.
@@ -41,7 +42,7 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { useOnline } from "@/lib/query-state";
 import { useBriefFeedback } from "@/hooks/use-brief-feedback";
-import { hiddenKinds } from "@/lib/ui/brief-feedback";
+import { hiddenKinds, keptKinds } from "@/lib/ui/brief-feedback";
 import { BRIEF_ROW_CAP, composeBriefRows, type BriefRow, type BriefRowKind, type BriefRowsInput } from "@/lib/home/brief-rows";
 import type { BriefLeadSection, PendingApproval } from "@/lib/home/operator-brief";
 
@@ -78,7 +79,7 @@ const ACTION_QUIET = cn(ACTION, "border border-edge-default text-fg-secondary ho
 // Short words ("Open", "Less") get a 44px minimum box, not only a 44px height (tests/e2e/target-size.spec.ts).
 const ACTION_LINK = cn(ACTION, "min-w-[44px] justify-center text-fg-secondary hover:text-fg");
 const ICON_ACTION = "inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
-const VERDICT = "inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-3 font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg aria-pressed:text-fg";
+const VERDICT = "inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg aria-pressed:text-fg";
 const LABEL_COL = "w-[4.5rem] shrink-0 pt-0.5 font-mono text-[11px] text-fg-tertiary";
 const UNDER_LABEL = "pl-[5.25rem]";
 
@@ -146,9 +147,20 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
   // Expiry is read at render, so a Less that ages out during a long session lifts without a reload.
   const hidden = new Set(hiddenKinds(feedback, Date.now()));
   const hiddenKey = [...hidden].sort().join(",");
+  // Keep moves a kind up the brief (composeBriefRows) and reads back as pressed; it lapses like Less.
+  const kept = new Set(keptKinds(feedback, Date.now()));
+  const keptKey = [...kept].sort().join(",");
   const composed = useMemo(
-    () => (brief ? composeBriefRows(brief, new Set(hiddenKey ? hiddenKey.split(",") : []), expanded ? Number.POSITIVE_INFINITY : BRIEF_ROW_CAP) : { rows: [], total: 0 }),
-    [brief, hiddenKey, expanded],
+    () =>
+      brief
+        ? composeBriefRows(
+            brief,
+            new Set(hiddenKey ? hiddenKey.split(",") : []),
+            expanded ? Number.POSITIVE_INFINITY : BRIEF_ROW_CAP,
+            new Set(keptKey ? keptKey.split(",") : []),
+          )
+        : { rows: [], total: 0 },
+    [brief, hiddenKey, keptKey, expanded],
   );
   const { rows, total } = composed;
 
@@ -186,6 +198,11 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
     refocus.current = true;
     setVerdict(kind, "less");
     setLive(`Hidden: ${KIND_NOUN[kind]} for seven days.`);
+  };
+
+  const keep = (kind: BriefRowKind) => {
+    setVerdict(kind, "keep");
+    setLive(`Kept: ${KIND_NOUN[kind]} move up the brief for seven days.`);
   };
 
   const act = async (key: string, run: () => Promise<RunResult>, done: string, onOk?: () => void) => {
@@ -433,9 +450,9 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
                     <button
                       type="button"
                       data-brief-verdict="keep"
-                      aria-pressed={feedback[row.kind]?.verdict === "keep"}
-                      aria-label={`Keep ${KIND_NOUN[row.kind]} in the brief`}
-                      onClick={() => setVerdict(row.kind, "keep")}
+                      aria-pressed={kept.has(row.kind)}
+                      aria-label={`Keep ${KIND_NOUN[row.kind]} near the top of the brief`}
+                      onClick={() => keep(row.kind)}
                       className={VERDICT}
                     >
                       Keep

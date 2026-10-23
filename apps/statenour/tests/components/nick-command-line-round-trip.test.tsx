@@ -142,6 +142,20 @@ describe("NickCommandLine round trip through the real cockpit stream", () => {
   });
 });
 
+describe("NickCommandLine /search (truth sweep 2026-10-23)", () => {
+  it("T3: /search is asked of Nick with the search prefix, so the words reach the model", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(cockpitResponse(aiSdkBytes(textTurn("Two gym promises."))));
+    vi.stubGlobal("fetch", fetchMock);
+    mount();
+    await send("/search gym commitments");
+    await until(() => text().includes("Two gym promises.") || text().includes(NO_ANSWER), "a reply or an error");
+
+    expect(text()).toContain("Two gym promises.");
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body.messages.at(-1).parts[0].text).toBe("Search my brain memory for: gym commitments");
+  });
+});
+
 describe("NickCommandLine error state", () => {
   it("T2a: a 503 shows the no-answer line, and Try again re-sends once", async () => {
     const fetchMock = vi

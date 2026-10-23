@@ -21,6 +21,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
+import { isSparsePerson } from "@/lib/people/needs-info";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,7 @@ export const GET = apiHandler(
       total: people.length,
       neglected: people.filter((p) => p.isNeglected).length,
       high_trust: people.filter((p) => p.trustScore >= 0.7).length,
-      sparse: people.filter((p) => !p.leverageNotes || p.role === "unknown").length,
+      sparse: people.filter(isSparsePerson).length,
     };
 
     return {

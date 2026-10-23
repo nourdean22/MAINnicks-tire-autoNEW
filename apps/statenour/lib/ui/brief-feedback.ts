@@ -3,7 +3,7 @@
  *
  * No schema, no server write: the brief writer stays server-side and a client filter applies this
  * map (components/home/brief-rows.tsx via hooks/use-brief-feedback.ts). Less hides a row KIND for
- * seven days; Keep clears it. Pure over a localStorage-shaped interface (the lib/ui/change-cursor.ts
+ * seven days; Keep moves a row KIND up the brief for seven days (and replaces a Less). Pure over a localStorage-shaped interface (the lib/ui/change-cursor.ts
  * precedent), so the expiry and the corrupt-value paths are pinned by tests/lib/brief-feedback.test.ts
  * without a browser. A storage that throws (private mode, quota) reads as empty and writes as a no-op.
  */
@@ -42,6 +42,17 @@ export function readBriefFeedback(storage: FeedbackStorage): BriefFeedbackMap {
 export function hiddenKinds(map: BriefFeedbackMap, now: number): string[] {
   return Object.entries(map)
     .filter(([, v]) => v.verdict === "less" && now - v.at < BRIEF_LESS_TTL_MS)
+    .map(([kind]) => kind);
+}
+
+/**
+ * Kinds a Keep still holds at `now`: the verdict is "keep" and it is younger than the TTL. The
+ * brief reads this to move those kinds up and keep them above the "N more" fold
+ * (lib/home/brief-rows.ts composeBriefRows); before 2026-10-23 nothing read a Keep.
+ */
+export function keptKinds(map: BriefFeedbackMap, now: number): string[] {
+  return Object.entries(map)
+    .filter(([, v]) => v.verdict === "keep" && now - v.at < BRIEF_LESS_TTL_MS)
     .map(([kind]) => kind);
 }
 

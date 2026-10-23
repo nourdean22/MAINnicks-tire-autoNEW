@@ -38,9 +38,11 @@ describe("parseSlash", () => {
     expect(parseSlash("/execute sync leads").command?.prefix).toBe("Execute this: ");
   });
 
-  it("/search routes instead of chatting", () => {
+  it("/search asks Nick to search memory: it used to route to /brain?tab=memory&resolve=, a param nothing reads", () => {
     const r = parseSlash("/search gym commitments");
-    expect(r.command?.routes).toBe(true);
+    expect(r.command?.key).toBe("search");
+    expect(r.command?.prefix).toBe("Search my brain memory for: ");
+    expect("routes" in (r.command ?? {})).toBe(false);
     expect(r.text).toBe("gym commitments");
   });
 
@@ -52,7 +54,7 @@ describe("parseSlash", () => {
 
   it("a bare command with no argument yields empty text — submit no-ops on empty text, so no naked prefix ever reaches the pipeline", () => {
     expect(parseSlash("/task").text).toBe("");
-    expect(parseSlash("/search").command?.routes).toBe(true);
+    expect(parseSlash("/search").command?.key).toBe("search");
     expect(parseSlash("/search").text).toBe("");
   });
 

@@ -22,7 +22,6 @@ const SHORTCUTS = [
   { keys: ["G", "S"], action: "Go to System",          section: "Navigation" },
   { keys: ["G", "C"], action: "Go to Crons",           section: "System Ops" },
   { keys: ["G", "A"], action: "Go to Actions",         section: "System Ops" },
-  { keys: ["G", "P"], action: "Go to System Hub",      section: "System Ops" },
   { keys: ["R"],      action: "Refresh Data",          section: "Actions" },
   { keys: ["Esc"],    action: "Close Panel / Dialog",  section: "Actions" },
   // 2026-09-15 · UI workbench · the object grammar over any list whose rows
@@ -48,11 +47,10 @@ const GO_ROUTES: Record<string, string> = {
   // f (/business) removed 2026-09-02 · the page was deleted on operator verdict.
   y: "/stats?tab=body",             // y = bodY (b is brain) · body is a /stats section
   s: "/system",
-  // system ops deck · canonical destinations only. Keep P as a
-  // legacy muscle-memory alias to the hub rather than a fake /system/power page.
+  // system ops deck · canonical destinations only. The legacy P alias (a second door to /system,
+  // the same as S) was removed 2026-10-23: no two chords share a destination.
   c: "/system/crons",           // formerly /command (which is gone — now at /)
   a: "/system/actions",
-  p: "/system",                 // legacy "power" alias · hub owns the controls
   // legacy / integrations
   i: "/settings",
 };

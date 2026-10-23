@@ -307,6 +307,20 @@ describe("BriefRows", () => {
     expect(container.textContent).not.toContain("Done for today");
   });
 
+  it("Keep is read back: a kept kind rises under the lead and the button reads pressed (truth sweep 2026-10-23)", async () => {
+    await mount(HOME_BRIEF);
+    const before = rows();
+    expect(before[0]).toBe("lead");
+    const last = before[before.length - 1] as string;
+    expect(before.indexOf(last)).toBeGreaterThan(1);
+    const keepBtn = container.querySelector<HTMLButtonElement>(`[data-brief-row="${last}"] button[data-brief-verdict="keep"]`)!;
+    expect(keepBtn.getAttribute("aria-pressed")).toBe("false");
+    await act(async () => keepBtn.click());
+    const after = rows();
+    expect(after[1]).toBe(last);
+    expect(container.querySelector(`[data-brief-row="${last}"] button[data-brief-verdict="keep"]`)!.getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("offline with no brief says so (truth sweep 2026-10-23), and online with no brief stays silent", async () => {
     onlineManager.setOnline(false);
     try {
