@@ -15,9 +15,11 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/close-overdue-replays.ts --read       # counts and ids, SELECT only
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/close-overdue-replays.ts --execute --expect=28
  */
-import { backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type HygieneSpec } from "./_run";
+import { EXPIRED_OUTCOME } from "@/lib/brain/decision-replay-outcome";
+import { applyBatches, backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type HygieneSpec } from "./_run";
 
-export const OUTCOME = "not reviewed, expired";
+/** Shared with the reader that hides these rows from the "recent reviewed" list (lib/services/decision-replays.ts). */
+export const OUTCOME = EXPIRED_OUTCOME;
 const BATCH = 1000;
 
 /** Ids and the version of each row only: no title, choice, reasoning or context text. */
@@ -96,15 +98,16 @@ export const spec: HygieneSpec = {
     }
     const rollback =
       `UPDATE decision_replays r SET reviewed = k.reviewed, outcome = k.outcome, "reviewedAt" = k."reviewedAt", lesson = k.lesson\n` +
-      `  FROM ${bak} k WHERE r.id = k.id;`;
+      `  FROM ${bak} k WHERE r.id = k.id AND r.outcome = '${OUTCOME}';`;
     log(`\nROLLBACK (restores the four columns this script wrote):\n${rollback}\n`);
 
     const note = `Closed without review on ${today.slice(0, 4)}-${today.slice(4, 6)}-${today.slice(6, 8)} (overdue, no outcome was given). No score recorded.`;
-    let closed = 0;
-    for (let i = 0; i < rows.length; i += BATCH) {
-      const b = rows.slice(i, i + BATCH);
-      closed += await db.exec(CAS_SQL, b.map((r) => r.id), b.map((r) => r.review_at), OUTCOME, note);
-    }
+    const closed = await applyBatches(
+      rows,
+      BATCH,
+      (b) => db.exec(CAS_SQL, b.map((r) => r.id), b.map((r) => r.review_at), OUTCOME, note),
+      (done) => log(`backup ${bak}: ${done} of ${ids.length} rows already swapped; rollback SQL above`),
+    );
     const now = toCount(
       (await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM decision_replays WHERE id = ANY($1::text[]) AND reviewed = true AND outcome = $2`, ids, OUTCOME))[0]?.n,
     );

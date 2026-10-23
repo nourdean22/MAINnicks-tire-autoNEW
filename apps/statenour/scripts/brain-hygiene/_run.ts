@@ -13,8 +13,10 @@
  *                          N is the candidate count the operator approved; a different count
  *                          aborts before the first write.
  *
- * No .env file is loaded: the environment is whatever the caller injected
- * (`railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/<x>.ts`).
+ * This runner loads no .env file: the environment is whatever the caller injected
+ * (`railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/<x>.ts`). apply-decay's lazy
+ * import of lib/brain/memory-decay reaches lib/prisma.ts, which calls loadEnvConfig; values already in the
+ * environment still win, so a railway-injected DATABASE_URL is never replaced.
  * Prisma is imported lazily inside realConnect() so the plan mode never loads it.
  */
 import { fileURLToPath } from "node:url";
@@ -90,6 +92,35 @@ export function toCount(v: unknown): number {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0) throw new Error(`count missing or malformed (${String(v)})`);
   return n;
+}
+
+/** Every public table whose name starts with `prefix` (underscores escaped for LIKE). */
+export async function findBackups(db: Db, prefix: string): Promise<string[]> {
+  const rows = await db.query<{ tablename: string }>(
+    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE $1`,
+    `${prefix.replace(/_/g, "\\_")}%`,
+  );
+  return rows.map((r) => r.tablename);
+}
+
+/**
+ * Apply `items` in batches. A throw part-way leaves the earlier batches applied, so `onFail(done)` runs first
+ * (the caller logs the backup name and the count so far) and the error is rethrown unchanged.
+ */
+export async function applyBatches<T>(
+  items: readonly T[],
+  size: number,
+  apply: (batch: T[]) => Promise<number>,
+  onFail: (done: number) => void,
+): Promise<number> {
+  let done = 0;
+  try {
+    for (let i = 0; i < items.length; i += size) done += await apply(items.slice(i, i + size));
+  } catch (e) {
+    onFail(done);
+    throw e;
+  }
+  return done;
 }
 
 export async function backupExists(db: Db, name: string): Promise<boolean> {

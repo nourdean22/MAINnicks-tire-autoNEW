@@ -11,8 +11,8 @@
  * records that tool search reads those rows, and decay would reach them.
  *
  * Like BrainMemoryManager.decay(), the write leaves updated_at alone (the GC's low-confidence arm keys on it).
- * It is a single pass: run it twice and rows decay twice, which is why a second run on the same day is refused
- * (the backup table exists) and why --execute needs --expect=N.
+ * It is a single pass: run it twice and rows decay twice, which is why ANY existing _bak_brain_memories_decay_*
+ * table makes --execute refuse (until it is dropped or renamed by hand) and why --execute needs --expect=N.
  *
  * Usage (from apps/statenour; the manager runs it on Nour's typed go):
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/apply-decay.ts              # plan, no connection
@@ -20,7 +20,7 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/apply-decay.ts --execute --expect=<count from --read>
  */
 import Module from "node:module";
-import { backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
+import { applyBatches, backupName, fail, finish, isEntry, runHygiene, findBackups, toCount, type Db, type HygieneSpec } from "./_run";
 
 export const BATCH = 1000;
 
@@ -134,8 +134,11 @@ export const spec: HygieneSpec = {
       return 0;
     }
     const bak = backupName("brain_memories", "decay", today);
-    if (await backupExists(db, bak)) {
-      log(`ABORT: backup table ${bak} already exists (a pass already ran today, or a backup is waiting to be confirmed). Nothing written.`);
+    // Decay leaves last_seen alone, so a second pass would hit the same ~27k rows again. The guard is ANY decay
+    // backup, not today's name: a crash at 19:55 ET and a re-run after 00:00Z would otherwise get a fresh name.
+    const prior = await findBackups(db, "_bak_brain_memories_decay_");
+    if (prior.length > 0) {
+      log(`ABORT: a decay backup table already exists (${prior.join(", ")}): a pass already ran, or one is waiting to be confirmed; drop or rename it by hand after confirming. Nothing written.`);
       return 1;
     }
     const ids = rows.map((r) => r.id);
@@ -147,15 +150,16 @@ export const spec: HygieneSpec = {
       log(`ABORT: backup holds ${backedUp} rows, expected ${ids.length}. Nothing swapped. The backup table is left in place.`);
       return 1;
     }
-    const rollback = `UPDATE brain_memories b SET confidence = k.confidence\n  FROM ${bak} k WHERE b.id = k.id;`;
+    const rollback = `UPDATE brain_memories b SET confidence = k.confidence\n  FROM ${bak} k WHERE b.id = k.id AND b.confidence < k.confidence;`;
     log(`\nROLLBACK (restores confidence; updated_at was never touched):\n${rollback}\n`);
 
     const exempt = [...base.params[1], ...EXTRA_EXEMPT];
-    let swapped = 0;
-    for (let i = 0; i < rows.length; i += BATCH) {
-      const b = rows.slice(i, i + BATCH);
-      swapped += await db.exec(CAS_SQL, b.map((r) => r.id), b.map((r) => r.conf), b.map((r) => r.seen), exempt);
-    }
+    const swapped = await applyBatches(
+      rows,
+      BATCH,
+      (b) => db.exec(CAS_SQL, b.map((r) => r.id), b.map((r) => r.conf), b.map((r) => r.seen), exempt),
+      (done) => log(`backup ${bak}: ${done} of ${ids.length} rows already swapped; rollback SQL above`),
+    );
     const lowered = toCount(
       (await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM ${bak} k JOIN brain_memories b ON b.id = k.id WHERE b.confidence < k.confidence`))[0]?.n,
     );

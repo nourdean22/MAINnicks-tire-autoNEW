@@ -8,7 +8,8 @@
  * SOFT DELETE ONLY. blind_spot is in NEVER_HARD_DELETE_CATEGORIES (lib/brain/hard-delete-guard.ts), and
  * this script has no DELETE statement. A loser gets deleted_at = now() and superseded_by_id = the keeper.
  * A row with a Discover verdict is never a loser; the oldest judged row of a cluster is its keeper, else
- * the oldest row. Nothing in vector_embeddings is touched, so nothing there needs a backup.
+ * the oldest row. A verdict is read the way lib/brain/discoveries.ts readVerdict reads it: the metadata key when
+ * present (metadata is the source), else the discovery_verdict column (the mirror). Nothing in vector_embeddings is touched, so nothing there needs a backup.
  *
  * Usage (from apps/statenour; the manager runs it, one at a time, on Nour's typed go):
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/dedupe-blind-spots.ts              # plan, no connection
@@ -16,19 +17,23 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/dedupe-blind-spots.ts --execute --expect=183
  * Run it outside the 03:00-03:20Z mega-evening window (brain-intelligence 03:02, consolidate and dedup 03:17).
  */
-import { backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
+import { applyBatches, backupExists, backupName, fail, finish, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
 
 const LIVE = `deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) AND superseded_by_id IS NULL`;
 const THRESHOLD = 0.05;
 const BATCH = 1000;
 
+/** The verdict as the app reads it: an explicitly present metadata key wins (even null), else the column. */
+const verdictSql = (a: string): string =>
+  `CASE WHEN jsonb_exists(${a}metadata, 'discoveryVerdict') THEN ${a}metadata->>'discoveryVerdict' ELSE ${a}discovery_verdict END`;
+
 /** Twin pairs among live blind_spot rows. Ids only. */
-const PAIRS_SQL = `
+export const PAIRS_SQL = `
 WITH v AS (
   SELECT DISTINCT ON ("sourceId") "sourceId", embedding_vec_1536 AS e
     FROM vector_embeddings
    WHERE "sourceType" = 'brain_memory' AND embedding_vec_1536 IS NOT NULL
-   ORDER BY "sourceId"
+   ORDER BY "sourceId", "createdAt" DESC
 ), bs AS (
   SELECT m.id, v.e FROM brain_memories m JOIN v ON v."sourceId" = m.id
    WHERE m.category = 'blind_spot' AND ${LIVE}
@@ -36,10 +41,10 @@ WITH v AS (
 SELECT a.id AS a, b.id AS b FROM bs a JOIN bs b ON a.id < b.id AND (a.e <=> b.e) < ${THRESHOLD}`;
 
 /** The versions of the rows the decision read, as text so the swap compares exactly what was read. No content column. */
-const ROWS_SQL = `
+export const ROWS_SQL = `
 SELECT id,
        (EXTRACT(EPOCH FROM created_at) * 1000)::float8 AS created_ms,
-       discovery_verdict AS verdict,
+       ${verdictSql("")} AS verdict,
        updated_at::text AS upd,
        last_seen::text AS seen,
        seen_count
@@ -59,7 +64,7 @@ UPDATE brain_memories b
    AND b.category = 'blind_spot'
    AND b.deleted_at IS NULL
    AND b.superseded_by_id IS NULL
-   AND b.discovery_verdict IS NULL
+   AND (${verdictSql("b.")}) IS NULL
    AND b.updated_at::text = c.upd
    AND b.last_seen::text = c.seen
    AND b.seen_count = c.seen_count
@@ -185,21 +190,23 @@ export const spec: HygieneSpec = {
     }
     const rollback =
       `UPDATE brain_memories b SET deleted_at = k.deleted_at, superseded_by_id = k.superseded_by_id, updated_at = k.updated_at\n` +
-      `  FROM ${bak} k WHERE b.id = k.id;`;
-    log(`\nROLLBACK (restores the three columns this script wrote):\n${rollback}\n`);
+      `  FROM ${bak} k WHERE b.id = k.id AND b.superseded_by_id IS NOT NULL AND b.deleted_at IS NOT NULL;`;
+    log(`\nROLLBACK (restores the three columns this script wrote, only on rows still superseded):\n${rollback}\n`);
 
-    let swapped = 0;
-    for (let i = 0; i < p.losers.length; i += BATCH) {
-      const b = p.losers.slice(i, i + BATCH);
-      swapped += await db.exec(
-        CAS_SQL,
-        b.map((l) => l.id),
-        b.map((l) => l.keeperId),
-        b.map((l) => l.upd),
-        b.map((l) => l.seen),
-        b.map((l) => l.seenCount),
-      );
-    }
+    const swapped = await applyBatches(
+      p.losers,
+      BATCH,
+      (b) =>
+        db.exec(
+          CAS_SQL,
+          b.map((l) => l.id),
+          b.map((l) => l.keeperId),
+          b.map((l) => l.upd),
+          b.map((l) => l.seen),
+          b.map((l) => l.seenCount),
+        ),
+      (done) => log(`backup ${bak}: ${done} of ${ids.length} rows already swapped; rollback SQL above`),
+    );
     const now = toCount(
       (await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM brain_memories WHERE id = ANY($1::text[]) AND deleted_at IS NOT NULL AND superseded_by_id IS NOT NULL`, ids))[0]?.n,
     );

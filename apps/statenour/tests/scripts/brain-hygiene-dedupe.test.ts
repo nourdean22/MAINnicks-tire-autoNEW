@@ -4,7 +4,7 @@
  * the spawn probes for the dry-run guard live in brain-hygiene-run.test.ts.
  */
 import { describe, expect, it } from "vitest";
-import { CAS_SQL, planDedupe, spec, type Row } from "@/scripts/brain-hygiene/dedupe-blind-spots";
+import { CAS_SQL, PAIRS_SQL, ROWS_SQL, planDedupe, spec, type Row } from "@/scripts/brain-hygiene/dedupe-blind-spots";
 import { fakeDb, normalize } from "./_lib/brain-hygiene-harness";
 
 const row = (id: string, createdMs: number, verdict: string | null = null): Row => ({
@@ -61,11 +61,13 @@ describe("the compare-and-swap names every field the decision read", () => {
     "b.category = 'blind_spot'",
     "b.deleted_at IS NULL",
     "b.superseded_by_id IS NULL",
-    "b.discovery_verdict IS NULL",
+    "(CASE WHEN jsonb_exists(b.metadata, 'discoveryVerdict') THEN b.metadata->>'discoveryVerdict' ELSE b.discovery_verdict END) IS NULL",
     "b.updated_at::text = c.upd",
     "b.last_seen::text = c.seen",
     "b.seen_count = c.seen_count",
     "k.id = c.keeper_id",
+    "k.deleted_at IS NULL",
+    "k.superseded_by_id IS NULL",
   ])("pins %s", (frag) => {
     expect(sql).toContain(frag);
   });
@@ -76,19 +78,22 @@ describe("the compare-and-swap names every field the decision read", () => {
   });
 });
 
-function world(opts: { backupRows?: number; backupExists?: boolean; cas?: number } = {}) {
+function world(opts: { backupRows?: number; backupExists?: boolean; cas?: number; judged?: string; throwOnCas?: boolean } = {}) {
   const ids = ["a", "b", "c", "d"];
   return fakeDb((sql, params, kind) => {
     const s = normalize(sql);
     if (s.includes("<=>")) return [{ a: "a", b: "b" }, { a: "b", b: "c" }, { a: "c", b: "d" }];
     if (s.includes("FROM brain_memories") && s.includes("created_ms")) {
-      return ids.map((id, i) => ({ id, created_ms: 1000 + i, verdict: null, upd: `u-${id}`, seen: `s-${id}`, seen_count: 1 }));
+      return ids.map((id, i) => ({ id, created_ms: 1000 + i, verdict: id === opts.judged ? "noise" : null, upd: `u-${id}`, seen: `s-${id}`, seen_count: 1 }));
     }
     if (s.includes("to_regclass")) return [{ present: opts.backupExists === true }];
     if (s.startsWith("CREATE TABLE")) return 0;
     if (s.startsWith("INSERT INTO _bak_")) return 3;
     if (s.includes("FROM _bak_")) return [{ n: opts.backupRows ?? 3 }];
-    if (s.startsWith("UPDATE brain_memories")) return opts.cas ?? 3;
+    if (s.startsWith("UPDATE brain_memories")) {
+      if (opts.throwOnCas) throw new Error("connection reset");
+      return opts.cas ?? 3;
+    }
     if (s.includes("superseded_by_id IS NOT NULL")) return [{ n: opts.cas ?? 3 }];
     throw new Error(`unexpected statement: ${s.slice(0, 80)}`);
   });
@@ -156,6 +161,46 @@ describe("read lines carry counts and ids only", () => {
     const r = await spec.read(w.db);
     expect(r.count).toBe(3);
     expect(r.lines.join("\n")).toContain("removable");
-    for (const c of w.calls) expect(normalize(c.sql)).not.toMatch(/\bcontent\b|\bmetadata\b/);
+    // metadata appears only inside the verdict expression, which yields the verdict string and never the JSON
+    for (const c of w.calls) expect(normalize(c.sql).replace(/CASE WHEN jsonb_exists\(metadata.*?END AS verdict/, "")).not.toMatch(/\bcontent\b|\bmetadata\b/);
+  });
+});
+
+describe("a verdict kept only in metadata counts as a verdict (readVerdict: metadata is the source, the column a mirror)", () => {
+  it("the read returns the verdict the app would read: the metadata key when present, else the column", () => {
+    const sql = normalize(ROWS_SQL);
+    expect(sql).toContain("CASE WHEN jsonb_exists(metadata, 'discoveryVerdict') THEN metadata->>'discoveryVerdict' ELSE discovery_verdict END AS verdict");
+  });
+
+  it("a row judged only in metadata is never swapped and is keeper-eligible", async () => {
+    // b reads as judged (the SQL above yields its metadata verdict); a, c, d are unjudged twins in one chain and all point at b.
+    const w = world({ judged: "b" });
+    const code = await spec.execute(w.db, { expect: 3, today: "20261023", log: () => {} });
+    expect(code).toBe(0);
+    const upd = w.calls.find((c) => normalize(c.sql).startsWith("UPDATE brain_memories"))!;
+    expect(upd.params[0]).toEqual(["a", "c", "d"]);
+    expect(upd.params[1]).toEqual(["b", "b", "b"]);
+  });
+});
+
+describe("the pair read is deterministic", () => {
+  it("a memory with two embedding rows always contributes the newest one", () => {
+    expect(normalize(PAIRS_SQL)).toContain('ORDER BY "sourceId", "createdAt" DESC');
+  });
+});
+
+describe("rollback and failure reporting", () => {
+  it("the printed rollback only touches rows this script superseded", async () => {
+    const w = world();
+    const log: string[] = [];
+    await spec.execute(w.db, { expect: 3, today: "20261023", log: (s) => log.push(s) });
+    expect(log.join("\n")).toContain("AND b.superseded_by_id IS NOT NULL AND b.deleted_at IS NOT NULL");
+  });
+
+  it("a throw in the swap names the backup and the rows already swapped, then rethrows", async () => {
+    const w = world({ throwOnCas: true });
+    const log: string[] = [];
+    await expect(spec.execute(w.db, { expect: 3, today: "20261023", log: (s) => log.push(s) })).rejects.toThrow("connection reset");
+    expect(log.join("\n")).toContain("backup _bak_brain_memories_blindspot_dedup_20261023: 0 of 3 rows already swapped; rollback SQL above");
   });
 });
