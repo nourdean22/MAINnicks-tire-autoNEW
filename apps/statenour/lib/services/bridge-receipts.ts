@@ -25,7 +25,7 @@
  *     `pending`, which the route answers with a retryable 503. Used by
  *     /api/sync/nour-os `open_loop`.
  *
- * The table is hand-migrated (prisma/migrations-pending/20260929090000_bridge_receipts).
+ * The table is hand-migrated (prisma/migrations/20260929090000_bridge_receipts; applied on prod 2026-10-23).
  * Until it exists every receipt call throws Prisma P2021; callers catch that
  * with `isReceiptTableMissing` and fall back to the legacy write, so a keyed
  * sender can never be failed closed by an unapplied migration.
@@ -165,6 +165,9 @@ export async function releaseReceipt(db: Db, key: string, leaseAt: Date): Promis
   await db.bridgeReceipt.deleteMany({ where: { idempotencyKey: key, resultRef: null, lastSeenAt: leaseAt } });
 }
 
+/** The missing-table warning fires once per process, not once per delivery. */
+let warnedMissingTable = false;
+
 export type RunOnceResult<T> =
   | { duplicate: false; value: T; dedupe?: "unavailable" }
   | { duplicate: true; resultRef: string };
@@ -184,7 +187,16 @@ export async function runOnceByKey<T>(
   route: string,
   act: () => Promise<T>,
   refOf: (value: T) => string,
-  opts: { staleMs: number },
+  opts: {
+    staleMs: number;
+    /**
+     * Fallback dedupe for when the receipts table is missing: the result_ref of
+     * an existing row that already answers this delivery, or null. Runs under a
+     * per-key advisory lock together with `act`, so two concurrent deliveries
+     * cannot both read "none" and both write (claim-before-act).
+     */
+    findExisting?: () => Promise<string | null>;
+  },
 ): Promise<RunOnceResult<T>> {
   if (!key) return { duplicate: false, value: await act() };
 
@@ -193,8 +205,25 @@ export async function runOnceByKey<T>(
     claim = await claimReceipt(db, key, route, { staleMs: opts.staleMs });
   } catch (err) {
     if (!isReceiptTableMissing(err)) throw err;
-    log.warn("bridge_receipts_not_migrated", { route });
-    return { duplicate: false, value: await act(), dedupe: "unavailable" };
+    if (!warnedMissingTable) {
+      warnedMissingTable = true;
+      log.warn("bridge_receipts_not_migrated", { route });
+    }
+    const findExisting = opts.findExisting;
+    if (!findExisting) return { duplicate: false, value: await act(), dedupe: "unavailable" };
+    // The lock is held by this transaction's connection until it ends; `act`
+    // commits on its own connection inside that window, so the next delivery of
+    // the same key waits here, then finds the committed row. Prod 2026-10-23:
+    // without a table every escalation landed twice (map F5).
+    return (db as PrismaClient).$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${route}|${key}`}))`;
+        const existing = await findExisting();
+        if (existing) return { duplicate: true as const, resultRef: existing };
+        return { duplicate: false as const, value: await act(), dedupe: "unavailable" as const };
+      },
+      { timeout: 20_000 },
+    );
   }
 
   if (!claim.first) {

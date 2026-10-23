@@ -20,23 +20,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  Bot,
-  Check,
-  Clock,
-  Eye,
-  Pencil,
-  Play,
-  Trash2,
-  Sparkles,
-  GripVertical,
-} from "lucide-react";
+import { Check, Clock, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { describeCompletion } from "@/lib/services/completion-frame";
 import { useInspector } from "@/hooks/use-inspector";
 import type { Task } from "@/components/actions/shared";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
 import { StreakBadge } from "@/components/missions/streak-badge";
 
@@ -44,10 +33,6 @@ export interface MissionTaskRowProps {
   task: Task;
   /** Indent level · 0 = top, 1 = subtask. */
   indent?: 0 | 1;
-  /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
-   *  so the row can disable the arrows at the ends. */
-  index?: number;
-  totalTasks?: number;
 
   isDragged?: boolean;
   isDraggedOver?: boolean;
@@ -56,21 +41,17 @@ export interface MissionTaskRowProps {
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
-  isNicksPick?: boolean;
-  rationale?: string;
 }
 
-// 2026-09-15 · tomorrow6am / nextMonday6am moved to lib/missions/snooze-presets.ts
+// 2026-09-15 · tomorrowMorning / nextMondayMorning moved to lib/missions/snooze-presets.ts
 // so the task inspector's page actions snooze to the same instants as this row.
-import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
+import { nextMondayMorning, tomorrowMorning } from "@/lib/missions/snooze-presets";
 import { formatDueHint } from "@/lib/missions/due-hint";
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 
 export function MissionTaskRow({
   task,
   indent = 0,
-  index,
-  totalTasks,
   isDragged,
   isDraggedOver,
   onDragStart,
@@ -78,8 +59,6 @@ export function MissionTaskRow({
   onDragOver,
   onDragLeave,
   onDrop,
-  isNicksPick,
-  rationale,
 }: MissionTaskRowProps) {
   const actions = useMissionDispatch();
   const [busy, setBusy] = useState<
@@ -87,6 +66,8 @@ export function MissionTaskRow({
   >(null);
   // Wave AV · 2026-05-28 · snooze popover · open state local to the row.
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   // Wave AW · 2026-05-28 · dismiss path · ref on the popover wrapper so
   // pointerdown handler can decide "inside or outside" cleanly. Without
   // this the operator could strand the popover open by tapping any
@@ -135,19 +116,14 @@ export function MissionTaskRow({
     isDaily &&
     typeof snoozedUntil === "string" &&
     Date.parse(snoozedUntil) > Date.now();
-  const canMoveUp = typeof index === "number" && index > 0;
-  const canMoveDown =
-    typeof index === "number" &&
-    typeof totalTasks === "number" &&
-    index < totalTasks - 1;
 
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
 
   // 2026-08-23 · the operator finished his workout and this row read WAITING.
-  // Nothing shown was false — WAITING is a correct answer to a question he was
+  // Nothing shown was false: WAITING is a correct answer to a question he was
   // not asking. describeCompletion returns a label AND the frame it is spoken
-  // in, so a recurring task completed today reads "done today · back at 6am"
+  // in, so a recurring task completed today reads "done today · back by 5 am"
   // instead of collapsing two true facts into the less useful one. Measured:
   // all four live WAITING dailies carry a real snoozedUntil seven hours out.
   const completionDisplay = describeCompletion(
@@ -180,7 +156,7 @@ export function MissionTaskRow({
   const dueHint = formatDueHint(task.dueDate);
   // 2026-09-15 · UI workbench · the row is an addressable object: data-entity
   // makes j/k/Space/Enter/x work inside the board's selection scope, and the
-  // eye button (44px, like every other control here — the e2e target-size
+  // eye button (44px, like every other control here: the e2e target-size
   // floor) opens the universal inspector at `?inspect=task:<id>`.
   const { openInspector } = useInspector();
 
@@ -328,9 +304,9 @@ export function MissionTaskRow({
         </p>
         {/* The completion frame, rendered as TEXT and not only as a tooltip:
           *  statenour is a standalone iOS PWA, where a title= attribute is dead.
-          *  A recurring task completed today reads "done today · back at 6am"
+          *  A recurring task completed today reads "done today · back by 5 am"
           *  instead of the bare WAITING that started this. Shown only when the
-          *  frame is "both" — the case where one fact alone misleads; a one-off
+          *  frame is "both": the case where one fact alone misleads; a one-off
           *  DONE already says everything with a line-through. */}
         {showsCompletionFrame && (
           <p className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-fg-secondary">
@@ -343,15 +319,9 @@ export function MissionTaskRow({
           isDoing ||
           isComplex ||
           task.waitingOn ||
-          (task as unknown as { loopKind?: string }).loopKind === "DAILY" ||
-          isNicksPick) && (
+          (task as unknown as { loopKind?: string }).loopKind === "DAILY") && (
           <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
             {isDoing && <span className="text-amber-400">Doing</span>}
-            {isNicksPick && (
-              <span className="text-fg-secondary px-1 py-0.5 rounded-micro border border-edge-default bg-surface-raised">
-                Nick's pick (hypothesis)
-              </span>
-            )}
             {isComplex && <span className="text-fg-secondary">Complex</span>}
             {task.waitingOn && (
               <span className="text-amber-200/80">Waiting on {task.waitingOn}</span>
@@ -367,7 +337,7 @@ export function MissionTaskRow({
              *  create recurring tasks?" · the schema + cron resurfaced,
              *  but the daily row had no way to defer without breaking
              *  the streak. Pill opens a tiny popover · 2 presets ·
-             *  Tomorrow 6am · Next Mon 6am · resurface cron flips
+             *  Tomorrow · next Monday, midnight ET · resurface cron flips
              *  WAITING→READY when the mark matures. */}
             {isDaily && (
               <span
@@ -405,14 +375,14 @@ export function MissionTaskRow({
                         setBusy("snooze");
                         setSnoozeOpen(false);
                         try {
-                          await actions.handleSnoozeTask(task.id, tomorrow6am());
+                          await actions.handleSnoozeTask(task.id, tomorrowMorning());
                         } finally {
                           setBusy(null);
                         }
                       }}
                       className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg"
                     >
-                      Tomorrow · 6am
+                      Tomorrow · by 5 am
                     </button>
                     <button
                       type="button"
@@ -421,14 +391,14 @@ export function MissionTaskRow({
                         setBusy("snooze");
                         setSnoozeOpen(false);
                         try {
-                          await actions.handleSnoozeTask(task.id, nextMonday6am());
+                          await actions.handleSnoozeTask(task.id, nextMondayMorning());
                         } finally {
                           setBusy(null);
                         }
                       }}
                       className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg border-t border-edge-subtle"
                     >
-                      Next mon · 6am
+                      Monday · by 5 am
                     </button>
                     {isSnoozed && (
                       <button
@@ -473,52 +443,12 @@ export function MissionTaskRow({
         )}
       </div>
 
-      {/* Hover actions · wave-AB.d-mobile · always visible at touch
-       *  breakpoint (no hover · invisible buttons = invisible features
-       *  on phones). Apple HIG tap-target floor 44pt = h-11 w-11. The
-       *  Pre-fix `opacity-0 group-hover` made mobile operators unable
-       *  to edit/start/delete any task. */}
+      {/* 2026-10-23 · the row carries only controls with a job: complete, Start,
+       *  and More (telemetry 14 d: 54 completes, 5 deletes, 0 taps on the other
+       *  nine icons). The rest sits behind More as plain words; delete asks first
+       *  through the house confirm (never window.confirm in the iOS PWA). */}
       {!isDone && (
-        // truth-substrate UI fix: shrink-0 so the buttons keep their tap-target
-        // size; basis-full on mobile makes the cluster wrap to its own line
-        // (right-aligned) under the title instead of crushing it; lg:basis-auto
-        // keeps it inline on desktop.
-        <div className="flex items-center gap-0.5 shrink-0 basis-full justify-end lg:basis-auto lg:justify-normal lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
-          <button
-            type="button"
-            onClick={() => openInspector({ kind: "task", id: task.id })}
-            aria-label="inspect task"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform"
-          >
-            <Eye size={12} strokeWidth={2} />
-          </button>
-          <button
-            type="button"
-            onClick={() => actions.handleEditTask(task)}
-            aria-label="edit task"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform"
-          >
-            <Pencil size={12} strokeWidth={2} />
-          </button>
-          {isComplex && (
-            <button
-              type="button"
-              onClick={async () => {
-                setBusy("decompose");
-                try {
-                  await actions.handleDecomposeTask(task.id);
-                } finally {
-                  setBusy(null);
-                }
-              }}
-              disabled={busy !== null}
-              aria-label="decompose task"
-              title="Decompose task into subtasks"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform disabled:opacity-50"
-            >
-              <Sparkles size={12} strokeWidth={2} />
-            </button>
-          )}
+        <div className="flex shrink-0 basis-full items-center justify-end gap-2 lg:basis-auto">
           {!isDoing && (
             <button
               type="button"
@@ -531,15 +461,49 @@ export function MissionTaskRow({
                 }
               }}
               disabled={busy === "start"}
-              aria-label="start"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-amber-400 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
+              className={ROW_VERB}
             >
-              <Play size={12} strokeWidth={2} />
+              {busy === "start" ? "Starting…" : "Start"}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            aria-label={moreOpen ? `Fewer actions for ${task.title}` : `More actions for ${task.title}`}
+            className={ROW_VERB}
+          >
+            {moreOpen ? "Less" : "More"}
+          </button>
+        </div>
+      )}
+      {!isDone && moreOpen && (
+        <div role="group" aria-label="task actions" className="flex basis-full flex-wrap justify-end gap-2 pb-1">
+          <button type="button" onClick={() => actions.handleEditTask(task)} className={ROW_VERB}>
+            Edit
+          </button>
+          <button type="button" onClick={() => openInspector({ kind: "task", id: task.id })} className={ROW_VERB}>
+            Details
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={async () => {
+              setBusy("snooze");
+              try {
+                await actions.handleSnoozeTask(task.id, tomorrowMorning());
+              } finally {
+                setBusy(null);
+              }
+            }}
+            className={ROW_VERB}
+          >
+            Tomorrow
+          </button>
           {actions.handleDelegateTask && !task.waitingOn && (
             <button
               type="button"
+              disabled={busy !== null}
               onClick={async () => {
                 setBusy("delegate");
                 try {
@@ -548,17 +512,39 @@ export function MissionTaskRow({
                   setBusy(null);
                 }
               }}
-              disabled={busy !== null}
-              aria-label="hand to Nick"
-              title="Hand to Nick: he drafts, you review"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-amber-300 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
+              className={ROW_VERB}
             >
-              <Bot size={12} strokeWidth={2} />
+              Hand to Nick
+            </button>
+          )}
+          {isComplex && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("decompose");
+                try {
+                  await actions.handleDecomposeTask(task.id);
+                } finally {
+                  setBusy(null);
+                }
+              }}
+              className={ROW_VERB}
+            >
+              Break it down
             </button>
           )}
           <button
             type="button"
+            disabled={busy === "delete"}
             onClick={async () => {
+              const ok = await confirm({
+                title: "Delete this task?",
+                body: "It leaves every list on this page.",
+                confirmLabel: "Delete",
+                tone: "danger",
+              });
+              if (!ok) return;
               setBusy("delete");
               try {
                 await actions.handleDeleteTask(task.id);
@@ -566,82 +552,19 @@ export function MissionTaskRow({
                 setBusy(null);
               }
             }}
-            disabled={busy === "delete"}
-            aria-label="delete"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-transform disabled:opacity-50"
+            className={cn(ROW_VERB, "hover:border-rose-500/50 hover:text-rose-300")}
           >
-            <Trash2 size={12} strokeWidth={2} />
+            Delete
           </button>
-          {/* Wave AJ · 2026-05-28 · task reorder · operator's missing
-           *  resort affordance · ↑/↓ swap rank with neighbor · arrows
-           *  fade at the ends to signal terminal position.
-           *  Wave AT · 2026-05-28 · always-on background tint + grouping
-           *  border so the buttons read as tappable at rest on mobile.
-           *  Pre-this-fix the icons were color-tertiary at idle and only
-           *  lit up on hover — invisible on touch. Matches the
-           *  MissionCard mission-reorder polish from this wave. */}
-          {(canMoveUp || canMoveDown) && (
-            <span className="inline-flex rounded-control border border-edge-default bg-content overflow-hidden">
-              <button
-                type="button"
-                onClick={async () => {
-                  if (canMoveUp) {
-                    setBusy("moveUp" as any);
-                    try {
-                      await actions.handleMoveTask(task.id, "up");
-                    } finally {
-                      setBusy(null);
-                    }
-                  }
-                }}
-                disabled={!canMoveUp || busy !== null}
-                aria-label="move up"
-                title="move up"
-                className={cn(
-                  "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
-                  canMoveUp
-                    ? "text-fg-secondary hover:text-fg hover:bg-surface-hover"
-                    : "text-fg-tertiary/30 cursor-not-allowed",
-                )}
-              >
-                <ArrowUp size={12} strokeWidth={2} />
-              </button>
-              <span
-                aria-hidden
-                className="w-px bg-edge-default"
-              />
-              <button
-                type="button"
-                onClick={async () => {
-                  if (canMoveDown) {
-                    setBusy("moveDown" as any);
-                    try {
-                      await actions.handleMoveTask(task.id, "down");
-                    } finally {
-                      setBusy(null);
-                    }
-                  }
-                }}
-                disabled={!canMoveDown || busy !== null}
-                aria-label="move down"
-                title="move down"
-                className={cn(
-                  "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
-                  canMoveDown
-                    ? "text-fg-secondary hover:text-fg hover:bg-surface-hover"
-                    : "text-fg-tertiary/30 cursor-not-allowed",
-                )}
-              >
-                <ArrowDown size={12} strokeWidth={2} />
-              </button>
-            </span>
-          )}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }
 
+const ROW_VERB =
+  "inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50";
 /** Wave AV · 2026-05-28 · compact snooze-pill label. The pill is tiny
  *  so we lean on weekday-name + day-of-month rather than a full date. */
 function formatSnoozedHint(iso: string): string {

@@ -1,18 +1,20 @@
 import { useMemo } from "react";
 import type { Task, Project } from "@/components/actions/shared";
 
-export function useExecutionFocus(
+/** The focus pick, pure so it is testable: active, queued, the deck hero, then the deck's own order. */
+export function pickFocusTask(
   tasks: Task[],
-  missions: Project[],
   queuedTaskId: string | null,
   activeTaskId?: string,
   /** Execution Deck (2026-09-01): the server-picked next move. One ordering
-   *  brain — when the deck has an answer, focus mode agrees with the hero
+   *  brain: when the deck has an answer, focus mode agrees with the hero
    *  instead of re-deriving a different pick from the stale autoPriority
    *  column. The heuristic below survives only as the offline fallback. */
   deckHeroTaskId?: string | null,
-) {
-  const focusedTask = useMemo(() => {
+  /** deck.taskOrder (live open tasks, DOING first, then score); null when the deck has not been read. */
+  taskOrder: readonly string[] | null = null,
+): Task | null {
+  {
     // 1. First choice: active task from CommandCenterState
     if (activeTaskId) {
       const doingTask = tasks.find((t) => t.id === activeTaskId);
@@ -31,7 +33,7 @@ export function useExecutionFocus(
       if (queuedTask) return queuedTask;
     }
 
-    // 2. The deck's decided move — same selector the hero shows.
+    // 2. The deck's decided move: same selector the hero shows.
     if (deckHeroTaskId) {
       const heroTask = tasks.find(
         (t) =>
@@ -46,13 +48,26 @@ export function useExecutionFocus(
     // We only care about open (non-DONE, non-WAITING, non-ARCHIVED) tasks for focus recommendations
     const openTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "WAITING" && t.status !== "ARCHIVED");
     if (openTasks.length === 0) {
-      // Fallback to any tasks that are not DONE or ARCHIVED if nothing else
+      if (taskOrder !== null) return null; // the deck answered: nothing live is open
+      // Deck not read: fall back to any tasks that are not DONE or ARCHIVED
       const anyNotDone = tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED");
       if (anyNotDone.length > 0) return anyNotDone[0];
       return null;
     }
 
-    // Refined heuristic: prioritize AI-scored tasks.
+    // 3. The deck's own order (live score), the same order the cards sort by.
+    // Once the deck has answered, its order is the whole truth: no live open task
+    // means nothing to focus (the raw list holds dead-mission and snoozed rows).
+    if (taskOrder !== null) {
+      const openById = new Map(openTasks.map((t) => [t.id, t]));
+      for (const id of taskOrder) {
+        const hit = openById.get(id);
+        if (hit) return hit;
+      }
+      return null;
+    }
+
+    // Deck not read (failed or not yet loaded): the old heuristic.
     // Order: Overdue > AI autoPriority > Due Date > Oldest
     const now = Date.now();
     const sortedOpen = [...openTasks].sort((a, b) => {
@@ -96,7 +111,21 @@ export function useExecutionFocus(
     });
 
     return sortedOpen[0] || null;
-  }, [tasks, queuedTaskId, activeTaskId, deckHeroTaskId]);
+  }
+}
+
+export function useExecutionFocus(
+  tasks: Task[],
+  missions: Project[],
+  queuedTaskId: string | null,
+  activeTaskId?: string,
+  deckHeroTaskId?: string | null,
+  taskOrder: readonly string[] | null = null,
+) {
+  const focusedTask = useMemo(
+    () => pickFocusTask(tasks, queuedTaskId, activeTaskId, deckHeroTaskId, taskOrder),
+    [tasks, queuedTaskId, activeTaskId, deckHeroTaskId, taskOrder],
+  );
 
   const focusedTaskMission = useMemo(() => {
     if (!focusedTask || !focusedTask.missionId) return null;

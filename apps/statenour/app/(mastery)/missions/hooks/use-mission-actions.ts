@@ -9,6 +9,8 @@ import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
 import { useOutcomeDialog, type OutcomeRatingValue } from "@/components/ui/outcome-dialog";
+import { isUserProject } from "@/lib/services/mission-helpers";
+import { RESURFACE_PROMISE } from "@/lib/missions/snooze-presets";
 
 const log = rootLogger.withSurface("missions/actions");
 
@@ -42,7 +44,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
   // 2026-08-19 · outcome-loop wave · the completion moment's one question.
   // /missions is the LIVE completion surface (board + Execution Mode both
-  // funnel through handleCompleteTask) — this is what makes
+  // funnel through handleCompleteTask): this is what makes
   // Task.outcomeRating/outcomeLesson real. The page must render
   // `outcomeDialog` (returned below) for the prompt to exist.
   const { collectOutcome, dialog: outcomeDialog } = useOutcomeDialog();
@@ -80,10 +82,12 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   const handleCompleteTask = useCallback(
-    async (id: string) => {
+    async (id: string, opts?: { loopKind?: string }): Promise<boolean> => {
       const task = tasks.find((t) => t.id === id);
       const wasOpen = task && task.status !== "DONE";
-      const loopKind = (task as unknown as { loopKind?: string } | undefined)?.loopKind;
+      // Rhythms pass the deck row's loopKind: a habit tick must never take the
+      // one-off path because task.list is still loading or failed.
+      const loopKind = opts?.loopKind ?? (task as unknown as { loopKind?: string } | undefined)?.loopKind;
       const isDaily = loopKind === "DAILY";
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
@@ -91,7 +95,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       // (2026-08-19: Apple caps its own review prompt at 3/365d; ESM
       // compliance decays with prompts/day; Complice/Intend batch reflection
       // rather than interrupt):
-      //   - recurring loops never prompt — completing the loop IS the datum,
+      //   - recurring loops never prompt: completing the loop IS the datum,
       //     and a "drink water" daily asked daily breeds habituated garbage
       //     ratings that would poison the mastery multiplier;
       //   - dismissal (escape/outside-tap) COMPLETES the task unrated. Never
@@ -111,7 +115,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         telemetry.event("completeTask", { taskId: id, isDaily });
         if (isRecurring) {
           // Streak + lastCompletedAt are server-authoritative via task.check
-          // (same-day idempotency included) — never write streakCount from
+          // (same-day idempotency included): never write streakCount from
           // the client: the polled cache can be 15s stale, so a client-side
           // `streak + 1` clobbers concurrent writers (chat/Telegram/voice)
           // and double-bumps across day boundaries.
@@ -145,14 +149,25 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
         if (wasOpen && task?.missionId && !isRecurring) {
           const mission = missions.find((m) => m.id === task.missionId);
-          if (mission && mission.status === "ACTIVE") {
-            const remaining = tasks.filter((t) => t.id !== id && t.missionId === task.missionId && t.status !== "DONE");
+          // Only a finite user project closes with a retro: an anchor lane or an
+          // inbox never "completes" (map F11), and habits never count as remaining work.
+          if (mission && mission.status === "ACTIVE" && isUserProject(mission)) {
+            const remaining = tasks.filter(
+              (t) =>
+                t.id !== id &&
+                t.missionId === task.missionId &&
+                t.status !== "DONE" &&
+                t.status !== "ARCHIVED" &&
+                !["DAILY", "WEEKLY"].includes(((t as { loopKind?: string }).loopKind ?? "").toUpperCase()),
+            );
             if (remaining.length === 0) setRetroState({ missionId: mission.id, title: mission.title });
           }
         }
+        return true;
       } catch (err) {
         log.error("completeTask_failed", { err });
-        toast.error("Could not complete task.");
+        toast.error("Could not complete the task. It is still open.");
+        return false;
       }
     },
     [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setRetroState, collectOutcome],
@@ -231,7 +246,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         telemetry.event("parkTask", { taskId: id, hasNote: note.trim().length > 0, hasRecord: !!record });
         await parkTaskMut.mutateAsync({ id, note, record });
         await refetchAll();
-        toast.success("Parked — the note is waiting for you on resume.");
+        toast.success("Parked. The note is waiting for you on resume.");
       } catch (err) {
         log.error("parkTask_failed", { err });
         toast.error("Could not park the task.");
@@ -241,7 +256,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   // Execution Deck (2026-09-01) · hand a task to Nick: the row parks as
-  // waiting-on-Nick and the side pane opens PREFILLED (never auto-sent —
+  // waiting-on-Nick and the side pane opens PREFILLED (never auto-sent, 
   // $0 doctrine: the operator fires the turn). Draft-first delegation:
   // Nick's output comes back through chat/approvals, never as applied change.
   const handleDelegateTask = useCallback(
@@ -253,13 +268,13 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         window.dispatchEvent(
           new CustomEvent("statenour:open-nick", {
             detail: {
-              pendingPrompt: `Take this task and do the legwork — draft what you can, list what you need from me, and don't execute anything external:\n"${task.title}"${action ? `\nFirst step on file: ${action}` : ""}`,
+              pendingPrompt: `Take this task and do the legwork: draft what you can, list what you need from me, and don't execute anything external:\n"${task.title}"${action ? `\nFirst step on file: ${action}` : ""}`,
               submitOnMount: false,
             },
           }),
         );
         await refetchAll();
-        toast.success("Handed to Nick — review his draft in the pane.");
+        toast.success("Handed to Nick. Review his draft in the pane.");
       } catch (err) {
         log.error("delegateTask_failed", { err });
         toast.error("Could not hand the task to Nick.");
@@ -268,8 +283,9 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     [updateTask, refetchAll, telemetry],
   );
 
+  /** Resolves true only on a confirmed write, so a caller (close the day) never reports a failed snooze as done. */
   const handleSnoozeTask = useCallback(
-    async (taskId: string, snoozedUntilIso: string) => {
+    async (taskId: string, snoozedUntilIso: string, opts?: { quiet?: boolean }): Promise<boolean> => {
       try {
         const clearing = !snoozedUntilIso;
         telemetry.event("snoozeTask", { taskId, clearing, snoozedUntil: snoozedUntilIso || null });
@@ -281,10 +297,12 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           },
         });
         await refetchAll();
-        toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
+        if (!opts?.quiet) toast.success(clearing ? "Snooze cleared." : `Snoozed. Back ${RESURFACE_PROMISE} on the day.`);
+        return true;
       } catch (err) {
         log.error("snoozeTask_failed", { err });
-        toast.error("Could not update snooze.");
+        if (!opts?.quiet) toast.error("Could not snooze the task. It is still open.");
+        return false;
       }
     },
     [updateTask, refetchAll, telemetry],
@@ -305,18 +323,18 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         success: (res) => {
           void refetchAll();
           // "Successfully created 0 subtasks!" is a green tick over nothing.
-          // Zero happens on two paths — the model planned nothing, or the
-          // next-action gate refused a batch of decisions/alternatives — and
+          // Zero happens on two paths: the model planned nothing, or the
+          // next-action gate refused a batch of decisions/alternatives: and
           // the operator needs the second one to read as a deliberate refusal
           // with a reason, not as success.
           if (res.subtasksCount === 0) {
             if (res.suppressedReason === "alternatives_not_steps") {
-              return "No subtasks created — the steps offered were alternatives (close it / delegate it / schedule it), not a checklist. That choice is yours to make.";
+              return "No subtasks created. The steps offered were alternatives (close it, delegate it, schedule it), not a checklist. That choice is yours.";
             }
             if (res.suppressed) {
-              return "No subtasks created — nothing came back that was a real next physical action.";
+              return "No subtasks created. Nothing came back that was a real next physical action.";
             }
-            return "No subtasks needed — this already looks like a single step.";
+            return "No subtasks needed. This already looks like a single step.";
           }
           return `Successfully created ${res.subtasksCount} subtask${res.subtasksCount === 1 ? "" : "s"}!`;
         },
@@ -326,7 +344,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       try {
         await promise;
       } catch (err) {
-        // toast.promise already surfaced the error toast — log only.
+        // toast.promise already surfaced the error toast: log only.
         log.error("decomposeTask_failed", { err, taskId: id });
       } finally {
         setDecomposing(false);
@@ -376,7 +394,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       try {
         telemetry.event("reorderMission", { missionId, direction });
         const res = await reorderMissionMut.mutateAsync({ missionId, direction });
-        // Multi-step drags pass skipRefetch and settle once at the end —
+        // Multi-step drags pass skipRefetch and settle once at the end, 
         // the old per-step refetch made an 8-position drag 32 round trips.
         if (res.ok && !opts?.skipRefetch) await refetchAll();
       } catch (err) {
@@ -440,7 +458,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         setTimeout(() => void refetchAll(), 2500);
       } catch (err) {
         // Toast here AND rethrow: callers (MissionsQuickAdd / OmniCapture)
-        // rely on the rejection to keep the typed text for retry — a
+        // rely on the rejection to keep the typed text for retry: a
         // swallowed failure here means silently lost captures.
         log.error("quickAdd_failed", { err });
         toast.error("Could not capture. Try again.");
@@ -471,7 +489,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     handleQuickAdd,
     handleEditMission,
     submitting,
-    /** Mount once at page level — the completion prompt lives here. */
+    /** Mount once at page level: the completion prompt lives here. */
     outcomeDialog,
   };
 }

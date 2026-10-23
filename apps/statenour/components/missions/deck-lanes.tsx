@@ -60,7 +60,7 @@ export function DeckLanes({ lanes, tasks }: Props) {
                   {isOpen ? "▾" : "▸"}
                 </span>
                 <span className="min-w-0 truncate text-[13px] font-medium text-fg">
-                  {lane.isShop ? "Shop — needs your judgment" : lane.title}
+                  {lane.isShop ? "Shop: needs your judgment" : lane.title}
                 </span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
                   {lane.openCount} open
@@ -76,7 +76,7 @@ export function DeckLanes({ lanes, tasks }: Props) {
                   rel="noopener noreferrer"
                   className="shrink-0 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[44px] inline-flex items-center gap-1"
                 >
-                  Shop admin ↗
+                  Open shop admin
                 </a>
               )}
             </div>

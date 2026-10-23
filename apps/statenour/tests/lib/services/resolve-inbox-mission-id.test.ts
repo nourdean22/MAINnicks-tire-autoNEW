@@ -16,7 +16,7 @@
  * with FK violations. The fan-out is wide so the test surface
  * needs all paths covered.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   mission: {
@@ -53,6 +53,104 @@ vi.mock("@/lib/db/entity-audit", () => ({
 }));
 vi.mock("@/lib/utils/cache", () => ({ invalidate: vi.fn() }));
 
+describe("resolveInboxMissionId · never a deleted or closed inbox (job 2026-10-23, map F4)", () => {
+  afterEach(() => {
+    mocks.mission.findUnique.mockReset();
+    mocks.mission.findFirst.mockReset();
+    mocks.mission.create.mockReset();
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it("a soft-deleted m-inbox is never returned: the replacement takes the next deterministic id", async () => {
+    mocks.mission.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "m-inbox" ? { id: "m-inbox", deletedAt: new Date("2026-08-01"), status: "PAUSED" } : null,
+    );
+    mocks.mission.findFirst.mockResolvedValue(null);
+    mocks.mission.create.mockImplementation(async ({ data }: { data: { id?: string } }) => {
+      if (data.id === "m-inbox") throw Object.assign(new Error("unique"), { code: "P2002" });
+      return { id: data.id };
+    });
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    await expect(resolveInboxMissionId()).resolves.toBe("m-inbox-2");
+  });
+
+  it("a PAUSED (not deleted) m-inbox is not a live inbox either", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-inbox", deletedAt: null, status: "PAUSED" });
+    mocks.mission.findFirst.mockResolvedValue({ id: "m-inbox-by-title" });
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    await expect(resolveInboxMissionId()).resolves.toBe("m-inbox-by-title");
+  });
+});
+
+// Lens review 2026-10-23 (F4 via the anchor fallback): prod holds 4 COMPLETE general anchors
+// and 1 ACTIVE; a closed anchor is never a filing target, on the fast path or the retry.
+describe("resolveInboxMissionId · a closed inbox is replaced exactly once (Codex P2, PR 3257)", () => {
+  afterEach(() => {
+    mocks.mission.findUnique.mockReset();
+    mocks.mission.findFirst.mockReset();
+    mocks.mission.create.mockReset();
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it("two concurrent cold-start resolves on a deleted m-inbox yield ONE replacement id", async () => {
+    const store = new Map<string, { id: string; deletedAt: Date | null; status: string }>([
+      ["m-inbox", { id: "m-inbox", deletedAt: new Date("2026-08-01"), status: "PAUSED" }],
+    ]);
+    let generated = 0;
+    mocks.mission.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => store.get(where.id) ?? null);
+    mocks.mission.findFirst.mockResolvedValue(null); // both callers miss the title lookup (the race window)
+    mocks.mission.create.mockImplementation(async ({ data }: { data: { id?: string } }) => {
+      const id = data.id ?? `cuid-${++generated}`;
+      if (store.has(id)) throw Object.assign(new Error("unique"), { code: "P2002" });
+      store.set(id, { id, deletedAt: null, status: "ACTIVE" });
+      return { id };
+    });
+    const a = await import("@/lib/services/missions");
+    vi.resetModules();
+    const b = await import("@/lib/services/missions"); // a second process: its own cache
+    const [x, y] = await Promise.all([a.resolveInboxMissionId(), b.resolveInboxMissionId()]);
+    expect(x).toBe(y);
+    expect([...store.values()].filter((m) => m.status === "ACTIVE" && !m.deletedAt)).toHaveLength(1);
+  });
+});
+
+describe("resolveGeneralAnchorId · only a live anchor is a target", () => {
+  afterEach(() => {
+    mocks.mission.findUnique.mockReset();
+    mocks.mission.create.mockReset();
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it("a COMPLETE anchor yields null (the task stays in Inbox), and nothing is created over it", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-general-health", deletedAt: null, status: "COMPLETE" });
+    mocks.mission.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    const { resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    await expect(resolveGeneralAnchorId("health" as never)).resolves.toBeNull();
+  });
+
+  it("a soft-deleted anchor yields null", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-general-health", deletedAt: new Date("2026-09-01"), status: "ACTIVE" });
+    mocks.mission.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    const { resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    await expect(resolveGeneralAnchorId("health" as never)).resolves.toBeNull();
+  });
+
+  it("control: an ACTIVE anchor is returned", async () => {
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-general-health", deletedAt: null, status: "ACTIVE" });
+    const { resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    await expect(resolveGeneralAnchorId("health" as never)).resolves.toBe("m-general-health");
+  });
+});
+
 describe("resolveInboxMissionId", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -66,7 +164,7 @@ describe("resolveInboxMissionId", () => {
   it("returns m-inbox when the canonical seeded row exists", async () => {
     mocks.mission.findUnique.mockResolvedValueOnce({
       id: "m-inbox",
-      deletedAt: null,
+      deletedAt: null, status: "ACTIVE",
     });
     const { resolveInboxMissionId } = await import("@/lib/services/missions");
     const id = await resolveInboxMissionId();
@@ -115,7 +213,7 @@ describe("resolveInboxMissionId", () => {
   it("recovers from a P2002 race by re-reading the freshly-created row", async () => {
     mocks.mission.findUnique
       .mockResolvedValueOnce(null) // initial probe
-      .mockResolvedValueOnce({ id: "m-inbox" }); // race retry
+      .mockResolvedValueOnce({ id: "m-inbox", deletedAt: null, status: "ACTIVE" }); // race retry
     mocks.mission.findFirst.mockResolvedValueOnce(null);
     mocks.mission.create.mockRejectedValueOnce(
       Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
@@ -141,7 +239,7 @@ describe("resolveInboxMissionId", () => {
   it("caches the resolved id so a second call skips prisma entirely", async () => {
     mocks.mission.findUnique.mockResolvedValueOnce({
       id: "m-inbox",
-      deletedAt: null,
+      deletedAt: null, status: "ACTIVE",
     });
     const { resolveInboxMissionId } = await import("@/lib/services/missions");
     await resolveInboxMissionId();

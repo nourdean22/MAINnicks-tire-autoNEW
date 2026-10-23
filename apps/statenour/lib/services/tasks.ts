@@ -763,7 +763,9 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     const [inboxId, missions, goals, recentCorrections] = await Promise.all([
       inboxIdP,
       prisma.mission.findMany({
-        where: activeOnly(),
+        // 2026-10-23 (map F4) · live missions only: offering KILLED / COMPLETE /
+        // PAUSED ones filed 16 of 19 new tasks into a KILLED mission.
+        where: activeOnly({ status: "ACTIVE" }),
         // successMetric = the mission's "what done looks like" (its description);
         // systemKind lets us drop GENERAL anchors from the candidate list.
         select: { id: true, title: true, domain: true, successMetric: true, systemKind: true },
@@ -794,7 +796,11 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     for (const m of missions) {
       if (/^inbox\b/i.test(m.title ?? "") || isGeneralAnchor(m)) inboxIds.add(m.id);
     }
+    // A task filed in any non-inbox mission (PAUSED and COMPLETE included: phase
+    // progression spawns into paused projects on purpose) is a choice, never re-filed.
     const missionUnset = !task.missionId || inboxIds.has(task.missionId);
+    // Every re-file below is a compare-and-set on the mission value read above.
+    const unsetFrom = [...inboxIds];
     const goalUnset = !task.goalId;
     const statsUnset = !task.statHints || task.statHints.length === 0;
     // Already fully linked → skip the AI call (gap-fill only).
@@ -824,7 +830,7 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
       await prisma.task
         .updateMany({
           // Only reassign while the task is STILL in an inbox variant (race-safe).
-          where: { id: taskId, missionId: { in: [...inboxIds] } },
+          where: { id: taskId, missionId: { in: unsetFrom } },
           data: { missionId: result.missionId },
         })
         .catch(() => {});
@@ -856,7 +862,7 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     ) {
       await prisma.task
         .updateMany({
-          where: { id: taskId, missionId: { in: [...inboxIds] } },
+          where: { id: taskId, missionId: { in: unsetFrom } },
           data: {
             pendingClassification: {
               missionId: result.missionId,
@@ -882,7 +888,7 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
       if (anchorId) {
         await prisma.task
           .updateMany({
-            where: { id: taskId, missionId: { in: [...inboxIds] } },
+            where: { id: taskId, missionId: { in: unsetFrom } },
             data: { missionId: anchorId },
           })
           .catch(() => {});

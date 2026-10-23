@@ -1,61 +1,46 @@
 "use client";
 
 /**
- * deck-triage.tsx — the airlock (Execution Deck §10.4).
+ * deck-triage.tsx · the airlock rows, rendered inside the DECIDE sheet.
  *
- * Raw intake never lands in "today": captures, Nick's pending
- * classifications, mission-less tasks, and rescue findings queue here
- * with one-tap verbs. Renders NOTHING when clear — quiet is the healthy
- * state (dark cockpit). The count is the whole-queue truth even when
- * rows are capped.
- *
- * 2026-09-16 · Visible Transformation: an eyebrow h2 with the queue count
- * in display type, hairline rows, 44px verbs; no card.
+ * Captures, real mission suggestions, rescue findings and tasks not yet in a
+ * mission queue here with one-tap verbs. The count line lives in deck-decide;
+ * this list shows "+N more" whenever the rows are capped. Delete goes through
+ * the parent's confirm (the house dialog, never window.confirm).
  */
-import { useState } from "react";
 import Link from "next/link";
 import type { MissionsDeck } from "@/lib/missions/deck";
 import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
 import type { Task } from "@/components/actions/shared";
+import { inDaysMorning } from "@/lib/missions/snooze-presets";
 
 type Props = {
   triage: MissionsDeck["triage"];
   tasks: Task[];
   onEditTask: (task: Task) => void;
-  onSnoozeTask: (taskId: string, untilIso: string) => void;
-  onDeleteTask: (taskId: string) => void;
+  onSnoozeTask: (taskId: string, untilIso: string) => Promise<boolean>;
+  onDeleteTask: (taskId: string) => Promise<void> | void;
+  /** A source failed to read: an empty list is not "nothing to decide". */
+  incomplete?: boolean;
 };
-
-function nextWeekIso(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 7);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
-}
 
 const VERB =
   "inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
-export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask }: Props) {
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  if (triage.rows.length === 0) return null;
-
+export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask, incomplete = false }: Props) {
+  if (triage.rows.length === 0) {
+    return (
+      <p className="text-[15px] text-fg-tertiary">
+        {incomplete
+          ? "Part of this queue could not be read, so it may not be empty. Pull to refresh."
+          : "Nothing to decide right now."}
+      </p>
+    );
+  }
   const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   return (
-    <section aria-labelledby="triage-heading">
-      <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
-        <h2 id="triage-heading" className="vt-eyebrow text-fg-secondary">
-          decide
-        </h2>
-        <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
-          {triage.totalCount > triage.rows.length
-            ? `showing ${triage.rows.length} of ${triage.totalCount}`
-            : `${triage.totalCount} waiting`}
-        </span>
-      </div>
-
+    <div>
       <ul className="divide-y divide-edge">
         {triage.rows.map((row) => {
           const task = row.taskId ? taskById.get(row.taskId) : undefined;
@@ -66,12 +51,10 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                 {row.detail && <p className="truncate text-[12px] text-fg-tertiary">{row.detail}</p>}
               </div>
 
-              {/* 2026-10-10 · audit 10-U3: /system/inbox lists quarantined
-                  memories, not CaptureInboxItem rows, and no page lists
-                  captures. The label names what the link really opens. */}
+              {/* /system/inbox lists quarantined memories, not capture rows (audit 10-U3). */}
               {row.kind === "capture" && (
                 <Link href="/system/inbox" className={VERB}>
-                  Memory inbox ↗
+                  Memory inbox
                 </Link>
               )}
 
@@ -83,41 +66,27 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
               )}
 
               {(row.kind === "unattached" || row.kind === "rescue") && task && (
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <button type="button" onClick={() => onEditTask(task)} className={VERB}>
                     File it
                   </button>
-                  <button type="button" onClick={() => onSnoozeTask(task.id, nextWeekIso())} className={VERB}>
-                    Later
+                  <button type="button" onClick={() => void onSnoozeTask(task.id, inDaysMorning(7))} className={VERB}>
+                    Next week
                   </button>
-                  {confirmDelete === task.id ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onDeleteTask(task.id);
-                        setConfirmDelete(null);
-                      }}
-                      className="inline-flex min-h-[44px] items-center rounded-control border border-rose-500/50 bg-rose-500/10 px-3 text-[13px] font-medium text-rose-300"
-                    >
-                      Confirm ✕
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(task.id)}
-                      onBlur={() => setConfirmDelete((v) => (v === task.id ? null : v))}
-                      aria-label={`Delete ${task.title}`}
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control border border-edge-default font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-rose-300"
-                    >
-                      ✕
-                    </button>
-                  )}
+                  <button type="button" onClick={() => void onDeleteTask(task.id)} aria-label={`Delete ${task.title}`} className={VERB}>
+                    Delete
+                  </button>
                 </div>
               )}
             </li>
           );
         })}
       </ul>
-    </section>
+      {triage.totalCount > triage.rows.length && (
+        <p className="pt-2 font-mono text-[11px] text-fg-tertiary">
+          +{triage.totalCount - triage.rows.length} more after these
+        </p>
+      )}
+    </div>
   );
 }

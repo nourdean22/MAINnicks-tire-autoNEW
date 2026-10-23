@@ -46,7 +46,7 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
 
     return missions.filter((m) => {
       // truth-substrate audit P1 (#19): keep GENERAL domain anchors too, not just
-      // user projects — MissionFeed needs them to render domain-routed task buckets.
+      // user projects: MissionFeed needs them to render domain-routed task buckets.
       // Without this, an active filter dropped every anchor and the tasks the
       // classifier routed to them regressed back into "unattached". MissionFeed's
       // own isUserProject filter still keeps anchors OUT of the project cards, so

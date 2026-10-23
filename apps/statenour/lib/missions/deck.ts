@@ -25,7 +25,7 @@ import {
   scoreTaskPriority,
   type RankedMissionRef,
 } from "@/lib/scoring/task-priority";
-import { isGeneralAnchor, isUserProject } from "@/lib/services/mission-helpers";
+import { isGeneralAnchor, isInboxMission, isUserProject } from "@/lib/services/mission-helpers";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
 import { startOfDayET, toDateString } from "@/lib/utils/datetime";
@@ -39,9 +39,6 @@ export const EFFORT_MINUTES: Record<string, number> = {
   H2PLUS: 120,
 };
 
-/** WIP cap on ACTIVE user projects — the 4th requires pausing one (§5). */
-export const MISSION_WIP_CAP = 3;
-
 /** Rhythm consistency window, in ET days ("6 of last 7"). */
 export const RHYTHM_WINDOW_DAYS = 7;
 
@@ -50,6 +47,9 @@ export const READINESS_MAX_AGE_DAYS = 2;
 
 /** Triage rows shown before the "+N more" truth line. */
 export const TRIAGE_LIMIT = 12;
+
+/** Closed-mission rows shipped for review; the count is always the whole set. */
+export const CLOSED_LIMIT = 200;
 
 export type DeckTaskRef = {
   id: string;
@@ -135,6 +135,13 @@ export type DeckEvidenceRow = {
   missionTitle: string | null;
 };
 
+/** An open task whose mission is not ACTIVE (or is soft-deleted): shown for review, never worked from. */
+export type DeckClosedRow = {
+  id: string;
+  title: string;
+  missionState: "KILLED" | "COMPLETE" | "PAUSED" | "DELETED";
+};
+
 export type DeckReadiness =
   | { state: "nominal"; measuredDaysAgo: number }
   | { state: "exception"; line: string; measuredDaysAgo: number }
@@ -146,7 +153,12 @@ export type MissionsDeck = {
   capacity: { chosenMinutes: number; chosenCount: number };
   triage: { rows: DeckTriageRow[]; totalCount: number };
   missions: DeckMission[];
-  missionSlotsOpen: number;
+  /** Open tasks in missions that are not live, counted whole; rows capped at CLOSED_LIMIT. */
+  closed: { count: number; rows: DeckClosedRow[] };
+  /** Live open non-habit task ids in the deck's one order (DOING first, then score). Cards sort by this. */
+  taskOrder: string[];
+  /** The hero's eligible set in hero order (blocked, shop-lane and habit tasks excluded). Focus walks this. */
+  focusOrder: string[];
   lanes: DeckLane[];
   rhythms: DeckRhythm[];
   waiting: DeckWaitingRow[];
@@ -254,9 +266,6 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   const titleOf = (missionId: string) =>
     (missionById.get(missionId) as { title?: string } | undefined)?.title ?? null;
 
-  const anchorIds = new Set(
-    serialMissions.filter((m: Parameters<typeof isGeneralAnchor>[0]) => isGeneralAnchor(m)).map((m: { id: string }) => m.id),
-  );
   const shopAnchorIds = new Set(
     serialMissions
       .filter(
@@ -282,7 +291,40 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   const isHabit = (t: ScoredTask) => HABIT_LOOPS.has((t.loopKind ?? "").toUpperCase());
   const isOpen = (t: ScoredTask) => t.status === "INBOX" || t.status === "READY" || t.status === "DOING";
   const isBlocked = (t: ScoredTask) => typeof t.waitingOn === "string" && t.waitingOn.trim().length > 0;
-  const openTasks = scored.filter(isOpen);
+  // Live = the mission row exists (activeOnly dropped soft-deleted ones) AND is ACTIVE.
+  // Prod 2026-10-23: 102 of 116 open tasks sat in KILLED / COMPLETE / deleted
+  // missions and drove the hero and DECIDE. They are counted below, never worked from.
+  const liveMissionIds = new Set(
+    serialMissions.filter((m: { status: string }) => m.status === "ACTIVE").map((m: { id: string }) => m.id),
+  );
+  const isLive = (t: ScoredTask) => liveMissionIds.has(t.missionId);
+  const inboxIds = new Set(
+    serialMissions
+      .filter((m: { id: string; title: string }) => liveMissionIds.has(m.id) && isInboxMission(m.title))
+      .map((m: { id: string }) => m.id),
+  );
+  const openTasks = scored.filter((t: ScoredTask) => isOpen(t) && isLive(t));
+
+  const closedTasks = scored.filter(
+    (t: ScoredTask) => (isOpen(t) || t.status === "WAITING") && !isHabit(t) && !isLive(t),
+  );
+  const closed = {
+    count: closedTasks.length,
+    rows: closedTasks.slice(0, CLOSED_LIMIT).map((t: ScoredTask) => {
+      const status = (missionById.get(t.missionId) as { status?: string } | undefined)?.status;
+      const missionState: DeckClosedRow["missionState"] =
+        status === "KILLED" || status === "COMPLETE" || status === "PAUSED" ? status : "DELETED";
+      return { id: t.id, title: t.title, missionState };
+    }),
+  };
+
+  const taskOrder = openTasks
+    .filter((t: ScoredTask) => !isHabit(t))
+    .sort(
+      (a: ScoredTask, b: ScoredTask) =>
+        Number(b.status === "DOING") - Number(a.status === "DOING") || b._score - a._score,
+    )
+    .map((t: ScoredTask) => t.id as string);
 
   // ── next move — one decided action (§10.2) ─────────────────────────
   // Eligibility (boundary §3): habits never; blocked never; tasks filed
@@ -295,6 +337,10 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
 
   const doingNow = heroEligible.filter((t: ScoredTask) => t.status === "DOING");
   const heroPick = doingNow[0] ?? heroEligible[0] ?? null;
+  // Focus walks the same eligible set the hero does (no blocked, no shop lane, no habit), DOING first.
+  const focusOrder = [...doingNow, ...heroEligible.filter((t: ScoredTask) => t.status !== "DOING")].map(
+    (t: ScoredTask) => t.id as string,
+  );
   const alternates = heroEligible
     .filter((t: ScoredTask) => t.id !== heroPick?.id)
     .slice(0, 2)
@@ -372,47 +418,46 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
     unmeasured.push("captures");
   }
 
-  const pendingClassify = openTasks.filter(
-    (t: ScoredTask) => t.pendingClassification !== null && t.pendingClassification !== undefined,
-  );
-  for (const t of pendingClassify) {
-    triageRows.push({
-      kind: "classify",
+  // Classify rows only for a REAL proposal: a live, non-inbox target. A parked
+  // classification with no mission (prod: 5 of 6) or one aimed at a closed
+  // mission is not a proposal; the task files like any other unfiled task.
+  const proposalOf = (t: ScoredTask): string | null => {
+    const target = (t.pendingClassification as { missionId?: unknown } | null | undefined)?.missionId;
+    return typeof target === "string" && liveMissionIds.has(target) && !inboxIds.has(target) ? target : null;
+  };
+  // One task, one attention slot: a blocked task lists in Waiting, never also here (Codex P2, PR 3257).
+  const classifyRows: DeckTriageRow[] = openTasks
+    .filter((t: ScoredTask) => !isHabit(t) && !isBlocked(t) && proposalOf(t) !== null)
+    .map((t: ScoredTask) => ({
+      kind: "classify" as const,
       id: `classify:${t.id}`,
       taskId: t.id,
       title: t.title,
-      detail: "Nick proposed a mission — accept or re-file.",
-    });
-  }
-
-  const unattached = openTasks.filter(
-    (t: ScoredTask) =>
-      !missionById.has(t.missionId) ||
-      ((missionById.get(t.missionId) as { status?: string } | undefined)?.status !== "ACTIVE" &&
-        !anchorIds.has(t.missionId)),
-  );
-  for (const t of unattached) {
-    triageRows.push({
-      kind: "unattached",
+      detail: "Nick suggests a mission. Attach it or file it yourself.",
+    }));
+  const queued = new Set(classifyRows.map((r) => r.taskId));
+  // Unfiled = open work sitting in a live Inbox mission (where quick-add lands).
+  const unattachedRows: DeckTriageRow[] = openTasks
+    .filter((t: ScoredTask) => !isHabit(t) && !isBlocked(t) && inboxIds.has(t.missionId) && !queued.has(t.id))
+    .map((t: ScoredTask) => ({
+      kind: "unattached" as const,
       id: `unattached:${t.id}`,
       taskId: t.id,
       title: t.title,
-      detail: "No live mission — file it, park it, or let it go.",
-    });
-  }
+      detail: "Not in a mission yet. File it, push it a week, or delete it.",
+    }));
+  for (const r of unattachedRows) queued.add(r.taskId);
 
-  let rescueCount = 0;
+  const rescueRows: DeckTriageRow[] = [];
+  const liveOpenIds = new Set(openTasks.filter((t: ScoredTask) => !isBlocked(t)).map((t: ScoredTask) => t.id));
   try {
     const rescue = await buildTaskRescue();
-    rescueCount = rescue.findings.length;
-    // One task, one attention slot: a finding about the task that ALREADY
-    // owns the hero (or already queued above) never re-queues in triage —
-    // the self-audit caught the hero's own staleness finding double-billing.
-    const already = new Set(triageRows.map((r) => r.taskId).filter(Boolean));
-    if (heroPick) already.add(heroPick.id);
-    for (const f of rescue.findings.slice(0, 4)) {
-      if (f.taskId && already.has(f.taskId)) continue;
-      triageRows.push({
+    // One task, one attention slot: a finding about the hero, about a task
+    // already queued above, or about a task outside a live mission never
+    // queues (the closed line owns those).
+    for (const f of rescue.findings) {
+      if (f.taskId && (queued.has(f.taskId) || f.taskId === heroPick?.id || !liveOpenIds.has(f.taskId))) continue;
+      rescueRows.push({
         kind: "rescue",
         id: `rescue:${f.taskId ?? f.title}`,
         taskId: f.taskId ?? null,
@@ -424,9 +469,12 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
     unmeasured.push("rescue");
   }
 
+  // Rescue gets its slots BEFORE the unfiled pile, so a long pile can never starve it.
+  triageRows.push(...classifyRows, ...rescueRows.slice(0, 4), ...unattachedRows);
   const triage = {
     rows: triageRows.slice(0, TRIAGE_LIMIT),
-    totalCount: captureCount + pendingClassify.length + unattached.length + rescueCount,
+    // Every term is a distinct set by construction (queued / hero / dead filters above).
+    totalCount: captureCount + classifyRows.length + unattachedRows.length + rescueRows.length,
   };
 
   // ── missions — finite user projects only (§10.5) ───────────────────
@@ -531,14 +579,23 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   }
 
   // ── waiting / delegated (§10.8) ────────────────────────────────────
+  // A WAITING task with no snooze and no waitingOn has no reviver and no reason;
+  // it lists here (with an empty reason) instead of sitting in no section.
   const waiting: DeckWaitingRow[] = scored
-    .filter((t: ScoredTask) => isBlocked(t) && t.status !== "DONE" && t.status !== "ARCHIVED")
+    .filter(
+      (t: ScoredTask) =>
+        isLive(t) &&
+        !isHabit(t) &&
+        t.status !== "DONE" &&
+        t.status !== "ARCHIVED" &&
+        (isBlocked(t) || (t.status === "WAITING" && !t.snoozedUntil)),
+    )
     .map((t: ScoredTask) => ({
       id: t.id,
       title: t.title,
-      waitingOn: (t.waitingOn as string).trim(),
+      waitingOn: typeof t.waitingOn === "string" ? t.waitingOn.trim() : "",
       ageDays: daysBetween(t.updatedAt, now) ?? 0,
-      delegatedToNick: (t.waitingOn as string).trim().toLowerCase() === "nick",
+      delegatedToNick: typeof t.waitingOn === "string" && t.waitingOn.trim().toLowerCase() === "nick",
     }))
     .sort((a: DeckWaitingRow, b: DeckWaitingRow) => b.ageDays - a.ageDays);
 
@@ -599,7 +656,9 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
     capacity,
     triage,
     missions: deckMissions,
-    missionSlotsOpen: Math.max(0, MISSION_WIP_CAP - deckMissions.length),
+    closed,
+    taskOrder,
+    focusOrder,
     lanes,
     rhythms,
     waiting,

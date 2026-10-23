@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * Streak Badge — inline fire indicator for recurring tasks.
+ * Streak Badge: inline fire indicator for recurring tasks.
  *
  * Shows a "🔥 N" badge next to the task title when streakCount >= 2.
- * Pure presentational — no state, no effects, just props in and
+ * Pure presentational: no state, no effects, just props in and
  * styled output.
  */
 
@@ -19,10 +19,7 @@ export function StreakBadge({ streak }: StreakBadgeProps) {
   return (
     <>
       <span className="streak-badge" title={`${streak}-day streak`}>
-        <span className="streak-glyph" aria-hidden="true">
-          🔥
-        </span>
-        <span className="streak-count">{streak}</span>
+        <span className="streak-count">{streak}-day streak</span>
       </span>
       <style jsx>{`
         .streak-badge {

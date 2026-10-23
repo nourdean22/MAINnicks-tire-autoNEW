@@ -15,6 +15,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
+import { isGeneralAnchor, isInboxMission } from "@/lib/services/mission-helpers";
 
 const log = rootLogger.withSurface("api/missions/retro");
 
@@ -47,11 +48,11 @@ export async function POST(
   const retroText = (body.retroText ?? "").trim().slice(0, 2000);
   const archive = body.archive !== false; // default true
 
-  let mission: { id: string; title: string; status: string } | null = null;
+  let mission: { id: string; title: string; status: string; systemKind?: string | null } | null = null;
   try {
     mission = await prisma.mission.findUnique({
       where: { id: missionId },
-      select: { id: true, title: true, status: true },
+      select: { id: true, title: true, status: true, systemKind: true },
     });
   } catch (err) {
     log.error("mission_lookup_failed", {
@@ -66,6 +67,12 @@ export async function POST(
 
   if (!mission) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  // 2026-10-23 (map F11) · a GENERAL anchor is an eternal domain lane, never a
+  // finite mission: completing one hid its open tasks from every section.
+  // An Inbox is a catch-all too (Codex P1, PR 3257): a stale POST must not DONE-wash it.
+  if (isGeneralAnchor(mission) || isInboxMission(mission.title)) {
+    return NextResponse.json({ error: "anchor_cannot_complete" }, { status: 409 });
   }
 
   // ── Count task footprint for the retro metadata ──
@@ -154,6 +161,9 @@ export async function POST(
             missionId,
             deletedAt: null,
             status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
+            // 2026-10-23 (map F10) · habits are practices, not deliverables: a
+            // DAILY/WEEKLY loop stays open in Rhythms when its mission completes.
+            loopKind: { notIn: ["DAILY", "WEEKLY"] },
           },
           data: { status: "DONE", lastTouchedAt: new Date() },
         }),

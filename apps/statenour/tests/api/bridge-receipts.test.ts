@@ -80,8 +80,18 @@ const prismaMock = {
   runnerNode: { upsert: vi.fn().mockResolvedValue({}) },
   apiRequestLog: { create: vi.fn().mockResolvedValue({}) },
   errorLog: { create: vi.fn().mockResolvedValue({}) },
+  // Fallback dedupe reads: an open task with the same title in the same mission.
+  task: {
+    findFirst: vi.fn(async ({ where }: { where: { missionId?: string; title: { equals: string } } }) =>
+      createdTasks.find(
+        (t) => (where.missionId === undefined || t.missionId === where.missionId) && t.title.toLowerCase() === where.title.equals.toLowerCase(),
+      ) ?? null,
+    ),
+  },
+  $executeRaw: vi.fn(async () => 0),
   $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
 };
+const createdTasks: Array<{ id: string; title: string; missionId: string }> = [];
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock, resetQueryCount: vi.fn(), getQueryCount: vi.fn().mockReturnValue(0) }));
 vi.mock("@/lib/auth-guard", () => ({
   requireSyncAuth: (req: Request) => requireSyncAuth(req),
@@ -112,7 +122,12 @@ beforeEach(() => {
   nextId = 0;
   eventCreate.mockImplementation(async () => ({ id: `evt_${++nextId}` }));
   claimCreate.mockImplementation(async () => ({ id: `clm_${++nextId}` }));
-  createTask.mockImplementation(async () => ({ id: `task_${++nextId}` }));
+  createdTasks.length = 0;
+  createTask.mockImplementation(async (d: { title: string; missionId: string }) => {
+    const t = { id: `task_${++nextId}`, title: d.title, missionId: d.missionId };
+    createdTasks.push(t);
+    return { id: t.id };
+  });
   prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock));
 });
 
@@ -249,6 +264,42 @@ describe("POST /api/sync/nour-os open_loop · keyed replay (ADR-0019 T9)", () =>
     const a = await post({ "idempotency-key": OPEN_KEY });
     expect(a.status).toBe(200);
     expect(createTask).toHaveBeenCalledTimes(1);
+  });
+
+  // Job 2026-10-23 (map F5): prod ran with no bridge_receipts table, and every
+  // win-back escalation landed twice (77 open duplicates). With the table
+  // missing, the fallback finds the open same-title task in the same mission.
+  it("not migrated (P2021): the same escalation twice creates ONE task; the second is a duplicate of the first", async () => {
+    receiptFault.code = "P2021";
+    const a = await post({ "idempotency-key": OPEN_KEY });
+    const b = await post({ "idempotency-key": OPEN_KEY });
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(createTask).toHaveBeenCalledTimes(1);
+    expect(b.body.data.result).toEqual({ duplicate: true, resultRef: "task_1" });
+  });
+
+  it("not migrated (P2021): the first task was re-filed by enrich into a project; the replay still creates nothing", async () => {
+    receiptFault.code = "P2021";
+    await post({ "idempotency-key": OPEN_KEY });
+    createdTasks[0].missionId = "m-some-project"; // enrichTaskLinkage moved it
+    const b = await post({ "idempotency-key": OPEN_KEY });
+    expect(createTask).toHaveBeenCalledTimes(1);
+    expect(b.body.data.result).toEqual({ duplicate: true, resultRef: "task_1" });
+  });
+
+  it("not migrated (P2021): the fallback check runs under one lock per key, so two racers cannot both miss", async () => {
+    receiptFault.code = "P2021";
+    await post({ "idempotency-key": OPEN_KEY });
+    expect(prismaMock.$executeRaw).toHaveBeenCalledOnce();
+    // tagged template: (strings, ...values); the one value is the lock key
+    const [strings, lockKey] = prismaMock.$executeRaw.mock.calls[0] as unknown as [TemplateStringsArray, string];
+    expect(strings.join("?")).toMatch(/pg_advisory_xact_lock\(hashtext\(\?\)\)/);
+    expect(lockKey).toBe(`sync/nour-os:open_loop|${OPEN_KEY}`);
+    // the lock is taken BEFORE the existing-task lookup, or two racers can both miss
+    const lockOrder = prismaMock.$executeRaw.mock.invocationCallOrder[0];
+    const lookupOrder = prismaMock.task.findFirst.mock.invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(lookupOrder);
   });
 });
 

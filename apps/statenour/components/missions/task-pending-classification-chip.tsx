@@ -13,6 +13,7 @@
  * so it drops into a presentational row with no prop-drilling.
  */
 
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 
 interface PendingTaskClassification {
@@ -31,11 +32,14 @@ export function TaskPendingClassificationChip({
   pending: unknown;
 }) {
   const utils = trpc.useUtils();
+  // The DECIDE row is built by task.deck: invalidating only task.list left it on screen for up to 45 s (map F3).
+  const refresh = () => Promise.all([utils.task.list.invalidate(), utils.task.deck.invalidate()]);
   const accept = trpc.task.acceptTaskClassification.useMutation({
-    onSuccess: () => void utils.task.list.invalidate(),
+    onSuccess: () => void refresh(),
+    onError: (err) => toast.error(err.message || "Could not attach. File the task yourself."),
   });
   const dismiss = trpc.task.dismissTaskClassification.useMutation({
-    onSuccess: () => void utils.task.list.invalidate(),
+    onSuccess: () => void refresh(),
   });
 
   const pc = (pending ?? null) as PendingTaskClassification | null;
@@ -62,7 +66,7 @@ export function TaskPendingClassificationChip({
           type="button"
           disabled={busy}
           onClick={() => accept.mutate({ taskId })}
-          className="inline-flex min-h-[28px] items-center rounded-micro px-2 text-[12px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:bg-surface-hover disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center rounded-micro px-2 text-[12px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:bg-surface-hover disabled:opacity-50"
         >
           {accept.isPending ? "Attaching…" : "Attach"}
         </button>
@@ -70,7 +74,7 @@ export function TaskPendingClassificationChip({
           type="button"
           disabled={busy}
           onClick={() => dismiss.mutate({ taskId })}
-          className="inline-flex min-h-[28px] items-center rounded-micro px-2 text-[12px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center rounded-micro px-2 text-[12px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
         >
           dismiss
         </button>

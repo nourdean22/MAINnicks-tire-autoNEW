@@ -1,33 +1,50 @@
 /**
- * Snooze presets · 2026-09-15.
+ * Snooze presets: the instants every snooze affordance offers, and the copy
+ * that may promise them.
  *
- * The two dates every snooze affordance offers, lifted out of
- * components/missions/mission-task-row.tsx (where they were module-private
- * and duplicated verbatim in execution-panel.tsx) so the task inspector's
- * page actions snooze to the SAME instants as the row. Pure, `now`
- * injectable, client-safe.
- *
- *   tomorrow 6am   the resurface cron flips WAITING→READY when snoozedUntil
- *                  ≤ now; 6am gives a soft morning re-entry, not 12:01am churn.
- *   next Mon 6am   "next week" = the start of the next operator-cadence week.
+ * The only reviver is cron task-resurface (config/crons.ts), once a day at
+ * RESURFACE_HOUR_UTC. It flips WAITING to READY when snoozedUntil <= now. A
+ * snooze therefore comes back at the first run AT OR AFTER its instant, so
+ * every preset lands at midnight ET of the target day: the 09:00Z run that
+ * morning picks it up (05:00 EDT, 04:00 EST). The old 06:00-local presets
+ * landed after that run and came back a day late (job 2026-10-23, map F7).
+ * tests/lib/missions/snooze-presets.test.ts pins the cron string and both
+ * DST regimes.
  */
+import { etMidnightToUtc } from "@/lib/utils/datetime";
 
-// Both helpers are called from client components only (the Missions row and
-// MissionInspectorActions); the local clock is the operator's clock there —
-// check-et-clock.mjs waives client components for exactly this reason, and
-// the inline waiver below says so on the one line the lint would flag.
-export function tomorrow6am(now: Date = new Date()): string {
-  const d = new Date(now);
-  d.setDate(d.getDate() + 1);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
+/** Hour (UTC) of the daily task-resurface run. Must match config/crons.ts. */
+export const RESURFACE_HOUR_UTC = 9;
+
+/** What the presets may promise: the latest ET hour the run lands (05:00 EDT, 04:00 EST). */
+export const RESURFACE_PROMISE = "by 5 am";
+
+function etYmd(at: Date): { year: number; month: number; day: number; weekday: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).formatToParts(at);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
+  return { year: Number(get("year")), month: Number(get("month")), day: Number(get("day")), weekday };
 }
 
-export function nextMonday6am(now: Date = new Date()): string {
-  const d = new Date(now);
-  const dow = d.getDay(); // 0 Sun · 1 Mon · ... — et-clock-allow: browser-only helper (mission row + inspector page actions); the operator's LOCAL clock is the right "next Monday", the lint's own client-component policy
-  const daysUntilNextMon = dow === 1 ? 7 : (8 - dow) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilNextMon);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
+/** Midnight ET, `days` ET calendar days after today. */
+export function inDaysMorning(days: number, now: Date = new Date()): string {
+  const { year, month, day } = etYmd(now);
+  return etMidnightToUtc(year, month, day + days).toISOString();
+}
+
+export function tomorrowMorning(now: Date = new Date()): string {
+  return inDaysMorning(1, now);
+}
+
+/** Midnight ET of the next Monday; on a Monday, the following one. */
+export function nextMondayMorning(now: Date = new Date()): string {
+  const { weekday } = etYmd(now);
+  const daysUntilNextMon = weekday === 1 ? 7 : (8 - weekday) % 7 || 7;
+  return inDaysMorning(daysUntilNextMon, now);
 }

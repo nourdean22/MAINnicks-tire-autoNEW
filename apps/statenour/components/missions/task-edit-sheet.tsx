@@ -98,7 +98,7 @@ function TaskEditSheetBody({
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const updateMutation = trpc.task.update.useMutation();
   const deleteMutation = trpc.task.delete.useMutation();
-  // Unattach routes through the dedicated procedure — `{missionId: null}`
+  // Unattach routes through the dedicated procedure: `{missionId: null}`
   // is structurally dead (non-nullable FK + requiredString in the shared
   // taskUpdateSchema), so leaveMission re-points the task at Inbox.
   const leaveMissionMutation = trpc.task.leaveMission.useMutation();
@@ -122,7 +122,7 @@ function TaskEditSheetBody({
     try {
       // Diff against the initial task snapshot. Under
       // taskUpdateSchema.partial() an absent key means "don't change",
-      // so a cleared field mapped to `undefined` was a silent no-op —
+      // so a cleared field mapped to `undefined` was a silent no-op, 
       // clearing dueDate/waitingOn must send an explicit `null`, and
       // clearing finishCondition an explicit empty string. Unchanged
       // fields stay out of the payload entirely.
@@ -139,7 +139,7 @@ function TaskEditSheetBody({
       if (dueDate.trim() !== initialDue)
         fields.dueDate = dueDate.trim() || null;
 
-      // energy/effort are non-nullable enums in the schema — only a
+      // energy/effort are non-nullable enums in the schema: only a
       // change TO a concrete value can persist (clearing stays a no-op
       // by schema design).
       if (energy && energy !== (task.energyRequired ?? ""))
@@ -183,6 +183,8 @@ function TaskEditSheetBody({
         await Promise.all([
           utils.task.list.invalidate(),
           utils.task.missions.invalidate(),
+          // DECIDE rows come from task.deck: without this a filed row stayed up to 45 s.
+          utils.task.deck.invalidate(),
         ]);
         onSaved?.();
       }
@@ -244,18 +246,18 @@ function TaskEditSheetBody({
         onSaved?.();
         onClose();
         // "Successfully created 0 subtasks!" is a green tick over nothing.
-        // Zero happens on two paths — the model planned nothing, or the
-        // next-action gate refused a batch of decisions/alternatives — and
+        // Zero happens on two paths: the model planned nothing, or the
+        // next-action gate refused a batch of decisions/alternatives: and
         // the operator needs the second one to read as a deliberate refusal
         // with a reason, not as success.
         if (res.subtasksCount === 0) {
           if (res.suppressedReason === "alternatives_not_steps") {
-            return "No subtasks created — the steps offered were alternatives (close it / delegate it / schedule it), not a checklist. That choice is yours to make.";
+            return "No subtasks created. The steps offered were alternatives (close it, delegate it, schedule it), not a checklist. That choice is yours.";
           }
           if (res.suppressed) {
-            return "No subtasks created — nothing came back that was a real next physical action.";
+            return "No subtasks created. Nothing came back that was a real next physical action.";
           }
-          return "No subtasks needed — this already looks like a single step.";
+          return "No subtasks needed. This already looks like a single step.";
         }
         return `Successfully created ${res.subtasksCount} subtask${res.subtasksCount === 1 ? "" : "s"}!`;
       },
@@ -375,7 +377,7 @@ function TaskEditSheetBody({
                       }
                       // 2026-07-20 · These buttons appeared completely dead: tapping a
                       // day did nothing visible, so a WEEKLY task could not be
-                      // configured. The click was never broken — the STYLING was.
+                      // configured. The click was never broken: the STYLING was.
                       //
                       // Selected state used `border-primary bg-primary/15 text-primary`,
                       // and unselected used `border-border text-muted-foreground`. This
@@ -384,7 +386,7 @@ function TaskEditSheetBody({
                       // (app/styles/tokens.css). That bridge registers ONLY:
                       //   void base-layer raised elevated surface
                       //   fg fg-secondary fg-tertiary gold gold-dim glass edge edge-hover
-                      // `primary`, `border` and `muted-foreground` are NOT among them —
+                      // `primary`, `border` and `muted-foreground` are NOT among them, 
                       // a bare `--primary` custom property does not create `bg-primary`.
                       // So every one of those classes emitted zero CSS and the selected
                       // button rendered pixel-identical to the unselected one. The only
@@ -434,7 +436,7 @@ function TaskEditSheetBody({
                 disabled={submitting}
                 className={inputCls}
               >
-                <option value="">—</option>
+                <option value="">None</option>
                 {ENERGIES.map((e) => (
                   <option key={e} value={e}>
                     {e}
@@ -449,7 +451,7 @@ function TaskEditSheetBody({
                 disabled={submitting}
                 className={inputCls}
               >
-                <option value="">—</option>
+                <option value="">None</option>
                 {EFFORTS.map((eff) => (
                   <option key={eff} value={eff}>
                     {EFFORT_LABELS[eff]}

@@ -30,7 +30,7 @@ export function MissionModalsManager({ missions }: { missions: any[] }) {
           onClose={() => setRetroState(null)}
           onSaved={async () => {
             // Same invalidate set the other mutations use (see
-            // use-mission-actions refetchAll) — without it the mission
+            // use-mission-actions refetchAll): without it the mission
             // stayed visibly ACTIVE with zombie tasks for up to 30s.
             await Promise.all([
               utils.task.list.invalidate(),

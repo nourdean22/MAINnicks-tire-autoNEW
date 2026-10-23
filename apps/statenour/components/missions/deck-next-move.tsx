@@ -143,7 +143,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
               </div>
             )}
             <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
-              {parkedAge ?? "parked"} · a memory aid, not a plan — verify the last step before acting on it
+              {parkedAge ?? "parked"} · a memory aid, not a plan. Verify the last step before acting on it
             </p>
           </dl>
         )}
@@ -162,7 +162,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
           onClick={() => onStart(task.id)}
           className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-control bg-accent px-6 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
         >
-          ▶ {kind === "resume" ? "Resume" : "Start"} · {minutesLabel(task.effortMinutes)}
+           {kind === "resume" ? "Resume" : "Start"} · {minutesLabel(task.effortMinutes)}
         </button>
         {alternates.length > 0 && (
           <button

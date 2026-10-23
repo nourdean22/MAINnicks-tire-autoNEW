@@ -77,6 +77,7 @@ export const REPO_MIGRATIONS: readonly string[] = [
   "20260923013000_drop_brain_fts_expression_index",
   "20260923150000_cron_job_log_skip_reason",
   "20260929123500_reality_event_envelope",
+  "20260929090000_bridge_receipts",
   "20260929195500_external_worker_lane",
   "20261002160000_intelligence_outcome_result_ref_index",
   "20261007120000_device_events_identity_indexes",

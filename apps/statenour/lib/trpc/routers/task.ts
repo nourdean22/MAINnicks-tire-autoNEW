@@ -1243,40 +1243,18 @@ export const taskRouter = router({
   acceptTaskClassification: operatorProcedure
     .input(z.object({ taskId: z.string().min(1).max(64) }))
     .mutation(async ({ input }) => {
-      const task = await prisma.task.findUnique({
-        where: { id: input.taskId },
-        select: {
-          goalId: true,
-          statHints: true,
-          pendingClassification: true,
-        },
-      });
-      if (!task) throw new Error("Task not found");
-      const pc = (task.pendingClassification ?? null) as {
-        missionId?: string | null;
-        goalId?: string | null;
-        statHints?: string[] | null;
-      } | null;
-      if (!pc) return { ok: true, noop: true };
-
-      const data: Record<string, unknown> = { pendingClassification: null };
-      if (pc.missionId) data.missionId = pc.missionId; // explicit accept
-      if (pc.goalId && !task.goalId) data.goalId = pc.goalId;
-      if (
-        Array.isArray(pc.statHints) &&
-        pc.statHints.length > 0 &&
-        task.statHints.length === 0
-      ) {
-        data.statHints = pc.statHints;
+      // 2026-10-23 · refuses a target that is not ACTIVE (lib/missions/accept-classification.ts).
+      const { acceptTaskClassification } = await import("@/lib/missions/accept-classification");
+      try {
+        return await acceptTaskClassification(input.taskId);
+      } catch (err) {
+        // Map the service refusal so the chip's toast shows its message (Codex P2, PR 3257).
+        if (err instanceof ServiceError) {
+          const code = err.status === 409 ? "CONFLICT" : err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST";
+          throw new TRPCError({ code, message: err.message });
+        }
+        throw err;
       }
-      await prisma.task.update({ where: { id: input.taskId }, data });
-      return {
-        ok: true,
-        applied: {
-          missionId: (data.missionId as string | undefined) ?? null,
-          goalId: (data.goalId as string | undefined) ?? null,
-        },
-      };
     }),
 
   /**

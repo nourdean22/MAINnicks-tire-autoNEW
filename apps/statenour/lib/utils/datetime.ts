@@ -217,7 +217,7 @@ function etCalendarParts(at: Date): {
 
 /** UTC instant of ET midnight for the given ET wall-clock Y/M/D. Date.UTC
  *  normalizes out-of-range day/month (e.g. day+1 across a month end). */
-function etMidnightToUtc(year: number, month: number, day: number): Date {
+export function etMidnightToUtc(year: number, month: number, day: number): Date {
   const wallAsUtc = Date.UTC(year, month - 1, day, 0, 0, 0);
   // Two passes: the offset at the wall-clock instant approximates the
   // real offset; recomputing at the candidate resolves DST-transition

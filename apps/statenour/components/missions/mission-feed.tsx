@@ -13,7 +13,7 @@
  *   ┌─ MISSIONS (5 active) ──────────────────────────────┐
  *   │ ▼ POWER ATLAS v2          64% · 8d                │
  *   │ ▼ MOBILE POLISH           22% · 14d               │
- *   │ ▶ VAPI EVAL CRON          70% · —                 │
+ *   │ ▶ VAPI EVAL CRON          70% ·                 │
  *   │ ▶ HOLY GRAIL              ...                      │
  *   ├─ UNATTACHED (3) ──────────────────────────────────┤
  *   │ ○ "Call Dr. Khoury Monday"  📍 attach?            │
@@ -26,39 +26,25 @@
  */
 
 import { useMemo, useState } from "react";
-import { Inbox, Layers } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { groupMissionFeed } from "@/components/missions/group-mission-feed";
 import { MissionCard } from "./mission-card";
-import { MissionTaskRow } from "./mission-task-row";
 
 export interface MissionFeedProps {
   missions: Project[];
   tasks: Task[];
-  /** Phase 2 · per-mission Nick's-pick task id + rationale, keyed by
-   *  mission id. */
-  nicksPicks?: Record<string, { taskId: string; rationale: string }>;
-  /** truth-substrate audit P0 (#4-6): a MetricResult, so an UNMEASURED autonomic
-   *  read renders as UNKNOWN instead of a fake "offline/idle". */
-  autonomicHealth?: MetricResult<{
-    lastRunAt: string | null;
-    status: string | null;
-    error: string | null;
-  }>;
+  /** Rank of each live open task in the deck's one order (deck.taskOrder); cards sort by it. */
+  taskRank: Map<string, number>;
 }
 
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
-import type { MetricResult } from "@/lib/services/metric-result";
 
-export function MissionFeed({
-  missions,
-  tasks,
-  nicksPicks,
-  autonomicHealth,
-}: MissionFeedProps) {
+// 2026-10-23 (map F14) · the nicksPicks / autonomicHealth props and the anchor
+// and unattached sections were removed: page.tsx never passed the props and the
+// board's task set excludes anchors and unfiled tasks, so none could render.
+export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
   const actions = useMissionDispatch();
-  const { activeMissions, tasksByMission, unattached, domainGroups } = useMemo(
+  const { activeMissions, tasksByMission } = useMemo(
     // truth-substrate audit P1 (#19): pure grouping extracted to
     // group-mission-feed.ts so it is unit-testable + can't drift.
     () => groupMissionFeed(missions, tasks),
@@ -97,7 +83,7 @@ export function MissionFeed({
 
     try {
       // Execution Deck P0 (2026-09-01): steps skip their per-step refetch and
-      // settle ONCE — the old loop fired a full 4-cache invalidation per step,
+      // settle ONCE: the old loop fired a full 4-cache invalidation per step,
       // making an 8-position drag 32 round trips.
       if (targetIndex < sourceIndex) {
         for (let i = sourceIndex; i > targetIndex; i--) {
@@ -147,8 +133,8 @@ export function MissionFeed({
 
   // 2026-09-16 · Visible Transformation: the strip used to repeat the
   // page heading's "N active · N open" and the rail's "done today"; it now
-  // says only what nothing else on the page says — the next deadline and
-  // the autonomic chip — and renders nothing when it has nothing to add.
+  // says only what nothing else on the page says: the next deadline and
+  // the autonomic chip: and renders nothing when it has nothing to add.
   const nextDeadline = useMemo(() => {
     const upcoming = activeMissions
       .map((m) => (m.deadline ? new Date(m.deadline) : null))
@@ -164,67 +150,16 @@ export function MissionFeed({
 
   return (
     <div className="space-y-8">
-      {(nextDeadline || autonomicHealth) && (
+      {nextDeadline && (
       <div className="flex items-center gap-4 py-1 font-mono text-[11px] text-fg-tertiary">
-        {nextDeadline && (
-          <span>
-            Next deadline ·{" "}
-            <span className="text-fg-secondary">
-              {nextDeadline}
-            </span>
+        <span>
+          Next deadline ·{" "}
+          <span className="text-fg-secondary">
+            {nextDeadline}
           </span>
-        )}
-        {autonomicHealth && (() => {
-          // truth-substrate audit #4-6: unwrap the MetricResult with proper
-          // narrowing. When the read was `unavailable` (or degraded with no
-          // value), show a distinct UNKNOWN chip — never a fabricated OFFLINE.
-          const av = autonomicHealth.status !== "unavailable" ? autonomicHealth.value : undefined;
-          if (!av) {
-            return (
-              <div
-                className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] tracking-[0.1em] font-mono bg-amber-500/10 border-amber-500/30 text-amber-400"
-                title="Autonomic health could not be measured (health probe read failed). This is UNKNOWN, not idle."
-              >
-                <span className="w-1 h-1 rounded-full bg-amber-400" />
-                <span>AUTONOMIC: UNKNOWN</span>
-              </div>
-            );
-          }
-          return (
-            <div
-              className={cn(
-                "ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] tracking-[0.1em] font-mono",
-                av.status === "success"
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                  : av.status === "failed"
-                    ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
-                    : "bg-surface-interactive border-edge-default text-fg-tertiary"
-              )}
-              title={
-                av.lastRunAt
-                  ? `Last Maintenance Run: ${formatTimeAgo(av.lastRunAt)} (${new Date(av.lastRunAt).toLocaleTimeString()})${av.error ? `\nError: ${av.error}` : ''}`
-                  : "Autonomic Orchestrator: Idle/No Run Found"
-              }
-            >
-              <span
-                className={cn(
-                  "w-1 h-1 rounded-full",
-                  av.status === "success"
-                    ? "bg-emerald-400"
-                    : av.status === "failed"
-                      ? "bg-rose-400"
-                      : "bg-fg-tertiary"
-                )}
-              />
-              <span>
-                AUTONOMIC: {av.status === "success" ? "ONLINE" : av.status === "failed" ? "DEGRADED" : "OFFLINE"}
-              </span>
-            </div>
-          );
-        })()}
+        </span>
       </div>
       )}
-
       {/* Mission cards · a ruled list, not a stack of boxes */}
       {activeMissions.length === 0 ? (
         <EmptyMissions />
@@ -236,10 +171,7 @@ export function MissionFeed({
               mission={mission}
               tasks={tasksByMission.get(mission.id) ?? []}
               defaultExpanded={activeMissions.length <= 3}
-              nicksPickTaskId={nicksPicks?.[mission.id]?.taskId}
-              nicksPickRationale={nicksPicks?.[mission.id]?.rationale}
-              missionIdx={missionIdx}
-              totalMissions={activeMissions.length}
+              taskRank={taskRank}
               isDragged={draggedMissionIdx === missionIdx}
               isDraggedOver={draggedOverMissionIdx === missionIdx}
               onDragStart={(e) => handleMissionDragStart(e, missionIdx)}
@@ -252,58 +184,6 @@ export function MissionFeed({
         </div>
       )}
 
-      {/* Domains section — GENERAL anchor buckets (audit #19). These are
-          CLASSIFIED tasks routed to a per-domain anchor, shown distinctly from
-          the "unattached" (truly unclassified) pile below. */}
-      {domainGroups.map((group) => (
-        <section key={group.anchor.id}>
-          <header className="flex items-center gap-2 border-b border-edge pb-3">
-            <Layers
-              size={14}
-              className="text-fg-tertiary"
-              strokeWidth={1.75}
-            />
-            <h3 className="vt-eyebrow text-fg-secondary">
-              {group.anchor.title}
-            </h3>
-            <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
-              {group.tasks.length}
-            </span>
-          </header>
-          <div className="divide-y divide-edge">
-            {group.tasks.map((task) => (
-              <MissionTaskRow key={task.id} task={task} />
-            ))}
-          </div>
-        </section>
-      ))}
-
-      {/* Unattached section */}
-      {unattached.length > 0 && (
-        <section>
-          <header className="flex items-center gap-2 border-b border-dashed border-edge pb-3">
-            <Inbox
-              size={14}
-              className="text-fg-tertiary"
-              strokeWidth={1.75}
-            />
-            <h3 className="vt-eyebrow text-fg-secondary">
-              unattached
-            </h3>
-            <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
-              {unattached.length}
-            </span>
-          </header>
-          <div className="divide-y divide-edge">
-            {unattached.map((task) => (
-              <MissionTaskRow
-                key={task.id}
-                task={task}
-              />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -325,8 +205,8 @@ function EmptyMissions() {
         no active missions
       </p>
       <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-fg-secondary">
-        Missions group your tasks toward a goal. Type a mission name in the input
-        above (or ask Nick to suggest one) and tasks start flowing into it.
+        Missions group your tasks toward a goal. Tap New mission above, or type
+        "new mission: &lt;name&gt;" in the add box, or ask Nick to suggest one.
       </p>
       {/* W2: the capture FAB is gone, so nothing covers this button and it
           needs no left offset (the ml-16 lg:ml-0 that cleared it is deleted). */}
