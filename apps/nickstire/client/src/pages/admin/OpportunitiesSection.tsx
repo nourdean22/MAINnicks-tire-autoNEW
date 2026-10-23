@@ -95,7 +95,11 @@ function whenLabel(iso: unknown): string {
 /** What the receipts say happened last, read back from the server's own record. */
 function attemptLine(r: Row): string {
   const last = [...r.receipts].reverse().find((x) => x.to === "attempted");
-  if (!last) return r.attempts > 0 ? "Contact attempted, time not recorded" : "Not contacted yet";
+  if (!last) {
+    if (r.attempts > 0) return "Contact attempted, time not recorded";
+    // Only a new or assigned row can honestly be called untouched; later states got there another way.
+    return r.state === "new" || r.state === "assigned" ? "Not contacted yet" : "No attempt recorded";
+  }
   const verb = last.note === "called" ? "Called" : last.note === "texted" ? "Texted" : "Contact attempted";
   return `${verb} ${whenLabel(last.at)}${r.attempts > 1 ? `, attempt ${r.attempts}` : ""}`;
 }
@@ -193,8 +197,9 @@ export default function OpportunitiesSection() {
             <Inbox className="w-5 h-5" /> Opportunities
           </h2>
           <p className="text-sm text-foreground/60">
-            Missed calls and unapproved estimates that need a person. Called and Texted record what you
-            did outside the admin, and this page sends nothing. Not a customer hides the row.
+            Open customer opportunities collected from calls, estimates, bookings and forms. Called and
+            Texted record what you did outside the admin, and this page sends nothing. Not a customer
+            hides the row.
           </p>
         </div>
         <button
@@ -262,7 +267,7 @@ export default function OpportunitiesSection() {
                 </div>
                 <div className="font-medium break-words mt-1">{o.recommendedAction}</div>
                 <div className="text-sm text-foreground/60 break-words">{o.reason}</div>
-                <div className="text-xs text-foreground/50 mt-1 break-words">
+                <div className="text-xs text-foreground/60 mt-1 break-words">
                   {o.customerName ?? "unknown customer"} · {money(o.expectedRevenueCents)} · evidence: {o.dataQuality}
                   {o.state !== "new" && o.state !== "attempted" ? ` · state: ${o.state.replace(/_/g, " ")}` : ""}
                 </div>

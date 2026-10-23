@@ -21,7 +21,7 @@ export default function WaitingOnUs() {
     refetchIntervalInBackground: false,
   });
 
-  if (isLoading) return <p className="text-xs text-foreground/50 mt-0.5">Checking who is waiting…</p>;
+  if (isLoading) return <p className="text-xs text-foreground/60 mt-0.5">Checking who is waiting…</p>;
 
   if (isError || data === undefined) {
     return (
@@ -31,7 +31,7 @@ export default function WaitingOnUs() {
     );
   }
 
-  if (data.humanPending === 0) return <p className="text-xs text-foreground/50 mt-0.5">None waiting on us</p>;
+  if (data.humanPending === 0) return <p className="text-xs text-foreground/60 mt-0.5">None waiting on us</p>;
 
   return (
     <p className="text-xs text-primary font-medium mt-0.5">

@@ -251,6 +251,15 @@ describe("a row shows what it is, how old it is and whether anyone tried", () =>
     expect(screen.getByText(/Not contacted yet/)).toBeTruthy();
   });
 
+  it("a row past 'new' with no attempt on record does not claim nobody has been in touch", () => {
+    // A scheduled or arrived row got there by another route; "Not contacted yet"
+    // would be a claim about the customer the record cannot back.
+    load([row({ state: "scheduled", attempts: 0 })]);
+    render(<OpportunitiesSection />);
+    expect(screen.queryByText(/Not contacted yet/)).toBeNull();
+    expect(screen.getByText(/No attempt recorded/)).toBeTruthy();
+  });
+
   it("READS BACK the recorded attempt from the server receipts: verb, time, attempt count", () => {
     // The consumer of the write: a row the server returns with an attempted
     // receipt must show it. A UI that only wrote and never read would pass every
@@ -471,6 +480,20 @@ describe("phone use", () => {
       expect(screen.getByRole("button", { name }).className).toMatch(/min-h-\[48px\]/);
     }
     expect(screen.getByRole("link").className).toMatch(/min-h-\[48px\]/);
+  });
+
+  it("the header names what the tab holds without narrowing it to two source types", () => {
+    // The tab also lists callbacks, stale leads, abandoned forms and more.
+    load([row()]);
+    render(<OpportunitiesSection />);
+    expect(screen.getByText(/calls, estimates, bookings and forms/)).toBeTruthy();
+  });
+
+  it("small text on the graphite card stays at 60 percent or brighter (4.5:1 needs it)", () => {
+    // 50 percent of the foreground on #15171A measures 4.47:1, a fail.
+    load([row()]);
+    const { container } = render(<OpportunitiesSection />);
+    expect(container.innerHTML).not.toMatch(/text-foreground\/(50|45|40|30)\b/);
   });
 
   it("long text wraps instead of being cut off at 375px", () => {

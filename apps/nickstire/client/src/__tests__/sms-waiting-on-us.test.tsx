@@ -99,6 +99,21 @@ describe("WaitingOnUs reads the server's human-pending count", () => {
     expect(screen.getByText(/Checking who is waiting/)).toBeTruthy();
   });
 
+  it("every state keeps its small text at 60 percent foreground or brighter (50 percent measures 4.47:1)", () => {
+    const states = [
+      { data: undefined, isLoading: true, isError: false },
+      { data: undefined, isLoading: false, isError: true },
+      { data: { humanPending: 0, overdue: 0, oldestWaitingMinutes: null }, isLoading: false, isError: false },
+      { data: { humanPending: 2, overdue: 1, oldestWaitingMinutes: 40 }, isLoading: false, isError: false },
+    ];
+    for (const s of states) {
+      cleanup();
+      h.result = s;
+      const { container } = render(<WaitingOnUs />);
+      expect(container.innerHTML).not.toMatch(/text-foreground\/(50|45|40|30)\b/);
+    }
+  });
+
   it("polls, so a reply sent elsewhere clears the number within a minute", () => {
     h.result = { data: { humanPending: 0, overdue: 0, oldestWaitingMinutes: null }, isLoading: false, isError: false };
     render(<WaitingOnUs />);
