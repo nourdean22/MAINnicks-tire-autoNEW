@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/contradictions-consolidation-2026-10-23",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
+  "claimedBy": "2026-10-23-contradictions-consolidation (manager 0900c49a)",
+  "claimedAt": "2026-10-23T06:00:59.314Z",
+  "expiresAt": "2026-10-23T18:00:59.314Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
