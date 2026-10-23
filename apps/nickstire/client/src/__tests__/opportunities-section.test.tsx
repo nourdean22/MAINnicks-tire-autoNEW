@@ -23,7 +23,7 @@
  * NOT A VISUAL REVIEW. Composition and copy are asserted, not spacing; the
  * authenticated admin cannot be rendered outside a signed-in browser.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import React, { useSyncExternalStore } from "react";
 import {
@@ -57,11 +57,30 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock("sonner", () => ({ toast: { error: h.toastError, success: vi.fn(), message: vi.fn() } }));
+// The vi.mock registry is shared by every file in the serial run (apps/nickstire/AGENTS.md, Test
+// hygiene), so each mock here keeps the REAL module and replaces only what this file fakes, and the
+// afterAll at the bottom drops them. A bare { toast } would leave a later file without sonner's
+// Toaster (components/ui/sonner.tsx re-exports it); a bare { trpc: {...} } without the client factory.
+vi.mock("sonner", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("sonner")>()),
+  toast: { error: h.toastError, success: vi.fn(), message: vi.fn() },
+}));
 vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: () => null }));
 
-vi.mock("@/lib/trpc", () => ({
-  trpc: {
+vi.mock("@/lib/trpc", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trpc")>();
+  /** The real object with the fake's keys laid over it, recursively: siblings stay real. */
+  const deepOverlay = (real: object, fake: Record<string, unknown>): object =>
+    new Proxy(real, {
+      get(target, prop) {
+        if (typeof prop === "string" && prop in fake) {
+          const f = fake[prop];
+          return f !== null && typeof f === "object" ? deepOverlay(Reflect.get(target, prop) as object, f as Record<string, unknown>) : f;
+        }
+        return Reflect.get(target, prop);
+      },
+    });
+  const fake = {
     useUtils: () => ({
       opportunityQueue: {
         list: {
@@ -114,8 +133,9 @@ vi.mock("@/lib/trpc", () => ({
         }),
       },
     },
-  },
-}));
+  };
+  return { ...actual, trpc: deepOverlay(actual.trpc, fake) };
+});
 
 import OpportunitiesSection from "../pages/admin/OpportunitiesSection";
 
@@ -223,7 +243,9 @@ describe("what the list asks the server for", () => {
     unmount();
     load(Array.from({ length: full }, () => row()));
     render(<OpportunitiesSection />);
-    expect(screen.getByText(new RegExp(`first ${full} opportunities`, "i"))).toBeTruthy();
+    // A full window is also what exactly `full` live rows look like, so the copy must not claim more exist.
+    expect(screen.getByText(`Showing the first ${full}. Older rows may exist: work these, then press Refresh.`)).toBeTruthy();
+    expect(screen.queryByText(/More exist/)).toBeNull();
   });
 });
 
@@ -645,4 +667,23 @@ describe("phone use", () => {
     expect(screen.getByText(/xxxx/).className).not.toMatch(/\btruncate\b/);
     expect(screen.getByText(/yyyy/).className).not.toMatch(/\btruncate\b/);
   });
+});
+
+describe("the mocks in this file keep the real module shape (the vi.mock registry is shared in the serial run)", () => {
+  it("sonner still exports its Toaster, which components/ui/sonner.tsx re-exports", async () => {
+    const sonner = await import("sonner");
+    expect(sonner.Toaster).toBeDefined(); // a React component object, not necessarily a function
+    expect(sonner.toast.error).toBe(h.toastError); // and only toast is replaced
+  });
+
+  it("@/lib/trpc still exposes the real client factory, not just the procedures this file fakes", async () => {
+    const mod = await import("@/lib/trpc");
+    expect(typeof (mod.trpc as unknown as { createClient: unknown }).createClient).toBe("function");
+  });
+});
+
+afterAll(() => {
+  vi.doUnmock("sonner");
+  vi.doUnmock("@/lib/trpc");
+  vi.doUnmock("@/components/admin/ConfirmDialog");
 });

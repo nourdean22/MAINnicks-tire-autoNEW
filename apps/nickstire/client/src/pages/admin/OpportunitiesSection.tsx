@@ -270,7 +270,7 @@ export default function OpportunitiesSection() {
 
       {items.length >= LIMIT && (
         <div className="rounded border border-border/40 p-3 text-sm text-foreground/60">
-          Showing the first {LIMIT} opportunities. More exist: work these, then press Refresh.
+          Showing the first {LIMIT}. Older rows may exist: work these, then press Refresh.
         </div>
       )}
 

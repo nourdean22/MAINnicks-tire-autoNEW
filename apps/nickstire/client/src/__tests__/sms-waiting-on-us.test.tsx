@@ -17,7 +17,7 @@
  * block reads SmsSection.tsx (comments stripped, with a planted-positive control
  * for the stripper) and requires the mount and the end of the unread sum.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -28,8 +28,22 @@ const h = vi.hoisted(() => ({
   inputs: [] as unknown[][],
 }));
 
-vi.mock("@/lib/trpc", () => ({
-  trpc: {
+// The vi.mock registry is shared by every file in the serial run (apps/nickstire/AGENTS.md, Test
+// hygiene): keep the REAL module, lay the one fake procedure over it, and drop the mock in afterAll.
+vi.mock("@/lib/trpc", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trpc")>();
+  /** The real object with the fake's keys laid over it, recursively: siblings stay real. */
+  const deepOverlay = (real: object, fake: Record<string, unknown>): object =>
+    new Proxy(real, {
+      get(target, prop) {
+        if (typeof prop === "string" && prop in fake) {
+          const f = fake[prop];
+          return f !== null && typeof f === "object" ? deepOverlay(Reflect.get(target, prop) as object, f as Record<string, unknown>) : f;
+        }
+        return Reflect.get(target, prop);
+      },
+    });
+  const fake = {
     smsConversations: {
       humanPendingSummary: {
         useQuery: (...args: unknown[]) => {
@@ -38,16 +52,31 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
     },
-  },
-}));
+  };
+  return { ...actual, trpc: deepOverlay(actual.trpc, fake) };
+});
 
 import WaitingOnUs from "../pages/admin/outreach/WaitingOnUs";
+
+afterAll(() => {
+  vi.doUnmock("@/lib/trpc");
+});
 
 beforeEach(() => {
   h.result = { data: undefined, isLoading: false, isError: false };
   h.inputs.length = 0;
 });
 afterEach(cleanup);
+
+describe("the @/lib/trpc mock keeps the real module shape (the vi.mock registry is shared in the serial run)", () => {
+  it("still exposes the real client factory and every other procedure, not just humanPendingSummary", async () => {
+    const mod = await import("@/lib/trpc");
+    expect(typeof (mod.trpc as unknown as { createClient: unknown }).createClient).toBe("function");
+    // Only the one procedure is faked; its siblings are the real thing.
+    expect(mod.trpc.smsConversations.list).toBeDefined();
+    expect(mod.trpc.smsConversations.humanPendingSummary.useQuery).not.toBe(undefined);
+  });
+});
 
 describe("WaitingOnUs reads the server's human-pending count", () => {
   it("shows the real number: 1 customer waiting", () => {
