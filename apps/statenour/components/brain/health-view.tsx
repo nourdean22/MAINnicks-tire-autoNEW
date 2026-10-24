@@ -152,7 +152,7 @@ export function BrainHealthView() {
               <Counter label="knowledge" value={data.totals.knowledge} tone="gold" />
               <Counter label="telemetry" value={data.totals.telemetry} tone="tertiary" />
               <Counter label="permanent" value={data.totals.permanent} tone="emerald" />
-              <Counter label="categories" value={data.totals.categoryCount} tone="violet" />
+              <Counter label="categories" value={data.totals.categoryCount} tone="sky" />
             </div>
             <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50">
               {/* 2026-09-02 · was pct/vectorized/live. `live` includes the
@@ -292,13 +292,13 @@ function Counter({
 }: {
   label: string;
   value: number;
-  tone: "gold" | "emerald" | "rose" | "violet" | "tertiary";
+  tone: "gold" | "emerald" | "rose" | "sky" | "tertiary";
 }) {
   const colorMap = {
     gold: "text-fg-secondary",
     emerald: "text-emerald-300",
     rose: "text-rose-300",
-    violet: "text-sky-300",
+    sky: "text-sky-300",
     tertiary: "text-[var(--text-tertiary)]",
   };
   return (

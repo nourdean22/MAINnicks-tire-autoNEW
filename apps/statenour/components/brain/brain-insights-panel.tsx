@@ -239,7 +239,7 @@ function EvolutionCard({ stale, redundant, lowTrust }: { stale: EvolutionStale[]
       {redundant.slice(0, 1).map((c) => (
         <div key={c.keepKey} className="text-[11px] leading-tight">
           <span className="font-mono text-fg-secondary mr-1">[merge]</span>
-          <span className="text-[var(--text-primary)]">{c.keepKey} ↔ {c.mergeKey}</span>
+          <span className="text-[var(--text-primary)]">{c.keepKey} and {c.mergeKey}</span>
           <div className="text-[var(--text-tertiary)] font-mono">cosine {c.similarity}</div>
         </div>
       ))}

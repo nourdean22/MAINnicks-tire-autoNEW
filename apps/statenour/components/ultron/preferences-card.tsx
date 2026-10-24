@@ -346,7 +346,7 @@ export function PreferencesCard() {
               <div className="flex items-baseline justify-between gap-2">
                 <span
                   className="font-mono text-[11px] text-fg-secondary"
-                  title={`${tell.left} (−1) ↔ ${tell.right} (+1)`}
+                  title={`${tell.left} (−1) to ${tell.right} (+1)`}
                 >
                   {tell.label}
                 </span>

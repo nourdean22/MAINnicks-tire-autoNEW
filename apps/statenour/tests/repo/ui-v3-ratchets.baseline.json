@@ -2,11 +2,11 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 154,
-    "emoji": 11,
+    "emDash": 99,
+    "emoji": 7,
     "transitionAll": 41,
     "slowDuration": 5,
-    "smallInput": 72
+    "smallInput": 58
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -68,88 +68,14 @@
       "emDash": 5,
       "transitionAll": 2
     },
-    "components/brain/active-alerts-card.tsx": {
-      "emDash": 1
-    },
-    "components/brain/anti-patterns-panel.tsx": {
-      "emDash": 1
-    },
-    "components/brain/beliefs-panel.tsx": {
-      "emDash": 2,
-      "smallInput": 1
-    },
-    "components/brain/brain-insights-panel.tsx": {
-      "emoji": 1
-    },
-    "components/brain/brain-maturity-header.tsx": {
-      "emDash": 3
-    },
-    "components/brain/continuity-view.tsx": {
-      "emDash": 2
-    },
-    "components/brain/contradiction-resolution-panel.tsx": {
-      "emDash": 2
-    },
     "components/brain/health-view.tsx": {
-      "emDash": 1,
       "transitionAll": 1
-    },
-    "components/brain/judgment-quality-panel.tsx": {
-      "emDash": 4
-    },
-    "components/brain/knowledge-action-outcomes.tsx": {
-      "smallInput": 1
-    },
-    "components/brain/knowledge-review-tab.tsx": {
-      "emDash": 2
-    },
-    "components/brain/memory-tab.tsx": {
-      "emDash": 2
     },
     "components/brain/pinned-context-panel.tsx": {
-      "emDash": 8,
-      "emoji": 1,
-      "transitionAll": 1,
-      "smallInput": 4
-    },
-    "components/brain/prediction-streaks-card.tsx": {
-      "emDash": 2
-    },
-    "components/brain/qualitative-identity-panel.tsx": {
-      "emDash": 3,
-      "smallInput": 1
-    },
-    "components/brain/recall-inbox-panel.tsx": {
-      "emoji": 1
-    },
-    "components/brain/recall-preview-panel.tsx": {
-      "emDash": 1,
-      "smallInput": 1
-    },
-    "components/brain/receipts-timeline.tsx": {
-      "emDash": 2
-    },
-    "components/brain/research-pipeline-status.tsx": {
-      "emDash": 2
-    },
-    "components/brain/suggestion-telemetry-panel.tsx": {
-      "emDash": 4,
       "transitionAll": 1
     },
-    "components/brain/time-travel-panel.tsx": {
-      "emDash": 3,
-      "smallInput": 1
-    },
-    "components/brain/tool-telemetry-panel.tsx": {
-      "emDash": 5,
-      "smallInput": 1
-    },
-    "components/brain/wisdom-evolution-panel.tsx": {
-      "emDash": 2
-    },
-    "components/brain/wisdom-tab.tsx": {
-      "emDash": 2,
-      "smallInput": 2
+    "components/brain/suggestion-telemetry-panel.tsx": {
+      "transitionAll": 1
     },
     "components/command-palette.tsx": {
       "emDash": 1
@@ -301,18 +227,11 @@
     "components/ultron/bottom-pulse-ticker.tsx": {
       "emoji": 1
     },
-    "components/ultron/decision-replay-card.tsx": {
-      "emDash": 1,
-      "smallInput": 2
-    },
     "components/ultron/deploy-chip.tsx": {
       "emDash": 1
     },
     "components/ultron/observability/observability-row.tsx": {
       "emDash": 1
-    },
-    "components/ultron/preferences-card.tsx": {
-      "emoji": 1
     },
     "components/ultron/today/active-task-companion.tsx": {
       "emDash": 2,

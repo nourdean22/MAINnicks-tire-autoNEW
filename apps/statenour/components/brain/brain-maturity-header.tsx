@@ -154,7 +154,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
       );
     }
     return (
-      <section aria-label="brain maturity" aria-busy="true" className="border-y border-edge py-3">
+      <section aria-label="brain maturity" className="border-y border-edge py-3">
         <p className="text-[13px] text-fg-tertiary">Reading brain state…</p>
       </section>
     );
