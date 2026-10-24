@@ -356,6 +356,15 @@ export function walkToolTelemetry(args: {
   /** The lane's own receipt-visibility flag — see `classifyChosenObservation`. */
   laneReceiptsAvailable?: boolean;
   /**
+   * The winning generation's own SDK steps from a sampled lane (regen,
+   * self-consistency). They go through the SAME recorder loop as `ev.steps`, so
+   * a lane call gets a real success flag and duration in `tool_telemetry`.
+   * Ignored when `ev.steps` is present (the streaming and pre-flush paths).
+   * Lane calls are recorded but NOT returned: the claim verifier and evidence
+   * gate must keep seeing exactly what they saw before this existed.
+   */
+  laneTelemetrySteps?: ReadonlyArray<unknown>;
+  /**
    * WHICH lane handled the turn. Omitted means the streaming fallthrough,
    * which is the only path that does not go through `alternate-paths.ts`.
    *
@@ -365,18 +374,20 @@ export function walkToolTelemetry(args: {
    */
   lane?: string;
 }): CapturedToolCall[] {
-  const { ev, convId, traceId, laneToolNames, laneReceiptsAvailable, lane } = args;
+  const { ev, convId, traceId, laneToolNames, laneReceiptsAvailable, laneTelemetrySteps, lane } = args;
   // Captured BEFORE the walk: `normalizeAiSdkToolObservations` returns [] both
   // for "steps present, no tools ran" and for "no steps at all", so the
   // presence of the field is the only thing that tells them apart.
   const sdkStepsPresent = Array.isArray((ev as { steps?: unknown }).steps);
-  const capturedToolCalls: CapturedToolCall[] = [];
+  const fromLane = !sdkStepsPresent && Array.isArray(laneTelemetrySteps);
+  /** Every call this walk recorded to tool_telemetry. */
+  const recordedCalls: CapturedToolCall[] = [];
 
   // Keep SDK field-name/version differences OUTSIDE the truth logic. The
   // compatibility seam accepts the app's observed v6 {result,args} shape and
   // AI SDK 7's documented {output,input} shape, and retains unmatched call IDs
   // as call-only observations rather than dropping ambiguous completion.
-  const observations = normalizeAiSdkToolObservations(ev);
+  const observations = normalizeAiSdkToolObservations(fromLane ? { steps: laneTelemetrySteps } : ev);
 
   for (const call of observations) {
     const toolName = call.toolName;
@@ -440,7 +451,7 @@ export function walkToolTelemetry(args: {
       logError(instrumentScope("tool_invocation"), err, { toolName, conversationId: convId ?? null }, "warn"),
     );
 
-    capturedToolCalls.push({
+    recordedCalls.push({
       name: toolName,
       ok: !errored,
       durationMs,
@@ -461,6 +472,7 @@ export function walkToolTelemetry(args: {
   //
   // `tool.chosen` is UNCONDITIONAL — see its header. A zero-length call list is
   // a measurement, not the absence of one.
+  const capturedToolCalls = fromLane ? [] : recordedCalls;
   const integrity = buildOperationIntegrityShadow(capturedToolCalls, convId);
   const observation = classifyChosenObservation({
     sdkStepsPresent,
@@ -470,7 +482,7 @@ export function walkToolTelemetry(args: {
   });
   emitMetricWrites([
     ...(integrity ? [integrity] : []),
-    buildChosenToolsWrite(capturedToolCalls, traceId, convId, observation, lane ?? "streaming"),
+    buildChosenToolsWrite(recordedCalls, traceId, convId, observation, lane ?? "streaming"),
   ]);
 
   return capturedToolCalls;

@@ -302,11 +302,17 @@ export async function runAlternatePaths(args: {
        * the winner. No match (e.g. a synthesised answer) means the lane stays
        * BLIND rather than guessing.
        */
-      const laneSamples: Array<{ text: string; calls: string[] }> = [];
+      const laneSamples: Array<{ text: string; calls: string[]; steps: unknown[] }> = [];
+      /**
+       * The winning generation's own steps, for the tool_telemetry recorder only.
+       * Names alone carry no outcome or duration, and the walk records a call
+       * only from a step, so a regen or self-consistency turn left no row.
+       */
+      let laneTelemetrySteps: unknown[] | undefined;
       // Audit 04-X12: every generation a lane ran was paid for, winner or not.
       let laneUsage: LaneUsage | undefined;
       const rememberLaneSample = (r: GenerationLike & { text?: string; totalUsage?: unknown }) => {
-        laneSamples.push({ text: String(r.text ?? ""), calls: toolNamesOf(r) });
+        laneSamples.push({ text: String(r.text ?? ""), calls: toolNamesOf(r), steps: allSteps(r) });
         laneUsage = addUsage(laneUsage, r.totalUsage);
       };
       /**
@@ -339,6 +345,7 @@ export async function runAlternatePaths(args: {
         });
         if (!a) return; // honest blind — never attribute a sample that did not win
         laneToolCalls = a.toolNames.map((name) => ({ name }));
+        laneTelemetrySteps = a.steps;
         laneTelemetryObserved = true;
       };
       // Shared generateText config for the regen + self-consistency
@@ -797,6 +804,7 @@ export async function runAlternatePaths(args: {
               laneReceiptsAvailable: laneTelemetryObserved,
               laneName,
               ...(laneSteps ? { steps: laneSteps } : {}),
+              ...(laneTelemetrySteps ? { laneTelemetrySteps } : {}),
               ...(laneUsage ? { usage: laneUsage } : {}),
               ...(coveDone ? { coveDone: true } : {}),
             });

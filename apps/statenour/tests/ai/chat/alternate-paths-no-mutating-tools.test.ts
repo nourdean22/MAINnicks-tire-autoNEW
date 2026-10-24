@@ -256,6 +256,36 @@ describe("buffered lanes count every paid generation (audit 04-X12)", () => {
   });
 });
 
+describe("sampled lanes hand the persist walk the WINNER's steps, so tool_telemetry records the call", () => {
+  const stepOf = (toolName: string) => [{ toolCalls: [{ toolName, toolCallId: `id-${toolName}`, input: {} }], toolResults: [{ toolName, toolCallId: `id-${toolName}`, output: { ok: true } }] }];
+
+  it("verified regen: the persist event carries the steps of the generation whose text won, not the loser's", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = "The winning reply about the shop hours.";
+    const loserSteps = stepOf("searchMemories");
+    const winnerSteps = stepOf("getCommitments");
+    let n = 0;
+    generateText.mockImplementation(async () => {
+      n += 1;
+      return n === 1
+        ? { text: "A losing draft.", steps: loserSteps, toolCalls: [], toolResults: [] }
+        : { text: regenWinner, steps: winnerSteps, toolCalls: [], toolResults: [] };
+    });
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    expect(persistEvents[0].laneToolNames).toEqual(["getCommitments"]);
+    expect(persistEvents[0].laneTelemetrySteps).toBe(winnerSteps);
+  });
+
+  it("control: a winner no sample matches stays blind, with no steps guessed", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = "A synthesised reply no generation produced.";
+    generateText.mockImplementation(async () => ({ text: "something else", steps: stepOf("getTasks"), toolCalls: [], toolResults: [] }));
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    expect(persistEvents[0].laneTelemetrySteps).toBeUndefined();
+    expect(persistEvents[0].laneReceiptsAvailable).toBe(false);
+  });
+});
+
 describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", () => {
   const DRAFT = "The shop opens at 8 and closes at 6 on weekdays, per the posted hours.";
 
