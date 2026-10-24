@@ -3,12 +3,12 @@
   "branch": "statenour/functions-cleanup-2026-10-23",
   "status": "active",
   "sessionKind": "unknown",
-  "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
-  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
-  "claimedBy": "2026-10-23-bdnick-pro-rebuild wave C functions cleanup",
-  "claimedAt": "2026-10-23T14:53:51.301Z",
-  "expiresAt": "2026-10-24T02:53:51.301Z",
+  "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\telegram-alert-cleanup-ef0255",
+  "claimedBy": "2026-10-23-bdnick-pro-rebuild wave C (manager d6a11a27)",
+  "claimedAt": "2026-10-24T12:41:58.646Z",
+  "expiresAt": "2026-10-25T00:41:58.646Z",
   "releasedAt": null,
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "8d2809956e04651af779fcc403a2ad6ce05a4fcf"
 }
