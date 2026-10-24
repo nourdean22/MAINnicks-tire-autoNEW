@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/bdnick-waves-ab-2026-10-24",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\telegram-alert-cleanup-ef0255",
+  "claimedBy": "2026-10-23-bdnick-pro-rebuild waves A+B (manager d6a11a27)",
+  "claimedAt": "2026-10-24T12:55:05.376Z",
+  "expiresAt": "2026-10-25T00:55:05.376Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
