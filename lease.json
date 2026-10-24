@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/shopdriver-mirror-link-2026-10-24",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-23-admin-map C5 (manager d6a11a27)",
   "claimedAt": "2026-10-24T18:33:58.311Z",
   "expiresAt": "2026-10-25T06:33:58.311Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-24T22:46:36.728Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "13b91dc3379c2cafb663aacd83dbcb5cd8f4eeef",
+  "releasedBy": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "foreignReleaseReason": null
 }
