@@ -781,7 +781,7 @@ export async function pruneTools(
   // Reflection digest. getRecentReflections left CORE_TOOLS 2026-10-24, so it
   // needs its own path: its scope and onlyActionable inputs have no equivalent
   // on searchReflections, which needs a query.
-  if (/\b(reflections?|reflecting on|what have i been learning|what'?s my pattern lately)\b/.test(text)) {
+  if (/\b(reflections?|reflecting on|what have i been learning|what'?s my pattern lately|unacknowledged|unacked|actionable (insights?|reflections?)|insights? i haven'?t (acked|acknowledged)|(weekly|monthly|daily) insights?)\b/.test(text)) {
     addMatching(/getRecentReflections/i);
   }
 

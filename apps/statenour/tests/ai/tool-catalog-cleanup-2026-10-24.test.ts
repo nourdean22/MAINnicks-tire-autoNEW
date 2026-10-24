@@ -66,9 +66,23 @@ describe("getRecentReflections left the always-on core and is still reachable", 
   it("is not offered on a turn that has nothing to do with reflections", async () => {
     expect(await offeredFor("what time does the shop open")).not.toContain("getRecentReflections");
   });
-  it.each(["show me my recent reflections", "what have I been reflecting on lately"])("is offered for %s", async (prompt) => {
+  // It is the only tool with scope / onlyActionable filters, so those phrasings must reach it
+  // on a cold embedding cache (offeredFor runs the keyword tier only).
+  it.each([
+    "show me my recent reflections",
+    "what have I been reflecting on lately",
+    "show my unacknowledged actionable weekly insights",
+    "any actionable insights I haven't acked",
+    "my reflections from this month",
+  ])("is offered for %s", async (prompt) => {
     expect(await offeredFor(prompt)).toContain("getRecentReflections");
   });
+  it.each(["what are the actionable steps for the tire order", "any insight into why the bay is slow today"])(
+    "CONTROL · is NOT offered for %s",
+    async (prompt) => {
+      expect(await offeredFor(prompt)).not.toContain("getRecentReflections");
+    },
+  );
 });
 
 describe("suggestSkills answers the inputs searchSkills documented", () => {
