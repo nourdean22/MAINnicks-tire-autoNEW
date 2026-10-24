@@ -15,6 +15,7 @@
  * user having to do anything. Force-recompute button triggers POST.
  */
 
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DismissButton } from "@/components/ui/dismiss-button";
@@ -103,6 +104,8 @@ export function GhostNickStrip() {
   const livePredictions = bundle?.predictions.filter((p) => !p.dismissed) ?? [];
 
   // Hide entirely when no predictions AND we've never computed
+  // Wave D: a failed read is not "never computed"; say so instead of hiding.
+  if (query.isError && !bundle) return <ReadingUnavailable label="Ghost Nick predictions" />;
   if (!loading && !bundle) return null;
   if (bundle && livePredictions.length === 0) return null;
 

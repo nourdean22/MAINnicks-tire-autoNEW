@@ -57,8 +57,8 @@ export function PredictionStreaksCard() {
     return (
       <GlassCard>
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-rose-400">
-            streaks unavailable: {streaksQuery.error.message}
+          <p data-read-failed="" className="text-[13px] text-red-300">
+            Prediction streaks couldn&apos;t load: {streaksQuery.error.message}
           </p>
           <button
             onClick={() => void streaksQuery.refetch()}

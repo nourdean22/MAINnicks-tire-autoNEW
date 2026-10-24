@@ -33,6 +33,7 @@
  * (future · v10.0.529.33+1 scope).
  */
 
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { RotateCcw, Save, Loader2, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
@@ -281,6 +282,8 @@ export function PreferencesCard() {
   if (pref.isLoading && !data) {
     return <ShimmerSkeleton variant="card" className="min-h-[180px]" />;
   }
+  // Wave D: a failed read used to draw DEFAULT_VECTOR as if it were the saved vector.
+  if (pref.isError && !data) return <ReadingUnavailable label="Preferences" />;
 
   const vector = draft ?? apiVector ?? DEFAULT_VECTOR;
   const lastTune = data?.lastTune ?? null;

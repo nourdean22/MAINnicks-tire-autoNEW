@@ -48,6 +48,7 @@
  *   the deep-discussion path · the two flows coexist.
  */
 
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -166,6 +167,9 @@ export function DecisionReplayCard() {
   if (replays.isLoading && !replays.data) {
     return <ShimmerSkeleton variant="card" className="min-h-[96px]" />;
   }
+
+  // Wave D: a failed read used to fall through to the silent empty branch below.
+  if (replays.isError && !replays.data) return <ReadingUnavailable label="Decision replays" />;
 
   const data = replays.data;
   const due = data?.due?.unconsumed ?? [];

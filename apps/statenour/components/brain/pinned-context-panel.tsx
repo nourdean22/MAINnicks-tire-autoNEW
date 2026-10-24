@@ -507,11 +507,11 @@ export function PinnedContextPanel() {
         </div>
       )}
 
-      {/* Same shape as judgment-quality-panel.tsx:35-43 — a failed read
+      {/* Same shape as judgment-quality-panel.tsx:35-43: a failed read
           says so, and never borrows the empty state's copy. */}
       {error && !loading && (
-        <div className="flex items-center gap-2 py-4 text-[11px] text-red-400">
-          <AlertCircle size={12} /> Pins couldn&apos;t load — state unknown, not
+        <div data-read-failed="" className="flex flex-wrap items-center gap-2 py-4 text-[13px] text-red-300">
+          <AlertCircle size={12} /> Pins couldn&apos;t load: state unknown, not
           empty. {error}
           <button
             onClick={load}

@@ -5,6 +5,7 @@ import { Check, RefreshCw, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { GlassCard } from "@/components/ui/glass-card";
 import { apiFetch } from "@/lib/utils/api-fetch";
+import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-outcomes";
 
 interface PendingCandidate {
   id: string;
@@ -260,6 +261,10 @@ export function KnowledgeReviewTab() {
           </GlassCard>
         );
       })}
+
+      {/* Wave D (2026-10-24): approved actions and their outcomes are the second half of this queue
+          (what was approved, what came of it), so they sit in its body instead of a block beside it. */}
+      <KnowledgeActionOutcomes />
     </div>
   );
 }

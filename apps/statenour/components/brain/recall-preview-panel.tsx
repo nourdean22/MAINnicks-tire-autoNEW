@@ -99,8 +99,8 @@ export function RecallPreviewPanel() {
       </label>
 
       {error ? (
-        <p className="mt-3 rounded-control border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
-          {error} — state unknown, not empty.
+        <p data-read-failed="" className="mt-3 border-l-2 border-red-400/60 py-1 pl-4 text-[13px] text-red-300">
+          {error}: state unknown, not empty.
         </p>
       ) : null}
 

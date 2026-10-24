@@ -15,6 +15,7 @@
  *
  * Auto-hides if no insights returned (clean week = no ribbon).
  */
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -56,12 +57,14 @@ export function InsightRibbon() {
   // state so no error surface is needed (the legacy hook's
   // `retryOn401: false` just meant "don't bounce to sign-in" — React
   // Query already doesn't redirect).
-  const { data, isLoading: loading } = trpc.brain.insightsRibbon.useQuery();
+  const { data, isLoading: loading, isError } = trpc.brain.insightsRibbon.useQuery();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   // Hide on first paint to avoid layout flash; show only when data
   // has arrived AND there's something to say.
+  // Wave D: a failed read is not a quiet day; the Signals fold counts this line as unreadable.
+  if (mounted && isError && !data) return <ReadingUnavailable label="Insight ribbon" />;
   if (!mounted || loading || !data || data.insights.length === 0) return null;
 
   return (

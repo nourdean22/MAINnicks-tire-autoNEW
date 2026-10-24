@@ -20,6 +20,7 @@
  * flagged conversation thread.
  */
 
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/utils/api-fetch";
 import Link from "next/link";
@@ -45,6 +46,7 @@ interface CritiqueMemory {
 
 export function SelfCritiqueCard() {
   const [rows, setRows] = useState<CritiqueMemory[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +61,8 @@ export function SelfCritiqueCard() {
         );
         if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch {
-        if (!cancelled) setRows([]);
+        // Wave D: a failed read used to set [] and hide the card like a clean week.
+        if (!cancelled) setFailed(true);
       }
     })();
     return () => {
@@ -69,6 +72,7 @@ export function SelfCritiqueCard() {
 
   // Silent-when-empty · clean weeks render nothing per the /brain
   // editorial design language.
+  if (failed) return <ReadingUnavailable label="Self-critique" />;
   if (rows === null || rows.length === 0) return null;
 
   return (

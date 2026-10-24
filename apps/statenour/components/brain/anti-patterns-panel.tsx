@@ -115,8 +115,8 @@ export function AntiPatternsPanel() {
         </div>
       ) : query.isError ? (
         <GlassCard>
-          <p className="text-sm text-amber-300">
-            Anti-pattern library could not load — state unknown, not empty.
+          <p data-read-failed="" className="text-sm text-red-300">
+            Anti-pattern library could not load: state unknown, not empty.
           </p>
         </GlassCard>
       ) : items.length === 0 ? (
