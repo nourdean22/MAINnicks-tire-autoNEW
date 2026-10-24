@@ -17,7 +17,6 @@ vi.mock("../sms", () => ({
   appointmentReminder24hSms: vi.fn(),
   appointmentReminder1hSms: vi.fn(),
   thankYouSms: vi.fn(),
-  reviewRequestSms: vi.fn(),
   maintenanceReminderSms: vi.fn(),
   bookingConfirmationRequestSms: vi.fn(),
 }));

@@ -54,7 +54,6 @@ describe("SMS Module", () => {
     let bookingConfirmationSms: any;
     let statusUpdateSms: any;
     let thankYouSms: any;
-    let reviewRequestSms: any;
     let callbackConfirmationSms: any;
     let maintenanceReminderSms: any;
 
@@ -63,7 +62,6 @@ describe("SMS Module", () => {
       bookingConfirmationSms = mod.bookingConfirmationSms;
       statusUpdateSms = mod.statusUpdateSms;
       thankYouSms = mod.thankYouSms;
-      reviewRequestSms = mod.reviewRequestSms;
       callbackConfirmationSms = mod.callbackConfirmationSms;
       maintenanceReminderSms = mod.maintenanceReminderSms;
     });
@@ -109,19 +107,6 @@ describe("SMS Module", () => {
       expect(msg).toContain("Nick's Tire & Auto");
     });
 
-    it("review request SMS includes Google review link", () => {
-      const msg = reviewRequestSms("Tom Wilson");
-      expect(msg).not.toContain("Tom");
-      expect(msg).toContain("nickstire.org/review");
-      expect(msg).toContain("Cleveland");
-    });
-
-    it("review request SMS is optimized to 2 segments or less", () => {
-      const msg = reviewRequestSms("A Very Long Customer Name Indeed");
-      // 2 segments = max 306 chars for concatenated SMS
-      expect(msg.length).toBeLessThanOrEqual(306);
-    });
-
     it("callback confirmation SMS includes business hours", () => {
       const msg = callbackConfirmationSms("Lisa Park");
       expect(msg).not.toContain("Lisa");
@@ -142,7 +127,6 @@ describe("SMS Module", () => {
         bookingConfirmationSms("A Very Long Customer Name Indeed", "Complete Engine Overhaul and Transmission Rebuild", "NT-ABCDEF"),
         statusUpdateSms("A Very Long Customer Name Indeed", "ready", "NT-ABCDEF"),
         thankYouSms("A Very Long Customer Name Indeed", "Complete Engine Overhaul and Transmission Rebuild"),
-        reviewRequestSms("A Very Long Customer Name Indeed"),
         callbackConfirmationSms("A Very Long Customer Name Indeed"),
         maintenanceReminderSms("A Very Long Customer Name Indeed", "Complete Engine Overhaul", "Based on your last visit approximately 5,000 miles ago."),
       ];

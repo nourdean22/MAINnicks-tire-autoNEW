@@ -21,8 +21,10 @@ import { eq, and, lte, isNotNull, ne } from "drizzle-orm";
 import { bookings } from "../drizzle/schema";
 import { createCustomerNotification, markNotificationSent, markNotificationFailed } from "./db";
 import { notifyOwner } from "./_core/notification";
-import { sendSms, thankYouSms, reviewRequestSms } from "./sms";
+import { sendSms, thankYouSms } from "./sms";
 import { smsOutcome } from "./lib/smsOutcome";
+import { greetingName } from "./services/invoiceReviewRequests";
+import { postVisitText } from "@shared/postVisitText";
 
 import { createLogger } from "./lib/logger";
 
@@ -196,9 +198,12 @@ export async function process7dReviewRequests(): Promise<FollowUpLaneResult> {
       continue; // already claimed by an overlapping run
     }
 
+    // Same post-visit text as the post-invoice-followup lane: first word of the name, normalised the
+    // way the invoice lane greets ("there" for a blank or business name), and the short review URL
+    // (no tracking URL exists on this lane). sendAndRecord sends via the shop line.
     await sendAndRecord(
       booking,
-      reviewRequestSms(booking.name),
+      postVisitText(greetingName(booking.name).split(" ")[0], "nickstire.org/review"),
       "review_request",
       `How was your experience at Nick's Tire & Auto?`,
       counts,

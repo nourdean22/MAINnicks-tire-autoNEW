@@ -19,7 +19,7 @@ vi.unmock("../drizzle/schema");
 vi.unmock("drizzle-orm");
 
 const sendSms = vi.fn(async (..._args: unknown[]) => ({ success: true, sid: "SM_fixture" }) as Record<string, unknown>);
-const DOMOCKED = ["./db", "./sms", "./services/featureFlags"];
+const DOMOCKED = ["./db", "./sms", "./services/featureFlags", "./_core/notification"];
 
 beforeEach(() => {
   vi.resetModules();
@@ -151,5 +151,77 @@ describe("post-invoice-followup cron (customer-keyed)", () => {
     await run({ id: 11, firstName, phone: "2165550125", segment: "recent" });
     expect(sendSms).toHaveBeenCalledTimes(1);
     expect(sendSms).toHaveBeenCalledWith("2165550125", expected("there"), { via: "shop" });
+  });
+});
+
+// Outreach > Follow-Ups > RUN FOLLOW-UPS (routers/admin/followUps.ts -> runFollowUps): the 7-day
+// booking text is the same post-visit moment, so it is the same text. The 24-hour thank-you is not.
+describe("RUN FOLLOW-UPS 7-day booking text (follow-ups.ts)", () => {
+  const createCustomerNotification = vi.fn(async (..._args: unknown[]) => ({ id: 77 }));
+  const claim = vi.fn();
+
+  async function run(name: string, flagOn = true) {
+    createCustomerNotification.mockClear();
+    claim.mockClear();
+    if (!flagOn) vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn(async () => false) }));
+    vi.doMock("./db", () => ({
+      getDb: async () => ({
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [
+                { id: 5, name, phone: "2165550130", email: null, service: "Brakes", status: "completed", followUp24hSent: 1, followUp7dSent: 0, updatedAt: new Date(0) },
+              ],
+            }),
+          }),
+        }),
+        update: () => ({ set: () => ({ where: async () => (claim(), [{ affectedRows: 1 }]) }) }),
+      }),
+      createCustomerNotification,
+      markNotificationSent: vi.fn(async () => undefined),
+      markNotificationFailed: vi.fn(async () => undefined),
+    }));
+    // Real sms module (templates included) with only the send replaced.
+    vi.doMock("./sms", async () => ({ ...(await vi.importActual<typeof import("./sms")>("./sms")), sendSms }));
+    vi.doMock("./_core/notification", () => ({ notifyOwner: vi.fn(async () => undefined) }));
+    const { process7dReviewRequests } = await import("./follow-ups");
+    return process7dReviewRequests();
+  }
+  const expected = (first: string) =>
+    `Hi ${first}, it's Nick's Tire & Auto on Euclid. Thanks for coming in. If anything about the car feels off, text us here and we'll take care of it. If you have a minute, tell other Cleveland drivers how your visit went: nickstire.org/review`;
+
+  it("hands the send Draft D after the claim, from the shop line, and records the same text", async () => {
+    const res = await run("david aiken");
+    expect(res).toMatchObject({ sent: 1, queued: 0, failed: 0, skipped: 0 });
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendSms).toHaveBeenCalledWith("2165550130", expected("David"), { via: "shop" });
+    expect(claim.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+    // The notification row keeps its subject and record type; its message is what the customer got.
+    expect(createCustomerNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: 5,
+        notificationType: "review_request",
+        subject: "How was your experience at Nick's Tire & Auto?",
+        message: expected("David"),
+      }),
+    );
+  });
+
+  it.each([
+    ["AIKEN, DAVID", "David"], // ALG-style "Last, First"
+    ["  maria   lopez ", "Maria"],
+    ["", "there"],
+    ["Unknown", "there"],
+    ["ACME AUTO LLC", "there"], // a business is not greeted by a word of its name
+  ])("greets %j as %j (the invoice lane's rule)", async (name, greeting) => {
+    await run(name);
+    expect(sendSms.mock.calls[0][1]).toBe(expected(greeting));
+  });
+
+  it("control: flag off still claims nothing and sends nothing", async () => {
+    const res = await run("david aiken", false);
+    expect(claim).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(res.skipReason).toMatch(/sms_review_requests is off/);
   });
 });

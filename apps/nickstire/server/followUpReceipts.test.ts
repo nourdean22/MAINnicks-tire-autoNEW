@@ -23,7 +23,6 @@ let rows: Array<Record<string, unknown>> = [];
 vi.mock("./sms", () => ({
   sendSms: (...args: unknown[]) => sendSms(...args),
   thankYouSms: () => "thanks",
-  reviewRequestSms: () => "review please",
 }));
 vi.mock("./services/featureFlags", () => ({ isEnabled: (...a: unknown[]) => isEnabled(...a) }));
 vi.mock("./_core/notification", () => ({ notifyOwner: (...a: unknown[]) => notifyOwner(...a) }));
