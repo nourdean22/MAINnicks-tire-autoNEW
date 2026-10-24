@@ -267,16 +267,6 @@ export async function handleArsenalGetMeetings(params: ActionParams, type: strin
   return { action: type, success: !!result, result };
 }
 
-export async function handleArsenalRunPython(params: ActionParams, type: string): Promise<ActionResult> {
-  const { runPython } = await import("@/lib/integrations/e2b");
-  const code = String(params.code || "");
-  if (!code) {
-    return { action: type, success: false, error: "code parameter required" };
-  }
-  const result = await runPython(code);
-  return { action: type, success: result.ok, result };
-}
-
 export async function handleArsenalBrowserCreateSession(params: ActionParams, type: string): Promise<ActionResult> {
   const { createSession } = await import("@/lib/integrations/browserbase");
   const keepAlive = params.keepAlive === true;

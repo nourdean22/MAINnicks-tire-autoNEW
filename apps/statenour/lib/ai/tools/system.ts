@@ -426,10 +426,6 @@ export const systemTools = {
     },
   }),
 
-  // v10.0.515 · #3 Code sandbox · Python execution via E2B.
-  // Operator sets E2B_API_KEY (free 100 runs/day) and Nick can run
-  // calculations, plot data, parse text, regress numbers. Replaces
-  // "describing" with "doing" for any quantitative question.
   searchWebVerified: tool({
     description:
       "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
