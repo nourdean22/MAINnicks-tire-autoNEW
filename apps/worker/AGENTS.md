@@ -29,7 +29,7 @@ An Express 5 + node-cron process on Railway's internal network (nickstire's serv
    those jobs: each tick is an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a
    `Bearer CRON_SECRET`, a 60s timeout and a per-job overlap guard — a slow forward skips the next
    tick instead of stacking. Registered in `scheduler.ts`: `brain-bus-drain`, `outbox-drain`,
-   `inngest-liveness`, `agent-followups`, and `device-heartbeat-sentinel`.
+   `inngest-liveness`, and `device-heartbeat-sentinel`.
    **There are no worker `POST /cron/mega*` entry points anymore.** Q-36 removed them after live
    Railway inspection on 2026-09-29 showed zero Railway cron services/jobs in the project and no
    cron schedule on the worker itself. Daily/weekly mega ownership lives in StateNour/Inngest.

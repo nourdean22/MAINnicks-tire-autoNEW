@@ -139,10 +139,11 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     // Post-turn outbox backstop was nightly-only (mega-evening 03:00) — a
     // turn that crashed mid-work stranded its receipts/completion message
     // for up to 24h. The route's claim is atomic first-claimant-wins, so
-    // riding both the nightly fan-out and this 15-min loop is safe.
+    // riding both the nightly fan-out and this hourly loop is safe. Hourly,
+    // not 15 min: 0 of 1,156 runs did work in 14 days (the outbox drains inline).
     name: "outbox-drain",
-    schedule: "*/15 * * * *",
-    description: "Every 15 min · replay orphaned post-turn chat work",
+    schedule: "0 * * * *",
+    description: "Hourly · replay orphaned post-turn chat work",
   },
   {
     // NOT high-frequency — deliberately lives here anyway. This is the
@@ -156,15 +157,6 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     name: "inngest-liveness",
     schedule: "0 13 * * *",
     description: "Daily 13:00 UTC · out-of-band Inngest scheduler liveness (reads heartbeat self-row age)",
-  },
-  {
-    // 2026-10-02 · operator turned agent follow-ups on. Delivers the
-    // follow-ups Nick scheduled for himself (writes into the originating
-    // chat thread only). Still gated by NICK_AGENT_FOLLOWUPS=1 and the
-    // per-cron kill switch inside the route; daily + per-thread caps apply.
-    name: "agent-followups",
-    schedule: "*/15 * * * *",
-    description: "Every 15 min · deliver agent-scheduled follow-ups into their chat thread (gated by NICK_AGENT_FOLLOWUPS + kill switch)",
   },
   {
     // 2026-09-08 · ADR-0017. The camera bridge PATCHes a heartbeat per camera

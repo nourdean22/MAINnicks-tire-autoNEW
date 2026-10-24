@@ -75,7 +75,7 @@ Do not read `GET /api/settings/crons` as the catalog: it parses the deleted `ver
 
 Registered here in `src/scheduler.ts`:
 - `brain-bus-drain` · every 15m → GET `/api/cron/brain-bus-drain`
-- `outbox-drain` · every 15m → GET `/api/cron/outbox-drain`
+- `outbox-drain` · hourly → GET `/api/cron/outbox-drain`
 - `inngest-liveness` · daily 13:00 UTC → GET `/api/cron/inngest-liveness`
 - `device-heartbeat-sentinel` · every 15m → GET `/api/cron/device-heartbeat-sentinel`
 

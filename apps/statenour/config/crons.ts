@@ -513,14 +513,14 @@ export const CRONS: CronDef[] = [
   {
     // 2026-07-25 · durable-outbox drain (audit P1). 2026-07-28 blueprint:
     // nightly-only meant a crashed turn's receipts waited up to 24h — now
-    // ALSO fired every 15 min by the worker's node-cron. Claim is atomic
+    // ALSO fired hourly by the worker's node-cron. Claim is atomic
     // first-claimant-wins, so both dispatch paths coexist safely.
     name: "outbox-drain",
-    schedule: "*/15 * * * *",
+    schedule: "0 * * * *",
     mode: "active",
     category: "hygiene",
     worker: true,
-    description: "Every 15 min via worker node-cron (+ nightly mega-evening backstop) · replays orphaned post-turn chat work from post_turn_outbox.",
+    description: "Hourly via worker node-cron (+ nightly mega-evening backstop) · replays orphaned post-turn chat work from post_turn_outbox.",
     memory: 512,
     maxDuration: 300,
   },
