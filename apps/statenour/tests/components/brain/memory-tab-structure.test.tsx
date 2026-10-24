@@ -59,6 +59,7 @@ function stub(name: string) {
 vi.mock("@/components/mastery/coach-event-banner", () => ({ CoachEventBanner: stub("CoachEventBanner") }));
 vi.mock("@/components/mastery/mission-breadcrumb", () => ({ MissionBreadcrumb: stub("MissionBreadcrumb") }));
 vi.mock("@/components/brain/brain-maturity-header", () => ({ BrainMaturityHeader: stub("BrainMaturityHeader") }));
+vi.mock("@/components/brain/memory-verdict", () => ({ MemoryVerdict: stub("MemoryVerdict") }));
 vi.mock("@/components/brain/contradiction-resolution-panel", () => ({ ContradictionResolutionPanel: stub("ContradictionResolutionPanel") }));
 vi.mock("@/components/brain/beliefs-panel", () => ({ BeliefsPanel: stub("BeliefsPanel") }));
 vi.mock("@/components/brain/recall-inbox-panel", () => ({ RecallInboxPanel: stub("RecallInboxPanel") }));
@@ -120,7 +121,9 @@ afterEach(() => {
   h.lateFail = new Set();
 });
 
+// Round 5: the verdict leads, before the coach banner and the rest (the tab's one decision first).
 const VISIBLE = [
+  "MemoryVerdict",
   "CoachEventBanner",
   "MissionBreadcrumb",
   "BrainMaturityHeader",

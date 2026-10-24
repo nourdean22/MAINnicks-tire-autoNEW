@@ -53,6 +53,7 @@ import { onDataChanged } from "@/lib/events/data-change";
 import { NickSuggestions } from "@/components/chat/nick-suggestions";
 import { WisdomSection } from "@/components/brain/wisdom-section";
 import { BrainFold, ReadingUnavailable } from "@/components/brain/brain-fold";
+import { MemoryVerdict } from "@/components/brain/memory-verdict";
 
 export function MemoryTab() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -68,6 +69,8 @@ export function MemoryTab() {
 
   return (
     <div className="space-y-6">
+      {/* Round 5: the tab leads with its one decision, the System control tower's shape. */}
+      <MemoryVerdict />
       <div className="space-y-2">
         <CoachEventBanner surface="brain" />
         <MissionBreadcrumb />
