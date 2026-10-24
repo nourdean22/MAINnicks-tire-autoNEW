@@ -115,7 +115,14 @@ Draft:
 
 Why this shape: it opens like the counter talks, offers help before asking for anything, and asks every customer
 the same way. Asking only happy customers for reviews is review gating, which Google's policy forbids, so the ask
-never depends on how the visit went. About 250 characters with the link, two SMS segments. Sending stays with the
+never depends on how the visit went.
+
+Real length as sent (computed 2026-10-24): the lane expands `{reviewUrl}` to the 87-character tracking URL
+(`https://nickstire.org/api/review-click/` plus a 48-character hex token, `server/routers/reviewRequests.ts`) and
+`withOptOut` in `server/sms.ts` appends the 24-character "Reply STOP to opt out." footer. With a 2 to 11 letter
+first name the draft is 324 to 333 characters, all GSM-7, so 3 segments (153 per segment once over 160). Today's
+default (no admin template set) contains an em dash, which forces UCS-2: 284 to 294 characters at 67 per segment,
+so 5 segments. The draft is longer in characters but 2 segments cheaper per text. Sending stays with the
 existing lane; changing the copy is a small server-lane PR (Nour said go on 2026-10-24, relayed by the manager, who dispatches it).
 
 ## 7. Found while gathering (not fixed here)

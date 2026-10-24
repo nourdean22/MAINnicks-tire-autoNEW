@@ -250,8 +250,8 @@ export default function About() {
               </FadeIn>
             ))}
           </div>
-          <p className="mt-6 text-center text-foreground/50 text-xs">
-            Word for word from Google reviews, trimmed for length. Names left off.
+          <p data-testid="about-quotes-disclosure" className="mt-6 text-center text-foreground/50 text-xs">
+            Selected five-star Google reviews, word for word, trimmed for length. Names left off.
           </p>
           <FadeIn delay={0.4}>
             <div className="text-center mt-10">
