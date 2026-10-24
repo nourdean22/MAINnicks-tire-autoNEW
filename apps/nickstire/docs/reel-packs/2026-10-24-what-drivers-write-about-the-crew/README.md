@@ -1,12 +1,13 @@
 # What drivers write about the crew (real footage, review lines on screen)
 
-**Purpose:** show the welcome instead of claiming it. Every line on screen is a verbatim Google review line;
-every frame is real shop footage. Runtime about 18 s, 1080x1920, 30 fps.
+**Purpose:** show the welcome instead of claiming it. Every quoted line on screen (beats 2 to 5) is a verbatim
+Google review line; the hook (beat 1) and the end card (beat 6) are the shop's own words. Every frame is real shop
+footage. Runtime 16.5 s, 1080x1920, 30 fps.
 
 **Status (2026-10-24):** concept, production pack and a silent draft cut, for Nour's approval. Not in the
 pipeline, not in the autopost lane: if approved, it is finished and posted by hand. Generation spend: $0.
 Draft cut (local only, not in git): `C:\Users\nourd\NattyNour\shop-media\reels-draft\what-drivers-write-DRAFT.mp4`
-(18 s, beats below, no sound yet).
+(18 s, no sound yet). It predates the 2 s end-card rule below, so it needs a re-cut of beat 6 before it is final.
 
 ## Hook
 
@@ -25,9 +26,10 @@ Ids are shop media triage numbers (`C:\Users\nourd\NattyNour\shop-media\work\ind
 | 3 | 5.5 to 8.5 | 468: mechanic mounting a tire (from `mount-balance.mp4`) | "They inspected my car before they did any work…" |
 | 4 | 8.5 to 11.5 | 481 or 483: the waiting room (slow push-in) | "I was comfortable waiting." |
 | 5 | 11.5 to 14.5 | 806 or 808: crew at the tire machine | "Attitude and courtesy matter and I appreciated them." |
-| 6 | 14.5 to 18 | 814: crew under the sign (or 949 if a crew member says no) | End card: Nick's Tire & Auto, 17625 Euclid Ave. Walk-ins 7 days. |
+| 6 | 14.5 to 16.5 | 814: crew under the sign (or 949 if a crew member says no) | End card: Nick's Tire & Auto, 17625 Euclid Ave. Walk-ins 7 days. |
 
-Small line on the end card: "Lines from Google reviews, word for word."
+The end card is held 2 s, the most `MAX_END_CARD_SECONDS` in `shared/editorialContract.ts` allows.
+Small line on the end card: "Quoted lines from Google reviews, word for word."
 
 ## Before it can post
 
@@ -40,7 +42,7 @@ Small line on the end card: "Lines from Google reviews, word for word."
 ## Copy
 
 **Caption:**
-> Every line in this video is from a Google review, word for word. Walk-ins 7 days on Euclid Ave, first come,
+> Every quoted review line in this video is from a Google review, word for word. Walk-ins 7 days on Euclid Ave, first come,
 > first served. 17625 Euclid Ave, (216) 862-0005.
 > #Cleveland #EuclidAve #TireShop #AutoRepair #NicksTireAndAuto
 
