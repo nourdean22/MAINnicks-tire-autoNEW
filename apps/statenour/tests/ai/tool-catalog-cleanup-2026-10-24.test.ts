@@ -98,11 +98,20 @@ describe("the external-worker tools are reachable (registration is not reachabil
   it.each([
     "what is the render worker doing",
     "show me the external worker lanes",
-    "is the worker busy right now",
+    "is the render worker busy right now",
+    "is the reel render stuck",
+    "what's in the render queue",
   ])("%s surfaces both worker tools", async (prompt) => {
     const offered = await offeredFor(prompt);
     expect(offered).toContain("getExternalWorkerLanes");
     expect(offered).toContain("getExternalWorkerJob");
+  });
+
+  // Nour runs a tire shop crew: a bare "worker" means a person, not the render worker.
+  it.each(["which worker is on shift", "did the new worker clock in"])("%s does NOT attach them", async (prompt) => {
+    const offered = await offeredFor(prompt);
+    expect(offered).not.toContain("getExternalWorkerLanes");
+    expect(offered).not.toContain("getExternalWorkerJob");
   });
 
   it("CONTROL: a cron question still reaches getCronStatus and does not pull the worker tools", async () => {

@@ -94,12 +94,13 @@ export const durableToolExecutors = new Map<
  * Legacy hand-maintained toolId -> nourTools-key map. Kept only as the
  * LAST-resort fallback behind durableToolExecutors for any request created
  * before this deploy; the durable registry supersedes it for every wrapped
- * tool going forward.
+ * tool going forward. (code.run_python_e2b was dropped 2026-10-24 with the
+ * runPython tool: a stranded pre-registry approval for it now falls to the
+ * third tier below and fails with NoHandlerError, like any unmapped id.)
  */
 export const TOOL_MAP: Record<string, string> = {
   "gmail.compose_draft_card": "composeEmail",
   "code.run_js_vm": "runCode",
-  "code.run_python_e2b": "runPython",
   "memory.pin": "pinMemory",
   "memory.resolve_contradiction": "resolveContradiction",
 };

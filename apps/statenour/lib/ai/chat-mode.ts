@@ -787,7 +787,8 @@ export async function pruneTools(
 
   // Worker status. getExternalWorkerLanes / getExternalWorkerJob were registered
   // with no family, so no phrasing reached them (0 of 152 turns offered either).
-  if (/\b(external worker|render worker|render jobs?|worker lanes?|workers?)\b/.test(text)) {
+  // No bare "worker": at a tire shop that means a person on the crew.
+  if (/\b(external worker|render worker|render jobs?|render (queue|stuck)|reel render|worker lanes?)\b/.test(text)) {
     addMatching(/getExternalWorker/i);
   }
 

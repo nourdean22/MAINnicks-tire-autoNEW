@@ -281,11 +281,11 @@ const finalPreferLargeContext = contentMode || domainRoute.preferLargeContext;
 const budget = await assertWithinBudget().catch(() => null);
 if (budget && !budget.ok) return Response.json({ … }, { status: 402 });
 
-// route.ts:317-346 · Python-execute intent → force Ollama (strict toolChoice)
-const __pythonExecuteIntent = /\b(run|execute|invoke)\s+python\b|…/i.test(userContent);
+// route.ts · an action intent → force Ollama (strict toolChoice)
+// (the python-execute force was removed 2026-10-24 with the runPython tool)
 model = getModel(finalTaskType, {
   preferLargeContext: finalPreferLargeContext,
-  ...(__pythonExecuteIntent ? { forceProviderFirst: "ollama" as const } : {}),
+  ...(__actionIntent ? { forceProviderFirst: "ollama" as const } : {}),
 });
 ```
 
@@ -549,10 +549,10 @@ const modelMessages = compression.compressed ? compression.messages
 
 Pruning lives in `lib/ai/chat-mode.ts:pruneTools`:
 
-- **Core tools** always included (10 names): `classifyThought`,
-  `searchMemories`, `getRecentReflections`, `searchReflections`,
-  `rankNextActions`, `getBlindSpots`, `syncKnowledge`, `dailyPulse`,
-  `setTaskPriority`, `runDeviceCommand`
+- **Core tools** always included (2 names: `searchMemories`,
+  `searchReflections`), plus `createTask` and `completeTask` as the action
+  core. The other tools this list once held were demoted to keyword
+  families; `getRecentReflections` left it 2026-10-24
 - **Semantic layer** (when warm): top-15 standard, top-40 deep,
   cosine floor 0.25
 - **Keyword fallback** when embedding cache is cold
@@ -605,10 +605,10 @@ provider mid-stream.
 ```ts
 // app/api/ai/chat/route.ts:1200-1235
 ...(() => {
-  // Python-execute · most specific gate, checked first.
-  if (/\b(run|execute|invoke)\s+(?:this\s+)?python\b|…/i.test(userContent)) {
+  // Explicit web-search ask · force that one tool on step 0.
+  if (webSearchIntent) {
     return {
-      toolChoice: { type: "tool" as const, toolName: "runPython" as const },
+      toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const },
     };
   }
   // Generic action-intent — force ANY tool call
@@ -620,9 +620,9 @@ provider mid-stream.
 
 Three tiers:
 
-1. **`{ type: "tool", toolName: "runPython" }`** — specific tool forced
-   when user says "run this python". Bypasses the model's discretion
-   entirely; only choice left is what code to pass.
+1. **`{ type: "tool", toolName: "arsenalWebSearch" }`** — specific tool
+   forced when user explicitly asks to search the web. Bypasses the
+   model's discretion entirely; only choice left is the query.
 2. **`"required"`** — when user clearly issues an action ("add this
    task", "send the email", "schedule a follow-up"). Removes the
    option to narrate. Fabrication-by-narration becomes structurally
