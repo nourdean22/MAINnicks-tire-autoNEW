@@ -52,7 +52,7 @@ import { useIdleWarmup } from "@/hooks/use-idle-warmup";
 import { onDataChanged } from "@/lib/events/data-change";
 import { NickSuggestions } from "@/components/chat/nick-suggestions";
 import { WisdomSection } from "@/components/brain/wisdom-section";
-import { BrainFold, ReadingUnavailable } from "@/components/brain/brain-fold";
+import { BrainFold, ReadingUnavailable, StaleNote } from "@/components/brain/brain-fold";
 import { MemoryVerdict } from "@/components/brain/memory-verdict";
 
 export function MemoryTab() {
@@ -138,6 +138,7 @@ function SkillLibraryRow() {
       {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
       {/* Paused before any data (offline at start): no error, no list, so say offline. */}
       {readState(skillsQuery) === "offline" && <ReadStateNote state="offline" label="Skill library" />}
+      <StaleNote q={skillsQuery} label="Skill library" />
       <SkillLibraryPanel />
     </div>
   );
@@ -156,14 +157,17 @@ function IdentityDeltaLine() {
   });
   const { data, isError } = deltaQ;
   // A failed read is NOT "nothing shifted today": say which one it is.
-  if (isError) return <ReadingUnavailable label="Identity delta" />;
+  if (isError && !data) return <ReadingUnavailable label="Identity delta" />;
   // A paused read (offline) has no error either: not "nothing shifted" (truth sweep 2026-10-23).
   if (readState(deltaQ) === "offline") return <ReadStateNote state="offline" label="Identity delta" />;
-  if (!data?.delta) return null;
+  if (!data?.delta) return <StaleNote q={deltaQ} label="Identity delta" />;
   return (
-    <div className="flex items-start gap-3 border-l-2 border-edge py-1 pl-4 text-[13px]">
-      <span className="mt-0.5 shrink-0 font-mono text-fg-tertiary">yesterday to today</span>
-      <p className="flex-1 leading-snug text-fg-secondary">{data.delta.slice(0, 280)}</p>
+    <div className="space-y-1">
+      <StaleNote q={deltaQ} label="Identity delta" />
+      <div className="flex items-start gap-3 border-l-2 border-edge py-1 pl-4 text-[13px]">
+        <span className="mt-0.5 shrink-0 font-mono text-fg-tertiary">yesterday to today</span>
+        <p className="flex-1 leading-snug text-fg-secondary">{data.delta.slice(0, 280)}</p>
+      </div>
     </div>
   );
 }
@@ -186,9 +190,10 @@ function CalibrationTile() {
     { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 },
   );
   const { data, isError } = calibrationQ;
-  if (isError) return <ReadingUnavailable label="Calibration" />;
+  if (isError && !data) return <ReadingUnavailable label="Calibration" />;
   if (!data && readState(calibrationQ) === "offline") return <ReadStateNote state="offline" label="Calibration" />;
-  if (!data || data.resolved === 0) return null;
+  if (!data) return null;
+  if (data.resolved === 0) return <StaleNote q={calibrationQ} label="Calibration" />;
   // Verdict map matches the helper's enum: "well-calibrated" | "drift" | "unknown"; drift is the
   // warning signal (>= 15% off).
   const verdictTint =
@@ -199,6 +204,7 @@ function CalibrationTile() {
         : "text-fg-tertiary";
   return (
     <section aria-label="calibration" className="space-y-2">
+      <StaleNote q={calibrationQ} label="Calibration" />
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         {/* "resolved 30d", not "30d": the population is predictions that RESOLVED in the last 30
             days, whenever they were made. */}

@@ -122,6 +122,7 @@ describe("read failure is distinguishable from emptiness", () => {
 
   it("keeps silent-when-empty for a genuinely quiet calibration window", () => {
     // Emptiness still hides; only failure speaks.
-    expect(code).toContain("data.resolved === 0) return null");
+    // Emptiness still hides (StaleNote renders nothing unless the last refresh failed, wave D round 6).
+    expect(code).toContain("data.resolved === 0) return <StaleNote q={calibrationQ}");
   });
 });

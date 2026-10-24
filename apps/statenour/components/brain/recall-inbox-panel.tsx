@@ -22,6 +22,9 @@
  * operator's daily ritual collapses from 3 page visits to 1 panel.
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { StaleNote } from "@/components/brain/brain-fold";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -128,17 +131,25 @@ function SourceGroup({
 }
 
 export function RecallInboxPanel() {
-  const { data } = trpc.brain.recallInbox.useQuery(undefined, {
+  const inboxQ = trpc.brain.recallInbox.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 60 * 1000,
   });
+  const { data } = inboxQ;
+  const state = readState(inboxQ);
 
-  if (!data) return null;
-  // Silent when the entire inbox is empty (clean morning).
-  if (data.totalCount === 0) return null;
+  // Wave D round 6: a failed or paused read used to hide the panel, the same pixel as a clean morning.
+  if (!data) {
+    return state === "loading" ? null : (
+      <ReadStateNote state={state} label="Recall inbox" onRetry={() => void inboxQ.refetch()} />
+    );
+  }
+  // Silent when the entire inbox is empty (clean morning), unless that answer is from a failed refresh.
+  if (data.totalCount === 0) return <StaleNote q={inboxQ} label="Recall inbox" />;
 
   return (
     <div className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3 space-y-4">
+      <StaleNote q={inboxQ} label="Recall inbox" />
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-fg-secondary">

@@ -12,6 +12,7 @@
  * UnmeasuredLine on a failed read.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { UnmeasuredLine } from "@/components/ui/unmeasured-line";
 import { Sparkles } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -20,14 +21,16 @@ export function MemoryOfDayCard() {
   const motdQuery = trpc.brain.memoryOfTheDay.useQuery();
   const data = motdQuery.data ?? null;
 
-  if (motdQuery.isError) return <UnmeasuredLine label="Memory of the day" />;
-  if (motdQuery.isPending || !data?.memory) return null;
+  if (motdQuery.isError && !data) return <UnmeasuredLine label="Memory of the day" />;
+  if (motdQuery.isPending || !data) return null;
+  if (!data.memory) return <StaleNote q={motdQuery} label="Memory of the day" />;
   const m = data.memory;
   const ageStr =
     m.ageDays === 0 ? "today" : m.ageDays === 1 ? "yesterday" : `${m.ageDays}d ago`;
 
   return (
     <div className="border-t border-edge pt-4">
+      <StaleNote q={motdQuery} label="Memory of the day" className="mb-2" />
       <div className="flex items-center gap-2 mb-2">
         <Sparkles size={14} className="text-fg-tertiary" />
         <p className="section-label">Memory of the day</p>

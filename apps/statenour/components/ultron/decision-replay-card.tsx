@@ -48,6 +48,7 @@
  *   the deep-discussion path · the two flows coexist.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { readState } from "@/lib/query-state";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
@@ -182,7 +183,8 @@ export function DecisionReplayCard() {
 
   // Silent when nothing on either side · keeps HQ clean.
   if (due.length === 0 && consumedTodayCount === 0 && recent.length === 0) {
-    return null;
+    // An empty cache from a failed refresh is not a quiet day: say stale.
+    return <StaleNote q={replays} label="Decision replays" />;
   }
 
   const shown = due.slice(0, TOP_N);
@@ -193,6 +195,7 @@ export function DecisionReplayCard() {
       className="min-h-[96px]"
       data-testid="decision-replay-card"
     >
+      <StaleNote q={replays} label="Decision replays" className="mb-2" />
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
           Decisions · replay

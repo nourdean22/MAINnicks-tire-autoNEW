@@ -15,6 +15,7 @@
  * user having to do anything. Force-recompute button triggers POST.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { readState } from "@/lib/query-state";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
@@ -110,7 +111,7 @@ export function GhostNickStrip() {
   if (query.isError && !bundle) return <ReadingUnavailable label="Ghost Nick predictions" />;
   if (!bundle && readState(query) === "offline") return <ReadStateNote state="offline" label="Ghost Nick predictions" />;
   if (!loading && !bundle) return null;
-  if (bundle && livePredictions.length === 0) return null;
+  if (bundle && livePredictions.length === 0) return <StaleNote q={query} label="Ghost Nick predictions" />;
 
   const totalCalls = accuracy ? accuracy.hits + accuracy.surprises : 0;
   const accPct = totalCalls >= 3 && accuracy ? Math.round((accuracy.hits / totalCalls) * 100) : null;
@@ -122,6 +123,7 @@ export function GhostNickStrip() {
 
   return (
     <GlassCard>
+      <StaleNote q={query} label="Ghost Nick predictions" className="mb-2" />
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Ghost size={12} className="text-fg-tertiary" />

@@ -7,6 +7,7 @@
  * track "the brain is learning" at a glance.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useCallback, useEffect } from "react";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
@@ -183,6 +184,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
 
   return (
     <section aria-label="brain maturity" className="border-y border-edge py-3">
+      <StaleNote q={maturityQuery} label="Brain maturity" className="mb-2" />
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <div className="flex items-baseline gap-2">
           <p className={cn("text-[22px] font-mono tabular-nums leading-none", scoreColor)}>

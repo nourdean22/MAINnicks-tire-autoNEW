@@ -33,6 +33,7 @@
  * (future · v10.0.529.33+1 scope).
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { readState } from "@/lib/query-state";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
@@ -301,6 +302,7 @@ export function PreferencesCard() {
       className="min-h-[180px]"
       data-testid="preferences-card"
     >
+      <StaleNote q={pref} label="Preferences" className="mb-2" />
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
           Style · preferences

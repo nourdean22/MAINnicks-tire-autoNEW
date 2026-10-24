@@ -5,6 +5,7 @@
  * so Nour sees what the self-model is screaming about right now.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -76,9 +77,10 @@ export function NudgePanel() {
     );
   }
 
-  if (nudgesQuery.isError || !nudges || nudges.length === 0) {
+  if ((nudgesQuery.isError && !nudges) || !nudges || nudges.length === 0) {
     const shell = (body: ReactNode) => (
       <div className="border-t border-edge pt-4">
+        <StaleNote q={nudgesQuery} label="Nudges" className="mb-2" />
         <div className="flex justify-end mb-1">
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
@@ -125,6 +127,7 @@ export function NudgePanel() {
 
   return (
     <div className="border-t border-edge pt-4">
+      <StaleNote q={nudgesQuery} label="Nudges" className="mb-2" />
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="flex items-center gap-2">
           <p className="section-label">Live nudges</p>

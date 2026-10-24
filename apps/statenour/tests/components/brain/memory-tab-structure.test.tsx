@@ -229,6 +229,18 @@ describe("Memory tab: three closed folds that count what they hide", () => {
     expect(summary("Self-model")).toBe("Self-model (10) (1 offline)");
   });
 
+  it("a failed refresh over cached data says stale: identity delta visible, calibration and skills counted in Self-model", async () => {
+    const stale = (data: unknown) => ({ data, isError: true, isPending: false, isLoading: false, fetchStatus: "idle", refetch: () => Promise.resolve() });
+    h.q["brain.identityDelta"] = stale({ delta: "Rhythm shifted toward mornings." });
+    h.q["brain.calibrationSummary"] = stale({ resolved: 0 });
+    h.q["operator.skills"] = stale({ active: [], pending: [] });
+    await mount();
+    const line = [...host.querySelectorAll("p")].find((p) => p.textContent?.includes("Rhythm shifted"))!;
+    expect(line.closest("div.space-y-1")?.querySelector('[data-read-state="stale"]')).not.toBeNull();
+    // the calibration note is its own row (an empty window); the skills note sits in the skills row
+    expect(summary("Self-model")).toBe("Self-model (11) (2 stale)");
+  });
+
   it("follows a read that fails after mount", async () => {
     h.lateFail = new Set(["BrainInsightsPanel"]);
     await mount();

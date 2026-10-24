@@ -15,6 +15,7 @@
  *   - 0: a measured zero, said as such.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ export function MemoryVerdict() {
       >
         {line}
       </p>
+      {data && <StaleNote q={maturityQuery} label="Memory" className="mt-3" />}
       {!data && (state === "error" || state === "offline") && (
         <ReadStateNote
           state={state}

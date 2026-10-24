@@ -22,6 +22,7 @@
  * subsection only. Writes via `trpc.brain.{createPin,updatePin,deletePin}`.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
@@ -159,7 +160,8 @@ export function PinnedContextPanel() {
   const brainRules = ccStateQuery.data?.brainAnchors?.rules ?? null;
   const loading = pinsQuery.isLoading;
   const loadedAt = pinsQuery.dataUpdatedAt || null;
-  const error = pinsQuery.isError ? pinsQuery.error.message : null;
+  // A failed refetch over cached pins is stale (the note below), not "couldn't load".
+  const error = pinsQuery.isError && !pinsQuery.data ? pinsQuery.error.message : null;
 
   // Every mutation below must refresh BOTH: the list lives on
   // `brain.pinned` and the prompt-side anchors live on the command-center
@@ -415,6 +417,7 @@ export function PinnedContextPanel() {
   return (
     <div id="pinned-context" className="scroll-mt-20 rounded-surface transition-shadow">
     <div className="border-t border-edge pt-4 space-y-3">
+      <StaleNote q={pinsQuery} label="Pins" />
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">

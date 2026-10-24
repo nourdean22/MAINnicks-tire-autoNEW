@@ -15,6 +15,7 @@
  *
  * Auto-hides if no insights returned (clean week = no ribbon).
  */
+import { StaleNote } from "@/components/brain/brain-fold";
 import { readState } from "@/lib/query-state";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
@@ -69,10 +70,12 @@ export function InsightRibbon() {
   // Wave D: a failed read is not a quiet day; the Signals fold counts this line as unreadable.
   if (mounted && isError && !data) return <ReadingUnavailable label="Insight ribbon" />;
   if (mounted && !data && readState(ribbonQ) === "offline") return <ReadStateNote state="offline" label="Insight ribbon" />;
-  if (!mounted || loading || !data || data.insights.length === 0) return null;
+  if (!mounted || loading || !data) return null;
+  if (data.insights.length === 0) return <StaleNote q={ribbonQ} label="Insight ribbon" />;
 
   return (
     <section className="space-y-2">
+      <StaleNote q={ribbonQ} label="Insight ribbon" />
       <div className="flex items-baseline justify-between">
         <p className="text-[11px] font-mono text-fg-tertiary">
           This week

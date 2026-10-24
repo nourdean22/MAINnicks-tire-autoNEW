@@ -7,6 +7,7 @@
  * auto-extracted entries.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -126,6 +127,7 @@ export function QualitativeIdentityPanel() {
 
   return (
     <div className="border-t border-edge pt-4">
+      <StaleNote q={identityQuery} label="Qualitative identity" className="mb-2" />
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <Compass size={12} className="text-fg-secondary" />

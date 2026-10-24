@@ -1,5 +1,6 @@
 "use client";
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useState } from "react";
 import { AlertTriangle, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -87,6 +88,7 @@ export function AntiPatternsPanel() {
 
   return (
     <section id="anti-patterns" className="scroll-mt-24 space-y-3" aria-label="anti-pattern library">
+      <StaleNote q={query} label="Anti-pattern library" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-mono text-fg-tertiary">

@@ -16,6 +16,26 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { useObservedCount } from "@/components/system/detail-fold";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState, type ReadStateInput } from "@/lib/query-state";
+
+/**
+ * The stale note for a block that keeps drawing cached rows after a refresh failed (lib/query-state.ts
+ * "stale"). Renders nothing in every other state, so a block can mount it unconditionally above its
+ * content, or return it where it would otherwise hide on an empty cache. The fold counts it as stale.
+ */
+export function StaleNote({
+  q,
+  label,
+  className,
+}: {
+  q: ReadStateInput & { refetch: () => unknown };
+  label: string;
+  className?: string;
+}) {
+  if (readState(q) !== "stale") return null;
+  return <ReadStateNote state="stale" label={label} onRetry={() => void q.refetch()} retrying={isRetrying(q)} className={className} />;
+}
 
 /** What marks a FAILED read inside a row: this file's line, ReadStateNote, EmptyState, UnmeasuredLine. */
 export const READ_FAILED_SELECTOR = '[data-read-failed], [data-read-state="error"], [data-provenance="ERROR"]';

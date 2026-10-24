@@ -12,6 +12,7 @@
  * D5: shows lastFetchedAt + source via FreshnessChip.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -80,6 +81,7 @@ export function PredictionStreaksCard() {
 
   return (
     <div className="border-t border-edge pt-4">
+      <StaleNote q={streaksQuery} label="Prediction streaks" className="mb-2" />
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <TrendingUp size={14} className="text-fg-secondary" />

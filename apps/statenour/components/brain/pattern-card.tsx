@@ -18,6 +18,7 @@
  * clusters cross MIN_MEMBERS · the panel hides itself.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { readState } from "@/lib/query-state";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
@@ -76,7 +77,7 @@ export function PatternCard() {
   if (patternsQuery.isError && !patterns) return <ReadingUnavailable label="Patterns" />;
   if (!patterns && readState(patternsQuery) === "offline") return <ReadStateNote state="offline" label="Patterns" />;
   if (!patterns) return null;
-  if (patterns.length === 0) return null;
+  if (patterns.length === 0) return <StaleNote q={patternsQuery} label="Patterns" />;
 
   const refreshing = regenerateMutation.isPending;
 
@@ -85,6 +86,7 @@ export function PatternCard() {
       aria-label="task patterns"
       className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] p-4 space-y-3"
     >
+      <StaleNote q={patternsQuery} label="Patterns" />
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-fg-secondary" strokeWidth={1.75} />
