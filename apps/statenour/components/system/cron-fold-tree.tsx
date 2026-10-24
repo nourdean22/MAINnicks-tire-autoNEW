@@ -19,6 +19,7 @@
 
 import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
@@ -51,13 +52,13 @@ interface ApiResponse {
 }
 
 const ACTIVE_TINT: Record<string, string> = {
-  compose: "bg-violet-500/15 text-violet-300 border-violet-500/30",
-  ingest: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  compose: "bg-surface-interactive text-fg-secondary border-edge-default",
+  ingest: "bg-sky-500/15 text-sky-300 border-sky-500/30",
   brain: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
   hygiene: "bg-surface-interactive text-fg-secondary border-edge-default",
   signals: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  review: "bg-pink-500/15 text-pink-300 border-pink-500/30",
-  device: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+  review: "bg-surface-interactive text-fg-secondary border-edge-default",
+  device: "bg-sky-500/15 text-sky-300 border-sky-500/30",
   alert: "bg-rose-500/15 text-rose-300 border-rose-500/30",
 };
 
@@ -67,7 +68,7 @@ export function CronFoldTree() {
   // Phase VV (2026-05-22): REST to tRPC, now systemAutomation.cronTree. The legacy
   // route returned `{ rows, summary, generatedAt }` directly (no
   // `{data}` wrap); the procedure returns the same shape. One-shot
-  // fetch on mount — no interval, matching the prior behaviour.
+  // fetch on mount, no interval, matching the prior behaviour.
   const treeQuery = trpc.systemAutomation.cronTree.useQuery();
   const data: ApiResponse | null = treeQuery.data ?? null;
   const error = treeQuery.error
@@ -76,17 +77,13 @@ export function CronFoldTree() {
 
   if (error) {
     return (
-      <GlassCard>
-        <p className="text-[11px] text-rose-400">cron tree unavailable: {error}</p>
-      </GlassCard>
+      <p role="alert" data-read-failed className="text-[13px] text-red-300">
+        Cron lineage could not load: {error}. State unknown, not empty.
+      </p>
     );
   }
   if (!data) {
-    return (
-      <GlassCard>
-        <p className="text-[11px] text-fg-tertiary">loading cron lineage…</p>
-      </GlassCard>
-    );
+    return <ShimmerSkeleton className="h-16 w-full" />;
   }
 
   const active = data.rows
@@ -108,7 +105,7 @@ export function CronFoldTree() {
     headroom <= 1 ? "text-rose-300" : headroom <= 4 ? "text-amber-300" : "text-emerald-300";
 
   return (
-    <GlassCard>
+    <GlassCard ruled>
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <span className="section-label">Cron lineage</span>
         <span
@@ -149,7 +146,7 @@ export function CronFoldTree() {
         </div>
       </section>
 
-      {/* Folded — grouped by fold target */}
+      {/* Folded, grouped by fold target */}
       {byTarget.size > 0 && (
         <section className="mb-4">
               <h4 className="mb-1.5 font-mono text-[11px] text-fg-tertiary">
@@ -192,7 +189,7 @@ export function CronFoldTree() {
         </section>
       )}
 
-      {/* Retired — collapsed by default */}
+      {/* Retired, collapsed by default */}
       {retired.length > 0 && (
         <section>
           <button

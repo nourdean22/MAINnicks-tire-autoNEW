@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /system/actions — Nick's autonomous action audit trail.
+ * /system/actions, Nick's autonomous action audit trail.
  *
  * v11.0 (W2.5). Every row in AutonomousAction. Shows rule leaderboard
  * + individual recent actions. Click a rule chip to filter.
@@ -20,9 +20,10 @@
 
 import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Suspense, useState, useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { DetailFold } from "@/components/system/detail-fold";
 import { Panel } from "@/components/panel";
-import { ACTIONS_TAB_PARAM, resolveActionsTab, type ActionsTab } from "./actions-tab";
+import { ACTIONS_TAB_PARAM, resolveActionsTab } from "./actions-tab";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
@@ -32,7 +33,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
 // authedFetch read is now `trpc.system.autonomousActions.useQuery`.
 // React Query keys on the input object, so changing the window /
-// rule / approval filter refetches without a manual `load()` — the
+// rule / approval filter refetches without a manual `load()`, the
 // AbortController the prior code juggled is React Query's job now.
 // The 30s `cache:"no-store"` poll maps to `refetchInterval`.
 import { trpc } from "@/lib/trpc/client";
@@ -207,16 +208,7 @@ export default function ActionsPage() {
 
 function ActionsPageInner() {
   const searchParams = useSearchParams();
-  const pathname = usePathname() ?? "/system/actions";
   const activeTab = resolveActionsTab(searchParams?.get(ACTIONS_TAB_PARAM));
-  const setActiveTab = (next: ActionsTab) => {
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    params.set(ACTIONS_TAB_PARAM, next);
-    // window.history.replaceState, not router.replace: Next patches replaceState into the app
-    // router (next/dist/client/components/app-router.js, "Patch replaceState"), so useSearchParams
-    // updates with no RSC refetch (this page is dynamic), no history entry and no scroll.
-    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
-  };
   const [win, setWin] = useState<Win>("7d");
   const [ruleFilter, setRuleFilter] = useState<string | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<string | null>(null);
@@ -291,7 +283,7 @@ function ActionsPageInner() {
 
   // BDN-205 · Edit verb (agent-inbox HumanInterrupt vocabulary: Accept /
   // EDIT / Respond / Ignore). The server has accepted `editedPayload`
-  // since the guardian shipped (approveApprovalRequest input) — the UI
+  // since the guardian shipped (approveApprovalRequest input), the UI
   // never sent it, so "approve with corrected args" meant reject + wait
   // for a re-request. One request is editable at a time; malformed JSON
   // disables the button rather than erroring server-side.
@@ -367,40 +359,268 @@ function ActionsPageInner() {
     >
       <NeedsReviewGroup />
 
-      {/* Tab Selector */}
-      <div className="flex border-b border-edge-subtle mb-6">
-        <button
-          onClick={() => setActiveTab("logs")}
-          className={cn(
-            "px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-[2px]",
-            activeTab === "logs"
-              ? "border-accent text-fg"
-              : "border-transparent text-fg-secondary hover:text-fg"
-          )}
-        >
-          Autonomous Log
-        </button>
-        <button
-          onClick={() => setActiveTab("approvals")}
-          className={cn(
-            "px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-[2px] flex items-center gap-2",
-            activeTab === "approvals"
-              ? "border-accent text-fg"
-              : "border-transparent text-fg-secondary hover:text-fg"
-          )}
-        >
-          Pending Approvals
-          {/* A failed read never shows 0: the last count if a refetch failed, a dash if nothing was ever read. */}
-          {(approvalsQuery.isError || pendingCount > 0) && (
-            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-200 font-mono">
-              {approvalsQuery.isError && !approvalsQuery.data ? "-" : pendingCount}
-            </span>
-          )}
-        </button>
-      </div>
+        <Panel className="border-edge-default">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
+              pending action queue
+              {/* A failed read never shows 0: the last count if a refetch failed, a dash if nothing was ever read. */}
+              {(approvalsQuery.isError || pendingCount > 0) && (
+                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-mono font-normal text-amber-200">
+                  {approvalsQuery.isError && !approvalsQuery.data ? "-" : pendingCount}
+                </span>
+              )}
+            </h2>
+            <span className="text-xs text-fg-tertiary">requires owner/operator approval</span>
+          </div>
 
-      {activeTab === "logs" ? (
-        <>
+          {/* empty-vs-error: a failed read is not an empty queue. */}
+          {approvalsQuery.isError && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-surface border border-amber-500/30 p-3">
+              <p role="status" className="text-xs text-amber-300">
+                Approvals could not be read. State unknown, not empty.
+              </p>
+              <button
+                type="button"
+                onClick={() => approvalsQuery.refetch()}
+                className="min-h-11 rounded-control border border-edge-default px-3 text-xs text-fg hover:border-edge-strong"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {approvalsQuery.isError && approvals.length === 0 ? null : approvals.length === 0 ? (
+            <p className="text-xs text-fg-tertiary p-4">
+              {loading ? "loading approvals…" : "no pending tool approvals"}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {approvals.map((req: any, index: number) => {
+                const isCritical = req.riskClass === "critical";
+                // 2026-09-07 (D12) · expired authorization: the server refuses approve
+                // (CONFLICT); the button says so instead of failing after the tap.
+                const isExpired = req.expired === true;
+                const needsOwner = isCritical && userRole !== "owner";
+                const cannotApprove = needsOwner || isExpired;
+                return (
+                  <div
+                    key={req.id}
+                    className={cn(
+                      "rounded-surface border p-4 space-y-3 transition",
+                      isCritical ? "border-rose-500/30" : "border-edge-subtle"
+                    )}
+                  >
+                    <div className="flex items-start justify-between flex-wrap gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-sm font-semibold text-fg">
+                            {req.toolId}
+                          </span>
+                          <span className={cn(
+                            "rounded-micro px-1.5 py-0.5 text-[11px] font-mono font-medium",
+                            isCritical ? "bg-rose-500/20 text-rose-300" :
+                            req.riskClass === "high" ? "bg-amber-500/20 text-amber-300" :
+                            "bg-sky-500/20 text-sky-300"
+                          )}>
+                            {req.riskClass} risk
+                          </span>
+                        </div>
+                        <div className="text-xs text-fg-secondary mt-1">
+                          Requested by: <span className="font-mono">{req.requestedBy}</span> · reason: {req.reason}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => rejectMutation.mutate({ id: req.id })}
+                          disabled={rejectMutation.isPending || approveMutation.isPending}
+                          className="min-h-11 rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => approveMutation.mutate({ id: req.id })}
+                          disabled={cannotApprove || rejectMutation.isPending || approveMutation.isPending}
+                          className={cn(
+                            "min-h-11 rounded-control px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
+                            approveTone(index, isCritical),
+                          )}
+                          title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
+                        >
+                          Approve
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-micro bg-content p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="font-mono text-[11px] text-fg-tertiary">Payload parameters</div>
+                        <button
+                          onClick={() => {
+                            if (editingId === req.id) {
+                              setEditingId(null);
+                            } else {
+                              setEditingId(req.id);
+                              setEditText(JSON.stringify(req.payload, null, 2));
+                            }
+                          }}
+                          className="min-h-[32px] rounded-control border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
+                        >
+                          {editingId === req.id ? "Cancel edit" : "Edit args"}
+                        </button>
+                      </div>
+                      {editingId === req.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            rows={Math.min(12, editText.split("\n").length + 1)}
+                            spellCheck={false}
+                            className={cn(
+                              "w-full rounded-control border bg-content p-2 text-xs font-mono text-fg focus:outline-none",
+                              editParse.ok ? "border-edge-default" : "border-rose-500/50",
+                            )}
+                            aria-label="edited payload JSON"
+                          />
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className={cn("text-[11px] font-mono", editParse.ok ? "text-fg-tertiary" : "text-rose-400")}>
+                              {editParse.ok ? "valid JSON: approval executes with THESE args" : "invalid JSON"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (!editParse.ok) return;
+                                approveMutation.mutate({ id: req.id, editedPayload: editParse.value });
+                                setEditingId(null);
+                              }}
+                              disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
+                              className="rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
+                              title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
+                            >
+                              Approve edited
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-fg font-mono">
+                          {JSON.stringify(req.payload, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+
+                    {isExpired && (
+                      <div className="text-xs text-amber-300 flex items-center gap-1.5">
+                        Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""}. Approve is refused. Re-request it against current state, or reject it.
+                      </div>
+                    )}
+                    {needsOwner && (
+                      <div className="text-xs text-rose-400 flex items-center gap-1.5">
+              Owner privilege is required to approve this critical risk action.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 2026-09-08 · deferred automation (autonomous_actions awaiting a verdict) */}
+          <div className="mt-6 border-t border-edge-subtle pt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-fg">deferred automation</h3>
+              <span className="text-xs text-fg-tertiary">
+                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed: unknown, not zero" : "loading…"}
+              </span>
+            </div>
+            {autoQueue.data && autoQueue.data.rows.length === 0 && (
+              <p className="text-xs text-fg-tertiary p-2">no rule is waiting on you.</p>
+            )}
+            <div className="space-y-3">
+              {(autoQueue.data?.rows ?? []).map((row) => (
+                <div
+                  key={row.id}
+                  className={cn(
+                    "rounded-surface border p-3 space-y-2",
+                    row.expired ? "border-amber-500/30" : "border-edge-subtle",
+                  )}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-fg">{row.ruleName}</p>
+                      <p className="text-[11px] font-mono text-fg-tertiary">
+                        {row.actionType}
+                        {row.targetType ? ` · ${row.targetType}${row.targetId ? ` ${row.targetId}` : ""}` : ""}
+                        {" · "}
+                        {row.expired
+                          ? `expired ${new Date(row.expiresAt).toLocaleString()}`
+                          : `expires ${new Date(row.expiresAt).toLocaleString()}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => decideAuto.mutate({ id: row.id, decision: "rejected" })}
+                        disabled={decideAuto.isPending}
+                        className="min-h-[48px] min-w-[48px] rounded-control border border-edge-default px-3 py-1.5 text-xs text-fg hover:border-edge-strong disabled:opacity-40"
+                      >
+                        Reject
+                      </button>
+                      {/* Approve REPLAYS the deferred side effect (a message, a write). On the iOS
+                          PWA an accidental tap must not do that: press-and-hold, 48px, in-DOM. */}
+                      <ConfirmHold
+                        label="Approve"
+                        variant="gold"
+                        disabled={row.expired || decideAuto.isPending}
+                        onConfirm={() => decideAuto.mutate({ id: row.id, decision: "approved" })}
+                        className="min-h-[48px] min-w-[48px] px-3 text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+                  {row.policyObjective && (
+                    <p className="text-[11px] text-fg-secondary">{row.policyObjective}</p>
+                  )}
+                  {row.payload != null && (
+                    <details className="text-[11px]">
+              <summary className="cursor-pointer text-fg-tertiary">payload</summary>
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-fg">{JSON.stringify(row.payload, null, 2)}</pre>
+                    </details>
+                  )}
+                  {row.expired && (
+                    <p className="text-xs text-amber-300">Authorization expired: approve is refused; reject it or re-run the rule against current state.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 2026-09-08 · approval windows, the operator could not find them (they were code constants).
+              UI v3 W1b (plan row 3): below the queues, so the decisions come first on a phone. */}
+          <div className="mt-4 rounded-surface border border-edge-subtle bg-canvas p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-fg">approval windows</h3>
+              <span className="text-[11px] font-mono text-fg-tertiary">
+                {windowsQuery.data?.source === "env" ? "overridden by APPROVAL_FRESHNESS_DAYS" : "defaults · override with APPROVAL_FRESHNESS_DAYS (JSON)"}
+              </span>
+            </div>
+            {windowsQuery.isError ? (
+              <p className="text-xs text-amber-300">windows could not be read.</p>
+            ) : !windowsQuery.data ? (
+              <p className="text-xs text-fg-tertiary">loading…</p>
+            ) : (
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                {windowsQuery.data.windows.map((w) => (
+                  <li key={w.actionType} className="font-mono text-fg">
+                    {w.actionType} · {w.days} d{w.source === "env" ? " (env)" : ""}
+                  </li>
+                ))}
+                <li className="font-mono text-fg-tertiary">anything else · {windowsQuery.data.defaultDays} d</li>
+              </ul>
+            )}
+            <p className="mt-1.5 text-[11px] text-fg-tertiary">
+              An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
+            </p>
+          </div>
+        </Panel>
+
+      {/* History (wave E1, 2026-10-24): the success rings, the rule leaderboard and the recent feed. Closed by default; ?tab=logs opens it. */}
+      <DetailFold label="History" open={activeTab === "logs"} unreadable={actionsQuery.isError && !feed ? 1 : 0}>
           {/* Filter strip */}
           <div className="flex flex-wrap items-center gap-2">
             {(["24h", "7d", "30d"] as Win[]).map((w) => (
@@ -624,260 +844,7 @@ function ActionsPageInner() {
               </div>
             )}
           </Panel>
-        </>
-      ) : (
-        <Panel className="border-edge-default">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-fg">pending action queue</h2>
-            <span className="text-xs text-fg-tertiary">requires owner/operator approval</span>
-          </div>
-
-          {/* empty-vs-error: a failed read is not an empty queue. */}
-          {approvalsQuery.isError && (
-            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-surface border border-amber-500/30 p-3">
-              <p role="status" className="text-xs text-amber-300">
-                Approvals could not be read. State unknown, not empty.
-              </p>
-              <button
-                type="button"
-                onClick={() => approvalsQuery.refetch()}
-                className="min-h-11 rounded-control border border-edge-default px-3 text-xs text-fg hover:border-edge-strong"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-          {approvalsQuery.isError && approvals.length === 0 ? null : approvals.length === 0 ? (
-            <p className="text-xs text-fg-tertiary p-4">
-              {loading ? "loading approvals…" : "no pending tool approvals"}
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {approvals.map((req: any, index: number) => {
-                const isCritical = req.riskClass === "critical";
-                // 2026-09-07 (D12) · expired authorization: the server refuses approve
-                // (CONFLICT); the button says so instead of failing after the tap.
-                const isExpired = req.expired === true;
-                const needsOwner = isCritical && userRole !== "owner";
-                const cannotApprove = needsOwner || isExpired;
-                return (
-                  <div
-                    key={req.id}
-                    className={cn(
-                      "rounded-surface border p-4 space-y-3 transition",
-                      isCritical ? "border-rose-500/30" : "border-edge-subtle"
-                    )}
-                  >
-                    <div className="flex items-start justify-between flex-wrap gap-2">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-sm font-semibold text-fg">
-                            {req.toolId}
-                          </span>
-                          <span className={cn(
-                            "rounded-micro px-1.5 py-0.5 text-[11px] font-mono font-medium",
-                            isCritical ? "bg-rose-500/20 text-rose-300" :
-                            req.riskClass === "high" ? "bg-amber-500/20 text-amber-300" :
-                            "bg-sky-500/20 text-sky-300"
-                          )}>
-                            {req.riskClass} risk
-                          </span>
-                        </div>
-                        <div className="text-xs text-fg-secondary mt-1">
-                          Requested by: <span className="font-mono">{req.requestedBy}</span> · reason: {req.reason}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => rejectMutation.mutate({ id: req.id })}
-                          disabled={rejectMutation.isPending || approveMutation.isPending}
-                          className="min-h-11 rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
-                        >
-                          Reject
-                        </button>
-                        <button
-                          onClick={() => approveMutation.mutate({ id: req.id })}
-                          disabled={cannotApprove || rejectMutation.isPending || approveMutation.isPending}
-                          className={cn(
-                            "min-h-11 rounded-control px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
-                            approveTone(index, isCritical),
-                          )}
-                          title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
-                        >
-                          Approve
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="rounded-micro bg-content p-3 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-[11px] text-fg-tertiary">Payload parameters</div>
-                        <button
-                          onClick={() => {
-                            if (editingId === req.id) {
-                              setEditingId(null);
-                            } else {
-                              setEditingId(req.id);
-                              setEditText(JSON.stringify(req.payload, null, 2));
-                            }
-                          }}
-                          className="min-h-[32px] rounded-control border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
-                        >
-                          {editingId === req.id ? "Cancel edit" : "Edit args"}
-                        </button>
-                      </div>
-                      {editingId === req.id ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={editText}
-                            onChange={(e) => setEditText(e.target.value)}
-                            rows={Math.min(12, editText.split("\n").length + 1)}
-                            spellCheck={false}
-                            className={cn(
-                              "w-full rounded-control border bg-content p-2 text-xs font-mono text-fg focus:outline-none",
-                              editParse.ok ? "border-edge-default" : "border-rose-500/50",
-                            )}
-                            aria-label="edited payload JSON"
-                          />
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-              <span className={cn("text-[11px] font-mono", editParse.ok ? "text-fg-tertiary" : "text-rose-400")}>
-                              {editParse.ok ? "valid JSON: approval executes with THESE args" : "invalid JSON"}
-                            </span>
-                            <button
-                              onClick={() => {
-                                if (!editParse.ok) return;
-                                approveMutation.mutate({ id: req.id, editedPayload: editParse.value });
-                                setEditingId(null);
-                              }}
-                              disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
-                              className="rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
-                              title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
-                            >
-                              Approve edited
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-fg font-mono">
-                          {JSON.stringify(req.payload, null, 2)}
-                        </pre>
-                      )}
-                    </div>
-
-                    {isExpired && (
-                      <div className="text-xs text-amber-300 flex items-center gap-1.5">
-                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""}. Approve is refused. Re-request it against current state, or reject it.
-                      </div>
-                    )}
-                    {needsOwner && (
-                      <div className="text-xs text-rose-400 flex items-center gap-1.5">
-              Owner privilege is required to approve this critical risk action.
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 2026-09-08 · deferred automation (autonomous_actions awaiting a verdict) */}
-          <div className="mt-6 border-t border-edge-subtle pt-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-fg">deferred automation</h3>
-              <span className="text-xs text-fg-tertiary">
-                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed: unknown, not zero" : "loading…"}
-              </span>
-            </div>
-            {autoQueue.data && autoQueue.data.rows.length === 0 && (
-              <p className="text-xs text-fg-tertiary p-2">no rule is waiting on you.</p>
-            )}
-            <div className="space-y-3">
-              {(autoQueue.data?.rows ?? []).map((row) => (
-                <div
-                  key={row.id}
-                  className={cn(
-                    "rounded-surface border p-3 space-y-2",
-                    row.expired ? "border-amber-500/30" : "border-edge-subtle",
-                  )}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm text-fg">{row.ruleName}</p>
-                      <p className="text-[11px] font-mono text-fg-tertiary">
-                        {row.actionType}
-                        {row.targetType ? ` · ${row.targetType}${row.targetId ? ` ${row.targetId}` : ""}` : ""}
-                        {" · "}
-                        {row.expired
-                          ? `expired ${new Date(row.expiresAt).toLocaleString()}`
-                          : `expires ${new Date(row.expiresAt).toLocaleString()}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => decideAuto.mutate({ id: row.id, decision: "rejected" })}
-                        disabled={decideAuto.isPending}
-                        className="min-h-[48px] min-w-[48px] rounded-control border border-edge-default px-3 py-1.5 text-xs text-fg hover:border-edge-strong disabled:opacity-40"
-                      >
-                        Reject
-                      </button>
-                      {/* Approve REPLAYS the deferred side effect (a message, a write). On the iOS
-                          PWA an accidental tap must not do that: press-and-hold, 48px, in-DOM. */}
-                      <ConfirmHold
-                        label="Approve"
-                        variant="gold"
-                        disabled={row.expired || decideAuto.isPending}
-                        onConfirm={() => decideAuto.mutate({ id: row.id, decision: "approved" })}
-                        className="min-h-[48px] min-w-[48px] px-3 text-xs font-semibold"
-                      />
-                    </div>
-                  </div>
-                  {row.policyObjective && (
-                    <p className="text-[11px] text-fg-secondary">{row.policyObjective}</p>
-                  )}
-                  {row.payload != null && (
-                    <details className="text-[11px]">
-              <summary className="cursor-pointer text-fg-tertiary">payload</summary>
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-fg">{JSON.stringify(row.payload, null, 2)}</pre>
-                    </details>
-                  )}
-                  {row.expired && (
-                    <p className="text-xs text-amber-300">Authorization expired: approve is refused; reject it or re-run the rule against current state.</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 2026-09-08 · approval windows — the operator could not find them (they were code constants).
-              UI v3 W1b (plan row 3): below the queues, so the decisions come first on a phone. */}
-          <div className="mt-4 rounded-surface border border-edge-subtle bg-canvas p-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-fg">approval windows</h3>
-              <span className="text-[11px] font-mono text-fg-tertiary">
-                {windowsQuery.data?.source === "env" ? "overridden by APPROVAL_FRESHNESS_DAYS" : "defaults · override with APPROVAL_FRESHNESS_DAYS (JSON)"}
-              </span>
-            </div>
-            {windowsQuery.isError ? (
-              <p className="text-xs text-amber-300">windows could not be read.</p>
-            ) : !windowsQuery.data ? (
-              <p className="text-xs text-fg-tertiary">loading…</p>
-            ) : (
-              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                {windowsQuery.data.windows.map((w) => (
-                  <li key={w.actionType} className="font-mono text-fg">
-                    {w.actionType} · {w.days} d{w.source === "env" ? " (env)" : ""}
-                  </li>
-                ))}
-                <li className="font-mono text-fg-tertiary">anything else · {windowsQuery.data.defaultDays} d</li>
-              </ul>
-            )}
-            <p className="mt-1.5 text-[11px] text-fg-tertiary">
-              An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
-            </p>
-          </div>
-        </Panel>
-      )}
+      </DetailFold>
 
       <p className="pt-2 text-center text-[11px] text-fg-tertiary">
         auto-refresh 30s · source: AutonomousAction / ApprovalRequest

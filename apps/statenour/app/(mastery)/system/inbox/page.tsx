@@ -246,7 +246,7 @@ export default function MemoryInboxPage() {
                           </a>
                         ) : selectedItem.sourceUrl ? (
                           // 2026-09-02 · ingestion rows carry an identity like
-                          // gmail://<messageId>, not a navigable URL — show it,
+                          // gmail://<messageId>, not a navigable URL, show it,
                           // don't link it.
                           <span className="font-mono text-fg-tertiary ml-1">{selectedItem.sourceUrl}</span>
                         ) : null}

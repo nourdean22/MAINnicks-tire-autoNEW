@@ -33,6 +33,7 @@ import { AiSettingsPanel } from "@/components/settings/ai-settings-panel";
 import { IntelligenceFlagsPanel } from "@/components/settings/intelligence-flags-panel";
 import { PeopleScoringPanel } from "@/components/settings/people-scoring-panel";
 import { JournalBrainPanel } from "@/components/settings/journal-brain-panel";
+import { NotebookLMContextZone } from "@/components/settings/notebooklm-context-zone";
 import { IdentityPanel } from "@/components/settings/identity-panel";
 import { OperatingRhythmToggle } from "@/components/settings/operating-rhythm-toggle";
 import { PushNotificationToggle } from "@/components/settings/push-notification-toggle";
@@ -165,6 +166,7 @@ export function SettingsConsole() {
             <>
               <IdentityPanel />
               <JournalBrainPanel />
+              <NotebookLMContextZone />
               <PeopleScoringPanel />
             </>
           )}

@@ -303,7 +303,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="What will happen by the target date?"
-        className="w-full rounded-control border border-edge-default bg-surface-interactive px-2 py-1 text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
+        className="w-full rounded-control border border-edge-default min-h-[44px] bg-surface-interactive px-2 py-1 text-base text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
         maxLength={500}
       />
       <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
           type="date"
           value={date || defaultDate}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded-control border border-edge-default bg-surface-interactive px-2 py-1 text-[12px] font-mono text-fg-secondary"
+          className="rounded-control border border-edge-default min-h-[44px] bg-surface-interactive px-2 py-1 text-base font-mono text-fg-secondary"
         />
         <button
           type="button"

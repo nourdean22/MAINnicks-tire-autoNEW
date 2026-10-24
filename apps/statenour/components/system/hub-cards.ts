@@ -20,7 +20,7 @@ export type CardGroup = "health" | "governance" | "ai" | "data";
 
 /**
  * `measured` is optional ONLY for the deploy window (an old server payload
- * lacks it). The load-bearing check everywhere below is `=== false` — a
+ * lacks it). The load-bearing check everywhere below is `=== false`, a
  * section the server explicitly marked unmeasured must never render as a
  * count, a "healthy", or a "no devices". Its zeros are shape filler from
  * a crashed scan or the open quota circuit, not observations.
@@ -83,7 +83,7 @@ export interface HubCard {
 // "Brain Categories" repointed /brain/categories (404) → /brain.
 // Hardcoded "114 tools"/"1,423 skills" count chips went with their
 // (now-dead) cards.
-// Exported for tests/components/hub-grid-chips.test.ts — the chips are the
+// Exported for tests/components/hub-grid-chips.test.ts, the chips are the
 // decision layer, and pinning them through a render would need a trpc mock
 // for what are already pure functions of the payload.
 export const CARDS: HubCard[] = [
@@ -181,7 +181,7 @@ export const CARDS: HubCard[] = [
   {
     // 2026-06-18 · IA reorg Phase 2 · surface the last orphaned system page.
     // /system/inbox (memory-quarantine review) was reachable from neither
-    // nav nor cmdK nor a hub tile — only by typing the URL.
+    // nav nor cmdK nor a hub tile, only by typing the URL.
     href: "/system/inbox",
     paletteId: "sys-inbox",
     keywords: ["inbox", "quarantine", "memory", "contradiction", "review"],

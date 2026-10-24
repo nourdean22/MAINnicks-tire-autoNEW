@@ -1,5 +1,6 @@
 "use client";
 
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { Panel } from "@/components/panel";
 import { trpc } from "@/lib/trpc/client";
 
@@ -37,8 +38,8 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
 
       {isLoading ? (
         <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
-          <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
+          <ShimmerSkeleton className="h-4 w-3/4" />
+          <ShimmerSkeleton className="h-4 w-1/2" />
         </div>
       ) : items ? (
         <div className="flex-1 overflow-auto max-h-[220px] pr-1 space-y-2">
@@ -51,7 +52,7 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
                   item.category === "WITNESSED_COMMITMENT"
                     ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
                     : item.category === "STANDING_INTENTION"
-                      ? "text-purple-400 border-purple-500/20 bg-purple-500/5"
+                      ? "text-sky-300 border-sky-500/20 bg-sky-500/5"
                       : item.category === "CONTRADICTION"
                         ? "text-red-400 border-red-500/20 bg-red-500/5"
                         : "text-amber-400 border-amber-500/20 bg-amber-500/5";
@@ -89,7 +90,7 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
         </div>
       ) : queryResult.isError ? (
         // 09-F7: a failed read is unknown, not empty (same words and classes as ReadFailed on /system).
-        <div className="text-fg-tertiary text-xs py-4">
+        <div data-read-failed className="text-fg-tertiary text-xs py-4">
           {`unknown \u00b7 read failed${queryResult.error?.message ? `: ${queryResult.error.message}` : ""}`}
         </div>
       ) : (

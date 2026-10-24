@@ -27,9 +27,11 @@
  */
 
 import { useMemo } from "react";
-import { NotebookPen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { isRetrying, readState } from "@/lib/query-state";
 
 type Pace = "alive" | "cooling" | "stalled" | "dormant";
 
@@ -117,7 +119,32 @@ export function JournalThreadsStrip() {
       });
   }, [threadsQuery.data]);
 
-  if (chips.length === 0) return null;
+  const state = readState(threadsQuery);
+  if (state === "loading") {
+    return (
+      <li className="py-3">
+        <ShimmerSkeleton className="h-8 w-full" />
+      </li>
+    );
+  }
+  // A failed read is not "no threads": say which, and offer Retry.
+  if (state === "error" || state === "offline") {
+    return (
+      <li className="py-3">
+        <ReadStateNote state={state} label="Thread pace" onRetry={() => void threadsQuery.refetch()} retrying={isRetrying(threadsQuery)} />
+      </li>
+    );
+  }
+  if (chips.length === 0) {
+    return (
+      <li className="py-3 space-y-1 text-[13px] text-fg-tertiary">
+        {state === "stale" && (
+          <ReadStateNote state={state} label="Thread pace" onRetry={() => void threadsQuery.refetch()} retrying={isRetrying(threadsQuery)} />
+        )}
+        <p>No threads yet. Threads form when entries start to cluster.</p>
+      </li>
+    );
+  }
 
   const counts = {
     alive: chips.filter((c) => c.pace === "alive").length,
@@ -127,37 +154,29 @@ export function JournalThreadsStrip() {
   };
 
   return (
-    <section
-      aria-label="journal threads strip"
-      className="rounded-surface border border-edge-subtle bg-content px-4 py-3"
-    >
+    <li aria-label="journal threads strip" className="py-3">
+      {state === "stale" && (
+        <ReadStateNote state={state} label="Thread pace" onRetry={() => void threadsQuery.refetch()} retrying={isRetrying(threadsQuery)} className="mb-2" />
+      )}
       <div className="flex items-center gap-2 flex-wrap">
-        <NotebookPen
-          size={11}
-          className="text-fg-tertiary"
-          strokeWidth={1.75}
-        />
-        <span className="font-mono text-[11px] text-fg-tertiary">
-          Threads · {chips.length}
-        </span>
-        <span className="text-fg-tertiary/30">·</span>
+        <h4 className="text-xs font-medium text-fg-secondary">Thread pace · {chips.length}</h4>
         {counts.stalled > 0 && (
-          <span className="text-[11px] font-mono text-rose-300">
+          <span className="text-[11px] text-rose-300">
             {counts.stalled} stalled
           </span>
         )}
         {counts.cooling > 0 && (
-          <span className="text-[11px] font-mono text-amber-300">
+          <span className="text-[11px] text-amber-300">
             {counts.cooling} cooling
           </span>
         )}
         {counts.alive > 0 && (
-          <span className="text-[11px] font-mono text-emerald-300">
+          <span className="text-[11px] text-emerald-300">
             {counts.alive} alive
           </span>
         )}
         {counts.dormant > 0 && (
-          <span className="text-[11px] font-mono text-fg-tertiary">
+          <span className="text-[11px] text-fg-tertiary">
             {counts.dormant} dormant
           </span>
         )}
@@ -185,13 +204,13 @@ export function JournalThreadsStrip() {
                 )}
                 aria-hidden
               />
-              <span className="text-[11px] font-mono text-fg-tertiary truncate max-w-[140px]">
+              <span className="text-[11px] text-fg-tertiary truncate max-w-[140px]">
                 {c.name}
               </span>
             </span>
           );
         })}
       </div>
-    </section>
+    </li>
   );
 }

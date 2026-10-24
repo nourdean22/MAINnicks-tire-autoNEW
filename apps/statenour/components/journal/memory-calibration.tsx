@@ -47,14 +47,14 @@ interface CalibrationProps {
 }
 
 const CATEGORY_COLOR: Record<string, string> = {
-  pattern:    "text-violet-400",
-  insight:    "text-blue-400",
-  preference: "text-emerald-400",
-  feedback:   "text-amber-400",
-  wisdom:     "text-orange-300",
-  rule:       "text-pink-400",
-  routine:    "text-cyan-400",
-  identity:   "text-red-400",
+  pattern:    "text-sky-300",
+  insight:    "text-sky-300",
+  preference: "text-emerald-300",
+  feedback:   "text-amber-300",
+  wisdom:     "text-fg-secondary",
+  rule:       "text-fg-secondary",
+  routine:    "text-fg-tertiary",
+  identity:   "text-red-300",
 };
 
 export function MemoryCalibrationRitual({ onClose, autoLoad = true }: CalibrationProps) {
@@ -211,7 +211,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     rows={3}
-                    className="w-full text-[11px] leading-snug rounded-control bg-surface-interactive border border-edge-default px-2 py-1.5 text-fg focus:border-accent/60 focus:outline-none"
+                    className="w-full text-base leading-snug rounded-control bg-surface-interactive border border-edge-default px-2 py-1.5 text-fg focus:border-accent/60 focus:outline-none"
                   />
                   <div className="flex items-center gap-1.5 mt-1">
                     <button
@@ -243,7 +243,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                     </button>
                     <button
                       onClick={() => beginEdit(m)}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-blue-500/40 bg-blue-500/10 text-[11px] font-medium text-blue-400 hover:bg-blue-500/20"
+                      className="flex min-h-[44px] items-center gap-1 px-3 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20"
                     >
                       <Edit3 size={9} /> update
                     </button>

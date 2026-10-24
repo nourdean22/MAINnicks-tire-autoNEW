@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * OwnerPanel · 2026-09-23 · Q-24 — what needs the owner, and nothing else.
+ * OwnerPanel · 2026-09-23 · Q-24, what needs the owner, and nothing else.
  *
  * Sits directly under the control tower on /system and speaks its language:
- * one verdict line, then only the rows that need him. Three blocks —
+ * one verdict line, then only the rows that need him. Three blocks ,
  * exceptions (each with its age and the row it rests on), decisions waiting
  * on him, and cost per outcome with every tile labelled MEASURED, ESTIMATE
  * or UNMEASURED. All logic is server-side in lib/system/owner-panel.ts; this
  * file renders what the server decided.
  *
  * Three states, never two (empty-vs-error): a failed query renders
- * "couldn't load — state unknown, not empty"; a source the server could not
+ * "couldn't load: state unknown, not empty"; a source the server could not
  * read is named under the verdict; an UNMEASURED tile shows its reason, not
  * a zero. Read-only: no buttons that act, only links to the surfaces that do.
  */
@@ -52,7 +52,7 @@ function Row({ item }: { item: OwnerItem }) {
       </span>
       <span className="shrink-0 text-right font-mono text-[11px] text-fg-tertiary">
         {age(item.ageMin)}
-        {item.href && <span className="block text-fg-secondary group-hover:text-fg">Open ↗</span>}
+        {item.href && <span className="block text-fg-secondary group-hover:text-fg">Open</span>}
       </span>
     </>
   );
@@ -84,7 +84,7 @@ export function OwnerPanel() {
           needs you
         </h2>
         <p className="mt-3 text-[15px] text-fg-secondary">
-          {q.isError ? "Couldn't load — state unknown, not empty." : "Reading exceptions, decisions and cost…"}
+          {q.isError ? "Couldn't load: state unknown, not empty." : "Reading exceptions, decisions and cost…"}
         </p>
       </section>
     );
@@ -107,7 +107,7 @@ export function OwnerPanel() {
       </p>
       {(p.unreadable.length > 0 || q.isError) && (
         <p className="mt-2 text-[13px] text-amber-200/80">
-          {q.isError ? "Last refresh failed — showing the previous read. " : ""}
+          {q.isError ? "Last refresh failed: showing the previous read. " : ""}
           {p.unreadable.length > 0 && `Unreadable, so not cleared: ${p.unreadable.join(", ")}.`}
         </p>
       )}
@@ -131,7 +131,7 @@ export function OwnerPanel() {
           {p.decisionsHidden > 0 && (
             <li>
               <Link href="/system/actions?tab=approvals" className="flex min-h-[48px] items-center text-[13px] text-fg-secondary hover:text-fg">
-                {p.decisionsHidden} more in the approval queue ↗
+                {p.decisionsHidden} more in the approval queue
               </Link>
             </li>
           )}
@@ -139,7 +139,7 @@ export function OwnerPanel() {
       ) : (
         <p className="mt-2 text-[13px] text-fg-secondary">
           {decisionsUnknown
-            ? "Decision sources unreadable — state unknown."
+            ? "Decision sources unreadable: state unknown."
             : "No approval is waiting on you."}
         </p>
       )}
@@ -156,7 +156,7 @@ export function OwnerPanel() {
             </dt>
             <dd>
               <span className={cn("block font-mono text-lg", t.value == null ? "text-fg-tertiary" : "text-fg")}>
-                {t.value ?? "—"}
+                {t.value ?? "unknown"}
               </span>
               <span className="block text-[12px] text-fg-tertiary">{t.note}</span>
             </dd>

@@ -17,18 +17,23 @@ import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { photoSrcSet } from "@/lib/photoSrcSet";
-import { CURATED_TESTIMONIALS } from "@shared/customer-testimonials";
 
-// wave-181.23 · /about social-proof wall.
-// Three hand-picked testimonials surface the strongest brand-voice
-// trust patterns: anti-upsell, flashlight-tour philosophy, "honest
-// work" customer language. Pulled from the curated set so they survive
-// even when review_replies hasn't populated from the live Google feed.
+// /about social-proof wall: what customers say about the people.
+// Word for word from public Google reviews, read 2026-10-24 in the Google
+// reviews panel (newest 480 reviews). Whitespace normalized, long reviews
+// trimmed with an ellipsis, names left off. Never reword a quote; swap it only
+// for another verbatim line. The curated set this replaced
+// (shared/customer-testimonials.ts) could not be traced to specific reviews.
 const ABOUT_QUOTES = [
-  CURATED_TESTIMONIALS.find((t) => t.name === "Amber S."),
-  CURATED_TESTIMONIALS.find((t) => t.name === "Greg M."),
-  CURATED_TESTIMONIALS.find((t) => t.name === "Marcus L."),
-].filter((t): t is NonNullable<typeof t> => Boolean(t));
+  "He took care of my car, also he made me feel at home while I waited…",
+  "He got me in and out, I was comfortable waiting. Im very satisfied with the work.",
+  "Good friendly nice respectful people there. They inspected my car before they did any work to exactly tell me what was wrong…",
+  "Boss is trustworthy and kind, stuck to quoted price, and goes over and beyond to help customer. They gave me a ride to my bank so I could pay in cash.",
+  "The guys here are kind and get it done!! In and out 20 min. Attitude and courtesy matter and I appreciated them.",
+  "They were so courteous and polite. Plugged the hole, checked all the tires and was super reasonably priced. This is my family's new tire store",
+  "I couldn't be happier with this establishment! I've been in the market for a shop/mechanic, that isn't going to break the bank and does good, honest work. And today I found them. I needed my rear brakes done…",
+  "I have been to many mechanics in Cleveland this is the FIRST shop that I felt I could trust! Especially as a woman.. it’s very hard to find HONEST and well done mechanic work. They’re very reasonably priced and professional…",
+];
 
 // wave-181.x · About page now uses two new operator-supplied shop photos:
 //   HERO_IMG · close-shot of the actual Nick's signage with tire banners ·
@@ -213,12 +218,8 @@ export default function About() {
         </div>
       </section>
 
-      {/* wave-181.23 · Pull-quote testimonial wall.
-          Placed right after the Philosophy split so the visitor sees
-          real customer language reinforcing the philosophy they just
-          read. Three quotes covering the three highest-trust patterns:
-          (1) honest work + price, (2) anti-upsell discipline,
-          (3) flashlight-tour transparency. */}
+      {/* Pull-quote wall, right after the Philosophy split: real customer
+          lines about how the crew treats people (welcome, comfort, kindness). */}
       <section className="bg-[oklch(0.06_0.004_260)] py-20 lg:py-28 border-y border-white/5">
         <div className="container max-w-6xl">
           <FadeIn>
@@ -229,36 +230,29 @@ export default function About() {
               <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight uppercase">
                 {rating.toFixed(1)}★ from {totalReviews.toLocaleString()}+ Cleveland drivers.
                 <span className="block text-primary text-2xl lg:text-3xl mt-2 normal-case">
-                  These are three of them.
+                  What they write about the people here.
                 </span>
               </h2>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {ABOUT_QUOTES.map((q, i) => (
-              <FadeIn key={q.name} delay={i * 0.1}>
+            {ABOUT_QUOTES.map((text, i) => (
+              <FadeIn key={text} delay={(i % 3) * 0.1}>
                 <figure className="h-full bg-[#141414] border border-[#2A2A2A] rounded-2xl p-6 lg:p-7 flex flex-col">
                   <Quote className="w-6 h-6 text-primary/40 mb-3" aria-hidden />
                   <blockquote className="text-foreground/80 text-[14px] lg:text-[15px] leading-relaxed flex-1">
-                    {q.text}
+                    {text}
                   </blockquote>
-                  <figcaption className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-foreground text-sm">{q.name}</div>
-                      <div className="text-foreground/40 text-[11px] uppercase tracking-[0.1em] mt-0.5">
-                        Google · {q.date}
-                      </div>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {[...Array(q.rating)].map((_, i) => (
-                        <Star key={i} className="w-3.5 h-3.5 fill-primary text-primary" />
-                      ))}
-                    </div>
+                  <figcaption className="mt-5 pt-4 border-t border-white/5 text-foreground/50 text-[11px] uppercase tracking-[0.1em]">
+                    Google review
                   </figcaption>
                 </figure>
               </FadeIn>
             ))}
           </div>
+          <p data-testid="about-quotes-disclosure" className="mt-6 text-center text-foreground/50 text-xs">
+            Selected five-star Google reviews, word for word, trimmed for length. Names left off.
+          </p>
           <FadeIn delay={0.4}>
             <div className="text-center mt-10">
               <Link

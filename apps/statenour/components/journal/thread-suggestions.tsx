@@ -19,6 +19,8 @@
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 
@@ -129,6 +131,15 @@ export function ThreadSuggestions({
   };
 
   if (loading) return null;
+  // A failed or paused read is not "no suggestions": the closed Threads fold counts it, so the panel says it.
+  const readStatus = readState(suggestionsQuery);
+  if (suggestions.length === 0 && (readStatus === "error" || readStatus === "offline")) {
+    return (
+      <section className="mb-8">
+        <ReadStateNote state={readStatus} label="Possible joins" onRetry={() => void suggestionsQuery.refetch()} retrying={isRetrying(suggestionsQuery)} />
+      </section>
+    );
+  }
   if (suggestions.length === 0) return null;
 
   return (

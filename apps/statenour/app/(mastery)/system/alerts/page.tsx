@@ -10,7 +10,7 @@
  *
  * Composes:
  *   · GET /api/brain/active-alerts (already returns all 6 categories
- *     grouped — uses sinceDays/limit query params)
+ *     grouped, uses sinceDays/limit query params)
  *   · /system/history?type=brainMemory&id= for the audit trail
  *
  * UI v3 W5b (2026-10-18): Priority and Other lanes (lib/brain/alert-lanes.ts), one state block
@@ -31,7 +31,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 // keys on `{ sinceDays }` so changing the window refetches.
 import { trpc } from "@/lib/trpc/client";
 // 2026-09-15 · UI workbench: rows are inspectable objects (resolve / mute
-// live in the alert inspector — this list had no verbs at all).
+// live in the alert inspector, this list had no verbs at all).
 import { Eye } from "lucide-react";
 import { useInspector } from "@/hooks/use-inspector";
 import { alertLane } from "@/lib/brain/alert-lanes";
@@ -63,7 +63,7 @@ const CATEGORY_META: Record<
 > = {
   correlation_alert: {
     label: "Correlation",
-    tint: "border-blue-500/40 bg-blue-500/10 text-blue-200",
+    tint: "border-sky-500/40 bg-sky-500/10 text-sky-200",
   },
   decision_quality_drift: {
     label: "Decision drift",
@@ -75,19 +75,19 @@ const CATEGORY_META: Record<
   },
   storage_quota_alert: {
     label: "Storage quota",
-    tint: "border-orange-500/40 bg-orange-500/10 text-orange-200",
+    tint: "border-amber-500/40 bg-amber-500/10 text-amber-200",
   },
   creation_spike_alert: {
     label: "Creation spike",
-    tint: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200",
+    tint: "border-edge-default bg-surface-interactive text-fg-secondary",
   },
   update_spike_alert: {
     label: "Update spike",
-    tint: "border-violet-500/40 bg-violet-500/10 text-violet-200",
+    tint: "border-edge-default bg-surface-interactive text-fg-secondary",
   },
   brain_bus_alert: {
     label: "Brain-bus probe",
-    tint: "border-cyan-500/40 bg-cyan-500/10 text-cyan-200",
+    tint: "border-sky-500/40 bg-sky-500/10 text-sky-200",
   },
 };
 

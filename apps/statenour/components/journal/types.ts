@@ -66,22 +66,17 @@ export const TYPE_META: Record<
   { label: string; icon: IconComponent; color: string; bg: string; border: string }
 > = {
   raw: { label: "Raw", icon: Circle, color: "text-fg-tertiary", bg: "bg-surface-interactive", border: "border-edge-default" },
-  thinking: { label: "Thinking", icon: Sparkles, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30" },
-  // v10.0.227 · purple → violet · the design system uses violet as
-  // the "identity / cognition" accent across 10+ components (nudge
-  // panel, memory graph, brain-maturity, active alerts). Reasoning
-  // semantically fits there. Stays distinct from `thinking` (blue)
-  // and `planning` (cyan) so the row of pills is readable at a glance.
-  reasoning: { label: "Reasoning", icon: Target, color: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/30" },
-  insight: { label: "Insight", icon: Lightbulb, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/30" },
-  decision: { label: "Decision", icon: Flame, color: "text-orange-300", bg: "bg-orange-500/10", border: "border-orange-500/30" },
-  reflection: { label: "Reflection", icon: Eye, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
-  planning: { label: "Planning", icon: NotebookPen, color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/30" },
-  // 2026-09-01 · venting was styled as a red ⚠ ALERT — raw feeling
-  // rendered as an error state. Alarm color is a scarce resource for
-  // real failures; venting is normal journaling and gets a neutral
-  // warm tone + the same Circle mark as raw capture.
-  venting: { label: "Venting", icon: Circle, color: "text-orange-300/80", bg: "bg-orange-400/[0.07]", border: "border-orange-400/20" },
+  // Wave E1 (2026-10-24): the type pills stay inside the status grammar (sky, amber, emerald) or the
+  // neutral tokens. The label and the icon tell the types apart; hue never carries the meaning alone.
+  thinking: { label: "Thinking", icon: Sparkles, color: "text-sky-300", bg: "bg-sky-500/10", border: "border-sky-500/30" },
+  reasoning: { label: "Reasoning", icon: Target, color: "text-fg-secondary", bg: "bg-surface-interactive", border: "border-edge-strong" },
+  insight: { label: "Insight", icon: Lightbulb, color: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/30" },
+  decision: { label: "Decision", icon: Flame, color: "text-fg", bg: "bg-surface-interactive", border: "border-edge-strong" },
+  reflection: { label: "Reflection", icon: Eye, color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
+  planning: { label: "Planning", icon: NotebookPen, color: "text-sky-300", bg: "bg-sky-500/10", border: "border-sky-500/30" },
+  // 2026-09-01: venting is normal journaling, not an alarm, so it gets the neutral tone and the same
+  // Circle mark as raw capture.
+  venting: { label: "Venting", icon: Circle, color: "text-fg-tertiary", bg: "bg-surface-interactive", border: "border-edge-default" },
 };
 
 export const SOURCE_ICON: Record<string, IconComponent> = {
