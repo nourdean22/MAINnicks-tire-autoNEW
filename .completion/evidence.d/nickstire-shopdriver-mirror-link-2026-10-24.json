@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No docs/operations/capability-ledger.json entry covers the ShopDriver mirror's customer linking (the mirror appears there only inside the duplicate-key helper note). This change is inside the existing upsertInvoices in apps/nickstire/server/services/shopDriverMirror.ts: the update path now links an invoice that has no customerId by PHONE only (first ticket-or-stored phone with 7+ digits, COALESCE so a set customerId is never replaced, a linked invoice is never moved), never by name and never filling a phone; the insert path is unchanged. No procedure, table, cron or flag added. Proof is the new server/shopDriverMirrorLinkOnUpdate.test.ts (14 tests, red first on the base, mutations on the 7-digit rule, the null guard and COALESCE all red) and the full server suite (964 files, 12,616 tests, exit 0). A ledger entry for invoice-customer linking is a separate docs step once a production mirror run shows the unlinked count falling (172 unlinked on 2026-10-24)."
+    }
+  }
+}
