@@ -101,12 +101,7 @@ describe("FLAG_REGISTRY contract", () => {
  * Two-sided on purpose. Each case asserts the board's `isOn`, AND the suite
  * pins the source expression itself — flip `!== "0"` to `=== "1"` in the
  * runtime and the source pin fails, rather than the board quietly lying.
- *
- * This is not hypothetical: measuring it found one real divergence.
- * `NICK_AGENT_FOLLOWUPS=" 1 "` made lib/agent/follow-up.ts return TRUE (it
- * trims) while the board rendered OFF. Fixed with the opt-in `trimRawValue`
- * rather than by trimming every readOnly flag, which would have broken
- * agreement for the mirrors whose runtimes do NOT trim.
+
  */
 describe("readOnly mirrors agree with the runtime predicates they mirror", () => {
   /**
@@ -124,7 +119,7 @@ describe("readOnly mirrors agree with the runtime predicates they mirror", () =>
    *
    * Both board readers are exercised. `getFlag()` and `getAllFlags()` had
    * separate copies of the raw-value logic and had already drifted —
-   * `trimRawValue` reached only getFlag, so the OPERATOR BOARD (which renders
+   * a raw-value rule once reached only getFlag, so the OPERATOR BOARD (which renders
    * via getAllFlags) still showed OFF for a padded value while the test passed.
    * They share one resolver now, and both are asserted.
    */
@@ -207,7 +202,7 @@ describe("readOnly mirrors agree with the runtime predicates they mirror", () =>
 
   it.each(PREDICATES)("%s · getAllFlags (the OPERATOR BOARD) agrees too", (key, predicate, table) => {
     // The path the operator actually sees. v1 never exercised it, which is how
-    // trimRawValue shipped fixing only getFlag.
+    // a getFlag-only fix once shipped.
     for (const [envValue, predicateExpected] of table) {
       if (envValue === undefined) delete process.env[key];
       else process.env[key] = envValue;

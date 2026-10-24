@@ -70,25 +70,9 @@ export interface FeatureFlag {
    * controls that imply a database override can change behavior. */
   readOnly?: boolean;
   /**
-   * 2026-09-18 · trim the raw env value before resolving, for a `readOnly`
-   * mirror whose runtime ALSO trims.
-   *
-   * The readOnly path deliberately does not trim (see getFlag) so the board
-   * sees exactly the bytes the runtime sees. But a runtime that itself calls
-   * `.trim()` then disagrees with the board on a padded value: measured
-   * 2026-09-18, `NICK_AGENT_FOLLOWUPS=" 1 "` made lib/agent/follow-up.ts:76
-   * return TRUE while the board rendered OFF — a flag board that is
-   * confidently wrong is worse than one that is merely missing an entry.
-   *
-   * Opt-in and default-off, so every existing flag keeps its exact current
-   * behaviour. Set it ONLY when the mirrored expression trims, and pin the
-   * agreement with a test.
-   */
-  trimRawValue?: boolean;
-  /**
    * 2026-10-10: compare onValue case-sensitively, for a readOnly mirror whose
    * runtime compares with `===`. Without it the board reads "TRUE" as ON while
-   * the runtime reads it as OFF. Opt-in, like trimRawValue; pin it with a test.
+   * the runtime reads it as OFF. Opt-in; pin it with a test.
    */
   exactCase?: boolean;
 }
@@ -847,7 +831,7 @@ export interface ResolvedFlag extends FeatureFlag {
  * 2026-09-18 · ONE resolver for both getFlag() and getAllFlags().
  *
  * These two had independent copies of this logic, and the copies drifted the
- * moment `trimRawValue` was added: getFlag honoured it, getAllFlags did not.
+ * moment a raw-value rule was added: getFlag honoured it, getAllFlags did not.
  * The operator board renders through getAllFlags, so the board kept showing
  * OFF for a padded value while getFlag — and the test that used it — said ON.
  * A fix that only reaches the path the test looks at is not a fix. Caught in
@@ -858,7 +842,7 @@ export interface ResolvedFlag extends FeatureFlag {
  */
 function resolveRawValue(spec: FeatureFlag, dbOverride: string | undefined): string {
   const rawEnv = process.env[spec.key] ?? "";
-  if (spec.readOnly) return spec.trimRawValue ? rawEnv.trim() : rawEnv;
+  if (spec.readOnly) return rawEnv;
   return (dbOverride !== undefined ? dbOverride : rawEnv).trim();
 }
 
