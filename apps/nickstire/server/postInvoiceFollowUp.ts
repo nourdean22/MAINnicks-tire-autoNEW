@@ -2,15 +2,14 @@
  * Automated 7-Day Post-Invoice Follow-Up
  *
  * Runs daily via setInterval. Checks for customers whose last visit
- * was exactly 7 days ago (±1 day window) and sends them the same
- * thank you + review request + referral text used in the campaign.
+ * was exactly 7 days ago (±1 day window) and sends them the post-visit
+ * text (lib/postVisitText.ts: thank-you, "text us here", then the review ask).
  *
  * Prevents duplicates by checking smsCampaignSent > 0.
  * Tracks all sends in the database.
  *
- * OPTIMIZED: Uses short nickstire.org URLs instead of full Google URLs
- * to keep messages at 2 SMS segments (~252 chars) instead of 3 (~383 chars).
- * Saves 33% on per-message cost ($0.0158 vs $0.0237).
+ * OPTIMIZED: Uses the short nickstire.org/review URL instead of the full Google URL
+ * to keep the message at 2 SMS segments.
  */
 
 import { customers } from "../drizzle/schema";
@@ -21,24 +20,13 @@ async function getDatabase() {
   return getDb();
 }
 import { sendSms } from "./sms";
-import { STORE_NAME, STORE_PHONE } from "@shared/const";
+import { postVisitText } from "./lib/postVisitText";
 
 import { createLogger } from "./lib/logger";
 
 const log = createLogger("postInvoiceFollowUp");
-// ─── SHORT URLs (saves ~50 chars → 2 segments instead of 3) ─────
+// ─── SHORT URL (saves ~50 chars → 2 segments instead of 3) ─────
 const REVIEW_URL = "nickstire.org/review";
-const REFER_URL = "nickstire.org/refer";
-
-// ─── MESSAGE TEMPLATES (optimized for 2 SMS segments) ────────────
-
-function recentMessage(firstName: string): string {
-  return `Hi ${firstName}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
-}
-
-function lapsedMessage(firstName: string): string {
-  return `Hi ${firstName}, this is ${STORE_NAME}. Thank you for trusting us with your vehicle!\n\nA quick Google review means a lot to us:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\nWe'd love to see you again. — Nick's Team ${STORE_PHONE}`;
-}
 
 // ─── PROCESSOR ──────────────────────────────────────────
 
@@ -125,11 +113,8 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     for (const customer of eligibleCustomers) {
       const firstName = customer.firstName || "Valued Customer";
 
-      // Choose message based on segment (same logic as campaign)
-      const message =
-        customer.segment === "lapsed"
-          ? lapsedMessage(firstName)
-          : recentMessage(firstName);
+      // Both segments were visited 6-8 days ago (the query above), so one post-visit text serves them.
+      const message = postVisitText(firstName, REVIEW_URL);
 
       try {
         // Gate SMS behind feature flag
