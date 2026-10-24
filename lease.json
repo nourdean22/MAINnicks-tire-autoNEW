@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/stats-settings-2026-10-24",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-23-bdnick-pro-rebuild wave E2",
+  "claimedAt": "2026-10-24T23:54:18.666Z",
+  "expiresAt": "2026-10-25T11:54:18.666Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
