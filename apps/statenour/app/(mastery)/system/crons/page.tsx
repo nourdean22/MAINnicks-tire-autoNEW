@@ -29,7 +29,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { ReadStateNote } from "@/components/ui/read-state-note";
-import { readState } from "@/lib/query-state";
+import { isRetrying, readState } from "@/lib/query-state";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
@@ -232,7 +232,9 @@ export default function CronsPage() {
   });
   const feed: FeedResponse | null =
     (cronDeckQuery.data as FeedResponse | undefined) ?? null;
-  const loading = cronDeckQuery.isPending || cronDeckQuery.isFetching;
+  // fetchStatus, not isPending: a paused query is pending with nothing running, and "Refreshing…" beside
+  // the Offline note would claim work that cannot happen.
+  const loading = cronDeckQuery.fetchStatus === "fetching";
   const load = () => void cronDeckQuery.refetch();
 
   const toggleMutation = trpc.systemAutomation.setCronEnabled.useMutation();
@@ -375,7 +377,7 @@ export default function CronsPage() {
       }
     >
 
-      {deckDown && <ReadStateNote state={deckState} label="The cron deck" onRetry={load} />}
+      <ReadStateNote state={deckState} label="The cron deck" onRetry={load} retrying={isRetrying(cronDeckQuery)} />
 
       <KnowledgeRefreshPanel />
 

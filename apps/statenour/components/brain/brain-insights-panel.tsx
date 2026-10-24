@@ -25,7 +25,7 @@
  * dense info-per-pixel.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { useOnline } from "@/lib/query-state";
 
@@ -82,20 +82,40 @@ export async function loadInsightFeeds(fetchFn: typeof fetch = fetch): Promise<I
 
 export function BrainInsightsPanel() {
   const [feeds, setFeeds] = useState<InsightFeeds | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const online = useOnline();
+  const loadedOnce = useRef(false);
 
+  // Loads on mount (an offline open still has to say offline), again when the connection returns
+  // (review F2: it used to load once, so a panel opened offline flipped to a red "could not load"
+  // with nothing to retry it), and again on Retry. It does not refetch while offline.
   useEffect(() => {
+    if (loadedOnce.current && !online) return;
     let cancelled = false;
     void loadInsightFeeds().then((res) => {
-      if (!cancelled) setFeeds(res);
+      if (cancelled) return;
+      loadedOnce.current = true;
+      setFeeds(res);
+      setRetrying(false);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [online, attempt]);
 
   if (!feeds) return null;
-  return <BrainInsightsView {...feeds} offline={!online} />;
+  return (
+    <BrainInsightsView
+      {...feeds}
+      offline={!online}
+      retrying={retrying}
+      onRetry={() => {
+        setRetrying(true);
+        setAttempt((n) => n + 1);
+      }}
+    />
+  );
 }
 
 export function BrainInsightsView({
@@ -104,7 +124,9 @@ export function BrainInsightsView({
   improve,
   failed,
   offline,
-}: InsightFeeds & { offline: boolean }) {
+  onRetry,
+  retrying = false,
+}: InsightFeeds & { offline: boolean; onRetry?: () => void; retrying?: boolean }) {
   // Hide entirely if every bucket is empty AND every feed answered · clean weeks get no card
   const hasSignal =
     (violations?.violations?.length ?? 0) > 0 ||
@@ -117,9 +139,14 @@ export function BrainInsightsView({
     failed.length === 0 ? null : offline ? (
       <ReadStateNote state="offline" label="Brain insights" className="mb-3" />
     ) : (
-      <p role="alert" className="mb-3 text-[13px] text-red-300">
-        Brain insights: {failed.length} of 3 feeds could not load. State unknown, not empty.
-      </p>
+      <ReadStateNote
+        state="error"
+        label="Brain insights"
+        message={`Brain insights: ${failed.length} of 3 feeds could not load. State unknown, not empty.`}
+        onRetry={onRetry}
+        retrying={retrying}
+        className="mb-3"
+      />
     );
 
   return (

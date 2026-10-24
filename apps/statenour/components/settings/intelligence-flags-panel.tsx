@@ -7,7 +7,7 @@ import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Brain, Shield, AlertTriangle, Search, Info } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
 import { ReadStateNote } from "@/components/ui/read-state-note";
-import { readState } from "@/lib/query-state";
+import { isRetrying, readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 
 interface ResolvedFlag {
@@ -98,7 +98,7 @@ export function IntelligenceFlagsPanel() {
     return (
       <GlassCard className="space-y-2">
         <span className="text-[15px] font-semibold text-fg">Cognitive &amp; autonomy substrates</span>
-        <ReadStateNote state={status} label="Feature flags" onRetry={() => void refetch()} />
+        <ReadStateNote state={status} label="Feature flags" onRetry={() => void refetch()} retrying={isRetrying(flagsQuery)} />
       </GlassCard>
     );
   }
@@ -117,6 +117,9 @@ export function IntelligenceFlagsPanel() {
           {flags.filter(f => f.isOn).length} Active / {flags.length} Total
         </span>
       </div>
+
+      {/* A failed poll over cached flags: the list stays, the note says it may be out of date. */}
+      <ReadStateNote state={status} label="Feature flags" onRetry={() => void refetch()} retrying={isRetrying(flagsQuery)} />
 
       {/* Description */}
       <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">

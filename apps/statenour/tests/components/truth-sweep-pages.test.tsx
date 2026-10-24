@@ -51,6 +51,32 @@ describe("/system/crons", () => {
     const html = renderToStaticMarkup(<CronsPage />);
     expect(html).toContain("Offline.");
     expect(html).not.toContain("loading…");
+    // A paused query is not refreshing: the Refresh button must not claim work that cannot run.
+    expect(html).not.toContain("Refreshing…");
+  });
+  it("a failed 30 s poll over cached rows keeps the deck AND says the refresh failed, with Retry", () => {
+    q.cron = {
+      ...base,
+      isError: true,
+      data: { rows: [], summary: { active: 7, disabled: 0, folded: 0, retired: 0, runs24h: 0, failures24h: 0, drifted: 0 }, generatedAt: "2026-10-24T12:00:00Z" },
+    };
+    const html = renderToStaticMarkup(<CronsPage />);
+    expect(html).toContain("7 active");
+    expect(html).toContain("Last refresh failed.");
+    expect(html).toContain("Retry");
+    expect(html).not.toContain("State unknown, not empty");
+  });
+  it("a failed read with Retry running says Retrying and disables the button", () => {
+    q.cron = { ...base, isError: true, isFetching: true, fetchStatus: "fetching" };
+    const html = renderToStaticMarkup(<CronsPage />);
+    expect(html).toContain("Retrying");
+  });
+  it("control: a healthy read prints no failure note", () => {
+    q.cron = { ...base, data: { rows: [], summary: { active: 7, disabled: 0, folded: 0, retired: 0, runs24h: 0, failures24h: 0, drifted: 0 }, generatedAt: "2026-10-24T12:00:00Z" } };
+    const html = renderToStaticMarkup(<CronsPage />);
+    expect(html).toContain("7 active");
+    expect(html).not.toContain("Last refresh failed.");
+    expect(html).not.toContain("State unknown");
   });
   it("control: a read in flight still says loading", () => {
     q.cron = { ...base, isLoading: true, isPending: true, isFetching: true, fetchStatus: "fetching" };
@@ -73,6 +99,17 @@ describe("Brain insights", () => {
       <BrainInsightsView violations={null} evolution={null} improve={null} failed={["violations", "evolution", "improve"]} offline />,
     );
     expect(html).toContain("Offline. Brain insights shows when the connection returns.");
+  });
+  it("online with failed feeds: the note offers Retry and wires it", () => {
+    const onRetry = vi.fn();
+    const html = renderToStaticMarkup(
+      <BrainInsightsView violations={null} evolution={null} improve={null} failed={["violations", "evolution", "improve"]} offline={false} onRetry={onRetry} />,
+    );
+    expect(html).toContain("3 of 3 feeds could not load");
+    expect(html).toContain("Retry");
+    expect(renderToStaticMarkup(
+      <BrainInsightsView violations={null} evolution={null} improve={null} failed={["violations"]} offline={false} onRetry={onRetry} retrying />,
+    )).toContain("Retrying");
   });
   it("one feed failed beside one with signal: the signal shows, the failed feed does not claim health", () => {
     const html = renderToStaticMarkup(

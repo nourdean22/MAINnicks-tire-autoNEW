@@ -9,8 +9,15 @@
  *  · Cmd-K "View Recent Captures" opened `/`, which has no captures list.
  *  · Shortcut G P was a second door to /system, the same as G S.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
+
+const db = vi.hoisted(() => ({ rows: [] as unknown[] }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: { personProfile: { findMany: async () => db.rows } },
+  resetQueryCount: () => {},
+  getQueryCount: () => 0,
+}));
 
 import { composeBriefRows } from "@/lib/home/brief-rows";
 import { BRIEF_LESS_TTL_MS, keptKinds, type BriefFeedbackMap } from "@/lib/ui/brief-feedback";
@@ -85,6 +92,43 @@ describe("People Needs info", () => {
   });
 });
 
+describe("People Needs info: the route's count and the page's list come from one predicate", () => {
+  // The route is the consumer of isSparsePerson that PRINTS the count; the page filters with the
+  // same function. A route that hand-rolled its own rule would pass the helper tests above.
+  const row = (id: string, role: string, notes: string | null) => ({
+    id,
+    name: `n-${id}`,
+    role,
+    relationship: "r",
+    trustScore: 0.5,
+    leverageNotes: notes,
+    lastInteraction: null,
+    interactionCount: 0,
+  });
+
+  async function readTotals() {
+    const { GET } = await import("@/app/api/people/route");
+    const res = await GET(new Request("http://localhost/api/people") as never, { params: Promise.resolve({}) } as never);
+    const body = await res.json();
+    return body.data as { people: { id: string; role: string; leverageNotes: string | null }[]; totals: { sparse: number } };
+  }
+
+  it("totals.sparse equals the length of the list the Needs info filter shows", async () => {
+    db.rows = [row("a", "client", "owes a favour"), row("b", "unknown", "has notes"), row("c", "client", null), row("d", "friend", "notes"), row("e", "friend", "")];
+    const data = await readTotals();
+    const shown = visiblePeopleRows(data.people, { needsInfoOnly: true, showAll: true, cap: 2 });
+    expect(data.totals.sparse).toBe(3);
+    expect(shown.map((p) => p.id)).toEqual(["b", "c", "e"]);
+    expect(shown).toHaveLength(data.totals.sparse);
+  });
+  it("control: nobody sparse counts 0 and lists nobody", async () => {
+    db.rows = [row("a", "client", "notes"), row("d", "friend", "notes")];
+    const data = await readTotals();
+    expect(data.totals.sparse).toBe(0);
+    expect(visiblePeopleRows(data.people, { needsInfoOnly: true, showAll: true, cap: 2 })).toHaveLength(0);
+  });
+});
+
 describe("shortcuts and palette doors", () => {
   const shortcuts = readFileSync("components/hud/keyboard-shortcuts.tsx", "utf8");
   const routeBlock = shortcuts.slice(shortcuts.indexOf("const GO_ROUTES"), shortcuts.indexOf("export function KeyboardShortcuts"));
@@ -97,6 +141,12 @@ describe("shortcuts and palette doors", () => {
   });
   it("no two G-chords share a destination", () => {
     expect(dupes(dests)).toEqual([]);
+  });
+
+  it("the cheatsheet lists no G P row, and still lists G S (the scan found the cheatsheet)", () => {
+    const sheet = shortcuts.slice(shortcuts.indexOf("const SHORTCUTS"), shortcuts.indexOf("const GO_ROUTES"));
+    expect(sheet).toContain('keys: ["G", "S"]');
+    expect(sheet).not.toMatch(/keys:\s*\[\s*"G",\s*"P"\s*\]/);
   });
 
   it("View Recent Captures opens the journal feed (newest first), not the home page that has no captures list", () => {

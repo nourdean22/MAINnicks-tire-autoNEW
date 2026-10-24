@@ -11,10 +11,9 @@
  * + today's wins into priority / emerging / wins / maintenance tiers.
  *
  * Returns an explicit, shallow `PulseDigest` shape — every field is a
- * scalar projection (the AuditEvent `payload` Json is read only to
- * derive a deep-link string inside this module · never returned) so
- * the recursive `JsonValue` type never reaches the AppRouter — the
- * TS2589 firewall.
+ * scalar projection (the AuditEvent `payload` Json is not selected at
+ * all) so the recursive `JsonValue` type never reaches the AppRouter:
+ * the TS2589 firewall.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -51,16 +50,10 @@ export interface PulseDigest {
  * emitted it. Keeps the routing logic centralized so adding a new
  * brain subsystem only needs one update.
  */
-function linkForInsightActor(
-  actor: string | null | undefined,
-  payload: unknown,
-): string {
+export function linkForInsightActor(actor: string | null | undefined): string {
   const a = (actor ?? "").toLowerCase();
-  if (a.includes("contradiction")) {
-    const p = (payload ?? {}) as { top?: { key?: string }; key?: string };
-    const k = p.top?.key ?? p.key;
-    return k ? `/brain?resolve=${k}` : "/brain";
-  }
+  // The contradictions panel on the Memory tab; Home and the ticker end the same link in #contradictions.
+  if (a.includes("contradiction")) return "/brain?tab=memory#contradictions";
   if (
     a.includes("skill") ||
     a.includes("belief") ||
@@ -170,7 +163,6 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         select: {
           id: true,
           detail: true,
-          payload: true,
           actor: true,
           createdAt: true,
         },
@@ -331,7 +323,6 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
       if (isHiddenInsight(e.actor, detail)) continue;
 
       const headline = detail.slice(0, 90);
-      const payload = e.payload ?? null;
       emerging.push({
         id: `insight-${e.id}`,
         headline,
@@ -339,7 +330,7 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         kind: "insight",
         severity: "info",
         at: e.createdAt.toISOString(),
-        link: linkForInsightActor(e.actor, payload),
+        link: linkForInsightActor(e.actor),
       });
     }
     const seenKeywords = new Set<string>();

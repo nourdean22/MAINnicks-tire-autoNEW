@@ -23,7 +23,7 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { ReadStateNote } from "@/components/ui/read-state-note";
-import { readState } from "@/lib/query-state";
+import { isRetrying, readState } from "@/lib/query-state";
 
 interface CandidateMember {
   entrySource: "brain_dump" | "reflection" | "situation_log" | "decision_replay";
@@ -58,6 +58,8 @@ export function ThreadRadar({
   const status = readState(convergenceQuery);
   const loading = convergenceQuery.isLoading;
   const reload = () => convergenceQuery.refetch();
+  // Null unless the last refresh failed over cached candidates (stale): rendered above each data surface below.
+  const staleNote = status === "stale" ? <ReadStateNote state={status} label="Pattern radar" onRetry={() => void reload()} retrying={isRetrying(convergenceQuery)} /> : null;
 
   // Phase TT.2 · manual convergence scan is now a typed mutation ·
   // delegates to the same runConvergenceScan the nightly cron uses.
@@ -115,7 +117,7 @@ export function ThreadRadar({
     return (
       <section className="mb-8 space-y-3">
         <MasterySectionLabel label="Pattern radar" />
-        <ReadStateNote state={status} label="Pattern radar" onRetry={() => void reload()} />
+        <ReadStateNote state={status} label="Pattern radar" onRetry={() => void reload()} retrying={isRetrying(convergenceQuery)} />
       </section>
     );
   }
@@ -129,6 +131,7 @@ export function ThreadRadar({
     if (!scanState.busy && !scanState.lastResult && !scanState.error) {
       return (
         <section className="mb-8">
+          {staleNote}
           <button
             type="button"
             onClick={triggerScan}
@@ -142,6 +145,7 @@ export function ThreadRadar({
     }
     return (
       <section className="mb-8 space-y-3">
+        {staleNote}
         <MasterySectionLabel
           label="Pattern radar"
           action={
@@ -180,6 +184,7 @@ export function ThreadRadar({
 
   return (
     <section className="mb-8 space-y-3">
+      {staleNote}
       <MasterySectionLabel
         label={`Coalescing · ${candidates.length} ${candidates.length === 1 ? "theme" : "themes"}`}
         action={

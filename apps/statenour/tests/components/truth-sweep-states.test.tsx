@@ -62,9 +62,19 @@ import { OperatingRhythmToggle } from "@/components/settings/operating-rhythm-to
 import { IntelligenceFlagsPanel } from "@/components/settings/intelligence-flags-panel";
 import { StatsVerdict } from "@/components/stats/stats-verdict";
 import { TrendCounter } from "@/components/ui/trend-counter";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 
 const UNKNOWN = "State unknown, not empty";
 const OFFLINE_COPY = "Offline.";
+const STALE = "Last refresh failed.";
+// A poll that failed after data arrived: isError true, data kept (react-query v5 keeps it).
+const STALE_Q: Q = { isError: true, error: { message: "boom" } };
+const FLAG = { key: "NICK_X", description: "d", status: "stable", onValue: "1", defaultBehavior: "off", rawValue: "1", isOn: true, overrideValue: null };
+const DUEL = {
+  operator: { resolved: 4, meanBrier: 0.2, last10Brier: 0.21 },
+  agent: { resolved: 9, meanBrier: 0.18, last10Brier: 0.19 },
+  pendingOperator: [],
+};
 
 beforeEach(() => {
   q.s = {};
@@ -196,5 +206,94 @@ describe("TrendCounter", () => {
   });
   it("control: a real zero is a zero", () => {
     expect(renderToStaticMarkup(<TrendCounter value={0} label="x" format={(n) => `${n}`} />)).toContain(">0<");
+  });
+});
+
+describe("stale: a failed refresh keeps the data AND says so (empty-vs-error, cached data is not current data)", () => {
+  it("IntelligenceFlagsPanel: the flags stay, the note renders with Retry", () => {
+    q.s.flags = query({ data: { flags: [FLAG] }, ...STALE_Q });
+    const html = renderToStaticMarkup(<IntelligenceFlagsPanel />);
+    expect(html).toContain("NICK_X");
+    expect(html).toContain("1 Total");
+    expect(html).toContain(STALE);
+    expect(html).toContain("Retry");
+    expect(html).not.toContain(UNKNOWN);
+  });
+  it("ThreadRadar: an empty cached radar still says the refresh failed", () => {
+    q.s.convergence = query({ data: [], ...STALE_Q });
+    const html = renderToStaticMarkup(<ThreadRadar />);
+    expect(html).toContain(STALE);
+    expect(html).toContain("Retry");
+  });
+  it("ThreadRadar: cached themes stay under the note", () => {
+    q.s.convergence = query({
+      data: [{ clusterHash: "h1", size: 3, coherence: 0.8, nameSuggestions: ["Sleep"], detectedAt: "2026-10-01T00:00:00Z", members: [] }],
+      ...STALE_Q,
+    });
+    const html = renderToStaticMarkup(<ThreadRadar />);
+    expect(html).toContain(STALE);
+    expect(html).toContain("Coalescing");
+  });
+  it("ForecastDuel: both lanes stay, the note renders", () => {
+    q.s.forecast = query({ data: DUEL, ...STALE_Q });
+    const html = renderToStaticMarkup(<ForecastDuel />);
+    expect(html).toContain("4 resolved");
+    expect(html).toContain(STALE);
+  });
+  it("OperatingRhythmToggle: the switch stays (its value was read), the note renders", () => {
+    q.s.rhythm = query({ data: { flags: { adhd_operating_rhythm: false } }, ...STALE_Q });
+    const html = renderToStaticMarkup(<OperatingRhythmToggle />);
+    expect(html).toContain('aria-checked="false"');
+    expect(html).toContain(STALE);
+  });
+  it("control: a healthy read prints no stale note on any of the four", () => {
+    q.s.flags = query({ data: { flags: [FLAG] } });
+    q.s.convergence = query({ data: [] });
+    q.s.forecast = query({ data: DUEL });
+    q.s.rhythm = query({ data: { flags: {} } });
+    for (const el of [<IntelligenceFlagsPanel key="a" />, <ThreadRadar key="b" />, <ForecastDuel key="c" />, <OperatingRhythmToggle key="d" />]) {
+      expect(renderToStaticMarkup(el)).not.toContain(STALE);
+    }
+  });
+});
+
+describe("ReadStateNote", () => {
+  it("stale renders a status note with the copy and a Retry", () => {
+    const html = renderToStaticMarkup(<ReadStateNote state="stale" label="Feature flags" onRetry={() => {}} />);
+    expect(html).toContain('data-read-state="stale"');
+    expect(html).toContain("Last refresh failed. Feature flags below may be out of date.");
+    expect(html).toContain("Retry");
+  });
+  it("Retry is a 44 by 44 target, wide enough for its word (target-size.spec checks width)", () => {
+    for (const state of ["error", "stale"] as const) {
+      const html = renderToStaticMarkup(<ReadStateNote state={state} label="x" onRetry={() => {}} />);
+      expect(html).toContain("min-h-[44px]");
+      expect(html).toContain("min-w-[44px]");
+      expect(html).toContain("justify-center");
+    }
+  });
+  it("while a Retry is in flight the button is disabled and says Retrying", () => {
+    for (const state of ["error", "stale"] as const) {
+      const html = renderToStaticMarkup(<ReadStateNote state={state} label="x" onRetry={() => {}} retrying />);
+      expect(html).toContain("Retrying");
+      expect(html).toMatch(/<button[^>]*\sdisabled=""/);
+    }
+    const idle = renderToStaticMarkup(<ReadStateNote state="error" label="x" onRetry={() => {}} />);
+    expect(idle).not.toContain("Retrying");
+    expect(idle).not.toMatch(/<button[^>]*\sdisabled=""/);
+  });
+  it("offline offers no Retry (the read runs when the connection returns)", () => {
+    expect(renderToStaticMarkup(<ReadStateNote state="offline" label="x" onRetry={() => {}} />)).not.toContain("Retry");
+  });
+});
+
+describe("a Retry that is running reaches the screen through the real panels", () => {
+  it("ThreadRadar error with a refetch in flight reads Retrying", () => {
+    q.s.convergence = query({ ...ERROR, fetchStatus: "fetching" });
+    expect(renderToStaticMarkup(<ThreadRadar />)).toContain("Retrying");
+  });
+  it("IntelligenceFlagsPanel stale with a refetch in flight reads Retrying", () => {
+    q.s.flags = query({ data: { flags: [FLAG] }, ...STALE_Q, fetchStatus: "fetching" });
+    expect(renderToStaticMarkup(<IntelligenceFlagsPanel />)).toContain("Retrying");
   });
 });

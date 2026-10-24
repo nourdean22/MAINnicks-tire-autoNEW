@@ -107,6 +107,47 @@ describe("partial failure", () => {
   });
 });
 
+describe("the sheet's feed note is true for what is on screen (review F4)", () => {
+  const tickerItem = { id: "t1", category: "shop", label: "SHOP open", severity: "info", href: "/x" };
+  const openSheet = () => {
+    const el = mount();
+    act(() => (el.querySelector('button[aria-label="Open pulse feed"]') as HTMLButtonElement).click());
+    return el.textContent ?? "";
+  };
+
+  it("a feed whose refresh failed over cached items says 'could not refresh', not 'could not load'", () => {
+    h.tickerError = true; // react-query keeps the last good data beside isError
+    h.ticker = { items: [tickerItem] };
+    h.pulse = { items: [item("a")] };
+    const text = openSheet();
+    expect(text).toContain("Market ticker could not refresh.");
+    expect(text).not.toContain("could not load");
+    expect(text).toContain("SHOP open");
+  });
+  it("a feed with nothing cached says 'could not load'", () => {
+    h.pulseError = true;
+    h.ticker = { items: [tickerItem] };
+    const text = openSheet();
+    expect(text).toContain("Personal pulse could not load.");
+    expect(text).not.toContain("could not refresh");
+  });
+  it("never claims the items come from the other feed (cached items of the failed feed show too)", () => {
+    h.tickerError = true;
+    h.ticker = { items: [tickerItem] };
+    h.pulse = { items: [item("a")] };
+    expect(openSheet()).not.toContain("come from the other feed");
+  });
+  it("both feeds failed over cache: names both", () => {
+    h.pulseError = true;
+    h.tickerError = true;
+    h.pulse = { items: [item("a")] };
+    h.ticker = { items: [tickerItem] };
+    const text = openSheet();
+    expect(text).toContain("Personal pulse could not refresh.");
+    expect(text).toContain("Market ticker could not refresh.");
+  });
+});
+
 describe("Done / Drop", () => {
   it("a rejected resolve is shown in the sheet where the tap happened", () => {
     h.pulse = { items: [item("c1", { kind: "commitment", commitmentId: 7, label: "PROMISE", text: "send the quote" })] };

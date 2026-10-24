@@ -191,6 +191,12 @@ export function BottomPulseTicker() {
   const feedsDown = [pulseError ? "Personal pulse" : null, tickerFailed ? "Market ticker" : null].filter(
     (name): name is string => name !== null,
   );
+  // What the sheet says about each: "could not load" is only true for a feed with nothing cached.
+  // react-query keeps the last good data beside isError, and those items still show in the list.
+  const feedNotes = [
+    pulseError ? `Personal pulse could not ${data ? "refresh" : "load"}.` : null,
+    tickerFailed ? `Market ticker could not ${topData && !topData.softError ? "refresh" : "load"}.` : null,
+  ].filter((note): note is string => note !== null);
   if ((!data && !topData) || items.length === 0) {
     // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
     if (!pulseError && !tickerFailed) return null;
@@ -307,7 +313,7 @@ export function BottomPulseTicker() {
           setResolveError(null);
           resolveCommitment.mutate({ commitmentId, action });
         }}
-        feedsDown={feedsDown}
+        feedNotes={feedNotes}
         resolveError={resolveError}
         resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
         onPick={(i) => {
@@ -374,7 +380,7 @@ export function PulseFeedSheet({
   resolvingId,
   onPick,
   returnFocusRef,
-  feedsDown = [],
+  feedNotes = [],
   resolveError = null,
 }: {
   open: boolean;
@@ -389,8 +395,8 @@ export function PulseFeedSheet({
   onPick: (i: number) => void;
   /** The strip button that opened the sheet; focus returns to it on close. */
   returnFocusRef: React.RefObject<HTMLButtonElement | null>;
-  /** Names of feeds that failed while the others show: said above the list, never hidden. */
-  feedsDown?: string[];
+  /** One sentence per feed that failed (could not load, or could not refresh over cached items): said above the list, never hidden. */
+  feedNotes?: string[];
   /** A rejected Done / Drop, shown where the tap happened. */
   resolveError?: string | null;
 }) {
@@ -420,9 +426,9 @@ export function PulseFeedSheet({
             Close
           </button>
         </div>
-        {feedsDown.length > 0 && (
+        {feedNotes.length > 0 && (
           <p role="status" className="border-b border-edge-subtle px-3 py-2 text-[13px] text-amber-300">
-            {feedsDown.join(" and ")} could not load. The items below come from the other feed.
+            {feedNotes.join(" ")}
           </p>
         )}
         {resolveError && (

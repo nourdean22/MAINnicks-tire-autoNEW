@@ -14,7 +14,7 @@
 import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ReadStateNote } from "@/components/ui/read-state-note";
-import { readState } from "@/lib/query-state";
+import { isRetrying, readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +41,8 @@ export function ForecastDuel() {
   });
   const { data, isLoading } = scoreboard;
   const status = readState(scoreboard);
+  // Null when ready; above the lanes when stale (a failed refresh over scores we did read).
+  const note = <ReadStateNote state={status} label="The duel score" onRetry={() => void scoreboard.refetch()} retrying={isRetrying(scoreboard)} />;
   const create = trpc.system.forecastCreate.useMutation({
     onSuccess: () => utils.system.forecastScoreboard.invalidate(),
   });
@@ -70,11 +72,14 @@ export function ForecastDuel() {
       {isLoading ? (
         <div className="h-16 animate-pulse rounded-surface bg-surface-interactive" />
       ) : status === "error" || status === "offline" ? (
-        <ReadStateNote state={status} label="The duel score" onRetry={() => void scoreboard.refetch()} />
+        note
       ) : (
-        <div className="flex gap-3">
-          <BrierLane label="You" resolved={operator?.resolved ?? 0} meanBrier={operator?.meanBrier ?? null} last10Brier={operator?.last10Brier ?? null} winning={operatorWinning} />
-          <BrierLane label="Nick" resolved={agent?.resolved ?? 0} meanBrier={agent?.meanBrier ?? null} last10Brier={agent?.last10Brier ?? null} winning={operator?.meanBrier != null && agent?.meanBrier != null && !operatorWinning} />
+        <div className="space-y-2">
+          {note}
+          <div className="flex gap-3">
+            <BrierLane label="You" resolved={operator?.resolved ?? 0} meanBrier={operator?.meanBrier ?? null} last10Brier={operator?.last10Brier ?? null} winning={operatorWinning} />
+            <BrierLane label="Nick" resolved={agent?.resolved ?? 0} meanBrier={agent?.meanBrier ?? null} last10Brier={agent?.last10Brier ?? null} winning={operator?.meanBrier != null && agent?.meanBrier != null && !operatorWinning} />
+          </div>
         </div>
       )}
 

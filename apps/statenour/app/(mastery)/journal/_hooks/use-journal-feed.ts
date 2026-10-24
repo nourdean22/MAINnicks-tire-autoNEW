@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { readState } from "@/lib/query-state";
 import { onDataChanged } from "@/lib/events/data-change";
 import type { SourceKey, TypeKey } from "@/components/journal/types";
 
@@ -91,7 +92,7 @@ export function useJournalFeed(
     degraded: [...new Set(degraded)],
     isLoading: query.isLoading,
     // Paused with no pages: no data, no error, not loading. Not "no entries" (truth sweep 2026-10-23).
-    isOffline: query.fetchStatus === "paused" && query.data === undefined,
+    isOffline: readState(query) === "offline",
     isFetching: query.isFetching,
     isFetchingMore: query.isFetchingNextPage,
     error: query.error?.message ?? null,

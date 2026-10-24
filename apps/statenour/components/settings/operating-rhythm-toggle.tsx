@@ -27,7 +27,7 @@ import { useState } from "react";
 import { Activity } from "lucide-react";
 import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { ReadStateNote } from "@/components/ui/read-state-note";
-import { readState } from "@/lib/query-state";
+import { isRetrying, readState } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
@@ -92,7 +92,7 @@ export function OperatingRhythmToggle() {
     commit(true);
   }
 
-  if (status !== "ready") {
+  if (status !== "ready" && status !== "stale") {
     return (
       <div className="mt-10">
         <div className="flex items-center justify-between mb-3">
@@ -102,7 +102,7 @@ export function OperatingRhythmToggle() {
           </div>
           {status === "loading" && <div aria-hidden className="h-6 w-11 animate-pulse rounded-full bg-surface-interactive" />}
         </div>
-        <ReadStateNote state={status} label="Operating rhythm" onRetry={() => void query.refetch()} />
+        <ReadStateNote state={status} label="Operating rhythm" onRetry={() => void query.refetch()} retrying={isRetrying(query)} />
       </div>
     );
   }
@@ -139,6 +139,8 @@ export function OperatingRhythmToggle() {
           />
         </button>
       </div>
+      {/* A failed refresh over a flag we did read: the switch stays, the note says it may be out of date. */}
+      <ReadStateNote state={status} label="Operating rhythm" onRetry={() => void query.refetch()} retrying={isRetrying(query)} className="mb-2" />
       <p className="text-[12px] text-fg-tertiary">
         {enabled
           ? "On: Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm guard focus and enforce shutdown."

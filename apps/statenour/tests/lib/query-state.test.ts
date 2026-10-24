@@ -8,13 +8,29 @@
  * panel reads it.
  */
 import { describe, expect, it } from "vitest";
-import { errorCopy, offlineCopy, readState } from "@/lib/query-state";
+import { errorCopy, isRetrying, offlineCopy, readState, staleCopy } from "@/lib/query-state";
 
 describe("readState", () => {
-  it("data in hand is ready, even when a later refetch failed or paused (stale beats blank)", () => {
+  it("data in hand is ready, even when a refetch paused (the blank is worse than the cache)", () => {
     expect(readState({ data: [], isError: false, fetchStatus: "idle" })).toBe("ready");
-    expect(readState({ data: { a: 1 }, isError: true, fetchStatus: "idle" })).toBe("ready");
     expect(readState({ data: { a: 1 }, isError: false, fetchStatus: "paused" })).toBe("ready");
+  });
+
+  it("data in hand after a FAILED refresh is stale, never ready: the data stays, the failure is said", () => {
+    expect(readState({ data: { a: 1 }, isError: true, fetchStatus: "idle" })).toBe("stale");
+    // A retry in flight is still stale: the last refresh failed until one succeeds.
+    expect(readState({ data: { a: 1 }, isError: true, fetchStatus: "fetching" })).toBe("stale");
+    // An empty array is data too: a failed refresh over [] is stale, not ready.
+    expect(readState({ data: [], isError: true, fetchStatus: "idle" })).toBe("stale");
+  });
+
+  it("a failed read with no data stays error while Retry is in flight (the note shows progress, not a spinner swap)", () => {
+    const retrying = { data: undefined, isError: true, isLoading: false, isPending: false, fetchStatus: "fetching" };
+    expect(readState(retrying)).toBe("error");
+    expect(isRetrying(retrying)).toBe(true);
+    expect(isRetrying({ ...retrying, fetchStatus: "idle" })).toBe(false);
+    expect(isRetrying({ fetchStatus: "paused" })).toBe(false);
+    expect(isRetrying({})).toBe(false);
   });
 
   it("a paused query with no data is offline, not loading and not empty", () => {
@@ -43,6 +59,7 @@ describe("copy", () => {
   it("names the cause and the next action, with no em dash", () => {
     expect(offlineCopy("Pattern radar")).toBe("Offline. Pattern radar shows when the connection returns.");
     expect(errorCopy("Pattern radar")).toBe("Pattern radar could not load. State unknown, not empty.");
-    for (const s of [offlineCopy("x"), errorCopy("x")]) expect(s).not.toContain(String.fromCharCode(0x2014));
+    expect(staleCopy("Pattern radar")).toBe("Last refresh failed. Pattern radar below may be out of date.");
+    for (const s of [offlineCopy("x"), errorCopy("x"), staleCopy("x")]) expect(s).not.toContain(String.fromCharCode(0x2014));
   });
 });
