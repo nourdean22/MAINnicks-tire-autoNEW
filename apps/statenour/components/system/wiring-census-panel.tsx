@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * WiringCensusPanel — BDN-101's surface (2026-08-12).
+ * WiringCensusPanel, BDN-101's surface (2026-08-12).
  *
  * Dead lanes emit no errors, only silence, and silence reads as health
  * everywhere else in the app. This panel is the one place where "a
@@ -12,6 +12,7 @@
  * screen rather than implied to be covered.
  */
 
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, Cable } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -26,7 +27,7 @@ const STATUS_STYLE: Record<string, { dot: string; text: string }> = {
   flowing: { dot: "bg-emerald-400", text: "text-emerald-300" },
 };
 
-/** Statuses that mean "look at this now" — they lift to the top strip. */
+/** Statuses that mean "look at this now", they lift to the top strip. */
 const ATTENTION = new Set(["severed", "backlog", "unknown", "never", "silent"]);
 
 export function WiringCensusPanel() {
@@ -35,17 +36,17 @@ export function WiringCensusPanel() {
   if (censusQ.isLoading) {
     return (
       <section aria-label="wiring-census" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-40 rounded-micro bg-surface-interactive animate-pulse" />
-        <div className="h-20 rounded-micro bg-surface-interactive animate-pulse" />
+              <ShimmerSkeleton className="h-3 w-40" />
+        <ShimmerSkeleton className="h-20 w-full" />
       </section>
     );
   }
   if (censusQ.isError) {
     return (
-      <section aria-label="wiring-census" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
+      <section data-read-failed aria-label="wiring-census" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
-          Wiring census couldn&apos;t load — lane state unknown, not healthy.
+          Wiring census couldn&apos;t load: lane state unknown, not healthy.
         </p>
       </section>
     );
@@ -70,7 +71,7 @@ export function WiringCensusPanel() {
       </div>
 
       {lanes.length === 0 ? (
-        <p className="text-[11px] text-fg-tertiary">No lanes derived — the registries returned nothing, which is itself unexpected.</p>
+        <p className="text-[11px] text-fg-tertiary">No lanes derived, the registries returned nothing, which is itself unexpected.</p>
       ) : (
         <ul className="space-y-1.5 max-h-[360px] overflow-y-auto scrollbar-thin">
           {lanes.map((lane) => {
@@ -99,7 +100,7 @@ export function WiringCensusPanel() {
         </ul>
       )}
 
-      {/* Scope disclosure — what this census does NOT watch, and where
+      {/* Scope disclosure, what this census does NOT watch, and where
           that coverage actually lives. An instrument that hides its own
           blind spots is the thing this panel exists to prevent. */}
       <details className="border-t border-edge-subtle pt-2">

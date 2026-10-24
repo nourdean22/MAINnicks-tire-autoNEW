@@ -22,7 +22,7 @@ export function StaleDataPanel() {
   const cleanCategory = async (category: NonNullable<typeof data>["categories"][number]) => {
     const ok = await confirm({
       title: `Clean ${category.title}?`,
-      body: `${category.count} row${category.count === 1 ? "" : "s"} currently match. ${category.purgeAction}. This runs only the existing policy for this category — not a bulk wipe.`,
+      body: `${category.count} row${category.count === 1 ? "" : "s"} currently match. ${category.purgeAction}. This runs only the existing policy for this category, not a bulk wipe.`,
       confirmLabel: "Apply cleanup",
       cancelLabel: "Keep",
       tone: "danger",
@@ -74,8 +74,8 @@ export function StaleDataPanel() {
               {[1, 2, 3].map((i) => <div key={i} className="skeleton h-20 w-full rounded-surface" />)}
           </div>
         ) : query.isError ? (
-          <div className="mt-4 rounded-surface border border-rose-500/20 bg-rose-500/[0.04] p-4">
-            <p className="text-sm text-rose-300">Stale-data scan failed — state unknown, not clean.</p>
+          <div data-read-failed className="mt-4 rounded-surface border border-rose-500/20 bg-rose-500/[0.04] p-4">
+            <p className="text-sm text-rose-300">Stale-data scan failed: state unknown, not clean.</p>
           </div>
         ) : data ? (
           <div className="mt-4 space-y-3">
@@ -92,14 +92,14 @@ export function StaleDataPanel() {
               {incomplete ? (
                 <span className="inline-flex items-start gap-2">
                   <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
-                  Scan incomplete — {data.totalStaleRows} is a floor. Unread categories: {data.degradedReads.join(", ")}.
+                  Scan incomplete: {data.totalStaleRows} is a floor. Unread categories: {data.degradedReads.join(", ")}.
                 </span>
               ) : data.totalStaleRows > 0 ? (
                 <span>
                   {data.totalStaleRows} stale row{data.totalStaleRows === 1 ? "" : "s"} across {active.length} active categor{active.length === 1 ? "y" : "ies"}.
                 </span>
               ) : (
-                <span>Measured clean — no stale rows found across the eight guarded categories.</span>
+                <span>Measured clean, no stale rows found across the eight guarded categories.</span>
               )}
             </div>
 

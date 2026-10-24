@@ -191,7 +191,9 @@ export function JournalInsightsPreview() {
       {state === "stale" && (
         <ReadStateNote state={state} label="Extracted takes" onRetry={() => void refetch()} retrying={isRetrying(insightsQuery)} />
       )}
-      <h4 className="text-xs font-medium text-fg-secondary">Extracted takes</h4>
+      <h4 className="text-xs font-medium text-fg-secondary">
+        <span className="text-fg-tertiary">NICK ·</span> Extracted takes
+      </h4>
 
       <div className="space-y-3">
         {/* Attention budget (2026-09-01): every entry used to render its full

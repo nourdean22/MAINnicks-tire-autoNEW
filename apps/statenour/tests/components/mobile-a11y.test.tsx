@@ -350,9 +350,8 @@ describe("A11 · ultron interactive controls reach 44px on mobile", () => {
     // min-* floors win on mobile; sm: returns the control to its original
     // dense desktop dimensions, so desktop is pixel-identical.
     const collapseToMin = "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px]";
-    // contradictions-card / situation-card / next-action-whisperer /
-    // active-task-companion dropped 2026-09-01 (audit W-3): unreachable from
-    // every entrypoint (ui-mount-graph PARKED). Only live subjects remain.
+    // Cards with no mount were dropped (audit W-3, 2026-09-01; the last two deleted 2026-10-24):
+    // unreachable from every entrypoint. Only live subjects remain.
     expect(readSource("components/ultron/decision-replay-card.tsx")).toContain(collapseToMin);
     expect(readSource("components/ultron/preferences-card.tsx")).toContain(collapseToMin);
   });

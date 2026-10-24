@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * EvidenceGatePanel — the readout AGENTS.md §4 L6 blocks promotion on.
+ * EvidenceGatePanel, the readout AGENTS.md §4 L6 blocks promotion on.
  *
  * L6 says the evidence gate "runs in SHADOW … Enforcement goes live on the
  * buffered path once the shadow false-positive rate is known." Verdicts have
  * been persisted since 2026-09-10; `buildEvidenceGateCalibration` made the
- * number computable, and then NOTHING RENDERED IT — a procedure with no
+ * number computable, and then NOTHING RENDERED IT, a procedure with no
  * consumer, which is the same unwired shape the census panel next door exists
  * to expose. A decision gated on a number nobody can see does not get made.
  *
@@ -17,13 +17,14 @@
  * something a future session has to rediscover by writing a script.
  *
  * ⚠ THIS PANEL NEVER COMPUTES A RATE. `wouldBlockPct` is null below the floor
- * BY DESIGN — the module refuses to state a rate on a thin sample, because
+ * BY DESIGN, the module refuses to state a rate on a thin sample, because
  * "4 of 12" rendered as 33.3% invites exactly the promotion this readout is
  * supposed to gate. A panel that divided `wouldBlock / turns` itself would
  * silently undo that discipline at the last step. It renders what the server
  * decided, or it renders "withheld".
  */
 
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -32,7 +33,7 @@ import type { BufferShadow } from "@/lib/observability/evidence-gate-calibration
 const DRIVER_LABELS: Record<string, { label: string; tone: string; note?: string }> = {
   named_claim: { label: "named claim", tone: "text-amber-300" },
   fact_check: { label: "fact-check", tone: "text-rose-300" },
-  // Called out because it is not an evidence signal at all — a long reply is
+  // Called out because it is not an evidence signal at all, a long reply is
   // not an unsupported one, and promoting on an aggregate would promote this.
   length: { label: "length", tone: "text-fg-tertiary", note: "not an evidence signal" },
   other: { label: "other", tone: "text-fg-secondary" },
@@ -160,14 +161,14 @@ export function EvidenceGatePanel() {
   if (q.isLoading) {
     return (
       <section aria-label="evidence-gate-calibration" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
-        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
+              <ShimmerSkeleton className="h-3 w-44" />
+        <ShimmerSkeleton className="h-16 w-full" />
       </section>
     );
   }
   if (q.isError || !q.data) {
     return (
-      <section
+      <section data-read-failed
         aria-label="evidence-gate-calibration"
         className="rounded-surface border border-red-500/15 bg-red-500/5 p-4"
       >
@@ -175,7 +176,7 @@ export function EvidenceGatePanel() {
           <AlertCircle className="h-3.5 w-3.5" />
           {/* Unknown, not safe. The same wording the census panel uses, for the
               same reason: a failed read must never read as an all-clear. */}
-          Gate calibration couldn&apos;t load — promotion readiness unknown, not ready.
+          Gate calibration couldn&apos;t load: promotion readiness unknown, not ready.
         </p>
       </section>
     );
@@ -207,7 +208,7 @@ export function EvidenceGatePanel() {
         </span>
       </div>
 
-      {/* Sample growth toward the floor — the ONLY thing between here and a
+      {/* Sample growth toward the floor, the ONLY thing between here and a
           decision, so it is the headline rather than a footnote. */}
       <div className="space-y-1">
               <div className="flex items-baseline justify-between text-[11px] font-mono">

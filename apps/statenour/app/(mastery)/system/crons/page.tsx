@@ -1,21 +1,21 @@
 "use client";
 
 /**
- * /system/crons — live command deck for every scheduled job.
+ * /system/crons, live command deck for every scheduled job.
  *
  * v11.0 (W2.2). Source: config/crons.ts + CronJobLog + BrainMemory
  * (cron_control). Auto-refreshes every 30s. Fires /api/system/crons/
  * {toggle,run} for control actions.
  *
  * Controls per row:
- *   · STATUS DOT (live)     — green/amber/red, pulses on recent run
- *   · NAME + CATEGORY PILL  — clickable → filter
- *   · SCHEDULE + NEXT-IN    — live countdown
- *   · LAST RUN              — time-ago + duration + pass/fail
- *   · SPARKLINE             — 20-run duration history
- *   · SUCCESS RATE          — 14d %
- *   · KILL SWITCH           — toggle disables (stored as BrainMemory)
- *   · RUN NOW               — manually trigger via /api/system/crons/run
+ *   · STATUS DOT (live)    , green/amber/red, pulses on recent run
+ *   · NAME + CATEGORY PILL , clickable → filter
+ *   · SCHEDULE + NEXT-IN   , live countdown
+ *   · LAST RUN             , time-ago + duration + pass/fail
+ *   · SPARKLINE            , 20-run duration history
+ *   · SUCCESS RATE         , 14d %
+ *   · KILL SWITCH          , toggle disables (stored as BrainMemory)
+ *   · RUN NOW              , manually trigger via /api/system/crons/run
  *
  * Alive elements:
  *   · pulsing dot on active runs
@@ -26,18 +26,16 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { isRetrying, readState } from "@/lib/query-state";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { CronFoldTree } from "@/components/system/cron-fold-tree";
 // 2026-08-16 · relocated from the retired /knowledge page. This is the
-// manual trigger for the 7-subsystem ingest fan-out + prompt-cache flush —
+// manual trigger for the 7-subsystem ingest fan-out + prompt-cache flush ,
 // the same class of action as this deck's per-row RUN NOW.
 import { KnowledgeRefreshPanel } from "@/components/system/knowledge-refresh-panel";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
@@ -99,24 +97,24 @@ interface FeedResponse {
 }
 
 const CATEGORY_META: Record<Category, { label: string; tint: string; glow: string }> = {
-  compose: { label: "compose",   tint: "text-violet-300",  glow: "" },
+  compose: { label: "compose",   tint: "text-fg-secondary",  glow: "" },
   ingest:  { label: "ingest",    tint: "text-sky-300",     glow: "" },
-  brain:   { label: "brain",     tint: "text-fuchsia-300", glow: "" },
+  brain:   { label: "brain",     tint: "text-fg-secondary", glow: "" },
   signals: { label: "signals",   tint: "text-amber-300",   glow: "" },
   hygiene: { label: "hygiene",   tint: "text-emerald-300", glow: "" },
-  review:  { label: "review",    tint: "text-yellow-200",  glow: "" },
-  device:  { label: "device",    tint: "text-cyan-300",    glow: "" },
+  review:  { label: "review",    tint: "text-fg-tertiary",  glow: "" },
+  device:  { label: "device",    tint: "text-sky-300",    glow: "" },
   alert:   { label: "alert",     tint: "text-rose-300",    glow: "" },
-  action:  { label: "action",    tint: "text-lime-300",    glow: "" },
+  action:  { label: "action",    tint: "text-fg-secondary",    glow: "" },
 };
 
 // Crash-proof fallback for any category value the manifest grows that
-// isn't yet mapped above — keeps the page rendering instead of throwing
+// isn't yet mapped above, keeps the page rendering instead of throwing
 // "Cannot read properties of undefined (reading 'tint')".
 const FALLBACK_META = { label: "other", tint: "text-fg", glow: "" };
 
 function nextRunIn(iso: string | null, now: number): string {
-  if (!iso) return "—";
+  if (!iso) return "never";
   const ms = new Date(iso).getTime() - now;
   if (ms < 0) return "imminent";
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
@@ -130,7 +128,7 @@ function nextRunIn(iso: string | null, now: number): string {
 }
 
 function describeSchedule(expr: string | null): string {
-  if (!expr) return "—";
+  if (!expr) return "none";
   // Friendly-ify common shapes
   const m: Record<string, string> = {
     "*/5 * * * *": "every 5m",
@@ -172,7 +170,7 @@ function StatusDot({ row }: { row: CronRow }) {
     return <span className="inline-block h-2 w-2 rounded-full bg-fg-tertiary" />;
   }
   if (row.mode === "folded") {
-    return <span className="inline-block h-2 w-2 rounded-full bg-indigo-400/50" />;
+    return <span className="inline-block h-2 w-2 rounded-full bg-fg-tertiary/50" />;
   }
   if (!row.enabled) {
     return <span className="inline-block h-2 w-2 rounded-full bg-fg-tertiary" />;
@@ -383,20 +381,19 @@ export default function CronsPage() {
 
       {/* Summary strip */}
       {summary && (
-        <Panel className="border-edge-default">
-          <div className="grid grid-cols-3 gap-3 text-center md:grid-cols-7">
-            <SummaryCell label="active"      value={summary.active}      tint="text-emerald-400" />
-            <SummaryCell label="killed"      value={summary.disabled}    tint={summary.disabled > 0 ? "text-amber-400" : "text-fg-tertiary"} />
-            <SummaryCell label="folded"      value={summary.folded}      tint="text-indigo-300" />
-            <SummaryCell label="retired"     value={summary.retired}     tint="text-fg-tertiary" />
-            <SummaryCell label="runs/24h"    value={summary.runs24h}     tint="text-sky-300" />
-            <SummaryCell label="failures/24h" value={summary.failures24h} tint={summary.failures24h > 0 ? "text-rose-400" : "text-fg-tertiary"} />
-            <SummaryCell label="drifted"     value={summary.drifted}     tint={summary.drifted > 0 ? "text-amber-400" : "text-fg-tertiary"} />
-          </div>
-        </Panel>
+        <p aria-label="cron summary" className="text-[13px] leading-relaxed text-fg-secondary tabular-nums">
+          <span className="text-emerald-300">{summary.active} active</span>
+          {", "}
+          <span className={summary.disabled > 0 ? "text-amber-300" : undefined}>{summary.disabled} killed</span>
+          {", "}
+          {summary.folded} folded, {summary.retired} retired. {summary.runs24h} runs in 24h,{" "}
+          <span className={summary.failures24h > 0 ? "text-rose-300" : undefined}>{summary.failures24h} failed</span>
+          {", "}
+          <span className={summary.drifted > 0 ? "text-amber-300" : undefined}>{summary.drifted} drifted</span>.
+        </p>
       )}
 
-      {/* v8.9 BATCH 53 — Fold-lineage tree. Active vs folded vs
+      {/* v8.9 BATCH 53, Fold-lineage tree. Active vs folded vs
           retired with foldedInto target arrows + headroom counter. */}
       <CronFoldTree />
 
@@ -495,17 +492,6 @@ export default function CronsPage() {
 
 const CRONS_LABEL = "source: config/crons.ts · state: BrainMemory(cron_control) + CronJobLog";
 
-function SummaryCell({ label, value, tint }: { label: string; value: number; tint: string }) {
-  return (
-    <div className="rounded-surface bg-content/[0.03] p-3">
-      <div className={cn("text-2xl font-bold tabular-nums", tint)}>
-        <AnimatedCounter value={value} />
-      </div>
-      <div className="font-mono text-[11px] text-fg-tertiary">{label}</div>
-    </div>
-  );
-}
-
 function CronRowView({
   row,
   runNow,
@@ -521,7 +507,7 @@ function CronRowView({
 }) {
   const meta = CATEGORY_META[row.category] ?? FALLBACK_META;
   const canTrigger = row.mode === "active";
-  const durationStr = row.lastRunMs != null ? `${row.lastRunMs}ms` : "—";
+  const durationStr = row.lastRunMs != null ? `${row.lastRunMs}ms` : "no run";
   const { openInspector } = useInspector();
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /system/ui-lab — the object grammar's primitives against fixtures
+ * /system/ui-lab, the object grammar's primitives against fixtures
  * (2026-09-15, UI workbench slice 2).
  *
  * TEST FIXTURE HOST, not a surface (2026-10-18): no hub card, no palette row, no
@@ -12,7 +12,7 @@
  *
  * Rules: the REAL components, plain props, nothing
  * mocked at module level. The clock is frozen (FIXTURE_NOW) so every age
- * and expiry reads the same tomorrow — a gallery that drifts is a gallery
+ * and expiry reads the same tomorrow, a gallery that drifts is a gallery
  * nobody trusts.
  */
 
@@ -30,7 +30,7 @@ import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { ToolResultCard } from "@/components/chat/tool-result-card";
 import type { ReasoningStep } from "@/lib/ai/reasoning/types";
 
-/** Activity Summary fixtures — one WORKING stream, one DONE stream. */
+/** Activity Summary fixtures, one WORKING stream, one DONE stream. */
 const ACTIVITY_WORKING: ReasoningStep[] = [
   { kind: "classify", label: "Classifying the question", elapsedMs: 180 },
   { kind: "tool_call", label: "Reading the live deployment", elapsedMs: 2_100 },
@@ -97,7 +97,7 @@ const EVIDENCE_FIXTURES: Array<{ title: string; provenance: ProvenanceInput }> =
 /**
  * Fixture rows for the selection grammar. Kind `content` has no renderer, so
  * Enter shows the honest "no inspector for this kind yet" notice and nothing
- * needs a database — which is what lets tests/e2e/selection-grammar.spec.ts
+ * needs a database, which is what lets tests/e2e/selection-grammar.spec.ts
  * exercise j/k · Space · Enter · x · Esc and the route-change reset against
  * the hermetic (empty) CI database.
  */
@@ -108,7 +108,7 @@ const FIXTURE_ROWS = [
   { id: "fx-4", label: "Fixture row four · a draft carousel on brake wear" },
 ] as const;
 
-/** A fixture body for the frame demo — what a memory inspector renders. */
+/** A fixture body for the frame demo, what a memory inspector renders. */
 function FixtureMemoryBody() {
   return (
     <div className="space-y-3">

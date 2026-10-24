@@ -1,15 +1,16 @@
 "use client";
 
 /**
- * HomeDecisionPanel — BDN-104 (2026-08-12).
+ * HomeDecisionPanel, BDN-104 (2026-08-12).
  *
  * The compact-Home composition shipped with a cheap test and no sensor.
  * This is the readout: did the operator actually decide anything on
- * Home, and did the resume cue get used? Kept deliberately small — it
+ * Home, and did the resume cue get used? Kept deliberately small, it
  * answers one question, and an empty reading says "unmeasured", never
  * "unused".
  */
 
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, MousePointerClick } from "lucide-react";
 
@@ -22,17 +23,17 @@ export function HomeDecisionPanel() {
   if (metricsQ.isLoading) {
     return (
       <section aria-label="home-decisions" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-36 rounded-micro bg-surface-interactive animate-pulse" />
-        <div className="h-12 rounded-control bg-surface-interactive animate-pulse" />
+              <ShimmerSkeleton className="h-3 w-36" />
+        <ShimmerSkeleton className="h-12 w-full" />
       </section>
     );
   }
   if (metricsQ.isError) {
     return (
-      <section aria-label="home-decisions" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
+      <section data-read-failed aria-label="home-decisions" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
-          Home decision metrics couldn&apos;t load — unmeasured, not zero.
+          Home decision metrics couldn&apos;t load: unmeasured, not zero.
         </p>
       </section>
     );
@@ -72,7 +73,7 @@ export function HomeDecisionPanel() {
       ) : (
         <p className="text-[11px] text-fg-tertiary leading-relaxed">
           The BDN-001 cheap test: if Home is where decisions happen, these move. If they stay flat,
-          the composition gets marked untested-and-unused in the ledger — not quietly kept.
+          the composition gets marked untested-and-unused in the ledger, not quietly kept.
         </p>
       )}
     </section>

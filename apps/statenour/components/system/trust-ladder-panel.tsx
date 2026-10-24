@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * TrustLadderPanel — BDN-102's surface (2026-08-12).
+ * TrustLadderPanel, BDN-102's surface (2026-08-12).
  *
  * The graduation mechanism has existed since June (confidence-tier's
  * canAutoExecute); the tallies behind it were never rendered, so the
@@ -9,10 +9,11 @@
  * scoreboard: per action type, the operator's own 45-day verdict record
  * and whether that record clears the auto bar.
  *
- * Read-only. Nothing here promotes anything — flipping the flag stays a
+ * Read-only. Nothing here promotes anything, flipping the flag stays a
  * deliberate operator act, which is the entire point of the ladder.
  */
 
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -23,17 +24,17 @@ export function TrustLadderPanel() {
   if (ladderQ.isLoading) {
     return (
       <section aria-label="trust-ladder" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-36 rounded-micro bg-surface-interactive animate-pulse" />
-        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
+              <ShimmerSkeleton className="h-3 w-36" />
+        <ShimmerSkeleton className="h-16 w-full" />
       </section>
     );
   }
   if (ladderQ.isError) {
     return (
-      <section aria-label="trust-ladder" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
+      <section data-read-failed aria-label="trust-ladder" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
-          Trust ladder couldn&apos;t load — acceptance record unknown, not empty.
+          Trust ladder couldn&apos;t load: acceptance record unknown, not empty.
         </p>
       </section>
     );
@@ -67,7 +68,7 @@ export function TrustLadderPanel() {
               <p className="text-[11px] font-mono text-fg truncate">{r.actionType}</p>
               <p className="text-[11px] text-fg-tertiary mt-0.5">
                 {r.decided === 0 ? (
-                  "no verdicts yet — nothing to grade"
+                  "no verdicts yet, nothing to grade"
                 ) : (
                   <>
                     {r.approved}/{r.decided} accepted
@@ -87,10 +88,10 @@ export function TrustLadderPanel() {
               )}
               title={
                 r.wouldAutoExecute
-                  ? "clears the bar AND the flag is on — runs unattended"
+                  ? "clears the bar AND the flag is on, runs unattended"
                   : r.meetsBar
                     ? "clears the bar; only the NICK_CONFIDENCE_TIER flag stands between this type and unattended execution"
-                    : "does not clear the bar — stays approval-gated"
+                    : "does not clear the bar, stays approval-gated"
               }
             >
               {r.wouldAutoExecute ? "auto" : r.meetsBar ? "ready" : "gated"}
@@ -101,8 +102,8 @@ export function TrustLadderPanel() {
 
       <p className="text-[11px] text-fg-tertiary leading-relaxed border-t border-edge-subtle pt-2">
         {ready > 0 && !flagOn
-          ? `${ready} type${ready === 1 ? "" : "s"} clear the bar. Flipping NICK_CONFIDENCE_TIER would let ${ready === 1 ? "it" : "them"} run unattended — allowlisted internal actions only; messaging and money can never pass.`
-          : "A type graduates only on the operator's own accepted/rejected record — allowlisted internal actions only; messaging and money can never pass."}
+          ? `${ready} type${ready === 1 ? "" : "s"} clear the bar. Flipping NICK_CONFIDENCE_TIER would let ${ready === 1 ? "it" : "them"} run unattended, allowlisted internal actions only; messaging and money can never pass.`
+          : "A type graduates only on the operator's own accepted/rejected record, allowlisted internal actions only; messaging and money can never pass."}
       </p>
     </section>
   );
