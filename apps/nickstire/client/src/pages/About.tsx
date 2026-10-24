@@ -31,6 +31,8 @@ const ABOUT_QUOTES = [
   "Boss is trustworthy and kind, stuck to quoted price, and goes over and beyond to help customer. They gave me a ride to my bank so I could pay in cash.",
   "The guys here are kind and get it done!! In and out 20 min. Attitude and courtesy matter and I appreciated them.",
   "They were so courteous and polite. Plugged the hole, checked all the tires and was super reasonably priced. This is my family's new tire store",
+  "I couldn't be happier with this establishment! I've been in the market for a shop/mechanic, that isn't going to break the bank and does good, honest work. And today I found them. I needed my rear brakes done…",
+  "I have been to many mechanics in Cleveland this is the FIRST shop that I felt I could trust! Especially as a woman.. it’s very hard to find HONEST and well done mechanic work. They’re very reasonably priced and professional…",
 ];
 
 // wave-181.x · About page now uses two new operator-supplied shop photos:

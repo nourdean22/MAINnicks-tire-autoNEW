@@ -38,7 +38,7 @@ actually offered every day.
 
 ## 3. Draft A: website (built, PR open, not merged)
 
-/about "In our customers' words" now shows six verbatim Google review lines about how the crew treats people, with
+/about "In our customers' words" now shows eight verbatim Google review lines about how the crew treats people, with
 "Google review" under each and no names. Lines and their age when read (each is a 5-star review):
 
 1. "He took care of my car, also he made me feel at home while I waited…" (a week old)
@@ -51,6 +51,12 @@ actually offered every day.
    them." (about a year old)
 6. "They were so courteous and polite. Plugged the hole, checked all the tires and was super reasonably priced.
    This is my family's new tire store" (about a year old)
+7. "I couldn't be happier with this establishment! I've been in the market for a shop/mechanic, that isn't going to
+   break the bank and does good, honest work. And today I found them. I needed my rear brakes done…" (7 months old;
+   the real review behind the curated "Amber S.", added on Nour's go 2026-10-24)
+8. "I have been to many mechanics in Cleveland this is the FIRST shop that I felt I could trust! Especially as a
+   woman.. it’s very hard to find HONEST and well done mechanic work. They’re very reasonably priced and
+   professional…" (about a year old; the real review behind the curated "Jasmine T.", added on Nour's go 2026-10-24)
 
 Rules kept: words unchanged, whitespace normalized, long reviews trimmed with an ellipsis, names removed (customer
 and crew). If Nour wants it on the homepage too, the same list can replace the homepage fallback cards.
