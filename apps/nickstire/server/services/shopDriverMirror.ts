@@ -853,6 +853,46 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
   return { created, updated };
 }
 
+type NameCandidate = { id: number; firstName: string | null; lastName: string | null; phone: string | null };
+
+/**
+ * The customer an invoice belongs to, from the batch's prefetched maps: a phone of 7+ digits first, then an
+ * exactly-one first+last name match. Used for a new invoice and for a stored one that has no customer.
+ * `matchedCustomerPhone` is set only by the name match (a phone match already has the phone).
+ */
+function matchCustomer(
+  rawPhone: string | null | undefined,
+  customerName: string | null | undefined,
+  customersByPhone: Map<string, number>,
+  customersByLastName: Map<string, NameCandidate[]>,
+): { customerId: number; matchedCustomerPhone: string | null } | null {
+  if (rawPhone) {
+    const phone = normalizePhone(rawPhone);
+    const byPhone = phone.length >= 7 ? customersByPhone.get(phone) : undefined;
+    if (byPhone) return { customerId: byPhone, matchedCustomerPhone: null };
+  }
+
+  // Fallback: customer by lastName (and firstName if available)
+  if (customerName && customerName !== "Unknown") {
+    const nameParts = customerName.includes(",")
+      ? customerName.split(",").map((s: string) => s.trim())
+      : [customerName];
+    const lastName = nameParts[0] || "";
+    const firstName = nameParts[1] || "";
+
+    if (lastName) {
+      const candidates = customersByLastName.get(nameKey(lastName)) ?? [];
+      const filtered = firstName
+        ? candidates.filter(c => nameKey(c.firstName) === nameKey(firstName))
+        : candidates;
+      // Still exactly-one-or-nothing: a surname with several given names
+      // (47 Williamses, no Terrence) must stay unmatched, never guessed.
+      if (filtered.length === 1) return { customerId: filtered[0].id, matchedCustomerPhone: filtered[0].phone ?? null };
+    }
+  }
+  return null;
+}
+
 /**
  * `skipped` is rows that needed no change (and tickets with no invoice number). `failed` is rows
  * whose write threw: they used to be counted as `skipped`, which made a mirror that stored
@@ -880,23 +920,28 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
 
   // Bulk prefetch invoices by number
   const invoiceNumbers = [...new Set(valid.map(ri => ri.invoiceNumber))];
-  type InvoiceLookup = { id: number; totalAmount: number; algTicketId: string | null };
-  type InvoiceRow = { id: number; invoiceNumber: string; totalAmount: number; algTicketId: string | null };
+  type InvoiceLookup = { id: number; totalAmount: number; algTicketId: string | null; customerId: number | null; customerPhone: string | null };
+  type InvoiceRow = InvoiceLookup & { invoiceNumber: string };
   const existingInvoiceRows = await d.select({
     id: invoices.id,
     invoiceNumber: invoices.invoiceNumber,
     totalAmount: invoices.totalAmount,
     algTicketId: invoices.algTicketId,
+    customerId: invoices.customerId,
+    customerPhone: invoices.customerPhone,
   }).from(invoices).where(inArray(invoices.invoiceNumber, invoiceNumbers)) as InvoiceRow[];
   const existingByInvoiceNumber = new Map<string, InvoiceLookup>(
-    existingInvoiceRows.map((r: InvoiceRow) => [r.invoiceNumber, { id: r.id, totalAmount: r.totalAmount, algTicketId: r.algTicketId }])
+    existingInvoiceRows.map((r: InvoiceRow) => [r.invoiceNumber, { id: r.id, totalAmount: r.totalAmount, algTicketId: r.algTicketId, customerId: r.customerId, customerPhone: r.customerPhone }])
   );
 
-  // Bulk prefetch customers by phone — only for invoices we'll INSERT
-  const invoicesNeedingCustomerLookup = valid.filter(ri => !existingByInvoiceNumber.has(ri.invoiceNumber));
+  // Bulk prefetch customers by phone — for every invoice with no customer yet: the new ones we will
+  // INSERT and the stored ones we will UPDATE. An invoice that already has a customer is not matched again.
+  const invoicesNeedingCustomerLookup = valid.filter(ri => existingByInvoiceNumber.get(ri.invoiceNumber)?.customerId == null);
+  // The ticket's phone, else the one already on a stored invoice (a later payload can lose it).
+  const phoneToMatch = (ri: RawInvoice) => ri.customerPhone || existingByInvoiceNumber.get(ri.invoiceNumber)?.customerPhone || null;
   const phonesForLookup = [...new Set(
     invoicesNeedingCustomerLookup
-      .map(ri => ri.customerPhone ? normalizePhone(ri.customerPhone) : null)
+      .map(ri => { const p = phoneToMatch(ri); return p ? normalizePhone(p) : null; })
       .filter((p): p is string => !!p && p.length >= 7)
   )];
   const customersByPhone = new Map<string, number>();
@@ -920,7 +965,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
       })
       .filter(n => n.length > 0)
   )];
-  const customersByLastName = new Map<string, Array<{ id: number; firstName: string | null; lastName: string | null; phone: string | null }>>();
+  const customersByLastName = new Map<string, NameCandidate[]>();
   if (lastNamesForLookup.length > 0) {
     // COLLATE is load-bearing, not decoration. customers.lastName is declared
     // utf8mb4_bin — case SENSITIVE and NO PAD — regardless of the connection
@@ -966,6 +1011,18 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         if (ri.customerName && ri.customerName !== "Unknown") updates.customerName = ri.customerName;
         // Backfill algTicketId for rows that pre-date wave-99
         if (ri.algTicketId && !ex.algTicketId) updates.algTicketId = ri.algTicketId;
+        // An invoice first mirrored before its customer existed (or before the ticket carried a phone) gets the
+        // same link a new invoice gets. COALESCE keeps it from ever replacing a customer set since the prefetch.
+        if (ex.customerId == null) {
+          const match = matchCustomer(phoneToMatch(ri), ri.customerName, customersByPhone, customersByLastName);
+          if (match) {
+            updates.customerId = sql`COALESCE(${invoices.customerId}, ${match.customerId})`;
+            // Same phone backfill as a new invoice, only into an empty phone: never over a stored or ticket phone.
+            if (!updates.customerPhone && !ex.customerPhone && match.matchedCustomerPhone) {
+              updates.customerPhone = normalizePhone(match.matchedCustomerPhone);
+            }
+          }
+        }
 
         if (totalMoves) {
           const applied = await withInvoiceLock(d, ex.id, async (tx, row) => {
@@ -995,37 +1052,10 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         continue;
       }
 
-      // Map-lookup customer by phone (no per-row SELECT)
-      let customerId: number | undefined;
-      let matchedCustomerPhone: string | null = null;
-      if (ri.customerPhone) {
-        const phone = normalizePhone(ri.customerPhone);
-        if (phone.length >= 7) {
-          customerId = customersByPhone.get(phone);
-        }
-      }
-
-      // Fallback: map-lookup customer by lastName (and firstName if available)
-      if (!customerId && ri.customerName && ri.customerName !== "Unknown") {
-        const nameParts = ri.customerName.includes(",")
-          ? ri.customerName.split(",").map((s: string) => s.trim())
-          : [ri.customerName];
-        const lastName = nameParts[0] || "";
-        const firstName = nameParts[1] || "";
-
-        if (lastName) {
-          const candidates = customersByLastName.get(nameKey(lastName)) ?? [];
-          const filtered = firstName
-            ? candidates.filter(c => nameKey(c.firstName) === nameKey(firstName))
-            : candidates;
-          // Still exactly-one-or-nothing: a surname with several given names
-          // (47 Williamses, no Terrence) must stay unmatched, never guessed.
-          if (filtered.length === 1) {
-            customerId = filtered[0].id;
-            matchedCustomerPhone = filtered[0].phone ?? null;
-          }
-        }
-      }
+      // Map-lookup customer by phone, then by name (no per-row SELECT)
+      const match = matchCustomer(ri.customerPhone, ri.customerName, customersByPhone, customersByLastName);
+      const customerId = match?.customerId;
+      const matchedCustomerPhone = match?.matchedCustomerPhone ?? null;
 
       // Root-cause fix: ALG ticket payloads frequently omit the phone, which left
       // the invoice untextable ("missing customer phone") even when we matched it
