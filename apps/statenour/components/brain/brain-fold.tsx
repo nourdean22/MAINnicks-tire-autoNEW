@@ -9,13 +9,13 @@
  * "(n unreadable)" = the rows holding a failed-read marker, so a closed fold never hides a failure.
  * Until the body reports, the count is unknown and the summary shows the title alone.
  *
- * Pattern from components/home/context-rail.tsx (count from the rendered body via MutationObserver).
- * Not extracted into a shared helper: that file is Home's (another lane), and its fold is held open at
- * xl, which this one is not.
+ * The body is measured by useObservedCount from components/system/detail-fold.tsx (wave E1), with the
+ * offline, provenance and id markers added to what it watches.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { useObservedCount } from "@/components/system/detail-fold";
 
 /** What marks a FAILED read inside a row: this file's line, ReadStateNote, EmptyState, UnmeasuredLine. */
 export const READ_FAILED_SELECTOR = '[data-read-failed], [data-read-state="error"], [data-provenance="ERROR"]';
@@ -47,46 +47,35 @@ function hashTarget(body: Element): Element | null {
   return el && body.contains(el) ? el : null;
 }
 
+/** The markers a Brain fold re-measures on, beyond added and removed rows. */
+const WATCHED = ["data-read-failed", "data-read-state", "data-provenance", "id"];
+
 export function BrainFold({ title, children }: { title: string; children: ReactNode }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [count, setCount] = useState<{ rows: number; unreadable: number; offline: number } | null>(null);
+  // Shared with the System detail fold (wave E1): one observer, measured from the hidden body.
+  const [bodyRef, count] = useObservedCount(countFoldRows, WATCHED);
+  const openedFor = useRef("");
 
+  // A deep link (#pin-<id>, #pinned-context, #recall-preview, #anti-patterns) into a closed fold would
+  // scroll to a hidden box. Open once per hash, so closing it again sticks. Re-checked whenever the body
+  // re-measures (a row that renders late) and on hashchange.
   useEffect(() => {
     const body = bodyRef.current;
     const details = detailsRef.current;
     if (!body || !details) return;
-    // A deep link (#pin-<id>, #pinned-context, #recall-preview, #anti-patterns) into a closed fold
-    // would scroll to a hidden box. Open once per hash, so closing it again sticks.
-    let openedFor = "";
     const openForHash = () => {
       const hash = window.location.hash;
-      if (!hash || hash === openedFor) return;
+      if (!hash || hash === openedFor.current) return;
       const el = hashTarget(body);
       if (!el) return;
-      openedFor = hash;
+      openedFor.current = hash;
       if (!details.open) details.open = true;
       el.scrollIntoView?.({ block: "start" });
     };
-    const update = () => {
-      setCount(countFoldRows(body));
-      openForHash();
-    };
-    update();
+    openForHash();
     window.addEventListener("hashchange", openForHash);
-    if (typeof MutationObserver === "undefined") return () => window.removeEventListener("hashchange", openForHash);
-    const observer = new MutationObserver(update);
-    observer.observe(body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["data-read-failed", "data-read-state", "data-provenance", "id"],
-    });
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("hashchange", openForHash);
-    };
-  }, []);
+    return () => window.removeEventListener("hashchange", openForHash);
+  }, [bodyRef, count]);
 
   return (
     <details ref={detailsRef} className="group border-t border-edge">

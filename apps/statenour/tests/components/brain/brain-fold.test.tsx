@@ -28,7 +28,8 @@ async function mount(node: React.ReactNode) {
   });
   await act(async () => {
     await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
+    // the shared observer takes its first measure on the next animation frame
+    await new Promise((r) => setTimeout(r, 40));
   });
 }
 

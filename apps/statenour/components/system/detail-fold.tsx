@@ -16,10 +16,16 @@ export function countFailedReads(root: Countable): number {
  * Watches child changes AND the `data-read-failed` attribute: a block whose ok and failed branches
  * are the same element type (section to section) is reused by React, so the marker arrives as an
  * attribute change and no node is added.
+ * `T` and `attributes` are optional (Brain folds measure rows, failed and offline together and watch the
+ * offline marker too); the defaults keep this hook's original behaviour.
  */
-export function useObservedCount(measure: (root: HTMLDivElement) => number): [RefObject<HTMLDivElement | null>, number | null] {
+export function useObservedCount<T = number>(
+  measure: (root: HTMLDivElement) => T,
+  attributes: string[] = ["data-read-failed"],
+): [RefObject<HTMLDivElement | null>, T | null] {
   const ref = useRef<HTMLDivElement>(null);
-  const [count, setCount] = useState<number | null>(null);
+  const [count, setCount] = useState<T | null>(null);
+  const attributesRef = useRef(attributes);
   const measureRef = useRef(measure);
   measureRef.current = measure;
 
@@ -29,7 +35,7 @@ export function useObservedCount(measure: (root: HTMLDivElement) => number): [Re
     const update = () => setCount(measureRef.current(body));
     const frame = requestAnimationFrame(update);
     const observer = new MutationObserver(update);
-    observer.observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-read-failed"] });
+    observer.observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: attributesRef.current });
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();

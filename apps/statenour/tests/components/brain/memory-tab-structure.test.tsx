@@ -107,7 +107,8 @@ async function mount() {
   // Let late reads land and the folds' observers report.
   await act(async () => {
     await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
+    // the shared observer takes its first measure on the next animation frame
+    await new Promise((r) => setTimeout(r, 40));
   });
 }
 
