@@ -527,7 +527,7 @@ async function chatTurn({
     // this push, so the override now lands on ollama for python-
     // execute turns. Strict tool_choice + qwen3 = tool fires
     // reliably + free tier covers our usage + 1M context window.
-    // Precedence: (1) tool-mandatory force (python-execute / action intent)
+    // Precedence: (1) tool-mandatory force (action intent)
     // pins a text-reliable provider (gemini or anthropic for high-stakes) for strict tool_choice — ALWAYS wins;
     // (2) a validated per-request user override; (3) default task ordering.
     // toolMandatoryForce is forced when an intent is active, so `??` can never let the user override clobber the tool force.

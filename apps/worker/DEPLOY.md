@@ -73,7 +73,7 @@ Live catalog: `/system/crons` on statenour-web (tRPC `systemAutomation.cronDeck`
 Do not read `GET /api/settings/crons` as the catalog: it parses the deleted `vercel.json`
 (`lib/services/cron-control.ts` `listScheduledCrons`), so it returns only its hard-coded mega rows.
 
-Registered here in `src/scheduler.ts`:
+Registered here in `src/scheduler.ts:122-170` (`HIGH_FREQ_JOBS`):
 - `brain-bus-drain` · every 15m → GET `/api/cron/brain-bus-drain`
 - `outbox-drain` · hourly → GET `/api/cron/outbox-drain`
 - `inngest-liveness` · daily 13:00 UTC → GET `/api/cron/inngest-liveness`

@@ -281,12 +281,18 @@ const finalPreferLargeContext = contentMode || domainRoute.preferLargeContext;
 const budget = await assertWithinBudget().catch(() => null);
 if (budget && !budget.ok) return Response.json({ … }, { status: 402 });
 
-// route.ts · an action intent → force Ollama (strict toolChoice)
-// (the python-execute force was removed 2026-10-24 with the runPython tool)
-model = getModel(finalTaskType, {
-  preferLargeContext: finalPreferLargeContext,
-  ...(__actionIntent ? { forceProviderFirst: "ollama" as const } : {}),
-});
+// route.ts:535-567 · an action intent forces a provider, and the provider depends on the action.
+// (The python-execute force was removed 2026-10-24 with the runPython tool.)
+const isHighStakesMutation =
+  __actionIntent && HIGH_STAKES_MUTATIONS.has(__actionIntent.expectedTool || "");
+
+const toolMandatoryForce =
+  __actionIntent
+    ? isHighStakesMutation
+      ? ("anthropic" as const)
+      : ("ollama" as const)
+    : undefined;
+// effectiveForce = toolMandatoryForce ?? validatedProviderOverride ?? ...   (route.ts:595-599)
 ```
 
 `budget.ts` reads `UserPreference("ai.dailyBudgetCents", default 500¢)`
@@ -766,7 +772,12 @@ with the proper headers:
 
 ---
 
-## The 3-layer Python-execute forcing pattern · why it took v517-v523
+## HISTORICAL (2026-10-24): the 3-layer Python-execute forcing pattern · removed by the functions-cleanup PR
+
+None of this exists any more. The `runPython` tool, its force, the python-execute intent signal and the
+`arsenal.runPython` agent action were all removed on 2026-10-24 (E2B_API_KEY is unset in prod; `runCode`
+covers the job). The section is kept only to explain why a tool force exists at all, and the line numbers
+below describe the code as it was before that PR.
 
 The canonical example of forcing a model to actually use a tool
 instead of narrating around it. Each layer alone wasn't enough; the
@@ -779,10 +790,8 @@ because venice-uncensored has loose tool_choice adherence.
 | 2     | route.ts:1200-1214             | `toolChoice: { type: "tool", toolName: "runPython" }` — specific tool, not "required" |
 | 3     | tools.ts:635 (`runPython` desc) | "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE …" — textual imperative |
 
-**Net effect:** post-v523 python-execute intent fires `runPython`
-100% with zero code-text fabrication ahead of the call. Missing
-`E2B_API_KEY` surfaces as a structured error to the operator instead
-of pretending to execute.
+**Net effect (as of v523, now historical):** python-execute intent fired `runPython`
+with zero code-text fabrication ahead of the call.
 
 ---
 
