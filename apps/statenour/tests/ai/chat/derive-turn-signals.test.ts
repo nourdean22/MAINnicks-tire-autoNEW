@@ -109,6 +109,8 @@ describe("deriveTurnSignals · tool-mandatory intent exclusivity", () => {
   ])("a python / run-code ask sets no tool-mandatory intent: %s", async (prompt) => {
     const s = await callWith(prompt);
     expect(s).not.toHaveProperty("pythonExecuteIntent");
+    // A NON-forcing hint for the decision-plane shadow label only: nothing below reads it.
+    expect(s.codeExecutionIntent).toBe(true);
     expect(s.actionIntent).toBeNull();
     expect(s.webSearchIntent).toBe(false);
     expect(s.webSearchRecency).toBe(false);
@@ -128,6 +130,7 @@ describe("deriveTurnSignals · tool-mandatory intent exclusivity", () => {
 
   it("an ordinary question fires none of the mandatory intents", async () => {
     const s = await callWith("what do you think about the estimate follow-ups?");
+    expect(s.codeExecutionIntent).toBe(false);
     expect(s.webSearchIntent).toBe(false);
     expect(s.webSearchRecency).toBe(false);
   });

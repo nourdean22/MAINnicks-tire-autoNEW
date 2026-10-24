@@ -78,6 +78,8 @@ export interface IncumbentTurnDecisionInput {
   mode: string;
   finalTaskType: string;
   actionIntent: boolean;
+  /** Shadow label only (see deriveTurnSignals): never drives routing. */
+  codeExecutionIntent: boolean;
   webSearchIntent: boolean;
   webSearchRecency: boolean;
 }
@@ -109,10 +111,11 @@ export function incumbentTurnDecision(
     urgency: input.turnSignal.urgency,
     needsTools:
       input.actionIntent ||
+      input.codeExecutionIntent ||
       input.webSearchIntent ||
       input.webSearchRecency,
     needsWeb: input.webSearchIntent || input.webSearchRecency,
-    actionRequest: input.actionIntent,
+    actionRequest: input.actionIntent || input.codeExecutionIntent,
     needsDeepReasoning:
       input.mode === "deep" ||
       input.turnSignal.useChainOfThought ||

@@ -46,6 +46,8 @@ export interface TurnSignals {
   actionIntent: ReturnType<
     typeof import("@/lib/ai/chat/action-intent-detector").detectActionIntent
   > | null;
+  /** NON-forcing: a "run this code / execute Python" ask. Read only by the decision-plane shadow label. */
+  codeExecutionIntent: boolean;
   webSearchIntent: boolean;
   /** Weaker sibling: recency-phrased ask → search tools INCLUDED, never forced. */
   webSearchRecency: boolean;
@@ -271,6 +273,16 @@ export async function deriveTurnSignals(args: {
       userContent,
     );
 
+  // NON-forcing hint for the decision-plane shadow label only. The pruner offers
+  // runCode for these asks, so the incumbent "needs tools" label must say so. It is
+  // deliberately NOT read by provider choice, toolChoice, or the intents above: the
+  // old python-execute signal did all of that while pinning no tool.
+  const codeExecutionIntent =
+    !researchCompilerMode &&
+    /\b(run|execute|invoke)\s+(?:this\s+)?python\b|\bpython\s+(?:to\s+|and\s+)?(?:compute|calculate|run|execute)\b|\buse\s+(?:the\s+)?runPython\b|\brun\s+(?:this\s+)?code\b/i.test(
+      userContent,
+    );
+
   return {
     aiConfig,
     classification,
@@ -282,6 +294,7 @@ export async function deriveTurnSignals(args: {
     finalTaskType,
     finalPreferLargeContext,
     actionIntent,
+    codeExecutionIntent,
     webSearchIntent,
     webSearchRecency,
     researchCompilerMode,

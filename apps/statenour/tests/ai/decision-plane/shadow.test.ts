@@ -52,6 +52,7 @@ function input(over: Record<string, unknown> = {}) {
     mode: "deep",
     finalTaskType: "deep",
     actionIntent: false,
+    codeExecutionIntent: false,
     webSearchIntent: true,
     webSearchRecency: false,
     ...over,

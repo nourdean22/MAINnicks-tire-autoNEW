@@ -410,6 +410,7 @@ async function chatTurn({
     finalTaskType,
     finalPreferLargeContext,
     actionIntent: __actionIntent,
+    codeExecutionIntent: __codeExecutionIntent,
     webSearchIntent: __webSearchIntent,
     webSearchRecency: __webSearchRecency,
   } = await deriveTurnSignals({
@@ -478,6 +479,7 @@ async function chatTurn({
       mode,
       finalTaskType,
       actionIntent: Boolean(__actionIntent),
+      codeExecutionIntent: __codeExecutionIntent,
       webSearchIntent: __webSearchIntent,
       webSearchRecency: __webSearchRecency,
     });
