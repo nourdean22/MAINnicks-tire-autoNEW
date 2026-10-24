@@ -515,23 +515,6 @@ export const CRONS: CronDef[] = [
     // nightly-only meant a crashed turn's receipts waited up to 24h — now
     // ALSO fired every 15 min by the worker's node-cron. Claim is atomic
     // first-claimant-wins, so both dispatch paths coexist safely.
-    name: "agent-followups",
-    schedule: "*/15 * * * *",
-    // ACTIVE since 2026-10-02 (operator: "turn that on"). This cron is the
-    // only thing that can deliver an unprompted message, so it still sits
-    // behind two more independent switches: NICK_AGENT_FOLLOWUPS=1 on the
-    // web service, and the per-cron kill switch at /system/crons. The
-    // worker fires it every 15 min (apps/worker/src/scheduler.ts
-    // HIGH_FREQ_JOBS); claimDueFollowUps is first-claimant-wins.
-    mode: "active",
-    category: "hygiene",
-    worker: true,
-    description:
-      "Delivers follow-ups the agent scheduled for itself (post_turn_outbox kind=agent-followup). Worker every 15 min; also gated by NICK_AGENT_FOLLOWUPS=1 + the kill switch.",
-    memory: 512,
-    maxDuration: 300,
-  },
-  {
     name: "outbox-drain",
     schedule: "*/15 * * * *",
     mode: "active",

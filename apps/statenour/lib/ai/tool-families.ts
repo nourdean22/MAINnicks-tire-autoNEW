@@ -115,9 +115,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   createMissionPlan: { family: "personal-write", description: "Create a full mission plan with tasks" },
   queueMissionExecution: { family: "personal-write", description: "Queue bounded durable background execution for an active mission" },
   scheduleFollowUp: { family: "personal-write", description: "Schedule a follow-up reminder" },
-  // 2026-08-28 · WP3 · distinct from scheduleFollowUp above, which creates
-  // a CUSTOMER follow-up task. This one schedules NICK to speak again in
-  // this thread unprompted; the lane is OFF by default and triple-gated.
   endOfDay: { family: "personal-write", description: "Run EOD debrief + log score" },
   weeklyReview: { family: "personal-write", description: "Generate weekly review summary" },
   journalDecision: { family: "personal-write", description: "Log a decision to journal" },

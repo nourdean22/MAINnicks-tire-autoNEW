@@ -605,19 +605,6 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/provider.ts",
   },
   {
-    key: "NICK_AGENT_FOLLOWUPS",
-    readOnly: true,
-    // The mirrored runtime trims; without this the board says OFF for " 1 "
-    // while the feature runs. Measured, then pinned in the agreement test.
-    trimRawValue: true,
-    description: "Agent-authored follow-up items after a turn. Reads `(process.env.NICK_AGENT_FOLLOWUPS ?? \"\").trim() === \"1\"` at lib/agent/follow-up.ts:76 — note the trim, so whitespace-padded values still count.",
-    status: "experimental",
-    onValue: "1",
-    defaultOn: false,
-    defaultBehavior: "No agent follow-ups generated.",
-    ownerDoc: "lib/agent/follow-up.ts",
-  },
-  {
     key: "NICK_CANARY_DEEP_ANTHROPIC",
     readOnly: true,
     description: "Routes deep-reasoning effort to the Anthropic canary lane. Reads `process.env.NICK_CANARY_DEEP_ANTHROPIC === \"1\"` at lib/ai/vnext/effort-policy.ts:181 and :196 (the second is an `input.enabled ??` fallback, so a caller can override per-call).",

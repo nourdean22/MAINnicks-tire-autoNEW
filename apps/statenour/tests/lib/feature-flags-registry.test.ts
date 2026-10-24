@@ -24,7 +24,6 @@ import { isCalibrationEnforcerOn } from "@/lib/ai/chat/calibration-enforcer";
 import { isJitSectionsOn } from "@/lib/ai/vnext/jit-sections";
 import { isDeepAnthropicCanaryOn } from "@/lib/ai/vnext/effort-policy";
 import { isEscalationEnabled } from "@/lib/ai/vnext/escalation";
-import { areFollowUpsEnabled } from "@/lib/agent/follow-up";
 import { getActiveRerankBackend } from "@/lib/brain/rerank";
 import { isReplicateFluxEnabled } from "@/lib/ai/replicate-flux";
 import { isCamofoxEgressAttested } from "@/lib/integrations/camofox";
@@ -144,9 +143,6 @@ describe("readOnly mirrors agree with the runtime predicates they mirror", () =>
     // is the NEGATION of this predicate. Asserted explicitly below.
     ["NICK_ESCALATION_DISABLED", isEscalationEnabled,
       [[undefined, true], ["1", false], ["0", true]]],
-    ["NICK_AGENT_FOLLOWUPS", areFollowUpsEnabled,
-      // The padded case is the divergence trimRawValue exists to close.
-      [[undefined, false], ["1", true], [" 1 ", true], ["0", false]]],
     // 03-F13: five live switches that were invisible on the board.
     ["SEMANTIC_DEDUP_LIVE", isSemanticDedupLive,
       [[undefined, false], ["1", true], ["true", false], ["0", false]]],

@@ -14,6 +14,7 @@
  *
  * Run against the REAL manifest, job lists and Inngest function, not copies.
  */
+import { existsSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 const captured = vi.hoisted(() => ({ cfg: null as null | { id: string; triggers?: Array<{ cron?: string }> } }));
@@ -34,6 +35,8 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { CRONS } from "@/config/crons";
+import { FLAG_REGISTRY } from "@/lib/feature-flags";
+import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 import { ALL_MEGA_JOBS, MORNING_JOBS, WEEKLY_JOBS } from "@/lib/inngest/jobs";
 import "@/lib/inngest/functions/approval-sweeper";
 
@@ -60,6 +63,25 @@ describe("the two Monday crons ride the weekly fan-out, not the daily morning on
   it("CONTROL: a cron that really is daily stays in the morning fan-out", () => {
     expect(MORNING_JOBS).toContain("/api/cron/kept-word-scan");
     expect(WEEKLY_JOBS).toContain("/api/cron/reflect-categories");
+  });
+});
+
+describe("the agent-followups pipeline is gone: it had a consumer cron and no producer", () => {
+  // 1,341 cron runs in 14 days polled an empty queue; scheduleFollowUp in
+  // lib/agent/follow-up.ts had no caller outside tests.
+  it("the manifest has no agent-followups entry", () => {
+    expect(manifest("agent-followups")).toBeUndefined();
+  });
+  it("the NICK_AGENT_FOLLOWUPS flag is gone from the registry", () => {
+    expect(FLAG_REGISTRY.map((f) => f.key)).not.toContain("NICK_AGENT_FOLLOWUPS");
+  });
+  it("the route and the producer files are gone", () => {
+    expect(existsSync(new URL("../../app/api/cron/agent-followups/route.ts", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("../../lib/agent/follow-up.ts", import.meta.url))).toBe(false);
+  });
+  it("CONTROL: the chat tool scheduleFollowUp is a different function and stays", () => {
+    expect(TOOL_CATALOG.map((t) => t.name)).toContain("scheduleFollowUp");
+    expect(CRONS.some((c) => c.name === "outbox-drain")).toBe(true);
   });
 });
 
