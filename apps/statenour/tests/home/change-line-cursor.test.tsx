@@ -118,6 +118,29 @@ describe("the last-visit cursor moves only when the line is shown", () => {
     expect(window.localStorage.getItem(KEY)).toBe(String(START - 3_600_000));
   });
 
+  it("wide, then narrow: the desktop open does not leak into the phone fold, and the cursor stays put", async () => {
+    h.wide = true;
+    await mount();
+    const fold = host.querySelector("details") as HTMLDetailsElement;
+    expect(fold.open).toBe(true);
+    // The browser fires toggle after the programmatic open that the wide viewport forced.
+    await act(async () => void fold.dispatchEvent(new Event("toggle")));
+
+    h.wide = false;
+    await act(async () => {
+      root.render(
+        <ContextRail>
+          <ChangeLine />
+        </ContextRail>,
+      );
+    });
+    await act(async () => void fold.dispatchEvent(new Event("toggle")));
+    await settle();
+
+    expect(fold.open, "the phone fold stayed open after the viewport shrank").toBe(false);
+    expect(window.localStorage.getItem(KEY), "the cursor counted the Since line as seen").toBe(String(START - 3_600_000));
+  });
+
   it("from xl the line is shown by default: the cursor advances with no tap", async () => {
     h.wide = true;
     await mount();

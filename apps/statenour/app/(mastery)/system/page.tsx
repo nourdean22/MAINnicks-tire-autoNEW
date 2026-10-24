@@ -219,8 +219,14 @@ export default function SystemPage() {
   // line, then only the exceptions (pure logic in lib/system/control-tower.ts,
   // canary in tests/lib/system/control-tower.test.ts).
   const tower = useMemo(
-    () => controlTower({ diagnostics: d, health, diagnosticsReadFailed: diagnosticsQuery.isError }),
-    [d, health, diagnosticsQuery.isError],
+    () =>
+      controlTower({
+        diagnostics: d,
+        health,
+        diagnosticsReadFailed: diagnosticsQuery.isError,
+        diagnosticsPaused: diagnosticsQuery.fetchStatus === "paused",
+      }),
+    [d, health, diagnosticsQuery.isError, diagnosticsQuery.fetchStatus],
   );
 
   return (

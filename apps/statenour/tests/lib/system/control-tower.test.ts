@@ -27,6 +27,19 @@ describe("controlTower: one verdict, then the exceptions", () => {
     expect(v.exceptions).toEqual([]);
   });
 
+  it("a paused read (offline, nothing measured) says NOT MEASURED, never MEASURING", () => {
+    const v = controlTower({ diagnostics: null, health: null, diagnosticsReadFailed: false, diagnosticsPaused: true });
+    expect(v.state).toBe("unknown");
+    expect(v.headline).toBe("NOT MEASURED");
+    expect(v.headline).not.toMatch(/measuring/i);
+    expect(v.exceptions).toEqual([]);
+  });
+
+  it("a paused flag never hides data that was read: the verdict is the data's", () => {
+    const v = controlTower({ diagnostics: clean, health: null, diagnosticsReadFailed: false, diagnosticsPaused: true });
+    expect(v.state).toBe("nominal");
+  });
+
   it("is UNKNOWN with the failure named when the first read failed", () => {
     const v = controlTower({ diagnostics: null, health: null, diagnosticsReadFailed: true });
     expect(v.state).toBe("unknown");

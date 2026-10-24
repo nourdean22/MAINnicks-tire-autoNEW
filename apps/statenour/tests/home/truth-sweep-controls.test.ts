@@ -87,6 +87,10 @@ describe("People Needs info", () => {
   it("the cap still applies to the filtered list until revealed", () => {
     expect(visiblePeopleRows(people, { needsInfoOnly: true, showAll: false, cap: 2 })).toHaveLength(2);
   });
+  it("the selected person stays in the filtered list even when not sparse (the row the page scrolls to must exist)", () => {
+    const rows = visiblePeopleRows(people, { needsInfoOnly: true, showAll: true, cap: 2, keepId: "a" });
+    expect(rows.map((p) => p.id)).toEqual(["a", "b", "c", "e"]);
+  });
   it("control: with the filter off the list is the whole list", () => {
     expect(visiblePeopleRows(people, { needsInfoOnly: false, showAll: true, cap: 2 })).toHaveLength(5);
   });

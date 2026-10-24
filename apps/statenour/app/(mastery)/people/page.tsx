@@ -297,8 +297,8 @@ function RelationshipsPageInner() {
 
   const visiblePeople = useMemo(() => {
     if (!data) return [];
-    return visiblePeopleRows(data.people, { needsInfoOnly, showAll, cap: VISIBLE_CAP });
-  }, [data, showAll, needsInfoOnly]);
+    return visiblePeopleRows(data.people, { needsInfoOnly, showAll, cap: VISIBLE_CAP, keepId: selectedPersonId });
+  }, [data, showAll, needsInfoOnly, selectedPersonId]);
 
   // Detail query · fires when a person is selected
   const personDetail = trpc.task.personProfile.useQuery(

@@ -64,7 +64,11 @@ export function ContextRail({ children }: { children: ReactNode }) {
         filled && "border-t border-edge xl:border-l xl:border-t-0",
       )}
     >
-      <details open={wide || open} onToggle={(e) => setOpen(e.currentTarget.open)} hidden={!filled} className="group">
+      <details open={wide || open} onToggle={(e) => {
+          // While wide the fold is held open by the viewport, not by the operator: that programmatic open
+          // must not become the phone's own state, or it stays open (and the cursor counts it seen) after a shrink.
+          if (!wide) setOpen(e.currentTarget.open);
+        }} hidden={!filled} className="group">
         {filled && (
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg xl:hidden [&::-webkit-details-marker]:hidden">
             <span>
