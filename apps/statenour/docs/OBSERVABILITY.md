@@ -103,9 +103,8 @@ surface into health / governance / AI / data tiles with live chips,
 and lifts degraded surfaces into a needs-attention strip.
 
 **From anywhere:** `⌘K` palette includes every `/system/*` route.
-`G` then letter for vim-style jump (`g c` = crons, `g q` = quality,
-`g p` = power, `g d` = devices, etc. · see `components/hud/
-keyboard-shortcuts.tsx`).
+`G` then letter for vim-style jump (`g c` = crons, `g a` = actions,
+`g s` = system, etc. · see `components/hud/keyboard-shortcuts.tsx`).
 
 ---
 

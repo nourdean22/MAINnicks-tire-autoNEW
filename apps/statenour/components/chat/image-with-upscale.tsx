@@ -117,7 +117,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
             className={cn(
               "rounded-control border border-edge-strong bg-overlay/80 px-2 py-1 text-[11px] font-mono transition-colors duration-[var(--motion-state)]",
               varying
-                ? "text-violet-300 border-violet-500/40"
+                ? "text-amber-300 border-amber-500/40"
                 : "text-fg hover:bg-overlay",
             )}
             title="Variations (2× turbo, ~$0.02 each)"
@@ -160,7 +160,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
                 ? "text-amber-300 border-amber-500/40"
                 : "text-fg hover:bg-overlay",
             )}
-            title="Upscale 4× (~$0.04, 60s) — billboard/print quality"
+            title="Upscale 4× (~$0.04, 60s), billboard/print quality"
           >
             {upscaling === 4 ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -183,7 +183,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
               <img
                 src={v.imageUrl}
                 alt="variant"
-                className="h-16 w-16 rounded-control border border-violet-500/30 cursor-pointer hover:opacity-80 transition-opacity object-cover"
+                className="h-16 w-16 rounded-control border border-edge-default cursor-pointer hover:opacity-80 transition-opacity object-cover"
               />
             </a>
           ))}

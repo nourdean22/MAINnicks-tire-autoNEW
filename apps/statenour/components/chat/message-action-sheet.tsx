@@ -73,13 +73,13 @@ function ActionRow({
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-  tone: "gold" | "blue" | "emerald" | "neutral" | "rose";
+  tone: "gold" | "sky" | "emerald" | "neutral" | "rose";
   delay: number;
   destructive?: boolean;
 }) {
   const toneClass = {
     gold: "bg-surface-raised text-fg",
-    blue: "bg-blue-500/10 text-blue-400",
+    sky: "bg-sky-500/10 text-sky-400",
     emerald: "bg-emerald-500/10 text-emerald-400",
     neutral: "bg-(--bg-raised) text-(--text-secondary)",
     rose: "bg-rose-500/10 text-rose-400",
@@ -256,7 +256,7 @@ export function MessageActionSheet({
               onClick={fireAndClose(isSpeaking ? onStopSpeaking : onSpeak)}
               icon={isSpeaking ? <VolumeX size={16} /> : <Volume2 size={16} />}
               label={isSpeaking ? "Stop reading" : "Read aloud"}
-              tone="blue"
+              tone="sky"
               delay={next()}
             />
           )}
@@ -274,7 +274,7 @@ export function MessageActionSheet({
               onClick={fireAndClose(onSaveAsDecision)}
               icon={<ClipboardCheck size={16} />}
               label="Save as decision"
-              tone="blue"
+              tone="sky"
               delay={next()}
             />
           )}

@@ -69,6 +69,7 @@ import {
   OpenPromisesPanel,
 } from "@/components/power-atlas/PersonInsights";
 import { rawFetch } from "@/lib/utils/api-fetch";
+import { visiblePeopleRows } from "@/lib/people/needs-info";
 
 /** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
 const PERSON_KIND = ["person"] as const;
@@ -144,6 +145,7 @@ function RelationshipsPageInner() {
     VALID_SORTS,
   );
   const [showAllState, setShowAll] = useState(false);
+  const [needsInfoOnly, setNeedsInfoOnly] = useState(false);
   // 2026-09-15 · UI workbench · the selected person IS the URL
   // (`?inspect=person:<id>`): Back/Forward, reload, a ⌘K hit and a chat
   // receipt all land on the dossier, and there is no second copy of the
@@ -225,8 +227,10 @@ function RelationshipsPageInner() {
 
   /** Lift the cap on the list, optionally re-sorting it from a count in the verdict line. */
   const revealBrowse = useCallback(
-    (sort?: (typeof VALID_SORTS)[number]) => {
+    (sort?: (typeof VALID_SORTS)[number], needsInfo = false) => {
       if (sort) setSortKey(sort);
+      // Every count button sets the filter to what it counts: "Needs info" filters, the others clear it.
+      setNeedsInfoOnly(needsInfo);
       setShowAll(true);
     },
     [setSortKey],
@@ -293,8 +297,8 @@ function RelationshipsPageInner() {
 
   const visiblePeople = useMemo(() => {
     if (!data) return [];
-    return showAll ? data.people : data.people.slice(0, VISIBLE_CAP);
-  }, [data, showAll]);
+    return visiblePeopleRows(data.people, { needsInfoOnly, showAll, cap: VISIBLE_CAP, keepId: selectedPersonId });
+  }, [data, showAll, needsInfoOnly, selectedPersonId]);
 
   // Detail query · fires when a person is selected
   const personDetail = trpc.task.personProfile.useQuery(
@@ -410,10 +414,18 @@ function RelationshipsPageInner() {
             <button type="button" onClick={() => revealBrowse("trust")} className="min-h-[44px] transition-colors hover:text-fg">
               <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> High trust
             </button>
-            <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
+            <button type="button" aria-pressed={needsInfoOnly} onClick={() => revealBrowse(undefined, true)} className="min-h-[44px] transition-colors hover:text-fg">
               <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> Needs info
             </button>
           </div>
+          {needsInfoOnly && (
+            <p role="status" className="mt-2 flex flex-wrap items-center gap-x-3 text-[13px] text-fg-secondary">
+              Showing the {data.totals.sparse} {data.totals.sparse === 1 ? "person" : "people"} with no leverage notes or an unknown role.
+              <button type="button" onClick={() => revealBrowse()} className="inline-flex min-h-[44px] items-center font-medium text-fg underline-offset-4 hover:underline">
+                Show everyone
+              </button>
+            </p>
+          )}
         </section>
       )}
 

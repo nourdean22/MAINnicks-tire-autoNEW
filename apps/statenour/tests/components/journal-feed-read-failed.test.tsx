@@ -12,6 +12,7 @@ const feed = vi.hoisted(() => ({
   entries: [] as unknown[],
   error: null as string | null,
   isLoading: false,
+  isOffline: false,
   refetch: () => {},
 }));
 
@@ -21,6 +22,7 @@ vi.mock("@/app/(mastery)/journal/_hooks/use-journal-feed", () => ({
     counts: null,
     degraded: [],
     isLoading: feed.isLoading,
+    isOffline: feed.isOffline,
     isFetching: false,
     isFetchingMore: false,
     error: feed.error,
@@ -50,6 +52,24 @@ afterEach(() => {
   feed.entries = [];
   feed.error = null;
   feed.isLoading = false;
+  feed.isOffline = false;
+});
+
+describe("JournalFeedView offline (truth sweep 2026-10-23)", () => {
+  it("a paused first load says offline, never the empty-journal copy", () => {
+    feed.isOffline = true;
+    const html = render();
+    expect(html).toContain("Offline. The journal shows when the connection returns.");
+    expect(html).not.toContain("No thoughts captured yet");
+  });
+
+  it("control: offline with entries in hand keeps them", () => {
+    feed.isOffline = true;
+    feed.entries = [entry];
+    const html = render();
+    expect(html).toContain("Morning pages");
+    expect(html).not.toContain("Offline.");
+  });
 });
 
 describe("JournalFeedView read states (09-X4)", () => {

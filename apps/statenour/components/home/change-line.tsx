@@ -15,9 +15,11 @@
  * effects (home-hydration-safety).
  */
 
+import { useContext } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { useChangeCursor, useSettleChangeCursor } from "@/hooks/use-change-cursor";
 import { ChangeSetLine } from "@/components/ui/change-set-line";
+import { ContextShownContext } from "./context-rail";
 
 export function ChangeLine() {
   const cursor = useChangeCursor("hq");
@@ -25,7 +27,10 @@ export function ChangeLine() {
     { since: cursor },
     { enabled: cursor > 0, staleTime: 60_000, refetchOnWindowFocus: false },
   );
-  useSettleChangeCursor("hq", cursor, changesQ.isSuccess);
+  // Appearance wave B: on a phone this line sits in a closed fold. Read it either way, but advance the
+  // "last visit" cursor only while it is on screen, so unread changes are never marked as seen.
+  const shown = useContext(ContextShownContext);
+  useSettleChangeCursor("hq", cursor, changesQ.isSuccess && shown);
 
   if (cursor === 0) return null;
   return (

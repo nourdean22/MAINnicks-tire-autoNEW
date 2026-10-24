@@ -41,6 +41,7 @@ const q = (over: Partial<Q> = {}): Q => ({
 });
 
 const stub = vi.hoisted(() => ({
+  diagnostics: null as unknown,
   changeDigest: null as unknown,
   memoryEvals: null as unknown,
   receiptFeed: null as unknown,
@@ -59,7 +60,7 @@ vi.mock("@/lib/trpc/client", () => {
   return {
     trpc: {
       system: {
-        diagnostics: { useQuery: idle },
+        diagnostics: { useQuery: () => stub.diagnostics ?? idle() },
         outboxHealth: { useQuery: idle },
         outboxRedrive: { useMutation: () => ({ mutate: () => {}, isPending: false }) },
         healthSummary: { useQuery: idle },
@@ -121,6 +122,7 @@ const receipt = (status: string, id: string) => ({
 const render = () => renderToStaticMarkup(<SystemPage />);
 
 beforeEach(() => {
+  stub.diagnostics = null;
   stub.changeDigest = q();
   stub.memoryEvals = q({ data: evals() });
   stub.receiptFeed = q({ data: { items: [], counts: { success: 0, failed: 0 } } });
@@ -201,5 +203,22 @@ describe("/system receipt feed · status carries a word, not colour alone", () =
     }
     // The colour-only dot is gone.
     expect(html).not.toContain("h-1.5 w-1.5 rounded-full");
+  });
+});
+
+describe("/system control tower · an offline first load is not 'measuring'", () => {
+  it("a paused diagnostics read says NOT MEASURED beside the Offline note, never MEASURING", () => {
+    stub.diagnostics = q({ isPending: true, fetchStatus: "paused" } as Partial<Q>);
+    const html = render();
+    expect(html).toContain("Offline. The tower shows when the connection returns.");
+    expect(html).toContain("NOT MEASURED");
+    expect(html).not.toContain("MEASURING");
+  });
+
+  it("POSITIVE CONTROL: a read still in flight is MEASURING", () => {
+    stub.diagnostics = q({ isLoading: true, isPending: true, fetchStatus: "fetching" } as Partial<Q>);
+    const html = render();
+    expect(html).toContain("MEASURING");
+    expect(html).not.toContain("NOT MEASURED");
   });
 });

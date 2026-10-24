@@ -34,7 +34,7 @@ const KIND_LABEL: Record<ReasoningStepKind, string> = {
 };
 
 function seconds(ms: number | undefined): string {
-  if (typeof ms !== "number" || !Number.isFinite(ms)) return "—";
+  if (typeof ms !== "number" || !Number.isFinite(ms)) return "unknown";
   if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`;
   return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`;
 }

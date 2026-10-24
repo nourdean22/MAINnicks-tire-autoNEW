@@ -30,7 +30,6 @@
  */
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { Send, Brain, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { trpc } from "@/lib/trpc/client";
@@ -53,14 +52,14 @@ interface SlashCommand {
   hint: string;
   /** Prefix applied to the chat message (identical to the old mode). */
   prefix: string;
-  /** "search" routes instead of chatting. */
-  routes?: boolean;
 }
 
 const SLASH_COMMANDS: SlashCommand[] = [
   { key: "task", token: "/task", hint: "create a task", prefix: "Create a task: " },
   { key: "capture", token: "/capture", hint: "capture into brain", prefix: "Capture this into my brain: " },
-  { key: "search", token: "/search", hint: "search brain memory", prefix: "", routes: true },
+  // /search used to route to /brain?tab=memory&resolve=<text>, a parameter nothing on /brain reads
+  // (truth sweep 2026-10-23). Nick has the memory-search tools, so it is asked like the others.
+  { key: "search", token: "/search", hint: "search brain memory", prefix: "Search my brain memory for: " },
   { key: "review", token: "/review", hint: "audit a plan or decision", prefix: "Audit this and tell me the strongest move: " },
   { key: "execute", token: "/execute", hint: "run a command", prefix: "Execute this: " },
 ];
@@ -94,7 +93,6 @@ const getMessageText = (m: unknown): string => {
 };
 
 export function NickCommandLine() {
-  const router = useRouter();
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -209,12 +207,6 @@ export function NickCommandLine() {
       // a naked prefix to the pipeline would be a junk paid call.
       if (!text) return;
 
-      if (command?.routes) {
-        // /search — same brain resolve deep link the old Search mode used.
-        router.push(`/brain?tab=memory&resolve=${encodeURIComponent(text)}`);
-        return;
-      }
-
       // ── DIRECT ACTIONS — 2026-09-10 ──────────────────────────────
       //
       // `/add`, `/done`, `/mit`, `/commit` are deterministic local
@@ -249,7 +241,7 @@ export function NickCommandLine() {
       setInput("");
       sendMessage({ text: `${command?.prefix ?? ""}${text}` });
     },
-    [input, router, sendMessage],
+    [input, sendMessage],
   );
 
   const onKeyDown = useCallback(

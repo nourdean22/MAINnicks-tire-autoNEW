@@ -398,8 +398,9 @@ export function CommandPalette() {
         label: "View Recent Captures",
         group: "Power",
         icon: <HistoryIcon className="size-4" />,
-        action: () => navigate("/"),
-        keywords: ["capture", "recent", "omni", "inbox"],
+        // Captures are journal entries, newest first. This used to open `/`, which has no captures list.
+        action: () => navigate("/journal"),
+        keywords: ["capture", "recent", "omni", "inbox", "journal"],
       },
       {
         id: "power-pulse-digest",

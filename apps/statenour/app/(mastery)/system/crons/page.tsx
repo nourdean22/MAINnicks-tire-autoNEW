@@ -28,6 +28,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
@@ -230,7 +232,9 @@ export default function CronsPage() {
   });
   const feed: FeedResponse | null =
     (cronDeckQuery.data as FeedResponse | undefined) ?? null;
-  const loading = cronDeckQuery.isPending || cronDeckQuery.isFetching;
+  // fetchStatus, not isPending: a paused query is pending with nothing running, and "Refreshing…" beside
+  // the Offline note would claim work that cannot happen.
+  const loading = cronDeckQuery.fetchStatus === "fetching";
   const load = () => void cronDeckQuery.refetch();
 
   const toggleMutation = trpc.systemAutomation.setCronEnabled.useMutation();
@@ -337,6 +341,9 @@ export default function CronsPage() {
   }
 
   const summary = feed?.summary;
+  // A failed or paused read is not "loading": say which, and what to do (truth sweep 2026-10-23).
+  const deckState = readState(cronDeckQuery);
+  const deckDown = deckState === "error" || deckState === "offline";
 
   return (
     <StandardPage
@@ -346,7 +353,9 @@ export default function CronsPage() {
       description={
         feed
           ? `${summary?.active ?? 0} active · ${summary?.disabled ?? 0} killed · ${summary?.folded ?? 0} folded · ${summary?.runs24h ?? 0} runs/24h · ${summary?.failures24h ?? 0} failures/24h · ${summary?.drifted ?? 0} drifted`
-          : "loading…"
+          : deckDown
+            ? "The cron deck is not showing."
+            : "loading…"
       }
       width="2xl"
       rhythm="loose"
@@ -367,6 +376,8 @@ export default function CronsPage() {
         </div>
       }
     >
+
+      <ReadStateNote state={deckState} label="The cron deck" onRetry={load} retrying={isRetrying(cronDeckQuery)} />
 
       <KnowledgeRefreshPanel />
 

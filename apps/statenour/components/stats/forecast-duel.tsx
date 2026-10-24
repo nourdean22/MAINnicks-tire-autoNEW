@@ -13,6 +13,8 @@
  */
 import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +36,13 @@ function BrierLane({ label, resolved, meanBrier, last10Brier, winning }: {
 
 export function ForecastDuel() {
   const utils = trpc.useUtils();
-  const { data, isLoading, error } = trpc.system.forecastScoreboard.useQuery(undefined, {
+  const scoreboard = trpc.system.forecastScoreboard.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+  const { data, isLoading } = scoreboard;
+  const status = readState(scoreboard);
+  // Null when ready; above the lanes when stale (a failed refresh over scores we did read).
+  const note = <ReadStateNote state={status} label="The duel score" onRetry={() => void scoreboard.refetch()} retrying={isRetrying(scoreboard)} />;
   const create = trpc.system.forecastCreate.useMutation({
     onSuccess: () => utils.system.forecastScoreboard.invalidate(),
   });
@@ -45,9 +51,6 @@ export function ForecastDuel() {
   const [criteria, setCriteria] = useState("");
   const [confidence, setConfidence] = useState(70);
   const [targetDate, setTargetDate] = useState("");
-
-  // Self-hide on error per the page's child contract; loading renders a stub.
-  if (error) return null;
 
   const operator = data?.operator;
   const agent = data?.agent;
@@ -68,10 +71,15 @@ export function ForecastDuel() {
 
       {isLoading ? (
         <div className="h-16 animate-pulse rounded-surface bg-surface-interactive" />
+      ) : status === "error" || status === "offline" ? (
+        note
       ) : (
-        <div className="flex gap-3">
-          <BrierLane label="You" resolved={operator?.resolved ?? 0} meanBrier={operator?.meanBrier ?? null} last10Brier={operator?.last10Brier ?? null} winning={operatorWinning} />
-          <BrierLane label="Nick" resolved={agent?.resolved ?? 0} meanBrier={agent?.meanBrier ?? null} last10Brier={agent?.last10Brier ?? null} winning={operator?.meanBrier != null && agent?.meanBrier != null && !operatorWinning} />
+        <div className="space-y-2">
+          {note}
+          <div className="flex gap-3">
+            <BrierLane label="You" resolved={operator?.resolved ?? 0} meanBrier={operator?.meanBrier ?? null} last10Brier={operator?.last10Brier ?? null} winning={operatorWinning} />
+            <BrierLane label="Nick" resolved={agent?.resolved ?? 0} meanBrier={agent?.meanBrier ?? null} last10Brier={agent?.last10Brier ?? null} winning={operator?.meanBrier != null && agent?.meanBrier != null && !operatorWinning} />
+          </div>
         </div>
       )}
 

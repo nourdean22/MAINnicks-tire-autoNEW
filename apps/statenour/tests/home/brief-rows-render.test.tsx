@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { onlineManager } from "@tanstack/react-query";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -304,5 +305,31 @@ describe("BriefRows", () => {
     await mount(null, true);
     expect(container.querySelector("[aria-busy]")).toBeTruthy();
     expect(container.textContent).not.toContain("Done for today");
+  });
+
+  it("Keep is read back: a kept kind rises under the lead and the button reads pressed (truth sweep 2026-10-23)", async () => {
+    await mount(HOME_BRIEF);
+    const before = rows();
+    expect(before[0]).toBe("lead");
+    const last = before[before.length - 1] as string;
+    expect(before.indexOf(last)).toBeGreaterThan(1);
+    const keepBtn = container.querySelector<HTMLButtonElement>(`[data-brief-row="${last}"] button[data-brief-verdict="keep"]`)!;
+    expect(keepBtn.getAttribute("aria-pressed")).toBe("false");
+    await act(async () => keepBtn.click());
+    const after = rows();
+    expect(after[1]).toBe(last);
+    expect(container.querySelector(`[data-brief-row="${last}"] button[data-brief-verdict="keep"]`)!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("offline with no brief says so (truth sweep 2026-10-23), and online with no brief stays silent", async () => {
+    onlineManager.setOnline(false);
+    try {
+      await mount(null, false);
+      expect(container.textContent).toContain("Offline. The brief shows when the connection returns.");
+    } finally {
+      onlineManager.setOnline(true);
+    }
+    await mount(null, false);
+    expect(container.textContent).toBe("");
   });
 });

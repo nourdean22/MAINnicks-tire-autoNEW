@@ -38,6 +38,8 @@ export interface TowerInput {
   health: TowerHealth | null;
   /** The diagnostics query is in an error state (first load or a later refresh). */
   diagnosticsReadFailed: boolean;
+  /** The query is paused with nothing read (offline first load): not measuring, and not measured either. */
+  diagnosticsPaused?: boolean;
 }
 
 export interface TowerException {
@@ -73,7 +75,9 @@ export function controlTower(input: TowerInput): TowerVerdict {
             },
           ],
         }
-      : { state: "unknown", headline: "MEASURING", exceptions: [] };
+      : input.diagnosticsPaused
+        ? { state: "unknown", headline: "NOT MEASURED", exceptions: [] }
+        : { state: "unknown", headline: "MEASURING", exceptions: [] };
   }
 
   const exceptions: TowerException[] = [];

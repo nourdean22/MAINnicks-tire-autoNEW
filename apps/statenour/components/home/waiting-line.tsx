@@ -79,7 +79,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
     return (
       <section aria-label="waiting on others" className="mt-10 first:mt-0">
         <h2 className="vt-eyebrow text-fg-secondary">Waiting on others</h2>
-        <p className="mt-3 font-mono text-[12px] text-amber-300/90">
+        <p className="mt-3 text-[13px] text-amber-300/90">
           Unknown, read failed: {model.failedSources.join(", ") || "unnamed source"}
         </p>
       </section>
@@ -100,7 +100,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
               className="flex min-h-[44px] items-center gap-3 py-2 text-[15px] text-fg transition-colors duration-[var(--motion-state)] hover:bg-raised/50"
             >
               <span aria-hidden className="shrink-0 font-mono text-[12px] text-fg-tertiary">
-                {i.owner === "system" ? "◐" : "⏸"}
+                {i.owner === "system" ? "◐" : "◌"}
               </span>
               <span className="min-w-0 flex-1 truncate">
                 <span className="text-fg-secondary">{i.who}</span> · {i.subject}
@@ -116,7 +116,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
       {model.more > 0 && (
         <Link
           href="/missions"
-          className="mt-2 inline-flex min-h-[44px] items-center font-mono text-[11px] text-fg-tertiary hover:text-fg"
+          className="mt-2 inline-flex min-h-[44px] items-center text-[13px] text-fg-tertiary hover:text-fg"
         >
           +{model.more} more on /missions →
         </Link>

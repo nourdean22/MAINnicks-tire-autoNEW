@@ -15,7 +15,7 @@ interface ToolConfig {
   doneLabel: string;
   runningLabel: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  color: "gold" | "emerald" | "blue" | "purple" | "red" | "amber";
+  color: "gold" | "emerald" | "sky" | "red" | "amber";
   link?: { href: string; label: string };
   /**
    * v10.0.529.91 · Wave 35 · entity-aware deep link. If present AND
@@ -95,7 +95,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Task updated",
     runningLabel: "Updating…",
     icon: Zap,
-    color: "blue",
+    color: "sky",
     link: { href: "/missions", label: "Actions" },
     linkFn: (out) => {
       const o = out as { taskId?: string } | null;
@@ -117,7 +117,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Task snoozed",
     runningLabel: "Snoozing…",
     icon: Clock,
-    color: "blue",
+    color: "sky",
     link: { href: "/missions", label: "View in tasks" },
     linkFn: (out) => {
       const o = out as { taskId?: string } | null;
@@ -149,7 +149,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Contact added",
     runningLabel: "Adding contact…",
     icon: Users,
-    color: "purple",
+    color: "gold",
     link: { href: "/people", label: "View people" },
     linkFn: (out) => {
       const o = out as { id?: string } | null;
@@ -234,7 +234,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Commitment added",
     runningLabel: "Adding…",
     icon: HandshakeIcon,
-    color: "purple",
+    color: "gold",
     link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { description?: string; title?: string } | null;
@@ -246,7 +246,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Commitment logged",
     runningLabel: "Logging…",
     icon: HandshakeIcon,
-    color: "purple",
+    color: "gold",
     subtitle: (out) => {
       const o = out as { action?: string; description?: string } | null;
       return o?.description || (o?.action ? `marked ${o.action}` : null);
@@ -283,7 +283,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Task added",
     runningLabel: "Adding to INBOX…",
     icon: Target,
-    color: "blue",
+    color: "sky",
     link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { title?: string } | null;
@@ -307,7 +307,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Memories found",
     runningLabel: "Searching your brain memory…",
     icon: Brain,
-    color: "purple",
+    color: "gold",
     link: { href: "/brain", label: "Brain" },
     subtitle: (out) => {
       const o = out as { count?: number; results?: unknown[]; memories?: unknown[] } | null;
@@ -320,7 +320,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Cold memory hits",
     runningLabel: "Semantic search across Drive + archive…",
     icon: Search,
-    color: "blue",
+    color: "sky",
     // 2026-10-10 · audit 02-F20: no link. "Corpus" pointed at /system/coverage,
     // a redirect to /system/calibration, which has no corpus or cold-memory card.
     subtitle: (out) => {
@@ -329,7 +329,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
         matches?: Array<{ category?: string; hybridScore?: number; driveTitle?: string }>;
       } | null;
       const n = o?.count ?? o?.matches?.length ?? 0;
-      if (n === 0) return "no matches — try widening scope";
+      if (n === 0) return "no matches, try widening scope";
       const topTitle = o?.matches?.[0]?.driveTitle;
       const topCat = o?.matches?.[0]?.category;
       const topScore = o?.matches?.[0]?.hybridScore;
@@ -349,7 +349,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     subtitle: (out) => {
       const o = out as { ok?: boolean; stored?: number; skipped?: number } | null;
       if (!o) return null;
-      if (!o.ok) return "sync failed — check audit log";
+      if (!o.ok) return "sync failed, check audit log";
       return `${o.stored ?? 0} new · ${o.skipped ?? 0} skipped`;
     },
   },
@@ -412,7 +412,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Decision logged",
     runningLabel: "Recording decision · reasoning · alternatives…",
     icon: NotebookPen,
-    color: "purple",
+    color: "gold",
     // No list link: /system/quality redirects to /system/calibration, which has no decisions view (02-X4-N1).
     // v10.0.529.91 · Wave 35 · deep-link to the decision detail page ·
     // /decisions/<id> exists and PageContextBridge auto-extracts
@@ -433,7 +433,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Decision reviewed",
     runningLabel: "Replaying past decision…",
     icon: RotateCcw,
-    color: "purple",
+    color: "gold",
     subtitle: (out) => {
       const o = out as { outcome?: string; lesson?: string } | null;
       if (o?.outcome) return `outcome · ${o.outcome.slice(0, 60)}`;
@@ -451,7 +451,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Cron status loaded",
     runningLabel: "Pulling cron health…",
     icon: Cog,
-    color: "blue",
+    color: "sky",
     // v10.0.529.88 · Wave 32 · authoritative cron deck is /system/crons.
     link: { href: "/system/crons", label: "Crons" },
     subtitle: (out) => {
@@ -494,7 +494,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "OKRs set",
     runningLabel: "Recording objectives + key results…",
     icon: Target,
-    color: "blue",
+    color: "sky",
     link: { href: "/stats", label: "Plan" },
     subtitle: (out) => {
       const o = out as { count?: number; okrs?: unknown[]; objective?: string } | null;
@@ -619,7 +619,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
                 : sev === "high"
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                 : sev === "medium"
-                ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
                 : "bg-surface-interactive text-fg-secondary border-edge-strong";
             return (
               <div key={i} className="flex items-start gap-2">
@@ -689,7 +689,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
                 <div className="flex-1 h-1.5 bg-[var(--bg-void)] rounded-full overflow-hidden">
                   <div
                     className={cn(
-                      "h-full rounded-full transition-all duration-500",
+                      "h-full rounded-full transition-[width] duration-[var(--motion-panel)]",
                       isHot ? "bg-red-500" : "bg-amber-500"
                     )}
                     style={{ width: `${pct}%` }}
@@ -713,7 +713,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Customers loaded",
     runningLabel: "Ranking customer value…",
     icon: Users,
-    color: "purple",
+    color: "gold",
     link: { href: "https://nickstire.org/admin", label: "Admin" },
     subtitle: (out) => {
       const o = out as {
@@ -745,11 +745,11 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
             return (
               <div key={i} className="flex items-center gap-2">
                 <span className="text-[12px] text-[var(--text-primary)] font-medium w-20 truncate shrink-0">
-                  {c.name || "—"}
+                  {c.name || "unnamed"}
                 </span>
                 <div className="flex-1 h-1.5 bg-[var(--bg-void)] rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-violet-400 transition-all duration-500"
+                    className="h-full rounded-full bg-fg-tertiary transition-[width] duration-[var(--motion-panel)]"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -769,7 +769,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Customer found",
     runningLabel: "Looking up customer…",
     icon: Users,
-    color: "blue",
+    color: "sky",
   },
   getForecast: {
     label: "Running forecast",
@@ -862,7 +862,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Attribution loaded",
     runningLabel: "Resolving channel attribution…",
     icon: TrendingUp,
-    color: "purple",
+    color: "gold",
     // link dropped 2026-09-02 · /business deleted and /stats shows none of this data
     subtitle: (out) => {
       const o = out as { topChannel?: string; topChannelPct?: number } | null;
@@ -898,7 +898,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Day closed",
     runningLabel: "Closing today · habits · score · tomorrow's MIT…",
     icon: Moon,
-    color: "blue",
+    color: "sky",
     link: { href: "/", label: "Home" },
     subtitle: (out) => {
       const o = out as { tasksDone?: number; mitTomorrow?: string; score?: number } | null;
@@ -932,7 +932,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Schedule loaded",
     runningLabel: "Fetching Google Calendar events…",
     icon: Calendar,
-    color: "blue",
+    color: "sky",
     link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { count?: number; events?: unknown[] } | null;
@@ -958,7 +958,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Reply drafted",
     runningLabel: "Creating email draft reply…",
     icon: Mail,
-    color: "blue",
+    color: "sky",
     subtitle: (out) => {
       const o = out as { id?: string } | null;
       return o?.id ? `draft ID: ${o.id.slice(0, 10)}…` : null;
@@ -969,7 +969,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Draft created",
     runningLabel: "Creating email draft…",
     icon: Mail,
-    color: "blue",
+    color: "sky",
     subtitle: (out) => {
       const o = out as { id?: string; to?: string } | null;
       return o?.to ? `to: ${o.to}` : null;
@@ -1036,7 +1036,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Code executed",
     runningLabel: "Running Python script in sandbox…",
     icon: Terminal,
-    color: "blue",
+    color: "sky",
     subtitle: (out) => {
       const o = out as { error?: string; returnCode?: number; ok?: boolean } | null;
       return o?.error ? `Failed: ${o.error}` : "Executed successfully";
@@ -1047,7 +1047,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Browser started",
     runningLabel: "Creating headless browser session…",
     icon: Globe,
-    color: "blue",
+    color: "sky",
     subtitle: (out) => {
       const o = out as { sessionId?: string } | null;
       return o?.sessionId ? `session: ${o.sessionId.slice(0, 8)}…` : null;
@@ -1065,7 +1065,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Navigated successfully",
     runningLabel: "Navigating to URL…",
     icon: Globe,
-    color: "blue",
+    color: "sky",
     subtitle: (out) => {
       const o = out as { url?: string } | null;
       return o?.url ? `to ${o.url.slice(0, 40)}…` : null;
@@ -1076,21 +1076,21 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     doneLabel: "Action completed",
     runningLabel: "Interacting with page elements…",
     icon: Globe,
-    color: "blue",
+    color: "sky",
   },
   "arsenal.browserExtract": {
     label: "Extracting data",
     doneLabel: "Data extracted",
     runningLabel: "Extracting structured text…",
     icon: Globe,
-    color: "purple",
+    color: "gold",
   },
   "arsenal.browserObserve": {
     label: "Observing page",
     doneLabel: "Page observed",
     runningLabel: "Scanning interactive elements…",
     icon: Globe,
-    color: "blue",
+    color: "sky",
     subtitle: (out) => {
       const o = out as { elementsCount?: number } | null;
       return o?.elementsCount ? `${o.elementsCount} elements observed` : null;
@@ -1114,17 +1114,11 @@ export const COLORS: Record<
     icon: "text-emerald-400",
     link: "text-emerald-400 hover:text-emerald-300",
   },
-  blue: {
-    border: "border-l-blue-500",
-    bg: "bg-blue-500/5",
-    icon: "text-blue-400",
-    link: "text-blue-400 hover:text-blue-300",
-  },
-  purple: {
-    border: "border-l-violet-500",
-    bg: "bg-violet-500/5",
-    icon: "text-violet-400",
-    link: "text-violet-400 hover:text-violet-300",
+  sky: {
+    border: "border-l-sky-500",
+    bg: "bg-sky-500/5",
+    icon: "text-sky-400",
+    link: "text-sky-400 hover:text-sky-300",
   },
   red: {
     border: "border-l-red-500",

@@ -45,7 +45,12 @@ export interface ComposedBrief {
   total: number;
 }
 
-export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<string>, cap = BRIEF_ROW_CAP): ComposedBrief {
+export function composeBriefRows(
+  brief: BriefRowsInput,
+  hidden: ReadonlySet<string>,
+  cap = BRIEF_ROW_CAP,
+  kept: ReadonlySet<string> = new Set(),
+): ComposedBrief {
   const all: BriefRow[] = [];
   const push = (row: BriefRow) => {
     if (row.kind === "lead" && row.pinned) return void all.push(row);
@@ -76,5 +81,10 @@ export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<stri
     }
   }
 
-  return { rows: all.slice(0, cap), total: all.length };
+  // Keep (lib/ui/brief-feedback.ts keptKinds): the lead stays first, kept kinds come next, the rest
+  // follow, each group in its own order. A kept kind therefore stays above the "N more" fold.
+  const rank = (r: BriefRow) => (r.kind === "lead" ? 0 : kept.has(r.kind) ? 1 : 2);
+  const ordered = all.map((row, i) => ({ row, i })).sort((a, b) => rank(a.row) - rank(b.row) || a.i - b.i).map((x) => x.row);
+
+  return { rows: ordered.slice(0, cap), total: ordered.length };
 }

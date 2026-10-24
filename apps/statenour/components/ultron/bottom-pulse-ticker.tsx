@@ -85,6 +85,8 @@ const TONE_RANK: Record<PulseItem["tone"], number> = { warn: 0, win: 1, info: 2,
 // being lost forever. Matches the top ticker.
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
+const RESOLVE_FAILED = "Could not update that promise. Try again.";
+
 export function BottomPulseTicker() {
   const { data, refetch: refetchPulse, isFetching: pulseFetching, isError: pulseError } = trpc.operator.personalPulse.useQuery(undefined, {
     refetchInterval: 300_000,
@@ -100,10 +102,14 @@ export function BottomPulseTicker() {
   // the sheet — the prior state was chat-only. The server mutation clears
   // its own 90s cache; refetch() here is what makes the client actually
   // notice within the same session instead of waiting up to 5 minutes.
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const resolveCommitment = trpc.operator.resolveCommitment.useMutation({
     onSuccess: () => {
+      setResolveError(null);
       void refetchPulse();
     },
+    // A rejected Done / Drop used to look like nothing happened (truth sweep 2026-10-23).
+    onError: () => setResolveError(RESOLVE_FAILED),
   });
 
   const items = useMemo<PulseItem[]>(() => {
@@ -181,9 +187,21 @@ export function BottomPulseTicker() {
 
   // 09-F30: a ticker whose every sub-feed failed answers 200 with softError, not an error.
   const tickerFailed = tickerError || Boolean(topData?.softError);
+  // Truth sweep 2026-10-23: a feed that failed beside one that works used to vanish without a word.
+  const feedsDown = [pulseError ? "Personal pulse" : null, tickerFailed ? "Market ticker" : null].filter(
+    (name): name is string => name !== null,
+  );
+  // What the sheet says about each: "could not load" is only true for a feed with nothing cached.
+  // react-query keeps the last good data beside isError, and those items still show in the list.
+  const feedNotes = [
+    pulseError ? `Personal pulse could not ${data ? "refresh" : "load"}.` : null,
+    tickerFailed ? `Market ticker could not ${topData && !topData.softError ? "refresh" : "load"}.` : null,
+  ].filter((note): note is string => note !== null);
   if ((!data && !topData) || items.length === 0) {
     // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
     if (!pulseError && !tickerFailed) return null;
+    // The blur stays until a Missions phone composition change buys margin on visible-transformation.spec.ts
+    // (missions/phone sat at 35.2% on main).
     return (
       <div
         role="region"
@@ -221,7 +239,10 @@ export function BottomPulseTicker() {
         <button
           ref={openerRef}
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            setResolveError(null); // a rejected Done / Drop from an earlier open must not greet the next one
+            setOpen((o) => !o);
+          }}
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control text-left sm:-my-0.5 sm:min-h-6"
           aria-label={open ? "Close pulse feed" : "Open pulse feed"}
           aria-haspopup="dialog"
@@ -243,6 +264,11 @@ export function BottomPulseTicker() {
           <span key={current.id} className="pulse-fade flex flex-1 min-w-0">
             <PulseContent item={current} />
           </span>
+          {feedsDown.length > 0 && (
+            <span className="shrink-0 font-mono text-[11px] text-amber-400">
+              {feedsDown.length} {feedsDown.length === 1 ? "feed" : "feeds"} down
+            </span>
+          )}
         </button>
 
         {items.length > 1 && (
@@ -285,7 +311,12 @@ export function BottomPulseTicker() {
         activeIdx={safeIdx}
         onClose={() => setOpen(false)}
         onDismiss={(id, kind) => dismiss(id, { kind, source: "bottom", ttlMs: SNOOZE_MS })}
-        onResolve={(commitmentId, action) => resolveCommitment.mutate({ commitmentId, action })}
+        onResolve={(commitmentId, action) => {
+          setResolveError(null);
+          resolveCommitment.mutate({ commitmentId, action });
+        }}
+        feedNotes={feedNotes}
+        resolveError={resolveError}
         resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
         onPick={(i) => {
           setIdx(i);
@@ -351,6 +382,8 @@ export function PulseFeedSheet({
   resolvingId,
   onPick,
   returnFocusRef,
+  feedNotes = [],
+  resolveError = null,
 }: {
   open: boolean;
   items: PulseItem[];
@@ -364,6 +397,10 @@ export function PulseFeedSheet({
   onPick: (i: number) => void;
   /** The strip button that opened the sheet; focus returns to it on close. */
   returnFocusRef: React.RefObject<HTMLButtonElement | null>;
+  /** One sentence per feed that failed (could not load, or could not refresh over cached items): said above the list, never hidden. */
+  feedNotes?: string[];
+  /** A rejected Done / Drop, shown where the tap happened. */
+  resolveError?: string | null;
 }) {
   return (
     <Dialog
@@ -391,6 +428,16 @@ export function PulseFeedSheet({
             Close
           </button>
         </div>
+        {feedNotes.length > 0 && (
+          <p role="status" className="border-b border-edge-subtle px-3 py-2 text-[13px] text-amber-300">
+            {feedNotes.join(" ")}
+          </p>
+        )}
+        {resolveError && (
+          <p role="alert" className="border-b border-edge-subtle px-3 py-2 text-[13px] text-red-300">
+            {resolveError}
+          </p>
+        )}
         <ul>
           {items.map((it, i) => (
             <li
@@ -483,7 +530,7 @@ function CommitmentResolveButtons({
           e.stopPropagation();
           onResolve(commitmentId, "drop");
         }}
-        aria-label="Drop this promise — no longer doing it"
+        aria-label="Drop this promise, no longer doing it"
         className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control px-2 font-mono text-[11px] text-fg-tertiary hover:text-rose-400 disabled:opacity-40 sm:min-h-9 sm:min-w-9"
       >
         Drop

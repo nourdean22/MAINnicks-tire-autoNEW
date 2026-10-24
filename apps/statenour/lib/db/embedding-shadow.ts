@@ -197,6 +197,20 @@ async function columnExists(
   return (rows[0]?.n ?? 0) > 0;
 }
 
+/**
+ * Runs one source's step and, if it throws, puts the source type in front of the message. The cron
+ * files that message as its failure reason (app/api/cron/data-cleanup/route.ts), and a driver text
+ * like "operator does not exist" is useless without the table it came from. Same error, same order
+ * of queries: only the text gains a prefix.
+ */
+async function tagged<T>(src: ShadowSource, step: () => Promise<T>): Promise<T> {
+  try {
+    return await step();
+  } catch (err) {
+    throw new Error(`${src.sourceType}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+  }
+}
+
 async function scalar(
   prisma: PrismaLike,
   sql: string,
@@ -354,7 +368,7 @@ export async function sweepEmbeddingShadow(
     assertSafeIdent(src.table, "table");
     if (src.softDeleteColumn) assertSafeIdent(src.softDeleteColumn, "column");
 
-    if (!(await tableExists(prisma, src.table))) {
+    if (!(await tagged(src, () => tableExists(prisma, src.table)))) {
       results.push({
         sourceType: src.sourceType,
         marked: 0,
@@ -365,7 +379,7 @@ export async function sweepEmbeddingShadow(
     }
     if (
       src.softDeleteColumn &&
-      !(await columnExists(prisma, src.table, src.softDeleteColumn))
+      !(await tagged(src, () => columnExists(prisma, src.table, src.softDeleteColumn as string)))
     ) {
       // A renamed soft-delete column would make every live row read as
       // deleted. Skip rather than guess.
@@ -378,12 +392,14 @@ export async function sweepEmbeddingShadow(
       continue;
     }
 
-    const [live, absent, soft, clearable] = await Promise.all([
-      scalar(prisma, liveCountSql(src), src.sourceType),
-      scalar(prisma, absentCountSql(src), src.sourceType),
-      src.softDeleteColumn ? scalar(prisma, softCountSql(src), src.sourceType) : Promise.resolve(0),
-      scalar(prisma, clearCountSql(src), src.sourceType),
-    ]);
+    const [live, absent, soft, clearable] = await tagged(src, () =>
+      Promise.all([
+        scalar(prisma, liveCountSql(src), src.sourceType),
+        scalar(prisma, absentCountSql(src), src.sourceType),
+        src.softDeleteColumn ? scalar(prisma, softCountSql(src), src.sourceType) : Promise.resolve(0),
+        scalar(prisma, clearCountSql(src), src.sourceType),
+      ]),
+    );
 
     const toMark = absent + soft;
 
@@ -434,7 +450,7 @@ export async function sweepEmbeddingShadow(
       // Clears still run — returning rows to recall can never be the unsafe
       // direction, and withholding them would punish the operator for the
       // size of an unrelated marking pass.
-      const cleared = await clearOnly(prisma, p.src);
+      const cleared = await tagged(p.src, () => clearOnly(prisma, p.src));
       totalCleared += cleared;
       results.push({
         sourceType: p.src.sourceType,
@@ -444,7 +460,7 @@ export async function sweepEmbeddingShadow(
       });
       continue;
     }
-    const applied = await applyForSource(prisma, p.src);
+    const applied = await tagged(p.src, () => applyForSource(prisma, p.src));
     totalMarked += applied.marked;
     totalCleared += applied.cleared;
     results.push({

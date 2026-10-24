@@ -46,6 +46,7 @@ import { NickCommandLine } from "./nick-command-line";
 import { HorizonLine } from "./horizon-line";
 import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
+import { ContextRail } from "./context-rail";
 
 export function HomeConsole() {
   const briefQ = trpc.operator.brief.useQuery(undefined, {
@@ -70,7 +71,7 @@ export function HomeConsole() {
         />
 
         {refreshFailed && (
-          <p className="mt-3 font-mono text-[11px] text-rose-300/80">
+          <p className="mt-3 text-[13px] text-rose-300/80">
             Refresh failed · showing last confirmed brief
           </p>
         )}
@@ -87,7 +88,7 @@ export function HomeConsole() {
           <section aria-label="brief unreadable" className="mt-10 border-l-2 border-rose-500/60 pl-5 sm:pl-6">
             <h2 className="vt-eyebrow text-rose-300">The brief couldn&apos;t be built</h2>
             <p className="mt-3 max-w-[56ch] text-[15px] leading-relaxed text-fg-secondary">
-              The read failed — state unknown, not empty. Nick still works below.
+              The read failed. State unknown, not empty. Nick still works below.
             </p>
             <button
               type="button"
@@ -105,20 +106,14 @@ export function HomeConsole() {
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail
-          beside the queue; below that width they keep today's order under it. */}
-      <aside
-        aria-label="context"
-        data-home-column="context"
-        // An empty rail (no horizon, no change line) used to render as a lone
-        // 8px stub of its left rule at >=1280px (hermetic render, 2026-09-16).
-        // It keeps its grid cell — tests/e2e/desktop-density.spec.ts measures
-        // the rail beside the queue — but loses its rules when empty.
-        className="mt-12 border-t border-edge pt-8 empty:border-t-0 xl:sticky xl:top-8 xl:mt-0 xl:border-l xl:border-t-0 xl:border-edge xl:pl-10 xl:pt-2 xl:empty:border-l-0"
-      >
+          beside the queue; below that width they keep today's order under it. Appearance wave B
+          (2026-10-23): below xl the rail is one closed "Context (N)" fold (components/home/context-rail.tsx),
+          which also owns the empty-rail rule (no summary and no lone border when no line rendered). */}
+      <ContextRail>
         <HorizonLine horizon={brief?.horizon ?? null} />
         <WaitingLine />
         <ChangeLine />
-      </aside>
+      </ContextRail>
     </div>
   );
 }

@@ -135,7 +135,7 @@ export function SaveMomentButton() {
         }}
         placeholder="why this moment (optional)"
         aria-label="Note for this moment"
-        className="h-12 min-w-0 flex-1 rounded-control border border-edge-default bg-transparent px-2 text-[11px] text-fg placeholder:text-fg-tertiary"
+        className="h-12 min-w-0 flex-1 rounded-control border border-edge-default bg-transparent px-2 text-base text-fg placeholder:text-fg-tertiary"
       />
       <button
         onClick={save}
