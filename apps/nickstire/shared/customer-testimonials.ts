@@ -39,7 +39,7 @@ export interface CuratedTestimonial {
   cities: string[];
 }
 
-export const CURATED_TESTIMONIALS: CuratedTestimonial[] = [
+const CURATED_TESTIMONIALS: CuratedTestimonial[] = [
   // ─── Brake-mentioning ─────────────────────────────────
   {
     name: "Marcus L.",
