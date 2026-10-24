@@ -17,10 +17,11 @@ catalog metadata (this list).
 `lib/ai/chat-mode.ts:pruneTools` is the gatekeeper between the
 catalog and the model:
 
-- **CORE tools** are always included (10 names: `classifyThought`,
-  `searchMemories`, `getRecentReflections`, `searchReflections`,
-  `rankNextActions`, `getBlindSpots`, `syncKnowledge`, `dailyPulse`,
-  `setTaskPriority`, `runDeviceCommand`)
+- **CORE tools** are always included (2 names: `searchMemories`,
+  `searchReflections`), plus `createTask` and `completeTask` as the action
+  core. `getRecentReflections` left the always-on list 2026-10-24 (offered
+  on 152 of 152 turns, chosen on 0); a reflection keyword family still
+  reaches it
 - **Semantic top-N** when the tool-embedding cache is warm: top-15
   in standard mode, top-40 in deep mode, cosine floor 0.25
 - **Keyword regex fallback** when the cache is cold
@@ -39,7 +40,7 @@ catalog and the model:
 
 ---
 
-## `personal_read` — daily ops · habits · body · finance · schedule (15)
+## `personal_read` — daily ops · habits · body · finance · schedule (14)
 
 | Tool                       | Description                                                                        | Input                       | Output                                                                      | Cost  | Battle | Talks to                       |
 |----------------------------|------------------------------------------------------------------------------------|-----------------------------|----------------------------------------------------------------------------|-------|--------|--------------------------------|
@@ -54,7 +55,6 @@ catalog and the model:
 | `getTasks`                 | Active tasks with their missions (INBOX/READY/DOING)                               | `{}`                         | `Task[]` with `mission`                                                     | free  | yes    | `Task` + `Mission`             |
 | `getTodaySchedule`         | Google Calendar events for today + N days ahead                                    | `daysAhead: 0-14`            | `{ ok, count, events[] }`                                                   | free  | yes    | Google Calendar API            |
 | `proposeCalendarEvent`     | Propose new GCal event · returns compose URL (human confirms)                      | `title, startISO, endISO?, location?, description?, attendees?` | `{ composeUrl, summary, start, end }`                                       | free  | yes    | Google Calendar (URL only)     |
-| `runPython`                | Execute Python in E2B sandbox · numpy/pandas/matplotlib/scipy/requests             | `code: string`              | `{ stdout, stderr, charts[] }`                                              | cheap | no     | E2B API (`E2B_API_KEY`)        |
 | `searchDocuments`          | Semantic search across uploaded documents                                          | `query: string, limit: 1-10`| `{ count, results[] }` with filename, similarity                            | cheap | yes    | `lib/services/document-ingest` |
 | `ingestDocumentFromUrl`    | Fetch a public document from URL · ingest to operator index                        | `url, filename?`            | `{ ok, documentId, chunks }`                                                | cheap | no     | document-ingest service        |
 | `findRelatedConversations` | Find past chat conversations semantically similar to a topic                       | `query, limit?, activeConversationId?` | `{ count, matches: [{ conversationId, summary, similarity, date }] }`        | cheap | yes    | `lib/brain/conversation-recall`|
@@ -164,7 +164,7 @@ catalog and the model:
 
 ---
 
-## `brain` — brain intelligence + memory ops (18)
+## `brain` — brain intelligence + memory ops (17)
 
 | Tool                          | Description                                                                                  | Input               | Output                                        | Cost   | Battle | Talks to                       |
 |-------------------------------|----------------------------------------------------------------------------------------------|---------------------|----------------------------------------------|--------|--------|--------------------------------|
@@ -181,7 +181,6 @@ catalog and the model:
 | `searchGreeneLaws`            | Search 189 Greene's Laws + 48 Laws + 33 Strategies + Human Nature + Mastery + 50th Law       | `query, limit?`     | `StrategicLaw[]`                              | free   | yes    | `StrategicLaw` table           |
 | `searchMemories`              | Search BrainMemory by content + category                                                     | `query, category?, limit?` | memory hits                              | free   | yes    | `BrainMemory` table            |
 | `searchReflections`           | Search Reflection rows + BrainDump entries · date range supported                            | `query, dateFrom?, dateTo?` | `{ reflections, brainDumps }`            | free   | yes    | `Reflection` + `BrainDump`     |
-| `searchSkills`                | Top Claude skills (from 1,423 indexed) semantically similar to a query                       | `query, limit?`     | top-K skill hits                              | cheap  | no     | `lib/skills/skill-recall`      |
 | `syncDriveMemory`             | Run a Google Drive ingest now (the ingest-drive cron's pipeline), called in-process          | `force?`            | `{ ok, stored, skipped, categories, durationMs, hint }` | spendy | no | `runDriveIngest` (`lib/brain/drive-ingest`), not `/api/drive/sync` |
 | `syncKnowledge`               | Run the knowledge-sync pipeline (RSS feeds + curated sources)                                | `{}`                | `{ synced, sources[] }`                       | spendy | **yes**| `lib/brain/knowledge-sync`     |
 | `toolHealth`                  | Check tool dependency health · DB latency + env vars + tool count                            | `{}`                | `{ status, database, services, toolCount, recommendation }` | free | yes | env vars + `prisma`            |
@@ -260,6 +259,9 @@ catalog and the model:
 | `githubCommitMultiple`     | 2026-05-21      | Same — multi-file commit tool removed · Nick observes repos, doesn't push        |
 | `githubSafeCommit`         | 2026-05-21      | Same — validated-commit tool removed                                             |
 | `githubDeploy`             | 2026-05-21      | Deploy-trigger tool removed · deploys are Railway-driven off `main` pushes       |
+| `runPython`                | 2026-10-24      | Needed `E2B_API_KEY`, unset in prod · `runCode` covers the job. The pruner maps the name to `runCode` |
+| `queryData`                | 2026-10-24      | Read-only JS sandbox · last call 2026-09-01 · `searchTools` + `invokeTool` cover it |
+| `searchSkills`             | 2026-10-24      | Duplicate of `suggestSkills` (same `recallSkills` call) · `suggestSkills` takes `topK` as an alias for `limit` · the pruner maps the name to `suggestSkills` |
 
 ---
 
@@ -307,9 +309,9 @@ The pruner output for these example user messages, using `mode=standard`:
 
 | User message                                  | Tools kept (approx)                                                                                          |
 |-----------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| "hi" (mode: standard)                         | CORE (10) only · semantic cache skipped under 10 chars                                                       |
+| "hi" (mode: standard)                         | CORE (2) + action core (2) only · semantic cache skipped under 10 chars                                      |
 | "what's my revenue today?"                    | CORE + `getRevenueStats` + `dailyPulse` + `compareLiveRevenue` + `getShopSnapshot` (~15)                     |
 | "what did I discuss with Mo last week?"       | CORE + `findRelatedConversations` + `searchConversations` + `findCustomer` (~15)                             |
-| "run python to compute LTV"                   | toolChoice forces `runPython` SPECIFICALLY · pruner output ignored                                           |
+| "run python to compute LTV"                   | pruner keeps `runCode` (the one code tool) · no python pin: `runPython` was removed 2026-10-24               |
 | "add a task to call back Bob"                 | toolChoice="required" · pruner output still kept · model picks `createTask`                                  |
 | "audit the chat route" (mode: deep)           | CORE + top-40 semantic + keyword regex (~50)                                                                 |
