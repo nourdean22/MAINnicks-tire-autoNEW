@@ -151,7 +151,12 @@ export function JournalInsightsPreview() {
 
   if (activeInsights.length === 0) {
     return (
-      <li className="py-3 text-[13px] text-fg-tertiary">No takes extracted yet. Takes appear after an entry is saved.</li>
+      <li className="py-3 space-y-1 text-[13px] text-fg-tertiary">
+        {state === "stale" && (
+          <ReadStateNote state={state} label="Extracted takes" onRetry={() => void refetch()} retrying={isRetrying(insightsQuery)} />
+        )}
+        <p>No takes extracted yet. Takes appear after an entry is saved.</p>
+      </li>
     );
   }
 
@@ -170,7 +175,7 @@ export function JournalInsightsPreview() {
         disabled={promoted || isPromoting}
         aria-label={promoted ? `${kind} already promoted` : `accept ${kind} as task`}
         className={cn(
-          "h-7 min-h-[28px] rounded-control px-2.5 text-[12px] font-medium transition-colors shrink-0 self-center",
+          "min-h-[44px] min-w-[44px] rounded-control px-3 text-[12px] font-medium transition-colors shrink-0 self-center",
           promoted
             ? "bg-surface-interactive text-fg-tertiary border border-edge-subtle hover:bg-surface-interactive"
             : accent
@@ -332,7 +337,7 @@ function InsightEntry({
                 <button
                   type="button"
                   onClick={() => setShowAll(true)}
-                  className="min-h-[32px] rounded-control px-1.5 text-[11px] text-fg-tertiary transition-colors hover:text-fg"
+                  className="min-h-[44px] rounded-control px-1.5 text-[11px] text-fg-tertiary transition-colors hover:text-fg"
                 >
                   +{hiddenCount} more take{hiddenCount === 1 ? "" : "s"} ▾
                 </button>

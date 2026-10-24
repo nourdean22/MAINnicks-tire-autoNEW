@@ -13,6 +13,8 @@
  * deliberate operator act, which is the entire point of the ladder.
  */
 
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, Gauge } from "lucide-react";
@@ -29,7 +31,15 @@ export function TrustLadderPanel() {
       </section>
     );
   }
-  if (ladderQ.isError) {
+  // A paused read (offline navigation) has no data and no error: say so, never draw numbers from nothing.
+  if (readState(ladderQ) === "offline") {
+    return (
+      <section aria-label="trust-ladder" className="rounded-surface border border-edge-subtle p-4">
+        <ReadStateNote state="offline" label="Trust ladder" />
+      </section>
+    );
+  }
+  if (ladderQ.isError || readState(ladderQ) === "error") {
     return (
       <section data-read-failed aria-label="trust-ladder" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">

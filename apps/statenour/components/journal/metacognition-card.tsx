@@ -37,7 +37,14 @@ export function MetacognitionCard() {
     );
   }
   if (!data || !data.selfAssessment) {
-    return <li className="py-3 text-[13px] text-fg-tertiary">No nightly self-assessment yet. It lands after the first nightly run.</li>;
+    return (
+      <li className="py-3 space-y-1 text-[13px] text-fg-tertiary">
+        {state === "stale" && (
+          <ReadStateNote state={state} label={LABEL} onRetry={() => void query.refetch()} retrying={isRetrying(query)} />
+        )}
+        <p>No nightly self-assessment yet. It lands after the first nightly run.</p>
+      </li>
+    );
   }
 
   const trend = data.learningRate?.trend;

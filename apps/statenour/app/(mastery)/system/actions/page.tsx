@@ -21,7 +21,7 @@
 import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { DetailFold } from "@/components/system/detail-fold";
 import { Panel } from "@/components/panel";
 import { ACTIONS_TAB_PARAM, resolveActionsTab } from "./actions-tab";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -620,15 +620,7 @@ function ActionsPageInner() {
         </Panel>
 
       {/* History (wave E1, 2026-10-24): the success rings, the rule leaderboard and the recent feed. Closed by default; ?tab=logs opens it. */}
-      <details aria-label="History" open={activeTab === "logs"} className="group border-y border-edge-subtle">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg [&::-webkit-details-marker]:hidden">
-          <span>
-            History
-            {actionsQuery.isError && !feed && <span className="text-red-300"> (log unreadable)</span>}
-          </span>
-          <ChevronDown size={16} strokeWidth={1.75} aria-hidden className="transition-transform duration-[var(--motion-state)] group-open:rotate-180" />
-        </summary>
-        <div className="space-y-6 pb-6 pt-4">
+      <DetailFold label="History" open={activeTab === "logs"} unreadable={actionsQuery.isError && !feed ? 1 : 0}>
           {/* Filter strip */}
           <div className="flex flex-wrap items-center gap-2">
             {(["24h", "7d", "30d"] as Win[]).map((w) => (
@@ -852,8 +844,7 @@ function ActionsPageInner() {
               </div>
             )}
           </Panel>
-        </div>
-      </details>
+      </DetailFold>
 
       <p className="pt-2 text-center text-[11px] text-fg-tertiary">
         auto-refresh 30s · source: AutonomousAction / ApprovalRequest

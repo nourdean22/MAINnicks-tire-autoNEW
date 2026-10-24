@@ -22,7 +22,18 @@ vi.mock("@/lib/trpc/client", () => {
     useQuery: () => ({ ...ok, ...(q.map[name] ?? {}) }),
     useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }),
   });
-  const journal = new Proxy({}, { get: (_t, name: string) => procedure(name) });
+  // Only the procedures the Journal column really reads. An unknown name throws, so a typo cannot be
+  // answered with a healthy default (the old Proxy answered any procedure).
+  const KNOWN = ["insightsPreview", "metacognition", "threads", "convergence", "suggestions", "promoteNextAction"];
+  const journal = new Proxy(
+    {},
+    {
+      get: (_t, name: string) => {
+        if (!KNOWN.includes(name)) throw new Error(`unexpected trpc.journal.${name}`);
+        return procedure(name);
+      },
+    },
+  );
   return { trpc: { journal } };
 });
 vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
@@ -126,12 +137,48 @@ describe("Journal Threads disclosure", () => {
     expect(existsSync(join(root, "components/settings/notebooklm-context-zone.tsx"))).toBe(true);
   });
 
-  it("the closed summary says when something inside is unreadable", () => {
-    q.map = { threads: { data: undefined, isError: true }, suggestions: { data: undefined, isError: true } };
-    const html = render();
+  const threadsSummary = (html: string) => {
     const at = html.indexOf('aria-label="Threads"');
-    const summary = html.slice(html.indexOf("<summary", at), html.indexOf("</summary>", at));
-    expect(summary).toMatch(/2 unreadable/);
+    return html.slice(html.indexOf("<summary", at), html.indexOf("</summary>", at));
+  };
+  const FAIL = { data: undefined, isError: true };
+
+  it("the closed summary counts each of the three reads on its own", () => {
+    q.map = { convergence: FAIL };
+    expect(threadsSummary(render())).toMatch(/1 unreadable/);
+    q.map = { suggestions: FAIL };
+    expect(threadsSummary(render())).toMatch(/1 unreadable/);
+    q.map = { threads: FAIL };
+    expect(threadsSummary(render())).toMatch(/1 unreadable/);
+    q.map = { threads: FAIL, suggestions: FAIL };
+    expect(threadsSummary(render())).toMatch(/2 unreadable/);
+  });
+
+  it("the Insights summary says how many of the five reads failed, so a closed column is not 'fine'", () => {
+    q.map = { insightsPreview: FAIL, metacognition: FAIL, threads: FAIL, convergence: FAIL, suggestions: FAIL };
+    const html = render();
+    const outer = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
+    expect(outer).toContain("Insights");
+    expect(outer).toMatch(/5 unreadable/);
+    expect(outer).not.toMatch(/Insights \(\d+\)/);
+  });
+
+  it("control: a healthy column has no unreadable claim on either summary", () => {
+    const html = render();
+    expect(html.slice(html.indexOf("<summary"), html.indexOf("</summary>"))).not.toMatch(/unreadable/);
+  });
+
+  it("a stale read over an empty row keeps its stale note above the empty line", () => {
+    q.map = {
+      insightsPreview: { data: [], isError: true },
+      metacognition: { data: {}, isError: true },
+      threads: { data: [], isError: true },
+    };
+    const sig = region(render(), "Signals");
+    expect(sig.match(/Last refresh failed\./g)?.length).toBe(3);
+    expect(sig.indexOf("Last refresh failed.")).toBeLessThan(sig.indexOf("No takes extracted yet"));
+    expect(sig).toContain("No nightly self-assessment yet");
+    expect(sig).toContain("No threads yet");
   });
 
   it("control: when every thread read works the summary claims nothing unreadable", () => {

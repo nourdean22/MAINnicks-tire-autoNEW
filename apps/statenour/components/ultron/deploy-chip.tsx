@@ -45,7 +45,7 @@ function ageLabel(iso: string | null): string {
 // monorepo move (apps/statenour/docs/CURRENT-TRUTH.md).
 const GITHUB_REPO = "nourdean22/MAINnicks-tire-autoNEW";
 
-export function DeployChip() {
+export function DeployChip({ className }: { className?: string } = {}) {
   const [info, setInfo] = useState<DeployInfo | null>(null);
   const [failed, setFailed] = useState(false);
   // Phase B.6c (2026-05-22) · migrated off `authedFetch("/api/system/
@@ -100,6 +100,7 @@ export function DeployChip() {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border border-edge-default bg-content px-2 py-0.5",
         "font-mono text-[11px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg-secondary",
+        className,
       )}
     >
       <GitCommit className="h-3 w-3" />

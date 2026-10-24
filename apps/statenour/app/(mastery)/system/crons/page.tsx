@@ -507,7 +507,7 @@ function CronRowView({
 }) {
   const meta = CATEGORY_META[row.category] ?? FALLBACK_META;
   const canTrigger = row.mode === "active";
-  const durationStr = row.lastRunMs != null ? `${row.lastRunMs}ms` : "no run";
+  const durationStr = row.lastRunMs != null ? `${row.lastRunMs}ms` : row.lastRunAt ? "no timing" : "no run";
   const { openInspector } = useInspector();
 
   return (

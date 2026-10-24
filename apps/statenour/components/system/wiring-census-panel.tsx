@@ -12,6 +12,8 @@
  * screen rather than implied to be covered.
  */
 
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, Cable } from "lucide-react";
@@ -41,7 +43,15 @@ export function WiringCensusPanel() {
       </section>
     );
   }
-  if (censusQ.isError) {
+  // A paused read (offline navigation) has no data and no error: say so, never draw numbers from nothing.
+  if (readState(censusQ) === "offline") {
+    return (
+      <section aria-label="wiring-census" className="rounded-surface border border-edge-subtle p-4">
+        <ReadStateNote state="offline" label="Wiring census" />
+      </section>
+    );
+  }
+  if (censusQ.isError || readState(censusQ) === "error") {
     return (
       <section data-read-failed aria-label="wiring-census" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">

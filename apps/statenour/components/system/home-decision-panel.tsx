@@ -10,6 +10,8 @@
  * "unused".
  */
 
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, MousePointerClick } from "lucide-react";
@@ -28,7 +30,15 @@ export function HomeDecisionPanel() {
       </section>
     );
   }
-  if (metricsQ.isError) {
+  // A paused read (offline navigation) has no data and no error: say so, never draw numbers from nothing.
+  if (readState(metricsQ) === "offline") {
+    return (
+      <section aria-label="home-decisions" className="rounded-surface border border-edge-subtle p-4">
+        <ReadStateNote state="offline" label="Home decision metrics" />
+      </section>
+    );
+  }
+  if (metricsQ.isError || readState(metricsQ) === "error") {
     return (
       <section data-read-failed aria-label="home-decisions" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">

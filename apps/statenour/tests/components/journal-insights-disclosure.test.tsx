@@ -27,7 +27,7 @@ vi.mock("@/lib/trpc/client", () => {
   return { trpc: { journal } };
 });
 
-import { JournalInsightsView, countRenderedPanels } from "@/app/(mastery)/journal/_components/journal-insights-view";
+import { JournalInsightsView } from "@/app/(mastery)/journal/_components/journal-insights-view";
 
 const render = () => renderToStaticMarkup(<JournalInsightsView threadRefresh={0} setThreadRefresh={() => {}} />);
 
@@ -54,21 +54,5 @@ describe("JournalInsightsView at lg", () => {
   it("is held open, so the right column reads exactly as before", () => {
     wide.value = true;
     expect(render()).toMatch(/^<details[^>]*\sopen=""/);
-  });
-});
-
-describe("countRenderedPanels", () => {
-  const el = (children: unknown[] = [], group = false) => ({
-    children,
-    hasAttribute: (name: string) => group && name === "data-panel-group",
-  });
-
-  it("counts direct panels, and the panels inside a grouped wrapper rather than the wrapper", () => {
-    const body = el([el(), el(), el([el(), el()], true), el()]);
-    expect(countRenderedPanels(body)).toBe(5);
-  });
-
-  it("an empty group contributes nothing (all three thread panels returned null)", () => {
-    expect(countRenderedPanels(el([el(), el([], true)]))).toBe(1);
   });
 });

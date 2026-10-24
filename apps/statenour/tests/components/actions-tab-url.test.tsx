@@ -184,7 +184,7 @@ describe("/system/actions failed reads (empty-vs-error)", () => {
 
   it("a closed History says when its own read failed", () => {
     h.actions = { data: undefined, isError: true };
-    expect(history(render("")).querySelector("summary")!.textContent).toContain("log unreadable");
+    expect(history(render("")).querySelector("summary")!.textContent).toContain("1 unreadable");
   });
 
   it("control: a healthy log makes no such claim", () => {

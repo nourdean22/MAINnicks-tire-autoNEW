@@ -77,6 +77,30 @@ describe("Detail fold blocks: failed read", () => {
   });
 });
 
+// A paused query (offline client navigation) has no data and no error. The three panels below used to
+// branch on isError only and drew zeros / "auto-execute OFF" / "No lanes derived" from nothing.
+const PAUSED: Q & { fetchStatus: string } = { data: undefined, isError: false, isLoading: false, fetchStatus: "paused" };
+const IDLE_NO_DATA: Q & { fetchStatus: string } = { data: undefined, isError: false, isLoading: false, fetchStatus: "idle" };
+const THREE = blocks.filter((b) => ["wiring census", "trust ladder", "home decision"].includes(b.name));
+
+describe("Detail fold blocks: a paused or data-less read invents nothing", () => {
+  for (const b of THREE) {
+    it(`${b.name}: paused says offline and draws no numbers`, () => {
+      state.q = PAUSED;
+      const html = b.render();
+      expect(html, b.name).toContain("Offline.");
+      expect(html, b.name).not.toMatch(/Verdicts|Resumes|Active days|auto-execute|No lanes derived/);
+      expect(html, b.name).not.toContain("data-read-failed");
+    });
+    it(`${b.name}: no data and no error is the failed state, counted by the fold`, () => {
+      state.q = IDLE_NO_DATA;
+      const html = b.render();
+      expect(html, b.name).toContain("data-read-failed");
+      expect(html, b.name).not.toMatch(/Verdicts|Resumes|Active days|auto-execute|No lanes derived/);
+    });
+  }
+});
+
 describe("Detail fold blocks: loading uses ShimmerSkeleton", () => {
   for (const b of blocks.filter((x) => x.skeleton)) {
     it(`${b.name} loading state is a house skeleton, not animate-pulse`, () => {

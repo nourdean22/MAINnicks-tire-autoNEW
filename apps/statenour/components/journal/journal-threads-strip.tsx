@@ -136,7 +136,14 @@ export function JournalThreadsStrip() {
     );
   }
   if (chips.length === 0) {
-    return <li className="py-3 text-[13px] text-fg-tertiary">No threads yet. Threads form when entries start to cluster.</li>;
+    return (
+      <li className="py-3 space-y-1 text-[13px] text-fg-tertiary">
+        {state === "stale" && (
+          <ReadStateNote state={state} label="Thread pace" onRetry={() => void threadsQuery.refetch()} retrying={isRetrying(threadsQuery)} />
+        )}
+        <p>No threads yet. Threads form when entries start to cluster.</p>
+      </li>
+    );
   }
 
   const counts = {

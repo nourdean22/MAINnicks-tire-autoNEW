@@ -247,10 +247,11 @@ export default function SystemPage() {
       rootProps={{ onTouchStart, onTouchEnd }}
       actions={
         <div className="flex items-center gap-2">
-          <DeployChip />
+          <DeployChip className="min-h-[44px] min-w-[44px] justify-center" />
           <FreshnessChip
             lastFetchedAt={lastFetchedAt}
             source="diagnostics + brain + health"
+            className="min-h-[44px] min-w-[44px] justify-center"
             onReload={refresh}
           />
           <button
@@ -354,6 +355,7 @@ export default function SystemPage() {
           /api/ai/page-insight is cost-firewalled to the ollama lane. */}
       <PageNick
         page="system"
+        analyzeClassName="min-h-[44px] min-w-[44px]"
         data={{
           overallStatus,
           dbLatencyMs: d?.db?.latency_ms,

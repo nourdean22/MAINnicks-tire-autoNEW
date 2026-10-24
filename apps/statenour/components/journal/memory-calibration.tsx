@@ -243,7 +243,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                     </button>
                     <button
                       onClick={() => beginEdit(m)}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20"
+                      className="flex min-h-[44px] items-center gap-1 px-3 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20"
                     >
                       <Edit3 size={9} /> update
                     </button>
