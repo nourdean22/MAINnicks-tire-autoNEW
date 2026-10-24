@@ -33,6 +33,8 @@
  * (future · v10.0.529.33+1 scope).
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -284,6 +286,8 @@ export function PreferencesCard() {
   }
   // Wave D: a failed read used to draw DEFAULT_VECTOR as if it were the saved vector.
   if (pref.isError && !data) return <ReadingUnavailable label="Preferences" />;
+  // A paused read has no data and no error: say offline, never draw DEFAULT_VECTOR as the saved vector.
+  if (!data && readState(pref) === "offline") return <ReadStateNote state="offline" label="Preferences" />;
 
   const vector = draft ?? apiVector ?? DEFAULT_VECTOR;
   const lastTune = data?.lastTune ?? null;

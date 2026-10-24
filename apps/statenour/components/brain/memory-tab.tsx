@@ -132,7 +132,7 @@ function SkillLibraryRow() {
   const skillsQuery = trpc.operator.skills.useQuery(undefined, { refetchOnWindowFocus: false });
   return (
     <div>
-      {skillsQuery.isError && <ReadingUnavailable label="Skill library" />}
+      {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
       <SkillLibraryPanel />
     </div>
   );

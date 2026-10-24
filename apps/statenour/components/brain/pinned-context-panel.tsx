@@ -513,7 +513,7 @@ export function PinnedContextPanel() {
           empty. {error}
           <button
             onClick={load}
-            className="ml-auto px-2 py-0.5 rounded-control border border-red-500/30 hover:bg-red-500/10"
+            className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control border border-red-500/30 px-3 hover:bg-red-500/10"
           >
             Retry
           </button>
@@ -529,7 +529,7 @@ export function PinnedContextPanel() {
           icon={Pin}
           title="no pins yet"
           provenance="ZERO"
-          why="Pins are permanent context you write yourself: nothing has been pinned."
+          why="Nothing is pinned yet. A pin is context you write yourself, and it stays until you remove it."
           unlock="Tap Pin on any assistant reply, or hit Pin new above."
         />
       )}

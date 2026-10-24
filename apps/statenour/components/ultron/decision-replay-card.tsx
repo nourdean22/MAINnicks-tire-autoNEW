@@ -48,6 +48,8 @@
  *   the deep-discussion path · the two flows coexist.
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useState } from "react";
 import Link from "next/link";
@@ -170,6 +172,7 @@ export function DecisionReplayCard() {
 
   // Wave D: a failed read used to fall through to the silent empty branch below.
   if (replays.isError && !replays.data) return <ReadingUnavailable label="Decision replays" />;
+  if (!replays.data && readState(replays) === "offline") return <ReadStateNote state="offline" label="Decision replays" />;
 
   const data = replays.data;
   const due = data?.due?.unconsumed ?? [];

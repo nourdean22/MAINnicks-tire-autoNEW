@@ -17,43 +17,85 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
-/** What marks a failed read inside a row: this file's line, ReadStateNote, EmptyState, UnmeasuredLine. */
-export const READ_FAILED_SELECTOR =
-  '[data-read-failed], [data-read-state="error"], [data-read-state="offline"], [data-provenance="ERROR"]';
+/** What marks a FAILED read inside a row: this file's line, ReadStateNote, EmptyState, UnmeasuredLine. */
+export const READ_FAILED_SELECTOR = '[data-read-failed], [data-read-state="error"], [data-provenance="ERROR"]';
+/** A paused read (no connection) is not a failed one: counted apart, in amber. */
+export const READ_OFFLINE_SELECTOR = '[data-read-state="offline"]';
 
-export function countFoldRows(body: Element): { rows: number; unreadable: number } {
+const has = (row: Element, sel: string) => row.matches(sel) || !!row.querySelector(sel);
+
+export function countFoldRows(body: Element): { rows: number; unreadable: number; offline: number } {
   const rows = [...body.children];
-  const unreadable = rows.filter((row) => row.matches(READ_FAILED_SELECTOR) || row.querySelector(READ_FAILED_SELECTOR)).length;
-  return { rows: rows.length, unreadable };
+  return {
+    rows: rows.length,
+    unreadable: rows.filter((row) => has(row, READ_FAILED_SELECTOR)).length,
+    offline: rows.filter((row) => !has(row, READ_FAILED_SELECTOR) && has(row, READ_OFFLINE_SELECTOR)).length,
+  };
+}
+
+/** The element the URL hash names, when it sits inside `body`. */
+function hashTarget(body: Element): Element | null {
+  const raw = window.location.hash.slice(1);
+  if (!raw) return null;
+  let id = raw;
+  try {
+    id = decodeURIComponent(raw);
+  } catch {
+    // a malformed escape: use the raw id
+  }
+  const el = document.getElementById(id);
+  return el && body.contains(el) ? el : null;
 }
 
 export function BrainFold({ title, children }: { title: string; children: ReactNode }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [count, setCount] = useState<{ rows: number; unreadable: number } | null>(null);
+  const [count, setCount] = useState<{ rows: number; unreadable: number; offline: number } | null>(null);
 
   useEffect(() => {
     const body = bodyRef.current;
-    if (!body) return;
-    const update = () => setCount(countFoldRows(body));
+    const details = detailsRef.current;
+    if (!body || !details) return;
+    // A deep link (#pin-<id>, #pinned-context, #recall-preview, #anti-patterns) into a closed fold
+    // would scroll to a hidden box. Open once per hash, so closing it again sticks.
+    let openedFor = "";
+    const openForHash = () => {
+      const hash = window.location.hash;
+      if (!hash || hash === openedFor) return;
+      const el = hashTarget(body);
+      if (!el) return;
+      openedFor = hash;
+      if (!details.open) details.open = true;
+      el.scrollIntoView?.({ block: "start" });
+    };
+    const update = () => {
+      setCount(countFoldRows(body));
+      openForHash();
+    };
     update();
-    if (typeof MutationObserver === "undefined") return;
+    window.addEventListener("hashchange", openForHash);
+    if (typeof MutationObserver === "undefined") return () => window.removeEventListener("hashchange", openForHash);
     const observer = new MutationObserver(update);
     observer.observe(body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-read-failed", "data-read-state", "data-provenance"],
+      attributeFilter: ["data-read-failed", "data-read-state", "data-provenance", "id"],
     });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("hashchange", openForHash);
+    };
   }, []);
 
   return (
-    <details className="group border-t border-edge">
+    <details ref={detailsRef} className="group border-t border-edge">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-[15px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg [&::-webkit-details-marker]:hidden">
         <span>
           {title}
           {count && <span className="font-mono tabular-nums text-fg-tertiary"> ({count.rows})</span>}
           {count && count.unreadable > 0 && <span className="text-red-300"> ({count.unreadable} unreadable)</span>}
+          {count && count.offline > 0 && <span className="text-amber-300"> ({count.offline} offline)</span>}
         </span>
         <ChevronDown size={16} strokeWidth={1.75} aria-hidden className="shrink-0 transition-transform duration-[var(--motion-state)] group-open:rotate-180" />
       </summary>

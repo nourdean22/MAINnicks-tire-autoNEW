@@ -305,7 +305,7 @@ export function ContradictionResolutionPanel() {
               icon={Split}
               title="No resolved contradictions yet"
               provenance="ZERO"
-              why="Every answer gets logged here: record is right, outdated, ignore, or expired after 30 days."
+              why="Each answer you give is kept here, whether the record was right, out of date, or not worth acting on. Rows nobody answers expire after 30 days."
               unlock="Switch to Unresolved, work through the list, then come back."
               tone="neutral"
             />

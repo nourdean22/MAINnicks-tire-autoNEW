@@ -265,7 +265,7 @@ export function BeliefsPanel() {
             icon={BookOpen}
             title="No active beliefs yet"
             provenance="ZERO"
-            why="Beliefs are curated stated-positions that get injected into every chat turn so Nick reasons from your actual operating truths, not generic defaults."
+            why="Beliefs are curated stated-positions that get injected into every chat turn so Nick reasons from the positions you have stated."
             unlock="Promote a candidate from the list above, or run Harvest now to surface new ones from recent brain dumps."
             tone="neutral"
           />

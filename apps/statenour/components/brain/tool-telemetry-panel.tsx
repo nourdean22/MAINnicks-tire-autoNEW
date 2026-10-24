@@ -123,7 +123,7 @@ export function ToolTelemetryPanel() {
           title="Tool telemetry unavailable"
           provenance="ERROR"
           tone="warning"
-          why="The telemetry read failed, so nothing is known about which tools are working. That is NOT a clean registry: no tool on this page has been checked."
+          why="The telemetry read failed, so nothing is known about which tools are working. No tool on this page has been checked, so an empty list here is not a clean one."
           unlock="Retry below. If it keeps failing, the tool_telemetry read is down; check the brain router and the database."
           cta={{ label: "retry", onClick: () => void toolsQuery.refetch() }}
         />

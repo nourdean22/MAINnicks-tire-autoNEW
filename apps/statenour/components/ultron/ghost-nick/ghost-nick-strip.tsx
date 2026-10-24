@@ -15,6 +15,8 @@
  * user having to do anything. Force-recompute button triggers POST.
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -106,6 +108,7 @@ export function GhostNickStrip() {
   // Hide entirely when no predictions AND we've never computed
   // Wave D: a failed read is not "never computed"; say so instead of hiding.
   if (query.isError && !bundle) return <ReadingUnavailable label="Ghost Nick predictions" />;
+  if (!bundle && readState(query) === "offline") return <ReadStateNote state="offline" label="Ghost Nick predictions" />;
   if (!loading && !bundle) return null;
   if (bundle && livePredictions.length === 0) return null;
 
@@ -156,7 +159,7 @@ export function GhostNickStrip() {
           <button
             onClick={() => void recompute()}
             disabled={recomputing || loading}
-            className="text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors inline-flex items-center gap-1"
+            className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors hover:text-fg"
           >
             {recomputing || loading ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
             Recompute
