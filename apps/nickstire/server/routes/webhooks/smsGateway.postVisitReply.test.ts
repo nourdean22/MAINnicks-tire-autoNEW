@@ -1,5 +1,5 @@
 /**
- * The post-visit text promises "text us here" (lib/postVisitText.ts). That is true only if a
+ * The post-visit text promises "text us here" (shared/postVisitText.ts). That is true only if a
  * customer's reply to the shop line is stored where a person reads it and a duty to answer is
  * recorded. Through the REAL express route: the reply must reach addSmsMessage as an inbound row
  * (the admin Messages inbox reads smsMessages) and ensureResponseObligation (the durable answer

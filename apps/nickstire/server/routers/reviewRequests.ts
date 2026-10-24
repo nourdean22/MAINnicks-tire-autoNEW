@@ -34,7 +34,7 @@ import { sendSms, withOptOut } from "../sms";
 import { z } from "zod";
 import crypto from "crypto";
 
-import { postVisitText } from "../lib/postVisitText";
+import { postVisitText } from "@shared/postVisitText";
 
 import { createLogger } from "../lib/logger";
 

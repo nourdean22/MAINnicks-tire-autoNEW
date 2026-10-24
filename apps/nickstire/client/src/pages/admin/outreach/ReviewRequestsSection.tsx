@@ -16,6 +16,7 @@ import {
   MessageSquare, ChevronDown, ChevronUp, Shield, Copy, Filter, Search,
 } from "lucide-react";
 import { GLOBAL_QUOTES, PROOF_CONFIG, type ProofQuote } from "@shared/proof";
+import { postVisitText } from "@shared/postVisitText";
 
 type SettingsTab = "requests" | "settings" | "backfill" | "proofbank";
 type ReviewRequest = RouterOutputs["reviewRequests"]["list"][number];
@@ -511,7 +512,7 @@ export default function ReviewRequestsSection() {
                       value={formTemplate || settings?.messageTemplate || ""}
                       onChange={(e) => setFormTemplate(e.target.value)}
                       rows={4}
-                      placeholder="Hi {firstName}, thanks for trusting us with your {service}! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair: {reviewUrl}"
+                      placeholder={postVisitText("{firstName}", "{reviewUrl}")}
                       className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground text-[13px] focus:outline-none focus:border-primary resize-none"
                     />
                     <p className="font-mono text-[10px] text-foreground/40">

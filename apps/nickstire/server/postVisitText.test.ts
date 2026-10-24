@@ -43,14 +43,14 @@ afterEach(() => {
 
 describe("builder", () => {
   it("is Draft D, byte for byte", async () => {
-    const { postVisitText } = await import("./lib/postVisitText");
+    const { postVisitText } = await import("@shared/postVisitText");
     expect(postVisitText("Dana", "https://example.test/r/abc123")).toBe(
       "Hi Dana, it's Nick's Tire & Auto on Euclid. Thanks for coming in. If anything about the car feels off, text us here and we'll take care of it. If you have a minute, tell other Cleveland drivers how your visit went: https://example.test/r/abc123",
     );
   });
 
   it("stays GSM-7 with the STOP footer sendSms appends once: 2 segments on the short URL, 3 on the 87-char tracking URL", async () => {
-    const { postVisitText } = await import("./lib/postVisitText");
+    const { postVisitText } = await import("@shared/postVisitText");
     const { withOptOut } = await vi.importActual<typeof import("./sms")>("./sms");
     const trackingUrl = `https://nickstire.org/api/review-click/${"a".repeat(48)}`; // 48 hex chars = randomBytes(24)
     expect(trackingUrl).toHaveLength(87);
@@ -145,5 +145,11 @@ describe("post-invoice-followup cron (customer-keyed)", () => {
   it("hands sendSms the same Draft D for a lapsed-segment customer (the visit was 7 days ago either way)", async () => {
     await run({ id: 10, firstName: "Riley", phone: "2165550124", segment: "lapsed" });
     expect(sendSms.mock.calls[0][1]).toBe(expected("Riley"));
+  });
+
+  it.each([[null], [""]])("greets 'there' when the customer has no first name (%j), like the invoice lane", async (firstName) => {
+    await run({ id: 11, firstName, phone: "2165550125", segment: "recent" });
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendSms).toHaveBeenCalledWith("2165550125", expected("there"), { via: "shop" });
   });
 });

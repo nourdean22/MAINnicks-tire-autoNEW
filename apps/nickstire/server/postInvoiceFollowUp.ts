@@ -3,7 +3,7 @@
  *
  * Runs daily via setInterval. Checks for customers whose last visit
  * was exactly 7 days ago (±1 day window) and sends them the post-visit
- * text (lib/postVisitText.ts: thank-you, "text us here", then the review ask).
+ * text (shared/postVisitText.ts: thank-you, "text us here", then the review ask).
  *
  * Prevents duplicates by checking smsCampaignSent > 0.
  * Tracks all sends in the database.
@@ -20,7 +20,7 @@ async function getDatabase() {
   return getDb();
 }
 import { sendSms } from "./sms";
-import { postVisitText } from "./lib/postVisitText";
+import { postVisitText } from "@shared/postVisitText";
 
 import { createLogger } from "./lib/logger";
 
@@ -111,7 +111,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     result.processed = eligibleCustomers.length;
 
     for (const customer of eligibleCustomers) {
-      const firstName = customer.firstName || "Valued Customer";
+      const firstName = customer.firstName || "there"; // same greeting as the invoice lane
 
       // Both segments were visited 6-8 days ago (the query above), so one post-visit text serves them.
       const message = postVisitText(firstName, REVIEW_URL);
