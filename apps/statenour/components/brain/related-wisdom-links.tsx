@@ -21,12 +21,12 @@
  * 2026-09-02 self-audit closed three defects in this file:
  *   #2 · the empty state hardcoded "no related wisdoms above 0.40
  *        similarity" and threw away the API's `reason`, so a row with
- *        NO EMBEDDING — similarity never computed — read exactly like a
+ *        NO EMBEDDING: similarity never computed: read exactly like a
  *        genuinely isolated one. Both floors now come from the response.
  *   #3 · the header above promised deep links; the render was three
  *        <span>s with no <a>, no href and no onClick. The ?focus=<key>
  *        param and its scroll handler already worked
- *        (components/brain/wisdom-tab.tsx:165 + :284) — nothing emitted
+ *        (components/brain/wisdom-tab.tsx:165 + :284): nothing emitted
  *        a link that used them.
  *   #5 · `ORIGIN_BADGE` here was one of two label registries and was
  *        missing `chat-scrape`, so the same principle read "Chat scrape"
@@ -94,7 +94,7 @@ export function wisdomFocusHref(key: string): string {
 
 /**
  * One see-also row. Exported so the link contract can be asserted on
- * rendered markup — the vitest env here is Node with no DOM, so a row
+ * rendered markup: the vitest env here is Node with no DOM, so a row
  * that only appears after an async state change is otherwise untestable.
  */
 export function RelatedWisdomRow({ r }: { r: RelatedWisdom }) {

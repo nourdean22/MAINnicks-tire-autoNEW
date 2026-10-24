@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * ReceiptsTimeline — BDN-003 · the ONE merged activity/receipts timeline.
+ * ReceiptsTimeline: BDN-003 · the ONE merged activity/receipts timeline.
  *
  * ORGANIZATION-WIRING-AUDIT §6/§7 called this shape twice: "fold the
  * receipt feed into /brain/continuity rather than building a second
- * activity view." This renders trpc.system.receiptFeed — the existing
+ * activity view." This renders trpc.system.receiptFeed: the existing
  * 3-source merge (entity-audit + autonomous-action + agent action_receipt
- * rows, typed adapters in lib/services/action-receipt-feed.ts) — with
+ * rows, typed adapters in lib/services/action-receipt-feed.ts): with
  * status filters, replacing the raw entity-audit-only stream on the
  * Continuity tab. Read-only: no mutations, no schema.
  *
@@ -65,7 +65,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
       <section aria-label="receipts-timeline" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
-          Receipts couldn&apos;t load — state unknown, not empty.
+          Receipts couldn&apos;t load: state unknown, not empty.
         </p>
       </section>
     );
@@ -116,7 +116,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
       {filtered.length === 0 ? (
         <p className="text-[11px] text-fg-tertiary py-2">
           {items.length === 0
-            ? "No receipts in the current window — nothing acted, nothing audited."
+            ? "No receipts in the current window: nothing acted, nothing audited."
             : "No receipts match this filter in the current window."}
         </p>
       ) : (

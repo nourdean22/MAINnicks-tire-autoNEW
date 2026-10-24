@@ -162,7 +162,7 @@ export function BrainInsightsView({
       {failedNote}
       {/* v10.0.486 · de-slopped from md:grid-cols-3 symmetric trio
           to a stacked feed. Three info-dense cards side-by-side
-          read as "feature grid" — the most identifiable AI-design
+          read as "feature grid": the most identifiable AI-design
           fingerprint. Stacked scan-down is the operator-grade
           editorial pattern. */}
       <div className="space-y-3">

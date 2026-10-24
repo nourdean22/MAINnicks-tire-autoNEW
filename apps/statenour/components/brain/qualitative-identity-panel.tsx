@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * QualitativeIdentityPanel — values / fears / style / rhythms / red
+ * QualitativeIdentityPanel: values / fears / style / rhythms / red
  * lines. Each bucket is a stacked list with an add button + per-row
  * remove. Manual entries show a gold dot to distinguish them from
  * auto-extracted entries.
@@ -9,7 +9,6 @@
 
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Loader2, Plus, X, RefreshCw, Compass } from "lucide-react";
 import { DismissButton } from "@/components/ui/dismiss-button";
@@ -53,8 +52,8 @@ const BUCKET_COLOR: Record<Bucket, string> = {
   values: "text-emerald-400",
   fears: "text-red-400",
   operating_style: "text-fg-secondary",
-  rhythms: "text-blue-400",
-  red_lines: "text-violet-400",
+  rhythms: "text-sky-300",
+  red_lines: "text-rose-300",
 };
 
 export function QualitativeIdentityPanel() {
@@ -126,7 +125,7 @@ export function QualitativeIdentityPanel() {
   );
 
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <Compass size={12} className="text-fg-secondary" />
@@ -154,8 +153,8 @@ export function QualitativeIdentityPanel() {
       )}
 
       {/* A FAILED READ RENDERED A BLANK BODY. `loading && !identity` gated
-          the spinner and `identity &&` gated ALL content — including the
-          per-bucket "(empty — add one…)" hint — so a DB failure
+          the spinner and `identity &&` gated ALL content: including the
+          per-bucket "(empty: add one…)" hint: so a DB failure
           (lib/brain/qualitative-identity.ts:303-318 has no internal catch,
           so it propagates) left this card as a header, a recompute button
           and a paragraph of explanatory copy about content that was not
@@ -175,8 +174,8 @@ export function QualitativeIdentityPanel() {
           tone="warning"
           why={
             identityQuery.isError
-              ? "The read failed, so nothing is known about the values / fears / style / rhythms / red lines on file. That is NOT an empty self-model — do not add entries to fill it."
-              : "The read returned no identity envelope at all. Nothing has been measured here, so this is NOT an empty self-model — do not add entries to fill it."
+              ? "The read failed, so nothing is known about the values / fears / style / rhythms / red lines on file. That is NOT an empty self-model: do not add entries to fill it."
+              : "The read returned no identity envelope at all. Nothing has been measured here, so this is NOT an empty self-model: do not add entries to fill it."
           }
           unlock="Reload above. If it keeps failing, check the brain router and the qualitative_identity row."
           cta={{ label: "reload", onClick: () => void load() }}
@@ -212,7 +211,7 @@ export function QualitativeIdentityPanel() {
                     onChange={(e) => setAddText(e.target.value)}
                     onKeyDown={(e) => isSubmitEnter(e) && void addEntry(b)}
                     placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
-                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={() => void addEntry(b)}
@@ -247,7 +246,7 @@ export function QualitativeIdentityPanel() {
                   </div>
                 ))}
                 {identity[b].length === 0 && (
-                  <p className="text-[11px] text-[var(--text-tertiary)] italic">(empty — add one or let reflection auto-extract)</p>
+                  <p className="text-[11px] text-[var(--text-tertiary)] italic">(empty: add one or let reflection auto-extract)</p>
                 )}
               </div>
             </div>
@@ -260,6 +259,6 @@ export function QualitativeIdentityPanel() {
         (gold dot) always survive re-computes. Chat route injects this as "## Nour's
         qualitative identity" so Nick anchors in WHO you are, not a generic persona.
       </p>
-    </GlassCard>
+    </div>
   );
 }

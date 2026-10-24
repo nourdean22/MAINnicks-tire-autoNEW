@@ -3,7 +3,7 @@
 /**
  * WisdomTab · the Wisdom section of the merged /brain surface (Wave 2).
  *
- * Moved verbatim from the former app/(mastery)/brain/wisdom/page.tsx — the
+ * Moved verbatim from the former app/(mastery)/brain/wisdom/page.tsx: the
  * only changes are: the outer <StandardPage> wrapper became a fragment (the
  * page-level chrome now lives on /brain), the former StandardPage dynamic
  * `description` (principle/recall counts) moved into an inline subtitle, the
@@ -63,12 +63,12 @@ interface WisdomEntry {
 }
 
 interface WisdomPayload {
-  /** Whole corpus. NOT the size of `entries` — that is `entries.length`. */
+  /** Whole corpus. NOT the size of `entries`: that is `entries.length`. */
   total: number;
   /**
    * Shipped by `buildWisdomFeed` and used by the REST consumers of
    * /api/brain/wisdom. This component deliberately re-derives both from
-   * `entries` instead of reading them — see the render body.
+   * `entries` instead of reading them: see the render body.
    */
   loaded: number;
   truncated: boolean;
@@ -99,7 +99,7 @@ const WISDOM_PAGE_SOURCE = "wisdom-page";
 /**
  * Trailing window for `brain` bus events. Long enough to swallow a
  * chat turn's burst of memory writes, short enough that the operator
- * never notices it — the feed is not real-time.
+ * never notices it: the feed is not real-time.
  */
 const BRAIN_EVENT_COALESCE_MS = 1_500;
 
@@ -126,7 +126,7 @@ export function isForeignBrainEvent(detail: { source: string }): boolean {
  * Fixed structurally rather than by adding the missing `if`: both
  * readings now come out of the same function over the same base pool,
  * so they cannot disagree again. `topicCounts` is deliberately computed
- * BEFORE the topic filter is applied — a chip has to keep showing what
+ * BEFORE the topic filter is applied: a chip has to keep showing what
  * picking it would yield, which is why it was ever a separate loop.
  *
  * Exported for its unit test · the vitest env here is Node with no DOM,
@@ -351,7 +351,7 @@ export function WisdomTab() {
 
   // Derived, never read off the payload: `loaded` describes an array
   // this component is already holding, so counting it here removes the
-  // possibility of the two disagreeing — the same failure class as the
+  // possibility of the two disagreeing: the same failure class as the
   // chip counts below. `total` is the one number only the DB knows.
   const loaded = data.entries.length;
   const truncated = data.total > loaded;
@@ -395,7 +395,7 @@ export function WisdomTab() {
   return (
     <>
       {/* 2026-09-02 self-audit, defect #7 (secondary). This read "The
-          layer Nick draws on every conversation" over `data.total` —
+          layer Nick draws on every conversation" over `data.total`:
           which overstates twice. Recall does NOT draw on the corpus: it
           takes rows at confidence >= 0.3 that are not superseded and not
           past `validUntil`, then the top 300 by confidence
@@ -406,14 +406,14 @@ export function WisdomTab() {
         {data.total.toLocaleString()} principles in the wisdom corpus ·{" "}
         {data.totalRecalls.toLocaleString()} cumulative recalls. Curated
         traditions sit alongside cron-distilled patterns; trust-weighted in
-        recall. Nick&apos;s live recall pool is narrower — confidence ≥ 0.3,
+        recall. Nick&apos;s live recall pool is narrower: confidence ≥ 0.3,
         not superseded, not expired, top 300 per turn.
         {truncated && (
           <>
             {" "}
             <span className="text-amber-300">
               This page shows the highest-confidence {loaded.toLocaleString()} of
-              them — every filter, search and count below covers those{" "}
+              them: every filter, search and count below covers those{" "}
               {loaded.toLocaleString()} only.
             </span>
           </>
@@ -518,7 +518,7 @@ export function WisdomTab() {
               onClick={() => setTopicFilter("all")}
               className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 topicFilter === "all"
-                  ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               }`}
             >
@@ -533,7 +533,7 @@ export function WisdomTab() {
                   onClick={() => setTopicFilter(t)}
                   className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                     topicFilter === t
-                      ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
                       : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                   }`}
                 >
@@ -551,7 +551,7 @@ export function WisdomTab() {
               aria-label="Search wisdom"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-control px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-control px-3 py-2 text-[16px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
             />
             <SortDropdown<WisdomSort>
               value={sortKey}
@@ -644,7 +644,7 @@ export function WisdomTab() {
                           <textarea
                             value={editDraft}
                             onChange={(e) => setEditDraft(e.target.value)}
-                            className="w-full min-h-[7em] bg-[var(--bg-base)] border border-edge-subtle rounded-control px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-accent font-mono"
+                            className="w-full min-h-[7em] bg-[var(--bg-base)] border border-edge-subtle rounded-control px-3 py-2 text-[16px] text-[var(--text-primary)] focus:outline-none focus:border-accent font-mono"
                             autoFocus
                           />
                           <div className="mt-2 flex items-center gap-2">
@@ -679,7 +679,7 @@ export function WisdomTab() {
                             </span>
                             {/* 2026-08-19 · dropped `NN% conf`. It sat directly
                                 beside "fired N×" and was the SAME number
-                                restated — confidence is 0.5 + 0.1×(sightings−1),
+                                restated: confidence is 0.5 + 0.1×(sightings−1),
                                 not a probability. The count above is the fact. */}
                             <span>·</span>
                             <span>via {entry.source}</span>

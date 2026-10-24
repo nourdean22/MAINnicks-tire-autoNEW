@@ -77,7 +77,7 @@ export function RecallPreviewPanel() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="What would Nick remember about…"
-          className="min-h-11 flex-1 rounded-control border border-edge bg-void px-3 text-sm text-fg outline-none focus:border-accent"
+          className="min-h-11 flex-1 rounded-control border border-edge bg-void px-3 text-[16px] text-fg outline-none focus:border-accent"
         />
         <button
           type="submit"

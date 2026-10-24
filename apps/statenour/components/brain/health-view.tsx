@@ -18,7 +18,6 @@
 
 import { useCallback } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
 import { attentionTone } from "@/lib/brain/attention-label";
@@ -89,7 +88,7 @@ export function BrainHealthView() {
 
   // 2026-08-19 · memory-loop wave · Backfill Studio (lite). The corpus
   // is the live DB (chat retention = forever); the compiler's sweep
-  // engine doubles as the backfill. Batch cap 10/tap — one LLM call per
+  // engine doubles as the backfill. Batch cap 10/tap: one LLM call per
   // conversation, so the corpus drains over taps/nights, never one shot.
   const compileStatusQ = trpc.brain.conversationCompileStatus.useQuery(
     { windowDays: 365, includeArchived: true },
@@ -107,16 +106,16 @@ export function BrainHealthView() {
   return (
     <div className="space-y-4">
       {loading && !data && (
-        <GlassCard>
+        <div className="border-t border-edge pt-4">
           <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-4 justify-center">
             <Loader2 size={12} className="animate-spin" />
             inspecting categories…
           </div>
-        </GlassCard>
+        </div>
       )}
 
       {error && (
-        <GlassCard className="border-rose-500/30 bg-rose-500/5">
+        <div className="border-l-2 border-rose-400/60 py-1 pl-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-bold text-rose-300">
@@ -133,13 +132,13 @@ export function BrainHealthView() {
               Retry
             </button>
           </div>
-        </GlassCard>
+        </div>
       )}
 
       {data && (
         <>
           {/* ── Totals ── */}
-          <GlassCard>
+          <div className="border-t border-edge pt-4">
             <div className="flex items-center gap-2 mb-3">
               <Activity size={13} className="text-fg-secondary" />
               <span className="section-label">Totals</span>
@@ -147,7 +146,7 @@ export function BrainHealthView() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {/* 2026-08-19 · knowledge leads, not "live rows". The flat
                   total counted gateway shadows, XP events and critic
-                  scores as if the brain "knew" them — on prod that was
+                  scores as if the brain "knew" them: on prod that was
                   ~30% of the window's writes. Telemetry is still shown,
                   labeled as what it is. */}
               <Counter label="knowledge" value={data.totals.knowledge} tone="gold" />
@@ -158,7 +157,7 @@ export function BrainHealthView() {
             <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50">
               {/* 2026-09-02 · was pct/vectorized/live. `live` includes the
                   telemetry rows embedding-policy forbids embedding, so the bar
-                  was capped at 93.4% on prod and could never reach 100% —
+                  was capped at 93.4% on prod and could never reach 100%:
                   permanent incompleteness rendered as a backlog. Knowledge
                   coverage was 99.967% the same day. */}
               <VectorizationBar
@@ -167,10 +166,10 @@ export function BrainHealthView() {
                 total={data.totals.knowledge}
               />
             </div>
-          </GlassCard>
+          </div>
 
           {/* ── Conversation compiler · Backfill Studio (lite) ── */}
-          <GlassCard>
+          <div className="border-t border-edge pt-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <span className="section-label">Conversation compiler</span>
@@ -208,11 +207,11 @@ export function BrainHealthView() {
                 {compileMut.isPending ? "Compiling…" : "Compile next 10"}
               </button>
             </div>
-          </GlassCard>
+          </div>
 
           {/* ── Flags ── */}
           {data.flags.length > 0 ? (
-            <GlassCard>
+            <div className="border-t border-edge pt-4">
               <div className="flex items-center gap-2 mb-2">
                 <AlertCircle size={13} className="text-amber-400" />
                 <span className="section-label">
@@ -250,20 +249,20 @@ export function BrainHealthView() {
                   );
                 })}
               </div>
-            </GlassCard>
+            </div>
           ) : (
-            <GlassCard className="border-emerald-500/20 bg-emerald-500/[0.03]">
+            <div className="border-l-2 border-emerald-400/60 py-1 pl-4">
               <div className="flex items-center gap-2 py-1">
                 <ShieldCheck size={13} className="text-emerald-400" />
                 <span className="text-[11px] text-emerald-300">
                   all categories healthy · no flags raised
                 </span>
               </div>
-            </GlassCard>
+            </div>
           )}
 
           {/* ── Per-category table ── */}
-          <GlassCard>
+          <div className="border-t border-edge pt-4">
             <div className="flex items-center gap-2 mb-2">
               <Database size={13} className="text-fg-secondary" />
               <span className="section-label">
@@ -275,7 +274,7 @@ export function BrainHealthView() {
                 <CategoryRow key={c.category} c={c} />
               ))}
             </div>
-          </GlassCard>
+          </div>
 
           <p className="text-[11px] font-mono text-fg-tertiary text-center">
             Generated · {new Date(data.generatedAt).toLocaleTimeString()}
@@ -299,7 +298,7 @@ function Counter({
     gold: "text-fg-secondary",
     emerald: "text-emerald-300",
     rose: "text-rose-300",
-    violet: "text-violet-300",
+    violet: "text-sky-300",
     tertiary: "text-[var(--text-tertiary)]",
   };
   return (
@@ -357,7 +356,7 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
   // inversion FABRICATES: 73% of recent seen_count=1 rows carry a
   // writer-stamped confidence (0.9s and 1.0s from critics and event
   // buses), so the "seen ~N×" it printed was fiction. seen_count is the
-  // real column and the rollup now ships its mean — report that.
+  // real column and the rollup now ships its mean: report that.
   const avgSightings = Math.max(1, Math.round(c.avgSeen || 1));
   const attention =
     c.avgSeen > 0 ? `seen ~${avgSightings}× avg` : "sightings unknown";
@@ -373,12 +372,12 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
   const dormant = c.ageNewestHours !== null && c.ageNewestHours > 24 * 30;
   // Telemetry categories are excluded from the vector index on purpose
   // (lib/brain/embedding-policy.ts). Badging them "no vec" faults a category
-  // for obeying policy — the same mistake computeHealthFlags used to make.
+  // for obeying policy: the same mistake computeHealthFlags used to make.
   const noVecs = c.vectorized === 0 && c.count > 5 && !c.telemetry;
 
   const ageLabel =
     c.ageNewestHours === null
-      ? "—"
+      ? "none"
       : c.ageNewestHours < 1
         ? `${Math.round(c.ageNewestHours * 60)}m`
         : c.ageNewestHours < 24

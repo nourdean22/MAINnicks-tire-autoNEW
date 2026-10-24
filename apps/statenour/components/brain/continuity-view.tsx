@@ -22,13 +22,10 @@
 import { trpc } from "@/lib/trpc/client";
 import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { GlassCard } from "@/components/ui/glass-card";
 import { cn } from "@/lib/utils";
 import {
-  Sparkles,
   TrendingUp,
   TrendingDown,
-  Brain,
   ChevronDown,
   Loader2,
   Flame,
@@ -71,12 +68,12 @@ interface ContinuityPayload {
     reinforced: Memory[];
     decayed: Memory[];
     promoted: Memory[];
-    /** Rows TOMBSTONED in the last 24h — see brain-continuity.ts. */
+    /** Rows TOMBSTONED in the last 24h: see brain-continuity.ts. */
     prunedLast24h: number;
   };
   topReinforced: Memory[];
   topConfidence: Memory[];
-  /** `created*` — new rows only. A touched row is not growth. */
+  /** `created*`: new rows only. A touched row is not growth. */
   categoryMovers: Array<{ category: string; created24h: number; created7d: number; total: number }>;
   computedAt: string;
 }
@@ -102,18 +99,18 @@ export function BrainContinuityView() {
 
   if (loading && !data) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-4 justify-center">
           <Loader2 size={12} className="animate-spin" />
           reading the brain…
         </div>
-      </GlassCard>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <GlassCard className="border-rose-500/30 bg-rose-500/5">
+      <div className="border-l-2 border-rose-400/60 py-1 pl-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-bold text-rose-300">continuity fetch failed</p>
@@ -126,7 +123,7 @@ export function BrainContinuityView() {
             Retry
           </button>
         </div>
-      </GlassCard>
+      </div>
     );
   }
 
@@ -135,12 +132,12 @@ export function BrainContinuityView() {
   return (
     <div className="space-y-4">
       {/* 2026-09-15 · cursor-based "since your last visit" (ChangeSet
-          primitive, second consumer) — a different question from the 24h
+          primitive, second consumer): a different question from the 24h
           buckets below it. */}
       <BrainChangeLine />
       <TimeTravelPanel />
 
-      {/* BDN-003 (2026-08-12) · ONE merged activity/receipts timeline —
+      {/* BDN-003 (2026-08-12) · ONE merged activity/receipts timeline:
           the fold ORGANIZATION-WIRING-AUDIT §6/§7 prescribed. Supersedes
           the entity-audit-only GlobalActivityStream here: the receipt
           feed's 3-source merge INCLUDES entity-audit rows, plus
@@ -155,9 +152,9 @@ export function BrainContinuityView() {
       <JudgmentQualityPanel />
 
       {/* ── Totals ── */}
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex items-center gap-2 mb-3">
-          <Brain size={14} className="text-fg-secondary" />
+          
           <span className="section-label">Memory totals</span>
         </div>
         <div className="grid grid-cols-3 gap-3">
@@ -165,7 +162,7 @@ export function BrainContinuityView() {
           <TotalCell label="active" value={data.totals.active} color="emerald" />
           <TotalCell label="expired" value={data.totals.expired} color="tertiary" />
         </div>
-        {/* These two were THE SAME NUMBER until 2026-09-02 — `expired`
+        {/* These two were THE SAME NUMBER until 2026-09-02: `expired`
             (past TTL, still live) was also rendered here as "~N
             decayed/pruned in the last cycle". A row cannot be both, and
             the pruned line was the false one, so it read near-zero right
@@ -178,11 +175,11 @@ export function BrainContinuityView() {
           </span>{" "}
           tombstoned in the last 24h
         </p>
-      </GlassCard>
+      </div>
 
       {/* ── Category movers ── */}
       {data.categoryMovers.length > 0 && (
-        <GlassCard>
+        <div className="border-t border-edge pt-4">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp size={13} className="text-fg-secondary" />
             <span className="section-label">Category movers · new rows, last 24h</span>
@@ -217,14 +214,14 @@ export function BrainContinuityView() {
               );
             })}
           </div>
-        </GlassCard>
+        </div>
       )}
 
       {/* ── 4-column recent activity ── */}
       <div className="grid md:grid-cols-2 gap-3">
         <RecentColumn
           title="new · 24h"
-          icon={<Sparkles size={13} className="text-emerald-400" />}
+          icon={null}
           memories={data.recent.created}
           emptyMsg="no new memories in last 24h"
         />
@@ -232,11 +229,11 @@ export function BrainContinuityView() {
           title="reinforced · 24h"
           icon={<TrendingUp size={13} className="text-fg-secondary" />}
           memories={data.recent.reinforced}
-          emptyMsg="no reinforcements in last 24h — idle"
+          emptyMsg="no reinforcements in last 24h: idle"
         />
         <RecentColumn
           title="promoted to wisdom · 24h"
-          icon={<Flame size={13} className="text-violet-400" />}
+          icon={<Flame size={13} className="text-fg-tertiary" />}
           memories={data.recent.promoted}
           emptyMsg="no new wisdom promotions"
         />
@@ -250,16 +247,16 @@ export function BrainContinuityView() {
 
       {/* ── Top leaderboards ── */}
       <div className="grid md:grid-cols-2 gap-3">
-        <GlassCard>
+        <div className="border-t border-edge pt-4">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp size={13} className="text-fg-secondary" />
             <span className="section-label">Top reinforced · last 7d</span>
           </div>
           <MemoryList memories={data.topReinforced} emptyMsg="quiet week" highlight="seenCount" />
-        </GlassCard>
-        <GlassCard>
+        </div>
+        <div className="border-t border-edge pt-4">
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={13} className="text-violet-400" />
+            
             <span className="section-label">Top confidence · all time</span>
           </div>
           <MemoryList memories={data.topConfidence} emptyMsg="no high-conf memories yet" highlight="confidence" />
@@ -267,13 +264,13 @@ export function BrainContinuityView() {
               What is NOT honest is reading that column as certainty: the
               list filters `confidence >= 0.85` (brain-continuity.ts:200)
               and most rows at that level were STAMPED there by a writer
-              (output_critic 0.9, brain-bus 1.0), not re-sighted up to it —
+              (output_critic 0.9, brain-bus 1.0), not re-sighted up to it:
               see the measured limit in lib/brain/attention-label.ts. */}
           <p className="mt-2 text-[11px] text-[var(--text-tertiary)] leading-relaxed">
-            ordered by the confidence column (a re-sighting counter, not a probability) — rows
+            ordered by the confidence column (a re-sighting counter, not a probability): rows
             at 0.9/1.0 are usually writer-stamped, so the labels above report sightings instead
           </p>
-        </GlassCard>
+        </div>
       </div>
     </div>
   );
@@ -310,7 +307,7 @@ function RecentColumn({
   const [now] = useState(() => Date.now());
   const visible = showAll ? memories : memories.slice(0, 5);
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <span className="section-label">{title}</span>
@@ -341,13 +338,13 @@ function RecentColumn({
           )}
         </>
       )}
-    </GlassCard>
+    </div>
   );
 }
 
 function MemoryRow({ m, now }: { m: Memory; now: number }) {
   // 2026-08-19 · was `${Math.round(m.confidence * 100)}%` rendered right
-  // beside `×{seenCount}` — the SAME number twice, since confidence is
+  // beside `×{seenCount}`: the SAME number twice, since confidence is
   // 0.5 + 0.1×(sightings−1). The percentage was the lie; the count is the
   // fact. Show the count, drop the percentage.
   const sightings = m.seenCount > 0 ? m.seenCount : sightingsFromConfidence(m.confidence);
@@ -384,7 +381,7 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
   );
 }
 
-/** Sightings for a row — the real column when it has one, the inversion otherwise. */
+/** Sightings for a row: the real column when it has one, the inversion otherwise. */
 function rowSightings(m: Memory): number {
   return m.seenCount > 0 ? m.seenCount : sightingsFromConfidence(m.confidence);
 }
@@ -403,15 +400,15 @@ function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emp
               <span className="text-[11px] font-mono text-[var(--text-tertiary)]">{m.category}</span>
               {highlight === "seenCount" && <span className="text-[11px] font-mono tabular-nums text-fg-secondary">×{m.seenCount}</span>}
               {/* 2026-09-02 · this rendered `{Math.round(m.confidence * 100)}%`
-                  — forty lines below MemoryRow's own comment saying the
+                  forty lines below MemoryRow's own comment saying the
                   percentage "was the lie" and had been removed. Same column,
                   same lie, one component over. `confidence` is a re-sighting
                   counter (0.5 + 0.1×(sightings−1), capped at 1.0), not a
                   probability, so "90%" never meant 90% likely to be true.
                   lib/brain/attention-label.ts exists to make this
-                  unrepeatable — "One helper, so this cannot drift back". */}
+                  unrepeatable: "One helper, so this cannot drift back". */}
               {highlight === "confidence" && (
-                <span className="text-[11px] font-mono tabular-nums text-violet-400">
+                <span className="text-[11px] font-mono tabular-nums text-sky-300">
                   {m.seenCount > 0
                     ? describeSeenCount(m.seenCount)
                     : describeConfidenceAsAttention(m.confidence)}
@@ -423,7 +420,7 @@ function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emp
         </div>
       ))}
       {/* Mini-sparkline: attention ladder. Plots the SAME quantity the
-          badges above show — plotting raw confidence here would have
+          badges above show: plotting raw confidence here would have
           re-stated the percentage claim in chart form. */}
       <div className="mt-2 flex items-center gap-2 text-[11px] font-mono text-[var(--text-tertiary)]">
         <span>ladder</span>

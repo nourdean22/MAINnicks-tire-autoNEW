@@ -92,7 +92,7 @@ const FINDER_LABEL: Record<FinderFailure["finder"], string> = {
 
 /**
  * Renders WHICH finders failed. A zero in a failed finder's section is
- * "unknown", not "none" — so this sits above the lists rather than
+ * "unknown", not "none": so this sits above the lists rather than
  * replacing them, and the empty state never claims health while a
  * finder is down.
  */
@@ -102,7 +102,7 @@ function FailureNote({ failures }: { failures: FinderFailure[] }) {
     <p className="mt-2 flex items-start gap-1.5 text-[11px] text-red-400">
       <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
       <span>
-        {failures.length === 1 ? "1 finder" : `${failures.length} finders`} failed —{" "}
+        {failures.length === 1 ? "1 finder" : `${failures.length} finders`} failed:{" "}
         {failures.map((f) => `${FINDER_LABEL[f.finder] ?? f.finder} (${f.message})`).join(" · ")}.
         Those sections read zero because they could not run, not because they are empty.
       </span>
@@ -156,11 +156,11 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
     );
   }
   // 2026-09-02 self-audit, defect #1. This branch used to be reached
-  // whenever `data` was falsy — INCLUDING a rejected query — and it
+  // whenever `data` was falsy: INCLUDING a rejected query: and it
   // announced "the wisdom corpus is healthy". `runWisdomEvolution` was a
   // bare `Promise.all`, so any one of three finders throwing rejected
   // the whole thing, and a DB error rendered as a clean bill of health.
-  // Same shape as components/brain/judgment-quality-panel.tsx:35 —
+  // Same shape as components/brain/judgment-quality-panel.tsx:35:
   // state unknown, not empty.
   if (evoQuery.isError || !data) {
     return (
@@ -171,7 +171,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
         <p className="mt-2 flex items-start gap-1.5 text-sm text-[var(--text-secondary)]">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-400" />
           <span>
-            Evolution candidates couldn&apos;t load — state unknown, not empty.
+            Evolution candidates couldn&apos;t load: state unknown, not empty.
             {evoQuery.error?.message ? ` (${evoQuery.error.message})` : ""}
           </span>
         </p>
@@ -215,7 +215,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
           <h3 className="section-title text-base mt-1">
             {data.totalCandidates} wisdom candidate{data.totalCandidates === 1 ? "" : "s"}
           </h3>
-          {/* Partial results are still results — but they are labelled. */}
+          {/* Partial results are still results: but they are labelled. */}
           <FailureNote failures={failures} />
         </div>
         <span className="text-[11px] font-mono text-[var(--text-tertiary)]">

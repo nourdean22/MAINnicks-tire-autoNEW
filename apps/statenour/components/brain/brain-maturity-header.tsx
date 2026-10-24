@@ -22,7 +22,7 @@ import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialo
 
 // Mirrors BrainMaturityView in lib/services/brain-domain.ts. Every counter
 // is `number | null`, and `null` means the read that would have produced it
-// FAILED — never zero. See UNKNOWN below.
+// FAILED: never zero. See UNKNOWN below.
 interface Maturity {
   score: number | null;        // aggregate · null when a read failed
   /** What `score` is out of: a constant 90. */

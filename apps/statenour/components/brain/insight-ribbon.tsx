@@ -4,13 +4,13 @@
  * InsightRibbon · v10.0.218 · cross-system narrative strip.
  *
  * Renders at the top of /brain. Distinct from NudgePanel (which is
- * actionable now-deltas) — this is week-over-week pattern signal:
+ * actionable now-deltas): this is week-over-week pattern signal:
  *   "3 lessons logged · vs 1 prior · learning sprint"
  *   "captures category +47% · 38 → 56 · emerging theme"
  *   "11d since last reflection · usual cadence 4d · overdue"
  *
  * Aesthetic: editorial. Big number, tracked tiny-caps eyebrow,
- * supporting clause in dim secondary text. Asymmetric per-card —
+ * supporting clause in dim secondary text. Asymmetric per-card:
  * the headline is the felt thing, supporting is the receipt.
  *
  * Auto-hides if no insights returned (clean week = no ribbon).
@@ -55,7 +55,7 @@ export function InsightRibbon() {
   // the same `buildBrainInsights` service the REST route also calls.
   // `loading` ← `isLoading`. The ribbon auto-hides on any non-data
   // state so no error surface is needed (the legacy hook's
-  // `retryOn401: false` just meant "don't bounce to sign-in" — React
+  // `retryOn401: false` just meant "don't bounce to sign-in": React
   // Query already doesn't redirect).
   const { data, isLoading: loading, isError } = trpc.brain.insightsRibbon.useQuery();
   const [mounted, setMounted] = useState(false);
