@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Post-visit text PR (Draft D, Nour 2026-10-24 'go post-visit text'). Operator UI: Admin > Outreach > Reviews > Settings > 'Custom Message Template (Optional)'; the empty textarea's placeholder now reads the real default, built by shared/postVisitText.ts with the tokens: 'Hi {firstName}, it's Nick's Tire & Auto on Euclid. Thanks for coming in. If anything about the car feels off, text us here and we'll take care of it. If you have a minute, tell other Cleveland drivers how your visit went: {reviewUrl}', instead of the old 'thanks for trusting us with your {service}' line. The help line, the saved template and every other control are unchanged; a saved custom template still wins over the default. Customer side: the review-requests cron default (routers/reviewRequests.ts buildReviewMessage) and the 7-day post-invoice-followup text both send that string via the shop line; replies land in the admin Messages inbox (routes/webhooks/smsGateway.ts inbound -> smsMessages + ensureResponseObligation). Proof: client/src/__tests__/review-requests-template-placeholder.test.tsx (red on the old placeholder, then green), server/postVisitText.test.ts consumer assertions on the string handed to sendSms. Not yet seen in the live admin: checked after deploy."
+    }
+  }
+}
