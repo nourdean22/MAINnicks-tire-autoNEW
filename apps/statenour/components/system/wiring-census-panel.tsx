@@ -114,7 +114,7 @@ export function WiringCensusPanel() {
           that coverage actually lives. An instrument that hides its own
           blind spots is the thing this panel exists to prevent. */}
       <details className="border-t border-edge-subtle pt-2">
-              <summary className="font-mono text-[11px] text-fg-tertiary cursor-pointer hover:text-fg min-h-[32px] flex items-center">
+              <summary className="font-mono text-[11px] text-fg-tertiary cursor-pointer hover:text-fg min-h-[44px] flex items-center">
           not covered here ({censusQ.data?.notCovered.length ?? 0})
         </summary>
         <ul className="mt-1 space-y-0.5">

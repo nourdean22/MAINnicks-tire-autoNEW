@@ -91,7 +91,7 @@ export function JournalFeedView() {
             <button
               onClick={() => setSearch("")}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
             >
               <XIcon size={12} />
             </button>

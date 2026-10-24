@@ -121,7 +121,7 @@ export function ThreadRail({
           <button
             type="button"
             onClick={() => void reload()}
-            className="rounded-control border border-rose-500/40 px-2 py-0.5 font-mono hover:bg-rose-500/15"
+            className="min-h-[44px] rounded-control border border-rose-500/40 px-3 py-0.5 font-mono hover:bg-rose-500/15"
           >
             Retry
           </button>
@@ -151,7 +151,7 @@ export function ThreadRail({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[32px] inline-flex items-center"
+            className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[44px] inline-flex items-center"
           >
             + new thread
           </button>
@@ -171,7 +171,7 @@ export function ThreadRail({
               <button
                 type="button"
                 onClick={() => setCreating(true)}
-                className="text-fg-tertiary hover:text-fg"
+                className="inline-flex min-h-[44px] items-center px-2 text-fg-tertiary hover:text-fg"
               >
                 + new
               </button>
@@ -180,7 +180,7 @@ export function ThreadRail({
               <button
                 type="button"
                 onClick={() => setShowDormant((s) => !s)}
-                className="text-fg-tertiary hover:text-fg"
+                className="inline-flex min-h-[44px] items-center px-2 text-fg-tertiary hover:text-fg"
               >
                 {showDormant ? "Hide" : "Show"} {dormant.length} dormant
               </button>
@@ -378,7 +378,7 @@ function ThreadCard({
                 ?threadId= filter once /api/journal accepts it. */}
             <a
               href={`/journal?search=${encodeURIComponent(thread.name)}`}
-              className="text-[13px] font-medium text-fg-secondary hover:text-fg min-h-[32px] inline-flex items-center"
+              className="text-[13px] font-medium text-fg-secondary hover:text-fg min-h-[44px] inline-flex items-center"
             >
               View in feed →
             </a>

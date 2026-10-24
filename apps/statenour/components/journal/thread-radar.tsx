@@ -153,7 +153,7 @@ export function ThreadRadar({
               type="button"
               onClick={triggerScan}
               disabled={scanState.busy}
-              className="text-fg-tertiary hover:text-fg disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center px-2 text-fg-tertiary hover:text-fg disabled:opacity-50"
             >
               {scanState.busy ? "Scanning..." : "Scan again"}
             </button>
@@ -192,7 +192,7 @@ export function ThreadRadar({
             type="button"
             onClick={triggerScan}
             disabled={scanState.busy}
-            className="text-fg-tertiary hover:text-fg disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center px-2 text-fg-tertiary hover:text-fg disabled:opacity-50"
             title="re-run the convergence scan"
           >
             {scanState.busy ? "Scanning..." : "Rescan"}

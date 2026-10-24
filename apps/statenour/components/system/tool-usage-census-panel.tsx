@@ -132,7 +132,7 @@ export function ToolUsageCensusPanel() {
         </p>
       )}
 
-      <div className="flex gap-1.5" role="tablist" aria-label="census buckets">
+      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="census buckets">
         {visibleBuckets.map((b) => (
           <button
             key={b.key}
@@ -140,7 +140,7 @@ export function ToolUsageCensusPanel() {
             aria-selected={bucket === b.key}
             onClick={() => setBucket(b.key)}
             className={cn(
-              "min-h-[32px] px-2.5 rounded-control border text-[11px] font-mono",
+              "min-h-[44px] min-w-[44px] px-2.5 rounded-control border text-[11px] font-mono",
               bucket === b.key
                 ? "border-edge-default bg-surface-interactive text-fg"
                 : "border-edge-subtle text-fg-tertiary hover:text-fg",
