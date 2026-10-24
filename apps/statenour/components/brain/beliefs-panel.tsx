@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * BeliefsPanel — Nour's curated belief library. Pending candidates
+ * BeliefsPanel: Nour's curated belief library. Pending candidates
  * appear on top (harvested nightly), active beliefs below. Promote
  * lifts candidate → active with optional rewrite. Edit lets him
  * polish the statement. Drop nukes.
@@ -9,7 +9,6 @@
 
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ArrowUp, Trash2, Pencil, Check, X, Loader2, Play, BookOpen } from "lucide-react";
@@ -46,7 +45,7 @@ export function BeliefsPanel() {
 
   // A FAILED READ IS NOT A ZERO. These previously ended `?? (isError ? [] : null)`,
   // so a failed query produced an empty array and the panel rendered a confident
-  // "No active beliefs yet" — a measured claim about data it never received.
+  // "No active beliefs yet": a measured claim about data it never received.
   // Null now means "no reading", and the empty state below says which.
   const active = (beliefsQuery.data?.active as StoredBelief[] | undefined) ?? null;
   const candidates =
@@ -131,7 +130,7 @@ export function BeliefsPanel() {
           "p-2 rounded-micro border transition-colors",
           kind === "belief"
             ? "bg-[var(--bg-base)] border-[var(--border-default)]"
-            : "bg-blue-500/5 border-blue-500/20",
+            : "bg-sky-500/5 border-sky-500/20",
           rowBusy && "opacity-60",
         )}
       >
@@ -141,7 +140,7 @@ export function BeliefsPanel() {
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               rows={2}
-              className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-accent"
+              className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[16px] text-[var(--text-primary)] focus:outline-none focus:border-accent"
             />
             <div className="flex items-center gap-1.5">
               <button
@@ -216,7 +215,7 @@ export function BeliefsPanel() {
   };
 
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <BookOpen size={12} className="text-fg-secondary" />
@@ -266,7 +265,7 @@ export function BeliefsPanel() {
             icon={BookOpen}
             title="No active beliefs yet"
             provenance="ZERO"
-            why="Beliefs are curated stated-positions that get injected into every chat turn so Nick reasons from your actual operating truths — not generic defaults."
+            why="Beliefs are curated stated-positions that get injected into every chat turn so Nick reasons from the positions you have stated."
             unlock="Promote a candidate from the list above, or run Harvest now to surface new ones from recent brain dumps."
             tone="neutral"
           />
@@ -277,11 +276,11 @@ export function BeliefsPanel() {
             title={beliefsQuery.isError ? "Beliefs unavailable" : "Beliefs not read"}
             provenance={beliefsQuery.isError ? "ERROR" : "UNMEASURED"}
             tone="warning"
-            why="Nothing is known about your active beliefs right now — this is not the same as having none. Chat turns are still being injected with whatever the server last had."
+            why="Nothing is known about your active beliefs right now: this is not the same as having none. Chat turns are still being injected with whatever the server last had."
             unlock="Reload the panel. If it keeps failing, check the brain router."
           />
         )}
       </div>
-    </GlassCard>
+    </div>
   );
 }

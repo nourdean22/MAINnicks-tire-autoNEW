@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ContradictionResolutionPanel — close the loop on stated-position
+ * ContradictionResolutionPanel: close the loop on stated-position
  * conflicts. Each row shows new vs old excerpt side-by-side with
  * 4 resolution buttons:
  *   current wins → mark old as deprecated
@@ -12,7 +12,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AlertTriangle, Check, X, Split, Loader2 } from "lucide-react";
@@ -80,7 +79,7 @@ export function ContradictionResolutionPanel() {
   });
   const resolveMutation = trpc.brain.resolveContradiction.useMutation();
 
-  // A FAILED READ IS NOT A ZERO — and here it was the worst version of that.
+  // A FAILED READ IS NOT A ZERO: and here it was the worst version of that.
   // This ended `?? (isError ? [] : null)`, so a failed query fell straight into
   // the empty branch and rendered a GREEN "Clean ledger · Nick's stated
   // positions are internally consistent". A read that failed was reported as
@@ -139,7 +138,7 @@ export function ContradictionResolutionPanel() {
   }, [rows, tab]);
 
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <AlertTriangle size={12} className="text-red-400" />
@@ -298,7 +297,7 @@ export function ContradictionResolutionPanel() {
               title="Clean ledger"
               provenance="ZERO"
               why="No open claim-vs-record gap right now."
-              unlock="The nightly thinking engine records a gap when what you said does not match the record. A measured zero says the LEDGER is empty — it does not say whether the engine has had enough to compare."
+              unlock="The nightly thinking engine records a gap when what you said does not match the record. A measured zero says the LEDGER is empty: it does not say whether the engine has had enough to compare."
               tone="positive"
             />
           ) : (
@@ -306,7 +305,7 @@ export function ContradictionResolutionPanel() {
               icon={Split}
               title="No resolved contradictions yet"
               provenance="ZERO"
-              why="Every answer gets logged here — record is right, outdated, ignore, or expired after 30 days."
+              why="Each answer you give is kept here, whether the record was right, out of date, or not worth acting on. Rows nobody answers expire after 30 days."
               unlock="Switch to Unresolved, work through the list, then come back."
               tone="neutral"
             />
@@ -318,6 +317,6 @@ export function ContradictionResolutionPanel() {
         Claim-vs-record rows come from the nightly thinking engine; your answer is stored on the row,
         and rows nobody answers expire after 30 days.
       </p>
-    </GlassCard>
+    </div>
   );
 }

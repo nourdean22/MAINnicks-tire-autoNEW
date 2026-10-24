@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, RefreshCw, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
-import { GlassCard } from "@/components/ui/glass-card";
 import { apiFetch } from "@/lib/utils/api-fetch";
+import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-outcomes";
 
 interface PendingCandidate {
   id: string;
@@ -40,7 +40,7 @@ export type QueueBodyKind = "loading" | "unknown" | "empty" | "items";
  * `{ total: 0, items: [] }`, their catch fired a toast and set nothing else,
  * and the render fell straight through to "0 pending" plus "No knowledge is
  * waiting for review." A read that FAILED and a queue that is genuinely empty
- * produced byte-identical markup — under a page whose own header comment
+ * produced byte-identical markup: under a page whose own header comment
  * (app/(mastery)/brain/page.tsx) says an empty queue and a dead queue must
  * never look the same, and beside two siblings that already get it right
  * (discover-tab's "state unknown, not empty", research-pipeline-status's
@@ -56,17 +56,17 @@ export function queueView(s: {
   failed: boolean;
   total: number;
   items: number;
-  /** "pending" · "awaiting outcome" — the panel's own noun. */
+  /** "pending" · "awaiting outcome": the panel's own noun. */
   noun: string;
 }): { headline: string; body: QueueBodyKind } {
   if (s.loading) return { headline: "Loading", body: "loading" };
   // Never `${total} ${noun}`: `total` is the initial 0, not a measurement.
-  if (s.failed) return { headline: "unknown — read failed", body: "unknown" };
+  if (s.failed) return { headline: "unknown: read failed", body: "unknown" };
   return { headline: `${s.total} ${s.noun}`, body: s.items === 0 ? "empty" : "items" };
 }
 
 /**
- * The panel's own body card. Renders NOTHING for "loading"/"items" — the item
+ * The panel's own body card. Renders NOTHING for "loading"/"items": the item
  * list is rendered by the panel itself and survives a failed refresh as
  * last-known-good.
  *
@@ -86,19 +86,19 @@ export function QueueBody({
 }) {
   if (body === "unknown") {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <p className="text-sm text-amber-300">
-          This queue couldn&apos;t load — state unknown, not empty.
+          This queue couldn&apos;t load: state unknown, not empty.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {detail ?? "The queue may hold pending items; this panel just can't read it right now."}
         </p>
-      </GlassCard>
+      </div>
     );
   }
   if (body === "empty") {
     return (
-      <GlassCard className="text-center text-sm text-muted-foreground">{emptyLabel}</GlassCard>
+      <div className="border-t border-edge pt-4 text-center text-sm text-muted-foreground">{emptyLabel}</div>
     );
   }
   return null;
@@ -160,7 +160,7 @@ export function KnowledgeReviewTab() {
 
   return (
     <div className="space-y-4">
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -184,7 +184,7 @@ export function KnowledgeReviewTab() {
         <div className="mt-4 text-[12px] font-mono text-fg-tertiary">
           {view.headline}
         </div>
-      </GlassCard>
+      </div>
 
       <QueueBody
         body={view.body}
@@ -198,7 +198,7 @@ export function KnowledgeReviewTab() {
           ? `${Math.round(metadata.confidence * 100)}%`
           : "unknown";
         return (
-          <GlassCard key={item.id} className="">
+          <div key={item.id} className="border-t border-edge pt-4">
             <div className="flex flex-wrap items-center gap-2 text-[12px] font-mono text-fg-tertiary">
               <span>{metadata.sourceType ?? "unknown source"}</span>
               <span>·</span>
@@ -257,9 +257,13 @@ export function KnowledgeReviewTab() {
                 <Check className="h-4 w-4" /> Approve
               </button>
             </div>
-          </GlassCard>
+          </div>
         );
       })}
+
+      {/* Wave D (2026-10-24): approved actions and their outcomes are the second half of this queue
+          (what was approved, what came of it), so they sit in its body instead of a block beside it. */}
+      <KnowledgeActionOutcomes />
     </div>
   );
 }

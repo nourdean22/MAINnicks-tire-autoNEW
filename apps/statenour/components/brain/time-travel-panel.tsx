@@ -42,7 +42,7 @@ function todayEt(): string {
   }).format(new Date());
 }
 
-const UNKNOWN = "—";
+const UNKNOWN = "?";
 
 const COUNT_LABELS: Array<[keyof TimeTravelReport["summary"], string]> = [
   ["memoriesCreated", "memories"],
@@ -93,7 +93,7 @@ export function TimeTravelPanel() {
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            className="min-h-11 rounded-control border border-edge bg-void px-3 text-xs text-fg"
+            className="min-h-11 rounded-control border border-edge bg-void px-3 text-[16px] text-fg"
           />
           <button
             type="button"
@@ -109,7 +109,7 @@ export function TimeTravelPanel() {
 
       {error ? (
         <p className="mt-3 rounded-control border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
-          {error} — state unknown, not empty.
+          {error}: state unknown, not empty.
         </p>
       ) : null}
       {report ? <TimeTravelSnapshot report={report} /> : null}
@@ -120,7 +120,7 @@ export function TimeTravelPanel() {
 /**
  * The loaded day. Pure, so the honest-render test can drive it with the
  * route's real output. A read listed in `degradedReads` FAILED: its value is
- * a fallback, so it renders as "—" — never as a zero or as "absent".
+ * a fallback, so it renders as "none": never as a zero or as "absent".
  */
 export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
   const failed = new Set(report.degradedReads ?? []);
@@ -135,7 +135,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
         >
           <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
           <span>
-            Some of this day could not be read — values shown as {UNKNOWN} are unknown, not zero. Unread:{" "}
+            Some of this day could not be read: values shown as {UNKNOWN} are unknown, not zero. Unread:{" "}
             {[...failed].join(", ")}.
           </span>
         </p>

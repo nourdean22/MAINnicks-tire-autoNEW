@@ -18,6 +18,9 @@
  * clusters cross MIN_MEMBERS · the panel hides itself.
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useEffect } from "react";
 // Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
 // patterns")` (GET + POST) onto `trpc.brain.patterns` (reactive read ·
@@ -69,7 +72,10 @@ export function PatternCard() {
     return () => off();
   }, [utils]);
 
-  if (patternsQuery.isError || !patterns) return null;
+  // Wave D: a failed read used to hide the card, the same pixel as "no patterns".
+  if (patternsQuery.isError && !patterns) return <ReadingUnavailable label="Patterns" />;
+  if (!patterns && readState(patternsQuery) === "offline") return <ReadStateNote state="offline" label="Patterns" />;
+  if (!patterns) return null;
   if (patterns.length === 0) return null;
 
   const refreshing = regenerateMutation.isPending;

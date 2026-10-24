@@ -1,18 +1,17 @@
 "use client";
 
 /**
- * MemoryOfDayCard — the brain's curated daily pick.
+ * MemoryOfDayCard: the brain's curated daily pick.
  *
  * Lived inside components/settings/system-data-cards.tsx under Settings >
  * Diagnostics until the full-circle wave 2 recomposition (2026-10-02): it is
  * brain CONTENT, not machine health, so it mounts on /brain's self-model
  * zone now. The read is `brain.memoryOfTheDay`, which upserts the day's
- * pick-marker row on first call (lib/services/memory-of-the-day.ts) — a
+ * pick-marker row on first call (lib/services/memory-of-the-day.ts): a
  * read that writes, documented there. Silent on a measured empty day;
  * UnmeasuredLine on a failed read.
  */
 
-import { GlassCard } from "@/components/ui/glass-card";
 import { UnmeasuredLine } from "@/components/ui/unmeasured-line";
 import { Sparkles } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -28,7 +27,7 @@ export function MemoryOfDayCard() {
     m.ageDays === 0 ? "today" : m.ageDays === 1 ? "yesterday" : `${m.ageDays}d ago`;
 
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
       <div className="flex items-center gap-2 mb-2">
         <Sparkles size={14} className="text-fg-tertiary" />
         <p className="section-label">Memory of the day</p>
@@ -49,6 +48,6 @@ export function MemoryOfDayCard() {
         <span>·</span>
         <span>{ageStr}</span>
       </div>
-    </GlassCard>
+    </div>
   );
 }

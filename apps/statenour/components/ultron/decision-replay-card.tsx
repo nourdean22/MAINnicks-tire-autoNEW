@@ -13,18 +13,18 @@
  *     reviewed
  *
  * Reads GET /api/system/decision-replays · returns:
- *   · due.unconsumed[] — queued but not yet shown in any brief
- *   · due.consumedTodayCount — already pushed today
- *   · recent[] — last 10 reviewed (with outcome + lesson)
+ *   · due.unconsumed[]: queued but not yet shown in any brief
+ *   · due.consumedTodayCount: already pushed today
+ *   · recent[]: last 10 reviewed (with outcome + lesson)
  *
- * Silent on empty (no due, no recent) — zero noise on a clean board.
+ * Silent on empty (no due, no recent): zero noise on a clean board.
  * Otherwise renders an editorial-minimalist card with the top 3 due
  * + a footer line referencing the most-recent reviewed lesson (if any),
  * so the operator sees both backlog AND signal-of-replay-rhythm in
  * one glance.
  *
  * Design (frontend-design · DFII ≥ 8 · no AI-slop):
- *   · GlassCard with gold accent — matches ObservabilityRow rhythm
+ *   · GlassCard with gold accent: matches ObservabilityRow rhythm
  *   · Decision rows are dense single-lines (title + age chip) not cards
  *   · No iconography clutter · the gold left-border IS the affordance
  *   · 44px min tap targets via the row padding
@@ -48,6 +48,9 @@
  *   the deep-discussion path · the two flows coexist.
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -167,6 +170,10 @@ export function DecisionReplayCard() {
     return <ShimmerSkeleton variant="card" className="min-h-[96px]" />;
   }
 
+  // Wave D: a failed read used to fall through to the silent empty branch below.
+  if (replays.isError && !replays.data) return <ReadingUnavailable label="Decision replays" />;
+  if (!replays.data && readState(replays) === "offline") return <ReadStateNote state="offline" label="Decision replays" />;
+
   const data = replays.data;
   const due = data?.due?.unconsumed ?? [];
   const consumedTodayCount = data?.due?.consumedTodayCount ?? 0;
@@ -243,7 +250,7 @@ export function DecisionReplayCard() {
                     </span>
                   </Link>
                   <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
-                    {age !== null ? `${age}d` : "—"}
+                    {age !== null ? `${age}d` : "?"}
                   </span>
                   <button
                     type="button"
@@ -281,7 +288,7 @@ export function DecisionReplayCard() {
                         disabled={submitting}
                         className={cn(
                           "w-full resize-y rounded-control bg-content border border-edge-default",
-                          "text-[11px] leading-snug px-2 py-1.5 text-fg",
+                          "text-[16px] leading-snug px-2 py-1.5 text-fg",
                           "placeholder:text-fg-tertiary",
                           "focus:border-accent focus:outline-none transition-colors",
                           "min-h-[36px]",
@@ -330,7 +337,7 @@ export function DecisionReplayCard() {
                         disabled={submitting}
                         className={cn(
                           "w-full resize-y rounded-control bg-content border border-edge-default",
-                          "text-[11px] leading-snug px-2 py-1.5 text-fg",
+                          "text-[16px] leading-snug px-2 py-1.5 text-fg",
                           "placeholder:text-fg-tertiary",
                           "focus:border-accent focus:outline-none transition-colors",
                           "min-h-[36px]",

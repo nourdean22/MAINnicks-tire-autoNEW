@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * JudgmentQualityPanel — BDN-105 + BDN-106 (2026-08-12).
+ * JudgmentQualityPanel: BDN-105 + BDN-106 (2026-08-12).
  *
  * Two readings of the same question: is the machine's judgment any good?
- *   · the wisdom gate now curates PERMANENT memory unattended — trend
+ *   · the wisdom gate now curates PERMANENT memory unattended: trend
  *     its accept/reject/dupe mix (SPC, not per-unit inspection)
  *   · stated confidence on journal takes is now gradeable against real
  *     commitment outcomes
  *
  * Lives on /brain Continuity because both are memory-quality readings,
- * not ops readings — and because /system already carries three
+ * not ops readings: and because /system already carries three
  * instruments; a fourth would recreate the density problem BDN-001 was
  * about. Honest states throughout: an under-sampled reading SAYS it is
  * under-sampled instead of drawing a trend through noise.
@@ -36,7 +36,7 @@ export function JudgmentQualityPanel() {
       <section aria-label="judgment-quality" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
-          Judgment-quality readings couldn&apos;t load — state unknown, not empty.
+          Judgment-quality readings couldn&apos;t load: state unknown, not empty.
         </p>
       </section>
     );
@@ -63,7 +63,7 @@ export function JudgmentQualityPanel() {
         </p>
         {spc && spc.totals.total === 0 ? (
           <p className="text-[11px] text-fg-tertiary">
-            No promotion attempts recorded in the last 8 weeks. The rule went unattended 2026-08-12 —
+            No promotion attempts recorded in the last 8 weeks. The rule went unattended 2026-08-12:
             the first runs land on tonight&apos;s engine pass.
           </p>
         ) : (
@@ -76,12 +76,12 @@ export function JudgmentQualityPanel() {
             {(spc?.totals.parked ?? 0) > 0 && (
               <p className="text-[11px] text-amber-400/80">
                 {spc?.totals.parked} attempt{spc?.totals.parked === 1 ? "" : "s"} never reached the
-                gate — parked awaiting approval. Those are a wiring reading, not a quality one.
+                gate: parked awaiting approval. Those are a wiring reading, not a quality one.
               </p>
             )}
             {spc?.underSampled && (
               <p className="text-[11px] text-amber-400/80">
-                Under-sampled ({spc.decided} decided run{spc.decided === 1 ? "" : "s"}) — a shifting
+                Under-sampled ({spc.decided} decided run{spc.decided === 1 ? "" : "s"}): a shifting
                 mix means nothing yet. Hand-audit the first promotions instead of reading this as a
                 trend.
               </p>

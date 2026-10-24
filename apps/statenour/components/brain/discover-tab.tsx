@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * DiscoverTab — /brain → Discover.
+ * DiscoverTab: /brain → Discover.
  *
  * The nightly creative engines (counter-intuitive, correlation-finder,
  * blind-spot-detector, teaching-moments) have always run and always persisted.
@@ -10,7 +10,7 @@
  * one-off surprising finding structurally lost to a re-observed banality.
  * This is the surface that reads them by recency instead.
  *
- * Every card states what KIND of claim it is before its content — a
+ * Every card states what KIND of claim it is before its content: a
  * correlation is not a cause, a blind spot is an inference, a teaching moment
  * is a reading of past data. Speculation is allowed to be aggressive here
  * precisely BECAUSE it is labelled; the boundary is what makes the freedom
@@ -26,13 +26,13 @@
  *     component ignored it. It is read now, and the count renders as `N+`.
  *  2. The subtitle said "what the nightly engines found" while 237 of the 242
  *     (97.9%) were written by scripts/restore-orphaned-memories.ts on
- *     2026-08-16 — recovered memories whose createdAt is RESTORE time, not
+ *     2026-08-16: recovered memories whose createdAt is RESTORE time, not
  *     discovery time. Those rows are now withheld by default, labelled by
  *     provenance, and counted, never deleted; the subtitle keeps its original
  *     wording ONLY while it is true, and changes when the restored rows are
  *     toggled in.
  *  3. The footer said judging "teaches the system what you already know". At
- *     the time it did not — nothing consumed the `known` signal, so the copy
+ *     the time it did not: nothing consumed the `known` signal, so the copy
  *     was cut back to what was true, which is what the KIND_META provenance
  *     lines below have always done for the claims.
  *     2026-08-28: it IS true now, and the copy moved with the behaviour rather
@@ -40,14 +40,14 @@
  *     the engines regenerate, and drops the spot from Nick's live blind-spot
  *     surfaces (lib/brain/discoveries.ts VERDICT_TO_DECISION note ·
  *     filterJudgedBlindSpots · docs/LEARNING-LOOPS-2026-08-28.md). The tap now
- *     says so out loud — describeJudgeOutcome, rendered below — because the
+ *     says so out loud: describeJudgeOutcome, rendered below: because the
  *     only thing worse than an effect that does not exist is one that does and
  *     is invisible.
  *
  *  4. 2026-09-02 · the empty state named TWO causes when there are FOUR. It
  *     asserted "both are real zeros here" even while the two disclosure blocks
  *     directly above it were reporting withheld rows. It is now derived by
- *     discoverEmptyState() and reads SUPPRESSED — "hidden by design" — the
+ *     discoverEmptyState() and reads SUPPRESSED: "hidden by design": the
  *     moment anything is being withheld. Same wave: an escalated blind spot
  *     could never reach the amber "it is back because severity rose" banner
  *     below, because the judged-identity filter re-suppressed it via a sibling
@@ -55,7 +55,7 @@
  *
  * The `[CRITICAL]` / `[HIGH]` tier prefix is no longer rendered. 92.5% of all
  * blind spots ever written carry one of those two tiers, so as a display label
- * it carried ~0.4 bits. It was not invented-away or recalibrated by fiat — it
+ * it carried ~0.4 bits. It was not invented-away or recalibrated by fiat: it
  * still does real work, as the threshold in the recurrence policy that decides
  * when a suppressed spot may come back (lib/brain/blind-spot-identity.ts).
  *
@@ -66,7 +66,6 @@
  */
 
 import { useState } from "react";
-import { GlassCard } from "@/components/ui/glass-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { Lightbulb, Sparkles } from "lucide-react";
@@ -109,7 +108,7 @@ const KIND_META: Record<
 /**
  * Provenance of the ROW, distinct from the epistemic kind of the CLAIM above.
  * A restored row's dates describe a recovery script, not a discovery, and the
- * feed is ordered by recency — so without this the operator reads months-old
+ * feed is ordered by recency: so without this the operator reads months-old
  * findings as last night's.
  */
 const RESTORED_CLAIM =
@@ -122,7 +121,7 @@ const VERDICTS: Array<{ key: Verdict; label: string; hint: string }> = [
 ];
 
 // Ages by lastSeen, matching the query's recency axis. Using createdAt here
-// would print "45d ago" on a finding an engine refreshed last night —
+// would print "45d ago" on a finding an engine refreshed last night:
 // correlation-finder and teaching-moments both write stable keys, so a
 // re-run reinforces the original row rather than creating a new one.
 function ageLabel(iso: string | Date): string {
@@ -135,7 +134,7 @@ function ageLabel(iso: string | Date): string {
 }
 
 /**
- * Drops the `[TIER]` prefix for display only — the stored content keeps it,
+ * Drops the `[TIER]` prefix for display only: the stored content keeps it,
  * because severityRankOf() parses it and the recurrence policy depends on it.
  */
 function cardText(content: string): string {
@@ -148,14 +147,14 @@ function cardText(content: string): string {
  * Exported so the canary can bind this array to the ONLY producer of the index
  * it is read with: `history[...].severityRank`, written by persistBlindSpot.
  * A rank this array cannot index renders "severity rose from undefined to
- * critical" in the banner below — which is why shouldResurface() refuses a
+ * critical" in the banner below: which is why shouldResurface() refuses a
  * null rank rather than defaulting one.
  */
 export const SEVERITY_WORD = ["low", "medium", "high", "critical"];
 
 /**
  * The tier a resurfaced card is showing NOW, read from the stored prefix that
- * cardText() hides. Falls back to a tier-free phrase rather than guessing —
+ * cardText() hides. Falls back to a tier-free phrase rather than guessing:
  * three of the four engines write no tier at all.
  */
 function currentSeverityWord(content: string): string {
@@ -168,15 +167,15 @@ function currentSeverityWord(content: string): string {
  *
  * THE OLD COPY NAMED TWO CAUSES AND THERE ARE FOUR. It asserted "the queue is
  * genuinely empty… every recent discovery already has a verdict, or the
- * engines found nothing this cycle. Both are real zeros here." — unconditional.
+ * engines found nothing this cycle. Both are real zeros here.": unconditional.
  * But `items` is also empty when every remaining unrated row was WITHHELD:
  * restored rows (the 2026-08-16 rescue pile) or judged twins (the 2026-08-28
  * suppression). Those two are counted, and disclosed by the toggle blocks
- * above, yet the empty state underneath them still declared a measured zero —
+ * above, yet the empty state underneath them still declared a measured zero:
  * so the surface simultaneously said "237 hidden" and "both are real zeros".
  *
  * When anything is withheld this is not a ZERO at all; it is EmptyState's own
- * SUPPRESSED — "hidden by design" — which is exactly what it is, and the
+ * SUPPRESSED: "hidden by design": which is exactly what it is, and the
  * counts and the un-hide toggles are already rendered directly above it.
  *
  * Exported pure so the canary can assert the claim rather than the markup: the
@@ -231,8 +230,8 @@ export function DiscoverTab() {
     try {
       const res = await rate.mutateAsync({ ids, verdict });
       // 2026-08-28 · ALWAYS report the outcome, not only the two exception
-      // paths. Until now the ordinary tap — the one that suppresses a whole
-      // cluster — set no message at all: the card vanished and nothing said
+      // paths. Until now the ordinary tap: the one that suppresses a whole
+      // cluster: set no message at all: the card vanished and nothing said
       // what the verdict had done. The wording per verdict lives in
       // describeJudgeOutcome, next to the claims it makes about the system.
       setOutcome(
@@ -245,7 +244,7 @@ export function DiscoverTab() {
       );
       await utils.brain.discoveries.invalidate();
     } catch {
-      // Honest failure, no optimistic removal — matches FollowUpsList.
+      // Honest failure, no optimistic removal: matches FollowUpsList.
       setOutcome(describeJudgeOutcome({ verdict, rated: 0, failed: 0, requested: ids.length, threw: true }));
     } finally {
       setPending(null);
@@ -264,14 +263,14 @@ export function DiscoverTab() {
 
   if (query.isError) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <p className="text-sm text-amber-300">
           Discoveries couldn&apos;t load: state unknown, not empty.
         </p>
         <p className="mt-1 text-xs text-fg-secondary">
           The nightly engines may still have run; this surface just can&apos;t read them right now.
         </p>
-      </GlassCard>
+      </div>
     );
   }
 
@@ -288,7 +287,7 @@ export function DiscoverTab() {
       <MasterySectionLabel
         label="Discover"
         // CARDS, not rows: one tap now clears a whole cluster, so rows would
-        // overstate the work. `+` when the scan stopped early — the service
+        // overstate the work. `+` when the scan stopped early: the service
         // has always reported `truncated` and this surface used to drop it,
         // rendering 56 against a real 242.
         count={truncated ? `${unratedClusters}+` : unratedClusters}
@@ -348,7 +347,7 @@ export function DiscoverTab() {
               an invisible suppression is indistinguishable from no effect. A
               floor when the card scan stopped early, same as the badge.
               "regenerated copies" is only true because listDiscoveries now
-              EXEMPTS deliberately resurfaced rows from this count — they were
+              EXEMPTS deliberately resurfaced rows from this count: they were
               landing here, so an escalation the recurrence policy performed on
               purpose was described to the operator as a duplicate, and the
               amber banner below could never render for it. */}
@@ -404,7 +403,7 @@ export function DiscoverTab() {
             const copies = d.clusterIds.length;
             const history = d.verdictHistory ?? [];
             return (
-              <GlassCard key={d.id} className="space-y-3">
+              <div key={d.id} className="border-t border-edge pt-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
@@ -470,7 +469,7 @@ export function DiscoverTab() {
                             : `${v.label}: ${v.hint}`
                         }
                         className={cn(
-                          // 48x48 minimum, both dimensions — root AGENTS.md
+                          // 48x48 minimum, both dimensions: root AGENTS.md
                           // mandates 48x48 for the standalone iOS PWA, and a
                           // short label like "Noise" missed it on width even at
                           // min-h-[44px]. These are the primary verdict
@@ -487,7 +486,7 @@ export function DiscoverTab() {
                     ))}
                   </div>
                 )}
-              </GlassCard>
+              </div>
             );
           })}
         </div>

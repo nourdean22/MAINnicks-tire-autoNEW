@@ -1,13 +1,13 @@
 "use client";
 
-// FRESHNESS_EXEMPT — animated visual decoration (stream of predicted
+// FRESHNESS_EXEMPT: animated visual decoration (stream of predicted
 // next-actions); not a data view, no DB-backed payload to age.
 
 /**
- * GhostNickStrip — shadow predictor surface on HQ. Apr 19.
+ * GhostNickStrip: shadow predictor surface on HQ. Apr 19.
  *
  * Small panel below the signal zone that says "Ghost thinks you'll
- * tackle these 3 things next" — each with a confidence %, a hover
+ * tackle these 3 things next": each with a confidence %, a hover
  * on the signals that drove the pick, and a running accuracy pill
  * once we have enough outcomes to be honest about our calibration.
  *
@@ -15,6 +15,9 @@
  * user having to do anything. Force-recompute button triggers POST.
  */
 
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DismissButton } from "@/components/ui/dismiss-button";
@@ -103,6 +106,9 @@ export function GhostNickStrip() {
   const livePredictions = bundle?.predictions.filter((p) => !p.dismissed) ?? [];
 
   // Hide entirely when no predictions AND we've never computed
+  // Wave D: a failed read is not "never computed"; say so instead of hiding.
+  if (query.isError && !bundle) return <ReadingUnavailable label="Ghost Nick predictions" />;
+  if (!bundle && readState(query) === "offline") return <ReadStateNote state="offline" label="Ghost Nick predictions" />;
   if (!loading && !bundle) return null;
   if (bundle && livePredictions.length === 0) return null;
 
@@ -118,7 +124,7 @@ export function GhostNickStrip() {
     <GlassCard>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
-          <Ghost size={12} className="text-violet-400" />
+          <Ghost size={12} className="text-fg-tertiary" />
           <p className="section-label">Ghost Nick</p>
           <span className="font-mono text-[11px] text-fg-tertiary">
             · shadow predictor
@@ -153,7 +159,7 @@ export function GhostNickStrip() {
           <button
             onClick={() => void recompute()}
             disabled={recomputing || loading}
-            className="text-[13px] font-medium text-fg-tertiary hover:text-violet-400 transition-colors inline-flex items-center gap-1"
+            className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors hover:text-fg"
           >
             {recomputing || loading ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
             Recompute
@@ -171,7 +177,7 @@ export function GhostNickStrip() {
                 className="group flex items-center gap-2 px-2 py-1.5 rounded-control border border-edge-subtle bg-workspace"
                 title={p.signals.join(" · ")}
               >
-                <span className="font-mono text-[11px] text-violet-400 shrink-0">#{i + 1}</span>
+                <span className="font-mono text-[11px] text-sky-300 shrink-0">#{i + 1}</span>
                 <span className="flex-1 text-[11px] text-fg truncate">{p.title}</span>
                 {p.matched_skills.length > 0 && (
                   <Target size={10} className="text-fg-tertiary" />

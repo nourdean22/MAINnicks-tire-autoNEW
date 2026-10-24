@@ -64,7 +64,7 @@ export function PageTracker() {
     if (!pathname) return;
     if (trackingOptedOut()) return;
 
-    // Fire and forget — non-blocking, non-critical
+    // Fire and forget: non-blocking, non-critical
     pageVisit.mutate({
       page: pathname,
       referrer: typeof document !== "undefined" ? document.referrer : null,

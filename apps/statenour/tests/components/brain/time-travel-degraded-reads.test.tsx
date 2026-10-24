@@ -108,22 +108,22 @@ describe("panel · unknown never renders as zero or as 'absent'", () => {
     expect(html).not.toContain("could not be read");
   });
 
-  it("failed reads render as — with one visible banner", async () => {
+  it("failed reads render as ? with one visible banner", async () => {
     m.taskCount.mockImplementation(fail);
     m.brainMemoryFindFirst.mockImplementation(fail);
     m.brainMemoryFindMany.mockImplementation(fail);
     const html = renderToStaticMarkup(<TimeTravelSnapshot report={await snapshot()} />);
 
-    expect(tile(html, "tasks done")).toBe("—");
-    expect(tile(html, "tasks made")).toBe("—");
+    expect(tile(html, "tasks done")).toBe("?");
+    expect(tile(html, "tasks made")).toBe("?");
     // A read that SUCCEEDED with a real zero is still a zero.
     expect(tile(html, "memories")).toBe("0");
 
     expect(html).not.toContain("identity snapshot absent");
-    expect(html).toContain("identity snapshot —");
+    expect(html).toContain("identity snapshot ?");
     expect(html).not.toContain("emotion not logged");
-    expect(html).toContain("emotion —");
-    expect(html).toContain("health —");
+    expect(html).toContain("emotion ?");
+    expect(html).toContain("health ?");
 
     expect(html.match(/could not be read/g)).toHaveLength(1);
   });

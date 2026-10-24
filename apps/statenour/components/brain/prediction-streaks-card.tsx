@@ -12,7 +12,6 @@
  * D5: shows lastFetchedAt + source via FreshnessChip.
  */
 
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -47,18 +46,18 @@ export function PredictionStreaksCard() {
 
   if (streaksQuery.isLoading && !report) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <p className="text-[11px] text-[var(--text-tertiary)]">loading prediction streaks…</p>
-      </GlassCard>
+      </div>
     );
   }
 
   if (streaksQuery.isError && !report) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-rose-400">
-            streaks unavailable: {streaksQuery.error.message}
+          <p data-read-failed="" className="text-[13px] text-red-300">
+            Prediction streaks couldn&apos;t load: {streaksQuery.error.message}
           </p>
           <button
             onClick={() => void streaksQuery.refetch()}
@@ -67,7 +66,7 @@ export function PredictionStreaksCard() {
             Retry
           </button>
         </div>
-      </GlassCard>
+      </div>
     );
   }
 
@@ -80,7 +79,7 @@ export function PredictionStreaksCard() {
   );
 
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <TrendingUp size={14} className="text-fg-secondary" />
@@ -94,7 +93,7 @@ export function PredictionStreaksCard() {
         />
       </div>
 
-      {/* Top active — celebrate the longest unbroken streak.
+      {/* Top active: celebrate the longest unbroken streak.
           v8.3 alive-UI: AnimatedCounter on the streak number ticks up
           on first paint; Sparkline next to it shows progress (1, 2, …,
           currentStreak) so the eye sees the run, not just the digit. */}
@@ -125,7 +124,7 @@ export function PredictionStreaksCard() {
         </div>
       )}
 
-      {/* Fresh breaks — surface as alerts */}
+      {/* Fresh breaks: surface as alerts */}
       {breaks.length > 0 && (
         <div className="space-y-1.5 mb-3">
           {breaks.map((b) => (
@@ -136,7 +135,7 @@ export function PredictionStreaksCard() {
               <AlertTriangle size={13} className="text-rose-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-rose-300">
-                  <span className="font-semibold">{b.category}</span> streak broke just now —
+                  <span className="font-semibold">{b.category}</span> streak broke just now:
                   was {b.longestStreak} long, now {b.currentStreak}.
                 </p>
               </div>
@@ -167,10 +166,10 @@ export function PredictionStreaksCard() {
 
       {report.byCategory.length === 0 && (
         <p className="text-[11px] text-[var(--text-tertiary)]">
-          No graded predictions yet — once Nick predicts and you confirm/disprove,
+          No graded predictions yet: once Nick predicts and you confirm/disprove,
           streaks light up here.
         </p>
       )}
-    </GlassCard>
+    </div>
   );
 }
