@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * KnowledgeRefreshPanel — the operator's only manual trigger for the
+ * KnowledgeRefreshPanel, the operator's only manual trigger for the
  * 7-subsystem ingest fan-out plus the prompt-cache hot flush.
  *
  * 2026-08-16 · relocated from the retired /knowledge page. It never had
  * anything to do with that page's file browser: it fires
  * `operator.knowledgeRefresh`, which fans out to the /api/cron/* ingest routes
  * (industry RSS, ALG stories, insights, Gmail, Calendar, Drive, knowledge
- * sync, embeddings) and then hot-flushes the prompt cache — see
+ * sync, embeddings) and then hot-flushes the prompt cache, see
  * lib/services/knowledge-refresh.ts. Its old host read a filesystem corpus
  * that has not existed since the monorepo import, which made the pairing look
  * intentional: the page showed zero files and offered a "refresh" that could
  * never have produced any.
  *
- * /system/crons is the correct home — it is the cron command deck and already
+ * /system/crons is the correct home, it is the cron command deck and already
  * owns manual job triggering (RUN NOW per row). This is the same fan-out at a
  * coarser grain.
  */
@@ -53,7 +53,7 @@ export function KnowledgeRefreshPanel() {
   return (
     <Panel>
       <div className="flex items-center justify-between mb-2 gap-2">
-        {/* <p role="heading"> not <h2> — see contradiction-slot.tsx for the
+        {/* <p role="heading"> not <h2>, see contradiction-slot.tsx for the
             unlayered-base.css cascade trap. This markup rode along from the
             retired /knowledge page with the same latent bug. */}
         <p role="heading" aria-level={2} className="text-sm font-semibold text-fg flex items-center gap-1">

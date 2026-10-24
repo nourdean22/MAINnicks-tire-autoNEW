@@ -85,13 +85,13 @@ export function JournalFeedView() {
             aria-label="Search journal archive"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-control bg-surface-interactive border border-edge-default text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent/40 transition-colors"
+            className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-control bg-surface-interactive border border-edge-default text-base text-fg placeholder:text-fg-tertiary outline-none focus:border-accent/40 transition-colors"
           />
           {search.length > 0 && (
             <button
               onClick={() => setSearch("")}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
             >
               <XIcon size={12} />
             </button>

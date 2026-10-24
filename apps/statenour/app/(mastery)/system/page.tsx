@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * /system — operator system surface.
+ * /system, operator system surface.
  *
  * Layout contract (Wave 52 · 2026-05-20 redesign):
- *   1. STATUS FIRST  — overall status + KPIs + ops telemetry. The
+ *   1. STATUS FIRST , overall status + KPIs + ops telemetry. The
  *      answer to "is everything OK?" renders ABOVE the nav grid.
- *   2. NAVIGATION    — <SystemHubGrid />, the grouped card hub, directly
+ *   2. NAVIGATION   , <SystemHubGrid />, the grouped card hub, directly
  *      under the tower since UI v3 W5a (triage first).
- *   3. DETAIL        — owner panel, ops row, Nick, census panels, digests.
+ *   3. DETAIL       , owner panel, ops row, Nick, census panels, digests.
  *
  * Pre-Wave-52 the page led with the 37-card grid and buried status
  * at section #4-5. Three debug-dump panels (raw Prisma row counts ·
- * automation-rule list · recent-pattern list) were also deleted —
+ * automation-rule list · recent-pattern list) were also deleted ,
  * each duplicates a dedicated hub surface (Schema Coverage ·
  * Automation Policies · Brain Categories).
  */
@@ -41,6 +41,8 @@ import { ToolUsageCensusPanel } from "@/components/system/tool-usage-census-pane
 import { EvidenceGatePanel } from "@/components/system/evidence-gate-panel";
 import { ObservabilityStatusPanel } from "@/components/system/observability-status-panel";
 import { OwnerPanel } from "@/components/system/owner-panel";
+import { DetailFold } from "@/components/system/detail-fold";
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { StaleDataPanel } from "@/components/system/stale-data-panel";
 // 2026-10-02 · full-circle wave 2 · which code is live, in the header of the
 // page that answers "is everything OK?" (moved from Settings > Diagnostics).
@@ -48,7 +50,7 @@ import { DeployChip } from "@/components/ultron/deploy-chip";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
-// typed useQueries. The page polled on a 60s setInterval — each query's
+// typed useQueries. The page polled on a 60s setInterval, each query's
 // `refetchInterval` drives that. `refresh` (pull-to-refresh + the manual
 // Refresh button) now refetches all three.
 import { trpc } from "@/lib/trpc/client";
@@ -206,16 +208,19 @@ export default function SystemPage() {
 
   const { refreshing, onTouchStart, onTouchEnd } = usePullRefresh(refresh);
 
+  // Reads the page makes for its own fold blocks; a block with no data and an error is unreadable, never empty.
+  const unreadableInside = [changeDigestQuery, memoryEvalsQuery, receiptFeedQuery].filter((q) => !q.data && q.isError).length;
+
   const d = diagnostics;
   // truth-substrate audit #7: the former `queue.failed === 0` input was a
-  // fabricated zero (statenour has no job-queue) — removed. Status now reflects
+  // fabricated zero (statenour has no job-queue), removed. Status now reflects
   // the real DB-connectivity measurement.
-  // 2026-07-25 honest-health: before diagnostics load, `d` is null — that is
+  // 2026-07-25 honest-health: before diagnostics load, `d` is null, that is
   // "not yet measured", not "degraded". Report UNKNOWN until a measurement
   // exists; StatusDot renders it as the neutral gray dot.
   const overallStatus = !d ? "unknown" : d.db.connected ? "healthy" : "degraded";
 
-  // 2026-09-16 · Visible Transformation: the Control Tower verdict — ONE
+  // 2026-09-16 · Visible Transformation: the Control Tower verdict, ONE
   // line, then only the exceptions (pure logic in lib/system/control-tower.ts,
   // canary in tests/lib/system/control-tower.test.ts).
   const tower = useMemo(
@@ -242,10 +247,11 @@ export default function SystemPage() {
       rootProps={{ onTouchStart, onTouchEnd }}
       actions={
         <div className="flex items-center gap-2">
-          <DeployChip />
+          <DeployChip className="min-h-[44px] min-w-[44px] justify-center" />
           <FreshnessChip
             lastFetchedAt={lastFetchedAt}
             source="diagnostics + brain + health"
+            className="min-h-[44px] min-w-[44px] justify-center"
             onReload={refresh}
           />
           <button
@@ -308,7 +314,7 @@ export default function SystemPage() {
                     href={e.href}
                     className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] text-fg-tertiary hover:text-fg"
                   >
-                    Open ↗
+                    Open
                   </Link>
                 )}
               </li>
@@ -339,16 +345,17 @@ export default function SystemPage() {
           owner verdict here; both list only exceptions. */}
       <OwnerPanel />
 
-      {/* Ops telemetry — cost SLO · voice latency · eval pass · drift */}
+      {/* Ops telemetry, cost SLO · voice latency · eval pass · drift */}
       <ObservabilityRow />
 
-      {/* Contextual Nick (BDN-004 WP, 2026-08-12) — collapsed one-tap
+      {/* Contextual Nick (BDN-004 WP, 2026-08-12), collapsed one-tap
           analyzer on the one primary surface with NO Nick affordance
           (Journal/Missions already carry NickSidePane). buildPageData has
           no "system" case, so pass the page's own already-fetched truth;
           /api/ai/page-insight is cost-firewalled to the ollama lane. */}
       <PageNick
         page="system"
+        analyzeClassName="min-h-[44px] min-w-[44px]"
         data={{
           overallStatus,
           dbLatencyMs: d?.db?.latency_ms,
@@ -373,23 +380,25 @@ export default function SystemPage() {
           2026-08-12. Sat above the hub grid until W5a moved the grid
           under the tower; a severed lane still surfaces in the tower's
           exceptions and the hub's attention strip first. */}
+      {/* Wave E1 (2026-10-24): everything below is detail. One closed fold; the summary counts reads that failed inside. */}
+      <DetailFold unreadable={unreadableInside}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <WiringCensusPanel />
         <TrustLadderPanel />
         <HomeDecisionPanel />
       </div>
 
-      {/* LLM observability truth (2026-08-25) — dormant must be VISIBLE.
+      {/* LLM observability truth (2026-08-25), dormant must be VISIBLE.
           Braintrust sat key-set + zero-callers for three months with no
           surface saying so; this chip row is the anti-recurrence. */}
       <ObservabilityStatusPanel />
 
-      {/* Tool-usage census (BDN-202, 2026-08-13) — do the tools earn
+      {/* Tool-usage census (BDN-202, 2026-08-13), do the tools earn
           their place? Report-only; feeds the description-rewrite cron's
           queue and the searchTools demotion decision, never automation. */}
       <ToolUsageCensusPanel />
 
-      {/* Evidence-gate calibration — the readout AGENTS.md §4 L6 defers
+      {/* Evidence-gate calibration, the readout AGENTS.md §4 L6 defers
           enforcement on ("once the shadow false-positive rate is known").
           Sits beside the census deliberately: both are shadow measurements
           whose numbers are only trustworthy while their instruments are
@@ -421,8 +430,8 @@ export default function SystemPage() {
 
           {changeDigestQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
-              <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
+              <ShimmerSkeleton className="h-4 w-3/4" />
+              <ShimmerSkeleton className="h-4 w-1/2" />
             </div>
           ) : changeDigestQuery.data ? (
             <div className="space-y-3.5 text-xs">
@@ -512,8 +521,8 @@ export default function SystemPage() {
 
           {memoryEvalsQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
-              <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
+              <ShimmerSkeleton className="h-4 w-3/4" />
+              <ShimmerSkeleton className="h-4 w-1/2" />
             </div>
           ) : memoryEvalsQuery.data ? (
             <div className="space-y-3 text-xs flex-1 flex flex-col">
@@ -592,8 +601,8 @@ export default function SystemPage() {
 
           {receiptFeedQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
-              <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
+              <ShimmerSkeleton className="h-4 w-3/4" />
+              <ShimmerSkeleton className="h-4 w-1/2" />
             </div>
           ) : receiptFeedQuery.data ? (
             <div className="flex-1 overflow-auto max-h-[220px] pr-1 space-y-2">
@@ -643,6 +652,7 @@ export default function SystemPage() {
         {/* Agenda Desk Card */}
         <AgendaDesk queryResult={agendaItemsQuery} />
       </div>
+      </DetailFold>
 
       {/* 2026-05-24 · Wave W Phase 1 · DELETION · the lower "DETAIL"
           two-column grid (Devices + Nick brain panels) + the

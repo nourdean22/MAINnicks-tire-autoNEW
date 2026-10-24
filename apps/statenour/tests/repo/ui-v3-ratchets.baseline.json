@@ -2,35 +2,22 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 154,
-    "emoji": 11,
+    "emDash": 123,
+    "emoji": 7,
     "transitionAll": 41,
     "slowDuration": 5,
-    "smallInput": 72
+    "smallInput": 64
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
       "smallInput": 2
-    },
-    "app/(mastery)/journal/_components/journal-feed-view.tsx": {
-      "smallInput": 1
-    },
-    "app/(mastery)/journal/_components/notebooklm-context-zone.tsx": {
-      "smallInput": 1
     },
     "app/(mastery)/photo-improver/page.tsx": {
       "emDash": 2,
       "smallInput": 1
     },
     "app/(mastery)/system/actions/page.tsx": {
-      "emoji": 1,
       "smallInput": 1
-    },
-    "app/(mastery)/system/crons/page.tsx": {
-      "emDash": 3
-    },
-    "app/(mastery)/system/page.tsx": {
-      "emoji": 1
     },
     "app/styles/base.css": {
       "uppercase": 4
@@ -178,18 +165,6 @@
     "components/inspector/panels/tool-inspector.tsx": {
       "emDash": 1
     },
-    "components/journal/entry-row.tsx": {
-      "smallInput": 2
-    },
-    "components/journal/memory-calibration.tsx": {
-      "smallInput": 1
-    },
-    "components/journal/thread-radar.tsx": {
-      "smallInput": 1
-    },
-    "components/journal/thread-rail.tsx": {
-      "smallInput": 1
-    },
     "components/layout/desktop-spine.tsx": {
       "emDash": 1
     },
@@ -250,31 +225,6 @@
     "components/stats/journey-panel.tsx": {
       "emDash": 5
     },
-    "components/system/evidence-gate-panel.tsx": {
-      "emDash": 1
-    },
-    "components/system/home-decision-panel.tsx": {
-      "emDash": 2
-    },
-    "components/system/observability-status-panel.tsx": {
-      "emDash": 3
-    },
-    "components/system/owner-panel.tsx": {
-      "emDash": 4,
-      "emoji": 2
-    },
-    "components/system/stale-data-panel.tsx": {
-      "emDash": 4
-    },
-    "components/system/tool-usage-census-panel.tsx": {
-      "emDash": 3
-    },
-    "components/system/trust-ladder-panel.tsx": {
-      "emDash": 6
-    },
-    "components/system/wiring-census-panel.tsx": {
-      "emDash": 2
-    },
     "components/ui/change-set-line.tsx": {
       "emDash": 1
     },
@@ -313,13 +263,6 @@
     },
     "components/ultron/preferences-card.tsx": {
       "emoji": 1
-    },
-    "components/ultron/today/active-task-companion.tsx": {
-      "emDash": 2,
-      "smallInput": 1
-    },
-    "components/ultron/today/next-action-whisperer.tsx": {
-      "emDash": 1
     },
     "hooks/chat/use-chat-transport.ts": {
       "emDash": 1

@@ -193,8 +193,7 @@ select optgroup {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
-/* Six live consumers (brain-dump modal, error-card, dialog, brain-node-detail-panel, page-nick,
-   next-action-whisperer). The 2026-10-01 prune dropped this rule while keeping the keyframe —
+/* Five live consumers (brain-dump modal, error-card, dialog, brain-node-detail-panel, page-nick). The 2026-10-01 prune dropped this rule while keeping the keyframe,
    restored; the grammar test now pins it. */
 .animate-fade-in-scale { animation: fade-in-scale 220ms var(--ease-spring-soft); }
 /* UI v3 W1a · press feedback. A spring on transform only; colour keeps the standard ease it had.

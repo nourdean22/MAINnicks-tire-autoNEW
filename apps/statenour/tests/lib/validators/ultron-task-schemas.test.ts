@@ -6,8 +6,8 @@
  * components/ultron/* off `authedFetch` onto `trpc.task.*`:
  *
  *   · resume-last-work.tsx        → task.missions      (REUSED, no input)
- *   · next-action-whisperer.tsx   → task.list (REUSED) · task.update (REUSED)
- *   · active-task-companion.tsx   → task.session · task.logSessionEvent (NEW)
+ *   · (deleted 2026-10-24, no importers) the next-action card → task.list (REUSED) · task.update (REUSED)
+ *   · (deleted 2026-10-24, no importers) the active-task card → task.session · task.logSessionEvent (NEW)
  *   · todo-desk.tsx (patchTask)   → task.update        (REUSED)
  *   · omni-capture.tsx            → task.create · task.createMission (REUSED)
  *                                   · task.missions   (REUSED, no input)

@@ -385,7 +385,7 @@ export function ReflectComposer() {
         <div className="relative ml-auto">
           <button
             onClick={() => setShowPicker((v) => !v)}
-            className="flex items-center gap-1 text-[11px] font-mono text-fg-tertiary hover:text-fg"
+            className="flex min-h-[44px] items-center gap-1 text-[11px] font-mono text-fg-tertiary hover:text-fg"
             aria-label="switch template"
           >
             Switch <ChevronDown size={10} />
@@ -473,7 +473,7 @@ export function ReflectComposer() {
             key={m.label}
             onClick={() => setMood((cur) => (cur === m.label ? "" : m.label))}
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded-micro border text-[11px] font-mono transition-colors",
+              "flex min-h-[44px] items-center gap-1 px-2 py-0.5 rounded-micro border text-[11px] font-mono transition-colors",
               mood === m.label
                 ? "border-accent/40 bg-accent-soft text-fg"
                 : "border-edge-default bg-surface-interactive text-fg-tertiary hover:border-edge-strong",
@@ -498,7 +498,7 @@ export function ReflectComposer() {
           onClick={toggleExtract}
           aria-pressed={extractIntelligence}
           className={cn(
-            "flex items-center gap-1.5 px-2 py-1 rounded-micro border text-[11px] font-mono transition-colors",
+            "flex min-h-[44px] items-center gap-1.5 px-2 py-1 rounded-micro border text-[11px] font-mono transition-colors",
             extractIntelligence
               ? "border-accent/40 bg-accent-soft text-fg"
               : "border-edge-default bg-surface-interactive text-fg-tertiary hover:border-edge-strong",
@@ -513,7 +513,7 @@ export function ReflectComposer() {
           onClick={() => setShowSplitHelp((v) => !v)}
           aria-label="explain the routing split"
           aria-expanded={showSplitHelp}
-          className="flex items-center text-fg-tertiary hover:text-fg transition-colors"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center text-fg-tertiary hover:text-fg transition-colors"
         >
           <Info size={11} />
         </button>
@@ -594,7 +594,7 @@ export function ReflectComposer() {
           )}
           <button
             onClick={resetForNext}
-            className="ml-auto flex items-center gap-0.5 text-[11px] text-fg-tertiary hover:text-fg"
+            className="ml-auto flex min-h-[44px] items-center gap-0.5 px-2 text-[11px] text-fg-tertiary hover:text-fg"
             title="clear and start a new reflection"
           >
             <XIcon size={9} /> New

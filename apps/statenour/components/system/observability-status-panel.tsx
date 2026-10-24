@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * ObservabilityStatusPanel (2026-08-25) — the dormant-is-visible rule.
+ * ObservabilityStatusPanel (2026-08-25), the dormant-is-visible rule.
  *
  * Braintrust's wrapper sat "shipped" for three months with a key in prod
- * and zero callers, and NOTHING on any operator surface said so — the
+ * and zero callers, and NOTHING on any operator surface said so, the
  * status existed in the health payload and rendered nowhere. A dormant
  * integration that looks identical to a working one is this repo's
  * recurring defect class. This panel makes the tracing lane's REAL state
  * a first-class chip on /system:
  *
  *   started  → tracing live (green)
- *   skipped  → DORMANT, keys unset — with the exact activation step
- *   failed   → init threw (red) — key present but pipeline dead
+ *   skipped  → DORMANT, keys unset, with the exact activation step
+ *   failed   → init threw (red), key present but pipeline dead
  *   inactive/uninitialized → never initialized on this boot
  *
  * Data: trpc.system.healthSummary (buildSystemHealth), which reports the
@@ -35,12 +35,12 @@ function langfuseState(status: string | undefined): LaneState {
       return { label: "tracing live", tone: "live", detail: "spans flow to Langfuse on every non-private chat turn" };
     case "skipped":
       return {
-        label: "DORMANT — keys unset",
+        label: "DORMANT: keys unset",
         tone: "dormant",
         detail: "wired + deployed; set LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY (+ LANGFUSE_BASE_URL) on Railway statenour-web to activate",
       };
     case "failed":
-      return { label: "init FAILED", tone: "dead", detail: "keys present but the OTel pipeline did not start — check boot logs (langfuse_init_failed)" };
+      return { label: "init FAILED", tone: "dead", detail: "keys present but the OTel pipeline did not start, check boot logs (langfuse_init_failed)" };
     default:
       return { label: "not initialized", tone: "unknown", detail: "no init outcome reported on this boot" };
   }
@@ -48,7 +48,7 @@ function langfuseState(status: string | undefined): LaneState {
 
 // Static truth, not live data: the wrapper was DELETED 2026-08-25 after
 // three months with zero call sites (key set in prod the whole time).
-// There is nothing to poll — rendering the retirement is the honest state.
+// There is nothing to poll, rendering the retirement is the honest state.
 const BRAINTRUST_RETIRED: LaneState = {
   label: "wrap removed 2026-08-25",
   tone: "unknown",
@@ -81,8 +81,8 @@ export function ObservabilityStatusPanel() {
               <Activity className="h-3.5 w-3.5 text-fg-secondary" /> LLM Observability
       </p>
       {healthQ.isError ? (
-        <p className="text-[11px] text-red-400">
-          Health read failed — observability state unknown, not healthy.
+        <p data-read-failed className="text-[11px] text-red-400">
+          Health read failed: observability state unknown, not healthy.
         </p>
       ) : (
         <ul className="space-y-1.5">

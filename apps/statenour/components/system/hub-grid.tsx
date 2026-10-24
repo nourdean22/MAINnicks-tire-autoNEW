@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SystemHubGrid — the /system landing page's navigation surface.
+ * SystemHubGrid, the /system landing page's navigation surface.
  *
  * A grid of cards, one per subsurface, each with a live severity
  * chip showing current state. Cards are grouped by domain (Health,
@@ -13,12 +13,12 @@
  * lifted into a "Needs attention" strip above the groups, so
  * problems hit your eye first without burying the healthy majority.
  *
- * All data from ONE rollup endpoint (/api/system/hub) — avoids 15
+ * All data from ONE rollup endpoint (/api/system/hub), avoids 15
  * parallel fetches. Auto-refreshes every 60s. Cards are <Link>
  * anchors, Tab-navigable.
  *
  * Wave 52 (2026-05-20): de-duped three cards that each pointed at a
- * route a sibling card already owned — which was also a duplicate
+ * route a sibling card already owned, which was also a duplicate
  * <Link key={href}> React collision:
  *   · "OS Health"  → merged into "Diagnostics" (same /system/health
  *     route; Diagnostics adopted OS Health's live degraded chip).
@@ -182,7 +182,7 @@ function HubCardLink({
 export function SystemHubGrid() {
   // Phase VV (2026-05-22) · REST→tRPC · system.hub. The legacy route
   // wrapped its rollup in `{ data }`; the procedure returns it
-  // unwrapped. The page polled on a 60s setInterval — refetchInterval
+  // unwrapped. The page polled on a 60s setInterval, refetchInterval
   // now drives that. With no payload every live card returns NOT_READ_CHIP;
   // when the read FAILED that becomes the word "unknown" (2026-10-10 ·
   // audit 09-F7), so a failure never looks like a load in flight.
@@ -203,7 +203,7 @@ export function SystemHubGrid() {
   const decorated = all.filter((x) => !x.c.lab);
 
   // Degraded surfaces (warning/critical) lift into a "Needs attention"
-  // strip above the groups — problems hit the eye first. Critical
+  // strip above the groups, problems hit the eye first. Critical
   // sorts before warning within the strip.
   const attention = decorated
     .filter(

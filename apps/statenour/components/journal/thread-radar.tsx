@@ -153,7 +153,7 @@ export function ThreadRadar({
               type="button"
               onClick={triggerScan}
               disabled={scanState.busy}
-              className="text-fg-tertiary hover:text-fg disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center px-2 text-fg-tertiary hover:text-fg disabled:opacity-50"
             >
               {scanState.busy ? "Scanning..." : "Scan again"}
             </button>
@@ -192,7 +192,7 @@ export function ThreadRadar({
             type="button"
             onClick={triggerScan}
             disabled={scanState.busy}
-            className="text-fg-tertiary hover:text-fg disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center px-2 text-fg-tertiary hover:text-fg disabled:opacity-50"
             title="re-run the convergence scan"
           >
             {scanState.busy ? "Scanning..." : "Rescan"}
@@ -344,7 +344,7 @@ function CandidateCard({
             value={custom}
             onChange={(e) => setCustom(e.target.value.slice(0, 120))}
             placeholder="or type your own"
-            className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
+            className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-base text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
           />
           <button
             type="button"

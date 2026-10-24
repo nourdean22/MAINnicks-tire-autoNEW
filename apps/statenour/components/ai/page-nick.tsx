@@ -64,6 +64,8 @@ export interface PageNickProps {
    */
   autoLoad?: boolean;
   className?: string;
+  /** Extra classes for the closed-state Analyze button (a page that audits 44 px targets passes its own box). */
+  analyzeClassName?: string;
 }
 
 export function PageNick({
@@ -74,6 +76,7 @@ export function PageNick({
   placeholder,
   autoLoad = false,
   className,
+  analyzeClassName,
 }: PageNickProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -215,7 +218,10 @@ export function PageNick({
               setOpen(true);
               haptic.tap();
             }}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-control border border-edge-default bg-content px-2.5 text-[12px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+            className={cn(
+              "inline-flex min-h-[32px] items-center gap-1 rounded-control border border-edge-default bg-content px-2.5 text-[12px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg",
+              analyzeClassName,
+            )}
           >
             <Sparkles size={12} />
             Analyze
