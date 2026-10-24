@@ -40,7 +40,7 @@ catalog and the model:
 
 ---
 
-## `personal_read` — daily ops · habits · body · finance · schedule (14)
+## `personal_read` · daily ops · habits · body · finance · schedule (14)
 
 | Tool                       | Description                                                                        | Input                       | Output                                                                      | Cost  | Battle | Talks to                       |
 |----------------------------|------------------------------------------------------------------------------------|-----------------------------|----------------------------------------------------------------------------|-------|--------|--------------------------------|
@@ -164,7 +164,7 @@ catalog and the model:
 
 ---
 
-## `brain` — brain intelligence + memory ops (17)
+## `brain` · brain intelligence + memory ops (17)
 
 | Tool                          | Description                                                                                  | Input               | Output                                        | Cost   | Battle | Talks to                       |
 |-------------------------------|----------------------------------------------------------------------------------------------|---------------------|----------------------------------------------|--------|--------|--------------------------------|

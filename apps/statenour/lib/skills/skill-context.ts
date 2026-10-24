@@ -9,7 +9,7 @@
  * obvious until you need them. With this surface, Nick sees a
  * curated "look at these skills, they fit" hint each turn and can
  * either (a) pull the skill's protocol into the reply, or (b) call
- * the `searchSkills` tool to get more if 3 isn't enough.
+ * the `suggestSkills` tool to get more if 3 isn't enough.
  *
  * Safety · empty string when:
  *   · userMessage is missing / too short

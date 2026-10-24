@@ -46,7 +46,7 @@ import { findUserTurnRow, type UserTurnRow } from "./user-turn-identity";
 /** Each database step of the guard is bounded: a stalled store is an outage (fail open or closed per the rules above), not a wait in front of the model. */
 export const GUARD_STEP_TIMEOUT_MS = 3_000;
 
-/** routerReason of the message an agent posts on its own initiative (lib/agent/run-follow-up.ts FOLLOWUP_MARKER, pinned by a test). It is not an answer to a user message. */
+/** routerReason of the message an agent posts on its own initiative (the agent follow-up lane was deleted 2026-10-24; the exclusion stays for any such row already stored). It is not an answer to a user message. */
 export const FOLLOW_UP_ROUTER_REASON = "follow-up";
 
 const bounded = <T>(promise: Promise<T>): Promise<T> => withTimeout(promise, GUARD_STEP_TIMEOUT_MS, "turn-guard");
