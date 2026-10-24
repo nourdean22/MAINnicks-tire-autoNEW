@@ -1,8 +1,10 @@
 /**
- * ShopDriver mirror: an invoice that is UPDATED while it has no customer gets the same link a new invoice
- * gets (phone first, then an exactly-one first+last name match). Before 2026-10-24 only the INSERT path
- * matched; an invoice first mirrored before its customer existed, or before the ticket carried a phone,
- * stayed unlinked forever (admin map C5: 478 of 3,138 invoices, 306 matchable by phone).
+ * ShopDriver mirror: an invoice that is UPDATED while it has no customer is linked by PHONE (the ticket's,
+ * else the one stored, first with 7+ digits). A NEW invoice keeps its phone-then-exact-name match and phone
+ * fill. Before 2026-10-24 only the INSERT path matched; an invoice first mirrored before its customer
+ * existed stayed unlinked forever (admin map C5: 478 of 3,138 invoices, 306 matchable by phone). The update
+ * path never links by name and never fills a phone: a name judged against today's customers can name a
+ * stranger who never had the car.
  *
  * Drives the real runFullMirror -> upsertInvoices over a stubbed ShopDriver API and a fake database that
  * honours the WHERE parameters and the selected columns, so a prefetch that forgets a column or a row
@@ -143,6 +145,7 @@ beforeEach(() => {
     { id: 42, firstName: "Pat", lastName: "Orlov", phone: "2165550142" },
     { id: 31, firstName: "Ana", lastName: "Alder", phone: "2165550131" },
     { id: 32, firstName: "Ben", lastName: "Birch", phone: "2165550132" },
+    { id: 51, firstName: "Cy", lastName: "Short", phone: "216555" },
   ];
   h.db = { ...fakeDb(state.updates), execute: async () => [[{ rev: 0, cnt: 0 }]] };
   h.sendTelegram.mockClear();
@@ -182,38 +185,27 @@ describe("an existing invoice with no customer is linked on update", () => {
     expect(linkedTo(updateFor(101)?.vals.customerId)).toEqual({ id: 11, guarded: true });
   });
 
-  it("links by an exactly-one first+last name when the payload has no phone, and fills the customer's phone into an empty one", async () => {
-    state.invoices = [stored({ id: 102, invoiceNumber: "U-2" })];
-    state.tickets = [ticket("U-2", { customerName: "SMITHSON, DANA" })];
-    await run();
-    const up = updateFor(102);
-    expect(linkedTo(up?.vals.customerId)?.id).toBe(22);
-    expect(up?.vals.customerPhone).toBe("2165550122");
-  });
-
-  it("keeps the stored phone: the matched customer's phone only fills an EMPTY one", async () => {
-    state.invoices = [stored({ id: 103, invoiceNumber: "U-3", customerPhone: "2165550999" })];
-    state.tickets = [ticket("U-3", { customerName: "Smithson, Dana" })];
-    await run();
-    const up = updateFor(103);
-    expect(linkedTo(up?.vals.customerId)?.id).toBe(22);
-    expect(up?.vals).not.toHaveProperty("customerPhone");
-  });
-
-  it("a payload-supplied phone is never replaced by the matched customer's phone", async () => {
-    state.invoices = [stored({ id: 104, invoiceNumber: "U-4" })];
-    state.tickets = [ticket("U-4", { customerName: "Smithson, Dana", primaryNumber: "2165550888" })];
-    await run();
-    const up = updateFor(104);
-    expect(linkedTo(up?.vals.customerId)?.id).toBe(22);
-    expect(up?.vals.customerPhone).toBe("2165550888");
-  });
-
-  it("falls back to the phone already on the invoice when the payload carries none", async () => {
+  it("falls back to the phone already on the invoice when the payload carries none, and writes no phone", async () => {
     state.invoices = [stored({ id: 105, invoiceNumber: "U-5", customerPhone: "2165550111" })];
     state.tickets = [ticket("U-5", { customerName: "Unknown" })];
     await run();
-    expect(linkedTo(updateFor(105)?.vals.customerId)?.id).toBe(11);
+    const up = updateFor(105);
+    expect(linkedTo(up?.vals.customerId)?.id).toBe(11);
+    expect(up?.vals).not.toHaveProperty("customerPhone");
+  });
+
+  it("a ticket phone shorter than 7 digits does not hide a good stored phone", async () => {
+    state.invoices = [stored({ id: 107, invoiceNumber: "U-7", customerPhone: "2165550111" })];
+    state.tickets = [ticket("U-7", { primaryNumber: "216555" })];
+    await run();
+    expect(linkedTo(updateFor(107)?.vals.customerId)?.id).toBe(11);
+  });
+
+  it("the phone wins over the name: a ticket phone that maps to one customer links to THAT customer", async () => {
+    state.invoices = [stored({ id: 104, invoiceNumber: "U-4" })];
+    state.tickets = [ticket("U-4", { customerName: "Smithson, Dana", primaryNumber: "2165550111" })];
+    await run();
+    expect(linkedTo(updateFor(104)?.vals.customerId)?.id).toBe(11);
   });
 
   it("rides the locked write when the total also changes", async () => {
@@ -228,6 +220,39 @@ describe("an existing invoice with no customer is linked on update", () => {
 });
 
 describe("an existing invoice is left alone when linking would be a guess or a move", () => {
+  // An old phoneless invoice whose ticket name matches ONE customer today may be a namesake who never had the
+  // car; linking it or copying that person's phone would make it textable about someone else's job
+  // (serviceReminders plans texts from invoices.customerPhone). N-9 is a NEW invoice with the same name, so
+  // the name map is loaded: only the update path's phone-only rule keeps U-2 and U-3 alone.
+  it("update never links by name, even an exactly-one first+last match", async () => {
+    state.invoices = [stored({ id: 102, invoiceNumber: "U-2" })];
+    state.tickets = [ticket("N-9", { customerName: "Smithson, Dana" }), ticket("U-2", { customerName: "SMITHSON, DANA" })];
+    await run();
+    expect(state.inserts.find((i) => i.invoiceNumber === "N-9")?.customerId).toBe(22);
+    expect(updateFor(102)?.vals).not.toHaveProperty("customerId");
+  });
+
+  it("update never fills a phone from a customer, and keeps the ticket's own phone", async () => {
+    state.invoices = [stored({ id: 103, invoiceNumber: "U-3" }), stored({ id: 104, invoiceNumber: "U-4" })];
+    state.tickets = [
+      ticket("N-9", { customerName: "Smithson, Dana" }),
+      ticket("U-3", { customerName: "Smithson, Dana" }),
+      ticket("U-4", { customerName: "Smithson, Dana", primaryNumber: "2165550888" }),
+    ];
+    await run();
+    expect(updateFor(103)?.vals).not.toHaveProperty("customerPhone");
+    expect(updateFor(104)?.vals.customerPhone).toBe("2165550888");
+    expect(updateFor(104)?.vals).not.toHaveProperty("customerId");
+  });
+
+  it("a ticket phone of 6 digits does not link, even to a customer stored with that 6-digit number", async () => {
+    state.invoices = [stored({ id: 206, invoiceNumber: "X-6" }), stored({ id: 207, invoiceNumber: "X-7", customerPhone: "216555" })];
+    state.tickets = [ticket("X-6", { primaryNumber: "216555" }), ticket("X-7")];
+    await run();
+    expect(updateFor(206)?.vals).not.toHaveProperty("customerId");
+    expect(updateFor(207)?.vals).not.toHaveProperty("customerId");
+  });
+
   it("stays unlinked on a surname shared by several people (no first name)", async () => {
     state.invoices = [stored({ id: 201, invoiceNumber: "X-1" })];
     state.tickets = [ticket("X-1", { customerName: "Smithson" })];

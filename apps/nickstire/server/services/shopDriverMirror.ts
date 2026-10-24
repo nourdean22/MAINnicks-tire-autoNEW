@@ -857,7 +857,7 @@ type NameCandidate = { id: number; firstName: string | null; lastName: string | 
 
 /**
  * The customer an invoice belongs to, from the batch's prefetched maps: a phone of 7+ digits first, then an
- * exactly-one first+last name match. Used for a new invoice and for a stored one that has no customer.
+ * exactly-one first+last name match. Used for a new invoice only: a stored invoice links by phone alone.
  * `matchedCustomerPhone` is set only by the name match (a phone match already has the phone).
  */
 function matchCustomer(
@@ -934,16 +934,19 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
     existingInvoiceRows.map((r: InvoiceRow) => [r.invoiceNumber, { id: r.id, totalAmount: r.totalAmount, algTicketId: r.algTicketId, customerId: r.customerId, customerPhone: r.customerPhone }])
   );
 
-  // Bulk prefetch customers by phone — for every invoice with no customer yet: the new ones we will
-  // INSERT and the stored ones we will UPDATE. An invoice that already has a customer is not matched again.
-  const invoicesNeedingCustomerLookup = valid.filter(ri => existingByInvoiceNumber.get(ri.invoiceNumber)?.customerId == null);
-  // The ticket's phone, else the one already on a stored invoice (a later payload can lose it).
-  const phoneToMatch = (ri: RawInvoice) => ri.customerPhone || existingByInvoiceNumber.get(ri.invoiceNumber)?.customerPhone || null;
-  const phonesForLookup = [...new Set(
-    invoicesNeedingCustomerLookup
-      .map(ri => { const p = phoneToMatch(ri); return p ? normalizePhone(p) : null; })
-      .filter((p): p is string => !!p && p.length >= 7)
-  )];
+  // Bulk prefetch customers by phone — for the invoices we will INSERT and for the stored ones that have no
+  // customer yet (their UPDATE links by phone). An invoice that already has a customer is not matched again.
+  const invoicesNeedingCustomerLookup = valid.filter(ri => !existingByInvoiceNumber.has(ri.invoiceNumber));
+  const unlinkedStoredInvoices = valid.filter(ri => existingByInvoiceNumber.get(ri.invoiceNumber)?.customerId === null);
+  // A stored invoice links by PHONE only: the ticket's phone, else the one already stored, whichever is the
+  // first with 7+ digits. Never by name, and never filling a phone (a name match judged against today's
+  // customers could make an old invoice textable about someone else's job).
+  const phoneForUpdate = (ri: RawInvoice, ex: { customerPhone: string | null }) =>
+    [ri.customerPhone, ex.customerPhone].map(p => (p ? normalizePhone(p) : "")).find(p => p.length >= 7) ?? null;
+  const phonesForLookup = [...new Set([
+    ...invoicesNeedingCustomerLookup.map(ri => (ri.customerPhone ? normalizePhone(ri.customerPhone) : null)),
+    ...unlinkedStoredInvoices.map(ri => phoneForUpdate(ri, existingByInvoiceNumber.get(ri.invoiceNumber)!)),
+  ].filter((p): p is string => !!p && p.length >= 7))];
   const customersByPhone = new Map<string, number>();
   if (phonesForLookup.length > 0) {
     const rows = await d.select({ id: customers.id, phone: customers.phone })
@@ -1011,17 +1014,12 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         if (ri.customerName && ri.customerName !== "Unknown") updates.customerName = ri.customerName;
         // Backfill algTicketId for rows that pre-date wave-99
         if (ri.algTicketId && !ex.algTicketId) updates.algTicketId = ri.algTicketId;
-        // An invoice first mirrored before its customer existed (or before the ticket carried a phone) gets the
-        // same link a new invoice gets. COALESCE keeps it from ever replacing a customer set since the prefetch.
+        // An invoice first mirrored before its customer existed gets linked by PHONE (see phoneForUpdate): no
+        // name match, no phone fill. COALESCE keeps it from ever replacing a customer set since the prefetch.
         if (ex.customerId == null) {
-          const match = matchCustomer(phoneToMatch(ri), ri.customerName, customersByPhone, customersByLastName);
-          if (match) {
-            updates.customerId = sql`COALESCE(${invoices.customerId}, ${match.customerId})`;
-            // Same phone backfill as a new invoice, only into an empty phone: never over a stored or ticket phone.
-            if (!updates.customerPhone && !ex.customerPhone && match.matchedCustomerPhone) {
-              updates.customerPhone = normalizePhone(match.matchedCustomerPhone);
-            }
-          }
+          const phone = phoneForUpdate(ri, ex);
+          const matchedId = phone ? customersByPhone.get(phone) : undefined;
+          if (matchedId) updates.customerId = sql`COALESCE(${invoices.customerId}, ${matchedId})`;
         }
 
         if (totalMoves) {
