@@ -10,9 +10,17 @@
  * honours the WHERE parameters and the selected columns, so a prefetch that forgets a column or a row
  * shows up here. Fixtures are made-up names and phones.
  */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// This file needs the REAL drizzle builder, schema and subject; another file's mock must not leak in (AGENTS.md section 3).
+// Specifiers are relative to this file. ./db and the services mocked below stay mocked on purpose.
+vi.unmock("drizzle-orm");
+vi.unmock("drizzle-orm/mysql-core");
+vi.unmock("../drizzle/schema");
+vi.unmock("./services/shopDriverMirror");
+
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import type { SQL } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoices } from "../drizzle/schema";
 
 type StoredInvoice = {
@@ -59,15 +67,19 @@ const state = {
   txUpdates: [] as Recorded[],
   inserts: [] as Array<Record<string, unknown>>,
   tickets: [] as Array<Record<string, unknown>>,
+  phoneLookups: [] as string[],
 };
 
-const pick = (row: object, keys: string[]) =>
-  Object.fromEntries(keys.map((k) => [k, (row as Record<string, unknown>)[k]]));
+// Each selected alias reads the column it is bound to, as the database does: `{ phone10: customers.phone }` yields the raw text.
+const pick = (row: object, fields: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(fields).map(([alias, col]) => [alias, (row as Record<string, unknown>)[(col as { name: string }).name]]));
+
+/** customers.phone10 as TiDB generates it (drizzle/schema.ts): RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10). */
+const withPhone10 = (c: Customer) => ({ ...c, phone10: c.phone == null ? null : c.phone.replace(/\D/g, "").slice(-10) });
 
 function fakeDb(sink: Recorded[]) {
   return {
     select(fields: Record<string, unknown>) {
-      const keys = Object.keys(fields);
       return {
         from(table: unknown) {
           return {
@@ -77,8 +89,13 @@ function fakeDb(sink: Recorded[]) {
               let rows: object[];
               if (table === invoices) rows = state.invoices.filter((r) => q.params.includes(r.invoiceNumber));
               else if (q.sql.includes("COLLATE")) rows = state.customers.filter((c) => wanted.includes(String(c.lastName ?? "").trim().toLowerCase()));
-              else rows = state.customers.filter((c) => c.phone != null && q.params.includes(c.phone));
-              return Promise.resolve(rows.map((r) => pick(r, keys)));
+              // A phone lookup filters the column the query names: the raw one only sees the stored text, the generated one the digits.
+              else if (/`phone10`\s+in\b/i.test(q.sql)) {
+                state.phoneLookups.push(...q.params.map(String));
+                rows = state.customers.map(withPhone10).filter((c) => c.phone10 != null && q.params.includes(c.phone10));
+              } else if (/`phone`\s+in\b/i.test(q.sql)) rows = state.customers.filter((c) => c.phone != null && q.params.includes(c.phone));
+              else throw new Error(`fake DB: unrecognised customer lookup: ${q.sql}`);
+              return Promise.resolve(rows.map((r) => pick(r, fields)));
             },
           };
         },
@@ -137,6 +154,7 @@ beforeEach(() => {
   state.txUpdates = [];
   state.inserts = [];
   state.tickets = [];
+  state.phoneLookups = [];
   state.customers = [
     { id: 11, firstName: "Alma", lastName: "Testfield", phone: "2165550111" },
     { id: 22, firstName: "Dana", lastName: "Smithson", phone: "2165550122" },
@@ -146,10 +164,19 @@ beforeEach(() => {
     { id: 31, firstName: "Ana", lastName: "Alder", phone: "2165550131" },
     { id: 32, firstName: "Ben", lastName: "Birch", phone: "2165550132" },
     { id: 51, firstName: "Cy", lastName: "Short", phone: "216555" },
+    // Stored formatted: phone10 is "2165550100" and "5550152"; only a lookup on phone10 can find them from bare digits.
+    { id: 61, firstName: "Eve", lastName: "Formatted", phone: "+1 (216) 555-0100" },
+    { id: 52, firstName: "Gus", lastName: "Seven", phone: "555-0152" },
   ];
   h.db = { ...fakeDb(state.updates), execute: async () => [[{ rev: 0, cnt: 0 }]] };
   h.sendTelegram.mockClear();
   stubShopDriver();
+});
+
+// The fake fetch and env must not outlive this file (AGENTS.md section 3): the config only restores them before the NEXT test.
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("instrument: the harness reaches upsertInvoices", () => {
@@ -201,6 +228,13 @@ describe("an existing invoice with no customer is linked on update", () => {
     expect(linkedTo(updateFor(107)?.vals.customerId)?.id).toBe(11);
   });
 
+  it("tries the ticket's phone before the one stored on the invoice when both are usable", async () => {
+    state.invoices = [stored({ id: 108, invoiceNumber: "U-8", customerPhone: "2165550132" })];
+    state.tickets = [ticket("U-8", { primaryNumber: "2165550131" })];
+    await run();
+    expect(linkedTo(updateFor(108)?.vals.customerId)?.id).toBe(31);
+  });
+
   it("the phone wins over the name: a ticket phone that maps to one customer links to THAT customer", async () => {
     state.invoices = [stored({ id: 104, invoiceNumber: "U-4" })];
     state.tickets = [ticket("U-4", { customerName: "Smithson, Dana", primaryNumber: "2165550111" })];
@@ -216,6 +250,44 @@ describe("an existing invoice with no customer is linked on update", () => {
     const up = state.txUpdates.find((u) => u.params.includes(106));
     expect(up?.vals.totalAmount).toBe(10000);
     expect(linkedTo(up?.vals.customerId)?.id).toBe(11);
+  });
+});
+
+// Both paths look customers up on customers.phone10 (the unique generated last-10 digits), not on the raw text, so a
+// customer stored as "+1 (216) 555-0100" is found from bare digits. The ticket phone reaches the prefetch already
+// digits-only (normalizePhone at ingest); the key is the same rule the column applies: strip non-digits, last 10.
+describe("a customer stored with a formatted phone is found by its digits", () => {
+  it.each([
+    ["bare 10 digits", "2165550100"],
+    ["punctuated", "(216) 555-0100"],
+    ["11 digits with the leading 1", "12165550100"],
+    ["+1 and dashes", "+1 216-555-0100"],
+  ])("update links an unlinked invoice whose ticket phone is %s", async (_shape, primaryNumber) => {
+    state.invoices = [stored({ id: 301, invoiceNumber: "F-1" })];
+    state.tickets = [ticket("F-1", { primaryNumber })];
+    await run();
+    expect(linkedTo(updateFor(301)?.vals.customerId)).toEqual({ id: 61, guarded: true });
+  });
+
+  it("insert links a NEW invoice to the same customer", async () => {
+    state.tickets = [ticket("F-2", { primaryNumber: "(216) 555-0100" })];
+    await run();
+    expect(state.inserts.find((i) => i.invoiceNumber === "F-2")?.customerId).toBe(61);
+  });
+
+  it("falls back to a stored invoice phone kept as +E.164 (11 digits), not only the bare 10 digits the mirror writes", async () => {
+    state.invoices = [stored({ id: 304, invoiceNumber: "F-5", customerPhone: "+12165550100" })];
+    state.tickets = [ticket("F-5")];
+    await run();
+    expect(linkedTo(updateFor(304)?.vals.customerId)).toEqual({ id: 61, guarded: true });
+  });
+
+  it("a 7-digit phone is still tried and matches only a customer whose digits are exactly those 7, never a suffix of a 10-digit one", async () => {
+    state.invoices = [stored({ id: 302, invoiceNumber: "F-3" }), stored({ id: 303, invoiceNumber: "F-4" })];
+    state.tickets = [ticket("F-3", { primaryNumber: "5550152" }), ticket("F-4", { primaryNumber: "5550100" })];
+    await run();
+    expect(linkedTo(updateFor(302)?.vals.customerId)?.id).toBe(52);
+    expect(updateFor(303)?.vals).not.toHaveProperty("customerId");
   });
 });
 
@@ -247,10 +319,13 @@ describe("an existing invoice is left alone when linking would be a guess or a m
 
   it("a ticket phone of 6 digits does not link, even to a customer stored with that 6-digit number", async () => {
     state.invoices = [stored({ id: 206, invoiceNumber: "X-6" }), stored({ id: 207, invoiceNumber: "X-7", customerPhone: "216555" })];
-    state.tickets = [ticket("X-6", { primaryNumber: "216555" }), ticket("X-7")];
+    state.tickets = [ticket("X-6", { primaryNumber: "216555" }), ticket("X-7"), ticket("X-8", { primaryNumber: "216555" })];
     await run();
     expect(updateFor(206)?.vals).not.toHaveProperty("customerId");
     expect(updateFor(207)?.vals).not.toHaveProperty("customerId");
+    expect(state.inserts.find((i) => i.invoiceNumber === "X-8")?.customerId).toBeNull();
+    // The 6-digit number (stored invoice or new one) never even reaches the customer lookup.
+    expect(state.phoneLookups).not.toContain("216555");
   });
 
   it("stays unlinked on a surname shared by several people (no first name)", async () => {

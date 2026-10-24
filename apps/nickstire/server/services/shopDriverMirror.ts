@@ -11,6 +11,7 @@
 
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
+import { phoneLast10 } from "../lib/phone";
 import { lockedTotalPatch, STALE_INTENT_MS, withInvoiceLock } from "./paymentIntentLock";
 import { getBusinessDateKey, shopWallClock } from "../lib/timezoneAssert";
 import { eq, and, inArray, sql } from "drizzle-orm";
@@ -859,6 +860,7 @@ type NameCandidate = { id: number; firstName: string | null; lastName: string | 
  * The customer an invoice belongs to, from the batch's prefetched maps: a phone of 7+ digits first, then an
  * exactly-one first+last name match. Used for a new invoice only: a stored invoice links by phone alone.
  * `matchedCustomerPhone` is set only by the name match (a phone match already has the phone).
+ * `customersByPhone` is keyed by customers.phone10 (see the prefetch), so the phone is looked up by its last 10 digits.
  */
 function matchCustomer(
   rawPhone: string | null | undefined,
@@ -867,7 +869,7 @@ function matchCustomer(
   customersByLastName: Map<string, NameCandidate[]>,
 ): { customerId: number; matchedCustomerPhone: string | null } | null {
   if (rawPhone) {
-    const phone = normalizePhone(rawPhone);
+    const phone = phoneLast10(rawPhone);
     const byPhone = phone.length >= 7 ? customersByPhone.get(phone) : undefined;
     if (byPhone) return { customerId: byPhone, matchedCustomerPhone: null };
   }
@@ -942,17 +944,20 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
   // first with 7+ digits. Never by name, and never filling a phone (a name match judged against today's
   // customers could make an old invoice textable about someone else's job).
   const phoneForUpdate = (ri: RawInvoice, ex: { customerPhone: string | null }) =>
-    [ri.customerPhone, ex.customerPhone].map(p => (p ? normalizePhone(p) : "")).find(p => p.length >= 7) ?? null;
+    [ri.customerPhone, ex.customerPhone].map(p => phoneLast10(p)).find(p => p.length >= 7) ?? null;
   const phonesForLookup = [...new Set([
-    ...invoicesNeedingCustomerLookup.map(ri => (ri.customerPhone ? normalizePhone(ri.customerPhone) : null)),
+    ...invoicesNeedingCustomerLookup.map(ri => phoneLast10(ri.customerPhone)),
     ...unlinkedStoredInvoices.map(ri => phoneForUpdate(ri, existingByInvoiceNumber.get(ri.invoiceNumber)!)),
   ].filter((p): p is string => !!p && p.length >= 7))];
+  // Looked up on customers.phone10, the unique generated RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10), not on the raw
+  // text: customers.phone is stored in mixed formats ("+1 (216) 555-0100"). phoneLast10 is the same rule in JS, so the map
+  // key is that column's value. A phone of 7-9 digits keys as itself, so it meets only a customer with exactly those digits.
   const customersByPhone = new Map<string, number>();
   if (phonesForLookup.length > 0) {
-    const rows = await d.select({ id: customers.id, phone: customers.phone })
-      .from(customers).where(inArray(customers.phone, phonesForLookup));
+    const rows = await d.select({ id: customers.id, phone10: customers.phone10 })
+      .from(customers).where(inArray(customers.phone10, phonesForLookup));
     for (const r of rows) {
-      if (r.phone) customersByPhone.set(r.phone, r.id);
+      if (r.phone10) customersByPhone.set(r.phone10, r.id);
     }
   }
 
