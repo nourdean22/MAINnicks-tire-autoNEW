@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/functions-cleanup-2026-10-24",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\telegram-alert-cleanup-ef0255",
   "claimedBy": "2026-10-23-bdnick-pro-rebuild wave C (manager d6a11a27)",
   "claimedAt": "2026-10-24T14:32:10.815Z",
   "expiresAt": "2026-10-25T02:32:10.815Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": "d12872814292334b157df5a4cc6abb865ccf35b0"
+  "releasedAt": "2026-10-24T16:43:59.510Z",
+  "releaseReason": "merged as 91884c05b (PR 3259)",
+  "priorLeaseSha": "fd2e92dd93eed5ae65c07679dd79ef89dd53b3d6",
+  "releasedBy": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "foreignReleaseReason": null
 }
