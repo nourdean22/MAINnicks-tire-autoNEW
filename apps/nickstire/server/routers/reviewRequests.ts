@@ -34,7 +34,7 @@ import { sendSms, withOptOut } from "../sms";
 import { z } from "zod";
 import crypto from "crypto";
 
-import { STORE_NAME } from "@shared/const";
+import { postVisitText } from "@shared/postVisitText";
 
 import { createLogger } from "../lib/logger";
 
@@ -54,7 +54,7 @@ function buildReviewMessage(name: string, service: string | null, trackingUrl: s
       .replace(/\{reviewUrl\}/g, trackingUrl);
   }
 
-  return `Hi ${firstName}, thanks for trusting us with your ${serviceName.toLowerCase()}! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\n${trackingUrl}\n\nThank you! — ${STORE_NAME}`;
+  return postVisitText(firstName, trackingUrl);
 }
 
 /**

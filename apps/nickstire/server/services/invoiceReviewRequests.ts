@@ -43,7 +43,7 @@ const MAX_PER_RUN = 50;
  */
 const BUSINESS_TOKEN =
   /^(llc|inc|corp|corporation|co|company|ltd|lp|llp|pllc|auto|automotive|motors?|tires?|service|services|group|enterprises?|trucking|transport|logistics|fleet|rentals?|towing|church|school|city|county|dept|department|dealership|sales|repair)\.?$/i;
-function greetingName(raw: unknown): string {
+export function greetingName(raw: unknown): string {
   const text = String(raw ?? "").replace(/\s+/g, " ").trim();
   const hasComma = text.includes(",");
   const [last, first] = hasComma ? text.split(",", 2).map((p) => p.trim()) : ["", text];

@@ -19,7 +19,6 @@ import {
   appointmentReminder24hSms,
   appointmentReminder1hSms,
   thankYouSms,
-  reviewRequestSms,
   maintenanceReminderSms,
   bookingConfirmationRequestSms,
 } from "../sms";

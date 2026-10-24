@@ -51,7 +51,6 @@ describe("SMS Templates", () => {
     expect(sms.appointmentReminder24hSms("John", "Oil Change").length).toBeGreaterThan(20);
     expect(sms.appointmentReminder1hSms("John").length).toBeGreaterThan(20);
     expect(sms.thankYouSms("John", "Tires").length).toBeGreaterThan(20);
-    expect(sms.reviewRequestSms("John").length).toBeGreaterThan(20);
     expect(sms.maintenanceReminderSms("John", "Oil Change").length).toBeGreaterThan(20);
     expect(sms.bookingConfirmationRequestSms("John").length).toBeGreaterThan(20);
   });
@@ -62,7 +61,6 @@ describe("SMS Templates", () => {
     // wave-182: messages are intentionally name-free (no-personalization directive).
     expect(sms.appointmentReminder24hSms("Nour", "Brakes")).not.toContain("Nour");
     expect(sms.thankYouSms("Dania", "Tires")).not.toContain("Dania");
-    expect(sms.reviewRequestSms("Ahmed")).not.toContain("Ahmed");
     expect(sms.bookingConfirmationRequestSms("Mike")).not.toContain("Mike");
   });
 

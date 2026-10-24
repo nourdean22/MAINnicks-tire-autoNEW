@@ -2822,11 +2822,6 @@ export function thankYouSms(_name: string, _service: string): string {
   return `Hey, thanks again for coming by Nick's Tire & Auto. All work is backed by our warranty. If anything feels off or you have a question, text or call us here: (216) 862-0005`;
 }
 
-/** 7-day review request SMS */
-export function reviewRequestSms(_name: string): string {
-  return `Hey, hope everything's been good since your visit. If we earned it, a quick Google review helps other Cleveland drivers find a shop they can trust: nickstire.org/review`;
-}
-
 /** Callback confirmation SMS */
 export function callbackConfirmationSms(_name: string): string {
   return `Got your callback request at Nick's Tire & Auto. We'll reach out during business hours (Mon-Sat 8-6, Sun 9-4). Need us sooner? Call or text (216) 862-0005.`;
