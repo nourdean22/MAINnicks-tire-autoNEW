@@ -200,11 +200,13 @@ export function BottomPulseTicker() {
   if ((!data && !topData) || items.length === 0) {
     // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
     if (!pulseError && !tickerFailed) return null;
+    // The blur stays until a Missions phone composition change buys margin on visible-transformation.spec.ts
+    // (missions/phone sat at 35.2% on main).
     return (
       <div
         role="region"
         aria-label="System pulse"
-        className="relative flex min-h-[32px] items-center border-t border-edge-subtle bg-canvas px-4 sm:h-5 sm:px-3"
+        className="ui-material relative flex min-h-[32px] items-center border-t border-edge-subtle px-4 sm:h-5 sm:px-3"
       >
         <p className="font-mono text-[12px] text-fg-tertiary">Pulse unavailable</p>
       </div>
@@ -228,7 +230,7 @@ export function BottomPulseTicker() {
       role="region"
       aria-label="System pulse"
       aria-live="off"
-      className="relative min-h-[32px] sm:h-5 border-t border-edge-subtle bg-canvas"
+      className="ui-material relative min-h-[32px] sm:h-5 border-t border-edge-subtle"
     >
       {/* gap-4 / px-4 on phones: the snooze button's pulled margin (p-4 -m-4) reaches 16px past
           its glyph, so a 12px gap or edge would overlap the pause button or the screen edge. */}

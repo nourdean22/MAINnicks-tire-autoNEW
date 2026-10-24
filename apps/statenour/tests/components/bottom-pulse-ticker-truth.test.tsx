@@ -5,8 +5,8 @@
  *  · A failed sub-feed beside a working one was hidden: the strip showed the working one's items
  *    with no sign the other was down. It now says "1 feed down".
  *  · Done / Drop on a promise had no onError: a rejected resolve looked like nothing happened.
- *  · The strip is control chrome on a fixed bar; SYSTEM.md does not list it for `.ui-material`
- *    blur, so it is a solid surface.
+ *  · The strip keeps `.ui-material` (the wave A "solid surface" change moved the e2e distance floor;
+ *    see the surface tests below).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
@@ -162,15 +162,19 @@ describe("Done / Drop", () => {
 });
 
 describe("surface", () => {
-  it("the fixed strip is a solid surface, not .ui-material blur", () => {
+  // The blur stays until a Missions phone composition change buys margin on visible-transformation.spec.ts
+  // (missions/phone sat at 35.2% on main; an opaque strip took it to 34.6% in CI run 40102283830).
+  it("the fixed strip keeps its .ui-material surface, as on main", () => {
     h.pulse = { items: [item("a")] };
-    expect(mount().innerHTML).not.toContain("ui-material");
+    const html = mount().innerHTML;
+    expect(html).toContain("ui-material");
+    expect(html).not.toContain("bg-canvas px");
   });
-  it("the failure strip is solid too", () => {
+  it("the failure strip keeps .ui-material too", () => {
     h.pulseError = true;
     h.tickerError = true;
     const html = mount().innerHTML;
     expect(html).toContain("Pulse unavailable");
-    expect(html).not.toContain("ui-material");
+    expect(html).toContain("ui-material");
   });
 });
