@@ -2,11 +2,11 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 162,
-    "emoji": 14,
-    "transitionAll": 45,
-    "slowDuration": 7,
-    "smallInput": 75
+    "emDash": 154,
+    "emoji": 11,
+    "transitionAll": 41,
+    "slowDuration": 5,
+    "smallInput": 72
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -151,27 +151,6 @@
       "emDash": 2,
       "smallInput": 2
     },
-    "components/chat/email-draft-card.tsx": {
-      "emoji": 2,
-      "smallInput": 2
-    },
-    "components/chat/image-with-upscale.tsx": {
-      "emDash": 1
-    },
-    "components/chat/realtime-voice-overlay.tsx": {
-      "transitionAll": 1
-    },
-    "components/chat/reasoning-trace-live.tsx": {
-      "emDash": 1
-    },
-    "components/chat/reasoning-trace-modal.tsx": {
-      "transitionAll": 1
-    },
-    "components/chat/tool-result-registry.tsx": {
-      "emDash": 3,
-      "transitionAll": 2,
-      "slowDuration": 2
-    },
     "components/command-palette.tsx": {
       "emDash": 1
     },
@@ -183,15 +162,6 @@
     "components/goals/goal-board.tsx": {
       "transitionAll": 2,
       "smallInput": 12
-    },
-    "components/home/home-console.tsx": {
-      "emDash": 1
-    },
-    "components/home/horizon-line.tsx": {
-      "emDash": 1
-    },
-    "components/home/waiting-line.tsx": {
-      "emoji": 1
     },
     "components/inspector/inspector-notice.tsx": {
       "emDash": 1
@@ -329,7 +299,6 @@
       "emDash": 1
     },
     "components/ultron/bottom-pulse-ticker.tsx": {
-      "emDash": 1,
       "emoji": 1
     },
     "components/ultron/decision-replay-card.tsx": {
@@ -351,9 +320,6 @@
     },
     "components/ultron/today/next-action-whisperer.tsx": {
       "emDash": 1
-    },
-    "features/chat-v2/components/media-save-moment.tsx": {
-      "smallInput": 1
     },
     "hooks/chat/use-chat-transport.ts": {
       "emDash": 1
