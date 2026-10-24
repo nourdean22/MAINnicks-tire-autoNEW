@@ -4,8 +4,10 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import { Zap, Lightbulb, Target, Check, Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { isRetrying, readState } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 
 interface TakeNextAction {
@@ -92,11 +94,14 @@ function TakeLifecycle({ status }: { status: string | null }) {
   );
 }
 
+/** One row of the Journal "Signals" list: the takes pulled out of recent entries. */
 export function JournalInsightsPreview() {
-  const { data: insights, isLoading, refetch } = trpc.journal.insightsPreview.useQuery(undefined, {
+  const insightsQuery = trpc.journal.insightsPreview.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 2 * 60 * 1000,
   });
+  const { data: insights, refetch } = insightsQuery;
+  const state = readState(insightsQuery);
   // Loop-closure wave (audit 2026-07-15) · accepts go through the
   // journal.promoteNextAction seam so the take row's per-layer promoted
   // flag is stamped server-side — re-accepting after a remount is
@@ -127,19 +132,28 @@ export function JournalInsightsPreview() {
     }
   };
 
-  if (isLoading) {
+  if (state === "loading") {
     return (
-      <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3 animate-pulse">
-        <div className="h-4 w-40 bg-surface-interactive rounded-micro" />
-        <div className="space-y-2">
-          <div className="h-12 bg-surface-interactive rounded-micro" />
-          <div className="h-12 bg-surface-interactive rounded-micro" />
-        </div>
-      </div>
+      <li className="py-3">
+        <ShimmerSkeleton className="h-12 w-full" />
+      </li>
     );
   }
 
-  if (activeInsights.length === 0) return null;
+  // A failed or paused read is not "no takes": say which, and offer Retry.
+  if (state === "error" || state === "offline") {
+    return (
+      <li className="py-3">
+        <ReadStateNote state={state} label="Extracted takes" onRetry={() => void refetch()} retrying={isRetrying(insightsQuery)} />
+      </li>
+    );
+  }
+
+  if (activeInsights.length === 0) {
+    return (
+      <li className="py-3 text-[13px] text-fg-tertiary">No takes extracted yet. Takes appear after an entry is saved.</li>
+    );
+  }
 
   const acceptButton = (
     item: InsightPreviewItem,
@@ -173,18 +187,11 @@ export function JournalInsightsPreview() {
   };
 
   return (
-    <section
-      aria-label="journal takeaways preview"
-      className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3"
-    >
-      <header className="flex items-center gap-2">
-        <h3 className="font-mono text-[11px] text-fg-tertiary">
-          <span className="text-fg-secondary">NICK ·</span> extracted journal takes
-        </h3>
-        <Badge variant="outline" className="ml-auto rounded-micro text-[11px] font-mono text-fg-tertiary border-edge-subtle bg-transparent">
-          local preview
-        </Badge>
-      </header>
+    <li aria-label="journal takeaways preview" className="py-3 space-y-3">
+      {state === "stale" && (
+        <ReadStateNote state={state} label="Extracted takes" onRetry={() => void refetch()} retrying={isRetrying(insightsQuery)} />
+      )}
+      <h4 className="text-xs font-medium text-fg-secondary">Extracted takes</h4>
 
       <div className="space-y-3">
         {/* Attention budget (2026-09-01): every entry used to render its full
@@ -200,12 +207,12 @@ export function JournalInsightsPreview() {
           />
         ))}
         {activeInsights.length > 3 && (
-          <p className="font-mono text-[11px] text-fg-tertiary">
+          <p className="text-[11px] text-fg-tertiary">
             +{activeInsights.length - 3} more entr{activeInsights.length - 3 === 1 ? "y" : "ies"} with takes. Scroll the archive below.
           </p>
         )}
       </div>
-    </section>
+    </li>
   );
 }
 
@@ -323,7 +330,7 @@ function InsightEntry({
                 <button
                   type="button"
                   onClick={() => setShowAll(true)}
-                  className="min-h-[32px] rounded-control px-1.5 font-mono text-[11px] text-fg-tertiary transition-colors hover:text-fg"
+                  className="min-h-[32px] rounded-control px-1.5 text-[11px] text-fg-tertiary transition-colors hover:text-fg"
                 >
                   +{hiddenCount} more take{hiddenCount === 1 ? "" : "s"} ▾
                 </button>

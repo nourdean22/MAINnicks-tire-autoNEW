@@ -6,17 +6,11 @@
     "emoji": 11,
     "transitionAll": 41,
     "slowDuration": 5,
-    "smallInput": 72
+    "smallInput": 65
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
       "smallInput": 2
-    },
-    "app/(mastery)/journal/_components/journal-feed-view.tsx": {
-      "smallInput": 1
-    },
-    "app/(mastery)/journal/_components/notebooklm-context-zone.tsx": {
-      "smallInput": 1
     },
     "app/(mastery)/photo-improver/page.tsx": {
       "emDash": 2,
@@ -177,18 +171,6 @@
     },
     "components/inspector/panels/tool-inspector.tsx": {
       "emDash": 1
-    },
-    "components/journal/entry-row.tsx": {
-      "smallInput": 2
-    },
-    "components/journal/memory-calibration.tsx": {
-      "smallInput": 1
-    },
-    "components/journal/thread-radar.tsx": {
-      "smallInput": 1
-    },
-    "components/journal/thread-rail.tsx": {
-      "smallInput": 1
     },
     "components/layout/desktop-spine.tsx": {
       "emDash": 1
