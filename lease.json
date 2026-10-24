@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/missions-rebuild-2026-10-23",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-bdnick-pro-rebuild wave 1 missions",
   "claimedAt": "2026-10-23T11:15:48.726Z",
   "expiresAt": "2026-10-23T23:15:48.726Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-24T12:45:59.445Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "f4a345432d6a8598111cd23c2283c8c7e1d7e19a",
+  "releasedBy": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "foreignReleaseReason": null
 }
