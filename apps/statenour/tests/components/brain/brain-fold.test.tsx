@@ -69,6 +69,44 @@ describe("BrainFold opens for a deep link into its body", () => {
     expect(details().open).toBe(true);
   });
 
+  it("reopens on Back to a hash it already handled, after a hash elsewhere (Codex 4368647108)", async () => {
+    window.history.replaceState(null, "", "/brain#pinned-context");
+    await mount(
+      <BrainFold title="Context">
+        <section id="pinned-context">pins</section>
+      </BrainFold>,
+    );
+    expect(details().open).toBe(true);
+    const go = async (hash: string) => {
+      await act(async () => {
+        window.history.replaceState(null, "", `/brain${hash}`);
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+        await new Promise((r) => setTimeout(r, 40));
+      });
+    };
+    details().open = false;
+    await go("#contradictions");
+    expect(details().open).toBe(false);
+    await go("#pinned-context");
+    expect(details().open).toBe(true);
+  });
+
+  it("a hash it already handled does not reopen it after Nour closes it (no hashchange)", async () => {
+    window.history.replaceState(null, "", "/brain#pinned-context");
+    await mount(
+      <BrainFold title="Context">
+        <section id="pinned-context">pins</section>
+        <LateRow />
+      </BrainFold>,
+    );
+    expect(details().open).toBe(true);
+    details().open = false;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    expect(details().open).toBe(false);
+  });
+
   it("stays closed for a hash that names something outside it", async () => {
     window.history.replaceState(null, "", "/brain#contradictions");
     await mount(
@@ -90,7 +128,29 @@ describe("BrainFold counts offline apart from unreadable", () => {
     );
     expect(summary()).toBe("Self-model (2) (1 offline)");
   });
+
+  it("says (n stale) for a refresh that failed over cached data (Codex 4368647112)", async () => {
+    await mount(
+      <BrainFold title="Signals">
+        <div>
+          <div data-read-state="stale">Brain alerts did not refresh.</div>
+          <a href="/system/alerts">3 brain alerts open</a>
+        </div>
+      </BrainFold>,
+    );
+    expect(summary()).toBe("Signals (1) (1 stale)");
+  });
 });
+
+/** A row that renders after mount, so the fold re-measures while the hash is unchanged. */
+function LateRow() {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShown(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+  return shown ? <section>late</section> : null;
+}
 
 function Recovering() {
   const [ok, setOk] = useState(false);

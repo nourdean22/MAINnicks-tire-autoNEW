@@ -220,6 +220,12 @@ describe("Memory tab: three closed folds that count what they hide", () => {
     expect(summary("Context")).toBe("Context (3) (1 unreadable)");
   });
 
+  it("says (1 offline) when the skill library read is paused before any data (Codex 4368647109)", async () => {
+    h.q["operator.skills"] = { data: undefined, isError: false, isPending: true, isLoading: false, fetchStatus: "paused", refetch: () => Promise.resolve() };
+    await mount();
+    expect(summary("Self-model")).toBe("Self-model (10) (1 offline)");
+  });
+
   it("follows a read that fails after mount", async () => {
     h.lateFail = new Set(["BrainInsightsPanel"]);
     await mount();

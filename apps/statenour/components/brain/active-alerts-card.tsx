@@ -19,35 +19,46 @@ interface AlertsPayload {
   counts: Record<string, number>;
 }
 
+/**
+ * buildActiveAlerts caps every category at `limit` (lib/services/brain-domain.ts), so a category at the
+ * cap may hold more. Asked for explicitly, so the line knows the cap it compares against.
+ */
+const ALERTS_PER_CATEGORY = 10;
+
 export function ActiveAlertsCard() {
-  const alertsQuery = trpc.brain.activeAlerts.useQuery(undefined);
+  const alertsQuery = trpc.brain.activeAlerts.useQuery({ limit: ALERTS_PER_CATEGORY });
   const payload = (alertsQuery.data as AlertsPayload | undefined) ?? null;
   const state = readState(alertsQuery);
+  const note = (
+    <ReadStateNote
+      state={state}
+      label="Brain alerts"
+      onRetry={() => void alertsQuery.refetch()}
+      retrying={isRetrying(alertsQuery)}
+    />
+  );
 
   if (state === "loading") return null;
-  if (!payload) {
-    return (
-      <ReadStateNote
-        state={state}
-        label="Brain alerts"
-        onRetry={() => void alertsQuery.refetch()}
-        retrying={isRetrying(alertsQuery)}
-      />
-    );
-  }
+  if (!payload) return note;
 
-  const total = Object.values(payload.counts).reduce((a, b) => a + b, 0);
-  if (total === 0) return null;
+  const counts = Object.values(payload.counts);
+  const total = counts.reduce((a, b) => a + b, 0);
+  // A refresh that failed over cached data: the old count must not read as current.
+  if (total === 0) return state === "stale" ? note : null;
+  const capped = counts.some((n) => n >= ALERTS_PER_CATEGORY);
 
   return (
-    <Link
-      href="/system/alerts"
-      className="flex min-h-[44px] items-center justify-between gap-3 border-l-2 border-amber-400/60 pl-4 text-[15px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
-    >
-      <span>
-        {total} brain alert{total === 1 ? "" : "s"} open in the last {payload.sinceDays} days
-      </span>
-      <span className="shrink-0 font-mono text-[13px] text-fg-tertiary">Review in System</span>
-    </Link>
+    <div className="space-y-1">
+      {note}
+      <Link
+        href="/system/alerts"
+        className="flex min-h-[44px] items-center justify-between gap-3 border-l-2 border-amber-400/60 pl-4 text-[15px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
+      >
+        <span>
+          {capped ? `${total}+` : total} brain alert{total === 1 && !capped ? "" : "s"} open in the last {payload.sinceDays} days
+        </span>
+        <span className="shrink-0 font-mono text-[13px] text-fg-tertiary">Review in System</span>
+      </Link>
+    </div>
   );
 }

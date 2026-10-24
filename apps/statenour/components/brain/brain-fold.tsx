@@ -21,15 +21,23 @@ import { useObservedCount } from "@/components/system/detail-fold";
 export const READ_FAILED_SELECTOR = '[data-read-failed], [data-read-state="error"], [data-provenance="ERROR"]';
 /** A paused read (no connection) is not a failed one: counted apart, in amber. */
 export const READ_OFFLINE_SELECTOR = '[data-read-state="offline"]';
+/** A refresh that failed over cached data: the row still shows numbers, but old ones. Counted apart, in amber. */
+export const READ_STALE_SELECTOR = '[data-read-state="stale"]';
 
 const has = (row: Element, sel: string) => row.matches(sel) || !!row.querySelector(sel);
 
-export function countFoldRows(body: Element): { rows: number; unreadable: number; offline: number } {
+type FoldCount = { rows: number; unreadable: number; offline: number; stale: number };
+
+/** Each row lands in at most one bucket, worst first: failed, then offline, then stale. */
+export function countFoldRows(body: Element): FoldCount {
   const rows = [...body.children];
+  const failed = (row: Element) => has(row, READ_FAILED_SELECTOR);
+  const offline = (row: Element) => !failed(row) && has(row, READ_OFFLINE_SELECTOR);
   return {
     rows: rows.length,
-    unreadable: rows.filter((row) => has(row, READ_FAILED_SELECTOR)).length,
-    offline: rows.filter((row) => !has(row, READ_FAILED_SELECTOR) && has(row, READ_OFFLINE_SELECTOR)).length,
+    unreadable: rows.filter(failed).length,
+    offline: rows.filter(offline).length,
+    stale: rows.filter((row) => !failed(row) && !offline(row) && has(row, READ_STALE_SELECTOR)).length,
   };
 }
 
@@ -72,9 +80,15 @@ export function BrainFold({ title, children }: { title: string; children: ReactN
       if (!details.open) details.open = true;
       el.scrollIntoView?.({ block: "start" });
     };
+    // Every navigation is a new request, even to a hash handled before (Back from #contradictions to
+    // #pinned-context): only re-measures under the SAME current hash are suppressed.
+    const onHashChange = () => {
+      openedFor.current = "";
+      openForHash();
+    };
     openForHash();
-    window.addEventListener("hashchange", openForHash);
-    return () => window.removeEventListener("hashchange", openForHash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, [bodyRef, count]);
 
   return (
@@ -85,6 +99,7 @@ export function BrainFold({ title, children }: { title: string; children: ReactN
           {count && <span className="font-mono tabular-nums text-fg-tertiary"> ({count.rows})</span>}
           {count && count.unreadable > 0 && <span className="text-red-300"> ({count.unreadable} unreadable)</span>}
           {count && count.offline > 0 && <span className="text-amber-300"> ({count.offline} offline)</span>}
+          {count && count.stale > 0 && <span className="text-amber-300"> ({count.stale} stale)</span>}
         </span>
         <ChevronDown size={16} strokeWidth={1.75} aria-hidden className="shrink-0 transition-transform duration-[var(--motion-state)] group-open:rotate-180" />
       </summary>

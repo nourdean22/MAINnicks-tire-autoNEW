@@ -133,6 +133,8 @@ function SkillLibraryRow() {
   return (
     <div>
       {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
+      {/* Paused before any data (offline at start): no error, no list, so say offline. */}
+      {readState(skillsQuery) === "offline" && <ReadStateNote state="offline" label="Skill library" />}
       <SkillLibraryPanel />
     </div>
   );
