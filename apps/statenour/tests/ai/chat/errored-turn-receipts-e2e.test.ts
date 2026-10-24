@@ -83,7 +83,6 @@ async function runTurn(calls: Array<unknown[] | Error>) {
     mode: "standard" as never,
     maxOutputTokens: 1000,
     turnSignal: { kind: "conversational" } as never,
-    pythonExecuteIntent: false,
     webSearchIntent: false,
     actionIntent: null,
     actionPermission: undefined,

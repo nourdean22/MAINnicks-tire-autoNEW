@@ -56,7 +56,6 @@ export function buildStreamConfigFactory(deps: {
   mode: ChatMode;
   maxOutputTokens: number;
   turnSignal: ReturnType<typeof classifyTurn>;
-  pythonExecuteIntent: boolean;
   webSearchIntent: boolean;
   actionIntent: ReturnType<typeof detectActionIntent> | null;
   actionPermission: string | undefined;
@@ -95,7 +94,6 @@ export function buildStreamConfigFactory(deps: {
     mode,
     maxOutputTokens,
     turnSignal,
-    pythonExecuteIntent: __pythonExecuteIntent,
     webSearchIntent: __webSearchIntent,
     actionIntent: __actionIntent,
     actionPermission,
@@ -225,24 +223,12 @@ export function buildStreamConfigFactory(deps: {
       // impossible. Questions ("what tasks do I have?") fall through
       // to the default `auto` so reads stay flexible.
       //
-      // v10.0.520 · SPECIFIC tool forcing for python execution. The
-      // 2026-05-12 Chrome smoke test showed venice-uncensored has a
-      // strong training bias to WRITE python code text instead of
-      // calling runPython · even with an imperative tool description.
-      // When the user clearly asks to execute python, force the
-      // model's hand with `toolChoice: { type: "tool", toolName:
-      // "runPython" }`. This bypasses the model's discretion entirely
-      // · the only choice left is what python code to pass.
-      //
-      // Same pattern available for any future "model declines to call
-      // a tool we WANT called" case · add another regex+toolName
-      // branch above the generic action-intent block.
+      // SPECIFIC tool forcing (the web-search ask below) bypasses the model's
+      // discretion: the only choice left is the arguments. A future "model
+      // declines to call a tool we WANT called" case adds another
+      // regex+toolName branch above the generic action-intent block. (The
+      // python-execute force was removed 2026-10-24 with the runPython tool.)
       ...(() => {
-        // Python-execute · most specific gate, checked first. Reuse the
-        // hoisted `__pythonExecuteIntent` (computed once in
-        // derive-turn-signals for the provider force) so the detection
-        // regex lives in exactly one place — the two can never drift
-        // apart on a future edit.
         // 2026-07-12 · Force the tool on the FIRST step ONLY, then hand
         // control back (toolChoice:"auto") so the model emits a final text
         // reply AFTER the tools run. Forcing "required" across ALL steps
@@ -263,28 +249,15 @@ export function buildStreamConfigFactory(deps: {
         // previously-prepareStep-less default.
         const lastStep = (mode === "deep" ? 5 : 3) - 1;
         // READ permission (composer selector) must not be contradicted by
-        // structural tool forcing — a forced runPython / toolChoice:"required"
+        // structural tool forcing — a forced tool / toolChoice:"required"
         // makes the "observe and describe, don't act" directive impossible
         // (self-review high #5). Skip the mutating forces; fall through to the
         // unforced default so the READ prompt directive governs the turn.
         // 2026-10-10 · and never force a tool the turn does not OFFER: the
-        // Private Lab strip removes runPython and every write at any permission,
+        // Private Lab strip removes every write at any permission,
         // so each force keys on the pruned set itself, not on a label.
         const offered = (prunedTools ?? {}) as Record<string, unknown>;
         const offers = (name: string) => Object.prototype.hasOwnProperty.call(offered, name);
-        if (__pythonExecuteIntent && actionPermission !== "read" && offers("runPython")) {
-          log.info("python_execute_intent_detected", { surface: "chat" });
-          noteForcedTool(__traceId, "runPython", provider, modelId);
-          return {
-            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-              stepNumber === 0
-                ? { toolChoice: { type: "tool" as const, toolName: "runPython" as const } }
-                : stepNumber >= lastStep
-                  ? { toolChoice: "none" as const }
-                  : { toolChoice: "auto" as const },
-          };
-        }
-
         // 2026-07-15 · explicit web-search ask → force the web tool on
         // step 0 (checked before the generic action intent — more
         // specific wins). deepseek-v4-pro honors strict tool_choice

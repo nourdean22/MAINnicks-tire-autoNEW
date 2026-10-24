@@ -409,7 +409,6 @@ async function chatTurn({
     responseContract,
     finalTaskType,
     finalPreferLargeContext,
-    pythonExecuteIntent: __pythonExecuteIntent,
     actionIntent: __actionIntent,
     webSearchIntent: __webSearchIntent,
     webSearchRecency: __webSearchRecency,
@@ -455,8 +454,8 @@ async function chatTurn({
     );
   }
 
-  // (python-execute / action / web-search intent detections moved into
-  // deriveTurnSignals above — destructured as __pythonExecuteIntent /
+  // (action / web-search intent detections moved into
+  // deriveTurnSignals above — destructured as
   // __actionIntent / __webSearchIntent to keep every downstream
   // reference byte-identical.)
 
@@ -478,7 +477,6 @@ async function chatTurn({
       turnSignal,
       mode,
       finalTaskType,
-      pythonExecuteIntent: __pythonExecuteIntent,
       actionIntent: Boolean(__actionIntent),
       webSearchIntent: __webSearchIntent,
       webSearchRecency: __webSearchRecency,
@@ -560,7 +558,7 @@ async function chatTurn({
     // getModel degrades it to the normal chain today, and it becomes
     // meaningful again the moment the key is configured.
     const toolMandatoryForce =
-      __pythonExecuteIntent || __actionIntent
+      __actionIntent
         ? isHighStakesMutation
           ? ("anthropic" as const)
           : ("ollama" as const)
@@ -646,7 +644,7 @@ async function chatTurn({
     if (toolMandatoryForce) {
       log.info("tool_provider_override", {
         forced: toolMandatoryForce,
-        reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
+        reason: "action_intent",
         highStakes: isHighStakesMutation,
       });
     } else if (validatedProviderOverride) {
@@ -1262,7 +1260,6 @@ ${priorsBlock}`;
       mode,
       maxOutputTokens,
       turnSignal,
-      pythonExecuteIntent: __pythonExecuteIntent,
       webSearchIntent: __webSearchIntent,
       actionIntent: __actionIntent,
       actionPermission,

@@ -51,7 +51,6 @@ function input(over: Record<string, unknown> = {}) {
     turnSignal,
     mode: "deep",
     finalTaskType: "deep",
-    pythonExecuteIntent: false,
     actionIntent: false,
     webSearchIntent: true,
     webSearchRecency: false,

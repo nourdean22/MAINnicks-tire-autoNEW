@@ -43,7 +43,6 @@ export interface TurnSignals {
   responseContract: ReturnType<typeof buildResponseContract>;
   finalTaskType: TaskType;
   finalPreferLargeContext: boolean;
-  pythonExecuteIntent: boolean;
   actionIntent: ReturnType<
     typeof import("@/lib/ai/chat/action-intent-detector").detectActionIntent
   > | null;
@@ -217,30 +216,17 @@ export async function deriveTurnSignals(args: {
     largeContext: finalPreferLargeContext,
   });
 
-  // v10.0.521 · Python-execute intent detection ALSO drives the
-  // provider pick. Venice-uncensored has documented loose tool_choice
-  // adherence (v10.0.520 set { type:"tool", toolName:"runPython" }
-  // and the smoke test still showed TOOLS=0 · model wrote code text
-  // instead of calling). Anthropic + OpenAI honor strict tool_choice.
-  // Route python-execute intent through Anthropic to guarantee the
-  // tool actually fires.
-  const pythonExecuteIntent =
-    !researchCompilerMode &&
-    /\b(run|execute|invoke)\s+(?:this\s+)?python\b|\bpython\s+(?:to\s+|and\s+)?(?:compute|calculate|run|execute)\b|\buse\s+(?:the\s+)?runPython\b|\brun\s+(?:this\s+)?code\b/i.test(
-      userContent,
-    );
-
   // v-truth · Generic action intent ("add this task", "remember this",
   // "send the email") ALSO drives the provider pick. toolChoice:
   // "required" is set for these turns, but forcing only EXECUTES
   // on a provider that honors strict tool_choice. Ollama qwen3 does
   // (and is the live primary · provider.ts PROVIDERS[0]); Venice strips
   // tool_choice, so a forced action landing on the Venice fallback gets
-  // narrated, never run. Mirror the python pattern so a genuine action
+  // narrated, never run. Mirror the web-search pattern so a genuine action
   // routes to the lane that actually fires the tool. Detected ONCE
   // and reused for both the provider force and toolChoice.
   // Degrades safely: if Ollama is unavailable, getModel falls through.
-  const actionIntent = researchCompilerMode || pythonExecuteIntent
+  const actionIntent = researchCompilerMode
     ? null
     : (() => {
         try {
@@ -257,14 +243,13 @@ export async function deriveTurnSignals(args: {
   // model either couldn't reach a web tool (pruner follow-up gap,
   // fixed via conversationTail) or narrated "no web search available"
   // WITHOUT attempting the attached tool (persona-framed reasoning
-  // model). Mirror the python-execute pattern: when the ask is
+  // model). Mirror the action pattern: when the ask is
   // explicit, force arsenalWebSearch on step 0 so unavailability can't
   // be narrated — the only choice left is the query string. Detection
   // stays tight (explicit phrasings only) so ordinary questions keep
   // toolChoice auto.
   const webSearchIntent =
     !researchCompilerMode &&
-    !pythonExecuteIntent &&
     /\b(search (the )?(web|internet|net|online)|google (it|for|me|this|that)|web ?search|look (it |this |that |them )?up online|(find|pull|get) (me )?(the )?(latest|current|live|breaking|newest|hottest) .{0,40}\b(online|on the web|from the web|news|trends?)\b)\b/i.test(
       userContent,
     );
@@ -281,7 +266,6 @@ export async function deriveTurnSignals(args: {
   // per its "detection stays tight" design note.
   const webSearchRecency =
     !researchCompilerMode &&
-    !pythonExecuteIntent &&
     !webSearchIntent &&
     /\b(right now|trending|what'?s (hot|new|popular)|(top|best)[- ]rated|(latest|newest|current|breaking) (news|movies?|shows?|series|releases?|trends?|prices?|models?)|this (week|month))\b/i.test(
       userContent,
@@ -297,7 +281,6 @@ export async function deriveTurnSignals(args: {
     responseContract,
     finalTaskType,
     finalPreferLargeContext,
-    pythonExecuteIntent,
     actionIntent,
     webSearchIntent,
     webSearchRecency,
