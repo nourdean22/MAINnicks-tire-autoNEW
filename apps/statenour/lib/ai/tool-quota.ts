@@ -38,7 +38,6 @@ export interface QuotaCheckResult {
 }
 
 const DEFAULT_CAPS: Record<string, number> = {
-  runPython: 100,
   ingestDocumentFromUrl: 50,
 };
 

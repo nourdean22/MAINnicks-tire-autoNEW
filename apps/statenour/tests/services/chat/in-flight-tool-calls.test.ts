@@ -54,7 +54,7 @@ describe("a trustworthy snapshot", () => {
     });
   });
 
-  it.each(["setMit", "clearMit", "runPython"])("a tool-call for %s, which writes without a write flag, is recorded as a write", (toolName) => {
+  it.each(["setMit", "clearMit"])("a tool-call for %s, which writes without a write flag, is recorded as a write", (toolName) => {
     expect(trustedRows(call(toolName))[0]).toMatchObject({ toolName, sideEffecting: true });
   });
 

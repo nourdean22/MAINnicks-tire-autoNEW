@@ -1,7 +1,7 @@
 /**
  * Brain tools — semantic recall, BrainMemory ops, classification.
  *
- * Includes: searchMemories · searchSkills ·
+ * Includes: searchMemories · suggestSkills ·
  * searchReflections · pinMemory · classifyThought · checkAntiPattern ·
  * resolveContradiction · runSimulation · syncKnowledge · etc.
  *
@@ -47,13 +47,20 @@ export const brainTools = {
         .max(10)
         .optional()
         .describe("How many to return. Default 3."),
+      topK: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("Same as limit (the name the retired searchSkills used). limit wins when both are set."),
     }),
-    execute: async ({ query, limit }) => {
+    execute: async ({ query, limit, topK }) => {
       const { recallSkills } = await import("@/lib/skills/skill-recall");
       const { hasBundledProtocol } = await import(
         "@/lib/ai/skills/bundled-protocols"
       );
-      const matches = await recallSkills(query, limit ?? 3);
+      const matches = await recallSkills(query, limit ?? topK ?? 3);
       return {
         ok: true,
         count: matches.length,
@@ -298,39 +305,6 @@ export const brainTools = {
           content: fenceContent("searchMemories", "memory_recall", m.content, {
             taint: resolveTrustTier({ source: m.source, category: m.category, trustTier }) === "EXTERNAL_CONTENT",
           }),
-        })),
-      };
-    },
-  }),
-
-  searchSkills: tool({
-    description:
-      "Semantic search across the indexed Claude skill registry. Returns top-K skills most relevant to a query · use when Nour asks 'what skill helps with X' or 'find me a skill for Y', when you need a specific framework/approach (e.g. 'kaizen', 'database design', 'mobile UX audit'), OR when a workflow could benefit from invoking a known skill protocol. Each match includes name, description, similarity score, category, and tags. Skills are pulled from ~/.claude/skills/ + plugin marketplaces · multi-language coverage (skills authored in Chinese/Portuguese still match English queries via their English summaries).",
-    inputSchema: z.object({
-      query: z
-        .string()
-        .describe("Natural language query · what kind of skill/protocol/framework you're looking for"),
-      topK: z.number().min(1).max(10).default(5),
-    }),
-    execute: async ({ query, topK }) => {
-      const { recallSkills } = await import("@/lib/skills/skill-recall");
-      const matches = await recallSkills(query, topK);
-      if (matches.length === 0) {
-        return {
-          count: 0,
-          matches: [],
-          hint: "No skills matched · try a broader query, or run `pnpm tsx scripts/embed-skills.ts` if the skill registry feels incomplete.",
-        };
-      }
-      return {
-        count: matches.length,
-        matches: matches.map((m) => ({
-          name: m.name,
-          description: m.description.slice(0, 240),
-          similarity: m.similarity,
-          category: m.category ?? null,
-          tags: m.tags ?? [],
-          path: m.path ?? null,
         })),
       };
     },

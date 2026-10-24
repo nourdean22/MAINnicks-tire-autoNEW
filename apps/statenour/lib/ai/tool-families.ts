@@ -147,7 +147,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // which covers both Reflection rows + BrainDump entries with date range).
   searchMemories: { family: "brain-search", description: "Semantic search over BrainMemory" },
   searchColdMemory: { family: "brain-search", description: "Search cold (archived) memory" },
-  searchSkills: { family: "brain-search", description: "Semantic search over the indexed Claude skill registry" },
   searchGreeneLaws: { family: "brain-search", description: "Search Robert Greene's strategic laws" },
   checkAntiPattern: { family: "brain-search", description: "Check intent against anti-pattern library" },
 
@@ -201,7 +200,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   runCode: { family: "meta", description: "Execute a script (sandboxed)" },
   searchTools: { family: "meta", description: "Find tools the pruner didn't load this turn (mid-turn recovery)", tags: ["recovery"] },
   invokeTool: { family: "meta", description: "Run a read-safe tool by name through the recovery lane (refuses mutations)", tags: ["recovery"] },
-  queryData: { family: "meta", description: "Sandboxed JS over a read-only data API (join/filter across sources in one call)", tags: ["recovery", "sandbox"] },
 
   // ════════════════════════════════════════════════════════════════
   // 2026-07-11 review backfill · 54 previously-undocumented tools.
@@ -234,7 +232,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getPowerBalanceSummary: { family: "cognition", description: "Get power-balance scores for the top 5 people by interaction count. Returns each person's name, power balan..." },
   getSkillProtocol: { family: "cognition", description: "Load the full step-by-step protocol for a bundled skill by exact name (e.g. 'maxforge-alpha'). suggestSkill..." },
   resolveContradiction: { family: "cognition", description: "Close an open claim-vs-record contradiction after Nour answers a CLAIM VS RECORD, ONE OPEN CONTRADICTION o..." },
-  runPython: { family: "cognition", description: "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE, CALCULATE, or PLOT anything in P..." },
   suggestSkills: { family: "cognition", description: "Find the best Claude skills (from the indexed skill registry) for the operator's current task or question...." },
 
   // ── backfill 2026-07-11 · content-generation ──

@@ -1,7 +1,7 @@
 /**
  * tests/ai/code-sandbox-escape.test.ts · 2026-10-10 · S9 (P1 from the S3 red team)
  *
- * runCode and queryData run MODEL-WRITTEN JavaScript in node:vm, and node:vm is
+ * runCode runs MODEL-WRITTEN JavaScript (queryData, its sibling, was removed 2026-10-24) in node:vm, and node:vm is
  * not a security boundary: one host-realm object or function reachable from the
  * context hands over the host Function constructor, and with it process.env
  * (secrets), fetch (exfiltration) and process.getBuiltinModule. A prompt-injected
@@ -76,7 +76,7 @@ const RUNTIME_IMPORT: [string, string] = [
   `return Promise.resolve().then(() => (0, eval)('imp' + 'ort("node:fs")')).catch((e) => { ${leak("e")} });`,
 ];
 
-const VECTORS: Record<"runCode" | "queryData", Array<[string, string]>> = {
+const VECTORS: Record<"runCode", Array<[string, string]>> = {
   runCode: [
     RUNTIME_IMPORT,
     ["Object.constructor (host Object in the context)", leak("Object")],
@@ -84,18 +84,9 @@ const VECTORS: Record<"runCode" | "queryData", Array<[string, string]>> = {
     ["console.log (host helper function)", leak("console.log")],
     ["avg (host helper function)", leak("avg")],
   ],
-  queryData: [
-    RUNTIME_IMPORT,
-    ["Object.constructor (host Object in the context)", leak("Object")],
-    ["globalThis.constructor (contextified host sandbox object)", leak("globalThis")],
-    ["api.call (host function)", leak("api.call")],
-    ["api.tools (host array)", leak("api.tools")],
-    ["console.log (host helper function)", leak("console.log")],
-    ["dynamic import() rejects with a host-realm error", `try { await import('node:fs'); return 'imported'; } catch (e) { ${leak("e")} }`],
-  ],
 };
 
-for (const toolName of ["runCode", "queryData"] as const) {
+for (const toolName of ["runCode"] as const) {
   describe(`${toolName} · model code cannot reach the host`, () => {
     for (const [label, code] of VECTORS[toolName]) {
       it(`${label}: no secret, no fetch`, async () => {
@@ -158,39 +149,5 @@ describe("still useful after the fix", () => {
   it("runCode: a sync infinite loop is stopped by the timeout", async () => {
     const res = await tools.runCode.execute({ code: "while (true) {}" });
     expect(res.success).toBe(false);
-  });
-
-  it("queryData: api.call still reads whitelisted data, sequentially and in parallel", async () => {
-    mockGetTasks.mockImplementation(async (args: { status?: string }) => [{ id: 1, status: args?.status ?? "any" }, { id: 2 }]);
-    const res = await tools.queryData.execute({
-      code:
-        "const a = await api.call('getTasks', {});" +
-        " const [b, c] = await Promise.all([api.call('getTasks', { status: 'READY' }), api.call('getTasks', { status: 'DOING' })]);" +
-        " return { a: a.length, b: b[0].status, c: c[0].status, wl: api.tools.includes('getTasks') };",
-    });
-    expect(res).toMatchObject({ success: true, result: { a: 2, b: "READY", c: "DOING", wl: true } });
-    // Each distinct call runs once on the host even though the code is replayed.
-    expect(mockGetTasks).toHaveBeenCalledTimes(3);
-  });
-
-  it("queryData: a failing tool reaches the model code as the wrapper's soft-fail data", async () => {
-    mockGetTasks.mockRejectedValue(new Error("db down"));
-    const res = await tools.queryData.execute({ code: "const r = await api.call('getTasks', {}); return r.error;" });
-    expect(res).toMatchObject({ success: true, result: "db down" });
-  });
-
-  it("queryData: a non-whitelisted name is still refused", async () => {
-    const res = await tools.queryData.execute({ code: "return await api.call('sendTelegram', { message: 'm' });" });
-    expect(res.success).toBe(false);
-    expect(String(res.error)).toMatch(/not in the read-only whitelist/);
-  });
-
-  it("queryData: a long microtask loop is stopped by the timeout instead of blocking the event loop", async () => {
-    // Wall-clock bound, not an iteration count: a warm JIT runs 6e7 awaits in under 2s.
-    const res = await tools.queryData.execute({ code: "const t = Date.now(); while (Date.now() - t < 4000) await null; return 'finished';" });
-    expect(res.success).toBe(false);
-    // Stopped BY the timeout. With microtasks on the host queue the result reads
-    // "did not finish" while the loop goes on to block the server afterwards.
-    expect(String(res.error)).toMatch(/compute limit/);
   });
 });

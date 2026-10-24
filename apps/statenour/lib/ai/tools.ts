@@ -58,9 +58,9 @@ export const rawTools = {
  * budget from it was the obvious move. It is also wrong -- the metadata
  * is inaccurate for exactly the tools that matter. `moneyprinter` runs a
  * multi-minute ffmpeg render and is tagged "medium"; `last30days` shells
- * out with a 300_000ms execFile budget and `runPython` hits a remote
- * sandbox, and BOTH are tagged "cheap". A tier-derived timeout would
- * have killed the three longest-running tools in the catalog. Inferred
+ * out with a 300_000ms execFile budget, and BOTH are tagged "cheap". A
+ * tier-derived timeout would have killed the longest-running tools in the
+ * catalog. Inferred
  * metadata beats a hand-list only when the metadata is true.
  *
  * Budgets are deliberately generous: this is a runaway guard, not a
@@ -72,8 +72,6 @@ const TOOL_TIME_BUDGET_MS: Record<string, number> = {
   // execFile budget in lib/ai/tools/system.ts is 300_000; stay above it
   // so the inner limit reports first and we never mask its error.
   last30days: 330_000,
-  // Remote sandbox round-trip.
-  runPython: 180_000,
   // Stagehand/Browserbase session.
   browseAndDo: 180_000,
   // Multi-round agent fan-outs.
@@ -104,7 +102,7 @@ const TIMED_OUT = Symbol("tool-timeout");
 /**
  * Lazy so this module never imports the catalog at load time. A cataloged tool
  * counts as mutating when the catalog flags it OR the registry does not vouch
- * that a replay repeats nothing (setMit, runPython and the other writers carry no
+ * that a replay repeats nothing (setMit and the other writers carry no
  * flag). A name outside the catalog keeps the flag-only answer: nourTools is
  * checked against the catalog, so only a test stub reaches it.
  */
@@ -235,7 +233,7 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
         if (held) return held;
         // A critical-risk WRITE with no two-key rule of its own waits for the
         // owner's approval of the exact call (tool-policy rule 8). Pure-compute
-        // critical tools (runCode, runPython) run.
+        // critical tools (runCode) run.
         const critical = await criticalRiskGate(name, args);
         if (critical) return critical;
         let res: any;

@@ -7,7 +7,7 @@
  *   lib/tools/two-key.ts       runDeviceCommand / Instagram two-key + criticalRiskGate
  *   lib/agent/turn-context.ts  set-only untrustedInput / privateMode
  *   lib/ai/capability-registry.ts isReadSafeTool (the one classifier every layer shares)
- *   lib/ai/tools/meta.ts       invokeTool / queryData recovery lanes
+ *   lib/ai/tools/meta.ts       invokeTool recovery lane
  *   lib/ai/chat/gate.ts        parseChatControls
  *
  * Every probe drives the REAL wrapper with the REAL turn context; only I/O
@@ -528,9 +528,9 @@ describe("bridge output taints the turn", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════
-// 5 · RECOVERY LANES · invokeTool / queryData cannot reach a sink or a write
+// 5 · RECOVERY LANES · invokeTool cannot reach a sink or a write
 // ═════════════════════════════════════════════════════════════════════════
-describe("invokeTool / queryData", () => {
+describe("invokeTool", () => {
   it("invokeTool refuses sendTelegram (not read-safe) and the provider is never called", async () => {
     const res = await inTurn({}, () => real("invokeTool").execute({ name: "sendTelegram", args: { message: "m" } }));
     expect(String(res.error)).toMatch(/not read-safe/);
@@ -557,35 +557,10 @@ describe("invokeTool / queryData", () => {
     expect(spies.telegramSend).not.toHaveBeenCalled();
   });
 
-  it("queryData's api.call cannot reach sendTelegram (whitelist)", async () => {
-    const res = await inTurn({}, () =>
-      real("queryData").execute({ code: "return await api.call('sendTelegram', { message: 'm' });" }),
-    );
-    expect(res.success).toBe(false);
-    expect(String(res.error)).toMatch(/not in the read-only whitelist/);
-    expect(spies.telegramSend).not.toHaveBeenCalled();
-  });
-
-  // FIXED (was P1, S9): queryData is read-safe, so it runs in Read turns, Private
-  // Lab, under the lock and in tainted turns. Its node:vm context used to hold the
-  // host's Object and host functions (api.call), so Object.constructor was the
-  // host Function and model code reached process.env, fetch and
-  // process.getBuiltinModule. The context now holds no host value at all (see
-  // meta.ts SANDBOX_PRELUDE; every vector is in tests/ai/code-sandbox-escape.test.ts).
   it("CONTROL · the host probe DOES report the host process when a context holds one host value", () => {
     // The pre-S9 runCode shape: the host's Object placed in the context.
     expect(vm.runInContext(`(() => { ${HOST_PROBE} })()`, vm.createContext({ Object }))).toBe("object");
   });
-  it("EXPECTED · Read turn + Private Lab + lock on: queryData still runs, and its sandbox cannot reach the host process", async () => {
-    flags.on.NICK_MUTATION_LOCK = true;
-    const res = await inTurn({ actionPermission: "read", privateMode: true }, () =>
-      real("queryData").execute({ code: HOST_PROBE }),
-    );
-    // Held by the sandbox, not by a gate refusal.
-    expect(res.result).toBeUndefined();
-    expect(String(res.error)).toMatch(/Code generation from strings disallowed/);
-  });
-
   it("queryNickstire forwards only from/to/term: a bridge send query cannot carry its required fields", async () => {
     spies.queryNick.mockImplementation(async () => ({ error: "opportunityId (uuid) required" }));
     await inTurn({}, () =>

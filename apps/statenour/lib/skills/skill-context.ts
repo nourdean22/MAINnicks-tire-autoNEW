@@ -58,7 +58,7 @@ export async function getRelevantSkillsBlock(
     const fullBlock = block
       ? `${block}\n` +
         `If one of these protocols cleanly fits the current request, apply it. ` +
-        `Use the searchSkills tool to widen the search beyond top-${TOP_K}.`
+        `Use the suggestSkills tool with a larger limit to widen the search beyond top-${TOP_K}.`
       : "";
     cache.set(key, { block: fullBlock, at: Date.now() });
     if (cache.size > 50) {

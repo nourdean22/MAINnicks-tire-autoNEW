@@ -1981,29 +1981,6 @@
     }
   },
   {
-    "name": "queryData",
-    "description": "Run JavaScript against a READ-ONLY data API to join/filter/aggregate across sources in one call instead of many separate tool calls. The sandbox exposes `api.call(toolName, args)` (await it) for a whitelisted set of read tools plus `api.tools` (the whitelist). No network, no filesystem, 10s budget. Return the final value. Example: {\"code\":\"const t = await api.call('getTasks',{}); const c = await api.call('getCommitments',{}); return { tasks: t.length ?? t.count, commitments: c.length ?? c.count };\"}",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "code": {
-          "description": "JavaScript body. Use `return` for the final value; `await api.call(name, args)` for data.",
-          "maxLength": 20000,
-          "minLength": 4,
-          "type": "string"
-        },
-        "description": {
-          "description": "What this query computes",
-          "type": "string"
-        }
-      },
-      "required": [
-        "code"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "queryNickstire",
     "description": "Query live data from nickstire.org. Queries: revenue_today, revenue_range, leads_today, leads_pipeline, leads_urgent, bookings_today, bookings_status, customer_search, callbacks_pending, work_orders_active, attention_needed, shop_pulse, feature_flags, gsc_summary, gsc_top_queries. Money: customer_search.totalSpent is integer CENTS — quote totalSpentDollars. gsc_summary.source says whether totals are Google's official property total or a partial stored-row subset.",
     "inputSchema": {
@@ -2314,25 +2291,6 @@
     }
   },
   {
-    "name": "runPython",
-    "description": "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE, CALCULATE, or PLOT anything in Python. Do not paste back Python code as a code block · ACTUALLY RUN IT. Returns stdout, stderr, and matplotlib charts as base64 PNGs. Available libraries: numpy, pandas, matplotlib, scipy, requests. No network access by default. 60s timeout. If E2B_API_KEY is missing the tool returns code='missing_api_key' · surface that error to the operator instead of pretending to execute.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "code": {
-          "description": "Python code to execute. Print results with `print()` so they appear in stdout. To return charts, use matplotlib `plt.show()` (they come back as base64 PNGs in the `charts` field).",
-          "maxLength": 20000,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "code"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "runSimulation",
     "description": "Run a 'what if' simulation — predict the cascade of consequences for a specific scenario. e.g. 'What if I hire a second tech?' or 'What if I raise prices 10%?'",
     "inputSchema": {
@@ -2616,29 +2574,6 @@
         "startDate": {
           "description": "Start date filter (YYYY-MM-DD). Inclusive.",
           "type": "string"
-        }
-      },
-      "required": [
-        "query"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "searchSkills",
-    "description": "Semantic search across the indexed Claude skill registry. Returns top-K skills most relevant to a query · use when Nour asks 'what skill helps with X' or 'find me a skill for Y', when you need a specific framework/approach (e.g. 'kaizen', 'database design', 'mobile UX audit'), OR when a workflow could benefit from invoking a known skill protocol. Each match includes name, description, similarity score, category, and tags. Skills are pulled from ~/.claude/skills/ + plugin marketplaces · multi-language coverage (skills authored in Chinese/Portuguese still match English queries via their English summaries).",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "query": {
-          "description": "Natural language query · what kind of skill/protocol/framework you're looking for",
-          "type": "string"
-        },
-        "topK": {
-          "default": 5,
-          "maximum": 10,
-          "minimum": 1,
-          "type": "number"
         }
       },
       "required": [
@@ -2988,6 +2923,12 @@
           "maxLength": 300,
           "minLength": 3,
           "type": "string"
+        },
+        "topK": {
+          "description": "Same as limit (the name the retired searchSkills used). limit wins when both are set.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "required": [

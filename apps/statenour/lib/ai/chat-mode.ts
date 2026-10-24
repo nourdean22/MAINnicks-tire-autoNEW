@@ -234,7 +234,9 @@ export async function pruneTools(
     // ingestThought removed Apr 15 — brain-dump NL interceptor in
     // /api/ai/chat handles capture before the model is invoked.
     "searchMemories",
-    "getRecentReflections",
+    // 2026-10-24 · getRecentReflections left this list: surfaced on 152 of 152
+    // turns in 14 days, chosen on 0. It keeps the reflection keyword family and
+    // its exact name; searchReflections stays here as the one reflection slot.
     "searchReflections",
     // 2026-09-19 · DEMOTED: classifyThought, rankNextActions, getBlindSpots,
     // dailyPulse. FOUR of the five the audit flagged — createTask was flagged
@@ -337,6 +339,15 @@ export async function pruneTools(
   // An open contradiction question: its answer is the reply, in any words. Same tier as a
   // named tool, so the budget cannot cut it (the follow-up block tells Nick when it applies).
   if (opts?.contradictionAskPending && allTools.resolveContradiction) exactMentioned.add("resolveContradiction");
+  // Names retired 2026-10-24, mapped to the tool that took over the job, so an old
+  // habit ("use searchSkills", "call runPython") still lands on a live tool.
+  const RETIRED_TOOL_ALIASES: Record<string, string> = {
+    runpython: "runCode",
+    searchskills: "suggestSkills",
+  };
+  for (const [retired, kept] of Object.entries(RETIRED_TOOL_ALIASES)) {
+    if (text.includes(retired) && allTools[kept]) exactMentioned.add(kept);
+  }
 
   const keywordMatches = new Set<string>();
   // Keyword-based tool families
@@ -599,10 +610,11 @@ export async function pruneTools(
 
   // v10.0.517 · Python / runtime execution / calculation
   // The v10.0.516 smoke test caught this gap · "run python", "calculate
-  // this", "compute X", "plot Y" never surfaced runPython · Nick just
-  // pasted text code back instead of executing.
+  // this", "compute X", "plot Y" never surfaced the code runner · Nick just
+  // pasted text code back instead of executing. (runPython was removed
+  // 2026-10-24, E2B_API_KEY unset in prod; runCode is the one code tool.)
   if (/\b(run python|run code|execute|python|pandas|numpy|matplotlib|plot|chart|calculate|compute|regression|geometric mean|standard deviation|histogram|scatter|csv)\b/.test(text)) {
-    addMatching(/runPython|runCode/i);
+    addMatching(/runCode/i);
   }
 
   // v10.0.517 · Calendar / schedule / meetings
@@ -679,7 +691,7 @@ export async function pruneTools(
       "dailyPulse", "weeklyReview", "endOfDay",
       "searchMemories", "searchColdMemory",
       "findCustomer", "queryNickstire", "compareLiveRevenue",
-      "runPython", "searchWebVerified", "generateImage",
+      "runCode", "searchWebVerified", "generateImage",
       "runDeviceCommand", "sendTelegram", "composeEmail",
       "getBlindSpots", "suggestSkills",
       "getBodyData", "getHabitStreaks", "getMasteryScores"
@@ -764,6 +776,19 @@ export async function pruneTools(
   // #10 · Cron / scheduled-job status. "cron" appears in no family trigger.
   if (/\b(cron|crons|cron jobs?|scheduled (tasks?|jobs?)|are my (crons?|jobs?) running|job status|which (crons?|jobs?) failed)\b/.test(text)) {
     addMatching(/getCronStatus/i);
+  }
+
+  // Reflection digest. getRecentReflections left CORE_TOOLS 2026-10-24, so it
+  // needs its own path: its scope and onlyActionable inputs have no equivalent
+  // on searchReflections, which needs a query.
+  if (/\b(reflections?|reflecting on|what have i been learning|what'?s my pattern lately)\b/.test(text)) {
+    addMatching(/getRecentReflections/i);
+  }
+
+  // Worker status. getExternalWorkerLanes / getExternalWorkerJob were registered
+  // with no family, so no phrasing reached them (0 of 152 turns offered either).
+  if (/\b(external worker|render worker|render jobs?|worker lanes?|workers?)\b/.test(text)) {
+    addMatching(/getExternalWorker/i);
   }
 
   // #11 · Competitive intelligence. "competitive analysis", "where are we

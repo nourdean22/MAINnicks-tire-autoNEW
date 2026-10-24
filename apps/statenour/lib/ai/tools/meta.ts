@@ -2,7 +2,7 @@
  * Meta tools — introspection + sandboxed exec + browser automation.
  *
  * Includes: toolHealth · getCronStatus · runCode ·
- * runPython · browser_*. The "tools about tools" + things that don't
+ * browser_*. The "tools about tools" + things that don't
  * fit elsewhere.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
@@ -27,7 +27,7 @@ async function getSchemaIndex(): Promise<NonNullable<typeof schemaIndexMemo>> {
   return schemaIndexMemo;
 }
 
-// ── Sandbox for MODEL-WRITTEN JavaScript (runCode, queryData) ─────────────
+// ── Sandbox for MODEL-WRITTEN JavaScript (runCode) ─────────────────────────
 // node:vm is NOT a security boundary: any host-realm object or function the
 // context can reach hands over the host Function constructor, and with it
 // process.env, fetch and process.getBuiltinModule (S3/S9 red team, 2026-10-10;
@@ -68,7 +68,7 @@ function sandboxRefusal(code: string): string | null {
 }
 
 /** Runs `script` in a fresh host-free context; returns the string globals it left behind. */
-async function runSandboxed(script: string, timeoutMs: number): Promise<{ out?: string; pending?: string; timedOut: boolean }> {
+async function runSandboxed(script: string, timeoutMs: number): Promise<{ out?: string; timedOut: boolean }> {
   const vm = await import("node:vm");
   const context = vm.createContext(vm.constants.DONT_CONTEXTIFY, {
     codeGeneration: { strings: false, wasm: false },
@@ -86,7 +86,7 @@ async function runSandboxed(script: string, timeoutMs: number): Promise<{ out?: 
     const d = Object.getOwnPropertyDescriptor(context, key);
     return typeof d?.value === "string" ? d.value : undefined;
   };
-  return { out: readString("__out"), pending: readString("__pending"), timedOut: Date.now() - started >= timeoutMs };
+  return { out: readString("__out"), timedOut: Date.now() - started >= timeoutMs };
 }
 
 function readSandboxOutcome(run: { out?: string; timedOut: boolean }, timeoutMs: number): SandboxOutcome {
@@ -116,37 +116,6 @@ const max = (arr) => Math.max(...arr);
 const pct = (part, whole) => whole === 0 ? 0 : Math.round((part / whole) * 1000) / 10;
 const delta = (curr, prev) => prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 1000) / 10;
 `;
-
-/**
- * queryData's in-sandbox api. It cannot hold a host function, so it records
- * every (name, args) it has no answer for and parks that await forever; the
- * host runs those reads and replays the code with the answers injected as
- * JSON. The host re-checks every name: this in-sandbox whitelist is only for
- * a fast, clear error.
- */
-function queryDataApi(whitelist: readonly string[], answers: Record<string, unknown>): string {
-  return `
-const __answers = JSON.parse(${JSON.stringify(JSON.stringify(answers))});
-const __asked = [];
-globalThis.api = Object.freeze({
-  tools: Object.freeze(${JSON.stringify(whitelist)}),
-  call(name, args = {}) {
-    name = String(name);
-    if (!api.tools.includes(name)) {
-      return Promise.reject(new Error("api.call: '" + name + "' is not in the read-only whitelist: " + api.tools.join(", ")));
-    }
-    const key = JSON.stringify([name, args]);
-    if (Object.prototype.hasOwnProperty.call(__answers, key)) {
-      const a = __answers[key];
-      return "error" in a ? Promise.reject(new Error(a.error)) : Promise.resolve(a.value);
-    }
-    __asked.push(key);
-    globalThis.__pending = JSON.stringify(__asked);
-    return new Promise(() => {});
-  },
-});
-`;
-}
 
 export const metaTools = {
 
@@ -243,39 +212,6 @@ export const metaTools = {
   // ═══════════════════════════════════════════════════════════
   // IMAGE ANALYSIS — Process photos, screenshots, receipts
   // ═══════════════════════════════════════════════════════════
-
-  runPython: tool({
-    description:
-      "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE, CALCULATE, or PLOT anything in Python. Do not paste back Python code as a code block · ACTUALLY RUN IT. Returns stdout, stderr, and matplotlib charts as base64 PNGs. Available libraries: numpy, pandas, matplotlib, scipy, requests. No network access by default. 60s timeout. If E2B_API_KEY is missing the tool returns code='missing_api_key' · surface that error to the operator instead of pretending to execute.",
-    inputSchema: z.object({
-      code: z
-        .string()
-        .min(1)
-        .max(20_000)
-        .describe(
-          "Python code to execute. Print results with `print()` so they appear in stdout. To return charts, use matplotlib `plt.show()` (they come back as base64 PNGs in the `charts` field).",
-        ),
-    }),
-    execute: async ({ code }) => {
-      // v10.0.529.4 D-2 fix · daily quota guard. E2B free tier is 100
-      // runs/day · without this a prompt-injection loop could exhaust
-      // it. Default cap 100 matches the free-tier ceiling.
-      const { checkAndIncrementToolQuota } = await import("@/lib/ai/tool-quota");
-      const quota = await checkAndIncrementToolQuota("runPython");
-      if (!quota.ok) {
-        return {
-          ok: false,
-          code: "quota_exceeded",
-          error: `runPython daily quota exhausted (${quota.count}/${quota.cap}). Resets at ${quota.resetAt}.`,
-          stdout: "",
-          stderr: "",
-          charts: [],
-        };
-      }
-      const { runPython } = await import("@/lib/integrations/e2b");
-      return await runPython(code);
-    },
-  }),
 
   // 2026-07-22 · browseAndDo — the ONE dependable high-level browser workflow.
   // Session + plan/do loop + permission gate + receipt in a single call, so the
@@ -550,10 +486,6 @@ export const metaTools = {
       args: z.record(z.string(), z.unknown()).default({}).describe("Arguments matching the tool's input schema."),
     }),
     execute: async ({ name, args }): Promise<Record<string, unknown>> => {
-      // Self-review fix 2026-08-13: queryData is deliberately ALLOWED —
-      // its sandbox reaches data only via its own 12-tool whitelist
-      // (which excludes invokeTool), so no cycle is possible, and
-      // without this a searchTools hit on queryData was a dead end.
       if (["searchTools", "invokeTool"].includes(name)) {
         return { error: `refusing recursive invocation of ${name}` };
       }
@@ -602,99 +534,4 @@ export const metaTools = {
       return { tool: name, viaRecoveryLane: true, result };
     },
   }),
-
-  queryData: tool({
-    description:
-      "Run JavaScript against a READ-ONLY data API to join/filter/aggregate across sources in one call instead of many separate tool calls. The sandbox exposes `api.call(toolName, args)` (await it) for a whitelisted set of read tools plus `api.tools` (the whitelist). No network, no filesystem, 10s budget. Return the final value. Example: {\"code\":\"const t = await api.call('getTasks',{}); const c = await api.call('getCommitments',{}); return { tasks: t.length ?? t.count, commitments: c.length ?? c.count };\"}",
-    inputSchema: z.object({
-      code: z.string().min(4).max(20_000).describe("JavaScript body. Use `return` for the final value; `await api.call(name, args)` for data."),
-      description: z.string().optional().describe("What this query computes"),
-    }),
-    execute: async ({ code, description }) => {
-      const WHITELIST = [
-        "getTasks", "getCommitments", "getAgendaItems", "getMissions",
-        "getHabitStreaks", "getBodyData", "getHealthToday", "getSleepTrend",
-        "getFinancialSnapshot", "getMasteryScores", "getDriftAlerts", "searchMemories",
-      ] as const;
-      type LooseTool = { execute?: (a: unknown) => Promise<unknown> };
-      const mod = (await import("@/lib/ai/tools")) as unknown as { nourTools: Record<string, LooseTool> };
-      const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
-      const guardedCall = async (name: string, args: unknown = {}): Promise<unknown> => {
-        if (!(WHITELIST as readonly string[]).includes(name)) {
-          throw new Error(`api.call: '${name}' is not in the read-only whitelist: ${WHITELIST.join(", ")}`);
-        }
-        if (!isReadSafeTool(name)) throw new Error(`api.call: '${name}' is not read-safe`);
-        const target: LooseTool | undefined = mod.nourTools[name];
-        if (!target?.execute) throw new Error(`api.call: '${name}' not found`);
-        return target.execute(args);
-      };
-      try {
-        const refused = sandboxRefusal(code);
-        if (refused) return { success: false, error: refused };
-        // Record and replay (see queryDataApi): each round reruns the code with
-        // every answer so far; each distinct call runs once on the host. Model
-        // code is pure, so a rerun only differs in how far it gets.
-        const COMPUTE_MS = 2000; // shared by all rounds
-        const MAX_ROUNDS = 8; // sequential waves of new calls; Promise.all is one wave
-        const replay = async (): Promise<SandboxOutcome> => {
-          const answers: Record<string, { value: unknown } | { error: string }> = {};
-          let computeLeft = COMPUTE_MS;
-          for (let round = 0; ; round++) {
-            const started = Date.now();
-            const script = `${SANDBOX_PRELUDE}${queryDataApi(WHITELIST, answers)}\n__finish(async () => {\n${code}\n});`;
-            const run = await runSandboxed(script, Math.max(1, computeLeft));
-            computeLeft -= Date.now() - started;
-            let asked: string[] = [];
-            try {
-              asked = run.out === undefined && !run.timedOut && run.pending ? (JSON.parse(run.pending) as unknown[]).map(String) : [];
-            } catch { /* unreadable: report the outcome below */ }
-            const fresh = [...new Set(asked)].filter((k) => !(k in answers));
-            if (fresh.length === 0) return readSandboxOutcome(run, COMPUTE_MS);
-            if (round >= MAX_ROUNDS) {
-              return { ok: false, error: `more than ${MAX_ROUNDS} rounds of dependent api.call; batch independent calls with Promise.all` };
-            }
-            await Promise.all(fresh.map(async (key) => {
-              try {
-                const parsed = JSON.parse(key) as unknown;
-                const [name, args] = Array.isArray(parsed) ? parsed : [];
-                const value = await guardedCall(String(name), args ?? {});
-                const json = JSON.stringify(value ?? null, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
-                answers[key] = { value: JSON.parse(json) };
-              } catch (e) {
-                answers[key] = { error: e instanceof Error ? e.message : String(e) };
-              }
-            }));
-          }
-        };
-        // Self-review fix: keep a handle on the timer so a fast result
-        // doesn't leave a 10s timer holding the event loop.
-        let deadlineTimer: NodeJS.Timeout | undefined;
-        const deadline = new Promise<never>((_, reject) => {
-          deadlineTimer = setTimeout(() => reject(new Error("queryData exceeded its 10s budget")), 10_000);
-        });
-        const replayed = replay();
-        replayed.catch(() => {}); // a failure after the deadline won must not go unhandled
-        let outcome: SandboxOutcome;
-        try {
-          outcome = await Promise.race([replayed, deadline]);
-        } finally {
-          clearTimeout(deadlineTimer);
-        }
-        if (!outcome.ok) return { success: false, error: outcome.error };
-        const value = outcome.value;
-        const logs = outcome.logs;
-        let serialized = JSON.stringify(value ?? null);
-        if (serialized && serialized.length > 20_000) {
-          serialized = `${serialized.slice(0, 20_000)}…(truncated)`;
-          return { success: true, resultTruncated: serialized, logs: logs.length ? logs : undefined, description };
-        }
-        return { success: true, result: value ?? null, logs: logs.length ? logs : undefined, description };
-      } catch (e) {
-        return { success: false, error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
-
-
 };

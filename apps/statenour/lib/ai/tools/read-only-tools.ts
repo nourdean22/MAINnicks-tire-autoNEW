@@ -19,13 +19,11 @@
  * Retry gate) but deliberately not read-only here, because this list also
  * decides what may run in a read-only or locked turn.
  *   - writeCreative: one LLM call, text back.
- *   - runCode: JavaScript in a sandbox with no network and no filesystem, the
- *     same sandbox queryData uses.
+ *   - runCode: JavaScript in a sandbox with no network and no filesystem.
  *   - draftOpportunitySms: nickstire's draft_opportunity_sms is labelled READ in
  *     its contract and only lists the queue and drafts; the send is a separate
  *     action (send_opportunity_sms).
- * Kept as writes after reading them: runPython (a remote E2B run plus a daily
- * quota counter increment) and runSimulation (a new BrainMemory row per run).
+ * Kept as a write after reading it: runSimulation (a new BrainMemory row per run).
  *
  * Not verified here: queryNickstire forwards a free-text query name to
  * nickstire.org, which owns the read-only guarantee on its side.
@@ -72,9 +70,9 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "getFinancialSnapshot", "getHabitStreaks", "getMasteryScores", "getMissions",
   "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail",
   "getTasks", "getTodaySchedule",
-  // ai_analysis (invokeTool and queryData only dispatch tools this list already vouches for)
+  // ai_analysis (invokeTool only dispatches tools this list already vouches for)
   "summarize", "getFleetTruth",
-  "searchTools", "invokeTool", "queryData",
+  "searchTools", "invokeTool",
   // research
   "searchDocuments", "searchWebVerified", "last30days", "arsenalResearch",
   "arsenalWebSearch", "arsenalPreTaskFanout", "arsenalMultiAgent",
@@ -85,7 +83,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "analyzeFitness", "analyzeGoals", "analyzeMentalHealth", "analyzeSleep", "analyzeTrends",
   "analyzeWeightTrend", "analyzeWorkHealth", "classifyThought", "getBlindSpots", "getBrainHealth",
   "getEmotionalState", "getHabitRevenueCorrelation", "getRecentReflections",
-  "searchColdMemory", "searchSkills", "searchGreeneLaws", "searchMemories",
+  "searchColdMemory", "searchGreeneLaws", "searchMemories",
   "searchReflections", "toolHealth", "checkAntiPattern",
   "analyzeCompetitiveIntel", "analyzeComposure", "analyzePowerDynamics", "getContextualGreeneLaws",
   "getDarkPsychologyTactics", "getPowerBalanceSummary",
