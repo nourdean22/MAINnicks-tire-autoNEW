@@ -118,7 +118,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="w-11 h-11 md:w-9 md:h-9 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-[color,background-color,transform] duration-[var(--motion-micro)] active:scale-90"
+            className="w-11 h-11 md:w-9 md:h-9 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-[color,background-color,scale] duration-[var(--motion-micro)] active:scale-90"
             aria-label="Close reasoning trace"
           >
             <X size={18} className="md:!w-4 md:!h-4" />
