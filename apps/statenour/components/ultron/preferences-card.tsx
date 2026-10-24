@@ -33,6 +33,10 @@
  * (future · v10.0.529.33+1 scope).
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { RotateCcw, Save, Loader2, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
@@ -281,6 +285,10 @@ export function PreferencesCard() {
   if (pref.isLoading && !data) {
     return <ShimmerSkeleton variant="card" className="min-h-[180px]" />;
   }
+  // Wave D: a failed read used to draw DEFAULT_VECTOR as if it were the saved vector.
+  if (pref.isError && !data) return <ReadingUnavailable label="Preferences" />;
+  // A paused read has no data and no error: say offline, never draw DEFAULT_VECTOR as the saved vector.
+  if (!data && readState(pref) === "offline") return <ReadStateNote state="offline" label="Preferences" />;
 
   const vector = draft ?? apiVector ?? DEFAULT_VECTOR;
   const lastTune = data?.lastTune ?? null;
@@ -294,6 +302,7 @@ export function PreferencesCard() {
       className="min-h-[180px]"
       data-testid="preferences-card"
     >
+      <StaleNote q={pref} label="Preferences" className="mb-2" />
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
           Style · preferences
@@ -343,7 +352,7 @@ export function PreferencesCard() {
               <div className="flex items-baseline justify-between gap-2">
                 <span
                   className="font-mono text-[11px] text-fg-secondary"
-                  title={`${tell.left} (−1) ↔ ${tell.right} (+1)`}
+                  title={`${tell.left} (−1) to ${tell.right} (+1)`}
                 >
                   {tell.label}
                 </span>

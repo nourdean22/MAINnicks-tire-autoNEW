@@ -4,17 +4,21 @@
  * InsightRibbon · v10.0.218 · cross-system narrative strip.
  *
  * Renders at the top of /brain. Distinct from NudgePanel (which is
- * actionable now-deltas) — this is week-over-week pattern signal:
+ * actionable now-deltas): this is week-over-week pattern signal:
  *   "3 lessons logged · vs 1 prior · learning sprint"
  *   "captures category +47% · 38 → 56 · emerging theme"
  *   "11d since last reflection · usual cadence 4d · overdue"
  *
  * Aesthetic: editorial. Big number, tracked tiny-caps eyebrow,
- * supporting clause in dim secondary text. Asymmetric per-card —
+ * supporting clause in dim secondary text. Asymmetric per-card:
  * the headline is the felt thing, supporting is the receipt.
  *
  * Auto-hides if no insights returned (clean week = no ribbon).
  */
+import { StaleNote } from "@/components/brain/brain-fold";
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -54,18 +58,24 @@ export function InsightRibbon() {
   // the same `buildBrainInsights` service the REST route also calls.
   // `loading` ← `isLoading`. The ribbon auto-hides on any non-data
   // state so no error surface is needed (the legacy hook's
-  // `retryOn401: false` just meant "don't bounce to sign-in" — React
+  // `retryOn401: false` just meant "don't bounce to sign-in": React
   // Query already doesn't redirect).
-  const { data, isLoading: loading } = trpc.brain.insightsRibbon.useQuery();
+  const ribbonQ = trpc.brain.insightsRibbon.useQuery();
+  const { data, isLoading: loading, isError } = ribbonQ;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   // Hide on first paint to avoid layout flash; show only when data
   // has arrived AND there's something to say.
-  if (!mounted || loading || !data || data.insights.length === 0) return null;
+  // Wave D: a failed read is not a quiet day; the Signals fold counts this line as unreadable.
+  if (mounted && isError && !data) return <ReadingUnavailable label="Insight ribbon" />;
+  if (mounted && !data && readState(ribbonQ) === "offline") return <ReadStateNote state="offline" label="Insight ribbon" />;
+  if (!mounted || loading || !data) return null;
+  if (data.insights.length === 0) return <StaleNote q={ribbonQ} label="Insight ribbon" />;
 
   return (
     <section className="space-y-2">
+      <StaleNote q={ribbonQ} label="Insight ribbon" />
       <div className="flex items-baseline justify-between">
         <p className="text-[11px] font-mono text-fg-tertiary">
           This week

@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * NudgePanel — cross-system live deltas. Appears at the top of /brain
+ * NudgePanel: cross-system live deltas. Appears at the top of /brain
  * so Nour sees what the self-model is screaming about right now.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
@@ -34,10 +34,10 @@ interface Nudge {
 
 // Per-source label + tint, mirroring the server-side taxonomy.
 const SOURCE_META: Record<Nudge["source"], { label: string; tint: string }> = {
-  identity: { label: "identity", tint: "text-violet-300" },
-  ghost: { label: "ghost", tint: "text-violet-400" },
+  identity: { label: "identity", tint: "text-sky-300" },
+  ghost: { label: "ghost", tint: "text-fg-secondary" },
   skill: { label: "skill", tint: "text-emerald-300" },
-  correlation: { label: "correlation", tint: "text-fuchsia-300" },
+  correlation: { label: "correlation", tint: "text-amber-300" },
 };
 
 const SEVERITY_GLYPH = {
@@ -69,22 +69,23 @@ export function NudgePanel() {
 
   if (loading) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
           <Loader2 size={12} className="animate-spin" /> reading nudges…
         </div>
-      </GlassCard>
+      </div>
     );
   }
 
-  if (nudgesQuery.isError || !nudges || nudges.length === 0) {
+  if ((nudgesQuery.isError && !nudges) || !nudges || nudges.length === 0) {
     const shell = (body: ReactNode) => (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
+        <StaleNote q={nudgesQuery} label="Nudges" className="mb-2" />
         <div className="flex justify-end mb-1">
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
         {body}
-      </GlassCard>
+      </div>
     );
 
     if (nudgesQuery.isError) {
@@ -125,7 +126,8 @@ export function NudgePanel() {
   }
 
   return (
-    <GlassCard>
+    <div className="border-t border-edge pt-4">
+      <StaleNote q={nudgesQuery} label="Nudges" className="mb-2" />
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="flex items-center gap-2">
           <p className="section-label">Live nudges</p>
@@ -155,7 +157,7 @@ export function NudgePanel() {
                   {SOURCE_META[n.source]?.label ?? n.source}
                 </p>
               </div>
-              {/* v11.1 · Dismiss — hides nudge for 7d via
+              {/* v11.1 · Dismiss: hides nudge for 7d via
                   /api/brain/nudges/dismiss → BrainMemory
                   nudge_ack row with expiresAt. computeNudges on
                   the server filters by ack. */}
@@ -199,6 +201,6 @@ export function NudgePanel() {
           );
         })}
       </div>
-    </GlassCard>
+    </div>
   );
 }

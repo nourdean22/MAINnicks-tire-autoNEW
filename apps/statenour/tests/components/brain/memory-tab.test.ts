@@ -16,16 +16,21 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-const SOURCE = path.resolve(__dirname, "../../../components/brain/memory-tab.tsx");
+// Wave D (2026-10-24): the learning-velocity scoreboard moved to its own file (it renders on the Health
+// tab now) and the shared unavailable line moved to brain-fold.tsx, so the labels are read across all three.
+const SOURCES = ["memory-tab.tsx", "learning-velocity-scoreboard.tsx", "brain-fold.tsx"].map((f) =>
+  path.resolve(__dirname, "../../../components/brain", f),
+);
+const RAW = SOURCES.map((f) => readFileSync(f, "utf8")).join("\n");
 
 /** Source with block and line comments removed. */
-const code = readFileSync(SOURCE, "utf8")
+const code = RAW
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .replace(/\/\/.*/g, "");
 
 describe("comment stripping", () => {
   it("actually removes the commentary that quotes the old labels", () => {
-    const raw = readFileSync(SOURCE, "utf8");
+    const raw = RAW;
     // Guards the guard: if this ever fails, every assertion below is
     // meaningless because it would be reading prose instead of JSX.
     expect(raw).toContain("vs 30d ago");
@@ -117,6 +122,7 @@ describe("read failure is distinguishable from emptiness", () => {
 
   it("keeps silent-when-empty for a genuinely quiet calibration window", () => {
     // Emptiness still hides; only failure speaks.
-    expect(code).toContain("data.resolved === 0) return null");
+    // Emptiness still hides (StaleNote renders nothing unless the last refresh failed, wave D round 6).
+    expect(code).toContain("data.resolved === 0) return <StaleNote q={calibrationQ}");
   });
 });

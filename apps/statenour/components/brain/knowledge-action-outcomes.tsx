@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, CircleMinus, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { GlassCard } from "@/components/ui/glass-card";
 import { apiFetch } from "@/lib/utils/api-fetch";
 // ONE definition of "a failed read is not an empty queue", imported rather
 // than re-typed: this panel and the review panel carried byte-identical copies
@@ -42,7 +41,7 @@ export function KnowledgeActionOutcomes() {
     try {
       // `ApiError.message` carries the envelope's `error` string, which the
       // catch below already surfaces. The hand-rolled path read
-      // `payload?.error?.message` — but `error` is typed `string`, so `.message`
+      // `payload?.error?.message`: but `error` is typed `string`, so `.message`
       // was always undefined and this ALWAYS fell through to the generic
       // fallback. Routing through apiFetch makes the server's message reachable.
       setData(await apiFetch<ActionList>("/api/knowledge/candidates?view=actions&limit=50", {
@@ -52,7 +51,7 @@ export function KnowledgeActionOutcomes() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to load approved actions.";
-      // State, not just a toast — see queueView's header in
+      // State, not just a toast: see queueView's header in
       // knowledge-review-tab.tsx. Without this the panel renders its initial
       // `{ total: 0, items: [] }` as "0 awaiting outcome · No approved actions
       // are waiting for an outcome", which is an all-clear it never measured.
@@ -104,7 +103,7 @@ export function KnowledgeActionOutcomes() {
 
   return (
     <div className="space-y-4">
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Approved actions awaiting reality</h2>
@@ -125,7 +124,7 @@ export function KnowledgeActionOutcomes() {
         <div className="mt-4 text-[12px] font-mono text-fg-tertiary">
           {view.headline}
         </div>
-      </GlassCard>
+      </div>
 
       <QueueBody
         body={view.body}
@@ -134,7 +133,7 @@ export function KnowledgeActionOutcomes() {
       />
 
       {data.items.map((item) => (
-        <GlassCard key={item.id} className="">
+        <div key={item.id} className="border-t border-edge pt-4">
           <div className="text-[12px] font-mono text-fg-tertiary">
             {item.metadata.sourceType ?? "unknown source"}
           </div>
@@ -148,7 +147,7 @@ export function KnowledgeActionOutcomes() {
             maxLength={4_000}
             rows={2}
             placeholder="Optional evidence: what happened, what changed, or why the result was unclear"
-            className="mt-4 w-full rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/40"
+            className="mt-4 w-full rounded-control border border-border bg-background/60 px-3 py-2 text-[16px] text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/40"
           />
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <button
@@ -176,7 +175,7 @@ export function KnowledgeActionOutcomes() {
               <CheckCircle2 className="h-4 w-4" /> Confirmed
             </button>
           </div>
-        </GlassCard>
+        </div>
       ))}
     </div>
   );

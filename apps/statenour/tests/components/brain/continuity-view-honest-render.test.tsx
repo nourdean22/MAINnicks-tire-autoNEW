@@ -110,7 +110,7 @@ function render(p: Payload): string {
  * "100%" is a false positive — a test that fails against a correct render.
  */
 function confidenceBadges(html: string): string[] {
-  return [...html.matchAll(/text-violet-400">([^<]*)<\/span>/g)].map(
+  return [...html.matchAll(/text-sky-300">([^<]*)<\/span>/g)].map(
     (m) => m[1],
   );
 }

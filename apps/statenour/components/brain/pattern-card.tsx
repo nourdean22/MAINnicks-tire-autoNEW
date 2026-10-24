@@ -18,6 +18,10 @@
  * clusters cross MIN_MEMBERS · the panel hides itself.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
+import { readState } from "@/lib/query-state";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useCallback, useEffect } from "react";
 // Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
 // patterns")` (GET + POST) onto `trpc.brain.patterns` (reactive read ·
@@ -69,8 +73,11 @@ export function PatternCard() {
     return () => off();
   }, [utils]);
 
-  if (patternsQuery.isError || !patterns) return null;
-  if (patterns.length === 0) return null;
+  // Wave D: a failed read used to hide the card, the same pixel as "no patterns".
+  if (patternsQuery.isError && !patterns) return <ReadingUnavailable label="Patterns" />;
+  if (!patterns && readState(patternsQuery) === "offline") return <ReadStateNote state="offline" label="Patterns" />;
+  if (!patterns) return null;
+  if (patterns.length === 0) return <StaleNote q={patternsQuery} label="Patterns" />;
 
   const refreshing = regenerateMutation.isPending;
 
@@ -79,6 +86,7 @@ export function PatternCard() {
       aria-label="task patterns"
       className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] p-4 space-y-3"
     >
+      <StaleNote q={patternsQuery} label="Patterns" />
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-fg-secondary" strokeWidth={1.75} />

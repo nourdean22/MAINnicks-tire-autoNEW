@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * PinnedContextPanel — Nour's user-controlled permanent context.
+ * PinnedContextPanel: Nour's user-controlled permanent context.
  *
  * Lists every pinned_user BrainMemory row with:
  *   • Live stats: fresh / stale / very stale counts, estimated
@@ -14,7 +14,7 @@
  *     typing new permanent context directly (not just via chat)
  *
  * Lives on /brain between NudgePanel and ContradictionResolutionPanel
- * because pins ARE high-priority overrides — they sit near the top of
+ * because pins ARE high-priority overrides: they sit near the top of
  * the cognitive stack.
  *
  * Reads `trpc.brain.pinned` (→ listPins, the full top-50 roster) for the
@@ -22,10 +22,10 @@
  * subsection only. Writes via `trpc.brain.{createPin,updatePin,deletePin}`.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
-import { GlassCard } from "@/components/ui/glass-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { describeConfidenceAsAttention } from "@/lib/brain/attention-label";
@@ -47,7 +47,6 @@ import {
   X,
   Loader2,
   Plus,
-  Sparkles,
   AlertCircle,
   Tag,
   RotateCw,
@@ -105,8 +104,8 @@ function stalenessClass(days: number) {
 }
 
 function stalenessLabel(days: number) {
-  if (days >= VERY_STALE_DAYS) return `${days}d — very stale`;
-  if (days >= STALE_DAYS) return `${days}d — review`;
+  if (days >= VERY_STALE_DAYS) return `${days}d: very stale`;
+  if (days >= STALE_DAYS) return `${days}d: review`;
   if (days === 0) return "today";
   if (days === 1) return "yesterday";
   return `${days}d ago`;
@@ -117,8 +116,8 @@ export function PinnedContextPanel() {
   // 2026-09-02 · the pin list comes from `brain.pinned` → listPins
   // (lib/services/pins.ts:68, `take: 50`), which is the roster this panel
   // exists to render. It used to read
-  // `commandCenterState.brainAnchors.pinned` — a `take: 6` slice built to
-  // feed the SYSTEM PROMPT, not a list — so the header said "6 pinned"
+  // `commandCenterState.brainAnchors.pinned`: a `take: 6` slice built to
+  // feed the SYSTEM PROMPT, not a list: so the header said "6 pinned"
   // whether the operator had 6 pins or 60, and fresh/stale/veryStale/
   // bySource/totalChars were all computed over those same 6 rows.
   const pinsQuery = trpc.brain.pinned.useQuery(undefined, {
@@ -152,7 +151,7 @@ export function PinnedContextPanel() {
   // read went through a `.catch(() => [])` inside the command-center
   // fan-out (command-center-state.ts:532), so a failed pin query resolved
   // the tRPC call, left `isError` false, and handed this panel an empty
-  // array — which rendered "no pins yet · tap 📌 on any assistant reply"
+  // array: which rendered "no pins yet · tap 📌 on any assistant reply"
   // under a header reading "always loaded · confidence 1.0". The comment
   // that used to sit here claimed the empty state was gated on `!error`;
   // `!error` cannot see a failure the service already swallowed. Same
@@ -161,7 +160,8 @@ export function PinnedContextPanel() {
   const brainRules = ccStateQuery.data?.brainAnchors?.rules ?? null;
   const loading = pinsQuery.isLoading;
   const loadedAt = pinsQuery.dataUpdatedAt || null;
-  const error = pinsQuery.isError ? pinsQuery.error.message : null;
+  // A failed refetch over cached pins is stale (the note below), not "couldn't load".
+  const error = pinsQuery.isError && !pinsQuery.data ? pinsQuery.error.message : null;
 
   // Every mutation below must refresh BOTH: the list lives on
   // `brain.pinned` and the prompt-side anchors live on the command-center
@@ -203,7 +203,7 @@ export function PinnedContextPanel() {
     // 2026-09-02 · the token estimate is measured against the lines that
     // actually reach the model, by calling the renderer's own
     // `renderPinnedLine`. It used to be `Math.round(totalChars / 4)` over
-    // STORED content — and pins store up to 1200 chars while the prompt
+    // STORED content: and pins store up to 1200 chars while the prompt
     // cuts each one at PINNED_PROMPT_CHARS, so a long pin was billed at up
     // to 6x its real cost, on top of counting pins the prompt never sees.
     const injectedChars = pins
@@ -277,15 +277,15 @@ export function PinnedContextPanel() {
       setBusyId(pin.id);
       try {
         // createPin with the same content triggers the reinforcement
-        // path — re-pinning the slugified key bumps seenCount + resets
+        // path: re-pinning the slugified key bumps seenCount + resets
         // confidence. This is the "still relevant" confirmation button.
         await createMutation.mutateAsync({
           content: pin.content,
           source: pin.source,
           label: pin.metadata?.label,
         });
-        toast.success("reinforced — staleness timer reset");
-        // 10.15 — fire a one-shot green pulse on the affected pin
+        toast.success("reinforced: staleness timer reset");
+        // 10.15: fire a one-shot green pulse on the affected pin
         setReinforcedId(pin.id);
         setTimeout(() => setReinforcedId(null), 950);
         await refresh();
@@ -320,7 +320,7 @@ export function PinnedContextPanel() {
       try {
         // `label` is sent as "" (cleared) or the trimmed value · the
         // updatePin Zod input is `.optional()` not `.nullable()`, and
-        // the service treats `label !== undefined` as a write — an
+        // the service treats `label !== undefined` as a write: an
         // empty string clears the label, matching the legacy `|| null`.
         await updateMutation.mutateAsync({
           id: pin.id,
@@ -362,7 +362,7 @@ export function PinnedContextPanel() {
   // glance whether his pins need maintenance.
   const statsStrip = useMemo(() => {
     if (!stats || !pins) return null;
-    // Now visible at 7+ pins as well as at 6 — the old `> 5` test was
+    // Now visible at 7+ pins as well as at 6: the old `> 5` test was
     // reading a cap that only this file believed in.
     const overCap = pins.length > PINNED_PROMPT_CAP;
     const truncatedPins = pins
@@ -375,7 +375,7 @@ export function PinnedContextPanel() {
           {pins.length} pinned
         </span>
         <span className="flex items-center gap-1">
-          <Sparkles size={10} className="text-fg-secondary" />
+          
           {stats.injectedCount}/{PINNED_PROMPT_CAP} in prompt
           {overCap && (
             <span
@@ -416,7 +416,8 @@ export function PinnedContextPanel() {
 
   return (
     <div id="pinned-context" className="scroll-mt-20 rounded-surface transition-shadow">
-    <GlassCard className="space-y-3">
+    <div className="border-t border-edge pt-4 space-y-3">
+      <StaleNote q={pinsQuery} label="Pins" />
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -457,7 +458,7 @@ export function PinnedContextPanel() {
             onChange={(e) => setNewContent(e.target.value)}
             placeholder="Nick must always know: __________"
             rows={3}
-            className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent resize-none"
+            className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2.5 py-1.5 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent resize-none"
           />
           <div className="flex items-center gap-2">
             <Tag size={10} className="text-[var(--text-tertiary)] shrink-0" />
@@ -465,7 +466,7 @@ export function PinnedContextPanel() {
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="optional label (e.g. 'current goal')"
-              className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
+              className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -507,15 +508,15 @@ export function PinnedContextPanel() {
         </div>
       )}
 
-      {/* Same shape as judgment-quality-panel.tsx:35-43 — a failed read
+      {/* Same shape as judgment-quality-panel.tsx:35-43: a failed read
           says so, and never borrows the empty state's copy. */}
       {error && !loading && (
-        <div className="flex items-center gap-2 py-4 text-[11px] text-red-400">
-          <AlertCircle size={12} /> Pins couldn&apos;t load — state unknown, not
+        <div data-read-failed="" className="flex flex-wrap items-center gap-2 py-4 text-[13px] text-red-300">
+          <AlertCircle size={12} /> Pins couldn&apos;t load: state unknown, not
           empty. {error}
           <button
             onClick={load}
-            className="ml-auto px-2 py-0.5 rounded-control border border-red-500/30 hover:bg-red-500/10"
+            className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control border border-red-500/30 px-3 hover:bg-red-500/10"
           >
             Retry
           </button>
@@ -524,15 +525,15 @@ export function PinnedContextPanel() {
 
       {/* Gated on isSuccess, not on `!error`. "No pins" is a claim about a
           measurement, so it may only render off a read that actually
-          returned — `provenance="ZERO"` is the type-level version of the
+          returned: `provenance="ZERO"` is the type-level version of the
           same rule (components/ui/empty-state.tsx). */}
       {pinsQuery.isSuccess && pins && pins.length === 0 && (
         <EmptyState
           icon={Pin}
           title="no pins yet"
           provenance="ZERO"
-          why="Pins are permanent context you write yourself — nothing has been pinned."
-          unlock="Tap 📌 on any assistant reply, or hit Pin new above."
+          why="Nothing is pinned yet. A pin is context you write yourself, and it stays until you remove it."
+          unlock="Tap Pin on any assistant reply, or hit Pin new above."
         />
       )}
 
@@ -555,7 +556,7 @@ export function PinnedContextPanel() {
                   editing && "ring-2 ring-accent",
                   // Staleness is static (SYSTEM.md §1.4): the amber / red edge and the
                   // "review" / "very stale" word below carry it; the breathe loop is retired.
-                  // 10.15 — single-shot green pulse right after reinforce
+                  // 10.15: single-shot green pulse right after reinforce
                   justReinforced && "pin-reinforce-pulse"
                 )}
               >
@@ -568,7 +569,7 @@ export function PinnedContextPanel() {
                       rows={Math.min(6, Math.max(2, editContent.split("\n").length + 1))}
                       title="Edit pin content"
                       placeholder="Edit pin content..."
-                      className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-accent resize-none"
+                      className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[16px] text-[var(--text-primary)] outline-none focus:border-accent resize-none"
                     />
                     <div className="flex items-center gap-2">
                       <Tag size={10} className="text-[var(--text-tertiary)] shrink-0" />
@@ -576,7 +577,7 @@ export function PinnedContextPanel() {
                         value={editLabel}
                         onChange={(e) => setEditLabel(e.target.value)}
                         placeholder="label (optional)"
-                        className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
+                        className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
                       />
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)]">
@@ -642,7 +643,7 @@ export function PinnedContextPanel() {
                           {pin.seenCount > 1 && <span>×{pin.seenCount} reinforced</span>}
                           {injected ? (
                             <span className="text-fg-secondary flex items-center gap-0.5">
-                              <Sparkles size={9} /> in prompt
+                              in prompt
                             </span>
                           ) : (
                             <span className="text-[var(--text-tertiary)]/60">idle</span>
@@ -651,12 +652,12 @@ export function PinnedContextPanel() {
                               carries the first PINNED_PROMPT_CHARS
                               (renderer.ts). Without this the operator had no
                               way to know a long pin's tail never reached the
-                              model — the panel showed the full text AND
+                              model: the panel showed the full text AND
                               billed tokens for all of it. */}
                           {truncated && (
                             <span
                               className="text-amber-400/90"
-                              title={`Stored in full (${pin.content.length} chars) — the prompt carries only the first ${PINNED_PROMPT_CHARS}. Everything after that never reaches the model.`}
+                              title={`Stored in full (${pin.content.length} chars): the prompt carries only the first ${PINNED_PROMPT_CHARS}. Everything after that never reaches the model.`}
                             >
                               cut at {PINNED_PROMPT_CHARS} in prompt
                             </span>
@@ -668,7 +669,7 @@ export function PinnedContextPanel() {
                           onClick={() => reinforce(pin)}
                           disabled={busyId === pin.id}
                           className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-fg hover:bg-surface-hover disabled:opacity-40 transition-colors touch-manipulation"
-                          title="still relevant — reset staleness"
+                          title="still relevant: reset staleness"
                         >
                           {busyId === pin.id ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -702,7 +703,7 @@ export function PinnedContextPanel() {
       )}
 
       {/* Hot Rules sub-section · gated on the command-center query, not on
-          the pin query's loading flag — they are two independent reads now.
+          the pin query's loading flag: they are two independent reads now.
           A failed rules read says so rather than silently removing the
           whole subsection, which is the same "declares nothing" shape the
           empty state above was fixed for. */}
@@ -711,7 +712,7 @@ export function PinnedContextPanel() {
           <EmptyState
             title="Hot Rules couldn't load"
             provenance="ERROR"
-            why="The command-center read failed — this says nothing about whether hard rules exist."
+            why="The command-center read failed: this says nothing about whether hard rules exist."
           />
         </div>
       )}
@@ -719,7 +720,7 @@ export function PinnedContextPanel() {
       {brainRules && brainRules.length > 0 && (
         <div className="pt-3 border-t border-edge-subtle space-y-2">
           <div className="flex items-center gap-1.5 text-[11px] font-mono text-fg-tertiary">
-            <Sparkles size={11} />
+            
             <span>Active Hot Rules</span>
             <span className="text-[11px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
               Most-re-sighted constraints
@@ -737,7 +738,7 @@ export function PinnedContextPanel() {
                 <div className="flex-1 min-w-0">
                   {/* 2026-09-02 · was `confidence {Math.round(c * 100)}%`.
                       `brain_memories.confidence` is a re-sighting counter,
-                      not a probability — lib/brain/attention-label.ts was
+                      not a probability: lib/brain/attention-label.ts was
                       written 2026-08-19 to kill this exact percentage and
                       says "One helper, so this cannot drift back". It drifted
                       back here and in the v2 renderer. The rules payload
@@ -754,7 +755,7 @@ export function PinnedContextPanel() {
           </ul>
         </div>
       )}
-    </GlassCard>
+    </div>
     </div>
   );
 }

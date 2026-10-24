@@ -162,7 +162,7 @@ export function BrainInsightsView({
       {failedNote}
       {/* v10.0.486 · de-slopped from md:grid-cols-3 symmetric trio
           to a stacked feed. Three info-dense cards side-by-side
-          read as "feature grid" — the most identifiable AI-design
+          read as "feature grid": the most identifiable AI-design
           fingerprint. Stacked scan-down is the operator-grade
           editorial pattern. */}
       <div className="space-y-3">
@@ -239,7 +239,7 @@ function EvolutionCard({ stale, redundant, lowTrust }: { stale: EvolutionStale[]
       {redundant.slice(0, 1).map((c) => (
         <div key={c.keepKey} className="text-[11px] leading-tight">
           <span className="font-mono text-fg-secondary mr-1">[merge]</span>
-          <span className="text-[var(--text-primary)]">{c.keepKey} ↔ {c.mergeKey}</span>
+          <span className="text-[var(--text-primary)]">{c.keepKey} and {c.mergeKey}</span>
           <div className="text-[var(--text-tertiary)] font-mono">cosine {c.similarity}</div>
         </div>
       ))}

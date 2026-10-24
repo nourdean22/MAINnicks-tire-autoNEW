@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ToolTelemetryPanel — Surfaces per-tool invocation stats
+ * ToolTelemetryPanel: Surfaces per-tool invocation stats
  * from /api/brain/tools on the /brain dashboard + unified security metadata,
  * drift warnings, and environment key checks.
  *
@@ -9,7 +9,7 @@
  * category filtering, missing env variable alerts, and a sortable, filterable
  * table with risk classes and active statuses.
  *
- * Purely observability — no mutations. Fire-and-forget poll.
+ * Purely observability: no mutations. Fire-and-forget poll.
  */
 
 import { Fragment, useState } from "react";
@@ -103,7 +103,7 @@ export function ToolTelemetryPanel() {
 
   // A TELEMETRY READ FAILURE IS NOT 185 HEALTHY TOOLS.
   // `getToolStats` used to log and `return []`, and the procedure then
-  // rebuilt every row from TOOL_CATALOG — so a dead database rendered the
+  // rebuilt every row from TOOL_CATALOG: so a dead database rendered the
   // whole catalog with `totalCalls: 0`, `successRate: 0`, an empty problem
   // list, and a green check beside every tool name. The panel had no
   // isError branch at all because the procedure could not error. It can
@@ -123,7 +123,7 @@ export function ToolTelemetryPanel() {
           title="Tool telemetry unavailable"
           provenance="ERROR"
           tone="warning"
-          why="The telemetry read failed, so nothing is known about which tools are working. That is NOT a clean registry — no tool on this page has been checked."
+          why="The telemetry read failed, so nothing is known about which tools are working. No tool on this page has been checked, so an empty list here is not a clean one."
           unlock="Retry below. If it keeps failing, the tool_telemetry read is down; check the brain router and the database."
           cta={{ label: "retry", onClick: () => void toolsQuery.refetch() }}
         />
@@ -136,7 +136,7 @@ export function ToolTelemetryPanel() {
 
   if (!stats || stats.length === 0) {
     // Reachable only when the query SUCCEEDED and still produced no rows.
-    // The old copy here said "no tool calls recorded yet — send a chat
+    // The old copy here said "no tool calls recorded yet: send a chat
     // message that triggers a tool to populate", which was wrong twice
     // over: these rows are derived from TOOL_CATALOG, not from calls, so
     // an empty list means the CATALOG is empty, and calling a tool would
@@ -155,7 +155,7 @@ export function ToolTelemetryPanel() {
           title="No tools in the registry"
           provenance="UNMEASURED"
           tone="warning"
-          why="The read succeeded but returned no tools at all. Rows here come from TOOL_CATALOG, not from invocations, so an empty list means the catalog itself came back empty — not that no tool has been called."
+          why="The read succeeded but returned no tools at all. Rows here come from TOOL_CATALOG, not from invocations, so an empty list means the catalog itself came back empty: not that no tool has been called."
           unlock="Check lib/ai/tools/catalog.ts is loaded on the server; calling a tool will not populate this."
         />
       </div>
@@ -201,7 +201,7 @@ export function ToolTelemetryPanel() {
           <span className="font-mono text-amber-400">
             unmeasured, not zero
           </span>
-          {" — "}
+          {": "}
           the registry loaded ({stats.length} tools) but not one invocation has been
           recorded, so every ok% below is undefined rather than perfect. Send a chat
           message that triggers a tool to populate it.
@@ -261,7 +261,7 @@ export function ToolTelemetryPanel() {
             placeholder="Search tools..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-2.5 py-1 text-[11px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+            className="w-full pl-8 pr-2.5 py-1 text-[16px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
           />
         </div>
         <select
@@ -301,7 +301,7 @@ export function ToolTelemetryPanel() {
               // Risk badge styling
               const riskColors = {
                 critical: "text-red-400 bg-red-500/[0.06] border border-red-500/20",
-                high: "text-orange-400 bg-orange-500/[0.06] border border-orange-500/20",
+                high: "text-amber-300 bg-amber-500/[0.06] border border-amber-500/20",
                 medium: "text-amber-400 bg-amber-500/[0.06] border border-amber-500/20",
                 low: "text-sky-400 bg-sky-500/[0.06] border border-sky-500/20"
               }[s.riskClass];
@@ -309,8 +309,8 @@ export function ToolTelemetryPanel() {
               // Status badge styling
               const statusColors = {
                 active: "text-emerald-400 bg-emerald-500/[0.06] border border-emerald-500/20",
-                restricted_active: "text-cyan-400 bg-cyan-500/[0.06] border border-cyan-500/20",
-                inert: "text-yellow-400 bg-yellow-500/[0.06] border border-yellow-500/20",
+                restricted_active: "text-sky-300 bg-sky-500/[0.06] border border-sky-500/20",
+                inert: "text-fg-tertiary bg-white/[0.03] border border-edge-subtle",
                 scaffolded: "text-fg-tertiary bg-surface-interactive border border-edge-subtle",
                 blocked: "text-red-500 bg-red-950/[0.08] border border-red-950/40"
               }[s.status];
@@ -329,7 +329,7 @@ export function ToolTelemetryPanel() {
                         {isProblem ? (
                           <AlertTriangle size={10} className="text-red-400" />
                         ) : s.status === "inert" ? (
-                          <Key size={10} className="text-yellow-400/70" />
+                          <Key size={10} className="text-amber-300/70" />
                         ) : (
                           <CheckCircle2 size={10} className="text-emerald-400/70" />
                         )}
@@ -361,10 +361,10 @@ export function ToolTelemetryPanel() {
                               : "text-emerald-400",
                       )}
                     >
-                      {s.totalCalls === 0 ? "—" : `${rate}%`}
+                      {s.totalCalls === 0 ? "none" : `${rate}%`}
                     </td>
                     <td className="py-2 text-right tabular-nums text-[var(--text-tertiary)] hidden sm:table-cell">
-                      {s.avgDurationMs > 0 ? `${s.avgDurationMs}ms` : "—"}
+                      {s.avgDurationMs > 0 ? `${s.avgDurationMs}ms` : "none"}
                     </td>
                     <td className="py-2 text-right tabular-nums text-[var(--text-tertiary)] text-[11px] hidden md:table-cell">
                       {formatAgo(s.lastCallAt)}

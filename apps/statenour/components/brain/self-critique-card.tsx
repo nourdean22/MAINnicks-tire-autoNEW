@@ -6,7 +6,7 @@
  * Surfaces the bottom-decile assistant replies that the nightly
  * `self-critique` cron flagged for the operator to review. Pre-fix
  * the cron wrote `BrainMemory(category="reply_to_improve")` every
- * night but nothing on /brain rendered the list — the quality
+ * night but nothing on /brain rendered the list: the quality
  * feedback loop was dark to the operator.
  *
  * Reads · `GET /api/brain/memories?category=reply_to_improve&limit=5`.
@@ -20,10 +20,10 @@
  * flagged conversation thread.
  */
 
+import { ReadingUnavailable } from "@/components/brain/brain-fold";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/utils/api-fetch";
 import Link from "next/link";
-import { GlassCard } from "@/components/ui/glass-card";
 
 interface CritiqueMemory {
   id: string;
@@ -45,6 +45,7 @@ interface CritiqueMemory {
 
 export function SelfCritiqueCard() {
   const [rows, setRows] = useState<CritiqueMemory[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,13 +54,14 @@ export function SelfCritiqueCard() {
         // /api/brain/memories is apiHandler-wrapped, so res.json() is the
         // ENVELOPE. The old cast said CritiqueMemory[]; Array.isArray(envelope)
         // is false, the guard fell through to [], and this panel rendered
-        // NOTHING on a 200. A cast is an assertion, not a check — nothing failed.
+        // NOTHING on a 200. A cast is an assertion, not a check: nothing failed.
         const data = await apiFetch<CritiqueMemory[]>(
           "/api/brain/memories?category=reply_to_improve&limit=5",
         );
         if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch {
-        if (!cancelled) setRows([]);
+        // Wave D: a failed read used to set [] and hide the card like a clean week.
+        if (!cancelled) setFailed(true);
       }
     })();
     return () => {
@@ -69,10 +71,11 @@ export function SelfCritiqueCard() {
 
   // Silent-when-empty · clean weeks render nothing per the /brain
   // editorial design language.
+  if (failed) return <ReadingUnavailable label="Self-critique" />;
   if (rows === null || rows.length === 0) return null;
 
   return (
-    <GlassCard className="space-y-3">
+    <div className="border-t border-edge pt-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-[11px] font-mono text-fg-tertiary">
           Nick flagged for review
@@ -108,6 +111,6 @@ export function SelfCritiqueCard() {
           );
         })}
       </ul>
-    </GlassCard>
+    </div>
   );
 }

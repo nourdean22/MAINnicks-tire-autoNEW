@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * BrainMaturityHeader — aggregate score + counters at the top of
+ * BrainMaturityHeader: aggregate score + counters at the top of
  * /brain. Reads from /api/brain/maturity which rolls up the subsystem
  * counts + the qualitative completeness so Nour has one number to
  * track "the brain is learning" at a glance.
  */
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useCallback, useEffect } from "react";
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { Download, RotateCcw } from "lucide-react";
@@ -23,7 +23,7 @@ import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialo
 
 // Mirrors BrainMaturityView in lib/services/brain-domain.ts. Every counter
 // is `number | null`, and `null` means the read that would have produced it
-// FAILED — never zero. See UNKNOWN below.
+// FAILED: never zero. See UNKNOWN below.
 interface Maturity {
   score: number | null;        // aggregate · null when a read failed
   /** What `score` is out of: a constant 90. */
@@ -47,7 +47,7 @@ function dot(color: string): string {
 
 /**
  * What a counter renders when its read failed. Deliberately NOT "0" and
- * deliberately NOT "—": "—" already means "measured, nothing to show"
+ * deliberately NOT "none": "none" already means "measured, nothing to show"
  * elsewhere on this card (ghost accuracy with no scored predictions).
  */
 const UNKNOWN = "?";
@@ -132,40 +132,39 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
+  // Wave D (2026-10-24): ONE ruled line (it was three cards: failed, loading, data). The score, the
+  // counters and the two actions share a row; the failed and loading states keep the same frame.
   if (!data) {
-    // v11.1 · Error state with retry. Previously just spun "reading
-    // brain state…" forever when the endpoint errored.
+    // v11.1 · Error state with retry. Previously just spun "reading brain state…" forever when the
+    // endpoint errored.
     if (loadError) {
       return (
-        <GlassCard>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-rose-300">brain-maturity fetch failed</p>
-              <p className="text-[11px] text-rose-300/70 mt-0.5 break-words font-mono">{loadError}</p>
-            </div>
-            <button
-              onClick={reload}
-              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors"
-            >
-              Retry
-            </button>
+        <section aria-label="brain maturity" data-read-failed="" className="flex flex-wrap items-center justify-between gap-3 border-y border-edge py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] text-red-300">Brain maturity couldn&apos;t load: state unknown, not empty.</p>
+            <p className="mt-0.5 break-words font-mono text-[13px] text-red-300/80">{loadError}</p>
           </div>
-        </GlassCard>
+          <button
+            type="button"
+            onClick={reload}
+            className="inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-red-400/40 px-4 text-[13px] font-medium text-red-300 transition-colors duration-[var(--motion-state)] hover:bg-red-400/10"
+          >
+            Retry
+          </button>
+        </section>
       );
     }
     return (
-      <GlassCard>
-        <p className="text-[11px] text-[var(--text-tertiary)]">reading brain state…</p>
-      </GlassCard>
+      <section aria-label="brain maturity" className="border-y border-edge py-3">
+        <p className="text-[13px] text-fg-tertiary">Reading brain state…</p>
+      </section>
     );
   }
 
-  // A DEGRADED READ IS NOT A LOW SCORE. `buildBrainMaturity` used to
-  // swallow all ten subsystem reads and return a fully-formed payload, so
-  // this component's `if (!data)` guard above never fired on a total DB
-  // failure — it rendered "7" with every counter at 0 and "contradictions
-  // 0" in emerald. The service now suppresses the score and lists the
-  // reads that threw; this branch is what makes that visible.
+  // A DEGRADED READ IS NOT A LOW SCORE. `buildBrainMaturity` used to swallow all ten subsystem reads
+  // and return a fully-formed payload, so the `if (!data)` guard above never fired on a total DB
+  // failure: it rendered "7" with every counter at 0 and "contradictions 0" in emerald. The service
+  // now suppresses the score and lists the reads that threw; this branch is what makes that visible.
   const failedReads = data.failedReads ?? [];
   const degraded = failedReads.length > 0;
   const score = data.score;
@@ -181,66 +180,39 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
       ? `${Math.round(c.ghost.accuracy * 100)}%`
       : failedReads.includes("ghost_accuracy")
         ? UNKNOWN
-        : "—";
+        : "none";
 
   return (
-    <GlassCard>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void exportBrain()}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
-            title="download full brain JSON"
-          >
-            <Download size={10} />
-            Export
-          </button>
-          <button
-            onClick={() => void resetBrain()}
-            className="text-[11px] font-mono px-2 py-1 rounded-control border border-red-500/30 text-red-400 hover:bg-red-500/10 inline-flex items-center gap-1"
-            title="nuke everything (double-confirm required)"
-          >
-            <RotateCcw size={10} />
-            Reset
-          </button>
-        </div>
-        {/* v8.2 D5 — every data card shows freshness + source */}
-        <FreshnessChip
-          lastFetchedAt={data.computed_at}
-          source="api/brain/maturity"
-          onReload={() => reload()}
-          compact
-        />
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="shrink-0">
-          <p className={cn("text-[32px] font-mono tabular-nums leading-none", scoreColor)}>
+    <section aria-label="brain maturity" className="border-y border-edge py-3">
+      <StaleNote q={maturityQuery} label="Brain maturity" className="mb-2" />
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex items-baseline gap-2">
+          <p className={cn("text-[22px] font-mono tabular-nums leading-none", scoreColor)}>
             {score == null ? UNKNOWN : <AnimatedCounter value={score} duration={900} />}
             {/* The denominator is shown only when it is NOT 100 (it is a constant 90 now:
                 contradictions carry no points), so the common case reads /90. */}
             {score != null && data.scoreMax !== 100 && (
-              <span className="text-[15px] text-[var(--text-tertiary)]">/{data.scoreMax}</span>
+              <span className="text-[13px] text-fg-tertiary">/{data.scoreMax}</span>
             )}
           </p>
-          <p className="text-[11px] font-mono text-fg-tertiary mt-1">
+          <p className="text-[13px] text-fg-tertiary">
             {score == null ? "Maturity unknown" : "Brain maturity"}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 flex-1 text-[11px] font-mono">
+        <div className="flex flex-1 flex-wrap gap-x-4 gap-y-1 font-mono text-[13px]">
           <Counter label="skills active" value={counterValue(c.skills.active)} />
-          <Counter label="skills graduated" value={counterValue(c.skills.graduated)} color={dot("text-violet-400")} />
-          <Counter label="skill candidates" value={counterValue(c.skills.pending)} color={dot("text-blue-400")} />
+          <Counter label="skills graduated" value={counterValue(c.skills.graduated)} />
+          <Counter label="skill candidates" value={counterValue(c.skills.pending)} />
           <Counter
             label="identity axes"
             value={c.identity.axes_filled == null ? UNKNOWN : `${c.identity.axes_filled}/8`}
           />
           <Counter label="qual entries" value={counterValue(c.qualitative.entries)} />
           <Counter label="beliefs active" value={counterValue(c.beliefs.active)} />
-          {/* EMERALD IS A CLAIM, and it must not be reachable from a failed
-              read. `open === null` means the contradiction ledger could not
-              be read at all — amber, never the green that used to say
-              "internally consistent" about a read that never happened. */}
+          {/* EMERALD IS A CLAIM, and it must not be reachable from a failed read. `open === null`
+              means the contradiction ledger could not be read at all: amber, never the green that
+              used to say "internally consistent" about a read that never happened. */}
           <Counter
             label="contradictions"
             value={counterValue(c.contradictions.open)}
@@ -254,27 +226,51 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
           />
           <Counter label="ghost acc" value={ghostAcc} />
         </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void exportBrain()}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+            title="Download the full brain as JSON"
+          >
+            <Download size={12} aria-hidden />
+            Export
+          </button>
+          <button
+            type="button"
+            onClick={() => void resetBrain()}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-red-500/30 px-4 text-[13px] font-medium text-red-300 transition-colors duration-[var(--motion-state)] hover:bg-red-500/10"
+            title="Reset the brain (asks twice)"
+          >
+            <RotateCcw size={12} aria-hidden />
+            Reset
+          </button>
+          {/* v8.2 D5: every data block shows freshness + source */}
+          <FreshnessChip
+            lastFetchedAt={data.computed_at}
+            source="api/brain/maturity"
+            onReload={() => reload()}
+            compact
+          />
+        </div>
       </div>
       {degraded && (
-        <p className="mt-3 text-[11px] text-amber-300/90 leading-relaxed border border-amber-500/25 bg-amber-500/[0.05] rounded-micro px-2 py-1.5">
+        <p data-read-failed="" className="mt-3 border-l-2 border-amber-400/60 py-1 pl-4 text-[13px] leading-relaxed text-amber-300">
           <span className="font-mono text-amber-400">
-            read failed — unknown, not zero
+            read failed: unknown, not zero
           </span>
           <br />
           {failedReads.length} subsystem read{failedReads.length === 1 ? "" : "s"} threw
           (<span className="font-mono">{failedReads.join(", ")}</span>). The score is
           withheld and every <span className="font-mono">{UNKNOWN}</span> above was not
-          measured — none of them is a zero.
+          measured; none of them is a zero.
         </p>
       )}
-      <p className="text-[11px] text-[var(--text-tertiary)] mt-3">
-        Rollup of all 7 brain subsystems. Refreshes when brain data changes. Higher score = the
-        brain has more signal about who you are and how you operate.
-      </p>
       {/* iOS-PWA-safe two-gate reset mounts · render null when idle. */}
       {confirmDialog}
       {promptDialog}
-    </GlassCard>
+    </section>
   );
 }
 
@@ -284,9 +280,9 @@ function Counter({ label, value, color }: { label: string; value: number | strin
   const body =
     typeof value === "number" ? <AnimatedCounter value={value} duration={700} /> : value;
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-[var(--text-tertiary)]">{label}</span>
-      <span className={cn("tabular-nums", color ?? "text-[var(--text-primary)]")}>{body}</span>
+    <div className="flex items-center gap-1.5">
+      <span className="text-fg-tertiary">{label}</span>
+      <span className={cn("tabular-nums", color ?? "text-fg")}>{body}</span>
     </div>
   );
 }

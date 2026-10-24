@@ -1,9 +1,9 @@
 "use client";
 
+import { StaleNote } from "@/components/brain/brain-fold";
 import { useState } from "react";
 import { AlertTriangle, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { GlassCard } from "@/components/ui/glass-card";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
@@ -88,6 +88,7 @@ export function AntiPatternsPanel() {
 
   return (
     <section id="anti-patterns" className="scroll-mt-24 space-y-3" aria-label="anti-pattern library">
+      <StaleNote q={query} label="Anti-pattern library" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-mono text-fg-tertiary">
@@ -114,21 +115,21 @@ export function AntiPatternsPanel() {
           ))}
         </div>
       ) : query.isError ? (
-        <GlassCard>
-          <p className="text-sm text-amber-300">
-            Anti-pattern library could not load — state unknown, not empty.
+        <div className="border-t border-edge pt-4">
+          <p data-read-failed="" className="text-sm text-red-300">
+            Anti-pattern library could not load: state unknown, not empty.
           </p>
-        </GlassCard>
+        </div>
       ) : items.length === 0 ? (
-        <GlassCard>
+        <div className="border-t border-edge pt-4">
           <p className="text-sm text-[var(--text-secondary)]">
             No active anti-patterns are recorded.
           </p>
-        </GlassCard>
+        </div>
       ) : (
         <div className="space-y-2.5">
           {visible.map((item) => (
-            <GlassCard key={item.key} className="">
+            <div key={item.key} className="border-t border-edge pt-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -181,7 +182,7 @@ export function AntiPatternsPanel() {
                   </button>
                 </div>
               </div>
-            </GlassCard>
+            </div>
           ))}
 
           {items.length > 5 ? (

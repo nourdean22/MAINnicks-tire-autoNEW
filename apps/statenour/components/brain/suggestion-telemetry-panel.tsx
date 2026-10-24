@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SuggestionTelemetryPanel — live cache-hit + AI vs heuristic
+ * SuggestionTelemetryPanel: live cache-hit + AI vs heuristic
  * split for the /api/ai/chat/suggestions endpoint. Helps Nour see
  * whether the two-layer warming actually pays off.
  *
@@ -10,8 +10,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import { GlassCard } from "@/components/ui/glass-card";
-import { Sparkles, Zap, Brain, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 // Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/ai/chat/
 // suggestions/stats")` onto `trpc.brain.suggestionStats` · reactive
 // read · the 15s `setInterval` is now React Query's refetchInterval.
@@ -35,7 +34,7 @@ interface Stats {
 
 export function SuggestionTelemetryPanel() {
   // The endpoint returns a `live`/`history24` envelope PLUS the flat
-  // legacy keys the panel binds — the procedure preserves that shape,
+  // legacy keys the panel binds: the procedure preserves that shape,
   // so the `Stats` projection off the top level is unchanged.
   const statsQuery = trpc.brain.suggestionStats.useQuery(undefined, {
     refetchInterval: 15_000,
@@ -45,22 +44,22 @@ export function SuggestionTelemetryPanel() {
 
   if (!stats && !statsQuery.isError) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="text-[11px] text-[var(--text-tertiary)]">
-          Suggestion telemetry — loading…
+          Suggestion telemetry: loading…
         </div>
-      </GlassCard>
+      </div>
     );
   }
 
   if (statsQuery.isError && !stats) {
     return (
-      <GlassCard>
+      <div className="border-t border-edge pt-4">
         <div className="flex items-center gap-2 text-[11px] text-red-400">
           <AlertCircle size={12} /> telemetry load failed:{" "}
           {statsQuery.error.message}
         </div>
-      </GlassCard>
+      </div>
     );
   }
 
@@ -74,11 +73,11 @@ export function SuggestionTelemetryPanel() {
     stats.requests > 0 ? Math.round((stats.heuristic / stats.requests) * 100) : 0;
 
   return (
-    <GlassCard className="space-y-3">
+    <div className="border-t border-edge pt-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <Sparkles size={14} className="text-fg-secondary" />
+        
         <h2 className="text-[15px] font-semibold text-fg">
-          Smart Replies — Live Telemetry
+          Smart reply telemetry
         </h2>
         <FreshnessChip lastFetchedAt={loadedAt} source="lambda" compact onReload={() => void statsQuery.refetch()} />
         <span className="text-[11px] text-[var(--text-tertiary)]">lambda-local</span>
@@ -167,7 +166,7 @@ export function SuggestionTelemetryPanel() {
           {/* Latency */}
           <div className="flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
             <span className="flex items-center gap-1">
-              <Zap size={10} /> avg {stats.avgLatencyMs}ms
+              avg {stats.avgLatencyMs}ms
             </span>
             <span>p50 {stats.p50Ms}ms</span>
             <span
@@ -187,20 +186,20 @@ export function SuggestionTelemetryPanel() {
           {/* Interpretation helper */}
           {hitPct < 20 && stats.requests > 5 && (
             <div className="flex items-center gap-2 text-[11px] text-amber-400/80 border-l-2 border-amber-400/40 pl-2">
-              <Brain size={10} />
-              low cache hit — consider widening the warm window or
+              
+              low cache hit: consider widening the warm window or
               pre-warming on more surfaces
             </div>
           )}
           {aiSuccessPct !== null && aiSuccessPct < 70 && (
             <div className="flex items-center gap-2 text-[11px] text-red-400/80 border-l-2 border-red-400/40 pl-2">
               <AlertCircle size={10} />
-              ai success rate low ({aiSuccessPct}%) — heuristic
+              ai success rate low ({aiSuccessPct}%): heuristic
               fallback is carrying the load
             </div>
           )}
         </>
       )}
-    </GlassCard>
+    </div>
   );
 }

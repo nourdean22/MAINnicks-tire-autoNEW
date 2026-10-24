@@ -11,7 +11,7 @@
  * recompute button, and a closing paragraph explaining what the (absent)
  * content means.
  *
- * The per-bucket "(empty — add one or let reflection auto-extract)" hint is
+ * The per-bucket "(empty: add one or let reflection auto-extract)" hint is
  * itself inside the gate, so the blank card was not merely uninformative —
  * it was indistinguishable from an identity with five empty buckets, which
  * is the state the panel's copy invites the operator to go and fix. Typing
@@ -88,7 +88,7 @@ describe("QualitativeIdentityPanel · a failed read says so instead of rendering
 
     // The hint that used to be indistinguishable from this state — because
     // it never rendered at all, and neither did anything else.
-    expect(html).not.toContain("(empty — add one");
+    expect(html).not.toContain("(empty: add one");
     expect(html).toContain("do not add entries");
   });
 
@@ -109,7 +109,7 @@ describe("QualitativeIdentityPanel · a failed read says so instead of rendering
     });
 
     expect(failed).not.toEqual(measuredEmpty);
-    expect(measuredEmpty).toContain("(empty — add one");
+    expect(measuredEmpty).toContain("(empty: add one");
     expect(measuredEmpty).not.toContain('data-provenance="ERROR"');
   });
 
