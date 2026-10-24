@@ -23,6 +23,11 @@ const flags: Record<string, boolean> = {};
 vi.mock("@/lib/feature-flags", () => ({ getFlag: (k: string) => ({ isOn: flags[k] ?? false }) }));
 
 const generateText = vi.fn();
+const recordToolInvocation = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/lib/ai/tool-telemetry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/tool-telemetry")>()),
+  recordToolInvocation,
+}));
 vi.mock("ai", () => ({ generateText: (...a: unknown[]) => generateText(...a), stepCountIs: () => () => false }));
 vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => ({}) }));
 // The persist event and the text each buffered lane ships (audit 04-X12, 04-X11).
@@ -253,6 +258,76 @@ describe("buffered lanes count every paid generation (audit 04-X12)", () => {
     generateText.mockImplementation(paidReply("Here are five podcasts."));
     expect(await runAlternatePaths(base("recommend 5 podcasts on stoicism worth following", {}))).toBeInstanceOf(Response);
     expect(persistEvents[0].usage).toEqual(PAID);
+  });
+});
+
+describe("every executed sample's tool calls reach tool_telemetry exactly once; tool.chosen stays winner-only", () => {
+  const stepOf = (toolName: string, output: unknown = { ok: true }) => [
+    { toolCalls: [{ toolName, toolCallId: `id-${toolName}`, input: {} }], toolResults: [{ toolName, toolCallId: `id-${toolName}`, output }] },
+  ];
+  const settle = () => new Promise((r) => setTimeout(r, 100));
+  // The recorder is fire-and-forget, so an earlier test's samples can land after its own
+  // assertions: let them drain, then clear, so this window holds only this test's calls.
+  beforeEach(async () => {
+    await settle();
+    recordToolInvocation.mockClear();
+  });
+  // Earlier tests in this file also run samples (getHealthToday, createTask), and their fire-and-forget
+  // recordings can land late under a loaded full run. Count only the tools THIS describe's samples call.
+  const MINE = new Set(["getCommitments", "searchMemories", "getTasks"]);
+  const recorded = () => recordToolInvocation.mock.calls.map((c) => c[0] as { toolName: string }).filter((c) => MINE.has(c.toolName));
+  const recordedNames = () => recorded().map((c) => c.toolName).sort();
+
+  it("verified regen: the LOSING draft's tool call is recorded too (with its real failure); the chosen names stay the winner's", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = "The winning reply about the shop hours.";
+    let n = 0;
+    generateText.mockImplementation(async () => {
+      n += 1;
+      return n === 1
+        ? { text: "A losing draft.", steps: stepOf("searchMemories", { error: "db down" }), toolCalls: [], toolResults: [] }
+        : { text: regenWinner, steps: stepOf("getCommitments"), toolCalls: [], toolResults: [] };
+    });
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    await vi.waitFor(() => expect(recordedNames()).toEqual(["getCommitments", "searchMemories"]));
+    await settle();
+    expect(recorded()).toHaveLength(2);
+    expect(recordToolInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({ toolName: "searchMemories", success: false, errorMessage: "db down" }),
+    );
+    expect(persistEvents[0].laneToolNames).toEqual(["getCommitments"]);
+    // The persist walk must not record them a second time.
+    expect(persistEvents[0]).not.toHaveProperty("laneTelemetrySteps");
+  });
+
+  it("self-consistency that falls through to the streaming path: all three samples are recorded once, and nothing is left for the stream to double", async () => {
+    flags.NICK_SELF_CONSISTENCY = true;
+    generateText.mockImplementation(async () => ({ text: "same answer", steps: stepOf("getTasks"), toolCalls: [], toolResults: [] }));
+    expect(await runAlternatePaths(base("how many open tasks do I have", {}, "factual"))).toBeNull();
+    await vi.waitFor(() => expect(recorded()).toHaveLength(3));
+    await settle();
+    expect(recorded()).toHaveLength(3);
+    expect(persistEvents).toHaveLength(0);
+  });
+
+  it("CONTROL · a sample that executed no tool records nothing", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = "A plain reply.";
+    generateText.mockImplementation(async () => ({ text: regenWinner, steps: [], toolCalls: [], toolResults: [] }));
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    await settle();
+    expect(recorded()).toHaveLength(0);
+  });
+
+  it("CONTROL · the pre-flush lane records nothing here: its single generation is recorded by the persist walk from ev.steps", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    const steps = stepOf("getCommitments");
+    generateText.mockImplementation(async () => ({ text: "Here are five podcasts.", steps, toolCalls: [], toolResults: [] }));
+    expect(await runAlternatePaths(base("recommend 5 podcasts on stoicism worth following", {}))).toBeInstanceOf(Response);
+    await settle();
+    expect(recorded()).toHaveLength(0);
+    expect(persistEvents[0].steps).toBe(steps);
   });
 });
 

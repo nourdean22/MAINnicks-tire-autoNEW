@@ -11,7 +11,9 @@ export const approvalSweeper = getInngest().createFunction(
   {
     id: "approval-sweeper",
     name: "Approval Sweeper",
-    triggers: [{ cron: "*/5 * * * *" }],
+    // Hourly since 2026-10-24: 4032 runs in 14 days did work 0 times (approval_requests
+    // holds 4 rows ever). A stuck approved execution now waits up to an hour, not 5 minutes.
+    triggers: [{ cron: "0 * * * *" }],
     // 2026-07-10 review fix · this was the ONLY Inngest function without
     // onFailure — the durability backstop for approved tool execution
     // (incl. real customer SMS) failed silently. Every sibling alerts

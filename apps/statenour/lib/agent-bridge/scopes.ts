@@ -61,7 +61,7 @@ export const PROTECTED_OPS_TOOLS: readonly string[] = [
  * Compute the full hard-deny set from a catalog: the explicit protected-ops
  * names, plus EVERY business_write tool and EVERY tool whose effective risk is
  * `critical`. Rule-derived membership is what keeps this correct as the catalog
- * grows — `getToolRiskClass` already resolves runPython/runDeviceCommand to
+ * grows — `getToolRiskClass` already resolves runCode/runDeviceCommand to
  * critical, so a new code-exec tool is denied without a code change here.
  */
 export function computeHardDeny(

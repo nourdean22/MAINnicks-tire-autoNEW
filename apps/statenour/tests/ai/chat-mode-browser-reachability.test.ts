@@ -136,7 +136,7 @@ describe("capability reachability · a tool nobody can ask for is not a capabili
   const MUST_BE_REACHABLE: Array<{ tool: string; prompt: string }> = [
     // Each verified surfacing at the time of writing. A regression here means
     // someone narrowed a keyword family and silently removed a capability.
-    { tool: "runPython", prompt: "run this python and tell me the result" },
+    { tool: "runCode", prompt: "run this python and tell me the result" },
     { tool: "searchDocuments", prompt: "search my documents for the lease" },
     { tool: "browseAndDo", prompt: "go to monro.com and check their oil change price" },
   ];

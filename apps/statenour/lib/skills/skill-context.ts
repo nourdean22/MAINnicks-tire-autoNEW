@@ -9,7 +9,7 @@
  * obvious until you need them. With this surface, Nick sees a
  * curated "look at these skills, they fit" hint each turn and can
  * either (a) pull the skill's protocol into the reply, or (b) call
- * the `searchSkills` tool to get more if 3 isn't enough.
+ * the `suggestSkills` tool to get more if 3 isn't enough.
  *
  * Safety · empty string when:
  *   · userMessage is missing / too short
@@ -58,7 +58,7 @@ export async function getRelevantSkillsBlock(
     const fullBlock = block
       ? `${block}\n` +
         `If one of these protocols cleanly fits the current request, apply it. ` +
-        `Use the searchSkills tool to widen the search beyond top-${TOP_K}.`
+        `Use the suggestSkills tool with a larger limit to widen the search beyond top-${TOP_K}.`
       : "";
     cache.set(key, { block: fullBlock, at: Date.now() });
     if (cache.size > 50) {

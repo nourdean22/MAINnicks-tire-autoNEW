@@ -70,7 +70,6 @@ import {
   handleArsenalCompetitorInsight,
   handleArsenalDailyBrief,
   handleArsenalGetMeetings,
-  handleArsenalRunPython,
   handleArsenalBrowserCreateSession,
   handleArsenalBrowserCloseSession,
   handleArsenalBrowserNavigate,
@@ -337,9 +336,6 @@ export async function executeActionWithoutTracing(action: AgentAction): Promise<
       case "arsenal.getMeetings":
         return await handleArsenalGetMeetings(params, type);
 
-      case "arsenal.runPython":
-        return await handleArsenalRunPython(params, type);
-
       case "arsenal.browserCreateSession":
         return await handleArsenalBrowserCreateSession(params, type);
 
@@ -513,7 +509,6 @@ Available actions:
 | arsenal.competitorInsight | competitorName, details? | CHAIN: Grok analyzes competitor → ClickUp action items |
 | arsenal.dailyBrief | summary | CHAIN: Grok generates brief + tomorrow's priorities → ClickUp tasks |
 | arsenal.getMeetings | limit? | Fireflies — fetch recent meeting transcripts |
-| arsenal.runPython | code | Execute Python code in an isolated E2B cloud sandbox. Returns stdout, stderr, returnValue, and base64 PNG charts. |
 | arsenal.browserCreateSession | keepAlive? | Create a Browserbase headless Chrome session. Returns sessionId and liveViewUrl. |
 | arsenal.browserCloseSession | sessionId | Close a Browserbase session. |
 | arsenal.browserNavigate | sessionId, url, waitUntil? | Navigate the browser session to a URL. |

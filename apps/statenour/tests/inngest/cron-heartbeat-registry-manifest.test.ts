@@ -178,7 +178,8 @@ describe("expectedJobs · derived from config/crons.ts", () => {
 
   it("windows come from the manifest schedule", () => {
     const jobs = byName();
-    expect(jobs.get("approval-sweeper")).toEqual({ name: "approval-sweeper", maxAgeH: 2 + 5 / 60, silenceOnly: true });
+    // Hourly since 2026-10-24, so the silence window follows the manifest to the hourly shape (3h, like proactive-push-cron).
+    expect(jobs.get("approval-sweeper")).toEqual({ name: "approval-sweeper", maxAgeH: 3, silenceOnly: true });
     expect(jobs.get("proactive-push-cron")?.maxAgeH).toBe(3);
     expect(jobs.get("diagnose-cron-failure")?.maxAgeH).toBe(6);
     expect(jobs.get("goal-pruner")?.maxAgeH).toBe(26);

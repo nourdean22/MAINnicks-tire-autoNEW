@@ -1,8 +1,7 @@
 /**
  * lib/ai/tool-quota.ts · v10.0.529.4 · D-2 defense
  *
- * Per-day call quota for expensive chat tools (runPython · E2B sandbox
- * @ ~$0.0003/run · ingestDocumentFromUrl · arbitrary external fetch +
+ * Per-day call quota for expensive chat tools (ingestDocumentFromUrl · arbitrary external fetch +
  * embedding cost). The chat route already caps tool-call depth per
  * turn via stopWhen=stepCountIs(N), but a prompt-injection loop that
  * fires across many turns could still bleed paid quota in ~6 minutes.
@@ -21,8 +20,7 @@
  * lib/services/memory-decay.ts on its weekly run.
  *
  * Cap defaults are conservative · the operator's typical day uses
- * runPython ~5-10 times and ingestDocumentFromUrl ~2-5 times. The
- * cap of 100 gives ~10x headroom and triggers only on actual abuse.
+ * ingestDocumentFromUrl ~2-5 times. The cap gives ~10x headroom and triggers only on actual abuse.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -38,7 +36,6 @@ export interface QuotaCheckResult {
 }
 
 const DEFAULT_CAPS: Record<string, number> = {
-  runPython: 100,
   ingestDocumentFromUrl: 50,
 };
 

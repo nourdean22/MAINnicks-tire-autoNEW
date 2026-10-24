@@ -2,10 +2,9 @@
  * 2026-10-10 · the step-0 toolChoice forces key on the tools actually offered.
  *
  * The Private Lab strip (prepare-tools) removes every non-read-safe tool at any
- * permission, runPython included, but the force ladder only stood down for a
- * Read turn. A private python ask therefore sent tool_choice naming runPython
- * with runPython absent from `tools`, and an action ask forced "required"
- * against a read-only set. A force must never name a tool the turn does not
+ * permission, but the force ladder only stood down for a Read turn. A private
+ * ask therefore sent tool_choice naming a tool absent from `tools`, and an
+ * action ask forced "required" against a read-only set. A force must never name a tool the turn does not
  * offer, and "required" needs a write tool on offer.
  */
 import { describe, it, expect, vi } from "vitest";
@@ -29,7 +28,6 @@ function step0(overrides: Record<string, unknown>): Step {
     mode: "standard" as never,
     maxOutputTokens: 1000,
     turnSignal: { kind: "conversational" } as never,
-    pythonExecuteIntent: false,
     webSearchIntent: false,
     actionIntent: null,
     actionPermission: "draft",
@@ -50,20 +48,10 @@ function step0(overrides: Record<string, unknown>): Step {
 }
 
 const READS_ONLY = { getTasks: {}, searchMemories: {} };
-const WITH_WRITES = { getTasks: {}, createTask: {}, runPython: {}, arsenalWebSearch: {} };
+const WITH_WRITES = { getTasks: {}, createTask: {}, arsenalWebSearch: {} };
 const ACTION = { intent: "create_task", expectedTool: "createTask" };
 
 describe("prepareStep forces only name offered tools", () => {
-  it("python ask with runPython stripped (Private Lab, draft permission): no runPython pin", () => {
-    expect(step0({ pythonExecuteIntent: true, prunedTools: READS_ONLY }).toolChoice).toBeUndefined();
-  });
-  it("CONTROL · python ask with runPython offered: pinned to runPython", () => {
-    expect(step0({ pythonExecuteIntent: true, prunedTools: WITH_WRITES }).toolChoice).toEqual({
-      type: "tool",
-      toolName: "runPython",
-    });
-  });
-
   it("action ask against a read-only tool set: no 'required' force", () => {
     expect(step0({ actionIntent: ACTION, prunedTools: READS_ONLY }).toolChoice).toBeUndefined();
   });
@@ -80,7 +68,6 @@ describe("prepareStep forces only name offered tools", () => {
   });
 
   it("CONTROL · Read permission still stands every mutating force down, even with writes offered", () => {
-    expect(step0({ actionPermission: "read", pythonExecuteIntent: true, prunedTools: WITH_WRITES }).toolChoice).toBeUndefined();
     expect(step0({ actionPermission: "read", actionIntent: ACTION, prunedTools: WITH_WRITES }).toolChoice).toBeUndefined();
   });
 });

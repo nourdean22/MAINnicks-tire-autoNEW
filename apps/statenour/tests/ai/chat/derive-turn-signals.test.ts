@@ -98,17 +98,31 @@ describe("deriveTurnSignals · task-type mapping", () => {
 });
 
 describe("deriveTurnSignals · tool-mandatory intent exclusivity", () => {
-  it("python-execute suppresses action + web-search detection", async () => {
-    const s = await callWith("run this python to compute the numbers and search the web for rates");
-    expect(s.pythonExecuteIntent).toBe(true);
+  // The python-execute signal was removed 2026-10-24 with the runPython tool: it pinned
+  // nothing (no registry names a python tool), yet it still forced the tool provider and
+  // suppressed the other intents. runCode is reached by the pruner, never by a force.
+  it.each([
+    "run this python to compute the numbers",
+    "execute python and plot the revenue",
+    "run this code and tell me the result",
+    "use the runPython tool on this list",
+  ])("a python / run-code ask sets no tool-mandatory intent: %s", async (prompt) => {
+    const s = await callWith(prompt);
+    expect(s).not.toHaveProperty("pythonExecuteIntent");
+    // A NON-forcing hint for the decision-plane shadow label only: nothing below reads it.
+    expect(s.codeExecutionIntent).toBe(true);
     expect(s.actionIntent).toBeNull();
     expect(s.webSearchIntent).toBe(false);
     expect(s.webSearchRecency).toBe(false);
   });
 
+  it("a python ask that ALSO asks for a web search keeps the web-search force (nothing suppresses it now)", async () => {
+    const s = await callWith("run this python to compute the numbers and search the web for rates");
+    expect(s.webSearchIntent).toBe(true);
+  });
+
   it("explicit web-search phrasing fires webSearchIntent", async () => {
     const s = await callWith("search the web for the latest tire trends");
-    expect(s.pythonExecuteIntent).toBe(false);
     expect(s.webSearchIntent).toBe(true);
     // the force subsumes availability — recency stays quiet
     expect(s.webSearchRecency).toBe(false);
@@ -116,7 +130,7 @@ describe("deriveTurnSignals · tool-mandatory intent exclusivity", () => {
 
   it("an ordinary question fires none of the mandatory intents", async () => {
     const s = await callWith("what do you think about the estimate follow-ups?");
-    expect(s.pythonExecuteIntent).toBe(false);
+    expect(s.codeExecutionIntent).toBe(false);
     expect(s.webSearchIntent).toBe(false);
     expect(s.webSearchRecency).toBe(false);
   });

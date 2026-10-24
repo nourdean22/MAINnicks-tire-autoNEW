@@ -53,7 +53,7 @@ export function isEmptyToolOutput(output: unknown): boolean {
   const o = output as Record<string, unknown>;
 
   // The house convention: search tools return a `count`. searchReflections,
-  // searchMemories, searchColdMemory, searchSkills all do.
+  // searchMemories, searchColdMemory, suggestSkills all do.
   if (typeof o.count === "number") return o.count === 0;
 
   // Tools that report per-source counts instead of a total.

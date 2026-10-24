@@ -5,7 +5,7 @@
  *
  * Reported gap: the operator photographed "What to Say When You Talk to
  * Your Self" in chat and asked Nick to turn it into a skill. Nick had
- * `suggestSkills`, `getSkillProtocol` and `searchSkills` — all READS.
+ * `suggestSkills` and `getSkillProtocol` — both READS.
  * There was no way to author one, so nothing could happen.
  *
  * DESIGN CONSTRAINT that shaped this (found before building, not after):

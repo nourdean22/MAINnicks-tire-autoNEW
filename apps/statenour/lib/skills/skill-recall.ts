@@ -9,7 +9,7 @@
  *      top-K skills most similar to the query string. Used by:
  *        · the chat system-prompt (auto-inject top 3 skills relevant
  *          to the current operator message)
- *        · the `searchSkills` tool when the model wants to look
+ *        · the `suggestSkills` tool when the model wants to look
  *          something up explicitly
  *        · future agents that need skill discovery
  *

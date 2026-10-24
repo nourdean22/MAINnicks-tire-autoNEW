@@ -18,7 +18,6 @@ vi.mock("@/lib/ai/agent-actions/google-actions", () => ({
 }));
 
 vi.mock("@/lib/ai/agent-actions/arsenal-actions", () => ({
-  handleArsenalRunPython: vi.fn().mockResolvedValue({ action: "arsenal.runPython", success: true, result: { ok: true, stdout: "4" } }),
   handleArsenalBrowserCreateSession: vi.fn().mockResolvedValue({ action: "arsenal.browserCreateSession", success: true, result: { sessionId: "session-1" } }),
   handleArsenalBrowserCloseSession: vi.fn().mockResolvedValue({ action: "arsenal.browserCloseSession", success: true }),
   handleArsenalBrowserNavigate: vi.fn().mockResolvedValue({ action: "arsenal.browserNavigate", success: true }),
@@ -108,7 +107,6 @@ describe("Nick Agent Action Dispatcher", () => {
 
   it("dispatches new arsenal actions to handlers correctly", async () => {
     const actions = [
-      { type: "arsenal.runPython", params: { code: "1" } },
       { type: "arsenal.browserCreateSession", params: {} },
       { type: "arsenal.browserCloseSession", params: { sessionId: "s1" } },
       { type: "arsenal.browserNavigate", params: { sessionId: "s1", url: "https://" } },
@@ -118,15 +116,35 @@ describe("Nick Agent Action Dispatcher", () => {
     ];
 
     const results = await executeActions(actions);
-    expect(results).toHaveLength(7);
+    expect(results).toHaveLength(6);
 
-    expect(arsenalHandlers.handleArsenalRunPython).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserCreateSession).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserCloseSession).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserNavigate).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserAct).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserExtract).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserObserve).toHaveBeenCalled();
+  });
+});
+
+describe("arsenal.runPython is retired: E2B_API_KEY is unset in prod and runCode covers the job", () => {
+  it("the action catalog the model is shown no longer offers it", () => {
+    expect(ACTION_CATALOG).not.toContain("arsenal.runPython");
+    expect(ACTION_CATALOG).not.toMatch(/E2B/);
+  });
+
+  it("a parsed arsenal.runPython action is refused as unknown, and no handler runs", async () => {
+    const parsed = parseActions("```action\n[{ \"type\": \"arsenal.runPython\", \"params\": { \"code\": \"print(1)\" } }]\n```");
+    const results = await executeActions(parsed);
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(false);
+    expect(results[0].error).toMatch(/Unknown action type: arsenal\.runPython/);
+  });
+
+  it("CONTROL · the browser actions next to it are still offered and still dispatch", async () => {
+    expect(ACTION_CATALOG).toContain("| arsenal.browserCreateSession |");
+    const [res] = await executeActions([{ type: "arsenal.browserCreateSession", params: {} }]);
+    expect(res.success).toBe(true);
   });
 });
 

@@ -33,8 +33,8 @@ describe("turn decision schema", () => {
       },
       mode: "deep",
       finalTaskType: "deep",
-      pythonExecuteIntent: false,
       actionIntent: false,
+      codeExecutionIntent: false,
       webSearchIntent: true,
       webSearchRecency: false,
     });
@@ -45,6 +45,25 @@ describe("turn decision schema", () => {
       needsDeepReasoning: true,
       needsBackgroundMission: null,
     });
+  });
+});
+
+describe("incumbentTurnDecision · code-execution ask (shadow label only)", () => {
+  const signal = {
+    complexity: "simple", intent: "factual", outputShape: "prose", urgency: "low", domain: "unknown",
+    temperature: 0.2, useChainOfThought: false, useTwoPassCritique: false, reasons: [],
+  } as never;
+  const decide = (codeExecutionIntent: boolean) =>
+    incumbentTurnDecision({
+      turnSignal: signal, mode: "standard", finalTaskType: "reason",
+      actionIntent: false, codeExecutionIntent, webSearchIntent: false, webSearchRecency: false,
+    });
+
+  it("a code-execution ask counts as needing tools and as an action request: the pruner offers runCode for it", () => {
+    expect(decide(true)).toMatchObject({ needsTools: true, actionRequest: true, needsWeb: false });
+  });
+  it("CONTROL · without it, a plain turn needs no tools", () => {
+    expect(decide(false)).toMatchObject({ needsTools: false, actionRequest: false });
   });
 });
 
@@ -64,8 +83,8 @@ describe("turn shadow comparison", () => {
       },
       mode: "standard",
       finalTaskType: "reason",
-      pythonExecuteIntent: false,
       actionIntent: false,
+      codeExecutionIntent: false,
       webSearchIntent: false,
       webSearchRecency: false,
     });

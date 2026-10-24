@@ -82,14 +82,8 @@ export const MORNING_JOBS: readonly string[] = [
   //     correct cadence regardless of which daily slot it lands in.
   "/api/cron/relationship-birthday",
   "/api/cron/kept-word-scan",
-  // 2026-06-02 · operator-authorized · the 2 Monday-only brain crons.
-  // The fan-out has no native Monday gate, so each route SELF-GATES on
-  // `getUTCDay() === 1` and no-ops the other 6 days (short-circuits
-  // before any DB/AI). Net: their intended weekly-Monday cadence, via
-  // the daily fan-out, WITHOUT the 7x AI spend that blind daily firing
-  // would cause. Idempotency + per-week guards live in each route.
-  "/api/cron/dossier-autodraft",
-  "/api/cron/greene-law-tag-refresh",
+  // dossier-autodraft and greene-law-tag-refresh moved to WEEKLY_JOBS on 2026-10-24:
+  // fired here daily, they skipped "not Monday" 12 of 14 times.
   // 2026-06-02 · v-truth · Nick Action Queue (NICK_AUTONOMY-gated). The
   // proposer + executor HARD-SKIP when the flag is off, so these are
   // inert while the flag is off.
@@ -195,13 +189,8 @@ export const EVENING_JOBS: readonly string[] = [
   // telemetry (≤3 tools/run, fast lane, idempotent per description
   // fingerprint). Drafts only — a human applies them in code.
   "/api/cron/tool-description-rewrite",
-  // 2026-08-19 · Brain truth pass · resurrected, same severed-joint story
-  // as refresh-identity and distill-sessions above: runSemanticLinker
-  // shipped 2026-05-02 and never got a caller — semantic_edges froze at
-  // 114 rows on 2026-05-28 (measured in prod), so the brain graph's
-  // memory-to-memory "related" edges have been fossils ever since.
-  // Idempotent, bounded (batch 25 · top-3 neighbors · pgvector KNN).
-  "/api/cron/semantic-link",
+  // 2026-10-24 · semantic-link is NOT here on purpose (parked, see config/crons.ts):
+  // it wrote about 22 edges a day that nothing reads. Re-add the path to revive it.
   // 2026-10-10 · /api/cron/autonomous-engine is NOT here on purpose. It moved to
   // the hourly automation-engine tick (lib/inngest/functions/automation-engine.ts):
   // its rules gate on daytime ET hours that this 22:00/23:00 ET slot never
@@ -235,6 +224,10 @@ export const WEEKLY_JOBS: readonly string[] = [
   // synthesis (which self-gates on the flag); the category reflections it
   // also writes are an operator-facing built feature that was dormant.
   "/api/cron/reflect-categories",
+  // 2026-10-24 · moved from MORNING_JOBS. Both routes self-gate on getUTCDay()===1;
+  // this run is Monday 03:00 UTC (Sunday night ET), so the gate passes.
+  "/api/cron/dossier-autodraft",
+  "/api/cron/greene-law-tag-refresh",
 ];
 
 /**

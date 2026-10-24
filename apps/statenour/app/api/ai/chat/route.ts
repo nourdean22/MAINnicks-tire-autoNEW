@@ -409,8 +409,8 @@ async function chatTurn({
     responseContract,
     finalTaskType,
     finalPreferLargeContext,
-    pythonExecuteIntent: __pythonExecuteIntent,
     actionIntent: __actionIntent,
+    codeExecutionIntent: __codeExecutionIntent,
     webSearchIntent: __webSearchIntent,
     webSearchRecency: __webSearchRecency,
   } = await deriveTurnSignals({
@@ -455,8 +455,8 @@ async function chatTurn({
     );
   }
 
-  // (python-execute / action / web-search intent detections moved into
-  // deriveTurnSignals above — destructured as __pythonExecuteIntent /
+  // (action / web-search intent detections moved into
+  // deriveTurnSignals above — destructured as
   // __actionIntent / __webSearchIntent to keep every downstream
   // reference byte-identical.)
 
@@ -478,8 +478,8 @@ async function chatTurn({
       turnSignal,
       mode,
       finalTaskType,
-      pythonExecuteIntent: __pythonExecuteIntent,
       actionIntent: Boolean(__actionIntent),
+      codeExecutionIntent: __codeExecutionIntent,
       webSearchIntent: __webSearchIntent,
       webSearchRecency: __webSearchRecency,
     });
@@ -527,7 +527,7 @@ async function chatTurn({
     // this push, so the override now lands on ollama for python-
     // execute turns. Strict tool_choice + qwen3 = tool fires
     // reliably + free tier covers our usage + 1M context window.
-    // Precedence: (1) tool-mandatory force (python-execute / action intent)
+    // Precedence: (1) tool-mandatory force (action intent)
     // pins a text-reliable provider (gemini or anthropic for high-stakes) for strict tool_choice — ALWAYS wins;
     // (2) a validated per-request user override; (3) default task ordering.
     // toolMandatoryForce is forced when an intent is active, so `??` can never let the user override clobber the tool force.
@@ -560,7 +560,7 @@ async function chatTurn({
     // getModel degrades it to the normal chain today, and it becomes
     // meaningful again the moment the key is configured.
     const toolMandatoryForce =
-      __pythonExecuteIntent || __actionIntent
+      __actionIntent
         ? isHighStakesMutation
           ? ("anthropic" as const)
           : ("ollama" as const)
@@ -646,7 +646,7 @@ async function chatTurn({
     if (toolMandatoryForce) {
       log.info("tool_provider_override", {
         forced: toolMandatoryForce,
-        reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
+        reason: "action_intent",
         highStakes: isHighStakesMutation,
       });
     } else if (validatedProviderOverride) {
@@ -1262,7 +1262,6 @@ ${priorsBlock}`;
       mode,
       maxOutputTokens,
       turnSignal,
-      pythonExecuteIntent: __pythonExecuteIntent,
       webSearchIntent: __webSearchIntent,
       actionIntent: __actionIntent,
       actionPermission,

@@ -116,8 +116,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // `battle: true` additionally offered it in the fast "read-only" mode.
   // The name was the only thing claiming this was a proposal.
   { name: "proposeCalendarEvent",         category: "personal_write", sideEffecting: true, cost: "free" },
-  // v10.0.515 · #3 E2B code sandbox · cost is bounded by E2B free tier (100 runs/day)
-  { name: "runPython",                    category: "ai_analysis",                   cost: "cheap", riskClass: "critical", requiredEnv: ["E2B_API_KEY"] },
   // v10.0.515 · #10 Document Q&A · cheap (one embedding call + DB knn)
   { name: "searchDocuments",              category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
   // 2026-09-17 · REFLAGGED. Its own implementation (tools/system.ts:292-299)
@@ -236,7 +234,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.74 · searchBrainDumps retired — searchReflections is the
   // canonical superset (Reflection rows + BrainDump entries + date range).
   { name: "searchColdMemory",             category: "brain",          cost: "cheap" },
-  { name: "searchSkills",                  category: "brain",          cost: "cheap" },
   { name: "searchGreeneLaws",             category: "brain",          battle: true, cost: "free" },
   { name: "searchMemories",               category: "brain",          battle: true, cost: "free" },
   { name: "searchReflections",            category: "brain",          battle: true, cost: "free" },
@@ -324,12 +321,12 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getFleetTruth",                category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
   { name: "fetchVideoTranscript",         category: "research",       battle: true,  cost: "cheap",  riskClass: "low" },
   // 2026-08-13 · BDN-201/207 · mid-turn recovery lane + read-only sandbox.
-  // invokeTool/queryData proxy READ-SAFE tools only (fail-closed via
+  // invokeTool proxies READ-SAFE tools only (fail-closed via
   // capability-registry at call time) — hence not sideEffecting; medium
-  // risk because they execute model-chosen names / model-written code.
+  // risk because it executes model-chosen names. (queryData, the read-only
+  // JS sandbox, was removed 2026-10-24: searchTools + invokeTool cover it.)
   { name: "searchTools",                  category: "ai_analysis",    battle: true,  cost: "free",   riskClass: "low" },
   { name: "invokeTool",                   category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
-  { name: "queryData",                    category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
 ];
 
 /** Fast lookup: name → meta. Built once. */
@@ -372,7 +369,7 @@ export const TOOL_COUNT = TOOL_CATALOG.length;
 export function getToolRiskClass(name: string, meta?: ToolMeta | null): "low" | "medium" | "high" | "critical" {
   const actualMeta = meta ?? getToolMeta(name);
   if (actualMeta?.riskClass) return actualMeta.riskClass;
-  if (name === "runCode" || name === "runPython" || name === "runDeviceCommand") {
+  if (name === "runCode" || name === "runDeviceCommand") {
     return "critical";
   }
   if (actualMeta?.sideEffecting) {

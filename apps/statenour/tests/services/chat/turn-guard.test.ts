@@ -13,7 +13,6 @@
  *   user row, replies unreadable         -> refuse 503 turn_unreadable       (an attempt exists; its outcome is unknown)
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
 
 type Row = {
   id: string;
@@ -524,11 +523,6 @@ describe("an agent follow-up is not the answer to the message", () => {
     h.rows = [user("U1", "m-1", 1_000), reply("R1", 2_000, null)];
     expect((await refused(await guard({ trigger: "regenerate-message" }))).body.code).toBe("turn_ran");
     expect((await refused(await guard({ trigger: "submit-message" }))).body.code).toBe("turn_answered");
-  });
-
-  it("the marker is the one run-follow-up.ts writes", () => {
-    const source = readFileSync("lib/agent/run-follow-up.ts", "utf8");
-    expect(source).toContain(`export const FOLLOWUP_MARKER = "${FOLLOW_UP_ROUTER_REASON}";`);
   });
 });
 

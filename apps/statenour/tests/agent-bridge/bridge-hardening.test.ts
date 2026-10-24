@@ -212,13 +212,13 @@ describe("MCP tool refusal · denied calls are audited", () => {
     expect(denied[0].scope).toBe("read");
   });
 
-  it("a protected op (runPython) is refused AND audited as denied, not silently unknown", async () => {
+  it("a protected op (runDeviceCommand) is refused AND audited as denied, not silently unknown", async () => {
     const res = await mcpToolCall(
       { clientId: "tasks-client", scope: "tasks" },
-      "run_python",
+      "run_device_command",
     );
     expect((res as any)?.error?.code).toBe(-32602);
-    const denied = auditLines().filter((a) => a.status === "denied" && a.toolName === "runPython");
+    const denied = auditLines().filter((a) => a.status === "denied" && a.toolName === "runDeviceCommand");
     expect(denied.length, "a HARD_DENY refusal must be audited, not returned as unknown").toBe(1);
     expect(denied[0].riskClass).toBe("critical"); // effective risk still recorded
   });

@@ -242,11 +242,11 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "approval-sweeper",
-    schedule: "*/5 * * * *",
+    schedule: "0 * * * *",
     mode: "active",
     category: "hygiene",
     inngest: true,
-    description: "Cleans up expired or stalled approval requests — Inngest-native.",
+    description: "Hourly · cleans up expired or stalled approval requests, Inngest-native. Was every 5 min until 2026-10-24: 4,032 runs in 14 days did no work.",
   },
 
   // ── COMPOSE ─────────────────────────────────────────────────────────
@@ -413,11 +413,10 @@ export const CRONS: CronDef[] = [
   {
     name: "semantic-link",
     schedule: null,
-    mode: "folded",
+    mode: "dormant",
     category: "hygiene",
-    foldedInto: "mega-evening",
     description:
-      "FOLDED into mega-evening · Brain truth pass · embedding-based cross-memory linker (runSemanticLinker, batch 25 · top-3 pgvector KNN neighbors → SemanticEdge upserts). Shipped 2026-05-02 and never had a caller — semantic_edges froze at 114 rows on 2026-05-28; this re-grows the brain graph's memory-to-memory tissue nightly.",
+      "PARKED 2026-10-24 · it wrote about 22 semantic edges a day (20,689 total) and the only reader, lib/brain/brain-graph.ts via /api/brain/graph, has no in-repo caller (1 mobile hit in 14 days). The route, the code and the semantic_edges table stay; to revive, add /api/cron/semantic-link back to EVENING_JOBS in lib/inngest/jobs.ts. Embedding-based cross-memory linker (runSemanticLinker, batch 25, top-3 pgvector KNN neighbors, SemanticEdge upserts).",
     addedAt: "2026-08-19",
     maxDuration: 120,
   },
@@ -514,31 +513,14 @@ export const CRONS: CronDef[] = [
   {
     // 2026-07-25 · durable-outbox drain (audit P1). 2026-07-28 blueprint:
     // nightly-only meant a crashed turn's receipts waited up to 24h — now
-    // ALSO fired every 15 min by the worker's node-cron. Claim is atomic
+    // ALSO fired hourly by the worker's node-cron. Claim is atomic
     // first-claimant-wins, so both dispatch paths coexist safely.
-    name: "agent-followups",
-    schedule: "*/15 * * * *",
-    // ACTIVE since 2026-10-02 (operator: "turn that on"). This cron is the
-    // only thing that can deliver an unprompted message, so it still sits
-    // behind two more independent switches: NICK_AGENT_FOLLOWUPS=1 on the
-    // web service, and the per-cron kill switch at /system/crons. The
-    // worker fires it every 15 min (apps/worker/src/scheduler.ts
-    // HIGH_FREQ_JOBS); claimDueFollowUps is first-claimant-wins.
-    mode: "active",
-    category: "hygiene",
-    worker: true,
-    description:
-      "Delivers follow-ups the agent scheduled for itself (post_turn_outbox kind=agent-followup). Worker every 15 min; also gated by NICK_AGENT_FOLLOWUPS=1 + the kill switch.",
-    memory: 512,
-    maxDuration: 300,
-  },
-  {
     name: "outbox-drain",
-    schedule: "*/15 * * * *",
+    schedule: "0 * * * *",
     mode: "active",
     category: "hygiene",
     worker: true,
-    description: "Every 15 min via worker node-cron (+ nightly mega-evening backstop) · replays orphaned post-turn chat work from post_turn_outbox.",
+    description: "Hourly via worker node-cron (+ nightly mega-evening backstop) · replays orphaned post-turn chat work from post_turn_outbox.",
     memory: 512,
     maxDuration: 300,
   },
@@ -822,34 +804,28 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "dossier-autodraft",
-    schedule: "0 9 * * 1",
-    // 2026-06-02 · WIRED + ACTIVE (operator-authorized). The mega fan-out
-    // has no Monday day-gate, so the ROUTE self-gates on getUTCDay()===1
-    // (Monday UTC) and no-ops the other 6 days -- weekly-Monday cadence
-    // through the daily MORNING_JOBS fan-out without the 7x AI spend that
-    // blind daily firing would cause. (Alt was an Inngest-native 0 4 * * 1
-    // trigger; the route-local self-gate is the simpler, lower-risk fix.)
-    // 2026-07-09 sweep: schedule string now states the effective slot —
-    // Monday 9:00 UTC (mega-morning run that passes the self-gate).
+    schedule: "0 3 * * 1",
+    // 2026-06-02 · WIRED + ACTIVE (operator-authorized). 2026-10-24: moved from
+    // the daily morning fan-out to the weekly one (WEEKLY_JOBS, appended on the
+    // Sunday-ET evening run = Monday 03:00 UTC). The morning slot fired it daily
+    // and the route skipped "not Monday" 12 of 14 times. The route keeps its
+    // getUTCDay()===1 self-gate as a backstop for a manual run.
     mode: "active",
     category: "brain",
-    description: "Monday via mega-morning fan-out (route self-gates to Monday UTC) · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
+    description: "Monday via the weekly evening fan-out (route self-gates to Monday UTC) · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
     memory: 1024,
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
   {
     name: "greene-law-tag-refresh",
-    schedule: "0 9 * * 1",
-    // 2026-06-02 · WIRED + ACTIVE (operator-authorized). Same self-gate
-    // pattern as dossier-autodraft: the route checks getUTCDay()===1
-    // (Monday UTC) and no-ops the other 6 days, so it gets its weekly
-    // cadence through the daily MORNING_JOBS fan-out without 7x AI spend.
-    // 2026-07-09 sweep: schedule string now states the effective slot —
-    // Monday 9:00 UTC (mega-morning run that passes the self-gate).
+    schedule: "0 3 * * 1",
+    // 2026-06-02 · WIRED + ACTIVE (operator-authorized). 2026-10-24: weekly
+    // fan-out like dossier-autodraft (see its note); the route keeps its
+    // getUTCDay()===1 self-gate as a backstop.
     mode: "active",
     category: "brain",
-    description: "Wave Z · Monday via mega-morning fan-out (route self-gates to Monday UTC) · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
+    description: "Wave Z · Monday via the weekly evening fan-out (route self-gates to Monday UTC) · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
     memory: 512,
     maxDuration: 120,
     addedAt: "2026-05-27",

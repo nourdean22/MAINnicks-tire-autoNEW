@@ -25,16 +25,16 @@ An Express 5 + node-cron process on Railway's internal network (nickstire's serv
 **Source files** (`ls src`): `src/index.ts`, `src/listen.ts`, `src/scheduler.ts`, `src/forward.ts`, `src/storage.ts`,
 `src/renderPlan.ts`. It does two things:
 
-1. **Forwards the worker-owned cron ticks** (`HIGH_FREQ_JOBS` in `scheduler.ts`) to statenour-web. It holds no business logic for
+1. **Forwards the worker-owned cron ticks** (`HIGH_FREQ_JOBS`, `scheduler.ts:122-170`) to statenour-web. It holds no business logic for
    those jobs: each tick is an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a
    `Bearer CRON_SECRET`, a 60s timeout and a per-job overlap guard — a slow forward skips the next
-   tick instead of stacking. Registered in `scheduler.ts`: `brain-bus-drain`, `outbox-drain`,
-   `inngest-liveness`, `agent-followups`, and `device-heartbeat-sentinel`.
+   tick instead of stacking. Registered in `scheduler.ts:122-170`: `brain-bus-drain` (`:134`), `outbox-drain` (`:144`),
+   `inngest-liveness` (`:157`), and `device-heartbeat-sentinel` (`:166`).
    **There are no worker `POST /cron/mega*` entry points anymore.** Q-36 removed them after live
    Railway inspection on 2026-09-29 showed zero Railway cron services/jobs in the project and no
    cron schedule on the worker itself. Daily/weekly mega ownership lives in StateNour/Inngest.
-2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:189`;
-   cron registered at `:422`, tick at `:426`):
+2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:178`;
+   cron registered at `:365`, tick at `:369`):
    polls `/api/sync/queue/render` for approved drafts, picks the template with `planRender`
    (`renderPlan.ts`: a customer-review video only from a declared review with a name, a 1-5 rating
    and the text; an alert as before; anything else is refused before rendering), renders MP4 locally
@@ -79,8 +79,8 @@ This section is canonical: if you change the env contract, change it here first,
   authority that checks derived state turns a blip into a restart storm. Scheduler freshness rides
   in the BODY as diagnostics only.
 - **`GET /health/scheduler` is the freshness signal** — 503 when the newest tick is older than
-  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:110`,
-  input `TICK_WRITING_SCHEDULES` `:195`) takes the fastest schedule that writes `lastTickAt` and
+  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:107`,
+  input `TICK_WRITING_SCHEDULES` `:184`) takes the fastest schedule that writes `lastTickAt` and
   allows two missed fires plus 5 min jitter — today `*/15` -> **35 min**. Change a cron and the
   window follows. **Never point `healthcheckPath` at this endpoint.** Safe to alert on; nothing
   restarts on it.

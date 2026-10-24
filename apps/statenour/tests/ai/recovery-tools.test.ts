@@ -63,17 +63,6 @@ describe("invokeTool · fail-closed gates (BDN-201)", () => {
     }
   });
 
-  it("CAN invoke queryData (no cycle exists: its sandbox whitelist excludes invokeTool)", async () => {
-    const res = (await asAny.invokeTool.execute({
-      name: "queryData",
-      args: { code: "return 2 + 2;" },
-    })) as Record<string, unknown>;
-    expect(res.error).toBeUndefined();
-    const inner = res.result as { success?: boolean; result?: unknown };
-    expect(inner.success).toBe(true);
-    expect(inner.result).toBe(4);
-  });
-
   it("refuses unknown tool names with a pointer to searchTools", async () => {
     const res = (await asAny.invokeTool.execute({ name: "definitelyNotATool", args: {} })) as Record<string, unknown>;
     expect(String(res.error)).toMatch(/unknown tool/);
@@ -87,31 +76,5 @@ describe("invokeTool · fail-closed gates (BDN-201)", () => {
     const res = (await asAny.invokeTool.execute({ name: "createTask", args: {} })) as Record<string, unknown>;
     expect(String(res.error)).toMatch(/not read-safe|unknown tool/);
     expect(res.result).toBeUndefined();
-  });
-});
-
-describe("queryData · whitelist sandbox (BDN-207)", () => {
-  it("runs pure computation and returns the value", async () => {
-    const res = (await asAny.queryData.execute({
-      code: "return [1,2,3].reduce((s,v)=>s+v,0);",
-    })) as Record<string, unknown>;
-    expect(res.success).toBe(true);
-    expect(res.result).toBe(6);
-  });
-
-  it("surfaces a whitelist violation as an error, not a silent pass", async () => {
-    const res = (await asAny.queryData.execute({
-      code: "return await api.call('createTask', {title:'x'});",
-    })) as Record<string, unknown>;
-    expect(res.success).toBe(false);
-    expect(String(res.error)).toMatch(/whitelist/);
-  });
-
-  it("exposes the whitelist read-only via api.tools", async () => {
-    const res = (await asAny.queryData.execute({
-      code: "return api.tools.includes('getTasks');",
-    })) as Record<string, unknown>;
-    expect(res.success).toBe(true);
-    expect(res.result).toBe(true);
   });
 });
