@@ -23,6 +23,11 @@ const flags: Record<string, boolean> = {};
 vi.mock("@/lib/feature-flags", () => ({ getFlag: (k: string) => ({ isOn: flags[k] ?? false }) }));
 
 const generateText = vi.fn();
+const recordToolInvocation = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/lib/ai/tool-telemetry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/tool-telemetry")>()),
+  recordToolInvocation,
+}));
 vi.mock("ai", () => ({ generateText: (...a: unknown[]) => generateText(...a), stepCountIs: () => () => false }));
 vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => ({}) }));
 // The persist event and the text each buffered lane ships (audit 04-X12, 04-X11).
@@ -256,33 +261,69 @@ describe("buffered lanes count every paid generation (audit 04-X12)", () => {
   });
 });
 
-describe("sampled lanes hand the persist walk the WINNER's steps, so tool_telemetry records the call", () => {
-  const stepOf = (toolName: string) => [{ toolCalls: [{ toolName, toolCallId: `id-${toolName}`, input: {} }], toolResults: [{ toolName, toolCallId: `id-${toolName}`, output: { ok: true } }] }];
+describe("every executed sample's tool calls reach tool_telemetry exactly once; tool.chosen stays winner-only", () => {
+  const stepOf = (toolName: string, output: unknown = { ok: true }) => [
+    { toolCalls: [{ toolName, toolCallId: `id-${toolName}`, input: {} }], toolResults: [{ toolName, toolCallId: `id-${toolName}`, output }] },
+  ];
+  const settle = () => new Promise((r) => setTimeout(r, 30));
+  // The recorder is fire-and-forget, so an earlier test's samples can land after its own
+  // assertions: let them drain, then clear, so this window holds only this test's calls.
+  beforeEach(async () => {
+    await settle();
+    recordToolInvocation.mockClear();
+  });
+  const recordedNames = () => recordToolInvocation.mock.calls.map((c) => (c[0] as { toolName: string }).toolName).sort();
 
-  it("verified regen: the persist event carries the steps of the generation whose text won, not the loser's", async () => {
+  it("verified regen: the LOSING draft's tool call is recorded too (with its real failure); the chosen names stay the winner's", async () => {
     flags.NICK_VERIFIED_REGEN = true;
     regenWinner = "The winning reply about the shop hours.";
-    const loserSteps = stepOf("searchMemories");
-    const winnerSteps = stepOf("getCommitments");
     let n = 0;
     generateText.mockImplementation(async () => {
       n += 1;
       return n === 1
-        ? { text: "A losing draft.", steps: loserSteps, toolCalls: [], toolResults: [] }
-        : { text: regenWinner, steps: winnerSteps, toolCalls: [], toolResults: [] };
+        ? { text: "A losing draft.", steps: stepOf("searchMemories", { error: "db down" }), toolCalls: [], toolResults: [] }
+        : { text: regenWinner, steps: stepOf("getCommitments"), toolCalls: [], toolResults: [] };
     });
     expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    await vi.waitFor(() => expect(recordedNames()).toEqual(["getCommitments", "searchMemories"]));
+    await settle();
+    expect(recordToolInvocation).toHaveBeenCalledTimes(2);
+    expect(recordToolInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({ toolName: "searchMemories", success: false, errorMessage: "db down" }),
+    );
     expect(persistEvents[0].laneToolNames).toEqual(["getCommitments"]);
-    expect(persistEvents[0].laneTelemetrySteps).toBe(winnerSteps);
+    // The persist walk must not record them a second time.
+    expect(persistEvents[0]).not.toHaveProperty("laneTelemetrySteps");
   });
 
-  it("control: a winner no sample matches stays blind, with no steps guessed", async () => {
+  it("self-consistency that falls through to the streaming path: all three samples are recorded once, and nothing is left for the stream to double", async () => {
+    flags.NICK_SELF_CONSISTENCY = true;
+    generateText.mockImplementation(async () => ({ text: "same answer", steps: stepOf("getTasks"), toolCalls: [], toolResults: [] }));
+    expect(await runAlternatePaths(base("how many open tasks do I have", {}, "factual"))).toBeNull();
+    await vi.waitFor(() => expect(recordToolInvocation).toHaveBeenCalledTimes(3));
+    await settle();
+    expect(recordToolInvocation).toHaveBeenCalledTimes(3);
+    expect(persistEvents).toHaveLength(0);
+  });
+
+  it("CONTROL · a sample that executed no tool records nothing", async () => {
     flags.NICK_VERIFIED_REGEN = true;
-    regenWinner = "A synthesised reply no generation produced.";
-    generateText.mockImplementation(async () => ({ text: "something else", steps: stepOf("getTasks"), toolCalls: [], toolResults: [] }));
+    regenWinner = "A plain reply.";
+    generateText.mockImplementation(async () => ({ text: regenWinner, steps: [], toolCalls: [], toolResults: [] }));
     expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
-    expect(persistEvents[0].laneTelemetrySteps).toBeUndefined();
-    expect(persistEvents[0].laneReceiptsAvailable).toBe(false);
+    await settle();
+    expect(recordToolInvocation).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL · the pre-flush lane records nothing here: its single generation is recorded by the persist walk from ev.steps", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    const steps = stepOf("getCommitments");
+    generateText.mockImplementation(async () => ({ text: "Here are five podcasts.", steps, toolCalls: [], toolResults: [] }));
+    expect(await runAlternatePaths(base("recommend 5 podcasts on stoicism worth following", {}))).toBeInstanceOf(Response);
+    await settle();
+    expect(recordToolInvocation).not.toHaveBeenCalled();
+    expect(persistEvents[0].steps).toBe(steps);
   });
 });
 

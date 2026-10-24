@@ -1,20 +1,17 @@
 /**
- * Canaries for the tool_telemetry undercount on lane-sourced turns.
+ * The ONE tool_telemetry recorder, and the lane turns that must not double it.
  *
- * WHY THIS FILE EXISTS. tool_telemetry showed 4 tools with a call in 14 days
- * while system_metrics `tool.chosen` showed 17 distinct tools chosen
- * (census 2026-10-23). The regen and self-consistency lanes in
- * `alternate-paths.ts` hand the persist walk NO `ev.steps`, only the names of
- * the winning generation, so the walk wrote `tool.chosen` but never called
- * `recordToolInvocation`. A tool called on those turns left no
- * `tool_telemetry` row, and the three readers of that table (/system/tools,
- * the circuit breaker, the tool-description-rewrite cron) saw a smaller world
- * than the one that ran.
+ * tool_telemetry showed 4 tools with a call in 14 days while system_metrics
+ * `tool.chosen` showed 17 distinct tools chosen (census 2026-10-23). The regen
+ * and self-consistency lanes in `alternate-paths.ts` ran several generations,
+ * kept one reply, and handed the persist walk only the winner's tool NAMES.
+ * The walk records a call only from a step, so those tools left no row.
  *
- * The fix keeps ONE recorder: the lane hands the winning generation's own
- * steps to the walk, and the walk records them through the same loop it uses
- * for the streaming path, with real success and duration. It never invents an
- * outcome from a bare name.
+ * The fix: `recordToolObservations` is the single recorder. The streaming and
+ * pre-flush paths reach it through `walkToolTelemetry` (ev.steps); the sampled
+ * lanes call it once per executed sample (tests/ai/chat/
+ * alternate-paths-no-mutating-tools.test.ts). The walk never records a lane
+ * turn from names, so nothing is recorded twice.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,8 +27,7 @@ vi.mock("@/lib/ai/tool-telemetry", () => ({
 }));
 vi.mock("@/lib/services/metrics", () => ({ recordMetric, recordMetricStrict }));
 
-import { walkToolTelemetry } from "@/lib/services/chat/tool-telemetry-walk";
-import { attributeWinningSample } from "@/lib/services/chat/lane-sample-attribution";
+import { recordToolObservations, walkToolTelemetry } from "@/lib/services/chat/tool-telemetry-walk";
 
 /** One finished SDK step: a call and its returned value. */
 function step(toolName: string, output: unknown, id = `tc-${toolName}`) {
@@ -41,61 +37,51 @@ function step(toolName: string, output: unknown, id = `tc-${toolName}`) {
   };
 }
 
-/** A lane turn: no ev.steps, the winning generation's steps ride beside it. */
-function laneTurn(steps: unknown[], names: string[]) {
-  return {
-    ev: { text: "hi", finishReason: "stop" },
-    convId: "c-lane",
-    traceId: "t-lane",
-    lane: "self-consistency",
-    laneToolNames: names,
-    laneReceiptsAvailable: true,
-    laneTelemetrySteps: steps,
-  } as never;
-}
-
 beforeEach(() => {
   recordToolInvocation.mockClear();
   recordMetricStrict.mockClear();
 });
 
-describe("walkToolTelemetry · lane-sourced turns", () => {
-  it("records each tool the winning generation called, with its real outcome", () => {
-    walkToolTelemetry(
-      laneTurn([step("getCommitments", { items: [] }), step("getTodaySchedule", { events: [] })], [
-        "getCommitments",
-        "getTodaySchedule",
-      ]),
+describe("recordToolObservations", () => {
+  it("records each call once with its real outcome and returns the same calls", () => {
+    const captured = recordToolObservations(
+      { steps: [step("getCommitments", { items: [] }), step("getTodaySchedule", { events: [] })] },
+      "c-lane",
     );
-    const names = recordToolInvocation.mock.calls.map((c) => c[0].toolName).sort();
-    expect(names).toEqual(["getCommitments", "getTodaySchedule"]);
+    expect(recordToolInvocation.mock.calls.map((c) => c[0].toolName).sort()).toEqual(["getCommitments", "getTodaySchedule"]);
     expect(recordToolInvocation).toHaveBeenCalledWith(
       expect.objectContaining({ toolName: "getCommitments", success: true, conversationId: "c-lane" }),
     );
+    expect(captured.map((c) => c.name).sort()).toEqual(["getCommitments", "getTodaySchedule"]);
   });
 
-  // empty-vs-error: a lane tool that returned { error } is a FAILURE row, not
-  // a success row and not a missing row.
-  it("a lane tool that soft-failed is recorded as a failure, never as a success", () => {
-    walkToolTelemetry(laneTurn([step("getTodaySchedule", { error: "calendar offline" })], ["getTodaySchedule"]));
+  // empty-vs-error: a tool that returned { error } is a FAILURE row, not a success row
+  // and not a missing row.
+  it("a tool that soft-failed is recorded as a failure, never as a success", () => {
+    recordToolObservations({ steps: [step("getTodaySchedule", { error: "calendar offline" })] }, undefined);
     expect(recordToolInvocation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolName: "getTodaySchedule",
-        success: false,
-        errorMessage: "calendar offline",
-      }),
+      expect.objectContaining({ toolName: "getTodaySchedule", success: false, errorMessage: "calendar offline" }),
     );
   });
 
-  // The claim verifier and the evidence gate read the walk's return value.
-  // Recording telemetry for a lane must not change what they see.
-  it("does not feed lane calls into the captured-call buffer the verifiers read", () => {
-    const captured = walkToolTelemetry(laneTurn([step("getCommitments", {})], ["getCommitments"]));
-    expect(captured).toEqual([]);
+  it("CONTROL · a generation that ran no tool records nothing", () => {
+    expect(recordToolObservations({ steps: [] }, "c1")).toEqual([]);
+    expect(recordToolObservations({}, "c1")).toEqual([]);
+    expect(recordToolInvocation).not.toHaveBeenCalled();
+  });
+});
+
+describe("walkToolTelemetry · who records what", () => {
+  it("a streaming turn records each call once, through the same recorder", () => {
+    const captured = walkToolTelemetry({ ev: { steps: [step("getTasks", { tasks: [] })] }, convId: "c1" });
+    expect(recordToolInvocation).toHaveBeenCalledTimes(1);
+    expect(captured.map((c) => c.name)).toEqual(["getTasks"]);
   });
 
-  // Never invent an outcome. Names alone carry no success or duration.
-  it("a lane that supplied names but no steps records nothing and says so in tool.chosen", async () => {
+  // The sampled lanes already recorded their samples when they ran. A lane turn reaches the
+  // walk with names only, and the walk must neither invent a row from a bare name nor
+  // double the samples.
+  it("a lane turn (names, no steps) records nothing here and says so in tool.chosen", async () => {
     walkToolTelemetry({
       ev: { text: "hi" },
       convId: "c1",
@@ -107,38 +93,6 @@ describe("walkToolTelemetry · lane-sourced turns", () => {
     expect(recordToolInvocation).not.toHaveBeenCalled();
     await new Promise((r) => setTimeout(r, 0));
     const chosen = recordMetricStrict.mock.calls.find((c) => c[0] === "tool.chosen");
-    expect((chosen?.[2] as { tags: Record<string, unknown> }).tags.source).toBe("lane");
-  });
-
-  // POSITIVE CONTROL for the streaming path: the same step recorded once, and
-  // lane steps never double it when ev.steps is present.
-  it("streaming turns still record once, and ev.steps wins over lane steps", () => {
-    walkToolTelemetry({
-      ev: { steps: [step("getTasks", { tasks: [] })] },
-      convId: "c1",
-      laneTelemetrySteps: [step("getTasks", { tasks: [] })],
-    } as never);
-    expect(recordToolInvocation).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("attributeWinningSample · carries the winner's steps", () => {
-  const winnerSteps = [step("getCommitments", {})];
-  const samples = [
-    { text: "a", calls: ["searchMemories"], steps: [step("searchMemories", {})] },
-    { text: "b", calls: ["getCommitments"], steps: winnerSteps },
-  ];
-
-  it("returns the steps of the generation that won, not the losers", () => {
-    const a = attributeWinningSample({ samples, winningText: "b", alreadyAvailable: false });
-    expect(a?.steps).toBe(winnerSteps);
-  });
-
-  it("stays blind (null) when the winner is ambiguous, so no steps are guessed", () => {
-    const tie = [
-      { text: "same", calls: ["getTasks"], steps: [step("getTasks", {})] },
-      { text: "same", calls: ["getCommitments"], steps: [step("getCommitments", {})] },
-    ];
-    expect(attributeWinningSample({ samples: tie, winningText: "same", alreadyAvailable: false })).toBeNull();
+    expect((chosen?.[2] as { tags: Record<string, unknown> }).tags).toMatchObject({ source: "lane", tools: ["getTasks"] });
   });
 });

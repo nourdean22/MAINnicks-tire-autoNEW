@@ -24,15 +24,11 @@ export interface LaneSample {
   text: string;
   /** Tool names that generation invoked, in call order. */
   calls: string[];
-  /** The generation's own SDK steps, so the persist walk can record each call with its real outcome. */
-  steps?: unknown[];
 }
 
 export interface LaneAttribution {
   toolNames: string[];
   receiptsAvailable: true;
-  /** The winning generation's steps (same identity rule as the names), when it kept them. */
-  steps?: unknown[];
 }
 
 /**
@@ -78,5 +74,5 @@ export function attributeWinningSample(args: {
   const ambiguous = matches.some((m) => JSON.stringify(m.calls) !== first);
   if (ambiguous) return null;
 
-  return { toolNames: [...matches[0].calls], receiptsAvailable: true, steps: matches[0].steps };
+  return { toolNames: [...matches[0].calls], receiptsAvailable: true };
 }

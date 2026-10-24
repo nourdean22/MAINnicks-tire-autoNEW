@@ -480,9 +480,6 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         traceId,
         laneToolNames: (ev as { laneToolNames?: ReadonlyArray<string> }).laneToolNames,
         laneReceiptsAvailable: (ev as { laneReceiptsAvailable?: boolean }).laneReceiptsAvailable,
-        // The winning generation's steps from a sampled lane (regen, self-consistency),
-        // so its tool calls reach tool_telemetry like the streaming path's do.
-        laneTelemetrySteps: (ev as { laneTelemetrySteps?: unknown[] }).laneTelemetrySteps,
         // Which lane ran. Absent for the streaming fallthrough, which is the
         // only path that never enters alternate-paths.ts — so the tag's default
         // is "streaming" rather than "unknown".
