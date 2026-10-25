@@ -1,6 +1,10 @@
 # Reel pack: warmth reviews (aired 2026-10-25)
 
 Written after the post, from the local build record. It is a record of what aired plus the method, not a draft to post.
+
+BLOCKED: NO MOTION ROUTE (aired record, already posted 2026-10-25. Do not re-render, re-post or queue it. The marker is
+the one `scripts/build-reel-triage.mjs` reads to mark a pack dead, so `pnpm run triage:reels` lists it as aired, not as a draft.)
+
 Build files: `C:\Users\nourd\NattyNour\shop-media\reels-draft\warmth-2026-10-25\v2\` (build.md, receipts.txt, captions.srt).
 Format research it follows (summarised, not pasted): `C:\Users\nourd\NattyNour\shop-media\research\reels-formats.md`.
 
@@ -39,7 +43,7 @@ On-screen captions: `captions.srt` in this folder.
 | 6 | 14.5-17.0 (75 frames) | generated `gen\tire-row.png`, left-to-right pan, no zoom | Walk in any day. Seven days a week. | Generated: no people, hands, plates or lettering |
 | 7 | 17.0-19.0 (60 frames) | 476 `post3-storefront.jpg`, end card | Nick's Tire & Auto / 17625 Euclid Ave / Walk-ins 7 days / Quoted lines from Google reviews, word for word. | Plate hidden by banner; no people |
 
-Beats 2 to 4 are quotes from public Google reviews, kept word for word. Beat 6 is the shop's own words and carries no
+Beats 2 to 5 are quotes from public Google reviews, kept word for word (review text in `apps/nickstire/docs/warmth-proof-2026-10-24.md`). Beat 6 is the shop's own words and carries no
 quotation marks. Still 814 is not used.
 
 ## Voice and sound chain
@@ -49,7 +53,13 @@ quotation marks. Still 814 is not used.
   respectful. An inspection before any work. A comfortable wait. Walk in any day, seven days a week."
 - Placement (s): 0.31-3.46, 3.87-5.00, 5.88-7.35, 9.09-9.92, 14.70-16.75. The last sentence sits on beat 6. The end
   card is music only.
-- Music: `calm-valley-sunset-mixkit-127.mp3` from 8.0 s, Mixkit Stock Music Free License. Base -22 LUFS, 12 dB duck over
+- Music rights (from `apps/nickstire/assets/reel-music/LICENSE.md`; no separate rights ledger exists): file
+  `calm-valley-sunset-mixkit-127.mp3`, Mixkit "Valley Sunset", asset id 127; source URL pattern
+  `https://assets.mixkit.co/music/127/127.mp3`; acquired 2026-10-10; license Mixkit Stock Music Free License
+  (https://mixkit.co/license/#musicFree), scope: free for personal and commercial use in videos, social media and online
+  ads, no attribution, no redistribution on its own; territory UNKNOWN (not recorded in LICENSE.md); expiry UNKNOWN (none
+  recorded); organic or ad clearance: license text lists social media and online ads, but no repo record confirms
+  clearance for this post, so UNKNOWN. Treatment: from 8.0 s. Base -22 LUFS, 12 dB duck over
   each speech window, 0.5 s fade in, 1.0 s fade out. Mix to -16 LUFS, peak limiter at -2.5 dBFS.
 
 ## Receipts (from `receipts.txt`, run after the build)
@@ -84,7 +94,7 @@ quotation marks. Still 814 is not used.
    "Quoted lines from Google reviews, word for word." disclosure.
 3. The muted-first rule (`validateMutedFirstClarity`: every beat has text) was met; all seven beats carry text.
 
-## Method, five steps (reuse for reel 3)
+## Method, seven steps (reuse for reel 3)
 
 1. Pick the claim and its proof. Here: public Google review lines, copied word for word. Declare the one ask once.
 2. Match each line to one real 3 s shot from the library. Check each shot for plates and faces; blur or crop what shows.
@@ -94,5 +104,7 @@ quotation marks. Still 814 is not used.
 4. Mix: licensed Mixkit bed ducked under speech, mix to -16 LUFS, limiter at -2.5 dBFS. One ask, end card only: a 2.0 s
    card of at most 8 words (for example "Nick's Tire & Auto" and "Walk-ins 7 days", with the address in the caption). Put any "word for word" disclosure in the
    caption, not on the card. Name any generated still and its beat in the pack, as above.
-5. Run the receipts script (ffprobe, frame MD5s, ebur128, silencedetect), view `beats.jpg`, then hand to Nour. Post only
-   on his go, through publishToSocial.
+5. Run the receipts script (ffprobe, frame MD5s, ebur128, silencedetect), view `beats.jpg`.
+6. Before handoff, a person plays the final file once with sound on and records who, when and what they heard in
+   `build.md`. Numbers alone do not count as a listen (both 2026-10-25 cuts went out judged by numbers only).
+7. Hand to Nour. Post only on his go, through publishToSocial.

@@ -1,6 +1,10 @@
 # Reel pack: mount, balance, torque (aired 2026-10-25)
 
 Written after the post, from the local build record. It is a record of what aired plus the method, not a draft to post.
+
+BLOCKED: NO MOTION ROUTE (aired record, already posted 2026-10-25. Do not re-render, re-post or queue it. The marker is
+the one `scripts/build-reel-triage.mjs` reads to mark a pack dead, so `pnpm run triage:reels` lists it as aired, not as a draft.)
+
 Build files: `C:\Users\nourd\NattyNour\shop-media\reels-draft\mount-balance-2026-10-25\` (build.md, receipts.txt,
 captions.srt, caption.txt). Format research (summarised, not pasted): `C:\Users\nourd\NattyNour\shop-media\research\reels-formats.md`
 ("The 19 s flagship (mounting/balancing)").
@@ -64,7 +68,13 @@ for the hook and beat 6, brand yellow 124 for the step labels. No prices, times,
 - Speech windows in the final (s): 4.25-5.58, 6.85-7.98, 10.30-11.79, 15.65-17.64.
 - Real clip sound from frame one (813, then 1056, then 718, with 0.1 s crossfades). Each piece: highpass 80 Hz, 2:1
   compressor, bed to -18 LUFS, 6 dB duck under speech, 1.0 s final fade.
-- Music: `soft-relaxation-05-mixkit-749.mp3` (Mixkit Stock Music Free License) from 6.0 s at -36 LUFS, 0.5 s fade in, 1.0 s
+- Music rights (from `apps/nickstire/assets/reel-music/LICENSE.md`; no separate rights ledger exists): file
+  `soft-relaxation-05-mixkit-749.mp3`, Mixkit "Relaxation 05", asset id 749; source URL pattern
+  `https://assets.mixkit.co/music/749/749.mp3`; acquired 2026-10-10; license Mixkit Stock Music Free License
+  (https://mixkit.co/license/#musicFree), scope: free for personal and commercial use in videos, social media and online
+  ads, no attribution, no redistribution on its own; territory UNKNOWN (not recorded in LICENSE.md); expiry UNKNOWN (none
+  recorded); organic or ad clearance: license text lists social media and online ads, but no repo record confirms
+  clearance for this post, so UNKNOWN. Treatment: from 6.0 s at -36 LUFS, 0.5 s fade in, 1.0 s
   fade out. It carries the source joins and the end card. Voice: 3:1 compressor to -16 LUFS. Mix to -16 LUFS, limiter at -2.5 dBFS.
 
 ## Receipts (from `receipts.txt`)
@@ -94,7 +104,7 @@ for the hook and beat 6, brand yellow 124 for the step labels. No prices, times,
 3. **End card too dense.** `validateOnScreenReadability` blocks more than 4 words per second of beat. The 2 s end card
    carries 9 words (4.5 per second): "Nick's Tire & Auto", the address and "Walk-ins 7 days".
 
-## Method, five steps (reuse for reel 3)
+## Method, seven steps (reuse for reel 3)
 
 1. Pick the process and its words. Here: three steps (mount, balance, torque) in one sentence set under 9 s of speech.
    Declare the one ask once.
@@ -106,5 +116,7 @@ for the hook and beat 6, brand yellow 124 for the step labels. No prices, times,
    speech, add a licensed Mixkit bed, mix to -16 LUFS. One ask, end card only: a 2.0 s card of at most 8 words (for example
    "Nick's Tire & Auto" and "Walk-ins 7 days", with the address in the caption), and the voice does not speak the ask before it. Name any generated still and its
    beat in the pack, as above.
-5. Run the receipts script (ffprobe, frame MD5s, ebur128, silencedetect with canary, face scan), view `beats.jpg`, hand to
-   Nour. Post only on his go, through publishToSocial.
+5. Run the receipts script (ffprobe, frame MD5s, ebur128, silencedetect with canary, face scan), view `beats.jpg`.
+6. Before handoff, a person plays the final file once with sound on and records who, when and what they heard in
+   `build.md` (here the clip sound under beats 0-2 was never identified). Numbers alone do not count as a listen.
+7. Hand to Nour. Post only on his go, through publishToSocial.
