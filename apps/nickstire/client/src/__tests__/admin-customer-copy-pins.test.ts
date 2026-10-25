@@ -49,7 +49,9 @@ const OUTBOUND_COUNT = 4;
 // (Coupons, Loyalty, Technician referrals, QC review / Technicians, Inspection capture).
 // 29 since 2026-10-23: the Opportunities "Hide this opportunity?" confirm (operator text, not customer copy).
 // 30 since 2026-10-25: the Attribution review card's ruling confirm (operator text, not customer copy).
-const CHROME_COUNT = 30;
+// 27 since 2026-10-25: the Money job deleted the Snap dashboard (one confirm) and the tire-registration
+// panel (two confirms) with their surfaces; no customer copy moved.
+const CHROME_COUNT = 27;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [
