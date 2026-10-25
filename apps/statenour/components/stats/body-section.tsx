@@ -3,7 +3,7 @@
 /**
  * BodySection · the Body section of the merged /stats surface (Wave 2).
  *
- * Moved verbatim from the former app/(mastery)/body/page.tsx — the only
+ * Moved verbatim from the former app/(mastery)/body/page.tsx: the only
  * changes are: the outer <StandardPage> wrapper became a fragment (the
  * page-level chrome now lives on /stats), and the former StandardPage
  * `description` + `actions` (the progress lbs/target readout + FreshnessChip)
@@ -17,7 +17,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { logger as rootLogger } from "@/lib/logger";
 
-// v10.0.31 — structured logger for body-section errors.
+// v10.0.31: structured logger for body-section errors.
 const log = rootLogger.withSurface("body/section");
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,7 @@ export function BodySection() {
   // interval captures a stable reference. setLoading(false) moved
   // into a finally block so a JSON-parse error or unexpected throw
   // can't leave the page stuck in the loading skeleton forever.
-  // v10.0.31 — abort signal so a slow initial load doesn't get
+  // v10.0.31: abort signal so a slow initial load doesn't get
   // overwritten by an interval-fired load that resolves first.
   const inflightRef = useRef<AbortController | null>(null);
   const utils = trpc.useUtils();
@@ -122,7 +122,7 @@ export function BodySection() {
       setEntries(normalized as unknown as typeof entries);
       setProgress(view.progress ?? null);
       // v-truth · FreshnessChip should reflect the LATEST WEIGH-IN date, not
-      // the fetch time — else a 60-day-old weight always read "live". Robust
+      // the fetch time: else a 60-day-old weight always read "live". Robust
       // max over YYYY-MM-DD (lexical == chronological); falls back to now if
       // there are no entries.
       const latestEntryDate = normalized.reduce<string>(
@@ -232,7 +232,7 @@ export function BodySection() {
       {/* Former StandardPage description + actions, relocated inline. */}
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-[var(--text-secondary)]" style={{ maxWidth: "60ch" }}>
-          {/* 2026-06-10 · honest copy — the old "revenue follows within 5
+          {/* 2026-06-10 · honest copy: the old "revenue follows within 5
               days" line asserted a measured correlation no data backs. */}
           When sleep, workouts, and energy slip, execution usually follows.
         </p>
@@ -259,7 +259,7 @@ export function BodySection() {
 
       {/* Progress Summary */}
       {progress && (
-        <GlassCard>
+        <GlassCard ruled>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)]">
               <span>Current</span>
@@ -267,7 +267,7 @@ export function BodySection() {
             </div>
             <div className="h-2 rounded-full bg-surface-interactive overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#22c55e] transition-all duration-150 ease-in-out"
+                className="h-full rounded-full bg-[#22c55e] transition-colors duration-150 ease-in-out"
                 style={{
                   width: `${Math.max(0, Math.min(100, Math.round(((startWeight - progress.current) / (startWeight - progress.target)) * 100)))}%`,
                 }}
@@ -287,7 +287,7 @@ export function BodySection() {
 
       {/* Weight Chart */}
       {chartData.length > 0 && (
-        <GlassCard>
+        <GlassCard ruled>
           <div className="mb-4">
             <h3 className="text-[15px] font-semibold text-fg">
               Weight (90 days)
@@ -349,7 +349,7 @@ export function BodySection() {
       <Separator className="bg-edge-subtle" />
 
       {/* Quick Entry Form */}
-      <GlassCard>
+      <GlassCard ruled>
         <div className="mb-4 flex flex-row items-center justify-between">
           <h3 className="text-[15px] font-semibold text-fg">Quick Entry</h3>
           <Button
@@ -371,7 +371,7 @@ export function BodySection() {
               setEfStress(null);
               setNotes("");
             }}
-            className="h-7 rounded-control border border-edge-default px-2 text-[11px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+            className="min-h-11 min-w-11 h-7 rounded-control border border-edge-default px-2 text-[11px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             {efLogMode ? "Normal Mode" : "EF Quick-Log"}
           </Button>
@@ -391,8 +391,7 @@ export function BodySection() {
                     key={opt.key}
                     type="button"
                     onClick={() => setEfSleep(opt.key)}
-                    className={cn(
-                      "min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       efSleep === opt.key
                         ? opt.key === "low"
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
@@ -416,8 +415,7 @@ export function BodySection() {
                     key={String(opt.value)}
                     type="button"
                     onClick={() => setWorkoutDone(opt.value)}
-                    className={cn(
-                      "min-h-[40px] px-4 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 min-h-[40px] px-4 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       workoutDone === opt.value
                         ? opt.value
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
@@ -444,8 +442,7 @@ export function BodySection() {
                     key={opt.value}
                     type="button"
                     onClick={() => setEnergy(opt.value)}
-                    className={cn(
-                      "min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       energy === opt.value
                         ? opt.value <= 2
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
@@ -472,8 +469,7 @@ export function BodySection() {
                     key={opt.value}
                     type="button"
                     onClick={() => setEfStress(opt.value)}
-                    className={cn(
-                      "min-h-[40px] px-3.5 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 min-h-[40px] px-3.5 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       efStress === opt.value
                         ? opt.value === 1
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
@@ -493,7 +489,7 @@ export function BodySection() {
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="font-mono text-[12px] text-fg-tertiary hover:text-fg-secondary flex items-center gap-1 transition-colors duration-[var(--motion-state)] underline"
+                  className="min-h-11 min-w-11 font-mono text-[12px] text-fg-tertiary hover:text-fg-secondary flex items-center gap-1 transition-colors duration-[var(--motion-state)] underline"
                 >
                   {showAdvanced ? "Hide advanced fields" : "Show advanced fields (Weight, BF%, Waist, Notes)"}
                 </button>
@@ -507,7 +503,7 @@ export function BodySection() {
                     placeholder="Weight (lbs)"
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-xs"
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
                   />
                   <Input
                     type="number"
@@ -515,7 +511,7 @@ export function BodySection() {
                     placeholder="Body fat %"
                     value={bodyFat}
                     onChange={(e) => setBodyFat(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-xs"
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
                   />
                   <Input
                     type="number"
@@ -523,14 +519,14 @@ export function BodySection() {
                     placeholder="Waist (in)"
                     value={waist}
                     onChange={(e) => setWaist(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-xs"
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
                   />
                   <Input
                     type="text"
                     placeholder="Notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-xs col-span-2"
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-[16px] col-span-2"
                   />
                 </div>
               )}
@@ -631,7 +627,7 @@ export function BodySection() {
 
           <Button
             size="sm"
-            className="mt-3 h-10 w-full rounded-control bg-accent text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
+            className="min-h-11 min-w-11 mt-3 h-10 w-full rounded-control bg-accent text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
             onClick={logWeight}
             disabled={submitting || (
               efLogMode
@@ -646,7 +642,7 @@ export function BodySection() {
 
       {/* Recent Entries Table */}
       {entries.length > 0 && (
-        <GlassCard>
+        <GlassCard ruled>
           <div className="mb-4">
             <h3 className="text-[15px] font-semibold text-fg">
               Recent Entries
@@ -671,7 +667,7 @@ export function BodySection() {
               </div>
               {entries.slice(0, 10).map((e) => (
                 <div
-                  /* v10.0.31 — was key={i}; on poll refresh a prepended
+                  /* v10.0.31: was key={i}; on poll refresh a prepended
                      entry shifted indices and React swapped row data. */
                   key={e.date}
                   className="grid grid-cols-4 gap-2 py-1.5 border-b border-edge-subtle last:border-0"

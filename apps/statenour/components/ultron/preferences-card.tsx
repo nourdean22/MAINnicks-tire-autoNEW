@@ -298,7 +298,7 @@ export function PreferencesCard() {
   const hasTrace = trace.length >= 2;
 
   return (
-    <GlassCard
+    <GlassCard ruled
       className="min-h-[180px]"
       data-testid="preferences-card"
     >
@@ -422,7 +422,7 @@ export function PreferencesCard() {
         <button
           type="button"
           onClick={() => setShowAddendum((v) => !v)}
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
+          className="min-h-11 min-w-11 inline-flex items-center gap-1 text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
           aria-expanded={showAddendum ? "true" : "false"}
         >
           {showAddendum ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -432,8 +432,7 @@ export function PreferencesCard() {
           type="button"
           onClick={handleSave}
           disabled={!isDirty || saving}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
+          className={cn("min-h-11 min-w-11 flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
             "min-h-[28px]",
             saving
               ? "bg-surface-interactive border-edge-strong text-fg-tertiary"

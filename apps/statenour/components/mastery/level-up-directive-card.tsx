@@ -5,23 +5,23 @@
  *
  * The stat board's missing sentence: "level THIS stat today, because X,
  * and here is the exact rep." Selection is pure + deterministic
- * (lib/mastery/level-up-directive — tier ladder documented there); this
+ * (lib/mastery/level-up-directive: tier ladder documented there); this
  * component only feeds it data the page ALREADY fetches and renders the
  * verdict. Zero new server work:
- *   · operator.characterSheet — same query key + staleTime as
+ *   · operator.characterSheet: same query key + staleTime as
  *     <CharacterSheet> below → one network call, shared cache.
- *   · task.goals — same key GoalBoard's utils.task.goals.fetch()
+ *   · task.goals: same key GoalBoard's utils.task.goals.fetch()
  *     populates → shared cache.
- *   · operator.bodyTracking({range:"90d"}) — same key the lazy
+ *   · operator.bodyTracking({range:"90d"}): same key the lazy
  *     BodySection fetches → this card just warms it earlier.
  *
  * Honesty contract: transient query error → self-hide (house rule, the
  * page never breaks); a real empty board → an explicit "Missing data"
  * line, never a fabricated recommendation. Every reason starts
- * "Because…"/"Based on…" — no mysterious AI vibes (and no AI: this is
+ * "Because…"/"Based on…": no mysterious AI vibes (and no AI: this is
  * arithmetic over the XP log).
  *
- * Supersedes the old CharacterSheet "Next rep" strip — that heuristic
+ * Supersedes the old CharacterSheet "Next rep" strip: that heuristic
  * (max progressPct) lives on as this selector's weakest tier ("closest").
  */
 import { useMemo } from "react";
@@ -116,7 +116,7 @@ export function LevelUpDirectiveCard() {
           Level-up directive
         </p>
         <p className="mt-1 text-[12px] leading-snug text-fg-secondary">
-          Missing data — no stat history to rank yet. Complete a{" "}
+          Missing data: no stat history to rank yet. Complete a{" "}
           <Link href="/missions" className="underline decoration-edge-strong underline-offset-2 hover:text-fg">
             Mission task
           </Link>{" "}

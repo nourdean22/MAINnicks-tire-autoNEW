@@ -51,7 +51,7 @@ interface CoachEventBannerProps {
 }
 
 export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) {
-  // Shared, surface-keyed poller (de-duped with NickSidePane — they used to
+  // Shared, surface-keyed poller (de-duped with NickSidePane: they used to
   // each run a separate usePollingFetch against the same endpoint).
   const { events, reload } = useCoachEvents(surface, { limit });
 
@@ -197,7 +197,7 @@ function CoachEventCard({
           "rounded-control border border-transparent",
           "text-fg-tertiary hover:text-fg",
           "hover:bg-surface-hover hover:border-edge-default",
-          "active:scale-90 transition-all focus-visible:outline-none",
+          "active:scale-90 transition-colors focus-visible:outline-none",
           "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           // Always visible on touch (no hover state on iOS PWA)
           "[@media(hover:none)]:opacity-100",

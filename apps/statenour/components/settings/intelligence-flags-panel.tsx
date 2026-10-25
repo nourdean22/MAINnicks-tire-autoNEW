@@ -30,10 +30,10 @@ export function IntelligenceFlagsPanel() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   // Persist-vs-apply honesty: the mutation reports whether the runtime
   // actually reloaded the override cache. Saved-but-not-applied must never
-  // read as success (2026-09-01 audit — the panel used to discard it).
+  // read as success (2026-09-01 audit: the panel used to discard it).
   const [applyNotice, setApplyNotice] = useState<string | null>(null);
 
-  // Flags change on operator action, not by themselves — 10s polling was
+  // Flags change on operator action, not by themselves: 10s polling was
   // the whole registry's payload every tick for nothing. 60s + focus refetch.
   const flagsQuery = trpc.operator.featureFlags.useQuery(undefined, {
     refetchInterval: 60_000,
@@ -64,7 +64,7 @@ export function IntelligenceFlagsPanel() {
       haptic.select();
       try {
         const res = await setOverrideMutation.mutateAsync({ key, value });
-        // "Persistence and activation are DIFFERENT facts" — the router
+        // "Persistence and activation are DIFFERENT facts": the router
         // says so and returns both. Honor the distinction.
         if (res?.runtimeApplied === false) {
           haptic.warn();
@@ -87,7 +87,7 @@ export function IntelligenceFlagsPanel() {
 
   if (isLoading) {
     return (
-      <GlassCard>
+      <GlassCard ruled>
         <p className="text-[11px] text-[var(--text-tertiary)] animate-pulse">Loading intelligence flags...</p>
       </GlassCard>
     );
@@ -96,7 +96,7 @@ export function IntelligenceFlagsPanel() {
   // A failed or paused read is not "0 flags": say so before drawing a count or a search miss.
   if (status === "error" || status === "offline") {
     return (
-      <GlassCard className="space-y-2">
+      <GlassCard ruled className="space-y-2">
         <span className="text-[15px] font-semibold text-fg">Cognitive &amp; autonomy substrates</span>
         <ReadStateNote state={status} label="Feature flags" onRetry={() => void refetch()} retrying={isRetrying(flagsQuery)} />
       </GlassCard>
@@ -104,7 +104,7 @@ export function IntelligenceFlagsPanel() {
   }
 
   return (
-    <GlassCard className="space-y-4">
+    <GlassCard ruled className="space-y-4">
       {/* Panel Header */}
       <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
         <div className="flex items-center gap-2">
@@ -145,7 +145,7 @@ export function IntelligenceFlagsPanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search flags (e.g. autonomy, recall)..."
-            className="w-full h-8 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
+            className="w-full h-8 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
           />
         </div>
         {/* Status Filter */}
@@ -158,8 +158,7 @@ export function IntelligenceFlagsPanel() {
                 haptic.select();
                 setStatusFilter(s);
               }}
-              className={cn(
-                "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
+              className={cn("min-h-11 min-w-11 px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                 statusFilter === s
                   ? "bg-accent-soft text-fg"
                   : "text-fg-tertiary hover:text-fg-secondary"
@@ -203,7 +202,7 @@ export function IntelligenceFlagsPanel() {
                       className={cn(
                         "px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium",
                         flag.status === "stable" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" :
-                        flag.status === "canary" ? "bg-blue-500/10 border border-blue-500/20 text-blue-400" :
+                        flag.status === "canary" ? "bg-sky-500/10 border border-sky-500/20 text-sky-400" :
                         flag.status === "experimental" ? "bg-amber-500/10 border border-amber-500/20 text-amber-400" :
                         "bg-red-500/10 border border-red-500/20 text-red-400"
                       )}
@@ -247,8 +246,7 @@ export function IntelligenceFlagsPanel() {
                     <button
                       onClick={() => handleOverride(flag.key, null)}
                       aria-pressed={overrideState === "ENV"}
-                      className={cn(
-                        "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
+                      className={cn("min-h-11 min-w-11 px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                         overrideState === "ENV"
                           ? "bg-accent-soft text-fg"
                           : "text-fg-tertiary hover:text-fg-secondary"
@@ -261,8 +259,7 @@ export function IntelligenceFlagsPanel() {
                     <button
                       onClick={() => handleOverride(flag.key, "false")}
                       aria-pressed={overrideState === "OFF"}
-                      className={cn(
-                        "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
+                      className={cn("min-h-11 min-w-11 px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                         overrideState === "OFF"
                           ? "bg-red-500/20 text-red-400"
                           : "text-fg-tertiary hover:text-fg-secondary"
@@ -276,8 +273,7 @@ export function IntelligenceFlagsPanel() {
                       <button
                         onClick={() => handleOverride(flag.key, "true")}
                         aria-pressed={overrideState === "ON"}
-                        className={cn(
-                          "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
+                        className={cn("min-h-11 min-w-11 px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                           overrideState === "ON"
                             ? "bg-emerald-500/20 text-emerald-400"
                             : "text-fg-tertiary hover:text-fg-secondary"

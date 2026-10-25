@@ -122,7 +122,7 @@ export function GhostNickStrip() {
     : null;
 
   return (
-    <GlassCard>
+    <GlassCard ruled>
       <StaleNote q={query} label="Ghost Nick predictions" className="mb-2" />
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">

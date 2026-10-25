@@ -14,11 +14,11 @@
  * Wave 2 surface consolidation (2026-06-03): /body folded in as a section,
  * /life DELETED (it was a pure 5-link hub), and the /learn active-learning
  * LOOP moved here. The Build-Your-Own-X tutorial CATALOG stays at /learn
- * (force-static dev reference library — operator call). Redirects:
+ * (force-static dev reference library: operator call). Redirects:
  * /body → /stats?tab=body · /life → /stats.
  *
  * Per operator (2026-05-30): "business shit belongs on nicks tire admin."
- * Shop/revenue intelligence lives at nickstire.org/admin — this page is
+ * Shop/revenue intelligence lives at nickstire.org/admin: this page is
  * about Nour: who he is, what he's climbing toward, his body, his learning.
  *
  * /scoreboard + /goals + /body + /life now 30x-redirect here.
@@ -59,7 +59,7 @@ import { MasterySectionLabel } from "@/components/mastery/mastery-section-label"
 import { CharacterSheet } from "@/components/mastery/character-sheet";
 // Level-Up Directive (2026-06-10) · the deterministic "level THIS stat
 // today, because X, here's the rep" card. Pure re-rank of data the page
-// already fetches (sheet + goals + body) — supersedes the old in-sheet
+// already fetches (sheet + goals + body): supersedes the old in-sheet
 // "Next rep" strip. Honest "Missing data" empty state; self-hides on
 // transient error.
 import { LevelUpDirectiveCard } from "@/components/mastery/level-up-directive-card";
@@ -169,7 +169,7 @@ function StatsContent() {
       {/* Tab bar · 2026-09-16 Visible Transformation: the glassmorphic pill
           bar (backdrop blur, white/[0.02] glass, a blue→indigo→purple accent
           that carried an anti-slop waiver) is replaced by the house underline
-          bar — Geist 13px labels, an accent rule under the selected tab, no glass. */}
+          bar: Geist 13px labels, an accent rule under the selected tab, no glass. */}
       <div
         role="tablist"
         aria-label="Stats sections"
@@ -265,7 +265,7 @@ export default function StatsPage() {
       </StandardPage>
 
       {/* Per-page Nick · grounded in goals (personal), presets about leveling
-       *  + goal progress — no business / KPI framing on this surface. */}
+       *  + goal progress: no business / KPI framing on this surface. */}
       <Suspense fallback={null}>
         <NickSidePane
           page="goals"

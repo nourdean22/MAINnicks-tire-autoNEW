@@ -68,7 +68,10 @@ vi.mock("@/components/stats/calibration-tile", () => ({ CalibrationTile: stub("C
 vi.mock("@/components/brain/prediction-streaks-card", () => ({ PredictionStreaksCard: stub("PredictionStreaksCard") }));
 vi.mock("@/components/ultron/ghost-nick/ghost-nick-strip", () => ({ GhostNickStrip: stub("GhostNickStrip") }));
 
+vi.mock("sonner", () => ({ toast: { success: () => undefined, error: () => undefined } }));
+
 import StatsPage from "@/app/(mastery)/stats/page";
+import { CalibrationSection } from "@/components/stats/calibration-section";
 
 const ok = (data: unknown) => ({ data, isError: false, isPending: false, isLoading: false, fetchStatus: "idle", refetch: () => Promise.resolve() });
 const failed = { data: undefined, isError: true, error: { message: "500" }, isPending: false, isLoading: false, fetchStatus: "idle", refetch: () => Promise.resolve() };
@@ -218,5 +221,41 @@ describe("Goals holds the three cards moved from the Brain Self-model fold", () 
   it("they mount nowhere else on Stats", async () => {
     await mount("");
     for (const name of ["CalibrationTile", "PredictionStreaksCard", "GhostNickStrip"]) expect(count(name), name).toBe(0);
+  });
+});
+
+describe("CalibrationSection says which state it is in (wave E2 fix)", () => {
+  async function mountSection(q: unknown) {
+    h.q = { "intelligence.calibrationReviews": q };
+    el = document.createElement("div");
+    document.body.append(el);
+    root = createRoot(el);
+    await act(async () => {
+      root!.render(<CalibrationSection />);
+    });
+  }
+  const reviews = { pending: [], history: [], lessons: [], scoreboard: null };
+
+  it("a paused read before any data says offline, never 'queue clear'", async () => {
+    await mountSection(paused);
+    expect(el.querySelector('[data-read-state="offline"]')).toBeTruthy();
+    expect(el.textContent).not.toMatch(/queue clear/i);
+  });
+
+  it("a failed refresh over cached reviews keeps them under a stale note", async () => {
+    await mountSection(stale(reviews));
+    expect(el.querySelector('[data-read-state="stale"]')).toBeTruthy();
+    expect(el.textContent).toMatch(/queue clear/i);
+  });
+
+  it("loading is words, not pulsing blocks; a failed read with no data says it failed", async () => {
+    await mountSection({ ...paused, fetchStatus: "fetching", isLoading: true });
+    expect(el.querySelector('[data-state-block="loading"]')).toBeTruthy();
+    expect(el.querySelectorAll(".animate-pulse")).toHaveLength(0);
+    await act(async () => root!.unmount());
+    el.remove();
+    await mountSection(failed);
+    expect(el.textContent).toMatch(/failed to load/i);
+    expect(el.textContent).not.toMatch(/queue clear/i);
   });
 });

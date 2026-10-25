@@ -3,7 +3,7 @@
 /**
  * PeopleScoringPanel · 2026-06-01 · statenour/people-overhaul
  *
- * Operator control for the people-credit XP weights — how much mastery
+ * Operator control for the people-credit XP weights: how much mastery
  * XP relationship work earns. Scoped ONLY to the people-credit numbers
  * (deposits, neglect-repair, power-plays); it does NOT touch the
  * task-side scoring config. Reads/writes via trpc.task.get/setPeopleXpConfig
@@ -90,7 +90,7 @@ export function PeopleScoringPanel() {
         <span className="text-fg">Strategy</span>.
       </p>
 
-      <GlassCard>
+      <GlassCard ruled>
         {!draft ? (
           <p className="text-[11px] text-[var(--text-tertiary)]">loading weights…</p>
         ) : (
@@ -121,7 +121,7 @@ export function PeopleScoringPanel() {
                       d ? { ...d, [f.key]: Number.isFinite(v) ? v : 0 } : d,
                     );
                   }}
-                  className="w-20 shrink-0 rounded-control border border-edge-default bg-content px-2 py-1.5 text-right text-[16px] sm:text-[13px] font-mono tabular-nums text-fg focus:border-accent focus:outline-none"
+                  className="w-20 shrink-0 rounded-control border border-edge-default bg-content px-2 py-1.5 text-right text-[16px] sm:text-[16px] font-mono tabular-nums text-fg focus:border-accent focus:outline-none"
                 />
               </label>
             ))}
@@ -141,8 +141,7 @@ export function PeopleScoringPanel() {
                 aria-label="save people scoring weights"
                 disabled={!dirty || save.isPending}
                 onClick={() => draft && save.mutate(draft)}
-                className={cn(
-                  "rounded-control border px-3 py-1.5 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+                className={cn("min-h-11 min-w-11 rounded-control border px-3 py-1.5 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                   dirty && !save.isPending
                     ? "border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg"
                     : "border-edge-default text-fg-tertiary cursor-not-allowed",

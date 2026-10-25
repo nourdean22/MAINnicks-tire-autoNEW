@@ -1,17 +1,17 @@
 "use client";
 
-// FRESHNESS_EXEMPT — config form (mutates settings, doesn't display
+// FRESHNESS_EXEMPT: config form (mutates settings, doesn't display
 // time-sensitive read data; live values reload immediately on change).
 
 /**
- * AiSettingsPanel — the AI power + cold memory surface on /settings.
+ * AiSettingsPanel: the AI power + cold memory surface on /settings.
  *
  * Packages items #11 (global live settings), #13 (tool opt-in/out),
  * and #16 (cold memory card) into one cohesive section on the
  * Settings page. Each card writes to its own endpoint:
  *
- *   /api/settings/ai-config    — AI config GET/PATCH/DELETE
- *   trpc.operator.syncDrive            — POST manual sync / GET stats
+ *   /api/settings/ai-config   : AI config GET/PATCH/DELETE
+ *   trpc.operator.syncDrive           : POST manual sync / GET stats
  *
  * Live mutation pattern: every slider / toggle fires PATCH with the
  * single field, the server merges + writes to brain_memory row, the
@@ -39,12 +39,12 @@ import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 // Phase UU.2 · the provider / mode / reasoning / web-search fields are
 // narrowed to the same unions the operator.updateAiConfig input enforces
 // (was `string`). The panel always passes correctly-narrowed values
-// already — tightening the interface lets `Partial<AiConfig>` flow into
+// already: tightening the interface lets `Partial<AiConfig>` flow into
 // the typed mutation with no cast, and is the typed-payload-mismatch
 // guard at the call-site type level.
 interface AiConfig {
   defaultProvider?: "gemini" | "ollama" | "openai" | "anthropic" | "openrouter" | "emergency";
-  /** null = "auto" — the explicit clear the server maps to "no stored mode". */
+  /** null = "auto": the explicit clear the server maps to "no stored mode". */
   defaultMode?: "standard" | "deep" | null;
   defaultTaskType?:
     | "fast"
@@ -85,10 +85,10 @@ export function AiSettingsPanel() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [disabledTool, setDisabledTool] = useState("");
-  // A failed config load used to leave the panel on "loading…" forever —
+  // A failed config load used to leave the panel on "loading…" forever , 
   // silent failure is indistinguishable from slow. Named error instead.
   const [configError, setConfigError] = useState(false);
-  // Per-device toggles read their real store (localStorage) — the DB copy
+  // Per-device toggles read their real store (localStorage): the DB copy
   // had no reader and lied on any second device. Lazy init is guarded for
   // the server render, where window is absent.
   const [hapticOn, setHapticOn] = useState(() => {
@@ -143,11 +143,11 @@ export function AiSettingsPanel() {
     });
   }, [loadStats]);
 
-  // Partial update helper — debounced feel by setting local state
+  // Partial update helper: debounced feel by setting local state
   // optimistically then firing the typed mutation in the background.
   // updateAiConfig validates the patch against the SHARED
-  // aiConfigPatchSchema (every field strictly typed) — the
-  // typed-payload-mismatch guard — and returns the merged config.
+  // aiConfigPatchSchema (every field strictly typed): the
+  // typed-payload-mismatch guard: and returns the merged config.
   const patch = useCallback(
     async (p: Partial<AiConfig>) => {
       setConfig((c) => ({ ...c, ...p }));
@@ -220,7 +220,7 @@ export function AiSettingsPanel() {
 
   if (!config) {
     return (
-      <GlassCard>
+      <GlassCard ruled>
         {configError ? (
           <div className="flex items-center gap-3">
             <p role="alert" className="text-[11px] text-rose-300/90">
@@ -246,7 +246,7 @@ export function AiSettingsPanel() {
   return (
     <div className="space-y-4">
       {/* ── Cold Memory Card (#16) ── */}
-      <GlassCard>
+      <GlassCard ruled>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Database size={13} className="text-fg-tertiary" />
@@ -257,7 +257,7 @@ export function AiSettingsPanel() {
           <button
             onClick={syncDrive}
             disabled={syncing}
-            className="inline-flex items-center gap-1.5 rounded-control border border-edge-default bg-content px-2.5 py-1.5 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40"
+            className="min-h-11 min-w-11 inline-flex items-center gap-1.5 rounded-control border border-edge-default bg-content px-2.5 py-1.5 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40"
           >
             <RefreshCw size={11} className={cn(syncing && "animate-spin")} />
             {syncing ? "Syncing…" : "Sync now"}
@@ -294,8 +294,8 @@ export function AiSettingsPanel() {
         </p>
       </GlassCard>
 
-      {/* ── AI Config — live-mutable chat controls (#11) ── */}
-      <GlassCard>
+      {/* ── AI Config: live-mutable chat controls (#11) ── */}
+      <GlassCard ruled>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Sliders size={13} className="text-fg-tertiary" />
@@ -313,7 +313,7 @@ export function AiSettingsPanel() {
 
         {/* 2026-09-01 settings audit: Default Provider, Temperature,
             Reasoning Effort, AI Web Search and Semantic Tool Pruning were
-            REMOVED — each wrote a config field with ZERO runtime readers
+            REMOVED: each wrote a config field with ZERO runtime readers
             (provider/temperature/effort/search are decided per turn by
             classifyTurn + the provider chain; pruneTools never consulted
             toolEmbeddingsEnabled). A control that writes to nothing is a
@@ -337,7 +337,7 @@ export function AiSettingsPanel() {
           />
         </Row>
 
-        {/* Device toggle — localStorage is the ONLY store (the old dual
+        {/* Device toggle: localStorage is the ONLY store (the old dual
             DB write had no reader and made a second device's switch lie).
             The Speed Ribbon toggle that sat beside it was write-only: its
             only reader hook was mounted nowhere (settings census 2026-10-02),
@@ -368,7 +368,7 @@ export function AiSettingsPanel() {
       </GlassCard>
 
       {/* ── Tool Opt-in / Opt-out (#13) ── */}
-      <GlassCard>
+      <GlassCard ruled>
         <div className="flex items-center gap-2 mb-3">
           <Cpu size={13} className="text-fg-tertiary" />
           <span className="text-[15px] font-semibold text-fg">
@@ -386,11 +386,11 @@ export function AiSettingsPanel() {
             onKeyDown={(e) => isSubmitEnter(e) && addDisabledTool()}
             aria-label="Tool name to add to blocklist"
             placeholder="e.g. generateImage"
-            className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
+            className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
           />
           <button
             onClick={addDisabledTool}
-            className="inline-flex items-center rounded-control border border-edge-default bg-content px-3 h-8 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+            className="min-h-11 min-w-11 inline-flex items-center rounded-control border border-edge-default bg-content px-3 h-8 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             Disable
           </button>
@@ -405,7 +405,7 @@ export function AiSettingsPanel() {
                 {t}
                 <button
                   onClick={() => removeDisabledTool(t)}
-                  className="text-red-300/60 hover:text-red-300"
+                  className="min-h-11 min-w-11 text-red-300/60 hover:text-red-300"
                   aria-label={`Remove ${t}`}
                 >
                   <Trash2 size={9} />
@@ -427,7 +427,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   // a11y (WCAG 1.3.1/4.1.2): controls here are heterogeneous (button groups,
   // role=switch toggles, native range/select). A single htmlFor can't name a
   // button group, so we give the label an id and expose the control container
-  // as a named group via aria-labelledby — every control inherits the name.
+  // as a named group via aria-labelledby: every control inherits the name.
   const labelId = useId();
   return (
     <div className="flex items-center justify-between py-2 border-b border-edge-subtle last:border-b-0">

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * settings-controls.tsx — shared settings-panel form primitives.
+ * settings-controls.tsx: shared settings-panel form primitives.
  *
  * `SegmentedSelect` and `Toggle` were defined byte-identically in both
  * ai-settings-panel.tsx and journal-brain-panel.tsx (2026-06-19 audit
@@ -9,7 +9,7 @@
  * canonical version carries `type="button"` (prevents accidental form
  * submit), `aria-pressed`/`role="switch"` semantics, and `aria-hidden`
  * on the decorative toggle thumb. `Row` / `NumberInput` / `Stat` stay
- * local to each panel — those variants genuinely differ.
+ * local to each panel: those variants genuinely differ.
  */
 
 import { cn } from "@/lib/utils";
@@ -35,8 +35,7 @@ export function SegmentedSelect({
             haptic.select();
             onChange(o);
           }}
-          className={cn(
-            "px-2 h-5 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
+          className={cn("min-h-11 min-w-11 px-2 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
             value === o
               ? "bg-accent-soft text-fg"
               : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",

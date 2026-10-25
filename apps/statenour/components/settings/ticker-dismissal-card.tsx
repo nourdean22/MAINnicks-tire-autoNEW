@@ -7,8 +7,8 @@
  * settings-shell redesign) · same behavior.
  *
  * May 02 · The ticker lets Nour X-out individual items (acknowledge +
- * hide). Only the bottom ticker remains — GlobalTopTicker was deleted
- * 2026-09-01 — so the copy names one ticker (settings census 2026-10-02). This panel surfaces the count of dismissed
+ * hide). Only the bottom ticker remains: GlobalTopTicker was deleted
+ * 2026-09-01: so the copy names one ticker (settings census 2026-10-02). This panel surfaces the count of dismissed
  * IDs from localStorage and exposes a one-tap reset for when a stale
  * dismissal is masking a now-relevant signal.
  */
@@ -22,7 +22,7 @@ export function TickerDismissalReset() {
 
   if (count === 0) {
     return (
-      <GlassCard>
+      <GlassCard ruled>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <p className="section-label mb-1">ticker dismissals</p>
@@ -36,7 +36,7 @@ export function TickerDismissalReset() {
   }
 
   return (
-    <GlassCard>
+    <GlassCard ruled>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <p className="section-label mb-1">Ticker dismissals</p>
@@ -52,7 +52,7 @@ export function TickerDismissalReset() {
           onClick={() => {
             clearAll();
           }}
-          className="shrink-0 inline-flex items-center rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+          className="min-h-11 min-w-11 shrink-0 inline-flex items-center rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           Reset
         </button>

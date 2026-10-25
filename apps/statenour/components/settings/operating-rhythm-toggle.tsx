@@ -4,11 +4,11 @@
  * components/settings/operating-rhythm-toggle.tsx · 2026-06-02
  *
  * The ONLY autopilot flag a worker actually reads:
- * `adhd_operating_rhythm` (lib/brain/operating-rhythm.ts:141 — the
+ * `adhd_operating_rhythm` (lib/brain/operating-rhythm.ts:141: the
  * 5x-daily Telegram checkpoint cron disables itself when this flag is
  * explicitly false). The prior 13-toggle AutoPilotControls grid carried
  * 12 other flags + shadow-mode + mood-dimming + proof-of-life badges
- * that NO worker consumed (grep-verified) — pure dead UI. This replaces
+ * that NO worker consumed (grep-verified): pure dead UI. This replaces
  * that ~610-line section with the single real control.
  *
  * Read/write via the SAME tRPC procedures the old grid used:
@@ -16,10 +16,10 @@
  *   · system.setAutopilotFlags (persist; the service merges over the
  *     server defaults so sending just this one key preserves the rest)
  *
- * The flag defaults to ON when absent — operating-rhythm.ts only honors
+ * The flag defaults to ON when absent: operating-rhythm.ts only honors
  * an explicit `=== false`. So the toggle reads ON until the server map
  * says otherwise, and disabling requires a press-and-hold confirm (this
- * cron guards the operator's focus structure — a stray mobile tap
+ * cron guards the operator's focus structure: a stray mobile tap
  * shouldn't kill it). Re-enabling is a single tap.
  */
 
@@ -59,8 +59,8 @@ export function OperatingRhythmToggle() {
     // the stored row), so a single-key payload would reset every other
     // stored flag back to its default. Spreading the live map first keeps
     // every other stored value untouched and flips only this flag. (Since
-    // 2026-10-02 this is the only key the service keeps — the nine dead
-    // auto_* keys are dropped server-side — so the spread is belt-and-braces
+    // 2026-10-02 this is the only key the service keeps: the nine dead
+    // auto_* keys are dropped server-side: so the spread is belt-and-braces
     // for any key added later.)
     const map = { ...(query.data?.flags ?? {}), [FLAG_KEY]: next };
     setFlags.mutate(
@@ -163,7 +163,7 @@ export function OperatingRhythmToggle() {
           <button
             type="button"
             onClick={() => setPendingDisable(false)}
-            className="rounded-control border border-edge-default px-2 py-1 text-[12px] text-fg-secondary hover:bg-surface-hover hover:text-fg"
+            className="min-h-11 min-w-11 rounded-control border border-edge-default px-2 py-1 text-[12px] text-fg-secondary hover:bg-surface-hover hover:text-fg"
           >
             Cancel
           </button>
