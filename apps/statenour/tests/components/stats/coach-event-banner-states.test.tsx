@@ -24,6 +24,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+import { onlineManager } from "@tanstack/react-query";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 
 const EVENT = {
@@ -66,6 +67,7 @@ afterEach(async () => {
   await unmount();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  onlineManager.setOnline(true);
 });
 
 describe("CoachEventBanner on the Goals tab", () => {
@@ -78,6 +80,13 @@ describe("CoachEventBanner on the Goals tab", () => {
     expect([...note!.querySelectorAll("button")].some((b) => b.textContent === "Retry")).toBe(true);
   });
 
+  it("addendum: no connection and nothing cached says offline, not a failure and not silence", async () => {
+    onlineManager.setOnline(false);
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
+    await mount(<CoachEventBanner surface="goals" limit={16} showReadState />);
+    expect(el.querySelector('[data-read-state="offline"]'), "offline drawn as a failure or as nothing").toBeTruthy();
+    expect(el.querySelector('[data-read-state="error"]')).toBeNull();
+  });
   it("a 500 is a failed read too", async () => {
     vi.stubGlobal("fetch", vi.fn(down));
     await mount(<CoachEventBanner surface="goals" limit={12} showReadState />);

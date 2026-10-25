@@ -56,7 +56,7 @@ interface CoachEventBannerProps {
 export function CoachEventBanner({ surface, limit = 3, showReadState = false }: CoachEventBannerProps) {
   // Shared, surface-keyed poller (de-duped with NickSidePane: they used to
   // each run a separate usePollingFetch against the same endpoint).
-  const { events, reload, failed, read } = useCoachEvents(surface, { limit });
+  const { events, reload, state } = useCoachEvents(surface, { limit });
 
   // Optimistic-dismissed event keys · hides them locally before the
   // poll refreshes. Server-side ack is fire-and-forget · failure
@@ -90,8 +90,8 @@ export function CoachEventBanner({ surface, limit = 3, showReadState = false }: 
   // it shouldn't break the page (the original alert mechanisms still
   // run during the migration window).
   // Wave E2: where the page asks, a failed read is not 'nothing to coach'.
-  if (showReadState && failed && !read) return <ReadStateNote state="error" label="Coach nudges" onRetry={reload} />;
-  const staleNote = showReadState && failed && read ? <ReadStateNote state="stale" label="Coach nudges" onRetry={reload} /> : null;
+  if (showReadState && (state === "error" || state === "offline")) return <ReadStateNote state={state} label="Coach nudges" onRetry={reload} />;
+  const staleNote = showReadState && state === "stale" ? <ReadStateNote state="stale" label="Coach nudges" onRetry={reload} /> : null;
   if (!events.length) return staleNote;
 
   const visibleEvents = events.filter(

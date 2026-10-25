@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
+import { useOnline, type ReadState } from "@/lib/query-state";
 
 const POLL_MS = 60_000; // the faster of the two prior cadences (pane 60s)
 const STALE_MS = 55_000;
@@ -103,7 +104,7 @@ function stopPollerIfIdle(e: Entry): void {
 export function useCoachEvents(
   surface: CoachEventSurface | null | undefined,
   opts?: { limit?: number; enabled?: boolean },
-): { events: CoachEvent[]; reload: () => void; failed: boolean; read: boolean } {
+): { events: CoachEvent[]; reload: () => void; failed: boolean; read: boolean; state: ReadState } {
   const limit = opts?.limit ?? 3;
   const enabled = opts?.enabled ?? true;
   const active = !!surface && enabled;
@@ -148,5 +149,9 @@ export function useCoachEvents(
     if (active && surface) void fetchEntry(getEntry(surface, limit));
   }, [surface, limit, active]);
 
-  return { events, reload, failed, read };
+  // The readState vocabulary (lib/query-state.ts) for a bare fetch: nothing read and no connection is
+  // offline; a failure with nothing cached is error; a failure over cached events is stale.
+  const online = useOnline();
+  const state: ReadState = !read && !online ? "offline" : failed ? (read ? "stale" : "error") : read ? "ready" : "loading";
+  return { events, reload, failed, read, state };
 }
