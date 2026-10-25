@@ -97,9 +97,9 @@ const DESCRIPTIONS: Record<ConfidenceBand, Omit<BandDescription, "band">> = {
  * reader cannot mistake the ordering for calibration.
  */
 export const BAND_CALIBRATION_CAVEAT =
-  "These bands rank evidence, not probability. Nobody has yet measured how often a phone-and-time match turns out to be the right invoice, so the gap between bands is an ordering, not a percentage.";
+  "These bands rank evidence, not probability. The measured hit rate of each band, with its count, is reported beside it (lib/attributionCalibration); under 20 checked cases there is no rate, and the gap between bands is an ordering, not a percentage.";
 
-function bandOf(confidence: number | null | undefined): ConfidenceBand {
+export function bandOf(confidence: number | null | undefined): ConfidenceBand {
   if (confidence == null || Number.isNaN(confidence)) return "unscored";
   if (confidence >= 1) return "verified";
   if (confidence >= 0.9) return "strong";

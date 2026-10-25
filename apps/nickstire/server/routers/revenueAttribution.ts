@@ -2,6 +2,8 @@ import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { collapseByInvoice, attributionCounts } from "../lib/attributionDedupe";
 import { BAND_CALIBRATION_CAVEAT, bandMix, describeCandidate } from "../lib/attributionConfidenceBands";
 import { askedForWords, firstNameWords } from "../lib/attributionReviewWords";
+import { calibrationWords } from "../lib/attributionCalibration";
+import { loadCalibration, type CalibrationState } from "../services/attributionAutoConfirm";
 import { greetingName } from "../services/invoiceReviewRequests";
 import { z } from "zod";
 import { invoices, leads, vapiCallLogs } from "../../drizzle/schema";
@@ -189,6 +191,16 @@ export const revenueAttributionRouter = router({
       LIMIT ${input.limit}
     `);
     const rows = rowsFromExecute<Record<string, unknown>>(raw);
+    // The measured hit rate per band (2026-10-25). A failed read renders as failed on the
+    // card, never as a zero or as "nobody has measured".
+    // shortcut: loadCalibration reads every call and paid invoice (about 8,500 narrow rows) on each
+    // card load (staleTime 60 s, admin only); store the report on the run row if that grows past a second.
+    let calibration: CalibrationState;
+    try {
+      calibration = await loadCalibration(db);
+    } catch (e) {
+      calibration = { status: "failed", error: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200) };
+    }
     const iso = (v: unknown): string | null =>
       v == null ? null : v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString();
     // Plain words (2026-10-25), applied to primaries AND duplicates so no raw customer name or
@@ -278,6 +290,14 @@ export const revenueAttributionRouter = router({
        */
       bands: bandMix(collapsed.primary.map((r) => r.confidence)),
       bandCaveat: BAND_CALIBRATION_CAVEAT,
+      /** Measured per band, in words, with the count; `status: "failed"` when the read failed. */
+      calibration: {
+        status: calibration.status,
+        anyOpen: calibration.status === "ok" ? calibration.anyOpen : false,
+        words: calibrationWords(calibration),
+        bands: calibration.status === "ok" ? calibration.bands : null,
+        measuredAt: calibration.status === "ok" ? calibration.measuredAt : null,
+      },
     };
   }),
 

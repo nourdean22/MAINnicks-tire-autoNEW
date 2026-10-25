@@ -90,6 +90,10 @@ export function AttributionReviewCard() {
 
   const duplicates = data?.duplicates?.length ?? 0;
   const n = rows.length;
+  // Measured per band (PR 2). Read explicitly, same reason as `rows`: the server may stop
+  // sending it and the cast would not tell us.
+  const calibration = (data as { calibration?: { status: string; anyOpen: boolean; words: { status: string; weak: string; strong: string; control: string | null } } } | undefined)?.calibration;
+  const bandsOpen = calibration?.status === "ok" && calibration.anyOpen;
 
   const decide = async (row: (typeof rows)[number], decision: Decision) => {
     const who = row.firstName ?? "this caller";
@@ -137,7 +141,11 @@ export function AttributionReviewCard() {
       {open && (
         <div className="px-4 pb-3 space-y-3">
           <p className="text-xs text-muted-foreground">
-            Each is a call with a possible sale behind it and no record that proves the link. Each row says what the match rests on.{" "}
+            {calibration?.status === "failed"
+              ? calibration.words.weak
+              : bandsOpen
+                ? <>{calibration!.words.weak} These are the rest: matches the system still cannot settle on its own.</>
+                : "Each is a call with a possible sale behind it and no record that proves the link. Each row says what the match rests on."}{" "}
             <button
               type="button"
               onClick={() => setWhyOpen((v) => !v)}
@@ -166,7 +174,15 @@ export function AttributionReviewCard() {
                   {data.bands.unscored > 0 && <>{data.bands.unscored} with no single sale or a contested lead link</>}
                 </p>
               )}
-              <p className="text-foreground/50">{data?.bandCaveat}</p>
+              {calibration ? (
+                <>
+                  {!bandsOpen && calibration.status === "ok" && <p>{calibration.words.weak}</p>}
+                  {calibration.status === "ok" && data?.bands && data.bands.strong > 0 && <p>{calibration.words.strong}</p>}
+                  {calibration.words.control && <p>{calibration.words.control}</p>}
+                </>
+              ) : (
+                <p className="text-foreground/50">{data?.bandCaveat}</p>
+              )}
             </div>
           )}
 
