@@ -35,6 +35,11 @@
  * the tab holding that section and scroll to it (lib/stats/resolve-tab.ts STATS_TAB_ALIASES).
  * Pinned by tests/components/stats-three-tabs-verdict.test.tsx.
  *
+ * Wave E2 (2026-10-24, "am I on track"): the verdict block leads and carries the Journey lens's 30 day
+ * trend (the Journey panel at the page bottom is gone); Mastery is one row list (MasteryList) instead
+ * of three same-height cards; Goals holds CalibrationTile, PredictionStreaksCard and GhostNickStrip,
+ * moved from the Brain Self-model fold. Pinned by tests/components/stats/stats-e2-structure.test.tsx.
+ *
  * Suspense boundary: <MissionBreadcrumb> reads useMissionMode() →
  * useSearchParams(), which Next bails to client-side render at prerender
  * time unless wrapped. NickSidePane gets its own so any search-param child
@@ -66,7 +71,11 @@ import { ForecastDuel } from "@/components/stats/forecast-duel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
-import { JourneyPanel } from "@/components/stats/journey-panel";
+import { MasteryList } from "@/components/stats/mastery-list";
+// Wave E2: moved from the Brain Self-model fold to Goals, beside the calibration section.
+import { CalibrationTile } from "@/components/stats/calibration-tile";
+import { PredictionStreaksCard } from "@/components/brain/prediction-streaks-card";
+import { GhostNickStrip } from "@/components/ultron/ghost-nick/ghost-nick-strip";
 
 /** While a lazy section's code loads: the state in words (W4), not a pulsing block. */
 function SectionFallback() {
@@ -87,20 +96,6 @@ const LearningLoop = dynamic(
   { ssr: false, loading: () => <SectionFallback /> },
 );
 
-const IdentityArcCard = dynamic(
-  () => import("@/components/mastery/identity-arc-card").then((m) => m.IdentityArcCard),
-  { ssr: false, loading: () => <SectionFallback /> },
-);
-
-const RecurringEnemiesCard = dynamic(
-  () => import("@/components/mastery/recurring-enemies-card").then((m) => m.RecurringEnemiesCard),
-  { ssr: false, loading: () => <SectionFallback /> },
-);
-
-const GraduatedSkillsCard = dynamic(
-  () => import("@/components/mastery/graduated-skills-card").then((m) => m.GraduatedSkillsCard),
-  { ssr: false, loading: () => <SectionFallback /> },
-);
 
 const CalibrationSection = dynamic(
   () => import("@/components/stats/calibration-section").then((m) => m.CalibrationSection),
@@ -203,45 +198,40 @@ function StatsContent() {
       <div ref={panelRef} className="mt-4">
         {activeTab === "mastery" && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* ⓪ TODAY'S MOVE & IDENTITY ARC · responsive 2-column layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <LevelUpDirectiveCard />
-              <IdentityArcCard />
-            </div>
-
-            {/* ENEMIES & GRADUATED SKILLS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RecurringEnemiesCard />
-              <GraduatedSkillsCard />
-            </div>
-
-            {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
+            {/* Today's move first, then the one Mastery row list (wave E2: three same-height cards
+                merged), then the character sheet. */}
+            <LevelUpDirectiveCard />
+            <MasteryList />
             <CharacterSheet />
           </div>
         )}
 
         {activeTab === "goals" && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Coach Channel · goal nudges + mission-mode breadcrumb */}
-            <div className="space-y-2">
-              <CoachEventBanner surface="goals" />
-              <MissionBreadcrumb />
-            </div>
+            {/* Coach nudges and the mission breadcrumb render nothing when empty, so no wrapper (an
+                empty wrapper still took a gap). */}
+            <CoachEventBanner surface="goals" />
+            <MissionBreadcrumb />
 
-            {/* ② WHERE YOU'RE GOING · the goals surface (interactive GoalBoard). */}
+            {/* Where you're going: the interactive GoalBoard. */}
             <section id="goals" className="space-y-3">
               <MasterySectionLabel label="Goals · what you're climbing toward" />
               <GoalBoard />
             </section>
-            {/* ⑤ CALIBRATION · outcome tracking & prediction scoring (W4: folded under Goals) */}
-            <section id="calibration" className="scroll-mt-16 space-y-3">
+            {/* Calibration (W4: folded under Goals). Wave E2: the Brain calibration and prediction
+                streak cards lead it; the tile replaces the section's own duplicate accuracy card. */}
+            <section id="calibration" className="scroll-mt-16 space-y-4">
               <MasterySectionLabel label="Calibration · outcome benchmarking" />
+              <CalibrationTile />
+              <PredictionStreaksCard />
               <CalibrationSection />
             </section>
-            {/* ⑥ FORECAST DUEL · you-vs-Nick Brier (#1393's missing consumer) */}
-            <section id="forecast-duel" className="space-y-3">
+            {/* Forecast duel, you vs Nick (#1393's missing consumer), then Ghost Nick's own open
+                predictions (wave E2, from the Brain fold). */}
+            <section id="forecast-duel" className="space-y-4">
               <MasterySectionLabel label="Forecast duel · odds on yourself" />
               <ForecastDuel />
+              <GhostNickStrip />
             </section>
           </div>
         )}
@@ -290,13 +280,6 @@ export default function StatsPage() {
           ]}
         />
       </Suspense>
-
-      {/* Wave-6 (2026-07-29) · the Journey lens — months-scale becoming,
-          the chronological view the 06-10 audit named as the moat. */}
-      <div className="px-4 pb-6 max-w-2xl mx-auto">
-        <MasterySectionLabel label="Journey" />
-        <JourneyPanel />
-      </div>
     </>
   );
 }

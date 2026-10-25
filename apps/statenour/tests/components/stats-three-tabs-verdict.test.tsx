@@ -39,7 +39,11 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 vi.mock("@/lib/trpc/client", () => ({
-  trpc: { operator: { characterSheet: { useQuery: () => h.q } } },
+  trpc: {
+    operator: { characterSheet: { useQuery: () => h.q } },
+    // Wave E2: the verdict also reads the Journey lens for its trend line (pinned in tests/components/stats).
+    system: { journeyLens: { useQuery: () => ({ data: undefined, isLoading: true, isPending: true, fetchStatus: "fetching", refetch: () => undefined }) } },
+  },
 }));
 vi.mock("@/components/layout/standard-page", () => ({
   StandardPage: ({ children }: { children?: ReactNode }) => <main>{children}</main>,
@@ -52,7 +56,10 @@ vi.mock("@/components/stats/forecast-duel", () => ({ ForecastDuel: none }));
 vi.mock("@/components/mastery/coach-event-banner", () => ({ CoachEventBanner: none }));
 vi.mock("@/components/mastery/mission-breadcrumb", () => ({ MissionBreadcrumb: none }));
 vi.mock("@/components/mastery/nick-side-pane", () => ({ NickSidePane: none }));
-vi.mock("@/components/stats/journey-panel", () => ({ JourneyPanel: none }));
+vi.mock("@/components/stats/mastery-list", () => ({ MasteryList: none }));
+vi.mock("@/components/stats/calibration-tile", () => ({ CalibrationTile: none }));
+vi.mock("@/components/brain/prediction-streaks-card", () => ({ PredictionStreaksCard: none }));
+vi.mock("@/components/ultron/ghost-nick/ghost-nick-strip", () => ({ GhostNickStrip: none }));
 
 import StatsPage from "@/app/(mastery)/stats/page";
 import { STATS_TABS, resolveStatsTab } from "@/lib/stats/resolve-tab";

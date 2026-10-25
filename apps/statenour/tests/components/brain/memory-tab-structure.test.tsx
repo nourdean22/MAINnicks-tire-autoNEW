@@ -9,7 +9,7 @@
  * the content (empty-vs-error). The four telemetry and drift panels moved to the Health tab and must
  * not mount here any more (assert-the-consumer: tests/components/brain/health-tab-moves.test.tsx).
  *
- * Every child is a stub except the two inline lines (identity delta, calibration), which read through
+ * Every child is a stub except the inline identity delta line, which reads through
  * a proxied tRPC mock. MemoryTab itself is real, so a tab that stops mounting a block or a fold fails.
  */
 // @vitest-environment jsdom
@@ -198,8 +198,6 @@ describe("Memory tab: three closed folds that count what they hide", () => {
       "SelfCritiqueCard",
       "DecisionReplayCard",
       "AntiPatternsPanel",
-      "PredictionStreaksCard",
-      "GhostNickStrip",
       "PreferencesCard",
     ]);
     expect(members("Context")).toEqual(["NudgePanel", "PinnedContextPanel", "RecallPreviewPanel"]);
@@ -208,37 +206,34 @@ describe("Memory tab: three closed folds that count what they hide", () => {
   it("counts the rows that rendered in each summary", async () => {
     await mount();
     expect(summary("Signals")).toMatch(/^Signals \(4\)$/);
-    // Nine stubs plus the Settings identity line; the calibration line renders nothing on an empty window.
-    expect(summary("Self-model")).toMatch(/^Self-model \(10\)$/);
+    // Seven stubs plus the Settings identity line (calibration, streaks and Ghost Nick left for Stats, wave E2).
+    expect(summary("Self-model")).toMatch(/^Self-model \(8\)$/);
     expect(summary("Context")).toMatch(/^Context \(3\)$/);
   });
 
   it("says (n unreadable) when a child's read failed, in every fold", async () => {
     h.fail = new Set(["PatternCard", "AntiPatternsPanel", "RecallPreviewPanel"]);
-    h.q["brain.calibrationSummary"] = failed;
     await mount();
     expect(summary("Signals")).toBe("Signals (4) (1 unreadable)");
-    // The failed calibration read renders its own line, so it is a row AND unreadable.
-    expect(summary("Self-model")).toBe("Self-model (11) (2 unreadable)");
+    expect(summary("Self-model")).toBe("Self-model (8) (1 unreadable)");
     expect(summary("Context")).toBe("Context (3) (1 unreadable)");
   });
 
   it("says (1 offline) when the skill library read is paused before any data (Codex 4368647109)", async () => {
     h.q["operator.skills"] = { data: undefined, isError: false, isPending: true, isLoading: false, fetchStatus: "paused", refetch: () => Promise.resolve() };
     await mount();
-    expect(summary("Self-model")).toBe("Self-model (10) (1 offline)");
+    expect(summary("Self-model")).toBe("Self-model (8) (1 offline)");
   });
 
-  it("a failed refresh over cached data says stale: identity delta visible, calibration and skills counted in Self-model", async () => {
+  it("a failed refresh over cached data says stale: identity delta visible, skills counted in Self-model", async () => {
     const stale = (data: unknown) => ({ data, isError: true, isPending: false, isLoading: false, fetchStatus: "idle", refetch: () => Promise.resolve() });
     h.q["brain.identityDelta"] = stale({ delta: "Rhythm shifted toward mornings." });
-    h.q["brain.calibrationSummary"] = stale({ resolved: 0 });
     h.q["operator.skills"] = stale({ active: [], pending: [] });
     await mount();
     const line = [...host.querySelectorAll("p")].find((p) => p.textContent?.includes("Rhythm shifted"))!;
     expect(line.closest("div.space-y-1")?.querySelector('[data-read-state="stale"]')).not.toBeNull();
-    // the calibration note is its own row (an empty window); the skills note sits in the skills row
-    expect(summary("Self-model")).toBe("Self-model (11) (2 stale)");
+    // the skills note sits in the skills row
+    expect(summary("Self-model")).toBe("Self-model (8) (1 stale)");
   });
 
   it("follows a read that fails after mount", async () => {

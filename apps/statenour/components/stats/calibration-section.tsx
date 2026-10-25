@@ -244,46 +244,9 @@ export function CalibrationSection() {
     <div className="flex flex-col gap-8">
       {/* 1. SCOREBOARD PANEL */}
       {scoreboard && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card A: Prediction Accuracy */}
-          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
-            <div 
-              className="absolute top-0 left-0 w-full h-[3px]"
-              style={{ backgroundColor: scoreboard.colorHsl }}
-            />
-            <div className="mb-4">
-              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
-                Prediction Calibration
-                <Activity className="h-4 w-4 text-fg-tertiary" />
-              </h3>
-            </div>
-            <div className="space-y-1">
-              <div className="text-2xl font-bold font-mono text-fg">
-                {scoreboard.predictionAccuracyPct !== null 
-                  ? `${scoreboard.predictionAccuracyPct}%` 
-                  : "--"}
-              </div>
-              <p className="text-[11px] text-fg-tertiary">
-                {scoreboard.predictionCount30d} predictions (30d) &middot; Brier: {scoreboard.rollingBrier30d !== null ? scoreboard.rollingBrier30d.toFixed(3) : "N/A"}
-              </p>
-              <div className="pt-2">
-                <Badge 
-                  className="text-[11px] font-medium"
-                  style={{
-                    backgroundColor: `${scoreboard.colorHsl}15`,
-                    color: scoreboard.colorHsl,
-                    border: `1px solid ${scoreboard.colorHsl}30`
-                  }}
-                >
-                  {scoreboard.calibrationVerdict === "well-calibrated" && "Well Calibrated"}
-                  {scoreboard.calibrationVerdict === "moderate" && "Moderate Calibration"}
-                  {scoreboard.calibrationVerdict === "drift" && "Calibration Drift Detected"}
-                  {scoreboard.calibrationVerdict === "unknown" && "Preliminary Data"}
-                </Badge>
-              </div>
-            </div>
-          </GlassCard>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card A (prediction accuracy, 30 day Brier, verdict) left in wave E2: the page's CalibrationTile
+              shows the same numbers over predictions RESOLVED in 30 days (components/stats/calibration-tile.tsx). */}
           {/* Card B: Task ROI Accuracy */}
           <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div 

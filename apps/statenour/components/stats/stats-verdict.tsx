@@ -14,8 +14,9 @@
  * loads. Pinned by tests/components/stats-three-tabs-verdict.test.tsx.
  */
 
-import { offlineCopy, readState } from "@/lib/query-state";
+import { isRetrying, offlineCopy, readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 
 /** The fields of lib/mastery/character-sheet.ts StatLevel the verdict reads. */
 export interface VerdictStat {
@@ -63,7 +64,37 @@ export function StatsStateBlock({ state, message, onRetry }: { state: StatsBlock
   );
 }
 
-export function StatsVerdict() {
+/** The fields of the Journey lens XP section (lib/trpc/routers/system/quality.ts journeyLens) the line reads. */
+export interface JourneyXp {
+  enoughData: boolean;
+  unknown?: boolean;
+  data: { current30: number; prior30: number; growthPct: number | null };
+}
+
+/** Wave E2: the Journey lens's 30 day XP trend, said in one sentence under the verdict. */
+export function journeyXpLine(xp: JourneyXp): string {
+  if (xp.unknown) return "XP for the last 30 days couldn't be read. State unknown, not a quiet month.";
+  if (!xp.enoughData) return "No XP events in either 30 day window yet.";
+  const { current30, prior30, growthPct } = xp.data;
+  const growth = growthPct == null ? "no earlier baseline to compare" : `${growthPct >= 0 ? "+" : ""}${growthPct}%`;
+  return `${current30} XP in the last 30 days, ${prior30} the 30 before (${growth}).`;
+}
+
+/** Wave E2: the Journey panel's trend line, merged into the verdict (census 3I MERGE). */
+function JourneyLine() {
+  const query = trpc.system.journeyLens.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  const state = readState(query);
+  const xp = query.data?.xp as JourneyXp | undefined;
+  return (
+    <div data-stats-journey className="space-y-1 text-[14px] leading-snug text-fg-secondary">
+      <ReadStateNote state={state} label="The 30 day trend" onRetry={() => void query.refetch()} retrying={isRetrying(query)} />
+      {state === "loading" && <p className="text-fg-tertiary">Reading the 30 day trend.</p>}
+      {xp && <p>{journeyXpLine(xp)}</p>}
+    </div>
+  );
+}
+
+function VerdictSentence() {
   const query = trpc.operator.characterSheet.useQuery(undefined, { staleTime: 60_000 });
   const stats = (query.data as VerdictStat[] | undefined) ?? null;
 
@@ -86,5 +117,15 @@ export function StatsVerdict() {
     <p data-stats-verdict className="max-w-[36ch] text-[17px] font-medium leading-snug text-fg sm:text-[19px]">
       {statsVerdict(stats)}
     </p>
+  );
+}
+
+/** The page's one decision, "am I on track": the level sentence, then the 30 day trend. */
+export function StatsVerdict() {
+  return (
+    <section data-stats-verdict-block aria-label="Where you stand" className="space-y-2">
+      <VerdictSentence />
+      <JourneyLine />
+    </section>
   );
 }
