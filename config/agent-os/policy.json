@@ -295,21 +295,64 @@
     {
       "id": "add-all",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__add\\b[^\\n]*?(?:\\s-[a-zA-Z]*A[a-zA-Z]*\\b|\\s--all\\b|\\s\\.(?=[\\s\"']|$))",
-      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files.",
+      "pattern": "__GIT__add\\b[^;|&\\n]*?\\s(?:-[a-zA-Z]*A[a-zA-Z]*\\b|--all\\b|[\"']?(?:(?:\\.{1,2}(?:[\\\\/]\\*?)?|\\*[^\\s;|&)\"']*|:(?:/|\\([^)\\s]*\\btop\\b[^)\\s]*\\))[.*]?)[\"']?(?=[\\s;|&)\"']|$)|(?:\\$\\(|`)\\s*git(?:\\s+[^\\s;|&)`]+){0,6}?\\s+(?:ls-files|diff|status)\\b))|__GIT__add(?=(?:\\s+-[\\w=+.,-]*)*?\\s+(?:-(?=[a-zA-Z]*u)[a-zA-Z]+|--update)(?=[\\s;|&)]|$))(?:\\s+(?:-[\\w=+.,-]*|&?\\d*>{1,2}(?:&\\d*|\\s*[^\\s;&|)]+)?))*\\s*(?=$|[;|&\\n)])|__GIT__(?:ls-files|diff|status)\\b(?:\\s+[^\\s;&|]+){0,12}\\s*\\|\\s*xargs\\b(?:\\s+[^\\s;&|]+){0,8}?\\s+git\\s+add\\b",
+      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files. 2026-10-25: the scan stops at ; | & and newline (as force-push did 2026-09), so a one-path add chained with a later --root . or ls -A passes, and a dot followed by ; & | ) or written as \".\", './' or .\\ is caught. Also denied (manager ruling 2026-10-25, each a whole-tree add with no named path): a bare -u/--update, :/ and :(top), a token that starts with * (bare *, './*', '*.ts'), .. and ../, and git's own file list as the path list ($(git ls-files|diff|status ...), backticks, or piped into xargs git add). Still allowed: -u with named paths, apps/x/*.ts, ./docs/a.md, :/apps/x.md, ../app/a.ts.",
       "fix": "git add path/to/one.ts path/to/two.ts",
       "denyExamples": [
         "git add -A",
         "git add --all",
         "git add .",
         "git -C . add -A",
-        "pnpm test && git add -A && git commit -m x"
+        "pnpm test && git add -A && git commit -m x",
+        "git add . && pnpm test",
+        "git add -A; git commit",
+        "git add src/a.ts .",
+        "git add a.ts && git add .",
+        "git add .; git commit -m x",
+        "git add .&& git commit -m x",
+        "(git add .)",
+        "git add \".\"",
+        "git add './'",
+        "git add .\\",
+        "git add -u",
+        "git add --update",
+        "git add -vu",
+        "git -C x add -u",
+        "git add -u -- ",
+        "git add -u 2>&1",
+        "git add -u > /dev/null 2>&1",
+        "git add -u >> log.txt",
+        "git add -u; git commit -m x",
+        "git add :/",
+        "git add ':(top)'",
+        "git add *",
+        "git add ./*",
+        "git add '*.ts'",
+        "git add ..",
+        "git add $(git ls-files -m)",
+        "git add $(git diff --name-only HEAD)",
+        "git add `git ls-files -o`",
+        "git ls-files -m | xargs git add"
       ],
       "allowExamples": [
         "git add apps/statenour/lib/foo.ts",
         "git add AGENTS.md CLAUDE.md",
         "git add ./apps/nickstire/AGENTS.md",
-        "git add -p apps/nickstire/server/x.ts"
+        "git add -p apps/nickstire/server/x.ts",
+        "git add .gitleaksignore",
+        "git add docs/agent-os/ledger/2026-10-25-guard-scan-fix.md && node scripts/agent-os/ledger-check.mjs --root .",
+        "git add docs/agent-os/README.md && git commit -m \"x -A y\"",
+        "git add docs/agent-os/README.md; ls -A",
+        "git add a.ts && npm ls --all",
+        "git add a.ts && cd .. && ls .",
+        "git add -u apps/x/one.ts apps/x/two.ts",
+        "git add -u docs/x.md > out.txt",
+        "git add -u -- docs/x.md",
+        "git add apps/x/*.ts",
+        "git add ./docs/a.md",
+        "git add :/apps/nickstire/AGENTS.md",
+        "git add ../statenour/lib/foo.ts",
+        "git add a.ts && git diff --name-only"
       ]
     },
     {
@@ -328,8 +371,8 @@
     {
       "id": "destructive-restore",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__(?:reset\\s+--hard\\b|checkout\\s+--\\s|clean\\s+-[a-zA-Z]*[dfxX][a-zA-Z]*\\b|restore\\b(?!(?=[^\\n]*--staged\\b)(?![^\\n]*--worktree\\b))|checkout(?:\\s+-[A-Za-z]+|\\s+--[\\w-]+)*\\s+[^\\s;&|)\\-][^\\s;&|)]*\\s+--\\s|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+\\.\\/?(?=[\\s;&|)]|$)|checkout\\b[^;&|\\n]*?\\s(?:-[A-Za-z]*f[A-Za-z]*\\b|--force(?=[\\s;&|)]|$))|switch\\b[^;&|\\n]*?\\s(?:--discard-changes\\b|--force(?=[\\s;&|)]|$)|-[A-Za-z]*f[A-Za-z]*\\b)|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+[^\\s;&|)\\-][^\\s;&|)]*\\.(?:tsx?|jsx?|mjs|cjs|json|md|ya?ml|css|scss|html|sql|py|ps1|sh|lock|toml|txt|prisma)(?=[\\s;&|)]|$))",
-      "why": "Memory git-sync-never-reset-hard: a sibling session's uncommitted work can be sitting in this tree, and none of these leave a reflog entry for unstaged changes. Covers reset --hard, checkout -- <path>, git clean -d/-f/-x, and worktree-writing git restore. Red-team 2026-10-01: git's other spellings of the same discard passed: checkout . (all paths), checkout <ref> -- <path> and checkout <ref> . (the ref's copy over your edits), checkout -f / --force and switch -f / --force / --discard-changes (switching that throws local changes away). They are covered now, and so is checkout [<ref>] <file> when the word ends in a source-file extension; a bare checkout <word> without one stays allowed, because by text alone it is a branch switch.",
+      "pattern": "__GIT__(?:reset\\s+--hard\\b|checkout\\s+--\\s|clean\\s+-[a-zA-Z]*[dfxX][a-zA-Z]*\\b|restore\\b(?!(?=[^;|&\\n]*--staged\\b)(?![^;|&\\n]*--worktree\\b))|checkout(?:\\s+-[A-Za-z]+|\\s+--[\\w-]+)*\\s+[^\\s;&|)\\-][^\\s;&|)]*\\s+--\\s|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+\\.\\/?(?=[\\s;&|)]|$)|checkout\\b[^;&|\\n]*?\\s(?:-[A-Za-z]*f[A-Za-z]*\\b|--force(?=[\\s;&|)]|$))|switch\\b[^;&|\\n]*?\\s(?:--discard-changes\\b|--force(?=[\\s;&|)]|$)|-[A-Za-z]*f[A-Za-z]*\\b)|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+[^\\s;&|)\\-][^\\s;&|)]*\\.(?:tsx?|jsx?|mjs|cjs|json|md|ya?ml|css|scss|html|sql|py|ps1|sh|lock|toml|txt|prisma)(?=[\\s;&|)]|$))",
+      "why": "Memory git-sync-never-reset-hard: a sibling session's uncommitted work can be sitting in this tree, and none of these leave a reflog entry for unstaged changes. Covers reset --hard, checkout -- <path>, git clean -d/-f/-x, and worktree-writing git restore. Red-team 2026-10-01: git's other spellings of the same discard passed: checkout . (all paths), checkout <ref> -- <path> and checkout <ref> . (the ref's copy over your edits), checkout -f / --force and switch -f / --force / --discard-changes (switching that throws local changes away). They are covered now, and so is checkout [<ref>] <file> when the word ends in a source-file extension; a bare checkout <word> without one stays allowed, because by text alone it is a branch switch. 2026-10-25: the --staged / --worktree lookaheads stop at ; | & and newline; before that, git restore <file> && git diff --staged was ALLOWED (the --staged of the later command exempted the restore).",
       "fix": "Sync with: git fetch origin main ; git merge --ff-only origin/main. To discard YOUR OWN edit, copy the file aside first (cp file file.bak). git restore --staged <file> (unstage only) stays allowed. To take another ref's version of a file you have NOT edited, copy the file aside, then redirect git show <ref>:<path> into it from bash, or through cmd /c on Windows (a Windows PowerShell 5.1 > redirect re-encodes the file as UTF-16); during a merge, git checkout --theirs / --ours <path> stays allowed.",
       "denyExamples": [
         "git reset --hard origin/main",
@@ -349,7 +392,10 @@
         "git switch -f main",
         "git checkout . && git status",
         "git checkout src/app.ts",
-        "git checkout main apps/nickstire/package.json"
+        "git checkout main apps/nickstire/package.json",
+        "git restore src/x.ts && git diff --staged",
+        "git restore src/x.ts; echo --staged",
+        "git restore --staged a.ts && git restore b.ts"
       ],
       "allowExamples": [
         "git reset HEAD~1",
@@ -365,7 +411,9 @@
         "git checkout -B claude/x origin/main",
         "git checkout feature/fix-foo",
         "git switch --force-create feat/x",
-        "git diff HEAD -- src/app.ts"
+        "git diff HEAD -- src/app.ts",
+        "git restore --staged a.ts && git status",
+        "git restore --staged a.ts; echo --worktree"
       ]
     },
     {
