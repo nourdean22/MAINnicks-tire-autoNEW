@@ -377,7 +377,11 @@ describe("fixture router (answerApi)", () => {
 
   it("the live stream route really answers 204 for 'none' (the fixture copies the server, it does not invent)", () => {
     const route = read(path.join(APP_DIR, "app", "api", "ai", "chat", "[conversationId]", "stream", "route.ts"));
-    expect(route).toMatch(/conversationId === "none"\) \{\s*return new Response\(null, \{ status: 204 \}\);/);
+    // 2026-10-25: 'none' with no ?clientMessageId= (every fixture GET) is still a 204; only a
+    // first-send stall reattach names a message and is looked up.
+    expect(route).toMatch(
+      /conversationId === "none"\) \{[^}]*?if \(!clientMessageId\) return new Response\(null, \{ status: 204 \}\);/,
+    );
   });
 
   /** Paths whose value JSON would drop or rewrite: undefined, Date, function, symbol, bigint, NaN/Infinity. */
