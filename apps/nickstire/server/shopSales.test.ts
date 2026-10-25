@@ -505,3 +505,166 @@ describe("the period list is one contract across router, service and card", () =
     expect(router).toMatch(/\.default\("last_7d"\)/);
   });
 });
+
+describe("previous: the same figures for the window of the same length just before", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    dbMock.execute.mockReset();
+  });
+
+  const aggRow = {
+    paidCount: 0, paidCents: 0, pendingCount: 0, pendingCents: 0, partialCount: 0, partialCents: 0,
+    refundedCount: 0, refundedCents: 0, blankInvoiceNumbers: 0,
+  };
+  const NOW_ISO = "2026-10-21T15:59:00Z"; // 11:59 ET, Wed 2026-10-21
+  const epoch = (iso: string) => Date.parse(iso) / 1000;
+
+  // Four statements, in order: the sync watermark, the current aggregate, MAX(invoiceDate), then
+  // the previous window's aggregate.
+  async function readBoth(
+    period: (typeof SALES_PERIODS)[number],
+    opts: {
+      now?: string;
+      agg?: Record<string, number>;
+      prev?: Record<string, number>;
+      probe?: string | null;
+      prevFails?: boolean;
+    } = {},
+  ) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(opts.now ?? NOW_ISO));
+    dbMock.execute
+      .mockResolvedValueOnce([opts.probe ? [{ probeEpoch: epoch(opts.probe) }] : []])
+      .mockResolvedValueOnce([[{ ...aggRow, ...opts.agg }]])
+      .mockResolvedValueOnce([[{ throughDate: null }]]);
+    if (opts.prevFails) dbMock.execute.mockRejectedValueOnce(new Error("previous aggregate failed"));
+    else dbMock.execute.mockResolvedValueOnce([[{ ...aggRow, ...opts.prev }]]);
+    return paidInvoiceRevenue(period);
+  }
+  async function readOk(...args: Parameters<typeof readBoth>) {
+    const r = await readBoth(...args);
+    if (!r.available) throw new Error(`unexpected unavailable: ${r.reason}`);
+    return r;
+  }
+
+  const chunksOf = (call: unknown[]) => (call[0] as { queryChunks: unknown[] }).queryChunks;
+  const textOf = (call: unknown[]) =>
+    chunksOf(call)
+      .map((c) => (c && typeof c === "object" && Array.isArray((c as { value?: string[] }).value) ? (c as { value: string[] }).value.join("") : "?"))
+      .join("");
+  const paramsOf = (call: unknown[]) => chunksOf(call).filter((c): c is string => typeof c === "string");
+
+  it("last_7d: 6 invoices / $4,249 now, 8 / $5,193 before, with the average beside each count", async () => {
+    const r = await readOk("last_7d", { agg: { paidCount: 6, paidCents: 424900 }, prev: { paidCount: 8, paidCents: 519300 } });
+    expect(r.cents).toBe(424900);
+    expect(r.invoiceCount).toBe(6);
+    expect(r.averageCents).toBe(70817); // 424900 / 6 = 70816.67
+    expect(r.previous).toEqual({
+      cents: 519300,
+      invoiceCount: 8,
+      averageCents: 64913, // 519300 / 8 = 64912.5, rounded half up
+      window: { fromISO: "2026-10-07", toISO: "2026-10-14", label: "7 days before" },
+      windowSynced: false, // no probe on record
+    });
+    // The current window is untouched: Oct 14 .. Oct 20 (7 dates).
+    expect(r.window).toEqual({ fromISO: "2026-10-14", toISO: "2026-10-21", label: "Last 7 days" });
+  });
+
+  it("the previous aggregate is the SAME statement over the previous dates: same exclusions, same source rule", async () => {
+    await readOk("last_7d", { probe: "2026-10-21T15:42:00Z" });
+    const calls = dbMock.execute.mock.calls;
+    expect(calls).toHaveLength(4);
+    expect(textOf(calls[3]!)).toBe(textOf(calls[1]!));
+    expect(textOf(calls[3]!)).toMatch(/SUM\(CASE WHEN paymentStatus = 'paid'\s+THEN totalAmount/);
+    expect(paramsOf(calls[1]!)).toEqual(["2026-10-14", "2026-10-21"]);
+    expect(paramsOf(calls[3]!)).toEqual(["2026-10-07", "2026-10-14"]);
+  });
+
+  it("an empty previous window is a real 0 with no average, not an average of 0", async () => {
+    const r = await readOk("last_7d", { agg: { paidCount: 2, paidCents: 50000 }, prev: {} });
+    expect(r.previous).toMatchObject({ cents: 0, invoiceCount: 0, averageCents: null });
+    const quiet = await readOk("last_7d", { agg: {}, prev: {} });
+    expect(quiet.averageCents).toBeNull();
+    expect(quiet.cents).toBe(0);
+  });
+
+  it("today: the previous window is yesterday", async () => {
+    const r = await readOk("today", { prev: { paidCount: 5, paidCents: 100000 } });
+    expect(r.previous).toMatchObject({ cents: 100000, invoiceCount: 5, averageCents: 20000, window: { fromISO: "2026-10-20", toISO: "2026-10-21", label: "Yesterday" } });
+  });
+
+  it("yesterday: the previous window is the day before", async () => {
+    const r = await readOk("yesterday");
+    expect(r.previous?.window).toMatchObject({ fromISO: "2026-10-19", toISO: "2026-10-20" });
+  });
+
+  it("last_30d: the 30 dates before", async () => {
+    const r = await readOk("last_30d");
+    expect(r.window).toMatchObject({ fromISO: "2026-09-21", toISO: "2026-10-21" });
+    expect(r.previous?.window).toMatchObject({ fromISO: "2026-08-22", toISO: "2026-09-21" });
+  });
+
+  it("month_to_date on the 25th: the 1st to the 25th of last month", async () => {
+    const r = await readOk("month_to_date", { now: "2026-10-25T16:00:00Z" });
+    expect(r.window).toMatchObject({ fromISO: "2026-10-01", toISO: "2026-10-26" }); // 25 dates
+    expect(r.previous?.window).toMatchObject({ fromISO: "2026-09-01", toISO: "2026-09-26", label: "Same days last month" }); // 25 dates
+  });
+
+  it("month_to_date on the 31st stops at the end of a 30-day last month, never into this month", async () => {
+    const r = await readOk("month_to_date", { now: "2026-10-31T16:00:00Z" });
+    expect(r.previous?.window).toMatchObject({ fromISO: "2026-09-01", toISO: "2026-10-01" });
+  });
+
+  it("prev_month: the month before it, across the year boundary too", async () => {
+    const r = await readOk("prev_month");
+    expect(r.window).toMatchObject({ fromISO: "2026-09-01", toISO: "2026-10-01" });
+    expect(r.previous?.window).toMatchObject({ fromISO: "2026-08-01", toISO: "2026-09-01" });
+    const jan = await readOk("prev_month", { now: "2026-01-10T17:00:00Z" });
+    expect(jan.previous?.window).toMatchObject({ fromISO: "2025-11-01", toISO: "2025-12-01" });
+  });
+
+  it("never overlaps the current window and ends where it begins, for every period", async () => {
+    for (const p of SALES_PERIODS) {
+      for (const now of ["2026-10-21T15:59:00Z", "2026-03-10T16:00:00Z", "2026-11-03T17:00:00Z", "2027-01-03T17:00:00Z", "2028-03-02T17:00:00Z", "2026-10-31T16:00:00Z"]) {
+        const r = await readOk(p, { now });
+        const prev = r.previous!;
+        expect(prev.window.toISO <= r.window.fromISO, `${p} @ ${now}: previous reaches into the current window`).toBe(true);
+        expect(prev.window.fromISO < prev.window.toISO, `${p} @ ${now}: empty previous window`).toBe(true);
+        if (p !== "month_to_date" && p !== "prev_month") {
+          expect(prev.window.toISO, `${p} @ ${now}: gap between the windows`).toBe(r.window.fromISO);
+          expect(datesIn({ from: prev.window.fromISO, to: prev.window.toISO }), `${p} @ ${now}`).toHaveLength(
+            datesIn({ from: r.window.fromISO, to: r.window.toISO }).length,
+          );
+        }
+        dbMock.execute.mockReset();
+      }
+    }
+  });
+
+  it("the previous window is judged against the probe on its own end date, not the current window's", async () => {
+    // Last night's 8 PM probe: the current last_7d (ends yesterday) is not covered, but the
+    // 7 dates before it ended a week ago and are.
+    const r = await readOk("last_7d", { probe: "2026-10-21T00:00:00Z" });
+    expect(r.windowSynced).toBe(false);
+    expect(r.previous?.windowSynced).toBe(true);
+  });
+
+  it("an unreadable probe log leaves the previous windowSynced unknown, like the current one", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW_ISO));
+    dbMock.execute
+      .mockRejectedValueOnce(new Error("alg_probe_log unreadable"))
+      .mockResolvedValueOnce([[aggRow]])
+      .mockResolvedValueOnce([[{ throughDate: null }]])
+      .mockResolvedValueOnce([[aggRow]]);
+    const r = await paidInvoiceRevenue("last_7d");
+    expect(r.available && r.windowSynced).toBeNull();
+    expect(r.available && r.previous?.windowSynced).toBeNull();
+  });
+
+  it("a failed previous read makes the whole answer unavailable, never a previous of 0", async () => {
+    const r = await readBoth("last_7d", { agg: { paidCount: 6, paidCents: 424900 }, prevFails: true });
+    expect(r).toEqual({ available: false, reason: "previous aggregate failed" });
+    expect("cents" in r).toBe(false);
+  });
+});
