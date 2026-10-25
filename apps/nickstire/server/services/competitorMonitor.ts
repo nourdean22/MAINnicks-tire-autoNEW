@@ -68,8 +68,8 @@ const COMPETITORS: Array<{ name: string; group: CompetitorGroup; placeId: string
     searchQuery: "Goodyear Auto Service Center Cleveland OH",
   },
   // 2026-08-11 · LOCAL independents — the set the shop actually competes
-  // with block-by-block (same list as client/src/lib/competitorGbpMonitor.ts
-  // baselines). The chains above measure the market; these measure the fight.
+  // with block-by-block (the admin tab's hand-typed 2026-06 baseline carried the same
+  // names until it went live on 2026-10-25). The chains above measure the market; these measure the fight.
   {
     name: "Moe's Tire Center",
     group: "local",
