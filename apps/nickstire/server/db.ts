@@ -2255,6 +2255,28 @@ export async function isPhoneOnReviewCooldown(phone: string, cooldownDays: numbe
 }
 
 /**
+ * Has the shop texted this phone (any outbound, not failed) in the last `days` days?
+ * Returns true when it has, or when the database is down (fail safe: don't send).
+ * `phone` is the bare 10-digit form, the same as sms_conversations.phone.
+ */
+export async function hasOutboundTextWithinDays(phone: string, days: number) {
+  const db = await getDb();
+  if (!db) return true; // Fail safe: don't send if DB is down
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const results = await db.select({ id: smsMessages.id }).from(smsMessages)
+    .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+    .where(and(
+      eq(smsConversations.phone, phone),
+      eq(smsMessages.direction, "outbound"),
+      ne(smsMessages.status, "failed"),
+      gte(smsMessages.createdAt, cutoff),
+    ))
+    .limit(1);
+  return results.length > 0;
+}
+
+/**
  * Count how many review requests were sent today.
  */
 export async function getReviewRequestsSentToday() {
