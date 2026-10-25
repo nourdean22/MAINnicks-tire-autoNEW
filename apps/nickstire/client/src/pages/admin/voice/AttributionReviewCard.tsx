@@ -23,8 +23,10 @@ type Decision = "confirmed" | "rejected" | "ambiguous";
 const ET = "America/New_York";
 const fmtWhen = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-US", { timeZone: ET, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+// invoices.invoiceDate holds the SHOP DAY as stored digits (server/__tests__/invoiceDateShopLocal.test.ts);
+// a date-only ticket sits at 00:00:00, so an ET conversion would show the day before. Format the digits.
 const fmtDay = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: ET, month: "short", day: "numeric" }) : null;
+  iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }) : null;
 // Cents stay: the total is how the operator recognises the ticket, so $412.50 must not read $413.
 const fmtMoney = (cents: number | null) =>
   cents == null
@@ -161,7 +163,7 @@ export function AttributionReviewCard() {
                   {data.bands.verified > 0 && <>{data.bands.verified} with a recorded link · </>}
                   {data.bands.strong > 0 && <>{data.bands.strong} with the service matching · </>}
                   {data.bands.weak > 0 && <>{data.bands.weak} on phone and timing only · </>}
-                  {data.bands.unscored > 0 && <>{data.bands.unscored} with no single sale</>}
+                  {data.bands.unscored > 0 && <>{data.bands.unscored} with no single sale or a contested lead link</>}
                 </p>
               )}
               <p className="text-foreground/50">{data?.bandCaveat}</p>

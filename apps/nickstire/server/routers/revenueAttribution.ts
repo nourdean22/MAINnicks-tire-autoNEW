@@ -158,7 +158,6 @@ export const revenueAttributionRouter = router({
         c.evidence_json AS evidence,
         c.created_at AS createdAt,
         v.serviceMention AS serviceMention,
-        v.aiSummary AS aiSummary,
         v.eval_outcome AS callOutcome,
         v.createdAt AS calledAt,
         i.customerName AS invoiceCustomerName,
@@ -199,14 +198,13 @@ export const revenueAttributionRouter = router({
       ...r,
       band: describeCandidate({ confidence: r.confidence as number | null, resolution: r.resolution as string, invoiceId: r.invoiceId as number | null }),
       firstName: firstNameWords(greetingName(r.invoiceCustomerName)),
-      askedFor: askedForWords(r.serviceMention as string | null, r.aiSummary as string | null),
+      askedFor: askedForWords(r.serviceMention as string | null),
       calledAt: iso(r.calledAt),
       invoicedAt: iso(r.invoicedAt),
       invoiceTotalCents: r.invoiceTotalCents == null ? null : Number(r.invoiceTotalCents),
       invoiceService: r.invoiceService == null ? null : String(r.invoiceService).replace(/\s+/g, " ").trim().slice(0, 80) || null,
       callOutcome: r.callOutcome == null ? null : String(r.callOutcome),
       serviceMention: undefined,
-      aiSummary: undefined,
       invoiceCustomerName: undefined,
     });
 

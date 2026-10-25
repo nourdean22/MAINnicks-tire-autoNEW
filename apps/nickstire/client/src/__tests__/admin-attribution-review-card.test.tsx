@@ -263,3 +263,25 @@ describe("AttributionReviewCard · the lead sentence fits every queued shape (Co
     expect(lead).not.toHaveTextContent(/from the same phone within 14 days/);
   });
 });
+
+describe("AttributionReviewCard · shop day and the mix label (Codex, PR 3271, round 3)", () => {
+  it("shows a date-only invoice on its stored shop day, not the day before", () => {
+    // invoices.invoiceDate stores the shop day as digits; a date-only ticket sits at 00:00:00.
+    h.q.data = queue([weak({ invoicedAt: "2026-10-23T00:00:00.000Z", calledAt: "2026-10-21T18:10:00.000Z" })]);
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent(/Sale Oct 23/);
+    expect(row).not.toHaveTextContent(/Sale Oct 22/);
+    // The call is a real instant and stays in shop time.
+    expect(row).toHaveTextContent(/Called Oct 21, 2:10 PM/);
+  });
+
+  it("names the unscored share without claiming every such row has no sale", () => {
+    h.q.data = queue([weak()], { bands: { verified: 0, strong: 0, weak: 0, unscored: 1, total: 1, inferredPct: 100 } });
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^why/i }));
+    expect(screen.getByText(/1 with no single sale or a contested lead link/)).toBeInTheDocument();
+  });
+});
