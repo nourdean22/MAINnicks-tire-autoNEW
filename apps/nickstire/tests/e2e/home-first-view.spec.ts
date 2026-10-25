@@ -25,12 +25,13 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
-import { chromium, expect, test, type Browser, type TestInfo } from "@playwright/test";
+import { chromium, expect, test, type Browser, type Page, type TestInfo } from "@playwright/test";
 
 const DIST = path.resolve(process.env.ADMIN_V1_DIST ?? "dist/public");
 const VIEWPORT = { width: 375, height: 812 };
 const RUNS = 3;
 const SCROLL_PX = 600;
+const SETTLE_MS = 4000;
 const PROFILE = { latency: 150, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8, cpu: 4 };
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json",
@@ -81,7 +82,12 @@ const CONTROL_FIXED = `<!doctype html><meta name="viewport" content="width=devic
 <div id="ghost-op" style="position:fixed;inset:0;opacity:0;background:#0f0"></div>`;
 const controlTiming = (delayMs: number | null) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0">
 <a id="t" aria-label="Get tires now: control" href="#" style="display:block;margin:40px;padding:20px;opacity:0;transition:none">Get tires now</a>
-${delayMs === null ? "" : `<script>setTimeout(function(){document.getElementById("t").style.opacity="1"},${delayMs})</script>`}`;
+${delayMs === null ? "" : `<script>setTimeout(function(){document.getElementById("t").style.opacity="1";window.__plantedAt=performance.now()},${delayMs})</script>`}`;
+
+/** A small paint at once, a much larger one at 2500 ms: lcp must end up at the later time. */
+const CONTROL_LCP = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0">
+<p style="font-size:12px">small</p>
+<script>setTimeout(function(){var h=document.createElement("h1");h.style.cssText="font-size:64px;margin:0";h.textContent="A much larger heading that paints late";document.body.appendChild(h)},2500)</script>`;
 
 let server: http.Server;
 let origin = "";
@@ -99,6 +105,7 @@ test.beforeAll(async () => {
     };
     if (p === "/__control-fixed") return send(200, MIME[".html"], CONTROL_FIXED);
     if (p === "/__control-timing-2000") return send(200, MIME[".html"], controlTiming(2000));
+    if (p === "/__control-lcp") return send(200, MIME[".html"], CONTROL_LCP);
     if (p === "/__control-timing-never") return send(200, MIME[".html"], controlTiming(null));
     if (p.startsWith("/api/")) { apiPaths.add(p.split("?")[0]); return send(404, "application/json", "{}"); }
     const file = path.join(DIST, decodeURIComponent(p));
@@ -128,6 +135,12 @@ test("home first view on a phone, throttled 4G", async ({}, info) => {
     await browser.close();
   }
 });
+
+/** Wait out the settling window (late fixed layers mount, a later and larger paint can arrive), then read the recorder. */
+async function settle(page: Page): Promise<Record<string, number | null>> {
+  await page.waitForTimeout(SETTLE_MS);
+  return page.evaluate(() => (window as unknown as { __fv: Record<string, number | null> }).__fv);
+}
 
 async function measure(browser: Browser, info: TestInfo) {
   const blockedHosts = new Set<string>();
@@ -159,10 +172,12 @@ async function measure(browser: Browser, info: TestInfo) {
     const { context, page } = await newPage(false);
     await page.goto(`${origin}/__control-timing-2000`);
     await page.waitForFunction(() => (window as unknown as { __fv: { tileVisible: number | null } }).__fv.tileVisible !== null, undefined, { timeout: 10_000 });
-    const t = await page.evaluate(() => (window as unknown as { __fv: { tileVisible: number } }).__fv.tileVisible);
-    controls.timingPlanted2000ms = Math.round(t);
-    expect(t, "C1: a tile planted to turn opaque at 2000 ms reads between 2000 and 2600 ms").toBeGreaterThanOrEqual(2000);
-    expect(t, "C1: a tile planted to turn opaque at 2000 ms reads between 2000 and 2600 ms").toBeLessThan(2600);
+    const { t, planted } = await page.evaluate(() => ({ t: (window as unknown as { __fv: { tileVisible: number } }).__fv.tileVisible, planted: (window as unknown as { __plantedAt: number }).__plantedAt }));
+    controls.timingPlanted = { plantedAtMs: Math.round(planted), readMs: Math.round(t) };
+    // Against the page's own stamp, not a wall-clock 2000: a loaded machine fires the timer late (it fired at 6.6 s once), and that is not the recorder's error.
+    expect(planted, "C1: the planted opacity change happened at or after 2000 ms").toBeGreaterThanOrEqual(2000);
+    expect(t, "C1: the tile is not reported visible before it turned opaque").toBeGreaterThanOrEqual(planted - 1);
+    expect(t - planted, "C1: the recorder notices the planted change within 1000 ms").toBeLessThan(1000);
     await context.close();
   }
   {
@@ -186,6 +201,14 @@ async function measure(browser: Browser, info: TestInfo) {
     expect(r.layers.length, "C3: only the solid bar counts as a layer").toBe(1);
     await context.close();
   }
+  {
+    const { context, page } = await newPage(false);
+    await page.goto(`${origin}/__control-lcp`);
+    const s = await settle(page);
+    controls.lcpPlantedLarger2500ms = s.lcp && Math.round(s.lcp);
+    expect(s.lcp ?? 0, "C4: a larger paint planted at 2500 ms reaches lcp (read after the settle window)").toBeGreaterThanOrEqual(2400);
+    await context.close();
+  }
 
   // ---- the measurement ----
   const runs: Array<Record<string, unknown>> = [];
@@ -198,8 +221,8 @@ async function measure(browser: Browser, info: TestInfo) {
     page.on("requestfinished", () => requests.push(1));
     await page.goto(`${origin}/`, { waitUntil: "commit" });
     await page.waitForFunction(() => (window as unknown as { __fv: { tileVisible: number | null } }).__fv?.tileVisible != null, undefined, { timeout: 40_000 });
-    const fv = await page.evaluate(() => (window as unknown as { __fv: Record<string, number | null> }).__fv);
-    await page.waitForTimeout(4000); // let late fixed layers (chat button, toast) mount, as a real visitor's first seconds would
+    const lcpAtTile = await page.evaluate(() => (window as unknown as { __fv: { lcp: number | null } }).__fv.lcp);
+    const fv = await settle(page); // timings are read AFTER the window: a later, larger paint must reach lcp
     mkdirSync("test-results", { recursive: true });
     await page.screenshot({ path: `test-results/home-first-view-top-run${i}.png` });
     const before = (await page.evaluate(MEASURE_FN)) as { sharePct: number; layers: unknown[] };
@@ -208,7 +231,7 @@ async function measure(browser: Browser, info: TestInfo) {
     const scrollY = await page.evaluate(() => window.scrollY);
     const after = (await page.evaluate(MEASURE_FN)) as { sharePct: number; layers: unknown[] };
     await page.screenshot({ path: `test-results/home-first-view-scrolled-run${i}.png` });
-    runs.push({ run: i, throttled, tileInDomMs: fv.tileInDom && Math.round(fv.tileInDom), tileVisibleMs: fv.tileVisible && Math.round(fv.tileVisible), fcpMs: fv.fcp && Math.round(fv.fcp), lcpMs: fv.lcp && Math.round(fv.lcp), requestsFinished: requests.length, scrollY, coverageAtTop: before, coverageAfterScroll: after });
+    runs.push({ run: i, throttled, tileInDomMs: fv.tileInDom && Math.round(fv.tileInDom), tileVisibleMs: fv.tileVisible && Math.round(fv.tileVisible), fcpMs: fv.fcp && Math.round(fv.fcp), lcpMs: fv.lcp && Math.round(fv.lcp), lcpAtTileMs: lcpAtTile && Math.round(lcpAtTile), requestsFinished: requests.length, scrollY, coverageAtTop: before, coverageAfterScroll: after });
     await context.close();
   }
 

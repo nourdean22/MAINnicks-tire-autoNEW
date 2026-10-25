@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "deferred": "comments only in featureFlags.ts and invoiceReviewRequests.ts; no capability behaviour changed; the ledger states are unchanged"
+      "deferred": "invoiceReviewRequests.ts is comments only; featureFlags.ts changes one description string and seedFlags now also rewrites a deployed row's description when it differs from the definition (value and updatedAt untouched, test server/featureFlagsSeedDescription.test.ts); no flag value or send lane changed; the ledger states are unchanged"
     }
   }
 }

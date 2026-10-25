@@ -88,17 +88,23 @@ export function placeOf(routePath) {
   return routePath.replace(/^\//, "").split("/").pop().replace(SLUG_SUFFIX, "");
 }
 
-function loadPage(routePath, htmlPath) {
+/** The longest place name (from the route table) that appears as whole hyphen-delimited words in the slug, or undefined. */
+export function matchPlace(routePath, places) {
+  const slug = `-${routePath.split("/").pop()}-`;
+  return [...places].filter((p) => slug.includes(`-${p}-`)).sort((x, y) => y.length - x.length)[0];
+}
+
+/** place: the name to mask in THIS page. Set A derives it from its own slug; set B passes the name it matched. */
+function loadPage(routePath, htmlPath, place = placeOf(routePath)) {
   const text = mainText(readFileSync(htmlPath, "utf8"));
   if (text === null) return { routePath, text: null };
-  const place = placeOf(routePath);
   return { routePath, place, text, raw: shingles(text), masked: shingles(maskPlace(text, place)), words: text.split(" ").length };
 }
 
 const f = (n) => (n === null ? "n/a" : n.toFixed(3));
 
 // ---- controls (printed first) ----
-function controls() {
+function controls(places) {
   const dir = mkdtempSync(path.join(tmpdir(), "place-sim-"));
   const src = (r) => path.join(PRERENDER, r.replace(/^\//, ""), "index.html");
   const a = src("/amherst-ohio");
@@ -111,11 +117,20 @@ function controls() {
   const S = loadPage("/zzyzx-ohio", swapped);
   const U1 = loadPage("/brakes", src("/brakes"));
   const U2 = loadPage("/car-care-guide", src("/car-care-guide"));
+  // Set B shape: a page whose slug names a place but does not end in it (/used-tires-cleveland). The masked score
+  // must replace "cleveland" in it; deriving the name from the slug (the old path) masked "used tires cleveland".
+  const b = src("/used-tires-cleveland");
+  const bSwapped = path.join(dir, "b-swapped.html");
+  writeFileSync(bSwapped, readFileSync(b, "utf8").replace(/cleveland/gi, "Zzyzx")); // any case: the page also carries CLEVELAND
+  const B1 = loadPage("/used-tires-cleveland", b, matchPlace("/used-tires-cleveland", places));
+  const B2 = loadPage("/used-tires-zzyzx", bSwapped, matchPlace("/used-tires-zzyzx", new Set([...places, "zzyzx"])));
   const res = [
     ["C1 two copies of one page, raw", jaccard(A.raw, C.raw), (v) => v === 1],
     ["C2 two unrelated pages (/brakes vs /car-care-guide), raw", jaccard(U1.raw, U2.raw), (v) => v !== null && v < 0.3],
     ["C3 same page with the city renamed, MASKED (must be 1.0)", jaccard(A.masked, S.masked), (v) => v === 1],
     ["C4 same page with the city renamed, RAW (must be below 1.0: proves masking is what closed the gap)", jaccard(A.raw, S.raw), (v) => v !== null && v < 1],
+    ["C5 set B page (/used-tires-cleveland) with its place renamed, MASKED (must be 1.0)", jaccard(B1.masked, B2.masked), (v) => v === 1],
+    ["C6 the same set B pair, RAW (must be below 1.0)", jaccard(B1.raw, B2.raw), (v) => v !== null && v < 1],
   ];
   console.log("CONTROLS");
   let ok = true;
@@ -129,21 +144,22 @@ function controls() {
 
 function main() {
   if (!existsSync(PRERENDER)) { console.error(`UNMEASURED: no prerendered tree at ${PRERENDER}`); process.exit(2); }
-  if (!controls()) { console.error("A control failed: the numbers below are not trustworthy. Stopping."); process.exit(1); }
-
   const routes = placeRoutes();
   const present = new Set(walkIndexFiles(PRERENDER));
   const setA = routes.filter((r) => present.has(r));
   const missingA = routes.filter((r) => !present.has(r));
   const places = new Set(routes.map(placeOf).filter((p) => p.length >= 4));
+  if (!controls(places)) { console.error("A control failed: the numbers below are not trustworthy. Stopping."); process.exit(1); }
   const inA = new Set(setA);
-  const setB = [...present].filter((r) => !inA.has(r) && r !== "/" && [...places].some((p) => `-${r.split("/").pop()}-`.includes(`-${p.replace(/ /g, "-")}-`)));
+  // Set B keeps WHICH place each page matched (a page can name more than one: the longest wins), because
+  // masking must replace that name in that page, not the name derived from the slug.
+  const setB = [...present].filter((r) => !inA.has(r) && r !== "/" && matchPlace(r, places)).map((r) => ({ route: r, place: matchPlace(r, places) }));
 
   const pages = [];
   const noMain = [];
-  for (const [label, list] of [["A", setA], ["B", setB]]) {
-    for (const r of list) {
-      const p = loadPage(r, path.join(PRERENDER, r.replace(/^\//, ""), "index.html"));
+  for (const [label, list] of [["A", setA.map((r) => ({ route: r, place: placeOf(r) }))], ["B", setB]]) {
+    for (const { route: r, place } of list) {
+      const p = loadPage(r, path.join(PRERENDER, r.replace(/^\//, ""), "index.html"), place);
       if (p.text === null) { noMain.push(r); continue; }
       p.set = label;
       pages.push(p);
@@ -155,7 +171,7 @@ function main() {
   if (pages.length < 2) { console.error("UNMEASURED: fewer than 2 pages"); process.exit(2); }
   const words = pages.map((p) => p.words).sort((x, y) => x - y);
   console.log(`MAIN-TEXT WORDS per page: min ${words[0]}, median ${words[words.length >> 1]}, max ${words[words.length - 1]}`);
-  console.log(`SET B pages: ${setB.join(" ") || "(none)"}`);
+  console.log(`SET B pages (masked place in brackets): ${setB.map((b) => `${b.route}[${b.place}]`).join(" ") || "(none)"}`);
 
   const pairs = [];
   for (let i = 0; i < pages.length; i++) {
