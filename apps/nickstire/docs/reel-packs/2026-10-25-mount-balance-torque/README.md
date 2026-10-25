@@ -14,7 +14,9 @@ captions.srt, caption.txt). Format research (summarised, not pasted): `C:\Users\
 | Permalink | https://www.instagram.com/reel/De6zhQTD9ZR/ |
 | Posted file | `final.mp4`, 23,570,908 bytes, 19.0 s, md5 `6fd3e6724aad17d95a832590cf52976f` |
 | S3 key | `reels/mount-balance-2026-10-25/final.mp4` |
-| Path | publishToSocial, `isAiGenerated` false (Nour's settled no-label rule, 2026-10-11) |
+| Path | publishToSocial, `isAiGenerated` false |
+| Generated content | Two generated stills: the hero wheel in beat 0 (cover) and the tire row in beat 6 (both ChatGPT, product shots). Every other beat is real shop media. |
+| Label | Off by Nour's decision of 2026-10-11 ("remove the AI label completely forever"). In code, `META_AI_SELF_DISCLOSURE = false` in `shared/reelDisclosure.ts` gates `is_ai_generated` in `server/services/metaSocial.ts`, so the flag is not sent whatever `isAiGenerated` says. Rule 1 (no generated footage framed as real) still applies. Meta may still label a reel from file metadata. |
 
 Caption, as posted (`caption.txt`):
 
@@ -82,13 +84,27 @@ for the hook and beat 6, brand yellow 124 for the step labels. No prices, times,
 - The tire row's garage background is blurred and darkened so it never reads as our bay; neither still carries a line
   claiming our premises or work.
 
+## Deviations from the repo contracts (what aired did not follow these)
+
+1. **Two silent beats.** `validateMutedFirstClarity` (`client/src/lib/facelessReelStudio.ts`) fails a storyboard with any
+   blank `onScreenText` beat. Beats 1 (1.5-4.0 s) and 5 (13.0-15.5 s) carry no on-screen text, so the reel does not teach
+   muted at those two points (`captions.srt` has no cue for either).
+2. **Two asks.** `shared/editorialContract.ts` reserves the reel's one ask for the end card. Beat 6 burns "Walk in any day.
+   Seven days a week." into the picture and the voice, and the end card repeats "Walk-ins 7 days".
+3. **End card too dense.** `validateOnScreenReadability` blocks more than 4 words per second of beat. The 2 s end card
+   carries 9 words (4.5 per second): "Nick's Tire & Auto", the address and "Walk-ins 7 days".
+
 ## Method, five steps (reuse for reel 3)
 
 1. Pick the process and its words. Here: three steps (mount, balance, torque) in one sentence set under 9 s of speech.
+   Declare the one ask once.
 2. Find one real 2.5 s shot per step in the library. If a step has no footage, say so in the build record and film it;
-   do not let a label claim more than the picture shows.
+   do not let a label claim more than the picture shows. Every beat carries on-screen text, including the shots that
+   only show the machine; no beat carries a call to action.
 3. Check every shot for plates and faces (crop, track-blur, face scan with a positive control), then view the hits at 100%.
 4. Voice with `reelVoice.ts` (Neural2-J), place each sentence at its measured silence; keep real clip sound, duck 6 dB under
-   speech, add a licensed Mixkit bed, mix to -16 LUFS, end on a 2.0 s card with name, address and walk-in line.
+   speech, add a licensed Mixkit bed, mix to -16 LUFS. One ask, end card only: a 2.0 s card of at most 8 words (for example
+   "Nick's Tire & Auto" and "Walk-ins 7 days", with the address in the caption), and the voice does not speak the ask before it. Name any generated still and its
+   beat in the pack, as above.
 5. Run the receipts script (ffprobe, frame MD5s, ebur128, silencedetect with canary, face scan), view `beats.jpg`, hand to
    Nour. Post only on his go, through publishToSocial.

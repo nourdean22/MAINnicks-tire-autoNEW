@@ -13,7 +13,9 @@ Format research it follows (summarised, not pasted): `C:\Users\nourd\NattyNour\s
 | Permalink | https://www.instagram.com/reel/De6v1Q7DtJb/ |
 | Posted file | `v2\final.mp4`, 25,414,584 bytes, 19.0 s |
 | S3 key | `reels/warmth-2026-10-25/final-v2.mp4` |
-| Path | publishToSocial, `isAiGenerated` false (Nour's settled no-label rule, 2026-10-11) |
+| Path | publishToSocial, `isAiGenerated` false |
+| Generated content | One generated still: the tire row in beat 6 (ChatGPT, product shot). Every other beat is real shop media. |
+| Label | Off by Nour's decision of 2026-10-11 ("remove the AI label completely forever"). In code, `META_AI_SELF_DISCLOSURE = false` in `shared/reelDisclosure.ts` gates `is_ai_generated` in `server/services/metaSocial.ts`, so the flag is not sent whatever `isAiGenerated` says. Rule 1 (no generated footage framed as real) still applies and is what kept the generated exterior out. Meta may still label a reel from file metadata. |
 
 Caption, as posted:
 
@@ -72,13 +74,25 @@ quotation marks. Still 814 is not used.
   out with it.
 - Listen once with sound on before the next cut of this format.
 
+## Deviations from the repo contracts (what aired did not follow these)
+
+1. **Two asks.** `shared/editorialContract.ts` reserves the reel's one ask for the end card and flags a call to action in
+   any beat. Beat 6 burns "Walk in any day. Seven days a week." into the picture and the voice, and the end card repeats
+   "Walk-ins 7 days". That is a double ask.
+2. **End card too dense.** `validateOnScreenReadability` (`client/src/lib/facelessReelStudio.ts`) blocks more than 4 words
+   per second of beat. The 2 s end card carries 17 words (about 8.5 per second): name, address, walk-in line and the
+   "Quoted lines from Google reviews, word for word." disclosure.
+3. The muted-first rule (`validateMutedFirstClarity`: every beat has text) was met; all seven beats carry text.
+
 ## Method, five steps (reuse for reel 3)
 
-1. Pick the claim and its proof. Here: public Google review lines, copied word for word, plus the shop's own walk-in line.
+1. Pick the claim and its proof. Here: public Google review lines, copied word for word. Declare the one ask once.
 2. Match each line to one real 3 s shot from the library. Check each shot for plates and faces; blur or crop what shows.
+   Every beat carries on-screen text. No beat carries a call to action.
 3. Voice it with `reelVoice.ts` (Neural2-J) under `railway run`, cut each sentence at its measured silence, place it on its
-   beat. Keep spoken time under 9 s.
-4. Mix: licensed Mixkit bed ducked under speech, mix to -16 LUFS, limiter at -2.5 dBFS. End on a 2.0 s card with name,
-   address and walk-in line.
+   beat. Keep spoken time under 9 s. The voice does not speak the ask before the end card.
+4. Mix: licensed Mixkit bed ducked under speech, mix to -16 LUFS, limiter at -2.5 dBFS. One ask, end card only: a 2.0 s
+   card of at most 8 words (for example "Nick's Tire & Auto" and "Walk-ins 7 days", with the address in the caption). Put any "word for word" disclosure in the
+   caption, not on the card. Name any generated still and its beat in the pack, as above.
 5. Run the receipts script (ffprobe, frame MD5s, ebur128, silencedetect), view `beats.jpg`, then hand to Nour. Post only
    on his go, through publishToSocial.
