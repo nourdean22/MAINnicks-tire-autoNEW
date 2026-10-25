@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/attribution-review-plain-words",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "995e80e8-f31a-4a7e-85d3-a94ca058edf2",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\beautiful-tereshkova-9a24d4",
+  "claimedBy": "2026-10-25-attribution-self-learning",
+  "claimedAt": "2026-10-25T11:37:55.361Z",
+  "expiresAt": "2026-10-25T23:37:55.361Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
