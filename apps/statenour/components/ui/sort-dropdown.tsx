@@ -117,9 +117,10 @@ export function SortDropdown<T extends string = string>({
             }}
             aria-label="Reset sort to default"
             title="Reset to default"
-            className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-[12px] text-fg-tertiary hover:text-rose-400 rounded-micro hover:bg-rose-500/10"
+            className="group absolute right-0 top-1/2 -translate-y-1/2 min-h-11 min-w-11 inline-flex items-center justify-center text-[12px] text-fg-tertiary hover:text-rose-400"
           >
-            ×
+            {/* The 44 px hit area is the button; the visible glyph box stays 20 px. */}
+            <span className="w-5 h-5 flex items-center justify-center rounded-micro group-hover:bg-rose-500/10">×</span>
           </button>
         )}
       </div>

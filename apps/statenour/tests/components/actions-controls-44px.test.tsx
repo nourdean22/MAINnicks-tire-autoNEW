@@ -179,6 +179,24 @@ describe("/system/actions controls reach the 44 px floor", () => {
     expect(under).toEqual([]);
   });
 
+  it("SortDropdown's reset button (shared, 6 pages) has a 44 px hit area and keeps its 20 px glyph", () => {
+    // The reset button renders only when the sort differs from its default; this page reads it from storage.
+    act(() => root.unmount());
+    window.localStorage.setItem("system-actions:sortKey", "oldest");
+    root = createRoot(container);
+    act(() => {
+      root.render(<ActionsPage />);
+    });
+    const reset = container.querySelector<HTMLButtonElement>('button[aria-label="Reset sort to default"]');
+    expect(reset, "the reset button rendered for a non-default sort").toBeTruthy();
+    const cls = reset!.getAttribute("class") ?? "";
+    expect(HEIGHT_PX(cls), "reset tall").toBeGreaterThanOrEqual(44);
+    expect(WIDTH_PX(cls), "reset wide").toBeGreaterThanOrEqual(44);
+    // the visible glyph box did not grow
+    expect(reset!.querySelector("span")?.getAttribute("class") ?? "").toMatch(/\bw-5\b.*\bh-5\b|\bh-5\b.*\bw-5\b/);
+    window.localStorage.removeItem("system-actions:sortKey");
+  });
+
   it("positive control: a planted px-3 py-1 control fails the same check", () => {
     const planted = "rounded-full px-3 py-1 text-xs transition";
     expect(HEIGHT_PX(planted)).toBe(0);

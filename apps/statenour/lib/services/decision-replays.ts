@@ -18,7 +18,7 @@
  * `TaskEventRow` in lib/trpc/routers/task.ts.
  *
  * Date columns are projected to ISO `string` (not `Date`) — matching
- * the `task-session` service precedent. The tRPC layer runs no
+ * the other shallow service views. The tRPC layer runs no
  * transformer, so a `Date` return would be a string at runtime but
  * ambiguous at the type level; returning `string` makes the procedure
  * type honest AND keeps the legacy REST JSON byte-identical (JSON

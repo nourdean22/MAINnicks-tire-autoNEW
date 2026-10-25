@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { useObservedCount } from "@/components/system/detail-fold";
+import { countFoldRows, useObservedCount } from "@/components/system/detail-fold";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { isRetrying, readState, type ReadStateInput } from "@/lib/query-state";
 
@@ -35,30 +35,6 @@ export function StaleNote({
 }) {
   if (readState(q) !== "stale") return null;
   return <ReadStateNote state="stale" label={label} onRetry={() => void q.refetch()} retrying={isRetrying(q)} className={className} />;
-}
-
-/** What marks a FAILED read inside a row: this file's line, ReadStateNote, EmptyState, UnmeasuredLine. */
-export const READ_FAILED_SELECTOR = '[data-read-failed], [data-read-state="error"], [data-provenance="ERROR"]';
-/** A paused read (no connection) is not a failed one: counted apart, in amber. */
-export const READ_OFFLINE_SELECTOR = '[data-read-state="offline"]';
-/** A refresh that failed over cached data: the row still shows numbers, but old ones. Counted apart, in amber. */
-export const READ_STALE_SELECTOR = '[data-read-state="stale"]';
-
-const has = (row: Element, sel: string) => row.matches(sel) || !!row.querySelector(sel);
-
-type FoldCount = { rows: number; unreadable: number; offline: number; stale: number };
-
-/** Each row lands in at most one bucket, worst first: failed, then offline, then stale. */
-export function countFoldRows(body: Element): FoldCount {
-  const rows = [...body.children];
-  const failed = (row: Element) => has(row, READ_FAILED_SELECTOR);
-  const offline = (row: Element) => !failed(row) && has(row, READ_OFFLINE_SELECTOR);
-  return {
-    rows: rows.length,
-    unreadable: rows.filter(failed).length,
-    offline: rows.filter(offline).length,
-    stale: rows.filter((row) => !failed(row) && !offline(row) && has(row, READ_STALE_SELECTOR)).length,
-  };
 }
 
 /** The element the URL hash names, when it sits inside `body`. */

@@ -3,14 +3,35 @@
 import { useEffect, useRef, useState, type RefObject, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { countFoldRows } from "@/components/brain/brain-fold";
+
+/** What marks a FAILED read inside a row: a `data-read-failed` line, ReadStateNote, EmptyState, UnmeasuredLine. */
+export const READ_FAILED_SELECTOR = '[data-read-failed], [data-read-state="error"], [data-provenance="ERROR"]';
+/** A paused read (no connection) is not a failed one: counted apart, in amber. */
+export const READ_OFFLINE_SELECTOR = '[data-read-state="offline"]';
+/** A refresh that failed over cached data: the row still shows numbers, but old ones. Counted apart, in amber. */
+export const READ_STALE_SELECTOR = '[data-read-state="stale"]';
+
+const has = (row: Element, sel: string) => row.matches(sel) || !!row.querySelector(sel);
+
+type FoldCount = { rows: number; unreadable: number; offline: number; stale: number };
 
 /**
- * What the fold re-measures on. The row buckets and their selectors are BrainFold's (countFoldRows:
- * failed, then offline, then stale), so the System and Brain folds cannot disagree about a closed block.
- * brain-fold.tsx imports useObservedCount from this file; both use the other only inside functions, so
- * the cycle never reads an unset binding.
+ * Each row lands in at most one bucket, worst first: failed, then offline, then stale. Shared by the
+ * System Detail fold and BrainFold (which imports it from here), so the two cannot disagree about a closed block.
  */
+export function countFoldRows(body: Element): FoldCount {
+  const rows = [...body.children];
+  const failed = (row: Element) => has(row, READ_FAILED_SELECTOR);
+  const offline = (row: Element) => !failed(row) && has(row, READ_OFFLINE_SELECTOR);
+  return {
+    rows: rows.length,
+    unreadable: rows.filter(failed).length,
+    offline: rows.filter(offline).length,
+    stale: rows.filter((row) => !failed(row) && !offline(row) && has(row, READ_STALE_SELECTOR)).length,
+  };
+}
+
+/** What the Detail fold re-measures on, beyond added and removed rows. */
 const WATCHED = ["data-read-failed", "data-read-state", "data-provenance"];
 
 /**

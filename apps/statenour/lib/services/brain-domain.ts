@@ -15,8 +15,7 @@
  * recursive Prisma `JsonValue` type never leaks into the AppRouter.
  * That is the TS2589-prevention discipline documented in
  * docs/trpc-migration-roadmap.md · mirrors `TaskEventRow` in
- * `lib/trpc/routers/task.ts` and `TaskSessionView` in
- * `lib/services/task-session.ts`.
+ * `lib/trpc/routers/task.ts`.
  */
 
 import { prisma } from "@/lib/prisma";
