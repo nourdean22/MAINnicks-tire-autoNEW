@@ -33,7 +33,7 @@ import {
   weeklyPhotoQueue, PHOTO_SAFETY_RULES, UPLOAD_DESTINATION,
 } from "@/lib/gbpPhotoQueue";
 import { CANONICAL_IDENTITY, ENTITY_PLATFORMS, ENTITY_FIX_ORDER } from "@/lib/entityConsistency";
-import type { RankKeyword } from "@/lib/localRankKeywords";
+import type { RankKeyword } from "@shared/localRankKeywords";
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
 const MODE_CLS: Record<Mode, string> = {

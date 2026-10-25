@@ -49,8 +49,6 @@ vi.mock("@/lib/trpc", () => {
 });
 
 import { LocalGrowthTab } from "@/pages/admin/GrowthSection";
-import * as clientKeywords from "@/lib/localRankKeywords";
-import * as sharedKeywords from "@shared/localRankKeywords";
 
 const RANKS = "localGrowth.targetKeywordRanks";
 const w = (impressions: number, clicks: number, position: number) => ({ impressions, clicks, position });
@@ -212,11 +210,5 @@ describe("Local Growth: Search position honest non-ok states", () => {
     fireEvent.click((msg.parentElement as HTMLElement).querySelector("button") as HTMLButtonElement);
     expect(refetch).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toMatch(NUMBERS);
-  });
-});
-
-describe("one tracked keyword list", () => {
-  it("the client path re-exports the shared list the server reads", () => {
-    expect(clientKeywords.RANK_KEYWORDS).toBe(sharedKeywords.RANK_KEYWORDS);
   });
 });
