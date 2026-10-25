@@ -306,6 +306,11 @@ export async function runAlternatePaths(args: {
     // toolChoice:"required" makes the model call the real tool.
     if (!actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn || preflushOn)) {
       let winner = "";
+      // 2026-10-25 · registered for the WHOLE generation (audit 04-F8 registered it only once the
+      // reply existed): a stall reattach (use-chat-stream.ts) reads this row to tell "still
+      // working" from "stuck". On a fall-through the streamText path re-registers the same turn.
+      const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
+      const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
       // 2026-09-15 · tool receipts captured by a buffered lane. The
       // enforcement block below was receipt-BLIND on every lane (it had no
       // way to see what generateText called), which limited it to length and
@@ -482,10 +487,6 @@ export async function runAlternatePaths(args: {
           "@/lib/services/chat/response-shape"
         );
 
-        // 2026-10-10 (audit 04-F8) - register THIS turn like the streamText
-        // path does, so a reconnect never replays the previous turn's reply.
-        const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
-        const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
         const streamResponse = simulateReasoningStream({
           request: {
             question: userContent,
@@ -819,9 +820,6 @@ export async function runAlternatePaths(args: {
         const { buildChatResponse } = await import(
           "@/lib/services/chat/response-shape"
         );
-        // 2026-10-10 (audit 04-F8) - same registration as the lane above.
-        const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
-        const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
         const streamResponse = simulateStreamFromText({
           text: winner,
           chunkSize: 24,

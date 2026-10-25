@@ -197,10 +197,15 @@ describe("item 1 glue · which bubble a named resume merges into", () => {
 
   it("CONTROL: the stall toast's Reconnect resumes and never regenerates", () => {
     const stall = h.stall as { setError: (m: string | null) => void };
+    vi.useFakeTimers();
     act(() => stall.setError("Nick stopped responding"));
+    act(() => vi.advanceTimersByTime(1_500));
+    // The stall's own reattach found nothing (2026-10-25): that is when the toast shows.
+    act(() => transport().onResumeEmpty?.({ pending: false }));
+    vi.useRealTimers();
     const opts = vi.mocked(toast.error).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => opts.action.onClick());
-    expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+    expect(h.chat.resumeStream, "the stall's reattach, then Reconnect's").toHaveBeenCalledTimes(2);
     expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 });
@@ -223,6 +228,8 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
   function reconnect() {
     const stall = h.stall as { setError: (m: string | null) => void };
     act(() => stall.setError("Nick stopped responding"));
+    act(() => vi.advanceTimersByTime(1_500));
+    act(() => transport().onResumeEmpty?.({ pending: false })); // the stall's reattach found nothing
     const opts = vi.mocked(toast.error).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => opts.action.onClick());
   }
@@ -241,7 +248,7 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
     reconnect();
     h.chat.messages = [user, merged];
     networkKill();
-    expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+    expect(h.chat.resumeStream, "the stall's reattach and Reconnect, no more").toHaveBeenCalledTimes(2);
     expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 
@@ -2409,5 +2416,75 @@ describe("a refused replay", () => {
     await retryNow();
     expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
     expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-10-25 (bdnick "Nick is stuck" on a long message): a buffered lane sends nothing until its
+// reply is whole, so the 180 s stall abort fired while the server was still working and the reply
+// was saved 45 s later. stop() drops only our reader; the turn lives on server-side. The stall now
+// reattaches first, and the stuck notice shows only when the reattach finds nothing.
+describe("stall abort reattaches to a turn the server still holds", () => {
+  const STUCK = "Nick is stuck. Tap Retry to re-run the last message.";
+  const stall = () => h.stall as { setError: (m: string | null) => void };
+  const stuckToasts = () => vi.mocked(toast.error).mock.calls.filter((c) => c[0] === STUCK);
+  // The real handler calls stop() then setError; the reattach waits for that stop to settle.
+  const stallFires = () => {
+    act(() => stall().setError(STUCK));
+    act(() => vi.advanceTimersByTime(1_500));
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(toast.error).mockClear();
+    // A long send, no response header yet: the trace in hand is the previous turn's.
+    act(() => void ctl.sendText("a long message"));
+    h.chat.messages = [user];
+    h.chat.status = "submitted";
+    render();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("reattaches unnamed, renders the saved reply, and never shows the stuck notice", () => {
+    stallFires();
+
+    expect(h.chat.resumeStream, "the stall must reattach to the running turn").toHaveBeenCalledTimes(1);
+    expect(transport().lastTraceIdRef.current, "naming T1 would replay the previous reply").toBeNull();
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+
+    // The reattach lands this turn's reply (X-Trace-Id + message.persisted from the resume route).
+    h.chat.status = "streaming";
+    h.chat.messages = [user, { id: "resume-c1-T2", role: "assistant", parts: [{ type: "text", text: "saved" }] }];
+    render();
+    transport().lastTraceIdRef.current = "T2";
+    act(() => transport().onMessagePersisted({ id: "db-2", content: "saved reply", traceId: "T2" }));
+    settle();
+
+    const bound = (setMessages.mock.calls.at(-1)![0] as (m: Msg[]) => Msg[])(h.chat.messages as Msg[]);
+    expect(bound.at(-1)).toMatchObject({ id: "db-2", parts: [{ type: "text", text: "saved reply" }] });
+    expect(stuckToasts(), "the reply arrived: no stuck notice").toEqual([]);
+  });
+
+  it("keeps waiting while the server says the turn is still pending", () => {
+    stallFires();
+    act(() => transport().onResumeEmpty?.({ pending: true }));
+    act(() => vi.advanceTimersByTime(1_500));
+    expect(h.chat.resumeStream).toHaveBeenCalledTimes(2);
+    expect(stuckToasts()).toEqual([]);
+  });
+
+  it("CONTROL: nothing in flight (the reattach finds nothing) shows the stuck notice with Reconnect", () => {
+    stallFires();
+    act(() => transport().onResumeEmpty?.());
+    expect(stuckToasts()).toHaveLength(1);
+    expect(stuckToasts()[0][1]).toMatchObject({ id: "chat-stall", duration: Infinity, action: { label: "Reconnect" } });
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: a private turn registers nothing, so the stuck notice shows at once", () => {
+    act(() => useChatUiStore.setState({ privateMode: true }));
+    render();
+    stallFires();
+    expect(h.chat.resumeStream).not.toHaveBeenCalled();
+    expect(stuckToasts()).toHaveLength(1);
   });
 });

@@ -56,6 +56,19 @@ describe("a resume that finds nothing is reported", () => {
       vi.unstubAllGlobals();
     }
     expect(onResumeEmpty).toHaveBeenCalledTimes(1);
+    expect(onResumeEmpty).toHaveBeenCalledWith({ pending: false });
+  });
+
+  it("a 204 carrying X-Resume-Pending (turn alive, no bytes yet) says so", async () => {
+    const onResumeEmpty = vi.fn();
+    const wrapped = build(onResumeEmpty);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204, headers: { "X-Resume-Pending": "1" } })));
+    try {
+      await wrapped(resumeUrl, { method: "GET" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(onResumeEmpty).toHaveBeenCalledWith({ pending: true });
   });
 
   it("CONTROL: a resume that streams, and a POST, report nothing", async () => {

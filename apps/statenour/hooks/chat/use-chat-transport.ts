@@ -117,8 +117,10 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * R3-15 (review R3 wave A, finding 2): a resume GET answered 204. ai@6
    * settles that as status "ready" with no error, so the caller decides
    * whether it hid an interrupted turn. A mount-time 204 is normal.
+   * `pending`: the server still holds the turn in flight with no bytes yet
+   * (`X-Resume-Pending: 1`), so another resume can still find it.
    */
-  onResumeEmpty?: () => void;
+  onResumeEmpty?: (info: { pending: boolean }) => void;
   /**
    * 2026-10-15 · the turn guard (lib/services/chat/turn-guard.ts) REFUSED this send on purpose:
    * the response carries X-Turn-Refusal (turn_in_flight, turn_answered, turn_ran, turn_unreadable).
@@ -248,7 +250,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           const resumeInto =
             isResume && String(input).includes("traceId=") ? resumeIntoMessageId?.() : undefined;
           const res = await fetch(input, init);
-          if (isResume && res.status === 204) onResumeEmpty?.();
+          if (isResume && res.status === 204) onResumeEmpty?.({ pending: res.headers.get("X-Resume-Pending") === "1" });
           const refusal = res.headers.get("X-Turn-Refusal");
           if (refusal && init?.method === "POST") onTurnRefused?.({ code: refusal, traceId: res.headers.get("X-Trace-Id") });
 

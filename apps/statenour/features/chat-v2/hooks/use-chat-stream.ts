@@ -239,7 +239,26 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     },
     [setConnection],
   );
-  const onResumeEmpty = useCallback(() => {
+  // 2026-10-25 · a stall abort's reattach in progress: the stuck notice it is holding back, and how
+  // many times the server has answered "still running, no bytes yet" (X-Resume-Pending).
+  const stallReattachRef = useRef<{ message: string; waits: number } | null>(null);
+  const onResumeEmpty = useCallback((info?: { pending?: boolean }) => {
+    const stall = stallReattachRef.current;
+    if (stall) {
+      // Each resume GET waits ~20 s server-side, so 6 waits cover ~2 more minutes (registry TTL 10).
+      if (info?.pending && stall.waits < 6) {
+        stall.waits += 1;
+        clearTimeout(partialTimerRef.current);
+        partialTimerRef.current = setTimeout(() => {
+          resumingRef.current = true;
+          void resumeStreamRefForPartial.current?.();
+        }, 1500);
+        return;
+      }
+      stallReattachRef.current = null;
+      showStallToast(stall.message);
+      return;
+    }
     const killed = killedErrorRef.current;
     if (!killed) return;
     stalledRef.current = true;
@@ -675,7 +694,13 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
 
   // A reattach that streams hands the turn back: Retry regenerates as usual again.
   useEffect(() => {
-    if (chat.status === "streaming") killedErrorRef.current = null;
+    if (chat.status !== "streaming") return;
+    killedErrorRef.current = null;
+    // A stall reattach that streams got the turn back: no stuck notice, and onFinish may go online.
+    if (stallReattachRef.current) {
+      stallReattachRef.current = null;
+      stalledRef.current = false;
+    }
   }, [chat.status]);
 
   useStreamingErrorGuard({
@@ -706,6 +731,24 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // gmail.sendDraft, telegram.send and shop.sendSms (route.ts
       // HIGH_STAKES_MUTATIONS). resumeStream() reattaches to the stream that
       // is already producing the answer. Caught in review on #1471.
+      //
+      // 2026-10-25 · and reattach BEFORE saying stuck. A buffered lane sends no byte until its reply
+      // is whole, so the abort can fire while the server is still producing it (a 225 s turn,
+      // saved 45 s after we stopped listening). The notice shows only if the reattach finds nothing
+      // (onResumeEmpty). Private mode registers no turn, so there is nothing to find.
+      if (bodyRef.current.conversationId && !bodyRef.current.privateMode) {
+        stallReattachRef.current = { message, waits: 0 };
+        // No answer to this send yet: the trace in hand is the previous turn's, and naming it
+        // would replay that older reply (the transport's rule for a POST answered with no trace).
+        if (lastTraceIdRef.current === traceAtSendRef.current) lastTraceIdRef.current = null;
+        // After the stop() just issued settles (ai@6 stop is async); a send or Stop cancels it.
+        clearTimeout(partialTimerRef.current);
+        partialTimerRef.current = setTimeout(() => {
+          resumingRef.current = true;
+          void resumeStreamRefForPartial.current?.();
+        }, 1500);
+        return;
+      }
       showStallToast(message);
     },
   });
@@ -719,6 +762,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   /** A new turn supersedes any stall notice from the previous one. */
   const clearStall = useCallback(() => {
     killedErrorRef.current = null;
+    stallReattachRef.current = null;
     setHeldError(null);
     if (!stalledRef.current) return;
     stalledRef.current = false;

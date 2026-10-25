@@ -80,7 +80,10 @@ describe("alternate-paths wiring (source contract)", () => {
     // POSITIVE CONTROL: the stripper left the code it must see.
     expect(responses.length).toBeGreaterThanOrEqual(2);
     expect(persists.length).toBe(responses.length);
-    expect(registrations.length).toBe(responses.length);
+    // 2026-10-25: ONE registration, before any lane generates, so the turn is in the registry for
+    // the whole generation (a stall reattach reads it); behaviour pinned in alternate-paths-budget.test.ts.
+    expect(registrations.length).toBe(1);
+    expect(src.indexOf("trackActiveStream(convId, traceId)")).toBeLessThan(src.indexOf("if (multiAgentOn)"));
     expect(tracked.length).toBe(persists.length);
   });
 });

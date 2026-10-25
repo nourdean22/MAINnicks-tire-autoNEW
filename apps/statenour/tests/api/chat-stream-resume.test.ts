@@ -141,14 +141,54 @@ describe("resume route · in-flight turns (the WP2 defect)", () => {
     expect(res.headers.get("X-Resume-Partial")).toBe("1");
   }, 30_000);
 
-  it("an active turn with NO bytes yet still 204s — an empty bubble is worse than none", async () => {
-    mockGetActiveStream.mockResolvedValue({
-      status: "active",
-      traceId: null,
-      startedAt: new Date().toISOString(),
-      partialText: "",
-    });
-    expect((await GET(req(), ctx("conv-1"))).status).toBe(204);
+  // 2026-10-25: a buffered lane writes no partial bytes, so "no bytes yet" covered a turn that
+  // was still working for minutes. The route now waits its window before answering.
+  it("an active turn with NO bytes for the whole window 204s with X-Resume-Pending (never an empty bubble)", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetActiveStream.mockResolvedValue({
+        status: "active",
+        traceId: "T2",
+        startedAt: new Date().toISOString(),
+        partialText: "",
+      });
+      const pending = GET(req(), ctx("conv-1"));
+      await vi.advanceTimersByTimeAsync(21_000);
+      const res = await pending;
+      expect(res.status).toBe(204);
+      expect(res.headers.get("X-Resume-Pending"), "the client must learn the turn is alive").toBe("1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a turn with no bytes yet that saves inside the window replays its saved reply, unnamed", async () => {
+    const startedAt = new Date().toISOString();
+    mockGetActiveStream
+      .mockResolvedValueOnce({ status: "active", traceId: "T2", startedAt, partialText: "" })
+      .mockResolvedValue({ status: "complete", traceId: "T2", startedAt, partialText: "" });
+    mockFindFirst.mockResolvedValue({ id: "m2", content: "the buffered reply, saved whole" });
+
+    const res = await GET(req(), ctx("conv-1"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Trace-Id")).toBe("T2");
+    expect(res.headers.get("X-Resume-Partial")).toBeNull();
+    expect(await readDeltas(res)).toBe("the buffered reply, saved whole");
+  });
+
+  it("CONTROL: the row goes to another turn mid-wait: plain 204, not pending, no replay", async () => {
+    const startedAt = new Date().toISOString();
+    mockGetActiveStream
+      .mockResolvedValueOnce({ status: "active", traceId: "T2", startedAt, partialText: "" })
+      .mockResolvedValue({ status: "complete", traceId: "T3", startedAt, partialText: "" });
+    mockFindFirst.mockResolvedValue({ id: "m3", content: "another turn's reply" });
+
+    const res = await GET(req(), ctx("conv-1"));
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("X-Resume-Pending")).toBeNull();
+    expect(mockFindFirst).not.toHaveBeenCalled();
   });
 });
 

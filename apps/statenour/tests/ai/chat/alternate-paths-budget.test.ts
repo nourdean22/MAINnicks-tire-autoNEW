@@ -38,7 +38,14 @@ vi.mock("@/lib/ai/chat/simulate-stream-from-text", () => ({
   },
   simulateReasoningStream: () => new Response("reasoning"),
 }));
-vi.mock("@/lib/services/chat/active-stream", () => ({ trackActiveStream: () => () => undefined }));
+// What happened, in order: the turn's registry entry, each draft, the entry's completion.
+const order: string[] = [];
+vi.mock("@/lib/services/chat/active-stream", () => ({
+  trackActiveStream: (convId: string, traceId: string) => {
+    order.push(`register:${convId}:${traceId}`);
+    return () => order.push("complete");
+  },
+}));
 vi.mock("@/lib/services/chat/response-shape", () => ({
   buildChatResponse: ({ streamResponse }: { streamResponse: Response }) => streamResponse,
 }));
@@ -69,6 +76,7 @@ function modelTaking(firstDraftMs: number) {
   let calls = 0;
   generateText.mockImplementation(async () => {
     calls += 1;
+    order.push("draft");
     vi.setSystemTime(Date.now() + (calls === 1 ? firstDraftMs : 5_000));
     return { text: calls === 1 ? VAGUE_REPLY : CONCRETE_REPLY, toolCalls: [], toolResults: [] };
   });
@@ -118,6 +126,7 @@ beforeEach(() => {
   log.info.mockClear();
   persistEvents.length = 0;
   shippedTexts.length = 0;
+  order.length = 0;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -150,5 +159,16 @@ describe("buffered lanes · one wall-clock budget from turn start", () => {
     expect(shippedTexts).toEqual(["verified reply"]);
     expect(persistEvents[0]?.coveDone).toBe(true);
     expect(skipLines()).toEqual([]);
+  });
+});
+
+// The client's stall reattach asks the active-stream registry whether this turn is still running.
+// A buffered lane used to register only once its reply existed, so for the whole generation the
+// registry said "nothing in flight" and the reattach could only report stuck.
+describe("buffered lanes · the turn is in the registry while it is generated", () => {
+  it("registers once, before the first draft, and completes after the ship", async () => {
+    modelTaking(10_000);
+    await run();
+    expect(order).toEqual(["register:c1:t_test", "draft", "draft", "complete"]);
   });
 });

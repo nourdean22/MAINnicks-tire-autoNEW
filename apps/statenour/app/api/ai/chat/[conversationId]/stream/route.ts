@@ -94,15 +94,39 @@ export async function GET(
       return withTurnIdentity(replay, record.traceId, () => message);
     }
 
-    // Still generating. Nothing to say yet → 204, exactly as before; a
-    // resume that emits an empty bubble is worse than no resume.
-    if (record.partialText.length === 0) {
-      return new Response(null, { status: 204 });
+    // Still generating, nothing to say yet. A buffered chat lane writes no
+    // partial bytes (its whole reply lands at once), so a stall reattach read
+    // "nothing" for a turn that was still working (2026-10-25). Wait inside
+    // this window for bytes or the saved row; no response is built until
+    // there is something to put in it, since an empty bubble is worse than no
+    // resume. Still nothing: 204 + X-Resume-Pending, so the client asks again.
+    const windowEnd = Date.now() + MAX_WAIT_MS;
+    let live = record;
+    while (live.status === "active" && live.partialText.length === 0) {
+      if (Date.now() >= windowEnd) {
+        return new Response(null, { status: 204, headers: { "X-Resume-Pending": "1" } });
+      }
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      const next = await getActiveStream(conversationId);
+      // Gone, or another turn took the row: nothing of this turn to replay.
+      if (!next || next.traceId !== record.traceId) return new Response(null, { status: 204 });
+      live = next;
+    }
+    // Seen in flight by this request, so this is the waited-for turn even
+    // unnamed (not the P2-B6 mount copy above).
+    if (live.status === "complete") {
+      const message = await findAssistantMessage(conversationId, live.startedAt, live.traceId);
+      if (!message) return new Response(null, { status: 204 });
+      const replay = streamOut(msgId, (write) => {
+        write(message.content);
+        return { partial: false };
+      });
+      return withTurnIdentity(replay, live.traceId, () => message);
     }
 
     // Deterministic id (msgId above): concurrent resumes of the SAME turn
     // collapse to one client-side message instead of N.
-    let emitted = record.partialText;
+    let emitted = live.partialText;
     // Distinguishes the two ways the tail can end without a clean
     // completion: window exhausted (turn still running) vs the persisted
     // row diverging (turn done, splice unsafe). They need different text —
@@ -117,7 +141,7 @@ export async function GET(
         for (const c of buildOpenChunks(msgId)) w(c);
         w(buildDeltaChunk(msgId, emitted));
 
-        const deadline = Date.now() + MAX_WAIT_MS;
+        const deadline = windowEnd; // one window per request, the wait above included
         while (Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, POLL_MS));
           const next = await getActiveStream(conversationId);
