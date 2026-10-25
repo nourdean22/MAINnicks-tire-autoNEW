@@ -64,3 +64,10 @@ Line numbers are on `origin/main` 51e8be7ea unless marked.
 3. `apps/statenour/tests/repo/alpha-text-contrast.test.ts`: the KNOWN_FADED entry for
    `continuity-view.tsx -> text-rose-300/70` removed, because the fix deleted that line (the reverse
    canary failed until it was).
+4. Round 2 (Codex P2 on PR 3283): now that the children mount offline, two of them had to say so.
+   `receipts-timeline.tsx` fell through a paused read to "0 in window" and "No receipts in the current
+   window"; `judgment-quality-panel.tsx` drew its promotion counts from undefined. Each now returns the
+   offline note first. `brain-change-line.tsx` renders nothing until its read succeeds and
+   `time-travel-panel.tsx` reads only on a tap, so neither makes a claim offline. Test
+   `tests/components/brain/continuity-children-offline.test.tsx`: red 3 failed / 2 passed (controls
+   green); mutations: receipts guard removed, 1 failed; judgment guard removed, 2 failed.

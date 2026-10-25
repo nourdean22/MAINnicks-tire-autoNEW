@@ -19,6 +19,8 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, ReceiptText } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 
 type StatusFilter = "all" | "success" | "failed" | "needs_approval" | "other";
 
@@ -52,6 +54,15 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const feedQ = trpc.system.receiptFeed.useQuery({ limit }, { staleTime: 30_000 });
 
+  // A paused (offline) read has no data, no error and isLoading false: without this it fell through to
+  // "0 in window" and "No receipts", a measured zero from a read that never ran.
+  if (readState(feedQ) === "offline") {
+    return (
+      <section aria-label="receipts-timeline" className="rounded-surface border border-edge-subtle p-4">
+        <ReadStateNote state="offline" label="Receipts" />
+      </section>
+    );
+  }
   if (feedQ.isLoading) {
     return (
       <section aria-label="receipts-timeline" className="rounded-surface border border-edge-subtle p-4 space-y-2">

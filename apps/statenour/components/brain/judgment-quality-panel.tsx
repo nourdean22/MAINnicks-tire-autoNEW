@@ -18,11 +18,22 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, Scale } from "lucide-react";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 
 export function JudgmentQualityPanel() {
   const spcQ = trpc.system.wisdomGateSpc.useQuery(undefined, { staleTime: 300_000 });
   const calQ = trpc.system.takeCalibration.useQuery(undefined, { staleTime: 300_000 });
 
+  // A paused (offline) read has no data, no error and isLoading false: it used to fall through and draw
+  // the readings from undefined. Either read paused means the panel cannot say anything yet.
+  if (readState(spcQ) === "offline" || readState(calQ) === "offline") {
+    return (
+      <section aria-label="judgment-quality" className="rounded-surface border border-edge-subtle p-4">
+        <ReadStateNote state="offline" label="Judgment-quality readings" />
+      </section>
+    );
+  }
   if (spcQ.isLoading || calQ.isLoading) {
     return (
       <section aria-label="judgment-quality" className="rounded-surface border border-edge-subtle p-4 space-y-2">
