@@ -105,7 +105,6 @@
     "lib/services/power-panel.ts",
     "lib/services/system-calibration.ts",
     "lib/services/task-actions.ts",
-    "lib/services/task-session.ts",
     "lib/settings/ai-config.ts",
     "lib/system/health-digest.ts",
     "lib/trpc/routers/brain.ts",
