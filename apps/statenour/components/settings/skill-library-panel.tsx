@@ -223,6 +223,9 @@ export function SkillLibraryPanel() {
   }, [listForTab, filter]);
 
   return (
+    // id="skills": the target of /brain#skills (the /skills slash command, the skill citation pill); GlassCard
+    // forwards no id, so it sits on this wrapper, the panel's one root (a Brain fold counts roots).
+    <div id="skills" className="scroll-mt-24">
     <GlassCard ruled>
       <div className="flex items-center justify-between mb-3">
         <div>
@@ -561,5 +564,6 @@ export function SkillLibraryPanel() {
         graduate them to silent-track so the system stops nudging but keeps the pattern on file.
       </p>
     </GlassCard>
+    </div>
   );
 }

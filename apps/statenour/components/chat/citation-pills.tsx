@@ -42,7 +42,7 @@ const CATEGORY_META: Record<
   skills: { icon: Target, label: "skill", color: "text-fg-secondary", href: "/brain#skills" },
   skill: { icon: Target, label: "skill", color: "text-fg-secondary", href: "/brain#skills" },
   identity: { icon: Compass, label: "identity", color: "text-emerald-400", href: "/brain#identity" },
-  ghost: { icon: Ghost, label: "ghost Nick", color: "text-fg-secondary", href: "/brain#ghost" },
+  ghost: { icon: Ghost, label: "ghost Nick", color: "text-fg-secondary", href: "/stats?tab=goals#forecast-duel" }, // wave E2: Ghost Nick moved to Stats Goals
   qualitative: { icon: Eye, label: "qualitative", color: "text-amber-400", href: "/brain#qualitative" },
   beliefs: { icon: BookOpen, label: "belief", color: "text-sky-300", href: "/brain#beliefs" },
   belief: { icon: BookOpen, label: "belief", color: "text-sky-300", href: "/brain#beliefs" },
