@@ -128,6 +128,15 @@ describe("EntityTab: verification marks", () => {
     }
   });
 
+  it("dates the mark on the shop's calendar, not the device's (11:30 PM Cleveland is still that day)", () => {
+    // 03:30Z on Oct 25 is 11:30 PM on Oct 24 in America/New_York; a UTC host (CI) would print Oct 25.
+    h.queries.set(CHECKLIST, {
+      data: { ...OK, items: { ...OK.items, "entity-facebook": { checkedAt: "2026-10-25T03:30:00.000Z", note: null, by: "Nour" } } },
+    });
+    render(<EntityTab />);
+    expect(within(entityRow("Facebook")).getByText("Verified Oct 24 by Nour")).toBeTruthy();
+  });
+
   it("Mark verified sends checked true for that slug; Clear sends checked false; no native dialog", () => {
     const confirmSpy = vi.spyOn(window, "confirm");
     const alertSpy = vi.spyOn(window, "alert");

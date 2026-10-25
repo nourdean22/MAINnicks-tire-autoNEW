@@ -120,7 +120,10 @@ function useLocalChecklist() {
 type Checklist = ReturnType<typeof useLocalChecklist>;
 
 const doneCount = (items: Record<string, ChecklistMark>, slugs: string[]) => slugs.filter((s) => items[s]).length;
-const markDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// The shop's calendar day, never the device's: a mark set at 11:30 PM in Cleveland reads as that day
+// on a phone in any timezone (AGENTS.md > Time).
+const markDay = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
 /** "nour@example.com" -> "nour", "Nour Dean" -> "Nour": never a full email on screen. */
 const markedBy = (by: string) => by.split("@")[0].trim().split(/\s+/)[0] || "admin";
 
