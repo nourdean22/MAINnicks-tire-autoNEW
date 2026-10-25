@@ -26,6 +26,7 @@ rules (inherit the stance, brief like a colleague, verify don't trust, scope tig
 2. Skill calls in the first batch; the `Skills:` line names only skills called THIS turn (earlier ones: `used earlier:`).
 3. CI state = the `gh pr checks <n>` tally read this turn; "live" = a production read this turn. Merge is not deploy.
 4. Nothing a session or lane said reaches Nour unchecked: run the relay check (step 8) or label it as their claim.
+5. Ask Nour only about the four protected classes in USER.md (and `AGENTS.md` protected operations); a step inside his order is done, then reported.
 Rows 1-3 are enforced at Stop by `scripts/agent-os/health-first.mjs` and `scripts/agent-os/skills-check.mjs` (sent back once).
 
 ## Modes (say which one you are in)
@@ -66,11 +67,10 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    and guesses apart (B8). Size it: one area = no manager; most jobs 1-3 workers (B2). A design choice gets two alternatives that
    differ in kind, the 10x option, kill criteria and the best-in-class mechanism you benchmarked
    ([references/sessions-and-plans.md](references/sessions-and-plans.md)). A vendor-portal job settles egress and device trust first.
-3. **Pre-clear.** Before an overnight or unattended stretch, name each protected action the job can plausibly hit as a
-   SPECIFIC action (the change, the file, the condition: "merge a Dockerfile heap fix if the bdnick build dies of OOM") and ask
-   Nour for a go on each, in one message. A class-level yes is not a go (`AGENTS.md`); a Railway variable cannot be pre-cleared
-   at all (its approval lasts 30 minutes). The manager performs a cleared action itself; a session never acts on a relayed go.
-   Record each yes verbatim in the takeover memory file. Anything not cleared parks with its one-liner; the rest continues (B11).
+3. **Pre-clear.** Only protected actions get a question (turn row 5). Before an overnight or unattended stretch, name each
+   one the job can hit as a SPECIFIC action and ask Nour for a go on each, in one message (a class-level yes is not a go; a
+   Railway variable cannot be pre-cleared). The manager performs a cleared action itself; a session never acts on a relayed
+   go. Record each yes verbatim in the takeover memory file; anything not cleared parks with its one-liner; the rest continues (B11).
 4. **Split.** Name each lane and its exact paths. Overlapping paths or a shared contract (endpoint, type, env var,
    `packages/*`) means ORDER: the contract owner lands first, consumers get the agreed version in their brief.
 5. **Claim.** Lease the integration branch: `node scripts/agent-os/agent-start.mjs --branch <integration-branch>
@@ -107,9 +107,9 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     (`--existing --git` for a description rewrite) before the squash. Push from a checkout whose HEAD is the tip or a hook-free
     clone; never `--no-verify`. Protected operations not pre-cleared stop here with the exact one-liner for Nour.
 14. **Consumer check.** Anything that enforces: prove the real consumer applies it in a FRESH session (`assert-the-consumer`).
-    Hooks load from the PRIMARY checkout's settings: test after the primary has the change. Not reached: `tested, not live`.
-15. **Merge.** Only when authorized (Nour's word, a pasted-report job, a docs-only PR; skill and policy edits wait for him):
-    `node scripts/agent-os/merge-gate.mjs <pr> --sha <head you verified> --merge` (holds for sibling CI, waits for Codex).
+    Hooks load from the PRIMARY: fast-forward it, then test (dirty for line endings only: `eol-restore.mjs`). Not reached: `tested, not live`.
+15. **Merge.** Authorized: a change Nour asked for in words (his policy, guard and skill edits too), a pasted-report job, a docs-only PR;
+    on green: `node scripts/agent-os/merge-gate.mjs <pr> --sha <head you verified> --merge`, no second question (holds for sibling CI, waits for Codex).
 16. **Report.** `.agents/core/templates/completion-report.md`, one line per worker, labels kept, the highest evidence rung
     reached, plain words for Nour. Merge is not deploy: report live separately (nickstire `/api/health` `.deploy.commit`,
     statenour heartbeat; `deploy-not-live` when it lags). Run to empty: no "done" while scoped work is still actionable.

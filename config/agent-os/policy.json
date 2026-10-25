@@ -373,7 +373,7 @@
       "tools": ["Bash", "PowerShell"],
       "pattern": "__GIT__(?:reset\\s+--hard\\b|checkout\\s+--\\s|clean\\s+-[a-zA-Z]*[dfxX][a-zA-Z]*\\b|restore\\b(?!(?=[^;|&\\n]*--staged\\b)(?![^;|&\\n]*--worktree\\b))|checkout(?:\\s+-[A-Za-z]+|\\s+--[\\w-]+)*\\s+[^\\s;&|)\\-][^\\s;&|)]*\\s+--\\s|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+\\.\\/?(?=[\\s;&|)]|$)|checkout\\b[^;&|\\n]*?\\s(?:-[A-Za-z]*f[A-Za-z]*\\b|--force(?=[\\s;&|)]|$))|switch\\b[^;&|\\n]*?\\s(?:--discard-changes\\b|--force(?=[\\s;&|)]|$)|-[A-Za-z]*f[A-Za-z]*\\b)|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+[^\\s;&|)\\-][^\\s;&|)]*\\.(?:tsx?|jsx?|mjs|cjs|json|md|ya?ml|css|scss|html|sql|py|ps1|sh|lock|toml|txt|prisma)(?=[\\s;&|)]|$))",
       "why": "Memory git-sync-never-reset-hard: a sibling session's uncommitted work can be sitting in this tree, and none of these leave a reflog entry for unstaged changes. Covers reset --hard, checkout -- <path>, git clean -d/-f/-x, and worktree-writing git restore. Red-team 2026-10-01: git's other spellings of the same discard passed: checkout . (all paths), checkout <ref> -- <path> and checkout <ref> . (the ref's copy over your edits), checkout -f / --force and switch -f / --force / --discard-changes (switching that throws local changes away). They are covered now, and so is checkout [<ref>] <file> when the word ends in a source-file extension; a bare checkout <word> without one stays allowed, because by text alone it is a branch switch. 2026-10-25: the --staged / --worktree lookaheads stop at ; | & and newline; before that, git restore <file> && git diff --staged was ALLOWED (the --staged of the later command exempted the restore).",
-      "fix": "Sync with: git fetch origin main ; git merge --ff-only origin/main. To discard YOUR OWN edit, copy the file aside first (cp file file.bak). git restore --staged <file> (unstage only) stays allowed. To take another ref's version of a file you have NOT edited, copy the file aside, then redirect git show <ref>:<path> into it from bash, or through cmd /c on Windows (a Windows PowerShell 5.1 > redirect re-encodes the file as UTF-16); during a merge, git checkout --theirs / --ours <path> stays allowed.",
+      "fix": "Sync with: git fetch origin main ; git merge --ff-only origin/main. A file that reads dirty for line endings only (a CRLF blob under eol=lf) and blocks that fast-forward: node scripts/agent-os/eol-restore.mjs <path> [--ref origin/main] (it refuses a real edit, keeps a backup, stages the ref's blob), then the fast-forward. To discard YOUR OWN edit, copy the file aside first (cp file file.bak). git restore --staged <file> (unstage only) stays allowed. To take another ref's version of a file you have NOT edited, copy the file aside, then redirect git show <ref>:<path> into it from bash, or through cmd /c on Windows (a Windows PowerShell 5.1 > redirect re-encodes the file as UTF-16); during a merge, git checkout --theirs / --ours <path> stays allowed.",
       "denyExamples": [
         "git reset --hard origin/main",
         "git reset --hard HEAD~1",
@@ -395,7 +395,9 @@
         "git checkout main apps/nickstire/package.json",
         "git restore src/x.ts && git diff --staged",
         "git restore src/x.ts; echo --staged",
-        "git restore --staged a.ts && git restore b.ts"
+        "git restore --staged a.ts && git restore b.ts",
+        "node scripts/agent-os/eol-restore.mjs a.tsx || git restore a.tsx",
+        "node scripts/agent-os/eol-restore.mjs a.tsx; git checkout -- a.tsx"
       ],
       "allowExamples": [
         "git reset HEAD~1",
@@ -413,17 +415,19 @@
         "git switch --force-create feat/x",
         "git diff HEAD -- src/app.ts",
         "git restore --staged a.ts && git status",
-        "git restore --staged a.ts; echo --worktree"
+        "git restore --staged a.ts; echo --worktree",
+        "node scripts/agent-os/eol-restore.mjs apps/statenour/components/brain/pinned-context-panel.tsx",
+        "node scripts/agent-os/eol-restore.mjs apps/x/a.tsx --ref origin/main && git merge --ff-only origin/main"
       ]
     },
     {
       "id": "stash-pop",
       "tools": ["Bash", "PowerShell"],
       "pattern": "__GIT__stash\\s+(?:pop|apply|branch|drop|clear)\\b",
-      "why": "Memory git-stash-pop-steals-sibling-stash: the stash is shared across worktrees. A no-op 'stash push' still exits 0, so pop/apply/branch can restore ANOTHER session's stash into your tree. The same sharing makes drop and clear destructive: they delete stash entries other sessions may own (red-team 2026-10-01).",
-      "fix": "Copy the file aside instead (cp file file.bak), or address the stash by explicit ref after confirming it is yours (git stash list).",
-      "denyExamples": ["git stash pop", "git stash apply stash@{0}", "git stash branch tmp stash@{0}", "git stash drop", "git stash clear", "git stash drop stash@{1}"],
-      "allowExamples": ["git stash list", "git status", "git stash show -p stash@{0}"]
+      "why": "Memory git-stash-pop-steals-sibling-stash: the stash is shared across worktrees. A no-op 'stash push' still exits 0, so pop/apply/branch can restore ANOTHER session's stash into your tree. The same sharing makes drop and clear destructive: they delete stash entries other sessions may own (red-team 2026-10-01). 2026-10-25 (job no-permission-rules): a session may drop only an entry it tagged, and only through scripts/agent-os/stash-drop-tagged.mjs, which finds it by its full manager-* or session-* tag and checks the dropped SHA; a drop by index stays denied even after a git stash list on the same line, because a sibling's push shifts every index.",
+      "fix": "Copy the file aside instead (cp file file.bak). To set work aside, tag it: git stash push -u -m session-<task>-<date>; read it back with git stash show -p; drop YOUR tagged entry with node scripts/agent-os/stash-drop-tagged.mjs <tag>.",
+      "denyExamples": ["git stash pop", "git stash apply stash@{0}", "git stash branch tmp stash@{0}", "git stash drop", "git stash clear", "git stash drop stash@{1}", "git stash list | grep manager-eol && git stash drop stash@{3}", "git stash list; git stash drop stash@{0} # session-x", "node scripts/agent-os/stash-drop-tagged.mjs session-x || git stash drop"],
+      "allowExamples": ["git stash list", "git status", "git stash show -p stash@{0}", "git stash push -u -m session-eol-fix-2026-10-25 -- a.tsx", "node scripts/agent-os/stash-drop-tagged.mjs manager-eol-pinned-context-2026-10-25", "git stash list --format='%H %gs'"]
     },
     {
       "id": "worktree-remove",
