@@ -74,7 +74,6 @@ import SettingsSection from "@/pages/admin/SettingsSection";
 import DeclinedRecoveryPanel from "@/pages/admin/settings/DeclinedRecoveryPanel";
 import TrafficFunnelSection from "@/pages/admin/TrafficFunnelSection";
 import { ContentManager } from "@/pages/admin/content/ContentManager";
-import OpsHubSection from "@/pages/admin/OpsHubSection";
 import { LiveCallsCard } from "@/pages/admin/voice/LiveCallsCard";
 import { InstagramAdmin } from "@/pages/admin/instagram/InstagramAdmin";
 
@@ -176,21 +175,6 @@ describe("Traffic to Revenue panels", () => {
 
 });
 
-
-describe("Ops Hub live checks", () => {
-  it("a failed payments.health read says the live check is unknown on both annotated cards", () => {
-    h.queries.set("payments.health", FAILED);
-    render(<OpsHubSection />);
-    expect(screen.getAllByText("Live check couldn't load. This deploy's state is unknown.")).toHaveLength(2);
-  });
-
-  it("positive control: a good read keeps the live lines and no unknown line", () => {
-    h.queries.set("payments.health", ok({ stripe: { fullyConfigured: true, halfConfigured: false }, sheetsConfigured: true }));
-    render(<OpsHubSection />);
-    expect(screen.getByText("Live check: Stripe fully configured in this deploy.")).toBeTruthy();
-    expect(screen.queryByText(/Live check couldn't load/)).toBeNull();
-  });
-});
 
 describe("Voice live calls", () => {
   it("a failed read shows a retryable unknown instead of vanishing", () => {

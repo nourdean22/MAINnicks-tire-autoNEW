@@ -59,6 +59,19 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Drafts are written against the page positions of their day; past this age those have moved.
+const DRAFT_STALE_DAYS = 30;
+
+function draftAgeLine(generatedAt: string | null | undefined): string {
+  const t = generatedAt ? Date.parse(generatedAt) : NaN;
+  if (!Number.isFinite(t)) return "Draft date unknown.";
+  const date = new Date(t).toLocaleDateString("en-US", { timeZone: "America/New_York" });
+  const days = Math.floor((Date.now() - t) / 86_400_000);
+  return days > DRAFT_STALE_DAYS
+    ? `Drafted ${date}, ${days} days old: these were written against page positions that have moved; redraft before using them.`
+    : `Drafted ${date}, current.`;
+}
+
 export default function TrafficFunnelSection() {
   const [range, setRange] = useState<Range>("30d");
   const { data, isLoading, error, refetch, isFetching } = trpc.trafficFunnel.overview.useQuery(
@@ -164,7 +177,7 @@ export default function TrafficFunnelSection() {
             type="button"
             onClick={() => genDrafts.mutate()}
             disabled={genDrafts.isPending}
-            className="flex items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1.5 text-[11px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
+            className="flex min-h-11 items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1.5 text-[11px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
           >
             {genDrafts.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
             {genDrafts.isPending ? "DRAFTING…" : "DRAFT FIXES"}
@@ -204,9 +217,7 @@ export default function TrafficFunnelSection() {
                 </button>
               </div>
             ))}
-            {seoDrafts.data.generatedAt && (
-              <p className="text-[10px] text-foreground/30">Drafted {new Date(seoDrafts.data.generatedAt).toLocaleString()}</p>
-            )}
+            <p className="text-[11px] text-foreground/50">{draftAgeLine(seoDrafts.data.generatedAt)}</p>
           </div>
         ) : (
           <p className="text-[11px] text-foreground/40 italic">

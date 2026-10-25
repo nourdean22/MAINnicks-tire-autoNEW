@@ -1,7 +1,8 @@
 /**
  * Admin UI v1 Wave 5, review round 2 (silent-instrument lens). Each block kills a named surviving mutant:
- *   - a paused read (data undefined, isError false, fetchStatus "paused") is unknown in Ops Hub, Voice live
- *     calls and the Growth reply counts, not "no line", "quiet hours" or "no banner";
+ *   - a paused read (data undefined, isError false, fetchStatus "paused") is unknown in Voice live
+ *     calls and the Growth reply counts, not "quiet hours" or "no banner" (the Ops Hub registry
+ *     cards it also covered were cut 2026-10-25);
  *   - Settings says "Checking the ALG connection..." while the status read is in flight, never "ALG offline";
  *   - an estimate line type renders sentence case at runtime;
  *   - a phone with no digits gets no tel: or sms: link.
@@ -48,7 +49,6 @@ vi.mock("@/pages/admin/settings/DeclinedRecoveryPanel", () => ({ default: h.Null
 vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, SectionInsightStrip: h.Null }));
 
 import SettingsSection from "@/pages/admin/SettingsSection";
-import OpsHubSection from "@/pages/admin/OpsHubSection";
 import { LiveCallsCard } from "@/pages/admin/voice/LiveCallsCard";
 import { CustomerIntelligence } from "@/pages/admin/intelligence/CustomerIntelligence";
 
@@ -61,22 +61,6 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/admin");
 });
 afterEach(() => h.queries.clear());
-
-describe("Ops Hub live checks", () => {
-  it("a paused health read says the live check did not run, on both annotated cards", () => {
-    h.queries.set("payments.health", PAUSED);
-    render(<OpsHubSection />);
-    expect(screen.getAllByText("Offline, live check not run. This deploy's state is unknown.")).toHaveLength(2);
-    expect(screen.queryByText(/Live check couldn't load/)).toBeNull();
-  });
-
-  it("positive control: a read still in flight shows no live line at all", () => {
-    h.queries.set("payments.health", FETCHING);
-    render(<OpsHubSection />);
-    expect(screen.queryByText(/Offline, live check not run/)).toBeNull();
-    expect(screen.queryByText(/Live check couldn't load/)).toBeNull();
-  });
-});
 
 describe("Voice live calls", () => {
   it("a paused read is unknown, not quiet hours", () => {
