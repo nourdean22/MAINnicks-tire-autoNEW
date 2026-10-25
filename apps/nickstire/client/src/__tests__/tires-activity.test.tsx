@@ -72,22 +72,19 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: async () => 
 import TireOrdersSection from "@/pages/admin/TireOrdersSection";
 import TireMarkupCard from "@/components/admin/TireMarkupCard";
 
-const SUMMARY = "customerEvents.summary";
+const ACTIVITY = "gatewayTire.tireActivity";
 const LIST = "gatewayTire.listOrders";
 const STATS = "gatewayTire.orderStats";
 const MARKUP = "gatewayTire.markup";
 const SAVE = "gatewayTire.updateMarkup";
 
-const TOTALS = {
-  totals: [
-    { eventName: "tire_quote_cta_click", count: 396 },
-    { eventName: "tire_search_submitted", count: 75 },
-    { eventName: "vehicle_size_selected", count: 14 },
-    { eventName: "tire_option_selected", count: 9 },
-    { eventName: "photo_ribbon_view", count: 1200 },
-  ],
-  recent: [],
+// gatewayTire.tireActivity (server/lib/tireActivity.ts): all five names always present; 0 is a real zero.
+const COUNTS = {
+  available: true,
   days: 30,
+  from: "2026-09-25T18:00:00.000Z",
+  to: "2026-10-25T18:00:00.000Z",
+  counts: { tire_search_submitted: 75, tire_quote_cta_click: 396, vehicle_size_selected: 14, tire_option_selected: 9, top_pick_selected: 0 },
 };
 const INSTALLED = {
   id: 7, orderNumber: "TO-20261020-007", status: "installed", statusLabel: "Installed", paymentStatus: "paid",
@@ -96,7 +93,8 @@ const INSTALLED = {
   vehicleInfo: null, customerNotes: null, adminNotes: null, expectedDelivery: null, installationDate: null,
   createdAt: new Date(Date.now() - 5 * 86_400_000).toISOString(),
 };
-const STATS_LIVE = { total: 1, received: 0, confirmed: 0, ordered: 0, inTransit: 0, delivered: 0, scheduled: 0, installed: 1, cancelled: 0, totalRevenue: 384 };
+const QUOTE = { ...INSTALLED, id: 8, orderNumber: "TQ-20261021-008", status: "received", statusLabel: "New request" };
+const STATS_LIVE ={ total: 1, received: 0, confirmed: 0, ordered: 0, inTransit: 0, delivered: 0, scheduled: 0, installed: 1, cancelled: 0, totalRevenue: 384 };
 const OWNER = { data: { adminRole: "owner", permissions: [] } };
 const SAVED = { available: true, percent: 100, updatedAt: "2026-10-25T18:00:00.000Z", updatedBy: "nour@example.com", note: null };
 const NEVER = { available: true, percent: null, updatedAt: null, updatedBy: null, note: null };
@@ -104,7 +102,7 @@ const FAILED = { available: false, reason: "error", message: "boom" };
 
 function setup(over: Record<string, Partial<Q>> = {}) {
   h.queries.set("adminSecurity.status", OWNER);
-  h.queries.set(SUMMARY, { data: TOTALS });
+  h.queries.set(ACTIVITY, { data: COUNTS });
   h.queries.set(LIST, { data: { orders: [INSTALLED], total: 1 } });
   h.queries.set(STATS, { data: STATS_LIVE });
   h.queries.set(MARKUP, { data: SAVED });
@@ -134,15 +132,28 @@ describe("Tires: online tire activity strip", () => {
     expect(tile("Options picked").textContent).toContain("9");
     expect(tile("Online orders").textContent).toMatch(/1 in 30 days/);
     expect(tile("Online orders").textContent).toMatch(/1 lifetime/);
+    // The window the server counted, in New York dates.
+    expect(strip().getByText("Sep 25 to Oct 25")).toBeTruthy();
     // Counts only, no stage percentages: the events are not one linked journey.
     expect(strip().queryByText(/%/)).toBeNull();
   });
 
-  it("an event the summary did not return reads Not tracked, never 0", () => {
-    setup({ [SUMMARY]: { data: { ...TOTALS, totals: TOTALS.totals.filter((t) => t.eventName !== "tire_option_selected") } } });
+  it("a 0 from the exact-name read is a real 0, shown as 0 with the window; no Not tracked", () => {
+    setup();
     render(<TireOrdersSection />);
-    expect(tile("Options picked").textContent).toContain("Not tracked");
-    expect(tile("Options picked").textContent).not.toMatch(/\b0\b/);
+    expect(tile("Top picks chosen").textContent).toMatch(/^Top picks chosen0$/);
+    expect(strip().getByText("Sep 25 to Oct 25")).toBeTruthy();
+    expect(strip().queryByText("Not tracked")).toBeNull();
+  });
+
+  it("available:false renders the server's message in words with Retry, and no counts", () => {
+    const refetch = vi.fn();
+    setup({ [ACTIVITY]: { data: { available: false, reason: "error", message: "The tire activity could not be read: timeout" }, refetch } });
+    render(<TireOrdersSection />);
+    expect(strip().getByText("The tire activity could not be read: timeout")).toBeTruthy();
+    expect(strip().queryByText("Tire-size searches")).toBeNull();
+    fireEvent.click(strip().getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("states the coverage in plain text under the strip", () => {
@@ -153,7 +164,7 @@ describe("Tires: online tire activity strip", () => {
 
   it("a failed activity read is unknown with Retry, and shows no counts", () => {
     const refetch = vi.fn();
-    setup({ [SUMMARY]: { isError: true, error: { message: "down" }, refetch } });
+    setup({ [ACTIVITY]: { isError: true, error: { message: "down" }, refetch } });
     render(<TireOrdersSection />);
     const region = strip();
     expect(region.getByText("Activity couldn't load: unknown.")).toBeTruthy();
@@ -164,16 +175,8 @@ describe("Tires: online tire activity strip", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("an empty event payload (the summary's dead-database answer) is unknown, not a row of Not tracked", () => {
-    setup({ [SUMMARY]: { data: { totals: [], recent: [], days: 30 } } });
-    render(<TireOrdersSection />);
-    expect(strip().getByText(/No website events came back for the last 30 days: unknown/)).toBeTruthy();
-    expect(strip().queryByText("Not tracked")).toBeNull();
-  });
-
   it("a saved quote (TQ- row, which listOrders also returns) is not counted as an online order", () => {
-    const quote = { ...INSTALLED, id: 8, orderNumber: "TQ-20261021-008", status: "received", statusLabel: "New request" };
-    setup({ [LIST]: { data: { orders: [quote, INSTALLED], total: 2 } } });
+    setup({ [LIST]: { data: { orders: [QUOTE, INSTALLED], total: 2 } } });
     render(<TireOrdersSection />);
     expect(tile("Online orders").textContent).toMatch(/^Online orders1 in 30 days/);
   });
@@ -211,6 +214,17 @@ describe("Tires: the online orders list", () => {
     setup({ [LIST]: { data: { orders: [], total: 0 } }, [STATS]: { data: { ...STATS_LIVE, total: 3 } } });
     render(<TireOrdersSection />);
     expect(screen.getByText("No online orders match this view. 3 online orders recorded lifetime.")).toBeTruthy();
+  });
+
+  it("a saved quote is listed apart under Saved quotes, never as an order; the empty line counts orders only", () => {
+    setup({ [LIST]: { data: { orders: [QUOTE], total: 1 } }, [STATS]: { data: { ...STATS_LIVE, total: 0 } } });
+    render(<TireOrdersSection />);
+    const orders = within(screen.getByRole("region", { name: "Online orders" }));
+    expect(orders.queryByText("TO-20261021-008")).toBeNull();
+    expect(orders.queryByText("TQ-20261021-008")).toBeNull();
+    expect(orders.getByText("No online orders match this view. 0 online orders recorded lifetime.")).toBeTruthy();
+    const quotes = within(screen.getByRole("region", { name: "Saved quotes, not orders" }));
+    expect(quotes.getByText("TQ-20261021-008")).toBeTruthy();
   });
 
   it("a failed order list is unknown with Retry, never 'no orders'", () => {

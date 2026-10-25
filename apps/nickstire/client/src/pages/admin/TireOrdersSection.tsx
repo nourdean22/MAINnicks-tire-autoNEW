@@ -48,13 +48,20 @@ const STATUS_OPTIONS: { id: OrderStatusFilter; label: string }[] = [
   { id: "cancelled", label: "Cancelled" },
 ];
 
-/** The website's tire events, counted by customerEvents.summary. Counts only: they are not one linked journey. */
-const TIRE_EVENTS: { name: string; label: string; hint?: string }[] = [
+type TireEventName =
+  | "tire_search_submitted" | "tire_quote_cta_click" | "vehicle_size_selected" | "tire_option_selected" | "top_pick_selected";
+
+/** The website's tire events, counted by exact name (gatewayTire.tireActivity). Counts only: they are not one linked journey. */
+const TIRE_EVENTS: { name: TireEventName; label: string; hint?: string }[] = [
   { name: "tire_search_submitted", label: "Tire-size searches" },
   { name: "tire_quote_cta_click", label: "Quote taps", hint: "a tap, not a quote" },
   { name: "vehicle_size_selected", label: "Sizes picked" },
   { name: "tire_option_selected", label: "Options picked" },
+  { name: "top_pick_selected", label: "Top picks chosen" },
 ];
+
+const nyDay = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
 
 const WINDOW_DAYS = 30;
 const LIST_LIMIT = 100;
@@ -73,39 +80,34 @@ function ordersInWindow(rows: { createdAt: string | Date; orderNumber: string }[
 }
 
 function TireActivityStrip({ ordersLine }: { ordersLine: string }) {
-  const summary = trpc.customerEvents.summary.useQuery({ days: WINDOW_DAYS }, { refetchInterval: 60_000 });
-  const totals: { eventName: string; count: number }[] | undefined = summary.data?.totals;
-  const counts = new Map((totals ?? []).map((t) => [t.eventName, t.count] as const));
+  // Every name is always present and 0 is a real zero: the query asked for that exact name and found no rows.
+  const activity = trpc.gatewayTire.tireActivity.useQuery({ days: WINDOW_DAYS }, { refetchInterval: 60_000 });
+  const read = activity.data;
 
   let events: React.ReactNode;
-  if (summary.isError) {
+  if (activity.isError) {
     events = <p className="text-sm text-amber-400">Activity couldn't load: unknown.</p>;
-  } else if (!totals) {
+  } else if (!read) {
     events = <p className="text-sm text-muted-foreground">Loading activity.</p>;
-  } else if (totals.length === 0) {
-    // The summary answers an empty list when the database is unreachable, so empty is not "no visits".
-    events = <p className="text-sm text-amber-400">No website events came back for the last 30 days: unknown, not zero.</p>;
+  } else if (!read.available) {
+    events = <p className="text-sm text-amber-400">{read.message}</p>;
   } else {
-    events = TIRE_EVENTS.map((e) => {
-      const n = counts.get(e.name);
-      return (
-        <div key={e.name} className="rounded-md border border-border/30 bg-background/40 p-3">
-          <dt className="text-sm text-muted-foreground">{e.label}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-            {n === undefined ? <span className="text-base text-muted-foreground">Not tracked</span> : n.toLocaleString("en-US")}
-          </dd>
-          {e.hint && <dd className="text-xs text-muted-foreground">{e.hint}</dd>}
-        </div>
-      );
-    });
+    events = TIRE_EVENTS.map((e) => (
+      <div key={e.name} className="rounded-md border border-border/30 bg-background/40 p-3">
+        <dt className="text-sm text-muted-foreground">{e.label}</dt>
+        <dd className="mt-1 text-xl font-semibold tabular-nums text-foreground">{read.counts[e.name].toLocaleString("en-US")}</dd>
+        {e.hint && <dd className="text-xs text-muted-foreground">{e.hint}</dd>}
+      </div>
+    ));
   }
-  const failed = summary.isError || totals?.length === 0;
+  const failed = activity.isError || read?.available === false;
 
   return (
     <section aria-labelledby="tire-activity-title" className="rounded-lg border border-border/40 bg-card p-4">
       <h2 id="tire-activity-title" className="text-sm font-semibold">Online tire activity, last 30 days</h2>
+      {read?.available && <p className="mt-1 text-sm text-muted-foreground">{`${nyDay(read.from)} to ${nyDay(read.to)}`}</p>}
       {!Array.isArray(events) && <div className="mt-2">{events}</div>}
-      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {Array.isArray(events) && events}
         <div className="rounded-md border border-border/30 bg-background/40 p-3">
           <dt className="text-sm text-muted-foreground">Online orders</dt>
@@ -113,7 +115,7 @@ function TireActivityStrip({ ordersLine }: { ordersLine: string }) {
         </div>
       </dl>
       {failed && (
-        <button type="button" onClick={() => void summary.refetch()} className={`mt-3 ${RETRY}`}>
+        <button type="button" onClick={() => void activity.refetch()} className={`mt-3 ${RETRY}`}>
           Retry
         </button>
       )}
@@ -197,14 +199,16 @@ export default function TireOrdersSection() {
 
   // Sort by next-action priority (urgent first) so the operator's next move is always at the top:
   // a paid order needing a Gateway order must never sit below the fold.
-  const filteredOrders = useMemo(() => {
-    if (!listData?.orders) return [];
-    return [...listData.orders].sort((a: any, b: any) => {
+  // Saved quotes (TQ- rows) are listed apart: they are not orders and never count as one.
+  const [filteredOrders, savedQuotes] = useMemo(() => {
+    if (!listData?.orders) return [[], []];
+    const sorted = [...listData.orders].sort((a: any, b: any) => {
       const ra = PRIORITY_RANK[getNextAction(a).priority];
       const rb = PRIORITY_RANK[getNextAction(b).priority];
       if (ra !== rb) return ra - rb;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
+    return [sorted.filter((o) => !isQuoteRow(o)), sorted.filter(isQuoteRow)];
   }, [listData]);
 
   // Priority color borders & text colors
@@ -264,6 +268,174 @@ export default function TireOrdersSection() {
     return "bg-amber-500/10 text-amber-400 border-amber-500/20";
   };
 
+  // One row card, used for orders and, apart, for saved quotes.
+  const renderRow = (order: any) => {
+    const isExpanded = expandedOrderId === order.id;
+    const confidence = getQuoteConfidence(order);
+    const flags = getRiskFlags(order);
+    const nextAction = getNextAction(order);
+    const priorityStyle = getPriorityStyles(nextAction.priority);
+    const closed = order.status === "installed" || order.status === "cancelled";
+
+    return (
+      <div
+        key={order.id}
+        className={`bg-card border overflow-hidden transition-colors ${priorityStyle.border}`}
+      >
+        {/* Order Card Header */}
+        <div
+          onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+          className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-foreground/[0.015] transition-colors"
+        >
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-2 py-0.5 border rounded text-xs font-extrabold ${priorityStyle.badge}`}>
+                {nextAction.priority.toUpperCase()}
+              </span>
+              <span className="text-sm font-bold text-foreground">{order.orderNumber}</span>
+              <span className="text-xs text-muted-foreground/80">
+                {formatRelativeDate(order.createdAt)}
+              </span>
+              {order.invoiceNumber && (
+                <span className="text-xs bg-foreground/5 border border-border/25 px-2 py-0.5 rounded text-muted-foreground font-semibold">
+                  Invoice: {order.invoiceNumber}
+                </span>
+              )}
+              {order.gatewayOrderRef && (
+                <span className="text-xs bg-foreground/5 border border-border/25 px-2 py-0.5 rounded text-foreground/75 font-semibold">
+                  PO: {order.gatewayOrderRef}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h4 className="text-base font-extrabold text-foreground flex items-center gap-1.5">
+                <User className="w-4 h-4 text-foreground/40" />
+                {order.customerName}
+              </h4>
+              {/* tel: link — most next-actions start with "call the
+                  customer"; one tap from the counter phone. Stop
+                  propagation so dialing doesn't toggle the card. */}
+              <a
+                href={`tel:${order.customerPhone}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex min-h-12 items-center text-sm text-primary hover:underline font-bold"
+              >
+                ({order.customerPhone})
+              </a>
+              {order.vehicleInfo && (
+                <span className="text-sm text-muted-foreground/90 flex items-center gap-1 font-medium">
+                  <Car className="w-4 h-4 text-foreground/30" />
+                  {order.vehicleInfo}
+                </span>
+              )}
+            </div>
+
+            <div className="text-sm text-foreground/90 font-medium">
+              {order.quantity}x <span className="font-bold text-foreground">{order.tireBrand} {order.tireModel}</span> ({order.tireSize})
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 shrink-0 self-end md:self-auto">
+            <div className="text-right">
+              <div className="font-extrabold text-base text-foreground">${order.totalAmount.toFixed(2)}</div>
+              <div className="text-xs text-muted-foreground/80">{order.quantity} tires @ ${order.pricePerTire.toFixed(2)}</div>
+            </div>
+
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                {/* Lifecycle status */}
+                <span className="px-2 py-0.5 text-xs font-bold bg-foreground/5 border border-border/20 rounded text-foreground/75">
+                  {order.statusLabel}
+                </span>
+
+                {/* Quick Cancel (soft — the row stays in history); none on a closed order */}
+                {!closed && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCancel(order.id, order.orderNumber, order.customerName);
+                    }}
+                    disabled={cancelOrderMutation.isPending}
+                    className="min-h-12 px-3 text-xs font-extrabold border border-red-500/30 bg-red-500/10 hover:bg-red-500/25 text-red-400 rounded transition-colors flex items-center gap-1"
+                  >
+                    {cancelOrderMutation.isPending && cancelOrderMutation.variables?.id === order.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <X className="w-3 h-3" />
+                    )}
+                    Cancel
+                  </button>
+                )}
+              </div>
+
+              {/* Quote confidence */}
+              <span className={`px-2 py-0.5 text-xs font-bold border rounded ${getConfidenceBadgeStyles(confidence.grade)}`}>
+                {confidence.grade} Confidence
+              </span>
+            </div>
+
+            <button
+              type="button"
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? `Hide details for ${order.orderNumber}` : `Show details for ${order.orderNumber}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedOrderId(isExpanded ? null : order.id);
+              }}
+              className="inline-flex min-h-12 min-w-12 items-center justify-center rounded text-foreground/50 hover:text-foreground"
+            >
+              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Quick summary strip of Next Action */}
+        <div
+          onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+          className="border-t border-border/10 px-4 py-2 bg-foreground/[0.015] flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-foreground/[0.03] transition-colors"
+        >
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold text-foreground/80">Next Action:</span>
+            <span className="text-primary font-extrabold">{nextAction.label}</span>
+            <span className="text-muted-foreground/95">· {nextAction.reason}</span>
+          </div>
+
+          {flags.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {flags.slice(0, 3).map((f) => (
+                <span key={f} className={`px-1.5 py-0.5 text-xs font-semibold border rounded ${getRiskFlagStyles(f)}`}>
+                  {getRiskFlagLabel(f)}
+                </span>
+              ))}
+              {flags.length > 3 && (
+                <span className="text-xs text-muted-foreground font-semibold px-1">+{flags.length - 3} more</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Expanded Detail Panel */}
+        {isExpanded && (
+          <div className="border-t border-border/20 p-5 bg-background/25">
+            <KafeneLeasePanel order={order} />
+            <GatewayOrderPanel order={order} />
+            <OrderFormEdit
+              order={order}
+              updateOrderMutation={updateOrderMutation}
+              nextAction={nextAction}
+              flags={flags}
+              confidence={confidence}
+              handleCancel={handleCancel}
+              cancelOrderMutation={cancelOrderMutation}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Section
       title="Tires"
@@ -318,172 +490,7 @@ export default function TireOrdersSection() {
           </p>
         ) : (
           <div className="space-y-3">
-            {filteredOrders.map((order: any) => {
-              const isExpanded = expandedOrderId === order.id;
-              const confidence = getQuoteConfidence(order);
-              const flags = getRiskFlags(order);
-              const nextAction = getNextAction(order);
-              const priorityStyle = getPriorityStyles(nextAction.priority);
-              const closed = order.status === "installed" || order.status === "cancelled";
-
-              return (
-                <div
-                  key={order.id}
-                  className={`bg-card border overflow-hidden transition-colors ${priorityStyle.border}`}
-                >
-                  {/* Order Card Header */}
-                  <div
-                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-foreground/[0.015] transition-colors"
-                  >
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-2 py-0.5 border rounded text-xs font-extrabold ${priorityStyle.badge}`}>
-                          {nextAction.priority.toUpperCase()}
-                        </span>
-                        <span className="text-sm font-bold text-foreground">{order.orderNumber}</span>
-                        <span className="text-xs text-muted-foreground/80">
-                          {formatRelativeDate(order.createdAt)}
-                        </span>
-                        {order.invoiceNumber && (
-                          <span className="text-xs bg-foreground/5 border border-border/25 px-2 py-0.5 rounded text-muted-foreground font-semibold">
-                            Invoice: {order.invoiceNumber}
-                          </span>
-                        )}
-                        {order.gatewayOrderRef && (
-                          <span className="text-xs bg-foreground/5 border border-border/25 px-2 py-0.5 rounded text-foreground/75 font-semibold">
-                            PO: {order.gatewayOrderRef}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <h4 className="text-base font-extrabold text-foreground flex items-center gap-1.5">
-                          <User className="w-4 h-4 text-foreground/40" />
-                          {order.customerName}
-                        </h4>
-                        {/* tel: link — most next-actions start with "call the
-                            customer"; one tap from the counter phone. Stop
-                            propagation so dialing doesn't toggle the card. */}
-                        <a
-                          href={`tel:${order.customerPhone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex min-h-12 items-center text-sm text-primary hover:underline font-bold"
-                        >
-                          ({order.customerPhone})
-                        </a>
-                        {order.vehicleInfo && (
-                          <span className="text-sm text-muted-foreground/90 flex items-center gap-1 font-medium">
-                            <Car className="w-4 h-4 text-foreground/30" />
-                            {order.vehicleInfo}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-sm text-foreground/90 font-medium">
-                        {order.quantity}x <span className="font-bold text-foreground">{order.tireBrand} {order.tireModel}</span> ({order.tireSize})
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 shrink-0 self-end md:self-auto">
-                      <div className="text-right">
-                        <div className="font-extrabold text-base text-foreground">${order.totalAmount.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground/80">{order.quantity} tires @ ${order.pricePerTire.toFixed(2)}</div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="flex items-center gap-2">
-                          {/* Lifecycle status */}
-                          <span className="px-2 py-0.5 text-xs font-bold bg-foreground/5 border border-border/20 rounded text-foreground/75">
-                            {order.statusLabel}
-                          </span>
-
-                          {/* Quick Cancel (soft — the row stays in history); none on a closed order */}
-                          {!closed && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancel(order.id, order.orderNumber, order.customerName);
-                              }}
-                              disabled={cancelOrderMutation.isPending}
-                              className="min-h-12 px-3 text-xs font-extrabold border border-red-500/30 bg-red-500/10 hover:bg-red-500/25 text-red-400 rounded transition-colors flex items-center gap-1"
-                            >
-                              {cancelOrderMutation.isPending && cancelOrderMutation.variables?.id === order.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <X className="w-3 h-3" />
-                              )}
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Quote confidence */}
-                        <span className={`px-2 py-0.5 text-xs font-bold border rounded ${getConfidenceBadgeStyles(confidence.grade)}`}>
-                          {confidence.grade} Confidence
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        aria-expanded={isExpanded}
-                        aria-label={isExpanded ? `Hide details for ${order.orderNumber}` : `Show details for ${order.orderNumber}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedOrderId(isExpanded ? null : order.id);
-                        }}
-                        className="inline-flex min-h-12 min-w-12 items-center justify-center rounded text-foreground/50 hover:text-foreground"
-                      >
-                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick summary strip of Next Action */}
-                  <div
-                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    className="border-t border-border/10 px-4 py-2 bg-foreground/[0.015] flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-foreground/[0.03] transition-colors"
-                  >
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-semibold text-foreground/80">Next Action:</span>
-                      <span className="text-primary font-extrabold">{nextAction.label}</span>
-                      <span className="text-muted-foreground/95">· {nextAction.reason}</span>
-                    </div>
-
-                    {flags.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {flags.slice(0, 3).map((f) => (
-                          <span key={f} className={`px-1.5 py-0.5 text-xs font-semibold border rounded ${getRiskFlagStyles(f)}`}>
-                            {getRiskFlagLabel(f)}
-                          </span>
-                        ))}
-                        {flags.length > 3 && (
-                          <span className="text-xs text-muted-foreground font-semibold px-1">+{flags.length - 3} more</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Expanded Detail Panel */}
-                  {isExpanded && (
-                    <div className="border-t border-border/20 p-5 bg-background/25">
-                      <KafeneLeasePanel order={order} />
-                      <GatewayOrderPanel order={order} />
-                      <OrderFormEdit
-                        order={order}
-                        updateOrderMutation={updateOrderMutation}
-                        nextAction={nextAction}
-                        flags={flags}
-                        confidence={confidence}
-                        handleCancel={handleCancel}
-                        cancelOrderMutation={cancelOrderMutation}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {filteredOrders.map(renderRow)}
           </div>
         )}
 
@@ -491,6 +498,15 @@ export default function TireOrdersSection() {
           Supplier tires are not auto-ordered and online payment does not reserve supplier stock; confirm, order from D&K, record the PO, advance the status.
         </p>
       </section>
+      {savedQuotes.length > 0 && (
+        <section aria-labelledby="tire-quotes-title" className="space-y-3">
+          <h2 id="tire-quotes-title" className="text-sm font-semibold">Saved quotes, not orders</h2>
+          <p className="text-sm text-muted-foreground">
+            {`${savedQuotes.length} saved quote${savedQuotes.length === 1 ? "" : "s"} in this view. A quote is not counted as an order.`}
+          </p>
+          <div className="space-y-3">{savedQuotes.map(renderRow)}</div>
+        </section>
+      )}
       <TireMarkupCard />
     </Section>
   );
