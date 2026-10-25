@@ -1,16 +1,16 @@
 /**
  * Customers router — admin endpoints for viewing/searching imported customer records.
  */
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, dbAdminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders, algEstimates } from "../../drizzle/schema";
 import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
-import { lapsedCondition } from "../lib/customer-segments";
+import { countLapsedRegulars, lapsedCondition, vipCondition } from "../lib/customer-segments";
 import { logAdminAction } from "../services/auditTrail";
 import { csvSafe } from "../sanitize";
 
-import { db } from "../lib/db-helper";
+import { db, requireDb } from "../lib/db-helper";
 
 import { createLogger } from "../lib/logger";
 
@@ -213,9 +213,8 @@ export const customersRouter = router({
     }),
 
   /** Get segment summary stats + revenue overview */
-  stats: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { total: 0, recent: 0, lapsed: 0, unknown: 0, withEmail: 0, commercial: 0, totalRevenue: 0, avgSpend: 0, withVisits: 0, vipCount: 0 };
+  stats: dbAdminProcedure.query(async () => {
+    const d = await requireDb();
 
     const [total] = await d.select({ count: sql<number>`count(*)` }).from(customers);
     const [recent] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "recent"));
@@ -231,20 +230,21 @@ export const customersRouter = router({
       totalRevenue: sql<number>`COALESCE(SUM(totalSpent), 0)`,
       avgSpend: sql<number>`COALESCE(AVG(NULLIF(totalSpent, 0)), 0)`,
       withVisits: sql<number>`SUM(CASE WHEN totalVisits > 0 THEN 1 ELSE 0 END)`,
-      vipCount: sql<number>`SUM(CASE WHEN totalVisits >= 3 THEN 1 ELSE 0 END)`,
+      vipCount: sql<number>`SUM(CASE WHEN ${vipCondition()} THEN 1 ELSE 0 END)`,
     }).from(customers);
 
     return {
-      total: total?.count ?? 0,
-      recent: recent?.count ?? 0,
-      lapsed: lapsed?.count ?? 0,
-      unknown: unknown?.count ?? 0,
-      withEmail: withEmail?.count ?? 0,
-      commercial: commercial?.count ?? 0,
-      totalRevenue: revenue?.totalRevenue ?? 0,
-      avgSpend: revenue?.avgSpend ?? 0,
-      withVisits: revenue?.withVisits ?? 0,
-      vipCount: revenue?.vipCount ?? 0,
+      total: Number(total?.count ?? 0),
+      recent: Number(recent?.count ?? 0),
+      lapsed: Number(lapsed?.count ?? 0),
+      unknown: Number(unknown?.count ?? 0),
+      withEmail: Number(withEmail?.count ?? 0),
+      commercial: Number(commercial?.count ?? 0),
+      totalRevenue: Number(revenue?.totalRevenue ?? 0),
+      avgSpend: Number(revenue?.avgSpend ?? 0),
+      withVisits: Number(revenue?.withVisits ?? 0),
+      vipCount: Number(revenue?.vipCount ?? 0),
+      lapsedRegulars: await countLapsedRegulars(d),
     };
   }),
 

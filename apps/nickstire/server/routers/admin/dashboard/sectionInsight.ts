@@ -14,8 +14,12 @@ import { adminProcedure, dbAdminProcedure } from "../../../_core/trpc";
 import { z } from "zod";
 import { inArray } from "drizzle-orm";
 
-
-
+/** cta.params: extra admin URL params for the target section, e.g. { outreachTab: "winback" }. */
+type InsightCta = { label: string; section: string; settingsTab?: string; params?: Record<string, string> };
+type SectionInsight = { variant: "primary" | "warning" | "danger"; message: string; metric: string; cta: InsightCta };
+// The re-engagement section was retired 2026-05-09 (its alias opens Outreach's default tab); Win-Back is a tab of Outreach.
+// Its enum literal stays in the input for old clients; no current client asks for it, so it answers null.
+const WIN_BACK_CTA: InsightCta = { label: "Open Win-Back", section: "campaigns", params: { outreachTab: "winback" } };
 
 
 export const sectionInsightProcedures = {
@@ -27,33 +31,26 @@ export const sectionInsightProcedures = {
         "intelligence", "settings", "trafficFunnel", "snapDashboard",
       ]),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }): Promise<SectionInsight | null> => {
       try {
-        const { getDb } = await import("../../../db");
-        const d = await getDb();
+        const { getDbTyped } = await import("../../../db");
+        const d = await getDbTyped();
         if (!d) return null;
         const { sql, eq, and, gte, isNull } = await import("drizzle-orm");
 
         switch (input.section) {
           case "customers": {
-            // Lapsed VIP customers — high LTV, haven't visited in 6+ months
+            // The same lapsed regulars customers.stats counts, with how many can be texted.
             try {
-              const { customers } = await import("../../../../drizzle/schema");
-              const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-              const [vipLapsed] = await d
-                .select({ count: sql<number>`count(*)` })
-                .from(customers)
-                .where(and(
-                  sql`${customers.totalSpent} >= 50000`, // $500+ lifetime spend (cents)
-                  sql`${customers.lastVisitDate} < ${sixMonthsAgo}`,
-                ));
-              const cnt = Number(vipLapsed?.count || 0);
-              if (cnt >= 3) {
+              const { countLapsedRegulars } = await import("../../../lib/customer-segments");
+              const { LAPSED_REGULAR_RULE } = await import("../../../../shared/customerSegments");
+              const { qualifying, contactable } = await countLapsedRegulars(d);
+              if (qualifying >= 3) {
                 return {
                   variant: "primary" as const,
-                  message: `Lapsed VIPs (>$500 lifetime, no visit in 6+ months) — these are your highest-LTV winback targets.`,
-                  metric: `${cnt} VIPs lapsed`,
-                  cta: { label: "Run Win-Back", section: "reEngagement" },
+                  message: `${qualifying} lapsed regulars (${LAPSED_REGULAR_RULE}); ${contactable} can be texted.`,
+                  metric: `${qualifying} lapsed regulars`,
+                  cta: WIN_BACK_CTA,
                 };
               }
             } catch (e) { void e; }
@@ -69,7 +66,7 @@ export const sectionInsightProcedures = {
                   variant: "primary" as const,
                   message: `${c.oneAndDone.pct}% of customers who visited never came back (one-and-done). ${c.reactivationEligible.count} are reactivation-eligible — $${winbackUsd.toLocaleString()} of lifetime value to win back.`,
                   metric: `${c.oneAndDone.pct}% one-and-done`,
-                  cta: { label: "Run Win-Back", section: "reEngagement" },
+                  cta: WIN_BACK_CTA,
                 };
               }
             } catch (e) { void e; }
@@ -166,31 +163,6 @@ export const sectionInsightProcedures = {
                     : `Unmatched estimates from last 60 days. SMS recovery cron targets these — set FEATURE_DECLINED_RECOVERY=1 to activate.`,
                   metric: `$${total.toLocaleString()} ${featureOn ? "in flight" : "recoverable"} · ${cnt} estimates${share}`,
                   cta: { label: "See Status", section: "settings", settingsTab: "shopdriver" },
-                };
-              }
-            } catch (e) { void e; }
-            return null;
-          }
-          case "reEngagement": {
-            // Negative reviews from last 7 days
-            try {
-              const { reviewReplies } = await import("../../../../drizzle/schema");
-              const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-              const [neg] = await d
-                .select({ count: sql<number>`count(*)` })
-                .from(reviewReplies)
-                .where(and(
-                  sql`${reviewReplies.reviewRating} <= 2`,
-                  gte(reviewReplies.reviewDate, sevenDaysAgo),
-                  sql`(${reviewReplies.status} IS NULL OR ${reviewReplies.status} IN ('draft', 'pending'))`,
-                ));
-              const cnt = Number(neg?.count || 0);
-              if (cnt > 0) {
-                return {
-                  variant: "danger" as const,
-                  message: `Negative reviews waiting for response. Public reply within 24h preserves trust score.`,
-                  metric: `${cnt} review${cnt === 1 ? "" : "s"}`,
-                  cta: { label: "Open Re-engagement", section: "reEngagement" },
                 };
               }
             } catch (e) { void e; }
