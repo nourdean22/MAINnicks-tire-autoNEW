@@ -931,20 +931,42 @@
       "tools": ["Agent"],
       "pattern": "^(?:lane-dispatch|agent|session-start) (?:.* )?shop-data=no$",
       "why": "Nour, 2026-10-22: a scout session reported '0 declines ever captured' because its brief carried none of the shop's data meanings (an estimate with no invoice IS the decline). A fresh agent or session does not load the manager's memory, so a brief that reads Nick's Tire records must carry them. Judged on the summary line policy.mjs > agentDispatchCall builds for Agent, Task and mcp__ccd_session__start_session.",
-      "fix": "Add a line starting 'SHOP DATA:' to the brief (prompt, start_session background, or the brief file) and paste the 'Shop data meanings' lines from .agents/core/USER.md (memory shop-data-meanings): a counter invoice is a closed job and its payment status means nothing (separate register); an estimate with no matching invoice most likely means the customer walked (declined work) but stays an inference; key follow-ups to invoices, not bookings.",
+      "fix": "Add a line that STARTS with 'SHOP DATA:' (at the start of its own line, not mid-paragraph; it counts in the prompt, start_session background, or the brief file) and paste after it the 'Shop data meanings' lines from .agents/core/USER.md (memory shop-data-meanings): a counter invoice is a closed job and its payment status means nothing (separate register); an estimate with no matching invoice most likely means the customer walked (declined work) but stays an inference; key follow-ups to invoices, not bookings.",
       "denyExamples": [
         "lane-dispatch type=lane-nickstire-server model=sonnet brief=C:/x/retention-brief.md model-effort-line=yes shop-data=no",
         "agent type=general-purpose shop-data=no",
         "agent type=- shop-data=no",
-        "session-start shop-data=no"
+        "session-start shop-data=no",
+        "session-start model=claude-sonnet-5-5 effort=high brief=C:/x/retention-brief.md model-effort-line=yes shop-data=no"
       ],
       "allowExamples": [
         "lane-dispatch type=lane-nickstire-server model=sonnet brief=C:/x/retention-brief.md model-effort-line=yes shop-data=yes",
         "lane-dispatch type=lane-statenour model=sonnet brief=C:/x/ui-brief.md model-effort-line=yes shop-data=n/a",
         "agent type=Explore shop-data=n/a",
-        "session-start shop-data=yes",
-        "session-start shop-data=n/a",
+        "session-start model=claude-sonnet-5-5 effort=high brief=C:/x/retention-brief.md model-effort-line=yes shop-data=yes",
+        "session-start model=claude-opus-5-5 effort=high brief=C:/x/hook-brief.md model-effort-line=yes shop-data=n/a",
         "agent type=shop-data=no-helper shop-data=n/a"
+      ]
+    },
+    {
+      "id": "session-dispatch-brief",
+      "tools": ["Agent"],
+      "pattern": "^session-start (?:model=- |.*\\beffort=- |.*\\bbrief=no\\b|.*\\bmodel-effort-line=no\\b)",
+      "why": "Nour, 2026-10-25: 'WHY EVERY SESSION STARTING IN FABLE?'. mcp__ccd_session__start_session inherits the parent's model and effort when they are omitted; the manager omitted them on four sessions in a row after a /model switch, so all four ran on the wrong tier. The lane rule (lane-dispatch-brief) covered Agent lanes only. Judged on the session-start summary line policy.mjs > agentDispatchCall builds; a proposal_id-only start and a title-only offer carry no brief and are not judged (the brief was judged when proposed, or is judged when sent with proposal_id).",
+      "fix": "Pass `model` (opus for design or judgement, sonnet for a known pattern with tests, sonnet or haiku for mechanical work) and `effort` on the start_session call; name the brief FILE (a path ending brief.md, from .agents/core/templates/subagent-brief.md) in `prompt` or `background`; put a 'MODEL / EFFORT: <model> / <effort>' line in the prompt, and a line STARTING 'SHOP DATA:' when the work reads shop records. A fork runs on your own model whatever you pass: when the tier should differ, start it with context fresh.",
+      "denyExamples": [
+        "session-start model=- effort=- brief=no model-effort-line=no shop-data=n/a",
+        "session-start model=- effort=high brief=C:/x/hook-fix-brief.md model-effort-line=yes shop-data=n/a",
+        "session-start model=claude-sonnet-5-5 effort=- brief=C:/x/hook-fix-brief.md model-effort-line=yes shop-data=n/a",
+        "session-start model=claude-sonnet-5-5 effort=high brief=no model-effort-line=yes shop-data=n/a",
+        "session-start model=claude-opus-5-5 effort=high brief=C:/x/hook-fix-brief.md model-effort-line=no shop-data=yes"
+      ],
+      "allowExamples": [
+        "session-start model=claude-sonnet-5-5 effort=high brief=C:/x/hook-fix-brief.md model-effort-line=yes shop-data=n/a",
+        "session-start model=claude-opus-5-5 effort=xhigh brief=./briefs/admin-brief.v3.md model-effort-line=yes shop-data=yes",
+        "session-start model=claude-haiku-5-5 effort=medium brief=C:/x/effort=-brief.md model-effort-line=yes shop-data=n/a",
+        "lane-dispatch type=lane-platform model=opus brief=C:/x/a-brief.md model-effort-line=yes shop-data=n/a",
+        "agent type=session-start shop-data=n/a"
       ]
     },
     {

@@ -65,6 +65,31 @@ Restarts and quota days (2026-10-16 and 2026-10-18):
   hour later; a merge on the fail-open path (`--codex-wait-minutes 0`, with Nour's go) gets the read-only skeptic lens as the
   substitute, recorded in the ledger row with the WARN line.
 
+## Integrate a lane (step 13)
+
+Two traps on 2026-10-25. PR 3270 was first pushed holding only the ledger commit: a second `git fetch` overwrote `FETCH_HEAD`
+before `checkout -B ... FETCH_HEAD`. And a lane RETURN gave a wrong full SHA (`87b53cf6727be...` for the real
+`87b53cf6723b7ac6...`); cherry-picking by it in the sparse push clone failed "not our ref", then "bad object". So: take the lane
+by BRANCH name into a NAMED ref (no later fetch moves it), take main from GitHub (a clone of the primary checkout has the
+primary's stale local main as `origin/main`, and an unpushed lane branch exists only in the primary), use the RETURN's SHA only
+to compare, and count the commits before you push. In the push clone:
+
+```bash
+git fetch https://github.com/nourdean22/MAINnicks-tire-autoNEW.git "+refs/heads/main:refs/remotes/github/main"
+git fetch <primary checkout path> "+refs/heads/<lane-branch>:refs/lanes/<lane-branch>"
+git rev-parse refs/lanes/<lane-branch>
+git rev-list --count github/main..refs/lanes/<lane-branch>
+git checkout -B <integration-branch> github/main
+git cherry-pick github/main..refs/lanes/<lane-branch>
+git rev-list --count github/main..HEAD
+```
+
+The resolved SHA must equal the RETURN's; if not, the RETURN is wrong or the lane moved: ask the lane, do not pick. The last
+count must equal the first (plus your own ledger commit once you add it); if it does not, stop and do not push. Never name
+`FETCH_HEAD` or a SHA copied from a RETURN as an operand. A lane branch that also carries commits main already has as a squash
+(it was cut from another PR's branch) would re-apply them: replace `github/main..` with `<lane base sha>..` in the first count
+and in the cherry-pick.
+
 ## Merge protocol (step 15)
 
 Merge only when authorized. Then run ONE command, which re-verifies every condition in the same process as the merge:
@@ -95,7 +120,7 @@ Run it with `run_in_background` when the hold may be long; the harness wakes you
 | 5 | a gh call failed BEFORE the merge call | nothing was merged; re-run |
 | 6 | a gh call failed AT or AFTER the merge call | the merge happened or may have: read the PR before any retry; delete the branch by hand once it reads MERGED |
 | 7 | not ready YET: CI not started, a check running, GitHub computing | re-run in a minute |
-| 64 | bad usage | fix the command |
+| 64 | bad usage | fix the command; a short or upper-case `--sha` that is a prefix of the PR's head prints the full head as a paste-ready retry (the gate never resolves it for you: the full SHA is the head you verified) |
 
 Without `--merge` it only judges. After MERGED: `git fetch origin main` and
 `git merge --ff-only`, never `reset --hard`. Report the merge SHA, not "merged".

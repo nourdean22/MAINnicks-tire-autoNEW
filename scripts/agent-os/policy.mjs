@@ -184,11 +184,21 @@ function briefTexts(prompt, cwd) {
   return out.join("\n");
 }
 
+// -- Started sessions (2026-10-25, job session-rules-mechanical) ----------------------------------------------------
+// start_session inherits the parent's model and effort when they are omitted, so every session the manager started
+// on 2026-10-25 ran on Fable. Its summary line carries the same fields as a lane line, judged by `session-dispatch-brief`:
+//   session-start model=<value|-> effort=<value|-> brief=<the brief file token|no> model-effort-line=<yes|no> shop-data=<...>
+// The brief file and the MODEL / EFFORT line count in prompt or background.
+const field = (v) => String(v ?? "").trim().replace(/\s+/g, "_") || "-";
+const modelEffortLine = (text) => (/MODEL\s*\/\s*EFFORT/.test(text) ? "yes" : "no");
+
 export function agentDispatchCall(toolName, input, cwd) {
   if (toolName === "mcp__ccd_session__start_session") {
-    if (!input?.prompt && !input?.background) return null; // a proposal_id start carries no brief
+    if (!input?.prompt && !input?.background) return null; // a proposal_id start or a title-only offer carries no brief
     const text = [input.prompt, input.background].map((v) => String(v ?? "")).join("\n");
-    return { toolName: "Agent", command: `session-start shop-data=${shopDataState(`${text}\n${briefTexts(text, cwd)}`)}`, filePath: "", cwd };
+    const shop = `shop-data=${shopDataState(`${text}\n${briefTexts(text, cwd)}`)}`;
+    const command = `session-start model=${field(input.model)} effort=${field(input.effort)} brief=${briefFile(text) ?? "no"} model-effort-line=${modelEffortLine(text)} ${shop}`;
+    return { toolName: "Agent", command, filePath: "", cwd };
   }
   if (toolName !== "Agent" && toolName !== "Task") return null;
   const type = String(input?.subagent_type ?? "").trim().replace(/\s+/g, "_");
@@ -196,7 +206,7 @@ export function agentDispatchCall(toolName, input, cwd) {
   const model = String(input?.model ?? "").trim().replace(/\s+/g, "_");
   const shop = `shop-data=${shopDataState(`${prompt}\n${briefTexts(prompt, cwd)}`, type)}`;
   const command = /^lane-/i.test(type)
-    ? `lane-dispatch type=${type} model=${model || "-"} brief=${briefFile(prompt) ?? "no"} model-effort-line=${/MODEL\s*\/\s*EFFORT/.test(prompt) ? "yes" : "no"} ${shop}`
+    ? `lane-dispatch type=${type} model=${model || "-"} brief=${briefFile(prompt) ?? "no"} model-effort-line=${modelEffortLine(prompt)} ${shop}`
     : `agent type=${type || "-"} ${shop}`;
   return { toolName: "Agent", command, filePath: "", cwd };
 }

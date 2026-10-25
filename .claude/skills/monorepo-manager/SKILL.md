@@ -76,13 +76,12 @@ workflow fan-outs and background suites count toward both (four concurrent suite
 5. **Claim.** Lease the integration branch: `node scripts/agent-os/agent-start.mjs --branch <integration-branch>
    --claimed-by "<job id>"`. It exits 0 even when it took NO lease; only a line starting `[agent-start] leased` is a
    receipt. No receipt = no writers; keep read-only work going and tell Nour. Check open PRs and sibling worktrees first.
-6. **Dispatch.** One brief per worker from `.agents/core/templates/subagent-brief.md` (v3), written to a file whose name ends in
-   `brief.md` (rule `lane-dispatch-brief`), with base SHA, RULED OUT, DESIGN, FIXTURES, PITFALLS, SELF-AUDIT, path exceptions,
-   Nour's verbatim words and the memory files by path. Shop data needs the `SHOP DATA:` block (rule `brief-shop-data` denies it
-   missing). Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
-   Set `model` and `effort` from the brief's MODEL / EFFORT line. Background, no polling; one decision per message
-   (REPLY NEEDED / NO REPLY NEEDED). Note the dispatch time (UTC) in your job notes; step 17 puts it in the ledger row
-   ([references/job-lessons.md](references/job-lessons.md)).
+6. **Dispatch.** One brief per worker, lane or session, from `.agents/core/templates/subagent-brief.md` (v3) in a file ending
+   `brief.md`: base SHA, RULED OUT, DESIGN, FIXTURES, PITFALLS, SELF-AUDIT, path exceptions, Nour's verbatim words, memory files
+   by path, a line STARTING `SHOP DATA:` if it reads shop data. Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
+   Set `model` and `effort` from MODEL / EFFORT on every lane AND every `start_session` (a fork runs on your model: start fresh
+   when the tier differs) and name tier, model and effort where you introduce it; rules `lane-dispatch-brief`, `session-dispatch-brief`
+   and `brief-shop-data` deny a miss. Background, no polling; one decision per message (REPLY NEEDED / NO REPLY NEEDED); dispatch time (UTC) in your job notes, for the ledger row ([references/job-lessons.md](references/job-lessons.md)).
 7. **Check every return.** Read the real diff; `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <sha>`
    (exit 1 reject, exit 2 not checked, never a pass); re-run one receipt yourself. Every RETURN fact is labelled FACT, INFERRED
    or NOT CHECKED; a lane report with no receipt, SHA or diff is sent back once by `scripts/agent-os/subagent-receipt-check.mjs`
@@ -115,6 +114,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     reached, plain words for Nour. Merge is not deploy: report live separately (nickstire `/api/health` `.deploy.commit`,
     statenour heartbeat; `deploy-not-live` when it lags). Run to empty: no "done" while scoped work is still actionable.
 17. **Log and learn.** Add `docs/agent-os/ledger/<job-id>.md` in the SAME PR: the row as `MERGED` with PR cell `this PR` and its
-    metrics row; every reversible decision made without Nour is one `Ruling: <what> - <why> - <cost if wrong>` line in the PR
+    metrics row, then run `node scripts/agent-os/ledger-check.mjs` before pushing it (exit 1 on a literal pipe in a cell, the
+    PR 3272 CI red); every reversible decision made without Nour is one `Ruling: <what> - <why> - <cost if wrong>` line in the PR
     body (B19). A repeated lesson or a severe incident: `session-observer`; a statenour wave end: `statenour-wave-reconcile`.
     Never edit evaluators or guards to make a job pass ([references/ledger-and-metrics.md](references/ledger-and-metrics.md)).

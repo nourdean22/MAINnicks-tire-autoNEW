@@ -336,12 +336,32 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
   }
 }
 
+/**
+ * The retry line for a short or upper-case --sha (2026-10-25: exit 64 twice in one day). The full lower-case SHA stays
+ * required: it is the head you verified and the value --match-head-commit pins, so the gate never resolves a prefix on
+ * its own. It only prints the PR's current head when the given SHA is a prefix of it. null = no hint to give.
+ */
+export function shaUsageHint(pr, sha, headOid) {
+  const given = String(sha ?? "").toLowerCase();
+  if (!/^[0-9a-f]{4,40}$/.test(given) || !/^[0-9a-f]{40}$/.test(headOid ?? "")) return null;
+  if (!headOid.startsWith(given)) return `#${pr} head is ${headOid}, which does not start with ${sha}: re-verify the PR at its current head before merging`;
+  return `#${pr} head is ${headOid}. If that is the head you verified, re-run: node scripts/agent-os/merge-gate.mjs ${pr} --sha ${headOid}`;
+}
+
 if (isMainModule(import.meta.url)) {
   const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : undefined);
   const pr = Number(process.argv[2]);
   const sha = arg("--sha");
   if (!Number.isInteger(pr) || !/^[0-9a-f]{40}$/.test(sha ?? "")) {
     console.error("usage: node scripts/agent-os/merge-gate.mjs <pr number> --sha <full 40-char head sha> [--wait-minutes 30] [--codex-wait-minutes 25] [--merge]");
+    let head;
+    try {
+      if (Number.isInteger(pr)) head = execFileSync("gh", ["pr", "view", String(pr), "--json", "headRefOid", "--jq", ".headRefOid"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 15000 }).trim();
+    } catch {
+      /* gh unreachable: the plain usage line stands */
+    }
+    const hint = shaUsageHint(pr, sha, head);
+    if (hint) console.error(hint);
     process.exit(64);
   }
   const wait = Number(arg("--wait-minutes") ?? 30);
