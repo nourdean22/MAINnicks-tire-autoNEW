@@ -52,6 +52,9 @@ export function buildCsp(nonce: string, isDev: boolean): string {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    // 2026-10-25: Chromium checks form-action against every redirect of a form POST.
+    // /auth/sign-in/google answers 303 to accounts.google.com, and 'self' alone blocked
+    // it ("violates ... form-action 'self'"), locking out a fresh Chrome sign-in.
+    "form-action 'self' https://accounts.google.com",
   ].join("; ");
 }

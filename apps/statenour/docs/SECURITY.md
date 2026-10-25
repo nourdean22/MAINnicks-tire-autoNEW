@@ -148,8 +148,10 @@ connect-src  'self' https://*.openai.com https://*.anthropic.com
 object-src      'none'
 frame-ancestors 'none'
 base-uri        'self'
-form-action     'self'
+form-action     'self' https://accounts.google.com
 ```
+
+- `form-action` names `https://accounts.google.com` since 2026-10-25: Chromium checks it on the redirect of the sign-in form POST, and `'self'` alone blocked a fresh Chrome sign-in.
 
 - `script-src` is nonce + `'strict-dynamic'` in production — no
   `unsafe-inline`, no `unsafe-eval` (dev keeps both for HMR). Every page is
