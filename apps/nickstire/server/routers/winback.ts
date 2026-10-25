@@ -344,9 +344,11 @@ function buildSegmentFilter(segment: string) {
         campaignEligiblePhoneSql
       )!;
     case "recent":
+      // Last visit 30 to 90 days ago. It read `>= d30 AND < d90`, a window no row can be in (counted 0).
       return and(
-        sql`${customers.lastVisitDate} >= ${d30}`,
-        sql`${customers.lastVisitDate} < ${d90}`,
+        sql`${customers.lastVisitDate} IS NOT NULL`,
+        sql`${customers.lastVisitDate} < ${d30}`,
+        sql`${customers.lastVisitDate} >= ${d90}`,
         campaignEligiblePhoneSql
       )!;
     default:

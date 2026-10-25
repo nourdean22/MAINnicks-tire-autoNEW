@@ -46,6 +46,7 @@ function countFor(text: string): number {
 
 const state = {
   conditions: [] as string[],
+  rendered: [] as Array<{ sql: string; params: unknown[] }>,
   inserts: [] as Array<{ values: unknown }>,
 };
 
@@ -54,8 +55,10 @@ function fakeDb() {
     select: () => ({
       from: () => ({
         where: (cond: unknown) => {
-          const text = render(cond).sql;
+          const q = render(cond);
+          const text = q.sql;
           state.conditions.push(text);
+          state.rendered.push(q);
           const result = Promise.resolve([{ count: countFor(text), avgSpent: 0 }]);
           return Object.assign(result, { orderBy: () => ({ limit: async () => [] }) });
         },
@@ -97,6 +100,7 @@ const OTHER_SEGMENTS = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "
 
 beforeEach(() => {
   state.conditions = [];
+  state.rendered = [];
   state.inserts = [];
 });
 
@@ -130,6 +134,42 @@ describe("every win-back audience excludes customers who opted out anywhere", ()
     expect(text).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM sms_preferences/);
     expect(text).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM sms_messages/);
     expect(text, "bare eq(customers.smsOptOut, 0) renders as a bound parameter").not.toMatch(/`smsOptOut` = \?/);
+  });
+});
+
+/** Each `lastVisitDate <op> ?` comparison with the Date bound to its placeholder. */
+function visitBounds(q: { sql: string; params: unknown[] }): Array<{ op: string; at: Date }> {
+  const out: Array<{ op: string; at: Date }> = [];
+  let placeholder = 0;
+  const re = /`lastVisitDate` (<|>=) \?|\?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(q.sql))) {
+    if (m[1]) out.push({ op: m[1], at: q.params[placeholder] as Date });
+    placeholder++;
+  }
+  return out;
+}
+
+describe("visit windows can match a row", () => {
+  it("recent is last visit 30 to 90 days ago: before the 30-day bound and on or after the 90-day bound", async () => {
+    await admin().winback.campaignReadiness({ targetSegment: "recent" });
+    const bounds = visitBounds(state.rendered[0]);
+    const before = bounds.find((b) => b.op === "<")!;
+    const onOrAfter = bounds.find((b) => b.op === ">=")!;
+    const daysAgo = (d: Date) => Math.round((Date.now() - d.getTime()) / DAY);
+    expect(daysAgo(before.at)).toBe(30);
+    expect(daysAgo(onOrAfter.at)).toBe(90);
+    expect(state.rendered[0].sql).toMatch(/`lastVisitDate` IS NOT NULL/);
+  });
+
+  it.each([...OTHER_SEGMENTS, "lapsed_regulars"] as const)("%s: no self-contradictory lastVisitDate window", async (seg) => {
+    await admin().winback.campaignReadiness({ targetSegment: seg } as never);
+    const bounds = visitBounds(state.rendered[0]);
+    const lower = bounds.filter((b) => b.op === ">=");
+    const upper = bounds.filter((b) => b.op === "<");
+    for (const lo of lower) for (const up of upper) {
+      expect(lo.at.getTime(), `${seg}: lower bound must be older than upper bound`).toBeLessThan(up.at.getTime());
+    }
   });
 });
 
