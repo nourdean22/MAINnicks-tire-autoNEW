@@ -1,15 +1,10 @@
 import { useState, useMemo, useRef } from "react";
 import {
-  Disc, Wrench, Truck, Calendar, DollarSign, AlertTriangle, User, Car,
-  Check, X, ChevronDown, ChevronUp, RefreshCw, FileText, CheckCircle2,
-  Clock, ArrowRight, Loader2, Link
+  Disc, Wrench, User, Car, Check, X, ChevronDown, ChevronUp, RefreshCw, FileText, CheckCircle2,
+  Loader2, AlertTriangle
 } from "lucide-react";
-import {
-  Section, Panel, MetricGrid, StatCard, SearchInput, TabBar, FilterChips, StatusDot
-} from "./shared";
-import {
-  formatDate, formatDateTime, formatRelativeDate, formatDollars
-} from "./shared/format";
+import { Section, Panel } from "./shared";
+import { formatRelativeDate } from "./shared/format";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -40,49 +35,122 @@ type OrderStatusFilter =
   | "installed"
   | "cancelled";
 
-const STATUS_TABS: { id: OrderStatusFilter; label: string; icon: React.ReactNode }[] = [
-  { id: "all", label: "Active Orders", icon: <Disc className="w-3.5 h-3.5" /> },
-  { id: "received", label: "New Requests", icon: <Clock className="w-3.5 h-3.5" /> },
-  { id: "confirmed", label: "Confirmed", icon: <Wrench className="w-3.5 h-3.5" /> },
-  { id: "ordered", label: "Ordered", icon: <Truck className="w-3.5 h-3.5" /> },
-  { id: "in_transit", label: "In Transit", icon: <Truck className="w-3.5 h-3.5" /> },
-  { id: "delivered", label: "Delivered", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-  { id: "scheduled", label: "Scheduled", icon: <Calendar className="w-3.5 h-3.5" /> },
-  { id: "installed", label: "Installed", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-  { id: "cancelled", label: "Cancelled", icon: <X className="w-3.5 h-3.5" /> },
+// One filter, not a tab bar: one online order was recorded lifetime by 2026-10-25.
+const STATUS_OPTIONS: { id: OrderStatusFilter; label: string }[] = [
+  { id: "all", label: "All statuses" },
+  { id: "received", label: "New request" },
+  { id: "confirmed", label: "Confirmed" },
+  { id: "ordered", label: "Ordered" },
+  { id: "in_transit", label: "In transit" },
+  { id: "delivered", label: "Delivered" },
+  { id: "scheduled", label: "Scheduled" },
+  { id: "installed", label: "Installed" },
+  { id: "cancelled", label: "Cancelled" },
 ];
+
+/** The website's tire events, counted by customerEvents.summary. Counts only: they are not one linked journey. */
+const TIRE_EVENTS: { name: string; label: string; hint?: string }[] = [
+  { name: "tire_search_submitted", label: "Tire-size searches" },
+  { name: "tire_quote_cta_click", label: "Quote taps", hint: "a tap, not a quote" },
+  { name: "vehicle_size_selected", label: "Sizes picked" },
+  { name: "tire_option_selected", label: "Options picked" },
+];
+
+const WINDOW_DAYS = 30;
+const LIST_LIMIT = 100;
+const RETRY = "min-h-12 px-4 rounded-md border border-border/40 text-sm font-semibold text-foreground";
+
+// listOrders also returns saved quotes (TQ- rows, server/lib/tire-order-guards.ts); orderStats does not count them.
+const isQuoteRow = (o: { orderNumber: string }) => o.orderNumber.startsWith("TQ-");
+
+/** "1 in 30 days": orders (not quotes) among the newest LIST_LIMIT rows; "N+" when more rows exist than were read
+ *  and every row read is inside the window. */
+function ordersInWindow(rows: { createdAt: string | Date; orderNumber: string }[], total: number): string {
+  const since = Date.now() - WINDOW_DAYS * 86_400_000;
+  const inWindow = rows.filter((o) => new Date(o.createdAt).getTime() >= since);
+  const n = inWindow.filter((o) => !isQuoteRow(o)).length;
+  return inWindow.length === rows.length && total > rows.length ? `${n}+` : String(n);
+}
+
+function TireActivityStrip({ ordersLine }: { ordersLine: string }) {
+  const summary = trpc.customerEvents.summary.useQuery({ days: WINDOW_DAYS }, { refetchInterval: 60_000 });
+  const totals: { eventName: string; count: number }[] | undefined = summary.data?.totals;
+  const counts = new Map((totals ?? []).map((t) => [t.eventName, t.count] as const));
+
+  let events: React.ReactNode;
+  if (summary.isError) {
+    events = <p className="text-sm text-amber-400">Activity couldn't load: unknown.</p>;
+  } else if (!totals) {
+    events = <p className="text-sm text-muted-foreground">Loading activity.</p>;
+  } else if (totals.length === 0) {
+    // The summary answers an empty list when the database is unreachable, so empty is not "no visits".
+    events = <p className="text-sm text-amber-400">No website events came back for the last 30 days: unknown, not zero.</p>;
+  } else {
+    events = TIRE_EVENTS.map((e) => {
+      const n = counts.get(e.name);
+      return (
+        <div key={e.name} className="rounded-md border border-border/30 bg-background/40 p-3">
+          <dt className="text-sm text-muted-foreground">{e.label}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+            {n === undefined ? <span className="text-base text-muted-foreground">Not tracked</span> : n.toLocaleString("en-US")}
+          </dd>
+          {e.hint && <dd className="text-xs text-muted-foreground">{e.hint}</dd>}
+        </div>
+      );
+    });
+  }
+  const failed = summary.isError || totals?.length === 0;
+
+  return (
+    <section aria-labelledby="tire-activity-title" className="rounded-lg border border-border/40 bg-card p-4">
+      <h2 id="tire-activity-title" className="text-sm font-semibold">Online tire activity, last 30 days</h2>
+      {!Array.isArray(events) && <div className="mt-2">{events}</div>}
+      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.isArray(events) && events}
+        <div className="rounded-md border border-border/30 bg-background/40 p-3">
+          <dt className="text-sm text-muted-foreground">Online orders</dt>
+          <dd className="mt-1 text-base font-semibold tabular-nums text-foreground">{ordersLine}</dd>
+        </div>
+      </dl>
+      {failed && (
+        <button type="button" onClick={() => void summary.refetch()} className={`mt-3 ${RETRY}`}>
+          Retry
+        </button>
+      )}
+      <p className="mt-3 text-sm text-muted-foreground">
+        Website activity only. Counter tire sales and installs are not measured: ShopDriver's invoice line items are not connected. Online orders are not the shop's tire sales.
+      </p>
+    </section>
+  );
+}
 
 export default function TireOrdersSection() {
   const [activeTab, setActiveTab] = useState<OrderStatusFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [confidenceFilter, setConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
 
-  const utils = trpc.useUtils();
-
-  // Queries — 60s auto-refresh so the cockpit stays current on the
-  // counter screen without manual syncs.
+  // 60s auto-refresh so the list stays current on the counter screen without manual syncs.
   const { data: listData, isLoading, isError, refetch: refetchOrders } = trpc.gatewayTire.listOrders.useQuery({
     status: activeTab === "all" ? undefined : activeTab,
-    search: searchQuery || undefined,
-    limit: 100,
+    limit: LIST_LIMIT,
   }, { refetchInterval: 60_000 });
+  // Unfiltered newest orders for the 30-day count; the same query as the list when the filter is All statuses.
+  const allOrders = trpc.gatewayTire.listOrders.useQuery({ limit: LIST_LIMIT }, { refetchInterval: 60_000 });
 
+  // ROS-083 · orderStats throws on a dead handle: its lifetime count renders unknown, never 0.
   const {
     data: stats,
     isError: statsError,
-    error: statsErrorObj,
     refetch: refetchStats,
   } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 60_000 });
 
-  /**
-   * ROS-083 · every tile below reads `stats?.x ?? 0`, so a failed read used to
-   * paint six confident zeros — including "Tire Revenue $0". The fix: an em
-   * dash on the numbers and one static amber strip. Static and not a toast because this query refetches every
-   * 60s on the counter screen.
-   */
-  const statsUnknown = statsError;
-  const { data: gatewayStatus } = trpc.gatewayTire.status.useQuery();
+  const lifetime = stats ? `${stats.total} lifetime` : statsError ? "lifetime unknown" : "lifetime loading";
+  const recent = allOrders.data
+    ? ordersInWindow(allOrders.data.orders, allOrders.data.total ?? 0)
+    : allOrders.isError ? "unknown" : "loading";
+  const ordersLine = `${recent} in 30 days · ${lifetime}`;
+  const lifetimeSentence = stats
+    ? `${stats.total} online order${stats.total === 1 ? "" : "s"} recorded lifetime.`
+    : statsError ? "The lifetime count couldn't load: unknown." : "";
 
   // Mutation for updating order fields
   const updateOrderMutation = trpc.gatewayTire.updateOrder.useMutation({
@@ -123,36 +191,21 @@ export default function TireOrdersSection() {
 
   const handleRefresh = () => {
     refetchOrders();
+    void allOrders.refetch();
     refetchStats();
   };
 
-  // Filter orders on client for fields not handled by backend query,
-  // then sort by next-action priority (urgent first) so the operator's
-  // next move is always at the top — a paid order needing a Gateway
-  // order must never sit below the fold.
+  // Sort by next-action priority (urgent first) so the operator's next move is always at the top:
+  // a paid order needing a Gateway order must never sit below the fold.
   const filteredOrders = useMemo(() => {
     if (!listData?.orders) return [];
-    const filtered = listData.orders.filter((order: any) => {
-      // Default view (Active Orders) should hide completed/cancelled orders
-      if (activeTab === "all") {
-        if (order.status === "cancelled" || order.status === "installed") return false;
-      }
-
-      // Confidence filter
-      if (confidenceFilter !== "all") {
-        const conf = getQuoteConfidence(order);
-        if (conf.grade !== confidenceFilter) return false;
-      }
-
-      return true;
-    });
-    return [...filtered].sort((a: any, b: any) => {
+    return [...listData.orders].sort((a: any, b: any) => {
       const ra = PRIORITY_RANK[getNextAction(a).priority];
       const rb = PRIORITY_RANK[getNextAction(b).priority];
       if (ra !== rb) return ra - rb;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [listData, activeTab, confidenceFilter]);
+  }, [listData]);
 
   // Priority color borders & text colors
   const getPriorityStyles = (priority: "urgent" | "high" | "normal" | "low") => {
@@ -161,25 +214,21 @@ export default function TireOrdersSection() {
         return {
           border: "border-red-500/40 bg-red-500/[0.02]",
           badge: "bg-red-500/10 text-red-400 border-red-500/20",
-          glow: "shadow-[0_0_12px_rgba(239,68,68,0.05)]",
         };
       case "high":
         return {
           border: "border-amber-500/30 bg-amber-500/[0.01]",
           badge: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-          glow: "",
         };
       case "normal":
         return {
           border: "border-border/30",
           badge: "bg-primary/10 text-primary border-primary/20",
-          glow: "",
         };
       default:
         return {
           border: "border-border/20",
           badge: "bg-foreground/5 text-foreground/40 border-border/10",
-          glow: "",
         };
     }
   };
@@ -217,130 +266,56 @@ export default function TireOrdersSection() {
 
   return (
     <Section
-      title="Tire Commerce Command Center"
-      subtitle="Online tire orders, Gateway follow-up, payments, and install readiness."
+      title="Tires"
+      subtitle="Online tire activity, the website's orders, and the online price rule. Counter tire sales are not measured here."
       icon={<Disc className="w-5 h-5 text-primary" />}
       actions={
         <div className="flex items-center gap-3">
           <GatewayPill />
           <button
+            type="button"
             onClick={handleRefresh}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border/30 hover:border-border/60 text-foreground/60 hover:text-foreground text-xs font-semibold rounded bg-card/50 transition-colors"
+            className="inline-flex min-h-12 items-center gap-1.5 px-4 border border-border/30 hover:border-border/60 text-foreground/70 hover:text-foreground text-sm font-semibold rounded bg-card/50 transition-colors"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Sync
+            <RefreshCw className="w-4 h-4" />
+            Refresh
           </button>
         </div>
       }
     >
-      {/* Stripe and payment backlog banners removed (separate register) */}
+      <TireActivityStrip ordersLine={ordersLine} />
 
-      {statsUnknown && (
-        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Tire order counts could not be read.</strong> The tiles below are unknown: NOT zero. No stage is confirmed clear and no revenue figure is confirmed. {statsErrorObj?.message}
-        </div>
-      )}
-
-      {/* Metric Tiles Grid */}
-      <MetricGrid cols={6}>
-        <StatCard
-          label="New Requests"
-          value={statsUnknown ? "—" : stats?.received ?? 0}
-          icon={<Clock className="w-4 h-4" />}
-          color="text-amber-400"
-        />
-        <StatCard
-          label="Confirmed"
-          value={statsUnknown ? "—" : stats?.confirmed ?? 0}
-          icon={<Wrench className="w-4 h-4" />}
-          color="text-blue-400"
-        />
-        <StatCard
-          label="Ordered/In Transit"
-          value={statsUnknown ? "—" : (stats?.ordered ?? 0) + (stats?.inTransit ?? 0)}
-          icon={<Truck className="w-4 h-4" />}
-          color="text-indigo-400"
-        />
-        <StatCard
-          label="Ready to Install"
-          value={statsUnknown ? "—" : (stats?.delivered ?? 0) + (stats?.scheduled ?? 0)}
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          color="text-cyan-400"
-        />
-        <StatCard
-          label="Installed"
-          value={statsUnknown ? "—" : stats?.installed ?? 0}
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          color={statsUnknown ? "text-amber-400" : "text-emerald-400"}
-        />
-        <StatCard
-          label="Tire Revenue"
-          value={statsUnknown ? "—" : formatDollars(stats?.totalRevenue ?? 0)}
-          icon={<DollarSign className="w-4 h-4" />}
-          color={statsUnknown ? "text-amber-400" : "text-primary"}
-        />
-      </MetricGrid>
-
-      {/* Tabs / Filter Navigation */}
-      <div className="space-y-4">
-        <TabBar tabs={STATUS_TABS} activeTab={activeTab} onChange={setActiveTab} variant="pill" size="compact" />
-
-        {/* Query Filters */}
-        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-          <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search by name, phone, order #, size..."
-            className="flex-1"
-          />
-
-          {/* Payment filter dropdown removed */}
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground whitespace-nowrap">Confidence:</span>
-            <select
-              value={confidenceFilter}
-              onChange={(e) => setConfidenceFilter(e.target.value as any)}
-              className="bg-card border border-border/30 rounded px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/50"
-            >
-              <option value="all">All Confidence</option>
-              <option value="high">High Grade</option>
-              <option value="medium">Medium Grade</option>
-              <option value="low">Low Grade</option>
-            </select>
-          </div>
+      <section aria-labelledby="tire-orders-title" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="tire-orders-title" className="text-sm font-semibold">Online orders</h2>
+          <label htmlFor="tire-order-status" className="sr-only">Order status</label>
+          <select
+            id="tire-order-status"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as OrderStatusFilter)}
+            className="min-h-12 rounded-md border border-border/40 bg-card px-3 text-base text-foreground focus:outline-none focus:border-primary/50"
+          >
+            {STATUS_OPTIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
         </div>
 
-        {/* Filter Chips */}
-        <FilterChips
-          chips={[
-            { label: "Status", value: activeTab, default: "all", onClear: () => setActiveTab("all") },
-            { label: "Confidence", value: confidenceFilter, default: "all", onClear: () => setConfidenceFilter("all") },
-          ]}
-          onClearAll={() => {
-            setActiveTab("all");
-            setConfidenceFilter("all");
-          }}
-        />
-
-        {/* Orders Listing */}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            <span className="text-xs text-muted-foreground">Loading orders...</span>
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            Loading orders.
           </div>
         ) : isError ? (
-          <div className="text-center py-20 border border-red-500/20 bg-red-500/[0.02]">
-            <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-            <p className="font-semibold text-red-400 text-sm">Failed to load orders</p>
-            <p className="text-xs text-muted-foreground mt-1">Please sync or try again later.</p>
+          <div role="alert" className="flex flex-wrap items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-400">
+            <AlertTriangle className="w-4 h-4" />
+            <span>Online orders couldn't load: unknown, not empty.</span>
+            <button type="button" aria-label="Retry loading orders" onClick={() => void refetchOrders()} className={RETRY}>
+              Retry
+            </button>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="text-center py-20 border border-border/20 bg-card/40">
-            <Disc className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="font-semibold text-foreground/60 text-sm">No tire orders found</p>
-            <p className="text-xs text-muted-foreground mt-1">Try adjusting your active filters or query.</p>
-          </div>
+          <p className="rounded-md border border-border/30 bg-card/40 p-4 text-sm text-muted-foreground">
+            {`No online orders match this view. ${lifetimeSentence}`.trim()}
+          </p>
         ) : (
           <div className="space-y-3">
             {filteredOrders.map((order: any) => {
@@ -349,11 +324,12 @@ export default function TireOrdersSection() {
               const flags = getRiskFlags(order);
               const nextAction = getNextAction(order);
               const priorityStyle = getPriorityStyles(nextAction.priority);
+              const closed = order.status === "installed" || order.status === "cancelled";
 
               return (
                 <div
                   key={order.id}
-                  className={`bg-card border overflow-hidden transition-all duration-200 ${priorityStyle.border} ${priorityStyle.glow}`}
+                  className={`bg-card border overflow-hidden transition-colors ${priorityStyle.border}`}
                 >
                   {/* Order Card Header */}
                   <div
@@ -375,7 +351,7 @@ export default function TireOrdersSection() {
                           </span>
                         )}
                         {order.gatewayOrderRef && (
-                          <span className="text-xs bg-indigo-500/10 border border-indigo-500/25 px-2 py-0.5 rounded text-indigo-400 font-semibold">
+                          <span className="text-xs bg-foreground/5 border border-border/25 px-2 py-0.5 rounded text-foreground/75 font-semibold">
                             PO: {order.gatewayOrderRef}
                           </span>
                         )}
@@ -392,7 +368,7 @@ export default function TireOrdersSection() {
                         <a
                           href={`tel:${order.customerPhone}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-sm text-primary hover:underline font-bold"
+                          className="inline-flex min-h-12 items-center text-sm text-primary hover:underline font-bold"
                         >
                           ({order.customerPhone})
                         </a>
@@ -422,23 +398,25 @@ export default function TireOrdersSection() {
                             {order.statusLabel}
                           </span>
 
-                          {/* Quick Cancel (soft — the row stays in history) */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCancel(order.id, order.orderNumber, order.customerName);
-                            }}
-                            disabled={cancelOrderMutation.isPending}
-                            className="px-2 py-0.5 text-[10px] font-extrabold border border-red-500/30 bg-red-500/10 hover:bg-red-500/25 text-red-400 rounded transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1"
-                            title="Cancel Order"
-                          >
-                            {cancelOrderMutation.isPending && cancelOrderMutation.variables?.id === order.id ? (
-                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                            ) : (
-                              <X className="w-2.5 h-2.5" />
-                            )}
-                            Cancel
-                          </button>
+                          {/* Quick Cancel (soft — the row stays in history); none on a closed order */}
+                          {!closed && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancel(order.id, order.orderNumber, order.customerName);
+                              }}
+                              disabled={cancelOrderMutation.isPending}
+                              className="min-h-12 px-3 text-xs font-extrabold border border-red-500/30 bg-red-500/10 hover:bg-red-500/25 text-red-400 rounded transition-colors flex items-center gap-1"
+                            >
+                              {cancelOrderMutation.isPending && cancelOrderMutation.variables?.id === order.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <X className="w-3 h-3" />
+                              )}
+                              Cancel
+                            </button>
+                          )}
                         </div>
 
                         {/* Quote confidence */}
@@ -447,9 +425,18 @@ export default function TireOrdersSection() {
                         </span>
                       </div>
 
-                      <div className="p-1 text-foreground/40">
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-label={isExpanded ? `Hide details for ${order.orderNumber}` : `Show details for ${order.orderNumber}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedOrderId(isExpanded ? null : order.id);
+                        }}
+                        className="inline-flex min-h-12 min-w-12 items-center justify-center rounded text-foreground/50 hover:text-foreground"
+                      >
                         {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      </div>
+                      </button>
                     </div>
                   </div>
 
@@ -500,16 +487,10 @@ export default function TireOrdersSection() {
           </div>
         )}
 
-        {/* Operating truths — keeps the cockpit honest about what is and
-            is NOT automated. */}
-        <p className="text-[10px] text-foreground/30 leading-relaxed pt-2">
-          The database (this cockpit) is the source of truth: email/Telegram/Sheets
-          are copies. Supplier tires are NOT auto-ordered and online payment does NOT
-          reserve supplier stock: confirm availability with the customer, order from
-          Gateway (b2b.dktire.com), record the PO above, and advance the status.
-          Refunds can be processed via the AUTO-REFUND buttons or from the Stripe dashboard.
+        <p className="text-sm text-muted-foreground">
+          Supplier tires are not auto-ordered and online payment does not reserve supplier stock; confirm, order from D&K, record the PO, advance the status.
         </p>
-      </div>
+      </section>
       <TireMarkupCard />
     </Section>
   );

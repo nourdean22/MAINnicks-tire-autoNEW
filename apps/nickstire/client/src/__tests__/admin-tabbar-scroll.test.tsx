@@ -1,6 +1,6 @@
 /**
  * Admin UI v1 Wave 1: shared TabBar strips scroll sideways instead of overflowing the phone
- * (PLAN.md section 9 item 9; Tires renders nine pills, TireOrdersSection.tsx). Each pill is a 48 px
+ * (PLAN.md section 9 item 9; Tires rendered nine pills until 2026-10-25, the fixture keeps nine). Each pill is a 48 px
  * target, the repo floor (apps/nickstire/AGENTS.md). Class shape is the contract here: jsdom has no layout, so the
  * test pins the tokens that produce the behaviour in a real browser.
  */
