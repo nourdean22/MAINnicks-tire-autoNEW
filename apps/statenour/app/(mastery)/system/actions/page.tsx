@@ -350,7 +350,7 @@ function ActionsPageInner() {
           <button
             onClick={load}
             disabled={loading}
-            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
+            className="min-h-11 rounded-control border border-edge-strong bg-content px-4 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
@@ -628,7 +628,7 @@ function ActionsPageInner() {
                 key={w}
                 onClick={() => setWin(w)}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs transition",
+                  "min-h-11 min-w-11 rounded-full px-3 text-xs transition",
                   win === w ? "bg-accent-soft text-fg" : "bg-content text-fg-secondary hover:bg-surface-hover",
                 )}
               >
@@ -641,7 +641,7 @@ function ActionsPageInner() {
                 key={a}
                 onClick={() => setApprovalFilter(approvalFilter === a ? null : a)}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs transition",
+                  "min-h-11 min-w-11 rounded-full px-3 text-xs transition",
                   approvalFilter === a
                     ? a === "pending"
                       ? "bg-amber-500/20 text-amber-200"
@@ -667,7 +667,7 @@ function ActionsPageInner() {
             {ruleFilter && (
               <button
                 onClick={() => setRuleFilter(null)}
-                className="ml-auto rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
+                className="ml-auto min-h-11 rounded-full bg-rose-500/10 px-3 text-xs text-rose-300 hover:bg-rose-500/20"
               >
                 Clear rule filter: {ruleFilter} ×
               </button>

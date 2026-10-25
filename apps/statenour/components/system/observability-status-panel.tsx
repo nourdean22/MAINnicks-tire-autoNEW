@@ -19,6 +19,8 @@
  * measured wrap/init OUTCOME, never key-presence.
  */
 
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 import { Activity } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -80,7 +82,11 @@ export function ObservabilityStatusPanel() {
       <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
               <Activity className="h-3.5 w-3.5 text-fg-secondary" /> LLM Observability
       </p>
-      {healthQ.isError ? (
+      {/* Each lane line below is a claim about the SERVER. A read that never ran (paused offline) has no
+          outcome to report: say so, never draw "not initialized" from nothing (empty-vs-error, 2026-10-25). */}
+      {readState(healthQ) === "offline" ? (
+        <ReadStateNote state="offline" label="Observability status" />
+      ) : healthQ.isError || readState(healthQ) === "error" ? (
         <p data-read-failed className="text-[11px] text-red-400">
           Health read failed: observability state unknown, not healthy.
         </p>

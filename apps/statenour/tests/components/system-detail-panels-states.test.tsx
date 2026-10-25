@@ -101,6 +101,53 @@ describe("Detail fold blocks: a paused or data-less read invents nothing", () =>
   }
 });
 
+// The Langfuse lane line is a claim about the SERVER ("not initialized: no init outcome reported on this
+// boot"). A read that never ran has no such outcome to report, so it must say "not measured", never
+// draw that verdict (lens B review P2, 2026-10-25). The control keeps the real text for a COMPLETED read.
+describe("observability status: a read that never ran is not a server verdict", () => {
+  const VERDICT = /not initialized|no init outcome reported/;
+  const render = () => renderToStaticMarkup(<ObservabilityStatusPanel />);
+
+  it("paused (offline) says offline and draws no Langfuse verdict", () => {
+    state.q = PAUSED;
+    const html = render();
+    expect(html).toContain("Offline.");
+    expect(html).not.toMatch(VERDICT);
+    expect(html).not.toContain("data-read-failed");
+  });
+
+  it("no data and no error on an idle query is the failed state, counted by the fold", () => {
+    state.q = IDLE_NO_DATA;
+    const html = render();
+    expect(html).toContain("data-read-failed");
+    expect(html).not.toMatch(VERDICT);
+  });
+
+  it("control: a COMPLETED read with no init outcome keeps its real 'not initialized' text", () => {
+    state.q = { data: { langfuse: {} }, isError: false, isLoading: false, fetchStatus: "idle" } as Q;
+    const html = render();
+    expect(html).toContain("not initialized");
+    expect(html).toContain("no init outcome reported on this boot");
+    expect(html).not.toContain("Offline.");
+    expect(html).not.toContain("data-read-failed");
+  });
+
+  it("control: a completed read with a real outcome still shows it", () => {
+    state.q = { data: { langfuse: { status: "started" } }, isError: false, isLoading: false, fetchStatus: "idle" } as Q;
+    const html = render();
+    expect(html).toContain("tracing live");
+    expect(html).not.toMatch(VERDICT);
+  });
+
+  it("a failed read still renders the error line, never a verdict", () => {
+    state.q = { ...FAILED, fetchStatus: "idle" } as Q;
+    const html = render();
+    expect(html).toContain("data-read-failed");
+    expect(html).toContain("Health read failed");
+    expect(html).not.toMatch(VERDICT);
+  });
+});
+
 describe("Detail fold blocks: loading uses ShimmerSkeleton", () => {
   for (const b of blocks.filter((x) => x.skeleton)) {
     it(`${b.name} loading state is a house skeleton, not animate-pulse`, () => {
