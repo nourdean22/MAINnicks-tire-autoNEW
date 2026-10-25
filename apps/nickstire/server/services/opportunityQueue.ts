@@ -30,6 +30,7 @@ import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
 import { isMissingTableError, isUnknownColumnError } from "../lib/dbErrors";
 import { normalizePhone } from "./revenueAttribution";
+import type { CallOutcome } from "@shared/callTaxonomy";
 
 const log = createLogger("opportunity-queue");
 
@@ -1075,31 +1076,74 @@ export async function collectPendingCallbacks(): Promise<CollectorStats> {
 }
 
 /**
- * Unconverted VAPI calls → missed_call opportunities. Reuses the missed-
- * call cron's OWN pure eligibility predicate (isMissedCallEligible) so
- * the queue and the SMS shadow can never disagree about who counts.
- * data_quality "verified" (the customer really called), urgency "today"
- * (a missed caller cools by the hour). The recommended action is a HUMAN
- * CALL BACK — consent gates for SMS don't apply to returning a call, so
- * consentOk stays true. Never sends anything.
+ * Evaluated outcomes that leave the caller's need open: the only calls the
+ * owner is told to call back. The same four outcomes are the `recovery` lane
+ * in shared/callTaxonomy.ts BASE_LANE. Every other outcome (answered, walked
+ * in, converted, handed off, spam, abandoned, failed, unreadable) is not work.
  */
-export async function collectMissedCalls(): Promise<CollectorStats & { collapsed: number }> {
+const UNRESOLVED_CALL_OUTCOMES = {
+  callback_needed: "asked for a call back",
+  tire_availability_intent: "asked if a tire size is in stock",
+  quote_or_inspection_intent: "asked for a quote or an inspection",
+  lost_opportunity: "left without an answer",
+} as const satisfies Partial<Record<CallOutcome, string>>;
+/** Not a customer conversation, or one the evaluator could not read: counted apart from answered calls. */
+const NOISE_CALL_OUTCOMES: ReadonlySet<string> = new Set<CallOutcome | "outbound">([
+  "spam_or_wrong_number", "abandoned_before_connect", "tech_failure", "unknown", "outbound",
+]);
+/**
+ * How far back the collector reads. The SMS lane's own window is 24 h, but a
+ * call is carded only once vapi-call-eval has scored it, and that job runs once
+ * a day (09:30 ET slot) while this refresh runs once per shop day from 07:00 ET,
+ * usually before it. A call made after 09:30 is scored the next morning and
+ * first carded the morning after, up to ~48 h old; 72 h leaves one missed eval
+ * day of margin. Under 24 h nearly every call aged out unscored.
+ */
+const MISSED_CALL_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+/** Age words: minutes below this, whole hours up to MISSED_CALL_DAYS_AFTER_MIN, then days. */
+const MISSED_CALL_MINUTES_BELOW_MIN = 90;
+const MISSED_CALL_DAYS_AFTER_MIN = 48 * 60;
+
+function callAgeWords(ageMin: number): string {
+  if (ageMin < MISSED_CALL_MINUTES_BELOW_MIN) return `${ageMin} min ago`;
+  if (ageMin <= MISSED_CALL_DAYS_AFTER_MIN) return `${Math.floor(ageMin / 60)} h ago`;
+  return `${Math.floor(ageMin / 1440)} days ago`;
+}
+
+/**
+ * Unconverted VAPI calls → missed_call opportunities, ONLY when the eval
+ * cron's outcome says the need is still open (UNRESOLVED_CALL_OUTCOMES). A
+ * call not yet evaluated waits for it; it is never carded on duration alone.
+ * Reuses the missed-call cron's OWN pure eligibility predicate
+ * (isMissedCallEligible) for the capture and empty-call rules, with a longer
+ * age bound (MISSED_CALL_MAX_AGE_MS). data_quality "verified" (the customer
+ * really called), urgency "today". The recommended action is a HUMAN CALL
+ * BACK — consent gates for SMS don't apply to returning a call, so consentOk
+ * stays true. Never sends anything.
+ */
+export async function collectMissedCalls(): Promise<CollectorStats & {
+  collapsed: number; skippedResolved: number; skippedUnevaluated: number; skippedNoise: number;
+}> {
+  const empty = { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0, skippedResolved: 0, skippedUnevaluated: 0, skippedNoise: 0 };
   const { getDbTyped } = await import("../db");
   const db = await getDbTyped();
-  if (!db) return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
+  if (!db) return empty;
 
   const { vapiCallLogs } = await import("../../drizzle/schema");
   const { and, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
   const { isMissedCallEligible, proveCapturedNothing } = await import("../cron/jobs/missedCallRecovery");
+  const { askedForWords } = await import("../lib/attributionReviewWords");
+  const { redactCallerText } = await import("./callerTextRedaction");
 
   const now = Date.now();
-  const windowStart = new Date(now - 24 * 60 * 60 * 1000);
+  const windowStart = new Date(now - MISSED_CALL_MAX_AGE_MS);
   const windowEnd = new Date(now - 45 * 60 * 1000);
 
   let rows: Array<{
     id: number; vapiCallId: string; phoneNumber: string | null; durationSeconds: number;
     convertedToLead: number; leadId: number | null; callbackId: number | null;
     metadata: unknown; createdAt: Date;
+    evalOutcome: string | null; evalScore: number | null; serviceMention: string | null; aiSummary: string | null;
   }>;
   try {
     rows = await db.select({
@@ -1112,6 +1156,10 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       callbackId: vapiCallLogs.callbackId,
       metadata: vapiCallLogs.metadata,
       createdAt: vapiCallLogs.createdAt,
+      evalOutcome: vapiCallLogs.evalOutcome,
+      evalScore: vapiCallLogs.evalScore,
+      serviceMention: vapiCallLogs.serviceMention,
+      aiSummary: vapiCallLogs.aiSummary,
     })
       .from(vapiCallLogs)
       // No convertedToLead filter: it means "reached a tool", not "captured a
@@ -1125,12 +1173,13 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
         lte(vapiCallLogs.createdAt, windowEnd),
       ))
       .orderBy(desc(vapiCallLogs.createdAt))
-      .limit(100);
+      // 300, not 100: the window is 72 h now, and a newest-first cap must not cut the oldest, already-scored calls.
+      .limit(300);
   } catch (err) {
     log.warn("[opportunity-queue] missed-call collector query failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
+    return empty;
   }
 
   // Collapse (2026-10-02): ONE live missed_call row per PHONE, and it is the
@@ -1173,9 +1222,22 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   let inserted = 0;
   let refreshed = 0;
   let collapsed = 0;
+  let skippedResolved = 0;
+  let skippedUnevaluated = 0;
+  let skippedNoise = 0;
+  const result = () => ({ scanned: rows.length, inserted, refreshed, collapsed, skippedResolved, skippedUnevaluated, skippedNoise });
   /** Phones that got their (newest) card in this run. `collapsed` counts only cards CLOSED into it. */
   const cardedThisRun = new Set<string>();
   for (const r of rows) {
+    // The outcome filter runs first: it is free, the capture-evidence read below is not.
+    const outcome = r.evalOutcome ? String(r.evalOutcome) : null;
+    if (outcome == null) { skippedUnevaluated++; continue; }
+    const need: string | undefined = (UNRESOLVED_CALL_OUTCOMES as Record<string, string>)[outcome];
+    if (need === undefined) {
+      if (NOISE_CALL_OUTCOMES.has(outcome)) skippedNoise++;
+      else skippedResolved++;
+      continue;
+    }
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
     const base = {
       id: r.id,
@@ -1189,10 +1251,10 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       createdAtMs: new Date(r.createdAt).getTime(),
     };
     // The evidence read runs only for tool-reaching calls that pass every other rule.
-    const capturedNothing = r.convertedToLead === 1 && isMissedCallEligible({ ...base, capturedNothing: true }, now)
+    const capturedNothing = r.convertedToLead === 1 && isMissedCallEligible({ ...base, capturedNothing: true }, now, MISSED_CALL_MAX_AGE_MS)
       ? await proveCapturedNothing(r.vapiCallId)
       : undefined;
-    const eligible = isMissedCallEligible({ ...base, capturedNothing }, now);
+    const eligible = isMissedCallEligible({ ...base, capturedNothing }, now, MISSED_CALL_MAX_AGE_MS);
     if (!eligible) continue;
 
     const p10 = phone10(r.phoneNumber);
@@ -1202,6 +1264,9 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
     if (p10 && cardedThisRun.has(p10)) continue;
 
     const ageMin = Math.round((now - new Date(r.createdAt).getTime()) / 60_000);
+    const serviceMention = askedForWords(r.serviceMention);
+    // The summary can open with the caller's name or number: redacted, cut on a word at 140.
+    const summaryExcerpt = redactCallerText(r.aiSummary, 140) || null;
     const res = await upsertOpportunity({
       sourceType: "missed_call",
       sourceId: r.vapiCallId,
@@ -1209,10 +1274,14 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       expectedRevenueCents: null, // unknown until spoken to — never invent
       dataQuality: "verified",
       urgency: "today",
-      recommendedAction: `Call back ${r.phoneNumber} — ${r.durationSeconds}s call ${ageMin}min ago, no lead or callback captured`,
-      reason: `Real conversation (${r.durationSeconds}s ≥ 15s) on the VAPI line that converted to nothing. A human call-back beats any text.`,
+      recommendedAction: `Call back ${r.phoneNumber}: ${serviceMention ?? need}, ${callAgeWords(ageMin)}`,
+      reason: `The receptionist's evaluation says this is unresolved (${need}); a human call-back beats any text.`,
       evidence: {
         vapiCallId: r.vapiCallId,
+        evalOutcome: outcome,
+        evalScore: r.evalScore,
+        serviceMention,
+        summaryExcerpt,
         durationSeconds: r.durationSeconds,
         callAgeMinutes: ageMin,
       },
@@ -1243,9 +1312,9 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
         }
         liveByPhone.delete(p10);
       }
-    } else return { scanned: rows.length, inserted, refreshed, collapsed };
+    } else return result();
   }
-  return { scanned: rows.length, inserted, refreshed, collapsed };
+  return result();
 }
 
 /**
@@ -2491,7 +2560,8 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
   let details =
     `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
     `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
-    `missed calls: ${fmt(missedCalls)}/${missedCalls.collapsed}collapsed · deferrals: ${fmt(inspections)} · ` +
+    `missed calls: ${fmt(missedCalls)}/${missedCalls.collapsed}collapsed/${missedCalls.skippedResolved}resolved/` +
+    `${missedCalls.skippedUnevaluated}unevaluated/${missedCalls.skippedNoise}noise · deferrals: ${fmt(inspections)} · ` +
     `stale leads: ${fmt(staleLeads)} · no-shows: ${fmt(noShows)} · ` +
     `waiting texts: ${fmt(humanPending)} · abandoned forms: ${fmt(abandonedFormsStats)}`;
   const recordsProcessed =

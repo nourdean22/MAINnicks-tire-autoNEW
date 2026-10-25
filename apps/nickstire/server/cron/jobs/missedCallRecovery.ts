@@ -68,9 +68,11 @@ export interface MissedCallRow {
 /**
  * Pure eligibility predicate — the single source of truth for "should this
  * missed call get a recovery text now". Extracted so the rule is
- * unit-tested rather than buried in the query.
+ * unit-tested rather than buried in the query. `maxAgeMs` defaults to this
+ * lane's 24 h; only the revenue-queue collector passes a longer one, because
+ * it waits for the daily call evaluation (opportunityQueue.ts).
  */
-export function isMissedCallEligible(row: MissedCallRow, nowMs: number): boolean {
+export function isMissedCallEligible(row: MissedCallRow, nowMs: number, maxAgeMs: number = WINDOW_MAX_AGE_MS): boolean {
   if (!row.phoneNumber) return false;
   // convertedToLead means a capture/confirm tool fired on the call ("reached a
   // tool"), not that a lead row exists: a tireInquiry-only caller has it set
@@ -81,7 +83,7 @@ export function isMissedCallEligible(row: MissedCallRow, nowMs: number): boolean
   if (row.recoveryAlreadyStamped) return false; // one-shot
   if (row.durationSeconds < MIN_DURATION_SECONDS) return false; // not a real conversation
   const age = nowMs - row.createdAtMs;
-  return age >= WINDOW_MIN_AGE_MS && age <= WINDOW_MAX_AGE_MS;
+  return age >= WINDOW_MIN_AGE_MS && age <= maxAgeMs;
 }
 
 /**
