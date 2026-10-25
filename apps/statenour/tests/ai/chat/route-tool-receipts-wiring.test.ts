@@ -34,7 +34,8 @@ const h = vi.hoisted(() => {
 });
 vi.mock("@/lib/services/chat/active-stream", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/services/chat/active-stream")>()),
-  registerActiveStream: async (convId: string) => void h.registry.push(["register", convId]),
+  registerActiveStream: async (convId: string, _trace: string, clientMessageId?: string) =>
+    void h.registry.push(["register", clientMessageId ? `${convId}#${clientMessageId}` : convId]),
   completeActiveStream: async (convId: string, only?: { traceId: string }) =>
     void h.registry.push(["complete", only ? `${convId}@${only.traceId}` : convId]),
 }));
@@ -210,7 +211,8 @@ describe("chat route - a failed main stream does not leave the turn in flight", 
     h.consume = () => new Promise(() => {});
     await turn();
     await settle();
-    expect(h.registry).toContainEqual(["register", "conv-123"]);
+    // The row names the user message it serves (round 4): a first-send resume matches on it.
+    expect(h.registry).toContainEqual(["register", "conv-123#c-1"]);
     expect(h.registry.filter(([op]) => op === "complete")).toEqual([]);
   });
 });

@@ -242,6 +242,10 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // 2026-10-25 · a stall abort's reattach in progress: the stuck notice it is holding back, and how
   // many times the server has answered "still running, no bytes yet" (X-Resume-Pending).
   const stallReattachRef = useRef<{ message: string; waits: number } | null>(null);
+  // Round 4: a stalled first send's user message id, kept past the stall marker (a dropped reattach
+  // clears that) so Retry and Reconnect can still name the turn. Inert once a conversation id
+  // exists; a new send clears it (clearStall).
+  const firstSendIdRef = useRef<string | null>(null);
   // The id the client minted for the turn's user message; the server stores it on the user row.
   const lastUserMessageId = () => [...messagesRef.current].reverse().find((m) => m.role === "user")?.id;
   const onResumeEmpty = useCallback((info?: { pending?: boolean }) => {
@@ -281,8 +285,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     },
     // 2026-10-25 · a stall on a new chat's first send: no conversation id yet, so the
     // reattach finds the turn by its user message (the stall handler below).
-    resumeUserMessageId: () =>
-      stallReattachRef.current && !bodyRef.current.conversationId ? lastUserMessageId() : undefined,
+    resumeUserMessageId: () => (bodyRef.current.conversationId ? undefined : firstSendIdRef.current ?? undefined),
     liveContextBlocksRef,
     onLiveContextBlocks: setLiveContextBlocks,
     lastPersonaHeaderRef,
@@ -757,6 +760,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // first send has no conversation id yet; its user message id finds the turn instead.
       if (!bodyRef.current.privateMode && (bodyRef.current.conversationId || lastUserMessageId())) {
         stallReattachRef.current = { message, waits: 0 };
+        firstSendIdRef.current = bodyRef.current.conversationId ? null : lastUserMessageId() ?? null;
         // No answer to this send yet: the trace in hand is the previous turn's, and naming it
         // would replay that older reply (the transport's rule for a POST answered with no trace).
         if (lastTraceIdRef.current === traceAtSendRef.current) lastTraceIdRef.current = null;
@@ -782,6 +786,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const clearStall = useCallback(() => {
     killedErrorRef.current = null;
     stallReattachRef.current = null;
+    firstSendIdRef.current = null;
     setHeldError(null);
     if (!stalledRef.current) return;
     stalledRef.current = false;

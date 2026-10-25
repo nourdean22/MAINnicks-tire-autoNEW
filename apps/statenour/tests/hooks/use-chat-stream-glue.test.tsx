@@ -2524,6 +2524,23 @@ describe("stall abort reattaches to a turn the server still holds", () => {
     expect(vi.mocked(h.chat.resumeStream as () => void).mock.calls.length - before).toBe(1);
   });
 
+  // Round 4 (Codex P2): on a new chat that id is the ONLY way back to the turn; losing it with the
+  // stall marker sent Retry and Reconnect to a bare /none/stream, which is always a 204.
+  it("a new chat's dropped reattach keeps the message id, so Retry can still find the turn", () => {
+    act(() => useChatUiStore.setState({ activeConversationId: null }));
+    render();
+    stallFires();
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+
+    act(() => void ctl.regenerate());
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(transport().resumeUserMessageId?.(), "Retry's resume must still name the message").toBe("u1");
+  });
+
   // Round 2 (Nour's actual case): the stalled turn was the FIRST message of a new chat, so no
   // conversation id existed on the client when the stall fired.
   it("a first send of a new chat reattaches by its message id and lands the saved reply", () => {

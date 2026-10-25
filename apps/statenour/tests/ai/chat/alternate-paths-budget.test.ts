@@ -41,8 +41,8 @@ vi.mock("@/lib/ai/chat/simulate-stream-from-text", () => ({
 // What happened, in order: the turn's registry entry, each draft, the entry's completion.
 const order: string[] = [];
 vi.mock("@/lib/services/chat/active-stream", () => ({
-  trackActiveStream: (convId: string, traceId: string) => {
-    order.push(`register:${convId}:${traceId}`);
+  trackActiveStream: (convId: string, traceId: string, clientMessageId?: string) => {
+    order.push(`register:${convId}:${traceId}:${clientMessageId}`);
     return () => order.push("complete");
   },
 }));
@@ -85,7 +85,7 @@ function modelTaking(firstDraftMs: number) {
 function run() {
   const q = "what did the shop make this week and how many callbacks are pending";
   return runAlternatePaths({
-    persistBase: { startedAt: T0 },
+    persistBase: { startedAt: T0, userClientMessageId: "u1" },
     provider: "openai",
     modelId: "m",
     model: {},
@@ -227,6 +227,6 @@ describe("buffered lanes · the turn is in the registry while it is generated", 
   it("registers once, before the first draft, and completes after the ship", async () => {
     modelTaking(10_000);
     await run();
-    expect(order).toEqual(["register:c1:t_test", "draft", "draft", "complete"]);
+    expect(order).toEqual(["register:c1:t_test:u1", "draft", "draft", "complete"]);
   });
 });

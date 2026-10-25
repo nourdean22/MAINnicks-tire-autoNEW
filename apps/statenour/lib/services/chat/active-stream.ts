@@ -54,6 +54,8 @@ export interface ActiveStreamRecord {
   startedAt: string;
   /** Text streamed so far (V2). Empty until the first flush lands. */
   partialText: string;
+  /** The user message this turn answers (round 4); null on rows registered without one. */
+  clientMessageId: string | null;
 }
 
 /** Throttle floor for partial flushes. A 132s deep turn writes ~66 rows
@@ -72,9 +74,13 @@ const keyFor = (convId: string) => `stream:${convId}`;
 export async function registerActiveStream(
   convId: string,
   traceId: string | null,
+  /** The client-minted id of the user message this turn answers (round 4): the only key a
+   *  first-send resume holds, so the row says which message it belongs to. */
+  clientMessageId?: string | null,
 ): Promise<void> {
   try {
     const startedAt = new Date().toISOString();
+    const metadata = { status: "active", traceId, startedAt, clientMessageId: clientMessageId ?? null };
     await prisma.brainMemory.upsert({
       where: { category_key: { category: CATEGORY, key: keyFor(convId) } },
       create: {
@@ -84,12 +90,12 @@ export async function registerActiveStream(
         confidence: 0.1,
         source: "chat-route",
         expiresAt: new Date(Date.now() + ACTIVE_TTL_MS),
-        metadata: { status: "active", traceId, startedAt } as never,
+        metadata: metadata as never,
       },
       update: {
         content: `active stream · ${startedAt}`,
         expiresAt: new Date(Date.now() + ACTIVE_TTL_MS),
-        metadata: { status: "active", traceId, startedAt } as never,
+        metadata: metadata as never,
         deletedAt: null,
       },
     });
@@ -105,11 +111,13 @@ export async function registerActiveStream(
 export function trackActiveStream(
   convId: string,
   traceId: string | null,
+  clientMessageId?: string | null,
 ): (persisted: Promise<unknown>) => void {
-  const registered = registerActiveStream(convId, traceId);
+  const registered = registerActiveStream(convId, traceId, clientMessageId);
   return (persisted) => {
     void Promise.all([registered, persisted]).then(
-      () => completeActiveStream(convId),
+      // Only THIS turn's row (round 4): a newer turn (another tab) may hold it by now.
+      () => completeActiveStream(convId, traceId ? { traceId } : undefined),
       () => undefined,
     );
   };
@@ -225,6 +233,7 @@ export async function getActiveStream(
     traceId: typeof m.traceId === "string" ? m.traceId : null,
     startedAt: typeof m.startedAt === "string" ? m.startedAt : new Date(0).toISOString(),
     partialText: typeof m.partialText === "string" ? m.partialText : "",
+    clientMessageId: typeof m.clientMessageId === "string" ? m.clientMessageId : null,
   };
 }
 

@@ -237,7 +237,7 @@ describe("resume route · a first send found by the client's message id", () => 
     const sentAt = new Date(Date.now() - 200_000);
     const startedAt = new Date(sentAt.getTime() + 3_000).toISOString();
     mockFindUserTurnRow.mockResolvedValue(userRow(sentAt));
-    mockGetActiveStream.mockResolvedValue({ status: "complete", traceId: "T2", startedAt, partialText: "" });
+    mockGetActiveStream.mockResolvedValue({ status: "complete", traceId: "T2", startedAt, partialText: "", clientMessageId: "u1" });
     mockFindFirst.mockResolvedValue({ id: "m2", content: "the first reply in the new chat" });
 
     const res = await GET(firstSendReq(), ctx("none"));
@@ -261,6 +261,25 @@ describe("resume route · a first send found by the client's message id", () => 
     mockFindFirst.mockResolvedValue({ id: "m0", content: "an older reply" });
 
     expect((await GET(firstSendReq(), ctx("none"))).status).toBe(204);
+  });
+
+  // Round 4 (Codex P2): every LATER turn in the conversation also started after the first message,
+  // so a timestamp cannot say whose row it is. The row names the user message it was registered for.
+  it("a LATER turn's row (registered for another message) never replays into the first send", async () => {
+    const sentAt = new Date(Date.now() - 300_000);
+    mockFindUserTurnRow.mockResolvedValue(userRow(sentAt));
+    mockGetActiveStream.mockResolvedValue({
+      status: "complete",
+      traceId: "T5",
+      startedAt: new Date(sentAt.getTime() + 120_000).toISOString(),
+      partialText: "",
+      clientMessageId: "u5",
+    });
+    mockFindFirst.mockResolvedValue({ id: "m5", content: "the fifth turn's reply" });
+
+    const res = await GET(firstSendReq(), ctx("none"));
+    expect(res.status).toBe(204);
+    expect(mockFindFirst).not.toHaveBeenCalled();
   });
 
   it("CONTROL: no message id, or one with no saved row (private, or never landed): 204, no registry read", async () => {

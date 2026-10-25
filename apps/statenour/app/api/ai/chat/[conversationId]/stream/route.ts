@@ -62,20 +62,21 @@ export async function GET(
     // headers, and a buffered lane sends none until its reply is whole. The user row is written
     // before generation with the id the client minted, so `?clientMessageId=` finds the
     // conversation (findUserTurnRow's first-send rule). Private turns write no row: 204.
-    let firstSend: { conversationId: string; sentAt: number } | null = null;
+    let firstSend: { conversationId: string; clientMessageId: string } | null = null;
     if (!conversationId || conversationId === "none") {
       const clientMessageId = req.nextUrl?.searchParams?.get("clientMessageId");
       if (!clientMessageId) return new Response(null, { status: 204 });
       const row = await findUserTurnRow({ conversationId: null, messageId: clientMessageId }).catch(() => null);
-      if (!row) return new Response(null, { status: 204 });
+      if (!row?.clientMessageId) return new Response(null, { status: 204 });
       conversationId = row.conversationId;
-      firstSend = { conversationId, sentAt: row.createdAt.getTime() };
+      firstSend = { conversationId, clientMessageId: row.clientMessageId };
     }
 
     const record = await getActiveStream(conversationId);
     if (!record) return new Response(null, { status: 204 });
-    // A first send names its turn by its user row: a record started after that message is its turn.
-    const namedByMessage = firstSend !== null && Date.parse(record.startedAt) >= firstSend.sentAt;
+    // A first send names its turn by its user message: only a row registered FOR that message is
+    // its turn. A start time cannot say it (every later turn also started after the first send).
+    const namedByMessage = firstSend !== null && record.clientMessageId === firstSend.clientMessageId;
     if (firstSend && !namedByMessage) return new Response(null, { status: 204 });
     /** The turn's identity on every answer: X-Trace-Id lets the next GET name it, and a first send learns its conversation. */
     const identify = (res: Response): Response => {

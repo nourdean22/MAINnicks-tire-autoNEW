@@ -54,7 +54,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 
-import { registerActiveStream, completeActiveStream, getActiveStream } from "@/lib/services/chat/active-stream";
+import { registerActiveStream, completeActiveStream, getActiveStream, trackActiveStream } from "@/lib/services/chat/active-stream";
 
 beforeEach(() => {
   store.clear();
@@ -76,6 +76,29 @@ describe("closing a failed turn's registry row", () => {
     };
     await completeActiveStream("c1", { traceId: "T1" });
     expect(await getActiveStream("c1")).toMatchObject({ status: "active", traceId: "T2" });
+  });
+
+  // Round 4 (Codex P2): the alt-lane tracker and the main path completed by conversation only, so an
+  // older turn finishing after a newer one (another tab) took the row marked the NEWER row complete.
+  it("an older lane's completion after a newer turn took the row leaves the newer row active", async () => {
+    const done = trackActiveStream("c1", "T1");
+    await registerActiveStream("c1", "T2"); // another tab's turn
+    done(Promise.resolve());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await getActiveStream("c1")).toMatchObject({ status: "active", traceId: "T2" });
+  });
+
+  it("CONTROL: the tracker still completes its own turn's row", async () => {
+    const done = trackActiveStream("c1", "T1");
+    done(Promise.resolve());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await getActiveStream("c1")).toMatchObject({ status: "complete", traceId: "T1" });
+  });
+
+  // Round 4 (Codex P2): a first-send resume needs to know WHICH user message a row belongs to.
+  it("the row carries the user message id it was registered for", async () => {
+    await registerActiveStream("c1", "T1", "u1");
+    expect(await getActiveStream("c1")).toMatchObject({ traceId: "T1", clientMessageId: "u1" });
   });
 
   it("CONTROL: the close named for the row's own turn closes it", async () => {

@@ -333,7 +333,7 @@ export async function runAlternatePaths(args: {
       // reply existed): a stall reattach (use-chat-stream.ts) reads this row to tell "still
       // working" from "stuck". On a fall-through the streamText path re-registers the same turn.
       const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
-      const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
+      const __altTurnDone = convId ? trackActiveStream(convId, traceId, persistBase.userClientMessageId) : null;
       // 2026-09-15 · tool receipts captured by a buffered lane. The
       // enforcement block below was receipt-BLIND on every lane (it had no
       // way to see what generateText called), which limited it to length and

@@ -1403,8 +1403,9 @@ ${priorsBlock}`;
     const { registerActiveStream, completeActiveStream } = await import(
       "@/lib/services/chat/active-stream"
     );
-    void registerActiveStream(convId, __traceId);
-    void onFinishPromise.then(() => completeActiveStream(convId!));
+    // Round 4: the row names this turn's user message, and completion closes only this turn's row.
+    void registerActiveStream(convId, __traceId, extractClientMessageId(lastUserMsg));
+    void onFinishPromise.then(() => completeActiveStream(convId!, { traceId: __traceId }));
   }
 
   const { buildChatResponse } = await import("@/lib/services/chat/response-shape");
