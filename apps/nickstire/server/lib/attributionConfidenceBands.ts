@@ -99,7 +99,7 @@ const DESCRIPTIONS: Record<ConfidenceBand, Omit<BandDescription, "band">> = {
 export const BAND_CALIBRATION_CAVEAT =
   "These bands rank evidence, not probability. Nobody has yet measured how often a phone-and-time match turns out to be the right invoice, so the gap between bands is an ordering, not a percentage.";
 
-export function bandOf(confidence: number | null | undefined): ConfidenceBand {
+function bandOf(confidence: number | null | undefined): ConfidenceBand {
   if (confidence == null || Number.isNaN(confidence)) return "unscored";
   if (confidence >= 1) return "verified";
   if (confidence >= 0.9) return "strong";
@@ -110,7 +110,7 @@ export function bandOf(confidence: number | null | undefined): ConfidenceBand {
   return "unscored";
 }
 
-export function describeBand(band: ConfidenceBand): BandDescription {
+function describeBand(band: ConfidenceBand): BandDescription {
   return { band, ...DESCRIPTIONS[band] };
 }
 

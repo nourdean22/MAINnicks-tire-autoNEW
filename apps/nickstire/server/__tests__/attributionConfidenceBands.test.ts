@@ -16,10 +16,14 @@ import { describe, expect, it } from "vitest";
 import {
   BAND_CALIBRATION_CAVEAT,
   bandMix,
-  bandOf,
-  describeBand,
   describeCandidate,
 } from "../lib/attributionConfidenceBands";
+
+// bandOf and describeBand are internal now (knip: a test is not a consumer). The public
+// surface is describeCandidate; these two helpers reach the same ladder through it.
+const CONF = { verified: 1, strong: 0.9, weak: 0.75, unscored: null } as const;
+const band = (b: keyof typeof CONF) => describeCandidate({ confidence: CONF[b], resolution: "manual_review", invoiceId: 1 });
+const bandOf = (c: number | null | undefined) => describeCandidate({ confidence: c, resolution: "manual_review", invoiceId: 1 }).band;
 
 describe("the producer's actual ladder maps to bands", () => {
   it.each([
@@ -34,10 +38,10 @@ describe("the producer's actual ladder maps to bands", () => {
 
   it("only VERIFIED is an observed link — everything else is inference", () => {
     // The distinction the whole module exists to preserve.
-    expect(describeBand("verified").observed).toBe(true);
-    expect(describeBand("strong").observed).toBe(false);
-    expect(describeBand("weak").observed).toBe(false);
-    expect(describeBand("unscored").observed).toBe(false);
+    expect(band("verified").observed).toBe(true);
+    expect(band("strong").observed).toBe(false);
+    expect(band("weak").observed).toBe(false);
+    expect(band("unscored").observed).toBe(false);
   });
 
   it("a value above 1 does not invent a band above verified", () => {
@@ -51,22 +55,22 @@ describe("the producer's actual ladder maps to bands", () => {
 
 describe("the bands say what would RAISE them — the only actionable part", () => {
   it("weak points at the real cause: the request was never captured", () => {
-    const d = describeBand("weak");
+    const d = band("weak");
     expect(d.whatWouldRaiseIt).toContain("Capturing what the caller actually asked for");
   });
 
   it("strong can only become observed via a recorded lead link", () => {
-    expect(describeBand("strong").whatWouldRaiseIt).toContain("lead link");
+    expect(band("strong").whatWouldRaiseIt).toContain("lead link");
   });
 
   it("verified has nothing above it, and says so with null rather than filler", () => {
-    expect(describeBand("verified").whatWouldRaiseIt).toBeNull();
+    expect(band("verified").whatWouldRaiseIt).toBeNull();
   });
 
   it("every band states its basis in full — no blanks", () => {
     for (const b of ["verified", "strong", "weak", "unscored"] as const) {
-      expect(describeBand(b).basis.trim().length).toBeGreaterThan(40);
-      expect(describeBand(b).label.trim().length).toBeGreaterThan(3);
+      expect(band(b).basis.trim().length).toBeGreaterThan(40);
+      expect(band(b).label.trim().length).toBeGreaterThan(3);
     }
   });
 });
@@ -130,7 +134,7 @@ describe("plain words for the operator (2026-10-25)", () => {
   // words, and the label is a sentence fragment a non-engineer can read.
   it("every band says why it is what it is, in words, without the recipe's tokens", () => {
     for (const b of ["verified", "strong", "weak", "unscored"] as const) {
-      const d = describeBand(b);
+      const d = band(b);
       expect(d.why.trim().length).toBeGreaterThan(20);
       expect(d.why).not.toMatch(/phone_time|candidate|normalized|inferred/i);
       expect(d.label).not.toMatch(/\+|inferred/);
@@ -138,15 +142,15 @@ describe("plain words for the operator (2026-10-25)", () => {
   });
 
   it("the weak band names the two facts it rests on and that nothing else ties them", () => {
-    expect(describeBand("weak").label).toBe("Same phone and timing only");
-    expect(describeBand("weak").why).toMatch(/14 days/);
-    expect(describeBand("weak").why).toMatch(/nothing else/i);
+    expect(band("weak").label).toBe("Same phone and timing only");
+    expect(band("weak").why).toMatch(/14 days/);
+    expect(band("weak").why).toMatch(/nothing else/i);
   });
 
   it("the strong band adds the service, the verified band names the record", () => {
-    expect(describeBand("strong").label).toBe("Same phone, timing and service");
-    expect(describeBand("verified").label).toBe("Recorded link");
-    expect(describeBand("unscored").label).toBe("No single sale fits");
+    expect(band("strong").label).toBe("Same phone, timing and service");
+    expect(band("verified").label).toBe("Recorded link");
+    expect(band("unscored").label).toBe("No single sale fits");
   });
 });
 
@@ -165,6 +169,6 @@ describe("describeCandidate · the why follows the candidate, not only its confi
   });
 
   it("a scored row is the plain band", () => {
-    expect(describeCandidate({ confidence: 0.75, resolution: "manual_review", invoiceId: 1 })).toEqual(describeBand("weak"));
+    expect(describeCandidate({ confidence: 0.75, resolution: "manual_review", invoiceId: 1 })).toEqual(band("weak"));
   });
 });
