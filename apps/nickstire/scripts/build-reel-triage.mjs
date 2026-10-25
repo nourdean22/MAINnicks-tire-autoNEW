@@ -15,6 +15,7 @@
 import { readdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promotabilityBlockers } from "../shared/reelPromotability.ts";
+import { classifyPack } from "./lib/reelTriageClassify.mjs";
 import { PACK_DESTINATIONS, DELIBERATELY_UNASSIGNED } from "../shared/reelDestinationMap.ts";
 
 const ROOT = "docs/reel-packs";
@@ -32,20 +33,7 @@ for (const d of readdirSync(ROOT).sort()) {
 
   const hasCaptions = Boolean(srt);
   const hasBrief = files.includes("brief.json");
-  const hasRealFootage = /real (shop )?footage|filmed in the bay|operator footage/i.test(txt);
-  const needsGeneratedVideo = /higgsfield|seedance|veo\b|generated video|motion route/i.test(txt);
-  const declaredBlock = txt.includes("BLOCKED: NO MOTION ROUTE") ? "BLOCKED: NO MOTION ROUTE" : null;
-
-  const productionType = hasRealFootage ? "real-footage"
-    : needsGeneratedVideo ? "generated"
-    : (hasCaptions || hasBrief) ? "stills" : "undetermined";
-
-  let status, blockReason;
-  if (declaredBlock) { status = "dead"; blockReason = declaredBlock; }
-  else if (productionType === "undetermined") { status = "needs-work"; blockReason = "production route undetermined: no real footage, no captions and no brief - nothing can be assembled. Add a brief or attach footage."; }
-  else if (!hasCaptions) { status = "needs-work"; blockReason = "no captions.srt - the reel cannot be assembled without them"; }
-  else if (productionType === "generated") { status = "needs-work"; blockReason = "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim"; }
-  else { status = "publishable"; blockReason = null; }
+  const { productionType, status, blockReason } = classifyPack(txt, { hasCaptions, hasBrief });
 
   // Promotability is assessed only when there is copy to assess. No copy means
   // unassessed (null), which is NOT the same as ineligible.
