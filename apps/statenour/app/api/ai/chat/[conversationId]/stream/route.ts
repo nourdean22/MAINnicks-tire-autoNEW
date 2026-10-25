@@ -37,6 +37,7 @@ import {
   buildCloseChunks,
   resumeMessageId,
 } from "@/lib/services/chat/active-stream";
+import { findUserTurnRow } from "@/lib/services/chat/user-turn-identity";
 import { aiRouteError } from "@/lib/utils/http";
 import { logError } from "@/lib/utils/error-log";
 
@@ -56,13 +57,32 @@ export async function GET(
 ) {
   try {
     await requireSession(req);
-    const { conversationId } = await context.params;
+    let { conversationId } = await context.params;
+    // 2026-10-25 · a FIRST send: the client learns its conversation id only from the POST's
+    // headers, and a buffered lane sends none until its reply is whole. The user row is written
+    // before generation with the id the client minted, so `?clientMessageId=` finds the
+    // conversation (findUserTurnRow's first-send rule). Private turns write no row: 204.
+    let firstSend: { conversationId: string; sentAt: number } | null = null;
     if (!conversationId || conversationId === "none") {
-      return new Response(null, { status: 204 });
+      const clientMessageId = req.nextUrl?.searchParams?.get("clientMessageId");
+      if (!clientMessageId) return new Response(null, { status: 204 });
+      const row = await findUserTurnRow({ conversationId: null, messageId: clientMessageId }).catch(() => null);
+      if (!row) return new Response(null, { status: 204 });
+      conversationId = row.conversationId;
+      firstSend = { conversationId, sentAt: row.createdAt.getTime() };
     }
 
     const record = await getActiveStream(conversationId);
     if (!record) return new Response(null, { status: 204 });
+    // A first send names its turn by its user row: a record started after that message is its turn.
+    const namedByMessage = firstSend !== null && Date.parse(record.startedAt) >= firstSend.sentAt;
+    if (firstSend && !namedByMessage) return new Response(null, { status: 204 });
+    /** The turn's identity on every answer: X-Trace-Id lets the next GET name it, and a first send learns its conversation. */
+    const identify = (res: Response): Response => {
+      if (record.traceId) res.headers.set("X-Trace-Id", record.traceId);
+      if (firstSend) res.headers.set("X-Conversation-Id", firstSend.conversationId);
+      return res;
+    };
 
     // 2026-10-10 (audit 04-F8) - turn identity. The client may name the
     // turn it is waiting for (`?traceId=`, the X-Trace-Id of its POST). A
@@ -84,14 +104,14 @@ export async function GET(
       // P2-B6: a resume that names no turn is a mount (an SPA return inside
       // the linger); the history load already shows this row, so a replay
       // would be a second copy of it. An in-flight turn below still replays.
-      if (!wantedTrace) return new Response(null, { status: 204 });
+      if (!wantedTrace && !namedByMessage) return new Response(null, { status: 204 });
       const message = await findAssistantMessage(conversationId, record.startedAt, record.traceId);
       if (!message) return new Response(null, { status: 204 });
       const replay = streamOut(msgId, (write) => {
         write(message.content);
         return { partial: false };
       });
-      return withTurnIdentity(replay, record.traceId, () => message);
+      return identify(withTurnIdentity(replay, record.traceId, () => message));
     }
 
     // Still generating, nothing to say yet. A buffered chat lane writes no
@@ -104,7 +124,8 @@ export async function GET(
     let live = record;
     while (live.status === "active" && live.partialText.length === 0) {
       if (Date.now() >= windowEnd) {
-        return new Response(null, { status: 204, headers: { "X-Resume-Pending": "1" } });
+        // Named, so the next GET still finds the reply if it saves in between (P2-B6 above).
+        return identify(new Response(null, { status: 204, headers: { "X-Resume-Pending": "1" } }));
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
       const next = await getActiveStream(conversationId);
@@ -121,7 +142,7 @@ export async function GET(
         write(message.content);
         return { partial: false };
       });
-      return withTurnIdentity(replay, live.traceId, () => message);
+      return identify(withTurnIdentity(replay, live.traceId, () => message));
     }
 
     // Deterministic id (msgId above): concurrent resumes of the SAME turn
@@ -212,7 +233,7 @@ export async function GET(
       },
     });
 
-    const res = withTurnIdentity(createUIMessageStreamResponse({ stream }), record.traceId, () => persisted);
+    const res = identify(withTurnIdentity(createUIMessageStreamResponse({ stream }), record.traceId, () => persisted));
     // Set on the in-flight lane: the body may still resolve to a
     // complete turn inside the tail, but headers flush first, so this
     // header means "this response STARTED partial" — the client should

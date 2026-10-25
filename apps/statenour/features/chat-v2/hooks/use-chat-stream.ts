@@ -242,6 +242,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // 2026-10-25 · a stall abort's reattach in progress: the stuck notice it is holding back, and how
   // many times the server has answered "still running, no bytes yet" (X-Resume-Pending).
   const stallReattachRef = useRef<{ message: string; waits: number } | null>(null);
+  // The id the client minted for the turn's user message; the server stores it on the user row.
+  const lastUserMessageId = () => [...messagesRef.current].reverse().find((m) => m.role === "user")?.id;
   const onResumeEmpty = useCallback((info?: { pending?: boolean }) => {
     const stall = stallReattachRef.current;
     if (stall) {
@@ -277,6 +279,10 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       const last = messagesRef.current[messagesRef.current.length - 1];
       return last?.role === "assistant" ? last.id : undefined;
     },
+    // 2026-10-25 · a stall on a new chat's first send: no conversation id yet, so the
+    // reattach finds the turn by its user message (the stall handler below).
+    resumeUserMessageId: () =>
+      stallReattachRef.current && !bodyRef.current.conversationId ? lastUserMessageId() : undefined,
     liveContextBlocksRef,
     onLiveContextBlocks: setLiveContextBlocks,
     lastPersonaHeaderRef,
@@ -735,8 +741,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // 2026-10-25 · and reattach BEFORE saying stuck. A buffered lane sends no byte until its reply
       // is whole, so the abort can fire while the server is still producing it (a 225 s turn,
       // saved 45 s after we stopped listening). The notice shows only if the reattach finds nothing
-      // (onResumeEmpty). Private mode registers no turn, so there is nothing to find.
-      if (bodyRef.current.conversationId && !bodyRef.current.privateMode) {
+      // (onResumeEmpty). Private mode registers no turn, so there is nothing to find. A new chat's
+      // first send has no conversation id yet; its user message id finds the turn instead.
+      if (!bodyRef.current.privateMode && (bodyRef.current.conversationId || lastUserMessageId())) {
         stallReattachRef.current = { message, waits: 0 };
         // No answer to this send yet: the trace in hand is the previous turn's, and naming it
         // would replay that older reply (the transport's rule for a POST answered with no trace).

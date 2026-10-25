@@ -26,6 +26,7 @@ type TransportOpts = {
   lastTraceIdRef: { current: string | null };
   onMessagePersisted: (p: { id: string; content: string; traceId: string | null }) => void;
   resumeIntoMessageId?: () => string | undefined;
+  resumeUserMessageId?: () => string | undefined;
   onResumePartial: () => void;
   onResumeEmpty?: () => void;
   onConversationId?: (id: string) => void;
@@ -2478,6 +2479,30 @@ describe("stall abort reattaches to a turn the server still holds", () => {
     expect(stuckToasts()).toHaveLength(1);
     expect(stuckToasts()[0][1]).toMatchObject({ id: "chat-stall", duration: Infinity, action: { label: "Reconnect" } });
     expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  // Round 2 (Nour's actual case): the stalled turn was the FIRST message of a new chat, so no
+  // conversation id existed on the client when the stall fired.
+  it("a first send of a new chat reattaches by its message id and lands the saved reply", () => {
+    act(() => useChatUiStore.setState({ activeConversationId: null }));
+    render();
+    stallFires();
+
+    expect(h.chat.resumeStream, "a new chat must reattach too").toHaveBeenCalledTimes(1);
+    expect(transport().resumeUserMessageId?.(), "the resume names the message the server saved").toBe("u1");
+
+    h.chat.status = "streaming";
+    h.chat.messages = [user, { id: "resume-conv-new-T2", role: "assistant", parts: [{ type: "text", text: "saved" }] }];
+    render();
+    act(() => transport().onConversationId?.("conv-new"));
+    transport().lastTraceIdRef.current = "T2";
+    act(() => transport().onMessagePersisted({ id: "db-2", content: "first reply", traceId: "T2" }));
+    settle();
+
+    expect(transport().resumeUserMessageId?.(), "only while a stall reattach waits").toBeUndefined();
+    const bound = (setMessages.mock.calls.at(-1)![0] as (m: Msg[]) => Msg[])(h.chat.messages as Msg[]);
+    expect(bound.at(-1)).toMatchObject({ id: "db-2", parts: [{ type: "text", text: "first reply" }] });
+    expect(stuckToasts()).toEqual([]);
   });
 
   it("CONTROL: a private turn registers nothing, so the stuck notice shows at once", () => {
