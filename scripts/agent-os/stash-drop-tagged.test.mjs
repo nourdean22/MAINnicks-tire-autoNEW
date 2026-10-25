@@ -71,6 +71,14 @@ test("CONTROL: an unknown tag, an ambiguous tag and a prefix of a longer tag are
   assert.equal(subjects(dir).length, 3, "nothing dropped");
 });
 
+test("CONTROL: a sibling's message that merely ENDS with the tag is not the tag (whole message, one git prefix)", () => {
+  const dir = fixture("sibling-note: session-x");
+  const r = run(dir, ["session-x"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /REFUSED: no stash entry carries the tag session-x/);
+  assert.equal(subjects(dir).length, 1, "the sibling's entry survives");
+});
+
 test("CONTROL: no argument, an option-shaped argument and a tag with spaces are refused", () => {
   const dir = fixture("session-x");
   assert.equal(run(dir, []).code, 2);
@@ -89,4 +97,16 @@ test("MUTATION: without the prefix check, an untagged sibling entry would be dro
   writeFileSync(p, src.replace(anchor, "if (false)"));
   const dir = fixture("sibling-work");
   assert.equal(run(dir, ["sibling-work"], p).code, 0, "the prefix check must be load-bearing");
+});
+
+test("MUTATION: matching by suffix (the round-1 code) drops the sibling's 'sibling-note: session-x'", () => {
+  const src = readFileSync(SCRIPT, "utf8");
+  const anchor = ".filter(([, , subject]) => message(subject) === tag);";
+  assert.equal(src.split(anchor).length - 1, 1, "mutation anchor must occur once");
+  const mdir = mkdtempSync(join(tmpdir(), "stash-drop-mut-"));
+  dirs.push(mdir);
+  const p = join(mdir, "stash-drop-tagged.mjs");
+  writeFileSync(p, src.replace(anchor, ".filter(([, , subject]) => subject === tag || subject.endsWith(`: ${tag}`));"));
+  const dir = fixture("sibling-note: session-x");
+  assert.equal(run(dir, ["session-x"], p).code, 0, "whole-message matching must be load-bearing");
 });

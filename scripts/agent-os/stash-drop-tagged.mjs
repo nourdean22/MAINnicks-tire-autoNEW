@@ -6,7 +6,8 @@
  * like stash@{1} names whatever a sibling pushed last. A session may drop only an entry IT tagged, with
  * `git stash push -u -m "<manager-...|session-...>"`. This script finds that entry by its full tag and drops it:
  * - refuses (exit 2) a tag without the manager- or session- prefix, or with spaces or a leading dash;
- * - refuses when no entry, or more than one, carries exactly that tag (a prefix of a longer tag never matches);
+ * - refuses when no entry, or more than one, carries exactly that tag as its whole message (a prefix of a longer
+ *   tag, or a message that only ends with it, never matches);
  * - drops the entry and checks the dropped SHA is the one it found; if a sibling shifted the stack in between,
  *   exits 1 and prints the `git stash store` line that puts the dropped entry back.
  */
@@ -29,12 +30,14 @@ if (!TAG.test(tag)) refuse(`"${tag}" does not start with manager- or session-; d
 
 const list = git(["stash", "list", "--format=%gd%x00%H%x00%gs"]);
 if (list.code !== 0) refuse(`git stash list failed: ${list.err.trim()}`);
-// `git stash push -m <tag>` stores the subject "On <branch>: <tag>".
+// `git stash push -m <tag>` stores the subject "On <branch>: <tag>". Strip that ONE prefix (a ref name cannot hold
+// a colon) and compare the whole message: "sibling-note: session-x" is a sibling's message, not the tag session-x.
+const message = (subject) => subject.replace(/^On [^:]+: /, "");
 const hits = list.out
   .split("\n")
   .filter(Boolean)
   .map((line) => line.split("\0"))
-  .filter(([, , subject]) => subject === tag || subject.endsWith(`: ${tag}`));
+  .filter(([, , subject]) => message(subject) === tag);
 if (hits.length === 0) refuse(`no stash entry carries the tag ${tag}`);
 if (hits.length > 1) refuse(`${hits.length} entries carry the tag ${tag}; drop by hand after reading git stash list`);
 
