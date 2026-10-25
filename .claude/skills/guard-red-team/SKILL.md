@@ -70,7 +70,13 @@ first run found a fourth subject the hand-audit had missed.
      verified: the false positive now passes, all denyExamples still
      deny). Any rule using a bare `[^\n]*?` scan after the verb is a
      candidate for the same bug — check it, don't assume the fix in one
-     rule propagated to its siblings.
+     rule propagated to its siblings. Second and third siblings, 2026-10-25:
+     `add-all` denied a one-path add chained with `ledger-check.mjs --root .`
+     (false positive, hit the manager twice), and `destructive-restore`'s
+     `--staged` lookahead let `git restore <file> && git diff --staged`
+     through (a bypass). Both now scan `[^;|&\n]`. Rules that cross a chain
+     on purpose (destructive-sql, worktree-recursive-delete, the night-shift
+     inline-script arm) are listed in `docs/agent-os/README.md` Layer 4.
    - **Reachability chain-tracing** — for any "X is reachable/triggerable"
      claim about an enforcement surface (a canary, a registered tool, a
      cron job), trace the FULL chain to the entry point that will
