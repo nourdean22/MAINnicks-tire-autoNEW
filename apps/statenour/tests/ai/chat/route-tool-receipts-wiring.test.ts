@@ -35,7 +35,8 @@ const h = vi.hoisted(() => {
 vi.mock("@/lib/services/chat/active-stream", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/services/chat/active-stream")>()),
   registerActiveStream: async (convId: string) => void h.registry.push(["register", convId]),
-  completeActiveStream: async (convId: string) => void h.registry.push(["complete", convId]),
+  completeActiveStream: async (convId: string, only?: { traceId: string }) =>
+    void h.registry.push(["complete", only ? `${convId}@${only.traceId}` : convId]),
 }));
 
 vi.mock("@/lib/logger", async (importOriginal) => {
@@ -199,7 +200,10 @@ describe("chat route - a failed main stream does not leave the turn in flight", 
     h.streamThrows = true;
     const res = await POST(new Request("http://localhost/api/ai/chat", { method: "POST" }));
     expect(res.status).toBe(500);
-    await vi.waitFor(() => expect(h.registry).toContainEqual(["complete", "conv-123"]));
+    // Pinned to the failed turn's own trace (round 3): a retry's newer row must survive it.
+    await vi.waitFor(() =>
+      expect(h.registry.some(([op, id]) => op === "complete" && /^conv-123@t_\w+/.test(id))).toBe(true),
+    );
   });
 
   it("CONTROL: a stream that starts registers the turn and does not close it at hand-off", async () => {
@@ -207,7 +211,7 @@ describe("chat route - a failed main stream does not leave the turn in flight", 
     await turn();
     await settle();
     expect(h.registry).toContainEqual(["register", "conv-123"]);
-    expect(h.registry).not.toContainEqual(["complete", "conv-123"]);
+    expect(h.registry.filter(([op]) => op === "complete")).toEqual([]);
   });
 });
 

@@ -174,24 +174,33 @@ export function createPartialPersister(
 /** Mark the turn durably complete — called ONLY after the onFinish
  *  persist resolved (the invariant: cleared only after durable
  *  completion). Fire-and-forget safe. */
-export async function completeActiveStream(convId: string): Promise<void> {
+export async function completeActiveStream(
+  convId: string,
+  /** Close only THIS turn's row (2026-10-25): the row is per conversation, and a retry may have
+   *  registered a newer turn on it. The write is then a compare-and-swap on the trace. */
+  only?: { traceId: string },
+): Promise<void> {
   try {
     const row = await prisma.brainMemory.findUnique({
       where: { category_key: { category: CATEGORY, key: keyFor(convId) } },
       select: { id: true, metadata: true },
     });
     if (!row) return;
-    await prisma.brainMemory.update({
-      where: { id: row.id },
-      data: {
-        expiresAt: new Date(Date.now() + COMPLETE_LINGER_MS),
-        metadata: {
-          ...((row.metadata ?? {}) as Record<string, unknown>),
-          status: "complete",
-          completedAt: new Date().toISOString(),
-        } as never,
-      },
-    });
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    if (only && meta.traceId !== only.traceId) return;
+    const data = {
+      expiresAt: new Date(Date.now() + COMPLETE_LINGER_MS),
+      metadata: { ...meta, status: "complete", completedAt: new Date().toISOString() } as never,
+    };
+    if (only) {
+      // count 0 = another turn took the row after the read: it is theirs, leave it.
+      await prisma.brainMemory.updateMany({
+        where: { id: row.id, metadata: { path: ["traceId"], equals: only.traceId } },
+        data,
+      });
+      return;
+    }
+    await prisma.brainMemory.update({ where: { id: row.id }, data });
   } catch (e) {
     logError("chat.active-stream", e, { stage: "complete", convId }, "warn");
   }
