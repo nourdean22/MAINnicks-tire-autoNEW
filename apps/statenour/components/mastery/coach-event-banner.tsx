@@ -174,7 +174,7 @@ function CoachEventCard({
   const wrapped = event.deepLink ? (
     <Link
       href={event.deepLink}
-      className="block focus-visible:outline-none rounded-surface"
+      className="block min-h-11 focus-visible:outline-none rounded-surface"
       aria-label={event.title}
     >
       {body}

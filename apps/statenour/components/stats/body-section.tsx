@@ -246,7 +246,7 @@ export function BodySection() {
               {progress.current > progress.target &&
                 ` · ${Math.round(progress.current - progress.target)} to go`}
             </p>
-            <FreshnessChip
+            <FreshnessChip className="min-h-11 min-w-11"
               lastFetchedAt={fetchedAt}
               source="db · body_entries"
               onReload={load}
@@ -503,7 +503,7 @@ export function BodySection() {
                     placeholder="Weight (lbs)"
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
+                    className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
                   />
                   <Input
                     type="number"
@@ -511,7 +511,7 @@ export function BodySection() {
                     placeholder="Body fat %"
                     value={bodyFat}
                     onChange={(e) => setBodyFat(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
+                    className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
                   />
                   <Input
                     type="number"
@@ -519,14 +519,14 @@ export function BodySection() {
                     placeholder="Waist (in)"
                     value={waist}
                     onChange={(e) => setWaist(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
+                    className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-[16px]"
                   />
                   <Input
                     type="text"
                     placeholder="Notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-[16px] col-span-2"
+                    className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-[16px] col-span-2"
                   />
                 </div>
               )}
@@ -540,7 +540,7 @@ export function BodySection() {
                   placeholder="Weight (lbs)"
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
-                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                  className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
                 />
                 <Input
                   type="number"
@@ -548,7 +548,7 @@ export function BodySection() {
                   placeholder="Body fat %"
                   value={bodyFat}
                   onChange={(e) => setBodyFat(e.target.value)}
-                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                  className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
                 />
                 <Input
                   type="number"
@@ -556,7 +556,7 @@ export function BodySection() {
                   placeholder="Waist (in)"
                   value={waist}
                   onChange={(e) => setWaist(e.target.value)}
-                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                  className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
                 />
                 <Input
                   type="number"
@@ -564,14 +564,14 @@ export function BodySection() {
                   placeholder="Sleep (h)"
                   value={sleepHours}
                   onChange={(e) => setSleepHours(e.target.value)}
-                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                  className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
                 />
                 <Input
                   type="text"
                   placeholder="Notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] col-span-2"
+                  className="min-h-11 border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] col-span-2"
                 />
               </div>
 
@@ -607,7 +607,7 @@ export function BodySection() {
                     type="button"
                     onClick={() => setEnergy(n)}
                     className={cn(
-                      "min-h-[44px] w-10 rounded-control border font-mono transition-colors duration-[var(--motion-state)]",
+                      "min-h-[44px] w-11 rounded-control border font-mono transition-colors duration-[var(--motion-state)]",
                       energy === n
                         ? n <= 2
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"

@@ -558,7 +558,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     placeholder="e.g. To secure financial sovereignty and ship our vision."
                     value={whyText}
                     onChange={(e) => setWhyText(e.target.value)}
-                    className="h-8 text-[16px] bg-content border-edge-subtle focus:border-accent"
+                    className="min-h-11 h-8 text-[16px] bg-content border-edge-subtle focus:border-accent"
                   />
                   <Button
                     size="sm"
@@ -607,7 +607,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="What is the exact physical next step?"
                 value={missionTitle}
                 onChange={(e) => setMissionTitle(e.target.value)}
-                className="h-9 text-[16px] bg-content border-edge-subtle focus:border-accent font-medium text-fg"
+                className="min-h-11 h-9 text-[16px] bg-content border-edge-subtle focus:border-accent font-medium text-fg"
               />
               <Button
                 type="button"
@@ -629,7 +629,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               <button
                 type="button"
                 onClick={() => setMissionTitle(latestCoach.nextAction)}
-                className="text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-colors"
+                className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-colors"
               >
                 <span>Suggest: &ldquo;{latestCoach.nextAction}&rdquo;</span>
                 <ArrowRight size={8} />
@@ -645,7 +645,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 <button
                   type="button"
                   onClick={() => setMicroSteps([])}
-                  className="text-fg-tertiary hover:text-fg-secondary text-[11px]"
+                  className="min-h-11 min-w-11 text-fg-tertiary hover:text-fg-secondary text-[11px]"
                 >
                   Clear
                 </button>
@@ -683,16 +683,25 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                   setTimeLeft(600);
                 }
               }}
-              className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                efMode ? "bg-amber-500" : "bg-surface-interactive"
-              )}
+              role="switch"
+              aria-checked={efMode}
+              aria-label="ADHD mode"
+              // The 36 x 20 track sits in a 44 px hit area (tests/e2e/target-size.spec.ts measures the button).
+              className="inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center"
             >
               <span
-                className={cn(
-                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-content shadow ring-0 transition duration-200 ease-in-out",
-                  efMode ? "translate-x-4" : "translate-x-0"
+                aria-hidden
+                className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  efMode ? "bg-amber-500" : "bg-surface-interactive"
                 )}
-              />
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-content shadow ring-0 transition duration-200 ease-in-out",
+                    efMode ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </span>
             </button>
           </div>
 
@@ -1048,7 +1057,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="What is the singular starting move for tomorrow?"
                 value={seedAction}
                 onChange={(e) => setSeedAction(e.target.value)}
-                className="h-8.5 text-[16px] bg-content border-edge-subtle focus:border-accent"
+                className="min-h-11 h-8.5 text-[16px] bg-content border-edge-subtle focus:border-accent"
               />
             </div>
 
@@ -1066,7 +1075,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     placeholder={`+Value in ${goal.unit || "units"}`}
                     value={progressDelta}
                     onChange={(e) => setProgressDelta(e.target.value)}
-                    className="h-8.5 text-[16px] bg-content border-edge-subtle focus:border-accent"
+                    className="min-h-11 h-8.5 text-[16px] bg-content border-edge-subtle focus:border-accent"
                   />
                 </div>
               </div>

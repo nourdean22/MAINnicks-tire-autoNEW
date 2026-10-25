@@ -69,6 +69,14 @@ interface BrainMemory {
   createdAt: string;
 }
 
+/** The reviewed-predictions verdict in the status grammar (it used to be an inline hsl colour). */
+const REVIEW_VERDICT_TONE = {
+  "well-calibrated": "text-emerald-300 border-emerald-400/30",
+  moderate: "text-amber-300 border-amber-400/30",
+  drift: "text-rose-300 border-rose-400/30",
+  unknown: "text-fg-tertiary border-edge-default",
+} as const;
+
 export function CalibrationSection() {
   const calibrationQuery = trpc.intelligence.calibrationReviews.useQuery(undefined, {
     staleTime: 1000 * 60, // 1 min
@@ -243,9 +251,36 @@ export function CalibrationSection() {
       <ReadStateNote state={readStatus} label="Calibration reviews" onRetry={() => void refetch()} retrying={isRetrying(calibrationQuery)} />
       {/* 1. SCOREBOARD PANEL */}
       {scoreboard && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Card A (prediction accuracy, 30 day Brier, verdict) left in wave E2: the page's CalibrationTile
-              shows the same numbers over predictions RESOLVED in 30 days (components/stats/calibration-tile.tsx). */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card A: REVIEWED predictions. Not the tile above the section: this is the Brier of
+              CalibrationReviewItem rows approved or corrected in review in the last 30 days, its accuracy
+              1 - sqrt(Brier) and a Brier-threshold verdict (lib/brain/calibration-engine.ts:360-439); the
+              tile reads raw resolved Prediction rows, hit rate and a claim-vs-reality verdict
+              (lib/brain/calibration.ts:166-219). Cut in wave E2 round 1 as a duplicate, which it is not;
+              restored in round 4 (Codex 4369253506) as a ruled row. Its states are the section's own. */}
+          <GlassCard ruled>
+            {/* GlassCard does not forward data attributes, so the marker sits inside. */}
+            <div data-calibration-card="reviewed-predictions">
+            <h3 className="mb-4 text-[15px] font-semibold text-fg">Reviewed predictions</h3>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold font-mono text-fg">
+                {scoreboard.predictionAccuracyPct !== null ? `${scoreboard.predictionAccuracyPct}%` : "none reviewed"}
+              </div>
+              <p className="text-[11px] text-fg-tertiary">
+                accuracy from review Brier &middot; {scoreboard.predictionCount30d} predictions (30d) &middot; Brier:{" "}
+                {scoreboard.rollingBrier30d !== null ? scoreboard.rollingBrier30d.toFixed(3) : "none"}
+              </p>
+              <div className="pt-2">
+                <Badge className={cn("border bg-transparent text-[11px] font-medium", REVIEW_VERDICT_TONE[scoreboard.calibrationVerdict as keyof typeof REVIEW_VERDICT_TONE] ?? REVIEW_VERDICT_TONE.unknown)}>
+                  {scoreboard.calibrationVerdict === "well-calibrated" && "Well calibrated"}
+                  {scoreboard.calibrationVerdict === "moderate" && "Moderate calibration"}
+                  {scoreboard.calibrationVerdict === "drift" && "Calibration drift"}
+                  {scoreboard.calibrationVerdict === "unknown" && "Fewer than 4 reviewed predictions"}
+                </Badge>
+              </div>
+            </div>
+            </div>
+          </GlassCard>
           {/* Card B: Task ROI Accuracy */}
           <GlassCard ruled className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div className="mb-4">
@@ -656,7 +691,7 @@ export function CalibrationSection() {
                               max="100" 
                               value={correctionRoi}
                               onChange={(e) => setCorrectionRoi(Number(e.target.value))}
-                              className="w-full h-1 bg-edge-strong rounded-surface appearance-none cursor-pointer accent-sky-500"
+                              className="h-11 w-full cursor-pointer accent-sky-500"
                             />
                             <div className="flex justify-between text-[11px] text-fg-tertiary font-mono">
                               <span>1 (Low)</span>
@@ -691,7 +726,7 @@ export function CalibrationSection() {
                                 type="text"
                                 value={correctionDescription}
                                 onChange={(e) => setCorrectionDescription(e.target.value)}
-                                className="w-full text-[16px] bg-surface-interactive border border-edge-default rounded-control px-2 py-1 text-fg placeholder:text-fg-tertiary focus:border-accent"
+                                className="min-h-11 w-full text-[16px] bg-surface-interactive border border-edge-default rounded-control px-2 py-1 text-fg placeholder:text-fg-tertiary focus:border-accent"
                                 placeholder="Describe actual results..."
                               />
                             </div>
@@ -704,7 +739,7 @@ export function CalibrationSection() {
                             type="text"
                             value={correctionNote}
                             onChange={(e) => setCorrectionNote(e.target.value)}
-                            className="w-full text-[16px] bg-surface-interactive border border-edge-default rounded-control px-2 py-1.5 text-fg placeholder:text-fg-tertiary focus:border-accent"
+                            className="min-h-11 w-full text-[16px] bg-surface-interactive border border-edge-default rounded-control px-2 py-1.5 text-fg placeholder:text-fg-tertiary focus:border-accent"
                             placeholder="Reason for override..."
                           />
                         </div>

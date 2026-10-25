@@ -87,7 +87,7 @@ export function PredictionStreaksCard() {
           <TrendingUp size={14} className="text-fg-secondary" />
           <span className="section-label">Prediction streaks</span>
         </div>
-        <FreshnessChip
+        <FreshnessChip className="min-h-11 min-w-11"
           lastFetchedAt={report.computedAt}
           source="api/brain/prediction-streaks"
           onReload={() => void streaksQuery.refetch()}

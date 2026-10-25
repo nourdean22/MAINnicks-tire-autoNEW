@@ -219,7 +219,7 @@ function StatsContent() {
               <GoalBoard />
             </section>
             {/* Calibration (W4: folded under Goals). Wave E2: the Brain calibration and prediction
-                streak cards lead it; the tile replaces the section's own duplicate accuracy card. */}
+                streak cards lead it; the section's reviewed-predictions card stays (different rows and formula). */}
             <section id="calibration" className="scroll-mt-16 space-y-4">
               <MasterySectionLabel label="Calibration · outcome benchmarking" />
               <CalibrationTile />

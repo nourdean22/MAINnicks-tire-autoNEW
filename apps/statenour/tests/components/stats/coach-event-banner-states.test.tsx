@@ -87,6 +87,21 @@ describe("CoachEventBanner on the Goals tab", () => {
     expect(el.querySelector('[data-read-state="offline"]'), "offline drawn as a failure or as nothing").toBeTruthy();
     expect(el.querySelector('[data-read-state="error"]')).toBeNull();
   });
+  it("thread 4369253504: going back online fetches again without Retry or the 60 s poll", async () => {
+    onlineManager.setOnline(false);
+    const fetchMock = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
+    vi.stubGlobal("fetch", fetchMock);
+    await mount(<CoachEventBanner surface="goals" limit={17} showReadState />);
+    expect(el.querySelector('[data-read-state="offline"]')).toBeTruthy();
+    const before = fetchMock.mock.calls.length;
+    fetchMock.mockImplementation(() => ok([EVENT]) as never);
+    await act(async () => {
+      onlineManager.setOnline(true);
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(fetchMock.mock.calls.length, "no fetch started when the connection returned").toBeGreaterThan(before);
+    expect(el.textContent).toContain("Run goal is drifting");
+  });
   it("a 500 is a failed read too", async () => {
     vi.stubGlobal("fetch", vi.fn(down));
     await mount(<CoachEventBanner surface="goals" limit={12} showReadState />);

@@ -77,11 +77,65 @@ const CASES: Case[] = [
   ["components/goals/execution-coach-sandbox.tsx", "focus timer ring animates its dash", /strokeDasharray=\{`\$\{\(timeLeft/, /transition-\[stroke-dasharray\]/, 1],
 ];
 
+/**
+ * Round 4 (Codex 4369253503): the spec now audits /stats?tab=goals and /stats?tab=body too, so every
+ * control those tabs mount is swept. A control counts when the spec would measure it: a field, a
+ * button, a FreshnessChip with a reload action, or a link styled as a box. A plain inline text link is
+ * left out (the spec's 24 px inline exception), as is a textarea with a taller min height.
+ */
+const TAB_FILES = [
+  "components/goals/goal-board.tsx",
+  "components/goals/execution-coach-sandbox.tsx",
+  "components/stats/calibration-section.tsx",
+  "components/stats/calibration-tile.tsx",
+  "components/brain/prediction-streaks-card.tsx",
+  "components/stats/forecast-duel.tsx",
+  "components/ultron/ghost-nick/ghost-nick-strip.tsx",
+  "components/stats/body-section.tsx",
+  "components/actions/mode-learn.tsx",
+  "components/mastery/coach-event-banner.tsx",
+  "components/mastery/mission-breadcrumb.tsx",
+];
+const TAB_NAMES = ["button", "Button", "input", "Input", "select", "textarea", "Link", "a", "FreshnessChip"];
+const HEIGHT_FLOOR = /(?<![\w-])(min-h-11|h-11|h-12|h-14|min-h-12|min-h-\[(?:4[4-9]|[5-9]\d|\d{3})px\])(?![\w-])/;
+
+function measured(src: string): string[] {
+  return openingTags(src, TAB_NAMES).filter((t) => {
+    if (/^<input\b/.test(t) && /type="hidden"/.test(t)) return false;
+    if (/^<(a|Link)\b/.test(t)) return /href=/.test(t) && /(?<![\w-])(inline-flex|flex|block|inline-block)(?![\w-])/.test(t);
+    if (/^<FreshnessChip\b/.test(t)) return /onReload=/.test(t);
+    return true;
+  });
+}
+
+function unfloored(src: string): string[] {
+  return measured(stripComments(src))
+    .filter((t) => !HEIGHT_FLOOR.test(t))
+    .map((t) => t.replace(/\s+/g, " ").slice(0, 110));
+}
+
 describe("controls CI measured under the floor carry it in their own tag", () => {
   it.each(CASES)("%s: %s", (file, _control, anchor, floor, located) => {
     const [found, violations] = check(readFileSync(join(ROOT, file), "utf8"), anchor, floor);
     expect(found, "the check located no tag: the control moved or was renamed").toBe(located);
     expect(violations).toEqual([]);
+  });
+
+  it("round 4: every measured control on the Goals and Body tabs carries a height floor on its tag", () => {
+    const bad = TAB_FILES.flatMap((f) => unfloored(readFileSync(join(ROOT, f), "utf8")).map((t) => `${f}: ${t}`));
+    expect(bad).toEqual([]);
+  });
+
+  it("round 4: the sweep located its subjects (a scanner that sees nothing passes on anything)", () => {
+    const seen = TAB_FILES.map((f) => measured(stripComments(readFileSync(join(ROOT, f), "utf8"))).length);
+    expect(seen.reduce((a, b) => a + b, 0)).toBeGreaterThan(140);
+    expect(measured(stripComments(readFileSync(join(ROOT, "components/goals/goal-board.tsx"), "utf8"))).length).toBeGreaterThanOrEqual(40);
+  });
+
+  it("round 4 positive control: a planted small Goals control fails the sweep; an inline text link does not", () => {
+    expect(unfloored(`<Input type="number" className="h-5 w-14" />`)).toHaveLength(1);
+    expect(unfloored(`<button type="button" className="px-1.5 py-0.5">Log</button>`)).toHaveLength(1);
+    expect(unfloored(`<a href="/x" className="underline">source</a>`)).toHaveLength(0);
   });
 
   it("positive control: a planted control left small fails the same check", () => {

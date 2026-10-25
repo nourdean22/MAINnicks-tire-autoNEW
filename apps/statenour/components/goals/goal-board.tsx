@@ -724,7 +724,7 @@ export function GoalBoard() {
                   else if (newTitle.trim()) setShowAddForm(true);
                 }
               }}
-              className="h-9 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary focus:border-accent transition-colors"
+              className="min-h-11 h-9 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary focus:border-accent transition-colors"
             />
             <Button
               size="sm"
@@ -746,7 +746,7 @@ export function GoalBoard() {
                 placeholder="Why does this matter?"
                 value={newWhy}
                 onChange={(e) => setNewWhy(e.target.value)}
-                className="h-7 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary"
+                className="min-h-11 h-7 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-mono text-[11px] text-fg-tertiary">
@@ -1014,7 +1014,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditTitle(e.target.value)}
                             aria-label="Goal title"
                             placeholder="Goal title"
-                            className="w-full bg-content border border-amber-500/40 rounded-control px-2 py-1 text-[16px] font-semibold text-fg focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-amber-500/40 rounded-control px-2 py-1 text-[16px] font-semibold text-fg focus:outline-none focus:border-accent"
                             autoFocus
                           />
                           <input
@@ -1023,7 +1023,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditWhy(e.target.value)}
                             aria-label="Why this goal"
                             placeholder="Why does this matter? (optional)"
-                            className="w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary italic focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary italic focus:outline-none focus:border-accent"
                           />
                           {/* May 02 · target/metric/unit row: feeds the
                               pace math + progress chip on the goal card. */}
@@ -1035,7 +1035,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditTargetValue(e.target.value)}
                               aria-label="Target value"
                               placeholder="target"
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="text"
@@ -1043,7 +1043,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditMetric(e.target.value)}
                               aria-label="Metric"
                               placeholder="metric"
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="text"
@@ -1051,7 +1051,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditUnit(e.target.value)}
                               aria-label="Unit"
                               placeholder="unit"
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                           </div>
                           {/* May 02 · deadline + domain + status row */}
@@ -1060,12 +1060,12 @@ export function GoalBoard() {
                               type="date"
                               value={editDeadline}
                               onChange={(e) => setEditDeadline(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <select
                               value={editDomain}
                               onChange={(e) => setEditDomain(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="" disabled>Pick a domain</option>
                               <option value="business">business</option>
@@ -1077,7 +1077,7 @@ export function GoalBoard() {
                             <select
                               value={editStatus}
                               onChange={(e) => setEditStatus(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="" disabled>Pick a status</option>
                               <option value="active">active</option>
@@ -1094,7 +1094,7 @@ export function GoalBoard() {
                           <select
                             value={editParentId}
                             onChange={(e) => setEditParentId(e.target.value)}
-                            className="w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                           >
                             <option value="">No parent goal</option>
                             {goals
@@ -1113,7 +1113,7 @@ export function GoalBoard() {
                             <select
                               value={editKind}
                               onChange={(e) => setEditKind(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="" disabled>Pick a kind</option>
                               <option value="metric">metric (target)</option>
@@ -1123,7 +1123,7 @@ export function GoalBoard() {
                             <select
                               value={editConviction}
                               onChange={(e) => setEditConviction(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">No conviction</option>
                               <option value="1">1 · meh</option>
@@ -1138,7 +1138,7 @@ export function GoalBoard() {
                             value={editIdentityLine}
                             onChange={(e) => setEditIdentityLine(e.target.value)}
                             placeholder="Identity line: the kind of person who... (narrative)"
-                            className="w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-sky-300/90 italic focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-sky-300/90 italic focus:outline-none focus:border-accent"
                           />
                           <div className="grid grid-cols-[1fr_auto] gap-1.5">
                             <input
@@ -1146,14 +1146,14 @@ export function GoalBoard() {
                               value={editKillCriteria}
                               onChange={(e) => setEditKillCriteria(e.target.value)}
                               placeholder="Kill if... (pre-committed exit)"
-                              className="bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="date"
                               value={editKillBy}
                               onChange={(e) => setEditKillBy(e.target.value)}
                               title="Kill-by date"
-                              className="bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -1179,7 +1179,7 @@ export function GoalBoard() {
                             <select
                               value={editHorizon}
                               onChange={(e) => setEditHorizon(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">No horizon</option>
                               <option value="DAY">Day</option>
@@ -1270,7 +1270,7 @@ export function GoalBoard() {
                                 }
                               }}
                               title={`${v.reason} · tap to archive`}
-                              className={cn("text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
+                              className={cn("min-h-11 min-w-11 text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
                                 isStale
                                   ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
                                   : "border-amber-500/30 bg-amber-500/5 text-amber-400",
@@ -1306,7 +1306,7 @@ export function GoalBoard() {
                                   );
                                 }}
                                 title={`Part of: ${g.ladder!.parent!.title}`}
-                                className="inline-flex items-center gap-1 rounded-control border border-sky-500/30 bg-sky-500/5 px-1.5 py-0.5 text-sky-300 hover:bg-sky-500/15 transition-colors max-w-[60%]"
+                                className="min-h-11 min-w-11 inline-flex items-center gap-1 rounded-control border border-sky-500/30 bg-sky-500/5 px-1.5 py-0.5 text-sky-300 hover:bg-sky-500/15 transition-colors max-w-[60%]"
                               >
                                 <ArrowUp size={9} className="shrink-0" />
                                 <span className="truncate">{g.ladder!.parent!.title}</span>
@@ -1428,7 +1428,7 @@ export function GoalBoard() {
                               setLogId(g.id);
                               setLogValue("");
                             }}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
+                            className="min-h-11 min-w-11 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
                             title="Log progress"
                           >
                             <span>
@@ -1458,7 +1458,7 @@ export function GoalBoard() {
                                 }
                               }}
                               placeholder="+N"
-                              className="h-5 w-14 px-1.5 text-[16px] bg-content border-amber-500/40"
+                              className="min-h-11 h-5 w-14 px-1.5 text-[16px] bg-content border-amber-500/40"
                             />
                             <button
                               type="button"
@@ -1575,8 +1575,7 @@ export function GoalBoard() {
                             href={`/missions?goalId=${g.id}`}
                             onClick={(e) => e.stopPropagation()}
                             title={`Add a daily-increment task for this goal (${suggestedAmount}/day)`}
-                            className={cn(
-                              "mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform",
+                            className={cn("min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform",
                               tone
                             )}
                           >
@@ -1603,7 +1602,7 @@ export function GoalBoard() {
                         <Link
                           href={`/missions?taskId=${g.nextMove.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[11px] hover:bg-emerald-500/10 transition-colors w-full text-left"
+                          className="min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[11px] hover:bg-emerald-500/10 transition-colors w-full text-left"
                           title="Open this task on the Actions page"
                         >
                           <Zap size={9} className="text-emerald-400 shrink-0" />
@@ -1633,7 +1632,7 @@ export function GoalBoard() {
                               e.stopPropagation();
                               setMilestonesGoalId(g.id);
                             }}
-                            className="text-[11px] px-1.5 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:border-sky-500/70 hover:bg-sky-500/25 transition-colors font-medium inline-flex items-center gap-0.5"
+                            className="min-h-11 min-w-11 text-[11px] px-1.5 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:border-sky-500/70 hover:bg-sky-500/25 transition-colors font-medium inline-flex items-center gap-0.5"
                             title="Break this goal into 3-5 milestones with Nick, then spawn the mission"
                           >
                             <Brain size={8} />
@@ -1708,7 +1707,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
                           >
                             Show Legacy Details
                           </button>
@@ -1726,7 +1725,7 @@ export function GoalBoard() {
                               <button
                                 onClick={() => coachGoal(g.id)}
                                 disabled={coachingId === g.id}
-                                className="text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
+                                className="min-h-11 min-w-11 text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
                               >
                                 {coachingId === g.id ? "Thinking…" : "Refresh"}
                               </button>
@@ -1819,14 +1818,14 @@ export function GoalBoard() {
                               e.stopPropagation();
                               startEdit(g);
                             }}
-                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                           >
                             <Pencil size={9} />
                             Edit
                           </button>
                           <button
                             onClick={() => archiveGoal(g.id)}
-                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                             title="pauses the goal · history preserved · recoverable"
                           >
                             <Trash2 size={9} />
@@ -1842,7 +1841,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
+                            className="min-h-11 min-w-11 ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
                           >
                             Show Execution Coach
                           </button>

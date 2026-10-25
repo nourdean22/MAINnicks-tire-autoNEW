@@ -250,6 +250,20 @@ describe("CalibrationSection says which state it is in (wave E2 fix)", () => {
   }
   const reviews = { pending: [], history: [], lessons: [], scoreboard: null };
 
+  it("thread 4369253506: the reviewed-predictions card is back (its numbers are not the tile's)", async () => {
+    const scoreboard = {
+      predictionCount30d: 6, rollingBrier30d: 0.12, predictionAccuracyPct: 65, taskRoiCount30d: 0, taskRoiMae30d: null,
+      taskRoiBias30d: null, taskOverestimateRate30d: 0, calibrationVerdict: "well-calibrated", biasVerdict: "calibrated", colorHsl: "hsl(0,0%,0%)",
+    };
+    await mountSection(ok({ ...reviews, scoreboard }));
+    const card = [...el.querySelectorAll("h3")].find((h) => /reviewed predictions/i.test(h.textContent ?? ""));
+    expect(card, "card A is missing").toBeTruthy();
+    const box = card!.closest("[data-calibration-card]")!;
+    expect(box.textContent).toMatch(/65%/);
+    expect(box.textContent).toMatch(/0\.120/);
+    expect(box.textContent).toMatch(/well calibrated/i);
+    expect(box.querySelector("[style]"), "the verdict colour is an inline style, not the status grammar").toBeNull();
+  });
   it("a paused read before any data says offline, never 'queue clear'", async () => {
     await mountSection(paused);
     expect(el.querySelector('[data-read-state="offline"]')).toBeTruthy();

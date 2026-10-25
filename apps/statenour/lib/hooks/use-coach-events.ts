@@ -15,7 +15,7 @@
  * `enabled: false` (e.g. a closed side pane) unsubscribes so no poll runs.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
 import { useOnline, type ReadState } from "@/lib/query-state";
 
@@ -152,6 +152,13 @@ export function useCoachEvents(
   // The readState vocabulary (lib/query-state.ts) for a bare fetch: nothing read and no connection is
   // offline; a failure with nothing cached is error; a failure over cached events is stale.
   const online = useOnline();
+  // Codex 4369253504: the offline note promises the nudges show when the connection returns, so the
+  // offline-to-online transition starts a read (not the 60 s poll, not Retry). fetchEntry dedupes.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current && active && surface) void fetchEntry(getEntry(surface, limit));
+    wasOnline.current = online;
+  }, [online, active, surface, limit]);
   const state: ReadState = !read && !online ? "offline" : failed ? (read ? "stale" : "error") : read ? "ready" : "loading";
   return { events, reload, failed, read, state };
 }

@@ -3,9 +3,9 @@
 /**
  * CalibrationTile: how well Nour's predictions resolved in the last 30 days (mean Brier, hit rate,
  * claim-vs-reality gap, verdict). Moved from the Brain Self-model fold to Stats Goals in wave E2
- * (2026-10-24), where it heads the calibration section. It replaces CalibrationSection's "Prediction
- * calibration" card, which showed the same numbers (accuracy, 30 day Brier, verdict) over a window
- * keyed on creation time; this read keys on resolution time and renders its own failure.
+ * (2026-10-24), where it heads the calibration section. It is NOT CalibrationSection's "Reviewed
+ * predictions" card: that one scores CalibrationReviewItem rows approved in review (Brier thresholds); this
+ * one reads raw resolved Prediction rows (hit rate, claim-vs-reality verdict). Both show (round 4).
  *
  * Silent when resolved === 0: a quiet 30 days shows nothing. A FAILED read is not that: it renders
  * explicitly (2026-09-02); the helper used to swallow Prisma errors into `resolved: 0`.

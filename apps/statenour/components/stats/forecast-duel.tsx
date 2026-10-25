@@ -124,7 +124,7 @@ export function ForecastDuel() {
             <input
               type="range" min={1} max={99} value={confidence}
               onChange={(e) => setConfidence(Number(e.target.value))}
-              className="flex-1"
+              className="min-h-11 flex-1"
             />
             <span className="w-10 text-right tabular-nums">{confidence}%</span>
           </label>

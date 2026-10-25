@@ -491,7 +491,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           </div>
           <button
             onClick={() => setFocusReviewMode(false)}
-            className="text-[11px] font-mono text-fg-tertiary hover:text-fg transition-colors"
+            className="min-h-11 min-w-11 text-[11px] font-mono text-fg-tertiary hover:text-fg transition-colors"
           >
             Exit Focus
           </button>
@@ -529,7 +529,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             <Button
               onClick={() => setShowSummary(true)}
               variant="outline"
-              className="mx-auto h-10 px-6 border-violet-500/30 text-violet-300 hover:bg-violet-500/10 hover:text-violet-200 text-xs font-mono"
+              className="min-h-11 min-w-11 mx-auto h-10 px-6 border-violet-500/30 text-violet-300 hover:bg-violet-500/10 hover:text-violet-200 text-xs font-mono"
             >
               Show Summary
             </Button>
@@ -602,7 +602,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 setReviewTimeLeft(45);
                 setShowSummary(false);
               }}
-              className="text-[11px] h-7 px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-semibold flex items-center gap-1.5"
+              className="min-h-11 min-w-11 text-[11px] h-7 px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-semibold flex items-center gap-1.5"
               id="adhd-focus-review-btn"
             >
               <Zap size={11} className="fill-amber-400/20" />
@@ -628,13 +628,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => run(rev.topic, "teach")}
-                  className="text-[11px] px-2 py-0.5 rounded-control bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 border border-violet-500/20 font-semibold"
+                  className="min-h-11 min-w-11 text-[11px] px-2 py-0.5 rounded-control bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 border border-violet-500/20 font-semibold"
                 >
                   Deep dive
                 </button>
                 <button
                   onClick={() => completeReview(rev.key)}
-                  className="text-[11px] px-2 py-0.5 rounded-control text-amber-400/70 hover:text-amber-300 border border-amber-500/20"
+                  className="min-h-11 min-w-11 text-[11px] px-2 py-0.5 rounded-control text-amber-400/70 hover:text-amber-300 border border-amber-500/20"
                 >
                   Got it ✓
                 </button>
@@ -663,13 +663,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => isSubmitEnter(e) && run()}
             disabled={loading}
-            className="h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
+            className="min-h-11 h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
           />
           <Button
             size="sm"
             onClick={() => run()}
             disabled={loading || !query.trim()}
-            className="h-9 px-3 bg-violet-500/20 text-violet-200 hover:bg-violet-500 hover:text-black border border-violet-500/30 font-semibold shrink-0"
+            className="min-h-11 min-w-11 h-9 px-3 bg-violet-500/20 text-violet-200 hover:bg-violet-500 hover:text-black border border-violet-500/30 font-semibold shrink-0"
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={14} />}
           </Button>
@@ -704,7 +704,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               key={i}
               onClick={() => run(dec.topic, "teach")}
               disabled={loading}
-              className="w-full flex items-start gap-2.5 p-2.5 rounded-control border border-cyan-500/20 bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06] hover:border-cyan-500/30 text-left transition-all group"
+              className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2.5 rounded-control border border-cyan-500/20 bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06] hover:border-cyan-500/30 text-left transition-all group"
             >
               <Lightbulb size={12} className="text-cyan-500/60 group-hover:text-cyan-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
@@ -737,7 +737,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 key={s.query}
                 onClick={() => run(s.query, s.tool)}
                 disabled={loading}
-                className="flex items-start gap-2.5 p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-all group"
+                className="min-h-11 min-w-11 flex items-start gap-2.5 p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-all group"
               >
                 <div className="mt-0.5 shrink-0">
                   {s.tool === "research" ? (
@@ -783,7 +783,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               <button
                 key={i}
                 onClick={() => setActive(h)}
-                className="w-full flex items-start gap-2.5 p-2 rounded-control hover:bg-surface-hover text-left transition-colors group"
+                className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2 rounded-control hover:bg-surface-hover text-left transition-colors group"
               >
                 <div className="mt-0.5 shrink-0">
                   {h.tool === "teach" ? (
@@ -877,14 +877,14 @@ function TeachCard({
             <button
               onClick={() => onSaveToBrain(data.topic, data.mvuRead!)}
               title="Save to brain"
-              className="p-1.5 text-violet-400/50 hover:text-violet-300 rounded-control hover:bg-violet-500/10"
+              className="min-h-11 min-w-11 p-1.5 text-violet-400/50 hover:text-violet-300 rounded-control hover:bg-violet-500/10"
             >
               <Brain size={12} />
             </button>
           )}
           <button
             onClick={onDismiss}
-            className="p-1.5 text-fg-tertiary hover:text-fg rounded-control hover:bg-surface-hover"
+            className="min-h-11 min-w-11 p-1.5 text-fg-tertiary hover:text-fg rounded-control hover:bg-surface-hover"
           >
             &times;
           </button>
@@ -895,7 +895,7 @@ function TeachCard({
       {data.mvuRead && (
         <button
           onClick={() => setExpandedSection(expandedSection === "mvu" ? null : "mvu")}
-          className="w-full text-left"
+          className="min-h-11 min-w-11 w-full text-left"
         >
           <div className={cn(
             "p-2.5 rounded-control border transition-all",
@@ -920,7 +920,7 @@ function TeachCard({
       {data.keyConcepts && data.keyConcepts.length > 0 && (
         <button
           onClick={() => setExpandedSection(expandedSection === "concepts" ? null : "concepts")}
-          className="w-full text-left"
+          className="min-h-11 min-w-11 w-full text-left"
         >
           <div className={cn(
             "p-2.5 rounded-control border transition-all",
@@ -955,7 +955,7 @@ function TeachCard({
         (data.commonMistakes && data.commonMistakes.length > 0)) && (
         <button
           onClick={() => setExpandedSection(expandedSection === "rules" ? null : "rules")}
-          className="w-full text-left"
+          className="min-h-11 min-w-11 w-full text-left"
         >
           <div className={cn(
             "p-2.5 rounded-control border transition-all",
@@ -1007,7 +1007,7 @@ function TeachCard({
           <button
             onClick={() => onSpawn(data.tryToday!)}
             disabled={spawning}
-            className="shrink-0 px-2.5 py-1 rounded-control bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black text-[11px] font-semibold border border-emerald-500/30 transition-all"
+            className="min-h-11 min-w-11 shrink-0 px-2.5 py-1 rounded-control bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black text-[11px] font-semibold border border-emerald-500/30 transition-all"
           >
             <Plus size={10} className="inline mr-0.5" />
             Loop it
@@ -1029,7 +1029,7 @@ function TeachCard({
                   href={r.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-cyan-300 hover:text-cyan-200 underline truncate"
+                  className="inline-flex min-h-11 items-center text-cyan-300 hover:text-cyan-200 underline truncate"
                 >
                   {r.title}
                 </a>
@@ -1052,7 +1052,7 @@ function TeachCard({
               <button
                 key={i}
                 onClick={() => onFollowUp(step.topic)}
-                className="w-full flex items-start gap-2.5 p-2 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-violet-500/20 text-left transition-all group"
+                className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-violet-500/20 text-left transition-all group"
               >
                 <div className="flex flex-col items-center shrink-0 mt-0.5">
                   <span className="w-5 h-5 rounded-full bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-[11px] font-semibold text-violet-400">
@@ -1085,7 +1085,7 @@ function TeachCard({
             <button
               key={i}
               onClick={() => onFollowUp(q)}
-              className="w-full flex items-start gap-2 text-[12px] text-fg-tertiary hover:text-fg p-1 rounded-control hover:bg-surface-hover text-left transition-colors"
+              className="min-h-11 min-w-11 w-full flex items-start gap-2 text-[12px] text-fg-tertiary hover:text-fg p-1 rounded-control hover:bg-surface-hover text-left transition-colors"
             >
               <ArrowRight size={9} className="shrink-0 mt-0.5" />
               <span>{q}</span>
@@ -1124,14 +1124,14 @@ function ResearchCard({
             <button
               onClick={() => onSaveToBrain(data.query, data.content!)}
               title="Save to brain"
-              className="p-1.5 text-cyan-400/50 hover:text-cyan-300 rounded-control hover:bg-cyan-500/10"
+              className="min-h-11 min-w-11 p-1.5 text-cyan-400/50 hover:text-cyan-300 rounded-control hover:bg-cyan-500/10"
             >
               <Brain size={12} />
             </button>
           )}
           <button
             onClick={onDismiss}
-            className="p-1.5 text-fg-tertiary hover:text-fg rounded-control hover:bg-surface-hover"
+            className="min-h-11 min-w-11 p-1.5 text-fg-tertiary hover:text-fg rounded-control hover:bg-surface-hover"
           >
             &times;
           </button>
@@ -1164,7 +1164,7 @@ function ResearchCard({
               href={c}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-[11px] text-cyan-300 hover:text-cyan-200 underline truncate"
+              className="min-h-11 min-w-11 block text-[11px] text-cyan-300 hover:text-cyan-200 underline truncate"
             >
               {c}
             </a>
