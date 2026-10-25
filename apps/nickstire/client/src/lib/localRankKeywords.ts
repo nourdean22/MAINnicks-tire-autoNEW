@@ -1,36 +1,13 @@
 /**
  * Local SEO rank-tracking target keywords + the report shape.
  *
- * 2026-06-10 GBP growth wave. There is GSC-based rank shift detection
- * server-side, but no curated target-keyword list with a read surface.
- * This is the canonical target set + a manual/future-API report row
- * shape. No scraping, no fabricated ranks — a row's rank is null until
- * a real source (GSC position or manual SERP check) fills it.
+ * 2026-10-25: the keyword list moved to shared/localRankKeywords.ts so the server read
+ * (localGrowth.targetKeywordRanks) and the admin panel share one list; this path
+ * re-exports it for existing importers (server/gbp-growth.test.ts).
  */
+import { RANK_KEYWORDS, type RankKeyword } from "@shared/localRankKeywords";
 
-export interface RankKeyword {
-  keyword: string;
-  /** intent grouping for the report. */
-  group: "auto-repair" | "tires" | "brakes" | "diagnostics" | "emissions" | "oil" | "suspension" | "local-euclid";
-}
-
-export const RANK_KEYWORDS: RankKeyword[] = [
-  { keyword: "Cleveland auto repair", group: "auto-repair" },
-  { keyword: "auto repair near me", group: "auto-repair" },
-  { keyword: "mechanic Cleveland", group: "auto-repair" },
-  { keyword: "tire shop Cleveland", group: "tires" },
-  { keyword: "used tires Cleveland", group: "tires" },
-  { keyword: "tire repair Cleveland", group: "tires" },
-  { keyword: "tires Euclid Ave", group: "tires" },
-  { keyword: "brake repair Cleveland", group: "brakes" },
-  { keyword: "brake shop Euclid", group: "brakes" },
-  { keyword: "check engine light repair Cleveland", group: "diagnostics" },
-  { keyword: "Ohio E-Check repair", group: "emissions" },
-  { keyword: "emissions repair Cleveland", group: "emissions" },
-  { keyword: "oil change Cleveland", group: "oil" },
-  { keyword: "suspension repair Cleveland", group: "suspension" },
-  { keyword: "auto repair Euclid", group: "local-euclid" },
-];
+export { RANK_KEYWORDS, type RankKeyword };
 
 /** One report row per keyword. rank null = not yet measured (never fake it). */
 export interface RankRow {
