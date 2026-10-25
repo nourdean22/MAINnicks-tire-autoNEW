@@ -19,20 +19,32 @@
  *
  * No network, no DB, writes only to the OS temp dir (controls). Run from apps/nickstire:
  *   node scripts/place-page-similarity.mjs [--threshold 0.8]
- * Exit 0 = controls passed and pages were measured; 1 = a control failed; 2 = nothing measured.
+ * Exit 0 = controls passed and pages were measured; 1 = a control failed; 2 = nothing measured, or a bad
+ * argument (--threshold must be a number from 0 to 1), or fewer than 2 place pages found.
+ * PLACE_SIM_PRERENDER=<dir> points it at another prerendered tree (the controls use it for a planted partial set).
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PRERENDER = path.join(ROOT, "prerendered");
-const tIdx = process.argv.indexOf("--threshold");
-const THRESHOLD = tIdx > -1 ? Number(process.argv[tIdx + 1]) : 0.8;
+const PRERENDER = process.env.PLACE_SIM_PRERENDER ? path.resolve(process.env.PLACE_SIM_PRERENDER) : path.join(ROOT, "prerendered");
+let THRESHOLD = 0.8;
+const IS_CHILD = process.env.PLACE_SIM_CHILD === "1"; // set on the controls' own child runs so they do not spawn more
 const PLACE_GROUPS = ["city", "neighborhood"];
 const SLUG_SUFFIX = /-(ohio|oh|auto-repair|tire-shop|tires)$/;
+
+/** `--threshold <n>`: absent = 0.8; present means a number from 0 to 1 or an error (a NaN would make every comparison silently false). */
+export function parseThreshold(argv) {
+  const i = argv.indexOf("--threshold");
+  if (i === -1) return 0.8;
+  const raw = argv[i + 1];
+  const n = raw === undefined || raw.trim() === "" ? NaN : Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) throw new Error(`--threshold needs a number from 0 to 1, got ${raw === undefined ? "nothing" : JSON.stringify(raw)}`);
+  return n;
+}
 
 /** Route paths of the place groups, from the live route table (one tsx call, no shell quoting). */
 function placeRoutes() {
@@ -139,10 +151,32 @@ function controls(places) {
     ok &&= p;
     console.log(`  ${p ? "PASS" : "FAIL"}  ${name}: ${f(v)}`);
   }
+  const check = (name, pass, detail) => { ok &&= pass; console.log(`  ${pass ? "PASS" : "FAIL"}  ${name}: ${detail}`); };
+
+  // C7 the --threshold parser: absent and valid values pass, every unusable value throws instead of becoming NaN.
+  const parse = (argv) => { try { return String(parseThreshold(argv)); } catch { return "error"; } };
+  const got = [[], ["--threshold", "0.9"], ["--threshold", "0"], ["--threshold"], ["--threshold", "abc"], ["--threshold", ""], ["--threshold", "1.5"], ["--threshold", "-0.1"]].map(parse);
+  check("C7 --threshold parser (absent, 0.9, 0 ok; missing, abc, empty, 1.5, -0.1 refused)", got.join(",") === "0.8,0.9,0,error,error,error,error,error", got.join(","));
+
+  if (!IS_CHILD) {
+    // C8/C9 run this script as a child, so the EXIT CODE is what is controlled, not just the helper.
+    const run = (args, env) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], { cwd: ROOT, encoding: "utf8", timeout: 120000, env: { ...process.env, PLACE_SIM_CHILD: "1", ...env } });
+    const bad = run(["--threshold", "abc"], {});
+    check("C8 a bad --threshold exits 2 with a message", bad.status === 2 && /--threshold needs a number/.test(bad.stderr), `exit ${bad.status}`);
+    // A partial prerender: only the control pages exist, so exactly one set A page (/amherst-ohio) is present.
+    const partial = path.join(dir, "partial");
+    for (const r of ["/amherst-ohio", "/brakes", "/car-care-guide", "/used-tires-cleveland"]) {
+      mkdirSync(path.join(partial, r.replace(/^\//, "")), { recursive: true });
+      copyFileSync(src(r), path.join(partial, r.replace(/^\//, ""), "index.html"));
+    }
+    const part = run([], { PLACE_SIM_PRERENDER: partial });
+    check("C9 a partial prerender with fewer than 2 set A pages exits 2 and says how many", part.status === 2 && /only 1 set A page/.test(part.stderr), `exit ${part.status}, ${(part.stderr.match(/UNMEASURED[^\n]*/) || [""])[0].slice(0, 90)}`);
+  }
   return ok;
 }
 
 function main() {
+  try { THRESHOLD = parseThreshold(process.argv.slice(2)); } catch (e) { console.error(`${e.message}. Usage: node scripts/place-page-similarity.mjs [--threshold 0.8]`); process.exit(2); }
   if (!existsSync(PRERENDER)) { console.error(`UNMEASURED: no prerendered tree at ${PRERENDER}`); process.exit(2); }
   const routes = placeRoutes();
   const present = new Set(walkIndexFiles(PRERENDER));
@@ -168,7 +202,9 @@ function main() {
   console.log(`\nPAGES: set A (route groups ${PLACE_GROUPS.join("+")}) ${setA.length} of ${routes.length} routes have a prerendered file` +
     `${missingA.length ? ` (${missingA.length} UNMEASURED, no file: ${missingA.join(" ")})` : ""}; set B (other pages naming a place) ${setB.length}; ` +
     `no <main> ${noMain.length}${noMain.length ? ` (${noMain.join(" ")})` : ""}; measured ${pages.length}`);
-  if (pages.length < 2) { console.error("UNMEASURED: fewer than 2 pages"); process.exit(2); }
+  // The question is about the place pages, so the guard counts set A on its own: set B pages must not make up the number.
+  const nA = pages.filter((p) => p.set === "A").length;
+  if (nA < 2) { console.error(`UNMEASURED: only ${nA} set A page${nA === 1 ? "" : "s"} measured (${setA.length} of ${routes.length} routes have a file, need at least 2); no pair or percentage can be reported`); process.exit(2); }
   const words = pages.map((p) => p.words).sort((x, y) => x - y);
   console.log(`MAIN-TEXT WORDS per page: min ${words[0]}, median ${words[words.length >> 1]}, max ${words[words.length - 1]}`);
   console.log(`SET B pages (masked place in brackets): ${setB.map((b) => `${b.route}[${b.place}]`).join(" ") || "(none)"}`);

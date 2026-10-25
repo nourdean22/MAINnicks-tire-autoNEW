@@ -41,7 +41,7 @@ const MIME: Record<string, string> = {
 
 /** Page-side recorder: first time the tile exists, and first time it is on screen and effectively opaque. */
 const INIT_SCRIPT = `(() => {
-  const s = (window.__fv = { tileInDom: null, tileVisible: null, fcp: null, lcp: null });
+  const s = (window.__fv = { tileInDom: null, tileVisible: null, fcp: null, lcp: null, lcpSize: null, lcpUrl: null, lcpEl: null });
   const re = /get tires now/i;
   const eff = (el) => { let o = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const c = getComputedStyle(n); if (c.display === "none" || c.visibility === "hidden") return 0; o *= parseFloat(c.opacity); } return o; };
   const tick = () => {
@@ -57,7 +57,8 @@ const INIT_SCRIPT = `(() => {
   };
   requestAnimationFrame(tick);
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === "first-contentful-paint") s.fcp = e.startTime; }).observe({ type: "paint", buffered: true }); } catch {}
-  try { new PerformanceObserver((l) => { const e = l.getEntries(); if (e.length) s.lcp = e[e.length - 1].startTime; }).observe({ type: "largest-contentful-paint", buffered: true }); } catch {}
+  // The LCP entry names its element (null once that element left the DOM) and, for an image, its URL: record both, so the report says WHICH element was the largest paint.
+  try { new PerformanceObserver((l) => { const e = l.getEntries(); if (!e.length) return; const x = e[e.length - 1]; s.lcp = x.startTime; s.lcpSize = x.size; s.lcpUrl = x.url || null; const el = x.element; s.lcpEl = el ? { tag: el.tagName.toLowerCase(), id: el.id || null, cls: String(el.className || "").slice(0, 80) || null, src: el.currentSrc || el.getAttribute("src") || null, text: (el.textContent || "").trim().slice(0, 40) || null } : null; }).observe({ type: "largest-contentful-paint", buffered: true }); } catch {}
 })();`;
 
 /** Page-side: share of the viewport whose topmost hit target sits inside a fixed or sticky layer. */
@@ -137,9 +138,10 @@ test("home first view on a phone, throttled 4G", async ({}, info) => {
 });
 
 /** Wait out the settling window (late fixed layers mount, a later and larger paint can arrive), then read the recorder. */
-async function settle(page: Page): Promise<Record<string, number | null>> {
+type Recorder = Record<string, number | null> & { lcpUrl: string | null; lcpEl: { tag: string; id: string | null; cls: string | null; src: string | null; text: string | null } | null };
+async function settle(page: Page): Promise<Recorder> {
   await page.waitForTimeout(SETTLE_MS);
-  return page.evaluate(() => (window as unknown as { __fv: Record<string, number | null> }).__fv);
+  return page.evaluate(() => (window as unknown as { __fv: Recorder }).__fv);
 }
 
 async function measure(browser: Browser, info: TestInfo) {
@@ -207,6 +209,8 @@ async function measure(browser: Browser, info: TestInfo) {
     const s = await settle(page);
     controls.lcpPlantedLarger2500ms = s.lcp && Math.round(s.lcp);
     expect(s.lcp ?? 0, "C4: a larger paint planted at 2500 ms reaches lcp (read after the settle window)").toBeGreaterThanOrEqual(2400);
+    controls.lcpPlantedElement = s.lcpEl;
+    expect(s.lcpEl?.tag, "C4b: the recorder names the planted h1 as the LCP element").toBe("h1");
     await context.close();
   }
 
@@ -231,7 +235,7 @@ async function measure(browser: Browser, info: TestInfo) {
     const scrollY = await page.evaluate(() => window.scrollY);
     const after = (await page.evaluate(MEASURE_FN)) as { sharePct: number; layers: unknown[] };
     await page.screenshot({ path: `test-results/home-first-view-scrolled-run${i}.png` });
-    runs.push({ run: i, throttled, tileInDomMs: fv.tileInDom && Math.round(fv.tileInDom), tileVisibleMs: fv.tileVisible && Math.round(fv.tileVisible), fcpMs: fv.fcp && Math.round(fv.fcp), lcpMs: fv.lcp && Math.round(fv.lcp), lcpAtTileMs: lcpAtTile && Math.round(lcpAtTile), requestsFinished: requests.length, scrollY, coverageAtTop: before, coverageAfterScroll: after });
+    runs.push({ run: i, throttled, tileInDomMs: fv.tileInDom && Math.round(fv.tileInDom), tileVisibleMs: fv.tileVisible && Math.round(fv.tileVisible), fcpMs: fv.fcp && Math.round(fv.fcp), lcpMs: fv.lcp && Math.round(fv.lcp), lcpAtTileMs: lcpAtTile && Math.round(lcpAtTile), lcpElement: fv.lcpEl ?? "UNMEASURED: the LCP entry carries no element", lcpUrl: fv.lcpUrl ?? null, lcpSizePx: fv.lcpSize, requestsFinished: requests.length, scrollY, coverageAtTop: before, coverageAfterScroll: after });
     await context.close();
   }
 
