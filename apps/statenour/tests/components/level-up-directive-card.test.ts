@@ -40,7 +40,7 @@ describe("LevelUpDirectiveCard · render + honesty contracts (source-side)", () 
   });
 
   it("renders the honest Missing-data empty state instead of a fabricated pick", () => {
-    expect(src).toContain("Missing data — no stat history to rank yet");
+    expect(src).toContain("Missing data: no stat history to rank yet");
   });
 
   it("renders the truth-hierarchy fields: reason, XP math, CTA from rep.href", () => {

@@ -558,13 +558,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     placeholder="e.g. To secure financial sovereignty and ship our vision."
                     value={whyText}
                     onChange={(e) => setWhyText(e.target.value)}
-                    className="h-8 text-[12px] bg-content border-edge-subtle focus:border-accent"
+                    className="min-h-11 h-8 text-[16px] bg-content border-edge-subtle focus:border-accent"
                   />
                   <Button
                     size="sm"
                     onClick={handleSaveWhy}
                     disabled={isSavingWhy || !whyText.trim()}
-                    className="h-8 px-3 text-[12px] font-medium bg-surface-interactive text-fg-secondary hover:bg-surface-hover"
+                    className="min-h-11 min-w-11 h-8 px-3 text-[12px] font-medium bg-surface-interactive text-fg-secondary hover:bg-surface-hover"
                   >
                     {isSavingWhy ? <Loader2 size={10} className="animate-spin" /> : "Anchor"}
                   </Button>
@@ -607,7 +607,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="What is the exact physical next step?"
                 value={missionTitle}
                 onChange={(e) => setMissionTitle(e.target.value)}
-                className="h-9 text-[13px] bg-content border-edge-subtle focus:border-accent font-medium text-fg"
+                className="min-h-11 h-9 text-[16px] bg-content border-edge-subtle focus:border-accent font-medium text-fg"
               />
               <Button
                 type="button"
@@ -615,7 +615,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 size="sm"
                 onClick={handleDeconstruct}
                 disabled={isDeconstructing || !missionTitle.trim()}
-                className="h-9 px-3 text-[12px] font-medium bg-content border-edge-subtle hover:bg-surface-hover text-amber-400 hover:text-amber-300 gap-1.5 whitespace-nowrap shrink-0"
+                className="min-h-11 min-w-11 h-9 px-3 text-[12px] font-medium bg-content border-edge-subtle hover:bg-surface-hover text-amber-400 hover:text-amber-300 gap-1.5 whitespace-nowrap shrink-0"
               >
                 {isDeconstructing ? (
                   <Loader2 size={11} className="animate-spin" />
@@ -629,7 +629,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               <button
                 type="button"
                 onClick={() => setMissionTitle(latestCoach.nextAction)}
-                className="text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-all"
+                className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-colors"
               >
                 <span>Suggest: &ldquo;{latestCoach.nextAction}&rdquo;</span>
                 <ArrowRight size={8} />
@@ -645,7 +645,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 <button
                   type="button"
                   onClick={() => setMicroSteps([])}
-                  className="text-fg-tertiary hover:text-fg-secondary text-[11px]"
+                  className="min-h-11 min-w-11 text-fg-tertiary hover:text-fg-secondary text-[11px]"
                 >
                   Clear
                 </button>
@@ -683,17 +683,25 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                   setTimeLeft(600);
                 }
               }}
-              className={cn(
-                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                efMode ? "bg-amber-500" : "bg-surface-interactive"
-              )}
+              role="switch"
+              aria-checked={efMode}
+              aria-label="ADHD mode"
+              // The 36 x 20 track sits in a 44 px hit area (tests/e2e/target-size.spec.ts measures the button).
+              className="inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center"
             >
               <span
-                className={cn(
-                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-content shadow ring-0 transition duration-200 ease-in-out",
-                  efMode ? "translate-x-4" : "translate-x-0"
+                aria-hidden
+                className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  efMode ? "bg-amber-500" : "bg-surface-interactive"
                 )}
-              />
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-content shadow ring-0 transition duration-200 ease-in-out",
+                    efMode ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </span>
             </button>
           </div>
 
@@ -708,7 +716,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="Dump whatever is distracting or cluttering your mind right now to free your attention..."
                 value={clutterDump}
                 onChange={(e) => setClutterDump(e.target.value)}
-                className="w-full min-h-[70px] p-2.5 rounded-control text-[12px] bg-content border border-edge-subtle focus:border-accent focus:ring-0 text-fg placeholder:text-fg-tertiary resize-none leading-relaxed"
+                className="w-full min-h-[70px] p-2.5 rounded-control text-[16px] bg-content border border-edge-subtle focus:border-accent focus:ring-0 text-fg placeholder:text-fg-tertiary resize-none leading-relaxed"
               />
             </div>
           )}
@@ -728,8 +736,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                   setTimerDuration(o.value);
                   setTimeLeft(o.value);
                 }}
-                className={cn(
-                  "text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
+                className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
                   timerDuration === o.value
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                     : "border-edge-subtle text-fg-tertiary hover:text-fg-secondary"
@@ -743,7 +750,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <Button
             onClick={handleStartMission}
             disabled={isCreatingTask || !missionTitle.trim() || !whyText.trim()}
-            className="w-full h-10 text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all flex items-center justify-center gap-2"
+            className="min-h-11 min-w-11 w-full h-10 text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-colors flex items-center justify-center gap-2"
           >
             {isCreatingTask ? (
               <Loader2 size={13} className="animate-spin" />
@@ -769,7 +776,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               variant="ghost"
               size="sm"
               onClick={() => setEfMode(false)}
-              className="text-[12px] font-medium text-fg-tertiary hover:text-fg h-7 px-2 hover:bg-surface-hover"
+              className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg h-7 px-2 hover:bg-surface-hover"
             >
               Exit Focus View
             </Button>
@@ -818,14 +825,14 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               {microSteps.length > 0 && activeMicroStepIdx < microSteps.length - 1 ? (
                 <Button
                   onClick={() => setActiveMicroStepIdx((prev) => prev + 1)}
-                  className="flex-1 h-12 text-[12px] font-medium bg-amber-500 text-black hover:bg-amber-400 transition-all"
+                  className="flex-1 h-12 text-[12px] font-medium bg-amber-500 text-black hover:bg-amber-400 transition-colors"
                 >
                   Next Step (AI) →
                 </Button>
               ) : (
                 <Button
                   onClick={handleCompleteEarly}
-                  className="flex-1 h-12 text-[12px] font-medium bg-emerald-500 text-black hover:bg-emerald-400 transition-all"
+                  className="flex-1 h-12 text-[12px] font-medium bg-emerald-500 text-black hover:bg-emerald-400 transition-colors"
                 >
                   Complete Mission ✓
                 </Button>
@@ -833,7 +840,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
               <Button
                 onClick={() => setStep("RESISTANCE")}
-                className="h-12 px-6 text-[11px] font-medium bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+                className="h-12 px-6 text-[11px] font-medium bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
               >
                 Resistance
               </Button>
@@ -844,7 +851,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 setTimerActive(false);
                 setStep("BRIEFING");
               }}
-              className="text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary py-1"
+              className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary py-1"
             >
               Cancel Focus Session
             </button>
@@ -884,7 +891,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 strokeWidth="4"
                 strokeDasharray={`${(timeLeft / timerDuration) * 301.5} 301.5`}
                 strokeLinecap="round"
-                className="transition-all duration-1000"
+                className="transition-[stroke-dasharray] duration-1000 ease-linear"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -904,14 +911,14 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex gap-2">
             <Button
               onClick={handleCompleteEarly}
-              className="flex-1 h-9 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all"
+              className="min-h-11 min-w-11 flex-1 h-9 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-colors"
             >
               <Check size={11} className="mr-1" />
               Complete
             </Button>
             <Button
               onClick={() => setStep("RESISTANCE")}
-              className="h-9 px-3 text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/20 hover:bg-rose-500/25 hover:text-rose-200 transition-all"
+              className="min-h-11 min-w-11 h-9 px-3 text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/20 hover:bg-rose-500/25 hover:text-rose-200 transition-colors"
             >
               Resistance
             </Button>
@@ -945,21 +952,21 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             <div className="grid grid-cols-1 gap-2">
               <button
                 onClick={() => handleShrinkTask(120, `Do 2 mins on: ${missionTitle}`)}
-                className="w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-all flex justify-between items-center text-[11px]"
+                className="min-h-11 min-w-11 w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-colors flex justify-between items-center text-[11px]"
               >
                 <span>Just do 2 minutes</span>
                 <span className="text-[11px] font-mono text-fg-tertiary">120s</span>
               </button>
               <button
                 onClick={() => handleShrinkTask(60, `Just open the tool/document for: ${missionTitle}`)}
-                className="w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-all flex justify-between items-center text-[11px]"
+                className="min-h-11 min-w-11 w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-colors flex justify-between items-center text-[11px]"
               >
                 <span>Just open the document/tool</span>
                 <span className="text-[11px] font-mono text-fg-tertiary">60s</span>
               </button>
               <button
                 onClick={() => handleShrinkTask(60, `Write/execute one word or line for: ${missionTitle}`)}
-                className="w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-all flex justify-between items-center text-[11px]"
+                className="min-h-11 min-w-11 w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-colors flex justify-between items-center text-[11px]"
               >
                 <span>Write one word / line</span>
                 <span className="text-[11px] font-mono text-fg-tertiary">60s</span>
@@ -970,13 +977,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex gap-2 pt-2">
             <Button
               onClick={() => setStep("TIMER")}
-              className="flex-1 h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
+              className="min-h-11 min-w-11 flex-1 h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
             >
               Resume Focus
             </Button>
             <Button
               onClick={() => setStep("SURVEY")}
-              className="flex-1 h-8 text-[12px] font-medium bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+              className="min-h-11 min-w-11 flex-1 h-8 text-[12px] font-medium bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
             >
               Exit Loop
             </Button>
@@ -988,8 +995,8 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
       {step === "SURVEY" && (
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
-            <Timer size={14} className="text-violet-400" />
-            <h4 className="text-[11px] font-mono text-violet-300">
+            <Timer size={14} className="text-sky-400" />
+            <h4 className="text-[11px] font-mono text-sky-300">
               Friction survey
             </h4>
           </header>
@@ -1007,10 +1014,9 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 <button
                   key={opt.key}
                   onClick={() => handleToggleFriction(opt.key)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] transition-all hover:scale-[1.02]",
+                  className={cn("min-h-11 min-w-11 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] transition-colors hover:scale-[1.02]",
                     active
-                      ? "border-violet-500/50 bg-violet-500/15 text-violet-300"
+                      ? "border-sky-500/50 bg-sky-500/15 text-sky-300"
                       : "border-edge-subtle bg-content text-fg-secondary"
                   )}
                 >
@@ -1023,7 +1029,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <Button
             onClick={handleSubmitSurvey}
             disabled={selectedFrictions.size === 0}
-            className="w-full h-9 text-[11px] font-medium bg-violet-500/15 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black transition-all"
+            className="min-h-11 min-w-11 w-full h-9 text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30 hover:bg-sky-500 hover:text-black transition-colors"
           >
             Submit & Continue
           </Button>
@@ -1051,7 +1057,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="What is the singular starting move for tomorrow?"
                 value={seedAction}
                 onChange={(e) => setSeedAction(e.target.value)}
-                className="h-8.5 text-[12px] bg-content border-edge-subtle focus:border-accent"
+                className="min-h-11 h-8.5 text-[16px] bg-content border-edge-subtle focus:border-accent"
               />
             </div>
 
@@ -1069,7 +1075,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     placeholder={`+Value in ${goal.unit || "units"}`}
                     value={progressDelta}
                     onChange={(e) => setProgressDelta(e.target.value)}
-                    className="h-8.5 text-[12px] bg-content border-edge-subtle focus:border-accent"
+                    className="min-h-11 h-8.5 text-[16px] bg-content border-edge-subtle focus:border-accent"
                   />
                 </div>
               </div>
@@ -1098,7 +1104,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     size="sm"
                     onClick={handleQueueSpacedReview}
                     disabled={isQueueingReview}
-                    className="w-full h-8 text-[11px] bg-surface-interactive hover:bg-surface-hover text-fg-secondary font-medium flex items-center justify-center gap-1.5"
+                    className="min-h-11 min-w-11 w-full h-8 text-[11px] bg-surface-interactive hover:bg-surface-hover text-fg-secondary font-medium flex items-center justify-center gap-1.5"
                   >
                     {isQueueingReview ? (
                       <Loader2 size={11} className="animate-spin" />
@@ -1117,7 +1123,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <Button
             onClick={handleFinishLoop}
             disabled={isSubmitting}
-            className="w-full h-9 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all flex items-center justify-center gap-1"
+            className="min-h-11 min-w-11 w-full h-9 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-colors flex items-center justify-center gap-1"
           >
             {isSubmitting ? (
               <Loader2 size={11} className="animate-spin" />
@@ -1168,7 +1174,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           <Button
             onClick={handleReset}
-            className="w-full h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
+            className="min-h-11 min-w-11 w-full h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
           >
             Run Another Loop
           </Button>

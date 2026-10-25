@@ -1,10 +1,10 @@
 "use client";
 
-// FRESHNESS_EXEMPT — config form (mutates settings, doesn't display
+// FRESHNESS_EXEMPT: config form (mutates settings, doesn't display
 // time-sensitive read data; live values reload immediately on change).
 
 /**
- * JournalBrainPanel — the Journal Brain tuning surface on /settings.
+ * JournalBrainPanel: the Journal Brain tuning surface on /settings.
  *
  * Live-mutable knobs for the journal scoring/behavior engine, read from
  * `journal.getSettings` and written field-by-field via
@@ -15,13 +15,13 @@
  * invalidated so any other reader refetches.
  *
  * The seven knobs (defaults in parens):
- *   · baselineEnabled (true)        — score every qualifying capture
- *   · baselineXp (0.8)              — baseline mastery XP per entry
- *   · qualityFloorChars (40)        — anti-gaming min chars for baseline XP
- *   · groundedXpMultiplier (1.5)    — bonus when an entry links to a goal
- *   · autoConfirmThreshold (0.8)    — auto-confirm a goal link at/above this
- *   · challengeCadence ("daily")    — every | daily | off
- *   · creativeIntensity ("bold")    — bold | balanced | off
+ *   · baselineEnabled (true)       : score every qualifying capture
+ *   · baselineXp (0.8)             : baseline mastery XP per entry
+ *   · qualityFloorChars (40)       : anti-gaming min chars for baseline XP
+ *   · groundedXpMultiplier (1.5)   : bonus when an entry links to a goal
+ *   · autoConfirmThreshold (0.8)   : auto-confirm a goal link at/above this
+ *   · challengeCadence ("daily")   : every | daily | off
+ *   · creativeIntensity ("bold")   : bold | balanced | off
  */
 
 import { useState, useEffect, useCallback, useId } from "react";
@@ -63,7 +63,7 @@ export function JournalBrainPanel() {
 
   const updateMutation = trpc.journal.updateSettings.useMutation();
 
-  // Partial update helper — optimistic local set + typed mutation. On success
+  // Partial update helper: optimistic local set + typed mutation. On success
   // the server returns the merged singleton row; we snap to it and invalidate
   // getSettings so any other reader refetches the new values.
   const patch = useCallback(
@@ -84,10 +84,10 @@ export function JournalBrainPanel() {
     [updateMutation, utils, settingsQuery.data],
   );
 
-  // Loading guard — same skeleton convention as AiSettingsPanel.
+  // Loading guard: same skeleton convention as AiSettingsPanel.
   if (!settings) {
     return (
-      <GlassCard>
+      <GlassCard ruled>
         <div className="flex items-center gap-2 mb-3">
           <BookOpen size={13} className="text-fg-tertiary" />
           <span className="text-[15px] font-semibold text-fg">
@@ -100,7 +100,7 @@ export function JournalBrainPanel() {
   }
 
   return (
-    <GlassCard>
+    <GlassCard ruled>
       <div className="flex items-center gap-2 mb-1">
         <BookOpen size={13} className="text-fg-tertiary" />
         <span className="text-[15px] font-semibold text-fg">
@@ -115,6 +115,7 @@ export function JournalBrainPanel() {
       {/* Score every capture (master switch) */}
       <Row label="Score every capture" hint="Award baseline XP on every qualifying entry">
         <Toggle
+          label="Score every capture"
           value={settings.baselineEnabled}
           onChange={(v) => patch({ baselineEnabled: v })}
         />
@@ -134,7 +135,7 @@ export function JournalBrainPanel() {
           disabled={!settings.baselineEnabled}
           onChange={(e) => patch({ baselineXp: parseFloat(e.target.value) })}
           aria-label="Baseline XP per qualifying entry"
-          className="w-32 accent-[var(--accent)] disabled:opacity-40"
+          className="h-11 w-32 accent-[var(--accent)] disabled:opacity-40"
         />
       </Row>
 
@@ -169,7 +170,7 @@ export function JournalBrainPanel() {
             patch({ groundedXpMultiplier: parseFloat(e.target.value) })
           }
           aria-label="Bonus multiplier when an entry is linked to a goal"
-          className="w-32 accent-[var(--accent)]"
+          className="h-11 w-32 accent-[var(--accent)]"
         />
       </Row>
 
@@ -188,7 +189,7 @@ export function JournalBrainPanel() {
             patch({ autoConfirmThreshold: parseFloat(e.target.value) })
           }
           aria-label="Auto-confirm a goal link at or above this confidence"
-          className="w-32 accent-[var(--accent)]"
+          className="h-11 w-32 accent-[var(--accent)]"
         />
       </Row>
 
@@ -317,7 +318,7 @@ function NumberInput({
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        className="w-16 h-7 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
+        className="w-16 h-11 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
       />
       {suffix && (
         <span className="text-[11px] text-fg-tertiary">{suffix}</span>

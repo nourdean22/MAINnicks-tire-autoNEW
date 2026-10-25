@@ -64,16 +64,15 @@ export function PushNotificationToggle() {
           role="switch"
           aria-checked={isSubscribed}
           aria-label={isSubscribed ? "disable push notifications" : "enable push notifications"}
-          className={cn(
-            "relative w-11 h-6 rounded-full transition-colors",
-            isSubscribed ? "bg-accent" : "bg-edge-strong",
-            loading && "opacity-50"
-          )}
+          // The 44 x 24 track sits in a 44 px tall hit area (tests/e2e/target-size.spec.ts measures the button).
+          className={cn("inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center", loading && "opacity-50")}
         >
-          <span aria-hidden className={cn(
-            "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
-            isSubscribed ? "left-[22px]" : "left-0.5"
-          )} />
+          <span aria-hidden className={cn("relative block w-11 h-6 rounded-full transition-colors", isSubscribed ? "bg-accent" : "bg-edge-strong")}>
+            <span className={cn(
+              "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+              isSubscribed ? "left-[22px]" : "left-0.5"
+            )} />
+          </span>
         </button>
       </div>
       <p className="text-[12px] text-fg-tertiary">

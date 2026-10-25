@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { StatsStateBlock } from "@/components/stats/stats-verdict";
+import { isRetrying, readState } from "@/lib/query-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -66,11 +69,20 @@ interface BrainMemory {
   createdAt: string;
 }
 
+/** The reviewed-predictions verdict in the status grammar (it used to be an inline hsl colour). */
+const REVIEW_VERDICT_TONE = {
+  "well-calibrated": "text-emerald-300 border-emerald-400/30",
+  moderate: "text-amber-300 border-amber-400/30",
+  drift: "text-rose-300 border-rose-400/30",
+  unknown: "text-fg-tertiary border-edge-default",
+} as const;
+
 export function CalibrationSection() {
-  const { data, isLoading: loading, error: queryError, refetch } = trpc.intelligence.calibrationReviews.useQuery(undefined, {
+  const calibrationQuery = trpc.intelligence.calibrationReviews.useQuery(undefined, {
     staleTime: 1000 * 60, // 1 min
     refetchOnWindowFocus: true,
   });
+  const { data, error: queryError, refetch } = calibrationQuery;
 
   const pending = (data?.pending || []) as any[];
   const history = (data?.history || []) as any[];
@@ -214,20 +226,14 @@ export function CalibrationSection() {
     };
   }, [pending, correctingId, correctionRoi, correctionStatus, correctionDescription, resolvingId, bulkLoading, handleResolve, startCorrection]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6 py-6 animate-pulse" aria-hidden>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-24 rounded-surface bg-content border border-edge-default" />
-          <div className="h-24 rounded-surface bg-content border border-edge-default" />
-          <div className="h-24 rounded-surface bg-content border border-edge-default" />
-        </div>
-        <div className="h-[300px] rounded-surface bg-content border border-edge-default" />
-      </div>
-    );
-  }
+  // Wave E2: the state in words (the page's W4 rule), and five states, not three. A paused read used to
+  // fall through to "Outcome Review Queue Clear"; a failed refresh over cached reviews used to replace
+  // them with the error card.
+  const readStatus = readState(calibrationQuery);
+  if (readStatus === "loading") return <StatsStateBlock state="loading" message="Reading calibration reviews." />;
+  if (readStatus === "offline") return <ReadStateNote state="offline" label="Calibration reviews" />;
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="py-6">
         <ErrorCard
@@ -242,58 +248,41 @@ export function CalibrationSection() {
 
   return (
     <div className="flex flex-col gap-8">
+      <ReadStateNote state={readStatus} label="Calibration reviews" onRetry={() => void refetch()} retrying={isRetrying(calibrationQuery)} />
       {/* 1. SCOREBOARD PANEL */}
       {scoreboard && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card A: Prediction Accuracy */}
-          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
-            <div 
-              className="absolute top-0 left-0 w-full h-[3px]"
-              style={{ backgroundColor: scoreboard.colorHsl }}
-            />
-            <div className="mb-4">
-              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
-                Prediction Calibration
-                <Activity className="h-4 w-4 text-fg-tertiary" />
-              </h3>
-            </div>
+          {/* Card A: REVIEWED predictions. Not the tile above the section: this is the Brier of
+              CalibrationReviewItem rows approved or corrected in review in the last 30 days, its accuracy
+              1 - sqrt(Brier) and a Brier-threshold verdict (lib/brain/calibration-engine.ts:360-439); the
+              tile reads raw resolved Prediction rows, hit rate and a claim-vs-reality verdict
+              (lib/brain/calibration.ts:166-219). Cut in wave E2 round 1 as a duplicate, which it is not;
+              restored in round 4 (Codex 4369253506) as a ruled row. Its states are the section's own. */}
+          <GlassCard ruled>
+            {/* GlassCard does not forward data attributes, so the marker sits inside. */}
+            <div data-calibration-card="reviewed-predictions">
+            <h3 className="mb-4 text-[15px] font-semibold text-fg">Reviewed predictions</h3>
             <div className="space-y-1">
               <div className="text-2xl font-bold font-mono text-fg">
-                {scoreboard.predictionAccuracyPct !== null 
-                  ? `${scoreboard.predictionAccuracyPct}%` 
-                  : "--"}
+                {scoreboard.predictionAccuracyPct !== null ? `${scoreboard.predictionAccuracyPct}%` : "none reviewed"}
               </div>
               <p className="text-[11px] text-fg-tertiary">
-                {scoreboard.predictionCount30d} predictions (30d) &middot; Brier: {scoreboard.rollingBrier30d !== null ? scoreboard.rollingBrier30d.toFixed(3) : "N/A"}
+                accuracy from review Brier &middot; {scoreboard.predictionCount30d} predictions (30d) &middot; Brier:{" "}
+                {scoreboard.rollingBrier30d !== null ? scoreboard.rollingBrier30d.toFixed(3) : "none"}
               </p>
               <div className="pt-2">
-                <Badge 
-                  className="text-[11px] font-medium"
-                  style={{
-                    backgroundColor: `${scoreboard.colorHsl}15`,
-                    color: scoreboard.colorHsl,
-                    border: `1px solid ${scoreboard.colorHsl}30`
-                  }}
-                >
-                  {scoreboard.calibrationVerdict === "well-calibrated" && "Well Calibrated"}
-                  {scoreboard.calibrationVerdict === "moderate" && "Moderate Calibration"}
-                  {scoreboard.calibrationVerdict === "drift" && "Calibration Drift Detected"}
-                  {scoreboard.calibrationVerdict === "unknown" && "Preliminary Data"}
+                <Badge className={cn("border bg-transparent text-[11px] font-medium", REVIEW_VERDICT_TONE[scoreboard.calibrationVerdict as keyof typeof REVIEW_VERDICT_TONE] ?? REVIEW_VERDICT_TONE.unknown)}>
+                  {scoreboard.calibrationVerdict === "well-calibrated" && "Well calibrated"}
+                  {scoreboard.calibrationVerdict === "moderate" && "Moderate calibration"}
+                  {scoreboard.calibrationVerdict === "drift" && "Calibration drift"}
+                  {scoreboard.calibrationVerdict === "unknown" && "Fewer than 4 reviewed predictions"}
                 </Badge>
               </div>
             </div>
+            </div>
           </GlassCard>
-
           {/* Card B: Task ROI Accuracy */}
-          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
-            <div 
-              className="absolute top-0 left-0 w-full h-[3px]"
-              style={{
-                backgroundColor: scoreboard.taskRoiBias30d !== null && scoreboard.taskRoiBias30d < -15 
-                  ? "hsl(0, 84%, 60%)" 
-                  : "hsl(142, 76%, 36%)"
-              }}
-            />
+          <GlassCard ruled className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div className="mb-4">
               <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Task ROI Precision
@@ -312,7 +301,7 @@ export function CalibrationSection() {
               <div className="pt-2">
                 <Badge className={cn("text-[11px] font-medium border bg-transparent", 
                   scoreboard.biasVerdict === "overconfident" && "text-rose-400 border-rose-500/20 bg-rose-500/5",
-                  scoreboard.biasVerdict === "underconfident" && "text-purple-400 border-purple-500/20 bg-purple-500/5",
+                  scoreboard.biasVerdict === "underconfident" && "text-sky-400 border-sky-500/20 bg-sky-500/5",
                   scoreboard.biasVerdict === "calibrated" && "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
                 )}>
                   {scoreboard.biasVerdict === "overconfident" && "Bias: Overconfident (+ROI)"}
@@ -324,8 +313,7 @@ export function CalibrationSection() {
           </GlassCard>
 
           {/* Card C: Overestimate Rate */}
-          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
-            <div className="absolute top-0 left-0 w-full h-[3px] bg-edge-strong" />
+          <GlassCard ruled className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div className="mb-4">
               <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Overestimate Bias
@@ -357,8 +345,7 @@ export function CalibrationSection() {
             </h3>
             <button
               onClick={() => setEfGradeMode(!efGradeMode)}
-              className={cn(
-                "px-2.5 py-1 text-[12px] rounded-control border font-medium transition-colors duration-[var(--motion-state)] flex items-center gap-1.5",
+              className={cn("min-h-11 min-w-11 px-2.5 py-1 text-[12px] rounded-control border font-medium transition-colors duration-[var(--motion-state)] flex items-center gap-1.5",
                 efGradeMode
                   ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
                   : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong"
@@ -375,8 +362,7 @@ export function CalibrationSection() {
               <Button
                 size="sm"
                 variant="outline"
-                className={cn(
-                  "text-xs cursor-pointer transition-colors duration-[var(--motion-state)]",
+                className={cn("min-h-11 min-w-11 text-xs cursor-pointer transition-colors duration-[var(--motion-state)]",
                   efGradeMode
                     ? "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500 hover:text-black font-bold"
                     : "border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/10"
@@ -389,7 +375,7 @@ export function CalibrationSection() {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-xs border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-colors duration-[var(--motion-state)]"
+                className="min-h-11 min-w-11 text-xs border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-colors duration-[var(--motion-state)]"
                 onClick={() => handleBulkAction("reject_stale")}
                 disabled={bulkLoading || resolvingId !== null}
               >
@@ -400,7 +386,7 @@ export function CalibrationSection() {
         </div>
 
         {pending.length === 0 ? (
-          <GlassCard>
+          <GlassCard ruled>
             <div className="py-6 text-center space-y-2">
               <Check className="h-8 w-8 text-emerald-500 mx-auto" />
               <p className="text-sm text-fg font-medium">Outcome Review Queue Clear</p>
@@ -419,11 +405,11 @@ export function CalibrationSection() {
 
               if (efGradeMode) {
                 return (
-                  <GlassCard
+                  <GlassCard ruled
                     key={item.id}
                     className={cn(
                       "hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
-                      isTask ? "border-l-indigo-500/20 border-l-[3px]" : "border-l-sky-500/20 border-l-[3px]"
+                      isTask ? "border-l-sky-500/20 border-l-[3px]" : "border-l-sky-500/20 border-l-[3px]"
                     )}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -431,7 +417,7 @@ export function CalibrationSection() {
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <Badge className={cn("text-[11px] py-0 px-1",
-                            isTask ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
+                            isTask ? "bg-sky-500/10 text-sky-300 border-sky-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
                           )}>
                             {isTask ? "Task ROI" : "Prediction"}
                           </Badge>
@@ -460,7 +446,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[11px] h-8 border-purple-500/20 bg-purple-500/[0.04] text-purple-300 hover:bg-purple-500 hover:text-black font-semibold"
+                              className="min-h-11 min-w-11 text-[11px] h-8 border-sky-500/20 bg-sky-500/[0.04] text-sky-300 hover:bg-sky-500 hover:text-black font-semibold"
                             >
                               Underestimated (+20)
                             </Button>
@@ -475,7 +461,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
+                              className="min-h-11 min-w-11 text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
                             >
                               Spot On
                             </Button>
@@ -491,7 +477,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[11px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
+                              className="min-h-11 min-w-11 text-[11px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
                             >
                               Overestimated (-20)
                             </Button>
@@ -508,7 +494,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
+                              className="min-h-11 min-w-11 text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
                             >
                               Confirmed
                             </Button>
@@ -522,7 +508,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[11px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
+                              className="min-h-11 min-w-11 text-[11px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
                             >
                               Disproven
                             </Button>
@@ -533,7 +519,7 @@ export function CalibrationSection() {
                           variant="ghost"
                           onClick={() => handleResolve(item.id, "reject")}
                           disabled={resolvingId !== null}
-                          className="text-[11px] h-8 text-fg-tertiary hover:text-fg hover:bg-surface-hover"
+                          className="min-h-11 min-w-11 text-[11px] h-8 text-fg-tertiary hover:text-fg hover:bg-surface-hover"
                         >
                           Skip
                         </Button>
@@ -544,11 +530,11 @@ export function CalibrationSection() {
               }
 
               return (
-                <GlassCard 
+                <GlassCard ruled 
                   key={item.id} 
                   className={cn(
                     "hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
-                    isTask ? "border-l-indigo-500/40 border-l-[3px]" : "border-l-sky-500/40 border-l-[3px]",
+                    isTask ? "border-l-sky-500/40 border-l-[3px]" : "border-l-sky-500/40 border-l-[3px]",
                     isTopCard && "ring-1 ring-accent"
                   )}
                 >
@@ -558,12 +544,12 @@ export function CalibrationSection() {
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge className={cn("text-[11px] py-0.5", 
-                            isTask ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
+                            isTask ? "bg-sky-500/10 text-sky-300 border-sky-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
                           )}>
                             {isTask ? "Task ROI Estimate" : "System Prediction"}
                           </Badge>
                           {isTopCard && (
-                            <Badge variant="outline" className="text-[11px] border-indigo-500/30 bg-indigo-500/5 text-indigo-400 font-mono py-0.5">
+                            <Badge variant="outline" className="text-[11px] border-sky-500/30 bg-sky-500/5 text-sky-400 font-mono py-0.5">
                               Active Card (🡄 Reject | 🡆 Approve | 🡡🡣 Adjust)
                             </Badge>
                           )}
@@ -589,7 +575,7 @@ export function CalibrationSection() {
                     {/* Proposal Banner */}
                     <div className="rounded-surface bg-surface-interactive border border-edge-subtle p-3 flex items-start gap-3">
                       {isTask ? (
-                        <Award className="h-5 w-5 text-indigo-400 shrink-0 mt-0.5" />
+                        <Award className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
                       ) : (
                         <Clock className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
                       )}
@@ -600,7 +586,7 @@ export function CalibrationSection() {
                             <Badge className={cn("text-[11px] font-bold py-0 h-4",
                               item.proposedActualOutcome.classification === "accurate" && "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
                               item.proposedActualOutcome.classification === "overestimated" && "bg-rose-500/10 text-rose-300 border-rose-500/20",
-                              item.proposedActualOutcome.classification === "underestimated" && "bg-purple-500/10 text-purple-300 border-purple-500/20",
+                              item.proposedActualOutcome.classification === "underestimated" && "bg-sky-500/10 text-sky-300 border-sky-500/20",
                               item.proposedActualOutcome.classification === "insufficient_evidence" && "bg-surface-interactive text-fg border-edge-default"
                             )}>
                               ROI {item.proposedActualOutcome.outcomeScore} &middot; {item.proposedActualOutcome.classification}
@@ -705,7 +691,7 @@ export function CalibrationSection() {
                               max="100" 
                               value={correctionRoi}
                               onChange={(e) => setCorrectionRoi(Number(e.target.value))}
-                              className="w-full h-1 bg-edge-strong rounded-surface appearance-none cursor-pointer accent-indigo-500"
+                              className="h-11 w-full cursor-pointer accent-sky-500"
                             />
                             <div className="flex justify-between text-[11px] text-fg-tertiary font-mono">
                               <span>1 (Low)</span>
@@ -723,8 +709,7 @@ export function CalibrationSection() {
                                     key={st}
                                     type="button"
                                     onClick={() => setCorrectionStatus(st as any)}
-                                    className={cn(
-                                      "px-2.5 py-1 rounded-control border transition-colors duration-[var(--motion-state)] text-[12px] font-medium",
+                                    className={cn("min-h-11 min-w-11 px-2.5 py-1 rounded-control border transition-colors duration-[var(--motion-state)] text-[12px] font-medium",
                                       correctionStatus === st 
                                         ? "bg-amber-400/10 text-amber-300 border-amber-400/30" 
                                         : "bg-content border-edge-default text-fg-secondary"
@@ -741,7 +726,7 @@ export function CalibrationSection() {
                                 type="text"
                                 value={correctionDescription}
                                 onChange={(e) => setCorrectionDescription(e.target.value)}
-                                className="w-full text-xs bg-surface-interactive border border-edge-default rounded-control px-2 py-1 text-fg placeholder:text-fg-tertiary focus:border-accent"
+                                className="min-h-11 w-full text-[16px] bg-surface-interactive border border-edge-default rounded-control px-2 py-1 text-fg placeholder:text-fg-tertiary focus:border-accent"
                                 placeholder="Describe actual results..."
                               />
                             </div>
@@ -754,7 +739,7 @@ export function CalibrationSection() {
                             type="text"
                             value={correctionNote}
                             onChange={(e) => setCorrectionNote(e.target.value)}
-                            className="w-full text-xs bg-surface-interactive border border-edge-default rounded-control px-2 py-1.5 text-fg placeholder:text-fg-tertiary focus:border-accent"
+                            className="min-h-11 w-full text-[16px] bg-surface-interactive border border-edge-default rounded-control px-2 py-1.5 text-fg placeholder:text-fg-tertiary focus:border-accent"
                             placeholder="Reason for override..."
                           />
                         </div>
@@ -763,14 +748,14 @@ export function CalibrationSection() {
                           <Button 
                             size="sm"
                             variant="ghost"
-                            className="text-xs text-fg-secondary hover:text-fg"
+                            className="min-h-11 min-w-11 text-xs text-fg-secondary hover:text-fg"
                             onClick={() => setCorrectingId(null)}
                           >
                             Cancel
                           </Button>
                           <Button 
                             size="sm"
-                            className="text-xs bg-amber-400 text-black hover:bg-amber-400/80 font-semibold"
+                            className="min-h-11 min-w-11 text-xs bg-amber-400 text-black hover:bg-amber-400/80 font-semibold"
                             onClick={() => {
                               const outcome = isTask 
                                 ? { 
@@ -801,7 +786,7 @@ export function CalibrationSection() {
                       <button
                         type="button"
                         onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                        className="text-xs text-fg-tertiary hover:text-fg flex items-center gap-1 transition-colors duration-[var(--motion-state)]"
+                        className="min-h-11 min-w-11 text-xs text-fg-tertiary hover:text-fg flex items-center gap-1 transition-colors duration-[var(--motion-state)]"
                       >
                         {isExpanded ? (
                           <>Hide Evidence <ChevronUp className="h-3.5 w-3.5" /></>
@@ -815,7 +800,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            className="text-[11px] text-fg-tertiary hover:text-fg py-1 min-h-[30px]"
+                            className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg py-1"
                             onClick={() => handleResolve(item.id, "needs_more_evidence")}
                             disabled={resolvingId !== null}
                           >
@@ -824,7 +809,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            className="text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 py-1 min-h-[30px]"
+                            className="min-h-11 min-w-11 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 py-1"
                             onClick={() => handleResolve(item.id, "reject")}
                             disabled={resolvingId !== null}
                           >
@@ -833,7 +818,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="outline"
-                            className="text-[11px] border-edge-strong hover:border-edge-strong text-fg py-1 min-h-[30px]"
+                            className="min-h-11 min-w-11 text-[11px] border-edge-strong hover:border-edge-strong text-fg py-1"
                             onClick={() => startCorrection(item)}
                             disabled={resolvingId !== null}
                           >
@@ -841,7 +826,7 @@ export function CalibrationSection() {
                           </Button>
                           <Button
                             size="xs"
-                            className="text-[11px] bg-emerald-500 hover:bg-emerald-600 text-fg font-semibold py-1 min-h-[30px] flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-fg font-semibold py-1 flex items-center gap-1"
                             onClick={() => handleResolve(item.id, "approve")}
                             disabled={resolvingId !== null}
                           >
@@ -869,7 +854,7 @@ export function CalibrationSection() {
           </h3>
 
           {lessons.length === 0 ? (
-            <GlassCard>
+            <GlassCard ruled>
               <div className="py-4 text-center text-xs text-fg-tertiary">
                 No outcome lessons recorded yet. Resolve items to extract lessons.
               </div>
@@ -901,7 +886,7 @@ export function CalibrationSection() {
           </h3>
 
           {history.length === 0 ? (
-            <GlassCard>
+            <GlassCard ruled>
               <div className="py-4 text-center text-xs text-fg-tertiary">
                 No calibration history recorded.
               </div>

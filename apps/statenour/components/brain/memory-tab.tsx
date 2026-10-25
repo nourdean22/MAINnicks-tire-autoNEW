@@ -14,15 +14,15 @@
  * NickSuggestions stays visible: its chips carry suggKind/suggId anchors into /chat, and the
  * NickSidePane presets are fixed strings, so folding them in would drop the anchors.
  * Moved to the Health tab (components/brain/health-tab.tsx): learning velocity, persona drift, tool
- * telemetry, suggestion telemetry. Calibration, prediction streaks, Ghost Nick and preferences sit in
- * Self-model until their own pages take them (Stats Goals and Settings, a later wave).
+ * telemetry, suggestion telemetry. Wave E2 (2026-10-24): calibration, prediction streaks and Ghost Nick
+ * moved to Stats Goals (components/stats/calibration-tile.tsx holds the calibration line) and preferences to Settings,
+ * How Nick works. The skill library carries its own read markers, so the fold counts it directly.
  *
  * The ticker and Home link here as #contradictions (the panel sits under the id).
  */
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { MemoryOfDayCard } from "@/components/brain/memory-of-day-card";
@@ -31,12 +31,9 @@ import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { BeliefsPanel } from "@/components/brain/beliefs-panel";
 import { ContradictionResolutionPanel } from "@/components/brain/contradiction-resolution-panel";
-import { GhostNickStrip } from "@/components/ultron/ghost-nick/ghost-nick-strip";
 import { DecisionReplayCard } from "@/components/ultron/decision-replay-card";
-import { PreferencesCard } from "@/components/ultron/preferences-card";
 import { NudgePanel } from "@/components/brain/nudge-panel";
 import { BrainMaturityHeader } from "@/components/brain/brain-maturity-header";
-import { PredictionStreaksCard } from "@/components/brain/prediction-streaks-card";
 import { ActiveAlertsCard } from "@/components/brain/active-alerts-card";
 import { PinnedContextPanel } from "@/components/brain/pinned-context-panel";
 import { InsightRibbon } from "@/components/brain/insight-ribbon";
@@ -98,7 +95,7 @@ export function MemoryTab() {
         </BrainFold>
         <BrainFold title="Self-model">
           <MemoryOfDayCard />
-          <SkillLibraryRow />
+          <SkillLibraryPanel />
           <QualitativeIdentityPanel />
           {/* UI v3 W5a: IdentityPanel has one home, Settings > Identity and Behavior. */}
           <Link
@@ -111,10 +108,6 @@ export function MemoryTab() {
           <SelfCritiqueCard />
           <DecisionReplayCard />
           <AntiPatternsPanel />
-          <CalibrationTile />
-          <PredictionStreaksCard />
-          <GhostNickStrip />
-          <PreferencesCard />
         </BrainFold>
         <BrainFold title="Context">
           <NudgePanel />
@@ -122,24 +115,6 @@ export function MemoryTab() {
           <RecallPreviewPanel />
         </BrainFold>
       </div>
-    </div>
-  );
-}
-
-/**
- * The skill library lives in components/settings (another lane's files) and its failed branch carries
- * no marker the Self-model fold can count. The same query (same key and options, so React Query serves
- * one cache entry and no second fetch) adds the marker here.
- */
-function SkillLibraryRow() {
-  const skillsQuery = trpc.operator.skills.useQuery(undefined, { refetchOnWindowFocus: false });
-  return (
-    <div>
-      {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
-      {/* Paused before any data (offline at start): no error, no list, so say offline. */}
-      {readState(skillsQuery) === "offline" && <ReadStateNote state="offline" label="Skill library" />}
-      <StaleNote q={skillsQuery} label="Skill library" />
-      <SkillLibraryPanel />
     </div>
   );
 }
@@ -169,70 +144,5 @@ function IdentityDeltaLine() {
         <p className="flex-1 leading-snug text-fg-secondary">{data.delta.slice(0, 280)}</p>
       </div>
     </div>
-  );
-}
-
-/**
- * Wave V #2 · Calibration tile.
- *
- * `summarizeCalibration` returns hitRate + meanBrier + verdict + avgClaimVsRealityGap. Brier scores
- * are populated on every resolved Prediction by the outcome-tracker cron.
- *
- * Silent when resolved === 0: a genuinely quiet 30 days shows nothing, per the page's
- * silent-when-empty rule. A FAILED read is not that: it renders explicitly (2026-09-02). The helper
- * used to swallow Prisma errors into `resolved: 0`, so an unreachable database and a quiet month were
- * the same pixel. The window also filtered on `createdAt`, which excluded every prediction with a
- * horizon of 30 days or more; it now keys on resolution time.
- */
-function CalibrationTile() {
-  const calibrationQ = trpc.brain.calibrationSummary.useQuery(
-    { days: 30 },
-    { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 },
-  );
-  const { data, isError } = calibrationQ;
-  if (isError && !data) return <ReadingUnavailable label="Calibration" />;
-  if (!data && readState(calibrationQ) === "offline") return <ReadStateNote state="offline" label="Calibration" />;
-  if (!data) return null;
-  if (data.resolved === 0) return <StaleNote q={calibrationQ} label="Calibration" />;
-  // Verdict map matches the helper's enum: "well-calibrated" | "drift" | "unknown"; drift is the
-  // warning signal (>= 15% off).
-  const verdictTint =
-    data.verdict === "well-calibrated"
-      ? "text-emerald-300"
-      : data.verdict === "drift"
-        ? "text-amber-300"
-        : "text-fg-tertiary";
-  return (
-    <section aria-label="calibration" className="space-y-2">
-      <StaleNote q={calibrationQ} label="Calibration" />
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        {/* "resolved 30d", not "30d": the population is predictions that RESOLVED in the last 30
-            days, whenever they were made. */}
-        <h3 className="text-[15px] font-medium text-fg">Calibration · resolved 30d</h3>
-        <p className={cn("text-[13px] font-mono tabular-nums", verdictTint)}>{data.verdict.replace(/-/g, " ")}</p>
-      </div>
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 font-mono text-[13px]">
-        <span>
-          <span className="mr-1 text-fg-tertiary">mean Brier</span>
-          <span className="tabular-nums text-fg">{data.meanBrier != null ? data.meanBrier.toFixed(3) : "none"}</span>
-          <span className="ml-1 text-fg-tertiary">(coin = 0.25)</span>
-        </span>
-        {data.hitRate !== null && (
-          <span>
-            <span className="mr-1 text-fg-tertiary">hit rate</span>
-            <span className="tabular-nums text-fg">{Math.round(data.hitRate * 100)}%</span>
-            <span className="ml-1 text-fg-tertiary">
-              · {data.confirmed}/{data.resolved}
-            </span>
-          </span>
-        )}
-        {data.avgClaimVsRealityGap !== null && (
-          <span>
-            <span className="mr-1 text-fg-tertiary">claim-vs-reality gap</span>
-            <span className="tabular-nums text-fg">{Math.round(data.avgClaimVsRealityGap * 100)}%</span>
-          </span>
-        )}
-      </div>
-    </section>
   );
 }

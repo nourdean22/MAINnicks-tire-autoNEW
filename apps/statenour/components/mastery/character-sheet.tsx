@@ -3,7 +3,7 @@
 /**
  * <CharacterSheet> · 2026-05-30 · the leveling engine's face.
  *
- * Renders every mastery stat as an RPG-style level card — icon · tier ·
+ * Renders every mastery stat as an RPG-style level card: icon · tier ·
  * big level number · an XP progress bar in the stat's own color ·
  * "X / Y XP to Lvl N+1". Sorted server-side by level so the strongest
  * stats lead. Plus an "Overall power" hero (sum of levels), the classic
@@ -17,7 +17,7 @@
  * Aesthetic: matches /scoreboard's editorial-minimalist Card contract
  * (UI v2 tokens: edge-subtle border · bg-content · 11px mono eyebrow labels ·
  * tabular-nums). The only added color is each stat's own accent on its
- * progress bar — identity without noise.
+ * progress bar: identity without noise.
  *
  * Degradation: self-hides on a transient query error (never breaks the
  * page). Stats open at a starting level seeded from your baseline self-
@@ -69,7 +69,7 @@ export function CharacterSheet() {
         const raw = localStorage.getItem("nour:stats:collapsed-branches:v1");
         if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
       } catch {
-        /* corrupt/unavailable storage — stay all-expanded */
+        /* corrupt/unavailable storage: stay all-expanded */
       }
     });
     return () => cancelAnimationFrame(frame);
@@ -155,26 +155,26 @@ export function CharacterSheet() {
           icon={ShieldAlert}
           title="No stats recorded yet"
           provenance="ZERO"
-          why="The query succeeded and returned no stats — a real zero, not a failed read. The error case is handled separately above."
+          why="The query succeeded and returned no stats: a real zero, not a failed read. The error case is handled separately above."
           unlock="Log a workout, weight entry, or complete a mission task."
         />
       </section>
     );
   }
 
-  // Total level — the classic RPG aggregate. Sum, not average, so every
+  // Total level: the classic RPG aggregate. Sum, not average, so every
   // level in every stat visibly counts toward one number.
   const totalLevel = stats.reduce((s, x) => s + x.level, 0);
   const totalXp = Math.round(stats.reduce((s, x) => s + x.xp, 0));
   // Highest current tier reached across all stats, for the hero badge.
   const peak = stats[0]; // already sorted by level desc
   // The slope: the stat that gained the most XP this week. The dopamine is
-  // in the derivative — what's accelerating, not the static level.
+  // in the derivative: what's accelerating, not the static level.
   const topRiser = stats.reduce<StatLevel | null>(
     (best, x) => (x.rising7dXp > (best?.rising7dXp ?? 0) ? x : best),
     null,
   );
-  // 2026-06-10 · the "Next rep" strip (max progressPct) moved out — it's
+  // 2026-06-10 · the "Next rep" strip (max progressPct) moved out: it's
   // now the weakest tier ("closest") of <LevelUpDirectiveCard>, mounted
   // above this sheet on /stats with a reason + an actionable rep link.
   const nextRep = stats.reduce<StatLevel | null>(
@@ -416,7 +416,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
             </span>
           ) : null}
         </div>
-        {/* line 3 · Ambition Engine P1 citation — the active goals feeding
+        {/* line 3 · Ambition Engine P1 citation: the active goals feeding
             this stat (the reverse of the goal-card chips). Each links to its
             goal card on /stats. Renders only when a goal points here, so most
             cards stay one-liner clean. */}

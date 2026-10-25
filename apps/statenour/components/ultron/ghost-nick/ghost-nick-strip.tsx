@@ -122,7 +122,7 @@ export function GhostNickStrip() {
     : null;
 
   return (
-    <GlassCard>
+    <GlassCard ruled>
       <StaleNote q={query} label="Ghost Nick predictions" className="mb-2" />
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
@@ -161,7 +161,7 @@ export function GhostNickStrip() {
           <button
             onClick={() => void recompute()}
             disabled={recomputing || loading}
-            className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors hover:text-fg"
+            className="min-w-11 inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors hover:text-fg"
           >
             {recomputing || loading ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
             Recompute

@@ -1,45 +1,45 @@
 "use client";
 
 /**
- * GoalBoard — the goal-authoring surface for /goals.
+ * GoalBoard: the goal-authoring surface for /goals.
  *
  * History · was components/actions/mode-plan.tsx (KommandoPlan), the
  * PLAN tab of the /tasks KommandoShell. 2026-05-21 · the shell was
  * dismantled (Phase 1 distributed TRACK out · Phase 2 relocates PLAN
  * here · Phase 3 deletes the shell). The component MOVED rather than
- * being rebuilt — /goals replaces its read-only <Ladder> with this
+ * being rebuilt: /goals replaces its read-only <Ladder> with this
  * interactive board.
  *
  * Trimmed on relocation (features that only existed because PLAN lived
  * inside the /tasks tabs):
- *   · the goal↔project link/unlink manager — KILLED (most expensive
+ *   · the goal↔project link/unlink manager: KILLED (most expensive
  *     feature · depended on the /tasks page's goalToProjects bridge).
  *   · the parent-callback props (onJumpToProject / onPlanGoal /
- *     onJumpToTask / onCreateTaskForGoal / goalToProjects) — KILLED.
+ *     onJumpToTask / onCreateTaskForGoal / goalToProjects): KILLED.
  *     Cross-navigation now uses plain Next <Link>s into /tasks.
- *   · the "smart headline" — KILLED (/goals has its own page header).
+ *   · the "smart headline": KILLED (/goals has its own page header).
  * Result: a self-contained component with zero required parent props.
  *
  * What it does (the real authoring surface):
  *
- *   · ALL goals shown at once in ONE view — horizon is a tag on each
+ *   · ALL goals shown at once in ONE view: horizon is a tag on each
  *     card + a filter tab bar, not a filter that hides everything.
  *
- *   · "Needs attention" signals — goals with 0 linked loops get a
+ *   · "Needs attention" signals: goals with 0 linked loops get a
  *     "no plan" badge. Goals that haven't been coached get a
  *     "Get Nick's read" prompt. Coach panel auto-visible when present.
  *
- *   · Goal cards are rich — big progress ring, linked loop count,
+ *   · Goal cards are rich: big progress ring, linked loop count,
  *     time invested, WHY visible, coach read inline, pace projection
  *     chip, staleness chip + one-tap archive, inline progress logging.
  *
- *   · Quick-add is goal-first — "What do you want to achieve?"
+ *   · Quick-add is goal-first: "What do you want to achieve?"
  *
  *   · AI suggest works across all horizons at once.
  *
  *   · Inline "Plan it" → MilestonesFlow spawns a mission with phases.
  *
- * Self-fetches goals via GET /api/goals (authedFetch) — independent of
+ * Self-fetches goals via GET /api/goals (authedFetch): independent of
  * the /goals page's trpc.operator.goalsSnapshot query (which still
  * feeds the page header axes + missions sidebar).
  */
@@ -131,7 +131,7 @@ interface LifeGoal {
   linkedDoneCount?: number;
   linkedActiveCount?: number;
   minutesInvested?: number;
-  // Apr 27 · GB1 + GB3 — server-enriched fields from /api/goals
+  // Apr 27 · GB1 + GB3: server-enriched fields from /api/goals
   nextMove?: { id: string; title: string; status: string } | null;
   loopsThisWeek?: number;
   // Ambition Engine P1 · the mastery stats this goal levels (resolved
@@ -188,11 +188,11 @@ interface SuggestedGoal {
 
 const HORIZON_LABELS: Record<string, { label: string; accent: string }> = {
   DAY: { label: "Today", accent: "text-amber-400 border-amber-500/30 bg-amber-500/5" },
-  WEEK: { label: "Week", accent: "text-blue-400 border-blue-500/30 bg-blue-500/5" },
+  WEEK: { label: "Week", accent: "text-sky-400 border-sky-500/30 bg-sky-500/5" },
   MONTH: { label: "Month", accent: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5" },
-  QUARTER: { label: "Quarter", accent: "text-cyan-400 border-cyan-500/30 bg-cyan-500/5" },
-  YEAR: { label: "Year", accent: "text-violet-400 border-violet-500/30 bg-violet-500/5" },
-  LIFE: { label: "Life", accent: "text-pink-400 border-pink-500/30 bg-pink-500/5" },
+  QUARTER: { label: "Quarter", accent: "text-sky-400 border-sky-500/30 bg-sky-500/5" },
+  YEAR: { label: "Year", accent: "text-sky-400 border-sky-500/30 bg-sky-500/5" },
+  LIFE: { label: "Life", accent: "text-sky-400 border-sky-500/30 bg-sky-500/5" },
 };
 
 /**
@@ -218,11 +218,11 @@ export function GoalBoard() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   // task.* tRPC for the goals CRUD. scattered-components slice
-  // (2026-05-22) · the AI suggest/coach calls migrate now —
+  // (2026-05-22) · the AI suggest/coach calls migrate now , 
   // `/api/ai/suggest-goals` → `trpc.ai.suggestGoals`, `/api/ai/coach-goal`
-  // → `trpc.ai.coachGoal` — so the `authedFetch` import is gone. load()
+  // → `trpc.ai.coachGoal`: so the `authedFetch` import is gone. load()
   // stays a callback (referenced by many handlers) but reads via
-  // utils.task.goals.fetch — the procedure returns { goals } directly.
+  // utils.task.goals.fetch: the procedure returns { goals } directly.
   const utils = trpc.useUtils();
   const goalsCreate = trpc.task.goalsCreate.useMutation();
   const goalsUpdate = trpc.task.goalsUpdate.useMutation();
@@ -240,7 +240,7 @@ export function GoalBoard() {
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
   const [showLegacyGoalIds, setShowLegacyGoalIds] = useState<Set<string>>(new Set());
 
-  // Apr 27 · GH1 — horizon tab filter. Defaults to "ALL" so the page
+  // Apr 27 · GH1: horizon tab filter. Defaults to "ALL" so the page
   // is never empty. Goals with explicit horizon use it; goals with
   // null horizon get auto-classified by their deadline (effectiveHorizon).
   const [horizonFilter, setHorizonFilter] = useState<HorizonFilter>("ALL");
@@ -251,7 +251,7 @@ export function GoalBoard() {
   // Wave AW · 2026-05-28 · cross-page hash-anchor wiring. Wave AR added
   // `id={`goal-${g.id}`}` to each row, but if the operator lands on
   // `/stats?tab=goals#goal-X` while horizonFilter is anything other than "ALL",
-  // the target row sits in display:none — browser hash-scroll silently
+  // the target row sits in display:none: browser hash-scroll silently
   // no-ops. operator-pulse.ts ALREADY emits these links from /home for
   // dormant goals (lib/services/operator-pulse.ts:208) so this is a
   // real failure path. Mirrors the /people Wave AS pattern: parse
@@ -280,11 +280,11 @@ export function GoalBoard() {
     };
   }, [goals]);
 
-  // Apr 27 · G4 — milestones-first PLAN IT flow. When non-null, the
+  // Apr 27 · G4: milestones-first PLAN IT flow. When non-null, the
   // panel renders inline below that goal card; null collapses it.
   const [milestonesGoalId, setMilestonesGoalId] = useState<string | null>(null);
 
-  // Apr 27 · G2 — inline progress-logging UX state. When the metric
+  // Apr 27 · G2: inline progress-logging UX state. When the metric
   // chip is tapped, the row id flips into edit mode revealing a
   // small +N input that PATCHes /api/goals with progressDelta. The
   // server emits a progress_logged GoalEvent + auto-recomputes the
@@ -332,7 +332,7 @@ export function GoalBoard() {
     return off;
   }, [load]);
 
-  // Apr 27 · archive a stale goal — flips status to "paused" so the
+  // Apr 27 · archive a stale goal: flips status to "paused" so the
   // board (filter active) hides it. Reusable from any "this is dead"
   // UI affordance on the card.
   //
@@ -368,11 +368,11 @@ export function GoalBoard() {
       markBusy(goalId);
       try {
         // 2026-05-27 · `archive: true` is the new server-side sugar for
-        // status="paused" + deletedAt=now() — keeps the UI archive
+        // status="paused" + deletedAt=now(): keeps the UI archive
         // semantically identical to the chat tool's archiveGoal
         // (lib/ai/tools/tasks.ts:750). Previously the UI only flipped
         // status, leaving the row alive in every `deletedAt:null`
-        // query (page-data, ai-suggest-goals, telegram cmdGoals) —
+        // query (page-data, ai-suggest-goals, telegram cmdGoals) , 
         // that's how the ghost goal kept resurfacing after archive.
         await goalsUpdate.mutateAsync({ id: goalId, archive: true });
         toast.success("Archived. Find it later in paused goals.");
@@ -387,7 +387,7 @@ export function GoalBoard() {
     [busyIds, markBusy, clearBusy, load, goalsUpdate],
   );
 
-  // Apr 27 · G2 — inline progress-logging submitter. Declared after
+  // Apr 27 · G2: inline progress-logging submitter. Declared after
   // `load` so the dependency reference works.
   const submitProgressLog = useCallback(
     async (goalId: string) => {
@@ -446,7 +446,7 @@ export function GoalBoard() {
   // parallel · DB happily wrote duplicates. A title key on the
   // suggestion (s.title) gates the click; `adoptingTitles` carries the
   // in-flight set. The service-layer dedup in lib/services/goals.ts is
-  // belt-AND-suspenders — both have to fail before a dupe escapes.
+  // belt-AND-suspenders: both have to fail before a dupe escapes.
   const [adoptingTitles, setAdoptingTitles] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
 
@@ -494,7 +494,7 @@ export function GoalBoard() {
     try {
       // `horizon` is an optional enum on createGoalSchema · omit it
       // (undefined) when the form field is blank. The legacy code
-      // sent `null` here, which the schema rejects — the typed input
+      // sent `null` here, which the schema rejects: the typed input
       // forces the correct "field omitted" shape.
       await goalsCreate.mutateAsync({
         domain: "personal",
@@ -516,13 +516,13 @@ export function GoalBoard() {
     }
   }, [adding, newTitle, newWhy, newHorizon, load, goalsCreate]);
 
-  // Inline edit state — one row at a time. PATCH /api/goals supports
+  // Inline edit state: one row at a time. PATCH /api/goals supports
   // title / why / horizon out of the box (see updateGoalSchema).
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editWhy, setEditWhy] = useState("");
   const [editHorizon, setEditHorizon] = useState<string>("");
-  // May 02 · A/B/C — full goal-meta editability. Adds target/metric/
+  // May 02 · A/B/C: full goal-meta editability. Adds target/metric/
   // unit/deadline (so progress math stays accurate when scope changes)
   // + domain (route the goal to the right life area) + status (pause /
   // complete / abandon a goal without a hard delete).
@@ -613,7 +613,7 @@ export function GoalBoard() {
       toast.error("Title required");
       return;
     }
-    // Build delta payload — skip fields the user didn't touch so we
+    // Build delta payload: skip fields the user didn't touch so we
     // don't overwrite server-side values with empty strings. Typed
     // against updateGoalSchema (the shared task.goalsUpdate input).
     const payload: Parameters<typeof goalsUpdate.mutateAsync>[0] = {
@@ -629,7 +629,7 @@ export function GoalBoard() {
     if (editMetric) payload.metric = editMetric;
     if (editUnit) payload.unit = editUnit;
     if (editDeadline) {
-      // datetime() validator wants ISO 8601 — promote YYYY-MM-DD to
+      // datetime() validator wants ISO 8601: promote YYYY-MM-DD to
       // end-of-day UTC so deadline filters don't fire a day early.
       payload.deadline = `${editDeadline}T23:59:59.000Z`;
     } else {
@@ -700,7 +700,7 @@ export function GoalBoard() {
             size="sm"
             onClick={suggestGoals}
             disabled={suggesting}
-            className="h-7 px-2.5 bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 text-[11px] font-semibold border border-violet-500/30 shrink-0"
+            className="min-h-11 min-w-11 h-7 px-2.5 bg-sky-500/15 text-sky-300 hover:bg-sky-500/30 text-[11px] font-semibold border border-sky-500/30 shrink-0"
           >
             {suggesting ? (
               <Loader2 size={11} className="animate-spin mr-1" />
@@ -724,13 +724,13 @@ export function GoalBoard() {
                   else if (newTitle.trim()) setShowAddForm(true);
                 }
               }}
-              className="h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
+              className="min-h-11 h-9 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary focus:border-accent transition-colors"
             />
             <Button
               size="sm"
               disabled={adding}
               aria-label="Add goal"
-              className="h-9 w-9 p-0 bg-surface-interactive hover:bg-blue-500/20 hover:text-blue-400 border border-edge-default shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-11 min-w-11 h-9 w-9 p-0 bg-surface-interactive hover:bg-sky-500/20 hover:text-sky-400 border border-edge-default shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => {
                 if (!showAddForm && newTitle.trim()) setShowAddForm(true);
                 else addManual();
@@ -746,7 +746,7 @@ export function GoalBoard() {
                 placeholder="Why does this matter?"
                 value={newWhy}
                 onChange={(e) => setNewWhy(e.target.value)}
-                className="h-7 bg-content border-edge-subtle text-[11px] placeholder:text-fg-tertiary"
+                className="min-h-11 h-7 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-mono text-[11px] text-fg-tertiary">
@@ -757,8 +757,7 @@ export function GoalBoard() {
                     <button
                       key={h}
                       onClick={() => setNewHorizon(newHorizon === h ? "" : h)}
-                      className={cn(
-                        "text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
+                      className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
                         newHorizon === h
                           ? HORIZON_LABELS[h].accent
                           : "text-fg-tertiary border-edge-subtle"
@@ -776,14 +775,14 @@ export function GoalBoard() {
                     setNewWhy("");
                     setNewHorizon("");
                   }}
-                  className="text-[11px] text-fg-tertiary hover:text-fg px-2"
+                  className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg px-2"
                 >
                   Cancel
                 </button>
                 <Button
                   size="sm"
                   disabled={adding}
-                  className="h-6 px-3 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="min-h-11 min-w-11 h-6 px-3 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={addManual}
                 >
                   {adding ? <Loader2 size={9} className="inline animate-spin mr-1" /> : null}
@@ -799,8 +798,8 @@ export function GoalBoard() {
       {(overview || warning) && (
         <div className="space-y-1.5">
           {overview && (
-            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-violet-500/5 border border-violet-500/20">
-              <Lightbulb size={11} className="text-violet-400/70 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-sky-500/5 border border-sky-500/20">
+              <Lightbulb size={11} className="text-sky-400/70 mt-0.5 shrink-0" />
               <p className="text-[11px] text-fg-secondary italic leading-relaxed">{overview}</p>
             </div>
           )}
@@ -816,13 +815,13 @@ export function GoalBoard() {
       {/* ── AI suggestions ── */}
       {suggested.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-mono text-violet-400/80 px-0.5">
+          <p className="text-[11px] font-mono text-sky-300 px-0.5">
             Nick suggests ({suggested.length})
           </p>
           {suggested.map((s, i) => (
             <div
               key={i}
-              className="rounded-surface border border-violet-500/20 bg-violet-500/[0.03] p-2.5 space-y-1"
+              className="rounded-surface border border-sky-500/20 bg-sky-500/[0.03] p-2.5 space-y-1"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -842,7 +841,7 @@ export function GoalBoard() {
                   size="sm"
                   onClick={() => adoptSuggestion(s)}
                   disabled={adoptingTitles.has(s.title)}
-                  className="h-6 px-2 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="min-h-11 min-w-11 h-6 px-2 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {adoptingTitles.has(s.title) ? (
                     <Loader2 size={9} className="animate-spin" />
@@ -888,7 +887,7 @@ export function GoalBoard() {
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Apr 27 · GH1 — horizon tab bar. Filters the goal list by
+          {/* Apr 27 · GH1: horizon tab bar. Filters the goal list by
               effective horizon (auto-classified from deadline when the
               explicit field is null). Counts shown so empty buckets
               are visible at a glance. */}
@@ -901,8 +900,7 @@ export function GoalBoard() {
                   key={h}
                   type="button"
                   onClick={() => setHorizonFilter(h)}
-                  className={cn(
-                    "shrink-0 inline-flex items-center gap-1.5 rounded-control border px-2 py-0.5 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
+                  className={cn("min-h-11 min-w-11 shrink-0 inline-flex items-center gap-1.5 rounded-control border px-2 py-0.5 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
                     active
                       ? "border-amber-500/50 bg-amber-500/10 text-amber-300"
                       : "border-edge-subtle text-fg-tertiary hover:bg-surface-hover hover:text-fg"
@@ -929,7 +927,7 @@ export function GoalBoard() {
                 ? g.coachLog[g.coachLog.length - 1]
                 : null;
             const isExpanded = expandedGoal === g.id;
-            // Apr 27 · GH2 — auto-classify from deadline when horizon
+            // Apr 27 · GH2: auto-classify from deadline when horizon
             // is null. The card stripe + badge use this so visual
             // grouping works even on legacy goals.
             const eHorizon: GoalHorizon = effectiveHorizon(g);
@@ -946,13 +944,13 @@ export function GoalBoard() {
                 // the MissionCard anchor pattern.
                 className="rounded-surface border border-edge-subtle bg-content overflow-hidden group flex scroll-mt-24"
               >
-                {/* Apr 27 · GH4 — colored vertical stripe per horizon.
+                {/* Apr 27 · GH4: colored vertical stripe per horizon.
                     Glance-readable visual grouping; works alongside
                     the existing horizon badge inside the row. */}
                 <div className={cn("w-1 shrink-0", HORIZON_STRIPE[eHorizon])} aria-hidden />
                 <div className="flex-1 min-w-0">
-                {/* Main row — tappable to expand.
-                    Apr 27 · LINK-FIX — was a <button>, but the row
+                {/* Main row: tappable to expand.
+                    Apr 27 · LINK-FIX: was a <button>, but the row
                     contains nested <button>s for archive, progress
                     log, pace chip, plan-it. Nested <button> is
                     invalid HTML and crashes hydration in Next 16.
@@ -1005,7 +1003,7 @@ export function GoalBoard() {
 
                     <div className="flex-1 min-w-0">
                       {editingId === g.id ? (
-                        // Inline edit mode — full goal-meta panel
+                        // Inline edit mode: full goal-meta panel
                         <div
                           className="space-y-1.5 mb-1"
                           onClick={(e) => e.stopPropagation()}
@@ -1016,7 +1014,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditTitle(e.target.value)}
                             aria-label="Goal title"
                             placeholder="Goal title"
-                            className="w-full bg-content border border-amber-500/40 rounded-control px-2 py-1 text-[13px] font-semibold text-fg focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-amber-500/40 rounded-control px-2 py-1 text-[16px] font-semibold text-fg focus:outline-none focus:border-accent"
                             autoFocus
                           />
                           <input
@@ -1025,9 +1023,9 @@ export function GoalBoard() {
                             onChange={(e) => setEditWhy(e.target.value)}
                             aria-label="Why this goal"
                             placeholder="Why does this matter? (optional)"
-                            className="w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-fg-secondary italic focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary italic focus:outline-none focus:border-accent"
                           />
-                          {/* May 02 · target/metric/unit row — feeds the
+                          {/* May 02 · target/metric/unit row: feeds the
                               pace math + progress chip on the goal card. */}
                           <div className="grid grid-cols-3 gap-1.5">
                             <input
@@ -1037,7 +1035,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditTargetValue(e.target.value)}
                               aria-label="Target value"
                               placeholder="target"
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="text"
@@ -1045,7 +1043,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditMetric(e.target.value)}
                               aria-label="Metric"
                               placeholder="metric"
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="text"
@@ -1053,7 +1051,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditUnit(e.target.value)}
                               aria-label="Unit"
                               placeholder="unit"
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                           </div>
                           {/* May 02 · deadline + domain + status row */}
@@ -1062,12 +1060,12 @@ export function GoalBoard() {
                               type="date"
                               value={editDeadline}
                               onChange={(e) => setEditDeadline(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <select
                               value={editDomain}
                               onChange={(e) => setEditDomain(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="" disabled>Pick a domain</option>
                               <option value="business">business</option>
@@ -1079,7 +1077,7 @@ export function GoalBoard() {
                             <select
                               value={editStatus}
                               onChange={(e) => setEditStatus(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="" disabled>Pick a status</option>
                               <option value="active">active</option>
@@ -1090,13 +1088,13 @@ export function GoalBoard() {
                               <option value="missed">missed</option>
                             </select>
                           </div>
-                          {/* Ambition Engine P3 · ladder — pick the higher-
+                          {/* Ambition Engine P3 · ladder: pick the higher-
                               horizon goal this one rolls into. Server rejects
                               self / cycles / inverted horizons. */}
                           <select
                             value={editParentId}
                             onChange={(e) => setEditParentId(e.target.value)}
-                            className="w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                           >
                             <option value="">No parent goal</option>
                             {goals
@@ -1115,7 +1113,7 @@ export function GoalBoard() {
                             <select
                               value={editKind}
                               onChange={(e) => setEditKind(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="" disabled>Pick a kind</option>
                               <option value="metric">metric (target)</option>
@@ -1125,7 +1123,7 @@ export function GoalBoard() {
                             <select
                               value={editConviction}
                               onChange={(e) => setEditConviction(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">No conviction</option>
                               <option value="1">1 · meh</option>
@@ -1140,7 +1138,7 @@ export function GoalBoard() {
                             value={editIdentityLine}
                             onChange={(e) => setEditIdentityLine(e.target.value)}
                             placeholder="Identity line: the kind of person who... (narrative)"
-                            className="w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-violet-300/90 italic focus:outline-none focus:border-accent"
+                            className="min-h-11 w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-sky-300/90 italic focus:outline-none focus:border-accent"
                           />
                           <div className="grid grid-cols-[1fr_auto] gap-1.5">
                             <input
@@ -1148,14 +1146,14 @@ export function GoalBoard() {
                               value={editKillCriteria}
                               onChange={(e) => setEditKillCriteria(e.target.value)}
                               placeholder="Kill if... (pre-committed exit)"
-                              className="bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="date"
                               value={editKillBy}
                               onChange={(e) => setEditKillBy(e.target.value)}
                               title="Kill-by date"
-                              className="bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-1 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -1167,8 +1165,7 @@ export function GoalBoard() {
                                 key={a}
                                 type="button"
                                 onClick={() => setEditAmbition(editAmbition === a ? "" : a)}
-                                className={cn(
-                                  "text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
+                                className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
                                   editAmbition === a
                                     ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
                                     : "text-fg-tertiary border-edge-subtle",
@@ -1182,7 +1179,7 @@ export function GoalBoard() {
                             <select
                               value={editHorizon}
                               onChange={(e) => setEditHorizon(e.target.value)}
-                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
+                              className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">No horizon</option>
                               <option value="DAY">Day</option>
@@ -1196,7 +1193,7 @@ export function GoalBoard() {
                               type="button"
                               onClick={saveEdit}
                               disabled={savingEdit || !editTitle.trim()}
-                              className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-control bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-300 font-medium hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="min-h-11 min-w-11 ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-control bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-300 font-medium hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {savingEdit ? (
                                 <Loader2 size={9} className="animate-spin" />
@@ -1208,7 +1205,7 @@ export function GoalBoard() {
                             <button
                               type="button"
                               onClick={cancelEdit}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border border-edge-default text-[12px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg"
+                              className="min-h-11 min-w-11 inline-flex items-center gap-1 px-2 py-0.5 rounded-control border border-edge-default text-[12px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg"
                             >
                               <XIcon size={9} />
                               Cancel
@@ -1231,7 +1228,7 @@ export function GoalBoard() {
                           </Badge>
                         )}
                         {g.kind && g.kind !== "metric" && (
-                          <Badge className="bg-violet-500/10 text-violet-300 text-[11px] h-4 border border-violet-500/20 shrink-0">
+                          <Badge className="bg-sky-500/10 text-sky-300 text-[11px] h-4 border border-sky-500/20 shrink-0">
                             {g.kind}
                           </Badge>
                         )}
@@ -1273,8 +1270,7 @@ export function GoalBoard() {
                                 }
                               }}
                               title={`${v.reason} · tap to archive`}
-                              className={cn(
-                                "text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
+                              className={cn("min-h-11 min-w-11 text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
                                 isStale
                                   ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
                                   : "border-amber-500/30 bg-amber-500/5 text-amber-400",
@@ -1290,7 +1286,7 @@ export function GoalBoard() {
                           {g.why}
                         </p>
                       )}
-                      {/* Ambition Engine P3 · ladder position — parent
+                      {/* Ambition Engine P3 · ladder position: parent
                           breadcrumb + children roll-up. Tap to scroll to
                           the linked goal's card. */}
                       {editingId !== g.id &&
@@ -1310,7 +1306,7 @@ export function GoalBoard() {
                                   );
                                 }}
                                 title={`Part of: ${g.ladder!.parent!.title}`}
-                                className="inline-flex items-center gap-1 rounded-control border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-violet-300 hover:bg-violet-500/15 transition-colors max-w-[60%]"
+                                className="min-h-11 min-w-11 inline-flex items-center gap-1 rounded-control border border-sky-500/30 bg-sky-500/5 px-1.5 py-0.5 text-sky-300 hover:bg-sky-500/15 transition-colors max-w-[60%]"
                               >
                                 <ArrowUp size={9} className="shrink-0" />
                                 <span className="truncate">{g.ladder!.parent!.title}</span>
@@ -1332,11 +1328,11 @@ export function GoalBoard() {
                         )}
                       {/* Ambition Engine P3 · identity line (narrative goals) */}
                       {g.identityLine && editingId !== g.id && (
-                        <p className="text-[11px] text-violet-300/80 italic mt-0.5 line-clamp-2">
+                        <p className="text-[11px] text-sky-300/80 italic mt-0.5 line-clamp-2">
                           &ldquo;{g.identityLine}&rdquo;
                         </p>
                       )}
-                      {/* Ambition Engine P3 · anti-stale signals — conviction,
+                      {/* Ambition Engine P3 · anti-stale signals: conviction,
                           ambition tag, pre-committed kill-by, and the Elon
                           idiot-index (hours invested per 1% of progress). */}
                       {editingId !== g.id &&
@@ -1347,7 +1343,7 @@ export function GoalBoard() {
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[11px] font-mono">
                             {typeof g.conviction === "number" && (
                               <span
-                                className="inline-flex items-center gap-0.5 rounded-control border border-pink-500/30 bg-pink-500/5 px-1.5 py-0.5 text-pink-300/90"
+                                className="inline-flex items-center gap-0.5 rounded-control border border-sky-500/30 bg-sky-500/5 px-1.5 py-0.5 text-sky-300/90"
                                 title="Conviction: how devastated you'd be to lose this"
                               >
                                 <Flame size={9} className="shrink-0" />
@@ -1396,7 +1392,7 @@ export function GoalBoard() {
                             {g.kind === "milestone" ? "milestones" : "loops"}
                           </span>
                         )}
-                        {/* Apr 27 · GB3 — loops moved this week. The
+                        {/* Apr 27 · GB3: loops moved this week. The
                             "is this goal alive?" pulse. Pulled from
                             TaskEvent log; rendered emerald when > 0,
                             zinc when 0 with a "0 this week" callout. */}
@@ -1419,7 +1415,7 @@ export function GoalBoard() {
                             {Math.round((g.minutesInvested ?? 0) / 60)}h
                           </span>
                         )}
-                        {/* Apr 27 · G2 — inline progress logging.
+                        {/* Apr 27 · G2: inline progress logging.
                             Tap the metric chip → reveals a small +N
                             input. Enter saves via PATCH /api/goals
                             { progressDelta }; cancels on Escape or
@@ -1432,7 +1428,7 @@ export function GoalBoard() {
                               setLogId(g.id);
                               setLogValue("");
                             }}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
+                            className="min-h-11 min-w-11 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
                             title="Log progress"
                           >
                             <span>
@@ -1462,13 +1458,13 @@ export function GoalBoard() {
                                 }
                               }}
                               placeholder="+N"
-                              className="h-5 w-14 px-1.5 text-[11px] bg-content border-amber-500/40"
+                              className="min-h-11 h-5 w-14 px-1.5 text-[16px] bg-content border-amber-500/40"
                             />
                             <button
                               type="button"
                               onClick={() => void submitProgressLog(g.id)}
                               disabled={logBusy || !logValue}
-                              className="text-[12px] font-medium px-1.5 py-0.5 rounded-control border border-amber-500/40 bg-amber-500/10 text-amber-300 disabled:opacity-50"
+                              className="min-h-11 min-w-11 text-[12px] font-medium px-1.5 py-0.5 rounded-control border border-amber-500/40 bg-amber-500/10 text-amber-300 disabled:opacity-50"
                             >
                               {logBusy ? <Loader2 size={9} className="animate-spin" /> : "log"}
                             </button>
@@ -1478,7 +1474,7 @@ export function GoalBoard() {
                                 setLogId(null);
                                 setLogValue("");
                               }}
-                              className="text-[11px] text-fg-tertiary hover:text-fg-secondary"
+                              className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg-secondary"
                             >
                               ✕
                             </button>
@@ -1489,7 +1485,7 @@ export function GoalBoard() {
                         )}
                       </div>
 
-                      {/* Ambition Engine P1 · stat chips — the spine to
+                      {/* Ambition Engine P1 · stat chips: the spine to
                           the character sheet. Each chip is a mastery stat
                           this goal levels (character-sheet color);
                           completing a task tagged with this goal credits
@@ -1517,7 +1513,7 @@ export function GoalBoard() {
                         </div>
                       )}
 
-                      {/* Apr 26 · G1 — pace projection chip. Computes
+                      {/* Apr 26 · G1: pace projection chip. Computes
                           required-vs-actual rate from currentValue,
                           targetValue, deadline + createdAt. Hidden
                           when goal has no deadline OR no targetValue.
@@ -1550,7 +1546,7 @@ export function GoalBoard() {
                               ? TrendingDown
                               : Activity;
                         // When pace says "needs N/day" or "behind", the
-                        // chip becomes a tap-to-add-a-task affordance —
+                        // chip becomes a tap-to-add-a-task affordance , 
                         // a Link into /tasks pre-filtered by this goal
                         // so the operator can add a daily-increment task
                         // (tag it with the goal there · completion auto-
@@ -1579,8 +1575,7 @@ export function GoalBoard() {
                             href={`/missions?goalId=${g.id}`}
                             onClick={(e) => e.stopPropagation()}
                             title={`Add a daily-increment task for this goal (${suggestedAmount}/day)`}
-                            className={cn(
-                              "mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform",
+                            className={cn("min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform",
                               tone
                             )}
                           >
@@ -1598,7 +1593,7 @@ export function GoalBoard() {
                         );
                       })()}
 
-                      {/* Apr 27 · GB1 — Next-move chip. Surfaces the
+                      {/* Apr 27 · GB1: Next-move chip. Surfaces the
                           single highest-priority active task linked to
                           this goal. Tap → /tasks?taskId= deep-links to
                           that task. The "what's the next physical
@@ -1607,7 +1602,7 @@ export function GoalBoard() {
                         <Link
                           href={`/missions?taskId=${g.nextMove.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[11px] hover:bg-emerald-500/10 transition-colors w-full text-left"
+                          className="min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[11px] hover:bg-emerald-500/10 transition-colors w-full text-left"
                           title="Open this task on the Actions page"
                         >
                           <Zap size={9} className="text-emerald-400 shrink-0" />
@@ -1621,12 +1616,12 @@ export function GoalBoard() {
                         </Link>
                       )}
 
-                      {/* Plan it — break a goal into 3-5 milestones with
+                      {/* Plan it: break a goal into 3-5 milestones with
                           Nick, then spawn a mission with phases. Renders
                           for goals with no linked loops yet (the "no
                           plan" state). The goal↔project link/unlink
                           manager that used to sit here was removed when
-                          PLAN was relocated off the /tasks tabs — it
+                          PLAN was relocated off the /tasks tabs: it
                           depended on the /tasks page's goalToProjects
                           bridge. MilestonesFlow IS the create path. */}
                       {noLoops && milestonesGoalId !== g.id && (
@@ -1637,7 +1632,7 @@ export function GoalBoard() {
                               e.stopPropagation();
                               setMilestonesGoalId(g.id);
                             }}
-                            className="text-[11px] px-1.5 py-0.5 rounded-control border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:border-blue-500/70 hover:bg-blue-500/25 transition-all font-medium inline-flex items-center gap-0.5"
+                            className="min-h-11 min-w-11 text-[11px] px-1.5 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:border-sky-500/70 hover:bg-sky-500/25 transition-colors font-medium inline-flex items-center gap-0.5"
                             title="Break this goal into 3-5 milestones with Nick, then spawn the mission"
                           >
                             <Brain size={8} />
@@ -1657,14 +1652,14 @@ export function GoalBoard() {
                   </div>
                 </div>
 
-                {/* Apr 27 · G4 — milestones flow panel. Renders below
+                {/* Apr 27 · G4: milestones flow panel. Renders below
                     the goal card when "plan it" is tapped. Owns the
                     full lifecycle: AI proposes 3-5 milestones, Nour
                     edits/confirms, project spawns with phases mapped
                     to milestones, first phase auto-spawns to NOW
                     tagged with this goalId. */}
                 {milestonesGoalId === g.id && (
-                  <div className="px-3 pb-3 border-t border-blue-500/20">
+                  <div className="px-3 pb-3 border-t border-sky-500/20">
                     <div className="mt-2">
                       <MilestonesFlow
                         goal={{
@@ -1712,7 +1707,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
                           >
                             Show Legacy Details
                           </button>
@@ -1720,7 +1715,7 @@ export function GoalBoard() {
                       </div>
                     ) : (
                       <>
-                        {/* Coach section — visible when coached, or prompt to coach */}
+                        {/* Coach section: visible when coached, or prompt to coach */}
                         {latestCoach ? (
                           <div className="mt-2 space-y-1.5">
                             <div className="flex items-center justify-between">
@@ -1730,7 +1725,7 @@ export function GoalBoard() {
                               <button
                                 onClick={() => coachGoal(g.id)}
                                 disabled={coachingId === g.id}
-                                className="text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
+                                className="min-h-11 min-w-11 text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
                               >
                                 {coachingId === g.id ? "Thinking…" : "Refresh"}
                               </button>
@@ -1765,7 +1760,7 @@ export function GoalBoard() {
                           <button
                             onClick={() => coachGoal(g.id)}
                             disabled={coachingId === g.id}
-                            className="mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-surface border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
+                            className="min-h-11 min-w-11 mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-surface border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
                           >
                             {coachingId === g.id ? (
                               <Loader2 size={12} className="animate-spin text-amber-400" />
@@ -1781,7 +1776,7 @@ export function GoalBoard() {
                         )}
 
                         {/* Ambition Engine P3 · sub-goals list (the ladder's
-                            children) — tap to scroll to that goal's card. */}
+                            children): tap to scroll to that goal's card. */}
                         {(g.ladder?.children.length ?? 0) > 0 && (
                           <div className="mt-2 space-y-1">
                             <p className="text-[11px] font-mono text-sky-400/70">
@@ -1800,7 +1795,7 @@ export function GoalBoard() {
                                       ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
                                   );
                                 }}
-                                className="w-full flex items-center gap-2 rounded-control border border-edge-subtle bg-content px-2 py-1 hover:bg-surface-hover transition-colors text-left"
+                                className="min-h-11 min-w-11 w-full flex items-center gap-2 rounded-control border border-edge-subtle bg-content px-2 py-1 hover:bg-surface-hover transition-colors text-left"
                               >
                                 <span className="text-[11px] font-mono text-fg-tertiary w-7 shrink-0 text-right">
                                   {c.progress}%
@@ -1823,14 +1818,14 @@ export function GoalBoard() {
                               e.stopPropagation();
                               startEdit(g);
                             }}
-                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                           >
                             <Pencil size={9} />
                             Edit
                           </button>
                           <button
                             onClick={() => archiveGoal(g.id)}
-                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                             title="pauses the goal · history preserved · recoverable"
                           >
                             <Trash2 size={9} />
@@ -1846,7 +1841,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
+                            className="min-h-11 min-w-11 ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
                           >
                             Show Execution Coach
                           </button>

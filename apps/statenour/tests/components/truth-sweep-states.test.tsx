@@ -41,6 +41,8 @@ vi.mock("@/lib/trpc/client", () => {
       },
       system: {
         forecastScoreboard: leaf("forecast"),
+        // Wave E2: the Stats verdict also reads the Journey lens for its trend line.
+        journeyLens: { useQuery: () => ({ data: undefined, isLoading: true, isPending: true, fetchStatus: "fetching", refetch: () => undefined }) },
         forecastCreate: leaf("x"),
         autopilotFlags: leaf("rhythm"),
         setAutopilotFlags: leaf("x"),

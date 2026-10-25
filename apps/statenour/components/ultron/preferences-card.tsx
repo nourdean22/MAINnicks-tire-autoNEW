@@ -298,7 +298,7 @@ export function PreferencesCard() {
   const hasTrace = trace.length >= 2;
 
   return (
-    <GlassCard
+    <GlassCard ruled
       className="min-h-[180px]"
       data-testid="preferences-card"
     >
@@ -393,7 +393,7 @@ export function PreferencesCard() {
                   disabled={saving}
                   onChange={(e) => setAxis(axis, Number(e.target.value))}
                   className={cn(
-                    "w-full h-3 appearance-none cursor-pointer bg-transparent",
+                    "w-full h-11 appearance-none cursor-pointer bg-transparent",
                     "[&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-edge-default",
                     "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:shadow-[0_0_0_1px_var(--bg-void)]",
                     "[&::-moz-range-track]:h-[2px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-edge-default",
@@ -422,7 +422,7 @@ export function PreferencesCard() {
         <button
           type="button"
           onClick={() => setShowAddendum((v) => !v)}
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
+          className="min-h-11 min-w-11 inline-flex items-center gap-1 text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
           aria-expanded={showAddendum ? "true" : "false"}
         >
           {showAddendum ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -432,9 +432,7 @@ export function PreferencesCard() {
           type="button"
           onClick={handleSave}
           disabled={!isDirty || saving}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
-            "min-h-[28px]",
+          className={cn("min-h-11 min-w-11 flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
             saving
               ? "bg-surface-interactive border-edge-strong text-fg-tertiary"
               : !isDirty

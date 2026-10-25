@@ -23,7 +23,8 @@ describe("mastery config has no icon field", () => {
     const files = [
       "components/mastery/character-sheet.tsx",
       "components/mastery/level-up-directive-card.tsx",
-      "components/mastery/identity-arc-card.tsx",
+      // Wave E2 (2026-10-24): the identity arc card merged into the Stats Mastery list.
+      "components/stats/mastery-list.tsx",
       "components/goals/goal-board.tsx",
       "lib/mastery/character-sheet.ts",
     ];

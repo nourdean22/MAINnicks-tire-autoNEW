@@ -15,17 +15,20 @@
  * `enabled: false` (e.g. a closed side pane) unsubscribes so no poll runs.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
+import { useOnline, type ReadState } from "@/lib/query-state";
 
 const POLL_MS = 60_000; // the faster of the two prior cadences (pane 60s)
 const STALE_MS = 55_000;
 
-type Listener = (events: CoachEvent[]) => void;
+/** events, whether the LAST read failed, whether any read ever succeeded (wave E2: failures used to be swallowed). */
+type Listener = (events: CoachEvent[], failed: boolean, read: boolean) => void;
 
 interface Entry {
   url: string;
   cached: CoachEvent[] | null;
+  failed: boolean;
   lastFetchAt: number;
   inflight: Promise<void> | null;
   listeners: Set<Listener>;
@@ -43,6 +46,7 @@ function getEntry(surface: CoachEventSurface, limit: number): Entry {
     e = {
       url: `/api/coach/events?surface=${encodeURIComponent(surface)}&limit=${limit}`,
       cached: null,
+      failed: false,
       lastFetchAt: 0,
       inflight: null,
       listeners: new Set(),
@@ -58,14 +62,17 @@ async function fetchEntry(e: Entry): Promise<void> {
   e.inflight = (async () => {
     try {
       const res = await fetch(e.url, { credentials: "include" });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`coach events ${res.status}`);
       const data = (await res.json()) as { events?: CoachEvent[] };
       e.cached = data.events ?? [];
+      e.failed = false;
       e.lastFetchAt = Date.now();
-      for (const fn of e.listeners) fn(e.cached);
     } catch {
-      // Swallow — the channel is advisory; consumers render the empty state.
+      // The channel is advisory, so nothing throws into the page; the failure is reported to the
+      // consumers instead, and a page that asks (CoachEventBanner showReadState) says so.
+      e.failed = true;
     } finally {
+      for (const fn of e.listeners) fn(e.cached ?? [], e.failed, e.cached !== null);
       e.inflight = null;
     }
   })();
@@ -97,7 +104,7 @@ function stopPollerIfIdle(e: Entry): void {
 export function useCoachEvents(
   surface: CoachEventSurface | null | undefined,
   opts?: { limit?: number; enabled?: boolean },
-): { events: CoachEvent[]; reload: () => void } {
+): { events: CoachEvent[]; reload: () => void; failed: boolean; read: boolean; state: ReadState } {
   const limit = opts?.limit ?? 3;
   const enabled = opts?.enabled ?? true;
   const active = !!surface && enabled;
@@ -107,12 +114,16 @@ export function useCoachEvents(
   const [events, setEvents] = useState<CoachEvent[]>(() =>
     active && surface ? getEntry(surface, limit).cached ?? [] : [],
   );
+  const [failed, setFailed] = useState(() => (active && surface ? getEntry(surface, limit).failed : false));
+  const [read, setRead] = useState(() => (active && surface ? getEntry(surface, limit).cached !== null : false));
 
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
     const e = active && surface ? getEntry(surface, limit) : null;
     const initialEvents = e ? e.cached ?? [] : [];
     setEvents(initialEvents);
+    setFailed(e ? e.failed : false);
+    setRead(e ? e.cached !== null : false);
   }
 
   useEffect(() => {
@@ -120,7 +131,11 @@ export function useCoachEvents(
       return;
     }
     const e = getEntry(surface, limit);
-    const listener: Listener = (ev) => setEvents(ev);
+    const listener: Listener = (ev, f, r) => {
+      setEvents(ev);
+      setFailed(f);
+      setRead(r);
+    };
     e.listeners.add(listener);
     ensurePoller(e);
     if (!e.cached || Date.now() - e.lastFetchAt > STALE_MS) void fetchEntry(e);
@@ -134,5 +149,16 @@ export function useCoachEvents(
     if (active && surface) void fetchEntry(getEntry(surface, limit));
   }, [surface, limit, active]);
 
-  return { events, reload };
+  // The readState vocabulary (lib/query-state.ts) for a bare fetch: nothing read and no connection is
+  // offline; a failure with nothing cached is error; a failure over cached events is stale.
+  const online = useOnline();
+  // Codex 4369253504: the offline note promises the nudges show when the connection returns, so the
+  // offline-to-online transition starts a read (not the 60 s poll, not Retry). fetchEntry dedupes.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current && active && surface) void fetchEntry(getEntry(surface, limit));
+    wasOnline.current = online;
+  }, [online, active, surface, limit]);
+  const state: ReadState = !read && !online ? "offline" : failed ? (read ? "stale" : "error") : read ? "ready" : "loading";
+  return { events, reload, failed, read, state };
 }

@@ -9,7 +9,7 @@ import { notifyDataChanged } from "@/lib/events/data-change";
  * UI wave (audit 2026-07-15) · collapsed by default. This write-only
  * paste zone used to sit expanded ABOVE the intelligence panels,
  * dominating the column; it now renders last and folds open on demand.
- * Also joined the cross-surface data-change bus — it was the only
+ * Also joined the cross-surface data-change bus: it was the only
  * capture path that didn't notify, so home/brain surfaces never
  * refreshed after a NotebookLM inject.
  */

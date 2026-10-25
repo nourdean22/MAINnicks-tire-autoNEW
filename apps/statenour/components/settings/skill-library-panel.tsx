@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * SkillLibraryPanel — Nour's curation surface for auto-extracted
+ * SkillLibraryPanel: Nour's curation surface for auto-extracted
  * behavioral skills. Apr 18.
  *
  * Three tabs:
- *   • Candidates — pending patterns from the last 30d of DONE tasks.
+ *   • Candidates: pending patterns from the last 30d of DONE tasks.
  *                  Promote to active OR drop forever.
- *   • Active     — skills Nour has curated. Shows live success_rate
+ *   • Active    : skills Nour has curated. Shows live success_rate
  *                  as they reinforce on each matching DONE. Graduate
  *                  when proven (silent-track) or drop if they stop
  *                  serving.
- *   • Graduated  — proven + silent. Reference only; no more nudging.
+ *   • Graduated : proven + silent. Reference only; no more nudging.
  *
  * Data lives in BrainMemory (category "skill" + "skill_pending") so
  * there's no schema. All curation goes through trpc.operator.curateSkill.
@@ -20,6 +20,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
+import { ReadingUnavailable, StaleNote } from "@/components/brain/brain-fold";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -73,7 +76,7 @@ function isStale(s: StoredSkill): boolean {
 type Tab = "candidates" | "active" | "graduated";
 
 function tierColor(tier: StoredSkill["tier"]): string {
-  return tier === "tiny" ? "text-emerald-400" : tier === "tactical" ? "text-sky-400" : "text-violet-400";
+  return tier === "tiny" ? "text-emerald-400" : tier === "tactical" ? "text-sky-400" : "text-sky-400";
 }
 
 export function SkillLibraryPanel() {
@@ -89,8 +92,8 @@ export function SkillLibraryPanel() {
   // { active, pending } directly. lastFetchedAt derives from React
   // Query's dataUpdatedAt. All four curation paths (promote · drop ·
   // graduate · ungraduate · edit · extract_now) go through the single
-  // operator.curateSkill mutation — the same multiplexed endpoint the
-  // REST PATCH was — then invalidate the query to refetch.
+  // operator.curateSkill mutation: the same multiplexed endpoint the
+  // REST PATCH was: then invalidate the query to refetch.
   const utils = trpc.useUtils();
   const skillsQuery = trpc.operator.skills.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -102,9 +105,6 @@ export function SkillLibraryPanel() {
   const loading = skillsQuery.isPending;
   const lastFetchedAt = skillsQuery.dataUpdatedAt
     ? new Date(skillsQuery.dataUpdatedAt)
-    : null;
-  const error = skillsQuery.error
-    ? skillsQuery.error.message || "failed to load"
     : null;
   const load = useCallback(() => void skillsQuery.refetch(), [skillsQuery]);
 
@@ -223,7 +223,10 @@ export function SkillLibraryPanel() {
   }, [listForTab, filter]);
 
   return (
-    <GlassCard>
+    // id="skills": the target of /brain#skills (the /skills slash command, the skill citation pill); GlassCard
+    // forwards no id, so it sits on this wrapper, the panel's one root (a Brain fold counts roots).
+    <div id="skills" className="scroll-mt-24">
+    <GlassCard ruled>
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="section-label">Skill Library</p>
@@ -232,7 +235,7 @@ export function SkillLibraryPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* v8.2 D5 — freshness + provenance for the data view */}
+          {/* v8.2 D5: freshness + provenance for the data view */}
           <FreshnessChip
             lastFetchedAt={lastFetchedAt}
             source="api/skills"
@@ -242,8 +245,7 @@ export function SkillLibraryPanel() {
           <button
             onClick={() => void extractNow()}
             disabled={extracting}
-            className={cn(
-              "text-[12px] font-medium px-2 py-1 rounded-control border transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1",
+            className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-1 rounded-control border transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1",
               extracting
                 ? "opacity-60 border-edge-default text-fg-tertiary"
                 : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
@@ -255,7 +257,7 @@ export function SkillLibraryPanel() {
           </button>
           <button
             onClick={() => void load()}
-            className="text-[12px] font-medium text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)]"
+            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)]"
           >
             Refresh
           </button>
@@ -269,7 +271,7 @@ export function SkillLibraryPanel() {
           placeholder="search triggers / actions / keywords…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full px-2 py-1.5 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
+          className="w-full px-2 py-1.5 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
         />
       </div>
 
@@ -289,8 +291,7 @@ export function SkillLibraryPanel() {
               key={t.id}
               onClick={() => setTab(t.id)}
               aria-pressed={sel}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+              className={cn("min-h-11 min-w-11 flex items-center gap-1.5 px-2 py-1 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                 sel
                   ? "bg-accent-soft text-fg border border-transparent"
                   : "text-fg-tertiary hover:text-fg-secondary border border-transparent",
@@ -306,13 +307,17 @@ export function SkillLibraryPanel() {
         })}
       </div>
 
-      {loading && !active && !pending && (
+      {/* Wave E2: the panel carries its own read markers (a closed Brain fold counts them). A paused read
+          has no data and no error: offline, not "loading" forever. */}
+      {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
+      {readState(skillsQuery) === "offline" && <ReadStateNote state="offline" label="Skill library" />}
+      <StaleNote q={skillsQuery} label="Skill library" className="mb-2" />
+      {loading && !active && !pending && readState(skillsQuery) === "loading" && (
         <div className="flex items-center gap-2 py-6 justify-center text-[11px] text-[var(--text-tertiary)]">
           <Loader2 size={12} className="animate-spin" />
           loading skills…
         </div>
       )}
-      {error && <div className="text-[11px] text-red-400 py-2">failed: {error}</div>}
 
       {/* List */}
       <div className="space-y-1">
@@ -344,7 +349,7 @@ export function SkillLibraryPanel() {
                         <input
                           value={editTrigger}
                           onChange={(e) => setEditTrigger(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
+                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[16px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                       <div>
@@ -354,7 +359,7 @@ export function SkillLibraryPanel() {
                         <input
                           value={editAction}
                           onChange={(e) => setEditAction(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
+                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[16px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                     </div>
@@ -415,7 +420,7 @@ export function SkillLibraryPanel() {
                         disabled={rowBusy}
                         title="save"
                         aria-label="Save skill edit"
-                        className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 inline-flex items-center justify-center"
+                        className="min-h-11 min-w-11 h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 inline-flex items-center justify-center"
                       >
                         <Check size={10} aria-hidden />
                       </button>
@@ -424,7 +429,7 @@ export function SkillLibraryPanel() {
                         disabled={rowBusy}
                         title="cancel"
                         aria-label="Cancel edit"
-                        className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 inline-flex items-center justify-center"
+                        className="min-h-11 min-w-11 h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 inline-flex items-center justify-center"
                       >
                         <X size={10} aria-hidden />
                       </button>
@@ -436,7 +441,7 @@ export function SkillLibraryPanel() {
                         disabled={rowBusy}
                         title="edit trigger + action"
                         aria-label="Edit trigger and action"
-                        className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
+                        className="min-h-11 min-w-11 h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
                       >
                         <Pencil size={10} aria-hidden />
                       </button>
@@ -446,7 +451,7 @@ export function SkillLibraryPanel() {
                             onClick={() => act(s.key, "promote")}
                             disabled={rowBusy}
                             title="promote to active"
-                            className="h-6 px-2 rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[12px] font-medium inline-flex items-center gap-1"
+                            className="min-h-11 min-w-11 h-6 px-2 rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[12px] font-medium inline-flex items-center gap-1"
                           >
                             <ArrowUp size={9} />
                             Promote
@@ -456,7 +461,7 @@ export function SkillLibraryPanel() {
                             disabled={rowBusy}
                             title="drop candidate"
                             aria-label="Drop candidate"
-                            className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                            className="min-h-11 min-w-11 h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
                           >
                             <Trash2 size={10} aria-hidden />
                           </button>
@@ -468,7 +473,7 @@ export function SkillLibraryPanel() {
                             onClick={() => act(s.key, "graduate")}
                             disabled={rowBusy}
                             title="graduate (silent-track)"
-                            className="h-6 px-2 rounded-control border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-[12px] font-medium inline-flex items-center gap-1"
+                            className="min-h-11 min-w-11 h-6 px-2 rounded-control border border-sky-500/30 text-sky-400 hover:bg-sky-500/10 text-[12px] font-medium inline-flex items-center gap-1"
                           >
                             <GraduationCap size={9} />
                             Graduate
@@ -478,7 +483,7 @@ export function SkillLibraryPanel() {
                             disabled={rowBusy}
                             title="drop skill"
                             aria-label="Drop skill"
-                            className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                            className="min-h-11 min-w-11 h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
                           >
                             <Trash2 size={10} aria-hidden />
                           </button>
@@ -489,7 +494,7 @@ export function SkillLibraryPanel() {
                           onClick={() => act(s.key, "ungraduate")}
                           disabled={rowBusy}
                           title="back to active (resume nudging)"
-                          className="h-6 px-2 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong text-[12px] font-medium"
+                          className="min-h-11 min-w-11 h-6 px-2 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong text-[12px] font-medium"
                         >
                           Un-grad
                         </button>
@@ -505,10 +510,12 @@ export function SkillLibraryPanel() {
         {/*
           This panel had NO error branch. `active` and `pending` are null on a
           failed fetch, `?? []` collapsed them, and `loading` is false once the
-          fetch settles — so a failed read rendered "No candidates yet" and two
+          fetch settles: so a failed read rendered "No candidates yet" and two
           siblings like them: three confident zeros about a surface never read.
         */}
-        {!loading && !active && !pending && (
+        {/* Wave E2: a failed read already says so above (ReadingUnavailable); this is the no-data,
+            no-error case only. */}
+        {!loading && !active && !pending && !skillsQuery.isError && (
           <EmptyState
             icon={Target}
             title="Skill library unavailable"
@@ -557,5 +564,6 @@ export function SkillLibraryPanel() {
         graduate them to silent-track so the system stops nudging but keeps the pattern on file.
       </p>
     </GlassCard>
+    </div>
   );
 }

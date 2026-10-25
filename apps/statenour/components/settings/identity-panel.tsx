@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * IdentityPanel — 8-axis self-model surface.
+ * IdentityPanel: 8-axis self-model surface.
  *
  * Each axis is a horizontal bar 0-100 with the current value. Nour
  * can pin an override by clicking the pin icon, typing a value, and
@@ -47,7 +47,7 @@ interface HistoryPoint {
   axes: Partial<Record<AxisKey, number>>;
 }
 
-// ── Sparkline helper — flat SVG line ──────────────────────────────────
+// ── Sparkline helper: flat SVG line ──────────────────────────────────
 function Sparkline({ values, color = "var(--text-secondary)" }: { values: number[]; color?: string }) {
   if (values.length < 2) return null;
   const w = 60;
@@ -110,7 +110,7 @@ export function IdentityPanel() {
   // typed query (operator.identity). The legacy route wrapped the
   // payload in `{ data }`; the procedure returns { snapshot, history }
   // directly. recompute / pin are typed mutations that invalidate the
-  // query — the prior code set `snap` straight from the mutation
+  // query: the prior code set `snap` straight from the mutation
   // response; invalidate-then-refetch reaches the same end state with
   // the server snapshot as the single source of truth.
   const utils = trpc.useUtils();
@@ -168,12 +168,12 @@ export function IdentityPanel() {
   );
 
   return (
-    <GlassCard>
+    <GlassCard ruled>
       <div className="flex items-center justify-between mb-3">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="section-label">Identity Snapshot</p>
-            <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+            <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} className="min-h-11" />
           </div>
           <p className="text-[12px] text-fg-tertiary mt-0.5">
             8-axis self-model · rolls daily 04:30 · pin any axis to override
@@ -182,8 +182,7 @@ export function IdentityPanel() {
         <button
           onClick={() => void recompute()}
           disabled={refreshing}
-          className={cn(
-            "text-[12px] font-medium px-2 py-1 rounded-control border transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1",
+          className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-1 rounded-control border transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1",
             refreshing
               ? "opacity-60 border-edge-default text-fg-tertiary"
               : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
@@ -247,7 +246,7 @@ export function IdentityPanel() {
                         disabled={rowBusy}
                         title={isPinned ? "edit / clear override" : "pin override"}
                         aria-label={isPinned ? `edit or clear ${AXIS_LABELS[key]} override` : `pin ${AXIS_LABELS[key]} override`}
-                        className="h-9 w-9 sm:h-5 sm:w-5 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
+                        className="min-h-11 min-w-11 h-9 w-9 sm:h-5 sm:w-5 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
                       >
                         {isPinned ? <PinOff size={9} aria-hidden /> : <Pin size={9} aria-hidden />}
                       </button>
@@ -288,12 +287,12 @@ export function IdentityPanel() {
                       value={pinValue}
                       onChange={(e) => setPinValue(e.target.value)}
                       placeholder="0-100 or blank to clear"
-                      className="flex-1 px-2 py-1 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
+                      className="flex-1 px-2 py-1 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
                     />
                     <button
                       onClick={() => void savePin(key)}
                       disabled={rowBusy}
-                      className="h-6 px-2 text-[12px] font-medium rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                      className="min-h-11 min-w-11 h-6 px-2 text-[12px] font-medium rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                     >
                       {rowBusy ? "…" : "Save"}
                     </button>
@@ -303,7 +302,7 @@ export function IdentityPanel() {
                         setPinValue("");
                       }}
                       disabled={rowBusy}
-                      className="h-6 px-2 text-[12px] font-medium rounded-control border border-edge-default text-fg-tertiary hover:text-fg"
+                      className="min-h-11 min-w-11 h-6 px-2 text-[12px] font-medium rounded-control border border-edge-default text-fg-tertiary hover:text-fg"
                     >
                       Cancel
                     </button>

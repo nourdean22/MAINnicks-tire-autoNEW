@@ -21,7 +21,9 @@ import { test, expect } from "@playwright/test";
  * rendered by the empty hermetic database: the "system healthy" state pill
  * (32px) and the empty-deck "Ask Nick for Recommendations" button (32px).
  */
-const PAGES = ["/", "/missions", "/chat", "/journal", "/system"] as const;
+// Wave E2 (2026-10-24): /stats and /settings join (census 3A.5 listed both as uncovered). /stats renders one
+// tab at a time (?tab= read by lib/stats/resolve-tab.ts), so Goals and Body and learning are audited by URL.
+const PAGES = ["/", "/missions", "/chat", "/journal", "/system", "/stats", "/stats?tab=goals", "/stats?tab=body", "/settings"] as const;
 // The hermetic CI database renders these three pages short at 390x844 (nothing below the
 // fold), so the focus probe also walks pages whose length does not depend on data.
 const FOCUS_PAGES = ["/", "/missions", "/chat", "/system", "/settings", "/journal"] as const;

@@ -43,7 +43,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/identity", label: "Identity Snapshot", prompt: "", navigate: "/brain#identity" },
   { cmd: "/beliefs", label: "Beliefs Library", prompt: "", navigate: "/brain#beliefs" },
   { cmd: "/contradictions", label: "Open Contradictions", prompt: "", navigate: "/brain#contradictions" },
-  { cmd: "/ghost", label: "Ghost Nick Predictions", prompt: "", navigate: "/brain#ghost" },
+  { cmd: "/ghost", label: "Ghost Nick Predictions", prompt: "", navigate: "/stats?tab=goals#forecast-duel" }, // wave E2: moved to Stats Goals
 
   { cmd: "/new", label: "Start New Chat", prompt: "", action: "new-chat" },
   { cmd: "/history", label: "Open Conversation History", prompt: "", action: "history" },
