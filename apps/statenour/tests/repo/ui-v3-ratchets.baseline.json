@@ -6,7 +6,9 @@
     "emoji": 3,
     "transitionAll": 23,
     "slowDuration": 5,
-    "smallInput": 24
+    "smallInput": 24,
+    "offGrammarHue": 154,
+    "glassCard": 4
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -19,6 +21,9 @@
     "app/(mastery)/system/actions/page.tsx": {
       "smallInput": 1
     },
+    "app/auth/sign-in/page.tsx": {
+      "glassCard": 1
+    },
     "app/styles/base.css": {
       "uppercase": 4
     },
@@ -28,32 +33,44 @@
     "components/actions/derive-mission-matrix.ts": {
       "emDash": 3
     },
+    "components/actions/event-timeline.tsx": {
+      "offGrammarHue": 2
+    },
     "components/actions/loop-row-item.tsx": {
       "emDash": 6,
-      "smallInput": 5
+      "smallInput": 5,
+      "offGrammarHue": 24
     },
     "components/actions/loop-stream.tsx": {
       "emDash": 1,
-      "emoji": 1
+      "emoji": 1,
+      "offGrammarHue": 6
     },
     "components/actions/milestones-flow.tsx": {
-      "smallInput": 1
+      "smallInput": 1,
+      "offGrammarHue": 11
     },
     "components/actions/mode-learn.tsx": {
       "transitionAll": 12,
       "slowDuration": 1,
-      "smallInput": 1
+      "smallInput": 1,
+      "offGrammarHue": 67
+    },
+    "components/actions/shared.ts": {
+      "offGrammarHue": 8
     },
     "components/actions/task-filters.tsx": {
       "emDash": 2,
-      "smallInput": 2
+      "smallInput": 2,
+      "offGrammarHue": 6
     },
     "components/ai/page-nick.tsx": {
       "smallInput": 1
     },
     "components/brain-dump-modal.tsx": {
       "emDash": 5,
-      "transitionAll": 2
+      "transitionAll": 2,
+      "offGrammarHue": 2
     },
     "components/brain/health-view.tsx": {
       "transitionAll": 1
@@ -95,15 +112,20 @@
       "transitionAll": 2
     },
     "components/missions/execution-panel.tsx": {
-      "smallInput": 4
+      "smallInput": 4,
+      "offGrammarHue": 15
     },
     "components/missions/health-governor-strip.tsx": {
       "transitionAll": 1,
-      "slowDuration": 1
+      "slowDuration": 1,
+      "offGrammarHue": 7
     },
     "components/missions/mission-card.tsx": {
       "transitionAll": 1,
       "slowDuration": 1
+    },
+    "components/missions/mission-task-row.tsx": {
+      "offGrammarHue": 3
     },
     "components/power-atlas/DossierEditor.tsx": {
       "emDash": 1,
@@ -122,6 +144,9 @@
       "transitionAll": 1,
       "slowDuration": 1
     },
+    "components/relationships/relationships-watchlist.tsx": {
+      "offGrammarHue": 1
+    },
     "components/ui/change-set-line.tsx": {
       "emDash": 1
     },
@@ -138,6 +163,12 @@
     "components/ui/empty-state.tsx": {
       "emDash": 1
     },
+    "components/ui/error-boundary.tsx": {
+      "glassCard": 1
+    },
+    "components/ui/error-card.tsx": {
+      "offGrammarHue": 2
+    },
     "components/ui/outcome-dialog.tsx": {
       "emDash": 2,
       "smallInput": 1
@@ -145,11 +176,17 @@
     "components/ultron/bottom-pulse-ticker.tsx": {
       "emoji": 1
     },
+    "components/ultron/decision-replay-card.tsx": {
+      "glassCard": 1
+    },
     "components/ultron/deploy-chip.tsx": {
       "emDash": 1
     },
     "components/ultron/observability/observability-row.tsx": {
       "emDash": 1
+    },
+    "components/ultron/persona-drift-card.tsx": {
+      "glassCard": 1
     },
     "hooks/chat/use-chat-transport.ts": {
       "emDash": 1
