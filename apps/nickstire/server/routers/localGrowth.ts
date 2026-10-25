@@ -144,4 +144,15 @@ export const localGrowthRouter = router({
     const { getCompetitorSnapshotCached } = await import("../services/competitorMonitor");
     return getCompetitorSnapshotCached();
   }),
+
+  /**
+   * Search Console position per tracked keyword, 28 days vs the 28 before, from the
+   * shop's own stored rows, with one action each (contract localGrowth.targetKeywordRanks
+   * v1). A keyword with no recorded impression has no position; an empty table or a
+   * failed read is { ok: false, reason }, never a list of zeros.
+   */
+  targetKeywordRanks: adminProcedure.query(async () => {
+    const { getTargetKeywordRanks } = await import("../pipelines/targetKeywordRanks");
+    return getTargetKeywordRanks();
+  }),
 });

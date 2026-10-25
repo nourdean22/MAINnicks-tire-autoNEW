@@ -33,7 +33,7 @@ import {
   weeklyPhotoQueue, PHOTO_SAFETY_RULES, UPLOAD_DESTINATION,
 } from "@/lib/gbpPhotoQueue";
 import { CANONICAL_IDENTITY, ENTITY_PLATFORMS, ENTITY_FIX_ORDER } from "@/lib/entityConsistency";
-import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
+import type { RankKeyword } from "@shared/localRankKeywords";
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
 const MODE_CLS: Record<Mode, string> = {
@@ -143,21 +143,8 @@ export function LocalGrowthTab() {
         )}
       </Panel>
 
-      <Panel title="Search visibility (rank tracker)" icon={<TrendingUp className="w-4 h-4" />}>
-        <div className="flex items-center gap-2 mb-2"><ModeBadge mode="manual" /><span className="text-[10px] text-foreground/40">no measured ranks yet: never faked</span></div>
-        <p className="text-[11px] text-foreground/60 leading-relaxed mb-2">
-          {RANK_KEYWORDS.length} target keywords are defined. Ranks show only after a real
-          measurement (GSC average position or a manual SERP check): the GSC env-aliasing
-          fix in this stack stops Search Console syncing from silently dying when the Maps
-          key changes.
-        </p>
-        <div className="flex flex-wrap gap-1">
-          {RANK_KEYWORDS.map((k) => (
-            <span key={k.keyword} className="px-1.5 py-0.5 text-[10px] bg-foreground/5 border border-border/30 rounded text-foreground/60">
-              {k.keyword} <span className="text-foreground/30">· {k.group}</span>
-            </span>
-          ))}
-        </div>
+      <Panel title="Search position (Google Search Console)" icon={<TrendingUp className="w-4 h-4" />}>
+        <SearchPosition />
       </Panel>
 
       <Panel title="Next owner actions" icon={<CheckCircle2 className="w-4 h-4" />}>
@@ -172,6 +159,127 @@ export function LocalGrowthTab() {
       </Panel>
 
       <SocialPipelineHealth />
+    </div>
+  );
+}
+
+/* ── Search position (Search Console) ────────────────────────── */
+
+// Mirrors server/pipelines/targetKeywordRanks.ts (STALE_DAYS, DECLINE_POSITIONS).
+const STALE_SYNC_DAYS = 7;
+const MEANINGFUL_CHANGE = 2.0;
+
+const RANK_GROUPS: { group: RankKeyword["group"]; label: string }[] = [
+  { group: "tires", label: "Tires" },
+  { group: "brakes", label: "Brakes" },
+  { group: "auto-repair", label: "Auto repair" },
+  { group: "local-euclid", label: "Euclid" },
+  { group: "diagnostics", label: "Diagnostics" },
+  { group: "emissions", label: "Emissions" },
+  { group: "oil", label: "Oil change" },
+  { group: "suspension", label: "Suspension" },
+];
+
+type RankAction =
+  | "check_sync" | "review_variants" | "verify_local" | "compare_top_results" | "review_snippet" | "new" | "monitor";
+const RANK_ACTION_COPY: Record<RankAction, string> = {
+  check_sync: "Check the Search Console sync",
+  review_variants: "Review query variants",
+  verify_local: "Verify with a local rank check",
+  compare_top_results: "Compare the page with the top results",
+  review_snippet: "Review the search snippet",
+  new: "Newly observed",
+  monitor: "Monitor",
+};
+
+const RANKS_FAILURE_COPY: Record<"unconfigured" | "unmeasured" | "error", (message: string) => string> = {
+  unconfigured: () =>
+    "Search Console credentials are not set on the server; positions are UNMEASURED. Add GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_KEY in Railway.",
+  unmeasured: () => "No Search Console rows are stored yet; positions are UNMEASURED, not zero.",
+  error: (m) => `Search Console read failed: ${stripPeriod(m)}.`,
+};
+
+const plural = (n: number, word: string) => `${fmtCount(n)} ${word}${n === 1 ? "" : "s"}`;
+
+/** "2026-10-23" -> "Oct 23", read as a local date (Date.parse would shift it a day back west of UTC). */
+function monthDay(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function SearchPosition() {
+  const { data, isLoading, isError, refetch } = trpc.localGrowth.targetKeywordRanks.useQuery();
+  const retry = () => void refetch();
+
+  if (isLoading) return <LoadingState label="Reading Search Console rows..." />;
+  if (isError || !data) return <ErrorState message="Search positions couldn't load: unknown, not zero." onRetry={retry} />;
+  if (!data.ok) return <ErrorState message={RANKS_FAILURE_COPY[data.reason](data.message)} onRetry={retry} />;
+
+  const groups = RANK_GROUPS.map(({ group, label }) => ({
+    label,
+    // Most recorded impressions first; a keyword with none sorts last.
+    rows: data.keywords
+      .filter((k) => k.group === group)
+      .sort((a, b) => (b.current?.impressions ?? -1) - (a.current?.impressions ?? -1)),
+  })).filter((g) => g.rows.length > 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ModeBadge mode="read-only" />
+          <span className="text-[11px] text-foreground/70 min-w-0">
+            {`28 days ending ${monthDay(data.latestDate)} · versus the 28 before · site average across pages, impression-weighted`}
+          </span>
+        </div>
+        <p className="text-[10px] text-foreground/50 leading-relaxed">
+          {`Recorded impressions only: Google hides most query impressions, so a blank keyword is unmeasured, not unranked. Site total this window: ${fmtCount(data.totals.impressions28d)} impressions across ${fmtCount(data.totals.distinctQueries28d)} queries.`}
+        </p>
+      </div>
+
+      {data.staleDays > STALE_SYNC_DAYS && (
+        <p className="text-[11px] font-semibold text-amber-400">
+          {`Search Console sync is ${data.staleDays} days behind: check the gsc-pipeline cron`}
+        </p>
+      )}
+
+      {groups.map((g) => (
+        <div key={g.label}>
+          <p className="text-[10px] font-semibold text-foreground/50 mb-1">{g.label}</p>
+          <ul className="space-y-1.5">
+            {g.rows.map((k) => (
+              <li
+                key={k.keyword}
+                data-keyword-row
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 bg-background/40 border border-border/30 rounded p-2.5 text-[11px]"
+              >
+                <span className="text-xs font-semibold text-foreground min-w-0 break-words">{k.keyword}</span>
+                {k.current ? (
+                  <>
+                    <span className="text-foreground/80 tabular-nums">{`Avg position ${k.current.position.toFixed(1)}`}</span>
+                    {k.change !== null && (Math.abs(k.change) >= MEANINGFUL_CHANGE ? (
+                      <span className={k.change > 0 ? "text-emerald-400" : "text-red-400"}>
+                        {`${k.change > 0 ? "Improved" : "Dropped"} ${Math.abs(k.change).toFixed(1)} positions`}
+                      </span>
+                    ) : (
+                      <span className="text-foreground/50">Steady</span>
+                    ))}
+                    <span className="text-foreground/50 tabular-nums">
+                      {`${plural(k.current.impressions, "impression")} · ${plural(k.current.clicks, "click")}`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-foreground/50">no position</span>
+                    <span className="text-foreground/50">No recorded impressions in 28 days</span>
+                  </>
+                )}
+                <span className="basis-full text-foreground/70">{RANK_ACTION_COPY[k.action]}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
@@ -426,6 +534,8 @@ export function CompetitorsTab() {
         .filter((c) => c.reviewCount > nicks.reviewCount)
         .sort((a, b) => a.reviewCount - b.reviewCount)[0]
     : undefined;
+  // Strictly ahead of every shop Google returned; a tie or an empty list claims nothing.
+  const leadsAll = !!nicks && competitors.length > 0 && competitors.every((c) => c.reviewCount < nicks.reviewCount);
 
   return (
     <div className="space-y-4">
@@ -506,7 +616,22 @@ export function CompetitorsTab() {
       </Panel>
 
       <Panel title="One action" icon={<TrendingUp className="w-4 h-4" />}>
-        <p className="text-xs text-foreground/80">Review volume is the gap most worth closing.</p>
+        {nicks && leadsAll ? (
+          <>
+            <p className="text-xs text-foreground/80">
+              {unresolved > 0
+                ? "We lead every tracked shop Google returned on review count."
+                : "We lead every tracked shop on review count."}
+            </p>
+            {ownPace !== null && (
+              <p className="text-[11px] text-foreground/60 mt-1">
+                {`Keep the pace: ${nicks.recent.count} newest reviews in ${ownPace} days.`}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-foreground/80">Review volume is the gap most worth closing.</p>
+        )}
         {nicks && nearestAhead && (
           <p className="text-[11px] text-foreground/60 mt-1">
             {`Nearest ahead by volume: ${nearestAhead.name}, ${fmtCount(nearestAhead.reviewCount - nicks.reviewCount)} more reviews.`}

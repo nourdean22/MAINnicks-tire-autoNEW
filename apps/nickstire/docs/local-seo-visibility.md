@@ -1,14 +1,21 @@
 # Local SEO Visibility — Rank Tracker, Post Verification, Reviews & GSC
 
-**Status: MODEL + READ SURFACE. Rank tracking is manual/future-API; the
-armed-state and reviews-health checks are live read-only endpoints.**
+**Status: LIVE READ SURFACES. The search-position card, the armed-state
+and the reviews-health checks are live read-only endpoints (2026-10-25).**
 
-## 1. Local rank tracker (model — `client/src/lib/localRankKeywords.ts`)
-15 target keywords across auto-repair / tires / brakes / diagnostics /
-emissions / oil / suspension / local-Euclid. `emptyRankReport()` returns
-one row per keyword with `rank: null, source: "unmeasured"` — **ranks are
-never fabricated.** Fill from GSC average position (already synced) or a
-manual SERP check; record the source on each row.
+## 1. Search position per tracked keyword (LIVE — `trpc.localGrowth.targetKeywordRanks`)
+The keyword list lives in `shared/localRankKeywords.ts` (the 15 curated
+targets plus the 8 service queries Google already shows the shop for;
+the old client model file and its unmeasured report shape are deleted).
+`server/pipelines/targetKeywordRanks.ts`
+reads the shop's own stored Search Console rows: two 28-day windows ending
+the newest stored date, impression-weighted position across pages, devices
+and countries, exact lowercase match, a change only when both windows carry
+30 or more impressions, one action per keyword. A keyword with no recorded
+impression has NO position (Google records a position only with an
+impression, and about 93% of query impressions are anonymised), so the card
+says "No recorded impressions", never a rank. Thresholds are named constants
+in that file, adopted as rulings on 2026-10-25.
 
 ## 2. GBP post verification (manual weekly checklist)
 GBP Posts API was deprecated in 2024 — `gbpAutoPost` can only generate

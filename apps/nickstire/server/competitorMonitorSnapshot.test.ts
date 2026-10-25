@@ -53,6 +53,8 @@ const T_NEW = 1792773427;
 
 let mode: "ok" | "denied" | "down" = "ok";
 const urls: string[] = [];
+/** place_ids whose details come back with a name and no rating or count (a closed or wrong listing). */
+let nameOnly: RegExp | null = null;
 
 function stubPlaces(selfId: string) {
   vi.stubGlobal("fetch", async (input: string | URL) => {
@@ -68,6 +70,7 @@ function stubPlaces(selfId: string) {
     if (url.includes("/details/")) {
       const id = new URL(url).searchParams.get("place_id") ?? "";
       const self = id === selfId;
+      if (nameOnly?.test(id)) return new Response(JSON.stringify({ status: "OK", result: { name: "Pep Boys" } }));
       return new Response(
         JSON.stringify({
           status: "OK",
@@ -93,6 +96,7 @@ beforeEach(() => {
   h.throwOnInfo = false;
   urls.length = 0;
   mode = "ok";
+  nameOnly = null;
   for (const k of ENV_KEYS) saved[k] = process.env[k];
   process.env.GOOGLE_PLACES_API_KEY = "test-key";
   delete process.env.GOOGLE_MAPS_API_KEY;
@@ -149,6 +153,22 @@ describe("getCompetitorSnapshotCached: the contract", () => {
     expect(out.competitors.filter((c) => c.group === "local")).toHaveLength(6);
     // Nick's 4.9 / 1715 beats every competitor's 4.3 / 321.
     expect(out.rank).toEqual({ byRating: 1, byVolume: 1, of: 15 });
+  });
+
+  it("a listing Google returns with no rating or count is dropped and counted unresolved, never shown as 0", async () => {
+    // Production 2026-10-25 14:33Z: "Pep Boys Cleveland 0.0 star, 0 reviews, we lead by 1,727".
+    nameOnly = /pep boys/i;
+    const { getCompetitorSnapshotCached } = await load();
+    const out = await getCompetitorSnapshotCached();
+    if (!out.ok) throw new Error(`expected ok, got ${out.reason}: ${out.message}`);
+    expect(out.competitors.some((c) => c.name.startsWith("Pep Boys"))).toBe(false);
+    expect(out.competitors).toHaveLength(13);
+    expect(out.unresolved).toBe(2); // Midas (our own listing) + Pep Boys
+    for (const c of out.competitors) {
+      expect(c.rating, c.name).toBeGreaterThan(0);
+      expect(c.reviewCount, c.name).toBeGreaterThan(0);
+    }
+    expect(h.logs.join("\n")).toContain("listing has no rating on Google");
   });
 
   it("asks Places for the newest reviews (the consumer of recent is the request itself)", async () => {
