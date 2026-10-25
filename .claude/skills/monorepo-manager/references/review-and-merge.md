@@ -67,22 +67,28 @@ Restarts and quota days (2026-10-16 and 2026-10-18):
 
 ## Integrate a lane (step 13)
 
-PR 3270 was first pushed holding only the ledger commit (2026-10-25): a second `git fetch` overwrote `FETCH_HEAD` before
-`checkout -B ... FETCH_HEAD`, so the integration branch was cut from the wrong commit. Fetch each lane into a NAMED ref, which
-no later fetch can move, and count the commits before you push. In the push clone:
+Two traps on 2026-10-25. PR 3270 was first pushed holding only the ledger commit: a second `git fetch` overwrote `FETCH_HEAD`
+before `checkout -B ... FETCH_HEAD`. And a lane RETURN gave a wrong full SHA (`87b53cf6727be...` for the real
+`87b53cf6723b7ac6...`); cherry-picking by it in the sparse push clone failed "not our ref", then "bad object". So: take the lane
+by BRANCH name into a NAMED ref (no later fetch moves it), take main from GitHub (a clone of the primary checkout has the
+primary's stale local main as `origin/main`, and an unpushed lane branch exists only in the primary), use the RETURN's SHA only
+to compare, and count the commits before you push. In the push clone:
 
 ```bash
-git fetch origin main "+refs/heads/<lane-branch>:refs/lanes/<lane-branch>"
-git rev-list --count origin/main..refs/lanes/<lane-branch>
-git checkout -B <integration-branch> origin/main
-git cherry-pick origin/main..refs/lanes/<lane-branch>
-git rev-list --count origin/main..HEAD
+git fetch https://github.com/nourdean22/MAINnicks-tire-autoNEW.git "+refs/heads/main:refs/remotes/github/main"
+git fetch <primary checkout path> "+refs/heads/<lane-branch>:refs/lanes/<lane-branch>"
+git rev-parse refs/lanes/<lane-branch>
+git rev-list --count github/main..refs/lanes/<lane-branch>
+git checkout -B <integration-branch> github/main
+git cherry-pick github/main..refs/lanes/<lane-branch>
+git rev-list --count github/main..HEAD
 ```
 
-The last count must equal the first (plus your own ledger commit once you add it); if it does not, stop and do not push.
-Never name `FETCH_HEAD` in a command that runs after a second fetch. A lane branch that also carries commits main already has
-as a squash (it was cut from another PR's branch) would re-apply them: replace `origin/main..` with `<lane base sha>..` in the
-first count and in the cherry-pick.
+The resolved SHA must equal the RETURN's; if not, the RETURN is wrong or the lane moved: ask the lane, do not pick. The last
+count must equal the first (plus your own ledger commit once you add it); if it does not, stop and do not push. Never name
+`FETCH_HEAD` or a SHA copied from a RETURN as an operand. A lane branch that also carries commits main already has as a squash
+(it was cut from another PR's branch) would re-apply them: replace `github/main..` with `<lane base sha>..` in the first count
+and in the cherry-pick.
 
 ## Merge protocol (step 15)
 
