@@ -295,8 +295,8 @@
     {
       "id": "add-all",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__add\\b[^;|&\\n]*?(?:\\s-[a-zA-Z]*A[a-zA-Z]*\\b|\\s--all\\b|\\s[\"']?\\.[\\\\/]?[\"']?(?=[\\s;|&)\"']|$))",
-      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files. 2026-10-25: the scan stops at ; | & and newline (as force-push did 2026-09), so a one-path add chained with a later --root . or ls -A passes, and a dot followed by ; & | ) or written as \".\", './' or .\\ is caught.",
+      "pattern": "__GIT__add\\b[^;|&\\n]*?\\s(?:-[a-zA-Z]*A[a-zA-Z]*\\b|--all\\b|[\"']?(?:(?:\\.{1,2}(?:[\\\\/]\\*?)?|\\*[^\\s;|&)\"']*|:(?:/|\\([^)\\s]*\\btop\\b[^)\\s]*\\))[.*]?)[\"']?(?=[\\s;|&)\"']|$)|(?:\\$\\(|`)\\s*git(?:\\s+[^\\s;|&)`]+){0,6}?\\s+(?:ls-files|diff|status)\\b))|__GIT__add(?=(?:\\s+-[\\w=+.,-]*)*?\\s+(?:-(?=[a-zA-Z]*u)[a-zA-Z]+|--update)(?=[\\s;|&)]|$))(?:\\s+(?:-[\\w=+.,-]*|&?\\d*>{1,2}&?[^\\s;&|)]*))*\\s*(?=$|[;|&\\n)])|__GIT__(?:ls-files|diff|status)\\b(?:\\s+[^\\s;&|]+){0,12}\\s*\\|\\s*xargs\\b(?:\\s+[^\\s;&|]+){0,8}?\\s+git\\s+add\\b",
+      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files. 2026-10-25: the scan stops at ; | & and newline (as force-push did 2026-09), so a one-path add chained with a later --root . or ls -A passes, and a dot followed by ; & | ) or written as \".\", './' or .\\ is caught. Also denied (manager ruling 2026-10-25, each a whole-tree add with no named path): a bare -u/--update, :/ and :(top), a token that starts with * (bare *, './*', '*.ts'), .. and ../, and git's own file list as the path list ($(git ls-files|diff|status ...), backticks, or piped into xargs git add). Still allowed: -u with named paths, apps/x/*.ts, ./docs/a.md, :/apps/x.md, ../app/a.ts.",
       "fix": "git add path/to/one.ts path/to/two.ts",
       "denyExamples": [
         "git add -A",
@@ -313,7 +313,24 @@
         "(git add .)",
         "git add \".\"",
         "git add './'",
-        "git add .\\"
+        "git add .\\",
+        "git add -u",
+        "git add --update",
+        "git add -vu",
+        "git -C x add -u",
+        "git add -u -- ",
+        "git add -u 2>&1",
+        "git add -u; git commit -m x",
+        "git add :/",
+        "git add ':(top)'",
+        "git add *",
+        "git add ./*",
+        "git add '*.ts'",
+        "git add ..",
+        "git add $(git ls-files -m)",
+        "git add $(git diff --name-only HEAD)",
+        "git add `git ls-files -o`",
+        "git ls-files -m | xargs git add"
       ],
       "allowExamples": [
         "git add apps/statenour/lib/foo.ts",
@@ -325,7 +342,13 @@
         "git add docs/agent-os/README.md && git commit -m \"x -A y\"",
         "git add docs/agent-os/README.md; ls -A",
         "git add a.ts && npm ls --all",
-        "git add a.ts && cd .. && ls ."
+        "git add a.ts && cd .. && ls .",
+        "git add -u apps/x/one.ts apps/x/two.ts",
+        "git add apps/x/*.ts",
+        "git add ./docs/a.md",
+        "git add :/apps/nickstire/AGENTS.md",
+        "git add ../statenour/lib/foo.ts",
+        "git add a.ts && git diff --name-only"
       ]
     },
     {
