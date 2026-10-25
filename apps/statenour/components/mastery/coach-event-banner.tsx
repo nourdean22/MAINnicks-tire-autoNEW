@@ -31,6 +31,7 @@ import Link from "next/link";
 import { useState, useCallback } from "react";
 import { Sparkles, AlertTriangle, ChevronRight, X } from "lucide-react";
 import { useCoachEvents } from "@/lib/hooks/use-coach-events";
+import { ReadStateNote } from "@/components/ui/read-state-note";
 // Wave-AO follow-up · import from the client-safe types module · the
 // heavy ./coach-events module imports prisma and would break the
 // client build if pulled in transitively (same v10.0.209 constraint
@@ -48,12 +49,14 @@ interface CoachEventBannerProps {
    *  stack vertically · operator should be able to scan in one
    *  glance. Larger surfaces (admin/dashboard) can opt to 5. */
   limit?: number;
+  /** Wave E2: say when the read failed (Stats Goals). Off elsewhere, where the banner stays silent. */
+  showReadState?: boolean;
 }
 
-export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) {
+export function CoachEventBanner({ surface, limit = 3, showReadState = false }: CoachEventBannerProps) {
   // Shared, surface-keyed poller (de-duped with NickSidePane: they used to
   // each run a separate usePollingFetch against the same endpoint).
-  const { events, reload } = useCoachEvents(surface, { limit });
+  const { events, reload, failed, read } = useCoachEvents(surface, { limit });
 
   // Optimistic-dismissed event keys · hides them locally before the
   // poll refreshes. Server-side ack is fire-and-forget · failure
@@ -86,12 +89,15 @@ export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) 
   // Errors fail silent too · the channel is advisory · not surfacing
   // it shouldn't break the page (the original alert mechanisms still
   // run during the migration window).
-  if (!events.length) return null;
+  // Wave E2: where the page asks, a failed read is not 'nothing to coach'.
+  if (showReadState && failed && !read) return <ReadStateNote state="error" label="Coach nudges" onRetry={reload} />;
+  const staleNote = showReadState && failed && read ? <ReadStateNote state="stale" label="Coach nudges" onRetry={reload} /> : null;
+  if (!events.length) return staleNote;
 
   const visibleEvents = events.filter(
     (e) => !dismissedKeys.has(buildCoachEventKey(e.kind, e.subjectId)),
   );
-  if (visibleEvents.length === 0) return null;
+  if (visibleEvents.length === 0) return staleNote;
 
   return (
     <section
@@ -99,6 +105,7 @@ export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) 
       className="space-y-2"
       data-surface={surface}
     >
+      {staleNote}
       {visibleEvents.map((event) => (
         <CoachEventCard
           key={event.eventId}

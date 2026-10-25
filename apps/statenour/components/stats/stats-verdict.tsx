@@ -98,7 +98,9 @@ function VerdictSentence() {
   const query = trpc.operator.characterSheet.useQuery(undefined, { staleTime: 60_000 });
   const stats = (query.data as VerdictStat[] | undefined) ?? null;
 
-  if (query.error) {
+  // Round 2: only a failure with nothing cached is the error block; a failed refresh over a cached
+  // sentence keeps it, under the stale note.
+  if (query.error && query.data === undefined) {
     return (
       <StatsStateBlock
         state="error"
@@ -114,9 +116,14 @@ function VerdictSentence() {
     return <StatsStateBlock state="empty" message="No stats recorded yet. Log a workout, a weight entry or a mission task." />;
   }
   return (
-    <p data-stats-verdict className="max-w-[36ch] text-[17px] font-medium leading-snug text-fg sm:text-[19px]">
-      {statsVerdict(stats)}
-    </p>
+    <>
+      {readState(query) === "stale" && (
+        <ReadStateNote state="stale" label="Your stats" onRetry={() => void query.refetch()} retrying={isRetrying(query)} />
+      )}
+      <p data-stats-verdict className="max-w-[36ch] text-[17px] font-medium leading-snug text-fg sm:text-[19px]">
+        {statsVerdict(stats)}
+      </p>
+    </>
   );
 }
 

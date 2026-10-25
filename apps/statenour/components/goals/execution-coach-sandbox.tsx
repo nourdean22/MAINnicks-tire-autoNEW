@@ -629,7 +629,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               <button
                 type="button"
                 onClick={() => setMissionTitle(latestCoach.nextAction)}
-                className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-colors"
+                className="text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-colors"
               >
                 <span>Suggest: &ldquo;{latestCoach.nextAction}&rdquo;</span>
                 <ArrowRight size={8} />
@@ -645,7 +645,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 <button
                   type="button"
                   onClick={() => setMicroSteps([])}
-                  className="min-h-11 min-w-11 text-fg-tertiary hover:text-fg-secondary text-[11px]"
+                  className="text-fg-tertiary hover:text-fg-secondary text-[11px]"
                 >
                   Clear
                 </button>
@@ -683,7 +683,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                   setTimeLeft(600);
                 }
               }}
-              className={cn("min-h-11 min-w-11 relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+              className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
                 efMode ? "bg-amber-500" : "bg-surface-interactive"
               )}
             >

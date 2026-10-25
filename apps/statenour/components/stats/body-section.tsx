@@ -391,7 +391,7 @@ export function BodySection() {
                     key={opt.key}
                     type="button"
                     onClick={() => setEfSleep(opt.key)}
-                    className={cn("min-h-11 min-w-11 min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       efSleep === opt.key
                         ? opt.key === "low"
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
@@ -415,7 +415,7 @@ export function BodySection() {
                     key={String(opt.value)}
                     type="button"
                     onClick={() => setWorkoutDone(opt.value)}
-                    className={cn("min-h-11 min-w-11 min-h-[40px] px-4 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 px-4 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       workoutDone === opt.value
                         ? opt.value
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
@@ -442,7 +442,7 @@ export function BodySection() {
                     key={opt.value}
                     type="button"
                     onClick={() => setEnergy(opt.value)}
-                    className={cn("min-h-11 min-w-11 min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       energy === opt.value
                         ? opt.value <= 2
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
@@ -469,7 +469,7 @@ export function BodySection() {
                     key={opt.value}
                     type="button"
                     onClick={() => setEfStress(opt.value)}
-                    className={cn("min-h-11 min-w-11 min-h-[40px] px-3.5 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-h-11 min-w-11 px-3.5 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       efStress === opt.value
                         ? opt.value === 1
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"

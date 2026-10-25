@@ -433,7 +433,6 @@ export function PreferencesCard() {
           onClick={handleSave}
           disabled={!isDirty || saving}
           className={cn("min-h-11 min-w-11 flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
-            "min-h-[28px]",
             saving
               ? "bg-surface-interactive border-edge-strong text-fg-tertiary"
               : !isDirty

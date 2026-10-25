@@ -815,7 +815,7 @@ export function GoalBoard() {
       {/* ── AI suggestions ── */}
       {suggested.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-mono text-sky-400/80 px-0.5">
+          <p className="text-[11px] font-mono text-sky-300 px-0.5">
             Nick suggests ({suggested.length})
           </p>
           {suggested.map((s, i) => (
@@ -950,9 +950,9 @@ export function GoalBoard() {
                 <div className={cn("w-1 shrink-0", HORIZON_STRIPE[eHorizon])} aria-hidden />
                 <div className="flex-1 min-w-0">
                 {/* Main row: tappable to expand.
-                    Apr 27 · LINK-FIX: was a <button className="min-h-11 min-w-11">, but the row
-                    contains nested <button className="min-h-11 min-w-11">s for archive, progress
-                    log, pace chip, plan-it. Nested <button className="min-h-11 min-w-11"> is
+                    Apr 27 · LINK-FIX: was a <button>, but the row
+                    contains nested <button>s for archive, progress
+                    log, pace chip, plan-it. Nested <button> is
                     invalid HTML and crashes hydration in Next 16.
                     Converted to div+role=button. */}
                 <div
@@ -1270,7 +1270,7 @@ export function GoalBoard() {
                                 }
                               }}
                               title={`${v.reason} · tap to archive`}
-                              className={cn("min-h-11 min-w-11 text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
+                              className={cn("text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
                                 isStale
                                   ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
                                   : "border-amber-500/30 bg-amber-500/5 text-amber-400",
@@ -1306,7 +1306,7 @@ export function GoalBoard() {
                                   );
                                 }}
                                 title={`Part of: ${g.ladder!.parent!.title}`}
-                                className="min-h-11 min-w-11 inline-flex items-center gap-1 rounded-control border border-sky-500/30 bg-sky-500/5 px-1.5 py-0.5 text-sky-300 hover:bg-sky-500/15 transition-colors max-w-[60%]"
+                                className="inline-flex items-center gap-1 rounded-control border border-sky-500/30 bg-sky-500/5 px-1.5 py-0.5 text-sky-300 hover:bg-sky-500/15 transition-colors max-w-[60%]"
                               >
                                 <ArrowUp size={9} className="shrink-0" />
                                 <span className="truncate">{g.ladder!.parent!.title}</span>
@@ -1428,7 +1428,7 @@ export function GoalBoard() {
                               setLogId(g.id);
                               setLogValue("");
                             }}
-                            className="min-h-11 min-w-11 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
                             title="Log progress"
                           >
                             <span>
@@ -1633,7 +1633,7 @@ export function GoalBoard() {
                               e.stopPropagation();
                               setMilestonesGoalId(g.id);
                             }}
-                            className="min-h-11 min-w-11 text-[11px] px-1.5 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:border-sky-500/70 hover:bg-sky-500/25 transition-colors font-medium inline-flex items-center gap-0.5"
+                            className="text-[11px] px-1.5 py-0.5 rounded-control border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:border-sky-500/70 hover:bg-sky-500/25 transition-colors font-medium inline-flex items-center gap-0.5"
                             title="Break this goal into 3-5 milestones with Nick, then spawn the mission"
                           >
                             <Brain size={8} />
@@ -1708,7 +1708,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
+                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
                           >
                             Show Legacy Details
                           </button>
@@ -1726,7 +1726,7 @@ export function GoalBoard() {
                               <button
                                 onClick={() => coachGoal(g.id)}
                                 disabled={coachingId === g.id}
-                                className="min-h-11 min-w-11 text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
+                                className="text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
                               >
                                 {coachingId === g.id ? "Thinking…" : "Refresh"}
                               </button>
@@ -1819,14 +1819,14 @@ export function GoalBoard() {
                               e.stopPropagation();
                               startEdit(g);
                             }}
-                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                           >
                             <Pencil size={9} />
                             Edit
                           </button>
                           <button
                             onClick={() => archiveGoal(g.id)}
-                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                             title="pauses the goal · history preserved · recoverable"
                           >
                             <Trash2 size={9} />
@@ -1842,7 +1842,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="min-h-11 min-w-11 ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
+                            className="ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
                           >
                             Show Execution Coach
                           </button>

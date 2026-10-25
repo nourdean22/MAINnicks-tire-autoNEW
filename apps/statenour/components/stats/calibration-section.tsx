@@ -765,7 +765,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg py-1 min-h-[30px]"
+                            className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg py-1"
                             onClick={() => handleResolve(item.id, "needs_more_evidence")}
                             disabled={resolvingId !== null}
                           >
@@ -774,7 +774,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            className="min-h-11 min-w-11 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 py-1 min-h-[30px]"
+                            className="min-h-11 min-w-11 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 py-1"
                             onClick={() => handleResolve(item.id, "reject")}
                             disabled={resolvingId !== null}
                           >
@@ -783,7 +783,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="outline"
-                            className="min-h-11 min-w-11 text-[11px] border-edge-strong hover:border-edge-strong text-fg py-1 min-h-[30px]"
+                            className="min-h-11 min-w-11 text-[11px] border-edge-strong hover:border-edge-strong text-fg py-1"
                             onClick={() => startCorrection(item)}
                             disabled={resolvingId !== null}
                           >
@@ -791,7 +791,7 @@ export function CalibrationSection() {
                           </Button>
                           <Button
                             size="xs"
-                            className="min-h-11 min-w-11 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-fg font-semibold py-1 min-h-[30px] flex items-center gap-1"
+                            className="min-h-11 min-w-11 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-fg font-semibold py-1 flex items-center gap-1"
                             onClick={() => handleResolve(item.id, "approve")}
                             disabled={resolvingId !== null}
                           >

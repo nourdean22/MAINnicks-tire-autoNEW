@@ -109,13 +109,13 @@ export function ForecastDuel() {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Forecast: what will happen?"
+          placeholder="What will happen?"
           className="w-full min-h-12 rounded-control border border-edge-default bg-transparent px-3 text-[16px]"
         />
         <input
           value={criteria}
           onChange={(e) => setCriteria(e.target.value)}
-          placeholder="Resolution criteria: how will we know?"
+          placeholder="How will we know it happened?"
           className="w-full min-h-12 rounded-control border border-edge-default bg-transparent px-3 text-[16px]"
         />
         <div className="flex gap-2">
@@ -140,7 +140,7 @@ export function ForecastDuel() {
           disabled={!canSubmit}
           className={cn("min-h-12 w-full rounded-control border text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)]", canSubmit ? "border-emerald-500/50 text-fg hover:border-edge-strong" : "border-edge-default opacity-50")}
         >
-          {create.isPending ? "Logging…" : create.isSuccess ? "Logged: Nick is on the clock" : "Log forecast"}
+          {create.isPending ? "Logging…" : create.isSuccess ? "Logged. Nick is on the clock." : "Log forecast"}
         </button>
       </form>
     </GlassCard>

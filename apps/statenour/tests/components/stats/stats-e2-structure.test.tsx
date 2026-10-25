@@ -61,7 +61,7 @@ vi.mock("@/components/mastery/character-sheet", () => ({ CharacterSheet: stub("C
 vi.mock("@/components/mastery/level-up-directive-card", () => ({ LevelUpDirectiveCard: stub("LevelUpDirectiveCard") }));
 vi.mock("@/components/goals/goal-board", () => ({ GoalBoard: stub("GoalBoard") }));
 vi.mock("@/components/stats/forecast-duel", () => ({ ForecastDuel: stub("ForecastDuel") }));
-vi.mock("@/components/mastery/coach-event-banner", () => ({ CoachEventBanner: () => null }));
+vi.mock("@/components/mastery/coach-event-banner", () => ({ CoachEventBanner: (p: { showReadState?: boolean }) => <i data-coach-read-state={String(!!p.showReadState)} /> }));
 vi.mock("@/components/mastery/mission-breadcrumb", () => ({ MissionBreadcrumb: () => null }));
 vi.mock("@/components/mastery/nick-side-pane", () => ({ NickSidePane: () => null }));
 vi.mock("@/components/stats/calibration-tile", () => ({ CalibrationTile: stub("CalibrationTile") }));
@@ -132,6 +132,20 @@ describe("Stats leads with its one decision", () => {
     expect(journey!.textContent).toMatch(/\+50%/);
   });
 
+  it("round 2: a failed refresh over a cached verdict keeps the sentence under a stale note, not the error block", async () => {
+    await mount("", { "operator.characterSheet": stale(SHEET) });
+    const block = el.querySelector("[data-stats-verdict-block]")!;
+    expect(block.querySelector('[data-state-block="error"]'), "the cached sentence was replaced by the error block").toBeNull();
+    expect(block.querySelector("[data-stats-verdict]")?.textContent).toMatch(/Total level 7/);
+    const note = block.querySelector('[data-read-state="stale"]');
+    expect(note, "no stale note").toBeTruthy();
+    expect(note!.compareDocumentPosition(block.querySelector("[data-stats-verdict]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("round 2: the Goals tab asks the coach banner to say when its read failed", async () => {
+    await mount("tab=goals");
+    expect(el.querySelector("[data-coach-read-state]")?.getAttribute("data-coach-read-state")).toBe("true");
+  });
   it("the old Journey panel is gone from the bottom of the page", async () => {
     await mount("");
     const outside = [...el.children].filter((c) => c.tagName !== "MAIN");

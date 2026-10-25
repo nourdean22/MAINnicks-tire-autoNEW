@@ -210,7 +210,7 @@ function StatsContent() {
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Coach nudges and the mission breadcrumb render nothing when empty, so no wrapper (an
                 empty wrapper still took a gap). */}
-            <CoachEventBanner surface="goals" />
+            <CoachEventBanner surface="goals" showReadState />
             <MissionBreadcrumb />
 
             {/* Where you're going: the interactive GoalBoard. */}
