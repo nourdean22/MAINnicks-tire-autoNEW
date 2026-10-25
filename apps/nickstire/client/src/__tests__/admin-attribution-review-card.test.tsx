@@ -182,12 +182,12 @@ describe("AttributionReviewCard · plain words", () => {
     expect(screen.getByText(/1 repeat call/i)).toBeInTheDocument();
   });
 
-  it("every row button is a 44 px target", () => {
+  it("every row button is a 48 px target (apps/nickstire/AGENTS.md, iOS PWA)", () => {
     h.q.data = queue([weak()]);
     render(<AttributionReviewCard />);
     fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
     for (const name of [/confirm/i, /unsure/i, /reject/i]) {
-      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-\[4[48]px\]/);
+      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-\[48px\]/);
     }
   });
 });
@@ -226,5 +226,26 @@ describe("AttributionReviewCard · ruling", () => {
       fireEvent.click(screen.getByRole("button", { name: /reject/i }));
     });
     expect(h.resolveCalls).toHaveLength(0);
+  });
+});
+
+describe("AttributionReviewCard · review round (Codex, PR 3271)", () => {
+  it("keeps the cents on a sale total and labels an inferred row as inferred", () => {
+    h.q.data = queue([weak({ invoiceTotalCents: 41250 })]);
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent("$412.50");
+    expect(row).not.toHaveTextContent("$413");
+    expect(row).toHaveTextContent(/Inferred/);
+  });
+
+  it("a recorded link is labelled Recorded, not Inferred", () => {
+    h.q.data = queue([weak({ confidence: 1, band: { band: "verified", label: "Recorded link", basis: "b", whatWouldRaiseIt: null, observed: true, why: "A record ties this call to this sale." } })]);
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent(/Recorded/);
+    expect(row).not.toHaveTextContent(/Inferred/);
   });
 });

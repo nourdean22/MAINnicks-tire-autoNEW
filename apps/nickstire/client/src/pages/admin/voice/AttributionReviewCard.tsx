@@ -25,8 +25,11 @@ const fmtWhen = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-US", { timeZone: ET, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
 const fmtDay = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: ET, month: "short", day: "numeric" }) : null;
+// Cents stay: the total is how the operator recognises the ticket, so $412.50 must not read $413.
 const fmtMoney = (cents: number | null) =>
-  cents == null ? null : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+  cents == null
+    ? null
+    : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 }).format(cents / 100);
 
 export function AttributionReviewCard() {
   const utils = trpc.useUtils();
@@ -123,7 +126,7 @@ export function AttributionReviewCard() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full min-h-[44px] px-4 py-2 flex items-center justify-between gap-3 text-left text-sm"
+        className="w-full min-h-[48px] px-4 py-2 flex items-center justify-between gap-3 text-left text-sm"
       >
         <span className="font-semibold">{n} match{n === 1 ? "" : "es"} to review</span>
         <ChevronDown className={`w-4 h-4 shrink-0 text-foreground/50 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -137,7 +140,7 @@ export function AttributionReviewCard() {
               type="button"
               onClick={() => setWhyOpen((v) => !v)}
               aria-expanded={whyOpen}
-              className="min-h-[44px] -my-3 px-1 text-primary hover:underline"
+              className="min-h-[48px] -my-3 px-1 text-primary hover:underline"
             >
               Why{whyOpen ? " (hide)" : ""}
             </button>
@@ -190,8 +193,13 @@ export function AttributionReviewCard() {
                         <> · no one sale to confirm</>
                       )}
                     </div>
+                    {/* Weak phone/time attribution stays visibly labelled as inferred
+                        (docs/CURRENT-TRUTH.md, measurement contract); the sentence after
+                        the label says why. */}
                     {row.band && (
                       <div className={row.band.observed ? "text-emerald-400/80" : "text-amber-400/80"}>
+                        <span className="font-medium">{row.band.observed ? "Recorded" : "Inferred"}</span>
+                        {" · "}
                         {row.band.why ?? row.band.label}
                       </div>
                     )}
@@ -201,7 +209,7 @@ export function AttributionReviewCard() {
                       type="button"
                       onClick={() => decide(row, "confirmed")}
                       disabled={busy}
-                      className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+                      className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
                       aria-label={`Confirm: ${row.firstName ?? "unknown caller"} came in because of this call`}
                     >
                       {busy && busyKey?.endsWith(":confirmed") ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Confirm
@@ -210,7 +218,7 @@ export function AttributionReviewCard() {
                       type="button"
                       onClick={() => decide(row, "ambiguous")}
                       disabled={busy}
-                      className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
+                      className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
                       aria-label={`Unsure about ${row.firstName ?? "unknown caller"}`}
                     >
                       <HelpCircle className="w-4 h-4" /> Unsure
@@ -219,7 +227,7 @@ export function AttributionReviewCard() {
                       type="button"
                       onClick={() => decide(row, "rejected")}
                       disabled={busy}
-                      className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                      className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                       aria-label={`Reject: ${row.firstName ?? "unknown caller"} did not come in because of this call`}
                     >
                       <XCircle className="w-4 h-4" /> Reject

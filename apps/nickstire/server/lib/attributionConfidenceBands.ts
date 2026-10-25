@@ -114,6 +114,27 @@ export function describeBand(band: ConfidenceBand): BandDescription {
   return { band, ...DESCRIPTIONS[band] };
 }
 
+/**
+ * The description for a candidate ROW. Confidence alone misses one shape: a call whose lead
+ * links to a paid invoice that another lead also claims comes back `ambiguous` WITH an
+ * invoiceId and a null confidence (services/revenueAttribution.ts), and the unscored words
+ * ("no one sale to confirm") would then sit beside a real sale.
+ */
+export function describeCandidate(row: {
+  confidence: number | null | undefined;
+  resolution: string | null | undefined;
+  invoiceId: number | null | undefined;
+}): BandDescription {
+  const base = describeBand(bandOf(row.confidence));
+  if (row.resolution === "ambiguous" && row.invoiceId != null && base.band === "unscored") {
+    return {
+      ...base,
+      why: "The lead taken on this call links to this sale, but another lead claims the same sale. Confirm only if this caller is the one who paid.",
+    };
+  }
+  return base;
+}
+
 export interface BandMix {
   verified: number;
   strong: number;

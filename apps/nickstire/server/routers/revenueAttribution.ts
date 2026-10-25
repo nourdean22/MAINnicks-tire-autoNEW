@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { collapseByInvoice, attributionCounts } from "../lib/attributionDedupe";
-import { BAND_CALIBRATION_CAVEAT, bandMix, bandOf, describeBand } from "../lib/attributionConfidenceBands";
+import { BAND_CALIBRATION_CAVEAT, bandMix, describeCandidate } from "../lib/attributionConfidenceBands";
 import { askedForWords, firstNameWords } from "../lib/attributionReviewWords";
 import { greetingName } from "../services/invoiceReviewRequests";
 import { z } from "zod";
@@ -192,6 +192,23 @@ export const revenueAttributionRouter = router({
     const rows = rowsFromExecute<Record<string, unknown>>(raw);
     const iso = (v: unknown): string | null =>
       v == null ? null : v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString();
+    // Plain words (2026-10-25), applied to primaries AND duplicates so no raw customer name or
+    // call summary crosses the API. The person is named from the matched invoice: calls carry
+    // no name (0 of 5,355 that day). Nothing here is a phone number.
+    const inWords = <T extends Record<string, unknown>>(r: T) => ({
+      ...r,
+      band: describeCandidate({ confidence: r.confidence as number | null, resolution: r.resolution as string, invoiceId: r.invoiceId as number | null }),
+      firstName: firstNameWords(greetingName(r.invoiceCustomerName)),
+      askedFor: askedForWords(r.serviceMention as string | null, r.aiSummary as string | null),
+      calledAt: iso(r.calledAt),
+      invoicedAt: iso(r.invoicedAt),
+      invoiceTotalCents: r.invoiceTotalCents == null ? null : Number(r.invoiceTotalCents),
+      invoiceService: r.invoiceService == null ? null : String(r.invoiceService).replace(/\s+/g, " ").trim().slice(0, 80) || null,
+      callOutcome: r.callOutcome == null ? null : String(r.callOutcome),
+      serviceMention: undefined,
+      aiSummary: undefined,
+      invoiceCustomerName: undefined,
+    });
 
     /**
      * AN INVOICE CAN BE PAID ONCE, SO IT CAN BE CLAIMED ONCE.
@@ -236,24 +253,9 @@ export const revenueAttributionRouter = router({
        * `server/lib`: that would cross a layer boundary, and the band is a
        * judgement about evidence, not a formatting concern.
        */
-      rows: collapsed.primary.map((r) => ({
-        ...r,
-        band: describeBand(bandOf(r.confidence)),
-        // Plain words (2026-10-25). The person is named from the matched invoice: calls carry
-        // no name (0 of 5,355 that day). Nothing here is a phone number.
-        firstName: firstNameWords(greetingName(r.invoiceCustomerName)),
-        askedFor: askedForWords(r.serviceMention as string | null, r.aiSummary as string | null),
-        calledAt: iso(r.calledAt),
-        invoicedAt: iso(r.invoicedAt),
-        invoiceTotalCents: r.invoiceTotalCents == null ? null : Number(r.invoiceTotalCents),
-        invoiceService: r.invoiceService == null ? null : String(r.invoiceService).replace(/\s+/g, " ").trim().slice(0, 80) || null,
-        callOutcome: r.callOutcome == null ? null : String(r.callOutcome),
-        serviceMention: undefined,
-        aiSummary: undefined,
-        invoiceCustomerName: undefined,
-      })),
+      rows: collapsed.primary.map(inWords),
       /** Same-invoice contacts, kept for context. NOT independent decisions. */
-      duplicates: collapsed.duplicates,
+      duplicates: collapsed.duplicates.map(inWords),
       /** Invoices claimed by more than one call. Non-empty is normal; billing twice is not. */
       contestedInvoiceIds: collapsed.contestedInvoiceIds,
       /**

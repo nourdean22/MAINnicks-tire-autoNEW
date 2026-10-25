@@ -18,6 +18,7 @@ import {
   bandMix,
   bandOf,
   describeBand,
+  describeCandidate,
 } from "../lib/attributionConfidenceBands";
 
 describe("the producer's actual ladder maps to bands", () => {
@@ -146,5 +147,24 @@ describe("plain words for the operator (2026-10-25)", () => {
     expect(describeBand("strong").label).toBe("Same phone, timing and service");
     expect(describeBand("verified").label).toBe("Recorded link");
     expect(describeBand("unscored").label).toBe("No single sale fits");
+  });
+});
+
+describe("describeCandidate · the why follows the candidate, not only its confidence (Codex, PR 3271)", () => {
+  it("a direct lead link whose sale is claimed by another lead is ambiguous WITH a sale, and says that", () => {
+    // buildCallInvoiceCandidates returns resolution "ambiguous", the invoiceId, confidence null.
+    const d = describeCandidate({ confidence: null, resolution: "ambiguous", invoiceId: 6060001 });
+    expect(d.band).toBe("unscored");
+    expect(d.why).toMatch(/another lead/i);
+    expect(d.why).not.toMatch(/no one sale/i);
+  });
+
+  it("an ambiguous row with no sale keeps the no-single-sale words", () => {
+    const d = describeCandidate({ confidence: null, resolution: "ambiguous", invoiceId: null });
+    expect(d.why).toMatch(/no one sale to confirm/i);
+  });
+
+  it("a scored row is the plain band", () => {
+    expect(describeCandidate({ confidence: 0.75, resolution: "manual_review", invoiceId: 1 })).toEqual(describeBand("weak"));
   });
 });
