@@ -2010,15 +2010,17 @@ export interface ReconcileStats {
   checked: number;
   won: number;
   closed: number;
+  /** Live missed_call cards from the old 15-second rule, dismissed as superseded (step 3b). Not in `closed`. */
+  supersededLegacy: number;
 }
 
 export async function reconcileOpportunities(): Promise<ReconcileStats> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
-  if (!db) return { checked: 0, won: 0, closed: 0 };
+  if (!db) return { checked: 0, won: 0, closed: 0, supersededLegacy: 0 };
 
-  const stats: ReconcileStats = { checked: 0, won: 0, closed: 0 };
+  const stats: ReconcileStats = { checked: 0, won: 0, closed: 0, supersededLegacy: 0 };
   const stateList = sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `);
 
   // 1. unapproved_estimate: the estimate later matched an invoice → WON
@@ -2275,6 +2277,55 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
   } catch (err) {
     if (!isMissingTableError(err)) {
       log.warn("[opportunity-queue] missed-call served/collapse reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // 3b. missed_call cards made by the old 15-second rule (2026-10-25): their
+  //     evidence has no evalOutcome key, because the collector writes one on
+  //     every card since. They were answered calls, not lost sales, so they
+  //     close as `dismissed` (the operator's Not relevant), never age to `lost`.
+  //     Runs after 3a so a served or invoiced card keeps that truer close.
+  //     Unreadable evidence is no decision. A legacy card whose call is
+  //     unresolved or not yet evaluated is KEPT: the collector rewrites it in
+  //     the new words this run or after the eval, and a dismissed row is never
+  //     reopened by a refresh, so dismissing it first would hide a real lead.
+  try {
+    const live = rowsFromExecute(await db.execute(sql`
+      SELECT id, source_id, state, evidence_json FROM revenue_opportunities
+      WHERE source_type = 'missed_call'
+        AND state IN (${stateList})
+      LIMIT 500
+    `)).filter((r) => {
+      const evidence = r.evidence_json == null ? {} : parseJsonField<unknown>(r.evidence_json, undefined);
+      return !!evidence && typeof evidence === "object" && !("evalOutcome" in evidence);
+    });
+    // Same shape as 3a's call-time read: by unique vapiCallId, no cross-table join.
+    const outcomeByCall = new Map<string, string | null>();
+    if (live.length > 0) {
+      const calls = rowsFromExecute(await db.execute(sql`
+        SELECT vapiCallId, eval_outcome AS callOutcome FROM vapi_call_logs
+        WHERE vapiCallId IN (${sql.join(live.map((r) => sql`${String(r.source_id)}`), sql`, `)})
+      `));
+      for (const c of calls) outcomeByCall.set(String(c.vapiCallId), c.callOutcome == null ? null : String(c.callOutcome));
+    }
+    for (const r of live) {
+      const callOutcome = outcomeByCall.get(String(r.source_id)) ?? null;
+      if (callOutcome == null || callOutcome in UNRESOLVED_CALL_OUTCOMES) continue;
+      stats.checked++;
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        from: String(r.state) as OpportunityState,
+        to: "dismissed",
+        by: "reconciler",
+        note: "superseded by the evaluated-outcome rule (2026-10-25)",
+      });
+      if (res.ok) stats.supersededLegacy++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] legacy missed-call supersede failed", {
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -2558,14 +2609,14 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
   const abandonedFormsStats = await collectAbandonedForms();
   const fmt = (s: CollectorStats) => `${s.inserted}new/${s.refreshed}ref/${s.scanned}scan`;
   let details =
-    `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
+    `reconciled: ${reconciled.won}won+${reconciled.closed}closed+${reconciled.supersededLegacy}superseded/${reconciled.checked} · ` +
     `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
     `missed calls: ${fmt(missedCalls)}/${missedCalls.collapsed}collapsed/${missedCalls.skippedResolved}resolved/` +
     `${missedCalls.skippedUnevaluated}unevaluated/${missedCalls.skippedNoise}noise · deferrals: ${fmt(inspections)} · ` +
     `stale leads: ${fmt(staleLeads)} · no-shows: ${fmt(noShows)} · ` +
     `waiting texts: ${fmt(humanPending)} · abandoned forms: ${fmt(abandonedFormsStats)}`;
   const recordsProcessed =
-    reconciled.won + reconciled.closed +
+    reconciled.won + reconciled.closed + reconciled.supersededLegacy +
     estimates.inserted + callbacks.inserted + missedCalls.inserted + missedCalls.collapsed + inspections.inserted +
     staleLeads.inserted + noShows.inserted + humanPending.inserted + abandonedFormsStats.inserted;
 

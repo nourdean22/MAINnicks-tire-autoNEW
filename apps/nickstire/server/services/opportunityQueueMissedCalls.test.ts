@@ -14,6 +14,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 let vapiSelectRows: Array<Record<string, unknown>> = [];
 let inserts: unknown[] = [];
+/** Rows the reconciler's legacy-card read returns, and every row by id for transitionOpportunity's re-read. */
+let legacyListRows: Array<Record<string, unknown>> = [];
+let oppById: Record<string, Record<string, unknown>> = {};
+let updates: string[] = [];
+let legacyListSql: string[] = [];
 
 /** Every string leaf of a drizzle sql object: the SQL text chunks AND the bound params. */
 function strings(q: unknown, out: string[] = []): string[] {
@@ -30,7 +35,22 @@ const fakeDb = {
       inserts.push(q);
       return [{ affectedRows: 1 }];
     }
-    return [[]]; // live-phone read, DNC check: nothing
+    if (text.includes("SELECT * FROM revenue_opportunities WHERE id =")) {
+      const hit = Object.keys(oppById).find((id) => strings(q).includes(id));
+      return [hit ? [oppById[hit]] : []];
+    }
+    if (text.includes("UPDATE revenue_opportunities")) {
+      updates.push(text);
+      return [{ affectedRows: 1 }];
+    }
+    if (text.includes("evidence_json FROM revenue_opportunities")) {
+      legacyListSql.push(text);
+      return [legacyListRows];
+    }
+    if (text.includes("eval_outcome AS callOutcome FROM vapi_call_logs")) {
+      return [legacyListRows.map((r) => ({ vapiCallId: r.source_id, callOutcome: r.callOutcome }))];
+    }
+    return [[]]; // live-phone read, DNC check, every other reconcile read: nothing
   },
   select: () => {
     const chain: Record<string, unknown> = {};
@@ -59,6 +79,10 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   vapiSelectRows = [];
   inserts = [];
+  legacyListRows = [];
+  oppById = {};
+  updates = [];
+  legacyListSql = [];
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -247,5 +271,84 @@ describe("collectMissedCalls · only an unresolved evaluated call is an opportun
     const { refreshOpportunityQueue } = await import("./opportunityQueue");
     const { details } = await refreshOpportunityQueue();
     expect(details).toMatch(/missed calls: 1new\/0ref\/3scan\/0collapsed\/1resolved\/1unevaluated\/0noise/);
+  });
+});
+
+describe("reconcileOpportunities · old 15-second missed-call cards are superseded, never lost", () => {
+  const NOTE = "superseded by the evaluated-outcome rule (2026-10-25)";
+  const legacyEvidence = JSON.stringify({ vapiCallId: "call-old", durationSeconds: 23, callAgeMinutes: 1295 });
+  const newEvidence = JSON.stringify({ vapiCallId: "call-new", evalOutcome: "callback_needed", durationSeconds: 40, callAgeMinutes: 120 });
+  /** callOutcome = the card's call's eval_outcome today (vapi_call_logs); legacy cards were mostly answered calls. */
+  const opp = (id: string, state: string, evidence: string | null, callOutcome: string | null = "resolved_info") => {
+    const row = {
+      id, source_id: `call-of-${id}`, state, source_type: "missed_call", evidence_json: evidence,
+      receipts_json: "[]", consent_ok: 1, attempts: 0,
+    };
+    oppById[id] = row;
+    return { ...row, callOutcome };
+  };
+  const touched = (id: string) => updates.filter((t) => t.includes(id));
+
+  it("a live legacy card (no evalOutcome in its evidence) is dismissed with the note and counted", async () => {
+    legacyListRows = [opp("op-legacy-new", "new", legacyEvidence), opp("op-legacy-assigned", "assigned", legacyEvidence, "walk_in_directed")];
+    const { reconcileOpportunities } = await import("./opportunityQueue");
+    const stats = await reconcileOpportunities();
+    for (const id of ["op-legacy-new", "op-legacy-assigned"]) {
+      const [u] = touched(id);
+      expect(u, `${id} must be closed`).toBeTruthy();
+      expect(u).toContain("dismissed");
+      expect(u).not.toContain('"to":"lost"');
+      expect(u).toContain(NOTE);
+    }
+    expect(stats.supersededLegacy).toBe(2);
+    // the read is scoped to live missed_call rows in SQL
+    expect(legacyListSql[0]).toContain("source_type = 'missed_call'");
+    expect(legacyListSql[0]).toContain("state IN");
+  });
+
+  it("a card made by the evaluated-outcome rule is never touched", async () => {
+    legacyListRows = [opp("op-new-rule", "new", newEvidence)];
+    const { reconcileOpportunities } = await import("./opportunityQueue");
+    const stats = await reconcileOpportunities();
+    expect(touched("op-new-rule")).toHaveLength(0);
+    expect(stats.supersededLegacy).toBe(0);
+  });
+
+  it("a legacy card that is already closed is not touched", async () => {
+    legacyListRows = [opp("op-legacy-lost", "lost", legacyEvidence), opp("op-legacy-dismissed", "dismissed", legacyEvidence)];
+    const { reconcileOpportunities } = await import("./opportunityQueue");
+    const stats = await reconcileOpportunities();
+    expect(touched("op-legacy-lost")).toHaveLength(0);
+    expect(touched("op-legacy-dismissed")).toHaveLength(0);
+    expect(stats.supersededLegacy).toBe(0);
+  });
+
+  it("a legacy card whose call is unresolved or not yet evaluated is kept for the collector to rewrite", async () => {
+    // A dismissed row is never reopened by the collector's refresh, so closing these would hide a real lead.
+    legacyListRows = [
+      opp("op-legacy-lead", "new", legacyEvidence, "tire_availability_intent"),
+      opp("op-legacy-waiting", "new", legacyEvidence, null),
+    ];
+    const { reconcileOpportunities } = await import("./opportunityQueue");
+    const stats = await reconcileOpportunities();
+    expect(touched("op-legacy-lead")).toHaveLength(0);
+    expect(touched("op-legacy-waiting")).toHaveLength(0);
+    expect(stats.supersededLegacy).toBe(0);
+  });
+
+  it("unreadable evidence is never a decision", async () => {
+    legacyListRows = [opp("op-garbled", "new", "{not json")];
+    const { reconcileOpportunities } = await import("./opportunityQueue");
+    const stats = await reconcileOpportunities();
+    expect(touched("op-garbled")).toHaveLength(0);
+    expect(stats.supersededLegacy).toBe(0);
+  });
+
+  it("the refresh receipt reports the superseded count and counts it as real work", async () => {
+    legacyListRows = [opp("op-legacy-r", "new", legacyEvidence)];
+    const { refreshOpportunityQueue } = await import("./opportunityQueue");
+    const { details, recordsProcessed } = await refreshOpportunityQueue();
+    expect(details).toMatch(/reconciled: 0won\+0closed\+1superseded\//);
+    expect(recordsProcessed).toBeGreaterThanOrEqual(1);
   });
 });
