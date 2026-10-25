@@ -237,6 +237,29 @@ export async function runAlternatePaths(args: {
     log.info("lane_budget_skipped", { lane, step, elapsedMs });
     return false;
   };
+  /**
+   * The preflight above is an estimate; this bounds the step itself. `op` gets a signal that
+   * aborts when the remaining budget runs out, and the step is cut then even if it ignores the
+   * signal (CoVe takes none). A cut throws, so the caller's existing catch ships the draft in hand.
+   */
+  const withinBudget = async <T,>(lane: string, step: string, op: (signal?: AbortSignal) => Promise<T>): Promise<T> => {
+    const startedAt = persistBase.startedAt;
+    if (!Number.isFinite(startedAt)) return op(undefined);
+    const ac = new AbortController();
+    // Listening before `op` runs, so an abort during its first tick is still seen.
+    const cut = new Promise<never>((_, reject) => {
+      ac.signal.addEventListener("abort", () => reject(new Error("lane budget spent")), { once: true });
+    });
+    const timer = setTimeout(() => ac.abort(), Math.max(0, LANE_SHIP_BY_MS - (Date.now() - startedAt)));
+    try {
+      return await Promise.race([op(ac.signal), cut]);
+    } catch (err) {
+      if (ac.signal.aborted) log.info("lane_budget_cut", { lane, step, elapsedMs: Date.now() - startedAt });
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   try {
     const { shouldGateForIntent, maybePreStreamRegen } = await import(
@@ -532,12 +555,13 @@ export async function runAlternatePaths(args: {
       } else if (regenOn) {
         laneName = "regen";
         const { generateText } = await import("ai");
-        const genOnce = async (sys: string, temp: number): Promise<string> => {
+        const genOnce = async (sys: string, temp: number, abortSignal?: AbortSignal): Promise<string> => {
           const r = await generateText({
             ...genBase,
             experimental_telemetry: langfuseTelemetry({ functionId: "chat-alternate-path", privateMode }),
             system: sys,
             temperature: temp,
+            ...(abortSignal ? { abortSignal } : {}),
           } as Parameters<typeof generateText>[0]);
           rememberLaneSample(r);
           return r.text;
@@ -552,10 +576,14 @@ export async function runAlternatePaths(args: {
           responseContract: persistBase.responseContract ?? null,
           generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
           allowRegen: (firstMs) => fitsBudget(laneName, "second_draft", firstMs),
+          // A cut throws; maybePreStreamRegen then ships the first draft ("regen-failed").
           regenOnce: ({ suggestedSystemPrefix }) =>
-            genOnce(
-              `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
-              Math.min(0.9, turnSignal.temperature + 0.1),
+            withinBudget(laneName, "second_draft", (signal) =>
+              genOnce(
+                `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
+                Math.min(0.9, turnSignal.temperature + 0.1),
+                signal,
+              ),
             ),
         });
         winner = regen.text;
@@ -699,7 +727,9 @@ export async function runAlternatePaths(args: {
               "@/lib/ai/chat/chain-of-verification"
             );
             if (FACTUAL_INTENTS.has(turnSignal.intent) && fitsBudget(laneName, "cove", COVE_RESERVE_MS)) {
-              const cove = await verifyAndRevise(winner, userContent);
+              // A cut lands in the catch below: the unrevised draft ships, persist still owes CoVe.
+              const draft = winner;
+              const cove = await withinBudget(laneName, "cove", () => verifyAndRevise(draft, userContent));
               if (cove.changed && cove.revised.trim()) {
                 log.info("cove_revised", { lane: laneName, questions: cove.questions.length });
                 winner = cove.revised;

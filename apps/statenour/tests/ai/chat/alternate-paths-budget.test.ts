@@ -162,6 +162,64 @@ describe("buffered lanes · one wall-clock budget from turn start", () => {
   });
 });
 
+// Round 3 (Codex P1): the preflight check is only an estimate. A second draft or a CoVe pass that
+// runs longer than expected must be cut at the remaining budget, and the draft in hand ships.
+describe("buffered lanes · the remaining budget bounds the optional step itself", () => {
+  const cutLines = () => log.info.mock.calls.filter((c) => c[0] === "lane_budget_cut").map((c) => c[1]);
+  /** Full fake timers (setTimeout too), keeping the turn clock where beforeEach put it. */
+  function fakeAllTimers() {
+    const now = Date.now();
+    vi.useRealTimers();
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+  }
+  /** A step that would finish only after `takesMs`; the test's clock runs past it meanwhile. */
+  function slow<T>(value: T, takesMs: number): Promise<T> {
+    const p = new Promise<T>((res) => setTimeout(() => res(value), takesMs));
+    // After the caller has started waiting on it, as a real slow call would be.
+    queueMicrotask(() => vi.advanceTimersByTime(takesMs + 1_000));
+    return p;
+  }
+
+  it("a second draft still running at the budget is cut and the first draft ships", async () => {
+    fakeAllTimers();
+    let calls = 0;
+    generateText.mockImplementation(async () => {
+      calls += 1;
+      if (calls === 1) {
+        vi.setSystemTime(Date.now() + 10_000); // fast first draft: the preflight lets a repair run
+        return { text: VAGUE_REPLY, toolCalls: [], toolResults: [] };
+      }
+      return slow({ text: CONCRETE_REPLY, toolCalls: [], toolResults: [] }, 200_000);
+    });
+
+    const res = await run();
+
+    expect(res).not.toBeNull();
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(generateText.mock.calls[1][0], "the provider call itself must be cancellable").toHaveProperty("abortSignal");
+    expect(shippedTexts, "the repair outlived the budget: the first draft ships").toEqual([VAGUE_REPLY]);
+    expect(cutLines()).toEqual([expect.objectContaining({ lane: "regen", step: "second_draft" })]);
+  });
+
+  it("a CoVe pass past the budget is cut and the unrevised draft ships", async () => {
+    fakeAllTimers();
+    generateText.mockImplementation(async () => {
+      vi.setSystemTime(Date.now() + 10_000);
+      return { text: CONCRETE_REPLY, toolCalls: [], toolResults: [] }; // passes the critic: no repair
+    });
+    verifyAndRevise.mockImplementation(() => slow({ changed: true, revised: "verified reply", questions: ["q"] }, 200_000));
+
+    const res = await run();
+
+    expect(res).not.toBeNull();
+    expect(verifyAndRevise).toHaveBeenCalledTimes(1);
+    expect(shippedTexts).toEqual([CONCRETE_REPLY]);
+    expect(persistEvents[0]?.coveDone, "a cut CoVe stays owed to persist").toBeUndefined();
+    expect(cutLines()).toEqual([expect.objectContaining({ lane: "regen", step: "cove" })]);
+  });
+});
+
 // The client's stall reattach asks the active-stream registry whether this turn is still running.
 // A buffered lane used to register only once its reply existed, so for the whole generation the
 // registry said "nothing in flight" and the reattach could only report stuck.
