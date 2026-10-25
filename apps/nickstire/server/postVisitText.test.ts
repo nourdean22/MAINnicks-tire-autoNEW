@@ -109,6 +109,30 @@ describe("review-requests cron (invoice-keyed and booking-keyed rows)", () => {
     );
   });
 
+  // A booking-keyed row stores the name as typed (invoice-keyed rows are normalised on creation),
+  // so the greeting must be normalised here too.
+  it.each([
+    ["JOHN", "John"],
+    ["CHERYL ", "Cheryl"],
+    ["Unknown", "there"],
+    ["", "there"],
+  ])("greets a row named %j as %j", async (customerName, greeting) => {
+    await run({ customerName });
+    expect(sendSms.mock.calls[0][1]).toBe(
+      `Hi ${greeting}, it's Nick's Tire & Auto on Euclid. Thanks for coming in. If anything about the car feels off, text us here and we'll take care of it. If you have a minute, tell other Cleveland drivers how your visit went: ${trackingUrl}`,
+    );
+  });
+
+  it.each([
+    ["JOHN", "John"],
+    ["CHERYL ", "Cheryl"],
+    ["Unknown", "there"],
+    ["", "there"],
+  ])("fills a custom template's {firstName} for a row named %j with %j", async (customerName, greeting) => {
+    await run({ customerName }, { messageTemplate: "Hi {firstName}: {reviewUrl}" });
+    expect(sendSms.mock.calls[0][1]).toBe(`Hi ${greeting}: ${trackingUrl}`);
+  });
+
   it("control: an admin-set custom template still wins and is untouched", async () => {
     await run(
       { customerName: "David Aiken", service: "Brakes" },

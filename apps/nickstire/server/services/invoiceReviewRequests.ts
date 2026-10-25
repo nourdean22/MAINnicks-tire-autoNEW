@@ -52,7 +52,7 @@ export function greetingName(raw: unknown): string {
   const firstWord = (hasComma ? first.split(" ")[0] : words[0]) ?? "";
   if (
     !/^[A-Za-z][A-Za-z'-]{1,}$/.test(firstWord) ||
-    /^(unknown|customer|cash|n\/?a|test)$/i.test(firstWord) ||
+    /^(unknown|customer|cash|n\/?a|test|there)$/i.test(firstWord) ||
     words.some((w) => BUSINESS_TOKEN.test(w))
   ) {
     return "there";
