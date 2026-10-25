@@ -5,7 +5,7 @@ import React from "react";
 import { Sparkles, XCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import type { AdminSection } from "./types";
-import { navigateToAdminSection } from "./navigation";
+import { navigateToAdminSection, navigateToAdminUrl } from "./navigation";
 
 // ─── SECTION INSIGHT STRIP ─────────────────────────────────
 // Drop this at the top of any admin section to surface a per-section
@@ -32,6 +32,11 @@ export function SectionInsightStrip({ section }: { section: SectionInsightSectio
   );
   if (!data) return null;
   const variantClass = VARIANT_CLASS[data.variant] || VARIANT_CLASS.info;
+  const { cta } = data;
+  const ctaSection = cta.section as AdminSection;
+  // Inner-tab params (e.g. outreachTab=winback) ride in a real href so the target lands on that tab.
+  const href = cta.params ? `/admin?${new URLSearchParams({ tab: cta.section, ...cta.params }).toString()}` : null;
+  const ctaClass = `shrink-0 inline-flex items-center min-h-11 text-[11px] font-bold tracking-wider px-3 border rounded ${variantClass} hover:opacity-80 transition-opacity`;
   return (
     <div className={`flex items-center gap-3 border ${variantClass} px-4 py-2.5`}>
       <Sparkles className="w-4 h-4 shrink-0" />
@@ -39,15 +44,28 @@ export function SectionInsightStrip({ section }: { section: SectionInsightSectio
         <span className="font-bold text-sm whitespace-nowrap">{data.metric}</span>
         <span className="text-[12px] text-foreground/80 leading-snug">{data.message}</span>
       </div>
-      <button
-        onClick={() => navigateToAdminSection(
-          data.cta.section as AdminSection,
-          data.cta.settingsTab ? { settingsTab: data.cta.settingsTab } : undefined,
-        )}
-        className={`shrink-0 text-[11px] font-bold tracking-wider px-3 py-1 border rounded ${variantClass} hover:opacity-80 transition-opacity`}
-      >
-        {data.cta.label} →
-      </button>
+      {href ? (
+        <a
+          href={href}
+          onClick={(e) => {
+            if (navigateToAdminUrl(e, href, ctaSection)) e.preventDefault();
+          }}
+          className={ctaClass}
+        >
+          {cta.label} →
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={() => navigateToAdminSection(
+            ctaSection,
+            cta.settingsTab ? { settingsTab: cta.settingsTab } : undefined,
+          )}
+          className={ctaClass}
+        >
+          {cta.label} →
+        </button>
+      )}
     </div>
   );
 }

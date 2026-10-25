@@ -109,7 +109,6 @@ describe("Customers Routing & Deep-Linking", () => {
   it("opens the customer profile if deep-linked via URL (tab=customers&id=123)", async () => {
     // Setup queries
     trpcState.queries["customers.stats"] = { data: { total: 10 } };
-    trpcState.queries["customers.campaignStats"] = { data: { sent: 5, remaining: 5, total: 10 } };
     trpcState.queries["intelligence.serviceAffinity"] = { data: { affinities: [] } };
     trpcState.queries["customers.getById"] = {
       data: {
@@ -139,7 +138,6 @@ describe("Customers Routing & Deep-Linking", () => {
 
   it("clears URL parameter and goes back to list when onClose is triggered", async () => {
     trpcState.queries["customers.stats"] = { data: { total: 10 } };
-    trpcState.queries["customers.campaignStats"] = { data: { sent: 5, remaining: 5, total: 10 } };
     trpcState.queries["intelligence.serviceAffinity"] = { data: { affinities: [] } };
     trpcState.queries["customers.getById"] = {
       data: {
@@ -170,7 +168,6 @@ describe("Customers Routing & Deep-Linking", () => {
 
   it("removes invalid id from URL and renders list safely", async () => {
     trpcState.queries["customers.stats"] = { data: { total: 10 } };
-    trpcState.queries["customers.campaignStats"] = { data: { sent: 5, remaining: 5, total: 10 } };
     trpcState.queries["intelligence.serviceAffinity"] = { data: { affinities: [] } };
     trpcState.queries["customers.list"] = {
       data: {

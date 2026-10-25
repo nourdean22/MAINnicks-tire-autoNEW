@@ -299,7 +299,7 @@ describe("Customers", () => {
     expect(screen.getByText(/Customers couldn't load/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(refetch).toHaveBeenCalled();
-    for (const label of ["Total Customers", "With Visits", "VIP (3+)", "Total Revenue", "Recent", "Lapsed", "With Email", "Commercial"]) {
+    for (const label of ["Total Customers", "With Visits", "VIP (3+)", "Total Revenue", "Recent", "Lapsed (90-365 d)", "With Email", "Commercial"]) {
       expect(statValue(label), label).not.toMatch(/\d/);
       expect(within(statCard(label)).getByText(/Unable to determine/), label).toBeTruthy();
     }

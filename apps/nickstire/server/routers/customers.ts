@@ -5,7 +5,6 @@ import { adminProcedure, dbAdminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders, algEstimates } from "../../drizzle/schema";
-import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
 import { countLapsedRegulars, lapsedCondition, vipCondition } from "../lib/customer-segments";
 import { logAdminAction } from "../services/auditTrail";
 import { csvSafe } from "../sanitize";
@@ -320,68 +319,6 @@ export const customersRouter = router({
       return customer ?? null;
     }),
 
-  /** Campaign stats — how many texted vs not */
-  campaignStats: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { total: 0, sent: 0, remaining: 0, eligible: 0 };
-
-    const [total] = await d.select({ count: sql<number>`count(*)` }).from(customers);
-    const totalCount = total?.count ?? 0;
-
-    // "Sent" comes from the ACTUAL SEND LEDGER, not from customers.smsCampaignSent.
-    //
-    // That column is not the campaign-contact record it looks like. Measured in
-    // production 2026-07-20: it holds 52 ones, but `sms_campaign_sends` has
-    // 1,445 rows with status='sent' covering 745 DISTINCT customers — real
-    // Twilio sends. 686 of those people still read 0 on the column.
-    //
-    // So the tile reported "52 sent / 1893 left", a 2.7%-complete progress bar,
-    // for an outreach program that had in fact reached ~38% of the roster. The
-    // operator sees a campaign that has barely started and re-fires it.
-    //
-    // The column is ALSO tri-state: crudAutomation stamps `= 2` as a cooldown
-    // marker for an entirely different message (the VIP 10%-off notice), and 43
-    // rows hold it. Reading "sent" as `= 1` counted those as neither sent nor
-    // untexted, so `remaining` could never reach 0.
-    const [sentLedger] = await d.execute(sql`
-      SELECT COUNT(DISTINCT customerId) AS n FROM sms_campaign_sends WHERE status = 'sent'
-    `);
-    const [sentLegacy] = await d.select({ count: sql<number>`count(*)` })
-      .from(customers)
-      // `> 0`, never `= 1` — see the tri-state note above.
-      .where(sql`${customers.smsCampaignSent} > 0`);
-    const ledgerCount = Number((sentLedger as Array<Record<string, unknown>>)[0]?.n ?? 0);
-    const sentCount = Math.max(ledgerCount, sentLegacy?.count ?? 0);
-
-    // Eligible = last visit 6-8 days ago AND reached by no sender yet.
-    const [eligible] = await d.execute(sql`
-      SELECT COUNT(*) AS n FROM customers cu
-      WHERE cu.smsCampaignSent = 0
-        AND cu.lastVisitDate IS NOT NULL
-        AND DATEDIFF(CURDATE(), cu.lastVisitDate) BETWEEN 6 AND 8
-        AND NOT EXISTS (
-          SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = cu.id AND s.status = 'sent'
-        )
-    `);
-
-    // Counted, not subtracted. `total - sent` silently absorbed the 43 tri-state
-    // rows and drifted from the number of customers a sender could actually reach.
-    const [remaining] = await d.execute(sql`
-      SELECT COUNT(*) AS n FROM customers cu
-      WHERE cu.smsCampaignSent = 0
-        AND NOT EXISTS (
-          SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = cu.id AND s.status = 'sent'
-        )
-    `);
-
-    return {
-      total: totalCount,
-      sent: sentCount,
-      remaining: Number((remaining as Array<Record<string, unknown>>)[0]?.n ?? 0),
-      eligible: Number((eligible as Array<Record<string, unknown>>)[0]?.n ?? 0),
-    };
-  }),
-
   /** Export customers as CSV data */
   exportCsv: adminProcedure
     .input(z.object({
@@ -484,88 +421,6 @@ export const customersRouter = router({
       }).catch((e) => { log.warn("[routers/customers] fire-and-forget failed:", e); });
 
       return { success: true };
-    }),
-
-  /** Bulk retry campaign — send to all untexted customers */
-  retryCampaign: adminProcedure
-    .input(z.object({
-      batchSize: z.number().min(1).max(100).default(50),
-    }).optional())
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { sent: 0, failed: 0, remaining: 0 };
-
-      const batchSize = input?.batchSize ?? 50;
-      const { sendSms } = await import("../sms");
-      const { STORE_NAME, STORE_PHONE } = await import("@shared/const");
-
-      // Short URLs save ~50 chars → drops from 3 segments to 2 (33% cost savings)
-      const REVIEW_URL = "nickstire.org/review";
-      const REFER_URL = "nickstire.org/refer";
-
-      // Get untexted customers, prioritize recent → lapsed → unknown
-      // NOT EXISTS against the real send ledger, in addition to the flag.
-      //
-      // 686 customers in production have smsCampaignSent = 0 but DO have a
-      // status='sent' row in sms_campaign_sends — they were really texted, and
-      // this filter would have selected every one of them for a second copy of
-      // the same campaign message. Excluding them can only REDUCE sends, never
-      // cause new ones, which is the safe direction for a change that decides
-      // what real people receive.
-      const untexted = await d.select()
-        .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${campaignEligiblePhoneSql}
-          AND NOT EXISTS (
-            SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = ${customers.id} AND s.status = 'sent'
-          )`)
-        .orderBy(sql`CASE ${customers.segment} WHEN 'recent' THEN 0 WHEN 'lapsed' THEN 1 ELSE 2 END, ${customers.lastVisitDate} DESC`)
-        .limit(batchSize);
-
-      let sent = 0;
-      let queued = 0;
-      let uncertain = 0; // attempted, unconfirmed (gateway timeout) — consumed, never re-sent
-      let failed = 0;
-
-      for (const c of untexted) {
-        const name = c.firstName || "there";
-        // Optimized: 2 segments (~252 chars) instead of 3 (~383 chars)
-        const msg = c.segment === "lapsed"
-          ? `Hi ${name}, this is ${STORE_NAME}. Thank you for trusting us with your vehicle!\n\nA quick Google review means a lot to us:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\nWe'd love to see you again. — Nick's Team ${STORE_PHONE}`
-          : `Hi ${name}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
-
-        // Wave-108: review-request batch via shop gateway so customer
-        // sees the same shop number on the request as on prior visits.
-        const result = await sendSms(c.phone, msg, { via: "shop" });
-        // 2026-09-01 (audit F-3): a queued text still consumes the customer
-        // (it will go out at 8 AM) but is counted as queued, not sent.
-        const { smsOutcome: batchOutcome, smsClaimConsumed: batchConsumed } = await import("../lib/smsOutcome");
-        const outcome = batchOutcome(result);
-        if (batchConsumed(result)) {
-          // uncertain (gateway timeout) consumes the customer too — it may
-          // have been delivered, and an open claim re-texted them next press.
-          if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
-          await d.update(customers)
-            .set({ smsCampaignSent: 1, smsCampaignDate: new Date() })
-            .where(eq(customers.id, c.id));
-        } else {
-          failed++;
-        }
-
-        // 1 second delay between sends
-        await new Promise(r => setTimeout(r, 1000));
-      }
-
-      // Get remaining count
-      // Same predicate as the selection above, so the "remaining" the operator
-      // reads is the number this sender would actually pick up next run.
-      const [rem] = await d.select({ count: sql<number>`count(*)` })
-        .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0
-          AND NOT EXISTS (
-            SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = ${customers.id} AND s.status = 'sent'
-          )`);
-
-      return { sent, queued, uncertain, failed, remaining: rem?.count ?? 0 };
     }),
 
   /** Customer timeline — aggregated chronological history by phone */

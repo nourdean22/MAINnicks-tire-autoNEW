@@ -1,6 +1,6 @@
 /**
  * Tests for customers router — admin endpoints for imported customer records.
- * Covers: schema, router exports, quickSms, updateNotes, retryCampaign, exportCsv, campaignStats
+ * Covers: schema, router exports, quickSms, updateNotes, exportCsv
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -100,9 +100,6 @@ describe("Customers Router", () => {
       expect(customersRouter._def.procedures.quickSms).toBeDefined();
       // Notes
       expect(customersRouter._def.procedures.updateNotes).toBeDefined();
-      // Campaign
-      expect(customersRouter._def.procedures.retryCampaign).toBeDefined();
-      expect(customersRouter._def.procedures.campaignStats).toBeDefined();
       // Export
       expect(customersRouter._def.procedures.exportCsv).toBeDefined();
       // Follow-ups
@@ -129,13 +126,6 @@ describe("Customers Router", () => {
     it("updateNotes should require id and notes", async () => {
       const { customersRouter } = await import("./routers/customers");
       const proc = customersRouter._def.procedures.updateNotes;
-      expect(proc).toBeDefined();
-      expect(proc._def).toBeDefined();
-    });
-
-    it("retryCampaign should accept optional batchSize", async () => {
-      const { customersRouter } = await import("./routers/customers");
-      const proc = customersRouter._def.procedures.retryCampaign;
       expect(proc).toBeDefined();
       expect(proc._def).toBeDefined();
     });
