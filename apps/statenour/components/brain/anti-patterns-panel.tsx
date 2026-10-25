@@ -165,7 +165,7 @@ export function AntiPatternsPanel() {
                     type="button"
                     onClick={() => void markRevisited(item.key)}
                     disabled={revisit.isPending || remove.isPending}
-                    className="inline-flex min-h-[48px] items-center gap-1.5 rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
+                    className="min-w-11 inline-flex min-h-[48px] items-center gap-1.5 rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
                   >
                     <RotateCcw size={12} aria-hidden />
                     Revisit
@@ -201,7 +201,7 @@ export function AntiPatternsPanel() {
         <button
           type="button"
           onClick={() => void query.refetch()}
-          className="inline-flex min-h-[48px] items-center gap-2 rounded-control border border-[var(--border-default)] px-3 text-xs text-[var(--text-secondary)]"
+          className="min-w-11 inline-flex min-h-[48px] items-center gap-2 rounded-control border border-[var(--border-default)] px-3 text-xs text-[var(--text-secondary)]"
         >
           <AlertTriangle size={13} aria-hidden />
           Retry library read

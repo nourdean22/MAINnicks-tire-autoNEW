@@ -132,7 +132,7 @@ export function QualitativeIdentityPanel() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <Compass size={12} className="text-fg-secondary" />
           <p className="section-label">Qualitative identity</p>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
           <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             · values / fears / style / rhythms / red lines
           </span>
@@ -213,12 +213,12 @@ export function QualitativeIdentityPanel() {
                     onChange={(e) => setAddText(e.target.value)}
                     onKeyDown={(e) => isSubmitEnter(e) && void addEntry(b)}
                     placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
-                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                    className="min-h-11 flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={() => void addEntry(b)}
                     disabled={busy}
-                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono"
+                    className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono"
                   >
                     add
                   </button>

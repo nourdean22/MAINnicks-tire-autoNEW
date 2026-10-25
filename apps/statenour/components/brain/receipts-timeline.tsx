@@ -102,7 +102,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
             aria-selected={filter === f.key}
             onClick={() => setFilter(f.key)}
             className={cn(
-              "rounded-full border px-2.5 py-1 min-h-[32px] text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
+              "min-h-11 min-w-11 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
               filter === f.key
                 ? "border-accent text-fg bg-surface-interactive"
                 : "border-edge-default text-fg-tertiary hover:border-edge-strong hover:text-fg",

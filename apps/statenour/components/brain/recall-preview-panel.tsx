@@ -90,7 +90,7 @@ export function RecallPreviewPanel() {
       </form>
 
       <label className="mt-2 inline-flex min-h-11 items-center gap-2 text-xs text-fg-tertiary">
-        <input
+        <input className="min-h-11"
           type="checkbox"
           checked={includePrompt}
           onChange={(event) => setIncludePrompt(event.target.checked)}

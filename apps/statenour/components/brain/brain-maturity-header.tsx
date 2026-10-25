@@ -247,7 +247,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
             Reset
           </button>
           {/* v8.2 D5: every data block shows freshness + source */}
-          <FreshnessChip
+          <FreshnessChip className="min-h-11"
             lastFetchedAt={data.computed_at}
             source="api/brain/maturity"
             onReload={() => reload()}

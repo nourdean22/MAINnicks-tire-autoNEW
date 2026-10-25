@@ -79,7 +79,7 @@ export function SuggestionTelemetryPanel() {
         <h2 className="text-[15px] font-semibold text-fg">
           Smart reply telemetry
         </h2>
-        <FreshnessChip lastFetchedAt={loadedAt} source="lambda" compact onReload={() => void statsQuery.refetch()} />
+        <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="lambda" compact onReload={() => void statsQuery.refetch()} />
         <span className="text-[11px] text-[var(--text-tertiary)]">lambda-local</span>
       </div>
 

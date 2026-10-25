@@ -147,13 +147,13 @@ export function BeliefsPanel() {
               <button
                 onClick={() => void saveEdit(b.key, kind)}
                 disabled={rowBusy}
-                className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
+                className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
               >
                 <Check size={9} /> Save
               </button>
               <button
                 onClick={() => { setEditKey(null); setEditText(""); }}
-                className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
+                className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
               >
                 <X size={9} /> Cancel
               </button>
@@ -194,7 +194,7 @@ export function BeliefsPanel() {
                     onClick={() => void act(b.key, "promote")}
                     disabled={rowBusy}
                     title="promote to active belief"
-                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
+                    className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                   >
                     <ArrowUp size={9} /> promote
                   </button>
@@ -222,7 +222,7 @@ export function BeliefsPanel() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <BookOpen size={12} className="text-fg-secondary" />
           <p className="section-label">Beliefs</p>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
           <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             · curated positions · injected into chat every turn
           </span>

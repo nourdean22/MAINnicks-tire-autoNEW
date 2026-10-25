@@ -150,7 +150,7 @@ export function ContradictionResolutionPanel() {
               <AnimatedCounter value={visible.length} />
             </span>
           )}
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
           <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             · drift against stated positions
           </span>
@@ -161,7 +161,7 @@ export function ContradictionResolutionPanel() {
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "text-[11px] font-mono px-2 py-1 rounded-control border transition-colors",
+                "min-h-11 min-w-11 text-[11px] font-mono px-2 py-1 rounded-control border transition-colors",
                 tab === t
                   ? "bg-red-500/10 text-red-400 border-red-500/30"
                   : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
@@ -238,7 +238,7 @@ export function ContradictionResolutionPanel() {
                       key={a.status}
                       onClick={() => beginResolve(c.key, a.status)}
                       disabled={rowBusy}
-                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono"
+                      className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono"
                       title={a.title}
                     >
                       {a.label}
@@ -259,13 +259,13 @@ export function ContradictionResolutionPanel() {
                       disabled={rowBusy}
                       // The confirm button takes focus from the tapped answer.
                       autoFocus
-                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
+                      className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                     >
                       <Check size={9} /> confirm
                     </button>
                     <button
                       onClick={() => { setNotingKey(null); setPendingResolve(null); }}
-                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
+                      className="min-w-11 inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
                     >
                       <X size={9} /> Cancel
                     </button>
