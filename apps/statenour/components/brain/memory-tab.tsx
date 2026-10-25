@@ -78,13 +78,17 @@ export function MemoryTab() {
       <div id="contradictions" className="scroll-mt-24">
         <ContradictionResolutionPanel />
       </div>
-      <BeliefsPanel />
+      <div id="beliefs" className="scroll-mt-24">
+        <BeliefsPanel />
+      </div>
       <IdentityDeltaLine />
       <RecallInboxPanel />
       <NickSuggestions />
       {/* The former Wisdom tab (2026-10-19, wave 2V). It owns its own ?focus= and ?evolution=1
           handling, so /brain?tab=memory&focus=<key> still scrolls to a card. */}
-      <WisdomSection />
+      <div id="wisdom" className="scroll-mt-24">
+        <WisdomSection />
+      </div>
 
       <div>
         <BrainFold title="Signals">
@@ -96,7 +100,9 @@ export function MemoryTab() {
         <BrainFold title="Self-model">
           <MemoryOfDayCard />
           <SkillLibraryPanel />
-          <QualitativeIdentityPanel />
+          <div id="qualitative" className="scroll-mt-24">
+            <QualitativeIdentityPanel />
+          </div>
           {/* UI v3 W5a: IdentityPanel has one home, Settings > Identity and Behavior. */}
           <Link
             href="/settings"
@@ -110,7 +116,9 @@ export function MemoryTab() {
           <AntiPatternsPanel />
         </BrainFold>
         <BrainFold title="Context">
-          <NudgePanel />
+          <div id="nudges" className="scroll-mt-24">
+            <NudgePanel />
+          </div>
           <PinnedContextPanel />
           <RecallPreviewPanel />
         </BrainFold>

@@ -112,18 +112,14 @@ function treeLinks(): string[] {
   });
 }
 
-/** Dead before wave E2, owned by the chat lane (citation pills, slash commands). Never add to this. */
-const KNOWN_DEAD = new Set<string>([
-  "components/chat/citation-pills.tsx -> /brain#recall",
-  "components/chat/citation-pills.tsx -> /brain#identity",
-  "components/chat/citation-pills.tsx -> /brain#qualitative",
-  "components/chat/citation-pills.tsx -> /brain#beliefs",
-  "components/chat/citation-pills.tsx -> /brain#nudges",
-  "components/chat/citation-pills.tsx -> /brain#laws",
-  "components/chat/citation-pills.tsx -> /brain#promises",
-  "hooks/use-slash-commands.ts -> /brain#identity",
-  "hooks/use-slash-commands.ts -> /brain#beliefs",
-]);
+/**
+ * Dead before wave E2. Wave F (2026-10-25) fixed all nine: #beliefs, #qualitative and #nudges got their id on
+ * the Memory tab (BrainFold opens the fold that holds a hash target); #recall now names #recall-preview,
+ * #laws names #wisdom (the Greene laws live in the Wisdom section), #identity names /settings#identity (the
+ * IdentityPanel's one home), and #promises has no Brain home, so it opens /missions (promise loops are tasks).
+ * Never add to this.
+ */
+const KNOWN_DEAD = new Set<string>([]);
 
 const sweep = () => [...new Set(treeLinks().filter((l) => dead(l.slice(l.indexOf(" -> ") + 4))))];
 
@@ -141,6 +137,11 @@ describe("deep-link hashes name an element their page mounts", () => {
     expect(dead("/stats#no-such-section")).toBe(true);
     expect(dead("/brain#contradictions")).toBe(false);
     expect(dead("/stats#forecast-duel")).toBe(false);
+    // wave F: the nine repaired targets resolve, and the old spellings that had no home stay dead
+    for (const live of ["/brain#beliefs", "/brain#qualitative", "/brain#nudges", "/brain#recall-preview", "/brain#wisdom", "/settings#identity"]) {
+      expect(dead(live), live).toBe(false);
+    }
+    for (const gone of ["/brain#recall", "/brain#laws", "/brain#promises", "/brain#identity"]) expect(dead(gone), gone).toBe(true);
     expect(hashLinks('const c = { href: "/brain#ghost" };\n// "/brain#in-a-comment"')).toEqual(["/brain#ghost"]);
   });
 

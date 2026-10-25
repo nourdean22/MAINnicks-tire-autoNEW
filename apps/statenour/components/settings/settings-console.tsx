@@ -62,7 +62,9 @@ export function SettingsConsole() {
   return (
     <div className="flex w-full max-w-3xl flex-col gap-10">
       <SettingsGroup label="Identity and behavior" description="Who you are, how you score the world, and your behavioral baselines.">
-        <IdentityPanel />
+        <div id="identity" className="scroll-mt-24">
+          <IdentityPanel />
+        </div>
         <JournalBrainPanel />
         <NotebookLMContextZone />
         <PeopleScoringPanel />
