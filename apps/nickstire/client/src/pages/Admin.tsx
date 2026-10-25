@@ -373,7 +373,7 @@ function AdminSSEListeners() {
       ["work_order_created", () => { money(); toast.info("New work order created"); }],
       ["tire_order_placed", overview],
       ["emergency_request", () => { overview(); toast.error("EMERGENCY request!"); }],
-      ["review_detected", () => { utils.adminDashboard.stats.invalidate(); utils.customers.campaignStats.invalidate(); toast.info("New review detected"); }],
+      ["review_detected", () => { utils.adminDashboard.stats.invalidate(); toast.info("New review detected"); }],
       // 2026-09-01 (audit F-23): a customer answering an inspection item used to
       // be a silent DB write — the advisor found out by re-opening the report.
       ["inspection_decided", () => {

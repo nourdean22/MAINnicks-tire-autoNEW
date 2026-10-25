@@ -3,12 +3,11 @@ import { trpc } from "@/lib/trpc";
 import { readStatus } from "@/lib/queryState";
 import { StatCard, useUrlFilter, FilterChips, openCustomerDrawer, ErrorState } from "../shared";
 import { CustomersBrief } from "./CustomersBrief";
-import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import {
   Users, Search, ChevronLeft, ChevronRight, Phone, Mail,
   Calendar, UserCheck, AlertTriangle, Building2,
-  ArrowUpDown, Filter, Eye, X, Download, Send, CheckCircle2,
+  ArrowUpDown, Filter, Eye, X, Download,
   MessageSquare, StickyNote, RefreshCw, Loader2, Crown,
   Clock, ChevronDown, ChevronUp, DollarSign,
   Hash, Wrench, FileWarning, MoreHorizontal
@@ -21,6 +20,7 @@ import {
 import { StatusBadge } from "./StatusBadge";
 import { WinBackButton } from "./WinBackButton";
 import { Customer360Panel } from "./Customer360Panel";
+import { VIP_MIN_VISITS, LAPSED_MIN_DAYS, LAPSED_MAX_DAYS } from "@shared/customerSegments";
 
 const UNKNOWN = "—";
 
@@ -83,7 +83,6 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
   // A failed stats read is unknown, not zero: every tile shows a dash and says so.
   const tile = (n: number | undefined) => (statsFailed || statsPaused ? UNKNOWN : n ?? 0);
   const tileNote = statsFailed || statsPaused ? "Unable to determine" : undefined;
-  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
 
   // wave-181.x SA v2 Wave 3 (Elon · single surface) · pull v2 service-
   // affinity predictions live · index by customerId · render inline on
@@ -157,14 +156,6 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
     staleTime: 30_000,
   });
 
-  const retryCampaign = trpc.customers.retryCampaign.useMutation({
-    onSuccess: (result) => {
-      toast.success(`Sent ${result.sent} texts (${result.failed} failed). ${result.remaining} remaining.`);
-      utils.customers.campaignStats.invalidate();
-    },
-    onError: () => toast.error("Campaign retry failed"),
-  });
-
   const totalPages = Math.ceil((listData?.total ?? 0) / pageSize);
 
   function toggleSort(col: SortByExt) {
@@ -198,12 +189,18 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
           3-line auto-narrative of roster · LTV · top action (lapsed).
           Composes from the same trpc.customers.stats query the
           StatCard grid below uses · no additional API calls. The
-          "View" action on the lapsed line jumps the segment filter
-          to "lapsed" via the parent's state setter · keeps state
-          ownership inside CustomersList. */}
+          "View list" action on the lapsed-regulars queue sets segment
+          lapsed AND the regular floor, so the table shows the same
+          people the queue counts (other filters cleared for the same reason). */}
       <CustomersBrief
         onLapsedAction={() => {
           setSegment("lapsed");
+          setMinVisits(VIP_MIN_VISITS);
+          setLastVisitDays(undefined);
+          setHasDeclined(false);
+          setHasBacklog(false);
+          setHasEmail(false);
+          setCommercialOnly(false);
           setPage(1);
         }}
       />
@@ -236,12 +233,12 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
           onClick={() => { setSegment("all"); setMinVisits(1); setPage(1); }}
         />
         <StatCard
-          label="VIP (3+)"
+          label={`VIP (${VIP_MIN_VISITS}+)`}
           value={tile(stats?.vipCount)}
           trendLabel={tileNote}
           icon={<Crown className="w-4 h-4" />}
           color="text-amber-400"
-          onClick={() => { setSegment("all"); setMinVisits(3); setSortBy("visits"); setSortDir("desc"); setPage(1); }}
+          onClick={() => { setSegment("all"); setMinVisits(VIP_MIN_VISITS); setSortBy("visits"); setSortDir("desc"); setPage(1); }}
         />
         <StatCard
           label="Total Revenue"
@@ -260,7 +257,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
           onClick={() => { setSegment("recent"); setPage(1); }}
         />
         <StatCard
-          label="Lapsed"
+          label={`Lapsed (${LAPSED_MIN_DAYS}-${LAPSED_MAX_DAYS} d)`}
           value={tile(stats?.lapsed)}
           trendLabel={tileNote}
           icon={<AlertTriangle className="w-4 h-4" />}
@@ -288,53 +285,8 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
         />
       </div>
 
-      {/* Campaign Progress + Retry + Export */}
+      {/* Export */}
       <div className="flex flex-col sm:flex-row gap-3">
-        {campaignStats && (
-          <div className="flex-1 bg-card border border-border/30 p-4 flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Send className="w-4 h-4 text-primary" />
-              <span className="text-[12px] text-foreground/60 tracking-wider">SMS:</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-[12px]">
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                <span className="text-emerald-400">{campaignStats.sent}</span>
-                <span className="text-foreground/30">sent</span>
-              </span>
-              <span className="flex items-center gap-1 text-[12px]">
-                <span className="text-amber-400">{campaignStats.remaining}</span>
-                <span className="text-foreground/30">left</span>
-              </span>
-            </div>
-            {campaignStats.total > 0 && (
-              <div className="flex-1 bg-foreground/5 h-2 hidden sm:block">
-                <div className="bg-primary h-2 transition-all" style={{ width: `${Math.round((campaignStats.sent / campaignStats.total) * 100)}%` }} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {campaignStats && campaignStats.remaining > 0 && (
-          <button
-            onClick={async () => {
-              // wave-139 — was native confirm(); now ConfirmDialog
-              const ok = await confirmDialog({
-                title: "Send next batch?",
-                message: "Send texts to the next 50 queued customers.",
-                confirmLabel: "Send 50",
-              });
-              if (!ok) return;
-              retryCampaign.mutate({ batchSize: 50 });
-            }}
-            disabled={retryCampaign.isPending}
-            className="flex items-center gap-2 bg-primary/10 border border-primary/30 px-4 py-2.5 text-sm text-primary hover:bg-primary/20 transition-colors whitespace-nowrap disabled:opacity-50 rounded-md"
-          >
-            {retryCampaign.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {retryCampaign.isPending ? "Sending..." : "Send Next 50"}
-          </button>
-        )}
-
         <button
           onClick={async () => {
             // v1.7 audit follow-up · was raw fetch() of the manually-

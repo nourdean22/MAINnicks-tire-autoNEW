@@ -3,7 +3,7 @@
     "uppercase": 4,
     "emDash": 138,
     "emoji": 0,
-    "transitionAll": 49,
+    "transitionAll": 48,
     "slowDuration": 7,
     "smallInput": 92,
     "offPalette": 125
@@ -103,7 +103,6 @@
     },
     "client/src/pages/admin/customers/CustomersList.tsx": {
       "emDash": 7,
-      "transitionAll": 1,
       "smallInput": 3
     },
     "client/src/pages/admin/customers/FollowUpButton.tsx": {
