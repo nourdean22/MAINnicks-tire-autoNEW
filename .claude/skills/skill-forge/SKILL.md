@@ -9,8 +9,9 @@ triggers: new skill, create a skill, skill never loads, does not fire, fires on 
 The official skill-creator drafts and evaluates a skill. On its own it leaves this repo's gates open: in the baseline run, a skill
 made by following it alone failed 6 repo gates ([evals/baseline.md](evals/baseline.md)). Its text puts the workspace beside the skill
 in `.claude/skills/`, its trigger queries are invented, no held-out set is kept, and nothing shows the skill loads by name. Config prose
-does not cause invocation (`skill-fire-audit`): the description plus a working load are the only routing. Skill and policy edits
-need Nour's approval, so the PR is the proposal; do not self-merge. The global `writing-skills` skill gives the TDD doctrine for
+does not cause invocation (`skill-fire-audit`): the description plus a working load are the only routing. A skill or policy edit Nour
+asked for in words merges on green through the manager (monorepo-manager step 15); one made on agent initiative is a proposal
+that waits for him. The global `writing-skills` skill gives the TDD doctrine for
 skills; when it and this one both load, follow these gates.
 
 Tooling: [scripts/forge.mjs](scripts/forge.mjs) (`check`, `mine`, `split`, `verify-origins`, `score`, `prove`; no dependencies).
