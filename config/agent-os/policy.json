@@ -295,21 +295,37 @@
     {
       "id": "add-all",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__add\\b[^\\n]*?(?:\\s-[a-zA-Z]*A[a-zA-Z]*\\b|\\s--all\\b|\\s\\.(?=[\\s\"']|$))",
-      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files.",
+      "pattern": "__GIT__add\\b[^;|&\\n]*?(?:\\s-[a-zA-Z]*A[a-zA-Z]*\\b|\\s--all\\b|\\s[\"']?\\.[\\\\/]?[\"']?(?=[\\s;|&)\"']|$))",
+      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files. 2026-10-25: the scan stops at ; | & and newline (as force-push did 2026-09), so a one-path add chained with a later --root . or ls -A passes, and a dot followed by ; & | ) or written as \".\", './' or .\\ is caught.",
       "fix": "git add path/to/one.ts path/to/two.ts",
       "denyExamples": [
         "git add -A",
         "git add --all",
         "git add .",
         "git -C . add -A",
-        "pnpm test && git add -A && git commit -m x"
+        "pnpm test && git add -A && git commit -m x",
+        "git add . && pnpm test",
+        "git add -A; git commit",
+        "git add src/a.ts .",
+        "git add a.ts && git add .",
+        "git add .; git commit -m x",
+        "git add .&& git commit -m x",
+        "(git add .)",
+        "git add \".\"",
+        "git add './'",
+        "git add .\\"
       ],
       "allowExamples": [
         "git add apps/statenour/lib/foo.ts",
         "git add AGENTS.md CLAUDE.md",
         "git add ./apps/nickstire/AGENTS.md",
-        "git add -p apps/nickstire/server/x.ts"
+        "git add -p apps/nickstire/server/x.ts",
+        "git add .gitleaksignore",
+        "git add docs/agent-os/ledger/2026-10-25-guard-scan-fix.md && node scripts/agent-os/ledger-check.mjs --root .",
+        "git add docs/agent-os/README.md && git commit -m \"x -A y\"",
+        "git add docs/agent-os/README.md; ls -A",
+        "git add a.ts && npm ls --all",
+        "git add a.ts && cd .. && ls ."
       ]
     },
     {
