@@ -15,9 +15,10 @@
  *   · operator.bodyTracking({range:"90d"}): same key the lazy
  *     BodySection fetches → this card just warms it earlier.
  *
- * Honesty contract: transient query error → self-hide (house rule, the
- * page never breaks); a real empty board → an explicit "Missing data"
- * line, never a fabricated recommendation. Every reason starts
+ * Honesty contract: a failed, paused or unanswered read is named in the
+ * card (ReadStateNote), never hidden and never read as an empty board; a
+ * real empty board → an explicit "Missing data" line, never a fabricated
+ * recommendation. Every reason starts
  * "Because…"/"Based on…": no mysterious AI vibes (and no AI: this is
  * arithmetic over the XP log).
  *
@@ -28,6 +29,8 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { today } from "@/lib/utils/datetime";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 import { computePace } from "@/lib/brain/goal-pace";
 import {
   selectLevelUpDirective,
@@ -99,13 +102,46 @@ export function LevelUpDirectiveCard() {
     });
   }, [stats, goalsQ.data, bodyQ.data]);
 
-  // Cold load / transient error → self-hide (house contract: the page
-  // never breaks on a child's fetch). Goals/body still loading → wait one
-  // beat so the tier doesn't visibly re-rank as signals land.
+  // Cold load → wait one beat so the tier doesn't visibly re-rank as
+  // signals land (the page never breaks on a child's fetch).
   if (sheetQ.isLoading || goalsQ.isLoading || bodyQ.isLoading) return null;
-  if (sheetQ.error) return null;
 
-  // Honest empty: the query succeeded and the board is genuinely bare.
+  // A failed, paused or unanswered read is named, never read as "nothing here" (lib/query-state.ts).
+  // Goals and body only sharpen the ranking, so when they fail the directive still renders from
+  // the stats and the note says what it ranked without. ReadStateNote is null for a ready read.
+  const notes = (
+    [
+      ["Stat list", sheetQ],
+      ["Goal list", goalsQ],
+      ["Body log", bodyQ],
+    ] as const
+  ).map(([label, q]) => (
+    <ReadStateNote
+      key={label}
+      state={readState(q)}
+      label={label}
+      onRetry={() => void q.refetch()}
+      retrying={isRetrying(q)}
+    />
+  ));
+
+  // The stat read is the ranking's base: with no stat data there is nothing to rank and nothing to
+  // call empty.
+  if (sheetQ.data === undefined) {
+    return (
+      <section
+        aria-label="level-up directive"
+        className="rounded-surface border border-edge-subtle bg-content px-3.5 py-2.5"
+      >
+        <p className="font-mono text-[11px] text-fg-tertiary">
+          Level-up directive
+        </p>
+        {notes}
+      </section>
+    );
+  }
+
+  // Honest empty: the stat read succeeded and the board is genuinely bare.
   if (!stats || stats.length === 0 || !directive) {
     return (
       <section
@@ -115,6 +151,7 @@ export function LevelUpDirectiveCard() {
         <p className="font-mono text-[11px] text-fg-tertiary">
           Level-up directive
         </p>
+        {notes}
         <p className="mt-1 text-[12px] leading-snug text-fg-secondary">
           Missing data: no stat history to rank yet. Complete a{" "}
           <Link href="/missions" className="underline decoration-edge-strong underline-offset-2 hover:text-fg">
@@ -150,6 +187,7 @@ export function LevelUpDirectiveCard() {
           </p>
         ) : null}
       </div>
+      {notes}
 
       {/* the stat + the XP math */}
       <div className="flex items-center gap-2">

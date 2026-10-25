@@ -50,7 +50,7 @@ export const PROTECTED_OPS_TOOLS: readonly string[] = [
   "stageCustomerAlert",
   // social publishing
   // code & device execution
-  "runPython",
+  "runCode",
   "runDeviceCommand",
   // autonomous browser action
   "browseAndDo",

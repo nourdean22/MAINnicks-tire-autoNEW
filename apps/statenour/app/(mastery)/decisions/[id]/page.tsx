@@ -169,6 +169,30 @@ export default function DecisionDetailPage() {
     }
   }
 
+  // An invalid id disables the query (`enabled: idValid`). A disabled query has no data and no
+  // error and reads as "loading" forever, so it is answered here, before the query branches.
+  if (!idValid) {
+    return (
+      <StandardPage
+        eyebrow="Journal · Decision"
+        title="Decision"
+        description="Decision evidence and outcome history."
+        width="xl"
+        className="px-3 py-6 sm:px-4"
+        parent={{ href: "/journal", label: "journal" }}
+      >
+        <Panel>
+          <div className="p-3">
+            <p className="text-[12px] font-bold text-fg">Decision not found</p>
+            <p className="mt-0.5 text-[12px] text-fg-secondary">
+              The number in this address is not a valid decision id.
+            </p>
+          </div>
+        </Panel>
+      </StandardPage>
+    );
+  }
+
   if (loading && !data) {
     return (
       <StandardPage

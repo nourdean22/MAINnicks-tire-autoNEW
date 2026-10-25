@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 import {
   assertSafeToolCombo,
   DANGEROUS_TOOL_COMBOS,
@@ -66,19 +67,19 @@ describe("v10.0.529.12 · assertSafeToolCombo", () => {
     expect(verdict.requireHITL).toBe(true);
   });
 
-  it("blocks findRelatedConversations → runPython", () => {
+  it("blocks findRelatedConversations → runCode", () => {
     const verdict = assertSafeToolCombo(
       ["findRelatedConversations"],
-      "runPython",
+      "runCode",
     );
     expect(verdict.ok).toBe(false);
     expect(verdict.requireHITL).toBe(true);
   });
 
-  it("blocks ingestDocumentFromUrl → runPython (cross-trust chain)", () => {
+  it("blocks ingestDocumentFromUrl → runCode (cross-trust chain)", () => {
     const verdict = assertSafeToolCombo(
       ["ingestDocumentFromUrl"],
-      "runPython",
+      "runCode",
     );
     expect(verdict.ok).toBe(false);
     expect(verdict.requireHITL).toBe(true);
@@ -87,9 +88,18 @@ describe("v10.0.529.12 · assertSafeToolCombo", () => {
   it("matches when prior is anywhere in the history, not just last", () => {
     const verdict = assertSafeToolCombo(
       ["searchDocuments", "proposeCalendarEvent", "findRelatedConversations"],
-      "runPython",
+      "runCode",
     );
     expect(verdict.ok).toBe(false);
+  });
+
+  it("every rule names LIVE catalog tools (a rule on a deleted tool never fires and reads as covered)", () => {
+    // 2026-10-25: two rows pointed at `runPython` after PR 3259 deleted it; the live code tool is
+    // `runCode`. Control: the rows that matter name tools the catalog really has.
+    const live = new Set(TOOL_CATALOG.map((t) => t.name));
+    const dead = DANGEROUS_TOOL_COMBOS.flatMap((r) => [r.prior, r.next]).filter((n) => !live.has(n));
+    expect(dead, "combo rows naming tools with no catalog entry").toEqual([]);
+    expect(DANGEROUS_TOOL_COMBOS.filter((r) => r.next === "runCode")).toHaveLength(2);
   });
 
   it("DANGEROUS_TOOL_COMBOS list shape is stable for downstream consumers", () => {

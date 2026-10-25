@@ -12,7 +12,8 @@
  * · pattern clusters · orphan nudges · contradictions · unresolved
  * reflections · broken promises · stale pins into ≤5 severity-ranked
  * suggestion chips. Every signal query gracefully fails to []/0 so a
- * single failed read doesn't bury the rest.
+ * single failed read doesn't bury the rest; ALL of them failing throws, so
+ * the caller's query errors instead of reading an outage as a quiet morning.
  *
  * Returns an explicit, shallow `NickSuggestionsView` — `sourceContext`
  * is a `Record<string, unknown>` (already scalar-only · no Prisma Json
@@ -25,6 +26,7 @@ import { today as todayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { getDismissedSuggestionIds } from "@/lib/brain/suggestion-loop";
 import { getUrgentLeads } from "@/lib/services/leads";
+import { isDemoMode } from "@/lib/runtime";
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
 
 export interface NickSuggestion {
@@ -128,7 +130,23 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
   const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
 
-  // ─── Read all signals in parallel · each gracefully fails to []
+  // ─── Read all signals in parallel · a failed read falls back to empty so one
+  // bad source doesn't bury the rest, but every fallback goes through `miss` so
+  // a TOTAL failure is counted and thrown below (empty-vs-error, 2026-10-25).
+  // `read` registers a voting read where it is created, so the quorum below is the number of reads
+  // actually registered and cannot drift from a hard-coded count. getUrgentLeads is deliberately not
+  // wrapped: with the lead bridge missing, listLeads() resolves [] instead of rejecting (it logs
+  // warnMissingBridge), so it can never fail and must not vote.
+  let registeredReads = 0;
+  let failedReads = 0;
+  const read = <T>(pending: Promise<T>): Promise<T> => {
+    registeredReads += 1;
+    return pending;
+  };
+  const miss = <T>(fallback: T): T => {
+    failedReads += 1;
+    return fallback;
+  };
   const [
     latestScores,
     stuckTasks,
@@ -142,7 +160,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     dismissedIds,
     urgentLeads,
   ] = await Promise.all([
-    prisma.masteryScore
+    read(prisma.masteryScore
       .findMany({
         orderBy: { date: "desc" },
         take: 100,
@@ -154,10 +172,10 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           score: number;
           delta: number;
           date: string;
-        }> => [],
-      ),
+        }> => miss([]),
+      )),
 
-    prisma.task
+    read(prisma.task
       .findMany({
         where: {
           status: "DOING",
@@ -168,10 +186,10 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         take: 5,
       })
       .catch(
-        (): Array<{ id: string; title: string; startedAt: Date | null }> => [],
-      ),
+        (): Array<{ id: string; title: string; startedAt: Date | null }> => miss([]),
+      )),
 
-    prisma.task
+    read(prisma.task
       .findMany({
         where: {
           status: { in: ["INBOX", "READY", "DOING"] },
@@ -183,10 +201,10 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         take: 5,
       })
       .catch(
-        (): Array<{ id: string; title: string; dueDate: Date | null }> => [],
-      ),
+        (): Array<{ id: string; title: string; dueDate: Date | null }> => miss([]),
+      )),
 
-    prisma.lifeGoal
+    read(prisma.lifeGoal
       .findMany({
         where: {
           status: "active",
@@ -212,10 +230,10 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           targetValue: number;
           unit: string;
           updatedAt: Date;
-        }> => [],
-      ),
+        }> => miss([]),
+      )),
 
-    prisma.brainMemory
+    read(prisma.brainMemory
       .findMany({
         where: {
           category: "task_pattern",
@@ -225,9 +243,9 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         take: 2,
         select: { metadata: true },
       })
-      .catch((): Array<{ metadata: unknown }> => []),
+      .catch((): Array<{ metadata: unknown }> => miss([]))),
 
-    prisma.brainMemory
+    read(prisma.brainMemory
       .findFirst({
         where: {
           category: "orphan_tasks_nudge",
@@ -236,9 +254,9 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         },
         select: { metadata: true },
       })
-      .catch(() => null),
+      .catch(() => miss(null))),
 
-    prisma.reflection
+    read(prisma.reflection
       .findMany({
         where: {
           actionable: true,
@@ -255,10 +273,10 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           insight: string;
           category: string;
           date: string;
-        }> => [],
-      ),
+        }> => miss([]),
+      )),
 
-    prisma.task
+    read(prisma.task
       .findMany({
         where: {
           loopKind: "PROMISE",
@@ -276,10 +294,10 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           title: string;
           dueDate: Date | null;
           promiseTo: string | null;
-        }> => [],
-      ),
+        }> => miss([]),
+      )),
 
-    prisma.brainMemory
+    read(prisma.brainMemory
       .findMany({
         where: {
           category: BRAIN_CATEGORIES.PINNED_USER,
@@ -292,12 +310,22 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         select: { id: true, content: true, updatedAt: true },
       })
       .catch(
-        (): Array<{ id: string; content: string; updatedAt: Date }> => [],
-      ),
+        (): Array<{ id: string; content: string; updatedAt: Date }> => miss([]),
+      )),
 
-    getDismissedSuggestionIds(7).catch(() => new Set<string>()),
+    read(getDismissedSuggestionIds(7).catch(() => miss(new Set<string>()))),
     getUrgentLeads().catch(() => []),
   ]);
+
+  // Every source failed (a database outage): an empty list here would hide as a quiet
+  // morning. Throw so `nick.suggestions` errors and the strip says the list could not load.
+  // shortcut: a partial failure returns whatever answered, even an empty list, with no note;
+  // upgrade by returning a failedSources count the strip can show when live is empty.
+  // Demo mode (no DATABASE_URL) has no database by design, so every Prisma read rejects there and the
+  // strip must stay the graceful empty it was, not a permanent error (leads.ts branches the same way).
+  if (!isDemoMode && registeredReads > 0 && failedReads === registeredReads) {
+    throw new Error("Every suggestion source failed to read; the chip list is unknown, not empty.");
+  }
 
   // ─── 1 · Weakest mastery axis (high-leverage)
   if (latestScores.length > 0 && (!urgentLeads || urgentLeads.length === 0)) {

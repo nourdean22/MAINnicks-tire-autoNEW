@@ -1,7 +1,7 @@
 /**
  * Canaries for the 2026-08-27 bridge hardening.
  *
- * This guards arbitrary code execution (`runPython`, `runDeviceCommand`) and
+ * This guards arbitrary code execution (`runCode`, `runDeviceCommand`) and
  * customer-facing sends, so presence-assertion would be indefensible. Every
  * test carries its positive control in the same block, and the load-bearing
  * ones MUTATE the real logic to prove the guard bites — the guard-red-team
@@ -9,7 +9,7 @@
  *
  * The four properties under guard, and the outage each answers:
  *   1. A protected-ops tool is REFUSED on every scope (the comment-was-the-gate
- *      defect — runPython behind one flat token).
+ *      defect: runPython, now runCode, behind one flat token).
  *   2. The refusal is AUDITED (the console-only sink that could not answer
  *      "who called this").
  *   3. A scoped token cannot reach outside its scope (the single-secret-total
@@ -30,6 +30,7 @@ import {
 import { assertBridgeToolAllowed, CHATGPT_ACTIONS_V1_TOOLS } from "@/lib/agent-bridge/tool-policy";
 import { getBridgeSafeTools } from "@/lib/agent-bridge/tool-adapter";
 import { resolveBridgeToken } from "@/lib/agent-bridge/auth";
+import { TOOL_CATALOG, getToolMeta, getToolRiskClass } from "@/lib/ai/tools/catalog";
 
 /* ── 1 · HARD_DENY: protected ops are unreachable on any scope ──────────── */
 
@@ -41,9 +42,30 @@ describe("HARD_DENY · protected operations are never reachable", () => {
       expect(BRIDGE_HARD_DENY.has(name), `${name} must be hard-denied`).toBe(true);
     }
     // The specific teeth: code execution and customer SMS.
-    for (const name of ["runPython", "runDeviceCommand", "sendOpportunitySms"]) {
+    for (const name of ["runCode", "runDeviceCommand", "sendOpportunitySms"]) {
       expect(BRIDGE_HARD_DENY.has(name)).toBe(true);
     }
+  });
+
+  it("every protected-ops name is a LIVE catalog tool (a dead name guards nothing and reads as covered)", () => {
+    // 2026-10-25: `runPython` stayed in this list after PR 3259 deleted the tool, so the entry
+    // named a tool that no longer existed while the live code tool (`runCode`) was denied only by
+    // the catalog rule below. Positive control: the live names resolve.
+    const live = new Set(TOOL_CATALOG.map((t) => t.name));
+    const dead = PROTECTED_OPS_TOOLS.filter((name) => !live.has(name));
+    expect(dead, "protected-ops names with no catalog tool").toEqual([]);
+    expect(live.has("runDeviceCommand")).toBe(true);
+    expect(PROTECTED_OPS_TOOLS).toContain("runCode");
+  });
+
+  it("runCode is critical through the catalog rule itself, so it is denied even if the explicit list loses it", () => {
+    // The explicit list above is belt and suspenders. This reads the rule it backs up
+    // (lib/ai/tools/catalog.ts getToolRiskClass): delete the runCode name check and this goes red
+    // while the explicit entry would still hide the loss from every other test in the file.
+    expect(getToolRiskClass("runCode", getToolMeta("runCode"))).toBe("critical");
+    // Control: a sibling ai_analysis tool with the same shape of row is not stamped critical.
+    expect(getToolRiskClass("summarize", getToolMeta("summarize"))).not.toBe("critical");
+    expect(BRIDGE_HARD_DENY.has("runCode")).toBe(true);
   });
 
   it("no scope's tool list intersects HARD_DENY — in EITHER direction", () => {
@@ -84,18 +106,18 @@ describe("HARD_DENY · protected operations are never reachable", () => {
     // The mutation must make a difference — if these were equal the subtraction
     // was decorative. (They differ only if a protected op is in a scope's raw
     // list; sendTelegram etc. are not protected, so we assert via a planted name.)
-    const planted = scopeTools("tasks", new Set()).concat("runPython");
-    expect(planted.includes("runPython")).toBe(true);
-    expect(withGuard.includes("runPython")).toBe(false);
+    const planted = scopeTools("tasks", new Set()).concat("runCode");
+    expect(planted.includes("runCode")).toBe(true);
+    expect(withGuard.includes("runCode")).toBe(false);
   });
 });
 
 /* ── 2 · assertBridgeToolAllowed: the CODE that replaced the comment ────── */
 
 describe("assertBridgeToolAllowed · the gate is code now, not prose", () => {
-  it("REFUSES runPython on every scope, with a protected-op message", () => {
+  it("REFUSES runCode on every scope, with a protected-op message", () => {
     for (const scope of BRIDGE_SCOPES) {
-      expect(() => assertBridgeToolAllowed("runPython", "mcp", scope)).toThrow(/protected operation/);
+      expect(() => assertBridgeToolAllowed("runCode", "mcp", scope)).toThrow(/protected operation/);
     }
   });
 
@@ -116,7 +138,7 @@ describe("assertBridgeToolAllowed · the gate is code now, not prose", () => {
     expect(() => assertBridgeToolAllowed("getRevenueStats", "mcp", "read")).not.toThrow();
     // Actions is its own curated list — assert it too refuses a protected op,
     // so it cannot drift into exposing one.
-    expect(() => assertBridgeToolAllowed("runPython", "actions")).toThrow(/protected operation/);
+    expect(() => assertBridgeToolAllowed("runCode", "actions")).toThrow(/protected operation/);
   });
 });
 
@@ -150,7 +172,7 @@ describe("resolveBridgeToken · per-client scopes", () => {
     expect(isToolInScope("createTask", id.scope)).toBe(false); // denied
     expect(isToolInScope("getTasks", id.scope)).toBe(true); // allowed
     // and never a protected op, on any resolved scope
-    expect(isToolInScope("runPython", id.scope)).toBe(false);
+    expect(isToolInScope("runCode", id.scope)).toBe(false);
   });
 });
 
@@ -260,7 +282,7 @@ describe("Actions protocol · scope-enforced and denial-audited", () => {
 
   it("P2: a HARD_DENY tool is refused on Actions too, and never in any scope", () => {
     for (const scope of ["read", "tasks", undefined] as const) {
-      expect(() => assertBridgeToolAllowed("runPython", "actions", scope)).toThrow(/protected operation/);
+      expect(() => assertBridgeToolAllowed("runCode", "actions", scope)).toThrow(/protected operation/);
     }
   });
 });

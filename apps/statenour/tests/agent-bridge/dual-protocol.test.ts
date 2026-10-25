@@ -43,7 +43,7 @@ describe("Agent Bridge Dual-Protocol Surface", () => {
     const leaked = mcpMax.filter((n) => BRIDGE_HARD_DENY.has(n));
     expect(leaked, "protected ops must never appear on the MCP surface").toEqual([]);
     // Specifically: no code execution, no customer SMS.
-    for (const forbidden of ["runPython", "runDeviceCommand", "sendOpportunitySms"]) {
+    for (const forbidden of ["runCode", "runDeviceCommand", "sendOpportunitySms"]) {
       expect(mcpMax).not.toContain(forbidden);
     }
     // POSITIVE CONTROL: the surface is real and useful, not empty.

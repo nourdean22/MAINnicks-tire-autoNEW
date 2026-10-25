@@ -218,7 +218,7 @@ export async function markSearchToolsFired(
  * Record whether a toolChoice force was actually honored.
  *
  * `build-stream-config.ts` runs a toolChoice ladder: a step-0 force for
- * action intents, a `runPython` pin, an `arsenalWebSearch` pin, and a
+ * action intents, an `arsenalWebSearch` pin, and a
  * last-step clamp to `toolChoice: "none"`. Whether the provider honors
  * any of that is a PROVIDER CAPABILITY, and nothing checked it.
  *
