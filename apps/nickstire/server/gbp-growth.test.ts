@@ -65,10 +65,11 @@ describe("entity consistency tracker", () => {
   it("carries canonical NAP and never auto-marks anything fixed", () => {
     expect(CANONICAL_IDENTITY.address).toBe("17625 Euclid Ave, Cleveland, OH 44112");
     expect(CANONICAL_IDENTITY.phone).toBe("(216) 862-0005");
-    // Every platform starts not_checked and is never automation-safe.
+    // No platform is automation-safe; a "verified" mark is a dated admin action (localGrowth.checklist),
+    // not a field on the list, so nothing here can read as already fixed.
     for (const p of ENTITY_PLATFORMS) {
-      expect(p.status).toBe("not_checked");
       expect(p.automationSafe).toBe(false);
+      expect(p.id).toMatch(/^[a-z0-9-]{1,60}$/);
     }
   });
 });

@@ -1,7 +1,9 @@
 # Brand / Entity Cleanup — Owner Checklist
 
 **Everything here is manual.** No code can (or should) log into external
-platforms. Nothing below is verified fixed — update Status as you go.
+platforms. Nothing below is verified fixed. Since 2026-10-25 the live tracker is /admin > Website & Local >
+Entity / Brand: each platform carries a "Mark verified" control that stores the date and who marked it
+(shop_settings, key local_checklist:entity-<id>); the Status column here is the original June snapshot.
 
 ## Canonical identity (the one truth to enforce everywhere)
 
