@@ -35,13 +35,15 @@ function run(cwd, args, script = SCRIPT) {
 const MIXED = "a\nb\r\nc\n"; // one CRLF line, as in pinned-context-panel.tsx (761 lines, 1 CRLF)
 
 // main: a mixed blob committed BEFORE `text eol=lf` landed; upstream: the LF-clean fix that also changes content.
-function fixture({ exec = false } = {}) {
+// filemode: true is the Linux CI shape (git tracks the worktree's executable bit); Windows defaults it to false.
+function fixture({ exec = false, filemode } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "eol-restore-"));
   dirs.push(dir);
   ok(dir, "init", "-q", "-b", "main");
   ok(dir, "config", "user.email", "t@example.invalid");
   ok(dir, "config", "user.name", "t");
   ok(dir, "config", "core.autocrlf", "false");
+  if (filemode !== undefined) ok(dir, "config", "core.filemode", String(filemode));
   writeFileSync(join(dir, "f.tsx"), MIXED);
   ok(dir, "add", "f.tsx");
   ok(dir, "commit", "-q", "-m", "mixed blob");
@@ -51,9 +53,22 @@ function fixture({ exec = false } = {}) {
   ok(dir, "switch", "-q", "-c", "upstream");
   writeFileSync(join(dir, "f.tsx"), "a\nb\nc\nd\n");
   ok(dir, "add", "f.tsx");
-  if (exec) ok(dir, "update-index", "--chmod=+x", "f.tsx"); // the ref also changes the mode
   ok(dir, "commit", "-q", "-m", "lf clean + new line");
   ok(dir, "switch", "-q", "main");
+  // The ref also changes the mode: built in a scratch index, so no worktree or index is ever mode-dirty (with
+  // core.filemode=true an index-only chmod leaves the file dirty and the switch above aborts: CI, round 3).
+  if (exec) {
+    const env = { ...ENV, GIT_INDEX_FILE: join(dir, ".git", "exec-index") };
+    const plumb = (...args) => {
+      const r = spawnSync("git", args, { cwd: dir, env, encoding: "utf8" });
+      assert.equal(r.status, 0, `git ${args.join(" ")} failed: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    plumb("read-tree", "upstream");
+    plumb("update-index", "--chmod=+x", "f.tsx");
+    const tree = plumb("write-tree");
+    plumb("update-ref", "refs/heads/upstream", plumb("commit-tree", tree, "-p", "upstream", "-m", "make it executable"));
+  }
   // Same bytes, new mtime: git re-hashes through eol=lf and the file reads dirty for good.
   writeFileSync(join(dir, "f.tsx"), MIXED);
   const later = new Date(Date.now() + 60_000);
@@ -153,13 +168,15 @@ test("a ref whose blob is not clean under the path's attributes exits 1 (no fals
 // Round 2 (Codex P2s on PR 3285): a clean path, a symlink, and a ref that changes the mode.
 test("CONTROL: a path with nothing to restore (clean, or a mistyped clean file) is refused, ref content not staged", () => {
   const dir = fixture();
-  ok(dir, "add", "f.tsx"); // the clean filter normalises the index: worktree and index now agree
-  ok(dir, "commit", "-q", "-m", "normalised");
-  assert.equal(status(dir), "");
+  // The clean filter normalises the index, so the worktree and the index now agree. Not committed: HEAD must stay
+  // an ancestor of upstream, so this arm is judged by the nothing-to-restore check alone (round 3).
+  ok(dir, "add", "f.tsx");
+  const before = ok(dir, "ls-files", "-s", "--", "f.tsx");
   const r = run(dir, ["f.tsx", "--ref", "upstream"]);
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /REFUSED: f\.tsx has no line-ending difference to restore/);
-  assert.equal(status(dir), "", "nothing written, nothing staged");
+  assert.equal(ok(dir, "ls-files", "-s", "--", "f.tsx"), before, "nothing written, nothing staged");
+  assert.equal(readFileSync(join(dir, "f.tsx"), "utf8"), MIXED);
 });
 
 test("CONTROL: a tracked symlink is refused before anything is written (the write would follow the link)", () => {
@@ -189,6 +206,45 @@ test("CONTROL: a worktree symlink over a regular entry is refused and its target
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /REFUSED: f\.tsx is a symlink/);
   assert.equal(readFileSync(join(outside, "target.tsx"), "utf8"), "a\nb\r\nc\n");
+});
+
+// Round 3 (Codex P2s): a ref that is not a fast-forward of HEAD, and a path that only matches as a glob.
+test("CONTROL: a --ref that HEAD is not an ancestor of is refused (its blob would be staged, then no fast-forward)", () => {
+  const dir = fixture();
+  const env = { ...ENV, GIT_INDEX_FILE: join(dir, ".git", "side-index") };
+  const plumb = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" }).stdout.trim();
+  plumb("read-tree", "main");
+  const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: dir, env: ENV, input: "a\nb\nc\nSIDE\n", encoding: "utf8" }).stdout.trim();
+  plumb("update-index", "--cacheinfo", `100644,${blob},f.tsx`);
+  ok(dir, "update-ref", "refs/heads/side", plumb("commit-tree", plumb("write-tree"), "-p", "main~1", "-m", "divergent"));
+  assert.notEqual(git(dir, "merge-base", "--is-ancestor", "HEAD", "side").code, 0, "fixture: side diverges from HEAD");
+  const r = run(dir, ["f.tsx", "--ref", "side"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /REFUSED: side is not a fast-forward of HEAD/);
+  assert.equal(ok(dir, "diff", "--cached", "--name-only").trim(), "", "nothing staged");
+});
+
+// The ref holds a LITERAL "[f].tsx", the worktree does not: as a pathspec glob, "[f].tsx" matches the tracked
+// f.tsx, so every check but the ref lookup would be judging the wrong file.
+test("CONTROL: a path that matches a tracked file only as a glob ([f].tsx) is refused, nothing written or staged", () => {
+  const dir = fixture();
+  const env = { ...ENV, GIT_INDEX_FILE: join(dir, ".git", "glob-index") };
+  const plumb = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" }).stdout.trim();
+  plumb("read-tree", "upstream");
+  const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: dir, env: ENV, input: "x\n", encoding: "utf8" }).stdout.trim();
+  plumb("update-index", "--add", "--cacheinfo", `100644,${blob},[f].tsx`);
+  ok(dir, "update-ref", "refs/heads/upstream", plumb("commit-tree", plumb("write-tree"), "-p", "upstream", "-m", "literal [f].tsx"));
+  const r = run(dir, ["[f].tsx", "--ref", "upstream"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /REFUSED: \[f\]\.tsx (is not tracked|does not exist in the worktree)/);
+  assert.equal(readFileSync(join(dir, "f.tsx"), "utf8"), MIXED);
+  assert.equal(ok(dir, "diff", "--cached", "--name-only").trim(), "", "nothing staged");
+});
+
+test("the executable-ref fixture builds under core.filemode=true (the Linux CI shape that went red in round 3)", () => {
+  const dir = fixture({ exec: true, filemode: true });
+  assert.match(ok(dir, "ls-tree", "upstream", "--", "f.tsx"), /^100755 /);
+  assert.match(status(dir), /^ ?M f\.tsx$/m, "main is dirty by the CR only, not by a mode");
 });
 
 test("a ref that also changes the mode: the index gets the ref's mode AND blob, and the fast-forward succeeds", () => {
@@ -231,8 +287,43 @@ test("MUTATION: without the nothing-to-restore check, a clean path gets the ref'
   const p = mutated("if (raw.code !== 0 || !raw.out.trim())", "if (false)");
   const dir = fixture();
   ok(dir, "add", "f.tsx");
-  ok(dir, "commit", "-q", "-m", "normalised");
   assert.notEqual(run(dir, ["f.tsx", "--ref", "upstream"], p).code, 2, "the clean-path check must be load-bearing");
+});
+
+test("CONTROL + MUTATION: a tracked file missing from the worktree is refused by the lstat check, exit 2", () => {
+  const dir = fixture();
+  rmSync(join(dir, "f.tsx"));
+  const r = run(dir, ["f.tsx", "--ref", "upstream"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /REFUSED: f\.tsx does not exist in the worktree/);
+  const p = mutated("  refuse(`${rel} does not exist in the worktree; nothing was touched`);\n", "");
+  assert.doesNotMatch(run(dir, ["f.tsx", "--ref", "upstream"], p).out, /does not exist in the worktree/, "the lstat refusal must be load-bearing");
+});
+
+test("MUTATION: without the fast-forward check, a divergent ref's blob is staged", () => {
+  const p = mutated("if (ff.code !== 0)", "if (false)");
+  const dir = fixture();
+  const env = { ...ENV, GIT_INDEX_FILE: join(dir, ".git", "side-index") };
+  const plumb = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" }).stdout.trim();
+  plumb("read-tree", "main");
+  const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: dir, env: ENV, input: "a\nb\nc\nSIDE\n", encoding: "utf8" }).stdout.trim();
+  plumb("update-index", "--cacheinfo", `100644,${blob},f.tsx`);
+  ok(dir, "update-ref", "refs/heads/side", plumb("commit-tree", plumb("write-tree"), "-p", "main~1", "-m", "divergent"));
+  assert.equal(run(dir, ["f.tsx", "--ref", "side"], p).code, 0, "the fast-forward check must be load-bearing");
+});
+
+test("MUTATION: with globbing pathspecs (no GIT_LITERAL_PATHSPECS), the [f].tsx case is no longer refused", () => {
+  const p = mutated('GIT_LITERAL_PATHSPECS: "1"', 'GIT_LITERAL_PATHSPECS: "0"');
+  const dir = fixture();
+  const env = { ...ENV, GIT_INDEX_FILE: join(dir, ".git", "glob-index") };
+  const plumb = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" }).stdout.trim();
+  plumb("read-tree", "upstream");
+  const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: dir, env: ENV, input: "x\n", encoding: "utf8" }).stdout.trim();
+  plumb("update-index", "--add", "--cacheinfo", `100644,${blob},[f].tsx`);
+  ok(dir, "update-ref", "refs/heads/upstream", plumb("commit-tree", plumb("write-tree"), "-p", "upstream", "-m", "literal [f].tsx"));
+  // the lstat refusal is the second layer and still holds (the literal file is absent), so assert the FIRST layer's
+  // message is gone rather than the exit code: with globbing, ls-files matches f.tsx and "not tracked" never prints
+  assert.doesNotMatch(run(dir, ["[f].tsx", "--ref", "upstream"], p).out, /is not tracked/, "literal pathspecs must be load-bearing");
 });
 
 test("MUTATION: without the symlink check, the symlink entry is written through", () => {

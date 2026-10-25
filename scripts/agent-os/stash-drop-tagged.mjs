@@ -8,51 +8,69 @@
  * - refuses (exit 2) a tag without the manager- or session- prefix, or with spaces or a leading dash;
  * - refuses when no entry, or more than one, carries exactly that tag as its whole message (a prefix of a longer
  *   tag, or a message that only ends with it, never matches);
- * - drops the entry and checks the dropped SHA is the one it found; if a sibling shifted the stack in between,
- *   exits 1 and prints the `git stash store` line that puts the dropped entry back.
+ * - right before the drop, re-lists, finds the entry by its SHA (a sibling's push shifts every index), checks
+ *   `git rev-parse stash@{N}` is that SHA, and drops only that verified index;
+ * - checks the dropped SHA afterwards too; if the stack still moved in the last instant, exits 1 and prints the
+ *   `git stash store` line that puts the dropped entry back.
+ * Limit: git has no compare-and-drop, so the instant between the rev-parse and the drop stays open; the
+ * after-check plus the store line covers it.
  */
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const TAG = /^(?:manager|session)-[A-Za-z0-9._-]+$/;
-function git(args) {
+function realGit(args) {
   const r = spawnSync("git", args, { encoding: "utf8" });
   return { code: r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
 }
-function refuse(msg) {
-  process.stderr.write(`[stash-drop-tagged] REFUSED: ${msg}\n`);
-  process.exit(2);
-}
 
-const argv = process.argv.slice(2);
-const tag = argv[0] ?? "";
-if (argv.length !== 1 || !tag || tag.startsWith("-") || /\s/.test(tag)) refuse("usage: stash-drop-tagged.mjs <tag>");
-if (!TAG.test(tag)) refuse(`"${tag}" does not start with manager- or session-; drop only an entry you tagged`);
-
-const list = git(["stash", "list", "--format=%gd%x00%H%x00%gs"]);
-if (list.code !== 0) refuse(`git stash list failed: ${list.err.trim()}`);
 // `git stash push -m <tag>` stores the subject "On <branch>: <tag>". Strip that ONE prefix (a ref name cannot hold
 // a colon) and compare the whole message: "sibling-note: session-x" is a sibling's message, not the tag session-x.
 const message = (subject) => subject.replace(/^On [^:]+: /, "");
-const hits = list.out
-  .split("\n")
-  .filter(Boolean)
-  .map((line) => line.split("\0"))
-  .filter(([, , subject]) => message(subject) === tag);
-if (hits.length === 0) refuse(`no stash entry carries the tag ${tag}`);
-if (hits.length > 1) refuse(`${hits.length} entries carry the tag ${tag}; drop by hand after reading git stash list`);
 
-const [ref, sha, subject] = hits[0];
-const drop = git(["stash", "drop", ref]);
-if (drop.code !== 0) {
-  process.stderr.write(`[stash-drop-tagged] git stash drop ${ref} failed: ${drop.err.trim()}\n`);
-  process.exit(1);
+/** Returns { code, msg }: 0 dropped, 1 drop failed or the stack moved, 2 refused. `git` is injectable for tests. */
+export function dropTagged(tag, git = realGit) {
+  const refuse = (msg) => ({ code: 2, msg: `[stash-drop-tagged] REFUSED: ${msg}` });
+  if (!tag || tag.startsWith("-") || /\s/.test(tag)) return refuse("usage: stash-drop-tagged.mjs <tag>");
+  if (!TAG.test(tag)) return refuse(`"${tag}" does not start with manager- or session-; drop only an entry you tagged`);
+
+  let failed = "";
+  const list = () => {
+    const r = git(["stash", "list", "--format=%gd%x00%H%x00%gs"]);
+    if (r.code !== 0) failed = r.err.trim() || "git stash list failed";
+    return r.code !== 0 ? [] : r.out.split("\n").filter(Boolean).map((line) => line.split("\0"));
+  };
+  const hits = list().filter(([, , subject]) => message(subject) === tag);
+  if (failed) return refuse(`git stash list failed: ${failed}`);
+  if (hits.length === 0) return refuse(`no stash entry carries the tag ${tag}`);
+  if (hits.length > 1) return refuse(`${hits.length} entries carry the tag ${tag}; drop by hand after reading git stash list`);
+  const [ref, sha, subject] = hits[0];
+
+  // Re-resolve by SHA immediately before the drop: the index from the first list may now name a sibling's entry.
+  const live = list().find(([, h]) => h === sha);
+  if (!live) return { code: 1, msg: `[stash-drop-tagged] ${sha} (${ref}) is no longer in the stash; nothing dropped` };
+  const [liveRef] = live;
+  const at = git(["rev-parse", "--verify", liveRef]);
+  if (at.code !== 0 || at.out.trim() !== sha) {
+    return { code: 1, msg: `[stash-drop-tagged] ${liveRef} is no longer ${sha} (the stack moved); nothing dropped, run again` };
+  }
+  const drop = git(["stash", "drop", liveRef]);
+  if (drop.code !== 0) return { code: 1, msg: `[stash-drop-tagged] git stash drop ${liveRef} failed: ${drop.err.trim()}` };
+  const dropped = /\(([0-9a-f]{7,40})\)/.exec(drop.out)?.[1] ?? "";
+  if (!dropped || !sha.startsWith(dropped)) {
+    return {
+      code: 1,
+      msg:
+        `[stash-drop-tagged] the stack moved: ${liveRef} was ${dropped || "unknown"}, not ${sha}. Put it back with: ` +
+        `git stash store -m "<its message>" ${dropped || "<sha from git fsck --unreachable>"}`,
+    };
+  }
+  return { code: 0, msg: `[stash-drop-tagged] dropped ${liveRef} "${subject}" ${sha}` };
 }
-const dropped = /\(([0-9a-f]{7,40})\)/.exec(drop.out)?.[1] ?? "";
-if (!dropped || !sha.startsWith(dropped)) {
-  process.stderr.write(
-    `[stash-drop-tagged] the stack moved: ${ref} was ${dropped || "unknown"}, not ${sha}. Put it back with: ` +
-      `git stash store -m "<its message>" ${dropped || "<sha from git fsck --unreachable>"}\n`,
-  );
-  process.exit(1);
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const argv = process.argv.slice(2);
+  const r = argv.length === 1 ? dropTagged(argv[0]) : { code: 2, msg: "[stash-drop-tagged] REFUSED: usage: stash-drop-tagged.mjs <tag>" };
+  (r.code === 0 ? process.stdout : process.stderr).write(`${r.msg}\n`);
+  process.exit(r.code);
 }
-console.log(`[stash-drop-tagged] dropped ${ref} "${subject}" ${sha}`);

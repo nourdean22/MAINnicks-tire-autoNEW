@@ -9,7 +9,8 @@
  * does the restore only when the difference is line endings.
  *
  * 1. Refuses (exit 2) unless the path is a tracked, unconflicted regular file (never a symlink: the write
- *    would follow it), present at <ref> as a regular file, the worktree differs from the index, and both the
+ *    would follow it) that exists in the worktree under exactly that name (every pathspec is literal), present at
+ *    <ref> as a regular file, <ref> is a fast-forward of HEAD, the worktree differs from the index, and both the
  *    worktree and the index differ by CR-at-end-of-line only (git diff --ignore-cr-at-eol, worktree and
  *    --cached). Whitespace edits are real edits (strings, YAML, Markdown) and are refused. A clean path is
  *    refused too: there is nothing to restore, and writing the ref's copy would stage a change nobody asked for.
@@ -19,12 +20,14 @@
  * Then `git merge --ff-only <ref>` goes through. Exit 0 ok, 1 restored but not clean, 2 refused.
  */
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, lstatSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, lstatSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
+// Every pathspec is literal: "[f].tsx" or "a*.ts" must name that file, never a glob over tracked files.
+const ENV = { ...process.env, GIT_LITERAL_PATHSPECS: "1" };
 function git(args, cwd, buffer = false) {
-  const r = spawnSync("git", args, { cwd, encoding: buffer ? "buffer" : "utf8", maxBuffer: 512 * 1024 * 1024 });
+  const r = spawnSync("git", args, { cwd, env: ENV, encoding: buffer ? "buffer" : "utf8", maxBuffer: 512 * 1024 * 1024 });
   return { code: r.status, out: r.stdout, err: String(r.stderr ?? "") };
 }
 function refuse(msg) {
@@ -54,16 +57,22 @@ if (!rel || rel.startsWith("..") || isAbsolute(rel)) refuse(`${target} is outsid
 if (git(["ls-files", "--error-unmatch", "--", rel], root).code !== 0) refuse(`${rel} is not tracked`);
 if (git(["ls-files", "-u", "--", rel], root).out.trim()) refuse(`${rel} has merge conflicts`);
 const indexMode = git(["ls-files", "-s", "--", rel], root).out.trim().split(/\s+/)[0] ?? "";
-let isLink = false;
+let stat = null;
 try {
-  isLink = lstatSync(abs).isSymbolicLink();
-} catch {} // a missing worktree file is caught by the diff checks below
+  stat = lstatSync(abs);
+} catch {
+  refuse(`${rel} does not exist in the worktree; nothing was touched`);
+}
+const isLink = stat.isSymbolicLink();
 if (indexMode === "120000" || isLink) refuse(`${rel} is a symlink; writing would follow the link; nothing was touched`);
 if (!REGULAR.has(indexMode)) refuse(`${rel} is not a regular file (mode ${indexMode}); nothing was touched`);
 const refLine = git(["ls-tree", ref, "--", rel], root);
 const [refMode = "", refType = "", refId = ""] = refLine.code === 0 ? refLine.out.trim().split(/\s+/) : [];
 if (!refId || refType !== "blob") refuse(`${rel} does not exist at ${ref}`);
 if (!REGULAR.has(refMode)) refuse(`${rel} is not a regular file at ${ref} (mode ${refMode})`);
+// Only a ref HEAD can fast-forward to: a divergent ref's blob would be staged with exit 0 and then no merge --ff-only.
+const ff = git(["merge-base", "--is-ancestor", "HEAD", ref], root);
+if (ff.code !== 0) refuse(`${ref} is not a fast-forward of HEAD (HEAD is not its ancestor); nothing was touched`);
 
 // Empty output = every difference was a CR before a line end. A diff that cannot run is not "no difference".
 function lineEndingsOnly(args, path) {
@@ -75,12 +84,10 @@ if (!lineEndingsOnly(["diff"], rel)) refuse(`${rel} has a real change in the wor
 const raw = git(["diff", "--name-only", "--no-ext-diff", "--", rel], root);
 if (raw.code !== 0 || !raw.out.trim()) refuse(`${rel} has no line-ending difference to restore (the worktree matches the index); nothing was touched`);
 
-if (existsSync(abs)) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backup = join(tmpdir(), `eol-restore-${stamp}-${basename(rel)}`);
-  copyFileSync(abs, backup);
-  console.log(`backup: ${backup}`);
-}
+const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+const backup = join(tmpdir(), `eol-restore-${stamp}-${basename(rel)}`);
+copyFileSync(abs, backup);
+console.log(`backup: ${backup}`);
 
 const blob = git(["cat-file", "blob", refId], root, true);
 if (blob.code !== 0) refuse(`cannot read ${ref}:${rel}: ${blob.err.trim()}`);

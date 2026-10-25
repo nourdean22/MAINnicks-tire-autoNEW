@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripGitLocalEnv } from "./gitLocalEnv.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -97,6 +97,73 @@ test("MUTATION: without the prefix check, an untagged sibling entry would be dro
   writeFileSync(p, src.replace(anchor, "if (false)"));
   const dir = fixture("sibling-work");
   assert.equal(run(dir, ["sibling-work"], p).code, 0, "the prefix check must be load-bearing");
+});
+
+// Round 3 (Codex P2): a sibling's push between the first list and the drop shifts every index. A fake git
+// replays it at two instants. "relist": the push lands before the re-list, so ours moves to stash@{1}.
+// "revparse": the push lands after the re-list, so stash@{0} names the sibling by the time it is verified.
+const OURS = "a".repeat(40);
+const SIB = "b".repeat(40);
+function racingGit(when) {
+  const calls = [];
+  let lists = 0;
+  const run = (args) => {
+    calls.push(args.join(" "));
+    if (args[0] === "stash" && args[1] === "list") {
+      lists++;
+      const shifted = when === "relist" && lists >= 2;
+      const rows = shifted ? [`stash@{0}\0${SIB}\0On main: sibling`, `stash@{1}\0${OURS}\0On main: session-race`] : [`stash@{0}\0${OURS}\0On main: session-race`];
+      return { code: 0, out: `${rows.join("\n")}\n`, err: "" };
+    }
+    const at = (ref) => (when === "relist" ? (ref === "stash@{1}" ? OURS : SIB) : SIB);
+    if (args[0] === "rev-parse") return { code: 0, out: `${at(args[2])}\n`, err: "" };
+    if (args[0] === "stash" && args[1] === "drop") return { code: 0, out: `Dropped refs/${args[2]} (${at(args[2])})\n`, err: "" };
+    return { code: 1, out: "", err: "unexpected" };
+  };
+  return { run, calls };
+}
+function mutant(anchor, to) {
+  const src = readFileSync(SCRIPT, "utf8");
+  assert.equal(src.split(anchor).length - 1, 1, `mutation anchor must occur once: ${anchor}`);
+  const mdir = mkdtempSync(join(tmpdir(), "stash-drop-mut-"));
+  dirs.push(mdir);
+  const p = join(mdir, "stash-drop-tagged.mjs");
+  writeFileSync(p, src.replace(anchor, to));
+  return import(pathToFileURL(p).href);
+}
+const RERESOLVE = "const live = list().find(([, h]) => h === sha);";
+const VERIFY = "if (at.code !== 0 || at.out.trim() !== sha) {";
+
+test("RACE (push before the re-list): the drop goes to the index re-found by our SHA, verified first", async () => {
+  const { dropTagged } = await import(pathToFileURL(SCRIPT).href);
+  const fake = racingGit("relist");
+  const r = dropTagged("session-race", fake.run);
+  assert.equal(r.code, 0, r.msg);
+  assert.ok(fake.calls.includes("stash drop stash@{1}"), fake.calls.join(" | "));
+  assert.ok(!fake.calls.includes("stash drop stash@{0}"), "the sibling's entry was never dropped");
+  assert.ok(fake.calls.indexOf("rev-parse --verify stash@{1}") < fake.calls.indexOf("stash drop stash@{1}"), "verified BEFORE the drop");
+});
+
+test("RACE (push after the re-list): the verify sees a different SHA and nothing is dropped", async () => {
+  const { dropTagged } = await import(pathToFileURL(SCRIPT).href);
+  const fake = racingGit("revparse");
+  const r = dropTagged("session-race", fake.run);
+  assert.equal(r.code, 1, r.msg);
+  assert.match(r.msg, /nothing dropped/);
+  assert.ok(!fake.calls.some((c) => c.startsWith("stash drop")), fake.calls.join(" | "));
+});
+
+test("MUTATION: without the re-resolve (the round-2 index), the shifted case no longer drops ours", async () => {
+  const { dropTagged } = await mutant(RERESOLVE, "const live = [ref, sha];");
+  const fake = racingGit("relist");
+  assert.notEqual(dropTagged("session-race", fake.run).code, 0, "re-resolving by SHA must be load-bearing");
+});
+
+test("MUTATION: without the verify before the drop, the sibling's entry is dropped", async () => {
+  const { dropTagged } = await mutant(VERIFY, "if (false) {");
+  const fake = racingGit("revparse");
+  dropTagged("session-race", fake.run);
+  assert.ok(fake.calls.includes("stash drop stash@{0}"), "the verify must be load-bearing");
 });
 
 test("MUTATION: matching by suffix (the round-1 code) drops the sibling's 'sibling-note: session-x'", () => {
