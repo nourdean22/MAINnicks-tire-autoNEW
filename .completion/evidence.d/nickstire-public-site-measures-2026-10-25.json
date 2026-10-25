@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "comments only in featureFlags.ts and invoiceReviewRequests.ts; no capability behaviour changed; the ledger states are unchanged"
+    }
+  }
+}
