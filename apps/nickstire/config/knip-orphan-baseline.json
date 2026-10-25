@@ -4802,11 +4802,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/client/src/lib/localRankKeywords.ts",
-      "symbol": "emptyRankReport",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/client/src/pages/admin/voice/format.ts",
       "symbol": "REASON_PRETTY",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

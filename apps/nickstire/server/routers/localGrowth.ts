@@ -2,13 +2,15 @@
  * Local-growth read router — armed-state visibility + reviews/Place ID
  * health for the GBP growth surfaces.
  *
- * 2026-06-10 GBP growth wave. READ-ONLY: endpoints return booleans, status
+ * 2026-06-10 GBP growth wave. Reads return booleans, status
  * strings and live Google figures, NEVER token or key values. Nothing here posts,
- * sends, scrapes, or mutates. Surfaces the "is the IG autoposter actually
+ * sends, or scrapes; the one write (setChecklistItem, 2026-10-25) saves the admin's
+ * own checklist mark in shop_settings. Surfaces the "is the IG autoposter actually
  * armed?" question the forensic sweep flagged as confusing, and whether
  * the durable Meta token (the real disarm gotcha) is present.
  */
-import { router, adminProcedure } from "../_core/trpc";
+import { z } from "zod";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 
 export const localGrowthRouter = router({
   /**
@@ -144,4 +146,43 @@ export const localGrowthRouter = router({
     const { getCompetitorSnapshotCached } = await import("../services/competitorMonitor");
     return getCompetitorSnapshotCached();
   }),
+
+  /**
+   * Search Console position per tracked keyword, 28 days vs the 28 before, from the
+   * shop's own stored rows, with one action each (contract localGrowth.targetKeywordRanks
+   * v1). A keyword with no recorded impression has no position; an empty table or a
+   * failed read is { ok: false, reason }, never a list of zeros.
+   */
+  targetKeywordRanks: adminProcedure.query(async () => {
+    const { getTargetKeywordRanks } = await import("../pipelines/targetKeywordRanks");
+    return getTargetKeywordRanks();
+  }),
+
+  /**
+   * Website & Local checklist marks (contract localGrowth.checklist v1): which Entity / Brand
+   * platforms and GBP Q&A seeds the admin has verified on the platform, by slug. A failed read is
+   * { ok: false, reason }, never an empty map.
+   */
+  // dbAdminProcedure: a dead database handle is SERVICE_UNAVAILABLE here, never a fabricated
+  // result (ROS-083; server/fabricatedAdminReadGate.test.ts ratchets the class).
+  checklist: dbAdminProcedure.query(async () => {
+    const { getLocalChecklist } = await import("../services/localChecklist");
+    return getLocalChecklist();
+  }),
+
+  /**
+   * Mark one checklist item done (dated now, optional note, the signed-in admin recorded) or
+   * unmark it (the row is deleted). Writes the shop's own settings row only: nothing is sent to
+   * or changed on any platform. Same permission as the reads above (marketing.manage).
+   */
+  setChecklistItem: dbAdminProcedure
+    .input(z.object({
+      slug: z.string().regex(/^[a-z0-9-]{1,60}$/),
+      checked: z.boolean(),
+      note: z.string().max(300).nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { setLocalChecklistItem } = await import("../services/localChecklist");
+      return setLocalChecklistItem({ ...input, by: ctx.user.email || ctx.user.name || ctx.user.openId });
+    }),
 });

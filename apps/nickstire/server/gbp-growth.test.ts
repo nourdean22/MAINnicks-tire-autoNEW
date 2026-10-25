@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import { GBP_QA_SEEDS, gbpQaByCategory } from "../client/src/lib/gbpQaSeeds";
 import { weeklyPhotoQueue, PHOTO_SAFETY_RULES } from "../client/src/lib/gbpPhotoQueue";
 import { ENTITY_PLATFORMS, CANONICAL_IDENTITY } from "../client/src/lib/entityConsistency";
-import { RANK_KEYWORDS, emptyRankReport } from "../client/src/lib/localRankKeywords";
+import { RANK_KEYWORDS } from "@shared/localRankKeywords";
 
 describe("GBP Q&A seeds — claim safety", () => {
   const all = GBP_QA_SEEDS.map((q) => `${q.question} ${q.answer}`.toLowerCase()).join("\n");
@@ -65,18 +65,21 @@ describe("entity consistency tracker", () => {
   it("carries canonical NAP and never auto-marks anything fixed", () => {
     expect(CANONICAL_IDENTITY.address).toBe("17625 Euclid Ave, Cleveland, OH 44112");
     expect(CANONICAL_IDENTITY.phone).toBe("(216) 862-0005");
-    // Every platform starts not_checked and is never automation-safe.
+    // No platform is automation-safe; a "verified" mark is a dated admin action (localGrowth.checklist),
+    // not a field on the list, so nothing here can read as already fixed.
     for (const p of ENTITY_PLATFORMS) {
-      expect(p.status).toBe("not_checked");
       expect(p.automationSafe).toBe(false);
+      expect(p.id).toMatch(/^[a-z0-9-]{1,60}$/);
     }
   });
 });
 
-describe("rank keywords — never fakes a rank", () => {
-  it("ships the target set with all ranks null until measured", () => {
+describe("rank keywords — one shared list, no rank stored in it", () => {
+  // 2026-10-25: positions come live from server/pipelines/targetKeywordRanks.ts; the list
+  // itself carries no rank field, so nothing here can be mistaken for a measurement.
+  it("ships at least the 15 curated targets plus the observed service queries, each with a group", () => {
     expect(RANK_KEYWORDS.length).toBeGreaterThanOrEqual(15);
-    const report = emptyRankReport();
-    expect(report.every((r) => r.rank === null && r.source === "unmeasured")).toBe(true);
+    expect(RANK_KEYWORDS.every((k) => k.keyword.trim().length > 0 && k.group.length > 0)).toBe(true);
+    expect(RANK_KEYWORDS.some((k) => "rank" in k || "position" in k)).toBe(false);
   });
 });

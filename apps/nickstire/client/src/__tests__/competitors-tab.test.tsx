@@ -177,6 +177,52 @@ describe("CompetitorsTab: live Google snapshot", () => {
     expect(screen.getByRole("button", { name: /Copy our review link/ })).toBeTruthy();
   });
 
+  it("One action when we lead every tracked shop: says so, keeps the pace line and the button", () => {
+    const base = okPayload();
+    h.queries.set(SNAP, {
+      data: {
+        ...base,
+        unresolved: 0,
+        competitors: [
+          { ...base.competitors[0], reviewCount: 1388 },
+          base.competitors[1],
+        ],
+      },
+    });
+    const { container } = render(<CompetitorsTab />);
+    expect(screen.getByText("We lead every tracked shop on review count.")).toBeTruthy();
+    expect(screen.getByText("Keep the pace: 5 newest reviews in 14 days.")).toBeTruthy();
+    expect(container.textContent).not.toMatch(/Review volume is the gap/);
+    expect(container.textContent).not.toMatch(/Nearest ahead/);
+    expect(screen.getByRole("link", { name: "Ask recent customers for a review" })).toBeTruthy();
+  });
+
+  it("One action lead copy is scoped to the shops Google returned when some were unreadable", () => {
+    const base = okPayload();
+    h.queries.set(SNAP, {
+      data: { ...base, unresolved: 1, competitors: [base.competitors[1]] },
+    });
+    render(<CompetitorsTab />);
+    expect(screen.getByText("We lead every tracked shop Google returned on review count.")).toBeTruthy();
+  });
+
+  it("One action when a shop is ahead: keeps the gap copy and never claims the lead", () => {
+    h.queries.set(SNAP, { data: okPayload() });
+    const { container } = render(<CompetitorsTab />);
+    expect(screen.getByText("Review volume is the gap most worth closing.")).toBeTruthy();
+    expect(container.textContent).not.toMatch(/We lead every/);
+    expect(container.textContent).not.toMatch(/Keep the pace/);
+  });
+
+  it.each([
+    ["a tie", [{ name: "Tied Local", placeId: "t", group: "local", rating: 4.5, reviewCount: 1715, recent: { count: 0, newestAt: null, oldestAt: null } }]],
+    ["no shop read", []],
+  ])("One action never claims the lead on %s", (_label, competitors) => {
+    h.queries.set(SNAP, { data: okPayload({ competitors }) });
+    const { container } = render(<CompetitorsTab />);
+    expect(container.textContent).not.toMatch(/We lead every/);
+  });
+
   it("stores nothing in the browser", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     h.queries.set(SNAP, { data: okPayload() });

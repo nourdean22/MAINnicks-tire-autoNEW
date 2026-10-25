@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T13:30:01.090Z",
-  "count": 651,
+  "generatedAt": "2026-10-25T15:51:52.514Z",
+  "count": 654,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -192,6 +192,7 @@
     "mutation.lead.draftResponse",
     "mutation.lead.submit",
     "mutation.lead.update",
+    "mutation.localGrowth.setChecklistItem",
     "mutation.lot.endCommissioning",
     "mutation.lot.markVisit",
     "mutation.lot.recordTruth",
@@ -494,8 +495,10 @@
     "query.lead.list",
     "query.lead.sheetUrl",
     "query.localGrowth.automationArmedState",
+    "query.localGrowth.checklist",
     "query.localGrowth.competitorSnapshot",
     "query.localGrowth.reviewsHealth",
+    "query.localGrowth.targetKeywordRanks",
     "query.lot.activity",
     "query.lot.clock",
     "query.lot.commissioningReport",
