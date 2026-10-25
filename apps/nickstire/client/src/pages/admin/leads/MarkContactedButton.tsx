@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, UserCheck } from "lucide-react";
 
-export function MarkContactedButton({ leadId, variant }: { leadId: number; variant: "banner" | "list" }) {
+export function MarkContactedButton({ leadId }: { leadId: number }) {
   const utils = trpc.useUtils();
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState("");
@@ -35,7 +35,7 @@ export function MarkContactedButton({ leadId, variant }: { leadId: number; varia
 
   if (expanded) {
     return (
-      <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <div className="inline-flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
           type="text"
@@ -47,20 +47,20 @@ export function MarkContactedButton({ leadId, variant }: { leadId: number; varia
           }}
           placeholder="Notes (optional)"
           aria-label="Contact notes"
-          className="px-2 py-1 bg-card border border-primary/30 text-foreground text-[11px] tracking-wide placeholder:text-foreground/30 focus:outline-none focus:border-primary w-40"
+          className="min-h-[48px] px-2 bg-card border border-primary/30 text-foreground text-base placeholder:text-foreground/60 focus:outline-none focus:border-primary w-48"
         />
         <button
           onClick={submit}
           disabled={mutation.isPending}
-          className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold tracking-wide hover:bg-emerald-500/25 disabled:opacity-50"
+          className="inline-flex items-center gap-1 min-h-[48px] px-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-bold hover:bg-emerald-500/25 disabled:opacity-50"
           aria-label="Save contacted"
         >
-          {mutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
-          SAVE
+          {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+          Save
         </button>
         <button
           onClick={() => { setExpanded(false); setNotes(""); }}
-          className="px-2 py-1 text-foreground/40 hover:text-foreground/70 text-[12px] leading-none"
+          className="min-h-[48px] min-w-[48px] text-foreground/60 hover:text-foreground/80 text-base"
           aria-label="Cancel"
         >
           ×
@@ -69,23 +69,11 @@ export function MarkContactedButton({ leadId, variant }: { leadId: number; varia
     );
   }
 
-  if (variant === "banner") {
-    return (
-      <button
-        onClick={() => setExpanded(true)}
-        disabled={mutation.isPending}
-        className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded hover:bg-emerald-500/30 disabled:opacity-50 transition-colors"
-      >
-        Mark Called
-      </button>
-    );
-  }
-
   return (
     <button
       onClick={() => setExpanded(true)}
       disabled={mutation.isPending}
-      className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/10 disabled:opacity-50"
+      className="flex items-center gap-2 min-h-[48px] border border-primary/30 text-primary px-4 font-bold text-xs tracking-wide hover:bg-primary/10 disabled:opacity-50"
     >
       <UserCheck className="w-4 h-4" /> MARK CONTACTED
     </button>

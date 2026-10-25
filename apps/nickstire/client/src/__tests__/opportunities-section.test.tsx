@@ -183,33 +183,31 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("an unreadable queue is UNKNOWN, never 'clear'", () => {
-  it("says UNKNOWN, not clear, and does NOT also claim the queue is genuinely clear", () => {
+  it("says UNKNOWN, not clear, and does NOT also claim nothing is due", () => {
     load([], false);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
-    expect(screen.queryByText(/genuinely clear/i)).toBeNull();
-    expect(screen.queryByText(/No open opportunities/i)).toBeNull();
+    expect(screen.queryByText(/Nothing due/i)).toBeNull();
   });
 
   it("a network error is not an empty queue either, and names the next action", () => {
     h.flags.isError = true;
     render(<OpportunitiesSection />);
     expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
-    expect(screen.getByText(/Press Refresh to try again/i)).toBeTruthy();
-    expect(screen.queryByText(/genuinely clear/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(screen.queryByText(/Nothing due/i)).toBeNull();
   });
 
   it("a paused query (offline PWA: no data, no error, not loading) is not an empty queue", () => {
     render(<OpportunitiesSection />);
     expect(screen.getByText(/have not loaded yet/i)).toBeTruthy();
-    expect(screen.queryByText(/genuinely clear/i)).toBeNull();
-    expect(screen.queryByText(/No open opportunities/i)).toBeNull();
+    expect(screen.queryByText(/Nothing due/i)).toBeNull();
   });
 
-  it("a queue that WAS read and is empty says so, with its provenance", () => {
+  it("a queue that WAS read and is empty says so", () => {
     load([]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText(/genuinely clear/i)).toBeTruthy();
+    expect(screen.getByText(/Nothing due/i)).toBeTruthy();
     expect(screen.queryByText(/UNKNOWN, not clear/i)).toBeNull();
     expect(screen.queryByText(/have not loaded yet/i)).toBeNull();
   });
@@ -243,6 +241,8 @@ describe("what the list asks the server for", () => {
     unmount();
     load(Array.from({ length: full }, () => row()));
     render(<OpportunitiesSection />);
+    // The note belongs to the full list, so it shows once Show all opens it.
+    fireEvent.click(screen.getByRole("button", { name: /^Show all/ }));
     // A full window is also what exactly `full` live rows look like, so the copy must not claim more exist.
     expect(screen.getByText(`Showing the first ${full}. Older rows may exist: work these, then press Refresh.`)).toBeTruthy();
     expect(screen.queryByText(/More exist/)).toBeNull();

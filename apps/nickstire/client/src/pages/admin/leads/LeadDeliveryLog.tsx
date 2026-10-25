@@ -58,7 +58,7 @@ export function LeadDeliveryLog({ leadId }: { leadId: number }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 text-[11px] font-bold tracking-wide text-foreground/50 hover:text-foreground/80 transition-colors"
+        className="inline-flex items-center gap-1 min-h-[48px] text-xs font-bold tracking-wide text-foreground/60 hover:text-foreground/80 transition-colors"
       >
         <ChevronRight className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} />
         Delivery log

@@ -51,7 +51,6 @@ export {
 export {
   StatCard,
   KpiTile,
-  UrgencyBadge,
   StatusDot,
 } from "./shared/cards";
 

@@ -20,9 +20,16 @@
  * "Called" and "Texted" are things the crew did OUTSIDE the admin. This page
  * records them; it sends nothing.
  *
+ * TODAY'S FOLLOW-UPS (2026-10-25). Sales Pipeline opens here. The first five
+ * rows show, beside the total open, and Show all opens the rest: five is a
+ * phone screen, not a ranking. Each card says why it is there (the server's
+ * reason and, for missed calls, the receptionist's own words) before the phone
+ * and the verbs, and never shows the customer's name. There is no Later: the
+ * queue has no snooze or deferred state to record it in.
+ *
  * WHAT IS DELIBERATELY ABSENT:
- *   - No "top N", no ranking, no urgency-sorted lead. This is a worklist, not a
- *     priority engine. The order is: nobody has tried yet, then newest first.
+ *   - No ranking, no urgency-sorted lead. This is a worklist, not a priority
+ *     engine. The order is: nobody has tried yet, then newest first.
  *   - No send button. Outreach lives in its own rails (declinedWorkRecovery,
  *     missedCallRecovery, staleLeadFollowup) with their own consent gates.
  *   - No "Fixed elsewhere / Sold the car / Not interested" chips. Those wrote
@@ -66,6 +73,9 @@ const LIMIT = 500;
 // "worklist": the server puts untouched rows first and the newest first BEFORE it cuts the window to LIMIT.
 const LIST_INPUT = { states: [...RELEVANT_STATES], limit: LIMIT, order: "worklist" as const };
 
+/** Cards shown before Show all. The total comes from the same read, so no second call is needed. */
+const TOP = 5;
+
 /** These states prove a customer exists, so "Not a customer" would be false on them. */
 const STATE_PROVES_CUSTOMER: readonly string[] = ["scheduled", "walk_in_expected", "arrived"];
 
@@ -95,6 +105,12 @@ function ageLabel(ageDays: number | null): string {
 function automatedTexts(r: Row): number {
   const n = r.evidence?.recoveryTouchesSent;
   return typeof n === "number" && n > 0 ? n : 0;
+}
+
+/** The receptionist's evaluation, on missed calls the server has re-worded (2026-10-25); older rows carry none. */
+function evidenceText(r: Row, key: "summaryExcerpt" | "serviceMention"): string | null {
+  const v = r.evidence?.[key];
+  return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
 function whenLabel(iso: unknown): string {
@@ -208,26 +224,33 @@ export default function OpportunitiesSection() {
   const items = useMemo(() => [...(query.data?.items ?? [])].sort(worklistOrder), [query.data]);
   // No data, no error and not loading: the query is paused (offline) or has not started.
   const notLoadedYet = query.data === undefined && !query.isLoading && !query.isError;
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? items : items.slice(0, TOP);
+  // A full window is the router's maximum, so the true total may be higher.
+  const totalLabel = items.length >= LIMIT ? `${LIMIT} or more` : String(items.length);
+  const readOk = !query.isLoading && !query.isError && queryable === true;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Inbox className="w-5 h-5" /> Opportunities
+            <Inbox className="w-5 h-5" /> Today's follow-ups
           </h2>
           <p className="text-sm text-foreground/60">
-            Open customer opportunities collected from calls, estimates, bookings and forms. Called and
-            Texted record what you did outside the admin, and this page sends nothing. Not a customer
-            or Not relevant hides the row.
+            Open follow-ups from calls, estimates, bookings and forms. Rows nobody has tried yet come
+            before the rest, newest on top. Not a customer or Not relevant hides the row.
           </p>
+          {readOk && items.length > 0 && (
+            <p className="text-sm font-medium mt-1">{`${shown.length} due now · ${totalLabel} open`}</p>
+          )}
         </div>
         <button
           type="button"
           onClick={() => void query.refetch()}
           disabled={query.isFetching}
           className="min-h-[48px] min-w-[48px] px-3 rounded border border-border/50 flex items-center gap-2 text-sm disabled:opacity-50"
-          aria-label="Refresh opportunities"
+          aria-label="Refresh follow-ups"
         >
           {query.isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           Refresh
@@ -238,10 +261,18 @@ export default function OpportunitiesSection() {
       {(query.isError || queryable === false) && (
         <div className="rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>
-            <strong>Opportunities unreadable: this is UNKNOWN, not clear.</strong> The queue could not
-            be read, so this list is not evidence that nothing needs doing. Press Refresh to try again.
+          <span className="flex-1">
+            <strong>Follow-ups couldn't load: UNKNOWN, not clear.</strong> This is not an empty list,
+            and it is not evidence that nothing needs doing.
           </span>
+          <button
+            type="button"
+            onClick={() => void query.refetch()}
+            disabled={query.isFetching}
+            className={`${BUTTON} shrink-0`}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -249,7 +280,7 @@ export default function OpportunitiesSection() {
         <div className="rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            Opportunities have not loaded yet. If this phone is offline they load when the connection
+            Follow-ups have not loaded yet. If this phone is offline they load when the connection
             returns. This is not an empty list.
           </span>
         </div>
@@ -257,25 +288,25 @@ export default function OpportunitiesSection() {
 
       {query.isLoading && (
         <div className="flex items-center gap-2 text-sm text-foreground/60">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading opportunities…
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading follow-ups…
         </div>
       )}
 
       {/* Only claim "clear" when the queue was actually READ and was empty. */}
       {!query.isLoading && !query.isError && queryable === true && items.length === 0 && (
         <div className="rounded border border-border/40 p-4 text-sm text-foreground/60">
-          No open opportunities. The queue was read successfully: this one is genuinely clear.
+          Nothing due. Every open follow-up has an attempt or a date.
         </div>
       )}
 
-      {items.length >= LIMIT && (
+      {showAll && items.length >= LIMIT && (
         <div className="rounded border border-border/40 p-3 text-sm text-foreground/60">
           Showing the first {LIMIT}. Older rows may exist: work these, then press Refresh.
         </div>
       )}
 
       <ul className="space-y-4">
-        {items.map((o) => {
+        {shown.map((o) => {
           const busy = busyIds.has(o.id);
           // A text waiting on a reply is closed by sending or by "No reply needed" in Messages, not by
           // an attempt recorded here: Called/Texted would leave the Messages count saying the customer waits.
@@ -284,17 +315,21 @@ export default function OpportunitiesSection() {
           const customerKnown = STATE_PROVES_CUSTOMER.includes(o.state);
           const dismissLabel = customerKnown ? "Not relevant" : "Not a customer";
           const texts = automatedTexts(o);
+          const excerpt = evidenceText(o, "summaryExcerpt");
+          const service = evidenceText(o, "serviceMention");
           return (
             <li key={o.id} className="rounded border border-border/40 p-3 space-y-3">
+              {/* The need and the why come first; no customer name rides on the card, the phone does. */}
               <div className="min-w-0">
-                <div className="flex items-baseline justify-between gap-3 text-xs text-foreground/60">
-                  <span className="font-medium text-foreground/80">{typeLabel(o.sourceType)}</span>
-                  <span className="shrink-0">{ageLabel(o.ageDays)}</span>
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="font-medium break-words">{o.recommendedAction}</div>
+                  <span className="shrink-0 text-xs text-foreground/60">{ageLabel(o.ageDays)}</span>
                 </div>
-                <div className="font-medium break-words mt-1">{o.recommendedAction}</div>
                 <div className="text-sm text-foreground/60 break-words">{o.reason}</div>
+                {excerpt && <p className="text-sm break-words mt-1">Receptionist: {excerpt}</p>}
+                {service && <p className="text-sm break-words">Service: {service}</p>}
                 <div className="text-xs text-foreground/60 mt-1 break-words">
-                  {o.customerName ?? "unknown customer"} · {money(o.expectedRevenueCents)} · evidence: {o.dataQuality}
+                  <span className="font-medium text-foreground/80">{typeLabel(o.sourceType)}</span> · {money(o.expectedRevenueCents)} · evidence: {o.dataQuality}
                   {o.state !== "new" && o.state !== "attempted" ? ` · state: ${o.state.replace(/_/g, " ")}` : ""}
                 </div>
                 {o.consentOk ? (
@@ -368,6 +403,12 @@ export default function OpportunitiesSection() {
           );
         })}
       </ul>
+
+      {!showAll && items.length > TOP && (
+        <button type="button" onClick={() => setShowAll(true)} className={`${BUTTON} w-full`}>
+          Show all {totalLabel}
+        </button>
+      )}
     </div>
   );
 }

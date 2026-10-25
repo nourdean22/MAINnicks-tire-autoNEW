@@ -11,7 +11,6 @@
  *   - `<SkeletonKpiGrid />`   → matches the OverviewSection 6-column KPI row
  *   - `<SkeletonRow />`       → matches a single admin table row
  *   - `<SkeletonTable />`     → N rows of `SkeletonRow`
- *   - `<SkeletonPanel />`     → matches Panel from shared.tsx (header + body)
  *
  * Built 2026-05-07 (wave-82) addressing §9 of ADMIN_PROBLEMS_2026-05-05.md.
  * Uses wave-50 admin tokens (--bg-card-raised, --ring-neutral) so the
@@ -91,31 +90,6 @@ export function SkeletonTable({ rows = 6, cells = 4 }: { rows?: number; cells?: 
       {Array.from({ length: rows }).map((_, i) => (
         <SkeletonRow key={i} cells={cells} />
       ))}
-    </div>
-  );
-}
-
-/** Panel wrapper skeleton — header + body. */
-export function SkeletonPanel({ rows = 4 }: { rows?: number }) {
-  return (
-    <div role="status" aria-busy="true" className="bg-card border border-border/30 rounded">
-      <span className="sr-only">Loading…</span>
-      <div className="flex items-center gap-3 p-4 border-b border-border/10" aria-hidden="true">
-        <Skeleton className="h-4 w-40 bg-foreground/12" />
-        <Skeleton className="h-3 w-24 ml-auto bg-foreground/8" />
-      </div>
-      <div className="p-4 space-y-3" aria-hidden="true">
-        {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <Skeleton className="w-8 h-8 rounded-full bg-foreground/10 shrink-0" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton className="h-3.5 w-40 bg-foreground/10" />
-              <Skeleton className="h-2.5 w-24 bg-foreground/8" />
-            </div>
-            <Skeleton className="h-3 w-16 bg-foreground/8" />
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

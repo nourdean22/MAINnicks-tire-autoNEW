@@ -51,7 +51,9 @@ const OUTBOUND_COUNT = 4;
 // 30 since 2026-10-25: the Attribution review card's ruling confirm (operator text, not customer copy).
 // 27 since 2026-10-25: the Money job deleted the Snap dashboard (one confirm) and the tire-registration
 // panel (two confirms) with their surfaces; no customer copy moved.
-const CHROME_COUNT = 27;
+// 25 since 2026-10-25: the Sales Pipeline leads list dropped its Reopen and Delete confirms with the
+// row buttons (a status select replaces them); no customer copy moved.
+const CHROME_COUNT = 25;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [
