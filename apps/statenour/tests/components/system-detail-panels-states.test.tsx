@@ -123,6 +123,34 @@ describe("observability status: a read that never ran is not a server verdict", 
     expect(html).not.toMatch(VERDICT);
   });
 
+  // Braintrust is static truth (the wrapper was deleted 2026-08-25): it needs no read, so no read state hides it.
+  const BRAINTRUST = "wrap removed 2026-08-25";
+  it("paused: the static Braintrust line is still there beside the offline note", () => {
+    state.q = PAUSED;
+    const html = render();
+    expect(html).toContain("Offline.");
+    expect(html).toContain("Braintrust");
+    expect(html).toContain(BRAINTRUST);
+  });
+
+  it("failed and idle-no-data reads keep the static Braintrust line too", () => {
+    for (const q of [{ ...FAILED, fetchStatus: "idle" }, IDLE_NO_DATA] as Q[]) {
+      state.q = q;
+      const html = render();
+      expect(html).toContain("data-read-failed");
+      expect(html).toContain(BRAINTRUST);
+    }
+  });
+
+  it("control: a completed read renders both lanes", () => {
+    state.q = { data: { langfuse: {} }, isError: false, isLoading: false, fetchStatus: "idle" } as Q;
+    const html = render();
+    expect(html).toContain("Langfuse");
+    expect(html).toContain("not initialized");
+    expect(html).toContain("Braintrust");
+    expect(html).toContain(BRAINTRUST);
+  });
+
   it("control: a COMPLETED read with no init outcome keeps its real 'not initialized' text", () => {
     state.q = { data: { langfuse: {} }, isError: false, isLoading: false, fetchStatus: "idle" } as Q;
     const html = render();
