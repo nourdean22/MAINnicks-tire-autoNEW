@@ -1119,7 +1119,8 @@ export type InsertCustomer = typeof customers.$inferInsert;
 export const winbackCampaigns = mysqlTable("winback_campaigns", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  targetSegment: mysqlEnum("targetSegment", ["lapsed", "unknown", "recent", "dormant", "lost", "vip", "fleet", "tire_customer"]).notNull(),
+  // 'lapsed_regulars' appended by 0151 (the Customers tab's lapsed regulars).
+  targetSegment: mysqlEnum("targetSegment", ["lapsed", "unknown", "recent", "dormant", "lost", "vip", "fleet", "tire_customer", "lapsed_regulars"]).notNull(),
   targetCount: int("targetCount").default(0).notNull(),
   sentCount: int("sentCount").default(0).notNull(),
   status: mysqlEnum("status", ["draft", "active", "paused", "completed"]).default("draft").notNull(),

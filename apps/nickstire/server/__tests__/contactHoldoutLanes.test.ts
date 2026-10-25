@@ -74,7 +74,7 @@ describe("winback", () => {
         if (/FROM winback_sends ws/.test(r.sql)) {
           return [[{ id: 11, phone: "2165550142", personalizedBody: "We miss you", campaignId: 3, customerId: 9 }]];
         }
-        if (/SELECT smsOptOut/.test(r.sql)) return [[{ smsOptOut: 0 }]];
+        if (/SELECT 1 AS eligible FROM customers/.test(r.sql)) return [[{ eligible: 1 }]];
         if (/SET status = 'sent'/.test(r.sql)) return [{ affectedRows: 1 }];
         return [[]];
       }),

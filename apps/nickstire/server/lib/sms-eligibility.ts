@@ -57,3 +57,11 @@ export const campaignEligiblePhoneSql = sql`${customers.phone} IS NOT NULL AND L
       AND UPPER(TRIM(sm.body)) IN ('STOP','STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','REVOKE','OPTOUT','OPT OUT')
       AND ${last10(sql`sc.phone`)} = ${last10(customers.phone)}
   )`;
+
+/**
+ * Send-time leg of the same predicate: one row when customer `id` can still be
+ * texted. A drip step scheduled days ago re-checks here, so a STOP that arrived
+ * after the audience was built stops the step (no row = do not send).
+ */
+export const customerCampaignEligibleSql = (id: unknown) =>
+  sql`SELECT 1 AS eligible FROM customers WHERE ${customers.id} = ${id} AND ${campaignEligiblePhoneSql} LIMIT 1`;

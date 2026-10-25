@@ -41,6 +41,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     if (!db) return { recordsProcessed: 0, details: "No DB" };
 
     const { sql } = await import("drizzle-orm");
+    const { customerCampaignEligibleSql } = await import("../lib/sms-eligibility");
 
     // Check if winback tables exist
     let hasTable = false;
@@ -94,14 +95,12 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         continue;
       }
 
-      // Opt-out guard — winback_sends carries customerId, so resolve
-      // opt-out by exact id (no fuzzy phone match). Opted-out rows are
-      // marked 'failed' so they leave the 'pending' pool permanently.
-      const [optRows] = await db.execute(sql`
-        SELECT smsOptOut FROM customers WHERE id = ${send.customerId} LIMIT 1
-      `);
-      const optedOut = !!((optRows as unknown as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
-      if (optedOut) {
+      // Opt-out guard — winback_sends carries customerId, so resolve it by
+      // exact id against the canonical predicate (customers.smsOptOut,
+      // sms_preferences, inbound STOP). Ineligible rows are marked 'failed'
+      // so they leave the 'pending' pool permanently.
+      const [eligibleRows] = await db.execute(customerCampaignEligibleSql(send.customerId));
+      if ((eligibleRows as unknown as unknown[]).length === 0) {
         await db.execute(sql`
           UPDATE winback_sends SET status = 'failed', errorMessage = 'customer opted out of SMS'
           WHERE id = ${send.id} AND status = 'pending'

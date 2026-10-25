@@ -15,8 +15,13 @@ import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/s
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { getReviewCopy, type ReviewCopy } from "../lib/reviewCopy";
+import { campaignEligiblePhoneSql, customerCampaignEligibleSql } from "../lib/sms-eligibility";
+import { countLapsedRegulars, lapsedRegularCondition } from "../lib/customer-segments";
 
 import { db } from "../lib/db-helper";
+
+/** Selectable audiences. "declined" stays retired (see buildSegmentFilter). */
+const TARGET_SEGMENTS = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer", "lapsed_regulars"] as const;
 
 /**
  * Centrally verify which customer IDs have a verified tire purchase history.
@@ -119,7 +124,7 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
 // gating and scheduling are untouched.
 const buildWinbackTemplates = (
   { rating, countDisplay }: ReviewCopy,
-): Record<string, { step: number; delayDays: number; template: string }[]> => ({
+): Record<string, { step: number; delayDays: number; template: string }[]> => withLapsedRegulars({
   // ── LAPSED (90-180 days, was active) — 4-step sequence ──
   lapsed: [
     {
@@ -230,9 +235,16 @@ const buildWinbackTemplates = (
   ],
 });
 
+/** Lapsed regulars (3+ visits, 90-365 days) get the lapsed sequence verbatim: no new customer copy. */
+function withLapsedRegulars<T extends { lapsed: unknown }>(t: T): T & { lapsed_regulars: T["lapsed"] } {
+  return { ...t, lapsed_regulars: t.lapsed };
+}
+
 /**
  * Build a SQL WHERE filter for each customer segment.
- * Uses date-based logic instead of the limited DB enum.
+ * Uses date-based logic instead of the limited DB enum. Every audience carries
+ * campaignEligiblePhoneSql (customers.smsOptOut + sms_preferences + inbound
+ * STOP), so a target count is the number of people who can be texted.
  */
 function buildSegmentFilter(segment: string) {
   const now = new Date();
@@ -242,25 +254,28 @@ function buildSegmentFilter(segment: string) {
   const d30 = new Date(now.getTime() - 30 * 86400000);
 
   switch (segment) {
+    case "lapsed_regulars":
+      // The Customers tab's rule (shared/customerSegments.ts), so both tabs count the same people.
+      return and(lapsedRegularCondition(), campaignEligiblePhoneSql)!;
     case "lapsed":
       return and(
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d90}`,
         sql`${customers.lastVisitDate} >= ${d180}`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     case "dormant":
       return and(
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d180}`,
         sql`${customers.lastVisitDate} >= ${d365}`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     case "lost":
       return and(
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d365}`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     // wave-150 · "declined" winback segment RETIRED. It targeted
     // customers.segment='lapsed' (wrong people), and repointing it to the
@@ -273,7 +288,7 @@ function buildSegmentFilter(segment: string) {
       return and(
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d180}`,
-        eq(customers.smsOptOut, 0),
+        campaignEligiblePhoneSql,
         // The whole OR chain is ONE parenthesised group. Without the outer parens
         // drizzle emits `A and B and optOut = 0 and EXISTS(X) OR EXISTS(Y) OR
         // EXISTS(Z)`, and MySQL binds AND tighter than OR — so the opt-out guard
@@ -319,23 +334,23 @@ function buildSegmentFilter(segment: string) {
       // (Was `> 500` = >$5, which matched nearly the entire paying base.)
       return and(
         sql`${customers.totalSpent} > 200000`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     case "fleet":
       // CENTS. Fleet = lifetime spend > $5,000 (500000c).
       // (Was `> 1000` = >$10.)
       return and(
         sql`${customers.totalSpent} > 500000`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     case "recent":
       return and(
         sql`${customers.lastVisitDate} >= ${d30}`,
         sql`${customers.lastVisitDate} < ${d90}`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     default:
-      return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), eq(customers.smsOptOut, 0))!;
+      return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), campaignEligiblePhoneSql)!;
   }
 }
 
@@ -382,7 +397,7 @@ export const winbackRouter = router({
   /** Calculate campaign readiness metrics */
   campaignReadiness: adminProcedure
     .input(z.object({
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
+      targetSegment: z.enum(TARGET_SEGMENTS),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),
@@ -498,7 +513,11 @@ export const winbackRouter = router({
     };
   }),
 
-  /** Get segment counts for all cohorts in parallel */
+  /**
+   * Contactable count per cohort, in parallel. lapsed_regulars also carries
+   * how many qualify, so the owner sees reach beside the audience (the same
+   * pair the Customers tab shows, from the same rule).
+   */
   segmentCounts: adminProcedure.query(async () => {
     const d = await db();
     if (!d) {
@@ -510,6 +529,7 @@ export const winbackRouter = router({
         fleet: 0,
         recent: 0,
         tire_customer: 0,
+        lapsed_regulars: { qualifying: 0, contactable: 0 },
       };
     }
 
@@ -522,15 +542,18 @@ export const winbackRouter = router({
       return { [seg]: row?.count ?? 0 };
     });
 
-    const results = await Promise.all(countPromises);
-    return Object.assign({}, ...results) as Record<typeof segments[number], number>;
+    const [lapsedRegulars, ...results] = await Promise.all([countLapsedRegulars(d), ...countPromises]);
+    return {
+      ...(Object.assign({}, ...results) as Record<typeof segments[number], number>),
+      lapsed_regulars: lapsedRegulars,
+    };
   }),
 
   /** Create a new win-back campaign */
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
+      targetSegment: z.enum(TARGET_SEGMENTS),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),
@@ -750,12 +773,14 @@ export const winbackRouter = router({
     let failed = 0;
 
     for (const { send } of pendingSends) {
-      // Opt-out guard — winback_sends carries customerId; resolve opt-out
-      // by exact id. Opted-out rows are marked 'failed' so they leave the
-      // pending pool permanently.
-      const [optRows] = await d.execute(sql`SELECT smsOptOut FROM customers WHERE id = ${send.customerId} LIMIT 1`);
-      if (!!((optRows as unknown as Array<{ smsOptOut?: number }>)[0]?.smsOptOut)) {
-        await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" }).where(eq(winbackSends.id, send.id));
+      // Opt-out guard — winback_sends carries customerId; resolve it by exact
+      // id against the canonical predicate (the cron path does the same).
+      // Ineligible rows are marked 'failed' so they leave the pending pool
+      // permanently; only a row still 'pending' is rewritten.
+      const [eligibleRows] = await d.execute(customerCampaignEligibleSql(send.customerId));
+      if ((eligibleRows as unknown as unknown[]).length === 0) {
+        await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" })
+          .where(and(eq(winbackSends.id, send.id), eq(winbackSends.status, "pending")));
         failed++;
         continue;
       }
