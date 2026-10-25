@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/gates-wave-f-2026-10-25",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-23-bdnick-pro-rebuild wave F",
+  "claimedAt": "2026-10-25T02:41:50.487Z",
+  "expiresAt": "2026-10-25T14:41:50.487Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
