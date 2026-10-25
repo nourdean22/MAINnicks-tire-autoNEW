@@ -9,17 +9,22 @@
  * 2. competitorSnapshot is the admin read of live competitor ratings: admin
  *    only, and it returns the service result unchanged (the client codes
  *    against that contract).
+ * 3. targetKeywordRanks is the admin read of Search Console position per
+ *    tracked keyword (contract localGrowth.targetKeywordRanks v1): admin only,
+ *    the pipeline result unchanged.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   reviews: null as unknown,
   snapshot: { ok: false, reason: "error", message: "unset" } as unknown,
+  ranks: { ok: false, reason: "error", message: "unset" } as unknown,
 }));
 
 vi.mock("../db", () => ({ getDb: async () => null }));
 vi.mock("../google-reviews", () => ({ getGoogleReviews: async () => h.reviews }));
 vi.mock("../services/competitorMonitor", () => ({ getCompetitorSnapshotCached: async () => h.snapshot }));
+vi.mock("../pipelines/targetKeywordRanks", () => ({ getTargetKeywordRanks: async () => h.ranks }));
 
 import { localGrowthRouter } from "./localGrowth";
 
@@ -110,5 +115,30 @@ describe("localGrowth.competitorSnapshot", () => {
   it("is admin only", async () => {
     // The code, not just a throw: "No procedure found" also throws (it passed on the unfixed router).
     await expect(caller("user").competitorSnapshot()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("localGrowth.targetKeywordRanks", () => {
+  it("returns the pipeline result unchanged", async () => {
+    const result = {
+      ok: true, latestDate: "2026-10-23", staleDays: 2,
+      window: { current: { from: "2026-09-26", to: "2026-10-23" }, previous: { from: "2026-08-29", to: "2026-09-25" } },
+      keywords: [{
+        keyword: "used tires Cleveland", group: "tires", current: { impressions: 135, clicks: 0, position: 6.5 },
+        previous: { impressions: 90, clicks: 1, position: 9.1 }, seenIn90Days: true, change: 2.6, action: "review_snippet",
+      }],
+      totals: { impressions28d: 57361, distinctQueries28d: 5897 },
+    };
+    h.ranks = result;
+    expect(await caller().targetKeywordRanks()).toEqual(result);
+  });
+
+  it("an unmeasured table comes back as ok:false, not an empty list", async () => {
+    h.ranks = { ok: false, reason: "unmeasured", message: "No Search Console rows stored yet." };
+    expect(await caller().targetKeywordRanks()).toEqual(h.ranks);
+  });
+
+  it("is admin only", async () => {
+    await expect(caller("user").targetKeywordRanks()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

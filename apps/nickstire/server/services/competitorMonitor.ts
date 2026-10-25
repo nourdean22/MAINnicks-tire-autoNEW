@@ -234,11 +234,17 @@ async function fetchPlaceDetails(
     const data = await res.json() as any;
     noteApiStatus(data.status);
     if (data.status !== "OK" || !data.result) return null;
+    // A closed or wrong listing comes back with no rating or count: drop it (counted unresolved),
+    // never a 0.0-star row (production 2026-10-25: "Pep Boys Cleveland 0.0 star, 0 reviews").
+    if (typeof data.result.rating !== "number" || typeof data.result.user_ratings_total !== "number") {
+      log.warn("[competitorMonitor] listing has no rating on Google", { name: data.result.name });
+      return null;
+    }
 
     return {
       name: data.result.name || "Unknown",
-      rating: data.result.rating || 0,
-      reviewCount: data.result.user_ratings_total || 0,
+      rating: data.result.rating,
+      reviewCount: data.result.user_ratings_total,
       // Times only (epoch seconds, newest first): review text and author names are never read out.
       recentTimes: (Array.isArray(data.result.reviews) ? data.result.reviews : [])
         .map((r: { time?: unknown }) => r?.time)
