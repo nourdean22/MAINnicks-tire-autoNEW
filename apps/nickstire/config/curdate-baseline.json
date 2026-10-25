@@ -26,12 +26,6 @@
       "reason": "Admin todayPulse: declined estimates in the last 30 days and paid revenue in the last 7 days, both DATE_SUB(CURDATE(), ...) windows whose edge sits at 8 PM ET (7 PM in winter) instead of midnight, a drift of hours on a multi-day total."
     },
     {
-      "file": "server/routers/customers.ts",
-      "count": 1,
-      "effect": "staff-today",
-      "reason": "Admin customer views. intelligence: 'at-risk whales' daysSince = DATEDIFF(NOW(), lastVisitDate) reads one day high between 8 PM ET (7 PM in winter) and midnight, and new-customers-this-month (createdAt >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) counts from 8 PM ET on the previous month's last day and flips after 8 PM ET on a month's last day. campaignStats: the 6-8-day 'eligible for follow-up' count (DATEDIFF(CURDATE(), lastVisitDate)) shifts one day between 8 PM ET and midnight; the sender itself is not in this file."
-    },
-    {
       "file": "server/routers/intelligence.ts",
       "count": 1,
       "effect": "staff-today",

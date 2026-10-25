@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T15:51:52.514Z",
-  "count": 654,
+  "generatedAt": "2026-10-25T19:08:14.085Z",
+  "count": 652,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -84,7 +84,6 @@
     "mutation.customers.enrich",
     "mutation.customers.quickSms",
     "mutation.customers.refreshMetrics",
-    "mutation.customers.retryCampaign",
     "mutation.customers.updateNotes",
     "mutation.diagnose.analyze",
     "mutation.dispatch.assign",
@@ -383,7 +382,6 @@
     "query.customerEvents.topRibbonPhotos",
     "query.customerEvents.topRibbonPhotosPublic",
     "query.customerNotifications.pending",
-    "query.customers.campaignStats",
     "query.customers.exportCsv",
     "query.customers.getById",
     "query.customers.history",
