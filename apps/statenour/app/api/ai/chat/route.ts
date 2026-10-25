@@ -1339,6 +1339,15 @@ ${priorsBlock}`;
           }))
         : undefined,
     });
+    // 2026-10-25 · a buffered lane registers the turn before it generates; a fall-through that
+    // dies here must not leave that row "active" with no text for the 10 min TTL (every resume
+    // in that window would wait 20 s for nothing). Closed, the next resume is a plain 204.
+    if (!transcriptOff && convId) {
+      const closeConv = convId;
+      void import("@/lib/services/chat/active-stream")
+        .then(({ completeActiveStream }) => completeActiveStream(closeConv))
+        .catch(() => undefined);
+    }
     return Response.json(
       { error: "Chat stream failed" },
       { status: 500 }

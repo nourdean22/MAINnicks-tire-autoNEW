@@ -640,6 +640,15 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     const isLaterNetworkPhrase = message.includes("network error") || message.includes("the network connection was lost");
     if (!isNetworkKill && !isLaterNetworkPhrase) return;
 
+    // 2026-10-25 · the stall's own reattach GET dropped (iOS backgrounding during the server's
+    // wait): say stuck now and offer Reconnect, or the turn just sits with no way back.
+    const stall = stallReattachRef.current;
+    if (stall) {
+      stallReattachRef.current = null;
+      showStallToast(stall.message);
+      return;
+    }
+
     // A dropped resume is not a dropped send: the turn is still running (or
     // done) server-side, and the merged bubble has lost its tool parts, so
     // the guard below cannot see what already fired. A reload shows the
@@ -696,7 +705,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       1_500 * retryCountRef.current,
     );
     return () => clearTimeout(timer);
-  }, [chat.error]);
+  }, [chat.error, showStallToast]);
 
   // A reattach that streams hands the turn back: Retry regenerates as usual again.
   useEffect(() => {

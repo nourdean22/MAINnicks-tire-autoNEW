@@ -2481,6 +2481,33 @@ describe("stall abort reattaches to a turn the server still holds", () => {
     expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 
+  // Round 2, S2: the wait is bounded. Each pending answer is a ~20 s server-side wait.
+  it("stops waiting after 6 pending answers: the 7th shows the stuck notice", () => {
+    stallFires();
+    for (let i = 0; i < 6; i++) {
+      act(() => transport().onResumeEmpty?.({ pending: true }));
+      act(() => vi.advanceTimersByTime(1_500));
+      expect(stuckToasts(), `pending answer ${i + 1} must keep waiting`).toEqual([]);
+    }
+    expect(h.chat.resumeStream, "the stall's reattach plus 6 re-asks").toHaveBeenCalledTimes(7);
+    act(() => transport().onResumeEmpty?.({ pending: true }));
+    act(() => vi.advanceTimersByTime(1_500));
+    expect(stuckToasts()).toHaveLength(1);
+    expect(h.chat.resumeStream, "no 8th ask").toHaveBeenCalledTimes(7);
+  });
+
+  // Round 2, S3: iOS can drop the reattach's own GET (backgrounded during the server's wait).
+  it("a reattach whose GET drops shows the stuck notice with Reconnect, never a resend", () => {
+    stallFires();
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(stuckToasts()).toHaveLength(1);
+    expect(stuckToasts()[0][1]).toMatchObject({ action: { label: "Reconnect" } });
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
   // Round 2 (Nour's actual case): the stalled turn was the FIRST message of a new chat, so no
   // conversation id existed on the client when the stall fired.
   it("a first send of a new chat reattaches by its message id and lands the saved reply", () => {
