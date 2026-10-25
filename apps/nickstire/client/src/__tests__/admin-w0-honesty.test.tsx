@@ -239,14 +239,31 @@ describe("Today (OverviewSection)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
       });
       expect(s.sections).toEqual([]);
-      expect(h.toastError).toHaveBeenCalledWith("Work orders are in Money, which your role cannot open");
+      expect(h.toastError).toHaveBeenCalledWith("This work order has no customer on file, so there is no profile to open.");
       expect(s.receipts).toEqual([]);
     } finally {
       s.done();
     }
   });
 
-  it("Open work order goes to Money's work orders tab for an owner, and shows one button", async () => {
+  it("an accountant (Money but not Customers) gets a toast, no navigation and no receipt", async () => {
+    const s = workOrderScenario("accountant", 42);
+    try {
+      render(<OverviewSection />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
+      });
+      expect(s.sections).toEqual([]);
+      expect(h.toastError).toHaveBeenCalledWith("Work orders open in Customers, which your role cannot open.");
+      expect(s.receipts).toEqual([]);
+    } finally {
+      s.done();
+    }
+  });
+
+  // 2026-10-25: Money no longer carries a work-order board, so the owner goes to the customer's
+  // Active Backlog like everyone else; a link into Money would land on Billed with no work order.
+  it("Open work order goes to the customer's Active Backlog for an owner, and shows one button", async () => {
     window.history.replaceState({}, "", "/admin?tab=overview&moneyTab=declined");
     const s = workOrderScenario("owner", 42);
     const { sections, receipts } = s;
@@ -257,12 +274,15 @@ describe("Today (OverviewSection)", () => {
       await act(async () => {
         fireEvent.click(buttons[0]);
       });
-      expect(sections).toEqual(["revenue"]);
-      expect(new URL(window.location.href).searchParams.get("moneyTab")).toBeNull();
-      expect(receipts).toEqual([expect.objectContaining({ action: "admin.work_order_opened", changes: expect.objectContaining({ target: "revenue" }) })]);
+      expect(sections).toEqual(["customers"]);
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get("id")).toBe("42");
+      expect(url.searchParams.get("profileTab")).toBe("backlog");
+      expect(url.searchParams.get("wo")).toBeNull();
+      expect(receipts).toEqual([expect.objectContaining({ action: "admin.work_order_opened", changes: expect.objectContaining({ target: "customers" }) })]);
       const wo = getQueueActionDefinition("workOrder");
-      expect(wo.primaryConfirmMessage("Pat")).toBe("Open Pat's work order in Money.");
-      expect(wo.secondaryConfirmMessage("Pat")).toBe("Open Pat's work order in Money.");
+      expect(wo.primaryConfirmMessage("Pat")).toBe("Open Pat's work order in their customer profile.");
+      expect(wo.secondaryConfirmMessage("Pat")).toBe("Open Pat's work order in their customer profile.");
     } finally {
       s.done();
     }

@@ -118,46 +118,15 @@ function legacyCheck(normalized: string, plantCode: string): TinCheck | null {
   };
 }
 
-/** Whole years since the week of manufacture (null when unknown). */
-export function tinAgeYears(check: TinCheck, now: Date = new Date()): number | null {
-  if (check.status !== "valid" || check.week == null || check.year == null) return null;
-  const made = Date.UTC(check.year, 0, 1) + (check.week - 1) * 7 * 86_400_000;
-  return Math.floor((now.getTime() - made) / (365.25 * 86_400_000));
-}
-
 // ─── Positions + registration methods ──────────────────────────────────────
 
 const TIRE_POSITIONS = ["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE"] as const;
 export type NamedTirePosition = (typeof TIRE_POSITIONS)[number];
 export type TirePosition = NamedTirePosition | `EXTRA${number}`;
-const TIRE_POSITION_LABELS: Record<NamedTirePosition, string> = {
-  LF: "Left front", RF: "Right front", LR: "Left rear", RR: "Right rear",
-  LRI: "Left rear inner", RRI: "Right rear inner", SPARE: "Spare",
-};
 
 export function isTirePosition(value: string): value is TirePosition {
   const normalized = value.trim().toUpperCase();
   return (TIRE_POSITIONS as readonly string[]).includes(normalized) || /^EXTRA(?:[1-9]\d{0,2})$/.test(normalized);
-}
-
-/**
- * Common passenger/light-truck positions come first. Orders with more tires get deterministic
- * EXTRA1..EXTRA999 slots; the DB column is VARCHAR(8), so this stays inside the storage contract.
- */
-export function tirePositionsForCount(count: number): TirePosition[] {
-  const requested = Math.max(0, Math.ceil(Number(count) || 0));
-  const target = Math.max(TIRE_POSITIONS.length, Math.min(1000, requested));
-  const positions: TirePosition[] = [...TIRE_POSITIONS];
-  for (let n = 1; positions.length < target; n += 1) positions.push(`EXTRA${n}` as TirePosition);
-  return positions;
-}
-
-export function tirePositionLabel(position: string): string {
-  if ((TIRE_POSITIONS as readonly string[]).includes(position)) {
-    return TIRE_POSITION_LABELS[position as NamedTirePosition];
-  }
-  const extra = /^EXTRA(\d+)$/.exec(position);
-  return extra ? `Extra tire ${extra[1]}` : position;
 }
 
 export const TIRE_CONDITIONS = ["new", "used"] as const;
@@ -175,16 +144,6 @@ export const REGISTRATION_METHODS = [
   "not_required_used",          // used tire — 574.8 covers new tires only
 ] as const;
 export type RegistrationMethod = (typeof REGISTRATION_METHODS)[number];
-export const REGISTRATION_METHOD_LABELS: Record<RegistrationMethod, string> = {
-  pending: "Not registered yet",
-  form_given: "Form handed to customer",
-  dealer_submitted_paper: "Shop mailed form to maker",
-  dealer_submitted_electronic: "Shop registered online",
-  not_required_used: "Used tire — not required",
-};
-
-/** 574.8(a)(1)(ii)/(iii): the dealer-submitted routes are due within 30 days of the sale. */
-export const REGISTRATION_WINDOW_DAYS = 30;
 
 // ─── Completeness ──────────────────────────────────────────────────────────
 
@@ -262,7 +221,7 @@ const VERIFIED_REGISTRATION_URLS: Record<string, string> = {
   hankook: "https://www.hankooktire.com/us/en/register-your-tires.html",
 };
 
-export function registrationLink(brand: string | null | undefined): { url: string; verified: boolean } {
+function registrationLink(brand: string | null | undefined): { url: string; verified: boolean } {
   const key = (brand ?? "").trim().toLowerCase();
   const url = VERIFIED_REGISTRATION_URLS[key];
   if (url) return { url, verified: true };

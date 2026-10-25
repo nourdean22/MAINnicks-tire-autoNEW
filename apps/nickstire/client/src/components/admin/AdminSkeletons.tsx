@@ -9,7 +9,7 @@
  * Variants mirror the actual admin layouts:
  *   - `<SkeletonStatCard />`  → matches `StatCard` from shared.tsx
  *   - `<SkeletonKpiGrid />`   → matches the OverviewSection 6-column KPI row
- *   - `<SkeletonRow />`       → matches a table row in DispatchSection / WorkOrders
+ *   - `<SkeletonRow />`       → matches a single admin table row
  *   - `<SkeletonTable />`     → N rows of `SkeletonRow`
  *   - `<SkeletonPanel />`     → matches Panel from shared.tsx (header + body)
  *

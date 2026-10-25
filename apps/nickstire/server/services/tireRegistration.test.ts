@@ -3,7 +3,6 @@ import {
   captureTin, getRegistration, recordRegistration, registrationFormHtml, removePosition,
   type RegistrationRow, type TireRegistrationStore, type WorkOrderForRegistration,
 } from "./tireRegistration";
-import { tirePositionsForCount } from "@shared/tireTin";
 
 const NOW = new Date("2026-09-23T12:00:00Z");
 
@@ -87,7 +86,7 @@ describe("tire registration — capture flow per position", () => {
       items: [{ type: "tire", quantity: "8", approved: true, declined: false }],
     };
     const { store } = memoryStore(order8);
-    const positions = tirePositionsForCount(8);
+    const positions = ["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE", "EXTRA1"];
     expect(positions).toHaveLength(8);
     expect(positions.at(-1)).toBe("EXTRA1");
     for (const position of positions) {

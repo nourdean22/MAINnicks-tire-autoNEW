@@ -6,8 +6,7 @@ import { toast } from "sonner";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 
 // Inferred from the tRPC AppRouter — replaces 6 `any` annotations
-// (admin audit §3 follow-up; same pattern as DispatchSection /
-// ContentSection cleanups).
+// (admin audit §3 follow-up; same pattern as the ContentSection cleanup).
 type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
 import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime, LoadingState } from "./shared";

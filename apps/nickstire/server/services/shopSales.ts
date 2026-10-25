@@ -124,6 +124,20 @@ type ShopSync =
   /** The log could not be read. Never rendered as synced. */
   | { state: "unreadable"; reason: string };
 
+/**
+ * The same figures for the window of the same length just before the current one, from the same
+ * query (same exclusions, same source rule). `averageCents` is cents / invoiceCount rounded to
+ * whole cents, and null when there were no invoices: no activity is not an average of 0.
+ */
+interface PreviousSales {
+  cents: number;
+  invoiceCount: number;
+  averageCents: number | null;
+  window: { fromISO: string; toISO: string; label: string };
+  /** Same rule as the current window's `windowSynced`, judged on the previous window's end. */
+  windowSynced: boolean | null;
+}
+
 export type ShopSales =
   | {
       available: false;
@@ -134,6 +148,10 @@ export type ShopSales =
       available: true;
       cents: number;
       invoiceCount: number;
+      /** cents / invoiceCount, whole cents; null when invoiceCount is 0. Read it beside the count. */
+      averageCents: number | null;
+      /** null only when the previous window cannot be built; a failed read is `available: false`. */
+      previous: PreviousSales | null;
       period: SalesPeriod;
       window: { fromISO: string; toISO: string; label: string };
       /**
@@ -176,6 +194,15 @@ const PERIOD_LABEL: Record<SalesPeriod, string> = {
   last_30d: "Last 30 days",
   month_to_date: "Month to date",
   prev_month: "Last month",
+};
+
+const PREVIOUS_LABEL: Record<SalesPeriod, string> = {
+  today: "Yesterday",
+  yesterday: "Day before",
+  last_7d: "7 days before",
+  last_30d: "30 days before",
+  month_to_date: "Same days last month",
+  prev_month: "Month before",
 };
 
 // en-CA gives yyyy-mm-dd; the timeZone option does the ET conversion.
@@ -238,6 +265,28 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
       return { from: fmt(asUTC(py, pm, 1)), to: fmt(lastMonthEnd) };
     }
   }
+}
+
+/**
+ * The window of the same length immediately before `w`, as half-open yyyy-mm-dd dates, for the
+ * "vs the period before" figure. Pure calendar-day arithmetic on the dates salesWindow produced,
+ * so it inherits the Eastern day boundaries. Day-length windows (today, yesterday, last 7 / 30
+ * days) end exactly where `w` begins. Month windows follow the calendar: month_to_date takes the
+ * same number of days from the 1st of last month, capped at that month's end so it never reaches
+ * into the current window (the 31st against a 30-day month); prev_month takes the whole month
+ * before it. null if `w` is empty or not a date range.
+ */
+function previousWindow(w: { from: string; to: string }, period: SalesPeriod): { from: string; to: string } | null {
+  const day = (s: string) => Date.parse(`${s}T00:00:00Z`);
+  const fmt = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const days = Math.round((day(w.to) - day(w.from)) / 86400000);
+  if (!Number.isFinite(days) || days <= 0) return null;
+  if (period === "month_to_date" || period === "prev_month") {
+    const [y, m] = w.from.split("-").map(Number);
+    const from = Date.UTC(y!, m! - 2, 1); // the 1st of the month before w.from's month
+    return { from: fmt(from), to: period === "prev_month" ? w.from : fmt(Math.min(from + days * 86400000, day(w.from))) };
+  }
+  return { from: fmt(day(w.from) - days * 86400000), to: w.from };
 }
 
 /**
@@ -343,7 +392,9 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
     // One statement. The buckets are computed in SQL over the same window and
     // the same table, so an exclusion count can never disagree with the headline
     // because of a differently-shaped second query.
-    const rows = await db.execute(sql`
+    const conn = db;
+    const aggregate = (f: string, t: string) =>
+      conn.execute(sql`
       SELECT
         COALESCE(SUM(paymentStatus = 'paid'), 0)                              AS paidCount,
         COALESCE(SUM(CASE WHEN paymentStatus = 'paid'      THEN totalAmount ELSE 0 END), 0) AS paidCents,
@@ -355,8 +406,9 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
         COALESCE(SUM(CASE WHEN paymentStatus = 'refunded'  THEN totalAmount ELSE 0 END), 0) AS refundedCents,
         COALESCE(SUM(invoiceNumber IS NULL OR invoiceNumber = ''), 0)         AS blankInvoiceNumbers
       FROM invoices
-      WHERE invoiceDate >= ${from} AND invoiceDate < ${to}
+      WHERE invoiceDate >= ${f} AND invoiceDate < ${t}
     `);
+    const rows = await aggregate(from, to);
 
     // ShopDriver rows only: a same-day manual or booking invoice must not move the data date.
     const throughRows = await db.execute(sql`SELECT MAX(invoiceDate) AS throughDate FROM invoices WHERE source = 'shopdriver'`);
@@ -371,10 +423,24 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
 
     const throughRaw = through.throughDate;
     const throughDate = throughRaw ? new Date(throughRaw as string).toISOString().slice(0, 10) : null;
+    // A failed previous read throws into the catch below: the whole answer is unavailable, never a 0.
+    const figures = (a: Record<string, unknown>) => {
+      const cents = n(a.paidCents);
+      const invoiceCount = n(a.paidCount);
+      return { cents, invoiceCount, averageCents: invoiceCount > 0 ? Math.round(cents / invoiceCount) : null };
+    };
+    const prevWin = previousWindow({ from, to }, period);
+    const previous: PreviousSales | null = prevWin
+      ? {
+          ...figures(unwrap(await aggregate(prevWin.from, prevWin.to))),
+          window: { fromISO: prevWin.from, toISO: prevWin.to, label: PREVIOUS_LABEL[period] },
+          windowSynced: windowSyncedFor({ to: prevWin.to }, sync, etDate(now)),
+        }
+      : null;
     return {
       available: true,
-      cents: n(agg.paidCents),
-      invoiceCount: n(agg.paidCount),
+      ...figures(agg),
+      previous,
       period,
       window: { fromISO: from, toISO: to, label: PERIOD_LABEL[period] },
       throughDate,

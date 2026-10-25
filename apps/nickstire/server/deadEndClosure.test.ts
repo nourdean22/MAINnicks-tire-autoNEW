@@ -6,7 +6,7 @@
  * 2. GBP OAuth exchange at the SHELL level (sub-tab-only effect expired codes)
  * 3. highlightId removed (dispatched for a year with zero receivers)
  * 4. Campaigns N+1 collapsed into the list query
- * 5. Shop-floor polling respects hidden tabs
+ * 5. (retired 2026-10-25: DispatchSection was removed with the Money rebuild)
  * 6. Command Search stops asserting stale money figures
  * 7. Money + Content & AI have visible sidebar doors (iPhone has no Cmd+K)
  */
@@ -72,16 +72,6 @@ describe("campaign stats arrive with the list — no per-row queries", () => {
     const s = read("client/src/pages/admin/outreach/CampaignsSection.tsx");
     expect(s).not.toMatch(/getById\.useQuery/);
     expect(s).toMatch(/campaign\.stats\?\.failed/);
-  });
-});
-
-describe("shop-floor polling respects hidden tabs", () => {
-  it("every DispatchSection interval sets refetchIntervalInBackground: false", () => {
-    const s = read("client/src/pages/admin/money/DispatchSection.tsx");
-    const intervals = (s.match(/refetchInterval:/g) ?? []).length;
-    const backgroundFlags = (s.match(/refetchIntervalInBackground: false/g) ?? []).length;
-    expect(intervals).toBeGreaterThan(0);
-    expect(backgroundFlags).toBe(intervals);
   });
 });
 
