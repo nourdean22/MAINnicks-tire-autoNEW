@@ -36,6 +36,8 @@ import { BrainChangeLine } from "@/components/brain/brain-change-line";
 import { TimeTravelPanel } from "@/components/brain/time-travel-panel";
 import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
 import { JudgmentQualityPanel } from "@/components/brain/judgment-quality-panel";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 import {
   attentionTone,
   describeConfidenceAsAttention,
@@ -86,51 +88,19 @@ export function BrainContinuityView() {
   // calls. `loading` ← `isLoading`, `error` ← the TRPCClientError's
   // `.message` (the legacy hook surfaced a plain string), `reload` ←
   // `refetch`.
-  const {
-    data,
-    isLoading: loading,
-    error: queryError,
-    refetch,
-  } = trpc.brain.continuityReport.useQuery();
-  const error = queryError?.message ?? null;
+  const continuityQ = trpc.brain.continuityReport.useQuery();
+  const { data, refetch } = continuityQ;
+  // lens B 2026-10-25 · was `if (!data) return null`: a paused (offline) read has no data and no
+  // error, so the whole block went blank on the phone. readState names all five states.
+  const state = readState(continuityQ);
   const reload = useCallback(() => {
     void refetch();
   }, [refetch]);
 
-  if (loading && !data) {
-    return (
-      <div className="border-t border-edge pt-4">
-        <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-4 justify-center">
-          <Loader2 size={12} className="animate-spin" />
-          reading the brain…
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="border-l-2 border-rose-400/60 py-1 pl-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-rose-300">continuity fetch failed</p>
-            <p className="text-[11px] text-rose-300/70 mt-0.5 break-words font-mono">{error}</p>
-          </div>
-          <button
-            onClick={reload}
-            className="min-h-11 min-w-11 shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  return (
-    <div className="space-y-4">
+  // These four own their reads, so they mount whatever the continuity read says: gated on it, an
+  // offline or failed continuity read also hid them and left /brain?tab=health#time-travel no target.
+  const ownReads = (
+    <>
       {/* 2026-09-15 · cursor-based "since your last visit" (ChangeSet
           primitive, second consumer): a different question from the 24h
           buckets below it. */}
@@ -150,6 +120,42 @@ export function BrainContinuityView() {
       {/* BDN-105 + BDN-106 (2026-08-12) · memory-quality readings belong
           with continuity, not on /system with the ops instruments. */}
       <JudgmentQualityPanel />
+    </>
+  );
+
+  if (state === "loading") {
+    return (
+      <div className="space-y-4">
+        {ownReads}
+        <div className="border-t border-edge pt-4">
+          <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-4 justify-center">
+            <Loader2 size={12} className="animate-spin" />
+            reading the brain…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        {ownReads}
+        <ReadStateNote
+          state={state}
+          label="Memory continuity"
+          onRetry={reload}
+          retrying={isRetrying(continuityQ)}
+          className="border-t border-edge pt-4"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {ownReads}
+      <ReadStateNote state={state} label="Memory continuity" onRetry={reload} retrying={isRetrying(continuityQ)} />
 
       {/* ── Totals ── */}
       <div className="border-t border-edge pt-4">
