@@ -12,7 +12,8 @@
  * · pattern clusters · orphan nudges · contradictions · unresolved
  * reflections · broken promises · stale pins into ≤5 severity-ranked
  * suggestion chips. Every signal query gracefully fails to []/0 so a
- * single failed read doesn't bury the rest.
+ * single failed read doesn't bury the rest; ALL of them failing throws, so
+ * the caller's query errors instead of reading an outage as a quiet morning.
  *
  * Returns an explicit, shallow `NickSuggestionsView` — `sourceContext`
  * is a `Record<string, unknown>` (already scalar-only · no Prisma Json
@@ -128,7 +129,15 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
   const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
 
-  // ─── Read all signals in parallel · each gracefully fails to []
+  // ─── Read all signals in parallel · a failed read falls back to empty so one
+  // bad source doesn't bury the rest, but every fallback goes through `miss` so
+  // a TOTAL failure is counted and thrown below (empty-vs-error, 2026-10-25).
+  let failedReads = 0;
+  const miss = <T>(fallback: T): T => {
+    failedReads += 1;
+    return fallback;
+  };
+  const SOURCE_READS = 11;
   const [
     latestScores,
     stuckTasks,
@@ -154,7 +163,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           score: number;
           delta: number;
           date: string;
-        }> => [],
+        }> => miss([]),
       ),
 
     prisma.task
@@ -168,7 +177,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         take: 5,
       })
       .catch(
-        (): Array<{ id: string; title: string; startedAt: Date | null }> => [],
+        (): Array<{ id: string; title: string; startedAt: Date | null }> => miss([]),
       ),
 
     prisma.task
@@ -183,7 +192,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         take: 5,
       })
       .catch(
-        (): Array<{ id: string; title: string; dueDate: Date | null }> => [],
+        (): Array<{ id: string; title: string; dueDate: Date | null }> => miss([]),
       ),
 
     prisma.lifeGoal
@@ -212,7 +221,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           targetValue: number;
           unit: string;
           updatedAt: Date;
-        }> => [],
+        }> => miss([]),
       ),
 
     prisma.brainMemory
@@ -225,7 +234,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         take: 2,
         select: { metadata: true },
       })
-      .catch((): Array<{ metadata: unknown }> => []),
+      .catch((): Array<{ metadata: unknown }> => miss([])),
 
     prisma.brainMemory
       .findFirst({
@@ -236,7 +245,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         },
         select: { metadata: true },
       })
-      .catch(() => null),
+      .catch(() => miss(null)),
 
     prisma.reflection
       .findMany({
@@ -255,7 +264,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           insight: string;
           category: string;
           date: string;
-        }> => [],
+        }> => miss([]),
       ),
 
     prisma.task
@@ -276,7 +285,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           title: string;
           dueDate: Date | null;
           promiseTo: string | null;
-        }> => [],
+        }> => miss([]),
       ),
 
     prisma.brainMemory
@@ -292,12 +301,19 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         select: { id: true, content: true, updatedAt: true },
       })
       .catch(
-        (): Array<{ id: string; content: string; updatedAt: Date }> => [],
+        (): Array<{ id: string; content: string; updatedAt: Date }> => miss([]),
       ),
 
-    getDismissedSuggestionIds(7).catch(() => new Set<string>()),
-    getUrgentLeads().catch(() => []),
+    getDismissedSuggestionIds(7).catch(() => miss(new Set<string>())),
+    getUrgentLeads().catch(() => miss([])),
   ]);
+
+  // Every source failed (a database outage): an empty list here would hide as a quiet
+  // morning. Throw so `nick.suggestions` errors and the strip says the list could not load.
+  // shortcut: a partial failure still returns the chips that answered, with no note.
+  if (failedReads === SOURCE_READS) {
+    throw new Error("Every suggestion source failed to read; the chip list is unknown, not empty.");
+  }
 
   // ─── 1 · Weakest mastery axis (high-leverage)
   if (latestScores.length > 0 && (!urgentLeads || urgentLeads.length === 0)) {

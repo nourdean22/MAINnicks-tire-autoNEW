@@ -32,11 +32,14 @@ describe("LevelUpDirectiveCard · render + honesty contracts (source-side)", () 
     expect(src).toMatch(/bodyTracking\.useQuery\(\s*\{ range: "90d" \}/);
   });
 
-  it("self-hides on loading/transient error and never throws into the page", () => {
+  it("waits on a cold load, and names a failed read instead of hiding the card", () => {
     expect(src).toMatch(
       /if \(sheetQ\.isLoading \|\| goalsQ\.isLoading \|\| bodyQ\.isLoading\) return null;/,
     );
-    expect(src).toMatch(/if \(sheetQ\.error\) return null;/);
+    // 2026-10-25: the old `if (sheetQ.error) return null;` hid a failed stat read as a quiet card.
+    // Rendered behavior is pinned in tests/components/mastery-offline-reads.test.tsx.
+    expect(src).not.toMatch(/if \(sheetQ\.error\) return null;/);
+    expect(src).toContain("readState(");
   });
 
   it("renders the honest Missing-data empty state instead of a fabricated pick", () => {

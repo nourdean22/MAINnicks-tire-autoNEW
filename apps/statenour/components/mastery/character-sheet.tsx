@@ -19,8 +19,9 @@
  * tabular-nums). The only added color is each stat's own accent on its
  * progress bar: identity without noise.
  *
- * Degradation: self-hides on a transient query error (never breaks the
- * page). Stats open at a starting level seeded from your baseline self-
+ * Degradation: a failed read shows the error card; a paused (offline) or
+ * unanswered read says so (ReadStateNote); only a read that returned no
+ * stats draws the empty state. Stats open at a starting level seeded from your baseline self-
  * rating and climb as work lands, so the board reads as who you are today.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -31,6 +32,8 @@ import { ShieldAlert } from "lucide-react";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 
 interface StatLevel {
   key: string;
@@ -141,6 +144,22 @@ export function CharacterSheet() {
           message={query.error.message || "Stats data is unavailable right now."}
           domain="operator:characterSheet"
           onRetry={() => query.refetch()}
+        />
+      </section>
+    );
+  }
+
+  // Paused offline, or finished with nothing and no error: not a measured zero (lib/query-state.ts).
+  // Only a read that returned [] reaches the ZERO state below.
+  if (query.data === undefined) {
+    return (
+      <section className="mt-6 space-y-4">
+        <MasterySectionLabel label="Mastery · character sheet" />
+        <ReadStateNote
+          state={readState(query)}
+          label="Character sheet"
+          onRetry={() => void query.refetch()}
+          retrying={isRetrying(query)}
         />
       </section>
     );
