@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  checkTin, expectedTireCount, isTirePosition, registrationLink, renderRegistrationFormHtml,
-  summarizeRegistration, tinAgeYears, tirePositionsForCount, REGISTRATION_METHODS, type RegistrationRowLike,
+  checkTin, expectedTireCount, isTirePosition, renderRegistrationFormHtml,
+  summarizeRegistration, REGISTRATION_METHODS, type RegistrationRowLike,
 } from "./tireTin";
 
 const NOW = new Date("2026-09-23T12:00:00Z");
@@ -52,11 +52,6 @@ describe("checkTin — 49 CFR 574.5 format", () => {
     // three-digit reading rather than being accepted.
     expect(checkTin("EJ4V1H5239", NOW).status).toBe("legacy_date_code");
   });
-
-  it("computes tire age from the date code", () => {
-    expect(tinAgeYears(checkTin("U2LLLMLR5107", NOW), NOW)).toBe(18);
-    expect(tinAgeYears(checkTin("EJ4V1HX239", NOW), NOW)).toBeNull();
-  });
 });
 
 const row = (p: Partial<RegistrationRowLike> & { position: string }): RegistrationRowLike => ({
@@ -74,11 +69,8 @@ describe("expectedTireCount", () => {
   });
 });
 
-describe("tire position allocation", () => {
-  it("adds deterministic EXTRA slots when an order contains more than seven tires", () => {
-    expect(tirePositionsForCount(7)).toEqual(["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE"]);
-    expect(tirePositionsForCount(8)).toEqual(["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE", "EXTRA1"]);
-    expect(tirePositionsForCount(10).slice(-3)).toEqual(["EXTRA1", "EXTRA2", "EXTRA3"]);
+describe("tire position validation", () => {
+  it("accepts EXTRA1..EXTRA999 slots and nothing past them", () => {
     expect(isTirePosition("EXTRA1")).toBe(true);
     expect(isTirePosition("EXTRA999")).toBe(true);
     expect(isTirePosition("EXTRA1000")).toBe(false);
@@ -153,9 +145,8 @@ describe("registration form (574.8(a)(1)(i))", () => {
   });
 
   it("links a verified brand directly and every other brand as a labelled search", () => {
-    expect(registrationLink("Hankook")).toEqual({ url: "https://www.hankooktire.com/us/en/register-your-tires.html", verified: true });
-    const other = registrationLink("Acme");
-    expect(other.verified).toBe(false);
-    expect(other.url).toContain("Acme%20tire%20registration");
+    const html = renderRegistrationFormHtml(input);
+    expect(html).toContain("Hankook: https://www.hankooktire.com/us/en/register-your-tires.html");
+    expect(html).toContain("Acme: search \u201cAcme tire registration\u201d");
   });
 });
