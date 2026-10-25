@@ -123,14 +123,14 @@ function PersonEditProfileGate(props: PersonEditDrawerProps & { personId: string
               <button
                 type="button"
                 onClick={props.onClose}
-                className="min-h-11 px-3 text-xs text-[var(--text-secondary)]"
+                className="min-w-11 min-h-11 px-3 text-xs text-[var(--text-secondary)]"
               >
                 Close
               </button>
               <button
                 type="button"
                 onClick={() => void fetched.refetch()}
-                className="min-h-11 rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg"
+                className="min-w-11 min-h-11 rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg"
               >
                 Retry
               </button>
@@ -269,7 +269,7 @@ function PersonEditDrawerBody({
   ]);
 
   // PWA-safe two-tap delete. window.confirm() is SILENTLY suppressed in iOS
-  // standalone PWAs (the operator's actual environment) — it returns false so
+  // standalone PWAs (the operator's actual environment): it returns false so
   // the delete never fired. First tap arms (button → "tap to confirm"), second
   // tap within 4s deletes. Soft-delete is reversible (revive via Nick), so a
   // two-tap inline confirm is safe + avoids a broken modal-on-modal.
@@ -438,7 +438,7 @@ function PersonEditDrawerBody({
                   : `delete ${initial?.name ?? "person"}`
               }
               className={cn(
-                "inline-flex items-center gap-1.5 min-h-[44px] px-2 -mx-2 text-[13px] font-medium disabled:opacity-50",
+                "min-w-11 inline-flex items-center gap-1.5 min-h-[44px] px-2 -mx-2 text-[13px] font-medium disabled:opacity-50",
                 confirmingDelete
                   ? "text-rose-300 font-semibold"
                   : "text-rose-300/90 hover:text-rose-300",
@@ -452,7 +452,7 @@ function PersonEditDrawerBody({
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="ml-auto inline-flex items-center min-h-[44px] px-2 text-[13px] font-medium text-fg-tertiary hover:text-fg disabled:opacity-50"
+            className="min-w-11 ml-auto inline-flex items-center min-h-[44px] px-2 text-[13px] font-medium text-fg-tertiary hover:text-fg disabled:opacity-50"
           >
             Cancel
           </button>

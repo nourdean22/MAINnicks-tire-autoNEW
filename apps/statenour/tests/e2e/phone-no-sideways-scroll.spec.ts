@@ -13,7 +13,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // Wave E2 (2026-10-24): /stats and /settings join (census 3A.5 listed both as uncovered).
-const PAGES = ["/system/ui-lab", "/chat", "/brain", "/journal", "/missions", "/stats", "/settings"] as const;
+// Wave F (2026-10-25): /, /system, /people and /photo-improver join (census 3A.5: no phone-scroll check).
+const PAGES = ["/system/ui-lab", "/chat", "/brain", "/journal", "/missions", "/stats", "/settings", "/", "/system", "/people", "/photo-improver"] as const;
 
 async function overflowPx(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

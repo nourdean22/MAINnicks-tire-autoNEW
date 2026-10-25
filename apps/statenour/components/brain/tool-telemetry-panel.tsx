@@ -186,7 +186,7 @@ export function ToolTelemetryPanel() {
           <h2 className="text-[15px] font-semibold text-fg">
             Tool registry & telemetry · {stats.length} tracked
           </h2>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void toolsQuery.refetch()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void toolsQuery.refetch()} />
         </div>
         {problem.length > 0 && (
           <span className="inline-flex items-center gap-1 text-[11px] font-mono text-red-400">
@@ -261,13 +261,13 @@ export function ToolTelemetryPanel() {
             placeholder="Search tools..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-2.5 py-1 text-[16px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+            className="min-h-11 w-full pl-8 pr-2.5 py-1 text-[16px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
           />
         </div>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-2 py-1 text-[11px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-accent sm:w-48"
+          className="min-h-11 px-2 py-1 text-[11px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-accent sm:w-48"
         >
           <option value="all">All Categories</option>
           {categories.map((cat) => (

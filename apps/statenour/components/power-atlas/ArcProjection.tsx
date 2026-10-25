@@ -11,7 +11,7 @@
  * subsequent visits without re-billing the AI.
  *
  * No emojis. Serif heading. Italic recommendation pull-quote. Quiet
- * motion — opacity-50 while pending.
+ * motion: opacity-50 while pending.
  */
 
 import { useState } from "react";
@@ -61,7 +61,7 @@ export default function ArcProjection({
             }
           }}
           disabled={mutation.isPending}
-          className="text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
+          className="min-h-11 min-w-11 text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
         >
           {mutation.isPending
             ? "projecting…"

@@ -285,7 +285,7 @@ function PickEditor({
           type="button"
           onClick={handleSend}
           disabled={!draft.trim() || sending || draftLoading}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg active:scale-95 transition-transform disabled:opacity-50"
+          className="min-w-11 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg active:scale-95 transition-transform disabled:opacity-50"
         >
           {sending ? (
             <Loader2 size={12} className="animate-spin" strokeWidth={2} />
@@ -299,7 +299,7 @@ function PickEditor({
           onClick={handleRegen}
           disabled={draftLoading || sending}
           aria-label="regenerate draft"
-          className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform disabled:opacity-50"
+          className="min-w-11 inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform disabled:opacity-50"
         >
           <RefreshCw size={11} strokeWidth={1.75} />
           Different angle
@@ -308,7 +308,7 @@ function PickEditor({
           type="button"
           onClick={onDismiss}
           aria-label="skip pick"
-          className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-rose-300 active:scale-95 transition-transform"
+          className="min-w-11 inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-rose-300 active:scale-95 transition-transform"
         >
           <X size={11} strokeWidth={1.75} />
           Skip
@@ -317,7 +317,7 @@ function PickEditor({
           <button
             type="button"
             onClick={onNext}
-            className="ml-auto inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform"
+            className="min-w-11 ml-auto inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform"
           >
             Next pick →
           </button>

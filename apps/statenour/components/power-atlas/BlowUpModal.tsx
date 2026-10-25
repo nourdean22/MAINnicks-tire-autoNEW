@@ -6,7 +6,7 @@
  * Nuclear blow-up confirmation modal. Requires a reason (min 5 chars)
  * before flipping `status="blown_up"`. The reason is stored forever on
  * `PersonProfile.blowUpReason` and revealed if the operator ever tries
- * to revive — a hedge against impulsive flips.
+ * to revive, a hedge against impulsive flips.
  *
  * Uses the existing `<Dialog>` primitive. Wires through to
  * `trpc.task.flipPersonStatus` mutation.
@@ -98,7 +98,7 @@ export default function BlowUpModal({
         )}
 
         <DialogFooter>
-          <Button
+          <Button className="min-h-11 min-w-11"
             variant="ghost"
             onClick={() => {
               setReason("");
@@ -108,7 +108,7 @@ export default function BlowUpModal({
           >
             Cancel
           </Button>
-          <Button
+          <Button className="min-h-11 min-w-11"
             variant="destructive"
             onClick={() =>
               flipStatus.mutate({

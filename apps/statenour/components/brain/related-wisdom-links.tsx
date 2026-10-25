@@ -105,7 +105,7 @@ export function RelatedWisdomRow({ r }: { r: RelatedWisdom }) {
         // The wisdom tab's own ?focus= effect scrolls the card into
         // view, so suppress Next's scroll-to-top or the two fight.
         scroll={false}
-        className="flex gap-2 text-[11px] leading-snug rounded-control px-1 -mx-1 py-1 hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        className="min-h-11 flex gap-2 text-[11px] leading-snug rounded-control px-1 -mx-1 py-1 hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
       >
         <span className="font-mono text-[var(--text-tertiary)] text-[11px] w-16 shrink-0 pt-0.5">
           {wisdomOriginMeta(r.origin).badge}
@@ -189,7 +189,7 @@ export function RelatedWisdomLinks({ wisdomId }: { wisdomId: string }) {
         // v10.0.419 · py-2 on mobile gives a 36-40px tap zone (text + padding);
         // py-0 on desktop keeps it inline-tight. min-w expansion ensures the
         // hit target isn't just the 6 letters of "see also".
-        className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg transition-colors py-2 sm:py-0 px-1 -mx-1"
+        className="min-h-11 min-w-11 text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg transition-colors py-2 sm:py-0 px-1 -mx-1"
         aria-expanded={expanded}
       >
         {loading

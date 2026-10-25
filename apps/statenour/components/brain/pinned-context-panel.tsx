@@ -428,12 +428,12 @@ export function PinnedContextPanel() {
           <span className="text-[11px] text-[var(--text-tertiary)]">
             always loaded · confidence 1.0
           </span>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
         </div>
         <button
           onClick={() => setAddOpen((o) => !o)}
           className={cn(
-            "inline-flex min-h-[36px] items-center gap-1 px-3 py-1 rounded-control border text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+            "min-h-11 min-w-11 inline-flex items-center gap-1 px-3 py-1 rounded-control border text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
             addOpen
               ? "border-accent bg-surface-interactive text-fg"
               : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
@@ -466,7 +466,7 @@ export function PinnedContextPanel() {
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="optional label (e.g. 'current goal')"
-              className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
+              className="min-h-11 flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -485,7 +485,7 @@ export function PinnedContextPanel() {
                   setNewContent("");
                   setNewLabel("");
                 }}
-                className="px-2 py-1 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                className="min-h-11 min-w-11 px-2 py-1 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 Cancel
               </button>
@@ -569,7 +569,7 @@ export function PinnedContextPanel() {
                       rows={Math.min(6, Math.max(2, editContent.split("\n").length + 1))}
                       title="Edit pin content"
                       placeholder="Edit pin content..."
-                      className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[16px] text-[var(--text-primary)] outline-none focus:border-accent resize-none"
+                      className="min-h-11 w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[16px] text-[var(--text-primary)] outline-none focus:border-accent resize-none"
                     />
                     <div className="flex items-center gap-2">
                       <Tag size={10} className="text-[var(--text-tertiary)] shrink-0" />
@@ -577,7 +577,7 @@ export function PinnedContextPanel() {
                         value={editLabel}
                         onChange={(e) => setEditLabel(e.target.value)}
                         placeholder="label (optional)"
-                        className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
+                        className="min-h-11 flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
                       />
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)]">
@@ -592,7 +592,7 @@ export function PinnedContextPanel() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={cancelEdit}
-                          className="p-1 rounded-control hover:bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                          className="min-h-11 min-w-11 p-1 rounded-control hover:bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                           title="cancel"
                         >
                           <X size={12} />
@@ -600,7 +600,7 @@ export function PinnedContextPanel() {
                         <button
                           onClick={() => saveEdit(pin)}
                           disabled={busyId === pin.id}
-                          className="p-1 rounded-control bg-surface-interactive text-fg-secondary hover:bg-surface-hover disabled:opacity-40 transition-colors"
+                          className="min-h-11 min-w-11 p-1 rounded-control bg-surface-interactive text-fg-secondary hover:bg-surface-hover disabled:opacity-40 transition-colors"
                           title="save"
                         >
                           {busyId === pin.id ? (
@@ -668,7 +668,7 @@ export function PinnedContextPanel() {
                         <button
                           onClick={() => reinforce(pin)}
                           disabled={busyId === pin.id}
-                          className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-fg hover:bg-surface-hover disabled:opacity-40 transition-colors touch-manipulation"
+                          className="min-h-11 min-w-11 p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-fg hover:bg-surface-hover disabled:opacity-40 transition-colors touch-manipulation"
                           title="still relevant: reset staleness"
                         >
                           {busyId === pin.id ? (
@@ -679,7 +679,7 @@ export function PinnedContextPanel() {
                         </button>
                         <button
                           onClick={() => startEdit(pin)}
-                          className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors touch-manipulation"
+                          className="min-h-11 min-w-11 p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors touch-manipulation"
                           title="edit"
                         >
                           <Pencil size={12} />
@@ -687,7 +687,7 @@ export function PinnedContextPanel() {
                         <button
                           onClick={() => unpin(pin.id)}
                           disabled={busyId === pin.id}
-                          className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors touch-manipulation"
+                          className="min-h-11 min-w-11 p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors touch-manipulation"
                           title="unpin"
                         >
                           <PinOff size={12} />

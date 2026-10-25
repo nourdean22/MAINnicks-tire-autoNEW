@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /relationships — Power Atlas surface (Phase 1 daily-driver).
+ * /relationships: Power Atlas surface (Phase 1 daily-driver).
  *
  * Pre-Phase-1 this was a flat list. Phase 1 extends it into the canonical
  * Power Atlas bento: the existing roll-up + sorted person list still
@@ -127,7 +127,7 @@ function relativeTime(daysSince: number | null): string {
 
 /**
  * 2026-09-15 · `useSearchParams` (the `?inspect=person:` selection) needs a
- * Suspense boundary for `next build` — the stats / logs / schema-history
+ * Suspense boundary for `next build`: the stats / logs / schema-history
  * precedent. The inner component is the page as it always was.
  */
 export default function RelationshipsPage() {
@@ -150,7 +150,7 @@ function RelationshipsPageInner() {
   // (`?inspect=person:<id>`): Back/Forward, reload, a ⌘K hit and a chat
   // receipt all land on the dossier, and there is no second copy of the
   // selection to drift out of sync (the old useState was that copy). This
-  // page OWNS the `person` kind — the global inspector host stays silent here
+  // page OWNS the `person` kind; the global inspector host stays silent here
   // and this panel answers the URL.
   useInspectorOwnership(PERSON_KIND);
   const { openInspector, closeInspector } = useInspector();
@@ -165,7 +165,7 @@ function RelationshipsPageInner() {
     },
     [openInspector, closeInspector],
   );
-  // A selected person must be VISIBLE — cap lifted — the way revealPerson
+  // A selected person must be VISIBLE (cap lifted) the way revealPerson
   // has always done it; derived, so a URL arrival needs no effect. The
   // operator can still re-cap the list while a person is selected: that
   // records the person as dismissed and the derivation yields.
@@ -174,7 +174,7 @@ function RelationshipsPageInner() {
   const showAll = showAllState || revealForSelection;
   // 2026-09-16 · Visible Transformation: the people list is always visible
   // (the collapsed-by-default "browse all" <details> of Wave AS is gone), so
-  // a reveal now only lifts the cap and selects — no `browseOpen` to set.
+  // a reveal now only lifts the cap and selects; no `browseOpen` to set.
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logModalDirection, setLogModalDirection] = useState<
     "deposit" | "withdraw"
@@ -204,14 +204,14 @@ function RelationshipsPageInner() {
   // `showAll` (rows past VISIBLE_CAP are sliced out entirely) and
   // `selectedPersonId` (a third, `browseOpen`, gated a collapsed <details>
   // until 2026-09-16). Setting one without the other
-  // silently no-ops — that is the failure the hash-anchor comment above
+  // silently no-ops, and that is the failure the hash-anchor comment above
   // describes, and it had been hand-written at SIX call sites, one of which
   // documented itself as "Mirrors the hash-anchor useEffect above" rather
   // than sharing it. Naming the intent removes the duplication and makes the
   // invariant enforceable in one place instead of six.
   //
   // Deliberately NOT a useReducer. The 12 useState calls here are a real
-  // consolidation candidate, but the duplication was never the state SHAPE —
+  // consolidation candidate, but the duplication was never the state SHAPE:
   // it was these two unnamed transitions. Two named callbacks fix the actual
   // defect with zero behavior change; rewriting the state model of a
   // 1,002-line page carries regression risk that nothing observed justifies.
@@ -291,7 +291,7 @@ function RelationshipsPageInner() {
       cancelAnimationFrame(r1);
       cancelAnimationFrame(r2);
     };
-    // `revealPerson` is useCallback([]) — stable for the component's life, so
+    // `revealPerson` is useCallback([]), stable for the component's life, so
     // listing it satisfies exhaustive-deps without changing when this re-fires.
   }, [data, revealPerson]); // re-fire when data lands · row may not exist on first render
 
@@ -314,8 +314,8 @@ function RelationshipsPageInner() {
   // immediate /api/people refetch which now correctly filters deleted.
   const softDeleteFromRow = trpc.task.softDeletePerson.useMutation();
   // PWA-safe delete confirm. window.confirm() is SILENTLY suppressed in iOS
-  // standalone PWAs (the operator's actual environment — manifest display:
-  // standalone) — it returns false and the delete never fires. Two-tap inline
+  // standalone PWAs (the operator's actual environment, manifest display:
+  // standalone): it returns false and the delete never fires. Two-tap inline
   // confirm instead: first tap arms (button → "sure?"), second tap within 4s
   // deletes; auto-disarms so a stray arm doesn't linger.
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -370,7 +370,7 @@ function RelationshipsPageInner() {
           >
             + Add person
           </button>
-          <FreshnessChip
+          <FreshnessChip className="min-h-11"
             lastFetchedAt={data?.generatedAt}
             source="people-intelligence engine"
             onReload={reload}
@@ -384,7 +384,7 @@ function RelationshipsPageInner() {
        *  default · the operator opens it only when researching a
        *  specific person. */}
       {/* NEEDS ATTENTION (2026-09-16 · Visible Transformation) · one verdict
-          from the totals, then the counts as a mono line — each re-sorts the
+          from the totals, then the counts as a mono line; each re-sorts the
           list below. Replaces the four stat tiles. */}
       {data && (
         <section
@@ -405,23 +405,23 @@ function RelationshipsPageInner() {
                 : "No one is going cold."}
           </p>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-0 font-mono text-[12px] text-fg-tertiary">
-            <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
+            <button type="button" onClick={() => revealBrowse()} className="min-w-11 min-h-[44px] transition-colors hover:text-fg">
               <span className="text-fg tabular-nums">{data.totals.total}</span> People
             </button>
-            <button type="button" onClick={() => revealBrowse("neglect")} className="min-h-[44px] transition-colors hover:text-fg">
+            <button type="button" onClick={() => revealBrowse("neglect")} className="min-w-11 min-h-[44px] transition-colors hover:text-fg">
               <span className={cn("tabular-nums", data.totals.neglected > 0 ? "text-amber-300" : "text-fg")}>{data.totals.neglected}</span> Neglected
             </button>
-            <button type="button" onClick={() => revealBrowse("trust")} className="min-h-[44px] transition-colors hover:text-fg">
+            <button type="button" onClick={() => revealBrowse("trust")} className="min-w-11 min-h-[44px] transition-colors hover:text-fg">
               <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> High trust
             </button>
-            <button type="button" aria-pressed={needsInfoOnly} onClick={() => revealBrowse(undefined, true)} className="min-h-[44px] transition-colors hover:text-fg">
+            <button type="button" aria-pressed={needsInfoOnly} onClick={() => revealBrowse(undefined, true)} className="min-w-11 min-h-[44px] transition-colors hover:text-fg">
               <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> Needs info
             </button>
           </div>
           {needsInfoOnly && (
             <p role="status" className="mt-2 flex flex-wrap items-center gap-x-3 text-[13px] text-fg-secondary">
               Showing the {data.totals.sparse} {data.totals.sparse === 1 ? "person" : "people"} with no leverage notes or an unknown role.
-              <button type="button" onClick={() => revealBrowse()} className="inline-flex min-h-[44px] items-center font-medium text-fg underline-offset-4 hover:underline">
+              <button type="button" onClick={() => revealBrowse()} className="min-w-11 inline-flex min-h-[44px] items-center font-medium text-fg underline-offset-4 hover:underline">
                 Show everyone
               </button>
             </p>
@@ -460,8 +460,8 @@ function RelationshipsPageInner() {
 
       {/* ═══ THE PEOPLE LIST · always visible (2026-09-16) ═══════════════
        *  Until the Visible Transformation this was a <details> collapsed by
-       *  default ("browse all people"); the list is the page's spine now —
-       *  hairline rows, the selected person marked by a gold rule — and the
+       *  default ("browse all people"); the list is the page's spine now:
+       *  hairline rows, the selected person marked by a gold rule, and the
        *  Person Workspace opens beneath it. */}
       <section aria-labelledby="people-list-heading" className="space-y-4">
 
@@ -666,7 +666,7 @@ function RelationshipsPageInner() {
                     >
                       {Math.round(p.trustScore * 100)}
                     </div>
-                    {/* Tier in text, not color alone (WCAG 1.4.1) — also a
+                    {/* Tier in text, not color alone (WCAG 1.4.1), also a
                         faster at-a-glance read for the operator. */}
                     <div className="mt-0.5 font-mono text-[11px] text-fg-tertiary">
                       {p.trustScore >= 0.7
@@ -692,7 +692,7 @@ function RelationshipsPageInner() {
                 if (showAll && selectedPersonId) setRevealDismissedFor(selectedPersonId);
                 setShowAll(!showAll);
               }}
-              className="min-h-[44px] text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+              className="min-w-11 min-h-[44px] text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
             >
               {showAll
                 ? `show fewer (cap ${VISIBLE_CAP})`
@@ -951,7 +951,7 @@ function DetailPanel({
           />
           {/* Contextual Greene picks · the AI per-day ranked picks. The
            *  legacy STATIC applicableLaws list (GreeneLawSidebar) was
-           *  removed — it duplicated this panel's Greene block. */}
+           *  removed; it duplicated this panel's Greene block. */}
           <ContextualGreeneSidebar key={person.id} personId={person.id} />
 
           {/* Quick actions */}
@@ -962,7 +962,7 @@ function DetailPanel({
               Actions
             </h3>
             <div className="grid grid-cols-2 gap-2">
-              <Button
+              <Button className="min-h-11 min-w-11"
                 variant="outline"
                 size="sm"
                 onClick={() => onOpenLog("deposit")}
@@ -970,7 +970,7 @@ function DetailPanel({
               >
                 + deposit
               </Button>
-              <Button
+              <Button className="min-h-11 min-w-11"
                 variant="outline"
                 size="sm"
                 onClick={() => onOpenLog("withdraw")}
@@ -983,7 +983,7 @@ function DetailPanel({
             <Button
               variant="destructive"
               size="sm"
-              className="w-full"
+              className="min-h-11 w-full"
               onClick={onOpenBlowUp}
               disabled={blownUp}
             >
@@ -1001,7 +1001,7 @@ function DetailPanel({
       <details className="rounded-surface border border-edge-default bg-workspace">
         <summary
           aria-label="Deeper signals"
-          className="px-3 py-2.5 cursor-pointer text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary list-none"
+          className="min-h-11 px-3 py-2.5 cursor-pointer text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary list-none"
         >
           <span aria-hidden="true">▸ </span>deeper signals
         </summary>
@@ -1030,7 +1030,7 @@ function DetailPanel({
  * and PowerPlaysHistory (markPlayOutcome). If ANY of them throws during
  * mount (e.g. a tRPC procedure not yet deployed, or a JSON.stringify on
  * an exotic value, or a tag library version mismatch in prod), the React
- * tree unmounts the whole DetailPanel SILENTLY in production — leaving
+ * tree unmounts the whole DetailPanel SILENTLY in production, leaving
  * the operator clicking rows with no panel and no console errors.
  *
  * This boundary turns that silent failure into a visible diagnostic.

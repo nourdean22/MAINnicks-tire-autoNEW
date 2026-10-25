@@ -1,7 +1,7 @@
 /**
  * UI v3 ratchets (Wave 0, 2026-10-15, docs/design/ui-v3/PLAN.md).
  *
- * Six UI-grammar counters over the rendered source, with a per-file baseline in
+ * Eight UI-grammar counters over the rendered source (six from Wave 0, two from bdnick wave F), with a per-file baseline in
  * ui-v3-ratchets.baseline.json. W0 changes no class name anywhere: the baseline RECORDS today's
  * violations, and the test fails when a file goes above its number, when a file the baseline has
  * never seen has any, when a total rises, or when the baseline names a file the scan no longer
@@ -12,8 +12,8 @@
  * render UI text: lib/floating-home/smart-now.ts and lib/mastery/config.ts. The rest of lib/ (AI
  * prompts, logs) is noise and is not scanned. .d.ts, *.test.*, *.spec.*, __tests__, node_modules and
  * dot-directories are skipped. CSS is read for uppercase (text-transform and @apply), transitionAll,
- * slowDuration (inside @apply), emDash and emoji (outside comments, so content strings count); never
- * smallInput. A counter a file type cannot hold simply scores 0 there.
+ * slowDuration and offGrammarHue (inside @apply), emDash and emoji (outside comments, so content strings count);
+ * never smallInput or glassCard. A counter a file type cannot hold simply scores 0 there.
  *
  *   uppercase      the `uppercase` class token (any variant prefix) in a string or template literal,
  *                  as an identifier or shorthand key of an object passed to cn/clsx/cx/classNames/
@@ -42,6 +42,29 @@
  *                  arbitrary px, rem, em or % size) or whose inline style sets fontSize under 16px.
  *                  iOS Safari zooms the page on focus under 16px. Checkbox, radio, range, file, hidden,
  *                  color and button types are exempt. A className held in a same-file const is read.
+ *   offGrammarHue  (wave F, 2026-10-25) a Tailwind colour utility token whose hue is outside the status grammar,
+ *                  in a string or template literal (JSX attribute strings and quoted object keys included) and in
+ *                  CSS @apply. Utilities: text-, bg-, border- (and its -x/-y/-t/-r/-b/-l/-s/-e sides), ring-,
+ *                  ring-offset-, inset-ring-, shadow-, inset-shadow-, drop-shadow-, text-shadow-, fill-,
+ *                  stroke-, from-, via-, to-, divide-, outline-, decoration-, accent-, caret-, placeholder-,
+ *                  then a hue, then a palette shade (50, 100 to 900, 950), any variant prefix, opacity or !.
+ *                  ALLOWED, the status grammar: rose, red, amber, emerald, sky (tokens.css:286-301, the @theme
+ *                  severity tiers; SYSTEM.md:58 "Status hues are unchanged"; SYSTEM.md:139-146 section 9), the
+ *                  neutral scales slate, gray, zinc, neutral, stone, mauve, olive, mist, taupe, and every token
+ *                  utility (text-fg, bg-content, text-white, ...). COUNTED: purple, violet, indigo, fuchsia, pink,
+ *                  blue, cyan, teal, green, lime, yellow, orange. The three lists partition the palettes in
+ *                  node_modules/tailwindcss/theme.css, and a test fails when Tailwind ships a palette none
+ *                  of them names. SYSTEM.md:31 also calls `text-zinc-400` off-grammar; neutrals are a token
+ *                  question, not a hue one, and are not counted here.
+ *   glassCard      (wave F) a `<GlassCard>` element (components/ui/glass-card.tsx) that renders the solid glass
+ *                  panel: no `ruled` prop, or `ruled` set to anything but bare `ruled` or `ruled={true}`. The
+ *                  ruled form (glass-card.tsx:8-11: a left rule, no glass, no radius) is the allowed one.
+ *
+ * Wave F counters do not read: arbitrary values (`bg-[#8b5cf6]`, `text-[var(--color-purple-500)]`), CSS
+ * variables (`bg-(--color-blue-500)`, `var(--color-purple-500)` in CSS), raw CSS colours, a hue without a
+ * shade (`text-purple` emits nothing), a hue built by interpolation (`text-${hue}-500`), JSX text (prose that
+ * names a class is not a class), the `neural-glass` class used without GlassCard, a `ruled` carried only by a
+ * spread (counted as solid), and GlassCard created through React.createElement or under another name.
  *
  * HOW THE BASELINE MOVES. It never tightens by itself: slack left in it lets a fixed violation be
  * re-added unseen, so every wave PR that removes violations runs UPDATE_RATCHET=1 and commits the lowered
@@ -101,12 +124,12 @@ const BASELINE_PATH = join(__dirname, "ui-v3-ratchets.baseline.json");
 
 /* ----------------------------- the instrument ----------------------------- */
 
-export const COUNTERS = ["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput"] as const;
+export const COUNTERS = ["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput", "offGrammarHue", "glassCard"] as const;
 export type Counter = (typeof COUNTERS)[number];
 export type Counts = Record<Counter, number>;
 /** App-root-relative POSIX path -> counts. */
 export type Scan = Record<string, Counts>;
-export const zero = (): Counts => ({ uppercase: 0, emDash: 0, emoji: 0, transitionAll: 0, slowDuration: 0, smallInput: 0 });
+export const zero = (): Counts => ({ uppercase: 0, emDash: 0, emoji: 0, transitionAll: 0, slowDuration: 0, smallInput: 0, offGrammarHue: 0, glassCard: 0 });
 
 const EM_DASH = String.fromCharCode(0x2014);
 const ZWJ = 0x200d;
@@ -136,6 +159,18 @@ const CSS_UPPERCASE_DECL = /(?<![\w-])text-transform\s*:\s*uppercase(?![\w-])/g;
 const CSS_APPLY = /@apply\s+([^;}]*)/g;
 const SLOW_MS = 300;
 const PHONE_FLOOR_PX = 16;
+
+/** The status grammar (tokens.css:286-301, SYSTEM.md:58 and section 9 at :139-146). */
+export const GRAMMAR_HUES = ["rose", "red", "amber", "emerald", "sky"] as const;
+/** Tailwind's neutral scales (node_modules/tailwindcss/theme.css): greys, not hues. */
+export const NEUTRAL_HUES = ["slate", "gray", "zinc", "neutral", "stone", "mauve", "olive", "mist", "taupe"] as const;
+/** Every other palette Tailwind ships: what offGrammarHue counts. */
+export const OFF_GRAMMAR_HUES = ["purple", "violet", "indigo", "fuchsia", "pink", "blue", "cyan", "teal", "green", "lime", "yellow", "orange"] as const;
+/** The Tailwind colour utilities, longest first where one is a prefix of another (text-shadow before text). */
+const COLOR_UTILITY =
+  "(?:text-shadow|text|bg|border(?:-[xytrblse])?|inset-ring|ring(?:-offset)?|inset-shadow|drop-shadow|shadow|fill|stroke|from|via|to|divide|outline|decoration|accent|caret|placeholder)";
+/** One token: utility, off-grammar hue, a palette shade. Variants (`hover:`) and `!` sit before the lookbehind's reach. */
+const OFF_GRAMMAR = new RegExp(`(?<![\\w-])${COLOR_UTILITY}-(?:${OFF_GRAMMAR_HUES.join("|")})-(?:50|[1-9]00|950)(?![\\w-])`, "g");
 
 const INPUT_TAG = /^(?:input|textarea)$|(?:^|\.)[A-Za-z0-9_]*(?:Input|Textarea|TextArea)$/;
 const NON_TEXT_INPUT_TYPES = new Set(["checkbox", "radio", "range", "file", "hidden", "color", "submit", "button", "reset", "image"]);
@@ -333,6 +368,18 @@ function isSmallInput(el: ts.JsxOpeningLikeElement, consts: Map<string, ts.Node>
   return (cls ? smallBaseSize(classPieces(cls, consts).join(" ")) : false) || styleFontSmall(attr("style"));
 }
 
+/**
+ * `<GlassCard>` rendering the solid glass panel: no `ruled` attribute, or one whose value is anything but
+ * bare `ruled` or `ruled={true}` (`ruled={false}`, `ruled={dense}`, and a spread that might carry it).
+ */
+function isSolidGlassCard(el: ts.JsxOpeningLikeElement, sf: ts.SourceFile): boolean {
+  if (el.tagName.getText(sf) !== "GlassCard") return false;
+  const ruled = el.attributes.properties.find((p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && ts.isIdentifier(p.name) && p.name.text === "ruled");
+  if (!ruled) return true;
+  const v = ruled.initializer;
+  return !(v === undefined || (ts.isJsxExpression(v) && v.expression?.kind === ts.SyntaxKind.TrueKeyword));
+}
+
 /** `x.style.transition = ...` or `x.style["transition"] = ...`: the key and whether the object is a `.style`. */
 function styleAssignmentKey(left: ts.Expression): string {
   const onStyle = (obj: ts.Expression) => ts.isPropertyAccessExpression(obj) && obj.name.text === "style";
@@ -357,6 +404,7 @@ export function scanSource(text: string, tsx: boolean): Counts {
       // JSX decodes entities in attribute strings and text, a plain JS string shows them literally.
       const rendered = ts.isStringLiteral(n) && ts.isJsxAttribute(n.parent) ? decodeEntities(s) : s;
       c.uppercase += count(UPPERCASE, s);
+      c.offGrammarHue += count(OFF_GRAMMAR, s);
       c.transitionAll += countTransitionAll(s);
       c.slowDuration += countSlowDurations(s);
       c.emDash += countChar(rendered, EM_DASH);
@@ -382,6 +430,7 @@ export function scanSource(text: string, tsx: boolean): Counts {
       if (ts.isStringLiteralLike(prop) && TRANSITION_PROP_NAME.test(prop.text) && listsAll(transitionValue(value, consts))) c.transitionAll++;
     } else if (ts.isJsxOpeningLikeElement(n)) {
       if (isSmallInput(n, consts, sf)) c.smallInput++;
+      if (isSolidGlassCard(n, sf)) c.glassCard++;
     }
     ts.forEachChild(n, visit);
   })(sf);
@@ -401,6 +450,7 @@ export function scanCss(text: string): Counts {
   for (const m of bare.matchAll(CSS_APPLY)) {
     c.uppercase += count(UPPERCASE, m[1]);
     c.slowDuration += countSlowDurations(m[1]);
+    c.offGrammarHue += count(OFF_GRAMMAR, m[1]);
   }
   return c;
 }
@@ -850,6 +900,60 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
       'export const cls = "uppercase";', // uppercase 1: a string, which TSX mode would have swallowed as JSX text
     ].join("\n"),
   },
+  "components/planted-hue.tsx": {
+    counts: { offGrammarHue: 26 },
+    src: [
+      'export const a = () => <p className="text-purple-300">a</p>;', // 1 a JSX attribute string
+      'export const b = () => <p className={cn("x", on && "hover:bg-violet-500/20")}>b</p>;', // 2 a variant and an opacity
+      "export const c = `border-indigo-400 ${x}`;", // 3 a template head
+      'export const d = cn({ "ring-fuchsia-500": on });', // 4 a quoted key is a string
+      'export const e = "bg-gradient-to-r from-pink-500 via-blue-500 to-cyan-500";', // 5, 6, 7 the gradient stops
+      'export const f = "fill-teal-400 stroke-green-600";', // 8, 9
+      'export const g = "divide-lime-200 outline-yellow-300 decoration-orange-400";', // 10, 11, 12
+      'export const h = "shadow-purple-500/40 accent-violet-500 caret-indigo-300 placeholder-blue-400";', // 13 to 16
+      'export const i = "border-t-cyan-500 border-x-pink-300 ring-offset-teal-200";', // 17, 18, 19 sides and the ring offset
+      'export const j = "!text-green-950 md:bg-lime-50 text-orange-300!";', // 20, 21, 22 important marks and a breakpoint
+      'export const k = "inset-shadow-blue-500 inset-ring-purple-400 drop-shadow-pink-300 text-shadow-cyan-200";', // 23 to 26
+      // Near misses: 0.
+      'export const n1 = "text-sky-300 bg-rose-500/10 border-amber-400 text-emerald-300 ring-red-400";', // the status grammar
+      'export const n2 = "text-zinc-400 bg-slate-900 border-stone-700 text-neutral-500 bg-gray-800 text-mauve-300 bg-olive-500 text-mist-200 bg-taupe-700";', // neutral scales
+      'export const n3 = "bg-[#8b5cf6] text-[var(--color-purple-500)] bg-(--color-blue-500) text-[color:theme(colors.pink.500)]";', // arbitrary values, variables
+      'export const n4 = "text-purple bg-blue purple-500 text-purple-500x my-text-blue-500 text-purplish-500 text-purple-1000";', // no shade, no utility, boundaries
+      'export const n5 = "text-primary bg-content border-edge-default text-white bg-black/40 text-accent";', // tokens
+      "export const n6 = () => <p>text-purple-500 in prose</p>;", // JSX text is not a class string
+      "export const n7 = `text-${hue}-500`;", // an interpolated hue is not read
+      "// text-purple-500 in a comment",
+      "/* bg-blue-500 in a block */",
+      'export const n8 = () => <p className="x">{/* text-pink-300 */}ok</p>;',
+    ].join("\n"),
+  },
+  "app/styles/planted-hue.css": {
+    counts: { offGrammarHue: 2 },
+    src: [
+      ".a { @apply text-purple-300 bg-blue-500/10; }", // 1, 2
+      ".b { color: var(--color-purple-500); }", // 0 a CSS variable
+      "/* .c { @apply text-pink-300; } */", // 0
+      ".d { @apply text-sky-300 border-zinc-700; }", // 0
+    ].join("\n"),
+  },
+  "components/planted-glass.tsx": {
+    counts: { glassCard: 6 },
+    src: [
+      "export const a = () => <GlassCard>a</GlassCard>;", // 1 the solid glass panel
+      'export const b = () => <GlassCard className="p-4" />;', // 2 self-closing
+      "export const c = () => <GlassCard ruled={false}>c</GlassCard>;", // 3
+      "export const d = () => <GlassCard ruled={dense}>d</GlassCard>;", // 4 a value that can be false
+      "export const e = () => <GlassCard {...rest}>e</GlassCard>;", // 5 a spread is not read
+      'export const f = () => <GlassCard as="a" href="/x">f</GlassCard>;', // 6 the link form
+      "export const g = () => <GlassCard ruled>g</GlassCard>;", // 0 the ruled form
+      'export const h = () => <GlassCard ruled={true} className="x">h</GlassCard>;', // 0
+      'export const i = () => <GlassCard className="p-4" ruled />;', // 0 attribute order does not matter
+      "export const j = () => <GlassCardHeader />;", // 0 another component
+      "export const k = () => <Card>k</Card>;", // 0
+      'export const l = "<GlassCard>";', // 0 a string is not an element
+      "export const m = () => <p>{/* <GlassCard> */}ok</p>;", // 0 a comment
+    ].join("\n"),
+  },
   "lib/mastery/config.ts": { counts: { emoji: 1 }, src: 'export const icon = "<GRIN>";' },
   "lib/floating-home/smart-now.ts": { counts: { emDash: 1 }, src: 'export const line = "a<D>b";' },
 };
@@ -857,6 +961,8 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
 const CLEAN: Record<string, string> = {
   "components/clean.tsx": [
     'export const a = () => <p className="font-mono normal-case tracking-wide text-base transition-colors duration-300">clean</p>;',
+    // The allowed forms of the two wave F counters: a grammar hue, a neutral scale, a token, a ruled GlassCard.
+    'export const g = () => <GlassCard ruled className="text-sky-300 bg-rose-500/10 border-l-emerald-400 text-zinc-400 text-fg">ok</GlassCard>;',
     'export const b = () => <input className="w-full text-base md:text-sm" />;',
     "export const c = () => <p>done <CHECK> pending <CIRCLE> warn ! removed <TIMES> unknown ?</p>;",
     "export const d = 'a, b: c (d)';",
@@ -864,14 +970,14 @@ const CLEAN: Record<string, string> = {
     "export const f = 'digits 123, hash #, star *, one 1';", // a bare digit is not a keycap
   ].join("\n"),
   "components/comments-only.tsx": [
-    "// uppercase <D> <GRIN> transition-all duration-500",
-    "/* uppercase <D> <GRIN> transition: all duration-[900ms] */",
-    "export const a = () => <p>{/* uppercase <D> <GRIN> transition-all duration-700 */}ok</p>;",
+    "// uppercase <D> <GRIN> transition-all duration-500 text-purple-500 <GlassCard>",
+    "/* uppercase <D> <GRIN> transition: all duration-[900ms] bg-blue-500 <GlassCard /> */",
+    "export const a = () => <p>{/* uppercase <D> <GRIN> transition-all duration-700 text-pink-300 <GlassCard> */}ok</p>;",
   ].join("\n"),
 };
 
 const NOT_SCANNED: Record<string, string> = {
-  "lib/not-a-source-root.tsx": 'export const a = () => <p className="uppercase transition-all">x<D>y</p>;',
+  "lib/not-a-source-root.tsx": 'export const a = () => <GlassCard><p className="uppercase transition-all text-purple-500">x<D>y</p></GlassCard>;',
   "lib/ai/prompt.ts": "export const a = 'x<D>y <GRIN> uppercase';",
   "lib/floating-home/other.ts": "export const a = 'x<D>y <GRIN>';",
   "scripts/tool.ts": "export const a = 'x<D>y <GRIN>';",
@@ -896,8 +1002,8 @@ const withZeros = (counts: Partial<Counts>): Counts => ({ ...zero(), ...counts }
 describe("the instrument: every counter sees its planted violation (positive controls)", () => {
   const tree = () => makeTree({ ...plantedFiles(), ...CLEAN, ...NOT_SCANNED });
 
-  it("lists exactly six counters", () => {
-    expect([...COUNTERS]).toEqual(["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput"]);
+  it("lists exactly eight counters", () => {
+    expect([...COUNTERS]).toEqual(["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput", "offGrammarHue", "glassCard"]);
   });
 
   for (const [rel, planted] of Object.entries(PLANTED)) {
@@ -918,7 +1024,7 @@ describe("the instrument: every counter sees its planted violation (positive con
     const expected = zero();
     for (const p of Object.values(PLANTED)) for (const k of COUNTERS) expected[k] += p.counts[k] ?? 0;
     expect(sumTotals(scanTree(tree()))).toEqual(expected);
-    expect(expected).toEqual({ uppercase: 15, emDash: 18, emoji: 15, transitionAll: 39, slowDuration: 7, smallInput: 17 });
+    expect(expected).toEqual({ uppercase: 15, emDash: 18, emoji: 15, transitionAll: 39, slowDuration: 7, smallInput: 17, offGrammarHue: 28, glassCard: 6 });
   });
 });
 
@@ -1118,6 +1224,31 @@ describe("scanner edge cases that decide whether a zero can be trusted", () => {
     expect(scanCss(".a { @apply transition-all; }").transitionAll).toBe(1);
   });
 
+  it("offGrammarHue: the allowed form scores 0 and the same class with an off-grammar hue scores 1 (paired controls)", () => {
+    const n = (cls: string) => scanTsx(`export const a = () => <p className="${cls}" />;`).offGrammarHue;
+    for (const hue of [...GRAMMAR_HUES, ...NEUTRAL_HUES]) expect(n(`text-${hue}-300`), hue).toBe(0);
+    for (const hue of OFF_GRAMMAR_HUES) expect(n(`text-${hue}-300`), hue).toBe(1);
+    expect(n("text-sky-300")).toBe(0); // sky IS in the grammar (an earlier census pass miscounted it)
+    expect(n("text-blue-300")).toBe(1);
+    expect(n("bg-purple-500/20 hover:bg-purple-500/30")).toBe(2);
+  });
+
+  it("offGrammarHue: the hue partition covers every palette Tailwind ships (a new hue fails here, not silently)", () => {
+    const theme = readFileSync(join(ROOT, "node_modules", "tailwindcss", "theme.css"), "utf8");
+    const shipped = [...new Set([...theme.matchAll(/--color-([a-z]+)-500\s*:/g)].map((m) => m[1]))].sort();
+    expect(shipped.length, "theme.css listed no palettes: the reader matched nothing").toBeGreaterThan(20);
+    expect(shipped).toEqual([...GRAMMAR_HUES, ...NEUTRAL_HUES, ...OFF_GRAMMAR_HUES].sort());
+  });
+
+  it("glassCard: a ruled GlassCard scores 0 and the same element without ruled scores 1 (paired controls)", () => {
+    const n = (tag: string) => scanTsx(`export const a = () => ${tag};`).glassCard;
+    expect(n('<GlassCard ruled className="p-4">x</GlassCard>')).toBe(0);
+    expect(n('<GlassCard className="p-4">x</GlassCard>')).toBe(1);
+    expect(n("<GlassCard ruled={true} />")).toBe(0);
+    expect(n("<GlassCard ruled={false} />")).toBe(1);
+    expect(scanTsx("export const a = () => <div><GlassCard /><GlassCard ruled /><GlassCard /></div>;").glassCard).toBe(2);
+  });
+
   it("scanFile picks the parser by extension: a .ts file parses generics, a .tsx file reads JSX", () => {
     const withGeneric = `export const id = <T>(x: T): T => x;\nexport const s = "${GRIN}";\nexport const c = "uppercase";`;
     expect(scanFile("hooks/a.ts", withGeneric)).toEqual(withZeros({ emoji: 1, uppercase: 1 }));
@@ -1132,12 +1263,15 @@ describe("the walker", () => {
     expect(listSourceFiles(dir)).toEqual([
       "app/planted-apply.css",
       "app/styles/planted-content.css",
+      "app/styles/planted-hue.css",
       "app/styles/planted-uppercase.css",
       "app/styles/planted.css",
       "components/clean.tsx",
       "components/comments-only.tsx",
       "components/planted-emdash.tsx",
       "components/planted-emoji.tsx",
+      "components/planted-glass.tsx",
+      "components/planted-hue.tsx",
       "components/planted-input.tsx",
       "components/planted-transition.tsx",
       "components/planted-uppercase.tsx",

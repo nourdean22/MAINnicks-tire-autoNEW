@@ -480,7 +480,7 @@ export function WisdomTab() {
             <p className="text-eyebrow shrink-0">Filter origin:</p>
             <button
               onClick={() => setFilter("all")}
-              className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
+              className={`min-w-11 min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 filter === "all"
                   ? "bg-surface-interactive text-fg border border-accent"
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
@@ -498,7 +498,7 @@ export function WisdomTab() {
                 <button
                   key={origin}
                   onClick={() => setFilter(origin)}
-                  className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
+                  className={`min-w-11 min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                     filter === origin
                       ? "bg-surface-interactive text-fg border border-accent"
                       : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
@@ -516,7 +516,7 @@ export function WisdomTab() {
             <p className="text-eyebrow shrink-0">Topic:</p>
             <button
               onClick={() => setTopicFilter("all")}
-              className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
+              className={`min-w-11 min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 topicFilter === "all"
                   ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
@@ -531,7 +531,7 @@ export function WisdomTab() {
                 <button
                   key={t}
                   onClick={() => setTopicFilter(t)}
-                  className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
+                  className={`min-w-11 min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                     topicFilter === t
                       ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
                       : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
@@ -551,7 +551,7 @@ export function WisdomTab() {
               aria-label="Search wisdom"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-control px-3 py-2 text-[16px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+              className="min-h-11 flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-control px-3 py-2 text-[16px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
             />
             <SortDropdown<WisdomSort>
               value={sortKey}

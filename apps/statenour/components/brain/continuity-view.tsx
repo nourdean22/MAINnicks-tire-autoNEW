@@ -118,7 +118,7 @@ export function BrainContinuityView() {
           </div>
           <button
             onClick={reload}
-            className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
+            className="min-h-11 min-w-11 shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
           >
             Retry
           </button>
@@ -330,7 +330,7 @@ function RecentColumn({
           {memories.length > 5 && (
             <button
               onClick={() => setShowAll((v) => !v)}
-              className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg"
+              className="min-h-11 mt-2 w-full flex items-center justify-center gap-1 text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg"
             >
               {showAll ? "collapse" : `show ${memories.length - 5} more`}
               <ChevronDown size={10} className={cn("transition-transform", showAll && "rotate-180")} />

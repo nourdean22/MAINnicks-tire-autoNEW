@@ -312,8 +312,8 @@ export function DecisionReplayCard() {
                           disabled={submitting}
                           aria-pressed={score === s}
                           className={cn(
-                            "px-2 py-0.5 rounded-control border font-mono text-[12px] lowercase transition-colors",
-                            "min-h-[24px] flex items-center",
+                            "min-h-11 min-w-11 px-2 py-0.5 rounded-control border font-mono text-[12px] lowercase transition-colors",
+                            "flex items-center",
                             score === s
                               ? s === "wrong"
                                 ? "border-rose-400/50 bg-rose-400/15 text-rose-300"
@@ -359,7 +359,7 @@ export function DecisionReplayCard() {
                           type="button"
                           onClick={closeForm}
                           disabled={submitting}
-                          className="px-2 py-1 rounded-control text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
+                          className="min-h-11 min-w-11 px-2 py-1 rounded-control text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
                         >
                           Cancel
                         </button>
@@ -368,8 +368,7 @@ export function DecisionReplayCard() {
                           onClick={() => submitLesson(row.id)}
                           disabled={submitting || outcome.trim().length === 0}
                           className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
-                            "min-h-[28px]",
+                            "min-h-11 min-w-11 flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
                             submitting
                               ? "bg-surface-interactive border-edge-strong text-fg-tertiary"
                               : outcome.trim().length === 0

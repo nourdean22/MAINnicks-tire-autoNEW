@@ -40,7 +40,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/tasks", label: "Open Tasks Queue", prompt: "", navigate: "/missions" },
   { cmd: "/journal", label: "Open Journal", prompt: "", navigate: "/journal" },
   { cmd: "/skills", label: "Skill Library in Brain", prompt: "", navigate: "/brain#skills" },
-  { cmd: "/identity", label: "Identity Snapshot", prompt: "", navigate: "/brain#identity" },
+  { cmd: "/identity", label: "Identity Snapshot", prompt: "", navigate: "/settings#identity" },
   { cmd: "/beliefs", label: "Beliefs Library", prompt: "", navigate: "/brain#beliefs" },
   { cmd: "/contradictions", label: "Open Contradictions", prompt: "", navigate: "/brain#contradictions" },
   { cmd: "/ghost", label: "Ghost Nick Predictions", prompt: "", navigate: "/stats?tab=goals#forecast-duel" }, // wave E2: moved to Stats Goals

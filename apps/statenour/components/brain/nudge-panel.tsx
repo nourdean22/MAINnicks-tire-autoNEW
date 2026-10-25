@@ -82,7 +82,7 @@ export function NudgePanel() {
       <div className="border-t border-edge pt-4">
         <StaleNote q={nudgesQuery} label="Nudges" className="mb-2" />
         <div className="flex justify-end mb-1">
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
         {body}
       </div>
@@ -131,7 +131,7 @@ export function NudgePanel() {
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="flex items-center gap-2">
           <p className="section-label">Live nudges</p>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
+          <FreshnessChip className="min-h-11" lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
         <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
           <AnimatedCounter value={nudges.filter((n) => n.severity === "high").length} /> high ·{" "}
@@ -180,7 +180,7 @@ export function NudgePanel() {
                 label="Dismiss for 7 days"
                 alwaysVisible
                 size="sm"
-                className="shrink-0 hover:text-rose-400"
+                className="shrink-0 min-h-11 min-w-11 hover:text-rose-400"
               />
             </div>
           );
@@ -192,7 +192,7 @@ export function NudgePanel() {
               href={n.link}
               onClick={() => acceptMutation.mutate({ source: n.source, text: n.text })}
               data-nudge-decision="accepted"
-              className="block hover:brightness-110"
+              className="min-h-11 block hover:brightness-110"
             >
               {inner}
             </Link>

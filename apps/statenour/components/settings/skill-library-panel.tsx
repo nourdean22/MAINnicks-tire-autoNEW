@@ -237,6 +237,7 @@ export function SkillLibraryPanel() {
         <div className="flex items-center gap-2">
           {/* v8.2 D5: freshness + provenance for the data view */}
           <FreshnessChip
+            className="min-h-11"
             lastFetchedAt={lastFetchedAt}
             source="api/skills"
             onReload={() => void load()}
@@ -269,9 +270,10 @@ export function SkillLibraryPanel() {
         <input
           type="text"
           placeholder="search triggers / actions / keywords…"
+          aria-label="Search skills"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full px-2 py-1.5 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
+          className="w-full min-h-11 px-2 py-1.5 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
         />
       </div>
 
@@ -349,7 +351,7 @@ export function SkillLibraryPanel() {
                         <input
                           value={editTrigger}
                           onChange={(e) => setEditTrigger(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[16px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
+                          className="w-full min-h-11 mt-0.5 px-2 py-1 text-[16px] sm:text-[16px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                       <div>
@@ -359,7 +361,7 @@ export function SkillLibraryPanel() {
                         <input
                           value={editAction}
                           onChange={(e) => setEditAction(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[16px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
+                          className="w-full min-h-11 mt-0.5 px-2 py-1 text-[16px] sm:text-[16px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                     </div>

@@ -244,7 +244,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                   type="button"
                   disabled={busyId === c.id}
                   onClick={() => void deprecateOne(c.id, c.key)}
-                  className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
+                  className="min-w-11 text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
                 >
                   {busyId === c.id ? "…" : "deprecate"}
                 </button>
@@ -290,7 +290,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                     type="button"
                     disabled={busyId === c.mergeId}
                     onClick={() => void deprecateOne(c.mergeId, c.mergeKey)}
-                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                    className="min-w-11 text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
                   >
                     {busyId === c.mergeId ? "…" : "deprecate merge-side"}
                   </button>
@@ -333,7 +333,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                     type="button"
                     disabled={busyId === c.id}
                     onClick={() => void deprecateOne(c.id, c.key)}
-                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                    className="min-w-11 text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
                   >
                     {busyId === c.id ? "…" : "deprecate"}
                   </button>

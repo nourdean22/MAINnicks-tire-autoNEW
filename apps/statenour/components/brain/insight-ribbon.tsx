@@ -127,7 +127,7 @@ function InsightCard({ insight }: { insight: BrainInsight }) {
 
   if (insight.link) {
     return (
-      <a href={insight.link} className="block h-full">
+      <a href={insight.link} className="min-h-11 block h-full">
         {inner}
       </a>
     );

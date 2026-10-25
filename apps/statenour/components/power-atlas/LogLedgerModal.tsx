@@ -64,7 +64,7 @@ export default function LogLedgerModal({
 
   // Wave AY · 2026-05-28 · operator complaint: "should auto focus to the
   // pop up". Base-UI Dialog defaults focus to the FIRST focusable element
-  // (the "+ deposit" button) · that's not what the operator wants — they
+  // (the "+ deposit" button) · that's not what the operator wants: they
   // want to start typing the note immediately. Ref the textarea + focus
   // it on the open→true transition via double-rAF (lets the dialog mount
   // + focus-trap settle first).
@@ -128,7 +128,7 @@ export default function LogLedgerModal({
           <button
             type="button"
             onClick={() => setDirection("deposit")}
-            className={`flex-1 rounded-control border px-3 py-2 text-[13px] font-medium transition-colors ${
+            className={`min-h-11 flex-1 rounded-control border px-3 py-2 text-[13px] font-medium transition-colors ${
               direction === "deposit"
                 ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
                 : "border-edge-default text-fg-secondary hover:border-emerald-500/30"
@@ -139,7 +139,7 @@ export default function LogLedgerModal({
           <button
             type="button"
             onClick={() => setDirection("withdraw")}
-            className={`flex-1 rounded-control border px-3 py-2 text-[13px] font-medium transition-colors ${
+            className={`min-h-11 flex-1 rounded-control border px-3 py-2 text-[13px] font-medium transition-colors ${
               direction === "withdraw"
                 ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
                 : "border-edge-default text-fg-secondary hover:border-amber-500/30"
@@ -192,7 +192,7 @@ export default function LogLedgerModal({
                 onChange={(e) =>
                   setMagnitude(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
                 }
-                className="w-16 min-h-[44px] rounded-control border border-edge-default bg-transparent px-2 py-1 text-center font-mono text-xs tabular-nums text-fg focus:border-accent focus:outline-none"
+                className="w-16 min-h-[44px] rounded-control border border-edge-default bg-transparent px-2 py-1 text-center font-mono text-base tabular-nums text-fg focus:border-accent focus:outline-none"
                 aria-label="custom magnitude"
               />
             </div>
@@ -234,7 +234,7 @@ export default function LogLedgerModal({
                 key={s}
                 type="button"
                 onClick={() => setSource(s)}
-                className={`rounded-control border px-2 py-1 text-[13px] font-medium transition-colors ${
+                className={`min-h-11 min-w-11 rounded-control border px-2 py-1 text-[13px] font-medium transition-colors ${
                   source === s
                     ? "border-accent text-fg"
                     : "border-edge-default text-fg-tertiary hover:border-edge-strong"
@@ -271,14 +271,14 @@ export default function LogLedgerModal({
         )}
 
         <DialogFooter>
-          <Button
+          <Button className="min-h-11 min-w-11"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={logLedger.isPending}
           >
             Cancel
           </Button>
-          <Button
+          <Button className="min-h-11 min-w-11"
             variant="default"
             onClick={() =>
               logLedger.mutate({

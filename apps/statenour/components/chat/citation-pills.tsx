@@ -38,10 +38,10 @@ const CATEGORY_META: Record<
   string,
   { icon: typeof Brain; label: string; color: string; href: string }
 > = {
-  recall: { icon: MessagesSquare, label: "past chat", color: "text-sky-400", href: "/brain#recall" },
+  recall: { icon: MessagesSquare, label: "past chat", color: "text-sky-400", href: "/brain#recall-preview" },
   skills: { icon: Target, label: "skill", color: "text-fg-secondary", href: "/brain#skills" },
   skill: { icon: Target, label: "skill", color: "text-fg-secondary", href: "/brain#skills" },
-  identity: { icon: Compass, label: "identity", color: "text-emerald-400", href: "/brain#identity" },
+  identity: { icon: Compass, label: "identity", color: "text-emerald-400", href: "/settings#identity" },
   ghost: { icon: Ghost, label: "ghost Nick", color: "text-fg-secondary", href: "/stats?tab=goals#forecast-duel" }, // wave E2: Ghost Nick moved to Stats Goals
   qualitative: { icon: Eye, label: "qualitative", color: "text-amber-400", href: "/brain#qualitative" },
   beliefs: { icon: BookOpen, label: "belief", color: "text-sky-300", href: "/brain#beliefs" },
@@ -52,9 +52,9 @@ const CATEGORY_META: Record<
   contradiction: { icon: AlertTriangle, label: "contradiction", color: "text-red-400", href: "/brain#contradictions" },
   tasks: { icon: ListTodo, label: "task", color: "text-fg-secondary", href: "/missions" },
   task: { icon: ListTodo, label: "task", color: "text-fg-secondary", href: "/missions" },
-  law: { icon: Scale, label: "Greene law", color: "text-fg-secondary", href: "/brain#laws" },
+  law: { icon: Scale, label: "Greene law", color: "text-fg-secondary", href: "/brain#wisdom" },
   decision: { icon: Sparkles, label: "decision", color: "text-fg-secondary", href: "/journal" },
-  promise: { icon: AlertTriangle, label: "promise", color: "text-rose-400", href: "/brain#promises" },
+  promise: { icon: AlertTriangle, label: "promise", color: "text-rose-400", href: "/missions" },
   unknown: { icon: Brain, label: "citation", color: "text-[var(--text-tertiary)]", href: "/brain" },
 };
 

@@ -91,10 +91,18 @@ export function RecallPreviewPanel() {
 
       <label className="mt-2 inline-flex min-h-11 items-center gap-2 text-xs text-fg-tertiary">
         <input
+          className="peer sr-only"
           type="checkbox"
+          aria-label="Show the exact fenced prompt block"
           checked={includePrompt}
           onChange={(event) => setIncludePrompt(event.target.checked)}
         />
+        <span
+          aria-hidden="true"
+          className="inline-flex size-4 shrink-0 items-center justify-center rounded-micro border border-edge-strong text-[11px] leading-none text-transparent peer-checked:border-accent peer-checked:bg-accent peer-checked:text-[var(--text-inverse)] peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+        >
+          ✓
+        </span>
         Show the exact fenced prompt block
       </label>
 

@@ -43,7 +43,7 @@ export default function PowerBalanceGauge({
 
   // Sync down when the upstream prop changes (e.g. after an external
   // re-fetch lands a fresher number). Skip during active drag to avoid
-  // jitter — `saving` covers commit-in-flight.
+  // jitter; `saving` covers commit-in-flight.
   useEffect(() => {
     if (!saving) setDraft(value);
   }, [value, saving]);
@@ -101,7 +101,7 @@ export default function PowerBalanceGauge({
             onKeyUp={() => commit(draft)}
             disabled={saving}
             aria-label="power balance slider"
-            className="w-full appearance-none bg-transparent cursor-pointer disabled:opacity-50 [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--canvas)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-accent [&::-webkit-slider-thumb]:-mt-1 [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--canvas)] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-accent"
+            className="h-11 w-full appearance-none bg-transparent cursor-pointer disabled:opacity-50 [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--canvas)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-accent [&::-webkit-slider-thumb]:-mt-1 [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--canvas)] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-accent"
             style={{
               ["--track-bg" as string]:
                 "linear-gradient(90deg, rgba(252,165,165,0.3) 0%, rgba(255,255,255,0.06) 50%, rgba(110,231,183,0.3) 100%)",

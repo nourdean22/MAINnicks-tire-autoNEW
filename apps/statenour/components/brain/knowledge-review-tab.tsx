@@ -175,7 +175,7 @@ export function KnowledgeReviewTab() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
+            className="min-h-11 min-w-11 inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -226,7 +226,7 @@ export function KnowledgeReviewTab() {
 
             {metadata.evidence?.length ? (
               <details className="mt-4 text-xs text-muted-foreground">
-                <summary className="cursor-pointer select-none">Evidence ({metadata.evidence.length})</summary>
+                <summary className="min-h-11 cursor-pointer select-none">Evidence ({metadata.evidence.length})</summary>
                 <div className="mt-2 space-y-2 border-l border-border pl-3">
                   {metadata.evidence.map((evidence, index) => (
                     <div key={`${evidence.type}-${index}`}>
@@ -244,7 +244,7 @@ export function KnowledgeReviewTab() {
                 type="button"
                 onClick={() => void review(item.id, "reject")}
                 disabled={actingId === item.id}
-                className="inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
+                className="min-h-11 min-w-11 inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
               >
                 <X className="h-4 w-4" /> Reject
               </button>

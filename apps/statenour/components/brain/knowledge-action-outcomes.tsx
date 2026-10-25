@@ -115,7 +115,7 @@ export function KnowledgeActionOutcomes() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
+            className="min-h-11 min-w-11 inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -154,7 +154,7 @@ export function KnowledgeActionOutcomes() {
               type="button"
               onClick={() => void record(item.id, "disproved")}
               disabled={actingId === item.id}
-              className="inline-flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+              className="min-h-11 min-w-11 inline-flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
             >
               <XCircle className="h-4 w-4" /> Disproved
             </button>
@@ -162,7 +162,7 @@ export function KnowledgeActionOutcomes() {
               type="button"
               onClick={() => void record(item.id, "neutral")}
               disabled={actingId === item.id}
-              className="inline-flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+              className="min-h-11 min-w-11 inline-flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
             >
               <CircleMinus className="h-4 w-4" /> Neutral
             </button>

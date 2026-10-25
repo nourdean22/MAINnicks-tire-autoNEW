@@ -7,13 +7,13 @@
  * matching the existing dark/gold · serif · mono · 1px-rgba-border
  * aesthetic (no new palette, no emojis):
  *
- *   · PendingClassificationBanner — the suggest-then-approve banner. The
+ *   · PendingClassificationBanner: the suggest-then-approve banner. The
  *     people-intelligence engine no longer silently overwrites role /
  *     leverageNotes / trustScore; it parks a proposal the operator
  *     accepts or dismisses here.
- *   · RelationshipXpChip — what this relationship has EARNED (deposits +
+ *   · RelationshipXpChip: what this relationship has EARNED (deposits +
  *     power-plays now credit the INFLUENCE & PEOPLE stats).
- *   · OpenPromisesPanel — open tasks/promises to this person. This is
+ *   · OpenPromisesPanel: open tasks/promises to this person. This is
  *     what makes /people actually READ the task list and correlate.
  */
 import { trpc } from "@/lib/trpc/client";
@@ -76,7 +76,7 @@ export function PendingClassificationBanner({
     <div
       role="region"
       aria-live="polite"
-      aria-label="AI classification suggestion — review and accept or dismiss"
+      aria-label="AI classification suggestion: review and accept or dismiss"
       className="rounded-control border border-edge-default bg-surface-raised p-3"
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -90,7 +90,7 @@ export function PendingClassificationBanner({
             size="sm"
             disabled={busy}
             onClick={() => accept.mutate({ personId })}
-            className="h-7 text-[13px] font-medium"
+            className="min-h-11 min-w-11 text-[13px] font-medium"
           >
             {accept.isPending ? "Applying…" : "Accept"}
           </Button>
@@ -100,7 +100,7 @@ export function PendingClassificationBanner({
             size="sm"
             disabled={busy}
             onClick={() => dismiss.mutate({ personId })}
-            className="h-7 text-[13px] font-medium text-fg-tertiary hover:text-fg"
+            className="min-h-11 min-w-11 text-[13px] font-medium text-fg-tertiary hover:text-fg"
           >
             dismiss
           </Button>
@@ -187,8 +187,8 @@ export function OpenPromisesPanel({
           Open promises
         </h3>
         <p className="text-xs text-fg-tertiary">
-          No open tasks linked to {personName}. Promises you make to them — via
-          a PROMISE loop or the task&apos;s &ldquo;who&rdquo; field — surface here.
+          No open tasks linked to {personName}. Promises you make to them (through
+          a PROMISE loop or the task&apos;s &ldquo;who&rdquo; field) surface here.
         </p>
       </section>
     );
