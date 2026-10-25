@@ -75,6 +75,12 @@ export interface PreStreamRegenArgs {
     firstAssessment: CandidateAssessment;
     suggestedSystemPrefix: string;
   }) => Promise<string>;
+  /**
+   * Asked once a first draft needs repair, with what that draft cost. False
+   * ships the first draft: the turn's time budget has no room for a second
+   * (app/api/ai/chat/alternate-paths.ts). Absent = always allowed.
+   */
+  allowRegen?: (firstMs: number) => boolean;
 }
 
 export interface PreStreamRegenResult {
@@ -97,7 +103,8 @@ export interface PreStreamRegenResult {
     | "higher-overall"
     | "higher-specificity"
     | "first-kept"
-    | "regen-failed";
+    | "regen-failed"
+    | "budget-skipped";
   /** Latency-cost breakdown for telemetry. */
   durationMs: {
     first: number;
@@ -248,6 +255,15 @@ export async function maybePreStreamRegen(
     return {
       text: firstAttempt, regenFired: false, firstScore, regenScore: null,
       firstAssessment, regenAssessment: null, selectionReason: "first-passed",
+      durationMs: { first: firstMs, regen: null, total: Date.now() - totalStart },
+      regenWasBetter: null,
+    };
+  }
+
+  if (args.allowRegen && !args.allowRegen(firstMs)) {
+    return {
+      text: firstAttempt, regenFired: false, firstScore, regenScore: null,
+      firstAssessment, regenAssessment: null, selectionReason: "budget-skipped",
       durationMs: { first: firstMs, regen: null, total: Date.now() - totalStart },
       regenWasBetter: null,
     };

@@ -91,6 +91,26 @@ function addUsage(acc: LaneUsage | undefined, u: unknown): LaneUsage | undefined
   };
 }
 
+/**
+ * 2026-10-25 · ONE wall-clock budget for the buffered lanes, on the route's
+ * own turn clock (`persistBase.startedAt`). No byte reaches the client until a
+ * lane ships, and the client (hooks/chat/use-chat-stall.ts) gives up 180 s
+ * after SUBMIT with nothing received. startedAt is taken after the user row
+ * write (capped at 5 s) and the simulated stream still runs after the ship, so
+ * a lane aims to ship by 150 s: 30 s of margin for both. Optional work runs
+ * only while its usual cost still fits before that mark:
+ *   - a second regen draft costs about what the first just did (same prompt,
+ *     same tools), so it runs only if elapsed + firstMs fits;
+ *   - CoVe took 35 s on 2026-10-25 (12 s plan, 3 s answers, 20 s revise),
+ *     reserved at 45 s. A skipped CoVe still runs post-flush in persist.
+ * A draft that exists always ships; the budget never throws one away.
+ * Self-consistency samples run in parallel, so extra samples add no serial
+ * time here; only its CoVe is gated. Witnessed 2026-10-25: first draft 119 s +
+ * second draft 64 s + CoVe 35 s = 225 s, the client gone at 180 s.
+ */
+const LANE_SHIP_BY_MS = 150_000;
+const COVE_RESERVE_MS = 45_000;
+
 /** The route's persistBase bundle — everything buildOnFinish needs
  *  except the per-call-site provider/modelId/model (+ onWorkComplete). */
 export type PersistBase = Omit<
@@ -206,6 +226,17 @@ export async function runAlternatePaths(args: {
   // 2026-10-10 (audit 04-F5, 04-F7 server half): writes a lane EXECUTED. On
   // a fall-through the main stream must not be offered them again.
   const lanesRanWrites = new Set<string>();
+
+  /** True when a step costing `costMs` still fits LANE_SHIP_BY_MS; a skip logs one line. */
+  const fitsBudget = (lane: string, step: string, costMs: number): boolean => {
+    const startedAt = persistBase.startedAt;
+    // No turn clock (never on the route, which always passes it): run as before.
+    if (!Number.isFinite(startedAt)) return true;
+    const elapsedMs = Date.now() - startedAt;
+    if (elapsedMs + costMs <= LANE_SHIP_BY_MS) return true;
+    log.info("lane_budget_skipped", { lane, step, elapsedMs });
+    return false;
+  };
 
   try {
     const { shouldGateForIntent, maybePreStreamRegen } = await import(
@@ -519,6 +550,7 @@ export async function runAlternatePaths(args: {
           turnSignal,
           responseContract: persistBase.responseContract ?? null,
           generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
+          allowRegen: (firstMs) => fitsBudget(laneName, "second_draft", firstMs),
           regenOnce: ({ suggestedSystemPrefix }) =>
             genOnce(
               `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
@@ -665,7 +697,7 @@ export async function runAlternatePaths(args: {
             const { verifyAndRevise, FACTUAL_INTENTS } = await import(
               "@/lib/ai/chat/chain-of-verification"
             );
-            if (FACTUAL_INTENTS.has(turnSignal.intent)) {
+            if (FACTUAL_INTENTS.has(turnSignal.intent) && fitsBudget(laneName, "cove", COVE_RESERVE_MS)) {
               const cove = await verifyAndRevise(winner, userContent);
               if (cove.changed && cove.revised.trim()) {
                 log.info("cove_revised", { lane: laneName, questions: cove.questions.length });
