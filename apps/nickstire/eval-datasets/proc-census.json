@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T19:08:14.085Z",
-  "count": 652,
+  "generatedAt": "2026-10-25T19:42:50.960Z",
+  "count": 651,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -511,7 +511,6 @@
     "query.loyalty.rewards",
     "query.loyalty.summary",
     "query.loyalty.transactions",
-    "query.market.report",
     "query.market.summary",
     "query.market.topPages",
     "query.market.topQueries",

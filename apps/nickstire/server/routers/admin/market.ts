@@ -1,9 +1,8 @@
 /**
  * server/routers/admin/market.ts · 2026-09-08
  *
- * The "Market" surface (Search Console summary, top queries, top pages, and
- * the synthesized master report) used to render inside StateNour at /market,
- * reading these same numbers over the nour-os bridge. The operator moved it
+ * The "Market" surface (Search Console summary, top queries, top pages) used to
+ * render inside StateNour at /market, reading these same numbers over the nour-os bridge. The operator moved it
  * here — it is shop analytics, and it belongs beside the shop's other
  * admin sections. Every procedure delegates to the pipeline functions the
  * bridge already calls, so the two readers cannot drift.
@@ -41,22 +40,6 @@ async function requireStore(): Promise<void> {
     });
   }
 }
-
-/** Shape of the bridge's `master_report` handler result (nour-os-query.ts). */
-type MasterReportResult =
-  | {
-      ok: true;
-      timestamp: string;
-      summary: unknown;
-      marginNote: string | null;
-      revenue: unknown;
-      customers: unknown;
-      operations: unknown;
-      marketing: unknown;
-      growth: unknown;
-      competitive: unknown;
-    }
-  | { ok: false; error: string };
 
 export const marketAdminRouter = router({
   /**
@@ -121,15 +104,5 @@ export const marketAdminRouter = router({
     await requireStore();
     const { getPagePerformance } = await import("../../pipelines/gsc-data");
     return getPagePerformance({ startDate: input?.startDate ?? marketWindow().startDate, limit: input?.limit ?? 10 });
-  }),
-
-  /**
-   * The synthesized master intelligence report — the same handler the
-   * bridge serves as `master_report`, so StateNour's Nick and this page
-   * read one report.
-   */
-  report: adminProcedure.query(async (): Promise<MasterReportResult> => {
-    const { QUERY_HANDLERS } = await import("../../routes/nour-os-query");
-    return (await QUERY_HANDLERS.master_report({})) as MasterReportResult;
   }),
 });

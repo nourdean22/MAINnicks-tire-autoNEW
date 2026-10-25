@@ -162,8 +162,7 @@ interface QueryRequest {
 
 type QueryHandler = (filters: Record<string, unknown>) => Promise<unknown>;
 
-// 2026-09-08 · exported: server/routers/admin/market.ts serves `master_report` from
-// this same map, so the shop admin and StateNour's Nick read ONE report.
+// Exported for the handler tests (customer_stats, revenue_range, quotes_pending...).
 export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   // ─── Decision inbox (S2, 2026-07-28) ─────────────────────────────
   // Card-friendly top-N from the opportunity queue — the same
