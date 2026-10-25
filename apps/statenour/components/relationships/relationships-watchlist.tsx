@@ -55,7 +55,7 @@ interface WatchlistProps {
 const KIND_META: Record<WatchlistKind, { word: string; tone: string }> = {
   promise_broken: { word: "Promise broken", tone: "text-rose-300" },
   stale_90d: { word: "No contact in 90 days", tone: "text-amber-300" },
-  power_imbalance: { word: "Imbalance", tone: "text-violet-300" },
+  power_imbalance: { word: "Imbalance", tone: "text-amber-300" },
   birthday_2w: { word: "Birthday soon", tone: "text-emerald-300" },
 };
 
@@ -90,7 +90,7 @@ export function RelationshipsWatchlist({
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex min-h-[44px] items-center text-[14px] font-medium text-fg underline-offset-4 transition-colors duration-[var(--motion-state)] hover:underline"
+            className="min-w-11 inline-flex min-h-[44px] items-center text-[14px] font-medium text-fg underline-offset-4 transition-colors duration-[var(--motion-state)] hover:underline"
           >
             Retry
           </button>

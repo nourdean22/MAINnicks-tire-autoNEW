@@ -48,7 +48,7 @@ export function NicksRelationshipsBrief({
         // PRE-EXISTING, fixed in passing because it is the same defect as
         // nicks-morning-brief and this file is already in the diff. The effect
         // re-runs on `shouldFetch`, so a failed refetch left the previous
-        // brief on screen — a stale summary shown as current. Clearing is what
+        // brief on screen: a stale summary shown as current. Clearing is what
         // "the section self-hides" always claimed to do but did not.
         if (!cancelled) setBrief(null);
       }

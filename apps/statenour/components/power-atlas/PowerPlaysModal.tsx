@@ -244,7 +244,7 @@ export default function PowerPlaysModal({
         type="button"
         variant="outline"
         size="sm"
-        className="w-full"
+        className="min-h-11 w-full"
         onClick={() => setOpen(true)}
       >
         Power plays
@@ -294,7 +294,7 @@ export default function PowerPlaysModal({
               "reciprocity_assess",
             ] as PlayKind[]
           ).map((kind) => (
-            <Button
+            <Button className="min-h-11 min-w-11"
               key={kind}
               type="button"
               variant={selectedKind === kind ? "default" : "outline"}
@@ -336,7 +336,7 @@ export default function PowerPlaysModal({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
+          <Button className="min-h-11 min-w-11" variant="ghost" onClick={() => setOpen(false)}>
             Close
           </Button>
         </DialogFooter>

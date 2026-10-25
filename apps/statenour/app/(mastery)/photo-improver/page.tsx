@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /photo-improver — storefront/car/shop photo improver.
+ * /photo-improver: storefront/car/shop photo improver.
  *
  * v6 · BATCH 7 · Apr 28. Upload a photo, vision model analyzes it,
  * returns a scorecard + specific improvements + a re-rendered Nick's
@@ -175,7 +175,7 @@ export default function PhotoImproverPage() {
                   setImageUrl("");
                   setData(null);
                 }}
-                className="min-h-[44px] px-2 text-[13px] font-medium text-fg-tertiary hover:text-fg"
+                className="min-w-11 min-h-[44px] px-2 text-[13px] font-medium text-fg-tertiary hover:text-fg"
               >
                 Replace
               </button>
@@ -190,13 +190,13 @@ export default function PhotoImproverPage() {
                 <Upload className="h-3 w-3 inline mr-1" /> choose file
                 <input type="file" accept="image/*" onChange={onChoose} className="hidden" />
               </label>
-              <div className="text-xs text-fg-tertiary">— or paste a URL —</div>
+              <div className="text-xs text-fg-tertiary">or paste a URL</div>
               <input
                 type="text"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="https://... or /api/images/abc"
-                className="w-full max-w-md min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent"
+                className="w-full max-w-md min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-base text-fg placeholder:text-fg-tertiary outline-none focus:border-accent"
               />
             </div>
           )}
@@ -215,7 +215,7 @@ export default function PhotoImproverPage() {
                     key={m}
                     onClick={() => setMode(m)}
                     className={cn(
-                      "min-h-[44px] rounded-control border px-3 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+                      "min-w-11 min-h-[44px] rounded-control border px-3 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                       mode === m
                         ? "border-accent bg-accent-soft text-fg"
                         : "border-edge-default bg-content text-fg-tertiary hover:border-edge-strong hover:text-fg-secondary",

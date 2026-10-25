@@ -133,7 +133,7 @@ function PlayRowDisplay({
         <button
           type="button"
           onClick={() => setExpanded((s) => !s)}
-          className="flex items-baseline gap-2 text-left flex-1 min-w-0"
+          className="min-h-11 flex items-baseline gap-2 text-left flex-1 min-w-0"
           aria-expanded={expanded}
         >
           <span className="text-[13px] font-medium text-fg-secondary">
@@ -160,7 +160,7 @@ function PlayRowDisplay({
               outcome: v as "win" | "partial" | "loss" | "not_executed",
             });
           }}
-          className="text-[13px] font-medium bg-transparent border border-edge-default rounded-control px-1.5 py-0.5 text-fg-tertiary focus:border-accent focus:text-fg-secondary focus:outline-none disabled:opacity-50"
+          className="min-h-11 text-[13px] font-medium bg-transparent border border-edge-default rounded-control px-1.5 py-0.5 text-fg-tertiary focus:border-accent focus:text-fg-secondary focus:outline-none disabled:opacity-50"
           aria-label="mark outcome"
         >
           <option value="">set outcome</option>

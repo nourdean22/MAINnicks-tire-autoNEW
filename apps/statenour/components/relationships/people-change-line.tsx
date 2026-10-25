@@ -4,7 +4,7 @@
  * PeopleChangeLine · "since your last visit" for /people · 2026-09-16.
  * The ChangeSet primitive's third consumer: its own cursor
  * (`nour:people-last-visit`), the `task.peopleChangesSince` read, the shared
- * line. Sits above Nick's brief, which answers "who today" — a different
+ * line. Sits above Nick's brief, which answers "who today", a different
  * question from "what moved while you were away".
  */
 

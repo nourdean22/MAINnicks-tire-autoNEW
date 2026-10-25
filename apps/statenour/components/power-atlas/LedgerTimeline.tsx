@@ -95,7 +95,7 @@ function PinControl({
       <button
         type="button"
         onClick={() => setOpening(true)}
-        className="text-[13px] font-medium text-fg-tertiary hover:text-amber-300 underline-offset-2 hover:underline transition-colors"
+        className="min-h-11 min-w-11 text-[13px] font-medium text-fg-tertiary hover:text-amber-300 underline-offset-2 hover:underline transition-colors"
       >
         Pin as alpha moment
       </button>
@@ -120,7 +120,7 @@ function PinControl({
         value={kind}
         onChange={(e) => setKind(e.target.value as AlphaKind)}
         disabled={mutation.isPending}
-        className="text-[13px] font-medium bg-transparent border border-edge-default rounded-control px-1.5 py-0.5 text-fg-secondary focus:border-accent focus:outline-none disabled:opacity-50"
+        className="min-h-11 font-medium bg-transparent border border-edge-default rounded-control px-1.5 py-0.5 text-fg-secondary text-base focus:border-accent focus:outline-none disabled:opacity-50"
         aria-label="alpha moment kind"
       >
         <option value="peak">peak</option>
@@ -134,13 +134,13 @@ function PinControl({
         disabled={mutation.isPending}
         placeholder="one-line moment…"
         maxLength={1000}
-        className="flex-1 min-w-0 text-[13px] bg-transparent border border-edge-default rounded-control px-2 py-0.5 text-fg-secondary placeholder:text-fg-tertiary focus:outline-none focus:border-accent disabled:opacity-50"
+        className="min-h-11 flex-1 min-w-0 text-base bg-transparent border border-edge-default rounded-control px-2 py-0.5 text-fg-secondary placeholder:text-fg-tertiary focus:outline-none focus:border-accent disabled:opacity-50"
         autoFocus
       />
       <button
         type="submit"
         disabled={mutation.isPending || !moment.trim()}
-        className="text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
+        className="min-h-11 min-w-11 text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
       >
         {mutation.isPending ? "Pinning…" : "Pin"}
       </button>
@@ -151,7 +151,7 @@ function PinControl({
           setMoment("");
         }}
         disabled={mutation.isPending}
-        className="text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary disabled:opacity-50"
+        className="min-h-11 min-w-11 text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary disabled:opacity-50"
       >
         Cancel
       </button>
@@ -272,7 +272,7 @@ export default function LedgerTimeline({
                       disabled={deleteMutation.isPending}
                       aria-label="delete this ledger entry"
                       title="delete"
-                      className="inline-flex min-h-[36px] items-center px-2 py-1.5 -my-1 text-rose-300/60 hover:text-rose-300 active:scale-95 transition-transform underline decoration-dotted disabled:opacity-50"
+                      className="min-h-11 min-w-11 inline-flex items-center px-2 py-1.5 -my-1 text-rose-300/60 hover:text-rose-300 active:scale-95 transition-transform underline decoration-dotted disabled:opacity-50"
                     >
                       Delete
                     </button>

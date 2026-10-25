@@ -68,7 +68,7 @@ export default function DossierEditor({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors"
+              className="min-h-11 min-w-11 text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors"
             >
               Edit
             </button>
@@ -83,7 +83,7 @@ export default function DossierEditor({
           ) : (
             <span className="italic text-fg-tertiary">
               No dossier yet. Tap edit to write the first 5 bullets about this
-              person — what they want, what they fear, what they bring.
+              person: what they want, what they fear, what they bring.
             </span>
           )}
         </div>
@@ -95,7 +95,7 @@ export default function DossierEditor({
             placeholder={
               "Markdown supported. Suggested skeleton:\n\n- Identity: ...\n- Wants: ...\n- Fears: ...\n- Strengths: ...\n- Recent context: ..."
             }
-            className="min-h-[16rem] font-mono text-xs"
+            className="min-h-[16rem] font-mono text-base"
             maxLength={20000}
             disabled={updateDossier.isPending}
           />
@@ -104,7 +104,7 @@ export default function DossierEditor({
               {draft.length} / 20000
             </span>
             <div className="flex gap-2">
-              <Button
+              <Button className="min-h-11 min-w-11"
                 variant="ghost"
                 size="sm"
                 onClick={() => {
@@ -115,7 +115,7 @@ export default function DossierEditor({
               >
                 Cancel
               </Button>
-              <Button
+              <Button className="min-h-11 min-w-11"
                 variant="default"
                 size="sm"
                 onClick={() =>
