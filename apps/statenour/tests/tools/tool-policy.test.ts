@@ -59,7 +59,6 @@ describe("Tool Registry Completeness", () => {
       "calendar.read_today",
       "calendar.propose_event_link",
       "code.run_js_vm",
-      "code.run_python_e2b",
       "local.file_access",
       "local.shell"
     ];
@@ -68,6 +67,17 @@ describe("Tool Registry Completeness", () => {
       expect(ids).toContain(id);
     }
     expect(list.length).toBeGreaterThanOrEqual(expected.length);
+  });
+
+  // 2026-10-24 · the runPython tool left with E2B_API_KEY unset in prod (runCode
+  // is the one code tool). A row that stays reads as a live capability to the
+  // policy and the health summary even though nothing can call it. The control
+  // is the sibling code row: it must still resolve.
+  it("does not list the retired E2B python row", () => {
+    const ids = getToolCapabilities().map((t: ToolCapability) => t.id);
+    expect(ids).not.toContain("code.run_python_e2b");
+    expect(getToolCapability("code.run_python_e2b")).toBeNull();
+    expect(ids).toContain("code.run_js_vm");
   });
 
   it("retrieves individual tools correctly", () => {
@@ -92,7 +102,6 @@ describe("Environment & Health Probes", () => {
     vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test-google-key");
     vi.stubEnv("BROWSERBASE_API_KEY", "");
     vi.stubEnv("BROWSERBASE_PROJECT_ID", "");
-    vi.stubEnv("E2B_API_KEY", "test-e2b-key");
   });
 
   afterEach(() => {
@@ -126,7 +135,6 @@ describe("Permission Policy Engine Rules", () => {
   beforeEach(() => {
     vi.stubEnv("PERPLEXITY_API_KEY", "test-perplexity-key");
     vi.stubEnv("GITHUB_TOKEN", "test-github-token");
-    vi.stubEnv("E2B_API_KEY", ""); // empty
   });
 
   afterEach(() => {
@@ -156,9 +164,16 @@ describe("Permission Policy Engine Rules", () => {
   });
 
   it("denies active tools that are missing their required env", () => {
-    const res = evaluateToolAction({ toolId: "code.run_python_e2b", actionType: "execute" });
+    // github.read_file is a live active row with a required env var. Control
+    // first: with the token set the same request is allowed, so the deny below
+    // is the missing env and nothing else.
+    expect(getToolCapability("github.read_file")?.status).toBe("active");
+    expect(evaluateToolAction({ toolId: "github.read_file", actionType: "read" }).decision).toBe("allow");
+
+    vi.stubEnv("GITHUB_TOKEN", "");
+    const res = evaluateToolAction({ toolId: "github.read_file", actionType: "read" });
     expect(res.decision).toBe("deny");
-    expect(res.reason).toContain("E2B_API_KEY");
+    expect(res.reason).toContain("GITHUB_TOKEN");
   });
 
   it("allows low-risk read-only tools with healthy env", () => {
