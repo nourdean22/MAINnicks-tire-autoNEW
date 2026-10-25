@@ -180,7 +180,7 @@ export function NudgePanel() {
                 label="Dismiss for 7 days"
                 alwaysVisible
                 size="sm"
-                className="shrink-0 hover:text-rose-400"
+                className="shrink-0 min-h-11 min-w-11 hover:text-rose-400"
               />
             </div>
           );

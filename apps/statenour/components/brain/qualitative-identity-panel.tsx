@@ -243,7 +243,7 @@ export function QualitativeIdentityPanel() {
                       label="Remove identity entry"
                       alwaysVisible
                       size="sm"
-                      className="hover:text-red-400"
+                      className="min-h-11 min-w-11 hover:text-red-400"
                     />
                   </div>
                 ))}

@@ -14,6 +14,10 @@
  * later, smaller min-h-[Npx] overrides min-h-11 (cn merges to the last), so that pair fails too; and a
  * className held in a same-file const is read.
  *
+ * Round 2 (CI run 40158654319 measured four on /brain, inside the closed Self-model and Context folds, whose
+ * bodies the spec still measures): DismissButton and a visible checkbox or radio need a width floor too (36x36
+ * and 13x44 were measured); a checkbox may instead be sr-only (1 px, skipped) inside its 44 px label.
+ *
  * Positive control: planted small controls fail, and the sweep must locate its subjects (a scanner that
  * matched nothing would pass on a deleted control).
  */
@@ -61,9 +65,13 @@ const FILES = [
   "components/brain/wisdom-evolution-panel.tsx",
   "components/ultron/decision-replay-card.tsx",
   "components/ultron/persona-drift-card.tsx",
+  // Round 2 (CI run 40158654319): mounted in the Brain Self-model fold, whose closed body the spec still measures.
+  "components/settings/skill-library-panel.tsx",
 ];
 
-const NAMES = ["button", "Button", "input", "Input", "select", "textarea", "Textarea", "Link", "a", "FreshnessChip", "summary"];
+const NAMES = ["button", "Button", "input", "Input", "select", "textarea", "Textarea", "Link", "a", "FreshnessChip", "summary", "DismissButton"];
+/** Measured on both axes: buttons, DismissButton (36 px by default), and a visible checkbox or radio (13 px wide). */
+const NEEDS_WIDTH = (t: string) => /^<(button|Button|DismissButton)\b/.test(t) || (/^<input\b/.test(t) && /type="(checkbox|radio)"/.test(t));
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 /** Opening JSX tags of NAMES (skips `>` inside {...} and strings). */
@@ -110,6 +118,8 @@ function measured(src: string): string[] {
     .map((t) => withConsts(t, bare))
     .filter((t) => {
       if (/^<input\b/.test(t) && /type="hidden"/.test(t)) return false;
+      // A visually hidden checkbox (1 px, skipped by the spec) whose wrapping label is the 44 px target.
+      if (/^<input\b/.test(t) && /type="(checkbox|radio)"/.test(t) && /(?<![\w:-])sr-only(?![\w-])/.test(t)) return false;
       if (/^<(a|Link)\b/.test(t)) return /href=/.test(t) && /(?<![\w-])(inline-flex|flex|block|inline-block)(?![\w-])/.test(t);
       if (/^<FreshnessChip\b/.test(t)) return /onReload=/.test(t);
       if (/^<textarea\b/i.test(t) && /rows=\{?["']?([2-9]|\d\d)/.test(t)) return false;
@@ -120,7 +130,7 @@ function measured(src: string): string[] {
 
 function unfloored(src: string): string[] {
   return measured(src)
-    .filter((t) => !HEIGHT_FLOOR.test(t) || OVERRIDDEN.test(t) || (/^<(button|Button)\b/.test(t) && !WIDTH_FLOOR.test(t)))
+    .filter((t) => !HEIGHT_FLOOR.test(t) || OVERRIDDEN.test(t) || (NEEDS_WIDTH(t) && !WIDTH_FLOOR.test(t)))
     .map((t) => t.replace(/\s+/g, " ").slice(0, 120));
 }
 
@@ -158,6 +168,14 @@ describe("wave F: every control /brain, /people and Photo Improver can mount car
     expect(unfloored(`<a href="/x" className="underline">source</a>`)).toHaveLength(0);
     expect(unfloored(`<FreshnessChip lastFetchedAt={t} />`)).toHaveLength(0);
     expect(unfloored(`<button className="sm:min-h-11 sm:min-w-11">x</button>`)).toHaveLength(1);
+    // round 2: the four shapes CI measured on /brain
+    expect(unfloored(`<FreshnessChip lastFetchedAt={t} source="api/skills" onReload={load} compact />`)).toHaveLength(1); // "just now" 66x39
+    expect(unfloored(`<input type="text" placeholder="search" className="w-full px-2 py-1.5 text-[16px]" />`)).toHaveLength(1); // 340x38
+    expect(unfloored(`<DismissButton onDismiss={go} label="Dismiss for 7 days" size="sm" className="shrink-0" />`)).toHaveLength(1); // 36x36
+    expect(unfloored(`<input className="min-h-11" type="checkbox" checked={on} />`)).toHaveLength(1); // 13x44
+    expect(unfloored(`<DismissButton label="x" className="min-h-11 min-w-11" />`)).toHaveLength(0);
+    expect(unfloored(`<input className="peer sr-only" type="checkbox" checked={on} />`)).toHaveLength(0);
+    expect(unfloored(`<input className="size-11" type="checkbox" checked={on} />`)).toHaveLength(0);
     // and a comment that names the class does not satisfy it
     expect(unfloored(`{/* className="min-h-11 min-w-11" */}<button className="px-1">x</button>`)).toHaveLength(1);
   });
