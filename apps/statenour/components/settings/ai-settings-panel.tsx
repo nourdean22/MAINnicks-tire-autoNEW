@@ -85,7 +85,7 @@ export function AiSettingsPanel() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [disabledTool, setDisabledTool] = useState("");
-  // A failed config load used to leave the panel on "loading…" forever , 
+  // A failed config load used to leave the panel on "loading…" forever,
   // silent failure is indistinguishable from slow. Named error instead.
   const [configError, setConfigError] = useState(false);
   // Per-device toggles read their real store (localStorage): the DB copy

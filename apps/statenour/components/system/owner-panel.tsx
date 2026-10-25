@@ -4,7 +4,7 @@
  * OwnerPanel · 2026-09-23 · Q-24, what needs the owner, and nothing else.
  *
  * Sits directly under the control tower on /system and speaks its language:
- * one verdict line, then only the rows that need him. Three blocks ,
+ * one verdict line, then only the rows that need him. Three blocks,
  * exceptions (each with its age and the row it rests on), decisions waiting
  * on him, and cost per outcome with every tile labelled MEASURED, ESTIMATE
  * or UNMEASURED. All logic is server-side in lib/system/owner-panel.ts; this

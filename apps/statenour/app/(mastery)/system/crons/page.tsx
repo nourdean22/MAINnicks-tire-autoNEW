@@ -8,14 +8,14 @@
  * {toggle,run} for control actions.
  *
  * Controls per row:
- *   · STATUS DOT (live)    , green/amber/red, pulses on recent run
- *   · NAME + CATEGORY PILL , clickable → filter
- *   · SCHEDULE + NEXT-IN   , live countdown
- *   · LAST RUN             , time-ago + duration + pass/fail
- *   · SPARKLINE            , 20-run duration history
- *   · SUCCESS RATE         , 14d %
- *   · KILL SWITCH          , toggle disables (stored as BrainMemory)
- *   · RUN NOW              , manually trigger via /api/system/crons/run
+ *   · STATUS DOT (live): green/amber/red, pulses on recent run
+ *   · NAME + CATEGORY PILL: clickable → filter
+ *   · SCHEDULE + NEXT-IN: live countdown
+ *   · LAST RUN: time-ago + duration + pass/fail
+ *   · SPARKLINE: 20-run duration history
+ *   · SUCCESS RATE: 14d %
+ *   · KILL SWITCH: toggle disables (stored as BrainMemory)
+ *   · RUN NOW: manually trigger via /api/system/crons/run
  *
  * Alive elements:
  *   · pulsing dot on active runs
@@ -35,7 +35,7 @@ import { toast } from "sonner";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { CronFoldTree } from "@/components/system/cron-fold-tree";
 // 2026-08-16 · relocated from the retired /knowledge page. This is the
-// manual trigger for the 7-subsystem ingest fan-out + prompt-cache flush ,
+// manual trigger for the 7-subsystem ingest fan-out + prompt-cache flush,
 // the same class of action as this deck's per-row RUN NOW.
 import { KnowledgeRefreshPanel } from "@/components/system/knowledge-refresh-panel";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";

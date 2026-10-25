@@ -62,14 +62,17 @@ export function MemoryVerdict() {
       <h2 id="memory-verdict-heading" className="vt-eyebrow text-fg-secondary">
         What the brain believes
       </h2>
-      <p
-        className={cn(
-          "vt-verdict mt-3 max-w-[18ch]",
-          tone === "attention" ? "text-amber-200" : tone === "unknown" ? "text-fg-secondary" : "text-fg",
-        )}
-      >
-        {line}
-      </p>
+      {/* Paused offline is not a failed read: the offline note below is the whole statement. */}
+      {state !== "offline" && (
+        <p
+          className={cn(
+            "vt-verdict mt-3 max-w-[18ch]",
+            tone === "attention" ? "text-amber-200" : tone === "unknown" ? "text-fg-secondary" : "text-fg",
+          )}
+        >
+          {line}
+        </p>
+      )}
       {data && <StaleNote q={maturityQuery} label="Memory" className="mt-3" />}
       {!data && (state === "error" || state === "offline") && (
         <ReadStateNote

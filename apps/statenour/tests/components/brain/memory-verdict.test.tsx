@@ -82,4 +82,24 @@ describe("Memory verdict", () => {
     expect(host.querySelector('[data-read-state="offline"]')).not.toBeNull();
     expect(text()).not.toContain("Nothing the brain believes");
   });
+
+  it("control: cached data under a paused refetch still draws its verdict", async () => {
+    h.q = { ...withOpen(3), fetchStatus: "paused" };
+    await mount();
+    expect(text()).toContain("3 claims disagree with the record.");
+  });
+
+  it("a paused read is a pause, not a failed read: only the offline note, no failed-read sentence (lens B row 5)", async () => {
+    h.q = { ...base, data: undefined, isPending: true, fetchStatus: "paused" };
+    await mount();
+    expect(text()).toContain("Offline. Memory shows when the connection returns.");
+    expect(text()).not.toContain("couldn't be read");
+    expect(text()).not.toContain("is unknown");
+    // control: a failed read keeps its sentence, so the offline branch did not swallow it
+    act(() => root.unmount());
+    host.remove();
+    h.q = { ...base, data: undefined, isError: true };
+    await mount();
+    expect(text()).toContain("Memory couldn't be read");
+  });
 });

@@ -12,6 +12,7 @@ import { createRoot, type Root } from "react-dom/client";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 import { DetailFold } from "@/components/system/detail-fold";
+import { BrainFold } from "@/components/brain/brain-fold";
 
 function Harness({ unreadable = 0 }: { unreadable?: number }) {
   const [failed, setFailed] = useState(false);
@@ -51,6 +52,42 @@ const flip = async () => {
   });
   await settle();
 };
+
+/** One child per state a fold must report, mounted after the fold so the observer, not the first render, counts it. */
+function StateHarness({ marker }: { marker: Record<string, string> | null }) {
+  const [on, setOn] = useState(false);
+  const child = on && marker ? <p {...marker}>inside</p> : <p>inside fine</p>;
+  return (
+    <>
+      <button id="flip" onClick={() => setOn((v) => !v)}>
+        flip
+      </button>
+      <DetailFold>{child}</DetailFold>
+      <BrainFold title="Detail">{child}</BrainFold>
+    </>
+  );
+}
+const summaries = () => [...container.querySelectorAll("summary")].map((s) => (s.textContent ?? "").replace(/\(\d+\)\s*/, "").trim());
+
+describe("DetailFold counts offline and stale like BrainFold (lens B row 6)", () => {
+  for (const [name, marker, words] of [
+    ["offline", { "data-read-state": "offline" }, "1 offline"],
+    ["stale", { "data-read-state": "stale" }, "1 stale"],
+    ["error", { "data-read-state": "error" }, "1 unreadable"],
+  ] as const) {
+    it(`a child rendering data-read-state="${name}" is counted, and the two folds say the same`, async () => {
+      act(() => root.render(<StateHarness marker={marker} />));
+      await settle();
+      expect(summaries()).toEqual(["Detail", "Detail"]);
+      await flip();
+      const [system, brain] = summaries();
+      expect(system, "DetailFold").toContain(words);
+      expect(system).toBe(brain);
+      await flip();
+      expect(summaries()).toEqual(["Detail", "Detail"]);
+    });
+  }
+});
 
 describe("DetailFold marker count", () => {
   it("a marker outside the fold never counts, and a healthy fold claims nothing", async () => {

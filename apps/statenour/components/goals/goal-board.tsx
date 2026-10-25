@@ -218,7 +218,7 @@ export function GoalBoard() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   // task.* tRPC for the goals CRUD. scattered-components slice
-  // (2026-05-22) · the AI suggest/coach calls migrate now , 
+  // (2026-05-22) · the AI suggest/coach calls migrate now,
   // `/api/ai/suggest-goals` → `trpc.ai.suggestGoals`, `/api/ai/coach-goal`
   // → `trpc.ai.coachGoal`: so the `authedFetch` import is gone. load()
   // stays a callback (referenced by many handlers) but reads via
@@ -372,7 +372,7 @@ export function GoalBoard() {
         // semantically identical to the chat tool's archiveGoal
         // (lib/ai/tools/tasks.ts:750). Previously the UI only flipped
         // status, leaving the row alive in every `deletedAt:null`
-        // query (page-data, ai-suggest-goals, telegram cmdGoals) , 
+        // query (page-data, ai-suggest-goals, telegram cmdGoals),
         // that's how the ghost goal kept resurfacing after archive.
         await goalsUpdate.mutateAsync({ id: goalId, archive: true });
         toast.success("Archived. Find it later in paused goals.");
@@ -1546,7 +1546,7 @@ export function GoalBoard() {
                               ? TrendingDown
                               : Activity;
                         // When pace says "needs N/day" or "behind", the
-                        // chip becomes a tap-to-add-a-task affordance , 
+                        // chip becomes a tap-to-add-a-task affordance,
                         // a Link into /tasks pre-filtered by this goal
                         // so the operator can add a daily-increment task
                         // (tag it with the goal there · completion auto-

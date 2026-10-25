@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, type RefObject, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { countFoldRows } from "@/components/brain/brain-fold";
 
-type Countable = { querySelectorAll(selector: string): { length: number } };
-
-/** Blocks inside a fold that fetch for themselves mark their failed state `data-read-failed`. */
-export function countFailedReads(root: Countable): number {
-  return root.querySelectorAll("[data-read-failed]").length;
-}
+/**
+ * What the fold re-measures on. The row buckets and their selectors are BrainFold's (countFoldRows:
+ * failed, then offline, then stale), so the System and Brain folds cannot disagree about a closed block.
+ * brain-fold.tsx imports useObservedCount from this file; both use the other only inside functions, so
+ * the cycle never reads an unset binding.
+ */
+const WATCHED = ["data-read-failed", "data-read-state", "data-provenance"];
 
 /**
  * Count something in a subtree that changes after mount. Null until measured (unknown, not zero).
@@ -48,8 +50,8 @@ export function useObservedCount<T = number>(
 /**
  * One closed disclosure for the blocks under a page's first-screen answer (wave E1, 2026-10-24). A
  * closed fold must not hide a failed read, so the summary adds "n unreadable": `unreadable` is what the
- * caller itself knows (its own failed queries), and the fold counts the `data-read-failed` markers its
- * self-fetching children render. The children stay mounted while the fold is closed (a native <details>
+ * caller itself knows (its own failed queries), and the fold counts the failed, offline and stale markers
+ * its self-fetching children render (BrainFold's rows and selectors). The children stay mounted while the fold is closed (a native <details>
  * only hides them), so both counts stay live. `open` is the initial state only when passed.
  */
 export function DetailFold({
@@ -65,8 +67,8 @@ export function DetailFold({
   className?: string;
   children: ReactNode;
 }) {
-  const [bodyRef, inside] = useObservedCount(countFailedReads);
-  const total = unreadable + (inside ?? 0);
+  const [bodyRef, inside] = useObservedCount(countFoldRows, WATCHED);
+  const total = unreadable + (inside?.unreadable ?? 0);
 
   return (
     <details aria-label={label} open={open} className={cn("group border-y border-edge-subtle", className)}>
@@ -74,6 +76,8 @@ export function DetailFold({
         <span>
           {label}
           {total > 0 && <span className="text-red-300"> ({total} unreadable)</span>}
+          {inside && inside.offline > 0 && <span className="text-amber-300"> ({inside.offline} offline)</span>}
+          {inside && inside.stale > 0 && <span className="text-amber-300"> ({inside.stale} stale)</span>}
         </span>
         <ChevronDown size={16} strokeWidth={1.75} aria-hidden className="transition-transform duration-[var(--motion-state)] group-open:rotate-180" />
       </summary>

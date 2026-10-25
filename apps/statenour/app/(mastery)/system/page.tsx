@@ -4,15 +4,15 @@
  * /system, operator system surface.
  *
  * Layout contract (Wave 52 · 2026-05-20 redesign):
- *   1. STATUS FIRST , overall status + KPIs + ops telemetry. The
+ *   1. STATUS FIRST: overall status + KPIs + ops telemetry. The
  *      answer to "is everything OK?" renders ABOVE the nav grid.
- *   2. NAVIGATION   , <SystemHubGrid />, the grouped card hub, directly
+ *   2. NAVIGATION: <SystemHubGrid />, the grouped card hub, directly
  *      under the tower since UI v3 W5a (triage first).
- *   3. DETAIL       , owner panel, ops row, Nick, census panels, digests.
+ *   3. DETAIL: owner panel, ops row, Nick, census panels, digests.
  *
  * Pre-Wave-52 the page led with the 37-card grid and buried status
  * at section #4-5. Three debug-dump panels (raw Prisma row counts ·
- * automation-rule list · recent-pattern list) were also deleted ,
+ * automation-rule list · recent-pattern list) were also deleted,
  * each duplicates a dedicated hub surface (Schema Coverage ·
  * Automation Policies · Brain Categories).
  */
