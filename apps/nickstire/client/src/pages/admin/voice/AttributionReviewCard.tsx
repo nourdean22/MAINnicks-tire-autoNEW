@@ -1,22 +1,32 @@
 /**
- * Attribution review — the door the human step never had (2026-09-01 audit,
- * artifact 4 §2.6).
+ * Attribution review: the door for the human ruling on weak call-to-sale matches.
  *
- * `revenueAttribution.reviewQueue` and `.resolve` existed on the server —
- * `resolve` is the ONLY writer of `revenue_attribution_decisions` — and no
- * surface anywhere called either. CURRENT-TRUTH listed "resolving weak invoice
- * or customer matches" as a manual operator system; the machinery had no UI.
+ * 2026-09-01: `revenueAttribution.reviewQueue` and `.resolve` existed with no UI; this card is
+ * the door. 2026-09-18: the queue collapses same-invoice claims (an invoice is paid once).
+ * 2026-10-25 (Nour: "big bulky ugly and all in the way... only got numbers and i cant track
+ * them"): one line until opened, nothing when empty, and each row in words: who, what they
+ * asked for, when they called, the sale and why the match is weak. The explanation sits
+ * behind a Why disclosure.
  *
- * iOS PWA: decisions go through `confirmDialog` (two-tap), never
- * window.confirm; every target is ≥ 44px tall.
+ * iOS PWA: rulings go through `confirmDialog` (two-tap), never window.confirm; every target
+ * is at least 44 px tall.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
-import { CheckCircle2, HelpCircle, XCircle, SearchCheck, Loader2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, HelpCircle, Loader2, XCircle } from "lucide-react";
+import { prettyOutcome } from "./format";
 
 type Decision = "confirmed" | "rejected" | "ambiguous";
+
+const ET = "America/New_York";
+const fmtWhen = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString("en-US", { timeZone: ET, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+const fmtDay = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: ET, month: "short", day: "numeric" }) : null;
+const fmtMoney = (cents: number | null) =>
+  cents == null ? null : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 
 export function AttributionReviewCard() {
   const utils = trpc.useUtils();
@@ -24,86 +34,74 @@ export function AttributionReviewCard() {
     { limit: 20 },
     { staleTime: 60_000 },
   );
+  const [open, setOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const resolve = trpc.revenueAttribution.resolve.useMutation({
     onSuccess: () => {
-      toast.success("Attribution recorded");
+      toast.success("Ruling saved");
       void utils.revenueAttribution.reviewQueue.invalidate();
       void utils.revenueAttribution.leadRevenueSummary.invalidate();
       void utils.revenueAttribution.callInvoiceReview.invalidate();
     },
-    onError: (e) => toast.error(e.message || "Could not record the decision"),
+    onError: (e) => toast.error(e.message || "Could not save the ruling"),
     onSettled: () => setBusyKey(null),
   });
 
-  if (isLoading) {
-    return (
-      <div className="border border-border/40 bg-card p-4 text-[11px] font-bold text-foreground/30">
-        Loading attribution review queue…
-      </div>
-    );
-  }
+  // A failed read is not an empty queue: say so and offer the retry.
   if (isError) {
     return (
       <div className="border border-amber-400/30 bg-amber-500/5 p-4 text-sm text-amber-200 flex items-center justify-between gap-3">
-        <span>Attribution review queue unavailable.</span>
-        <button onClick={() => refetch()} className="min-h-[44px] px-3 text-primary hover:underline">Retry</button>
+        <span>Matches to review could not load.</span>
+        <button type="button" onClick={() => refetch()} className="min-h-[44px] px-3 text-primary hover:underline">Retry</button>
       </div>
     );
   }
+  if (isLoading) return null;
 
   /*
-   * 2026-09-18 - reviewQueue now returns an OBJECT, not an array, because an
-   * invoice can be paid once and so can be claimed once. Live that day: of 20
-   * weak matches, EIGHT claimed invoice #5160005 - one customer who rang eight
-   * times - and each row read "this call produced this invoice". Confirming
-   * them all would have counted that invoice eight times.
-   *
-   * NOTE THE CAST BELOW WAS WHY TYPECHECK STAYED GREEN through that shape
-   * change: `as Array<...>` asserts rather than checks, so `.map` would have
-   * thrown at render while every gate passed. Reading `data?.rows` explicitly
-   * is the fix; the cast is kept only to name the row fields.
+   * `data.rows` is read explicitly: reviewQueue returns an object, and an `as Array` cast once
+   * kept typecheck green through that shape change while `.map` threw at render.
    */
   const rows = (data?.rows ?? []) as Array<{
-    runId?: number | null;
+    runId?: string | number | null;
     callId: number;
     leadId?: number | null;
     bookingId?: number | null;
     invoiceId?: number | null;
     workOrderId?: string | null;
-    evidenceLevel?: string | null;
     matchMethod?: string | null;
-    evidence?: unknown;
-    createdAt?: string | Date | null;
-    latest?: string | null;
-    /** Server-classified evidence band. Optional because this is a CAST, not a
-     *  check — if the server stops sending it, TS cannot tell us, so the
-     *  render guards on `row.band &&` rather than trusting the type. */
-    band?: {
-      label: string;
-      basis: string;
-      whatWouldRaiseIt: string | null;
-      observed: boolean;
-    } | null;
+    firstName?: string | null;
+    askedFor?: string | null;
+    calledAt?: string | null;
+    callOutcome?: string | null;
+    invoicedAt?: string | null;
+    invoiceTotalCents?: number | null;
+    invoiceService?: string | null;
+    band?: { label: string; why?: string; observed: boolean } | null;
   }>;
+  if (rows.length === 0) return null;
+
+  const duplicates = data?.duplicates?.length ?? 0;
+  const n = rows.length;
 
   const decide = async (row: (typeof rows)[number], decision: Decision) => {
-    const label = decision === "confirmed" ? "Confirm" : decision === "rejected" ? "Reject" : "Mark ambiguous";
+    const who = row.firstName ?? "this caller";
+    const sale = [fmtDay(row.invoicedAt ?? null), fmtMoney(row.invoiceTotalCents ?? null)].filter(Boolean).join(", ");
+    const copy = {
+      confirmed: { title: `${who} came in because of this call?`, label: "Yes, confirm", tone: "default" as const },
+      rejected: { title: `Not this call?`, label: "Not this call", tone: "danger" as const },
+      ambiguous: { title: `Leave it unsure?`, label: "Unsure", tone: "default" as const },
+    }[decision];
     const ok = await confirmDialog({
-      title: `${label} this match?`,
-      message:
-        `Call #${row.callId}` +
-        (row.invoiceId ? ` · invoice #${row.invoiceId}` : "") +
-        (row.leadId ? ` · lead #${row.leadId}` : "") +
-        (row.matchMethod ? ` · matched by ${row.matchMethod}` : "") +
-        `. Your ruling becomes the attribution record.`,
-      confirmLabel: label,
-      tone: decision === "rejected" ? "danger" : "default",
+      title: copy.title,
+      message: `${who} called${row.calledAt ? ` ${fmtWhen(row.calledAt)}` : ""}${row.askedFor ? ` about ${row.askedFor}` : ""}.${sale ? ` Sale ${sale}.` : ""} Your ruling becomes the record.`,
+      confirmLabel: copy.label,
+      tone: copy.tone,
     });
     if (!ok) return;
-    const key = `${row.callId}:${decision}`;
-    setBusyKey(key);
+    setBusyKey(`${row.callId}:${decision}`);
     resolve.mutate({
       callId: row.callId,
       leadId: row.leadId ?? null,
@@ -120,119 +118,118 @@ export function AttributionReviewCard() {
   };
 
   return (
-    <div className="border border-border/40 bg-card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <SearchCheck className="w-4 h-4 text-primary" />
-        <h3 className="text-sm font-semibold">Attribution review · {rows.length} weak match{rows.length === 1 ? "" : "es"}</h3>
-      </div>
-      {rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No call-to-invoice matches are waiting for a ruling.</p>
-      ) : (
-        <ul className="divide-y divide-border/30">
-          {/* Same-invoice contacts are collapsed, never silently dropped. An
-              operator who sees eight rows become one deserves to know why, and
-              a queue that shrinks without explaining itself is a queue nobody
-              trusts. */}
-          {(data?.duplicates?.length ?? 0) > 0 && (
-            <div className="mb-3 text-xs text-muted-foreground bg-amber-500/5 border border-amber-500/20 rounded p-2">
-              <span className="text-amber-400 font-medium">
-                {data!.duplicates.length} same-invoice contact(s) collapsed
-              </span>
-              {" "}across {data!.contestedInvoiceIds.length} invoice(s). An invoice can be
-              paid once, so it is claimed once - the rest are the same customer
-              calling again, kept as history rather than counted as separate money.
-              {data!.counts.overcountFactor != null && data!.counts.overcountFactor > 1 && (
-                <span className="block mt-1">
-                  Counting each row as a conversion would have overstated attributed
-                  revenue by {data!.counts.overcountFactor}x.
-                </span>
-              )}
-            </div>
-          )}
-          {/* WHAT THE CONFIDENCE NUMBERS MEAN, AND WHAT THEY DO NOT.
-              0.9 and 0.75 sit beside real invoices and read as percentages.
-              They are ordinal labels for two evidence recipes differing by one
-              fact — whether the service text overlapped — and neither has been
-              calibrated against outcomes. `inferredPct` is the number worth
-              watching: a queue that is mostly inference is a queue where
-              confirming in bulk is guessing in bulk, which is exactly how the
-              eight-calls-one-invoice over-count happened. */}
-          {data?.bands && data.bands.total > 0 && (
-            <div className="mb-3 text-xs text-muted-foreground border border-border/20 rounded p-2">
-              <span className="text-foreground/70 font-medium">Evidence mix:</span>{" "}
-              {data.bands.verified > 0 && <>{data.bands.verified} verified link(s) · </>}
-              {data.bands.strong > 0 && <>{data.bands.strong} phone+time+service · </>}
-              {data.bands.weak > 0 && <>{data.bands.weak} phone+time only · </>}
-              {data.bands.unscored > 0 && <>{data.bands.unscored} no single invoice</>}
-              {data.bands.inferredPct != null && (
-                <span className={data.bands.inferredPct >= 80 ? "block mt-1 text-amber-300" : "block mt-1"}>
-                  {data.bands.inferredPct}% of these rest on inference rather than a
-                  recorded link{data.bands.inferredPct >= 80 ? " confirming in bulk here is guessing in bulk." : "."}
-                </span>
-              )}
-              <span className="block mt-1 text-foreground/40">{data.bandCaveat}</span>
-            </div>
-          )}
-          {rows.map((row) => {
-            const rowKey = `${row.callId}:${row.invoiceId ?? "x"}:${row.runId ?? "x"}`;
-            const busy = busyKey?.startsWith(`${row.callId}:`) ?? false;
-            return (
-              <li key={rowKey} className="py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 text-xs">
-                  <div className="font-medium text-foreground">
-                    Call #{row.callId}
-                    {row.invoiceId ? <> · invoice #{row.invoiceId}</> : <span className="text-muted-foreground"> · no invoice</span>}
-                  </div>
-                  <div className="text-muted-foreground truncate">
-                    {row.matchMethod ?? "unknown method"} · {row.evidenceLevel ?? "no evidence level"}
-                    {row.leadId ? ` · lead #${row.leadId}` : ""}
-                    {row.workOrderId ? ` · WO ${row.workOrderId}` : ""}
-                  </div>
-                  {/* The band in words. `observed` is the distinction that
-                      matters: only a recorded lead link is observed, and
-                      everything else is a guess with a number on it. The
-                      title carries what would RAISE this row — the only part
-                      an operator can act on without opening the call. */}
-                  {row.band && (
-                    <div
-                      className={row.band.observed ? "text-emerald-400/80" : "text-amber-400/70"}
-                      title={row.band.whatWouldRaiseIt ?? row.band.basis}
-                    >
-                      {row.band.label}
-                      {!row.band.observed && " · inferred"}
-                    </div>
+    <div className="border border-border/40 bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full min-h-[44px] px-4 py-2 flex items-center justify-between gap-3 text-left text-sm"
+      >
+        <span className="font-semibold">{n} match{n === 1 ? "" : "es"} to review</span>
+        <ChevronDown className={`w-4 h-4 shrink-0 text-foreground/50 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Each is a call and a sale from the same phone within 14 days. Nothing has yet proven which calls brought the customer in.{" "}
+            <button
+              type="button"
+              onClick={() => setWhyOpen((v) => !v)}
+              aria-expanded={whyOpen}
+              className="min-h-[44px] -my-3 px-1 text-primary hover:underline"
+            >
+              Why{whyOpen ? " (hide)" : ""}
+            </button>
+          </p>
+
+          {whyOpen && (
+            <div className="text-xs text-muted-foreground border border-border/20 rounded p-2 space-y-1">
+              {duplicates > 0 && (
+                <p>
+                  {duplicates} repeat call{duplicates === 1 ? "" : "s"} from the same customer{duplicates === 1 ? " is" : " are"} folded into these: a sale is counted once, the other calls are kept as history.
+                  {data?.counts.overcountFactor != null && data.counts.overcountFactor > 1 && (
+                    <> Counting every call would overstate the money by {data.counts.overcountFactor}x.</>
                   )}
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => decide(row, "confirmed")}
-                    disabled={busy}
-                    className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
-                    aria-label={`Confirm match for call ${row.callId}`}
-                  >
-                    {busy && busyKey?.endsWith(":confirmed") ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Confirm
-                  </button>
-                  <button
-                    onClick={() => decide(row, "ambiguous")}
-                    disabled={busy}
-                    className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
-                    aria-label={`Mark match ambiguous for call ${row.callId}`}
-                  >
-                    <HelpCircle className="w-4 h-4" /> Unsure
-                  </button>
-                  <button
-                    onClick={() => decide(row, "rejected")}
-                    disabled={busy}
-                    className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-                    aria-label={`Reject match for call ${row.callId}`}
-                  >
-                    <XCircle className="w-4 h-4" /> Reject
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                </p>
+              )}
+              {data?.bands && data.bands.total > 0 && (
+                <p>
+                  {data.bands.verified > 0 && <>{data.bands.verified} with a recorded link · </>}
+                  {data.bands.strong > 0 && <>{data.bands.strong} with the service matching · </>}
+                  {data.bands.weak > 0 && <>{data.bands.weak} on phone and timing only · </>}
+                  {data.bands.unscored > 0 && <>{data.bands.unscored} with no single sale</>}
+                </p>
+              )}
+              <p className="text-foreground/50">{data?.bandCaveat}</p>
+            </div>
+          )}
+
+          <ul className="divide-y divide-border/30">
+            {rows.map((row) => {
+              const busy = busyKey?.startsWith(`${row.callId}:`) ?? false;
+              const outcome = row.callOutcome ? prettyOutcome(row.callOutcome).label : null;
+              return (
+                <li key={`${row.callId}:${row.invoiceId ?? "x"}`} className="py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 text-xs space-y-0.5">
+                    <div className="text-sm font-medium text-foreground">
+                      {row.firstName ?? "Unknown caller"}
+                      <span className="font-normal text-muted-foreground">
+                        {row.askedFor ? <> · asked about {row.askedFor}</> : <> · did not say what for</>}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      Called {fmtWhen(row.calledAt ?? null) ?? "(time unknown)"}
+                      {outcome ? <> · {outcome.toLowerCase()}</> : null}
+                      {row.invoiceId ? (
+                        <>
+                          {" "}· Sale {fmtDay(row.invoicedAt ?? null) ?? ""} {fmtMoney(row.invoiceTotalCents ?? null) ?? ""}
+                          {row.invoiceService ? <span className="text-foreground/50"> ({row.invoiceService.toLowerCase()})</span> : null}
+                        </>
+                      ) : (
+                        <> · no one sale to confirm</>
+                      )}
+                    </div>
+                    {row.band && (
+                      <div className={row.band.observed ? "text-emerald-400/80" : "text-amber-400/80"}>
+                        {row.band.why ?? row.band.label}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => decide(row, "confirmed")}
+                      disabled={busy}
+                      className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+                      aria-label={`Confirm: ${row.firstName ?? "unknown caller"} came in because of this call`}
+                    >
+                      {busy && busyKey?.endsWith(":confirmed") ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => decide(row, "ambiguous")}
+                      disabled={busy}
+                      className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
+                      aria-label={`Unsure about ${row.firstName ?? "unknown caller"}`}
+                    >
+                      <HelpCircle className="w-4 h-4" /> Unsure
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => decide(row, "rejected")}
+                      disabled={busy}
+                      className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                      aria-label={`Reject: ${row.firstName ?? "unknown caller"} did not come in because of this call`}
+                    >
+                      <XCircle className="w-4 h-4" /> Reject
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );

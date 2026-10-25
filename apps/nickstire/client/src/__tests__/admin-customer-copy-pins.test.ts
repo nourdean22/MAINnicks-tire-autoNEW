@@ -48,7 +48,8 @@ const OUTBOUND_COUNT = 4;
 // 28 since 2026-10-19: admin prune W1 deleted five confirm dialogs with their surfaces
 // (Coupons, Loyalty, Technician referrals, QC review / Technicians, Inspection capture).
 // 29 since 2026-10-23: the Opportunities "Hide this opportunity?" confirm (operator text, not customer copy).
-const CHROME_COUNT = 29;
+// 30 since 2026-10-25: the Attribution review card's ruling confirm (operator text, not customer copy).
+const CHROME_COUNT = 30;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [

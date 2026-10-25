@@ -122,3 +122,29 @@ describe("the mix is what an operator should watch", () => {
     expect(() => bandMix([null, undefined, Number.NaN, -1, 0, 99])).not.toThrow();
   });
 });
+
+describe("plain words for the operator (2026-10-25)", () => {
+  // Nour reads the card on his phone between jobs. "Phone + time only · inferred" told him
+  // the recipe; it never told him what was uncertain. Every band now carries a `why` in
+  // words, and the label is a sentence fragment a non-engineer can read.
+  it("every band says why it is what it is, in words, without the recipe's tokens", () => {
+    for (const b of ["verified", "strong", "weak", "unscored"] as const) {
+      const d = describeBand(b);
+      expect(d.why.trim().length).toBeGreaterThan(20);
+      expect(d.why).not.toMatch(/phone_time|candidate|normalized|inferred/i);
+      expect(d.label).not.toMatch(/\+|inferred/);
+    }
+  });
+
+  it("the weak band names the two facts it rests on and that nothing else ties them", () => {
+    expect(describeBand("weak").label).toBe("Same phone and timing only");
+    expect(describeBand("weak").why).toMatch(/14 days/);
+    expect(describeBand("weak").why).toMatch(/nothing else/i);
+  });
+
+  it("the strong band adds the service, the verified band names the record", () => {
+    expect(describeBand("strong").label).toBe("Same phone, timing and service");
+    expect(describeBand("verified").label).toBe("Recorded link");
+    expect(describeBand("unscored").label).toBe("No single sale fits");
+  });
+});
