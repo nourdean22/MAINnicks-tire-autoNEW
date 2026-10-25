@@ -9,11 +9,10 @@
  * daily cap, claim-before-send, opt-out, holdouts). Nothing here sends.
  *
  * Exactly-once: UNIQUE(review_requests.invoiceId) from migration 0139, plus the per-phone
- * cooldown (isPhoneOnReviewCooldown) shared with booking-sourced rows. The older
- * `post-invoice-followup` lane also texts a review ask (once per customer, keyed on
- * customers.smsCampaignSent); candidates it already reached inside the cooldown are skipped
- * here, and it skips phones this lane already scheduled (postInvoiceFollowUp.ts), so a
- * customer is asked at most once per cooldown across both lanes.
+ * review cooldown (isPhoneOnReviewCooldown) shared with booking-sourced rows. This lane keeps
+ * its own review cooldown. The older `post-invoice-followup` lane (the 7-day post-visit text,
+ * once per customer, keyed on customers.smsCampaignSent) does not use it: it keeps a 3-day gap
+ * from any shop text (POST_VISIT_TEXT_GAP_DAYS in postInvoiceFollowUp.ts, 2026-10-25).
  *
  * Deploy order: inert until 0139 is applied — checked in information_schema before any write.
  * 0139 was applied and recorded in production on 2026-10-02 and `invoiceId` is now declared in

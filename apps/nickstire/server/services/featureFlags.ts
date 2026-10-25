@@ -18,7 +18,7 @@ const CACHE_TTL_MS = 60_000;
 export const FLAG_DEFINITIONS = [
   // ─── SMS & COMMUNICATION ──────────────────────────
   { key: "sms_appointment_reminders", description: "Send 24h/2h appointment reminder SMS" },
-  { key: "sms_review_requests", description: "Auto-send review request SMS 3 days after service" },
+  { key: "sms_review_requests", description: "Auto-send the review request SMS after service (delay from review_settings)" },
   { key: "sms_retention_sequences", description: "Send 90/180/365 day re-engagement SMS" },
   { key: "ai_receptionist_enabled", description: "AI phone answering via Twilio Voice" },
   { key: "drip_campaigns_enabled", description: "Multi-step automated drip campaigns" },

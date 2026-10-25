@@ -7,6 +7,17 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Field speed (read 2026-10-25, 15:50Z to 15:57Z, job 2026-10-25-public-site-measures)
+**Field data (CrUX) for https://nickstire.org/ on mobile and on desktop: UNMEASURED. PageSpeed Insights reported "No Data" for both, so the origin is most likely below Google's reporting threshold (an inference); LCP, INP and CLS field values do not exist yet. This is not a zero and not a pass.** The keyless API read (`pagespeedonline/v5/runPagespeed`) returned HTTP 429 "Quota exceeded ... Queries per day" on 12 of 12 attempts (6 mobile, 6 desktop, 15:48Z to 15:53Z), and the project has no PageSpeed key configured (no such name in `.env.example`), so the reads were taken from the pagespeed.web.dev report page, which runs the same Lighthouse 13.5.0 lab test and shows the same field section.
+Lab (one Lighthouse run per form factor, a single sample; scores move by several points run to run):
+
+| Form factor | Read | Performance | A11y | Best practices | SEO | FCP | LCP | TBT | CLS | Speed Index |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Mobile (Moto G Power, Slow 4G) | 11:50:56 EDT | 58 | 96 | 92 | 100 | 7.1 s | 15.2 s | 80 ms | 0 | 7.1 s |
+| Desktop | 11:56:46 EDT | 74 | 96 | 92 | 100 | 1.3 s | 3.1 s | 50 ms | 0.128 | 1.3 s |
+
+Both lab runs are above Google's "good" LCP line of 2.5 s (mobile by 12.7 s) and the desktop CLS of 0.128 is above the 0.1 line. The mobile report's network tree listed `/assets/admin-*.js` (about 167 KiB) and `/assets/blog-*.js` (about 343 KiB) on the homepage, and a local `vite build` of `51e8be7ea` prints "Circular chunk: blog -> admin -> blog": WEAK INFERENCE that the chunk split pulls admin code into the public first load; not traced. Raw numbers and method: `docs/agent-audit/PUBLIC-SITE-MEASURES-2026-10-25.md`.
+
 ## Office conversations, ears-v2 (2026-10-21, branch nickstire/shop-ears-v2) -- BUILT + TESTED, not merged; migration 0149 NOT applied
 The gist column now holds a 1-4 sentence account (guesses written "(inferred: ...)", unheard stretches "[inaudible: ...]", noise-only clips "Only shop noise, no speech."); "worth knowing" flags are stored as facts and kept only when their quote is really in the cited segment (server/services/conversationFacts.ts). Account, flags, lot.worthKnowing and lot.officeDigest are owner-only; other admin roles get business facts without quotes.
 drizzle/0149 adds conversation_episodes.extraction (model, prompt version, flag count, drop reasons); until Nour applies it through Admin > Run migrations the route skips that write and nothing else changes.
