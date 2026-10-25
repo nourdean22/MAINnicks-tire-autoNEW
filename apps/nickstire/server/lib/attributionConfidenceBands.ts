@@ -52,35 +52,41 @@ export interface BandDescription {
    * Only `verified` is observed; everything else is a guess with a number.
    */
   observed: boolean;
+  /** Why the match is what it is, in words the operator can read on a phone. */
+  why: string;
 }
 
 const DESCRIPTIONS: Record<ConfidenceBand, Omit<BandDescription, "band">> = {
   verified: {
-    label: "Verified link",
+    label: "Recorded link",
     basis: "The call is linked to a lead, and that lead is uniquely linked to this paid invoice. This is a recorded relationship, not an inference.",
     whatWouldRaiseIt: null,
     observed: true,
+    why: "A record ties this call to this sale: the lead taken on the call is the one this sale closed.",
   },
   strong: {
-    label: "Phone + time + service",
+    label: "Same phone, timing and service",
     basis: "Exact phone match, invoice paid inside the window, and the service the caller mentioned overlaps the invoice description.",
     whatWouldRaiseIt:
       "Only a recorded lead link would make this observed rather than inferred — capturing the lead during the call is what creates one.",
     observed: false,
+    why: "Same phone, the sale came within 14 days of the call, and the work matches what they asked about. No record says the call brought them in.",
   },
   weak: {
-    label: "Phone + time only",
+    label: "Same phone and timing only",
     basis: "Exact phone match and invoice paid inside the window. Nothing about the service matched, or no service was captured on the call.",
     whatWouldRaiseIt:
       "Capturing what the caller actually asked for would let the service text be compared at all. Most of these are missing the caller's request, not failing to match it.",
     observed: false,
+    why: "Same phone, and the sale came within 14 days of the call. Nothing else ties them: the work on the ticket does not match what they asked about, or the ask was not captured.",
   },
   unscored: {
-    label: "No single invoice",
+    label: "No single sale fits",
     basis: "Several paid invoices are equally plausible, or the call carried no matchable phone number. No specific money is being claimed.",
     whatWouldRaiseIt:
       "A phone number on the call, or a lead captured during it. Without one of those there is nothing to match on.",
     observed: false,
+    why: "More than one sale from this phone landed in the 14 days after the call, or the call had no phone to match. There is no one sale to confirm.",
   },
 };
 
@@ -93,7 +99,7 @@ const DESCRIPTIONS: Record<ConfidenceBand, Omit<BandDescription, "band">> = {
 export const BAND_CALIBRATION_CAVEAT =
   "These bands rank evidence, not probability. Nobody has yet measured how often a phone-and-time match turns out to be the right invoice, so the gap between bands is an ordering, not a percentage.";
 
-export function bandOf(confidence: number | null | undefined): ConfidenceBand {
+function bandOf(confidence: number | null | undefined): ConfidenceBand {
   if (confidence == null || Number.isNaN(confidence)) return "unscored";
   if (confidence >= 1) return "verified";
   if (confidence >= 0.9) return "strong";
@@ -104,8 +110,29 @@ export function bandOf(confidence: number | null | undefined): ConfidenceBand {
   return "unscored";
 }
 
-export function describeBand(band: ConfidenceBand): BandDescription {
+function describeBand(band: ConfidenceBand): BandDescription {
   return { band, ...DESCRIPTIONS[band] };
+}
+
+/**
+ * The description for a candidate ROW. Confidence alone misses one shape: a call whose lead
+ * links to a paid invoice that another lead also claims comes back `ambiguous` WITH an
+ * invoiceId and a null confidence (services/revenueAttribution.ts), and the unscored words
+ * ("no one sale to confirm") would then sit beside a real sale.
+ */
+export function describeCandidate(row: {
+  confidence: number | null | undefined;
+  resolution: string | null | undefined;
+  invoiceId: number | null | undefined;
+}): BandDescription {
+  const base = describeBand(bandOf(row.confidence));
+  if (row.resolution === "ambiguous" && row.invoiceId != null && base.band === "unscored") {
+    return {
+      ...base,
+      why: "The lead taken on this call links to this sale, but another lead claims the same sale. Confirm only if this caller is the one who paid.",
+    };
+  }
+  return base;
 }
 
 export interface BandMix {
