@@ -9,7 +9,7 @@
  *
  * The four properties under guard, and the outage each answers:
  *   1. A protected-ops tool is REFUSED on every scope (the comment-was-the-gate
- *      defect — runPython, now runCode, behind one flat token).
+ *      defect: runPython, now runCode, behind one flat token).
  *   2. The refusal is AUDITED (the console-only sink that could not answer
  *      "who called this").
  *   3. A scoped token cannot reach outside its scope (the single-secret-total

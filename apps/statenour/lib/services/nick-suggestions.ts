@@ -310,7 +310,8 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
 
   // Every source failed (a database outage): an empty list here would hide as a quiet
   // morning. Throw so `nick.suggestions` errors and the strip says the list could not load.
-  // shortcut: a partial failure still returns the chips that answered, with no note.
+  // shortcut: a partial failure returns whatever answered, even an empty list, with no note;
+  // upgrade by returning a failedSources count the strip can show when live is empty.
   if (failedReads === SOURCE_READS) {
     throw new Error("Every suggestion source failed to read; the chip list is unknown, not empty.");
   }

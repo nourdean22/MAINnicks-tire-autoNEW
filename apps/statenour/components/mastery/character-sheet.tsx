@@ -21,8 +21,9 @@
  *
  * Degradation: a failed read shows the error card; a paused (offline) or
  * unanswered read says so (ReadStateNote); only a read that returned no
- * stats draws the empty state. Stats open at a starting level seeded from your baseline self-
- * rating and climb as work lands, so the board reads as who you are today.
+ * stats draws the empty state. Stats open at a starting level seeded from
+ * your baseline self-rating and climb as work lands, so the board reads as
+ * who you are today.
  */
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
