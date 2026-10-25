@@ -40,7 +40,8 @@ async function runRevenueReconciliationIfDue(db: DatabaseClient): Promise<string
     const since = new Date(until.getTime() - 21 * 86_400_000);
     const { runRevenueReconciliation } = await import("../../services/revenueReconciliation");
     const result = await runRevenueReconciliation({ since, until, maxDays: 14 });
-    return `reconciliation ${result.runId}: ${result.callsScanned} calls, ${result.verified} verified, ${result.inferred} review`;
+    const auto = result.autoConfirm;
+    return `reconciliation ${result.runId}: ${result.callsScanned} calls, ${result.verified} verified, ${result.inferred} review, auto-confirm ${auto.status}: ${auto.confirmed} confirmed of ${auto.eligible} eligible${auto.error ? ` (${auto.error.slice(0, 80)})` : ""}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // Asked of the driver error: drizzle's wrapper message is the SQL, which

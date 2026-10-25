@@ -250,6 +250,58 @@ describe("AttributionReviewCard · review round (Codex, PR 3271)", () => {
   });
 });
 
+describe("AttributionReviewCard · the measured rate (PR 2)", () => {
+  const cal = (over: Record<string, unknown> = {}) => ({
+    status: "ok",
+    anyOpen: false,
+    words: {
+      status: "ok",
+      weak: "Same-phone-and-timing matches: 7 checked so far (right 7). Under 20, so no measured rate yet and every one still comes here.",
+      strong: "Same-phone-timing-and-service matches: 0 checked so far (right 0). Under 20, so no measured rate yet and every one still comes here.",
+      control: "For scale: a same-phone sale follows 9.5% of calls within 14 days, and precedes 4.2% of calls within 14 days, which the call cannot have caused.",
+    },
+    bands: null,
+    measuredAt: "2026-10-25T12:00:00.000Z",
+    ...over,
+  });
+
+  it("Why shows the measured sentence with its count, and the control, instead of 'nobody has measured'", () => {
+    h.q.data = queue([weak()], { calibration: cal() });
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^why/i }));
+    expect(screen.getByText(/7 checked so far/)).toBeInTheDocument();
+    expect(screen.getByText(/9\.5% of calls/)).toBeInTheDocument();
+    expect(screen.queryByText(/nobody has yet measured/i)).toBeNull();
+  });
+
+  it("an open band changes the lead sentence: these are the rest, the band confirms itself", () => {
+    h.q.data = queue([weak()], {
+      calibration: cal({
+        anyOpen: true,
+        words: { status: "ok", weak: "Same-phone-and-timing matches were right 32 of 32 times (32 of 32 against the shop's arrival records), so they confirm themselves now; a ruling of yours that says otherwise counts against them.", strong: "x", control: "c" },
+      }),
+    });
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    expect(screen.getByText(/confirm themselves now/i)).toBeInTheDocument();
+    expect(screen.getByText(/right 32 of 32/)).toBeInTheDocument();
+  });
+
+  it("a failed calibration read says it could not be measured, never a zero", () => {
+    h.q.data = queue([weak()], {
+      calibration: cal({
+        status: "failed",
+        words: { status: "failed", weak: "The hit rate could not be measured (ER_NO_SUCH_TABLE). Until it reads again, nothing confirms itself and every match comes here.", strong: "same", control: null },
+      }),
+    });
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /1 match to review/i }));
+    expect(screen.getByText(/could not be measured/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0 of 0/)).toBeNull();
+  });
+});
+
 describe("AttributionReviewCard · the lead sentence fits every queued shape (Codex, PR 3271)", () => {
   it("does not claim same phone and timing when an ambiguous row with no single sale is queued", () => {
     h.q.data = queue([

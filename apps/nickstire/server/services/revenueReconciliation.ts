@@ -5,6 +5,13 @@ import { expectedArrivals, invoices, leads, vapiCallLogs } from "../../drizzle/s
 import { getDbTyped } from "../db";
 import { attributionObligationSubject } from "./bridgeKeys";
 import {
+  autoConfirmCalibrated,
+  loadCalibration,
+  type AutoConfirmCandidate,
+  type AutoConfirmResult,
+  type CalibrationState,
+} from "./attributionAutoConfirm";
+import {
   ATTRIBUTION_DEFINITION_VERSION,
   buildCallInvoiceCandidates,
   type CallObservation,
@@ -125,6 +132,7 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
     let ambiguous = 0;
     let unmatched = 0;
     const ambiguousCallIds: number[] = [];
+    const autoCandidates: AutoConfirmCandidate[] = [];
 
     for (const candidate of candidates) {
       if (currentDecisions.has(candidate.callId)) {
@@ -187,6 +195,18 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
           : candidate.resolution === "ambiguous"
             ? "multiple_plausible_invoices"
             : "no_supported_match";
+      if (candidate.resolution === "manual_review" && call) {
+        autoCandidates.push({
+          callId: candidate.callId,
+          invoiceId: candidate.invoiceId,
+          resolution: candidate.resolution,
+          confidence: candidate.confidence,
+          matchMethod,
+          leadId: call.leadId ?? null,
+          bookingId: lead?.bookingId ?? null,
+          occurredAt: call.occurredAt,
+        });
+      }
 
       await db.execute(sql`
         INSERT IGNORE INTO revenue_reconciliation_candidates
@@ -203,6 +223,18 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
            })})
       `);
     }
+
+    // Self-learning step (2026-10-25): a band that has earned it (measured right rate >= 90%
+    // over at least 20 rulings and recorded links) confirms its own weak matches, one ruling
+    // per invoice. A calibration read that fails is a CLOSED gate and is said so on the run.
+    let calibration: CalibrationState;
+    try {
+      calibration = await loadCalibration(db);
+    } catch (e) {
+      calibration = { status: "failed", error: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300) };
+      log.warn("[revenueReconciliation] calibration read failed; no auto-confirm this run", { error: calibration.error });
+    }
+    const autoConfirm: AutoConfirmResult = await autoConfirmCalibrated(db, { runId, candidates: autoCandidates, calibration });
 
     await db.execute(sql`
       UPDATE revenue_reconciliation_runs SET
@@ -254,6 +286,7 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       ambiguous,
       unmatched,
       decisionsPreserved: preserved,
+      autoConfirm,
     };
   } catch (error) {
     await db.execute(sql`

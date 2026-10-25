@@ -81,10 +81,13 @@ describe("the calibration caveat is not optional", () => {
     expect(BAND_CALIBRATION_CAVEAT).toContain("ordering, not a percentage");
   });
 
-  it("admits nobody has measured the hit rate", () => {
-    // If this ever becomes false, the caveat must change with it — pinning the
-    // claim here is what forces that.
-    expect(BAND_CALIBRATION_CAVEAT).toContain("Nobody has yet measured");
+  it("points at the measured rate and names the floor under which there is none", () => {
+    // 2026-10-25: the rate IS measured now (lib/attributionCalibration), so the old
+    // "Nobody has yet measured" line would be a false claim. The caveat says where the
+    // number lives and that under 20 cases there is no rate at all.
+    expect(BAND_CALIBRATION_CAVEAT).not.toContain("Nobody has yet measured");
+    expect(BAND_CALIBRATION_CAVEAT).toContain("measured hit rate");
+    expect(BAND_CALIBRATION_CAVEAT).toContain("under 20");
   });
 });
 
