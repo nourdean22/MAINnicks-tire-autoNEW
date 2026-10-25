@@ -5,7 +5,7 @@
  * (758) while the roster beside it counted 3+ visits and 90 to 365 days. It now
  * counts the same lapsed regulars as customers.stats, says how many can be
  * texted (the canonical eligibility predicate), and its action opens Outreach >
- * Win-Back instead of the retired "reEngagement" section.
+ * Win-Back instead of the retired re-engagement section.
  *
  * The real drizzle builder runs over a fake mysql2 client, so the assertions are
  * on the SQL the router actually sends.
