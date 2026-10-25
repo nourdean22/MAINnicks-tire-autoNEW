@@ -78,14 +78,14 @@ export const DANGEROUS_TOOL_COMBOS: ToolComboRule[] = [
   },
   {
     prior: "findRelatedConversations",
-    next: "runPython",
+    next: "runCode",
     reason:
-      "Cross-session memory into arbitrary code execution · a prior-session prompt-injected summary could carry a payload the model translates into Python.",
+      "Cross-session memory into arbitrary code execution · a prior-session prompt-injected summary could carry a payload the model translates into code.",
     requireHITL: true,
   },
   {
     prior: "ingestDocumentFromUrl",
-    next: "runPython",
+    next: "runCode",
     reason:
       "Freshly-ingested external doc → arbitrary code in the same turn. The model hasn't yet had time to verify the doc's intent · ask operator.",
     requireHITL: true,

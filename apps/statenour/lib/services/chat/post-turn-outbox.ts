@@ -232,7 +232,7 @@ export async function getOutboxHealth(): Promise<OutboxQueueHealth> {
     prisma.postTurnOutbox.count({ where: { status: "pending" } }),
     prisma.postTurnOutbox.count({ where: { status: "processing" } }),
     prisma.postTurnOutbox.count({ where: { status: "done", updatedAt: { gte: since } } }),
-    // Chat work only: agent follow-ups share the table and have their own lane (08-X3).
+    // Chat work only: agent follow-ups share the table but are not chat work, and their lane was deleted in PR 3259 (08-X3).
     prisma.postTurnOutbox.count({ where: { kind: OUTBOX_KIND.deferredBackground, status: { in: [...DEAD_STATUSES] } } }),
     prisma.postTurnOutbox.findFirst({
       where: { kind: OUTBOX_KIND.deferredBackground, status: { in: [...DEAD_STATUSES] } },
