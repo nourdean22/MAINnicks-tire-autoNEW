@@ -24,9 +24,12 @@ const h = vi.hoisted(() => ({
   ranks: { ok: false, reason: "error", message: "unset" } as unknown,
   checklist: { ok: false, reason: "error", message: "unset" } as unknown,
   setCalls: [] as unknown[],
+  // dbAdminProcedure's requireDatabase reads getDbTyped: a truthy handle by default, null for the
+  // outage case. getDb stays null so the admin-role read takes its documented missing-row path.
+  db: {} as unknown,
 }));
 
-vi.mock("../db", () => ({ getDb: async () => null }));
+vi.mock("../db", () => ({ getDb: async () => null, getDbTyped: async () => h.db }));
 vi.mock("../google-reviews", () => ({ getGoogleReviews: async () => h.reviews }));
 vi.mock("../services/competitorMonitor", () => ({ getCompetitorSnapshotCached: async () => h.snapshot }));
 vi.mock("../pipelines/targetKeywordRanks", () => ({ getTargetKeywordRanks: async () => h.ranks }));
@@ -174,6 +177,19 @@ describe("localGrowth.checklist", () => {
 
   it("is admin only", async () => {
     await expect(caller("user").checklist()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("a dead database handle is SERVICE_UNAVAILABLE at the router, never a result (dbAdminProcedure, ROS-083)", async () => {
+    h.db = null;
+    try {
+      await expect(caller().checklist()).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+      await expect(caller().setChecklistItem({ slug: "entity-yelp", checked: true })).rejects.toMatchObject({
+        code: "SERVICE_UNAVAILABLE",
+      });
+      expect(h.setCalls).toEqual([]);
+    } finally {
+      h.db = {};
+    }
   });
 });
 

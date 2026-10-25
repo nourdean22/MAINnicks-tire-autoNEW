@@ -10,7 +10,7 @@
  * the durable Meta token (the real disarm gotcha) is present.
  */
 import { z } from "zod";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 
 export const localGrowthRouter = router({
   /**
@@ -163,7 +163,9 @@ export const localGrowthRouter = router({
    * platforms and GBP Q&A seeds the admin has verified on the platform, by slug. A failed read is
    * { ok: false, reason }, never an empty map.
    */
-  checklist: adminProcedure.query(async () => {
+  // dbAdminProcedure: a dead database handle is SERVICE_UNAVAILABLE here, never a fabricated
+  // result (ROS-083; server/fabricatedAdminReadGate.test.ts ratchets the class).
+  checklist: dbAdminProcedure.query(async () => {
     const { getLocalChecklist } = await import("../services/localChecklist");
     return getLocalChecklist();
   }),
@@ -173,7 +175,7 @@ export const localGrowthRouter = router({
    * unmark it (the row is deleted). Writes the shop's own settings row only: nothing is sent to
    * or changed on any platform. Same permission as the reads above (marketing.manage).
    */
-  setChecklistItem: adminProcedure
+  setChecklistItem: dbAdminProcedure
     .input(z.object({
       slug: z.string().regex(/^[a-z0-9-]{1,60}$/),
       checked: z.boolean(),
