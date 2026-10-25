@@ -91,6 +91,26 @@ function addUsage(acc: LaneUsage | undefined, u: unknown): LaneUsage | undefined
   };
 }
 
+/**
+ * 2026-10-25 · ONE wall-clock budget for the buffered lanes, on the route's
+ * own turn clock (`persistBase.startedAt`). No byte reaches the client until a
+ * lane ships, and the client (hooks/chat/use-chat-stall.ts) gives up 180 s
+ * after SUBMIT with nothing received. startedAt is taken after the user row
+ * write (capped at 5 s) and the simulated stream still runs after the ship, so
+ * a lane aims to ship by 150 s: 30 s of margin for both. Optional work runs
+ * only while its usual cost still fits before that mark:
+ *   - a second regen draft costs about what the first just did (same prompt,
+ *     same tools), so it runs only if elapsed + firstMs fits;
+ *   - CoVe took 35 s on 2026-10-25 (12 s plan, 3 s answers, 20 s revise),
+ *     reserved at 45 s. A skipped CoVe still runs post-flush in persist.
+ * A draft that exists always ships; the budget never throws one away.
+ * Self-consistency samples run in parallel, so extra samples add no serial
+ * time here; only its CoVe is gated. Witnessed 2026-10-25: first draft 119 s +
+ * second draft 64 s + CoVe 35 s = 225 s, the client gone at 180 s.
+ */
+const LANE_SHIP_BY_MS = 150_000;
+const COVE_RESERVE_MS = 45_000;
+
 /** The route's persistBase bundle — everything buildOnFinish needs
  *  except the per-call-site provider/modelId/model (+ onWorkComplete). */
 export type PersistBase = Omit<
@@ -207,6 +227,40 @@ export async function runAlternatePaths(args: {
   // a fall-through the main stream must not be offered them again.
   const lanesRanWrites = new Set<string>();
 
+  /** True when a step costing `costMs` still fits LANE_SHIP_BY_MS; a skip logs one line. */
+  const fitsBudget = (lane: string, step: string, costMs: number): boolean => {
+    const startedAt = persistBase.startedAt;
+    // No turn clock (never on the route, which always passes it): run as before.
+    if (!Number.isFinite(startedAt)) return true;
+    const elapsedMs = Date.now() - startedAt;
+    if (elapsedMs + costMs <= LANE_SHIP_BY_MS) return true;
+    log.info("lane_budget_skipped", { lane, step, elapsedMs });
+    return false;
+  };
+  /**
+   * The preflight above is an estimate; this bounds the step itself. `op` gets a signal that
+   * aborts when the remaining budget runs out, and the step is cut then even if it ignores the
+   * signal (CoVe takes none). A cut throws, so the caller's existing catch ships the draft in hand.
+   */
+  const withinBudget = async <T,>(lane: string, step: string, op: (signal?: AbortSignal) => Promise<T>): Promise<T> => {
+    const startedAt = persistBase.startedAt;
+    if (!Number.isFinite(startedAt)) return op(undefined);
+    const ac = new AbortController();
+    // Listening before `op` runs, so an abort during its first tick is still seen.
+    const cut = new Promise<never>((_, reject) => {
+      ac.signal.addEventListener("abort", () => reject(new Error("lane budget spent")), { once: true });
+    });
+    const timer = setTimeout(() => ac.abort(), Math.max(0, LANE_SHIP_BY_MS - (Date.now() - startedAt)));
+    try {
+      return await Promise.race([op(ac.signal), cut]);
+    } catch (err) {
+      if (ac.signal.aborted) log.info("lane_budget_cut", { lane, step, elapsedMs: Date.now() - startedAt });
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   try {
     const { shouldGateForIntent, maybePreStreamRegen } = await import(
       "@/lib/ai/chat/pre-stream-regen"
@@ -275,6 +329,11 @@ export async function runAlternatePaths(args: {
     // toolChoice:"required" makes the model call the real tool.
     if (!actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn || preflushOn)) {
       let winner = "";
+      // 2026-10-25 · registered for the WHOLE generation (audit 04-F8 registered it only once the
+      // reply existed): a stall reattach (use-chat-stream.ts) reads this row to tell "still
+      // working" from "stuck". On a fall-through the streamText path re-registers the same turn.
+      const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
+      const __altTurnDone = convId ? trackActiveStream(convId, traceId, persistBase.userClientMessageId) : null;
       // 2026-09-15 · tool receipts captured by a buffered lane. The
       // enforcement block below was receipt-BLIND on every lane (it had no
       // way to see what generateText called), which limited it to length and
@@ -451,10 +510,6 @@ export async function runAlternatePaths(args: {
           "@/lib/services/chat/response-shape"
         );
 
-        // 2026-10-10 (audit 04-F8) - register THIS turn like the streamText
-        // path does, so a reconnect never replays the previous turn's reply.
-        const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
-        const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
         const streamResponse = simulateReasoningStream({
           request: {
             question: userContent,
@@ -500,12 +555,13 @@ export async function runAlternatePaths(args: {
       } else if (regenOn) {
         laneName = "regen";
         const { generateText } = await import("ai");
-        const genOnce = async (sys: string, temp: number): Promise<string> => {
+        const genOnce = async (sys: string, temp: number, abortSignal?: AbortSignal): Promise<string> => {
           const r = await generateText({
             ...genBase,
             experimental_telemetry: langfuseTelemetry({ functionId: "chat-alternate-path", privateMode }),
             system: sys,
             temperature: temp,
+            ...(abortSignal ? { abortSignal } : {}),
           } as Parameters<typeof generateText>[0]);
           rememberLaneSample(r);
           return r.text;
@@ -519,10 +575,15 @@ export async function runAlternatePaths(args: {
           turnSignal,
           responseContract: persistBase.responseContract ?? null,
           generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
+          allowRegen: (firstMs) => fitsBudget(laneName, "second_draft", firstMs),
+          // A cut throws; maybePreStreamRegen then ships the first draft ("regen-failed").
           regenOnce: ({ suggestedSystemPrefix }) =>
-            genOnce(
-              `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
-              Math.min(0.9, turnSignal.temperature + 0.1),
+            withinBudget(laneName, "second_draft", (signal) =>
+              genOnce(
+                `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
+                Math.min(0.9, turnSignal.temperature + 0.1),
+                signal,
+              ),
             ),
         });
         winner = regen.text;
@@ -665,8 +726,10 @@ export async function runAlternatePaths(args: {
             const { verifyAndRevise, FACTUAL_INTENTS } = await import(
               "@/lib/ai/chat/chain-of-verification"
             );
-            if (FACTUAL_INTENTS.has(turnSignal.intent)) {
-              const cove = await verifyAndRevise(winner, userContent);
+            if (FACTUAL_INTENTS.has(turnSignal.intent) && fitsBudget(laneName, "cove", COVE_RESERVE_MS)) {
+              // A cut lands in the catch below: the unrevised draft ships, persist still owes CoVe.
+              const draft = winner;
+              const cove = await withinBudget(laneName, "cove", () => verifyAndRevise(draft, userContent));
               if (cove.changed && cove.revised.trim()) {
                 log.info("cove_revised", { lane: laneName, questions: cove.questions.length });
                 winner = cove.revised;
@@ -787,9 +850,6 @@ export async function runAlternatePaths(args: {
         const { buildChatResponse } = await import(
           "@/lib/services/chat/response-shape"
         );
-        // 2026-10-10 (audit 04-F8) - same registration as the lane above.
-        const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
-        const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
         const streamResponse = simulateStreamFromText({
           text: winner,
           chunkSize: 24,

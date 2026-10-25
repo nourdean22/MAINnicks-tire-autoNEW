@@ -1339,6 +1339,16 @@ ${priorsBlock}`;
           }))
         : undefined,
     });
+    // 2026-10-25 · a buffered lane registers the turn before it generates; a fall-through that
+    // dies here must not leave that row "active" with no text for the 10 min TTL (every resume
+    // in that window would wait 20 s for nothing). Closed, the next resume is a plain 204.
+    // Pinned to THIS turn's trace: a retry may already have registered its own turn on the row.
+    if (!transcriptOff && convId) {
+      const closeConv = convId;
+      void import("@/lib/services/chat/active-stream")
+        .then(({ completeActiveStream }) => completeActiveStream(closeConv, { traceId: __traceId }))
+        .catch(() => undefined);
+    }
     return Response.json(
       { error: "Chat stream failed" },
       { status: 500 }
@@ -1393,8 +1403,9 @@ ${priorsBlock}`;
     const { registerActiveStream, completeActiveStream } = await import(
       "@/lib/services/chat/active-stream"
     );
-    void registerActiveStream(convId, __traceId);
-    void onFinishPromise.then(() => completeActiveStream(convId!));
+    // Round 4: the row names this turn's user message, and completion closes only this turn's row.
+    void registerActiveStream(convId, __traceId, extractClientMessageId(lastUserMsg));
+    void onFinishPromise.then(() => completeActiveStream(convId!, { traceId: __traceId }));
   }
 
   const { buildChatResponse } = await import("@/lib/services/chat/response-shape");

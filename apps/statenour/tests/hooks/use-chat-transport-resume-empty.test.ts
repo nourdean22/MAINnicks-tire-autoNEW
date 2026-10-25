@@ -56,6 +56,19 @@ describe("a resume that finds nothing is reported", () => {
       vi.unstubAllGlobals();
     }
     expect(onResumeEmpty).toHaveBeenCalledTimes(1);
+    expect(onResumeEmpty).toHaveBeenCalledWith({ pending: false });
+  });
+
+  it("a 204 carrying X-Resume-Pending (turn alive, no bytes yet) says so", async () => {
+    const onResumeEmpty = vi.fn();
+    const wrapped = build(onResumeEmpty);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204, headers: { "X-Resume-Pending": "1" } })));
+    try {
+      await wrapped(resumeUrl, { method: "GET" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(onResumeEmpty).toHaveBeenCalledWith({ pending: true });
   });
 
   it("CONTROL: a resume that streams, and a POST, report nothing", async () => {
@@ -73,5 +86,64 @@ describe("a resume that finds nothing is reported", () => {
       vi.unstubAllGlobals();
     }
     expect(onResumeEmpty).not.toHaveBeenCalled();
+  });
+});
+
+// Round 2 review (2026-10-25): Nour's stalled turn was the FIRST message of a new chat, so the
+// client had no conversation id and every resume went to the "none" sentinel (a 204 by contract).
+function buildWith(extra: Record<string, unknown>, body: Record<string, unknown>, trace: { current: string | null }) {
+  capturedOpts = undefined;
+  function Probe() {
+    useChatTransport({
+      apiPath: "/api/ai/chat",
+      transportBodyRef: { current: body },
+      liveContextBlocksRef: { current: null },
+      lastPersonaHeaderRef: { current: null },
+      lastTraceIdRef: trace,
+      setDeeperContext: () => {},
+      ...extra,
+    } as never);
+    return null;
+  }
+  renderToStaticMarkup(createElement(Probe));
+  if (!capturedOpts) throw new Error("transport opts were not captured");
+  return capturedOpts as {
+    prepareReconnectToStreamRequest: () => { api: string };
+    fetch: Wrapper;
+  };
+}
+
+describe("a first-send reattach names the message it waits for", () => {
+  it("no conversation yet: the resume carries the client-minted message id", () => {
+    const t = buildWith({ resumeUserMessageId: () => "u1" }, { conversationId: null }, { current: null });
+    expect(t.prepareReconnectToStreamRequest().api).toBe("/api/ai/chat/none/stream?clientMessageId=u1");
+  });
+
+  it("CONTROL: private mode never sends it, and a known conversation keeps its plain URL", () => {
+    const priv = buildWith({ resumeUserMessageId: () => "u1" }, { conversationId: null, privateMode: true }, { current: null });
+    expect(priv.prepareReconnectToStreamRequest().api).toBe("/api/ai/chat/none/stream");
+    const known = buildWith({ resumeUserMessageId: () => "u1" }, { conversationId: "c1" }, { current: "T2" });
+    expect(known.prepareReconnectToStreamRequest().api).toBe("/api/ai/chat/c1/stream?traceId=T2");
+  });
+
+  it("CONSUMER: a pending 204's trace and conversation reach the client, so the next GET names both", async () => {
+    const trace = { current: null as string | null };
+    const onConversationId = vi.fn();
+    const onResumeEmpty = vi.fn();
+    const t = buildWith({ onConversationId, onResumeEmpty }, { conversationId: null }, trace);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(null, { status: 204, headers: { "X-Resume-Pending": "1", "X-Trace-Id": "T2", "X-Conversation-Id": "conv-new" } }),
+      ),
+    );
+    try {
+      await t.fetch("/api/ai/chat/none/stream?clientMessageId=u1", { method: "GET" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(onResumeEmpty).toHaveBeenCalledWith({ pending: true });
+    expect(trace.current).toBe("T2");
+    expect(onConversationId).toHaveBeenCalledWith("conv-new");
   });
 });

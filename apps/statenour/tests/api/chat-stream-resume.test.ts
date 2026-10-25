@@ -22,6 +22,10 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { chatMessage: { findFirst: (a: unknown) => mockFindFirst(a) } },
 }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+const mockFindUserTurnRow = vi.fn();
+vi.mock("@/lib/services/chat/user-turn-identity", () => ({
+  findUserTurnRow: (a: unknown) => mockFindUserTurnRow(a),
+}));
 vi.mock("@/lib/services/chat/active-stream", async () => {
   const actual = await vi.importActual<typeof import("@/lib/services/chat/active-stream")>(
     "@/lib/services/chat/active-stream",
@@ -141,14 +145,148 @@ describe("resume route · in-flight turns (the WP2 defect)", () => {
     expect(res.headers.get("X-Resume-Partial")).toBe("1");
   }, 30_000);
 
-  it("an active turn with NO bytes yet still 204s — an empty bubble is worse than none", async () => {
+  // 2026-10-25: a buffered lane writes no partial bytes, so "no bytes yet" covered a turn that
+  // was still working for minutes. The route now waits its window before answering.
+  it("an active turn with NO bytes for the whole window 204s with X-Resume-Pending (never an empty bubble)", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetActiveStream.mockResolvedValue({
+        status: "active",
+        traceId: "T2",
+        startedAt: new Date().toISOString(),
+        partialText: "",
+      });
+      const pending = GET(req(), ctx("conv-1"));
+      await vi.advanceTimersByTimeAsync(21_000);
+      const res = await pending;
+      expect(res.status).toBe(204);
+      expect(res.headers.get("X-Resume-Pending"), "the client must learn the turn is alive").toBe("1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a turn with no bytes yet that saves inside the window replays its saved reply, unnamed", async () => {
+    const startedAt = new Date().toISOString();
+    mockGetActiveStream
+      .mockResolvedValueOnce({ status: "active", traceId: "T2", startedAt, partialText: "" })
+      .mockResolvedValue({ status: "complete", traceId: "T2", startedAt, partialText: "" });
+    mockFindFirst.mockResolvedValue({ id: "m2", content: "the buffered reply, saved whole" });
+
+    const res = await GET(req(), ctx("conv-1"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Trace-Id")).toBe("T2");
+    expect(res.headers.get("X-Resume-Partial")).toBeNull();
+    expect(await readDeltas(res)).toBe("the buffered reply, saved whole");
+  });
+
+  it("CONTROL: the row goes to another turn mid-wait: plain 204, not pending, no replay", async () => {
+    const startedAt = new Date().toISOString();
+    mockGetActiveStream
+      .mockResolvedValueOnce({ status: "active", traceId: "T2", startedAt, partialText: "" })
+      .mockResolvedValue({ status: "complete", traceId: "T3", startedAt, partialText: "" });
+    mockFindFirst.mockResolvedValue({ id: "m3", content: "another turn's reply" });
+
+    const res = await GET(req(), ctx("conv-1"));
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("X-Resume-Pending")).toBeNull();
+    expect(mockFindFirst).not.toHaveBeenCalled();
+  });
+});
+
+// Round 2 review, S1: the pending 204 named nothing, so the client's next GET was unnamed and a
+// reply that saved in between hit the P2-B6 "unnamed completed = 204" rule: stuck, reply hidden.
+describe("resume route · a pending answer names its turn", () => {
+  it("the pending 204 carries the turn's trace and conversation, and the named GET after the save replays it", async () => {
+    vi.useFakeTimers();
+    const startedAt = new Date().toISOString();
+    try {
+      mockGetActiveStream.mockResolvedValue({ status: "active", traceId: "T2", startedAt, partialText: "" });
+      const pending = GET(req(), ctx("conv-1"));
+      await vi.advanceTimersByTimeAsync(21_000);
+      const first = await pending;
+      expect(first.status).toBe(204);
+      expect(first.headers.get("X-Trace-Id"), "the next GET must be able to name the turn").toBe("T2");
+      // Only a first send learns its conversation here; a known one must not be re-announced
+      // (a late answer would pull the operator back from a thread they switched to).
+      expect(first.headers.get("X-Conversation-Id")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    mockGetActiveStream.mockResolvedValue({ status: "complete", traceId: "T2", startedAt, partialText: "" });
+    mockFindFirst.mockResolvedValue({ id: "m2", content: "saved between the two asks" });
+    const second = await GET(namedReq("T2"), ctx("conv-1"));
+    expect(second.status).toBe(200);
+    expect(await readDeltas(second)).toBe("saved between the two asks");
+  });
+});
+
+// Round 2 review, S2 (Nour's 2026-10-25 turn was the FIRST message of a new chat): the client has no
+// conversation id until the POST's headers, and a buffered lane sends none until its reply is whole.
+// The user row is written before generation and carries the id the client minted, so the resume
+// can find the conversation by it (findUserTurnRow's first-send rule).
+describe("resume route · a first send found by the client's message id", () => {
+  const userRow = (createdAt: Date) => ({ id: "row-u1", conversationId: "conv-new", clientMessageId: "u1", createdAt });
+  const firstSendReq = (extra = "") =>
+    ({ nextUrl: new URL(`https://x.test/api/ai/chat/none/stream?clientMessageId=u1${extra}`) }) as never;
+
+  it("replays the saved reply of the turn that message started, and hands back the conversation id", async () => {
+    const sentAt = new Date(Date.now() - 200_000);
+    const startedAt = new Date(sentAt.getTime() + 3_000).toISOString();
+    mockFindUserTurnRow.mockResolvedValue(userRow(sentAt));
+    mockGetActiveStream.mockResolvedValue({ status: "complete", traceId: "T2", startedAt, partialText: "", clientMessageId: "u1" });
+    mockFindFirst.mockResolvedValue({ id: "m2", content: "the first reply in the new chat" });
+
+    const res = await GET(firstSendReq(), ctx("none"));
+
+    expect(mockFindUserTurnRow).toHaveBeenCalledWith({ conversationId: null, messageId: "u1" });
+    expect(mockGetActiveStream).toHaveBeenCalledWith("conv-new");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Conversation-Id"), "later sends must join this conversation").toBe("conv-new");
+    expect(await readDeltas(res)).toBe("the first reply in the new chat");
+  });
+
+  it("CONTROL: a completed record OLDER than the message is not its reply", async () => {
+    const sentAt = new Date();
+    mockFindUserTurnRow.mockResolvedValue(userRow(sentAt));
     mockGetActiveStream.mockResolvedValue({
-      status: "active",
-      traceId: null,
-      startedAt: new Date().toISOString(),
+      status: "complete",
+      traceId: "T0",
+      startedAt: new Date(sentAt.getTime() - 60_000).toISOString(),
       partialText: "",
     });
-    expect((await GET(req(), ctx("conv-1"))).status).toBe(204);
+    mockFindFirst.mockResolvedValue({ id: "m0", content: "an older reply" });
+
+    expect((await GET(firstSendReq(), ctx("none"))).status).toBe(204);
+  });
+
+  // Round 4 (Codex P2): every LATER turn in the conversation also started after the first message,
+  // so a timestamp cannot say whose row it is. The row names the user message it was registered for.
+  it("a LATER turn's row (registered for another message) never replays into the first send", async () => {
+    const sentAt = new Date(Date.now() - 300_000);
+    mockFindUserTurnRow.mockResolvedValue(userRow(sentAt));
+    mockGetActiveStream.mockResolvedValue({
+      status: "complete",
+      traceId: "T5",
+      startedAt: new Date(sentAt.getTime() + 120_000).toISOString(),
+      partialText: "",
+      clientMessageId: "u5",
+    });
+    mockFindFirst.mockResolvedValue({ id: "m5", content: "the fifth turn's reply" });
+
+    const res = await GET(firstSendReq(), ctx("none"));
+    expect(res.status).toBe(204);
+    expect(mockFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: no message id, or one with no saved row (private, or never landed): 204, no registry read", async () => {
+    mockFindUserTurnRow.mockResolvedValue(null);
+    expect((await GET(req(), ctx("none"))).status).toBe(204);
+    expect((await GET(firstSendReq(), ctx("none"))).status).toBe(204);
+    expect(mockGetActiveStream).not.toHaveBeenCalled();
   });
 });
 

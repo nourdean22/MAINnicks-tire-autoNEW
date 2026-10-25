@@ -28,8 +28,17 @@ const h = vi.hoisted(() => {
     // What the fake model stream's consumeStream() hands back; undefined = the result has no consumeStream.
     consume: undefined as undefined | (() => Promise<void>),
     prisma: new Proxy({}, { get: () => model }),
+    streamThrows: false,
+    registry: [] as Array<[string, string]>,
   };
 });
+vi.mock("@/lib/services/chat/active-stream", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/chat/active-stream")>()),
+  registerActiveStream: async (convId: string, _trace: string, clientMessageId?: string) =>
+    void h.registry.push(["register", clientMessageId ? `${convId}#${clientMessageId}` : convId]),
+  completeActiveStream: async (convId: string, only?: { traceId: string }) =>
+    void h.registry.push(["complete", only ? `${convId}@${only.traceId}` : convId]),
+}));
 
 vi.mock("@/lib/logger", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/logger")>();
@@ -89,13 +98,16 @@ vi.mock("@/lib/ai/decision-plane/shadow", () => ({
 }));
 vi.mock("@/lib/ai/budget", () => ({ assertWithinBudget: vi.fn().mockResolvedValue({ ok: true }) }));
 vi.mock("@/lib/ai/stream-with-fallback", () => ({
-  streamWithFallback: vi.fn(async () => ({
+  streamWithFallback: vi.fn(async () => {
+    if (h.streamThrows) throw new Error("every provider failed");
+    return {
     result: {
       toUIMessageStreamResponse: () => new Response("ok"),
       ...(h.consume ? { consumeStream: () => h.consume!() } : {}),
     },
     attempts: [{ provider: "ollama", errorClass: null, failedAt: null }],
-  })),
+    };
+  }),
   inferProviderName: vi.fn(),
 }));
 vi.mock("@/app/api/ai/chat/build-stream-config", () => ({
@@ -177,6 +189,32 @@ const settle = () => new Promise((r) => setTimeout(r, 25));
 beforeEach(() => {
   for (const k of Object.keys(h.seen)) delete h.seen[k];
   h.consume = undefined;
+  h.streamThrows = false;
+  h.registry.length = 0;
+});
+
+// Round 2 review, S3 (2026-10-25): a buffered lane now registers the turn before it generates. If
+// it falls through and the main stream then throws, the 500 left an ACTIVE row with no text for the
+// registry's 10 min TTL, and every app open in that window held the mount resume for 20 s.
+describe("chat route - a failed main stream does not leave the turn in flight", () => {
+  it("the 500 path closes the registry row, so the next resume gets a plain 204", async () => {
+    h.streamThrows = true;
+    const res = await POST(new Request("http://localhost/api/ai/chat", { method: "POST" }));
+    expect(res.status).toBe(500);
+    // Pinned to the failed turn's own trace (round 3): a retry's newer row must survive it.
+    await vi.waitFor(() =>
+      expect(h.registry.some(([op, id]) => op === "complete" && /^conv-123@t_\w+/.test(id))).toBe(true),
+    );
+  });
+
+  it("CONTROL: a stream that starts registers the turn and does not close it at hand-off", async () => {
+    h.consume = () => new Promise(() => {});
+    await turn();
+    await settle();
+    // The row names the user message it serves (round 4): a first-send resume matches on it.
+    expect(h.registry).toContainEqual(["register", "conv-123#c-1"]);
+    expect(h.registry.filter(([op]) => op === "complete")).toEqual([]);
+  });
 });
 
 // Retry judges a saved row only if it names the trace the CLIENT holds for the attempt. The client's

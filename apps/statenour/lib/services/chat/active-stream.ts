@@ -54,6 +54,8 @@ export interface ActiveStreamRecord {
   startedAt: string;
   /** Text streamed so far (V2). Empty until the first flush lands. */
   partialText: string;
+  /** The user message this turn answers (round 4); null on rows registered without one. */
+  clientMessageId: string | null;
 }
 
 /** Throttle floor for partial flushes. A 132s deep turn writes ~66 rows
@@ -72,9 +74,13 @@ const keyFor = (convId: string) => `stream:${convId}`;
 export async function registerActiveStream(
   convId: string,
   traceId: string | null,
+  /** The client-minted id of the user message this turn answers (round 4): the only key a
+   *  first-send resume holds, so the row says which message it belongs to. */
+  clientMessageId?: string | null,
 ): Promise<void> {
   try {
     const startedAt = new Date().toISOString();
+    const metadata = { status: "active", traceId, startedAt, clientMessageId: clientMessageId ?? null };
     await prisma.brainMemory.upsert({
       where: { category_key: { category: CATEGORY, key: keyFor(convId) } },
       create: {
@@ -84,12 +90,12 @@ export async function registerActiveStream(
         confidence: 0.1,
         source: "chat-route",
         expiresAt: new Date(Date.now() + ACTIVE_TTL_MS),
-        metadata: { status: "active", traceId, startedAt } as never,
+        metadata: metadata as never,
       },
       update: {
         content: `active stream · ${startedAt}`,
         expiresAt: new Date(Date.now() + ACTIVE_TTL_MS),
-        metadata: { status: "active", traceId, startedAt } as never,
+        metadata: metadata as never,
         deletedAt: null,
       },
     });
@@ -105,11 +111,13 @@ export async function registerActiveStream(
 export function trackActiveStream(
   convId: string,
   traceId: string | null,
+  clientMessageId?: string | null,
 ): (persisted: Promise<unknown>) => void {
-  const registered = registerActiveStream(convId, traceId);
+  const registered = registerActiveStream(convId, traceId, clientMessageId);
   return (persisted) => {
     void Promise.all([registered, persisted]).then(
-      () => completeActiveStream(convId),
+      // Only THIS turn's row (round 4): a newer turn (another tab) may hold it by now.
+      () => completeActiveStream(convId, traceId ? { traceId } : undefined),
       () => undefined,
     );
   };
@@ -174,24 +182,33 @@ export function createPartialPersister(
 /** Mark the turn durably complete — called ONLY after the onFinish
  *  persist resolved (the invariant: cleared only after durable
  *  completion). Fire-and-forget safe. */
-export async function completeActiveStream(convId: string): Promise<void> {
+export async function completeActiveStream(
+  convId: string,
+  /** Close only THIS turn's row (2026-10-25): the row is per conversation, and a retry may have
+   *  registered a newer turn on it. The write is then a compare-and-swap on the trace. */
+  only?: { traceId: string },
+): Promise<void> {
   try {
     const row = await prisma.brainMemory.findUnique({
       where: { category_key: { category: CATEGORY, key: keyFor(convId) } },
       select: { id: true, metadata: true },
     });
     if (!row) return;
-    await prisma.brainMemory.update({
-      where: { id: row.id },
-      data: {
-        expiresAt: new Date(Date.now() + COMPLETE_LINGER_MS),
-        metadata: {
-          ...((row.metadata ?? {}) as Record<string, unknown>),
-          status: "complete",
-          completedAt: new Date().toISOString(),
-        } as never,
-      },
-    });
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    if (only && meta.traceId !== only.traceId) return;
+    const data = {
+      expiresAt: new Date(Date.now() + COMPLETE_LINGER_MS),
+      metadata: { ...meta, status: "complete", completedAt: new Date().toISOString() } as never,
+    };
+    if (only) {
+      // count 0 = another turn took the row after the read: it is theirs, leave it.
+      await prisma.brainMemory.updateMany({
+        where: { id: row.id, metadata: { path: ["traceId"], equals: only.traceId } },
+        data,
+      });
+      return;
+    }
+    await prisma.brainMemory.update({ where: { id: row.id }, data });
   } catch (e) {
     logError("chat.active-stream", e, { stage: "complete", convId }, "warn");
   }
@@ -216,6 +233,7 @@ export async function getActiveStream(
     traceId: typeof m.traceId === "string" ? m.traceId : null,
     startedAt: typeof m.startedAt === "string" ? m.startedAt : new Date(0).toISOString(),
     partialText: typeof m.partialText === "string" ? m.partialText : "",
+    clientMessageId: typeof m.clientMessageId === "string" ? m.clientMessageId : null,
   };
 }
 

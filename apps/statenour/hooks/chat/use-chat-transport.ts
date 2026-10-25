@@ -117,8 +117,10 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * R3-15 (review R3 wave A, finding 2): a resume GET answered 204. ai@6
    * settles that as status "ready" with no error, so the caller decides
    * whether it hid an interrupted turn. A mount-time 204 is normal.
+   * `pending`: the server still holds the turn in flight with no bytes yet
+   * (`X-Resume-Pending: 1`), so another resume can still find it.
    */
-  onResumeEmpty?: () => void;
+  onResumeEmpty?: (info: { pending: boolean }) => void;
   /**
    * 2026-10-15 · the turn guard (lib/services/chat/turn-guard.ts) REFUSED this send on purpose:
    * the response carries X-Turn-Refusal (turn_in_flight, turn_answered, turn_ran, turn_unreadable).
@@ -159,6 +161,12 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * one (Reconnect after a stall, re-resume after the DB id was bound).
    */
   resumeIntoMessageId?: () => string | undefined;
+  /**
+   * 2026-10-25 · a first send's reattach: no conversation id yet (it arrives
+   * only in the POST's headers), so the resume names the client-minted id of
+   * the user message instead (`?clientMessageId=`). Undefined = do not.
+   */
+  resumeUserMessageId?: () => string | undefined;
 }
 
 /**
@@ -191,6 +199,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     onEscalation,
     onMessagePersisted,
     resumeIntoMessageId,
+    resumeUserMessageId,
   } = opts;
 
   const getBody = useCallback(() => transportBodyRef.current, [transportBodyRef]);
@@ -239,7 +248,11 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           // when its record belongs to another turn, instead of replaying
           // the previous reply. No trace yet (fresh load) = the old URL.
           const traceId = lastTraceIdRef?.current;
-          return { api: traceId && convId !== "none" ? `${api}?traceId=${encodeURIComponent(traceId)}` : api };
+          if (convId === "none") {
+            const userMessageId = body?.privateMode ? undefined : resumeUserMessageId?.();
+            return { api: userMessageId ? `${api}?clientMessageId=${encodeURIComponent(userMessageId)}` : api };
+          }
+          return { api: traceId ? `${api}?traceId=${encodeURIComponent(traceId)}` : api };
         },
         fetch: async (input, init) => {
           // A resume that names its turn merges into that turn's bubble. An
@@ -248,7 +261,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           const resumeInto =
             isResume && String(input).includes("traceId=") ? resumeIntoMessageId?.() : undefined;
           const res = await fetch(input, init);
-          if (isResume && res.status === 204) onResumeEmpty?.();
+          if (isResume && res.status === 204) onResumeEmpty?.({ pending: res.headers.get("X-Resume-Pending") === "1" });
           const refusal = res.headers.get("X-Turn-Refusal");
           if (refusal && init?.method === "POST") onTurnRefused?.({ code: refusal, traceId: res.headers.get("X-Trace-Id") });
 

@@ -19,6 +19,7 @@ import { resolve } from "node:path";
 
 const mockUpsert = vi.fn(async () => ({}));
 const mockUpdate = vi.fn(async () => ({}));
+const mockUpdateMany = vi.fn(async () => ({ count: 1 }));
 const mockFindUnique = vi.fn(async () => ({ id: "row", metadata: { status: "active", traceId: "T9" } }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -26,6 +27,7 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: {
       upsert: (a: never) => mockUpsert(a),
       update: (a: never) => mockUpdate(a),
+      updateMany: (a: never) => mockUpdateMany(a),
       findUnique: (a: never) => mockFindUnique(a),
     },
   },
@@ -54,8 +56,10 @@ describe("trackActiveStream", () => {
     resolvePersist();
     await flush();
     await flush();
-    const data = (mockUpdate.mock.calls[0] as unknown as [{ data: { metadata: { status: string } } }])[0].data;
-    expect(data.metadata.status).toBe("complete");
+    // Round 4: completion is pinned to the turn it registered (a compare-and-swap on the trace).
+    const call = (mockUpdateMany.mock.calls[0] as unknown as [{ where: unknown; data: { metadata: { status: string } } }])[0];
+    expect(call.where).toMatchObject({ metadata: { path: ["traceId"], equals: "T9" } });
+    expect(call.data.metadata.status).toBe("complete");
   });
 
   it("a REJECTED persist never marks the turn complete", async () => {
@@ -64,6 +68,7 @@ describe("trackActiveStream", () => {
     await flush();
     await flush();
     expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -75,12 +80,16 @@ describe("alternate-paths wiring (source contract)", () => {
   it("every alt-lane response is registered and every alt-lane persist is tracked", () => {
     const responses = src.match(/return buildChatResponse\(/g) ?? [];
     const persists = src.match(/__altPersist\(\{/g) ?? [];
-    const registrations = src.match(/trackActiveStream\(convId, traceId\)/g) ?? [];
+    const registrations = src.match(/trackActiveStream\(convId, traceId\b/g) ?? [];
     const tracked = src.match(/__altTurnDone\?\.\(/g) ?? [];
     // POSITIVE CONTROL: the stripper left the code it must see.
     expect(responses.length).toBeGreaterThanOrEqual(2);
     expect(persists.length).toBe(responses.length);
-    expect(registrations.length).toBe(responses.length);
+    // 2026-10-25: ONE registration, before any lane generates, so the turn is in the registry for
+    // the whole generation (a stall reattach reads it); behaviour pinned in alternate-paths-budget.test.ts.
+    expect(registrations.length).toBe(1);
+    expect(src.indexOf("trackActiveStream(convId, traceId")).toBeLessThan(src.indexOf("if (multiAgentOn)"));
+    expect(src.indexOf("trackActiveStream(convId, traceId")).toBeGreaterThan(-1);
     expect(tracked.length).toBe(persists.length);
   });
 });
