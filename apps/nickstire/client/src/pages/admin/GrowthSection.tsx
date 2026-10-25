@@ -16,8 +16,11 @@
  * updateDraft/approve/skip/markPosted/fetchNewReviews — all write OUR
  * rows; the actual Google reply is always pasted by the owner in the
  * GBP app, then confirmed here with "Mark posted".
+ * 2026-10-25: Entity / Brand and GBP Q&A also write localGrowth.setChecklistItem,
+ * the admin's own dated mark in shop_settings; nothing is changed on any platform.
  */
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   TrendingUp, Star, MessageCircleQuestion, Camera, Building2,
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
@@ -82,11 +85,102 @@ function Bool({ value, trueLabel, falseLabel, trueIsBad = false }: {
   );
 }
 
+/* ── Checklist marks (localGrowth.checklist v1) ───────────────── */
+
+type ChecklistMark = { checkedAt: string; note: string | null; by: string };
+const NO_MARKS: Record<string, ChecklistMark> = {};
+
+const ENTITY_SLUGS = ENTITY_PLATFORMS.map((p) => `entity-${p.id}`);
+const QA_SLUGS = GBP_QA_SEEDS.map((qa) => `qa-${qa.id}`);
+
+/** The admin's own dated marks. "error" means unknown, never "nothing marked". */
+function useLocalChecklist() {
+  const q = trpc.localGrowth.checklist.useQuery();
+  const utils = trpc.useUtils();
+  const m = trpc.localGrowth.setChecklistItem.useMutation({
+    onSuccess: (res) => {
+      // A DB failure comes back as { ok: false }, not a thrown error.
+      if (!res.ok) toast.error(res.message);
+      void utils.localGrowth.checklist.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  // Last good read wins over a failed refetch: those marks are still real.
+  const read = q.data?.ok ? q.data : null;
+  const state: "loading" | "error" | "ok" = read ? "ok" : q.isLoading ? "loading" : "error";
+  return {
+    state,
+    items: read?.items ?? NO_MARKS,
+    skipped: read?.skipped ?? 0,
+    retry: () => void q.refetch(),
+    isMarking: (slug: string) => m.isPending && m.variables?.slug === slug,
+    mark: (slug: string, checked: boolean) => m.mutate({ slug, checked }),
+  };
+}
+type Checklist = ReturnType<typeof useLocalChecklist>;
+
+const doneCount = (items: Record<string, ChecklistMark>, slugs: string[]) => slugs.filter((s) => items[s]).length;
+const markDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+/** "nour@example.com" -> "nour", "Nour Dean" -> "Nour": never a full email on screen. */
+const markedBy = (by: string) => by.split("@")[0].trim().split(/\s+/)[0] || "admin";
+
+const MARK_BTN =
+  "min-h-12 px-4 rounded border text-xs font-semibold transition-colors disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
+/** "<n> of <total> <word>", or the unknown state; never a count from a failed read. */
+function MarkCount({ cl, slugs, word, failMessage }: { cl: Checklist; slugs: string[]; word: string; failMessage: string }) {
+  if (cl.state === "loading") return <p className="text-[11px] text-foreground/50">Reading saved marks...</p>;
+  if (cl.state === "error") return <ErrorState message={failMessage} onRetry={cl.retry} />;
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs font-semibold text-foreground">{`${doneCount(cl.items, slugs)} of ${slugs.length} ${word}`}</p>
+      {cl.skipped > 0 && (
+        <p className="text-[10px] text-amber-400">
+          {`${cl.skipped} saved ${cl.skipped === 1 ? "mark" : "marks"} could not be read and show as not done.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The mark badge and its one-tap toggle. Renders nothing until the marks are known. */
+function MarkToggle({ cl, slug, done, action, missing }: {
+  cl: Checklist; slug: string; done: string; action: string; missing: string;
+}) {
+  if (cl.state !== "ok") return null;
+  const mark = cl.items[slug];
+  const busy = cl.isMarking(slug);
+  return (
+    <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+      {mark ? (
+        <span className="px-1.5 py-0.5 text-[10px] font-bold border rounded bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+          {`${done} ${markDay(mark.checkedAt)} by ${markedBy(mark.by)}`}
+        </span>
+      ) : (
+        <span className="px-1.5 py-0.5 text-[10px] font-bold border rounded bg-foreground/5 text-foreground/50 border-border/20">{missing}</span>
+      )}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => cl.mark(slug, !mark)}
+        className={`${MARK_BTN} ${mark
+          ? "border-border/40 text-foreground/70 hover:text-foreground hover:border-foreground/40"
+          : "border-primary/40 text-primary hover:bg-primary/10"}`}
+      >
+        {busy ? "Saving..." : mark ? "Clear" : action}
+      </button>
+    </div>
+  );
+}
+
 /* ── Local Growth ─────────────────────────────────────────────── */
 
 export function LocalGrowthTab() {
   const { data: armed, isLoading: armedLoading } = trpc.localGrowth.automationArmedState.useQuery();
   const { data: health, isLoading: healthLoading } = trpc.localGrowth.reviewsHealth.useQuery();
+  const cl = useLocalChecklist();
+  const doneOf = (slugs: string[]) =>
+    cl.state === "ok" ? ` (${doneCount(cl.items, slugs)} of ${slugs.length} done)` : cl.state === "error" ? " (unknown)" : "";
 
   return (
     <div className="space-y-4">
@@ -150,9 +244,9 @@ export function LocalGrowthTab() {
       <Panel title="Next owner actions" icon={<CheckCircle2 className="w-4 h-4" />}>
         <div className="flex items-center gap-2 mb-2"><ModeBadge mode="manual" /></div>
         <ol className="list-decimal list-inside space-y-1 text-[11px] text-foreground/70">
-          <li>Post the GBP Q&A seeds (next tab over): ~15 min, highest local-SEO ROI.</li>
+          <li>{`Post the GBP Q&A seeds (next tab over): ~15 min, highest local-SEO ROI.${doneOf(QA_SLUGS)}`}</li>
           <li>Shoot this week's 6 photos (Photo Queue tab) and upload to GBP.</li>
-          <li>Work the Entity / Brand checklist top-to-bottom (GBP first).</li>
+          <li>{`Work the Entity / Brand checklist top-to-bottom (GBP first).${doneOf(ENTITY_SLUGS)}`}</li>
           <li>Reply on Google (Business Profile reviews), worst rating first.</li>
           <li>Open the Competitors tab: live Google numbers and one action.</li>
         </ol>
@@ -368,6 +462,7 @@ function SocialPipelineHealth() {
 /* ── GBP Q&A ──────────────────────────────────────────────────── */
 
 export function GbpQaTab() {
+  const cl = useLocalChecklist();
   return (
     <div className="space-y-4">
       <div className="border border-purple-500/40 bg-purple-500/10 rounded p-3 text-xs text-purple-200 flex items-start gap-2">
@@ -380,8 +475,9 @@ export function GbpQaTab() {
           warranties, no "guaranteed", approved $25 used-tire wording only).
         </span>
       </div>
+      <MarkCount cl={cl} slugs={QA_SLUGS} word="posted" failMessage="Posted marks couldn't load: unknown, not unposted." />
       {GBP_QA_SEEDS.map((qa) => (
-        <div key={qa.question} className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
+        <div key={qa.id} data-checklist-row className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-foreground/5 text-foreground/50 border-border/20">{qa.category}</span>
             <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-emerald-500/10 text-emerald-400 border-emerald-500/20">CLAIM-SAFE</span>
@@ -395,6 +491,7 @@ export function GbpQaTab() {
             <p className="text-[11px] text-foreground/70 leading-relaxed">{qa.answer}</p>
             <CopyBtn text={qa.answer} label="Copy A" />
           </div>
+          <MarkToggle cl={cl} slug={`qa-${qa.id}`} done="Posted" action="Mark posted" missing="not posted" />
         </div>
       ))}
     </div>
@@ -449,6 +546,7 @@ export function PhotoQueueTab() {
 /* ── Entity / Brand ───────────────────────────────────────────── */
 
 export function EntityTab() {
+  const cl = useLocalChecklist();
   return (
     <div className="space-y-4">
       <Panel title="Canonical identity (use EXACTLY this everywhere)" icon={<Building2 className="w-4 h-4" />}>
@@ -463,23 +561,23 @@ export function EntityTab() {
           Fix order (highest local-SEO value first): {ENTITY_FIX_ORDER.join(" → ")}
         </p>
       </Panel>
+      <MarkCount cl={cl} slugs={ENTITY_SLUGS} word="verified" failMessage="Verification marks couldn't load: unknown, not unchecked." />
       {ENTITY_PLATFORMS.map((p) => (
-        <div key={p.platform} className="bg-background/40 border border-border/30 rounded p-3 space-y-1.5">
+        <div key={p.id} data-checklist-row className="bg-background/40 border border-border/30 rounded p-3 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-foreground">{p.platform}</span>
-            <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-foreground/5 text-foreground/50 border-border/20">{p.status.replace("_", " ")}</span>
             <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-purple-500/10 text-purple-400 border-purple-500/20 inline-flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> OWNER MANUAL</span>
           </div>
           <p className="text-[11px] text-foreground/70"><span className="font-semibold text-primary">Check:</span> {p.checkFields.join(" · ")}</p>
           <p className="text-[11px] text-foreground/70"><span className="font-semibold text-primary">Do:</span> {p.ownerAction}</p>
           <p className="text-[11px] text-foreground/50">Access needed: {p.accessNeeded}</p>
           <p className="text-[11px] text-amber-400/90 flex items-start gap-1"><AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{p.riskIfIgnored}</p>
+          <MarkToggle cl={cl} slug={`entity-${p.id}`} done="Verified" action="Mark verified" missing="not verified" />
         </div>
       ))}
       <p className="text-[10px] text-foreground/30 leading-relaxed">
-        Statuses are hand-maintained: nothing is marked fixed until you verify it on the
-        platform. Automated listing edits violate most platforms' terms, so this stays manual
-        by design.
+        Mark a platform verified only after you check it on the platform yourself. Automated
+        listing edits violate most platforms' terms, so this stays manual by design.
       </p>
     </div>
   );
