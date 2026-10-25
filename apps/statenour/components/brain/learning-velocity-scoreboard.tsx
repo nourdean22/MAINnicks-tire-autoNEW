@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { readState } from "@/lib/query-state";
-import { ReadingUnavailable } from "@/components/brain/brain-fold";
+import { ReadingUnavailable, StaleNote } from "@/components/brain/brain-fold";
 
 export function LearningVelocityScoreboard() {
   const velocityQ = trpc.journal.learningVelocity.useQuery(undefined, {
@@ -29,12 +29,14 @@ export function LearningVelocityScoreboard() {
   });
   const { data, isError } = velocityQ;
   // This digest has no empty state (it always returns numbers), so the only reason data is missing
-  // is that the read failed or is paused offline. Say so.
-  if (isError) return <ReadingUnavailable label="Learning velocity" />;
+  // is that the read failed or is paused offline. Say so. The failed line is for NO data: with cached
+  // data a failed refresh keeps the numbers and the stale note says they may be old.
+  if (isError && !data) return <ReadingUnavailable label="Learning velocity" />;
   if (!data) return readState(velocityQ) === "offline" ? <ReadStateNote state="offline" label="Learning velocity" /> : null;
   const pct = data.memoryPctChange30d;
   return (
     <section aria-label="learning velocity" className="space-y-2 border-t border-edge pt-4">
+      <StaleNote q={velocityQ} label="Learning velocity" />
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 className="text-[15px] font-medium text-fg">Learning velocity</h3>
         <p
