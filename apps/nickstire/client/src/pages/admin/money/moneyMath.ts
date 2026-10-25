@@ -55,6 +55,44 @@ export function dailyBurnDollars(agedRecoverable: number): number {
   return Math.round(agedRecoverable * DAILY_DECAY_RATE);
 }
 
+/**
+ * Recovery score: rank declined estimates by composite signal.
+ * Higher score = higher priority follow-up target. Shared by the Declined tab's sort and the
+ * Billed tab's one action, so both name the same estimate first.
+ *
+ * Components:
+ *  - Amount: bigger $$$ = more upside (logarithmic so $1K isn't 100x $10)
+ *  - Age decay: newer = warmer prospect (linear decay over 60 days)
+ *  - Follow-up state: not-yet-followed-up gets a boost
+ *  - Days till stale: 7d-21d window is the sweet spot
+ */
+export function recoveryScore(est: {
+  totalAmount?: number | null;
+  invoiceDate: string | Date;
+  paymentStatus?: string | null;
+}): number {
+  const amount = (est.totalAmount || 0) / 100;
+  const daysOld = Math.floor(
+    (Date.now() - new Date(est.invoiceDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  // Amount weight: log scale so $200 estimate isn't drowned by $2000
+  const amountScore = Math.log10(Math.max(amount, 10)) * 30;
+
+  // Age decay: 100 at day 0, drops to 0 at day 60
+  const ageScore = Math.max(0, 100 - (daysOld * 100) / 60);
+
+  // Sweet spot bonus: 7d-21d follow-up window
+  const sweetSpotBonus = daysOld >= 7 && daysOld <= 21 ? 25 : 0;
+
+  // Not-yet-followed-up boost
+  const status = est.paymentStatus;
+  const notFollowedBonus = status === "pending" ? 30 : 0;
+  const stalePenalty = status === "30d-sent" ? -40 : 0;
+
+  return amountScore + ageScore + sweetSpotBonus + notFollowedBonus + stalePenalty;
+}
+
 // Compact dollar formatter ($1.2K for >=1k, $345 otherwise) hoisted to
 // admin/shared/format (single source of truth). Re-exported here for
 // back-compat so existing money/ importers keep working unchanged.

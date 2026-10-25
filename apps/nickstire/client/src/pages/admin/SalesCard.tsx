@@ -38,7 +38,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Loader2 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 
 type Period = "today" | "yesterday" | "last_7d" | "last_30d" | "month_to_date" | "prev_month";
 
@@ -53,7 +53,60 @@ const PERIODS: { id: Period; label: string }[] = [
 
 /** Cents -> "$12,345". Whole dollars: the cents are noise at this size. */
 function dollars(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString()}`;
+  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+}
+
+type SalesReadOk = Extract<RouterOutputs["controlCenter"]["shopSales"], { available: true }>;
+
+/**
+ * Money's form of the card: the count with its average, the window before with its own label, and
+ * the change. An average never shows without its count (null when there were no invoices), a
+ * percent only when the earlier window billed something, and an earlier window no sync has
+ * covered shows no figure at all.
+ */
+function MoneyComparison({ data }: { data: SalesReadOk }) {
+  const prev = data.previous;
+  const current =
+    data.invoiceCount === 0
+      ? "No closed invoices in this window"
+      : `${data.invoiceCount.toLocaleString("en-US")} closed invoice${data.invoiceCount === 1 ? "" : "s"} · avg ${
+          data.averageCents === null ? "unknown" : dollars(data.averageCents)
+        }`;
+
+  let previousLine: string;
+  let change: string | null = null;
+  if (!prev) {
+    previousLine = "No earlier window to compare.";
+  } else if (prev.windowSynced === false) {
+    previousLine = `${prev.window.label}: the earlier window is not fully synced`;
+  } else if (prev.windowSynced === null) {
+    previousLine = `${prev.window.label}: its sync status is unknown, so it is not compared`;
+  } else {
+    previousLine =
+      prev.invoiceCount === 0
+        ? `${prev.window.label}: ${dollars(prev.cents)} · no closed invoices`
+        : `${prev.window.label}: ${dollars(prev.cents)} · ${prev.invoiceCount.toLocaleString("en-US")} invoice${
+            prev.invoiceCount === 1 ? "" : "s"
+          } · avg ${prev.averageCents === null ? "unknown" : dollars(prev.averageCents)}`;
+    if (data.period === "today") {
+      // A part day against a whole one always reads "down": the slow-day verdict this tab must not give.
+      change = "Today is still open, so no change is shown.";
+    } else {
+      const diffDollars = Math.round((data.cents - prev.cents) / 100);
+      const direction =
+        diffDollars === 0 ? "level" : `${diffDollars > 0 ? "up" : "down"} $${Math.abs(diffDollars).toLocaleString("en-US")}`;
+      const pct = prev.cents > 0 ? Math.round(((data.cents - prev.cents) / prev.cents) * 100) : null;
+      change = `Change: ${direction}${pct === null ? "" : ` · ${pct > 0 ? "+" : ""}${pct}%`}`;
+    }
+  }
+
+  return (
+    <div className="mt-2 space-y-1 text-sm">
+      <div className="text-foreground/80">{current}</div>
+      <div className="text-foreground/60">{previousLine}</div>
+      {change && <div className="text-foreground/80">{change}</div>}
+    </div>
+  );
 }
 
 type SyncState =
@@ -90,7 +143,8 @@ const SYNC_POLL_FAST_FOR_MS = 3 * 60_000;
 const SYNC_POLL_SLOW_MS = 60_000;
 const SYNC_POLL_GIVE_UP_MS = 20 * 60_000;
 
-export default function SalesCard() {
+/** "today" is the owner's home (unchanged); "money" adds the comparison block for Money > Billed. */
+export default function SalesCard({ variant = "today" }: { variant?: "today" | "money" }) {
   const [period, setPeriod] = useState<Period>("last_7d");
   const [showDetail, setShowDetail] = useState(false);
   // The sync itself is started by the admin shell on a page load (useSyncOnAdminLoad). This card
@@ -197,6 +251,8 @@ export default function SalesCard() {
               {data.invoiceCount.toLocaleString()} invoice{data.invoiceCount === 1 ? "" : "s"} · {data.window.label}
             </span>
           </div>
+
+          {variant === "money" && <MoneyComparison data={data} />}
 
           {/* The lag is part of the number, not a footnote. */}
           <div className="mt-1 text-xs text-foreground/50">

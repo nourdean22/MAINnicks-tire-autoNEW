@@ -1,7 +1,8 @@
 /**
  * Admin UI v1 Wave 4, the Desk pages (apps/nickstire/docs/design/admin-ui-v1/PLAN.md sections 3, 6 and 9):
- * find a customer from the bar, trust every profile tab, read work orders and dispatch as rows, open one
- * work order by link, and never read a failed member lookup as "not a member".
+ * find a customer from the bar, trust every profile tab, and never read a failed member lookup as
+ * "not a member". (The work-order and dispatch cases left with those screens on 2026-10-25; Today's
+ * Open work order is pinned in admin-w0-honesty.test.tsx.)
  *
  * Same tRPC proxy as admin-w0-honesty.test.tsx: every query returns { data: undefined } unless the test
  * sets an override for its dotted path. A paused query (offline PWA) is modelled the way TanStack Query v5
@@ -9,7 +10,7 @@
  * paused read is unknown, never empty or zero.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 type Q = { data: unknown; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void; isFetching: boolean; fetchStatus: string; isPaused: boolean };
@@ -71,21 +72,11 @@ vi.mock("sonner", () => ({
 }));
 vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: h.Null }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user, loading: false }) }));
-vi.mock("@/pages/admin/money/TireRegistrationPanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/money/NhtsaVehiclePanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/SalesCard", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/ClosedLoopLiftPanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Null }));
 
 import MembershipsSection from "@/pages/admin/MembershipsSection";
 import CustomerProfile from "@/pages/admin/customers/CustomerProfile";
 import { CustomersList } from "@/pages/admin/customers/CustomersList";
 import { CustomersBrief } from "@/pages/admin/customers/CustomersBrief";
-import WorkOrdersSection from "@/pages/admin/money/WorkOrdersSection";
-import DispatchSection from "@/pages/admin/money/DispatchSection";
-import OverviewSection from "@/pages/admin/OverviewSection";
 
 const FAILED: Partial<Q> = { data: undefined, isError: true, error: new Error("read failed") };
 const PAUSED: Partial<Q> = { data: undefined, isError: false, isLoading: false, fetchStatus: "paused", isPaused: true };
@@ -242,92 +233,6 @@ describe("Customers list lookup", () => {
   });
 });
 
-/* ------------------------------- Work orders ------------------------------ */
-
-const WOS = [
-  { id: 7, orderNumber: "WO-0007", status: "in_progress", priority: "normal", vehicleYear: "2015", vehicleMake: "Honda", vehicleModel: "Civic", customerName: "Pat Example", promisedAt: new Date(Date.now() + 2 * 3600000).toISOString(), createdAt: new Date().toISOString() },
-  { id: 8, orderNumber: "WO-0008", status: "approved", priority: "high", vehicleMake: "Ford", vehicleModel: "F-150", customerName: "Sam Driver", createdAt: new Date().toISOString() },
-];
-
-describe("Work orders as rows", () => {
-  it("rows are grouped under the kanban stages with vehicle, customer, status words and the next status as the verb", () => {
-    const mutate = vi.fn();
-    h.mutations.set("workOrders.advanceStatus", () => ({ mutate, isPending: false }));
-    h.queries.set("workOrders.list", ok(WOS));
-    render(<WorkOrdersSection />);
-    const rows = screen.getByRole("region", { name: "Work orders by stage" });
-    expect(within(rows).getByRole("heading", { name: /In Shop/ })).toBeTruthy();
-    expect(within(rows).getByRole("heading", { name: /Queue/ })).toBeTruthy();
-    expect(within(rows).getByText("2015 Honda Civic")).toBeTruthy();
-    expect(within(rows).getByText(/Pat Example/)).toBeTruthy();
-    expect(within(rows).getByText(/In progress/)).toBeTruthy();
-    // Round 1: no one-tap status change. "Move to" opens an in-DOM choice; nothing moves on the first tap.
-    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0007 to" }));
-    expect(mutate).not.toHaveBeenCalled();
-    const choice = within(rows).getByRole("group", { name: "Move WO-0007 to" });
-    const options = within(choice).getAllByRole("button").map((b) => b.textContent);
-    expect(options).toEqual(["QC review", "Ready for pickup", "On hold", "Cancelled", "Cancel"]);
-    for (const b of within(choice).getAllByRole("button")) expect(tok(b, "min-h-12"), "min-h-12").toBe(true);
-    fireEvent.click(within(choice).getByRole("button", { name: "Cancel" }));
-    expect(within(rows).queryByRole("group", { name: "Move WO-0007 to" })).toBeNull();
-    expect(mutate).not.toHaveBeenCalled();
-    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0007 to" }));
-    fireEvent.click(within(within(rows).getByRole("group", { name: "Move WO-0007 to" })).getByRole("button", { name: "QC review" }));
-    expect(mutate).toHaveBeenCalledWith({ id: "7", status: "qc_review" });
-  });
-
-  it("a paused list is unknown, never No jobs in this stage", () => {
-    h.queries.set("workOrders.list", PAUSED);
-    render(<WorkOrdersSection />);
-    expect(screen.queryByText("No jobs in this stage")).toBeNull();
-    expect(screen.getByText(/Work orders not checked/)).toBeTruthy();
-  });
-
-  it("?wo=<id> opens that work order and drops the param", async () => {
-    window.history.replaceState({}, "", "/admin?section=money&moneyTab=workOrders&wo=7");
-    h.queries.set("workOrders.list", ok(WOS));
-    h.queries.set("workOrders.getById", ok({ ...WOS[0], items: [], transitions: [] }));
-    render(<WorkOrdersSection />);
-    expect(await screen.findByRole("dialog", { name: "Work order WO-0007" })).toBeTruthy();
-    expect(h.calls).toContainEqual(["workOrders.getById", { id: "7" }]);
-    expect(new URL(window.location.href).searchParams.get("wo")).toBeNull();
-  });
-
-  it("Today's Open work order carries the row id for a role that may open Money", async () => {
-    h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
-    h.queries.set("adminDashboard.overviewMediumBundle", ok({ stats: null, bookings: [], leads: [], callbacks: [], owedTexts: [], callbackServed: {}, unavailableSlices: [] }));
-    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", customerId: 42, createdAt: new Date().toISOString() }]));
-    h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
-    render(<OverviewSection />);
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
-    });
-    expect(new URL(window.location.href).searchParams.get("wo")).toBe("7");
-  });
-});
-
-/* -------------------------------- Dispatch -------------------------------- */
-
-describe("Dispatch", () => {
-  it("a paused ready queue is not checked, never No jobs waiting", () => {
-    h.queries.set("workOrders.list", PAUSED);
-    render(<DispatchSection />);
-    expect(screen.queryByText("No jobs waiting for a bay")).toBeNull();
-    expect(screen.getByText(/Ready queue not checked/)).toBeTruthy();
-  });
-
-
-  it("ready-queue rows show vehicle, customer and one Assign verb", () => {
-    h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "ready_for_bay" }]));
-    render(<DispatchSection />);
-    const rows = screen.getByRole("list", { name: "Ready for a bay" });
-    expect(within(rows).getByText("Ford F-150")).toBeTruthy();
-    expect(within(rows).getByText(/Sam Driver/)).toBeTruthy();
-    fireEvent.click(within(rows).getByRole("button", { name: "Assign Sam Driver" }));
-    expect(screen.getByText("Assign Work Order")).toBeTruthy();
-  });
-});
-
 /* ------------------------------ Round 1 review ----------------------------- */
 
 describe("W4 round 1", () => {
@@ -379,20 +284,6 @@ describe("W4 round 1", () => {
     expect(last?.sortBy).toBe("visits");
   });
 
-  it("work-order rows say blocked, emergency and overdue in words, with the order number", () => {
-    const now = Date.now();
-    h.queries.set("workOrders.list", ok([
-      { id: 11, orderNumber: "WO-0011", status: "in_progress", priority: "normal", blockerType: "waiting_parts", customerName: "Ann Blocked", createdAt: new Date().toISOString() },
-      { id: 12, orderNumber: "WO-0012", status: "approved", priority: "emergency", customerName: "Bo Urgent", createdAt: new Date().toISOString() },
-      { id: 13, orderNumber: "WO-0013", status: "assigned", priority: "normal", customerName: "Cy Late", promisedAt: new Date(now - 3600000).toISOString(), createdAt: new Date().toISOString() },
-    ]));
-    render(<WorkOrdersSection />);
-    const rows = screen.getByRole("region", { name: "Work orders by stage" });
-    expect(within(rows).getByText(/WO-0011/).textContent).toMatch(/Blocked: parts/);
-    expect(within(rows).getByText(/WO-0012/).textContent).toMatch(/Emergency/);
-    expect(within(rows).getByText(/WO-0013/).textContent).toMatch(/Overdue/);
-  });
-
   it("CustomersBrief says not checked on a paused stats read; stale tiles keep their numbers when a refetch pauses", () => {
     h.queries.set("customers.stats", PAUSED);
     const { container, unmount } = render(<CustomersBrief onLapsedAction={() => {}} />);
@@ -405,20 +296,6 @@ describe("W4 round 1", () => {
     expect(tile.querySelector(".stat-value")?.textContent ?? "").toMatch(/\d/);
   });
 
-  it("Dispatch: Assign scrolls the assignment panel into view, and the row keeps the order number", () => {
-    const scroll = vi.fn();
-    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scroll });
-    try {
-      h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "ready_for_bay" }]));
-      render(<DispatchSection />);
-      const rows = screen.getByRole("list", { name: "Ready for a bay" });
-      expect(within(rows).getByText(/WO-0008/)).toBeTruthy();
-      fireEvent.click(within(rows).getByRole("button", { name: "Assign Sam Driver" }));
-      expect(scroll).toHaveBeenCalled();
-    } finally {
-      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-    }
-  });
 });
 
 /* ------------------------------ Round 2 review ----------------------------- */
@@ -436,57 +313,6 @@ describe("W4 round 2", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Member phone number" }), { target: { value: phone } });
     fireEvent.click(screen.getByRole("button", { name: /look up/i }));
   }
-
-  it("Move to runs the option tapped, not the first one; the approved list is pinned", () => {
-    const mutate = vi.fn();
-    h.mutations.set("workOrders.advanceStatus", () => ({ mutate, isPending: false }));
-    h.queries.set("workOrders.list", ok(WOS));
-    render(<WorkOrdersSection />);
-    const rows = screen.getByRole("region", { name: "Work orders by stage" });
-    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0008 to" }));
-    const choice = within(rows).getByRole("group", { name: "Move WO-0008 to" });
-    expect(within(choice).getAllByRole("button").map((b) => b.textContent)).toEqual(["Parts needed", "Ready for bay", "On hold", "Cancelled", "Cancel"]);
-    fireEvent.click(within(choice).getByRole("button", { name: "On hold" }));
-    expect(mutate).toHaveBeenLastCalledWith({ id: "8", status: "on_hold" });
-    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0007 to" }));
-    fireEvent.click(within(within(rows).getByRole("group", { name: "Move WO-0007 to" })).getByRole("button", { name: "Cancelled" }));
-    expect(mutate).toHaveBeenLastCalledWith({ id: "7", status: "cancelled" });
-    expect(mutate).toHaveBeenCalledTimes(2);
-  });
-
-  it("work-order controls are 48 px: Move to, its options, the row's open button, and the search field is 16 px", () => {
-    h.queries.set("workOrders.list", ok(WOS));
-    render(<WorkOrdersSection />);
-    const rows = screen.getByRole("region", { name: "Work orders by stage" });
-    const move = within(rows).getByRole("button", { name: "Move WO-0007 to" });
-    expect(tok(move, "min-h-12")).toBe(true);
-    fireEvent.click(move);
-    for (const b of within(within(rows).getByRole("group", { name: "Move WO-0007 to" })).getAllByRole("button")) expect(tok(b, "min-h-12"), b.textContent ?? "").toBe(true);
-    expect(tok(within(rows).getByRole("button", { name: "Open WO-0007" }), "min-h-12")).toBe(true);
-    const search = screen.getByRole("searchbox", { name: "Search work orders" });
-    expect(tok(search, "min-h-12")).toBe(true);
-    expect(tok(search, "text-base")).toBe(true);
-  });
-
-  it("Today with a stale moneyTab drops it and sets wo, and that URL opens WO-0007 in Money", async () => {
-    window.history.replaceState({}, "", "/admin?tab=overview&moneyTab=unpaid");
-    h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
-    h.queries.set("adminDashboard.overviewMediumBundle", ok({ stats: null, bookings: [], leads: [], callbacks: [], owedTexts: [], callbackServed: {}, unavailableSlices: [] }));
-    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", customerId: 42, createdAt: new Date().toISOString() }]));
-    h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
-    const { unmount } = render(<OverviewSection />);
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
-    });
-    const url = new URL(window.location.href);
-    expect(url.searchParams.get("moneyTab")).toBeNull();
-    expect(url.searchParams.get("wo")).toBe("7");
-    unmount();
-    h.queries.set("workOrders.list", ok(WOS));
-    h.queries.set("workOrders.getById", ok({ ...WOS[0], items: [], transitions: [] }));
-    render(<WorkOrdersSection />);
-    expect(await screen.findByRole("dialog", { name: "Work order WO-0007" })).toBeTruthy();
-  });
 
   it("Nonstop Nick: Look up button and the plate input are 48 px with 16 px text", () => {
     h.queries.set("memberships.lookupByPhone", ok({ found: true, members: [{ id: 3, name: "Pat Member", phone: "2165550100", isActive: true, status: "active", repairDiscountPct: 0, vehiclePlate: null, vehicleDesc: null }] }));

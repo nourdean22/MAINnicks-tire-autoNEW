@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { navigateToAdminSection, sectionsForRole } from "./shared";
 import type { AdminRole } from "@shared/adminPermissions";
 import { navigateToAdminUrl } from "./shared/navigation";
+import { innerTabsForRole } from "./innerTabs";
 import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
 import ChecksRail from "./today/ChecksRail";
 import ExceptionFeed from "./today/ExceptionFeed";
@@ -390,32 +391,29 @@ export default function OverviewSection() {
   }
 
   /**
-   * Work orders live on Money's default tab (Shop Pulse). Money is closed to front desk and tech,
-   * whose queue still carries work orders, so they get the customer's Active Backlog instead.
-   * Returns where it went, or null when no section this role can open shows the work order.
-   * For Money the link names the row (?wo=<id>); the customer fallback has no single-row link.
+   * A work order opens in its customer's Active Backlog, for every role. Money no longer carries a
+   * work-order board (removed 2026-10-25), so a link there would land on Billed with no work order.
+   * Returns where it went, or null when there is no profile to open or this role cannot open Customers.
    */
-  function openWorkOrder(item: ActionItem): "revenue" | "customers" | null {
-    const allowed = sectionsForRole(adminRole);
-    const url = new URL(window.location.href);
-    if (allowed.includes("revenue")) {
-      // Money's default tab is the work orders board; ?wo= opens and scrolls to this one row.
-      url.searchParams.delete("moneyTab");
-      url.searchParams.set("wo", String(item.entityId));
-      window.history.replaceState({}, "", url.toString());
-      navigateToAdminSection("revenue");
-      return "revenue";
-    }
+  function openWorkOrder(item: ActionItem): "customers" | null {
+    // The profile lives on the Customers list tab; an accountant reaches Customers for Members only.
+    const canOpenProfile =
+      sectionsForRole(adminRole).includes("customers") && innerTabsForRole("customers", adminRole).includes("customers");
     const customerId = Number(currentWorkOrders.find((wo) => wo.id === item.entityId)?.customerId);
-    if (allowed.includes("customers") && customerId > 0) {
-      url.searchParams.set("id", String(customerId));
-      url.searchParams.set("profileTab", "backlog");
-      window.history.replaceState({}, "", url.toString());
-      navigateToAdminSection("customers");
-      return "customers";
+    if (!canOpenProfile) {
+      toast.error("Work orders open in Customers, which your role cannot open.");
+      return null;
     }
-    toast.error("Work orders are in Money, which your role cannot open");
-    return null;
+    if (!(customerId > 0)) {
+      toast.error("This work order has no customer on file, so there is no profile to open.");
+      return null;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("id", String(customerId));
+    url.searchParams.set("profileTab", "backlog");
+    window.history.replaceState({}, "", url.toString());
+    navigateToAdminSection("customers");
+    return "customers";
   }
 
   /**

@@ -136,27 +136,6 @@ afterEach(cleanup);
 // ════════════════════════════════════════════════════════════════════
 describe("Admin — regression guards", () => {
   /**
-   * BUG: DispatchSection rendered `qcStats?.passRate || 100`. A real
-   * pass rate of 0 (every QC check failed) is falsy, so `0 || 100`
-   * fell through to 100 — the dashboard showed a fake green "100%"
-   * exactly when quality was worst. Fix: `?? 100`.
-   */
-  it("DispatchSection: a real 0% QC pass rate renders as 0%, not a fake 100%", async () => {
-    trpcState.queries["dispatch.qcStats"] = {
-      data: { passRate: 0, qcPending: 0, comebacks30d: 0 },
-    };
-    const { default: DispatchSection } = await import("../pages/admin/money/DispatchSection");
-    render(React.createElement(DispatchSection));
-
-    const label = screen.getByText("QC Pass Rate");
-    const card = label.parentElement as HTMLElement;
-    // the value div precedes the label div inside the metric card.
-    // pre-fix code (`passRate || 100`) renders "100%" here — a fake green.
-    const value = card.firstElementChild as HTMLElement;
-    expect(value.textContent).toBe("0%");
-  });
-
-  /**
    * BUG: LeadsSection used window.prompt() to capture lead notes /
    * lost-reason. prompt() is suppressed in iOS PWA standalone mode
    * (the admin's real operating environment) — it returns null, the
@@ -265,8 +244,8 @@ describe("Customer site — regression guards", () => {
 // 2026-07-04 maintainability audit: was "../pages/admin/*.tsx" — a
 // single-level glob that silently excluded every nested section
 // (money/, outreach/, settings/, customers/, etc. — 78 of 113 admin
-// files, including the largest untested ones: money/WorkOrdersSection
-// at 1,062 lines, outreach/SmsSection at 1,171). The docstring above
+// files, including the largest untested ones: a 1,062-line money/
+// work-order board, outreach/SmsSection at 1,171). The docstring above
 // claimed "every admin section" while 69% were invisible to it.
 // "**/*.tsx" covers the whole tree; "shared/**" is excluded below since
 // those are library modules, not renderable sections (mirrors the

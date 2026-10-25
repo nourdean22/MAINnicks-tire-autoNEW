@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 147,
+    "emDash": 138,
     "emoji": 0,
-    "transitionAll": 51,
+    "transitionAll": 49,
     "slowDuration": 7,
-    "smallInput": 102,
-    "offPalette": 127
+    "smallInput": 92,
+    "offPalette": 125
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -167,27 +167,8 @@
     "client/src/pages/admin/money/DeclinedEstimatesSection.tsx": {
       "emDash": 5
     },
-    "client/src/pages/admin/money/DispatchSection.tsx": {
-      "offPalette": 1
-    },
     "client/src/pages/admin/money/FinancingAttribution.tsx": {
       "emDash": 1
-    },
-    "client/src/pages/admin/money/NhtsaVehiclePanel.tsx": {
-      "emDash": 1
-    },
-    "client/src/pages/admin/money/SnapDashboardSection.tsx": {
-      "smallInput": 6
-    },
-    "client/src/pages/admin/money/TireRegistrationPanel.tsx": {
-      "emDash": 1,
-      "smallInput": 2
-    },
-    "client/src/pages/admin/money/WorkOrdersSection.tsx": {
-      "emDash": 7,
-      "transitionAll": 2,
-      "smallInput": 2,
-      "offPalette": 1
     },
     "client/src/pages/admin/outreach/CampaignsSection.tsx": {
       "transitionAll": 3,
