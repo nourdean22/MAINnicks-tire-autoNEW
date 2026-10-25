@@ -58,7 +58,13 @@ const NICKSTIRE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 // `grep -c "= mysqlTable(" drizzle/schema.ts` reports 157 on origin/main
 // (a6b3984c). Drift on main again, not a branch addition; it blocked the
 // real-MySQL consent canary (server/__tests__/smsConsent.voiceDnc.mysql.test.ts).
-export const EXPECTED_TABLE_COUNT = 157;
+// 2026-10-25: 157 -> 163. Looked, as instructed: `grep -c "= mysqlTable(" drizzle/schema.ts`
+// reports 163 on origin/main (a68a91992), none removed, six real and dated additions:
+// contact_experiment_assignments (d192ccc95, 2026-09-29), bridge_outbox (642a333fe,
+// 2026-09-29), nhtsa_mfr_warranty_comms + nhtsa_mfr_warranty_products (1bd38cb5c,
+// 2026-10-01), vehicle_visit_marks (ab5b91cb6, 2026-10-08), kafene_leases (8b189e8b7,
+// 2026-10-18). Drift on main again; it blocked the local dev MySQL that /admin runs on.
+export const EXPECTED_TABLE_COUNT = 163;
 
 // The full column set drizzle expects for search_performance, but with the page
 // index as a PREFIX (page(768)) instead of the full varchar(1000) that blows

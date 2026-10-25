@@ -2,8 +2,8 @@
  * Local-growth read router — armed-state visibility + reviews/Place ID
  * health for the GBP growth surfaces.
  *
- * 2026-06-10 GBP growth wave. READ-ONLY: every endpoint returns booleans
- * and status strings, NEVER token or key values. Nothing here posts,
+ * 2026-06-10 GBP growth wave. READ-ONLY: endpoints return booleans, status
+ * strings and live Google figures, NEVER token or key values. Nothing here posts,
  * sends, scrapes, or mutates. Surfaces the "is the IG autoposter actually
  * armed?" question the forensic sweep flagged as confusing, and whether
  * the durable Meta token (the real disarm gotcha) is present.
@@ -99,13 +99,18 @@ export const localGrowthRouter = router({
     let liveReachable = false;
     let status: "live" | "fallback" | "unconfigured" = "unconfigured";
     let reviewCount: number | null = null;
+    let rating: number | null = null;
     if (mapsKeyPresent || placesKeyPresent) {
       try {
         const { getGoogleReviews } = await import("../google-reviews");
         const res = await getGoogleReviews();
         if (res && Array.isArray(res.reviews)) {
-          liveReachable = res.reviews.length > 0;
-          reviewCount = res.reviews.length;
+          // Live means the Places path answered: the curated fallback has placeId "".
+          // The total is user_ratings_total; res.reviews holds at most the 5 Places returns
+          // (this card said "5 reviews" from 2026-06-10 to 2026-10-25 while Google had 1,715).
+          liveReachable = !!res.placeId;
+          reviewCount = liveReachable ? res.totalReviews : null;
+          rating = liveReachable ? res.rating : null;
           status = liveReachable ? "live" : "fallback";
         } else {
           status = "fallback";
@@ -120,10 +125,23 @@ export const localGrowthRouter = router({
       liveReachable,
       status,
       liveReviewCount: reviewCount,
+      rating,
       fallbackNote:
         status !== "live"
           ? "Live Google reviews are NOT reachable — public pages fall back to curated/DB review stats. Check GOOGLE_MAPS_API_KEY and the Place ID. (No keys are shown here by design.)"
           : null,
     };
+  }),
+
+  /**
+   * Live Google rating, review total and newest-review window for Nick's and
+   * every competitor (contract localGrowth.competitorSnapshot v1). Read on
+   * demand, held in memory 60 minutes, never stored: the Places terms allow
+   * keeping place_id only. A failed read is { ok: false, reason }, never an
+   * empty list.
+   */
+  competitorSnapshot: adminProcedure.query(async () => {
+    const { getCompetitorSnapshotCached } = await import("../services/competitorMonitor");
+    return getCompetitorSnapshotCached();
   }),
 });

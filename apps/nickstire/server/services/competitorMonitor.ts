@@ -8,16 +8,25 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { GOOGLE_PLACE_ID } from "../../shared/const";
 
 const log = createLogger("competitor-monitor");
 
 const API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
 
+type CompetitorGroup = "local" | "chain";
+
+/** The newest reviews Places returned (at most 5): how many, and the window they span. */
+type RecentReviews = { count: number; newestAt: string | null; oldestAt: string | null };
+
 interface CompetitorData {
   name: string;
   placeId: string;
+  /** Absent on Nick's own row. */
+  group?: CompetitorGroup;
   rating: number;
   reviewCount: number;
+  recent: RecentReviews;
   address?: string;
   fetchedAt: Date;
 }
@@ -26,29 +35,35 @@ interface CompetitorData {
 // Place IDs resolved via Google Places text search at runtime if not cached.
 // To get exact Place IDs manually: search on Google Maps → share → extract from URL,
 // or use: https://developers.google.com/maps/documentation/places/web-service/place-id
-const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }> = [
+// group: "local" = the independents the shop competes with block by block; "chain" = the market.
+const COMPETITORS: Array<{ name: string; group: CompetitorGroup; placeId: string; searchQuery: string }> = [
   {
     name: "Firestone Complete Auto Care (Euclid Ave)",
+    group: "chain",
     placeId: "", // resolved at runtime via searchQuery
     searchQuery: "Firestone Complete Auto Care Euclid Ave Cleveland OH",
   },
   {
     name: "Midas (Euclid Ave)",
+    group: "chain",
     placeId: "",
     searchQuery: "Midas Euclid Ave Cleveland OH",
   },
   {
     name: "Pep Boys Cleveland",
+    group: "chain",
     placeId: "",
     searchQuery: "Pep Boys Cleveland OH",
   },
   {
     name: "Meineke Car Care Center Cleveland",
+    group: "chain",
     placeId: "",
     searchQuery: "Meineke Car Care Center Cleveland OH",
   },
   {
     name: "Goodyear Auto Service Cleveland",
+    group: "chain",
     placeId: "",
     searchQuery: "Goodyear Auto Service Center Cleveland OH",
   },
@@ -57,21 +72,25 @@ const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }>
   // baselines). The chains above measure the market; these measure the fight.
   {
     name: "Moe's Tire Center",
+    group: "local",
     placeId: "",
     searchQuery: "Moe's Tire Center Cleveland OH",
   },
   {
     name: "St.Clair Tire",
+    group: "local",
     placeId: "",
     searchQuery: "St Clair Tire Cleveland OH",
   },
   {
     name: "Bro's Tires",
+    group: "local",
     placeId: "",
     searchQuery: "Bro's Tires Cleveland OH",
   },
   {
     name: "EJ'S Tire & Auto Repair",
+    group: "local",
     placeId: "",
     searchQuery: "EJ's Tire and Auto Repair Cleveland OH",
   },
@@ -90,31 +109,37 @@ const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }>
   // bias — and two rows for one store would double-count it.)
   {
     name: "Confident Tire (Lakeland Blvd, Euclid)",
+    group: "local",
     placeId: "",
     searchQuery: "Confident Tire 25680 Lakeland Blvd Euclid OH",
   },
   {
     name: "Conrad's Tire Express (Mayfield Hts)",
+    group: "chain",
     placeId: "",
     searchQuery: "Conrad's Tire Express 5739 Mayfield Rd Mayfield Heights OH",
   },
   {
     name: "NTB (Mayfield Rd)",
+    group: "chain",
     placeId: "",
     searchQuery: "NTB National Tire and Battery 3997 Mayfield Rd Cleveland Heights OH",
   },
   {
     name: "Mr. Tire (South Euclid)",
+    group: "chain",
     placeId: "",
     searchQuery: "Mr. Tire 4522 Mayfield Rd South Euclid OH",
   },
   {
     name: "Tire Choice (South Euclid)",
+    group: "chain",
     placeId: "",
     searchQuery: "Tire Choice Auto Service Centers 4311 Mayfield Rd South Euclid OH",
   },
   {
     name: "Euclid Tire",
+    group: "local",
     placeId: "",
     searchQuery: "Euclid Tire 1054 E 222nd St Euclid OH",
   },
@@ -138,8 +163,9 @@ function noteApiStatus(status: unknown): void {
   }
 }
 
-// Nick's Tire place ID
-const NICKS_PLACE_ID = process.env.GOOGLE_PLACE_ID || "";
+// Nick's Tire place ID. Falls back to the shared constant google-reviews.ts uses:
+// with the env var unset, Nick's row and the self-match guard both went missing.
+const NICKS_PLACE_ID = process.env.GOOGLE_PLACE_ID || GOOGLE_PLACE_ID;
 
 /** Resolve a business name to a Google Place ID via text search */
 async function findPlaceFromText(query: string): Promise<string | null> {
@@ -184,14 +210,21 @@ async function findPlaceFromText(query: string): Promise<string | null> {
   }
 }
 
+/** The window the returned review times span. A count without its window is not a pace. */
+function recentWindow(times: number[]): RecentReviews {
+  if (times.length === 0) return { count: 0, newestAt: null, oldestAt: null };
+  const iso = (s: number) => new Date(s * 1000).toISOString();
+  return { count: times.length, newestAt: iso(Math.max(...times)), oldestAt: iso(Math.min(...times)) };
+}
+
 /** Fetch place details from Google Places API */
 async function fetchPlaceDetails(
   placeId: string
-): Promise<{ rating: number; reviewCount: number; name: string } | null> {
+): Promise<{ rating: number; reviewCount: number; name: string; recentTimes: number[] } | null> {
   if (!API_KEY || !placeId) return null;
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total&key=${API_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,reviews&reviews_sort=newest&key=${API_KEY}`;
     const res = await fetch(url, {
       signal: AbortSignal.timeout(5000),
     });
@@ -206,6 +239,12 @@ async function fetchPlaceDetails(
       name: data.result.name || "Unknown",
       rating: data.result.rating || 0,
       reviewCount: data.result.user_ratings_total || 0,
+      // Times only (epoch seconds, newest first): review text and author names are never read out.
+      recentTimes: (Array.isArray(data.result.reviews) ? data.result.reviews : [])
+        .map((r: { time?: unknown }) => r?.time)
+        .filter((t: unknown): t is number => typeof t === "number" && t > 0)
+        .sort((a: number, b: number) => b - a)
+        .slice(0, 5),
     };
   } catch (err) {
     log.warn("Places API fetch failed", { placeId, err });
@@ -296,12 +335,12 @@ async function persistPlaceIds(entries: Array<{ name: string; placeId: string }>
  * not known), filing Nick's 1,715 reviews under a competitor's name.
  */
 async function resolveCompetitorPlaceIds(): Promise<{
-  resolved: Array<{ name: string; placeId: string }>;
+  resolved: Array<{ name: string; group: CompetitorGroup; placeId: string }>;
   newlyResolved: number;
   unresolved: number;
 }> {
   await loadKnownPlaceIds();
-  const resolved: Array<{ name: string; placeId: string }> = [];
+  const resolved: Array<{ name: string; group: CompetitorGroup; placeId: string }> = [];
   const fresh: Array<{ name: string; placeId: string }> = [];
   let unresolved = 0;
 
@@ -320,7 +359,7 @@ async function resolveCompetitorPlaceIds(): Promise<{
       unresolved++;
       continue;
     }
-    resolved.push({ name: c.name, placeId });
+    resolved.push({ name: c.name, group: c.group, placeId });
     if (!known) fresh.push({ name: c.name, placeId });
   }
 
@@ -350,6 +389,7 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
         placeId: NICKS_PLACE_ID,
         rating: own.rating,
         reviewCount: own.reviewCount,
+        recent: recentWindow(own.recentTimes),
         fetchedAt: now,
       });
     }
@@ -362,8 +402,10 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
       results.push({
         name: c.name,
         placeId: c.placeId,
+        group: c.group,
         rating: data.rating,
         reviewCount: data.reviewCount,
+        recent: recentWindow(data.recentTimes),
         fetchedAt: now,
       });
     }
@@ -430,4 +472,91 @@ export function buildPositionReport(
     : "No data for Nick's Tire";
 
   return { nicks, competitors, ratingRank, reviewRank, summary };
+}
+
+type SnapshotRow = {
+  name: string;
+  placeId: string;
+  group: CompetitorGroup;
+  rating: number;
+  reviewCount: number;
+  recent: RecentReviews;
+};
+
+/** Contract localGrowth.competitorSnapshot v1 (the admin Competitors tab codes against this shape). */
+export type CompetitorSnapshotResult =
+  | {
+      ok: true;
+      fetchedAt: string;
+      cacheAgeSeconds: number;
+      nicks: Omit<SnapshotRow, "group"> | null;
+      competitors: SnapshotRow[];
+      unresolved: number;
+      rank: { byRating: number; byVolume: number; of: number } | null;
+    }
+  | { ok: false; reason: "unconfigured" | "denied" | "error"; message: string };
+
+// Memory only, gone on restart, same shape as google-reviews.ts. The Places terms allow
+// storing place_id and nothing else, and forbid pre-fetching: this is read when the tab opens.
+const SNAPSHOT_TTL_MS = 60 * 60 * 1000;
+let snapshotCache: { at: number; result: Extract<CompetitorSnapshotResult, { ok: true }> } | null = null;
+let snapshotInFlight: Promise<CompetitorSnapshotResult> | null = null;
+
+async function readCompetitorSnapshot(): Promise<CompetitorSnapshotResult> {
+  if (!API_KEY) return { ok: false, reason: "unconfigured", message: "No Google Places or Maps API key is configured." };
+  const started = Date.now();
+  try {
+    lastDenialStatus = null;
+    const rows = await fetchCompetitorSnapshot();
+    const nicksRow = rows.find((r) => r.placeId === NICKS_PLACE_ID) ?? null;
+    const competitors: SnapshotRow[] = rows
+      .filter((r): r is CompetitorData & { group: CompetitorGroup } => r.placeId !== NICKS_PLACE_ID && !!r.group)
+      .map((r) => ({ name: r.name, placeId: r.placeId, group: r.group, rating: r.rating, reviewCount: r.reviewCount, recent: r.recent }));
+    // Our own row alone is not a competitor read: a key that dies after the first call
+    // (OVER_QUERY_LIMIT) must not come back ok:true with an empty competitor list.
+    if (competitors.length === 0) {
+      return lastDenialStatus
+        ? { ok: false, reason: "denied", message: `Places API ${lastDenialStatus}: the key is configured but Google rejected it.` }
+        : { ok: false, reason: "error", message: "Google Places returned no data for any listing." };
+    }
+    const report = buildPositionReport(rows);
+    const fetchedAt = new Date(started).toISOString();
+    log.info("Competitor snapshot read live (memory cache only)", {
+      rows: rows.length,
+      durationMs: Date.now() - started,
+    });
+    return {
+      ok: true,
+      fetchedAt,
+      cacheAgeSeconds: 0,
+      nicks: nicksRow
+        ? { name: nicksRow.name, placeId: nicksRow.placeId, rating: nicksRow.rating, reviewCount: nicksRow.reviewCount, recent: nicksRow.recent }
+        : null,
+      competitors,
+      unresolved: COMPETITORS.length - competitors.length,
+      rank: nicksRow ? { byRating: report.ratingRank, byVolume: report.reviewRank, of: rows.length } : null,
+    };
+  } catch (err) {
+    const message = (err instanceof Error ? err.message : String(err)).replace(/key=[^&\s]+/g, "key=REDACTED");
+    return { ok: false, reason: "error", message };
+  }
+}
+
+/**
+ * Live ratings for Nick's + every competitor, cached in memory for 60 minutes.
+ * Writes no rating, count or review time anywhere (DB, logs, files); only a
+ * newly resolved place_id is stored. A failed read is ok:false and is not cached.
+ */
+export async function getCompetitorSnapshotCached(): Promise<CompetitorSnapshotResult> {
+  const now = Date.now();
+  if (snapshotCache && now - snapshotCache.at < SNAPSHOT_TTL_MS) {
+    return { ...snapshotCache.result, cacheAgeSeconds: Math.floor((now - snapshotCache.at) / 1000) };
+  }
+  // Two admins opening the tab at once share one Google read.
+  snapshotInFlight ??= readCompetitorSnapshot().finally(() => {
+    snapshotInFlight = null;
+  });
+  const result = await snapshotInFlight;
+  if (result.ok) snapshotCache = { at: Date.parse(result.fetchedAt), result };
+  return result;
 }
