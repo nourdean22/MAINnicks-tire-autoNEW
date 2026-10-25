@@ -23,16 +23,16 @@ import {
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
   Lock, Activity,
 } from "lucide-react";
-import { Panel, ErrorState } from "./shared";
+import { Panel, ErrorState, LoadingState } from "./shared";
+import { timeAgoShort } from "./shared/format";
+import { navigateToAdminUrl } from "./shared/navigation";
 import { trpc } from "@/lib/trpc";
+import { GBP_REVIEW_URL } from "@shared/const";
 import { GBP_QA_SEEDS } from "@/lib/gbpQaSeeds";
 import {
   weeklyPhotoQueue, PHOTO_SAFETY_RULES, UPLOAD_DESTINATION,
 } from "@/lib/gbpPhotoQueue";
 import { CANONICAL_IDENTITY, ENTITY_PLATFORMS, ENTITY_FIX_ORDER } from "@/lib/entityConsistency";
-import {
-  COMPETITORS, COMPETITOR_BASELINE_DATE, WEEKLY_CHECK_FIELDS, reviewVolumeGaps,
-} from "@/lib/competitorGbpMonitor";
 import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
@@ -52,7 +52,7 @@ function ModeBadge({ mode }: { mode: Mode }) {
 }
 
 /** Copy button with in-DOM feedback (window.* dialogs are dead in the iOS PWA). */
-function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
+function CopyBtn({ text, label = "Copy", className = "" }: { text: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -62,7 +62,7 @@ function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
+      className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors shrink-0 ${className}`}
     >
       {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
       {copied ? "Copied" : label}
@@ -132,7 +132,7 @@ export function LocalGrowthTab() {
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               <Bool value={health.mapsKeyPresent} trueLabel="Maps key present" falseLabel="Maps key MISSING" />
               <Bool value={health.placesKeyPresent} trueLabel="Places key present" falseLabel="Places key missing (Maps key covers it)" />
-              <Bool value={health.liveReachable} trueLabel={`live reviews reachable (${health.liveReviewCount ?? "?"} reviews)`} falseLabel="live reviews NOT reachable" />
+              <Bool value={health.liveReachable} trueLabel={`live reviews reachable (${health.liveReviewCount?.toLocaleString("en-US") ?? "?"} reviews)`} falseLabel="live reviews NOT reachable" />
             </div>
             {health.fallbackNote && (
               <p className="text-[11px] text-amber-400 leading-relaxed flex items-start gap-1">
@@ -167,7 +167,7 @@ export function LocalGrowthTab() {
           <li>Shoot this week's 6 photos (Photo Queue tab) and upload to GBP.</li>
           <li>Work the Entity / Brand checklist top-to-bottom (GBP first).</li>
           <li>Reply on Google (Business Profile reviews), worst rating first.</li>
-          <li>Once a week: log the Competitors tab numbers against the baseline.</li>
+          <li>Open the Competitors tab: live Google numbers and one action.</li>
         </ol>
       </Panel>
 
@@ -379,60 +379,151 @@ export function EntityTab() {
 
 /* ── Competitors ──────────────────────────────────────────────── */
 
+type RecentReviews = { count: number; newestAt: string | null; oldestAt: string | null };
+
+const REVIEWS_HREF = "/admin?tab=campaigns&outreachTab=reviews";
+const fmtCount = (n: number) => n.toLocaleString("en-US");
+
+/** Days the newest reviews span: shown only as "N in D days", never as a bare rate. */
+function paceDays(r: RecentReviews): number | null {
+  if (r.count < 2 || !r.newestAt || !r.oldestAt) return null;
+  const ms = Date.parse(r.newestAt) - Date.parse(r.oldestAt);
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(1, Math.ceil(ms / 86_400_000));
+}
+
+const stripPeriod = (m: string) => m.replace(/\.+$/, "");
+const SNAPSHOT_FAILURE_COPY: Record<"unconfigured" | "denied" | "error", (message: string) => string> = {
+  unconfigured: () =>
+    "Google Places key is not set on the server. Competitor numbers are UNMEASURED, not zero. Add GOOGLE_PLACES_API_KEY (or GOOGLE_MAPS_API_KEY) in Railway.",
+  denied: (m) =>
+    `Google rejected the Places key (${stripPeriod(m)}). Fix the key or its API restriction in Google Cloud; nothing to do on the phone.`,
+  error: (m) => `Google read failed: ${stripPeriod(m)}.`,
+};
+
 export function CompetitorsTab() {
-  // Live Nick's review count (if reachable) powers the honest gap math.
-  // When live data isn't reachable we say so — we never fake movement.
-  const { data: health } = trpc.localGrowth.reviewsHealth.useQuery();
-  const nicksCount = health?.liveReachable ? health.liveReviewCount : null;
-  const gaps = typeof nicksCount === "number" ? reviewVolumeGaps(nicksCount) : null;
+  // Read live on open (server holds it 60 min in memory). Google's terms allow storing
+  // place_id only, so nothing here is cached or kept in the browser either.
+  const { data, isLoading, isError, refetch } = trpc.localGrowth.competitorSnapshot.useQuery();
+  const retry = () => void refetch();
+
+  if (isLoading) return <LoadingState label="Reading Google..." />;
+  if (isError || !data) {
+    return <ErrorState message="Competitor numbers couldn't load: unknown, not zero." onRetry={retry} />;
+  }
+  if (!data.ok) return <ErrorState message={SNAPSHOT_FAILURE_COPY[data.reason](data.message)} onRetry={retry} />;
+
+  const { nicks, competitors, unresolved, rank } = data;
+  const ownPace = nicks ? paceDays(nicks.recent) : null;
+  const groups = ([["local", "Local independents"], ["chain", "Chains"]] as const)
+    .map(([group, label]) => ({
+      label,
+      rows: competitors.filter((c) => c.group === group).sort((a, b) => b.reviewCount - a.reviewCount),
+    }))
+    .filter((g) => g.rows.length > 0);
+  const nearestAhead = nicks
+    ? competitors
+        .filter((c) => c.reviewCount > nicks.reviewCount)
+        .sort((a, b) => a.reviewCount - b.reviewCount)[0]
+    : undefined;
 
   return (
     <div className="space-y-4">
-      <div className="border border-amber-500/40 bg-amber-500/10 rounded p-3 text-xs text-amber-200 flex items-start gap-2">
-        <Swords className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-        <span>
-          <strong>Baseline {COMPETITOR_BASELINE_DATE} · a comparison anchor, not live data.</strong>{" "}
-          Competitor numbers below were captured in the {COMPETITOR_BASELINE_DATE} audit.
-          The weekly check is manual (~10 min): open each profile, log the fields, compare
-          against this anchor.
-        </span>
-      </div>
-      <Panel title={`Watch list (baseline ${COMPETITOR_BASELINE_DATE})`} icon={<Swords className="w-4 h-4" />}>
-        <div className="flex items-center gap-2 mb-2"><ModeBadge mode="manual" /></div>
-        <div className="space-y-2">
-          {COMPETITORS.map((c) => {
-            const gap = gaps?.find((g) => g.name === c.name);
-            return (
-              <div key={c.name} className="flex items-center justify-between gap-2 bg-background/40 border border-border/30 rounded p-2.5 flex-wrap">
-                <div className="min-w-0">
-                  <span className="text-xs font-semibold text-foreground">{c.name}</span>
-                  {c.note && <span className="text-[10px] text-foreground/40 ml-2">{c.note}</span>}
-                </div>
-                <div className="flex items-center gap-3 text-[11px]">
-                  <span className="text-amber-400">{c.rating.toFixed(1)} ★</span>
-                  <span className="text-foreground/60">{c.reviewCount} reviews</span>
-                  {gap && gap.gap > 0 && <span className="text-red-400">{gap.gap} ahead of us</span>}
-                  {gap && gap.gap <= 0 && <span className="text-emerald-400">we lead by {-gap.gap}</span>}
-                </div>
-              </div>
-            );
-          })}
+      <div className="bg-background/40 border border-border/30 rounded p-3 space-y-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ModeBadge mode="read-only" />
+          <span className="text-xs font-semibold text-foreground">
+            {/* min(): a server clock ahead of the phone would print a negative age */}
+            Live from Google · read {timeAgoShort(Math.min(Date.parse(data.fetchedAt), Date.now()))} · refreshes hourly
+          </span>
         </div>
-        <p className="text-[10px] text-foreground/40 mt-2">
-          {typeof nicksCount === "number"
-            ? `Gap math uses our LIVE Google review count (${nicksCount}) vs each competitor's ${COMPETITOR_BASELINE_DATE} baseline.`
-            : "Live Nick's review count unreachable right now: gap math hidden rather than faked. See Reviews health on the Local Growth tab."}
-        </p>
+        <p className="text-[10px] text-foreground/50">Ratings and review counts: Google, read live. Nothing is stored.</p>
+      </div>
+
+      <Panel title="Where we stand" icon={<Star className="w-4 h-4" />}>
+        <div data-testid="where-we-stand" className="space-y-1">
+          {nicks ? (
+            <>
+              <div className="flex items-baseline gap-x-2 gap-y-1 flex-wrap">
+                <span className="text-3xl font-bold text-foreground tabular-nums">{fmtCount(nicks.reviewCount)}</span>
+                <span className="text-xs text-foreground/60">reviews</span>
+                <span className="text-lg font-semibold text-amber-400 tabular-nums ml-2">{nicks.rating.toFixed(1)}</span>
+                <span className="text-xs text-amber-400">★</span>
+              </div>
+              {rank && (
+                <p className="text-[11px] text-foreground/70">
+                  {`#${rank.byRating} of ${rank.of} by rating · #${rank.byVolume} of ${rank.of} by review count`}
+                </p>
+              )}
+              {ownPace !== null && (
+                <p className="text-[11px] text-foreground/50">{`${nicks.recent.count} newest reviews in ${ownPace} days`}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-amber-400">Our own listing could not be read: rank is UNMEASURED.</p>
+          )}
+        </div>
       </Panel>
-      <Panel title="Weekly check fields (log these per competitor)" icon={<CheckCircle2 className="w-4 h-4" />}>
-        <ul className="list-disc list-inside space-y-0.5 text-[11px] text-foreground/70 mt-1">
-          {WEEKLY_CHECK_FIELDS.map((f) => <li key={f}>{f}</li>)}
-        </ul>
-        <p className="text-[10px] text-foreground/40 mt-2">
-          The server keeps each competitor's Google place ID only. Google's terms do not
-          allow storing their ratings or review counts, so there is no automatic trend or
-          alert: log the weekly fields here by hand.
-        </p>
+
+      <Panel title="Watch list" icon={<Swords className="w-4 h-4" />}>
+        {groups.length === 0 ? (
+          <p className="text-[11px] text-foreground/50">No tracked shop could be read from Google this time.</p>
+        ) : (
+          <div className="space-y-3">
+            {groups.map((g) => (
+              <div key={g.label}>
+                <p className="text-[10px] font-semibold text-foreground/50 mb-1">{g.label}</p>
+                <ul className="space-y-1.5">
+                  {g.rows.map((c) => {
+                    const gap = nicks ? c.reviewCount - nicks.reviewCount : null;
+                    const pace = paceDays(c.recent);
+                    return (
+                      <li
+                        key={c.placeId}
+                        data-competitor-row
+                        className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 bg-background/40 border border-border/30 rounded p-2.5 text-[11px]"
+                      >
+                        <span className="text-xs font-semibold text-foreground min-w-0 break-words">{c.name}</span>
+                        <span className="text-amber-400 tabular-nums">{`${c.rating.toFixed(1)} ★`}</span>
+                        <span className="text-foreground/70 tabular-nums">{`${fmtCount(c.reviewCount)} reviews`}</span>
+                        {gap !== null && gap > 0 && <span className="text-red-400">{`${fmtCount(gap)} ahead of us`}</span>}
+                        {gap !== null && gap < 0 && <span className="text-emerald-400">{`we lead by ${fmtCount(-gap)}`}</span>}
+                        {gap === 0 && <span className="text-foreground/60">level with us</span>}
+                        {pace !== null && <span className="text-foreground/40">{`${c.recent.count} newest in ${pace} d`}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+        {unresolved > 0 && (
+          <p className="text-[10px] text-foreground/40 mt-2">
+            {`${unresolved} tracked ${unresolved === 1 ? "shop" : "shops"} could not be read from Google this time (the server log names them).`}
+          </p>
+        )}
+      </Panel>
+
+      <Panel title="One action" icon={<TrendingUp className="w-4 h-4" />}>
+        <p className="text-xs text-foreground/80">Review volume is the gap most worth closing.</p>
+        {nicks && nearestAhead && (
+          <p className="text-[11px] text-foreground/60 mt-1">
+            {`Nearest ahead by volume: ${nearestAhead.name}, ${fmtCount(nearestAhead.reviewCount - nicks.reviewCount)} more reviews.`}
+          </p>
+        )}
+        <a
+          href={REVIEWS_HREF}
+          onClick={(e) => {
+            if (navigateToAdminUrl(e, REVIEWS_HREF, "campaigns")) e.preventDefault();
+          }}
+          className="mt-3 flex w-full sm:inline-flex sm:w-auto min-h-12 items-center justify-center px-4 rounded bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Ask recent customers for a review
+        </a>
+        <div className="mt-2">
+          <CopyBtn text={GBP_REVIEW_URL} label="Copy our review link" className="min-h-12" />
+        </div>
       </Panel>
     </div>
   );
