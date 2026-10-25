@@ -1,7 +1,7 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 133,
+    "emDash": 130,
     "emoji": 0,
     "transitionAll": 48,
     "slowDuration": 7,
@@ -161,9 +161,6 @@
     "client/src/pages/admin/outreach/CampaignsSection.tsx": {
       "transitionAll": 3,
       "smallInput": 2
-    },
-    "client/src/pages/admin/outreach/FollowUpsSection.tsx": {
-      "emDash": 3
     },
     "client/src/pages/admin/outreach/ReviewRequestsSection.tsx": {
       "emDash": 10,

@@ -143,12 +143,13 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
 
   return (
     <div className="bg-card border border-border/40 p-4 space-y-2.5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="eyebrow">
           {greeting()} · outreach brief
         </span>
+        {/* campaigns.stats counts bulk campaigns only; win-back sequences live in their own table. */}
         <span className="text-[10px] tracking-wider text-foreground/30">
-          {totalCampaigns.toLocaleString()} campaigns lifetime
+          {totalCampaigns.toLocaleString()} bulk campaign{totalCampaigns === 1 ? "" : "s"} lifetime (Campaigns tab)
         </span>
       </div>
       <div className="space-y-1.5">
@@ -165,7 +166,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
           <Activity className={`w-3.5 h-3.5 shrink-0 ${gwTone}`} />
           <span className="text-[12.5px] text-foreground/85 leading-tight">
             Live · F25e shop gateway {gwText}
-            {totalSentLifetime > 0 ? ` · ${totalSentLifetime.toLocaleString()} customer touches sent lifetime` : ""}
+            {totalSentLifetime > 0 ? ` · ${totalSentLifetime.toLocaleString()} messages sent lifetime (review requests and bulk campaigns)` : ""}
           </span>
         </div>
 

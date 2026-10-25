@@ -12,6 +12,7 @@ import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateT
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useReviewStats } from "@/hooks/useReviewStats";
+import { LAPSED_REGULAR_RULE } from "@shared/customerSegments";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -35,15 +36,69 @@ import {
 // the value lingering in URL state. Removed.
 type View = "list" | "create" | "detail";
 
-const SEGMENT_LABELS: Record<string, string> = {
-  lapsed: "Lapsed (90-180d)",
-  dormant: "Dormant (180-365d)",
-  lost: "Lost (365d+)",
-  vip: "VIP Customers",
-  fleet: "Fleet/Commercial",
-  recent: "Recent (30-90d)",
-  tire_customer: "Tire Customers (180d+)",
-};
+type Segment = "lapsed_regulars" | "lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent" | "tire_customer";
+type SegmentCounts = RouterOutputs["winback"]["segmentCounts"];
+
+// Picker order: the Customers tab's shared rule first, since its "Open Win-Back" link lands here.
+// Each rule says in words what buildSegmentFilter (server/routers/winback.ts) selects.
+// wave-150 · "declined" stays out: the declined-recovery cron owns that pool.
+const SEGMENTS: { id: Segment; label: string; rule: string }[] = [
+  { id: "lapsed_regulars", label: "Lapsed regulars", rule: LAPSED_REGULAR_RULE },
+  { id: "lapsed", label: "Lapsed (90-180d)", rule: "last visit 90 to 180 days ago, any number of visits" },
+  { id: "dormant", label: "Dormant (180-365d)", rule: "last visit 180 to 365 days ago" },
+  { id: "lost", label: "Lost (365d+)", rule: "last visit more than 365 days ago" },
+  { id: "vip", label: "VIP", rule: "lifetime spend over $2,000" },
+  { id: "fleet", label: "Fleet/Commercial", rule: "lifetime spend over $5,000" },
+  { id: "recent", label: "Recent (30-90d)", rule: "last visit 30 to 90 days ago" },
+  { id: "tire_customer", label: "Tire (180d+)", rule: "a tire job on record, last visit more than 180 days ago" },
+];
+const SEGMENT_LABELS: Record<string, string> = Object.fromEntries(SEGMENTS.map((s) => [s.id, s.label]));
+const SEGMENT_RULES: Record<string, string> = Object.fromEntries(SEGMENTS.map((s) => [s.id, s.rule]));
+
+/** How many people a sequence on `s` would text (the can-be-texted count); undefined = unknown. */
+function reachOf(counts: SegmentCounts | undefined, s: Segment): number | undefined {
+  if (!counts) return undefined;
+  return s === "lapsed_regulars" ? counts.lapsed_regulars.contactable : counts[s];
+}
+
+function SegmentPicker({ value, onChange }: { value: Segment; onChange: (s: Segment) => void }) {
+  const { data: counts, isLoading } = trpc.winback.segmentCounts.useQuery();
+  // A failed read is unknown, never "?" or 0. Cached data survives a failed background refetch.
+  const unknown = !counts && !isLoading;
+  return (
+    <div>
+      <p id="wb-audience" className="text-[11px] text-foreground/50 font-medium mb-2">Audience</p>
+      <div role="group" aria-labelledby="wb-audience" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {SEGMENTS.map((s) => {
+          const countLine = !counts
+            ? (isLoading ? "counting…" : "counts unknown")
+            : s.id === "lapsed_regulars"
+              ? `${counts.lapsed_regulars.qualifying} qualify · ${counts.lapsed_regulars.contactable} can be texted`
+              : `${counts[s.id]} targets`;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={value === s.id}
+              onClick={() => onChange(s.id)}
+              className={`min-h-11 px-3 py-2 border text-left transition-colors ${s.id === "lapsed_regulars" ? "col-span-2" : ""} ${
+                value === s.id ? "border-primary bg-primary/5" : "border-border/30 bg-card hover:border-border/50"
+              }`}
+            >
+              <span className="block text-[13px] font-semibold text-foreground leading-tight">{s.label}</span>
+              {s.id === "lapsed_regulars" && <span className="block text-[12px] text-foreground/60 mt-0.5">{s.rule}</span>}
+              <span className={`block text-[12px] mt-1 tabular-nums ${unknown ? "text-amber-400" : "text-primary"}`}>{countLine}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-foreground/45 mt-2 leading-snug">
+        {value === "lapsed_regulars" ? "The same rule the Customers tab counts." : `${SEGMENT_LABELS[value]}: ${SEGMENT_RULES[value]}.`}{" "}
+        Targets match the rule and can be texted (not opted out).
+      </p>
+    </div>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
   draft: { label: "Draft", color: "text-foreground/50", bgColor: "bg-foreground/5", icon: <Clock className="w-3.5 h-3.5" /> },
@@ -52,10 +107,16 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   completed: { label: "Completed", color: "text-blue-400", bgColor: "bg-blue-500/10", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
 };
 
-function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
+function CreateCampaign({ segment, onSegmentChange, onClose, onCreated }: {
+  segment: Segment;
+  onSegmentChange: (s: Segment) => void;
+  onClose: () => void;
+  onCreated: (id: number) => void;
+}) {
   const [name, setName] = useState("");
-  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent" | "tire_customer">("lapsed");
   const [creating, setCreating] = useState(false);
+  // A rejected create stays on screen in words beside the button; the form keeps its state.
+  const [createError, setCreateError] = useState<string | null>(null);
   // Mirrors the live numbers the real step-3 SMS renders, so the operator
   // previewing a sequence sees exactly what the customer will receive.
   const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
@@ -70,28 +131,27 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
     onSuccess: () => createMutationUtils.winback.campaigns.invalidate(),
   });
 
-  // wave-112 — was `as any`; now honest cast. customers.stats only
-  // exposes a few of the win-back segment keys (lapsed, recent). For the
-  // others (dormant, lost, vip, fleet) the lookup is undefined → 0.
-  // Now we use winback.segmentCounts to show real counts.
-  const stats = segmentCounts as Record<string, number> | undefined | null;
-  const segmentCount = stats?.[segment] ?? 0;
+  // The can-be-texted count for the chosen audience; undefined while unknown.
+  const reach = reachOf(segmentCounts, segment);
 
   async function handleCreate() {
     if (!name.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       const result = await createMutation.mutateAsync({ name, targetSegment: segment });
       if (result.success && result.campaignId) {
         onCreated(result.campaignId);
       } else {
         // wave-112 — surface non-success path (was silent)
+        setCreateError("the server returned no campaign id");
         toast.error("Campaign creation returned no campaignId");
       }
     } catch (e) {
       // wave-112 — was console.error only; operator now gets actionable feedback
       console.error("Failed to create campaign:", e);
       const msg = e instanceof Error ? e.message : "Unknown error creating campaign";
+      setCreateError(msg);
       toast.error(msg);
     } finally {
       setCreating(false);
@@ -119,47 +179,13 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
           />
         </div>
 
-        <div>
-          <label className="block text-[11px] text-foreground/50 font-medium mb-2">Target segment</label>
-          {/* wave-133 — was grid-cols-4 fixed; many segments × ~79px wide
-              at 375px = unusable touch targets. Mobile collapses to
-              2 cols (~160px each), 4 cols only at sm+ (640px+). */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* wave-150 · "declined" removed — the 50/day declined-recovery cron now owns that pool (a winback campaign here would double-text it).
-                "tire_customer" is revived with evidence-gated verification (requires last visit > 180d and prior tire service on invoices). */}
-            {(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const).map(s => {
-              const labels: Record<string, string> = {
-                lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",
-                vip: "VIP",
-                fleet: "Fleet/Commercial", recent: "Recent (30-90d)",
-                tire_customer: "Tire (180d+)",
-              };
-              const count = segmentCounts?.[s as keyof typeof segmentCounts] ?? "?";
-              return (
-                <button
-                   key={s}
-                   onClick={() => setSegment(s)}
-                   className={`p-4 border text-left transition-colors ${
-                     segment === s
-                       ? "border-primary bg-primary/5"
-                       : "border-border/30 bg-card hover:border-border/50"
-                   }`}
-                >
-                  <span className="font-bold text-[10px] tracking-wide text-foreground block leading-tight">
-                    {labels[s] ?? s}
-                  </span>
-                  <span className="font-bold text-lg text-primary mt-1 block">{typeof count === "number" ? count : "?"}</span>
-                  <span className="font-mono text-[10px] text-foreground/40 tracking-wider">CUSTOMERS</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <SegmentPicker value={segment} onChange={onSegmentChange} />
 
         <div className="bg-card border border-border/30 p-4">
           <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Auto-Generated Message Sequence</span>
           <div className="space-y-3">
-            {segment === "lapsed" && (
+            {/* Lapsed regulars get the lapsed sequence verbatim (server withLapsedRegulars). */}
+            {(segment === "lapsed" || segment === "lapsed_regulars") && (
               <>
                 <StepPreview step={1} delay="Immediately" desc="Re-engage: Your vehicle may be due, car problems get worse" />
                 <StepPreview step={2} delay="Day 4" desc="Service reminder: Last service follow-up + free inspection" />
@@ -204,24 +230,29 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2">
-          <p className="text-foreground/40 text-xs">
-            Campaign will target <span className="text-primary font-bold">{segmentCount ?? 0}</span> customers with personalized messages.
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <p className="text-foreground/50 text-xs">
+            {reach === undefined
+              ? "Audience count unknown. A campaign can be created once the count loads."
+              : <>This draft would go to <span className="text-primary font-bold">{reach}</span> people who can be texted. Nothing sends until you activate it.</>}
           </p>
-          {/* 2026-05-23 · block create when segmentCount=0. The TODO at the
-              top of this file flags that some segments lack a `customerStats`
-              key and resolve to 0 — operator could otherwise ship a zero-
-              target campaign that fires SMS at nobody. */}
+          {/* 2026-05-23 · block create when the audience is 0 (a zero-target campaign
+              texts nobody); an unknown count blocks too: unknown is not an audience. */}
           <button
             onClick={handleCreate}
-            disabled={!name.trim() || creating || !segmentCount || segmentCount === 0}
-            title={!segmentCount || segmentCount === 0 ? "No customers in this segment yet: pick another segment or wait for the lapsed cohort to grow" : undefined}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!name.trim() || creating || !reach}
+            title={!reach ? "No one in this audience can be texted yet, or the count is unknown: pick another audience" : undefined}
+            className="flex min-h-11 items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             CREATE CAMPAIGN
           </button>
         </div>
+        {createError && (
+          <p role="alert" className="text-[12px] text-red-400 leading-snug">
+            {"Couldn't create the campaign: "}{createError}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -389,7 +420,7 @@ function SafetyGateModal({
                   className="mt-0.5 accent-primary"
                 />
                 <span className="text-xs text-foreground/70">
-                  I confirm that this targets the correct customer segment (<span className="font-semibold text-primary">{campaign.targetSegment}</span>) and respects quiet hours.
+                  I confirm that this targets the correct customer segment (<span className="font-semibold text-primary">{SEGMENT_LABELS[campaign.targetSegment] ?? campaign.targetSegment}</span>) and respects quiet hours.
                 </span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer select-none">
@@ -720,6 +751,8 @@ export default function WinBackSection() {
     { validate: (v: string) => (["list", "create", "detail"].includes(v) ? (v as View) : null) },
   );
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  // Held here so the list's picker and the create form share one choice.
+  const [segment, setSegment] = useState<Segment>("lapsed_regulars");
 
   const { data: stats, isError: statsFailed } = trpc.winback.campaignStats.useQuery();
   // A failed read is unknown, not zero.
@@ -734,6 +767,8 @@ export default function WinBackSection() {
   if (view === "create") {
     return (
       <CreateCampaign
+        segment={segment}
+        onSegmentChange={setSegment}
         onClose={() => setView("list")}
         onCreated={(id) => {
           setSelectedCampaignId(id);
@@ -751,9 +786,21 @@ export default function WinBackSection() {
     <div className="space-y-6">
       <PageHeader
         title="Win-Back Campaigns"
-        subtitle="Multi-step SMS sequences for lapsed customers · 30/60/90/180-day cohorts · campaign performance + recent sends"
+        subtitle="Multi-step text sequences for customers who stopped coming in. Nothing sends until you activate a campaign."
         icon={<RotateCcw className="w-5 h-5" />}
       />
+      {/* Audience first: the Customers tab's "Open Win-Back" lands on the people it counted. */}
+      <section className="bg-card border border-border/30 p-4 space-y-3">
+        <SegmentPicker value={segment} onChange={setSegment} />
+        <button
+          type="button"
+          onClick={() => setView("create")}
+          className="flex min-h-11 items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Draft a sequence for this audience
+        </button>
+      </section>
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <StatCard label="Total Campaigns" value={stat(stats?.totalCampaigns)} icon={<RotateCcw className="w-4 h-4" />} />
@@ -767,17 +814,8 @@ export default function WinBackSection() {
         <p className="text-[12px] text-amber-400">{"Campaign stats couldn't load. The counts above are unknown, not zero."}</p>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-sm text-foreground/60 tracking-wide">Campaigns</h3>
-        <button
-          onClick={() => setView("create")}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          NEW CAMPAIGN
-        </button>
-      </div>
+      {/* The draft button moved up beside the audience picker it drafts for. */}
+      <h3 className="font-bold text-sm text-foreground/60 tracking-wide">Campaigns</h3>
 
       {/* Campaign List */}
       {isLoading ? (
@@ -811,10 +849,13 @@ export default function WinBackSection() {
                       {statusCfg.icon} {statusCfg.label.toUpperCase()}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 text-foreground/40">
-                    <span className="font-mono text-[10px] tracking-wider">{SEGMENT_LABELS[c.targetSegment]}</span>
-                    <span className="font-mono text-[10px] tracking-wider">{c.targetCount} TARGETS</span>
-                    <span className="font-mono text-[10px] tracking-wider">{c.sentCount} SENT</span>
+                  {/* The saved segment's rule in words, so an old 90-180 day draft is not read as the shared rule. */}
+                  <p className="text-[12px] text-foreground/55 leading-snug">
+                    {SEGMENT_LABELS[c.targetSegment] ?? c.targetSegment}: {SEGMENT_RULES[c.targetSegment] ?? "rule not on file"}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-foreground/40">
+                    <span className="font-mono text-[10px] tracking-wider">{c.targetCount} targets</span>
+                    <span className="font-mono text-[10px] tracking-wider">{c.sentCount} sent</span>
                     <span className="font-mono text-[10px] tracking-wider hidden sm:inline">
                       {formatDate(c.createdAt)}
                     </span>
