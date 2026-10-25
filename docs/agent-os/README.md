@@ -79,6 +79,12 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   junctioned worktree, and writes to `.env*` files. Git rules expand a `__GIT__` macro so global
   options (`git -C <path> push …`) cannot slip between `git` and the verb — that exact shape
   defeated every git rule in the first draft (red-team, 2026-08-04, 22 verified bypasses → 0).
+  **Chain boundary (2026-10-25):** a rule about ONE command's arguments scans `[^;|&\n]*?` after the verb, so it
+  neither reaches into a later command nor lets a later command's text exempt this one (push-to-main, force-push,
+  push-implicit-dest, add-all, destructive-restore, night-shift-push-scope, night-shift-no-merge). Rules that cross a
+  chain ON PURPOSE: destructive-sql (the client and the SQL sit on either side of a pipe or heredoc),
+  worktree-recursive-delete (destructive; the path can come from a subshell holding `;`), the night-shift shell-write
+  rule's inline-script arm (`node -e "a; b"` holds `;`), infra-approvals-store-shell (any mention of the store path).
 - **PreCompact** (`precompact-handoff.mjs`, 2026-10-16) writes a handoff note BEFORE the context is compacted: branch,
   HEAD, ahead/behind `origin/main`, the Session Authority lease, uncommitted paths, the last 5 commits. It lands outside
   the repo (`~/.claude/agent-os/handoffs/<cwd slug>/`, newest 10 kept; `AGENT_OS_HANDOFF_DIR` overrides) so the tree

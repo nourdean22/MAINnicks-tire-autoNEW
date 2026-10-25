@@ -1,6 +1,10 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { collapseByInvoice, attributionCounts } from "../lib/attributionDedupe";
-import { BAND_CALIBRATION_CAVEAT, bandMix, bandOf, describeBand } from "../lib/attributionConfidenceBands";
+import { BAND_CALIBRATION_CAVEAT, bandMix, describeCandidate } from "../lib/attributionConfidenceBands";
+import { askedForWords, firstNameWords } from "../lib/attributionReviewWords";
+import { calibrationWords } from "../lib/attributionCalibration";
+import { loadCalibration, type CalibrationState } from "../services/attributionAutoConfirm";
+import { greetingName } from "../services/invoiceReviewRequests";
 import { z } from "zod";
 import { invoices, leads, vapiCallLogs } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
@@ -154,7 +158,14 @@ export const revenueAttributionRouter = router({
         c.match_method AS matchMethod,
         c.confidence,
         c.evidence_json AS evidence,
-        c.created_at AS createdAt
+        c.created_at AS createdAt,
+        v.serviceMention AS serviceMention,
+        v.eval_outcome AS callOutcome,
+        v.createdAt AS calledAt,
+        i.customerName AS invoiceCustomerName,
+        i.serviceDescription AS invoiceService,
+        i.invoiceDate AS invoicedAt,
+        i.totalAmount AS invoiceTotalCents
       FROM revenue_reconciliation_candidates c
       INNER JOIN (
         SELECT call_id, MAX(created_at) AS latest_created_at
@@ -165,12 +176,49 @@ export const revenueAttributionRouter = router({
        AND latest.latest_created_at = c.created_at
       LEFT JOIN revenue_attribution_decisions d
         ON d.call_id = c.call_id AND d.current_slot = 1
+      LEFT JOIN vapi_call_logs v ON v.id = c.call_id
+      LEFT JOIN invoices i ON i.id = c.invoice_id
       WHERE d.id IS NULL
         AND c.resolution IN ('manual_review', 'ambiguous')
+        -- A sale confirmed for one call is settled for every call that claims it (the same
+        -- customer ringing again). Without this, confirming one of eight claims re-surfaces
+        -- the next claim as a fresh decision about money already counted.
+        AND NOT EXISTS (
+          SELECT 1 FROM revenue_attribution_decisions dc
+          WHERE dc.invoice_id = c.invoice_id AND dc.current_slot = 1 AND dc.decision = 'confirmed'
+        )
       ORDER BY c.created_at DESC
       LIMIT ${input.limit}
     `);
     const rows = rowsFromExecute<Record<string, unknown>>(raw);
+    // The measured hit rate per band (2026-10-25). A failed read renders as failed on the
+    // card, never as a zero or as "nobody has measured".
+    // shortcut: loadCalibration reads every call and paid invoice (about 8,500 narrow rows) on each
+    // card load (staleTime 60 s, admin only); store the report on the run row if that grows past a second.
+    let calibration: CalibrationState;
+    try {
+      calibration = await loadCalibration(db);
+    } catch (e) {
+      calibration = { status: "failed", error: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200) };
+    }
+    const iso = (v: unknown): string | null =>
+      v == null ? null : v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString();
+    // Plain words (2026-10-25), applied to primaries AND duplicates so no raw customer name or
+    // call summary crosses the API. The person is named from the matched invoice: calls carry
+    // no name (0 of 5,355 that day). Nothing here is a phone number.
+    const inWords = <T extends Record<string, unknown>>(r: T) => ({
+      ...r,
+      band: describeCandidate({ confidence: r.confidence as number | null, resolution: r.resolution as string, invoiceId: r.invoiceId as number | null }),
+      firstName: firstNameWords(greetingName(r.invoiceCustomerName)),
+      askedFor: askedForWords(r.serviceMention as string | null),
+      calledAt: iso(r.calledAt),
+      invoicedAt: iso(r.invoicedAt),
+      invoiceTotalCents: r.invoiceTotalCents == null ? null : Number(r.invoiceTotalCents),
+      invoiceService: r.invoiceService == null ? null : String(r.invoiceService).replace(/\s+/g, " ").trim().slice(0, 80) || null,
+      callOutcome: r.callOutcome == null ? null : String(r.callOutcome),
+      serviceMention: undefined,
+      invoiceCustomerName: undefined,
+    });
 
     /**
      * AN INVOICE CAN BE PAID ONCE, SO IT CAN BE CLAIMED ONCE.
@@ -215,12 +263,9 @@ export const revenueAttributionRouter = router({
        * `server/lib`: that would cross a layer boundary, and the band is a
        * judgement about evidence, not a formatting concern.
        */
-      rows: collapsed.primary.map((r) => ({
-        ...r,
-        band: describeBand(bandOf(r.confidence)),
-      })),
+      rows: collapsed.primary.map(inWords),
       /** Same-invoice contacts, kept for context. NOT independent decisions. */
-      duplicates: collapsed.duplicates,
+      duplicates: collapsed.duplicates.map(inWords),
       /** Invoices claimed by more than one call. Non-empty is normal; billing twice is not. */
       contestedInvoiceIds: collapsed.contestedInvoiceIds,
       /**
@@ -245,6 +290,14 @@ export const revenueAttributionRouter = router({
        */
       bands: bandMix(collapsed.primary.map((r) => r.confidence)),
       bandCaveat: BAND_CALIBRATION_CAVEAT,
+      /** Measured per band, in words, with the count; `status: "failed"` when the read failed. */
+      calibration: {
+        status: calibration.status,
+        anyOpen: calibration.status === "ok" ? calibration.anyOpen : false,
+        words: calibrationWords(calibration),
+        bands: calibration.status === "ok" ? calibration.bands : null,
+        measuredAt: calibration.status === "ok" ? calibration.measuredAt : null,
+      },
     };
   }),
 

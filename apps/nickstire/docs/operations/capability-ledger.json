@@ -2131,18 +2131,18 @@
     },
     {
       "capabilityId": "attribution-confidence-bands",
-      "name": "The attribution queue says what its confidence numbers mean, and that they are not probabilities",
+      "name": "The attribution queue says what its evidence bands mean, measures each band's hit rate, and confirms a band's matches itself once it has earned it",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "2026-09-18. The review queue showed 0.9 and 0.75 beside real invoices, and an operator confirming money reads those as percentages. Reading the producer, they are ordinal labels for two evidence recipes that differ by EXACTLY ONE FACT - whether the service text overlapped - and neither has ever been calibrated against outcomes. lib/attributionConfidenceBands.ts names each band, states the evidence that produced it, and states what would RAISE it, which is the only actionable part. bandMix reports inferredPct, the share of rows resting on inference rather than a recorded link. The card renders the mix and, above 80% inferred, says plainly that confirming in bulk is guessing in bulk - which is how the eight-calls-one-invoice over-count happened.",
-        "tests": "20 tests in server/__tests__/attributionConfidenceBands.test.ts. The producer's real ladder is mapped case by case; only VERIFIED is observed and every other band is marked inference. An empty queue reports inferredPct null, not 0 - unmeasured is not measured-zero. The calibration caveat is PINNED BY ASSERTION, including the sentence admitting nobody has measured the hit rate, so if that ever becomes false the caveat has to change with it. Positive control asserts the mix discriminates rather than returning a constant. 169 test files, 2,135 passed, exit 0.",
-        "liveRuns": "NONE. The bands have not been observed against a production queue.",
+        "codeCommit": "2026-09-18. The review queue showed 0.9 and 0.75 beside real invoices, and an operator confirming money reads those as percentages. Reading the producer, they are ordinal labels for two evidence recipes that differ by EXACTLY ONE FACT - whether the service text overlapped - and neither has ever been calibrated against outcomes. lib/attributionConfidenceBands.ts names each band, states the evidence that produced it, and states what would RAISE it, which is the only actionable part. bandMix reports inferredPct, the share of rows resting on inference rather than a recorded link. The card renders the mix and, above 80% inferred, says plainly that confirming in bulk is guessing in bulk - which is how the eight-calls-one-invoice over-count happened. 2026-10-25 (PR 3273): the bands are MEASURED now. lib/attributionCalibration.ts scores each inferred band from the operator's Confirm/Reject rulings and from recorded links (a voice arrival this call created, reconciled to an invoice; a lead taken on the call uniquely linked to a paid invoice), with the recipe run blind and its claim scored against the record. Ruling: a band is open at right/n >= 0.90 with n >= 20; under 20 the rate is UNKNOWN (null); auto rulings are refused as input. services/attributionAutoConfirm.ts: the reconciliation cron confirms open-band matches, one ruling per invoice, decided_by auto:calibration-v1, the measured numbers on the row, INSERT ... WHERE NOT EXISTS with the (call_id, current_slot) unique key as the compare-and-swap; a failed calibration read is a closed gate and status failed on the run. The card (PR 3271 made it one line until opened, in plain words) prints the measured sentence with its count and the time-reversal control. The old caveat 'nobody has measured' is retired.",
+        "tests": "26 tests in server/__tests__/attributionConfidenceBands.test.ts (ladder through describeCandidate, plain labels, the direct-link ambiguous why), 17 in server/__tests__/attributionCalibration.test.ts (threshold at exactly 18 of 20 open and 17 of 20 shut, UNKNOWN under 20, a planted band under threshold stays manual, auto rulings refused, blind scoring of recorded links, the words with their counts, a failed read says failed), 7 in server/__tests__/attributionAutoConfirm.test.ts (one ruling per invoice with the numbers on the row, a planted closed band writes nothing, a failed read writes nothing and says failed, 0 rows affected and a duplicate key are skipped not thrown, the swap names both facts it read). Mutants killed 3 of 3 (threshold 20 to 10, auto rulings accepted, open check dropped) plus the predicate-dropped mutant on the swap.",
+        "liveRuns": "Dry run against production 2026-10-25 (SELECT only, scripts/attribution-backfill.mts): same-phone-and-timing right 32 of 32 against the shop's arrival records (open), the service band 0 of 0 (UNKNOWN); 1 human ruling ever; control: a same-phone sale follows 9.5% of 5,355 calls within 14 days and precedes 4.2%. No auto ruling has been written yet: the cron's first pass after deploy is the first live run; the backfill of calls older than its 21-day window (202 invoices, $116,493 all time) waits for the operator's go.",
         "deploymentId": null
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "THE BANDS ARE UNCALIBRATED AND SAY SO. Nobody has measured how often a phone-and-time match turns out to be the right invoice, so the ordering is evidence-strength, not probability. Calibrating it needs a labelled sample of confirmed and rejected decisions, which does not exist because the decision log is young. Inventing a percentage would have been the defect this module exists to prevent."
+          "description": "RESOLVED 2026-10-25, downgraded from P2 rather than deleted. The bands are calibrated from rulings and recorded links (see codeCommit), and the gate opens on measured precision. The caveat that remains: the arrival reconciler keys on the phone too, so 32 of 32 proves the recipe picks the same sale the shop's record picked, not that the call caused the visit; the time-reversal control travels with the rate on the card, and four operator rejections on auto-confirmed rows close the band (32 of 36 = 88.9%). Original text: THE BANDS ARE UNCALIBRATED AND SAY SO."
         },
         {
           "severity": "P3",
@@ -2150,9 +2150,9 @@
         }
       ],
       "deferredScope": [
-        "Calibrating the bands against confirmed/rejected outcomes. Blocked on data rather than effort: it needs a labelled sample from the decision log, which is young. Recorded so the uncalibrated state is a known gap rather than an unexamined one."
+        "DONE 2026-10-25: calibration from the decision log plus recorded arrival links, recomputed on every reconciliation run and card load. Still deferred: a human-rulings floor before a band may open (one-line change to the threshold if the operator wants it), and the service band's tokenizer (a shared 4+ character token; 'tires' vs 'TIRE' misses), which keeps that band at n = 0."
       ],
-      "lastVerifiedAt": "2026-09-18",
+      "lastVerifiedAt": "2026-10-25",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"

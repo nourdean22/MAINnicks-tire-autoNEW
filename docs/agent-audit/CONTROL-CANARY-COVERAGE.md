@@ -331,7 +331,7 @@ complete — an unlisted control is not a covered one.
 
 | Surface | Controls | With a canary | Notes |
 |---|---:|---:|---|
-| Claude policy **matcher** — `policy.mjs`, 24 rules / 301 denyExamples | 1 | **1** | Proven by `policy.test.mjs` (+ `nightShiftPolicy.test.mjs`, which probes the four night-shift rules through the real hook, 2026-09-15 — the fourth is the shell-write arm added after Codex #2335 P1 showed a redirect/tee/sed/cp/Set-Content could rewrite a judge past the Write/Edit-only rule) |
+| Claude policy **matcher** — `policy.mjs`, 24 rules / 333 denyExamples | 1 | **1** | Proven by `policy.test.mjs` (+ `nightShiftPolicy.test.mjs`, which probes the four night-shift rules through the real hook, 2026-09-15 — the fourth is the shell-write arm added after Codex #2335 P1 showed a redirect/tee/sed/cp/Set-Content could rewrite a judge past the Write/Edit-only rule) |
 | Claude hook **wiring** — `pretool.mjs` exit-2, `settings.json` registration, `notebook_path`→`filePath` | 1 | **1** | Exercised since 2026-09-23: `hookCommand.test.mjs` runs the configured `pretool.mjs` command from `settings.json` verbatim and asserts exit 2 plus the rule id; the registration canaries in `mcpCoverage.test.mjs` (matcher routing, verbatim configured command) and `lease-check.test.mjs` (the configured lease-check, run verbatim through every MCP runner and writer) do the same for the MCP and lease groups. Not covered: the harness actually invoking the hook in a fresh session (the README live check). See [proven ≠ connected](#proven-is-not-connected) |
 | Claude hooks — `Stop`, `SessionStart` | 2 | 0 | `stop-check.mjs` fails **open** on its own bugs |
 | agent-os parity — `check-adapters.mjs` | 1 | **1** | 166 checks, proven as of this PR |
@@ -378,7 +378,7 @@ complete — an unlisted control is not a covered one.
 
 | Control | Guards | Canary | Runs in |
 |---|---|---|---|
-| `config/agent-os/policy.json` (24 rules, 301 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
+| `config/agent-os/policy.json` (24 rules, 333 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
 | `scripts/agent-os/check-adapters.mjs` (166 checks) | adapter parity, line caps, line length, `@`-imports, stale claims, agent-core import chain | `scripts/agent-os/adapters.test.mjs` — 33 tests: the prior 17, 7 Nour Command routing/file-presence canaries, 6 agent-core import/cap canaries (2026-10-11), plus 3 runtime-kernel canaries (2026-10-22: the kernel file cannot vanish; CLAUDE.md and GEMINI.md cannot re-import the full NOUR-COMMAND.md) | `pnpm agent:verify`, lefthook, CI |
 | nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
 | nickstire `lint:curdate` | no NEW calendar date computed from the UTC DB clock in `server/` SQL (the NT-009 class) | `scripts/lintCurdate.test.ts` — *"a site planted after the real shopDriverMirror.ts Accept header is counted"*, plus a case that holds the lexer to the TypeScript parser on every scanned file | `pnpm run verify`, `test.yml`, `adoption-gates.yml` |
