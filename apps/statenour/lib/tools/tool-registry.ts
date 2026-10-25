@@ -471,23 +471,6 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     currentLimitations: ["Isolated local VM, no internet access from VM."],
     costClass: "free"
   },
-  "code.run_python_e2b": {
-    id: "code.run_python_e2b",
-    label: "Run Python (E2B)",
-    description: "Execute Python code in an E2B secure sandboxed environment.",
-    category: "code",
-    status: "active",
-    riskClass: "critical",
-    readAccess: true,
-    writeAccess: true,
-    externalMutation: false,
-    memoryWriteAllowed: false,
-    approvalPolicy: "manual_only",
-    requiredEnv: ["E2B_API_KEY"],
-    auditLogRequired: true,
-    currentLimitations: ["Sandboxed execution, limited to 100 runs per day."],
-    costClass: "low"
-  },
   "local.file_access": {
     id: "local.file_access",
     label: "Local File Access",

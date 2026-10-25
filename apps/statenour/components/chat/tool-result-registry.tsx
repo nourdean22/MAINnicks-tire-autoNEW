@@ -7,7 +7,7 @@ import {
   Flame, ChevronRight, Search, Brain, ListChecks, DollarSign, Users, Activity,
   Eye, TrendingUp, BookOpen, Loader2, Clock, Archive, Pin, NotebookPen,
   AlertTriangle, RotateCcw, Cog, Wrench, HeartPulse, Scale, BarChart3, Sun, Moon,
-  Calendar, Mail, Send, Star, Terminal, Globe, MessageSquare,
+  Calendar, Mail, Send, Star, Globe, MessageSquare,
 } from "lucide-react";
 
 interface ToolConfig {
@@ -1029,17 +1029,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     subtitle: (out) => {
       const o = out as { reviewId?: string } | null;
       return o?.reviewId ? `marked responded in local DB` : null;
-    },
-  },
-  "arsenal.runPython": {
-    label: "Running code",
-    doneLabel: "Code executed",
-    runningLabel: "Running Python script in sandbox…",
-    icon: Terminal,
-    color: "sky",
-    subtitle: (out) => {
-      const o = out as { error?: string; returnCode?: number; ok?: boolean } | null;
-      return o?.error ? `Failed: ${o.error}` : "Executed successfully";
     },
   },
   "arsenal.browserCreateSession": {

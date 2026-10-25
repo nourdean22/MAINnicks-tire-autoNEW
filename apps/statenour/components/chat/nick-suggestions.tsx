@@ -38,6 +38,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { isRetrying, readState } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 import {
   Sparkles,
@@ -111,6 +113,9 @@ const KIND_META: Record<
   "broken-promise": { icon: HandshakeIcon, tone: "rose" },
   "stale-pin": { icon: Pin, tone: "zinc" },
 };
+
+/** The read-state note shares the strip's column so it lines up with the chips it speaks for. */
+const NOTE_CLASS = "mx-auto max-w-3xl px-3 py-1";
 
 const SEVERITY_RING: Record<NickSuggestion["severity"], string> = {
   high: "border-rose-500/40 bg-rose-500/[0.04] hover:border-rose-500/60 hover:bg-rose-500/[0.08]",
@@ -227,16 +232,23 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
     };
   }, [utils]);
 
-  // Initial · before first fetch resolves, render nothing (silent · no shimmer
-  // strip · the chip itself is the affordance). v10.0.529.96 · Wave 40 ·
-  // slim mode · the proactive layer should NOT announce its own loading.
+  // 2026-10-25 · a failed read must not look like "no suggestions" (lib/query-state.ts).
+  // Loading stays silent (v10.0.529.96 · Wave 40 · slim mode · the proactive layer should NOT
+  // announce its own loading). Offline and error with nothing cached say so in one line; a
+  // refresh that failed over cached chips keeps the chips and says so above them.
+  const state = readState(query);
   if (query.data === undefined) {
-    return null;
+    if (state === "loading") return null;
+    return (
+      <ReadStateNote
+        state={state}
+        label="Suggestion list"
+        onRetry={() => void query.refetch()}
+        retrying={isRetrying(query)}
+        className={NOTE_CLASS}
+      />
+    );
   }
-
-  if (query.isError) return null;
-  const suggestions = query.data.suggestions;
-  if (suggestions.length === 0) return null;
 
   // v10.0.529.96 · Wave 40 · slim mode · ONE chip + tap-to-expand.
   // The aggregator already returns severity-sorted suggestions · the
@@ -248,100 +260,116 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // happens via the suggestion-loop API · the next /api/nick/suggest
   // fetch (60s interval) may still return them until the aggregator
   // also reads dismissal signals.
-  const live = suggestions.filter((s) => !dismissedIds.has(s.id));
-  if (live.length === 0) return null;
+  const live = query.data.suggestions.filter((s) => !dismissedIds.has(s.id));
+  // ReadStateNote is null unless the state is stale here. With no chips below it, the default
+  // sentence ("below may be out of date") would point at nothing, so it gets its own.
+  const staleNote = (
+    <ReadStateNote
+      state={state}
+      label="Suggestion list"
+      message={live.length === 0 ? "Last refresh failed. The suggestion list may be out of date." : undefined}
+      onRetry={() => void query.refetch()}
+      retrying={isRetrying(query)}
+      className={NOTE_CLASS}
+    />
+  );
+  // A clean empty answer hides (a quiet morning); a stale one still shows the note.
+  if (live.length === 0) return state === "stale" ? staleNote : null;
   const [top, ...rest] = live;
   const visible = expanded ? live : [top];
 
   return (
-    <section
-      aria-label="Nick's suggestions"
-      className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible px-3 py-2 max-w-3xl mx-auto"
-    >
-      <div className="inline-flex items-center gap-1 shrink-0">
-        <Sparkles size={11} className="text-fg-tertiary" />
-      </div>
-      {visible.map((s) => {
-        const meta = KIND_META[s.kind] ?? KIND_META["pattern"];
-        const Icon = meta.icon;
-        // v10.0.529.98 · two-button group · the chip body taps to seed +
-        // record acted · the X dismisses + records dismissed. Wrapped in
-        // a non-button div so HTML doesn't nest interactive elements.
-        return (
-          <div
-            key={s.id}
+    <>
+      {staleNote}
+      <section
+        aria-label="Nick's suggestions"
+        className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible px-3 py-2 max-w-3xl mx-auto"
+      >
+        <div className="inline-flex items-center gap-1 shrink-0">
+          <Sparkles size={11} className="text-fg-tertiary" />
+        </div>
+        {visible.map((s) => {
+          const meta = KIND_META[s.kind] ?? KIND_META["pattern"];
+          const Icon = meta.icon;
+          // v10.0.529.98 · two-button group · the chip body taps to seed +
+          // record acted · the X dismisses + records dismissed. Wrapped in
+          // a non-button div so HTML doesn't nest interactive elements.
+          return (
+            <div
+              key={s.id}
+              className={cn(
+                "inline-flex items-center rounded-full border transition-colors shrink-0",
+                "focus-within:outline-none focus-within:ring-1 focus-within:ring-accent",
+                SEVERITY_RING[s.severity],
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary })}
+                aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
+                title={s.seedPrompt}
+                className="inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 focus:outline-none sm:min-h-8"
+              >
+                <Icon
+                  size={11}
+                  className={cn(
+                    "shrink-0",
+                    meta.tone === "amber" && "text-amber-400",
+                    meta.tone === "rose" && "text-rose-400",
+                    meta.tone === "sky" && "text-sky-400",
+                    meta.tone === "zinc" && "text-fg-tertiary",
+                    meta.tone === "muted" && "text-fg-secondary",
+                  )}
+                />
+                <span className="text-[11px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
+                  {s.label}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary });
+                  setDismissedIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(s.id);
+                    return next;
+                  });
+                }}
+                aria-label={`Dismiss · ${s.label}`}
+                title="Dismiss · captured as supervised signal"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center px-1.5 py-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] focus:outline-none sm:min-h-8 sm:min-w-8"
+              >
+                <X size={10} className="shrink-0" />
+              </button>
+            </div>
+          );
+        })}
+        {rest.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Collapse suggestions" : `Show ${rest.length} more suggestions`}
+            aria-expanded={expanded}
             className={cn(
-              "inline-flex items-center rounded-full border transition-colors shrink-0",
-              "focus-within:outline-none focus-within:ring-1 focus-within:ring-accent",
-              SEVERITY_RING[s.severity],
+              "inline-flex items-center gap-1 rounded-full border border-[var(--border-default)]/60",
+              "bg-transparent hover:border-edge-strong hover:bg-surface-hover",
+              "min-h-11 px-2 py-1 transition-colors shrink-0 sm:min-h-8",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
             )}
           >
-            <button
-              type="button"
-              onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary })}
-              aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
-              title={s.seedPrompt}
-              className="inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 focus:outline-none sm:min-h-8"
-            >
-              <Icon
-                size={11}
-                className={cn(
-                  "shrink-0",
-                  meta.tone === "amber" && "text-amber-400",
-                  meta.tone === "rose" && "text-rose-400",
-                  meta.tone === "sky" && "text-sky-400",
-                  meta.tone === "zinc" && "text-fg-tertiary",
-                  meta.tone === "muted" && "text-fg-secondary",
-                )}
-              />
-              <span className="text-[11px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
-                {s.label}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary });
-                setDismissedIds((prev) => {
-                  const next = new Set(prev);
-                  next.add(s.id);
-                  return next;
-                });
-              }}
-              aria-label={`Dismiss · ${s.label}`}
-              title="Dismiss · captured as supervised signal"
-              className="inline-flex min-h-11 min-w-11 items-center justify-center px-1.5 py-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] focus:outline-none sm:min-h-8 sm:min-w-8"
-            >
-              <X size={10} className="shrink-0" />
-            </button>
-          </div>
-        );
-      })}
-      {rest.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-label={expanded ? "Collapse suggestions" : `Show ${rest.length} more suggestions`}
-          aria-expanded={expanded}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full border border-[var(--border-default)]/60",
-            "bg-transparent hover:border-edge-strong hover:bg-surface-hover",
-            "min-h-11 px-2 py-1 transition-colors shrink-0 sm:min-h-8",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
-          )}
-        >
-          <ChevronDown
-            size={11}
-            className={cn(
-              "text-[var(--text-tertiary)] transition-transform",
-              expanded && "rotate-180",
-            )}
-          />
-          <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
-            {expanded ? "less" : `+${rest.length}`}
-          </span>
-        </button>
-      )}
-    </section>
+            <ChevronDown
+              size={11}
+              className={cn(
+                "text-[var(--text-tertiary)] transition-transform",
+                expanded && "rotate-180",
+              )}
+            />
+            <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
+              {expanded ? "less" : `+${rest.length}`}
+            </span>
+          </button>
+        )}
+      </section>
+    </>
   );
 }
