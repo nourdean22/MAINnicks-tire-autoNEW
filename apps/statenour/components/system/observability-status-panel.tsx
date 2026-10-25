@@ -19,6 +19,8 @@
  * measured wrap/init OUTCOME, never key-presence.
  */
 
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
 import { trpc } from "@/lib/trpc/client";
 import { Activity } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -67,9 +69,11 @@ export function ObservabilityStatusPanel() {
   const healthQ = trpc.system.healthSummary.useQuery(undefined, { staleTime: 60_000 });
   const payload = healthQ.data as { langfuse?: { status?: string } } | undefined;
 
-  const lanes: Array<{ name: string; state: LaneState }> = [
-    { name: "Langfuse", state: langfuseState(payload?.langfuse?.status) },
-    { name: "Braintrust", state: BRAINTRUST_RETIRED },
+  const rs = readState(healthQ);
+  const readFailed = healthQ.isError || rs === "error";
+  const lanes: Array<{ name: string; state: LaneState; fromRead: boolean }> = [
+    { name: "Langfuse", state: langfuseState(payload?.langfuse?.status), fromRead: true },
+    { name: "Braintrust", state: BRAINTRUST_RETIRED, fromRead: false },
   ];
 
   return (
@@ -80,32 +84,45 @@ export function ObservabilityStatusPanel() {
       <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
               <Activity className="h-3.5 w-3.5 text-fg-secondary" /> LLM Observability
       </p>
-      {healthQ.isError ? (
-        <p data-read-failed className="text-[11px] text-red-400">
-          Health read failed: observability state unknown, not healthy.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {lanes.map(({ name, state }) => (
+      <ul className="space-y-1.5">
+        {lanes.map(({ name, state, fromRead }) => {
+          // A lane that comes from the read is a claim about the SERVER. A read that never ran (paused
+          // offline) has no outcome to report: say so, never draw "not initialized" from nothing
+          // (empty-vs-error, 2026-10-25). A static lane needs no read, so no read state hides it.
+          const unread = fromRead && (readFailed || rs === "offline");
+          const loading = fromRead && healthQ.isLoading;
+          return (
             <li key={name} className="flex items-start gap-2 flex-wrap">
               <span className="text-[11px] font-mono text-fg w-20 shrink-0">{name}</span>
-              <span
-                className={cn(
-                  "text-[11px] font-mono border rounded-micro px-1.5 py-px",
-                  TONE_CLASSES[state.tone],
-                )}
-              >
-                {healthQ.isLoading ? "…" : state.label}
-              </span>
-              {!healthQ.isLoading && (
-                <span className="text-[11px] text-fg-tertiary leading-snug basis-full">
-                  {state.detail}
-                </span>
+              {unread ? (
+                rs === "offline" ? (
+                  <ReadStateNote state="offline" label="Observability status" />
+                ) : (
+                  <p data-read-failed className="text-[11px] text-red-400">
+                    Health read failed: observability state unknown, not healthy.
+                  </p>
+                )
+              ) : (
+                <>
+                  <span
+                    className={cn(
+                      "text-[11px] font-mono border rounded-micro px-1.5 py-px",
+                      TONE_CLASSES[state.tone],
+                    )}
+                  >
+                    {loading ? "…" : state.label}
+                  </span>
+                  {!loading && (
+                    <span className="text-[11px] text-fg-tertiary leading-snug basis-full">
+                      {state.detail}
+                    </span>
+                  )}
+                </>
               )}
             </li>
-          ))}
-        </ul>
-      )}
+          );
+        })}
+      </ul>
     </section>
   );
 }
