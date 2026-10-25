@@ -151,6 +151,8 @@ describe("Admin — regression guards", () => {
         createdAt: new Date().toISOString(),
       }],
     };
+    // 2026-10-25: Sales Pipeline opens on Today's follow-ups; the web leads are the Leads tab.
+    window.history.replaceState(null, "", "/admin?tab=leads&leadsTab=leads");
     const { default: LeadsSection } = await import("../pages/admin/LeadsSection");
     render(React.createElement(LeadsSection));
 
@@ -166,6 +168,7 @@ describe("Admin — regression guards", () => {
     expect(promptSpy).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/contact notes/i)).toBeTruthy();
     promptSpy.mockRestore();
+    window.history.replaceState(null, "", "/");
   });
 });
 

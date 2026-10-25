@@ -28,7 +28,7 @@ export function LostReasonButton({ leadId }: { leadId: number }) {
           <span className="text-[10px] tracking-wider text-red-400/80 font-bold">WHY LOST?</span>
           <button
             onClick={() => setExpanded(false)}
-            className="px-1 text-foreground/40 hover:text-foreground/70 text-[12px] leading-none"
+            className="min-h-[48px] min-w-[48px] text-foreground/60 hover:text-foreground/80 text-base"
             aria-label="Cancel"
           >
             ×
@@ -40,7 +40,7 @@ export function LostReasonButton({ leadId }: { leadId: number }) {
               key={reason}
               onClick={() => mutation.mutate({ id: leadId, status: "lost", lostReason: reason })}
               disabled={mutation.isPending}
-              className="px-2 py-1 bg-card border border-red-500/20 text-red-400/80 text-[10px] tracking-wide hover:bg-red-500/15 hover:text-red-400 disabled:opacity-50 transition-colors"
+              className="min-h-[48px] px-3 bg-card border border-red-500/20 text-red-400 text-sm hover:bg-red-500/15 disabled:opacity-50 transition-colors"
             >
               {reason}
             </button>
@@ -54,7 +54,7 @@ export function LostReasonButton({ leadId }: { leadId: number }) {
     <button
       onClick={() => setExpanded(true)}
       disabled={mutation.isPending}
-      className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50"
+      className="flex items-center gap-2 min-h-[48px] border border-red-500/30 text-red-400 px-4 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50"
     >
       <XCircle className="w-4 h-4" /> LOST
     </button>

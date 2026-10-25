@@ -348,7 +348,7 @@ export function CandidatesPanel() {
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
               <strong>Candidate tracking isn't live yet.</strong> The database migration
               (drizzle/0122_candidates.sql) hasn't been applied to this environment, and
-              /careers applications still route through the Leads list above until the
+              /careers applications still route through the Leads tab until the
               follow-up cutover lands.
             </div>
           ) : rows.length === 0 ? (

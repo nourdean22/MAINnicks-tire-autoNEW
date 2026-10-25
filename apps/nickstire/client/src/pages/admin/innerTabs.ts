@@ -20,8 +20,8 @@ interface InnerTabSpec {
 }
 
 const INNER_TABS = {
-  // "opportunities", not "followups": Outreach owns that word (alias + tab).
-  leads: { key: "leadsTab", values: ["pipeline", "opportunities"] },
+  // 2026-10-25: the inner value "followups" is only ever read under leadsTab; Outreach's ?tab= alias is a different key.
+  leads: { key: "leadsTab", values: ["followups", "leads", "hiring"] },
   voiceReceptionist: { key: "voiceTab", values: ["performance", "queue", "calls"] },
   opsHub: {
     key: "reportsTab",
@@ -51,7 +51,7 @@ export type InnerTabSection = keyof typeof INNER_TABS;
 
 /** Values an older link may still carry, mapped to the tab that replaced them. */
 const LEGACY_VALUES: Partial<Record<InnerTabSection, Record<string, string>>> = {
-  leads: { followups: "opportunities" },
+  leads: { pipeline: "leads", opportunities: "followups" },
 };
 
 /** Tabs this role may see, in order. A null role (not loaded yet) sees only unrestricted tabs. */

@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid, ClipboardList, TrendingUp } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, ClipboardList, TrendingUp } from "lucide-react";
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
@@ -209,8 +209,8 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections, r
     {
       id: "goto-opportunities",
       section: "leads",
-      inner: { section: "leads", tab: "opportunities" },
-      label: "Sales Pipeline · Opportunities",
+      inner: { section: "leads", tab: "followups" },
+      label: "Sales Pipeline · Today's follow-ups",
       keywords: ["opportunit", "follow up", "decision"],
       icon: <ClipboardList className="w-4 h-4 text-foreground/60" />,
       group: "Action",
@@ -574,57 +574,18 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections, r
         onNavigate("campaigns");
       },
     },
-    // wave-181.x Leads Hub Phase 4 · 3 jumps for the most-frequent
-    // Leads queries. Each lands the operator one click from a
-    // common-action surface. Leads filter taxonomy keys are validated
-    // in LeadsSection's useUrlFilter (status, source, view).
-    {
-      id: "action-leads-kanban",
-      section: "leads",
-      label: "Leads · Kanban board",
-      keywords: ["leads", "kanban", "board", "pipeline", "drag", "drop"],
-      icon: <LayoutGrid className="w-4 h-4 text-blue-500" />,
-      group: "Action",
-      run: () => {
-        if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/admin?tab=leads&view=kanban");
-        }
-        onNavigate("leads");
-      },
-    },
+    // 2026-10-25: the kanban and the source filter are gone; the leads list is three filters
+    // (status=needs|waiting|closed, validated in LeadsSection's useUrlFilter).
     {
       id: "action-leads-urgent",
       section: "leads",
-      label: "Leads · Uncontacted backlog (urgent)",
+      label: "Leads · Needs a response",
       keywords: ["leads", "urgent", "uncontacted", "sla", "new", "backlog", "ghost"],
       icon: <AlertTriangle className="w-4 h-4 text-red-500" />,
       group: "Action",
       run: () => {
         if (typeof window !== "undefined") {
-          // ?status=new lands on the freshest uncontacted cohort; the
-          // urgent-banner shows on top of the list/Kanban for the
-          // operator to triage in order.
-          window.history.replaceState({}, "", "/admin?tab=leads&status=new");
-        }
-        onNavigate("leads");
-        // After section mount, scroll the urgent banner into view if it
-        // exists. Banner has id="leads-urgent-banner".
-        setTimeout(() => {
-          const el = document.getElementById("leads-urgent-banner");
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-        }, 250);
-      },
-    },
-    {
-      id: "action-leads-vapi",
-      section: "leads",
-      label: "Leads · Nick AI (VAPI) source filter",
-      keywords: ["leads", "vapi", "nick", "ai", "voice", "source", "call"],
-      icon: <PhoneCall className="w-4 h-4 text-amber-500" />,
-      group: "Action",
-      run: () => {
-        if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/admin?tab=leads&source=vapi");
+          window.history.replaceState({}, "", "/admin?tab=leads&leadsTab=leads&status=needs");
         }
         onNavigate("leads");
       },

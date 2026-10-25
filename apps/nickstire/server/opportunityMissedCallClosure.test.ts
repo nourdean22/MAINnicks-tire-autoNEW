@@ -367,6 +367,7 @@ describe("collectMissedCalls · one live card per phone", () => {
   const call = (vapiCallId: string, phone: string, minsAgo: number) => ({
     id: minsAgo, vapiCallId, phoneNumber: phone, durationSeconds: 40, convertedToLead: 0,
     leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - minsAgo * 60_000),
+    evalOutcome: "callback_needed", // only an unresolved evaluated call is carded (2026-10-25)
   });
 
   it("the NEWEST call gets the card; the phone's older un-worked card collapses into it", async () => {
@@ -442,6 +443,7 @@ describe("collectMissedCalls · a tool-reaching call is not a capture (2026-10-0
   const toolCall = (vapiCallId: string, phone: string) => ({
     id: 1, vapiCallId, phoneNumber: phone, durationSeconds: 40, convertedToLead: 1,
     leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - 90 * 60_000),
+    evalOutcome: "tire_availability_intent",
   });
   const nothing = { reachedTool: true, leadId: null, callbackId: null, existingCallbackForCall: false, hasExpectedArrival: false };
 
@@ -477,11 +479,12 @@ describe("refreshOpportunityQueue · collapse is reported, not silent", () => {
     oppRows["op-old"] = { id: "op-old", state: "new", source_type: "missed_call" };
     vapiSelectRows = [
       { id: 1, vapiCallId: "call-redial", phoneNumber: "2165550142", durationSeconds: 40, convertedToLead: 0,
-        leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - 60 * 60_000) },
+        leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - 60 * 60_000),
+        evalOutcome: "callback_needed" },
     ];
     const { refreshOpportunityQueue } = await import("./services/opportunityQueue");
     const { details, recordsProcessed } = await refreshOpportunityQueue();
-    expect(details).toMatch(/missed calls: 1new\/0ref\/1scan\/1collapsed/);
+    expect(details).toMatch(/missed calls: 1new\/0ref\/1scan\/1collapsed\//);
     // a collapse is a real change: it counts toward recordsProcessed (1 insert + 1 collapse)
     expect(recordsProcessed).toBeGreaterThanOrEqual(2);
   });

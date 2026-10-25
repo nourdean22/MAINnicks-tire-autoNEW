@@ -356,7 +356,7 @@ const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: string[
     id: "opportunities",
     was: "Opportunities",
     aliases: ["decisioninbox", "decisions", "openwork"],
-    to: { section: "leads", innerKey: "leadsTab", innerValue: "opportunities" },
+    to: { section: "leads", innerKey: "leadsTab", innerValue: "followups" },
   },
   {
     id: "callTrackingView",

@@ -21,10 +21,11 @@ const { useAdminNavigation, sectionsForRole, ADMIN_REGISTRY, getSidebarGroups } 
 
 // [slug, section, innerKey, innerValue]
 const REDIRECTS: Array<[string, string, string | null, string | null]> = [
-  ["opportunities", "leads", "leadsTab", "opportunities"],
-  ["decisioninbox", "leads", "leadsTab", "opportunities"],
-  ["decisions", "leads", "leadsTab", "opportunities"],
-  ["openwork", "leads", "leadsTab", "opportunities"],
+  // 2026-10-25: the queue's tab is now Today's follow-ups (leadsTab=followups).
+  ["opportunities", "leads", "leadsTab", "followups"],
+  ["decisioninbox", "leads", "leadsTab", "followups"],
+  ["decisions", "leads", "leadsTab", "followups"],
+  ["openwork", "leads", "leadsTab", "followups"],
   ["callTrackingView", "voiceReceptionist", "voiceTab", "calls"],
   ["callbacks", "voiceReceptionist", "voiceTab", "calls"],
   ["calls", "voiceReceptionist", "voiceTab", "calls"],
@@ -126,7 +127,7 @@ describe("retired inner-tab values fall back to the section default", () => {
     ["opsHub", "actions", "search"],
     ["opsHub", "reports", "search"],
     ["voiceReceptionist", "nonsense", "performance"],
-    ["leads", "nonsense", "pipeline"],
+    ["leads", "nonsense", "followups"],
   ])("%s %s -> %s", (section, raw, expected) => {
     expect(innerTabs.resolveInnerTab(section as innerTabs.InnerTabSection, raw, "owner")).toBe(expected);
   });
@@ -209,9 +210,11 @@ describe("review round 1: redirects", () => {
     expect(params().get("contentTab")).toBeNull();
   });
 
-  it("the legacy leadsTab=followups still opens the Opportunities tab", () => {
-    expect(innerTabs.resolveInnerTab("leads", "followups", "owner")).toBe("opportunities");
-    expect(innerTabs.resolveInnerTab("leads", "opportunities", "owner")).toBe("opportunities");
+  it("the old leadsTab values still land: opportunities on the follow-ups, pipeline on the leads", () => {
+    expect(innerTabs.resolveInnerTab("leads", "opportunities", "owner")).toBe("followups");
+    expect(innerTabs.resolveInnerTab("leads", "followups", "owner")).toBe("followups");
+    expect(innerTabs.resolveInnerTab("leads", "pipeline", "owner")).toBe("leads");
+    expect(innerTabs.resolveInnerTab("leads", "hiring", "front_desk")).toBe("hiring");
   });
 
   it("a section the role cannot reach says so (role reason) instead of a silent Today", () => {
