@@ -15,7 +15,6 @@ import GatewayPill from "@/components/admin/GatewayPill";
 
 const SmsSection = lazy(() => import("./outreach/SmsSection"));
 const CampaignsSection = lazy(() => import("./outreach/CampaignsSection"));
-const FollowUpsSection = lazy(() => import("./outreach/FollowUpsSection"));
 const ReviewRequestsSection = lazy(() => import("./outreach/ReviewRequestsSection"));
 const WinBackSection = lazy(() => import("./outreach/WinBackSection"));
 // wave-181.51 — SMS Performance read-out (reply + conversion attribution
@@ -119,7 +118,6 @@ export default function OutreachHubSection() {
       {/* Content */}
       <Suspense fallback={<TabSpinner />}>
         {tab === "campaigns" && <CampaignsSection />}
-        {tab === "followups" && <FollowUpsSection />}
         {tab === "reviews" && <ReviewRequestsSection />}
         {tab === "winback" && <WinBackSection />}
         {tab === "performance" && <SmsPerformanceSection />}

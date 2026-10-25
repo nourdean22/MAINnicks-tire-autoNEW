@@ -33,7 +33,7 @@ import { permissionForAdminProcedure, ADMIN_ROLES, hasAdminPermission } from "..
 const ROUTERS = `activity adStudio adminDashboard aiReferrals adminSecurity analytics autoLabor booking
 callTracking callback campaigns candidates chat closedLoop content contentAdmin contentStudio controlCenter
 conversion costEstimator coupons customerEvents customerNotifications customers dispatch emergency
-estimates export featureFlags financing followUps gallery garage gatewayTire gbp inspection
+estimates export featureFlags financing gallery garage gatewayTire gbp inspection
 instagram instagramAdmin instagramStudio intelligence invoices jobAssignments kpi lead localGrowth lot
 loyalty memberships messengerBot metaAdsArchitect nickActions nourOsBridge payments
 portal pricing qa referrals reminders revenueAttribution revenueOps reviewReplies reviewRequests

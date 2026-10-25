@@ -207,7 +207,7 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
     normalized.startsWith("sms") || normalized.startsWith("reviewrequests.") ||
     normalized.startsWith("reviewreplies.") || normalized.startsWith("reviews.") ||
     normalized.startsWith("servicereviews.") || normalized.startsWith("reminders.") ||
-    normalized.startsWith("followups.") || normalized.startsWith("customernotifications.") ||
+    normalized.startsWith("customernotifications.") ||
     normalized.startsWith("messengerbot.") || normalized.startsWith("coupons.") ||
     normalized.startsWith("specials.") || normalized.startsWith("adstudio.") ||
     normalized.startsWith("sharecards.") || normalized.startsWith("gallery.") ||
