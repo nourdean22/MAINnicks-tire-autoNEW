@@ -12,6 +12,9 @@
  * 3. targetKeywordRanks is the admin read of Search Console position per
  *    tracked keyword (contract localGrowth.targetKeywordRanks v1): admin only,
  *    the pipeline result unchanged.
+ * 4. checklist / setChecklistItem are the Website & Local checklist marks (contract
+ *    localGrowth.checklist v1): admin only, slug and note validated at the door, and the signed-in
+ *    admin recorded as `by` (the house field: email, else name, else openId).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,30 +22,41 @@ const h = vi.hoisted(() => ({
   reviews: null as unknown,
   snapshot: { ok: false, reason: "error", message: "unset" } as unknown,
   ranks: { ok: false, reason: "error", message: "unset" } as unknown,
+  checklist: { ok: false, reason: "error", message: "unset" } as unknown,
+  setCalls: [] as unknown[],
 }));
 
 vi.mock("../db", () => ({ getDb: async () => null }));
 vi.mock("../google-reviews", () => ({ getGoogleReviews: async () => h.reviews }));
 vi.mock("../services/competitorMonitor", () => ({ getCompetitorSnapshotCached: async () => h.snapshot }));
 vi.mock("../pipelines/targetKeywordRanks", () => ({ getTargetKeywordRanks: async () => h.ranks }));
+vi.mock("../services/localChecklist", () => ({
+  getLocalChecklist: async () => h.checklist,
+  setLocalChecklistItem: async (input: { slug: string; checked: boolean }) => {
+    h.setCalls.push(input);
+    return { ok: true, slug: input.slug, checkedAt: input.checked ? "2026-10-25T16:00:00.000Z" : null };
+  },
+}));
 
 import { localGrowthRouter } from "./localGrowth";
 
-function ctx(role: "admin" | "user") {
+function ctx(role: "admin" | "user", userOverride: Record<string, unknown> = {}) {
   return {
     user: {
-      id: 1, openId: `${role}-user`, email: `${role}@nickstire.com`, name: role, loginMethod: "manus",
+      id: 1, openId: `${role}-user`, email: `${role}@nickstire.com`, name: role, loginMethod: "manus", ...userOverride,
       role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
     },
     req: { protocol: "https", headers: {} },
     res: { clearCookie: () => {} },
   } as never;
 }
-const caller = (role: "admin" | "user" = "admin") => localGrowthRouter.createCaller(ctx(role));
+const caller = (role: "admin" | "user" = "admin", userOverride: Record<string, unknown> = {}) =>
+  localGrowthRouter.createCaller(ctx(role, userOverride));
 
 const ENV_KEYS = ["GOOGLE_MAPS_API_KEY", "GOOGLE_PLACES_API_KEY"];
 const saved: Record<string, string | undefined> = {};
 beforeEach(() => {
+  h.setCalls.length = 0;
   for (const k of ENV_KEYS) saved[k] = process.env[k];
   process.env.GOOGLE_MAPS_API_KEY = "test-key";
   delete process.env.GOOGLE_PLACES_API_KEY;
@@ -140,5 +154,81 @@ describe("localGrowth.targetKeywordRanks", () => {
 
   it("is admin only", async () => {
     await expect(caller("user").targetKeywordRanks()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("localGrowth.checklist", () => {
+  it("returns the service result unchanged", async () => {
+    const result = {
+      ok: true, skipped: 0,
+      items: { "entity-yelp": { checkedAt: "2026-10-20T14:00:00.000Z", note: null, by: "nour" } },
+    };
+    h.checklist = result;
+    expect(await caller().checklist()).toEqual(result);
+  });
+
+  it("a failed read comes back as ok:false, not an empty map", async () => {
+    h.checklist = { ok: false, reason: "error", message: "Database unavailable" };
+    expect(await caller().checklist()).toEqual(h.checklist);
+  });
+
+  it("is admin only", async () => {
+    await expect(caller("user").checklist()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("localGrowth.setChecklistItem", () => {
+  it("passes slug, checked and note through and records the signed-in admin's email as by", async () => {
+    const out = await caller().setChecklistItem({ slug: "entity-yelp", checked: true, note: "claimed" });
+    expect(out).toEqual({ ok: true, slug: "entity-yelp", checkedAt: "2026-10-25T16:00:00.000Z" });
+    expect(h.setCalls).toEqual([{ slug: "entity-yelp", checked: true, note: "claimed", by: "admin@nickstire.com" }]);
+  });
+
+  it("by falls back to the name, then the openId, when there is no email", async () => {
+    await caller("admin", { email: null }).setChecklistItem({ slug: "a", checked: true });
+    await caller("admin", { email: null, name: null }).setChecklistItem({ slug: "a", checked: true });
+    expect(h.setCalls.map((c) => (c as { by: string }).by)).toEqual(["admin", "admin-user"]);
+  });
+
+  it("unchecking passes checked:false through", async () => {
+    const out = await caller().setChecklistItem({ slug: "entity-yelp", checked: false });
+    expect(out).toEqual({ ok: true, slug: "entity-yelp", checkedAt: null });
+    expect(h.setCalls[0]).toMatchObject({ slug: "entity-yelp", checked: false });
+  });
+
+  it("slug length: 1 and 60 pass, 0 and 61 are rejected (cap-1, cap, cap+1)", async () => {
+    await expect(caller().setChecklistItem({ slug: "a", checked: true })).resolves.toMatchObject({ ok: true });
+    await expect(caller().setChecklistItem({ slug: "a".repeat(59), checked: true })).resolves.toMatchObject({ ok: true });
+    await expect(caller().setChecklistItem({ slug: "a".repeat(60), checked: true })).resolves.toMatchObject({ ok: true });
+    await expect(caller().setChecklistItem({ slug: "a".repeat(61), checked: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller().setChecklistItem({ slug: "", checked: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(h.setCalls).toHaveLength(3);
+  });
+
+  it.each([
+    ["a space", "entity yelp"],
+    ["an uppercase letter", "Entity-yelp"],
+    ["a colon (would escape the namespace)", "entity:yelp"],
+    ["an underscore", "entity_yelp"],
+    ["a percent (LIKE wildcard)", "entity%"],
+    ["a slash", "entity/yelp"],
+    ["a trailing newline", "entity-yelp\n"],
+    ["a bad char last at the cap", `${"a".repeat(59)} `],
+    ["a non-ASCII letter", `entit${String.fromCharCode(233)}`],
+  ])("rejects a slug with %s and writes nothing", async (_label, slug) => {
+    await expect(caller().setChecklistItem({ slug, checked: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(h.setCalls).toHaveLength(0);
+  });
+
+  it("note length: 300 passes, 301 is rejected; null and omitted pass", async () => {
+    await expect(caller().setChecklistItem({ slug: "a", checked: true, note: "n".repeat(300) })).resolves.toMatchObject({ ok: true });
+    await expect(caller().setChecklistItem({ slug: "a", checked: true, note: null })).resolves.toMatchObject({ ok: true });
+    await expect(caller().setChecklistItem({ slug: "a", checked: true, note: "n".repeat(301) })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(h.setCalls).toHaveLength(2);
+  });
+
+  it("is admin only, and a refused caller writes nothing", async () => {
+    await expect(caller("user").setChecklistItem({ slug: "entity-yelp", checked: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(h.setCalls).toHaveLength(0);
   });
 });
