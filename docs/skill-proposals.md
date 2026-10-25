@@ -2619,3 +2619,16 @@ the named-ref integrate recipe in monorepo-manager `references/review-and-merge.
   Codex finding right.
 - **Confidence:** medium (once, clear)
 - **Status:** proposed (a gate change: waits for Nour's word)
+
+### P6 · `lefthook.yml` (pre-commit fights itself for the heavy lease)
+- **Trigger (witnessed):** 2026-10-25, merging origin/main into this job's branch staged policy files AND nickstire files.
+  Pre-commit runs `parallel: true`: `agent-os-verify` took the heavy lease (about 270 s), and `nickstire-check` waited its 90 s
+  and failed with "heavy lease busy: retry the commit". The log shows the waiter blocked on this same session's verify.mjs. Two
+  retries failed the same way; a retry can never pass. The merge commit was made in the hook-free clone instead.
+- **Cost:** two failed commits (about 6 minutes each) and a hook-free commit where a hooked one should have worked.
+- **Proposed edit:** run the heavy pre-commit commands one after another (a `piped: true` group, or `parallel: false` for the
+  heavy ones) so a commit's own heavy hooks queue instead of timing each other out; or let `heavy.mjs` treat a lease held by
+  the same git process tree as its own. Canary: a commit fixture staging a `scripts/agent-os/*` file and an
+  `apps/nickstire/**/*.ts` file must run both heavy hooks to completion.
+- **Confidence:** high (two identical failures, the waiter's own log names the holder)
+- **Status:** proposed
