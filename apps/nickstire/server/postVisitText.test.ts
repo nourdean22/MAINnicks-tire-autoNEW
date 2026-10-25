@@ -145,8 +145,7 @@ describe("review-requests cron (invoice-keyed and booking-keyed rows)", () => {
 describe("post-invoice-followup cron (customer-keyed)", () => {
   async function run(customer: Record<string, unknown>) {
     vi.doMock("./db", () => ({
-      getReviewSettings: async () => ({ enabled: 1, cooldownDays: 30 }),
-      isPhoneOnReviewCooldown: async () => false,
+      hasOutboundTextWithinDays: async () => false,
       getDb: async () => ({
         select: () => ({ from: () => ({ where: () => ({ limit: async () => [customer] }) }) }),
         update: () => ({ set: () => ({ where: async () => [{ affectedRows: 1 }] }) }),

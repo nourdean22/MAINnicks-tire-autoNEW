@@ -15,11 +15,10 @@ const mockWhere = vi.fn();
 const mockLimit = vi.fn();
 const mockSet = vi.fn();
 
-const mockCooldown = vi.fn();
+const mockRecentText = vi.fn();
 
 vi.mock("./db", () => ({
-  getReviewSettings: vi.fn(async () => ({ enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30 })),
-  isPhoneOnReviewCooldown: (...args: unknown[]) => mockCooldown(...args),
+  hasOutboundTextWithinDays: (...args: unknown[]) => mockRecentText(...args),
   getDb: vi.fn(() => ({
     select: () => ({
       from: () => ({
@@ -74,7 +73,7 @@ describe("Post-Invoice Follow-Up", () => {
 
     beforeEach(() => {
       mockWhere.mockResolvedValue([{ affectedRows: 1 }]);
-      mockCooldown.mockResolvedValue(false);
+      mockRecentText.mockResolvedValue(false);
       vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
     });
 
@@ -110,9 +109,9 @@ describe("Post-Invoice Follow-Up", () => {
     const windowDays = windowMs / (1000 * 60 * 60 * 24);
     expect(windowDays).toBeCloseTo(2, 0);
   });
-  // 2026-10-02 · one review ask per cooldown across BOTH lanes: the invoice-sourced
-  // review_requests lane usually asks first, so this lane must skip that phone.
-  describe("cross-lane dedupe", () => {
+  // 2026-10-25: the thank-you keeps a 3-day gap from any other shop text (postVisitGap.test.ts
+  // runs the real query and helper); here only the call into the second check is pinned.
+  describe("gap from other shop texts", () => {
     const customer = { id: 9, firstName: "Sam", phone: "2165550123", segment: "recent" };
 
     beforeEach(async () => {
@@ -129,19 +128,19 @@ describe("Post-Invoice Follow-Up", () => {
     // advance can run BEFORE the dynamic imports reach that setTimeout — it then never
     // fires (CI: 30s timeout). One customer costs one real 1.1s sleep; that is the price
     // of a deterministic test.
-    it("skips a customer the review_requests lane already asked (cooldown) — no claim, no text", async () => {
-      mockCooldown.mockResolvedValue(true);
+    it("skips a customer the shop texted inside the 3-day gap: no claim, no text", async () => {
+      mockRecentText.mockResolvedValue(true);
       const { sendSms } = await import("./sms");
       const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
       const result = await processPostInvoiceFollowUps();
-      expect(mockCooldown).toHaveBeenCalledWith("2165550123", 30);
+      expect(mockRecentText).toHaveBeenCalledWith("2165550123", 3);
       expect(result.skipped).toBe(1);
       expect(sendSms).not.toHaveBeenCalled();
       expect(mockWhere).not.toHaveBeenCalled();
     });
 
-    it("control: a phone NOT on cooldown is still texted", async () => {
-      mockCooldown.mockResolvedValue(false);
+    it("control: a phone with no recent shop text is still texted", async () => {
+      mockRecentText.mockResolvedValue(false);
       const { sendSms } = await import("./sms");
       const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
       await processPostInvoiceFollowUps();

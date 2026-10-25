@@ -26,6 +26,11 @@ import { greetingName } from "./services/invoiceReviewRequests";
 import { createLogger } from "./lib/logger";
 
 const log = createLogger("postInvoiceFollowUp");
+
+// Nour, 2026-10-25: the post-visit text goes out even after a review request, but never within
+// this many days of any other shop text. It is a thank-you, so the 30-day review cooldown is not its gate.
+const POST_VISIT_TEXT_GAP_DAYS = 3;
+
 // ─── SHORT URL (saves ~50 chars → 2 segments instead of 3) ─────
 const REVIEW_URL = "nickstire.org/review";
 
@@ -74,10 +79,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
       log.error("[PostInvoiceFollowUp] Database not available");
       return result;
     }
-    // One review ask per cooldown across BOTH review lanes (2026-10-02). Read ONCE: the SQL
-    // exclusion and the per-customer check below must use the same configured window.
-    const { getReviewSettings, isPhoneOnReviewCooldown } = await import("./db");
-    const { cooldownDays } = await getReviewSettings();
+    const { hasOutboundTextWithinDays } = await import("./db");
     const eligibleCustomers = await db
       .select()
       .from(customers)
@@ -96,11 +98,11 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           gte(customers.lastVisitDate, eightDaysAgo),
           lte(customers.lastVisitDate, sixDaysAgo),
           sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} REGEXP '^[0-9]{10}$'`,
-          // 2026-10-02 · phones the review_requests lane already asked inside its
-          // configured cooldown are excluded HERE. The per-customer cooldown check below never marks a
-          // skipped customer, so without this they would refill this .limit(20) every run and
-          // crowd out the customers this lane is still the only ask for.
-          sql`NOT EXISTS (SELECT 1 FROM review_requests rr WHERE rr.phone = ${customers.phone} AND rr.status <> 'failed' AND (rr.createdAt >= NOW() - INTERVAL ${cooldownDays} DAY OR rr.sentAt >= NOW() - INTERVAL ${cooldownDays} DAY))`
+          // 2026-10-25: phones the shop texted inside the gap are excluded HERE. The per-customer
+          // check below never marks a skipped customer, so without this they would refill this
+          // .limit(20) every run and crowd out the customers who are still due. Both phone columns
+          // are bare 10 digits (probe 2026-10-25: 100% of rows), so the equality join is exact.
+          sql`NOT EXISTS (SELECT 1 FROM sms_messages m JOIN sms_conversations c ON m.conversationId = c.id WHERE c.phone = ${customers.phone} AND m.direction = 'outbound' AND m.status <> 'failed' AND m.createdAt >= NOW() - INTERVAL ${POST_VISIT_TEXT_GAP_DAYS} DAY)`
         )
       )
       .limit(20); // Max 20 per run to stay within rate limits
@@ -126,8 +128,8 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           continue;
         }
 
-        // Belt-and-braces for a row scheduled between the query above and this send.
-        if (await isPhoneOnReviewCooldown(customer.phone, cooldownDays)) {
+        // Belt-and-braces for a text that landed between the query above and this send.
+        if (await hasOutboundTextWithinDays(customer.phone, POST_VISIT_TEXT_GAP_DAYS)) {
           result.skipped++;
           continue;
         }
