@@ -24,4 +24,6 @@ Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explo
 
 7. SCOPE TIGHT — for audits say "read-only · do not modify files". For implementation, name exactly which files the agent may touch. Never let an agent free-roam edit.
 
+8. SET THE TIER ON PURPOSE (2026-10-25): every lane dispatch AND every `start_session` passes `model` and `effort` from the brief's MODEL / EFFORT line (tier table in `.agents/core/templates/subagent-brief.md`) and names the brief file. Omitted, a session inherits the manager's model: on 2026-10-25 four sessions ran on Fable after Nour's /model switch ("WHY EVERY SESSION STARTING IN FABLE?"). Mechanical since then: rules `lane-dispatch-brief` and `session-dispatch-brief` in `config/agent-os/policy.json`.
+
 Agents are force multipliers, not autonomous workers — they inherit your standards or they don't run.

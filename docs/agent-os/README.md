@@ -145,7 +145,7 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
 - **PreToolUse** rule `brief-shop-data` (same job): an Agent, Task or `mcp__ccd_session__start_session` brief that reads
   Nick's Tire records (a record noun such as invoice, estimate, decline or customers, a place such as nickstire or a
   nickstire lane, and a reading cue such as count, how many, SELECT or TiDB; file names are taken out first) must carry a
-  line starting `SHOP DATA:` whose block (to the next field or blank line) names invoices and estimates; every .md or .txt
+  line STARTING `SHOP DATA:` (a mid-paragraph label is a pointer, not the block; the Do: text says so since 2026-10-25) whose block (to the next field or blank line) names invoices and estimates; every .md or .txt
   file the prompt names is read too (up to 5, under 512 KB, the blank template skipped). A scout reported "0 declines ever
   captured" from a brief without these meanings. Canaries: `agentDispatch.test.mjs` (one feeds the real USER.md meanings
   to the rule). Not covered: SendMessage follow-ups to a running session, and agents a Workflow script starts.
@@ -242,7 +242,15 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
     5 identical failing commands scored a streak of 1 each in a live session.
   - `lane-dispatch-brief` (policy.json, `Agent|Task` routed to pretool.mjs): a `lane-*` dispatch needs `model`, a brief
     file (a token whose basename contains `brief` and ends `.md`; not a URL, not the word in prose) and a
-    `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
+    `MODEL / EFFORT` line. Not checked: the Agent tool's own `effort` field (the lane line carries `model` only).
+  - `session-dispatch-brief` (policy.json, 2026-10-25, job session-rules-mechanical): a `mcp__ccd_session__start_session`
+    call needs `model`, `effort`, a brief file and a `MODEL / EFFORT` line, the file and the line in `prompt` or
+    `background`. start_session inherits the parent's model and effort when they are omitted; four sessions ran on Fable
+    that way on 2026-10-25. Judged on `session-start model= effort= brief= model-effort-line= shop-data=`. A fork needs
+    them too, though the tool applies `model` and `effort` to fresh sessions only (the Do: text says start fresh when the
+    tier must differ). A `proposal_id`-only start and a title-only offer carry no brief and pass: the brief was judged
+    when proposed, or is judged when it is sent with `proposal_id`. Canaries: `agentDispatch.test.mjs`. Not checked:
+    that the named brief file exists, that the model value is a real id, `target: cloud` (the tool ignores both fields).
   - Limits, not built: no heartbeat while a long heavy run holds the lease (only the 20 min expiry ends a hung one);
     a headless `claude -p --agent <lane>` dispatch never passes through the Agent tool, so the lane rule cannot see it.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook

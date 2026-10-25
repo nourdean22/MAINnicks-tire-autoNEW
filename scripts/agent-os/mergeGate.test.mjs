@@ -17,6 +17,9 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { blockers, busyChecks, holdWhileBusy, mergeGate } from "./merge-gate.mjs";
@@ -321,6 +324,32 @@ test("the CLI refuses a following flag taken as the wait value (exit 64), and ba
   assert.equal(r.status, 64, r.stdout + r.stderr);
   assert.match(r.stderr, /--wait-minutes/);
   assert.equal(spawnSync(process.execPath, [GATE, "notanumber"], { encoding: "utf8" }).status, 64);
+});
+
+// 2026-10-25 (job session-rules-mechanical, gap a): the manager hit exit 64 twice in one day with a short SHA. The full SHA
+// stays required (it is the head you verified, and --match-head-commit needs it), so the usage error now prints the PR's
+// full head for a paste-ready retry when the short one is a prefix of it, and says re-verify when it is not.
+test("a short or cased --sha gets the PR's full head in the usage error; a prefix of another head says re-verify", () => {
+  assert.equal(typeof gate.shaUsageHint, "function", "merge-gate.mjs must export shaUsageHint");
+  const head = "3f2a9c1".padEnd(40, "b");
+  const hint = gate.shaUsageHint(3270, "3f2a9c1", head);
+  assert.match(hint, new RegExp(`--sha ${head}`), "the retry line carries the full head");
+  assert.match(hint, /node scripts\/agent-os\/merge-gate\.mjs 3270 --sha/, "the retry is a paste");
+  assert.match(gate.shaUsageHint(3270, head.toUpperCase(), head), new RegExp(head), "an upper-case full SHA gets the lower-case head");
+  const other = gate.shaUsageHint(3270, "deadbee", head);
+  assert.match(other, /re-verify/i, "a prefix of a different head is not a retry");
+  assert.doesNotMatch(other, /--sha [0-9a-f]{40}/, "no paste-ready retry for a SHA that is not the head");
+  assert.equal(gate.shaUsageHint(3270, "3f2a9c1", undefined), null, "no head read: no hint (the plain usage line stands)");
+  assert.equal(gate.shaUsageHint(3270, "not-hex", head), null, "not a SHA at all: no hint");
+  // The CLI still refuses (exit 64) with gh unreachable: the hint is advice, never a resolve.
+  // No token and an empty gh config dir: gh, wherever it is found (Windows finds it without PATH), fails unauthenticated
+  // before any request, so the test makes no network call and no hint is printed.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)$/i.test(k)));
+  env.GH_CONFIG_DIR = mkdtempSync(join(tmpdir(), "gh-empty-"));
+  const r = spawnSync(process.execPath, [GATE, "3270", "--sha", "3f2a9c1"], { encoding: "utf8", env });
+  assert.equal(r.status, 64, r.stdout + r.stderr);
+  assert.match(r.stderr, /full 40-char/);
+  assert.doesNotMatch(r.stderr, /head is/, "no gh read, so no hint: the gate never invents a head");
 });
 
 // Worktree sweep after a merge (job 2026-10-17-worktree-sweep): the sweep runs only once the PR reads MERGED, gets the

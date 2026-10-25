@@ -49,6 +49,8 @@ RETURN (exactly):
 ## Picking model and effort
 
 The manager fills MODEL / EFFORT per dispatch and sets the Agent tool's `model` and `effort` from it; a lane never picks its own.
+A session started with `start_session` gets the same: `model` and `effort` set from this line, the brief file named in
+`prompt` (rule `session-dispatch-brief` denies the call otherwise; omitted, both are inherited from the manager).
 
 | Tier | Model / effort | Work |
 |---|---|---|

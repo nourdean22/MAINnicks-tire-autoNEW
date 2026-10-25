@@ -137,13 +137,18 @@ test("shop data arm 3: the brief FILE is read: meanings missing there are denied
   assert.equal(viaFile(join(dir, "missing-brief.md")).code, 0, "an unreadable brief file is not judged for shop data (fail open on the file)");
 });
 
+// The session-start fields rule `session-dispatch-brief` requires (2026-10-25); shop-data arms carry them so only
+// the shop block decides the verdict.
+const SESSION_FIELDS = { model: "claude-sonnet-5-5", effort: "high" };
+const SESSION_BRIEF = "Your brief: C:\\Users\\x\\scratchpad\\decline-scout-brief.md\nMODEL / EFFORT: sonnet / high";
+
 test("shop data arm 4: non-lane agents and started sessions are judged too", () => {
   shopDenied(judge("Agent", { subagent_type: "general-purpose", prompt: `For Nick's Tire: ${SHOP_TASK}` }), "general-purpose agent");
   shopDenied(judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Decline scout", prompt: SHOP_TASK, background: "Nour wants to know how often customers walk." }), "start_session");
   assert.equal(
-    judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Decline scout", prompt: SHOP_TASK, background: SHOP_BLOCK }).code,
+    judge("mcp__ccd_session__start_session", { initiation: "user_asked", title: "Decline scout", ...SESSION_FIELDS, prompt: `${SESSION_BRIEF}\n${SHOP_TASK}`, background: SHOP_BLOCK }).code,
     0,
-    "the block in `background` counts",
+    "the block in `background` counts when its line STARTS with SHOP DATA:",
   );
   assert.equal(judge("mcp__ccd_session__start_session", { proposal_id: "task_ab12cd34" }).code, 0, "starting an existing proposal carries no brief to judge");
 });
@@ -152,7 +157,7 @@ test("shop data, no false positives: work that does not read shop records is not
   for (const [tool, input] of [
     ["Agent", { subagent_type: "lane-statenour", model: "sonnet", prompt: "Brief: C:/x/ui-brief.md\nMODEL / EFFORT: sonnet / high\nRestyle the brain page cards." }],
     ["Agent", { subagent_type: "Explore", prompt: "find where the Stripe invoice webhook for bdnick.info lives" }],
-    ["mcp__ccd_session__start_session", { initiation: "user_asked", title: "Hook fix", prompt: "Fix the board hook timeout in scripts/agent-os.", background: "x".repeat(90) }],
+    ["mcp__ccd_session__start_session", { initiation: "user_asked", title: "Hook fix", ...SESSION_FIELDS, prompt: `${SESSION_BRIEF}\nFix the board hook timeout in scripts/agent-os.`, background: "x".repeat(90) }],
   ]) {
     const r = judge(tool, input);
     assert.equal(r.code, 0, `${tool} ${JSON.stringify(input).slice(0, 80)}: ${r.out}`);
@@ -216,4 +221,96 @@ test("every named brief file is read: a harmless first file does not hide a shop
   writeFileSync(first, "GOAL: restyle the cards.\n");
   writeFileSync(second, `${SHOP_TASK}\n`);
   shopDenied(judge("Agent", { subagent_type: "lane-nickstire-server", model: "sonnet", prompt: `Example: ${first}\nYour brief: ${second}\nMODEL / EFFORT: sonnet / high` }), "the second file");
+});
+
+// -- session-dispatch-brief (2026-10-25, job session-rules-mechanical) -----------------------------------------------
+// Nour, 2026-10-25: "WHY EVERY SESSION STARTING IN FABLE?". start_session inherits the parent's model and effort when
+// they are omitted, and the manager omitted them on four sessions in a row. A started session is judged like a lane:
+// `model` and `effort` set, a brief FILE named in prompt or background, a MODEL / EFFORT line in prompt or background.
+
+const START = "mcp__ccd_session__start_session";
+const SESSION_OK = {
+  initiation: "user_asked",
+  title: "Hook fix",
+  ...SESSION_FIELDS,
+  prompt: "Your whole brief is this file: C:\\Users\\x\\scratchpad\\hook-fix-brief.md\nMODEL / EFFORT: sonnet / high",
+  background: "Platform job. The board hook times out under load; the brief file holds the design and receipts wanted.",
+};
+const sessionDenied = (r, why) => {
+  assert.equal(r.code, 2, `${why}: expected a deny, got exit ${r.code}\n${r.out}`);
+  assert.match(r.out, /session-dispatch-brief/, `${why}: the deny must name the rule`);
+};
+const start = (over) => judge(START, { ...SESSION_OK, ...over });
+
+test("session start, positive control: model, effort, a brief file and a MODEL / EFFORT line pass", () => {
+  const r = start({});
+  assert.equal(r.code, 0, r.out);
+});
+
+test("session start arm 1: model missing (effort set), blank or a bare dash is denied", () => {
+  sessionDenied(start({ model: undefined }), "no model");
+  sessionDenied(start({ model: "  " }), "blank model");
+  sessionDenied(start({ model: "-" }), "a dash is not a model");
+});
+
+test("session start arm 2: effort missing (model set) or blank is denied", () => {
+  sessionDenied(start({ effort: undefined }), "no effort");
+  sessionDenied(start({ effort: "" }), "empty effort");
+});
+
+test("session start arm 3: both set but no brief FILE (prose, a URL) is denied", () => {
+  sessionDenied(start({ prompt: "Fix the board hook timeout. The brief is in the background.\nMODEL / EFFORT: sonnet / high" }), "prose brief");
+  sessionDenied(start({ prompt: "Brief at https://example.com/hook-brief.md\nMODEL / EFFORT: sonnet / high" }), "a URL is not a brief file");
+});
+
+test("session start arm 4: no MODEL / EFFORT line in prompt or background is denied", () => {
+  sessionDenied(start({ prompt: "Your brief: C:\\x\\hook-fix-brief.md" }), "no MODEL / EFFORT line");
+});
+
+test("session start: a brief file or the MODEL / EFFORT line named only in background counts", () => {
+  assert.equal(
+    start({ prompt: "Fix the board hook timeout; MODEL / EFFORT: sonnet / high", background: `Full brief: C:\\x\\hook-fix-brief.md. ${"x".repeat(80)}` }).code,
+    0,
+    "brief named only in background",
+  );
+  assert.equal(start({ prompt: "Your brief: C:\\x\\hook-fix-brief.md", background: `MODEL / EFFORT: sonnet / high. ${"x".repeat(80)}` }).code, 0, "MODEL / EFFORT only in background");
+});
+
+test("session start: a fork still needs model and effort (a fork carries no background)", () => {
+  const fork = { context: "fork", background: undefined };
+  sessionDenied(start({ ...fork, model: undefined, effort: undefined }), "fork, nothing set");
+  sessionDenied(start({ ...fork, effort: undefined }), "fork, effort missing");
+  assert.equal(start(fork).code, 0, "fork with model, effort, brief file and the line passes");
+});
+
+test("session start: a proposal_id-only start and a title-only offer carry no brief and pass; a proposal_id WITH a brief is judged", () => {
+  assert.equal(judge(START, { proposal_id: "task_ab12cd34" }).code, 0, "own_initiative card started by id: the brief was judged when proposed");
+  assert.equal(judge(START, { initiation: "offer", title: "Hook fix" }).code, 0, "an offer card is a title alone; the brief follows with proposal_id");
+  sessionDenied(judge(START, { proposal_id: "task_ab12cd34", prompt: SESSION_OK.prompt, background: SESSION_OK.background }), "accepted offer, brief sent without model and effort");
+  assert.equal(judge(START, { proposal_id: "task_ab12cd34", ...SESSION_FIELDS, prompt: SESSION_OK.prompt, background: SESSION_OK.background }).code, 0, "accepted offer with every field");
+});
+
+test("session start: own_initiative proposals are judged at proposal time", () => {
+  sessionDenied(start({ initiation: "own_initiative", model: undefined }), "a proposal card without a model");
+});
+
+test("session start: the deny says exactly what to pass", () => {
+  const r = start({ model: undefined, effort: undefined });
+  sessionDenied(r, "nothing set");
+  for (const word of ["`model`", "`effort`", "brief.md", "MODEL / EFFORT:", "SHOP DATA:"]) assert.ok(r.out.includes(word), `the Do: text must name ${word}\n${r.out}`);
+});
+
+test("shop data: a SHOP DATA label mid-paragraph in background is denied, and the deny says the line must START with it", () => {
+  const r = start({ prompt: `${SESSION_OK.prompt}\n${SHOP_TASK}`, background: `Nour wants decline rates. Carry the SHOP DATA: invoice is a closed job, estimate without invoice is a walk. ${"x".repeat(40)}` });
+  shopDenied(r, "mid-paragraph label");
+  assert.match(r.out, /START/, `the brief-shop-data Do: text must say the line STARTS with SHOP DATA:\n${r.out}`);
+});
+
+test("the lane summary line is byte-identical to the 2026-10-16 shape; the session line carries the new fields", async () => {
+  const { agentDispatchCall } = await import("./policy.mjs");
+  const lane = agentDispatchCall("Agent", { subagent_type: "lane-platform", model: "opus", prompt: BRIEF }, ROOT).command;
+  assert.equal(lane, "lane-dispatch type=lane-platform model=opus brief=C:\\Users\\x\\scratchpad\\workflow-upgrade-AB-brief.md model-effort-line=yes shop-data=n/a");
+  const session = agentDispatchCall(START, SESSION_OK, ROOT).command;
+  assert.equal(session, "session-start model=claude-sonnet-5-5 effort=high brief=C:\\Users\\x\\scratchpad\\hook-fix-brief.md model-effort-line=yes shop-data=n/a");
+  assert.equal(agentDispatchCall(START, { proposal_id: "task_ab12cd34" }, ROOT), null);
 });

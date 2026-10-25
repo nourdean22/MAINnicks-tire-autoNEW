@@ -2550,3 +2550,72 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** add one line to assert-the-consumer: "Before saying X is never read or never confirmed, grep the whole app tree for the writer's counterpart (status, callback, webhook), not one folder; name the file that would have held it."
 - **Confidence:** medium (once, clear)
 - **Status:** applied this PR
+
+## 2026-10-25 · rules that lived in prose or in one path only (job 2026-10-25-session-rules-mechanical)
+
+Shipped in the same PR, not proposals: rule `session-dispatch-brief` (start_session model, effort, brief file, MODEL / EFFORT
+line), the `brief-shop-data` Do: text saying the line must START with `SHOP DATA:`, the merge-gate short-SHA retry line (gap a),
+the named-ref integrate recipe in monorepo-manager `references/review-and-merge.md` (gap b) and the step 17 ledger-check line (gap c).
+
+### P1 · NEW lefthook pre-commit command `ledger-check` (gap c)
+- **Trigger (witnessed):** PR 3272's ledger row held literal pipes inside backticks (a subshell around `git ls-files`, `diff`
+  and `status`; a list of chain characters). CI's `parity, canaries, authority, secrets, citation` went red after the push; the
+  fix was commit e6f0a3ae5. Positive control in this job: that row, planted in a scratch copy of the ledger, makes
+  `node scripts/agent-os/ledger-check.mjs --root <scratch>` exit 1 ("11 cells, expected 8"); the unplanted copy exits 0. The
+  local check works; nothing runs it before a push.
+- **Cost:** one CI run (30 to 60 runner-minutes) and one rework push.
+- **Proposed edit:** `lefthook.yml` pre-commit gains `ledger-check` with glob
+  `docs/agent-os/{ledger/*.md,MANAGER-LEDGER.md,MANAGER-METRICS.md}` running `node scripts/agent-os/ledger-check.mjs`
+  (node only, under a second, no heavy lease). Outside this job's file list, so proposed; step 17 now says to run it by hand.
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+### P2 · NEW `scripts/agent-os/ro-probe-template.cjs`, plus one line each in prod-db-guard and empty-vs-error (gap d)
+- **Trigger (witnessed):** 2026-10-25, a read-only production probe sent a SELECT with an `OR name = ...` arm against a column
+  that does not exist; the probe's catch turned the error into a LIMIT 0 query, printed "no row", and the manager relayed "flag
+  off" to Nour while the flag was on.
+- **Cost:** a wrong production state reached the operator.
+- **Proposed edit:** a CommonJS template (mysql2 for TiDB, pg with BEGIN READ ONLY for Neon, the shapes in memory
+  `prod-readonly-probe-facts`) whose one query helper never catches: on error it prints `ERROR <sql> <message>` and exits 1;
+  SELECT-only allowlist; an explicit exit 0 after the last print (gap e). Canary: a fake driver that rejects gives exit 1 and
+  the ERROR line, one that resolves gives exit 0. prod-db-guard and empty-vs-error each name the shape in one line ("never catch
+  a probe query into an empty result: a failed read is UNKNOWN, not zero"). Not shipped here: two drivers loaded from the apps'
+  node_modules, a fake-driver canary and two skill edits are past the one-or-two-file bar, and this job may not read production
+  to prove the template on the real engine.
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+### P3 · memory `prod-readonly-probe-facts` (gap e)
+- **Trigger (witnessed):** 2026-10-25, a one-shot script that imported a nickstire server module (and with it the DB pool) hung
+  after its last print until it was killed.
+- **Cost:** minutes and a hung background task.
+- **Proposed edit:** one line in that memory note: "A one-shot script that imports a server module (DB pool, cron, queue) never
+  exits on its own: end it with an explicit exit 0 after the last print and exit 1 in the catch." The P2 template carries it.
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+### P4 · monorepo-manager plus `scripts/agent-os/board.mjs` (the 2-writer cap has no count) (gap f)
+- **Trigger (witnessed):** 2026-10-25, the manager ran 3 writer lanes at once against the MACHINE RULE (at most 2).
+- **Cost:** the cap was broken silently; four concurrent suites gave an OOM on an earlier day (SKILL.md Workers).
+- **Why no pretool rule:** a PreToolUse hook sees one call. It cannot count sessions (their state lives in the app, and
+  `list_sessions` is an MCP read a hook cannot make) or background Agent lanes already running.
+- **Proposed edit:** the `[board]` UserPromptSubmit line, which already prints the heavy lease, also prints the live writer
+  leases from `agent-start.mjs` (`[board] writer leases: 3 of 2: <branches>`), and step 6 reads it before a dispatch. Leases are
+  per integration branch, so a session that never leases is not counted: the line says so. Kill criterion: drop it if in two
+  weeks a transcript shows 3 writers while the line showed 2 or fewer (a blind signal is worse than none).
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+### P5 · merge-gate.mjs (a Codex marker hard-blocks after its finding was refuted) (gap g)
+- **Trigger (witnessed):** PR 3270, 2026-10-25: merge-gate exited 2 on Codex's `has_unresolved_findings` marker though every
+  Codex thread was resolved with a rebuttal and the finding named a commit that does not exist; Codex's quota ran out before it
+  could review again.
+- **Cost:** the merge was held and needed Nour.
+- **Proposed edit (Nour decides; nothing loosened in this PR):** the marker drops from a hard block to a WARN only when ALL hold:
+  (1) every Codex thread on the head is resolved and each resolution's last reply carries the automation trailer
+  (`Rebuttal-by: <session id>` plus the commit or file:line that refutes it); (2) a `@codex review` comment was posted after the
+  last rebuttal; (3) at least 60 minutes (the quota-reset window seen 2026-10-18) passed since that comment with no new Codex
+  marker on the head. Otherwise the block stands. Kill criterion: revert if any PR merged on the WARN path later proves the
+  Codex finding right.
+- **Confidence:** medium (once, clear)
+- **Status:** proposed (a gate change: waits for Nour's word)
