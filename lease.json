@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/admin-competitors-live",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "2e38ad12-0b76-4a67-9664-97f859608d85",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\optimistic-mahavira-f7475a",
+  "claimedBy": "2026-10-25-admin-tabs-competitors",
+  "claimedAt": "2026-10-25T11:51:16.278Z",
+  "expiresAt": "2026-10-25T23:51:16.278Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
