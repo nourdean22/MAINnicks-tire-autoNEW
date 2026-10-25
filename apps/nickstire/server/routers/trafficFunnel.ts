@@ -418,11 +418,16 @@ export const trafficFunnelRouter = router({
           detail: "Walk-in declined-work funnel is invisible until the ALG estimate mirror populates. Sync is wired but shop-protected — it runs only when admin is active.",
         });
       } else if (algDeclined > 0) {
+        // Same rule the cron applies ("1" only), so this page cannot tell the owner to
+        // enable texts that are already running.
+        const { recoverySendsEnabled } = await import("../cron/jobs/declinedWorkRecovery");
         alerts.push({
           level: "warning",
           title: `${algDeclined} declined walk-in estimates`,
           detail: "Customers got quoted at the counter but walked without getting work done.",
-          fix: "Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups.",
+          fix: recoverySendsEnabled(process.env)
+            ? "Declined-recovery texts are running (7d / 30d); work the queue on Money > Declined."
+            : "Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups.",
         });
       }
 
