@@ -2,8 +2,10 @@
 
 Written after the post, from the local build record. It is a record of what aired plus the method, not a draft to post.
 
-BLOCKED: NO MOTION ROUTE (aired record, already posted 2026-10-25. Do not re-render, re-post or queue it. The marker is
-the one `scripts/build-reel-triage.mjs` reads to mark a pack dead, so `pnpm run triage:reels` lists it as aired, not as a draft.)
+AIRED: 2026-10-25 instagram 18036349070892926
+
+This pack is an aired record. Do not re-render, re-post or queue it. The `AIRED:` line above is the marker
+`scripts/build-reel-triage.mjs` reads, so `pnpm run triage:reels` counts it as aired, not as a draft or a blocked pack.
 
 Build files: `C:\Users\nourd\NattyNour\shop-media\reels-draft\mount-balance-2026-10-25\` (build.md, receipts.txt,
 captions.srt, caption.txt). Format research (summarised, not pasted): `C:\Users\nourd\NattyNour\shop-media\research\reels-formats.md`
