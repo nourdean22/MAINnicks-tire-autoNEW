@@ -18,9 +18,12 @@ import path from "node:path";
 
 // Wave D (2026-10-24): the learning-velocity scoreboard moved to its own file (it renders on the Health
 // tab now) and the shared unavailable line moved to brain-fold.tsx, so the labels are read across all three.
-const SOURCES = ["memory-tab.tsx", "learning-velocity-scoreboard.tsx", "brain-fold.tsx"].map((f) =>
-  path.resolve(__dirname, "../../../components/brain", f),
-);
+// Wave E2 (2026-10-24): the calibration tile moved to Stats Goals (components/stats/calibration-tile.tsx);
+// its contract moved with it.
+const SOURCES = [
+  ...["memory-tab.tsx", "learning-velocity-scoreboard.tsx", "brain-fold.tsx"].map((f) => path.resolve(__dirname, "../../../components/brain", f)),
+  path.resolve(__dirname, "../../../components/stats/calibration-tile.tsx"),
+];
 const RAW = SOURCES.map((f) => readFileSync(f, "utf8")).join("\n");
 
 /** Source with block and line comments removed. */
@@ -98,7 +101,7 @@ describe("scoreboard cells name their own window", () => {
 
 describe("calibration tile", () => {
   it("labels the population as resolved-in-window", () => {
-    expect(code).toContain("Calibration · resolved 30d");
+    expect(code).toContain("Predictions resolved in 30 days");
   });
 });
 

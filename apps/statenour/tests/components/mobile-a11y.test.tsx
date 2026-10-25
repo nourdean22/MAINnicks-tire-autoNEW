@@ -162,8 +162,7 @@ describe("A6 · Settings GroupHeading declares role=region landmark", () => {
     expect(src).toContain('role="region"');
     expect(src).toContain("aria-labelledby={headingId}");
     expect(src).toContain("id={headingId}");
-    // The gold divider rule is purely decorative · hidden from a11y tree.
-    expect(src).toContain('aria-hidden="true"');
+    // Wave E2: the decorative domain icon tile (the aria-hidden element) is gone; no decoration left to hide.
   });
 });
 

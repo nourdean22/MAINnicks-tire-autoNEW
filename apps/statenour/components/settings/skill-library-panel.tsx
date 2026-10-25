@@ -20,6 +20,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { readState } from "@/lib/query-state";
+import { ReadingUnavailable, StaleNote } from "@/components/brain/brain-fold";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -102,9 +105,6 @@ export function SkillLibraryPanel() {
   const loading = skillsQuery.isPending;
   const lastFetchedAt = skillsQuery.dataUpdatedAt
     ? new Date(skillsQuery.dataUpdatedAt)
-    : null;
-  const error = skillsQuery.error
-    ? skillsQuery.error.message || "failed to load"
     : null;
   const load = useCallback(() => void skillsQuery.refetch(), [skillsQuery]);
 
@@ -306,13 +306,17 @@ export function SkillLibraryPanel() {
         })}
       </div>
 
-      {loading && !active && !pending && (
+      {/* Wave E2: the panel carries its own read markers (a closed Brain fold counts them). A paused read
+          has no data and no error: offline, not "loading" forever. */}
+      {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
+      {readState(skillsQuery) === "offline" && <ReadStateNote state="offline" label="Skill library" />}
+      <StaleNote q={skillsQuery} label="Skill library" className="mb-2" />
+      {loading && !active && !pending && readState(skillsQuery) === "loading" && (
         <div className="flex items-center gap-2 py-6 justify-center text-[11px] text-[var(--text-tertiary)]">
           <Loader2 size={12} className="animate-spin" />
           loading skills…
         </div>
       )}
-      {error && <div className="text-[11px] text-red-400 py-2">failed: {error}</div>}
 
       {/* List */}
       <div className="space-y-1">
@@ -508,7 +512,9 @@ export function SkillLibraryPanel() {
           fetch settles — so a failed read rendered "No candidates yet" and two
           siblings like them: three confident zeros about a surface never read.
         */}
-        {!loading && !active && !pending && (
+        {/* Wave E2: a failed read already says so above (ReadingUnavailable); this is the no-data,
+            no-error case only. */}
+        {!loading && !active && !pending && !skillsQuery.isError && (
           <EmptyState
             icon={Target}
             title="Skill library unavailable"

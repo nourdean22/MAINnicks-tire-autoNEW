@@ -198,7 +198,6 @@ describe("Memory tab: three closed folds that count what they hide", () => {
       "SelfCritiqueCard",
       "DecisionReplayCard",
       "AntiPatternsPanel",
-      "PreferencesCard",
     ]);
     expect(members("Context")).toEqual(["NudgePanel", "PinnedContextPanel", "RecallPreviewPanel"]);
   });
@@ -206,8 +205,9 @@ describe("Memory tab: three closed folds that count what they hide", () => {
   it("counts the rows that rendered in each summary", async () => {
     await mount();
     expect(summary("Signals")).toMatch(/^Signals \(4\)$/);
-    // Seven stubs plus the Settings identity line (calibration, streaks and Ghost Nick left for Stats, wave E2).
-    expect(summary("Self-model")).toMatch(/^Self-model \(8\)$/);
+    // Six stubs plus the Settings identity line (calibration, streaks and Ghost Nick left for Stats and
+    // preferences for Settings, wave E2).
+    expect(summary("Self-model")).toMatch(/^Self-model \(7\)$/);
     expect(summary("Context")).toMatch(/^Context \(3\)$/);
   });
 
@@ -215,25 +215,20 @@ describe("Memory tab: three closed folds that count what they hide", () => {
     h.fail = new Set(["PatternCard", "AntiPatternsPanel", "RecallPreviewPanel"]);
     await mount();
     expect(summary("Signals")).toBe("Signals (4) (1 unreadable)");
-    expect(summary("Self-model")).toBe("Self-model (8) (1 unreadable)");
+    expect(summary("Self-model")).toBe("Self-model (7) (1 unreadable)");
     expect(summary("Context")).toBe("Context (3) (1 unreadable)");
   });
 
-  it("says (1 offline) when the skill library read is paused before any data (Codex 4368647109)", async () => {
-    h.q["operator.skills"] = { data: undefined, isError: false, isPending: true, isLoading: false, fetchStatus: "paused", refetch: () => Promise.resolve() };
-    await mount();
-    expect(summary("Self-model")).toBe("Self-model (8) (1 offline)");
-  });
+  // Wave E2: the skill library carries its own failed, offline and stale markers; the fold counting the REAL
+  // panel (Codex 4368647109's paused case included) is pinned in tests/components/settings/settings-e2-groups.test.tsx.
 
-  it("a failed refresh over cached data says stale: identity delta visible, skills counted in Self-model", async () => {
+  it("a failed refresh over cached data says stale: the identity delta line keeps its text under the note", async () => {
     const stale = (data: unknown) => ({ data, isError: true, isPending: false, isLoading: false, fetchStatus: "idle", refetch: () => Promise.resolve() });
     h.q["brain.identityDelta"] = stale({ delta: "Rhythm shifted toward mornings." });
-    h.q["operator.skills"] = stale({ active: [], pending: [] });
     await mount();
     const line = [...host.querySelectorAll("p")].find((p) => p.textContent?.includes("Rhythm shifted"))!;
     expect(line.closest("div.space-y-1")?.querySelector('[data-read-state="stale"]')).not.toBeNull();
-    // the skills note sits in the skills row
-    expect(summary("Self-model")).toBe("Self-model (8) (1 stale)");
+    expect(summary("Self-model")).toBe("Self-model (7)");
   });
 
   it("follows a read that fails after mount", async () => {

@@ -15,8 +15,8 @@
  * NickSidePane presets are fixed strings, so folding them in would drop the anchors.
  * Moved to the Health tab (components/brain/health-tab.tsx): learning velocity, persona drift, tool
  * telemetry, suggestion telemetry. Wave E2 (2026-10-24): calibration, prediction streaks and Ghost Nick
- * moved to Stats Goals (components/stats/calibration-tile.tsx holds the calibration line); preferences
- * sit in Self-model until Settings takes them.
+ * moved to Stats Goals (components/stats/calibration-tile.tsx holds the calibration line) and preferences to Settings,
+ * How Nick works. The skill library carries its own read markers, so the fold counts it directly.
  *
  * The ticker and Home link here as #contradictions (the panel sits under the id).
  */
@@ -32,7 +32,6 @@ import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { BeliefsPanel } from "@/components/brain/beliefs-panel";
 import { ContradictionResolutionPanel } from "@/components/brain/contradiction-resolution-panel";
 import { DecisionReplayCard } from "@/components/ultron/decision-replay-card";
-import { PreferencesCard } from "@/components/ultron/preferences-card";
 import { NudgePanel } from "@/components/brain/nudge-panel";
 import { BrainMaturityHeader } from "@/components/brain/brain-maturity-header";
 import { ActiveAlertsCard } from "@/components/brain/active-alerts-card";
@@ -96,7 +95,7 @@ export function MemoryTab() {
         </BrainFold>
         <BrainFold title="Self-model">
           <MemoryOfDayCard />
-          <SkillLibraryRow />
+          <SkillLibraryPanel />
           <QualitativeIdentityPanel />
           {/* UI v3 W5a: IdentityPanel has one home, Settings > Identity and Behavior. */}
           <Link
@@ -109,7 +108,6 @@ export function MemoryTab() {
           <SelfCritiqueCard />
           <DecisionReplayCard />
           <AntiPatternsPanel />
-          <PreferencesCard />
         </BrainFold>
         <BrainFold title="Context">
           <NudgePanel />
@@ -117,24 +115,6 @@ export function MemoryTab() {
           <RecallPreviewPanel />
         </BrainFold>
       </div>
-    </div>
-  );
-}
-
-/**
- * The skill library lives in components/settings (another lane's files) and its failed branch carries
- * no marker the Self-model fold can count. The same query (same key and options, so React Query serves
- * one cache entry and no second fetch) adds the marker here.
- */
-function SkillLibraryRow() {
-  const skillsQuery = trpc.operator.skills.useQuery(undefined, { refetchOnWindowFocus: false });
-  return (
-    <div>
-      {skillsQuery.isError && !skillsQuery.data && <ReadingUnavailable label="Skill library" />}
-      {/* Paused before any data (offline at start): no error, no list, so say offline. */}
-      {readState(skillsQuery) === "offline" && <ReadStateNote state="offline" label="Skill library" />}
-      <StaleNote q={skillsQuery} label="Skill library" />
-      <SkillLibraryPanel />
     </div>
   );
 }
