@@ -135,7 +135,7 @@ export function AttributionReviewCard() {
       {open && (
         <div className="px-4 pb-3 space-y-3">
           <p className="text-xs text-muted-foreground">
-            Each is a call and a sale from the same phone within 14 days. Nothing has yet proven which calls brought the customer in.{" "}
+            Each is a call with a possible sale behind it and no record that proves the link. Each row says what the match rests on.{" "}
             <button
               type="button"
               onClick={() => setWhyOpen((v) => !v)}

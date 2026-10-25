@@ -249,3 +249,17 @@ describe("AttributionReviewCard · review round (Codex, PR 3271)", () => {
     expect(row).not.toHaveTextContent(/Inferred/);
   });
 });
+
+describe("AttributionReviewCard · the lead sentence fits every queued shape (Codex, PR 3271)", () => {
+  it("does not claim same phone and timing when an ambiguous row with no single sale is queued", () => {
+    h.q.data = queue([
+      weak(),
+      weak({ callId: 2, invoiceId: null, confidence: null, band: { band: "unscored", label: "No single sale fits", basis: "b", whatWouldRaiseIt: null, observed: false, why: "More than one sale from this phone landed in the 14 days after the call. There is no one sale to confirm." } }),
+    ]);
+    render(<AttributionReviewCard />);
+    fireEvent.click(screen.getByRole("button", { name: /2 matches to review/i }));
+    const lead = screen.getByText(/no record that proves the link/i);
+    expect(lead).toHaveTextContent(/Each is a call with a possible sale behind it/);
+    expect(lead).not.toHaveTextContent(/from the same phone within 14 days/);
+  });
+});
