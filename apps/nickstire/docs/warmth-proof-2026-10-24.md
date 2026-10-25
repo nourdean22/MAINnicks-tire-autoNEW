@@ -26,7 +26,7 @@ section 2, not a confirmed daily fact. Nothing below promises them until Nour co
 
 | # | What | Proof it uses | Effort | Cost | Where |
 |---|---|---|---|---|---|
-| 1 | Customers' own lines about the people at the decision point | 6 verbatim Google review lines | 2 h (done, PR) | $0 | nickstire.org /about |
+| 1 | Customers' own lines about the people at the decision point | 8 verbatim Google review lines | 2 h (done, PR) | $0 | nickstire.org /about |
 | 2 | Three Google Business Profile posts with real shop photos | "Polite staff" topic, review lines, photos 903, 481, 814 | 1 h, then 15 min a week | $0 | Google Business Profile |
 | 3 | Reel: what drivers write about the people at Nick's | Real footage plus verbatim review lines on screen | 3 to 4 h to cut | $0 (no AI spend) | Instagram and Facebook Reels, posted by hand |
 | 4 | Review-ask text that sounds like the counter | It is the experience itself | 30 min copy, small PR | $0 (same send count) | Invoice-keyed review ask (section 6) |
@@ -36,7 +36,7 @@ Also worth doing, after the five: an Instagram pinned post "Meet the people work
 member's yes for a face photo), and a visible waiting-area standard (water, charger) once Nour confirms what is
 actually offered every day.
 
-## 3. Draft A: website (built, PR open, not merged)
+## 3. Draft A: website (built and merged)
 
 /about "In our customers' words" now shows eight verbatim Google review lines about how the crew treats people, with
 "Google review" under each and no names. Lines and their age when read (each is a 5-star review):
@@ -96,17 +96,20 @@ It never enters the autopost lane. Held (Nour, 2026-10-24, relayed by the manage
 `C:\Users\nourd\NattyNour\shop-media\reels-draft\what-drivers-write-DRAFT.mp4` (local only); its end card runs
 3.5 s, so it needs a re-cut to the pack's 2 s before it is final.
 
-## 6. Draft D: review-ask text (copy only, no code change yet)
+## 6. Draft D: review-ask text (shipped in PR 3263)
 
-Lane it changes: the invoice-keyed review ask. `server/services/invoiceReviewRequests.ts` creates one
+Lane it changes first: the invoice-keyed review ask. `server/services/invoiceReviewRequests.ts` creates one
 `review_requests` row per recent paid invoice (exactly once per invoice via UNIQUE `invoiceId`, plus a per-phone
 cooldown), and the `review-requests` cron sends it with `buildReviewMessage` in `server/routers/reviewRequests.ts`
-(or the admin's custom template when one is set). Today's default reads "thanks for trusting us with your
-{service}! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair".
+(or the admin's custom template when one is set). Before PR 3263 the default read "thanks for trusting us with your
+{service}! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair". The default is
+now the Draft D text below.
 
-Not this lane: `post-invoice-followup` (`server/postInvoiceFollowUp.ts`) is customer-keyed. It picks customers
-whose `lastVisitDate` was 6 to 8 days ago and texts each customer once ever (it claims `customers.smsCampaignSent`),
-so it is not once per invoice.
+Two more senders carry the same text. `post-invoice-followup` (`server/postInvoiceFollowUp.ts`) is customer-keyed: it
+picks customers whose `lastVisitDate` was 6 to 8 days ago and texts each customer once ever (it claims
+`customers.smsCampaignSent`), so it is not once per invoice. It uses the short link `nickstire.org/review`. The
+RUN FOLLOW-UPS booking lane (`server/follow-ups.ts`) sends it at 7 days after a completed booking. All three greet
+with the first word of `greetingName`, so ALL CAPS names read "Hi John," and a blank or "Unknown" name reads "Hi there,".
 
 Draft:
 > Hi {firstName}, it's Nick's Tire & Auto on Euclid. Thanks for coming in. If anything about the car feels off,
@@ -120,10 +123,10 @@ never depends on how the visit went.
 Real length as sent (computed 2026-10-24): the lane expands `{reviewUrl}` to the 87-character tracking URL
 (`https://nickstire.org/api/review-click/` plus a 48-character hex token, `server/routers/reviewRequests.ts`) and
 `withOptOut` in `server/sms.ts` appends the 24-character "Reply STOP to opt out." footer. With a 2 to 11 letter
-first name the draft is 324 to 333 characters, all GSM-7, so 3 segments (153 per segment once over 160). Today's
-default (no admin template set) contains an em dash, which forces UCS-2: 284 to 294 characters at 67 per segment,
-so 5 segments. The draft is longer in characters but 2 segments cheaper per text. Sending stays with the
-existing lane; changing the copy is a small server-lane PR (Nour said go on 2026-10-24, relayed by the manager, who dispatches it).
+first name the draft is 324 to 333 characters, all GSM-7, so 3 segments (153 per segment once over 160). The old
+default (no admin template set) contained an em dash, which forced UCS-2: 284 to 294 characters at 67 per segment,
+so 5 segments. The draft is longer in characters but 2 segments cheaper per text. Sending stayed with the
+existing lanes; only the copy and the greeting changed (Nour said go on 2026-10-24, relayed by the manager).
 
 ## 7. Found while gathering (not fixed here)
 
