@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T22:46:07.929Z",
+  "generatedAt": "2026-10-25T13:30:01.090Z",
   "count": 651,
   "procedures": [
     "mutation.adStudio.generate",
@@ -494,6 +494,7 @@
     "query.lead.list",
     "query.lead.sheetUrl",
     "query.localGrowth.automationArmedState",
+    "query.localGrowth.competitorSnapshot",
     "query.localGrowth.reviewsHealth",
     "query.lot.activity",
     "query.lot.clock",

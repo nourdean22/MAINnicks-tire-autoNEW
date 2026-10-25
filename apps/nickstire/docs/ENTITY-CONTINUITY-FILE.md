@@ -187,7 +187,7 @@ recording something as unknowable.
 touch, claim, or file a correction against it.**
 
 - Tracked in the shop's own competitor-monitoring baseline: **4.3★, 639 Google reviews** —
-  "Largest review volume in the set." (`client/src/lib/competitorGbpMonitor.ts:25-28`)
+  "Largest review volume in the set." (the admin's hand-typed 2026-06 competitor baseline, retired 2026-10-25 when the Competitors tab went live on `server/services/competitorMonitor.ts`)
 - A second, distinct listing **"Moe's Tire Center 3"** also appears in the watch list (4.2★,
   379 reviews), likely a second location of the same competitor chain. Both are unrelated to
   Nick's own former "Moe's Euclid Tire N Auto LLC" identity.

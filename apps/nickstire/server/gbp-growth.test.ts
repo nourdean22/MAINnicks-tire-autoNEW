@@ -7,7 +7,6 @@ import { describe, it, expect } from "vitest";
 import { GBP_QA_SEEDS, gbpQaByCategory } from "../client/src/lib/gbpQaSeeds";
 import { weeklyPhotoQueue, PHOTO_SAFETY_RULES } from "../client/src/lib/gbpPhotoQueue";
 import { ENTITY_PLATFORMS, CANONICAL_IDENTITY } from "../client/src/lib/entityConsistency";
-import { COMPETITORS, reviewVolumeGaps, COMPETITOR_BASELINE_DATE } from "../client/src/lib/competitorGbpMonitor";
 import { RANK_KEYWORDS, emptyRankReport } from "../client/src/lib/localRankKeywords";
 
 describe("GBP Q&A seeds — claim safety", () => {
@@ -71,19 +70,6 @@ describe("entity consistency tracker", () => {
       expect(p.status).toBe("not_checked");
       expect(p.automationSafe).toBe(false);
     }
-  });
-});
-
-describe("competitor monitor — no fabricated movement", () => {
-  it("baseline is explicitly dated and never presented as live", () => {
-    expect(COMPETITOR_BASELINE_DATE).toMatch(/^\d{4}-\d{2}$/);
-    expect(COMPETITORS.length).toBe(5);
-  });
-
-  it("computes review-volume gaps from a real input", () => {
-    const gaps = reviewVolumeGaps(100);
-    expect(gaps[0].gap).toBe(639 - 100); // Moe's largest gap first
-    expect(gaps.every((g) => typeof g.gap === "number")).toBe(true);
   });
 });
 
