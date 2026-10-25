@@ -103,8 +103,17 @@ describe("sensitive READS do not ride the permissive query default (Wave 2)", ()
     // owner/manager that may change it; the shop-floor gatewayTire reads stay workorders.manage.
     ["gatewayTire.markup", "settings.manage"],
     ["gatewayTire.status", "workorders.manage"],
+    // 2026-10-25 (Codex, PR 3293): the Tires activity counts are shop-floor reads. customerEvents.summary
+    // needs customers.manage, which the tech role (admin.view + workorders.manage) does not hold.
+    ["gatewayTire.tireActivity", "workorders.manage"],
   ] as const)("%s (query) requires %s", (path, expected) => {
     expect(permissionForAdminProcedure(path, "query")).toBe(expected);
+  });
+
+  it("the tech role holds what gatewayTire.tireActivity needs, so the Tires activity strip opens for it", () => {
+    expect(hasAdminPermission("tech", permissionForAdminProcedure("gatewayTire.tireActivity", "query"))).toBe(true);
+    // The control: the read it replaced is out of the tech role's reach.
+    expect(hasAdminPermission("tech", permissionForAdminProcedure("customerEvents.summary", "query"))).toBe(false);
   });
 
   it("reports-family routers split by type — a viewer can read charts, not write", () => {

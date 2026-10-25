@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T21:02:57.745Z",
-  "count": 652,
+  "generatedAt": "2026-10-25T22:16:43.865Z",
+  "count": 653,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -435,6 +435,7 @@
     "query.gatewayTire.publicStats",
     "query.gatewayTire.searchBySize",
     "query.gatewayTire.status",
+    "query.gatewayTire.tireActivity",
     "query.gbp.getAuthStatus",
     "query.gbp.getAuthUrl",
     "query.gbp.listLocations",

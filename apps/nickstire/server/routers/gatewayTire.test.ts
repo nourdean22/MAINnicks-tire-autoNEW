@@ -11,6 +11,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// This file needs the REAL drizzle builder, schema, db-helper and subjects; another file's mock must not leak in
+// (AGENTS.md section 3; precedent server/routers/voiceAgent.test.ts). Specifiers are the ones the router resolves.
+vi.unmock("drizzle-orm");
+vi.unmock("../../drizzle/schema");
+vi.unmock("../lib/db-helper");
+vi.unmock("../lib/tireMarkup");
+vi.unmock("./gatewayTire");
+
 type Row = { key: string; value: string; label?: string; category?: string; updatedBy: string; updatedAt: Date };
 
 const h = vi.hoisted(() => ({
@@ -51,10 +59,14 @@ function makeDb() {
   };
 }
 
-vi.mock("../db", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../db")>()),
+// A FULL mock of ../db (no importOriginal: a half-real db module leaks across the serial suite, AGENTS.md
+// section 3). It exports only what the router's import graph touches: the two handles, and the two invoice
+// helpers gatewayTire.ts imports (never called here). The real db-helper resolves ../db to this mock.
+vi.mock("../db", () => ({
   getDb: async () => h.legacyDb,
   getDbTyped: async () => h.db,
+  getNextInvoiceNumber: async () => "INV-TEST",
+  createInvoice: async () => ({}),
 }));
 
 import { gatewayTireRouter } from "./gatewayTire";
