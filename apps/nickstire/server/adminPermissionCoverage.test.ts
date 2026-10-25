@@ -99,6 +99,10 @@ describe("sensitive READS do not ride the permissive query default (Wave 2)", ()
     ["lot.now", "settings.manage"],
     ["lot.visits", "settings.manage"],
     ["lot.health", "settings.manage"],
+    // 2026-10-25: the saved online tire markup (percent, who set it, when) is read by the same
+    // owner/manager that may change it; the shop-floor gatewayTire reads stay workorders.manage.
+    ["gatewayTire.markup", "settings.manage"],
+    ["gatewayTire.status", "workorders.manage"],
   ] as const)("%s (query) requires %s", (path, expected) => {
     expect(permissionForAdminProcedure(path, "query")).toBe(expected);
   });

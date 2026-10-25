@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   role: "owner" as string | undefined,
-  result: { success: true, markup: 100 } as { success: boolean; markup?: number },
+  result: { available: true, percent: 100 } as { available: boolean; percent?: number; message?: string },
   mutate: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
@@ -40,7 +40,7 @@ import TireMarkupCard from "@/components/admin/TireMarkupCard";
 
 afterEach(() => {
   h.role = "owner";
-  h.result = { success: true, markup: 100 };
+  h.result = { available: true, percent: 100 };
   h.mutate.mockClear();
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
@@ -73,7 +73,7 @@ describe("TireMarkupCard", () => {
   });
 
   it("a refused save ({ success: false }) says it was not saved, with Retry, never 'saved'", async () => {
-    h.result = { success: false };
+    h.result = { available: false, message: "The markup was not saved. The database could not be reached." };
     render(React.createElement(TireMarkupCard));
     await saveValue("110");
     expect(h.toastSuccess).not.toHaveBeenCalled();

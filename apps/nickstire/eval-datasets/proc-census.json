@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T19:42:50.960Z",
-  "count": 651,
+  "generatedAt": "2026-10-25T21:02:57.745Z",
+  "count": 652,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -427,6 +427,7 @@
     "query.gatewayTire.checkOrder",
     "query.gatewayTire.getPackage",
     "query.gatewayTire.listOrders",
+    "query.gatewayTire.markup",
     "query.gatewayTire.orderStats",
     "query.gatewayTire.popularSizes",
     "query.gatewayTire.publicPriceRanges",

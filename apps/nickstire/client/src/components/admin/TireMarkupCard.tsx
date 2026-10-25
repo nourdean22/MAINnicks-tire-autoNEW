@@ -22,12 +22,13 @@ export default function TireMarkupCard() {
   const [value, setValue] = useState("");
   const [failed, setFailed] = useState<string | null>(null);
   const updateMarkup = trpc.gatewayTire.updateMarkup.useMutation({
-    onSuccess: (r: { success: boolean; markup?: number }) => {
-      if (r.success && typeof r.markup === "number") {
+    onSuccess: (r) => {
+      if (r.available) {
         setFailed(null);
-        toast.success(`Markup saved: ${r.markup}%`);
+        toast.success(`Markup saved: ${r.percent}%`);
       } else {
-        setFailed("The markup was not saved. The database could not be reached.");
+        setFailed(r.message);
+        toast.error(r.message);
       }
     },
     // A money-affecting setting: a failed save must be visible.
