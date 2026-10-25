@@ -1,7 +1,7 @@
 /**
  * MarketSection · 2026-09-08
  *
- * Search Console + the synthesized master report, moved here from
+ * Search Console, moved here from
  * StateNour's /market (operator verdict: shop analytics belong in the shop's
  * admin). Reads the same pipeline functions the nour-os bridge serves, via
  * the `market` admin router. Failed or malformed reads say "unknown", never
@@ -9,7 +9,7 @@
  * degraded pipeline.
  */
 import React from "react";
-import { Radar, Search, FileText, AlertTriangle } from "lucide-react";
+import { Search, FileText, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -47,10 +47,8 @@ export default function MarketSection() {
   const summary = trpc.market.summary.useQuery(undefined, { staleTime: 5 * 60_000 });
   const queries = trpc.market.topQueries.useQuery({ limit: 10 }, { staleTime: 5 * 60_000 });
   const pages = trpc.market.topPages.useQuery({ limit: 10 }, { staleTime: 5 * 60_000 });
-  const report = trpc.market.report.useQuery(undefined, { staleTime: 30 * 60_000 });
 
   const s = (summary.data ?? null) as Record<string, unknown> | null;
-  const r = (report.data ?? null) as Record<string, unknown> | null;
   const queryRows = rows<QueryRow>(queries.data);
   const pageRows = rows<PageRow>(pages.data);
 
@@ -86,7 +84,9 @@ export default function MarketSection() {
                 like Google's property total. */}
             <p className="col-span-full text-[11px] text-white/40">
               {str(s.source) === "gsc_official_no_dimension"
-                ? "Source: Google Search Console property total (official, includes anonymized queries)"
+                ? str(s.to)
+                  ? `Google Search Console, property total, through ${str(s.to)}; a 28-day read: position is an impression-weighted average and is not a rank.`
+                  : "Google Search Console, property total."
                 : str(s.source) === "stored_query_rows_partial"
                   ? "Source: stored query rows, PARTIAL, anonymized queries are missing; not the property total"
                   : "Source: unknown"}
@@ -156,24 +156,6 @@ export default function MarketSection() {
           )}
         </Card>
       </div>
-
-      <Card title="Master report" icon={<Radar className="h-4 w-4" />}>
-        {report.isError ? (
-          <Unknown what="The master report" />
-        ) : report.isPending ? (
-          <p className="text-xs text-white/50">generating…</p>
-        ) : !r || r.ok !== true ? (
-          <Unknown what={`The master report${str(r?.error) ? ` (${str(r?.error)})` : ""}`} />
-        ) : (
-          <div className="space-y-2 text-xs text-white/80">
-            {str(r.timestamp) && <p className="text-[11px] text-white/40">as of {new Date(String(r.timestamp)).toLocaleString()}</p>}
-            <pre className="whitespace-pre-wrap font-sans leading-relaxed">
-              {typeof r.summary === "string" ? r.summary : JSON.stringify(r.summary ?? null, null, 2)}
-            </pre>
-            {str(r.marginNote) && <p className="text-amber-300">{str(r.marginNote)}</p>}
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

@@ -52,6 +52,11 @@
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The send gate of the declined-work SMS lane: an explicit dryRun always wins over FEATURE_DECLINED_RECOVERY and skipDryRunGate (the CLI's --dry-run used to send whenever the env flag was 1). declinedWorkRecovery.manualLanes.test.ts imports it to pin that rule directly, because the only other route to it is runDeclinedWorkRecovery's database path. Its runtime consumer is runDeclinedWorkRecovery in the same module (the featureEnabled line), so the rule is live, not vacuous."
     },
     {
+      "file": "apps/nickstire/server/routes/nour-os-query.ts",
+      "symbol": "QUERY_HANDLERS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (2026-10-25). The NOUR OS bridge handler map: the /api/nour-os/query route dispatches on it in the same module (the runtime consumer), and nour-os-query.dateRange, nour-os-query.quotesBookings and the customerStatsRead handler tests import it to call each handler directly with fixed clocks and filters. Its only other importer, the thin market.report tRPC procedure, was deleted with the Reports composite card (job 2026-10-25-admin-tabs-reports), so knip now sees a test-only export; the map is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/client/src/components/fomoEntries.ts",
       "symbol": "MAX_ENTRY_AGE_MINUTES",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The staleness bound that stops the ticker rendering an old entry as current activity — the defect it closes shipped live as 'New 5-star review ... 1987h ago' (~83 days). fomo-entries.test.ts imports it to assert the boundary exactly (kept and dropped on either side of it); inlining the literal there would pin a number that no longer tracks the bound, which is the failure mode this repo already recorded as 'a pinned literal is not a count'. Its runtime consumer is resolveFomoEntries in the same module, so the rule is live, not vacuous."

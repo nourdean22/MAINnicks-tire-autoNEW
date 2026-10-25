@@ -1074,8 +1074,6 @@ describe("no unsupported claim reaches a customer surface", () => {
 const FACT_SKIP = new Set([
   "shared/voice.ts",
   "shared/proof.ts",
-  // an admin-only decision record that quotes the site's price on purpose
-  "client/src/lib/opsRegistry.ts",
 ]);
 // Facts read what a visitor or a crawler gets: the text between tags AND the
 // human-text attributes. Until 2026-10-01 the fact pass dropped whole tags, so

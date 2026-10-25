@@ -2,7 +2,7 @@
  * Admin UI v1 Wave 5, items 2 to 4: dead and developer-facing controls go.
  *   2. CustomerIntelligence Call and SMS: real tel: and sms: links, no body, always visible, 48 px,
  *      absent when the row has no phone. They were hover-only buttons with no handler.
- *   3. Ops Hub Reports tab: no repo paths and no "open them in the repo" note.
+ *   3. Ops Hub Reports tab: no repo paths (the tab itself was cut 2026-10-25; its access check stays).
  *   4. AdminAlertBar: imported nowhere, file deleted.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -42,7 +42,6 @@ vi.mock("@/lib/trpc", () => {
 
 import { CustomerIntelligence } from "@/pages/admin/intelligence/CustomerIntelligence";
 import OpsHubSection from "@/pages/admin/OpsHubSection";
-import { REPORT_DOCS } from "@/lib/opsRegistry";
 
 const ok = (data: unknown): Partial<Q> => ({ data, isError: false });
 
@@ -97,18 +96,8 @@ describe("CustomerIntelligence Call and Text", () => {
   });
 });
 
-describe("Ops Hub Reports tab", () => {
-  it("lists title, category and note, with no repo path and no 'open them in the repo' line", () => {
-    const { container } = render(<OpsHubSection />);
-    fireEvent.click(screen.getByRole("button", { name: /Reports/ }));
-    for (const r of REPORT_DOCS) {
-      expect(screen.getAllByText(r.title).length, r.title).toBeGreaterThan(0);
-      expect(container.textContent, r.path).not.toContain(r.path);
-    }
-    expect(container.textContent).not.toMatch(/open them in the repo/i);
-    expect(container.textContent).not.toMatch(/relative to the repository root/i);
-  });
-
+// The Reports doc list and the Owner Actions registry were cut 2026-10-25 (reports-tabs.test.tsx).
+describe("Reports access check", () => {
   it("a failed or paused access check says so with a 48 px Retry (review round 1)", () => {
     const refetch = vi.fn();
     h.queries.set("adminSecurity.status", { data: undefined, isError: true, refetch } as Partial<Q>);
@@ -118,11 +107,6 @@ describe("Ops Hub Reports tab", () => {
     expect(retry.className).toMatch(/min-h-12/);
     fireEvent.click(retry);
     expect(refetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("positive control: the Owner Actions tab still renders its registry cards", () => {
-    render(<OpsHubSection />);
-    expect(screen.getAllByText("Next:", { exact: false }).length).toBeGreaterThan(0);
   });
 });
 

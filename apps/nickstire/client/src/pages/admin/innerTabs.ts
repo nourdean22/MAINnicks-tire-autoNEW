@@ -25,9 +25,10 @@ const INNER_TABS = {
   voiceReceptionist: { key: "voiceTab", values: ["performance", "queue", "calls"] },
   opsHub: {
     key: "reportsTab",
-    values: ["actions", "reports", "search", "traffic"],
+    values: ["search", "traffic"],
     // Market and Traffic were owner/manager sections; their procedures need
     // marketing.manage / customers.manage, which accountant and viewer lack.
+    // Owner Actions and the doc list were cut 2026-10-25, so those roles see no tab here.
     roles: { search: FULL_ACCESS, traffic: FULL_ACCESS },
   },
   content: {

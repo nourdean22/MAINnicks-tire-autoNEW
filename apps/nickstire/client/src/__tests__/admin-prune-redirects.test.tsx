@@ -122,7 +122,9 @@ describe("retired inner-tab values fall back to the section default", () => {
     ["content", "ideas", "manager"],
     ["content", "evals", "manager"],
     ["content", "reviews", "manager"],
-    ["opsHub", "messages", "actions"],
+    ["opsHub", "messages", "search"],
+    ["opsHub", "actions", "search"],
+    ["opsHub", "reports", "search"],
     ["voiceReceptionist", "nonsense", "performance"],
     ["leads", "nonsense", "pipeline"],
   ])("%s %s -> %s", (section, raw, expected) => {
@@ -131,9 +133,9 @@ describe("retired inner-tab values fall back to the section default", () => {
 });
 
 describe("role gating survives the merge", () => {
-  it("an accountant sent to Search or Traffic gets Owner Actions, not a page of FORBIDDEN", () => {
-    expect(innerTabs.resolveInnerTab("opsHub", "search", "accountant")).toBe("actions");
-    expect(innerTabs.resolveInnerTab("opsHub", "traffic", "viewer")).toBe("actions");
+  it("an accountant sent to Search or Traffic gets no tab (the section says so), not a page of FORBIDDEN", () => {
+    expect(innerTabs.resolveInnerTab("opsHub", "search", "accountant")).toBeNull();
+    expect(innerTabs.resolveInnerTab("opsHub", "traffic", "viewer")).toBeNull();
     expect(innerTabs.resolveInnerTab("opsHub", "search", "owner")).toBe("search");
     expect(innerTabs.innerTabsForRole("opsHub", "accountant")).not.toContain("search");
   });
@@ -151,7 +153,7 @@ describe("role gating survives the merge", () => {
   });
 
   it("an unknown role sees no restricted tab", () => {
-    expect(innerTabs.innerTabsForRole("opsHub", null)).toEqual(["actions", "reports"]);
+    expect(innerTabs.innerTabsForRole("opsHub", null)).toEqual([]);
     expect(innerTabs.innerTabsForRole("customers", null)).toEqual([]);
   });
 

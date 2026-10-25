@@ -2,9 +2,8 @@
  * server/__tests__/market-and-ribbon-public.test.ts · 2026-09-08
  *
  * Two contracts, pinned by reading the modules (no DB):
- *   · the `market` admin router exists with the four procedures the admin
- *     MarketSection renders, and serves the master report from the SAME
- *     handler map the nour-os bridge uses;
+ *   · the `market` admin router exists with the three Search Console procedures
+ *     the admin MarketSection renders (the master-report composite is gone, 2026-10-25);
  *   · the PUBLIC PhotoRibbon reads a public procedure (D14): the admin one
  *     stays admin, the public one is cached and returns src + count only.
  */
@@ -17,8 +16,8 @@ const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 
 describe("market admin router", () => {
   const src = read("server/routers/admin/market.ts");
-  it("exposes summary, topQueries, topPages, report — all admin-gated", () => {
-    for (const p of ["summary", "topQueries", "topPages", "report"]) {
+  it("exposes summary, topQueries, topPages — all admin-gated, and no master-report composite", () => {
+    for (const p of ["summary", "topQueries", "topPages"]) {
       // `(?:db)?[Aa]dminProcedure` — dbAdminProcedure IS adminProcedure with a
       // dead-handle guard composed on top (server/_core/trpc.ts), so the tier is
       // unchanged. This pin is about ADMIN-GATING, not about which builder name
@@ -26,10 +25,8 @@ describe("market admin router", () => {
       expect(src, p).toMatch(new RegExp(`\\b${p}: (?:db)?[Aa]dminProcedure`));
     }
     expect(src).not.toMatch(/publicProcedure/);
-  });
-  it("the report comes from the bridge's handler map, so the two readers cannot drift", () => {
-    expect(src).toMatch(/QUERY_HANDLERS\.master_report\(/);
-    expect(read("server/routes/nour-os-query.ts")).toMatch(/export const QUERY_HANDLERS/);
+    // A 0-100 composite of sales, SEO and reviews is what the 2026-10-25 benchmark advised against.
+    expect(src).not.toMatch(/\breport: /);
   });
   it("is mounted as `market` and the admin still opens it: ?tab=market lands on Reports > Search", async () => {
     expect(read("server/routers.ts")).toMatch(/market: marketAdminRouter/);
