@@ -13,7 +13,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  mode: "all-fail" as "all-fail" | "one-answers" | "all-empty",
+  mode: "all-fail" as "all-fail" | "all-fail-leads-reject" | "one-answers" | "all-empty",
   recordShownBounded: vi.fn(async () => null),
 }));
 
@@ -21,7 +21,7 @@ const reject = () => Promise.reject(new Error("db down"));
 
 vi.mock("@/lib/prisma", () => {
   const answer = (model: string, op: string) => {
-    if (h.mode === "all-fail") return reject();
+    if (h.mode === "all-fail" || h.mode === "all-fail-leads-reject") return reject();
     if (h.mode === "all-empty") return Promise.resolve(op === "findFirst" ? null : []);
     // one-answers: only the mastery read answers; everything else rejects.
     if (model === "masteryScore") return Promise.resolve([{ domain: "body", score: 20, delta: 0, date: "2026-10-25" }]);
@@ -33,10 +33,13 @@ vi.mock("@/lib/prisma", () => {
 });
 vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: h.recordShownBounded }));
 vi.mock("@/lib/brain/suggestion-loop", () => ({
-  getDismissedSuggestionIds: async () => (h.mode === "all-fail" ? Promise.reject(new Error("db down")) : new Set<string>()),
+  getDismissedSuggestionIds: async () =>
+    h.mode === "all-fail" || h.mode === "all-fail-leads-reject" ? Promise.reject(new Error("db down")) : new Set<string>(),
 }));
 vi.mock("@/lib/services/leads", () => ({
-  getUrgentLeads: async () => (h.mode === "all-fail" ? Promise.reject(new Error("db down")) : []),
+  // Production shape: with the lead bridge missing, listLeads() never rejects; it logs and resolves [].
+  // Only "all-fail-leads-reject" makes it reject, to prove a rejecting lead read cannot break the quorum.
+  getUrgentLeads: async () => (h.mode === "all-fail-leads-reject" ? Promise.reject(new Error("db down")) : []),
 }));
 
 import { buildNickSuggestions } from "@/lib/services/nick-suggestions";
@@ -46,8 +49,13 @@ beforeEach(() => {
 });
 
 describe("buildNickSuggestions: a total failure is an error, not a quiet morning", () => {
-  it("throws when every source read failed, so the query errors and the strip says so", async () => {
+  it("throws when every database read failed even though the lead read resolves [] as in production", async () => {
     h.mode = "all-fail";
+    await expect(buildNickSuggestions()).rejects.toThrow(/every suggestion source/i);
+  });
+
+  it("still throws when the lead read rejects too (it does not vote either way)", async () => {
+    h.mode = "all-fail-leads-reject";
     await expect(buildNickSuggestions()).rejects.toThrow(/every suggestion source/i);
   });
 
