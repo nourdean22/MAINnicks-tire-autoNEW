@@ -21,6 +21,7 @@ async function getDatabase() {
 }
 import { sendSms } from "./sms";
 import { postVisitText } from "@shared/postVisitText";
+import { greetingName } from "./services/invoiceReviewRequests";
 
 import { createLogger } from "./lib/logger";
 
@@ -111,7 +112,8 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     result.processed = eligibleCustomers.length;
 
     for (const customer of eligibleCustomers) {
-      const firstName = customer.firstName || "there"; // same greeting as the invoice lane
+      // Title-cased first word, "there" for blanks and placeholders: same rule as the other post-visit senders.
+      const firstName = greetingName(customer.firstName).split(" ")[0];
 
       // Both segments were visited 6-8 days ago (the query above), so one post-visit text serves them.
       const message = postVisitText(firstName, REVIEW_URL);

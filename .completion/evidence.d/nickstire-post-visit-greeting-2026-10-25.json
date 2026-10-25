@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No docs/operations/capability-ledger.json entry covers the greeting word of the post-visit SMS: the entries that mention these files are about send outcomes, queue closure and owed texts, and this PR changes none of them. The diff changes only the first word after 'Hi': server/postInvoiceFollowUp.ts and server/routers/reviewRequests.ts now take the first word of the existing greetingName helper (services/invoiceReviewRequests.ts), which gains one placeholder word ('there') so a stored 'there' is not re-cased to 'There'. No query, audience, cooldown, cap, flag, cron or send path changes. Proof: server/postInvoiceFollowUp.test.ts (3 failed / 7 passed red first), server/postVisitText.test.ts (8 failed / 17 passed red first), server/services/invoiceReviewRequests.test.ts (3 failed / 14 passed red first), all asserting the string handed to sendSms; manager re-run 3 files, 52 passed, exit 0. A ledger entry belongs with the production receipt the 2026-10-24 post-visit row already owes: one sent post-visit text visible in smsMessages after deploy."
+    }
+  }
+}

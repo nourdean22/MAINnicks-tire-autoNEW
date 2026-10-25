@@ -35,6 +35,7 @@ import { z } from "zod";
 import crypto from "crypto";
 
 import { postVisitText } from "@shared/postVisitText";
+import { greetingName } from "../services/invoiceReviewRequests";
 
 import { createLogger } from "../lib/logger";
 
@@ -44,7 +45,7 @@ const log = createLogger("routers:reviewRequests");
  * Supports custom templates with {firstName}, {service}, {reviewUrl} placeholders.
  */
 function buildReviewMessage(name: string, service: string | null, trackingUrl: string, customTemplate?: string | null): string {
-  const firstName = name.split(" ")[0];
+  const firstName = greetingName(name).split(" ")[0];
   const serviceName = service || "service";
 
   if (customTemplate) {

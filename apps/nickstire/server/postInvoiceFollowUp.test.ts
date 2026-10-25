@@ -65,20 +65,37 @@ describe("Post-Invoice Follow-Up", () => {
     expect(result).toHaveProperty("skipped");
   });
 
-  it("should use correct message templates with store info", () => {
-    // Verify the module references the correct constants
-    // The messages should include the store name, phone, review URL, and referral URL
-    const storeInfo = {
-      name: "Nick's Tire & Auto",
-      phone: "(216) 862-0005",
-      reviewUrl: "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MIgRxdlMIMPcqww",
-      referralUrl: "https://nickstire.org/refer",
-    };
-    
-    expect(storeInfo.name).toBe("Nick's Tire & Auto");
-    expect(storeInfo.phone).toBe("(216) 862-0005");
-    expect(storeInfo.reviewUrl).toContain("ChIJSWRRLdr_MIgRxdlMIMPcqww");
-    expect(storeInfo.referralUrl).toBe("https://nickstire.org/refer");
+  // The text the customer receives, not a template object: the real processor runs against a
+  // mocked customer row and the string handed to sendSms is asserted. ShopDriver imports are
+  // often ALL CAPS and the mirror writes "Unknown" when the counter sends no name.
+  describe("greeting", () => {
+    const expected = (first: string) =>
+      `Hi ${first}, it's Nick's Tire & Auto on Euclid. Thanks for coming in. If anything about the car feels off, text us here and we'll take care of it. If you have a minute, tell other Cleveland drivers how your visit went: nickstire.org/review`;
+
+    beforeEach(() => {
+      mockWhere.mockResolvedValue([{ affectedRows: 1 }]);
+      mockCooldown.mockResolvedValue(false);
+      vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    });
+
+    afterEach(() => {
+      vi.doUnmock("./services/featureFlags");
+    });
+
+    // Real timers on purpose, same reason as the cross-lane block below: one real 1.1s sleep per customer.
+    it.each([
+      ["JOHN", "John"],
+      ["CHERYL ", "Cheryl"],
+      ["Unknown", "there"],
+      ["", "there"],
+    ])("greets first name %j as %j in the text sendSms receives", async (firstName, greeting) => {
+      mockLimit.mockResolvedValueOnce([{ id: 7, firstName, phone: "2165550199", segment: "recent" }]);
+      const { sendSms } = await import("./sms");
+      const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
+      await processPostInvoiceFollowUps();
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(sendSms).toHaveBeenCalledWith("2165550199", expected(greeting), { via: "shop" });
+    }, 10_000);
   });
 
   it("should calculate 7-day window correctly", () => {

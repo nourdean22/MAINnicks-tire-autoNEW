@@ -40,7 +40,7 @@ vi.mock("../db", () => ({
   }),
 }));
 
-import { createInvoiceReviewRequests } from "./invoiceReviewRequests";
+import { createInvoiceReviewRequests, greetingName } from "./invoiceReviewRequests";
 
 afterEach(() => {
   h.ready = { hasInvoiceId: 1, bookingNullable: 1 };
@@ -134,6 +134,15 @@ describe("createInvoiceReviewRequests", () => {
     expect(h.inserts[2]).toContain('"there"');
     expect(h.inserts[3]).toContain(`"Mary-Kate O'Brien"`);
   });
+
+  // This lane stores greetingName(name) and the send path runs greetingName again on the stored
+  // name, so a second pass must not change the first ("there" would otherwise become "There").
+  it.each(["AIKEN, DAVID", "maria lopez", "Unknown", "", "ACME AUTO, LLC", "  o'brien ,  mary-kate "])(
+    "greetingName is stable on its own output for %j",
+    (raw) => {
+      expect(greetingName(greetingName(raw))).toBe(greetingName(raw));
+    },
+  );
 
   it("the invoice's raw service text never reaches the SMS (service is NULL -> 'your service')", async () => {
     h.candidates = [{ id: 601, name: "Pat Doe", phone: "2165550601" }];
