@@ -2508,6 +2508,22 @@ describe("stall abort reattaches to a turn the server still holds", () => {
     expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 
+  // Round 3 (Codex P1): the original POST still runs server-side after a dropped reattach, so a
+  // Retry that regenerated would start a SECOND execution (telegram.send, shop.sendSms reachable).
+  it("after a dropped reattach GET, Retry reattaches again and never regenerates", () => {
+    stallFires();
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+    const before = vi.mocked(h.chat.resumeStream as () => void).mock.calls.length;
+
+    act(() => void ctl.regenerate());
+
+    expect(h.chat.regenerate, "a second execution of a turn the server still runs").not.toHaveBeenCalled();
+    expect(vi.mocked(h.chat.resumeStream as () => void).mock.calls.length - before).toBe(1);
+  });
+
   // Round 2 (Nour's actual case): the stalled turn was the FIRST message of a new chat, so no
   // conversation id existed on the client when the stall fired.
   it("a first send of a new chat reattaches by its message id and lands the saved reply", () => {

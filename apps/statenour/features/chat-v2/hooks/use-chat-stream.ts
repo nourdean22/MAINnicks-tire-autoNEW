@@ -645,6 +645,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     const stall = stallReattachRef.current;
     if (stall) {
       stallReattachRef.current = null;
+      // The server still owns this turn: mark it killed so every Retry reattaches (safeRegenerate),
+      // never a regenerate that would run it a second time.
+      killedErrorRef.current = chat.error ?? null;
       showStallToast(stall.message);
       return;
     }
