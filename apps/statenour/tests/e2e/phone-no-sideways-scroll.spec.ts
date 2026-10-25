@@ -12,7 +12,8 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 
-const PAGES = ["/system/ui-lab", "/chat", "/brain", "/journal", "/missions"] as const;
+// Wave E2 (2026-10-24): /stats and /settings join (census 3A.5 listed both as uncovered).
+const PAGES = ["/system/ui-lab", "/chat", "/brain", "/journal", "/missions", "/stats", "/settings"] as const;
 
 async function overflowPx(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
