@@ -184,7 +184,7 @@ function StatsContent() {
               role="tab"
               aria-selected={isActive}
               onClick={() => handleTabChange(tab.id)}
-              className={`-mb-px inline-flex min-h-[48px] shrink-0 items-center border-b-2 px-1 text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
+              className={`-mb-px inline-flex min-h-[48px] min-w-11 shrink-0 items-center justify-center border-b-2 px-1 text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 isActive ? "border-accent text-fg" : "border-transparent text-fg-tertiary hover:text-fg-secondary"
               }`}
             >

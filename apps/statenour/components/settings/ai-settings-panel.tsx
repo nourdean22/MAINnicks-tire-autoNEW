@@ -306,6 +306,7 @@ export function AiSettingsPanel() {
           <ConfirmHold
             label="Reset"
             variant="danger"
+            className="min-h-11"
             icon={<RotateCcw size={10} />}
             onConfirm={reset}
           />
@@ -348,6 +349,7 @@ export function AiSettingsPanel() {
         <Row label="Haptic Feedback">
           {hapticSupported ? (
             <Toggle
+              label="Haptic feedback"
               value={hapticOn}
               onChange={(v) => {
                 haptic.setEnabled(v);
@@ -386,7 +388,7 @@ export function AiSettingsPanel() {
             onKeyDown={(e) => isSubmitEnter(e) && addDisabledTool()}
             aria-label="Tool name to add to blocklist"
             placeholder="e.g. generateImage"
-            className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
+            className="flex-1 h-11 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
           />
           <button
             onClick={addDisabledTool}

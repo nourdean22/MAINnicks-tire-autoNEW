@@ -393,7 +393,7 @@ export function PreferencesCard() {
                   disabled={saving}
                   onChange={(e) => setAxis(axis, Number(e.target.value))}
                   className={cn(
-                    "w-full h-3 appearance-none cursor-pointer bg-transparent",
+                    "w-full h-11 appearance-none cursor-pointer bg-transparent",
                     "[&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-edge-default",
                     "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:shadow-[0_0_0_1px_var(--bg-void)]",
                     "[&::-moz-range-track]:h-[2px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-edge-default",

@@ -123,20 +123,24 @@ export function OperatingRhythmToggle() {
           role="switch"
           aria-checked={enabled}
           aria-label={enabled ? "disable operating rhythm" : "enable operating rhythm"}
-          className={cn(
-            "relative w-11 h-6 rounded-full transition-colors",
-            enabled ? "bg-accent" : "bg-edge-strong",
-            pendingDisable && "bg-rose-500/40",
-            setFlags.isPending && "opacity-50",
-          )}
+          // The 44 x 24 track sits in a 44 px tall hit area (tests/e2e/target-size.spec.ts measures the button).
+          className={cn("inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center", setFlags.isPending && "opacity-50")}
         >
           <span
             aria-hidden
             className={cn(
-              "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
-              enabled ? "left-[22px]" : "left-0.5",
+              "relative block w-11 h-6 rounded-full transition-colors",
+              enabled ? "bg-accent" : "bg-edge-strong",
+              pendingDisable && "bg-rose-500/40",
             )}
-          />
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+                enabled ? "left-[22px]" : "left-0.5",
+              )}
+            />
+          </span>
         </button>
       </div>
       {/* A failed refresh over a flag we did read: the switch stays, the note says it may be out of date. */}

@@ -48,27 +48,31 @@ export function SegmentedSelect({
   );
 }
 
-export function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+/** A switch: the 36 x 20 track sits in a 44 px hit area (tests/e2e/target-size.spec.ts measures the button). */
+export function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       type="button"
       onClick={() => onChange(!value)}
-      className={cn(
-        "relative w-9 h-5 rounded-full border transition-colors",
-        value
-          ? "bg-accent border-accent"
-          : "bg-surface-raised border-edge-default",
-      )}
+      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center"
       role="switch"
       aria-checked={value}
+      aria-label={label}
     >
       <span
         aria-hidden
         className={cn(
-          "absolute top-0.5 w-3.5 h-3.5 rounded-full transition-[left,background-color]",
-          value ? "left-4.5 bg-[var(--text-inverse)]" : "left-0.5 bg-fg-tertiary",
+          "relative block w-9 h-5 rounded-full border transition-colors",
+          value ? "bg-accent border-accent" : "bg-surface-raised border-edge-default",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 w-3.5 h-3.5 rounded-full transition-[left,background-color]",
+            value ? "left-4.5 bg-[var(--text-inverse)]" : "left-0.5 bg-fg-tertiary",
+          )}
+        />
+      </span>
     </button>
   );
 }

@@ -115,6 +115,7 @@ export function JournalBrainPanel() {
       {/* Score every capture (master switch) */}
       <Row label="Score every capture" hint="Award baseline XP on every qualifying entry">
         <Toggle
+          label="Score every capture"
           value={settings.baselineEnabled}
           onChange={(v) => patch({ baselineEnabled: v })}
         />
@@ -134,7 +135,7 @@ export function JournalBrainPanel() {
           disabled={!settings.baselineEnabled}
           onChange={(e) => patch({ baselineXp: parseFloat(e.target.value) })}
           aria-label="Baseline XP per qualifying entry"
-          className="w-32 accent-[var(--accent)] disabled:opacity-40"
+          className="h-11 w-32 accent-[var(--accent)] disabled:opacity-40"
         />
       </Row>
 
@@ -169,7 +170,7 @@ export function JournalBrainPanel() {
             patch({ groundedXpMultiplier: parseFloat(e.target.value) })
           }
           aria-label="Bonus multiplier when an entry is linked to a goal"
-          className="w-32 accent-[var(--accent)]"
+          className="h-11 w-32 accent-[var(--accent)]"
         />
       </Row>
 
@@ -188,7 +189,7 @@ export function JournalBrainPanel() {
             patch({ autoConfirmThreshold: parseFloat(e.target.value) })
           }
           aria-label="Auto-confirm a goal link at or above this confidence"
-          className="w-32 accent-[var(--accent)]"
+          className="h-11 w-32 accent-[var(--accent)]"
         />
       </Row>
 
@@ -317,7 +318,7 @@ function NumberInput({
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        className="w-16 h-7 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
+        className="w-16 h-11 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
       />
       {suffix && (
         <span className="text-[11px] text-fg-tertiary">{suffix}</span>

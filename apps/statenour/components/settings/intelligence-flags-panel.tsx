@@ -145,7 +145,7 @@ export function IntelligenceFlagsPanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search flags (e.g. autonomy, recall)..."
-            className="w-full h-8 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
+            className="w-full h-11 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[16px] sm:text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
           />
         </div>
         {/* Status Filter */}
@@ -297,7 +297,7 @@ export function IntelligenceFlagsPanel() {
                           onConfirm={() => handleOverride(flag.key, "true")}
                           variant="danger"
                           icon={<Shield size={10} />}
-                          className="h-7 px-2.5"
+                          className="min-h-11 px-2.5"
                         />
                       )}
                     </div>

@@ -882,7 +882,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 strokeWidth="4"
                 strokeDasharray={`${(timeLeft / timerDuration) * 301.5} 301.5`}
                 strokeLinecap="round"
-                className="transition-colors duration-1000"
+                className="transition-[stroke-dasharray] duration-1000 ease-linear"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">

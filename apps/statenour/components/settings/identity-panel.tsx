@@ -173,7 +173,7 @@ export function IdentityPanel() {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="section-label">Identity Snapshot</p>
-            <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+            <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} className="min-h-11" />
           </div>
           <p className="text-[12px] text-fg-tertiary mt-0.5">
             8-axis self-model · rolls daily 04:30 · pin any axis to override

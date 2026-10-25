@@ -181,7 +181,7 @@ export function LevelUpDirectiveCard() {
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5">
         <Link
           href={directive.rep.href}
-          className="inline-flex min-h-[36px] items-center rounded-control border px-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)] hover:bg-surface-hover"
+          className="inline-flex min-h-11 items-center rounded-control border px-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)] hover:bg-surface-hover"
           style={{ borderColor: `${stat.color}66`, color: stat.color }}
         >
           {directive.rep.cta} →
