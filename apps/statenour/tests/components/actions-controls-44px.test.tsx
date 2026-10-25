@@ -11,7 +11,11 @@
  * seeded data because the chips and the leaderboard only mount with a feed, and "Clear rule filter" only
  * exists after a rule row is clicked.
  *
- * Positive control: a planted px-3 py-1 control fails the same check, and the sweep must locate all nine
+ * P3 follow-up (lens B row 10): the pending queue's "Edit args" (32 px), "Approve edited" (visible only
+ * while editing) and the deferred row's `<summary>payload</summary>` toggle are measured too; the test
+ * opens the edit state to reach "Approve edited".
+ *
+ * Positive control: a planted px-3 py-1 control fails the same check, and the sweep must locate all twelve
  * controls (a scanner that matched nothing would pass on a deleted chip).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,8 +49,16 @@ vi.mock("@/lib/trpc/client", () => {
         dismissApprovalReview: { useMutation: m },
       },
       systemAutomation: {
-        getPendingApprovals: { useQuery: q([]) },
-        approvals: { useQuery: q(undefined) },
+        // One pending approval (its "Edit args" control) and one deferred row (its payload toggle).
+        getPendingApprovals: {
+          useQuery: q([{ id: "a1", toolId: "sendSms", riskClass: "high", requestedBy: "nick", reason: "test", payload: { to: "x" } }]),
+        },
+        approvals: {
+          useQuery: q({
+            summary: { live: 1, expired: 0 },
+            rows: [{ id: "r1", ruleName: "rule.beta", actionType: "sms", targetType: null, targetId: null, expired: false, expiresAt: "2026-10-26T12:00:00Z", policyObjective: null, payload: { b: 2 } }],
+          }),
+        },
         approvalWindows: { useQuery: q({ source: "default", defaultDays: 7, windows: [] }) },
         decideApproval: { useMutation: m },
       },
@@ -96,49 +108,93 @@ afterEach(() => {
   container.remove();
 });
 
+// "Approve edited" renders only while a payload is being edited and parses; the seeded payload is valid JSON.
 const buttons = () => [...container.querySelectorAll<HTMLButtonElement>("button")];
 const byText = (re: RegExp) => buttons().filter((b) => re.test((b.textContent ?? "").trim()));
 
-/** The four controls the review named, located by what they say. */
-function subjects(): { label: string; el: HTMLButtonElement; wide: boolean }[] {
-  const out: { label: string; el: HTMLButtonElement; wide: boolean }[] = [];
+/** The controls the reviews named, located by what they say. */
+function subjects(): { label: string; el: HTMLElement; wide: boolean }[] {
+  const out: { label: string; el: HTMLElement; wide: boolean }[] = [];
   for (const el of byText(/^Refresh$/)) out.push({ label: "Refresh", el, wide: false });
   for (const el of byText(/^(24h|7d|30d)$/)) out.push({ label: `window ${el.textContent}`, el, wide: true });
   for (const el of byText(/^(auto|pending|approved|rejected) ·/)) out.push({ label: `approval ${el.textContent}`, el, wide: true });
   for (const el of byText(/^Clear rule filter/)) out.push({ label: "Clear rule filter", el, wide: false });
+  // P3 follow-up (lens B row 10): the pending-queue edit controls and the deferred row's payload toggle.
+  for (const el of byText(/^(Edit args|Cancel edit)$/)) out.push({ label: el.textContent!.trim(), el, wide: true });
+  for (const el of byText(/^Approve edited$/)) out.push({ label: "Approve edited", el, wide: true });
+  for (const el of container.querySelectorAll<HTMLElement>("summary")) {
+    if ((el.textContent ?? "").trim() === "payload") out.push({ label: "payload toggle", el, wide: true });
+  }
   return out;
 }
 
+const selectRule = () => {
+  const row = byText(/rule\.alpha/)[0];
+  expect(row, "the seeded rule row rendered").toBeTruthy();
+  act(() => {
+    row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+};
+const openEdit = () => {
+  const edit = byText(/^Edit args$/)[0];
+  expect(edit, "the seeded approval's Edit args rendered").toBeTruthy();
+  act(() => {
+    edit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+};
+
 describe("/system/actions controls reach the 44 px floor", () => {
-  it("renders Refresh, three window chips and four approval chips", () => {
-    expect(subjects().length).toBe(8);
+  it("renders Refresh, three window chips, four approval chips, Edit args and the payload toggle", () => {
+    expect(subjects().length).toBe(10);
   });
 
-  it("Clear rule filter exists once a rule row is selected, and the sweep sees all nine", () => {
-    const row = byText(/rule\.alpha/)[0];
-    expect(row, "the seeded rule row rendered").toBeTruthy();
-    act(() => {
-      row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(subjects().length).toBe(9);
+  it("Clear rule filter and Approve edited exist only after their state is opened, and the sweep sees all twelve", () => {
+    selectRule();
     expect(subjects().map((s) => s.label)).toContain("Clear rule filter");
+    expect(subjects().length).toBe(11);
+    openEdit();
+    const labels = subjects().map((s) => s.label);
+    expect(labels).toContain("Approve edited");
+    expect(labels).toContain("Cancel edit");
+    expect(labels).not.toContain("Edit args");
+    expect(subjects().length).toBe(12);
   });
 
   it("every one is at least 44 px tall; the chips are at least 44 px wide", () => {
-    const row = byText(/rule\.alpha/)[0];
-    act(() => {
-      row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    const found = subjects();
-    expect(found.length, "the subject rendered no controls").toBe(9);
     // Collect every violation so a red run names all of them, not the first.
     const under: string[] = [];
-    for (const { label, el, wide } of found) {
-      const cls = el.getAttribute("class") ?? "";
-      if (HEIGHT_PX(cls) < 44) under.push(`${label}: under 44 px tall`);
-      if (wide && WIDTH_PX(cls) < 44) under.push(`${label}: under 44 px wide`);
-    }
+    const measure = (stage: string) => {
+      for (const { label, el, wide } of subjects()) {
+        const cls = el.getAttribute("class") ?? "";
+        if (HEIGHT_PX(cls) < 44) under.push(`${stage} ${label}: under 44 px tall`);
+        if (wide && WIDTH_PX(cls) < 44) under.push(`${stage} ${label}: under 44 px wide`);
+      }
+    };
+    selectRule();
+    expect(subjects().length, "the subject rendered no controls").toBe(11);
+    measure("closed:"); // includes "Edit args" and the payload toggle
+    openEdit();
+    expect(subjects().length).toBe(12);
+    measure("editing:"); // includes "Cancel edit" and "Approve edited"
     expect(under).toEqual([]);
+  });
+
+  it("SortDropdown's reset button (shared, 6 pages) has a 44 px hit area and keeps its 20 px glyph", () => {
+    // The reset button renders only when the sort differs from its default; this page reads it from storage.
+    act(() => root.unmount());
+    window.localStorage.setItem("system-actions:sortKey", "oldest");
+    root = createRoot(container);
+    act(() => {
+      root.render(<ActionsPage />);
+    });
+    const reset = container.querySelector<HTMLButtonElement>('button[aria-label="Reset sort to default"]');
+    expect(reset, "the reset button rendered for a non-default sort").toBeTruthy();
+    const cls = reset!.getAttribute("class") ?? "";
+    expect(HEIGHT_PX(cls), "reset tall").toBeGreaterThanOrEqual(44);
+    expect(WIDTH_PX(cls), "reset wide").toBeGreaterThanOrEqual(44);
+    // the visible glyph box did not grow
+    expect(reset!.querySelector("span")?.getAttribute("class") ?? "").toMatch(/\bw-5\b.*\bh-5\b|\bh-5\b.*\bw-5\b/);
+    window.localStorage.removeItem("system-actions:sortKey");
   });
 
   it("positive control: a planted px-3 py-1 control fails the same check", () => {

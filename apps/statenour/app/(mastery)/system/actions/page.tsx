@@ -29,6 +29,8 @@ import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { ReadStateNote } from "@/components/ui/read-state-note";
+import { offlineCopy, readState } from "@/lib/query-state";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
 // authedFetch read is now `trpc.system.autonomousActions.useQuery`.
@@ -308,7 +310,14 @@ function ActionsPageInner() {
 
   const feed: Feed | null = (actionsQuery.data as Feed | undefined) ?? null;
   const approvals = (approvalsQuery.data as any) ?? [];
-  const loading = actionsQuery.isPending || actionsQuery.isFetching || approvalsQuery.isPending || approvalsQuery.isFetching;
+  // A paused read (no connection) is pending but not in flight: it is "offline", never "loading"
+  // (lib/query-state.ts; lens B row 4). `loading` is only a read that is on its way.
+  const actionsState = readState(actionsQuery);
+  const approvalsState = readState(approvalsQuery);
+  const autoState = readState(autoQueue);
+  const windowsState = readState(windowsQuery);
+  const loading =
+    actionsState === "loading" || approvalsState === "loading" || actionsQuery.isFetching || approvalsQuery.isFetching;
 
   const load = () => {
     actionsQuery.refetch();
@@ -336,7 +345,9 @@ function ActionsPageInner() {
           ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} pending approval` : ""}`
           : actionsQuery.isError
             ? "unknown: read failed"
-            : "loading..."
+            : actionsState === "offline"
+              ? offlineCopy("The action feed")
+              : "loading..."
       }
       width="2xl"
       rhythm="loose"
@@ -388,7 +399,9 @@ function ActionsPageInner() {
               </button>
             </div>
           )}
-          {approvalsQuery.isError && approvals.length === 0 ? null : approvals.length === 0 ? (
+          {approvalsState === "offline" ? (
+            <ReadStateNote state="offline" label="The approvals queue" className="p-4 text-xs" />
+          ) : approvalsQuery.isError && approvals.length === 0 ? null : approvals.length === 0 ? (
             <p className="text-xs text-fg-tertiary p-4">
               {loading ? "loading approvals…" : "no pending tool approvals"}
             </p>
@@ -462,7 +475,7 @@ function ActionsPageInner() {
                               setEditText(JSON.stringify(req.payload, null, 2));
                             }
                           }}
-                          className="min-h-[32px] rounded-control border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
+                          className="min-h-11 min-w-11 rounded-control border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
                         >
                           {editingId === req.id ? "Cancel edit" : "Edit args"}
                         </button>
@@ -491,7 +504,7 @@ function ActionsPageInner() {
                                 setEditingId(null);
                               }}
                               disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
-                              className="rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
+                              className="min-h-11 min-w-11 rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
                               title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                             >
                               Approve edited
@@ -526,9 +539,10 @@ function ActionsPageInner() {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-fg">deferred automation</h3>
               <span className="text-xs text-fg-tertiary">
-                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed: unknown, not zero" : "loading…"}
+                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed: unknown, not zero" : autoState === "offline" ? "offline" : "loading…"}
               </span>
             </div>
+            {autoState === "offline" && <ReadStateNote state="offline" label="The deferred queue" className="mb-3 text-xs" />}
             {autoQueue.data && autoQueue.data.rows.length === 0 && (
               <p className="text-xs text-fg-tertiary p-2">no rule is waiting on you.</p>
             )}
@@ -578,7 +592,7 @@ function ActionsPageInner() {
                   )}
                   {row.payload != null && (
                     <details className="text-[11px]">
-              <summary className="cursor-pointer text-fg-tertiary">payload</summary>
+              <summary className="min-h-11 min-w-11 cursor-pointer leading-11 text-fg-tertiary">payload</summary>
                       <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-fg">{JSON.stringify(row.payload, null, 2)}</pre>
                     </details>
                   )}
@@ -601,6 +615,8 @@ function ActionsPageInner() {
             </div>
             {windowsQuery.isError ? (
               <p className="text-xs text-amber-300">windows could not be read.</p>
+            ) : windowsState === "offline" ? (
+              <ReadStateNote state="offline" label="Approval windows" className="text-xs" />
             ) : !windowsQuery.data ? (
               <p className="text-xs text-fg-tertiary">loading…</p>
             ) : (
@@ -621,6 +637,8 @@ function ActionsPageInner() {
 
       {/* History (wave E1, 2026-10-24): the success rings, the rule leaderboard and the recent feed. Closed by default; ?tab=logs opens it. */}
       <DetailFold label="History" open={activeTab === "logs"} unreadable={actionsQuery.isError && !feed ? 1 : 0}>
+          {/* Offline, the feed below is blank: say why, and let the closed fold count it. */}
+          {actionsState === "offline" && <ReadStateNote state="offline" label="The action feed" />}
           {/* Filter strip */}
           <div className="flex flex-wrap items-center gap-2">
             {(["24h", "7d", "30d"] as Win[]).map((w) => (

@@ -7,7 +7,8 @@
  *
  *   · resume-last-work.tsx        → task.missions      (REUSED, no input)
  *   · (deleted 2026-10-24, no importers) the next-action card → task.list (REUSED) · task.update (REUSED)
- *   · (deleted 2026-10-24, no importers) the active-task card → task.session · task.logSessionEvent (NEW)
+ *   · (deleted 2026-10-24, no importers) the active-task card; its task.session and task.logSessionEvent
+ *     procedures went with it (lens B row 8, 2026-10-25: no caller left)
  *   · todo-desk.tsx (patchTask)   → task.update        (REUSED)
  *   · omni-capture.tsx            → task.create · task.createMission (REUSED)
  *                                   · task.missions   (REUSED, no input)
@@ -34,11 +35,11 @@
  *      inside the delegated service. So the genuine contract for the
  *      migrated call-sites is the downstream schema — pinned here.
  *
- *   3. NEW-INLINE · `task.session` / `task.logSessionEvent` declare
- *      strict inline `z.object({...})` inputs in lib/trpc/routers/task.ts
- *      (no permissive z.record — the bug-class guard). Those `.input(...)`
- *      objects are re-declared here VERBATIM so a tightened bound fails
- *      CI before it breaks a real call-site.
+ *   3. NEW-INLINE · `task.byId` declares a strict inline `z.object({...})`
+ *      input in lib/trpc/routers/task.ts (no permissive z.record — the
+ *      bug-class guard). That `.input(...)` object is re-declared here
+ *      VERBATIM so a tightened bound fails CI before it breaks a real
+ *      call-site.
  *
  * Pure schema parse, no Prisma — the contract is the schema, so the
  * test is too. Mirrors tests/lib/validators/ultron-operator-schemas.test.ts
@@ -186,117 +187,6 @@ describe("missionCreateSchema · omni-capture task.createMission payload", () =>
   it("rejects a mission-create payload with no title — title is required", () => {
     expect(() =>
       missionCreateSchema.parse({ description: "Ad-hoc tasks", status: "ACTIVE" }),
-    ).toThrow();
-  });
-});
-
-// ──────────────── task.session ────────────────
-//
-// active-task-companion.tsx `loadSession()` fires
-// utils.task.session.fetch({ taskId }). The tRPC `.input()` is
-// re-declared verbatim from lib/trpc/routers/task.ts.
-
-describe("task.session · call-site payload contract", () => {
-  const sessionInput = z.object({ taskId: z.string().min(1).max(64) });
-
-  it("accepts the loadSession payload — { taskId }", () => {
-    expect(() =>
-      sessionInput.parse({ taskId: "clx9k2p4t0001abcd1234efgh" }),
-    ).not.toThrow();
-  });
-
-  it("rejects an empty taskId — min(1) is the guard", () => {
-    expect(() => sessionInput.parse({ taskId: "" })).toThrow();
-  });
-
-  it("rejects a missing taskId key", () => {
-    expect(() => sessionInput.parse({})).toThrow();
-  });
-});
-
-// ──────────────── task.logSessionEvent ────────────────
-//
-// active-task-companion.tsx `submit()` fires
-// logSessionEvent.mutateAsync({ taskId, ...payload }) for note / photo
-// / voice / log events. The tRPC `.input()` is re-declared verbatim
-// from lib/trpc/routers/task.ts — a STRICT z.object with a 4-value
-// `kind` enum (the route's `["note","photo","voice","log"].includes`
-// check, hoisted to the boundary).
-
-describe("task.logSessionEvent · call-site payload contract", () => {
-  const logSessionEventInput = z.object({
-    taskId: z.string().min(1).max(64),
-    kind: z.enum(["note", "photo", "voice", "log"]),
-    text: z.string().max(20_000).optional(),
-    photoUrl: z.string().max(2_500_000).optional(),
-    audioUrl: z.string().max(2_500_000).optional(),
-    durationMs: z.number().int().min(0).max(86_400_000).optional(),
-  });
-
-  it("accepts the note payload — saveNote() → { taskId, kind: 'note', text }", () => {
-    expect(() =>
-      logSessionEventInput.parse({
-        taskId: "task-1",
-        kind: "note",
-        text: "checked the rotor spec — within tolerance",
-      }),
-    ).not.toThrow();
-  });
-
-  it("accepts the log payload — logProgress() → { taskId, kind: 'log', text }", () => {
-    expect(() =>
-      logSessionEventInput.parse({
-        taskId: "task-1",
-        kind: "log",
-        text: "progress check · 2:45 PM",
-      }),
-    ).not.toThrow();
-  });
-
-  it("accepts the voice payload — onend → { kind: 'voice', text, durationMs }", () => {
-    expect(() =>
-      logSessionEventInput.parse({
-        taskId: "task-1",
-        kind: "voice",
-        text: "transcribed voice note",
-        durationMs: 12_400,
-      }),
-    ).not.toThrow();
-  });
-
-  it("accepts the photo payload — onPhotoPick → { kind: 'photo', photoUrl }", () => {
-    // The companion caps the data URL at ~2MB before submit · the 2.5MB
-    // schema bound is the tRPC-boundary guard, generous above that cap.
-    expect(() =>
-      logSessionEventInput.parse({
-        taskId: "task-1",
-        kind: "photo",
-        photoUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
-      }),
-    ).not.toThrow();
-  });
-
-  it("rejects a kind outside the 4-value enum — the companion only emits note/photo/voice/log", () => {
-    // A permissive z.string() here would let an unknown kind through to
-    // the service's stricter check — exactly the bug class this slice
-    // guards against. The enum rejects it at the tRPC boundary.
-    expect(() =>
-      logSessionEventInput.parse({
-        taskId: "task-1",
-        kind: "audio" as unknown as "voice",
-      }),
-    ).toThrow();
-  });
-
-  it("rejects an empty taskId", () => {
-    expect(() =>
-      logSessionEventInput.parse({ taskId: "", kind: "note" }),
-    ).toThrow();
-  });
-
-  it("rejects a missing kind key — kind is required", () => {
-    expect(() =>
-      logSessionEventInput.parse({ taskId: "task-1", text: "orphan note" }),
     ).toThrow();
   });
 });
