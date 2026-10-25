@@ -167,7 +167,6 @@ const KNOWN_FADED: Record<string, number> = {
   "components/actions/mode-learn.tsx -> text-violet-400/80": 1,
   "components/actions/task-filters.tsx -> text-fg-tertiary/60": 1,
   "components/brain-dump-modal.tsx -> text-[var(--gold)]/50": 1,
-  "components/brain/continuity-view.tsx -> text-rose-300/70": 1,
   "components/brain/health-view.tsx -> text-[var(--text-tertiary)]/60": 1,
   "components/brain/health-view.tsx -> text-amber-400/80": 1,
   "components/brain/health-view.tsx -> text-rose-300/70": 1,
