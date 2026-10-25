@@ -18,7 +18,7 @@ const CACHE_TTL_MS = 60_000;
 export const FLAG_DEFINITIONS = [
   // ─── SMS & COMMUNICATION ──────────────────────────
   { key: "sms_appointment_reminders", description: "Send 24h/2h appointment reminder SMS" },
-  { key: "sms_review_requests", description: "Auto-send review request SMS 3 days after service" },
+  { key: "sms_review_requests", description: "Auto-send the review request SMS after service (delay from review_settings)" },
   { key: "sms_retention_sequences", description: "Send 90/180/365 day re-engagement SMS" },
   { key: "ai_receptionist_enabled", description: "AI phone answering via Twilio Voice" },
   { key: "drip_campaigns_enabled", description: "Multi-step automated drip campaigns" },
@@ -251,19 +251,34 @@ const AUTO_ENABLE_FLAGS: string[] = [
   "skill_reel_script_enabled"
 ];
 
-/** Seed all flags — idempotent (skips existing). High-value flags auto-enable. */
-export async function seedFlags(): Promise<{ seeded: number; skipped: number }> {
+/**
+ * Seed all flags — idempotent (skips existing). High-value flags auto-enable.
+ * An existing row keeps its value, but its DESCRIPTION follows the definition: featureFlags.list reads the row,
+ * so a corrected definition text would otherwise never reach the admin page on a deployed database.
+ */
+export async function seedFlags(): Promise<{ seeded: number; skipped: number; redescribed: number }> {
   const { getDb } = await import("../db");
   const { featureFlags } = await import("../../drizzle/schema");
   const db = await getDb();
-  if (!db) return { seeded: 0, skipped: 0 };
+  if (!db) return { seeded: 0, skipped: 0, redescribed: 0 };
 
   let seeded = 0;
   let skipped = 0;
+  let redescribed = 0;
 
   for (const flag of FLAG_DEFINITIONS) {
     const existing = await db.select().from(featureFlags).where(eq(featureFlags.key, flag.key)).limit(1);
     if (existing.length > 0) {
+      if (existing[0].description !== flag.description) {
+        // Description only: never value (an operator's toggle) and never updatedAt. Cosmetic, so a rejected
+        // write (varchar(500) in strict mode) is logged and must not stop the flags still to be seeded.
+        try {
+          await db.update(featureFlags).set({ description: flag.description }).where(eq(featureFlags.key, flag.key));
+          redescribed++;
+        } catch (err) {
+          log.warn(`Feature flag description not updated: ${flag.key}`, { error: err instanceof Error ? err.message : String(err) });
+        }
+      }
       skipped++;
       continue;
     }
@@ -278,8 +293,8 @@ export async function seedFlags(): Promise<{ seeded: number; skipped: number }> 
     log.info(`Feature flag seeded: ${flag.key} = ${autoEnable ? "ENABLED" : "DISABLED"}`);
   }
 
-  log.info(`Feature flags: ${seeded} new, ${skipped} existing`);
-  return { seeded, skipped };
+  log.info(`Feature flags: ${seeded} new, ${skipped} existing, ${redescribed} descriptions updated`);
+  return { seeded, skipped, redescribed };
 }
 
 /** Toggle a flag — admin use only */
