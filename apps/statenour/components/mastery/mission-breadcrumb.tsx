@@ -49,7 +49,7 @@ export function MissionBreadcrumb() {
         type="button"
         onClick={exit}
         aria-label="Clear mission filter"
-        className="inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] focus-visible:outline-none"
+        className="min-w-11 inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] focus-visible:outline-none"
       >
         clear
       </button>

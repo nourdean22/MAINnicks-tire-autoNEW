@@ -44,7 +44,7 @@ function openingTags(src: string, names: string[]): string[] {
   return out;
 }
 
-const NAMES = ["input", "button", "Link", "FreshnessChip", "ConfirmHold", "circle"];
+const NAMES = ["input", "button", "Link", "FreshnessChip", "ConfirmHold", "circle", "PageNick"];
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 /** Every tag carrying `anchor` must carry `floor`. Returns [located, violations]. */
@@ -74,6 +74,8 @@ const CASES: Case[] = [
   ["components/settings/operating-rhythm-toggle.tsx", "operating rhythm switch", /role="switch"/, MIN_H11, 1],
   ["components/settings/push-notification-toggle.tsx", "push notifications switch", /role="switch"/, MIN_H11, 1],
   ["components/ultron/preferences-card.tsx", "the eight style sliders (one mapped input)", /type="range"/, H11, 1],
+  // Round 5 (CI run 40152429185): the Body tab's Analyze button measured 84x32.
+  ["components/stats/body-section.tsx", "Analyze (PageNick's closed state)", /<PageNick/, /analyzeClassName="[^"]*\bmin-h-11\b/, 1],
   ["components/goals/execution-coach-sandbox.tsx", "focus timer ring animates its dash", /strokeDasharray=\{`\$\{\(timeLeft/, /transition-\[stroke-dasharray\]/, 1],
 ];
 
@@ -97,6 +99,8 @@ const TAB_FILES = [
   "components/mastery/mission-breadcrumb.tsx",
 ];
 const TAB_NAMES = ["button", "Button", "input", "Input", "select", "textarea", "Link", "a", "FreshnessChip"];
+/** Round 5: a short label under px-3 ("no") measured 40 wide, so a button also needs a width floor. */
+const WIDTH_FLOOR = /(?<![\w-])(min-w-11|w-11|w-12|w-14|w-16|w-full|flex-1|min-w-\[(?:4[4-9]|[5-9]\d)px\]|px-(?:4|5|6|8))(?![\w-])/;
 const HEIGHT_FLOOR = /(?<![\w-])(min-h-11|h-11|h-12|h-14|min-h-12|min-h-\[(?:4[4-9]|[5-9]\d|\d{3})px\])(?![\w-])/;
 
 function measured(src: string): string[] {
@@ -110,7 +114,7 @@ function measured(src: string): string[] {
 
 function unfloored(src: string): string[] {
   return measured(stripComments(src))
-    .filter((t) => !HEIGHT_FLOOR.test(t))
+    .filter((t) => !HEIGHT_FLOOR.test(t) || (/^<(button|Button)\b/.test(t) && !WIDTH_FLOOR.test(t)))
     .map((t) => t.replace(/\s+/g, " ").slice(0, 110));
 }
 
@@ -136,6 +140,9 @@ describe("controls CI measured under the floor carry it in their own tag", () =>
     expect(unfloored(`<Input type="number" className="h-5 w-14" />`)).toHaveLength(1);
     expect(unfloored(`<button type="button" className="px-1.5 py-0.5">Log</button>`)).toHaveLength(1);
     expect(unfloored(`<a href="/x" className="underline">source</a>`)).toHaveLength(0);
+    // round 5: the 40 px wide "no" (tall enough, too narrow) and the 32 px Analyze box
+    expect(unfloored(`<button type="button" className="min-h-[44px] px-3 rounded-control">no</button>`)).toHaveLength(1);
+    expect(check(`<PageNick page="body" />`, /<PageNick/, /analyzeClassName="[^"]*\bmin-h-11\b/)[1]).toHaveLength(1);
   });
 
   it("positive control: a planted control left small fails the same check", () => {

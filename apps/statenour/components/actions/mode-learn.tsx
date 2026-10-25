@@ -573,7 +573,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           </button>
           <button
             onClick={handleSkipActiveReview}
-            className="min-h-[44px] px-3.5 rounded-control bg-content text-fg-secondary border border-edge-default hover:bg-surface-hover hover:text-fg text-xs font-medium transition-all"
+            className="min-w-11 min-h-[44px] px-3.5 rounded-control bg-content text-fg-secondary border border-edge-default hover:bg-surface-hover hover:text-fg text-xs font-medium transition-all"
             aria-label="Skip to next review card"
             id="skip-focus-btn"
           >
@@ -602,7 +602,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 setReviewTimeLeft(45);
                 setShowSummary(false);
               }}
-              className="min-h-11 min-w-11 text-[11px] h-7 px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-semibold flex items-center gap-1.5"
+              className="min-h-11 min-w-11 text-[11px] px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-semibold flex items-center gap-1.5"
               id="adhd-focus-review-btn"
             >
               <Zap size={11} className="fill-amber-400/20" />

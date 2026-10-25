@@ -255,7 +255,7 @@ export function BodySection() {
         )}
       </div>
 
-      <PageNick page="body" />
+      <PageNick page="body" analyzeClassName="min-h-11 min-w-11" />
 
       {/* Progress Summary */}
       {progress && (
@@ -371,7 +371,7 @@ export function BodySection() {
               setEfStress(null);
               setNotes("");
             }}
-            className="min-h-11 min-w-11 h-7 rounded-control border border-edge-default px-2 text-[11px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+            className="min-h-11 min-w-11 rounded-control border border-edge-default px-2 text-[11px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             {efLogMode ? "Normal Mode" : "EF Quick-Log"}
           </Button>
@@ -588,8 +588,7 @@ export function BodySection() {
                     key={String(opt.value)}
                     type="button"
                     onClick={() => setWorkoutDone(opt.value)}
-                    className={cn(
-                      "min-h-[44px] px-3 rounded-control border transition-colors duration-[var(--motion-state)]",
+                    className={cn("min-w-11 min-h-[44px] px-3 rounded-control border transition-colors duration-[var(--motion-state)]",
                       workoutDone === opt.value
                         ? opt.value
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
