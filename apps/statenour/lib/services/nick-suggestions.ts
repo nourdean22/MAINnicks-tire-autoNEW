@@ -26,6 +26,7 @@ import { today as todayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { getDismissedSuggestionIds } from "@/lib/brain/suggestion-loop";
 import { getUrgentLeads } from "@/lib/services/leads";
+import { isDemoMode } from "@/lib/runtime";
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
 
 export interface NickSuggestion {
@@ -320,7 +321,9 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
   // morning. Throw so `nick.suggestions` errors and the strip says the list could not load.
   // shortcut: a partial failure returns whatever answered, even an empty list, with no note;
   // upgrade by returning a failedSources count the strip can show when live is empty.
-  if (registeredReads > 0 && failedReads === registeredReads) {
+  // Demo mode (no DATABASE_URL) has no database by design, so every Prisma read rejects there and the
+  // strip must stay the graceful empty it was, not a permanent error (leads.ts branches the same way).
+  if (!isDemoMode && registeredReads > 0 && failedReads === registeredReads) {
     throw new Error("Every suggestion source failed to read; the chip list is unknown, not empty.");
   }
 

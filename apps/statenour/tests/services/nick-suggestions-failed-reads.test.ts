@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   mode: "all-fail" as "all-fail" | "all-fail-leads-reject" | "one-answers" | "all-empty",
   recordShownBounded: vi.fn(async () => null),
+  demo: false,
 }));
 
 const reject = () => Promise.reject(new Error("db down"));
@@ -31,6 +32,12 @@ vi.mock("@/lib/prisma", () => {
     new Proxy({}, { get: (_t, op: string) => () => answer(name, op) });
   return { prisma: new Proxy({}, { get: (_t, name: string) => model(name) }) };
 });
+// isDemoMode is a module constant in production; a getter lets each test pick the mode.
+vi.mock("@/lib/runtime", () => ({
+  get isDemoMode() {
+    return h.demo;
+  },
+}));
 vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: h.recordShownBounded }));
 vi.mock("@/lib/brain/suggestion-loop", () => ({
   getDismissedSuggestionIds: async () =>
@@ -46,6 +53,7 @@ import { buildNickSuggestions } from "@/lib/services/nick-suggestions";
 
 beforeEach(() => {
   h.recordShownBounded.mockClear();
+  h.demo = false;
 });
 
 describe("buildNickSuggestions: a total failure is an error, not a quiet morning", () => {
@@ -56,6 +64,19 @@ describe("buildNickSuggestions: a total failure is an error, not a quiet morning
 
   it("still throws when the lead read rejects too (it does not vote either way)", async () => {
     h.mode = "all-fail-leads-reject";
+    await expect(buildNickSuggestions()).rejects.toThrow(/every suggestion source/i);
+  });
+
+  it("demo mode (no database): every Prisma read rejects by design, so the strip stays empty, not an error", async () => {
+    h.mode = "all-fail";
+    h.demo = true;
+    const view = await buildNickSuggestions();
+    expect(view.suggestions).toEqual([]);
+  });
+
+  it("CONTROL: the same total failure outside demo mode still throws", async () => {
+    h.mode = "all-fail";
+    h.demo = false;
     await expect(buildNickSuggestions()).rejects.toThrow(/every suggestion source/i);
   });
 
