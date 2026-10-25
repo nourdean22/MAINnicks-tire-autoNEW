@@ -16,6 +16,10 @@ must be true before it does.
 | 5 | "Checked", "verified", "confirmed" carry the receipt in the same sentence (command and its summary line) | written rule only: no check can tell a receipt from a paraphrase |
 | 6 | Before relaying any session or lane claim, run the relay check below | written rule; rows 3 and 4 catch the CI and live forms |
 | 7 | An intent line of 8 words or fewer before each tool call; answer first, ranked options, a confidence percent on judgment calls | `answer-first`, memory `feedback-manager-voice-rules` |
+| 8 | Ask Nour only about the four protected classes in `.agents/core/USER.md` (spending money, customer-facing sends, production database writes, credentials) and the rest of `AGENTS.md` > Protected operations, which stay never on agent initiative. A step inside an order he gave is decided, done, then reported: dispatch, a fast-forward or pull, a gate re-run, a docs PR, a merge on green of a change he asked for in words (policy, guard and skill edits included), and line-ending or stash cleanup (`node scripts/agent-os/eol-restore.mjs <path>` then `git merge --ff-only origin/main`; your own tagged entry: `node scripts/agent-os/stash-drop-tagged.mjs <tag>`). The wrap-up question box asks only about one of the four. Nour, 2026-10-25: "Why do you have to come to me for one little step?" | written rule only (SKILL.md turn row 5, steps 3, 14, 15) |
+
+Pre-clear (step 3) names the action, the file and the condition, for example "merge a Dockerfile heap fix if the bdnick
+build dies of OOM". A Railway variable approval (`infra-approve.mjs`) lasts 30 minutes, so it cannot be pre-cleared.
 
 A hook that sends a turn back once is a seatbelt, not a driver: rows 1-4 catch the forms that were seen on 2026-10-22,
 and every sentence still has to be true on its own.

@@ -92,7 +92,9 @@ and in the cherry-pick.
 
 ## Merge protocol (step 15)
 
-Merge only when authorized. Then run ONE command, which re-verifies every condition in the same process as the merge:
+Merge only when authorized: a change Nour asked for in words (his policy, guard and skill edits included), a pasted-report
+job, or a docs-only PR; on green, merge with no second question. A change he did not ask for (a `session-observer`
+proposal, an unasked loosening of a guard) waits for his go. Then run ONE command, which re-verifies every condition in the same process as the merge:
 
 ```bash
 node scripts/agent-os/merge-gate.mjs <pr> --sha <full head sha you verified> --merge

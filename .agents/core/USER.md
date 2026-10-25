@@ -27,6 +27,8 @@ review counts) are read from source files, never copied here. [Letters] cite sou
 - Signals: a pasted report or audit = implement and merge. "merge it" = merge after green. Docs-only PRs merge
   right away. "fix all of it and don't come back until finished" = one PR, one report. ALL CAPS = emphasis. [I]
 - Ask him only for: spending money, customer-facing sends, production writes, credentials. [I]
+- 2026-10-25, his words: "Why do you have to come to me for one little step?" Inside an order he gave, dispatch, pulls,
+  merges on green (policy and skill edits he asked for included) and cleanup are done, then reported; never a question. [O]
 - Cost: CI runs cost him money (one validated push per PR); no second model bill (evals stay on his Ollama plan);
   no broad disk scans without asking. [J]
 
@@ -48,4 +50,4 @@ Rule 1 still bars AI footage framed as real). [L] Facts marked REFUTED in `apps/
 A newer explicit correction from Nour beats anything here. Fix this file and the source in the same PR, update
 any agent memory that repeats the old fact, and never re-derive the old fact from an older summary.
 
-Source letters [A]-[N] resolve in [USER-SOURCES.md](USER-SOURCES.md) (not auto-loaded; open when a fact is in doubt).
+Source letters [A]-[O] resolve in [USER-SOURCES.md](USER-SOURCES.md) (not auto-loaded; open when a fact is in doubt).

@@ -85,6 +85,8 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   chain ON PURPOSE: destructive-sql (the client and the SQL sit on either side of a pipe or heredoc),
   worktree-recursive-delete (destructive; the path can come from a subshell holding `;`), the night-shift shell-write
   rule's inline-script arm (`node -e "a; b"` holds `;`), infra-approvals-store-shell (any mention of the store path).
+  **Doors (2026-10-25):** a file dirty for line endings only: `node scripts/agent-os/eol-restore.mjs <path>` (refuses a real
+  edit); a stash entry you tagged `manager-*` or `session-*`: `node scripts/agent-os/stash-drop-tagged.mjs <tag>`, never by index.
 - **PreCompact** (`precompact-handoff.mjs`, 2026-10-16) writes a handoff note BEFORE the context is compacted: branch,
   HEAD, ahead/behind `origin/main`, the Session Authority lease, uncommitted paths, the last 5 commits. It lands outside
   the repo (`~/.claude/agent-os/handoffs/<cwd slug>/`, newest 10 kept; `AGENT_OS_HANDOFF_DIR` overrides) so the tree
