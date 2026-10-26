@@ -394,6 +394,8 @@ export function buildStreamConfigFactory(deps: {
           model: __fbModel,
           system: finalSystemPrompt,
           messages: sanitizedModelMessages,
+          privateMode,
+          conversationId: conversationId || undefined,
           log,
         });
         return persist(salvage ? { ...event, ...salvage } : event);

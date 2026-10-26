@@ -61,7 +61,7 @@ function fake(streamParts: unknown[], salvageText: string) {
   return { model, generateCalls };
 }
 
-async function run(model: unknown) {
+async function run(model: unknown, overrides: Record<string, unknown> = {}) {
   const build = buildStreamConfigFactory({
     persistBase: { recordTrace: vi.fn() } as never,
     provider: "ollama" as never,
@@ -85,6 +85,7 @@ async function run(model: unknown) {
     recordTrace: vi.fn() as never,
     resolveOnFinish: vi.fn(),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
+    ...overrides,
   } as never);
   const result = streamText({ ...(build(model as never) as Record<string, unknown>), maxRetries: 0 } as never);
   await result.consumeStream();
@@ -117,6 +118,29 @@ describe("a reply cut off by the output cap before any text is salvaged once", (
     expect(generateCalls).toHaveLength(1);
     expect(event.text).toBe("");
     expect(event.finishReason).toBe("length");
+    // The empty retry still spent tokens.
+    expect(event.usage).toMatchObject({ inputTokens: 21512 + 1, outputTokens: 6000 + 1 });
+  });
+
+  // Codex P2 on PR 3296: the retry's tokens were dropped, so cost rows and
+  // AiGeneration totals undercounted the turn.
+  it("the persisted usage is the cut-off attempt plus the retry", async () => {
+    const { model } = fake(LENGTH_NO_TEXT, "A short, direct reply.");
+    const event = await run(model);
+
+    expect(event.usage).toMatchObject({ inputTokens: 21512 + 1, outputTokens: 6000 + 1, totalTokens: 27512 + 2 });
+  });
+
+  // Codex P2 on PR 3296: a private turn writes no row and emits no
+  // message.persisted, so a retry's text could never reach the screen.
+  it("a private turn cut off by the cap makes no retry and logs why", async () => {
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const { model, generateCalls } = fake(LENGTH_NO_TEXT, "never shown");
+    const event = await run(model, { privateMode: true, log });
+
+    expect(generateCalls).toHaveLength(0);
+    expect(log.info).toHaveBeenCalledWith("length_cutoff_salvage_skipped_private", expect.anything());
+    expect(event.text).toBe("");
   });
 
   it("CONTROL · a normal text turn is untouched and makes no extra call", async () => {
