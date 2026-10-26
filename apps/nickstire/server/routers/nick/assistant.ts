@@ -92,9 +92,9 @@ const ASSISTANT_TOOLS: Tool[] = [
 
 const DROP_KEYS = /^(email|address|city|state|zip|phone2|psychoProfile\w*|alsCustomerId|algTicketId|externalId|smsCampaign\w*|updatedAt)$/;
 const PHONE_KEYS = /^(phone|customerPhone|callerPhone|fromNumber|from|to)$/;
-const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue|cents|averageCents)$/;
+const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue|cents|averageCents|pendingCents|partialCentsFullValue|refundedCents)$/;
 // services/shopSales.ts: the ShopDriver mirror maps the ALG ticket lifecycle onto paymentStatus.
-const STATUS_MEANING = "paymentStatus on a ShopDriver counter invoice is the ticket state, not money: paid = ticket closed (a sale), pending = ticket still open (not a sale yet). Payment is taken on a separate register, so it never says whether a customer paid. On an online tire order it is the real payment state.";
+const STATUS_MEANING = "On a ShopDriver counter invoice (source shopdriver) paymentStatus is the ticket state, not money: paid = ticket closed (a sale), pending = ticket still open (not a sale yet); payment is taken on a separate register, so it never says whether that customer paid. On an online tire order made in the app (source manual) it IS the real checkout state.";
 
 function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   if (depth > 5) return undefined;
@@ -105,7 +105,7 @@ function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (DROP_KEYS.test(k)) continue;
     if (PHONE_KEYS.test(k) && typeof v === "string") { out[k] = v ? `...${v.replace(/\D/g, "").slice(-4)}` : ""; continue; }
-    if (centsAware && CENTS_KEYS.test(k) && typeof v === "number") { out[k === "cents" ? "dollars" : `${k.replace(/Cents$/, "")}Dollars`] = Math.round(v) / 100; continue; }
+    if (centsAware && CENTS_KEYS.test(k) && typeof v === "number") { out[k === "cents" ? "dollars" : `${k.replace("Cents", "")}Dollars`] = Math.round(v) / 100; continue; }
     out[k] = minimize(v, depth + 1, centsAware);
   }
   return out;
@@ -161,6 +161,10 @@ async function runAssistantTool(caller: Caller, tool: string, args: Record<strin
         const period = SALES_PERIODS.find((p) => p === args.period) ?? "last_7d";
         const r = await caller.controlCenter.shopSales({ period });
         if (!r.available) throw new Error(r.reason);
+        // Same rule as the Money page (SalesCard dayNotShown): a single day shows only once a ShopDriver sync covers it.
+        if ((period === "today" || period === "yesterday") && r.windowSynced !== true) {
+          throw new Error(`${period} is not synced from ShopDriver yet, so its sales are not known (the Money page hides it too)`);
+        }
         return ok(source, r, r.invoiceCount);
       }
       case "declined_work": {
@@ -255,7 +259,7 @@ function buildSystemPrompt(page: AssistantPage | undefined, todayEt: string): st
     `Today is ${todayEt} (America/New_York).`,
     "Answer only from tool results. If a tool failed or a fact is not in the results, say UNKNOWN for that part. Never guess numbers.",
     "After every fact taken from a record, cite it as [[customer:ID]], [[invoice:ID]] or [[lead:ID]] using ids from the tool results. Write the name first, then the reference right after it: it shows as a small link.",
-    "What the records mean: a counter invoice is a closed job (a sale). Its paymentStatus is the ticket state, not money: paid = closed (a sale), pending = still open (not a sale yet). Payment is taken on a separate register, so never say whether a customer paid from it.",
+    "What the records mean: a counter invoice is a closed job (a sale). On a ShopDriver counter invoice paymentStatus is the ticket state, not money: paid = closed (a sale), pending = still open (not a sale yet); payment is taken on a separate register, so never say whether a counter customer paid from it. On an online tire order made in the app (source manual) paymentStatus is the real checkout state.",
     "For sales, revenue or how the shop did, use sales_summary: it is the Money page's own figure. Never add up invoice rows yourself.",
     "An estimate with no matching invoice most likely means the customer walked (declined work), but it is an inference unless the counter recorded the no. Say which one you mean.",
     "Follow-ups key to invoices, not bookings. The shop is first come first served, walk-ins 7 days, no held appointment slots.",

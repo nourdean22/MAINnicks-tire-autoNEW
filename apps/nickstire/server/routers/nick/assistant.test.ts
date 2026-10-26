@@ -94,7 +94,9 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     const system = String((invoke.mock.calls[0][0] as InvokeParams).messages[0].content);
     expect(system).toContain("a counter invoice is a closed job (a sale)");
     expect(system).toContain("paid = closed (a sale), pending = still open (not a sale yet)");
-    expect(system).toContain("never say whether a customer paid from it");
+    expect(system).toContain("never say whether a counter customer paid from it");
+    // Codex P2 on PR 3306: an online tire order's status IS the real checkout state.
+    expect(system).toContain("On an online tire order made in the app (source manual) paymentStatus is the real checkout state");
     expect(system).toMatch(/estimate with no matching invoice most likely means the customer walked .*it is an inference unless the counter recorded the no/);
     expect(system).toContain("first come first served");
   });
@@ -104,6 +106,7 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     const { toolResult, answer } = await askWithTool("find_invoices", { search: "Pat" });
     expect(toolResult.data.invoices[0]).toMatchObject({ paymentStatus: "pending", totalAmountDollars: 459.99 });
     expect(toolResult.data.statusMeaning).toMatch(/pending = ticket still open \(not a sale yet\)/);
+    expect(toolResult.data.statusMeaning).toMatch(/online tire order made in the app \(source manual\) it IS the real checkout state/);
     expect(answer.receipts[0]).toMatchObject({ source: "invoices.list", count: 1 });
   });
 
@@ -114,6 +117,26 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     expect(raw.invoices.list).not.toHaveBeenCalled();
     expect(toolResult.data).toMatchObject({ dollars: 14363, invoiceCount: 25, averageDollars: 574.52 });
     expect(answer.receipts[0]).toMatchObject({ source: "controlCenter.shopSales", ok: true, count: 25 });
+  });
+
+  it("what the Money total excludes reaches the model in dollars, like the total", async () => {
+    fakeCaller({ controlCenter: { shopSales: vi.fn(async () => ({ available: true, cents: 1436300, invoiceCount: 25, averageCents: 57452, period: "last_7d", previous: null, exclusions: { pendingCount: 2, pendingCents: 148482, partialCount: 1, partialCentsFullValue: 5000, refundedCount: 0, refundedCents: 0, blankInvoiceNumbers: 0 } })) } });
+    const { toolResult } = await askWithTool("sales_summary", { period: "last_7d" });
+    expect(toolResult.data.exclusions).toEqual({ pendingCount: 2, pendingDollars: 1484.82, partialCount: 1, partialFullValueDollars: 50, refundedCount: 0, refundedDollars: 0, blankInvoiceNumbers: 0 });
+  });
+
+  it("a single day ShopDriver has not synced yet is UNKNOWN, as the Money page hides it, never its figure", async () => {
+    fakeCaller({ controlCenter: { shopSales: vi.fn(async () => ({ available: true, cents: 0, invoiceCount: 0, averageCents: null, period: "today", previous: null, windowSynced: false })) } });
+    const { toolResult, answer } = await askWithTool("sales_summary", { period: "today" });
+    expect(answer.receipts[0]).toMatchObject({ ok: false, unknown: true });
+    expect(answer.receipts[0].error).toMatch(/not synced from ShopDriver yet/);
+    expect(toolResult.data).toBeUndefined();
+  });
+
+  it("a synced single day is shown", async () => {
+    fakeCaller({ controlCenter: { shopSales: vi.fn(async () => ({ available: true, cents: 90000, invoiceCount: 3, averageCents: 30000, period: "yesterday", previous: null, windowSynced: true })) } });
+    const { toolResult } = await askWithTool("sales_summary", { period: "yesterday" });
+    expect(toolResult.data).toMatchObject({ dollars: 900, invoiceCount: 3 });
   });
 
   it("sales totals say UNKNOWN when the Money read is unavailable, never a zero", async () => {
