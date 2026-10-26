@@ -73,6 +73,19 @@ class DormantStandbyTest(unittest.TestCase):
         edge_main.wait_until_authoritative(loop, threading.Event(), sleep=lambda s: None, clock=lambda: 3600.0)
         self.assertEqual(loop.started_at, 3600.0)
 
+    def test_election_writes_the_marker_the_cloud_launcher_waits_for(self):
+        import tempfile
+        marker = os.path.join(tempfile.mkdtemp(), "elected")
+        loop = _loop([False, True])
+        edge_main.wait_until_authoritative(loop, threading.Event(), sleep=lambda s: None, clock=lambda: 1.0,
+                                           elected_file=marker)
+        self.assertTrue(os.path.exists(marker))
+        unelected = os.path.join(tempfile.mkdtemp(), "elected")
+        stop = threading.Event()
+        edge_main.wait_until_authoritative(_loop([False] * 3), stop, sleep=lambda s: stop.set(), clock=lambda: 1.0,
+                                           elected_file=unelected)
+        self.assertFalse(os.path.exists(unelected))
+
     def test_a_lapsed_lease_stops_the_standby_BEFORE_it_reads_a_frame(self):
         loop = _loop([False])
         steps = []

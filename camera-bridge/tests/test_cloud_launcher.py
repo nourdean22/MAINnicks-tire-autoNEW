@@ -1,0 +1,196 @@
+"""The Railway copy's launcher (lot vision v2 phase 3).
+
+Dormant means NO camera session: the relay is what logs in to the V380 cloud, so the launcher
+starts the relay and the crop only after the edge reports it was elected (a marker file). A lost
+lease returns the copy to dormant IN-PROCESS: Railway caps On-Failure restarts, so an ordinary
+handback must never count as a crash (Codex on #3313).
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from cloud import run_cloud                                              # noqa: E402
+
+_DIR = tempfile.mkdtemp()
+GOOD_CAL = os.path.join(_DIR, "good.json")
+NO_PORTAL_CAL = os.path.join(_DIR, "no-portal.json")
+INSIDE_PORTAL_CAL = os.path.join(_DIR, "inside-portal.json")
+LOT = [[173, 143], [618, 143], [638, 186], [638, 359], [101, 359], [137, 323], [173, 287]]
+with open(GOOD_CAL, "w") as fh:
+    json.dump({"lot": LOT, "portal": [[29, 280], [209, 273], [180, 359], [29, 359]]}, fh)
+with open(NO_PORTAL_CAL, "w") as fh:
+    json.dump({"lot": LOT}, fh)
+with open(INSIDE_PORTAL_CAL, "w") as fh:
+    json.dump({"lot": LOT, "portal": [[300, 200], [400, 200], [400, 300], [300, 300]]}, fh)
+
+ENV = {
+    "V380_DEVICE_ID": "12345678",
+    "V380_USERNAME": "admin",
+    "V380_PASSWORD": "pw",
+    "CAMERA_INGEST_KEY": "k",
+    "RELAY_BIN": "/opt/relay/V380Decoder",
+    "MEDIAMTX_BIN": "/opt/mediamtx/mediamtx",
+    "EDGE_CALIBRATION": GOOD_CAL,
+}
+
+
+class CommandTest(unittest.TestCase):
+    def test_crop_is_the_production_middle_lens_command(self):
+        args = run_cloud.crop_args("ffmpeg")
+        self.assertEqual(args[args.index("-i") + 1], "rtsp://127.0.0.1:8554/live")
+        self.assertIn("crop=1920:1080:0:1080,scale=640:360,fps=4,setpts=N/(4*TB)", args)
+        self.assertEqual(args[-1], "rtsp://127.0.0.1:8555/sign")
+        self.assertEqual(args[args.index("-timeout") + 1], "5000000")
+
+    def test_relay_uses_cloud_mode_on_8554(self):
+        args = run_cloud.relay_args(ENV)
+        self.assertEqual(args[0], "/opt/relay/V380Decoder")
+        self.assertEqual(args[args.index("--source") + 1], "cloud")
+        self.assertEqual(args[args.index("--rtsp-port") + 1], "8554")
+        self.assertEqual(args[args.index("--id") + 1], "12345678")
+
+    def test_missing_camera_credentials_refuse_to_start(self):
+        for key in ("V380_DEVICE_ID", "V380_USERNAME", "V380_PASSWORD"):
+            env = dict(ENV)
+            env.pop(key)
+            with self.assertRaises(run_cloud.LauncherConfigError):
+                run_cloud.relay_args(env)
+
+    def test_mediamtx_serves_the_crop_on_8555_not_the_relay_port(self):
+        cfg = run_cloud.mediamtx_config()
+        self.assertIn("rtspAddress: :8555", cfg)
+        self.assertNotIn(":8554", cfg)
+
+    def test_edge_is_the_dormant_sign_producer(self):
+        args = run_cloud.edge_args(ENV, elected_file="/tmp/elected", ledger="/tmp/x/visitd.sqlite")
+        self.assertIn("--dormant-until-authoritative", args)
+        self.assertEqual(args[args.index("--source") + 1], "rtsp")
+        self.assertEqual(args[args.index("--camera") + 1], "sign")
+        self.assertEqual(args[args.index("--calibration") + 1], GOOD_CAL)
+        self.assertEqual(args[args.index("--elected-file") + 1], "/tmp/elected")
+        self.assertEqual(args[args.index("--ledger") + 1], "/tmp/x/visitd.sqlite")
+        self.assertTrue(args[args.index("--config") + 1].endswith(os.path.join("cloud", "config.cloud.yaml")))
+
+    def test_calibration_that_cannot_count_refuses_to_start(self):
+        # Missing, no portal (census only) or a portal that never crosses the lot: all claim 0 arrivals.
+        for path in ("/nope/missing.json", NO_PORTAL_CAL, INSIDE_PORTAL_CAL):
+            with self.assertRaises(run_cloud.LauncherConfigError, msg=path):
+                run_cloud.edge_args(dict(ENV, EDGE_CALIBRATION=path), elected_file="/e", ledger="/l")
+
+    def test_no_shop_ingest_key_refuses_to_start(self):
+        # Without it the shop never hears the heartbeat, so the copy could never be elected.
+        env = dict(ENV)
+        env.pop("CAMERA_INGEST_KEY")
+        with self.assertRaises(run_cloud.LauncherConfigError):
+            run_cloud.edge_args(env, elected_file="/e", ledger="/l")
+
+    def test_the_ledger_lives_on_the_volume_not_in_a_per_launch_temp_dir(self):
+        self.assertEqual(run_cloud.ledger_path({}), os.path.join("/data", "lot-vision", "visitd.sqlite"))
+        self.assertEqual(run_cloud.ledger_path({"LEDGER_DIR": "/v"}), os.path.join("/v", "visitd.sqlite"))
+
+
+class _Proc:
+    def __init__(self, name, log):
+        self.name, self.log, self.code = name, log, None
+
+    def poll(self):
+        return self.code
+
+    def terminate(self):
+        self.log.append(("stop", self.name))
+        if self.code is None:
+            self.code = -15
+
+
+class SuperviseTest(unittest.TestCase):
+    def _run(self, script, max_ticks=40):
+        log, procs = [], {}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+
+        def start(name):
+            log.append(("start", name))
+            procs[name] = _Proc(name, log)
+            return procs[name]
+
+        ticks = {"n": 0}
+
+        def sleep(_s):
+            ticks["n"] += 1
+            script(ticks["n"], procs, elected)
+
+        code = run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=max_ticks)
+        return code, log, elected
+
+    def test_dormant_never_starts_the_relay(self):
+        code, log, _ = self._run(lambda n, p, e: None)
+        self.assertNotIn(("start", "relay"), log)
+        self.assertNotIn(("start", "crop"), log)
+
+    def test_election_starts_the_relay_and_crop(self):
+        def script(n, procs, elected):
+            if n == 2:
+                open(elected, "w").close()
+
+        _code, log, _ = self._run(script)
+        self.assertLess(log.index(("start", "edge")), log.index(("start", "relay")))
+        self.assertIn(("start", "crop"), log)
+
+    def test_lease_loss_goes_dormant_in_process_without_exiting(self):
+        def script(n, procs, elected):
+            if n == 2:
+                open(elected, "w").close()
+            if n == 5:
+                procs["edge"].code = 4
+
+        code, log, elected = self._run(script, max_ticks=12)
+        self.assertEqual(code, 3)                      # only the tick budget ended this run
+        self.assertIn(("stop", "relay"), log)
+        self.assertEqual(log.count(("start", "edge")), 2)
+        self.assertFalse(os.path.exists(elected))
+
+    def test_a_crop_with_no_frames_yet_is_retried_without_touching_the_relay(self):
+        # Camera asleep or relay warming up: FFmpeg's RTSP timeout ends the crop (Codex on #3313).
+        def script(n, procs, elected):
+            if n == 2:
+                open(elected, "w").close()
+            if n == 4:
+                procs["crop"].code = 1
+
+        _code, log, _ = self._run(script, max_ticks=4 + run_cloud.CROP_RETRY_TICKS + 2)
+        self.assertEqual(log.count(("start", "crop")), 2)
+        self.assertEqual(log.count(("start", "relay")), 1)
+        # The only relay stop is the end-of-run cleanup, after the crop was restarted.
+        last_crop_start = len(log) - 1 - log[::-1].index(("start", "crop"))
+        self.assertGreater(log.index(("stop", "relay")), last_crop_start)
+
+    def test_a_dead_relay_is_retried_after_a_backoff_not_by_a_container_restart(self):
+        def script(n, procs, elected):
+            if n == 2:
+                open(elected, "w").close()
+            if n == 4:
+                procs["relay"].code = 1
+
+        code, log, _ = self._run(script, max_ticks=4 + run_cloud.RELAY_RETRY_TICKS + 2)
+        self.assertEqual(log.count(("start", "relay")), 2)
+        self.assertEqual(log.count(("start", "edge")), 1)
+        self.assertEqual(code, 3)
+
+    def test_an_unexpected_edge_exit_or_dead_mediamtx_ends_the_copy_nonzero(self):
+        for name, code_in in (("edge", 0), ("edge", 1), ("mediamtx", 1)):
+            def script(n, procs, _e, name=name, code_in=code_in):
+                if n == 2:
+                    procs[name].code = code_in
+
+            code, log, _ = self._run(script)
+            self.assertNotEqual(code, 0, (name, code_in))
+            self.assertLess(len([x for x in log if x[0] == "start"]), 5)
+
+
+if __name__ == "__main__":
+    unittest.main()
