@@ -13,7 +13,7 @@
  * - Admin order management (view, update status, notes)
  */
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, dbAdminProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyTireOrder } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
 import { shopWallClock } from "../lib/timezoneAssert";
@@ -34,7 +34,8 @@ import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 import { PRICED_SIZES, cleanSize, computeSizePriceFloors, dropPriceOutliers, type SizePriceFloor } from "../lib/tirePriceRanges";
 
 import { db } from "../lib/db-helper";
-import { getTireMarkup } from "../lib/tireMarkup";
+import { getTireMarkup, markupPercentSchema, readTireMarkupSetting, saveTireMarkup } from "../lib/tireMarkup";
+import { readTireActivity } from "../lib/tireActivity";
 import { affectedRowCount } from "../lib/db-affected";
 import { describeDbError } from "../lib/dbErrors";
 import { BUSINESS } from "@shared/business";
@@ -1563,20 +1564,28 @@ export const gatewayTireRouter = router({
       };
     }),
 
-  updateMarkup: adminProcedure
-    .input(z.object({ markup: z.number().min(0).max(300) }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
+  /**
+   * The saved online tire markup with when and by whom it was set (contract gatewayTire.markup v1).
+   * Website tire prices only: the counter's tire prices are set in ShopDriver. A missing row is
+   * percent null, never a default; a failed read is { available: false }, a dead handle is
+   * SERVICE_UNAVAILABLE (dbAdminProcedure, ROS-083).
+   */
+  markup: dbAdminProcedure.query(() => readTireMarkupSetting()),
 
-      const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "tireMarkup")).limit(1);
-      if (existing.length > 0) {
-        await d.update(shopSettings).set({ value: input.markup.toString(), updatedBy: "admin" }).where(eq(shopSettings.key, "tireMarkup"));
-      } else {
-        await d.insert(shopSettings).values({ key: "tireMarkup", value: input.markup.toString(), category: "pricing", label: "Tire Markup %", updatedBy: "admin" });
-      }
-      return { success: true, markup: input.markup };
-    }),
+  /** Saves the markup as the signed-in admin and returns the saved row, shaped like `markup` (v2). */
+  updateMarkup: dbAdminProcedure
+    .input(z.object({ markup: markupPercentSchema }))
+    .mutation(({ input, ctx }) =>
+      saveTireMarkup(input.markup, ctx.user.email || ctx.user.name || ctx.user.openId)),
+
+  /**
+   * How many times each tire-flow customer event fired in the last `days` days (contract
+   * gatewayTire.tireActivity v1). Shop-floor read (workorders.manage), so the tech role can open it;
+   * customerEvents.summary needed customers.manage and cut off at the top 20 event names.
+   */
+  tireActivity: dbAdminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(180).default(30) }).prefault({}))
+    .query(({ input }) => readTireActivity(input.days)),
 
   refundOrder: adminProcedure
     .input(

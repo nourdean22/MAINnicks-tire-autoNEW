@@ -113,7 +113,8 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // The live public tire markup (every tire price = wholesale x markup). Its editor moved
   // from owner/manager-only Settings into Tires on 2026-10-19, which tech and front_desk
   // also open; the setting stays owner/manager (PR 3182 review).
-  if (normalized === "gatewaytire.updatemarkup") return "settings.manage";
+  // 2026-10-25: reading it back (percent, who, when) is held to the same tier as changing it.
+  if (normalized === "gatewaytire.updatemarkup" || normalized === "gatewaytire.markup") return "settings.manage";
   // 2026-10-18 · gatewayOrder.* places a D&K supplier order: it spends the shop's money, so
   // owner/manager like the refund above, never the shop-floor permission a tech holds.
   if (normalized.startsWith("gatewayorder.")) return "money.manage";

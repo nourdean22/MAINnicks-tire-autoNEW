@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 130,
+    "emDash": 124,
     "emoji": 0,
-    "transitionAll": 48,
+    "transitionAll": 46,
     "slowDuration": 7,
-    "smallInput": 89,
-    "offPalette": 117
+    "smallInput": 88,
+    "offPalette": 112
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -54,10 +54,8 @@
       "smallInput": 9
     },
     "client/src/pages/admin/TireOrdersSection.tsx": {
-      "emDash": 6,
-      "transitionAll": 3,
-      "smallInput": 7,
-      "offPalette": 5
+      "transitionAll": 1,
+      "smallInput": 6
     },
     "client/src/pages/admin/TrafficFunnelSection.tsx": {
       "emDash": 4,
