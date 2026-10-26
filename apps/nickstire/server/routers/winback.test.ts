@@ -28,11 +28,26 @@ const FIXTURE: Cust[] = [
   { id: 3, visits: 1, daysAgo: 150, phone: "2165550103" }, // C: one visit, below the floor
   { id: 4, visits: 5, daysAgo: 30, phone: "2165550104" }, // D: recent
   { id: 5, visits: 6, daysAgo: 400, phone: "2165550105" }, // E: lost
+  { id: 6, visits: 3, daysAgo: 100, phone: "+1 (216) 555-0106" }, // F: lapsed regular, carrier blocks the shop line
+  { id: 7, visits: 4, daysAgo: 110, phone: "216-555-0107" }, // G: lapsed regular, revoked in the consent ledger
 ];
 const PREFS_OPTED_OUT = new Set(["2165550102"]);
 
+/** sendSms's suppression index (server/sms.ts loadSuppressionIndex), last-10 keys. */
+const okIndex = () => ({
+  ok: true as const,
+  phones: new Set(["2165550107"]), // ledger-revoked phones are merged into `phones`
+  carrierBlocked: new Set(["2165550106"]),
+  voiceOnly: new Set<string>(),
+  stale: false,
+});
+const DOWN = { ok: false as const, reason: "consent ledger unavailable: test" };
+
 /** Applies the legs present in the rendered SQL to the fixture. */
 function countFor(text: string): number {
+  return rowsFor(text).length;
+}
+function rowsFor(text: string): Cust[] {
   let rows = FIXTURE;
   const floor = /`totalVisits` >= (\d+)/.exec(text);
   if (floor) rows = rows.filter((r) => r.visits >= Number(floor[1]));
@@ -41,7 +56,7 @@ function countFor(text: string): number {
   const max = /`lastVisitDate` >= DATE_SUB\(NOW\(\), INTERVAL (\d+) DAY\)/.exec(text);
   if (max) rows = rows.filter((r) => r.daysAgo <= Number(max[1]));
   if (/FROM sms_preferences/.test(text)) rows = rows.filter((r) => !PREFS_OPTED_OUT.has(r.phone));
-  return rows.length;
+  return rows;
 }
 
 const state = {
@@ -49,18 +64,32 @@ const state = {
   rendered: [] as Array<{ sql: string; params: unknown[] }>,
   dbOverride: null as unknown,
   inserts: [] as Array<{ values: unknown }>,
+  index: okIndex() as ReturnType<typeof okIndex> | typeof DOWN,
 };
+
+const { routerSendSms } = vi.hoisted(() => ({
+  routerSendSms: vi.fn(async (..._a: unknown[]) => ({ success: true, heldOut: true, experimentId: "t" })),
+}));
+vi.mock("../sms", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../sms")>()),
+  sendSms: routerSendSms,
+  loadSuppressionIndex: async () => state.index,
+}));
 
 function fakeDb() {
   return {
-    select: () => ({
+    select: (proj?: Record<string, unknown>) => ({
       from: () => ({
         where: (cond: unknown) => {
           const q = render(cond);
           const text = q.sql;
           state.conditions.push(text);
           state.rendered.push(q);
-          const result = Promise.resolve([{ count: countFor(text), avgSpent: 0 }]);
+          const result = Promise.resolve(
+            proj && "phone" in proj
+              ? rowsFor(text).map((r) => ({ phone: r.phone }))
+              : [{ count: countFor(text), avgSpent: 0 }],
+          );
           return Object.assign(result, { orderBy: () => ({ limit: async () => [] }) });
         },
       }),
@@ -103,6 +132,8 @@ beforeEach(() => {
   state.conditions = [];
   state.rendered = [];
   state.dbOverride = null;
+  state.index = okIndex();
+  routerSendSms.mockClear();
   state.inserts = [];
 });
 
@@ -110,7 +141,9 @@ describe("lapsed_regulars: the Customers tab's rule, contactable by the canonica
   it("segmentCounts carries qualifying and contactable for lapsed_regulars from one shared rule", async () => {
     const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
     // A and B qualify (3+ visits, 90 to 365 days); B opted out in sms_preferences.
-    expect(counts.lapsed_regulars).toEqual({ qualifying: 2, contactable: 1 });
+    // A, B, F and G qualify. B opted out in sms_preferences (SQL leg); F's carrier blocks the
+    // shop line and G is revoked in the consent ledger (sendSms's index). Only A can be texted.
+    expect(counts.lapsed_regulars).toEqual({ qualifying: 4, contactable: 1 });
     const pair = counts.lapsed_regulars as { qualifying: number; contactable: number };
     expect(pair.contactable).toBeLessThanOrEqual(pair.qualifying);
     for (const seg of OTHER_SEGMENTS) expect(typeof counts[seg], seg).toBe("number");
@@ -200,7 +233,7 @@ describe("the send-time check uses the same predicate", () => {
   const sendSms = vi.fn(async () => ({ success: true, heldOut: true, experimentId: "t" }));
   const executed: string[] = [];
 
-  async function runProcessor(eligible: boolean) {
+  async function runProcessor(eligible: boolean, phone = "2165550102") {
     sendSms.mockClear();
     executed.length = 0;
     const db = {
@@ -208,7 +241,7 @@ describe("the send-time check uses the same predicate", () => {
         const text = render(q).sql;
         executed.push(text);
         if (/FROM winback_sends ws/.test(text)) {
-          return [[{ id: 11, phone: "2165550102", personalizedBody: "Hi", campaignId: 3, customerId: 2 }]];
+          return [[{ id: 11, phone, personalizedBody: "Hi", campaignId: 3, customerId: 2 }]];
         }
         if (/FROM sms_preferences/.test(text)) return [eligible ? [{ eligible: 1 }] : []];
         if (/SET status = 'sent'/.test(text)) return [{ affectedRows: 1 }];
@@ -217,7 +250,7 @@ describe("the send-time check uses the same predicate", () => {
     };
     vi.resetModules();
     vi.doMock("../db", () => ({ getDb: async () => db }));
-    vi.doMock("../sms", () => ({ sendSms, isShopGatewayReachable: async () => true }));
+    vi.doMock("../sms", () => ({ sendSms, isShopGatewayReachable: async () => true, loadSuppressionIndex: async () => state.index }));
     vi.doMock("../services/featureFlags", () => ({ isEnabled: async () => true }));
     vi.doMock("../services/telegram", () => ({ sendTelegram: async () => true }));
     try {
@@ -239,19 +272,129 @@ describe("the send-time check uses the same predicate", () => {
     await runProcessor(true);
     expect(sendSms).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ["carrier-blocked", "+12165550106"],
+    ["ledger-revoked", "(216) 555-0107"],
+  ])("a %s phone is marked failed under the pending compare-and-swap, never claimed or texted", async (_why, phone) => {
+    await runProcessor(true, phone);
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(executed.some((t) => /SET status = 'sent'/.test(t)), "no claim").toBe(false);
+    const fail = executed.find((t) => /SET status = 'failed'/.test(t));
+    expect(fail).toMatch(/customer suppressed \(carrier block or consent ledger\)/);
+    expect(fail).toMatch(/AND status = 'pending'/);
+  });
+
+  it("an index that cannot load leaves the row pending and stops the run", async () => {
+    state.index = DOWN;
+    const res = await runProcessor(true);
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(executed.some((t) => /UPDATE winback_sends/.test(t)), "row untouched").toBe(false);
+    expect(res.details).toMatch(/suppression list unavailable/);
+  });
+});
+
+describe("audiences, counts and activation honour the full suppression index", () => {
+  it("segment counts subtract carrier-blocked and ledger-revoked phones", async () => {
+    const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+    // lapsed (90-180d): A (120), C (150), F (100), G (110) pass SQL; F and G are in the index.
+    expect(counts.lapsed).toBe(2);
+    expect(counts.lapsed_regulars).toEqual({ qualifying: 4, contactable: 1 });
+  });
+
+  it("campaignReadiness's target count is the same suppressed number", async () => {
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed" });
+    expect(res.netTargetCount).toBe(2);
+  });
+
+  it("create records the suppressed count beside the target count", async () => {
+    const res = await admin().winback.create({ name: "x", targetSegment: "lapsed" });
+    expect(res).toMatchObject({ success: true, suppressed: 2 });
+    expect(state.inserts[0].values).toMatchObject({ targetCount: 2 });
+  });
+
+  it.each(["segmentCounts", "campaignReadiness", "create"] as const)(
+    "%s throws when the index cannot load, never the unsuppressed number",
+    async (proc) => {
+      state.index = DOWN;
+      const call =
+        proc === "segmentCounts" ? admin().winback.segmentCounts()
+        : proc === "campaignReadiness" ? admin().winback.campaignReadiness({ targetSegment: "lapsed" })
+        : admin().winback.create({ name: "x", targetSegment: "lapsed" });
+      await expect(call).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: "suppression list unavailable; try again" });
+      expect(state.inserts).toEqual([]);
+    },
+  );
+
+  function activationDb() {
+    const customersRows = FIXTURE.filter((r) => r.daysAgo > 90 && r.daysAgo <= 180).map((r) => ({
+      id: r.id, phone: r.phone, firstName: "Pat", vehicleYear: null, vehicleMake: null, vehicleModel: null,
+    }));
+    const chain = (rows: unknown[]) => Object.assign(Promise.resolve(rows), {
+      orderBy: async () => rows,
+      limit: async () => rows,
+    });
+    return {
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () => {
+            const name = (table as Record<symbol, string>)[Symbol.for("drizzle:Name")];
+            if (name === "winback_campaigns") return chain([{ id: 5, status: "draft", targetSegment: "lapsed" }]);
+            if (name === "winback_messages") return chain([{ id: 1, step: 1, delayDays: 0, body: "Hi" }]);
+            if (name === "customers") return chain(customersRows);
+            return chain([]);
+          },
+        }),
+      }),
+      insert: () => ({ values: async (values: unknown) => { state.inserts.push({ values }); } }),
+      update: () => ({ set: () => ({ where: async () => [{ affectedRows: 1 }] }) }),
+    };
+  }
+
+  it("activation queues sends only for phones the index allows, and says how many it dropped", async () => {
+    state.dbOverride = activationDb();
+    const res = await admin().winback.activate({ campaignId: 5 });
+    expect(res).toMatchObject({ success: true, sendsCreated: 2, suppressed: 2 });
+    const phones = (state.inserts[0].values as Array<{ phone: string }>).map((v) => v.phone);
+    expect(phones).toEqual(["2165550101", "2165550103"]);
+  });
+
+  it("activation refuses when the index cannot load and queues nothing", async () => {
+    state.dbOverride = activationDb();
+    state.index = DOWN;
+    await expect(admin().winback.activate({ campaignId: 5 })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(state.inserts).toEqual([]);
+  });
 });
 
 describe("admin processPending counts a failure only on the row it changed", () => {
-  function drainDb(failAffected: number) {
-    const send = { id: 7, customerId: 2, phone: "2165550102", personalizedBody: "Hi", campaignId: 3 };
+  const updates: unknown[] = [];
+  function drainDb(failAffected: number, opts: { eligible?: boolean; phone?: string } = {}) {
+    updates.length = 0;
+    const send = { id: 7, customerId: 2, phone: opts.phone ?? "2165550102", personalizedBody: "Hi", campaignId: 3 };
     return {
       select: () => ({
         from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ send, campaignStatus: "active" }] }) }) }),
       }),
-      execute: async () => [[]], // not eligible
-      update: () => ({ set: () => ({ where: async () => [{ affectedRows: failAffected }] }) }),
+      execute: async () => [opts.eligible ? [{ eligible: 1 }] : []],
+      update: () => ({ set: (v: unknown) => ({ where: async () => { updates.push(v); return [{ affectedRows: failAffected }]; } }) }),
     };
   }
+
+  it("a carrier-blocked phone is marked failed (counted) and never texted", async () => {
+    state.dbOverride = drainDb(1, { eligible: true, phone: "+12165550106" });
+    await expect(admin().winback.processPending()).resolves.toMatchObject({ processed: 1, failed: 1 });
+    expect(routerSendSms).not.toHaveBeenCalled();
+    expect(updates).toEqual([{ status: "failed", errorMessage: "customer suppressed (carrier block or consent ledger)" }]);
+  });
+
+  it("an index that cannot load refuses the drain and touches no row", async () => {
+    state.dbOverride = drainDb(1, { eligible: true });
+    state.index = DOWN;
+    await expect(admin().winback.processPending()).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(updates).toEqual([]);
+    expect(routerSendSms).not.toHaveBeenCalled();
+  });
 
   it("a fail write that changed no row (the cron got there first) is not counted", async () => {
     state.dbOverride = drainDb(0);

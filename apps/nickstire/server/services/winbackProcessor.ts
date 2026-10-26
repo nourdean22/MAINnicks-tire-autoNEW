@@ -78,7 +78,16 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       return { recordsProcessed: 0, details: "No pending winback sends" };
     }
 
-    const { sendSms } = await import("../sms");
+    const { sendSms, loadSuppressionIndex } = await import("../sms");
+    // sendSms's suppression index (carrier blocks, consent ledger), which the SQL
+    // predicate cannot see. Unloadable = hold the drain: nothing claimed, rows stay
+    // pending, the next run retries. A STALE index is still ok, as in sendSms.
+    const index = await loadSuppressionIndex();
+    if (!index.ok) {
+      log.warn("[winbackProcessor] suppression list unavailable, held pending", { reason: index.reason });
+      return { recordsProcessed: 0, details: `suppression list unavailable (${index.reason}) — held pending` };
+    }
+    const { suppressedPhones } = await import("../lib/sms-eligibility");
     let sent = 0;
     let queued = 0; // parked for the 8 AM window (audit F-3)
     let heldOut = 0;
@@ -103,6 +112,14 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       if ((eligibleRows as unknown as unknown[]).length === 0) {
         await db.execute(sql`
           UPDATE winback_sends SET status = 'failed', errorMessage = 'customer opted out of SMS'
+          WHERE id = ${send.id} AND status = 'pending'
+        `);
+        skipped++;
+        continue;
+      }
+      if (suppressedPhones(index, [String(send.phone)]).size > 0) {
+        await db.execute(sql`
+          UPDATE winback_sends SET status = 'failed', errorMessage = 'customer suppressed (carrier block or consent ledger)'
           WHERE id = ${send.id} AND status = 'pending'
         `);
         skipped++;

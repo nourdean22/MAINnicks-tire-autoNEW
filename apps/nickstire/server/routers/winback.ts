@@ -13,10 +13,11 @@ import { eq, sql, desc, and, lte, isNull, type SQL } from "drizzle-orm";
 import { affectedRowCount } from "../lib/db-affected";
 import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
-import { sendSms, withOptOut } from "../sms";
+import { TRPCError } from "@trpc/server";
+import { sendSms, withOptOut, loadSuppressionIndex } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { getReviewCopy, type ReviewCopy } from "../lib/reviewCopy";
-import { campaignEligiblePhoneSql, customerCampaignEligibleSql } from "../lib/sms-eligibility";
+import { campaignEligiblePhoneSql, customerCampaignEligibleSql, suppressedPhones } from "../lib/sms-eligibility";
 import { countLapsedRegulars, lapsedRegularCondition } from "../lib/customer-segments";
 
 import { db } from "../lib/db-helper";
@@ -258,6 +259,32 @@ function visitWindowSql(minDaysAgo: number, maxDaysAgo?: number): SQL {
     : sql`${newest} AND ${customers.lastVisitDate} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(maxDaysAgo))} DAY)`;
 }
 
+/**
+ * sendSms's suppression index (opt-outs, consent ledger, carrier blocks). A list
+ * that cannot load is refused, never read as "nobody is suppressed": no count is
+ * shown and no send is queued that the send gate could not check. A STALE index
+ * is still ok, as in sendSms.
+ */
+async function suppressionIndexOrThrow() {
+  const index = await loadSuppressionIndex();
+  if (!index.ok) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "suppression list unavailable; try again", cause: index.reason });
+  }
+  return index;
+}
+
+/** Audience size after the SQL filter AND the suppression index, and how many the index dropped. */
+async function contactableAudience(
+  d: any,
+  filter: SQL,
+  index: Awaited<ReturnType<typeof suppressionIndexOrThrow>>,
+): Promise<{ count: number; suppressed: number }> {
+  const rows: Array<{ phone: string | null }> = await d.select({ phone: customers.phone }).from(customers).where(filter);
+  const blocked = suppressedPhones(index, rows.map((r) => r.phone));
+  const suppressed = rows.filter((r) => r.phone !== null && blocked.has(r.phone)).length;
+  return { count: rows.length - suppressed, suppressed };
+}
+
 function buildSegmentFilter(segment: string) {
   switch (segment) {
     case "lapsed_regulars":
@@ -396,6 +423,7 @@ export const winbackRouter = router({
       const d = await db();
       if (!d) return { netTargetCount: 0, projectedValueCents: 0, previewMessages: [] };
 
+      const index = await suppressionIndexOrThrow();
       const segmentFilter = buildSegmentFilter(input.targetSegment);
       const [stats] = await d.select({
         count: sql<number>`count(*)`,
@@ -404,7 +432,7 @@ export const winbackRouter = router({
         .from(customers)
         .where(segmentFilter);
 
-      const netTargetCount = stats?.count ?? 0;
+      const netTargetCount = (await contactableAudience(d, segmentFilter, index)).count;
       // 5% projected conversion rate
       const projectedValueCents = Math.round(netTargetCount * (stats?.avgSpent ?? 10000) * 0.05);
 
@@ -521,19 +549,22 @@ export const winbackRouter = router({
       };
     }
 
+    const index = await suppressionIndexOrThrow();
     const segments = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
     const countPromises = segments.map(async (seg) => {
-      const filter = buildSegmentFilter(seg);
-      const [row] = await d.select({ count: sql<number>`count(*)` })
-        .from(customers)
-        .where(filter);
-      return { [seg]: row?.count ?? 0 };
+      const { count } = await contactableAudience(d, buildSegmentFilter(seg), index);
+      return { [seg]: count };
     });
 
-    const [lapsedRegulars, ...results] = await Promise.all([countLapsedRegulars(d), ...countPromises]);
+    // qualifying from the shared rule; contactable after the SQL predicate AND the index.
+    const [{ qualifying }, regularsReach, ...results] = await Promise.all([
+      countLapsedRegulars(d),
+      contactableAudience(d, buildSegmentFilter("lapsed_regulars"), index),
+      ...countPromises,
+    ]);
     return {
       ...(Object.assign({}, ...results) as Record<typeof segments[number], number>),
-      lapsed_regulars: lapsedRegulars,
+      lapsed_regulars: { qualifying, contactable: regularsReach.count },
     };
   }),
 
@@ -554,17 +585,15 @@ export const winbackRouter = router({
 
       const cleanName = input.name.replace(/<[^>]*>/g, "").trim();
 
-      // Count target customers — smart filter by segment type
-      const segmentFilter = buildSegmentFilter(input.targetSegment);
-      const [targetCount] = await d.select({ count: sql<number>`count(*)` })
-        .from(customers)
-        .where(segmentFilter);
+      // Count target customers: the segment filter, then the suppression index.
+      const index = await suppressionIndexOrThrow();
+      const audience = await contactableAudience(d, buildSegmentFilter(input.targetSegment), index);
 
       // Create campaign
       const [result] = await d.insert(winbackCampaigns).values({
         name: cleanName,
         targetSegment: input.targetSegment,
-        targetCount: targetCount?.count ?? 0,
+        targetCount: audience.count,
         status: "draft",
       }).$returningId();
 
@@ -594,7 +623,7 @@ export const winbackRouter = router({
         }
       }
 
-      return { success: true, campaignId };
+      return { success: true, campaignId, suppressed: audience.suppressed };
     }),
 
   /** Preview messages for a campaign (shows first 5 customers with personalized text) */
@@ -660,10 +689,16 @@ export const winbackRouter = router({
       // be thousands of rows; without a cap an admin could accidentally
       // load 50K+ customers into Node memory + queue 50K×N message
       // inserts. 10K is generous (any larger campaign should be split).
-      const targetCustomers = await d.select()
+      // Then sendSms's suppression index (carrier blocks, consent ledger): never queue a
+      // send the gate would refuse, and refuse to queue at all when it cannot load.
+      const index = await suppressionIndexOrThrow();
+      const segmentRows = await d.select()
         .from(customers)
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(10_000);
+      const blocked = suppressedPhones(index, segmentRows.map((c: typeof customers.$inferSelect) => c.phone));
+      const targetCustomers = segmentRows.filter((c: typeof customers.$inferSelect) => !(c.phone && blocked.has(c.phone)));
+      const suppressed = segmentRows.length - targetCustomers.length;
 
       const targetCustomerIds = targetCustomers.map((c: any) => c.id);
       const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, targetCustomerIds);
@@ -708,7 +743,7 @@ export const winbackRouter = router({
         sentCount: 0,
       }).where(eq(winbackCampaigns.id, input.campaignId));
 
-      return { success: true, sendsCreated: created };
+      return { success: true, sendsCreated: created, suppressed };
     }),
 
   /** Pause a campaign */
@@ -738,6 +773,8 @@ export const winbackRouter = router({
     if (!d) return { processed: 0, sent: 0, queued: 0, heldOut: 0, failed: 0 };
 
     const now = new Date();
+    // Before any row is read or claimed: an index that cannot load stops the drain (rows stay pending).
+    const index = await suppressionIndexOrThrow();
 
     // Get pending sends that are due and belong to active campaigns
     const pendingSends = await d.select({
@@ -765,9 +802,15 @@ export const winbackRouter = router({
       // id against the canonical predicate (the cron path does the same).
       // Ineligible rows are marked 'failed' so they leave the pending pool
       // permanently; only a row still 'pending' is rewritten.
+      // Then the suppression index (carrier blocks, consent ledger), which SQL cannot see.
       const [eligibleRows] = await d.execute(customerCampaignEligibleSql(send.customerId));
-      if ((eligibleRows as unknown as unknown[]).length === 0) {
-        const failRes = await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" })
+      const reason = (eligibleRows as unknown as unknown[]).length === 0
+        ? "customer opted out of SMS"
+        : suppressedPhones(index, [send.phone]).size > 0
+          ? "customer suppressed (carrier block or consent ledger)"
+          : null;
+      if (reason) {
+        const failRes = await d.update(winbackSends).set({ status: "failed", errorMessage: reason })
           .where(and(eq(winbackSends.id, send.id), eq(winbackSends.status, "pending")));
         // 0 rows: the cron drain changed this row first; it counts there, not here.
         if (affectedRowCount(failRes) > 0) failed++;

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { customers } from "../../drizzle/schema";
+import { phoneLast10 } from "./phone";
 
 /**
  * Canonical "campaign-eligible phone" predicate for outbound SMS.
@@ -77,3 +78,22 @@ export const campaignEligiblePhoneSql = sql`${customers.phone} IS NOT NULL AND L
  */
 export const customerCampaignEligibleSql = (id: unknown) =>
   sql`SELECT 1 AS eligible FROM customers WHERE ${customers.id} = ${id} AND ${campaignEligiblePhoneSql} LIMIT 1`;
+
+/**
+ * The input phones sendSms's suppression index would refuse: its opt-out set
+ * (which also carries consent-ledger revocations) or a carrier block. The SQL
+ * predicate above cannot see those two sources, so every campaign audience,
+ * count and send also passes through here. Keys are last-10 digits, as the
+ * index builds them (server/sms.ts addNorm).
+ */
+export function suppressedPhones(
+  index: { phones: Set<string>; carrierBlocked: Set<string> },
+  phones: Array<string | null>,
+): Set<string> {
+  const out = new Set<string>();
+  for (const phone of phones) {
+    const key = phoneLast10(phone);
+    if (phone && (index.phones.has(key) || index.carrierBlocked.has(key))) out.add(phone);
+  }
+  return out;
+}

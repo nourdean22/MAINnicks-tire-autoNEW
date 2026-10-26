@@ -80,7 +80,11 @@ describe("winback", () => {
       }),
     };
     vi.doMock("../db", () => ({ getDb: async () => db }));
-    vi.doMock("../sms", () => ({ sendSms, isShopGatewayReachable: async () => true }));
+    vi.doMock("../sms", () => ({
+      sendSms,
+      isShopGatewayReachable: async () => true,
+      loadSuppressionIndex: async () => ({ ok: true, phones: new Set(), carrierBlocked: new Set(), voiceOnly: new Set(), stale: false }),
+    }));
 
     const { processWinbackPending } = await import("../services/winbackProcessor");
     const res = await processWinbackPending();
