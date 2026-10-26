@@ -1,7 +1,7 @@
 /**
  * pipeline-followups.test.tsx · 2026-10-25 (job 2026-10-25-admin-tabs-pipeline)
  *
- * Sales Pipeline opens on Today's follow-ups: the five due now beside the total open, each card
+ * Sales Pipeline opens on Today's follow-ups: the first five beside the total open, each card
  * saying why it is there before anything else. The web leads are one list with three filters, and
  * job applicants live on their own Hiring tab, never inside the sales lane. A failed read is
  * unknown, never an empty list.
@@ -193,29 +193,29 @@ describe("Sales Pipeline tabs", () => {
 });
 
 describe("Today's follow-ups", () => {
-  it("shows five due now beside the total open, and Show all expands to the total", () => {
+  it("shows five of the total open (a page, never a count of what is due), and Show all expands to the total", () => {
     loadOpps(fixture23());
     render(<OpportunitiesSection />);
-    expect(screen.getByText("5 due now · 23 open")).toBeTruthy();
+    expect(screen.getByText("Showing 5 of 23 open")).toBeTruthy();
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
     const all = screen.getByRole("button", { name: "Show all 23" });
     expect(all.className).toMatch(/min-h-\[(44|48)px\]/);
     fireEvent.click(all);
     expect(screen.getAllByRole("listitem")).toHaveLength(23);
-    expect(screen.getByText("23 due now · 23 open")).toBeTruthy();
+    expect(screen.getByText("23 open")).toBeTruthy();
   });
 
   it("fewer than five shows them all, and no Show all control", () => {
     loadOpps(fixture23().slice(0, 3));
     render(<OpportunitiesSection />);
-    expect(screen.getByText("3 due now · 3 open")).toBeTruthy();
+    expect(screen.getByText("3 open")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Show all/ })).toBeNull();
   });
 
   it("a full 500-row window says 500 or more, never exactly 500", () => {
     loadOpps(Array.from({ length: 500 }, () => opp()));
     render(<OpportunitiesSection />);
-    expect(screen.getByText("5 due now · 500 or more open")).toBeTruthy();
+    expect(screen.getByText("Showing 5 of 500 or more open")).toBeTruthy();
   });
 
   it("a missed call with the receptionist's evidence shows the excerpt and the service, after the why", () => {
@@ -255,8 +255,8 @@ describe("Today's follow-ups", () => {
     h.queries.set("opportunityQueue.list", { isError: true });
     render(<OpportunitiesSection />);
     expect(screen.getByText(/Follow-ups couldn't load/)).toBeTruthy();
-    expect(screen.queryByText(/Nothing due/)).toBeNull();
-    expect(screen.queryByText(/due now/)).toBeNull();
+    expect(screen.queryByText(/Nothing open/)).toBeNull();
+    expect(screen.queryByText(/ open$/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.refetch).toHaveBeenCalled();
   });
@@ -265,13 +265,13 @@ describe("Today's follow-ups", () => {
     loadOpps([], false);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/Follow-ups couldn't load/)).toBeTruthy();
-    expect(screen.queryByText(/Nothing due/)).toBeNull();
+    expect(screen.queryByText(/Nothing open/)).toBeNull();
   });
 
-  it("a queue that was read and is empty says nothing is due", () => {
+  it("a queue that was read and is empty says nothing is open", () => {
     loadOpps([]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText("Nothing due. Every open follow-up has an attempt or a date.")).toBeTruthy();
+    expect(screen.getByText("Nothing open. No follow-up is waiting.")).toBeTruthy();
     expect(screen.queryByText(/couldn't load/)).toBeNull();
   });
 });

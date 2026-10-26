@@ -141,6 +141,22 @@ describe("AttributionReviewCard · out of the way", () => {
     expect(screen.queryByText(/rank evidence/i)).toBeNull();
     expect(screen.queryByText(/phone_time_service_candidate/)).toBeNull();
   });
+
+  // 2026-10-26 audit: the read is one page of 20 candidate rows, so a full page is a floor, not the total.
+  it("a full page of 20 candidates says at least that many, never the page size as the total", () => {
+    const rows = Array.from({ length: 12 }, (_, i) => weak({ callId: 300 + i, invoiceId: 400 + i }));
+    h.q.data = queue(rows, { counts: { distinctInvoices: 12, candidateRows: 20, suppressedDuplicates: 8, overcountFactor: 1.67 } });
+    render(<AttributionReviewCard />);
+    expect(screen.getByRole("button", { name: /12\+ matches to review/i })).toBeInTheDocument();
+  });
+
+  it("a page under 20 candidates is the whole queue and reads as an exact count", () => {
+    h.q.data = queue(Array.from({ length: 19 }, (_, i) => weak({ callId: 500 + i, invoiceId: 600 + i })), {
+      counts: { distinctInvoices: 19, candidateRows: 19, suppressedDuplicates: 0, overcountFactor: 1 },
+    });
+    render(<AttributionReviewCard />);
+    expect(screen.getByRole("button", { name: /^19 matches to review/i })).toBeInTheDocument();
+  });
 });
 
 describe("AttributionReviewCard · plain words", () => {
