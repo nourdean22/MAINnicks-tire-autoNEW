@@ -23,7 +23,7 @@ vi.mock("@/lib/trpc", () => {
   };
 });
 
-import { AdminAssistant, buildPageContext, openAdminAssistant, pageLabel, splitReply } from "@/components/admin/AdminAssistant";
+import { AdminAssistant, openAdminAssistant } from "@/components/admin/AdminAssistant";
 import { AdminTabBar } from "@/components/admin/AdminTabBar";
 import { UNBATCHED_SLOW_PROCEDURES } from "@/lib/unbatchedProcedures";
 
@@ -35,22 +35,6 @@ afterEach(() => {
 describe("request routing", () => {
   it("the ask call gets its own request so a slow answer never holds the page's batched reads", () => {
     expect(UNBATCHED_SLOW_PROCEDURES.has("nickActions.ask")).toBe(true);
-  });
-});
-
-describe("page context envelope", () => {
-  it("keeps tab, id and *Tab params and names the customer in view only on Customers", () => {
-    const page = buildPageContext("customers", "Customers", "?tab=customers&id=42&customersTab=members&secret=x");
-    expect(page).toEqual({ section: "customers", title: "Customers", params: { tab: "customers", id: "42", customersTab: "members" }, customerId: 42 });
-    expect(pageLabel(page)).toBe("Customers · customer #42");
-    expect(buildPageContext("money", "Money", "?id=42").customerId).toBeUndefined();
-  });
-});
-
-describe("reply chips", () => {
-  it("turns verified references into chips and leaves text alone", () => {
-    const parts = splitReply("Pat [[customer:42]] spent **$10**.", [{ type: "customer", id: 42, label: "Pat Doe" }]);
-    expect(parts).toEqual([{ text: "Pat " }, { ref: { type: "customer", id: 42, label: "Pat Doe" } }, { text: " spent $10." }]);
   });
 });
 
@@ -72,6 +56,30 @@ describe("phone tab bar", () => {
 
 describe("Ask sheet", () => {
   const mount = () => render(<AdminAssistant userKey="1" section="customers" sectionTitle="Customers" allowedSections={["customers", "overview"]} onNavigate={() => {}} />);
+
+  it("sends only whitelisted page params, names the customer in view, and turns verified references into chips", async () => {
+    window.history.replaceState({}, "", "/admin?tab=customers&id=42&customersTab=members&secret=x");
+    askMutateAsync.mockResolvedValueOnce({ reply: "Pat [[customer:42]] spent **$10**.", citations: [{ type: "customer", id: 42, label: "Pat Doe" }], proposals: [], receipts: [], unmatchedRefs: 0 });
+    mount();
+    act(() => openAdminAssistant());
+    expect(await screen.findByText(/On: Customers · customer #42/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Ask a question"), { target: { value: "who is this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(await screen.findByRole("button", { name: "Pat Doe" })).toBeTruthy();
+    expect(screen.getByText(/spent \$10\./)).toBeTruthy();
+    expect(askMutateAsync.mock.calls[0][0].page).toEqual({ section: "customers", title: "Customers", params: { tab: "customers", id: "42", customersTab: "members" }, customerId: 42 });
+  });
+
+  it("names no customer when the id is not on the Customers page", async () => {
+    window.history.replaceState({}, "", "/admin?tab=revenue&id=42");
+    askMutateAsync.mockResolvedValueOnce({ reply: "ok", citations: [], proposals: [], receipts: [], unmatchedRefs: 0 });
+    render(<AdminAssistant userKey="1" section="revenue" sectionTitle="Money" allowedSections={["revenue"]} onNavigate={() => {}} />);
+    act(() => openAdminAssistant());
+    fireEvent.change(await screen.findByLabelText("Ask a question"), { target: { value: "sales?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askMutateAsync).toHaveBeenCalled());
+    expect(askMutateAsync.mock.calls[0][0].page.customerId).toBeUndefined();
+  });
 
   it("sends the page with the question, shows the draft, and texts only on tap", async () => {
     const confirmSpy = vi.spyOn(window, "confirm");

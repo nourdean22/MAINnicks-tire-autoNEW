@@ -16,7 +16,7 @@ import type { AdminSection } from "@/pages/admin/shared";
 
 type Answer = RouterOutputs["nickActions"]["ask"];
 type Proposal = Answer["proposals"][number];
-export type AssistantPage = { section: string; title?: string; params?: Record<string, string>; customerId?: number };
+type AssistantPage = { section: string; title?: string; params?: Record<string, string>; customerId?: number };
 type Turn = {
   id: string;
   role: "user" | "assistant";
@@ -29,7 +29,7 @@ type Turn = {
   done?: Record<number, string>;
 };
 
-export const OPEN_ADMIN_ASSISTANT_EVENT = "admin:open-assistant";
+const OPEN_ADMIN_ASSISTANT_EVENT = "admin:open-assistant";
 export function openAdminAssistant() {
   window.dispatchEvent(new CustomEvent(OPEN_ADMIN_ASSISTANT_EVENT));
 }
@@ -38,7 +38,7 @@ const MAX_STORED = 40;
 const SENT_TO_SERVER = 12;
 
 /** The page envelope sent with a question: section, title, whitelisted URL params, the customer in view. */
-export function buildPageContext(section: string, title: string | undefined, search: string): AssistantPage {
+function buildPageContext(section: string, title: string | undefined, search: string): AssistantPage {
   const params: Record<string, string> = {};
   for (const [k, v] of new URLSearchParams(search)) {
     if ((k === "tab" || k === "id" || k.endsWith("Tab")) && v) params[k.slice(0, 40)] = v.slice(0, 120);
@@ -48,13 +48,13 @@ export function buildPageContext(section: string, title: string | undefined, sea
   return { section, title, params: Object.keys(params).length ? params : undefined, customerId };
 }
 
-export function pageLabel(page: AssistantPage): string {
+function pageLabel(page: AssistantPage): string {
   return [page.title || page.section, page.customerId ? `customer #${page.customerId}` : null].filter(Boolean).join(" · ");
 }
 
-export type ReplyPart = { text: string } | { ref: { type: string; id: number; label: string } };
+type ReplyPart = { text: string } | { ref: { type: string; id: number; label: string } };
 /** Splits a verified reply into text and record chips. Unknown refs never reach here (server strips them). */
-export function splitReply(reply: string, citations: Answer["citations"]): ReplyPart[] {
+function splitReply(reply: string, citations: Answer["citations"]): ReplyPart[] {
   const byKey = new Map(citations.map((c) => [`${c.type}:${c.id}`, c]));
   const parts: ReplyPart[] = [];
   let last = 0;

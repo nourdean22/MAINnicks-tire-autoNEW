@@ -17,14 +17,14 @@ const log = createLogger("routers:nick:assistant");
 
 type Caller = ReturnType<typeof appRouter.createCaller>;
 
-export const assistantPageSchema = z.object({
+const assistantPageSchema = z.object({
   section: z.string().max(60),
   title: z.string().max(120).optional(),
   /** Whitelisted URL params (tab, id, *Tab), snapshotted when the operator hits send. */
   params: z.record(z.string().max(40), z.string().max(120)).optional(),
   customerId: z.number().int().positive().optional(),
 });
-export type AssistantPage = z.infer<typeof assistantPageSchema>;
+type AssistantPage = z.infer<typeof assistantPageSchema>;
 
 export const assistantAskSchema = z.object({
   messages: z.array(z.object({
@@ -34,13 +34,13 @@ export const assistantAskSchema = z.object({
   page: assistantPageSchema.optional(),
 });
 
-export type AssistantCitation = { type: "customer" | "invoice" | "lead"; id: number; label: string };
-export type AssistantProposal =
+type AssistantCitation = { type: "customer" | "invoice" | "lead"; id: number; label: string };
+type AssistantProposal =
   | { kind: "sms"; customerId: number; customerName: string; phoneLast4: string; message: string }
   | { kind: "note"; customerId: number; customerName: string; note: string }
   | { kind: "open"; section: string; customerId?: number; label: string };
-export type AssistantReceipt = { tool: string; source: string; ok: boolean; unknown: boolean; count?: number; error?: string };
-export type AssistantAnswer = {
+type AssistantReceipt = { tool: string; source: string; ok: boolean; unknown: boolean; count?: number; error?: string };
+type AssistantAnswer = {
   reply: string;
   citations: AssistantCitation[];
   proposals: AssistantProposal[];
@@ -56,7 +56,7 @@ const fn = (name: string, description: string, properties: Record<string, unknow
 const num = (description: string) => ({ type: "number", description });
 const str = (description: string) => ({ type: "string", description });
 
-export const ASSISTANT_TOOLS: Tool[] = [
+const ASSISTANT_TOOLS: Tool[] = [
   fn("find_customers", "Search customers by name, phone or vehicle, or list a segment. Returns up to 10.", {
     search: str("Name, phone digits or vehicle text. Omit to list."),
     segment: { type: "string", enum: ["all", "recent", "lapsed", "new"] },
@@ -91,7 +91,7 @@ const DROP_KEYS = /^(email|address|city|state|zip|phone2|psychoProfile\w*|alsCus
 const PHONE_KEYS = /^(phone|customerPhone|callerPhone|fromNumber|from|to)$/;
 const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue)$/;
 
-export function minimize(value: unknown, depth = 0, centsAware = true): unknown {
+function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   if (depth > 5) return undefined;
   if (Array.isArray(value)) return value.slice(0, 20).map((v) => minimize(v, depth + 1, centsAware));
   if (value instanceof Date) return value.toISOString();
@@ -114,7 +114,7 @@ const clampInt = (v: unknown, lo: number, hi: number, dflt: number) => {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
 };
 
-export async function runAssistantTool(caller: Caller, tool: string, args: Record<string, unknown>): Promise<ToolRun> {
+async function runAssistantTool(caller: Caller, tool: string, args: Record<string, unknown>): Promise<ToolRun> {
   const ok = (source: string, result: unknown, count: number | undefined, citations: AssistantCitation[] = [], centsAware = true): ToolRun => ({
     result: { ok: true, source, data: minimize(result, 0, centsAware) },
     receipt: { tool, source, ok: true, unknown: false, count },
@@ -246,7 +246,7 @@ export async function runAssistantTool(caller: Caller, tool: string, args: Recor
 
 const REF = /\[\[(customer|invoice|lead):(\d+)\]\]/g;
 
-export function verifyCitations(reply: string, seen: AssistantCitation[]): { reply: string; citations: AssistantCitation[]; unmatchedRefs: number } {
+function verifyCitations(reply: string, seen: AssistantCitation[]): { reply: string; citations: AssistantCitation[]; unmatchedRefs: number } {
   const byKey = new Map(seen.map((c) => [`${c.type}:${c.id}`, c]));
   const used = new Map<string, AssistantCitation>();
   let unmatchedRefs = 0;
@@ -261,7 +261,7 @@ export function verifyCitations(reply: string, seen: AssistantCitation[]): { rep
 
 // ─── The turn ──────────────────────────────────────────────────────────────
 
-export function buildSystemPrompt(page: AssistantPage | undefined, todayEt: string): string {
+function buildSystemPrompt(page: AssistantPage | undefined, todayEt: string): string {
   return [
     "You are the assistant inside the admin of Nick's Tire & Auto (Cleveland, Euclid Ave). You help the owner run the shop.",
     `Today is ${todayEt} (America/New_York).`,
@@ -281,7 +281,7 @@ export function buildSystemPrompt(page: AssistantPage | undefined, todayEt: stri
 
 type Invoke = (params: InvokeParams) => Promise<InvokeResult>;
 
-export async function adminAssistantTurn(opts: {
+async function adminAssistantTurn(opts: {
   caller: Caller;
   invoke: Invoke;
   messages: Array<{ role: "user" | "assistant"; content: string }>;

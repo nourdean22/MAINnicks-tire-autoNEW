@@ -457,11 +457,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/client/src/components/ui/field.tsx",
       "symbol": null,
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -6415,6 +6410,36 @@
       "file": "apps/nickstire/client/src/pages/admin/instagram/igViews.ts",
       "symbol": "normalizeIgView",
       "reason": "admin-prune W3 (2026-10-21): the deleted views were its only outside importers. Still used inside igViews.ts by readIgViewFromUrl, and exported for ig-views-redirects.test.ts, which pins where every legacy ?igview= value lands."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": "DrawerPortal",
+      "reason": "shadcn/ui drawer kept whole as vendored (2026-10-26, admin assistant): the Ask sheet (components/admin/AdminAssistant.tsx) is the first consumer and uses Drawer, DrawerContent, DrawerTitle and DrawerDescription; the other parts stay exported so the vendored file matches upstream."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": "DrawerOverlay",
+      "reason": "shadcn/ui drawer kept whole as vendored (2026-10-26, admin assistant): the Ask sheet (components/admin/AdminAssistant.tsx) is the first consumer and uses Drawer, DrawerContent, DrawerTitle and DrawerDescription; the other parts stay exported so the vendored file matches upstream."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": "DrawerTrigger",
+      "reason": "shadcn/ui drawer kept whole as vendored (2026-10-26, admin assistant): the Ask sheet (components/admin/AdminAssistant.tsx) is the first consumer and uses Drawer, DrawerContent, DrawerTitle and DrawerDescription; the other parts stay exported so the vendored file matches upstream."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": "DrawerClose",
+      "reason": "shadcn/ui drawer kept whole as vendored (2026-10-26, admin assistant): the Ask sheet (components/admin/AdminAssistant.tsx) is the first consumer and uses Drawer, DrawerContent, DrawerTitle and DrawerDescription; the other parts stay exported so the vendored file matches upstream."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": "DrawerHeader",
+      "reason": "shadcn/ui drawer kept whole as vendored (2026-10-26, admin assistant): the Ask sheet (components/admin/AdminAssistant.tsx) is the first consumer and uses Drawer, DrawerContent, DrawerTitle and DrawerDescription; the other parts stay exported so the vendored file matches upstream."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": "DrawerFooter",
+      "reason": "shadcn/ui drawer kept whole as vendored (2026-10-26, admin assistant): the Ask sheet (components/admin/AdminAssistant.tsx) is the first consumer and uses Drawer, DrawerContent, DrawerTitle and DrawerDescription; the other parts stay exported so the vendored file matches upstream."
     }
   ]
 }
