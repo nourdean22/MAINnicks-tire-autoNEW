@@ -295,12 +295,21 @@ export function detectActionClaimsWithoutTools(
  * write's read-back did not find it) becomes a fabricated claim for the L2
  * banner, but only when the reply CLAIMS that tool's action: a prose claim the
  * detector maps to it, or a first-person statement naming the tool ("I ran
- * invokeTool"). 2026-10-26: every failure used to count, so a reply narrating
- * the operator's own week was bannered for a failed invokeTool read.
+ * invokeTool"), or, for a failed READ, a result stated about what the read was
+ * for (readResultClaimed). 2026-10-26: every failure used to count, so a reply
+ * narrating the operator's own week was bannered for a failed invokeTool read.
+ *
+ * `calls` are the turn's tool calls; results pair to them BY INDEX
+ * (environment-verifier.ts contract). `isRead` says which tools only read;
+ * invokeTool always is (it refuses anything that mutates).
  */
 export function envFailureClaims(
   checks: ReadonlyArray<{ toolName: string; verified: boolean | null; reason?: string }>,
   text: string,
+  opts: {
+    calls?: ReadonlyArray<{ name: string; args?: Record<string, unknown> }>;
+    isRead?: (toolName: string) => boolean;
+  } = {},
 ): ActionClaim[] {
   const proseTools = detectActionClaims(text).claims.flatMap((c) => c.expectedTool.toLowerCase().split("|"));
   const namesTool = (tool: string) =>
@@ -308,14 +317,76 @@ export function envFailureClaims(
       `\\b(?:I|we)(?:'ve)?\\s+(?:(?:just|already|also)\\s+)?(?:ran|run|called|used|invoked|executed|fired)\\s+(?:the\\s+)?\`?${tool}\`?`,
       "i",
     ).test(text);
+  const readClaimed = (check: { toolName: string }, i: number) => {
+    const call = opts.calls?.[i];
+    if (call?.name !== check.toolName) return false;
+    if (check.toolName === "invokeTool") {
+      const target = call.args?.name;
+      return typeof target === "string" && readResultClaimed(text, target, call.args?.args);
+    }
+    return opts.isRead?.(check.toolName) === true && readResultClaimed(text, check.toolName, call.args);
+  };
   return checks
-    .filter((check) => check.verified === false)
-    .filter((check) => proseTools.includes(check.toolName.toLowerCase()) || namesTool(check.toolName))
-    .map((check) => ({
+    .map((check, i) => ({ check, i }))
+    .filter(({ check }) => check.verified === false)
+    .filter(
+      ({ check, i }) =>
+        proseTools.includes(check.toolName.toLowerCase()) || namesTool(check.toolName) || readClaimed(check, i),
+    )
+    .map(({ check }) => ({
       verb: check.toolName,
       snippet: `[Tool reported success, but verification failed: ${check.reason}]`,
       expectedTool: check.toolName,
     }));
+}
+
+// Words that name the act of reading or a generic container, not what was read.
+const READ_STOPWORDS = new Set([
+  "get", "set", "list", "fetch", "read", "search", "find", "query", "load", "show", "view", "lookup", "look",
+  "recent", "latest", "all", "the", "for", "and", "from", "with", "data", "info", "summary", "summaries",
+  "status", "detail", "details", "tool", "tools", "invoke", "run", "item", "items", "current", "history",
+  "stats", "report", "count", "top", "today", "week", "day",
+]);
+// A stated result: a number, a date, or an is/was/has assertion. ("may" is left out: it is usually the modal.)
+const RESULT_SHAPE =
+  /\d|\b(?:is|was|are|were|has|have|had|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|hundred|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december|today|yesterday|tonight)\b/i;
+const FAILURE_ACK =
+  /\b(?:couldn't|could not|can't|cannot|unable|not available|unavailable|failed|didn't get|did not get|no data|wasn't able|was not able|not able)\b/i;
+
+/**
+ * Does the reply state a result for a read that failed? The read's target
+ * (`getSleepSummary`, `sleep.summary`) and its string args give the domain
+ * words; a declarative sentence with one of them and a stated result counts,
+ * unless that sentence or a neighbour says the read did not come through.
+ */
+function readResultClaimed(text: string, target: string, args: unknown): boolean {
+  const values =
+    args && typeof args === "object"
+      ? Object.values(args as Record<string, unknown>).filter((v): v is string => typeof v === "string")
+      : [];
+  const keywords = [
+    ...new Set(
+      [target, ...values]
+        .join(" ")
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .toLowerCase()
+        .split(/[^a-z]+/)
+        .filter((w) => w.length >= 3 && !READ_STOPWORDS.has(w)),
+    ),
+  ];
+  if (keywords.length === 0) return false;
+  const sentences = text
+    .replace(new RegExp(`[${String.fromCharCode(0x2018, 0x2019)}]`, "g"), "'")
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return sentences.some(
+    (s, i) =>
+      !s.endsWith("?") &&
+      keywords.some((k) => new RegExp(`\\b${k}`, "i").test(s)) &&
+      RESULT_SHAPE.test(s) &&
+      ![sentences[i - 1], s, sentences[i + 1]].some((n) => n !== undefined && FAILURE_ACK.test(n)),
+  );
 }
 
 /**

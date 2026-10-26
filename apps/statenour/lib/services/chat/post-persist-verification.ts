@@ -236,8 +236,12 @@ export async function runPostPersistVerification(a: {
     }
   }
   // Treat environmental failure as a fabricated claim so it gets the L2 hedge rewrite
+  // The calls carry each failed read's target, which the claim check matches against the reply.
   const { envFailureClaims } = await import("@/lib/ai/chat/action-claim-detector");
-  fabricatedClaims.push(...envFailureClaims(envVerification, cleanedText));
+  const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
+  fabricatedClaims.push(
+    ...envFailureClaims(envVerification, cleanedText, { calls: capturedToolCalls, isRead: isReadSafeTool }),
+  );
 
 
 
