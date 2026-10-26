@@ -73,18 +73,12 @@ export function timeAgoShort(d: Date | string | number): string {
  *
  * UNIT CONTRACTS (read the name — mismatching the unit is a 100x bug):
  *  · formatCents(cents)       → takes CENTS    · "$1,234" (whole dollars)
- *  · formatDollars(dollars)   → takes DOLLARS  · "$1,234" (whole dollars)
  *  · formatMoneyShort(dollars)→ takes DOLLARS  · "$1.2K" / "$345" (compact)
  */
 
 /** Takes CENTS. Full-precision whole-dollar display, e.g. 123456 → "$1,235". */
 export function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-/** Takes DOLLARS. Full-precision whole-dollar display, e.g. 1234 → "$1,234". */
-export function formatDollars(dollars: number): string {
-  return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 /** Takes DOLLARS. Compact display: "$1.2K" for >=1k, "$345" otherwise. */
