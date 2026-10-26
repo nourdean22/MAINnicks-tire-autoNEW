@@ -97,8 +97,9 @@ export interface AdminSignalInputs {
 }
 
 const BUNDLE = "adminDashboard.overviewMediumBundle";
-const OPS = "contentAdmin.operationsSignal";
-const PROPOSALS = "proposals.counts";
+// Sources in the owner's words: Today prints them ("via Instagram queue"), so never a procedure name.
+const OPS = "Instagram queue";
+const PROPOSALS = "Approvals";
 
 function bundleSignal(
   id: string,

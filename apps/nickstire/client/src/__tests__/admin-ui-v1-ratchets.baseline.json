@@ -1,7 +1,7 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 123,
+    "emDash": 120,
     "emoji": 0,
     "transitionAll": 46,
     "slowDuration": 7,
@@ -31,9 +31,6 @@
       "transitionAll": 5,
       "slowDuration": 1
     },
-    "client/src/pages/admin/ClosedLoopLiftPanel.tsx": {
-      "emDash": 1
-    },
     "client/src/pages/admin/CommissioningPanel.tsx": {
       "emDash": 2
     },
@@ -45,7 +42,7 @@
       "smallInput": 1
     },
     "client/src/pages/admin/OverviewSection.tsx": {
-      "emDash": 3
+      "emDash": 1
     },
     "client/src/pages/admin/PromisesPanel.tsx": {
       "smallInput": 4

@@ -205,19 +205,18 @@ describe("the hide list cannot silently swallow a signal", () => {
 // ───────────────────────────────────────────────────────────────────────
 describe("Today's own trust holes", () => {
   /**
-   * Work orders are a SEPARATE query from the bundle, so `unavailableSlices`
-   * cannot see them. When it failed, the queue silently dropped every work
-   * order while queueTrustworthy still reported true — and work orders carry
-   * urgency 5 when overdue or blocked, so the highest-priority items were
-   * exactly the ones that vanished.
+   * Follow-ups are a SEPARATE query from the bundle, so `unavailableSlices`
+   * cannot see them. Work orders had this exact hole (a failed read dropped
+   * every work order while queueTrustworthy stayed true); the follow-ups read
+   * that replaced them on the board must veto "All clear" on its own.
    */
-  it("a failed work-order query vetoes 'All clear'", () => {
-    expect(OVERVIEW_SRC).toMatch(/isError: workOrdersFailed/);
-    expect(OVERVIEW_SRC).toMatch(/queueTrustworthy\s*=\s*\n?\s*!workOrdersFailed/);
+  it("a failed follow-ups query vetoes 'All clear'", () => {
+    expect(OVERVIEW_SRC).toMatch(/isError: followUpsReadFailed/);
+    expect(OVERVIEW_SRC).toMatch(/queueTrustworthy\s*=\s*\n?\s*!followUpsFailed/);
   });
 
-  it("a capped work-order page reports a lower bound, not a precise count", () => {
-    expect(OVERVIEW_SRC).toMatch(/queueSaturated/);
+  it("follow-ups past the five on the board make the count a lower bound, not a precise count", () => {
+    expect(OVERVIEW_SRC).toMatch(/followUpsMore/);
     expect(OVERVIEW_SRC).toMatch(/\$\{queue\.length\}\+/);
   });
 

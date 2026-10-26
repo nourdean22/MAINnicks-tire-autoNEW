@@ -123,7 +123,7 @@ describe("48 px targets on Today and the section boundary", () => {
   it("queue filter chips, queue verbs and the call/message links are min-h-12", () => {
     // W2 moved the row verbs and the call/message links into today/QueueRow.tsx, so both files are scanned.
     const queue =
-      sliceBlock(overview, 'aria-label="Filter queue"', 'aria-labelledby="history-title"', { label: "OverviewSection.tsx" }) +
+      sliceBlock(overview, 'aria-label="Filter queue"', "<SalesCard />", { label: "OverviewSection.tsx" }) +
       readFileSync(join(ROOT, "client/src/pages/admin/today/QueueRow.tsx"), "utf8");
     const controls = controlClassNames(queue);
     expect(controls.length).toBeGreaterThanOrEqual(5);

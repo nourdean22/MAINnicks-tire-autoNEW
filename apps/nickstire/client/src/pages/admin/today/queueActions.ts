@@ -47,15 +47,17 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
         secondaryConfirmMessage: (name) => `Open ${name}'s callback record without changing its status.`,
         secondaryDestructive: false,
       };
-    case "workOrder":
+    case "followUp":
+      // A Pipeline follow-up: Called, Texted and Not a customer live on its Pipeline card, so Today
+      // has one verb that opens it. The secondary repeats the primary, which QueueRow omits.
       return {
-        primaryLabel: "Open work order",
+        primaryLabel: "Open in Sales Pipeline",
         shortLabel: "Open",
-        primaryConfirmTitle: "Open work order?",
-        primaryConfirmMessage: (name) => `Open ${name}'s work order in their customer profile.`,
-        secondaryLabel: "Open work order",
-        secondaryConfirmTitle: "Open work order?",
-        secondaryConfirmMessage: (name) => `Open ${name}'s work order in their customer profile.`,
+        primaryConfirmTitle: "Open Sales Pipeline?",
+        primaryConfirmMessage: () => "Open Today's follow-ups in Sales Pipeline.",
+        secondaryLabel: "Open in Sales Pipeline",
+        secondaryConfirmTitle: "Open Sales Pipeline?",
+        secondaryConfirmMessage: () => "Open Today's follow-ups in Sales Pipeline.",
         secondaryDestructive: false,
       };
     case "text":

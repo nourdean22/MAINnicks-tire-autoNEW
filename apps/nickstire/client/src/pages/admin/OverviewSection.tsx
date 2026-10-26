@@ -1,50 +1,39 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
-import ClosedLoopLiftPanel from "./ClosedLoopLiftPanel";
 import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
-import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
 import { gatewayState } from "@/lib/gatewayState";
 import { trpc } from "@/lib/trpc";
 import { isCallbackDuplicateLead } from "@shared/leadSource";
 import { exceptionFeed } from "@shared/adminSignal";
-import { AlertTriangle, History, Loader2, Plug, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState, type ElementType } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection, sectionsForRole } from "./shared";
 import type { AdminRole } from "@shared/adminPermissions";
 import { navigateToAdminUrl } from "./shared/navigation";
-import { innerTabsForRole } from "./innerTabs";
 import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
 import ChecksRail from "./today/ChecksRail";
 import ExceptionFeed from "./today/ExceptionFeed";
 import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
 import { QueueRow } from "./today/QueueRow";
-import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
-
-const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted"]);
-/**
- * Finished work orders. Source: TERMINAL_STATUSES in server/services/workOrderService.ts (not exported), the
- * same four that workOrders.list leaves out unless includeTerminal is set. Every other status is live work,
- * draft and on_hold included, because the server returns them; a free-text status the client does not know
- * yet therefore shows on the board instead of vanishing (the old five-name allow-list hid most of the lifecycle).
- */
-const TERMINAL_WORK_ORDER_STATUSES = new Set(["picked_up", "invoiced", "closed", "cancelled"]);
-const isLiveWorkOrder = (wo: { status?: string | null }) => !TERMINAL_WORK_ORDER_STATUSES.has(wo.status ?? "");
+import type { ActionItem, BookingItem, CallbackItem, LeadItem } from "./today/types";
+import { FOLLOW_UPS_ON_BOARD, LIST_INPUT as FOLLOW_UPS_INPUT, followUpTypeLabel, worklistOrder } from "./today/followUpsRead";
 
 /**
- * Page size for the work-order read that feeds the action queue.
- *
- * Named because the queue count depends on it: a full page means the real
- * number is "at least this", not "exactly this". `queueSaturated` below turns
- * that into a visible "30+" rather than a precise-looking lie.
+ * One rule for the board, the verdict and the tiles: a lead is the shop's move while it is new. Marking it
+ * contacted logs the attempt and moves it to "Waiting on customer"; a reply comes back as an owed text.
  */
-const WORK_ORDER_QUEUE_LIMIT = 30;
+const isOpenLead = (lead: LeadItem) => lead.status === "new" && !isCallbackDuplicateLead(lead);
+const isWaitingLead = (lead: LeadItem) => lead.status === "contacted" && !isCallbackDuplicateLead(lead);
+const LEADS_LIST_HREF = "/admin?tab=leads&leadsTab=leads";
+const FOLLOW_UPS_HREF = "/admin?tab=leads&leadsTab=followups";
+const PLAIN_CLICK = { metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
 /** Same page size as PromisesPanel's PANEL_LIMIT: the rail shares that query's cache entry, so the two must match. */
 const PROMISES_PAGE_LIMIT = 50;
 const UNKNOWN = "—";
@@ -57,7 +46,7 @@ const BOARD_ROW_CAP = 12;
  *
  * Listed by ID rather than by section on purpose: `ops-overview` shares the
  * "overview" section with these three but is NOT in the queue — the queue reads
- * bookings, leads, callbacks and work orders, and knows nothing about
+ * bookings, leads, callbacks, texts and follow-ups, and knows nothing about
  * publishing. Excluding by section would have silently swallowed it, which is
  * the class of mistake this whole arc keeps finding.
  *
@@ -81,7 +70,7 @@ const QUEUE_COVERED_SIGNAL_IDS = ["new-bookings", "actionable-leads", "pending-c
 const DUPLICATE_ALIAS_SIGNAL_IDS = ["ops-instagram"] as const;
 
 function requestLabel(item: ActionItem): string {
-  return item.type === "workOrder" ? "work order" : item.type;
+  return item.type === "followUp" ? "follow-up" : item.type;
 }
 
 /** "42 min" / "5 h" / "2 d" — from the SQL-computed wait, not a driver-parsed timestamp. */
@@ -115,8 +104,7 @@ export default function OverviewSection() {
   // The polite live region's text: "Done: <name>" when a row leaves the board.
   const [announcement, setAnnouncement] = useState("");
   const { data: security } = trpc.adminSecurity.status.useQuery();
-  const canViewHistory = security?.permissions.includes("reports.view") ?? false;
-  // Same derivation as the shell (Admin.tsx): the role decides where a work order can open.
+  // Same derivation as the shell (Admin.tsx): the role decides whether the Decisions tile can open Approvals.
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
 
   const {
@@ -132,20 +120,12 @@ export default function OverviewSection() {
     refetchIntervalInBackground: false,
   });
   /**
-   * `isError` is captured here and NOT discarded — it used to be.
-   *
-   * Work orders are a SEPARATE query from the bundle, so `unavailableSlices`
-   * below cannot see them. When this failed, `workOrders` was undefined,
-   * `currentWorkOrders` became [] and the action queue silently dropped every
-   * work order — while `queueTrustworthy` still reported true, because it only
-   * inspected the bundle's slices. Work orders carry urgency 5 when overdue or
-   * blocked, so the HIGHEST-priority items were the ones that vanished, and the
-   * summary card kept showing a confident count of what was left.
+   * Pipeline follow-ups, with exactly the Sales Pipeline's input so both screens share one cache entry.
+   * A separate query from the bundle, so its failure must veto "All clear" on its own (queueTrustworthy),
+   * and `queryable: false` is the server saying it could not read the queue: unknown, never empty.
    */
-  const { data: workOrders, isError: workOrdersFailed } = trpc.workOrders.list.useQuery(
-    { limit: WORK_ORDER_QUEUE_LIMIT },
-    { refetchInterval: 30_000, refetchIntervalInBackground: false },
-  );
+  const { data: followUpData, isError: followUpsReadFailed } = trpc.opportunityQueue.list.useQuery(FOLLOW_UPS_INPUT);
+  const followUpsFailed = followUpsReadFailed || followUpData?.queryable === false;
   /**
    * Same key AND the same options as the shell's query in Admin.tsx, so this
    * second observer reads the shared react-query cache instead of triggering a
@@ -167,7 +147,7 @@ export default function OverviewSection() {
     staleTime: 45_000,
     refetchIntervalInBackground: false,
   });
-  const { data: freshness, refetch: refetchFreshness, isFetching: freshnessFetching, isError: freshnessFailed } =
+  const { data: freshness, isError: freshnessFailed } =
     trpc.adminSecurity.integrationFreshness.useQuery(undefined, {
       refetchInterval: 60_000,
       refetchIntervalInBackground: false,
@@ -178,10 +158,6 @@ export default function OverviewSection() {
   // Same key and options as PromisesPanel's read (limit 50, staleTime 60 s, retry 1), so the rail's
   // overdue count comes from the panel's own cache entry, not a second fetch.
   const { data: openPromises, isError: promisesFailed } = trpc.promises.listOpen.useQuery({ limit: PROMISES_PAGE_LIMIT }, { staleTime: 60_000, retry: 1 });
-  const { data: recentActions } = trpc.adminSecurity.recentActions.useQuery(
-    { limit: 8 },
-    { enabled: canViewHistory, refetchInterval: 60_000, refetchIntervalInBackground: false },
-  );
 
   const bookingUpdate = trpc.booking.updateStatus.useMutation();
   const leadUpdate = trpc.lead.update.useMutation();
@@ -210,24 +186,19 @@ export default function OverviewSection() {
    * a failed slice inside it, which is exactly why DegradedDataBanner never fired.
    */
   const unavailable = bundle?.unavailableSlices ?? [];
-  const currentWorkOrders = (workOrders ?? []) as WorkOrderItem[];
+  const followUps = useMemo(() => [...(followUpsFailed ? [] : followUpData?.items ?? [])].sort(worklistOrder), [followUpData, followUpsFailed]);
+  const followUpsShown = useMemo(() => followUps.slice(0, FOLLOW_UPS_ON_BOARD), [followUps]);
+  // The board shows five; the rest wait in Sales Pipeline, so the count is "at least".
+  const followUpsMore = followUps.length > followUpsShown.length;
   /**
-   * Every source the queue is built from must be able to veto "All clear" —
-   * including the work-order query, which is not part of the bundle and was
-   * therefore invisible to this check.
+   * Every source the queue is built from must be able to veto "All clear",
+   * including the follow-ups read, which is not part of the bundle.
    */
   const queueTrustworthy =
-    !workOrdersFailed &&
+    !followUpsFailed &&
     !isError &&
     !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks" || s === "owedTexts");
-  /**
-   * The work-order read is capped, so a full page is a LOWER BOUND, not a count.
-   * Saying "37" when the true number could be anything above 30 is the same
-   * false-precision problem as saying "0" for an unread source.
-   */
-  const queueSaturated = currentWorkOrders.length >= WORK_ORDER_QUEUE_LIMIT;
   // Each card is only as known as its own slice: a failed bundle or slice is "unknown", never 0.
-  const bookingsKnown = !isError && !unavailable.includes("bookings");
   const leadsKnown = !isError && !unavailable.includes("leads");
 
   /**
@@ -252,7 +223,6 @@ export default function OverviewSection() {
       }),
     [isError, bundle?.slices, bookings, leads, callbacks, stats, opsFailed, opsSignal, proposalsFailed, proposalCounts],
   );
-  const todayKey = getBusinessDateKey();
 
   const allItems = useMemo<ActionItem[]>(() => {
     const items: ActionItem[] = [];
@@ -271,7 +241,7 @@ export default function OverviewSection() {
       });
     }
     for (const lead of leads) {
-      if (!ACTIVE_LEAD_STATUSES.has(lead.status) || isCallbackDuplicateLead(lead)) continue;
+      if (!isOpenLead(lead)) continue;
       items.push({
         id: `lead-${lead.id}`,
         entityId: lead.id,
@@ -300,22 +270,6 @@ export default function OverviewSection() {
         status: callback.status,
       });
     }
-    for (const workOrder of currentWorkOrders) {
-      if (!isLiveWorkOrder(workOrder)) continue;
-      const overdue = workOrder.promisedAt ? new Date(workOrder.promisedAt).getTime() < Date.now() : false;
-      items.push({
-        id: `workOrder-${workOrder.id}`,
-        entityId: workOrder.id,
-        type: "workOrder",
-        name: workOrder.customerName || "Work order",
-        detail: workOrder.serviceDescription || workOrder.status?.replace(/_/g, " ") || "Service in progress",
-        phone: workOrder.customerPhone,
-        urgency: overdue || workOrder.blockerType ? 5 : workOrder.priority === "high" ? 4 : 2,
-        createdAt: workOrder.createdAt,
-        status: workOrder.status || "unknown",
-        totalRevenue: workOrder.total ? Number(workOrder.total) : undefined,
-      });
-    }
     // Customers waiting on a human text reply: the ROS-058 obligation, so a
     // human reply or "No reply needed" clears it and an automated text does
     // not. Urgent is the same 30-min SLA the Outreach badge and alerts use.
@@ -333,8 +287,28 @@ export default function OverviewSection() {
         status: "awaiting_reply",
       });
     }
-    return items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [bookings, callbacks, callbackServed, currentWorkOrders, leads, owedTexts]);
+    items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    // Follow-ups keep the Pipeline's own order (untouched first, newest first) and sit after the other
+    // urgency-3 rows, before the calm ones.
+    const followUpItems: ActionItem[] = followUpsShown.map((row) => {
+      const excerpt = typeof row.evidence?.summaryExcerpt === "string" && row.evidence.summaryExcerpt.trim() ? row.evidence.summaryExcerpt.trim() : null;
+      return {
+        id: `followUp-${row.id}`,
+        entityId: 0,
+        type: "followUp",
+        name: followUpTypeLabel(row.sourceType),
+        detail: excerpt ? `${row.reason} · Receptionist: ${excerpt}` : row.reason,
+        // No phone here: a call from Today would record no attempt, so the row would still read untouched.
+        // The Pipeline card carries the phone beside Called / Texted, one tap away.
+        urgency: 3,
+        createdAt: row.createdAt,
+        status: row.state,
+      };
+    });
+    const at = items.findIndex((item) => item.urgency < 3);
+    items.splice(at === -1 ? items.length : at, 0, ...followUpItems);
+    return items;
+  }, [bookings, callbacks, callbackServed, followUpsShown, leads, owedTexts]);
   const queue = useMemo(() => allItems.filter((item) => doneRows.get(item.id) !== item.detail), [allItems, doneRows]);
   // Forget done rows whose id is no longer in the data, so the same id coming back later is shown.
   useEffect(() => {
@@ -346,18 +320,15 @@ export default function OverviewSection() {
   }, [allItems, doneRows]);
   /**
    * Both reads the queue is built from have answered. The bundle can answer while the separate
-   * work-order read is still in flight; until it lands an empty board is not "done", it is loading.
+   * follow-ups read is still in flight; until it lands an empty board is not "done", it is loading.
    * `data !== undefined` alone covers a pending, paused or disabled read: TanStack Query v5 derives
    * isLoading as isPending && isFetching (query-core queryObserver.ts, `const isLoading`), and a
    * query that is pending has no data, so a separate isLoading check could never veto anything.
    */
-  const queueAnswered = bundle !== undefined && workOrders !== undefined;
+  const queueAnswered = bundle !== undefined && followUpData !== undefined;
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
   const boardRows = showAll ? filteredQueue : filteredQueue.slice(0, BOARD_ROW_CAP);
-  const todaysBookings = bookings.filter(
-    (booking) => booking.preferredDate === todayKey || isBusinessDate(booking.createdAt, todayKey),
-  );
   const integration = classifyIntegrationFreshness({
     connected: freshness?.connected,
     lastSuccessfulAt: freshness?.lastSuccessfulAt,
@@ -379,7 +350,6 @@ export default function OverviewSection() {
       changes,
     });
     toast.success(`${action.replace(/^admin\./, "").replace(/_/g, " ")} · ${result.reference}`);
-    utils.adminSecurity.recentActions.invalidate();
   }
 
   function openTextThread(item: ActionItem) {
@@ -391,36 +361,10 @@ export default function OverviewSection() {
   }
 
   /**
-   * A work order opens in its customer's Active Backlog, for every role. Money no longer carries a
-   * work-order board (removed 2026-10-25), so a link there would land on Billed with no work order.
-   * Returns where it went, or null when there is no profile to open or this role cannot open Customers.
-   */
-  function openWorkOrder(item: ActionItem): "customers" | null {
-    // The profile lives on the Customers list tab; an accountant reaches Customers for Members only.
-    const canOpenProfile =
-      sectionsForRole(adminRole).includes("customers") && innerTabsForRole("customers", adminRole).includes("customers");
-    const customerId = Number(currentWorkOrders.find((wo) => wo.id === item.entityId)?.customerId);
-    if (!canOpenProfile) {
-      toast.error("Work orders open in Customers, which your role cannot open.");
-      return null;
-    }
-    if (!(customerId > 0)) {
-      toast.error("This work order has no customer on file, so there is no profile to open.");
-      return null;
-    }
-    const url = new URL(window.location.href);
-    url.searchParams.set("id", String(customerId));
-    url.searchParams.set("profileTab", "backlog");
-    window.history.replaceState({}, "", url.toString());
-    navigateToAdminSection("customers");
-    return "customers";
-  }
-
-  /**
    * Both actions resolve true only when the write moved the item to a state the queue above excludes
-   * (booking confirmed or cancelled, callback completed, lead closed, text closed), so QueueRow can
-   * take the row off the board at once. A contacted lead is still an active lead and stays; opening a
-   * thread, a callback or a work order changes nothing on the board.
+   * (booking confirmed or cancelled, callback completed, lead contacted or closed, text closed), so
+   * QueueRow can take the row off the board at once. Opening a thread, a callback or a follow-up
+   * changes nothing on the board.
    */
   async function performPrimary(item: ActionItem): Promise<boolean> {
     const definition = getQueueActionDefinition(item.type);
@@ -428,9 +372,9 @@ export default function OverviewSection() {
       openTextThread(item);
       return false;
     }
-    if (item.type === "workOrder") {
-      const target = openWorkOrder(item);
-      if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
+    // Called, Texted and Not a customer live on the Pipeline card; Today only opens it.
+    if (item.type === "followUp") {
+      navigateToAdminUrl(PLAIN_CLICK, FOLLOW_UPS_HREF, "leads");
       return false;
     }
     const confirmed = await confirmDialog({
@@ -450,7 +394,7 @@ export default function OverviewSection() {
       await logReceipt(item, "admin.callback_completed", { from: item.status, to: "completed" });
     }
     await utils.adminDashboard.overviewMediumBundle.invalidate();
-    return item.type !== "lead";
+    return true;
   }
 
   async function performSecondary(item: ActionItem): Promise<boolean> {
@@ -472,11 +416,7 @@ export default function OverviewSection() {
       await logReceipt(item, "admin.callback_opened", { status: item.status });
       return false;
     }
-    if (item.type === "workOrder") {
-      const target = openWorkOrder(item);
-      if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
-      return false;
-    }
+    if (item.type === "followUp") return false;
     const confirmed = await confirmDialog({
       title: definition.secondaryConfirmTitle,
       message: definition.secondaryConfirmMessage(item.name),
@@ -504,23 +444,34 @@ export default function OverviewSection() {
 
   const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || markNoReplyNeeded.isPending || recordAction.isPending;
 
+  // The verdict's "N urgent leads" reads the board's own predicate: new, uncontacted, urgent.
+  const urgentLeadCount = useMemo(() => leads.filter((lead) => isOpenLead(lead) && (lead.urgencyScore ?? 0) >= 4).length, [leads]);
+  const waitingLeadCount = useMemo(() => leads.filter(isWaitingLead).length, [leads]);
   /**
-   * ONE definition, two consumers: the "Urgent leads" card and the morning
-   * brief above it. This was inline in the card's JSX; the brief would have
-   * needed the same predicate re-typed, and a re-typed predicate is how the
-   * weekly digest nearly drifted from the daily report on the lead count.
-   * Callback-duplicate exclusion is part of the rule, not a caller's chore.
+   * Decisions waiting: proposals on Approvals plus publishing items held, the two numbers the exception
+   * feed already reads. Either read failing or reporting unknown makes the sum unknown, never partial.
    */
-  const urgentLeadCount = useMemo(
-    () =>
-      leads.filter(
-        (lead) =>
-          !isCallbackDuplicateLead(lead) &&
-          ACTIVE_LEAD_STATUSES.has(lead.status) &&
-          (lead.urgencyScore ?? 0) >= 4,
-      ).length,
-    [leads],
-  );
+  const decisionsFailed = proposalsFailed || proposalCounts?.readable === false || opsFailed || opsSignal?.unknown === true;
+  const decisionsAnswered = proposalCounts?.readable === true && typeof proposalCounts.count === "number" && typeof opsSignal?.total === "number";
+  const decisionCount = decisionsAnswered ? (proposalCounts?.count ?? 0) + (opsSignal?.total ?? 0) : null;
+  const canOpenApprovals = sectionsForRole(adminRole).includes("approvals");
+  const mirrorTime = (at: string | Date | null | undefined) =>
+    at ? new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+  // The ShopDriver mirror as one line in the rail, in words: no table name, no panel of its own.
+  const mirrorLine =
+    integration.state === "fresh"
+      ? `ShopDriver mirror · fresh · as of ${mirrorTime(freshness?.lastSuccessfulAt)}`
+      : freshnessFailed || freshness?.readable === false || (integration.state === "unknown" && freshness?.lastSuccessfulAt)
+        ? "ShopDriver mirror · unreadable"
+        : integration.state === "offline"
+          ? "ShopDriver mirror · offline"
+          : integration.state === "failing" && freshness?.lastSuccessfulAt
+            ? `ShopDriver mirror · failing since ${mirrorTime(freshness.lastSuccessfulAt)}`
+          : freshness?.lastSuccessfulAt
+            ? `ShopDriver mirror · stale since ${mirrorTime(freshness.lastSuccessfulAt)}`
+            : freshness
+              ? "ShopDriver mirror · no successful sync recorded"
+              : "ShopDriver mirror · checking";
 
   /**
    * The Checks rail's summary. It folds every monitoring panel away on a phone, so it must say how
@@ -587,6 +538,23 @@ export default function OverviewSection() {
           here under another name. */}
       <section aria-labelledby="queue-title">
         <h2 id="queue-title" className="text-[15px] font-semibold">Priority action queue</h2>
+        {/* What left "now" stays visible: contacted leads wait on the customer, extra follow-ups wait in Sales Pipeline. */}
+        {(!leadsKnown || waitingLeadCount > 0 || followUpsFailed || followUpsMore) && (
+          <div className="mt-1 flex flex-wrap gap-x-4">
+            {(!leadsKnown || waitingLeadCount > 0) && (
+              <button type="button" onClick={() => navigateToAdminUrl(PLAIN_CLICK, LEADS_LIST_HREF, "leads")} className="min-h-12 text-left text-[13px] text-muted-foreground underline-offset-2 hover:underline">
+                {leadsKnown ? `Waiting on customer · ${waitingLeadCount} contacted lead${waitingLeadCount === 1 ? "" : "s"}` : "Waiting on customer · unknown"}
+              </button>
+            )}
+            {followUpsFailed ? (
+              <p className="min-h-12 flex items-center text-[13px] text-amber-600">follow-ups unknown · a read failed</p>
+            ) : followUpsMore ? (
+              <button type="button" onClick={() => navigateToAdminUrl(PLAIN_CLICK, FOLLOW_UPS_HREF, "leads")} className="min-h-12 text-left text-[13px] text-muted-foreground underline-offset-2 hover:underline">
+                {`${followUpsShown.length} of ${followUps.length >= FOLLOW_UPS_INPUT.limit ? `${FOLLOW_UPS_INPUT.limit}+` : followUps.length} follow-ups open · Open Sales Pipeline`}
+              </button>
+            ) : null}
+          </div>
+        )}
         {/* Six chips do not fit 390 px, so the strip scrolls; the right-edge fade says there is more. */}
         <div
           className="mt-2 -mx-1 px-1 flex gap-1.5 overflow-x-auto"
@@ -594,9 +562,9 @@ export default function OverviewSection() {
           role="group"
           aria-label="Filter queue"
         >
-          {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
+          {(["all", "booking", "lead", "callback", "text", "followUp"] as const).map((value) => (
             <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-12 px-3.5 shrink-0 rounded-md text-[13px] ${filter === value ? "bg-secondary text-foreground font-semibold border border-border/60" : "text-muted-foreground"}`}>
-              {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
+              {value === "all" ? "All" : value === "followUp" ? "Follow-ups" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
             </button>
           ))}
         </div>
@@ -604,7 +572,7 @@ export default function OverviewSection() {
         {filteredQueue.length === 0 ? (
           /*
            * An empty queue is only an all-clear if every source that feeds it was actually read
-           * (queueTrustworthy covers the bundle, its slices and the separate work-order query). The
+           * (queueTrustworthy covers the bundle, its slices and the separate follow-ups read). The
            * unreadable state is the W0 contract; its text stays as it is.
            */
           !queueTrustworthy ? (
@@ -662,37 +630,21 @@ export default function OverviewSection() {
         <p className="sr-only" aria-live="polite">{announcement}</p>
       </section>
 
-      <section className="grid grid-cols-4 gap-2" aria-label="Today summary">
+      <section className="grid grid-cols-3 gap-2" aria-label="Today summary">
         <SummaryCard
           label="Needs action"
-          value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : UNKNOWN}
-          detail={
-            !queueTrustworthy
-              ? "Unable to determine"
-              : queueSaturated
-                ? "At least this many: work-order list is capped"
-                : queue.length
-                  ? undefined
-                  : queueAnswered
-                    ? "All clear"
-                    : "Loading"
-          }
+          value={queueTrustworthy ? (followUpsMore ? `${queue.length}+` : queue.length) : UNKNOWN}
+          detail={!queueTrustworthy ? "Unable to determine" : queue.length ? undefined : queueAnswered ? "All clear" : "Loading"}
           alert={queue.length > 0 || !queueTrustworthy}
           priority={queueTrustworthy && queue.length > 0}
         />
-        <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? undefined : "Unable to determine"} />
-        <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? undefined : "Unable to determine"} />
-        {/*
-          Fed by the SAME query as the "Needs action" number. It used to render a
-          neutral "0" while that number, on the identical failure, correctly read
-          "unknown / Unable to determine": two cells side by side disagreeing about
-          whether the shop floor had been read at all.
-        */}
+        <SummaryCard label="Waiting on customer" value={leadsKnown ? waitingLeadCount : UNKNOWN} detail={leadsKnown ? undefined : "Unable to determine"} />
         <SummaryCard
-          label="Active work orders"
-          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter(isLiveWorkOrder).length}
-          detail={workOrdersFailed ? "Unable to determine" : undefined}
-          alert={workOrdersFailed}
+          label="Decisions waiting"
+          value={decisionCount ?? UNKNOWN}
+          detail={decisionsFailed ? "Unable to determine" : decisionCount === null ? "Loading" : decisionCount > 0 ? "Approvals and Instagram" : undefined}
+          alert={decisionsFailed}
+          onClick={canOpenApprovals ? () => navigateToAdminSection("approvals") : undefined}
         />
       </section>
 
@@ -711,51 +663,15 @@ export default function OverviewSection() {
             ones into the queue read on the Opportunities tab. */}
         <PromisesPanel />
 
-        {/* Automation lift (2026-07-29): the closedLoop A/B lift math, a slow-moving measurement. */}
-        <ClosedLoopLiftPanel />
-
         {/*
           Cross-domain exceptions: publishing holds, tire orders and membership
           warnings, plus anything the system could not read. The board covers
-          bookings / leads / callbacks / work orders / texts and knows nothing about
+          bookings / leads / callbacks / texts / follow-ups and knows nothing about
           the rest, so these had no surface on Today at all.
         */}
         <ExceptionFeed signals={signals} hideIds={[...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]} />
 
-        <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="freshness-title">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 id="freshness-title" className="text-sm font-semibold flex items-center gap-2"><Plug className="w-4 h-4 text-primary" />Integration freshness</h2>
-              <p className={`mt-1 text-xs ${integration.state === "fresh" ? "text-emerald-400" : integration.state === "stale" || integration.state === "unknown" ? "text-amber-400" : "text-red-400"}`}>
-                ALG / ShopDriver · {integration.label}
-                {/* Keep the last-success timestamp on a FAILING card. It is the
-                    most useful number there (it says how long the outage has
-                    been running) but it must never be the only thing shown,
-                    which is what made a live failure read as freshly synced. */}
-                {freshness?.lastSuccessfulAt ? ` · last success ${new Date(freshness.lastSuccessfulAt).toLocaleString()}` : ""}
-              </p>
-              <p className="mt-1 text-[10px] text-muted-foreground">Source: {freshness?.source ?? "unknown"} · checked {freshness?.generatedAt ? new Date(freshness.generatedAt).toLocaleTimeString() : "—"}</p>
-            </div>
-            <button type="button" onClick={() => refetchFreshness()} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
-              <RefreshCw className={`w-4 h-4 ${freshnessFetching ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-        </section>
-
-        {canViewHistory && (
-          <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="history-title">
-            <h2 id="history-title" className="text-sm font-semibold flex items-center gap-2"><History className="w-4 h-4 text-primary" />Recent action receipts</h2>
-            <div className="mt-3 space-y-2">
-              {(recentActions ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No recorded admin actions yet.</p> : (recentActions ?? []).map((entry: any) => (
-                <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded border border-border/20 bg-background/40 px-3 py-2">
-                  <div><p className="text-xs font-medium">{entry.action}</p><p className="text-[10px] text-muted-foreground">{entry.actor} · {entry.entityId || "—"}</p></div>
-                  <div className="text-[10px] font-mono text-muted-foreground">{entry.changes?.reference || "ACT"} · {new Date(entry.createdAt).toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
+        <p className={`px-1 text-[13px] ${integration.state === "fresh" ? "text-muted-foreground" : "text-amber-600"}`}>{mirrorLine}</p>
       </ChecksRail>
     </div>
   );
@@ -769,13 +685,14 @@ export default function OverviewSection() {
  * is a claim. The type was enforcing the defect. `detail` only renders when it
  * says something the number cannot (unknown, capped, all clear).
  */
-function SummaryCard({ label, value, detail, alert = false, priority = false }: { label: string; value: number | string; detail?: string; alert?: boolean; priority?: boolean }) {
+function SummaryCard({ label, value, detail, alert = false, priority = false, onClick }: { label: string; value: number | string; detail?: string; alert?: boolean; priority?: boolean; onClick?: () => void }) {
   // `priority` is the owner-priority gold (index.css --owner-priority): work is waiting and the count is real.
+  const Cell: ElementType = onClick ? "button" : "div";
   return (
-    <div className="min-w-0">
+    <Cell {...(onClick ? { type: "button", onClick, className: "min-w-0 min-h-12 text-left" } : { className: "min-w-0" })}>
       <div className={`text-2xl font-bold tabular-nums leading-none ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
       <div className="mt-1.5 text-[12px] leading-tight text-muted-foreground">{label}</div>
       {detail && <div className="mt-1 text-[12px] leading-tight text-muted-foreground">{detail}</div>}
-    </div>
+    </Cell>
   );
 }

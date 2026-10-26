@@ -134,7 +134,8 @@ export function KpiTile({
         <div className={`mt-2 text-[11px] font-medium ${trendColor} flex items-center gap-1`}>
           <span>{trendArrow}</span>
           {delta && <span>{delta}</span>}
-          {deltaLabel && <span className="text-foreground/40">· {deltaLabel}</span>}
+          {/* The arrow is already a middle dot for a neutral trend: only a printed delta needs a separator. */}
+          {deltaLabel && <span className="text-foreground/40">{delta ? "· " : ""}{deltaLabel}</span>}
         </div>
       )}
     </Wrapper>

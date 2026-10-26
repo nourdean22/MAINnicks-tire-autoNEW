@@ -49,23 +49,6 @@ export interface CallbackItem {
   createdAt: string | Date;
 }
 
-export interface WorkOrderItem {
-  id: number;
-  status?: string;
-  customerName?: string;
-  customerId?: string | number;
-  customerPhone?: string | null;
-  serviceDescription?: string;
-  vehicleMake?: string;
-  vehicleModel?: string;
-  total?: string | number;
-  createdAt: string | Date;
-  promisedAt?: string | Date | null;
-  blockerType?: string | null;
-  assignedTech?: string;
-  priority?: string;
-}
-
 export interface NBAAction {
   type: string;
   urgency: number;
@@ -100,12 +83,12 @@ export interface ShopFloorData {
 }
 
 /** Priority action queue item — merged shape across bookings / leads /
- *  callbacks / work orders so the queue can render them uniformly. */
+ *  callbacks / owed texts / Pipeline follow-ups so the queue can render them uniformly. */
 export interface ActionItem {
   id: string;
   /** Numeric entity ID — needed to call mutations (mark-done, delete) */
   entityId: number;
-  type: "booking" | "lead" | "callback" | "workOrder" | "text";
+  type: "booking" | "lead" | "callback" | "text" | "followUp";
   name: string;
   detail: string;
   phone?: string | null;
