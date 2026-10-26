@@ -17,7 +17,8 @@ import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
 import { trpc } from "@/lib/trpc";
 import { useSyncOnAdminLoad } from "@/lib/useSyncOnAdminLoad";
-import type { AdminRole } from "@shared/adminPermissions";
+import { hasAdminPermission, type AdminRole } from "@shared/adminPermissions";
+import { AdminAssistant, AdminAssistantButton, openAdminAssistant } from "@/components/admin/AdminAssistant";
 import {
   ArrowLeft,
   ChevronRight,
@@ -199,6 +200,8 @@ export default function Admin() {
 
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
   const allowedSections = useMemo(() => sectionsForRole(adminRole), [adminRole]);
+  // nickActions.ask is a nickActions mutation = settings.manage on the server (owner, manager).
+  const canAsk = !!security && hasAdminPermission(adminRole, "settings.manage");
   const visibleGroups = useMemo(() => getSidebarGroups(adminRole), [adminRole]);
 
   useEffect(() => {
@@ -339,12 +342,14 @@ export default function Admin() {
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden inline-flex items-center justify-center w-12 h-12 text-muted-foreground hover:text-foreground" aria-label="Open sidebar"><Menu className="w-4 h-4" /></button>
             <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2 truncate">{SECTION_TITLES[section]}</h1><div className="flex-1" />
             <CommandSearch allowedSections={allowedSections} role={security ? adminRole : null} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSelectCustomer={(id) => openCustomerDrawer(id)} />
+            {canAsk && <AdminAssistantButton />}
             <DensityToggle />
             {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-12 h-12 text-muted-foreground hover:text-foreground`}>{action.icon}</Link>)}
           </header>
           <div className="admin-content"><div className="px-4 pt-4 space-y-3"><UnknownSectionNotice slug={unresolvedSlug} reason={unresolvedReason} onDismiss={dismissUnresolvedSlug} /><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} onRetry={() => void utils.adminDashboard.overviewMediumBundle.invalidate()} /></div><SectionContent section={section} /></div>
         </main>
-        <AdminTabBar role={adminRole} active={section} signals={signals} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSearch={openCommandSearch} />
+        <AdminTabBar role={adminRole} active={section} signals={signals} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSearch={openCommandSearch} onAsk={canAsk ? openAdminAssistant : undefined} />
+        {canAsk && <AdminAssistant userKey={String(user?.id ?? "admin")} section={section} sectionTitle={SECTION_TITLES[section]} allowedSections={allowedSections} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} />}
         <DrilldownDrawer /><ConfirmDialog /><WalkInQuoteDrawer /><ActivityPulse />
       </div>
     </AdminSSEProvider>

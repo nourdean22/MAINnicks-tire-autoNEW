@@ -7,7 +7,7 @@
  * group in priority order, so a restricted role is not left with gaps. The hamburger drawer still
  * holds every section. Phones only (`lg:hidden`); .admin-content reserves its height in index.css.
  */
-import { Search } from "lucide-react";
+import { MessageSquare, Search } from "lucide-react";
 import type { AdminRole } from "@shared/adminPermissions";
 import { describeBadge, foldSignals, signalsForSection, type AdminSignal } from "@shared/adminSignal";
 import { getSidebarGroups } from "@/pages/admin/registry";
@@ -44,12 +44,14 @@ export function NavBadge({ section, signals, className = "" }: { section: AdminS
   return null;
 }
 
-export function AdminTabBar({ role, active, signals, onNavigate, onSearch }: {
+export function AdminTabBar({ role, active, signals, onNavigate, onSearch, onAsk }: {
   role: AdminRole;
   active: AdminSection;
   signals: readonly AdminSignal[];
   onNavigate: (section: AdminSection) => void;
   onSearch: () => void;
+  /** Opens the assistant sheet; the slot renders only for roles that may use it. */
+  onAsk?: () => void;
 }) {
   // z-30: under the drawer scrim (z-40) and drawer (z-50), so an open drawer covers the bar.
   const slot = "flex-1 min-w-0 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium leading-tight transition-colors duration-100";
@@ -77,6 +79,12 @@ export function AdminTabBar({ role, active, signals, onNavigate, onSearch }: {
           </button>
         );
       })}
+      {onAsk && (
+        <button type="button" data-slot="ask" onClick={onAsk} className={`${slot} text-muted-foreground`}>
+          <MessageSquare className="w-5 h-5" aria-hidden />
+          <span>Ask</span>
+        </button>
+      )}
       <button type="button" data-slot="search" onClick={onSearch} className={`${slot} text-muted-foreground`}>
         <Search className="w-5 h-5" aria-hidden />
         <span>Search</span>

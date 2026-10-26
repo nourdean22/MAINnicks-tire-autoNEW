@@ -15,6 +15,7 @@ import { handleRunMigrations } from "./nick/intelligence";
 import {
   handleShopPulse, handleCronHealth,
 } from "./nick/chat";
+import { assistantAskSchema, handleAssistantAsk } from "./nick/assistant";
 
 export const nickActionsRouter = router({
 
@@ -44,6 +45,13 @@ export const nickActionsRouter = router({
   // ─── Shop Status ──────────────────────────────────────
   shopPulse: adminProcedure.query(async () => handleShopPulse()),
   cronHealth: dbAdminProcedure.query(async () => handleCronHealth()),
+
+  // ─── Admin assistant ("Ask" sheet on every admin page) ─
+  // A mutation, so `nickActions.*` resolves it to settings.manage: owner and
+  // manager only. It writes nothing; see nick/assistant.ts.
+  ask: adminProcedure
+    .input(assistantAskSchema)
+    .mutation(async ({ ctx, input }) => handleAssistantAsk(ctx, input)),
   runMigrations: adminProcedure.mutation(async ({ ctx }) => {
     // Raw DDL execution — the single highest-privilege operator lever, and it
     // was completely unaudited. Log who ran it + the applied/skipped/error

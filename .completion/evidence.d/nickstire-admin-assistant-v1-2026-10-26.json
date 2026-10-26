@@ -1,0 +1,5 @@
+{
+  "evidence": {
+    "operator-walkthrough": { "ref": "Admin assistant v1 (docs/ADMIN-ASSISTANT.md): phone tab bar gains an Ask slot before Search (owner and manager only), laptop header gains an Ask button (Ctrl+J); the sheet answers from records with customer chips, shows UNKNOWN for a failed read, and a drafted text or note runs customers.quickSms / customers.updateNotes only on tap. client/src/__tests__/admin-assistant.test.tsx (8 tests) + admin-tab-bar.test.tsx (15) green; live 375 px read on nickstire.org after deploy." }
+  }
+}
