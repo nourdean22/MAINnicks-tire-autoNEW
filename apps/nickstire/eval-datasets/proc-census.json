@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T23:01:58.581Z",
-  "count": 652,
+  "generatedAt": "2026-10-26T12:13:43.487Z",
+  "count": 654,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -427,6 +427,7 @@
     "query.gatewayTire.checkOrder",
     "query.gatewayTire.getPackage",
     "query.gatewayTire.listOrders",
+    "query.gatewayTire.markup",
     "query.gatewayTire.orderStats",
     "query.gatewayTire.popularSizes",
     "query.gatewayTire.publicPriceRanges",
@@ -434,6 +435,7 @@
     "query.gatewayTire.publicStats",
     "query.gatewayTire.searchBySize",
     "query.gatewayTire.status",
+    "query.gatewayTire.tireActivity",
     "query.gbp.getAuthStatus",
     "query.gbp.getAuthUrl",
     "query.gbp.listLocations",
