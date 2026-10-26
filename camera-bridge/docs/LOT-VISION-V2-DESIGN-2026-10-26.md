@@ -111,6 +111,25 @@ silent zero pages the same day.
 4. A re-count job (section 5.1). No schema change: `vehicle_visits` already has `sourceGeneration`, `dataClass`,
    `detectorName`, `calibrationVersion` (FACT, `drizzle/schema.ts:4724`).
 
+### 4.3 The relay pin (phase 3, 2026-10-26)
+- **Pinned:** upstream V380Decoder release v1.0.4 (https://github.com/PyanSofyan/V380Decoder/releases/tag/v1.0.4,
+  published 2026-10-09, tag -> commit 14cb20fe70cf4c5639bbf15d3cfe453680c516ed). linux-x64: 10,815,382 bytes, SHA-256
+  `fe896ea6319273b3c6942f294ec8f58a150f1eef315b81d4280b9259bca4275c`; win-x64: 10,869,110 bytes, SHA-256
+  `3125fbefb9bc4a14faa8ec80d35c06e6bf00c9a20134c6c9b17196dc118a8126`. Source of each hash: GitHub's recorded asset digest,
+  which matched the publisher's own `.sha256` file. Not re-hashed locally (the binary was not downloaded to an agent
+  machine); the Dockerfile and the front-desk block re-hash it on download and fail closed.
+- **Why upstream, not the three-lens fork:** the fork (felipemarques/camera-v380decoder, HEAD 460c2a0e, last push
+  2026-03-09) has no releases, so it could only be built from source with a .NET SDK. Whether upstream v1.0.4 serves the
+  three-lens H.265 stream cleanly is NOT CHECKED until phase 4 runs it on the live camera; if it does not, the fork
+  built from 460c2a0e is the fallback.
+- **Licence:** neither repo has a licence file, so the binary is run-only: never vendored, copied into this repo or
+  redistributed (`docs/UPSTREAMS.md` row "V380 protocol bridges").
+- **Kill criterion:** any change of hash or byte count under the same tag fails the build closed and stops the lane
+  until a person re-pins it.
+- **The launcher** (`camera-bridge/cloud/run_cloud.py`) starts the relay only after the edge's election marker exists,
+  because the relay itself is the camera session. MediaMTX v1.21.2 is pinned the same way (linux_amd64 28,345,997 bytes,
+  `121be6e0...6a27`; windows_amd64 28,583,662 bytes, `a84224f5...e467`).
+
 ## 5. When things break
 
 | Off or broken | What happens |

@@ -2198,6 +2198,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--dormant-until-authoritative", action="store_true",
                     help="standby copy (EDGE_ROLE=cloud): heartbeat only and never read the camera "
                          "until the shop grants the lease; exit on losing it")
+    ap.add_argument("--elected-file", default=None,
+                    help="with --dormant-until-authoritative: create this file on election "
+                         "(the cloud launcher starts the relay only then)")
     ap.add_argument("--stall-reopen-attempts", type=int, default=0,
                     help="with N > 0, a stalled RTSP edge stays up (tracker and producer instance "
                          "kept) while its own reader is still reopening the stream, until N reopens "
@@ -2221,9 +2224,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
-def wait_until_authoritative(loop, stop: threading.Event, *, sleep=time.sleep, clock=time.time) -> bool:
+def wait_until_authoritative(loop, stop: threading.Event, *, sleep=time.sleep, clock=time.time,
+                             elected_file: Optional[str] = None) -> bool:
     """Dormant standby: heartbeat only, camera never read, until the shop grants this producer
-    the lease. True when granted, False when stopped first. A failed heartbeat keeps waiting."""
+    the lease. True when granted, False when stopped first. A failed heartbeat keeps waiting.
+    On a grant, `elected_file` is created: the cloud launcher starts the relay only then."""
     while not stop.is_set():
         try:
             loop.send_heartbeat(clock())
@@ -2233,6 +2238,9 @@ def wait_until_authoritative(loop, stop: threading.Event, *, sleep=time.sleep, c
         if loop.pipeline.shop.is_authoritative(loop.camera):
             # The stall clock starts at election: the dormant hours were not capture downtime.
             loop.started_at = clock()
+            if elected_file:
+                with open(elected_file, "w", encoding="utf-8") as fh:
+                    fh.write(str(clock()))
             return True
         sleep(loop.heartbeat_seconds)
     return False
@@ -2390,7 +2398,7 @@ def run_edge(args: argparse.Namespace) -> int:
         # start fail-closed and only begin mirroring after the shop explicitly elects them.
         if args.dormant_until_authoritative:
             log.info("dormant standby: heartbeat only, camera closed, until the shop grants the lease")
-            if wait_until_authoritative(loop, stop):
+            if wait_until_authoritative(loop, stop, elected_file=args.elected_file):
                 log.warning("dormant standby elected: opening the camera")
             loop.next_heartbeat = time.time() + loop.heartbeat_seconds
         else:
