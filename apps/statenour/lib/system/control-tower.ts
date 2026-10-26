@@ -30,7 +30,12 @@ export interface TowerDiagnostics {
 
 export interface TowerHealth {
   status?: string;
-  alerts?: { unresolved: number };
+  /**
+   * system.healthSummary's alerts read, a MetricResult (lib/services/system-pages.ts): only "ok", or a
+   * "degraded" read that still carries a value, holds a count. Until 2026-10-26 this was typed as a bare
+   * `{ unresolved }`, so `alerts.unresolved` was always undefined and the alerts line never showed.
+   */
+  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
 }
 
 export interface TowerInput {
@@ -100,8 +105,11 @@ export function controlTower(input: TowerInput): TowerVerdict {
       tone: d.kpis.errors_24h >= 10 ? "rose" : "amber",
     });
   }
-  // 2026-10-26 audit: a failed health read left `unresolved` at 0 and the tower said ALL SYSTEMS NOMINAL.
-  if (input.healthReadFailed && input.health?.alerts == null) {
+  // 2026-10-26 audit: a failed health query, or an alerts metric that came back unavailable, left
+  // `unresolved` at 0 and the tower said ALL SYSTEMS NOMINAL. Health still loading (null, no error) adds nothing.
+  const alertsMetric = input.health?.alerts;
+  const alertsCount = alertsMetric && alertsMetric.status !== "unavailable" ? alertsMetric.value?.unresolved : undefined;
+  if ((input.health != null || input.healthReadFailed) && alertsCount === undefined) {
     exceptions.push({
       key: "alerts-unknown",
       line: "alerts read failed: unresolved alerts unknown",
@@ -109,7 +117,7 @@ export function controlTower(input: TowerInput): TowerVerdict {
       href: "/system/alerts",
     });
   }
-  const unresolved = input.health?.alerts?.unresolved ?? 0;
+  const unresolved = alertsCount ?? 0;
   if (unresolved > 0) {
     exceptions.push({
       key: "alerts",

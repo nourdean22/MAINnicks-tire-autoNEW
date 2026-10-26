@@ -12,6 +12,9 @@ import { describe, expect, it } from "vitest";
 
 import { controlTower, type TowerDiagnostics } from "@/lib/system/control-tower";
 
+// system.healthSummary returns alerts as a MetricResult (lib/services/system-pages.ts:218), not a bare count.
+const alertsOk = (unresolved: number) => ({ status: "ok" as const, value: { unresolved }, measuredAt: "2026-10-26T00:00:00Z", source: "test" });
+
 const clean: TowerDiagnostics = {
   db: { connected: true, latency_ms: 42 },
   kpis: { errors_24h: 0, requests_24h: 120, latency_24h: { avg_ms: 210, p95_ms: 900 } },
@@ -48,7 +51,7 @@ describe("controlTower: one verdict, then the exceptions", () => {
   });
 
   it("is NOMINAL with no exceptions on a clean read", () => {
-    const v = controlTower({ diagnostics: clean, health: { status: "ok", alerts: { unresolved: 0 } }, diagnosticsReadFailed: false });
+    const v = controlTower({ diagnostics: clean, health: { status: "ok", alerts: alertsOk(0) }, diagnosticsReadFailed: false });
     expect(v.state).toBe("nominal");
     expect(v.headline).toBe("ALL SYSTEMS NOMINAL");
     expect(v.exceptions).toEqual([]);
@@ -63,10 +66,26 @@ describe("controlTower: one verdict, then the exceptions", () => {
   });
 
   it("a failed refresh over a health read that has data keeps the measured count", () => {
-    const v = controlTower({ diagnostics: clean, health: { alerts: { unresolved: 2 } }, diagnosticsReadFailed: false, healthReadFailed: true });
+    const v = controlTower({ diagnostics: clean, health: { alerts: alertsOk(2) }, diagnosticsReadFailed: false, healthReadFailed: true });
     expect(v.exceptions.map((e) => e.key)).toEqual(["alerts"]);
   });
 
+  // Codex on PR 3310: the alerts sub-read fails inside buildSystemHealth and still resolves (MetricResult
+  // "unavailable"), so the query is not in error; the tower must read the metric's own status.
+  it("an alerts metric that came back unavailable is unknown, never nominal", () => {
+    const v = controlTower({
+      diagnostics: clean,
+      health: { status: "ok", alerts: { status: "unavailable", source: "drift_alerts", errorCode: "db" } },
+      diagnosticsReadFailed: false,
+    });
+    expect(v.headline).not.toMatch(/nominal/i);
+    expect(v.exceptions.map((e) => e.key)).toEqual(["alerts-unknown"]);
+  });
+
+  it("a measured count from the real payload shape shows as unresolved alerts", () => {
+    const v = controlTower({ diagnostics: clean, health: { status: "ok", alerts: alertsOk(3) }, diagnosticsReadFailed: false });
+    expect(v.exceptions.find((e) => e.key === "alerts")?.line).toBe("3 unresolved alerts");
+  });
   it("counts every exception source once and grammars the headline", () => {
     const v = controlTower({
       diagnostics: {
@@ -80,7 +99,7 @@ describe("controlTower: one verdict, then the exceptions", () => {
           { name: "old", status: "failed", enabled: false },
         ],
       },
-      health: { status: "warn", alerts: { unresolved: 2 } },
+      health: { status: "warn", alerts: alertsOk(2) },
       diagnosticsReadFailed: false,
     });
     expect(v.state).toBe("attention");
@@ -118,7 +137,7 @@ describe("controlTower: one verdict, then the exceptions", () => {
     // control: an exception that still has a destination keeps it. The tower renders ON /system, so the exceptions
     // that used to link to the cut /system/health and /system/logs pages carry none (a self-link).
     expect(v.exceptions.find((e) => e.key === "db")?.href).toBeUndefined();
-    expect(controlTower({ diagnostics: clean, health: { alerts: { unresolved: 2 } } as never, diagnosticsReadFailed: false })
+    expect(controlTower({ diagnostics: clean, health: { alerts: alertsOk(2) }, diagnosticsReadFailed: false })
       .exceptions.find((e) => e.key === "alerts")?.href).toBe("/system/alerts");
   });
 
