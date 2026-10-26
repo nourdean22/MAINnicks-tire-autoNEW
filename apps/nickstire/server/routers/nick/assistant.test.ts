@@ -88,14 +88,16 @@ describe("what the tools hand the model", () => {
 });
 
 describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
-  it("the prompt says a counter invoice is a closed job, its status is the ticket state not money, and a missing invoice is an inference", async () => {
+  it("the prompt says a closed counter invoice is a sale, its status is the ticket state not money, and a missing invoice is an inference", async () => {
     fakeCaller();
     const { invoke } = await askWithTool("recent_calls", {});
     const system = String((invoke.mock.calls[0][0] as InvokeParams).messages[0].content);
-    expect(system).toContain("a counter invoice is a closed job (a sale)");
-    expect(system).toContain("paid = closed (a sale), pending = still open (not a sale yet)");
+    expect(system).toContain("a closed ShopDriver counter invoice is a closed job (a sale)");
+    expect(system).toContain("pending = ticket still open at the counter (not a sale yet)");
+    // Codex P2 on PR 3306 (round 3): no blanket "every counter invoice is a closed sale" beside "pending is not a sale".
+    expect(system).not.toMatch(/\b(a|every|any) counter invoice is a closed job/i);
     // Codex P2 on PR 3306 (round 2): the mirror stores a missing or unknown ticket state as paid.
-    expect(system).toContain("a missing or unknown ticket state is also stored as paid");
+    expect(system).toContain("a missing or unknown feed state is also stored as paid");
     expect(system).toContain("never say whether a counter customer paid from it");
     // Codex P2 on PR 3306: an online tire order's status IS the real checkout state.
     expect(system).toContain("On an online tire order made in the app (source manual) paymentStatus is the real checkout state");
