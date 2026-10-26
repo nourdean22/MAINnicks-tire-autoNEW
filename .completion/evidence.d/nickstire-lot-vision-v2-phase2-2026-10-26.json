@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "PR 3307 (lot vision v2 phase 2): apps/nickstire/docs/operations/capability-ledger.json gains two test lines on lot-truth-plausibility-20261007 for server/services/lotCountingAlert.ts and its wiring in cameraHealthAlerts.ts (lotCountingAlert.test.ts 12/12, lotCountingAlertRun.test.ts 5/5); no state, exposure or expiry change because nothing new is deployed or live yet"
+    }
+  }
+}

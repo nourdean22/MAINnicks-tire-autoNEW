@@ -73,7 +73,7 @@ class ShopMirror:
         # Priority-bearing producers are lease-managed PER CAMERA. None is trusted merely
         # because it is p1: the shop must grant a fresh lease first. Legacy producers keep
         # the pre-failover behaviour.
-        self._lease_managed = str(producer_instance_id or "").startswith(("p1-", "p2-", "p3-"))
+        self._lease_managed = str(producer_instance_id or "").startswith(("p1-", "p2-", "p3-", "p4-"))
         self._authority_until: Dict[str, float] = {}
         self._authority_epoch: Dict[str, str] = {}
         self._authority_serial = 0
