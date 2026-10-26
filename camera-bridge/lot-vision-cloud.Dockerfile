@@ -48,6 +48,7 @@ ENV RELAY_BIN=/opt/relay/V380Decoder.bin \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
     PYTHONUNBUFFERED=1
 
-RUN useradd --create-home --uid 10001 counter && chown -R counter /app
+# /data is the Railway volume: the visit ledger and its outboxes must survive a restart (LEDGER_DIR).
+RUN useradd --create-home --uid 10001 counter && mkdir -p /data/lot-vision && chown -R counter /app /data
 USER counter
 CMD ["python", "-m", "cloud.run_cloud"]
