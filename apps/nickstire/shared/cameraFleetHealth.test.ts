@@ -88,6 +88,19 @@ describe("summarizeCameraFleet", () => {
       ],
     });
     expect(v.problems.map((p) => p.state)).toEqual(["conversation worker stuck in one recording (96h), not listening"]);
+    // A heartbeat that stopped mid-capture keeps the camera's own outage (Codex review on #3297).
+    const offline = summarizeCameraFleet({
+      ok: true,
+      cameras: [
+        cam({
+          camera: "office",
+          label: "Office",
+          state: "PRODUCER_OFFLINE",
+          conversation: { workerOk: true, state: "CAPTURING", workerAgeSeconds: 3 * 3600, captureAgeSeconds: 4 * 24 * 3600 },
+        }),
+      ],
+    });
+    expect(offline.problems.map((p) => p.state)).toEqual(["PRODUCER_OFFLINE"]);
     // The 15-minute line: a capture is at most 120 s + ffmpeg's 120 s timeout.
     expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: 15 * 60 - 1 })).toBe(false);
     expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: 15 * 60 + 1 })).toBe(true);

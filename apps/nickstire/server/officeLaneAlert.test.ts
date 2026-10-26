@@ -212,10 +212,11 @@ describe("office lane: CONVERSATIONS_NOT_POSTING on the camera-health pass", () 
     const stuckTexts = () => h.telegram.mock.calls.map((c) => String(c[0])).filter((t) => t.includes("Office worker stuck"));
 
     it("the production shape: heartbeat fresh, CAPTURING, capture and post ~4 days old, 0 captures this hour: pages once, with the fix", async () => {
-      const row = lane({ workerState: "CAPTURING", captureAgeSeconds: FOUR_DAYS, postAgeSeconds: FOUR_DAYS + 295, conversationCapturesLast60m: 0 });
+      const captureEpoch = Math.floor(Date.now() / 1000) - FOUR_DAYS;
+      const row = lane({ workerState: "CAPTURING", captureAgeSeconds: FOUR_DAYS, captureEpoch, postAgeSeconds: FOUR_DAYS + 295, conversationCapturesLast60m: 0 });
       const executed = install(row);
       await runCameraHealthAlerts();
-      expect(laneClaims(executed)).toEqual([`office_lane:office:e${row.postEpoch}:CAPTURE_STUCK`]);
+      expect(laneClaims(executed)).toEqual([`office_lane:office:e${captureEpoch}:CAPTURE_STUCK`]);
       const texts = stuckTexts();
       expect(texts).toHaveLength(1);
       expect(texts[0]).toContain("stuck in one recording for 3 days 23 h and is not listening");
@@ -229,6 +230,24 @@ describe("office lane: CONVERSATIONS_NOT_POSTING on the camera-health pass", () 
       executed = install(lane({ workerState: "CAPTURING", captureAgeSeconds: 16 * 60, postAgeSeconds: 20 * 60 }));
       await runCameraHealthAlerts();
       expect(laneClaims(executed)).toEqual([expect.stringMatching(/:CAPTURE_STUCK$/)]);
+    });
+
+    it("a capture still in progress (14 min, last post 75 min ago) pages nothing (Codex review on #3297)", async () => {
+      const executed = install(lane({ workerState: "CAPTURING", captureAgeSeconds: 14 * 60, postAgeSeconds: 75 * 60 }));
+      await runCameraHealthAlerts();
+      expect(laneClaims(executed)).toEqual([]);
+    });
+
+    it("two hangs after the same last post are two pages: the claim is keyed on the stuck capture", async () => {
+      const nowEpoch = Math.floor(Date.now() / 1000);
+      const first = lane({ workerState: "CAPTURING", captureAgeSeconds: 3 * 3600, captureEpoch: nowEpoch - 3 * 3600, postAgeSeconds: 5 * 3600 });
+      let executed = install(first);
+      await runCameraHealthAlerts();
+      expect(laneClaims(executed)).toEqual([`office_lane:office:e${nowEpoch - 3 * 3600}:CAPTURE_STUCK`]);
+      const second = lane({ workerState: "CAPTURING", captureAgeSeconds: 20 * 60, captureEpoch: nowEpoch - 20 * 60, postAgeSeconds: 5 * 3600 });
+      executed = install(second);
+      await runCameraHealthAlerts();
+      expect(laneClaims(executed)).toEqual([`office_lane:office:e${nowEpoch - 20 * 60}:CAPTURE_STUCK`]);
     });
 
     it("CONTROL: READY with a 4-day-old capture is a quiet office, not a stuck worker", async () => {

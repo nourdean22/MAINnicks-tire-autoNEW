@@ -57,6 +57,11 @@ export function officeLaneVerdict(input: {
   if (post !== null && post <= NOT_POSTING_AFTER_SECONDS) {
     return { state: "CONVERSATIONS_POSTING", reason: `last conversation reached the server ${Math.floor(post / 60)} minutes ago` };
   }
+  // Under the stuck line a recording is still in progress: the posting rule below is for
+  // finished captures, and would page a 14-minute capture as "not posting".
+  if (input.workerState?.toUpperCase() === "CAPTURING") {
+    return { state: "NOT_JUDGED", reason: "a recording is in progress" };
+  }
   // An unknown capture time is not a fault for this rule: an hourly count alone cannot say whether
   // the latest capture is still in flight.
   if (cap === null || cap > NOT_POSTING_AFTER_SECONDS) {

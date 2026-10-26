@@ -116,8 +116,14 @@ export function summarizeCameraFleet(
       continue;
     }
     // Before the camera state: the office camera's own amber state (UNVERIFIED_CAPABILITIES)
-    // must not hide a worker that has stopped listening.
-    if (conversationCaptureStuck(c.conversation)) {
+    // must not hide a worker that has stopped listening. Only a FRESH report: a heartbeat that
+    // stopped mid-capture is the camera's outage (PRODUCER_OFFLINE), not a stuck recording.
+    const reportAge = c.conversation?.workerAgeSeconds;
+    if (
+      typeof reportAge === "number" &&
+      reportAge <= WORKER_STALE_AFTER_SECONDS &&
+      conversationCaptureStuck(c.conversation)
+    ) {
       problems.push({
         camera: c.camera,
         label,

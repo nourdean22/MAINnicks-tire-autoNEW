@@ -305,6 +305,7 @@ async function judgeOfficeLane(
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationCaptureAt) AS captureAgeSeconds,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationPostAt) AS postAgeSeconds,
            UNIX_TIMESTAMP(lastConversationPostAt) AS postEpoch,
+           UNIX_TIMESTAMP(lastConversationCaptureAt) AS captureEpoch,
            conversationWorkerState AS workerState
       FROM camera_runtime
      WHERE camera = ${camera}
@@ -324,9 +325,11 @@ async function judgeOfficeLane(
   const decision = officeLaneAlertDecision(verdict.state, latest?.key ?? null, latest?.ageSeconds ?? null);
   if (!decision.notify) return { ...none, held: decision.held };
 
+  // A stuck page is keyed on the capture that hung (one page per stuck capture, and a second hang
+  // after the same last post still pages); a not-posting page on the last post (the silence began there).
   const episode = decision.recovery
     ? episodeFromAlertKey(latest?.key ?? null)
-    : row ? numberOrNull(row.postEpoch) : null;
+    : row ? numberOrNull(verdict.state === "CAPTURE_STUCK" ? row.captureEpoch : row.postEpoch) : null;
   const claim = officeLaneAlertClaim(camera, verdict.state, episode);
   const claimed = await claimAlert(db, claim, {
     camera,
