@@ -94,7 +94,7 @@ const DROP_KEYS = /^(email|address|city|state|zip|phone2|psychoProfile\w*|alsCus
 const PHONE_KEYS = /^(phone|customerPhone|callerPhone|fromNumber|from|to)$/;
 const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue|cents|averageCents|pendingCents|partialCentsFullValue|refundedCents)$/;
 // services/shopSales.ts: the ShopDriver mirror maps the ALG ticket lifecycle onto paymentStatus.
-const STATUS_MEANING = "On a ShopDriver counter invoice (source shopdriver) paymentStatus is the ticket state, not money: paid = ticket closed (a sale), pending = ticket still open (not a sale yet); payment is taken on a separate register, so it never says whether that customer paid. On an online tire order made in the app (source manual) it IS the real checkout state.";
+const STATUS_MEANING = "On a ShopDriver counter invoice (source shopdriver) paymentStatus is the ticket state, not money: paid = ticket closed (a sale; a missing or unknown feed state is also stored as paid), pending = ticket still open (not a sale yet). Payment is on a separate register, so it never says that customer paid. On an online tire order made in the app (source manual) it IS the real checkout state."; // under minimize's 400-character string cap
 
 function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   if (depth > 5) return undefined;
@@ -165,7 +165,11 @@ async function runAssistantTool(caller: Caller, tool: string, args: Record<strin
         if ((period === "today" || period === "yesterday") && r.windowSynced !== true) {
           throw new Error(`${period} is not synced from ShopDriver yet, so its sales are not known (the Money page hides it too)`);
         }
-        return ok(source, r, r.invoiceCount);
+        // Same rule as SalesCard previousLine: an earlier window not confirmed synced is not compared.
+        const previous = r.previous && r.previous.windowSynced !== true
+          ? { window: r.previous.window, comparison: "UNKNOWN: the earlier window is not confirmed synced, so it is not compared (the Money page withholds it too)" }
+          : r.previous;
+        return ok(source, { ...r, previous }, r.invoiceCount);
       }
       case "declined_work": {
         source = "invoices.declined";
@@ -259,7 +263,7 @@ function buildSystemPrompt(page: AssistantPage | undefined, todayEt: string): st
     `Today is ${todayEt} (America/New_York).`,
     "Answer only from tool results. If a tool failed or a fact is not in the results, say UNKNOWN for that part. Never guess numbers.",
     "After every fact taken from a record, cite it as [[customer:ID]], [[invoice:ID]] or [[lead:ID]] using ids from the tool results. Write the name first, then the reference right after it: it shows as a small link.",
-    "What the records mean: a counter invoice is a closed job (a sale). On a ShopDriver counter invoice paymentStatus is the ticket state, not money: paid = closed (a sale), pending = still open (not a sale yet); payment is taken on a separate register, so never say whether a counter customer paid from it. On an online tire order made in the app (source manual) paymentStatus is the real checkout state.",
+    "What the records mean: a counter invoice is a closed job (a sale). On a ShopDriver counter invoice paymentStatus is the ticket state, not money: paid = closed (a sale), pending = still open (not a sale yet); a missing or unknown ticket state is also stored as paid, so a single paid row is not proof the ticket closed; payment is taken on a separate register, so never say whether a counter customer paid from it. On an online tire order made in the app (source manual) paymentStatus is the real checkout state.",
     "For sales, revenue or how the shop did, use sales_summary: it is the Money page's own figure. Never add up invoice rows yourself.",
     "An estimate with no matching invoice most likely means the customer walked (declined work), but it is an inference unless the counter recorded the no. Say which one you mean.",
     "Follow-ups key to invoices, not bookings. The shop is first come first served, walk-ins 7 days, no held appointment slots.",

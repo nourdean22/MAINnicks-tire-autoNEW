@@ -94,6 +94,8 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     const system = String((invoke.mock.calls[0][0] as InvokeParams).messages[0].content);
     expect(system).toContain("a counter invoice is a closed job (a sale)");
     expect(system).toContain("paid = closed (a sale), pending = still open (not a sale yet)");
+    // Codex P2 on PR 3306 (round 2): the mirror stores a missing or unknown ticket state as paid.
+    expect(system).toContain("a missing or unknown ticket state is also stored as paid");
     expect(system).toContain("never say whether a counter customer paid from it");
     // Codex P2 on PR 3306: an online tire order's status IS the real checkout state.
     expect(system).toContain("On an online tire order made in the app (source manual) paymentStatus is the real checkout state");
@@ -107,6 +109,7 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     expect(toolResult.data.invoices[0]).toMatchObject({ paymentStatus: "pending", totalAmountDollars: 459.99 });
     expect(toolResult.data.statusMeaning).toMatch(/pending = ticket still open \(not a sale yet\)/);
     expect(toolResult.data.statusMeaning).toMatch(/online tire order made in the app \(source manual\) it IS the real checkout state/);
+    expect(toolResult.data.statusMeaning).toMatch(/a missing or unknown feed state is also stored as paid/);
     expect(answer.receipts[0]).toMatchObject({ source: "invoices.list", count: 1 });
   });
 
@@ -131,6 +134,18 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     expect(answer.receipts[0]).toMatchObject({ ok: false, unknown: true });
     expect(answer.receipts[0].error).toMatch(/not synced from ShopDriver yet/);
     expect(toolResult.data).toBeUndefined();
+  });
+
+  it("an earlier window not confirmed synced is not compared: no dollars or count reach the model", async () => {
+    const prevWindow = { fromISO: "2026-10-12", toISO: "2026-10-19", label: "7 days before" };
+    for (const windowSynced of [false, null]) {
+      fakeCaller({ controlCenter: { shopSales: vi.fn(async () => ({ available: true, cents: 1436300, invoiceCount: 25, averageCents: 57452, period: "last_7d", previous: { cents: 1, invoiceCount: 1, averageCents: 1, window: prevWindow, windowSynced } })) } });
+      const { toolResult } = await askWithTool("sales_summary", { period: "last_7d" });
+      expect(toolResult.data.previous).toEqual({ window: prevWindow, comparison: expect.stringMatching(/^UNKNOWN: the earlier window is not confirmed synced/) });
+    }
+    fakeCaller({ controlCenter: { shopSales: vi.fn(async () => ({ available: true, cents: 1436300, invoiceCount: 25, averageCents: 57452, period: "last_7d", previous: { cents: 1165700, invoiceCount: 29, averageCents: 40197, window: prevWindow, windowSynced: true } })) } });
+    const { toolResult } = await askWithTool("sales_summary", { period: "last_7d" });
+    expect(toolResult.data.previous).toMatchObject({ dollars: 11657, invoiceCount: 29 });
   });
 
   it("a synced single day is shown", async () => {
