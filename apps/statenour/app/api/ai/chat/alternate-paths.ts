@@ -292,7 +292,7 @@ export async function runAlternatePaths(args: {
     // the top: a decomposition is a different product behaviour, and its
     // winner still passes through the (blind) enforcement block below.
     const multiAgentOn =
-      __multiAgentAutoFlag && isMultiPartQuestion(userContent);
+      __multiAgentAutoFlag && isMultiPartQuestion(userContent, turnSignal.intent);
     const deepOn =
       !multiAgentOn &&
       !mustGate &&

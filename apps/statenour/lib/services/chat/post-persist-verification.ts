@@ -233,15 +233,15 @@ export async function runPostPersistVerification(a: {
         reason: check.reason,
       });
       envelope.addFact(`⚠ Environment verification failed for ${check.toolName}: ${check.reason}`);
-      
-      // Treat environmental failure as a fabricated claim so it gets the L2 hedge rewrite
-      fabricatedClaims.push({
-        verb: check.toolName,
-        snippet: `[Tool reported success, but verification failed: ${check.reason}]`,
-        expectedTool: check.toolName,
-      });
     }
   }
+  // Treat environmental failure as a fabricated claim so it gets the L2 hedge rewrite
+  // The calls carry each failed read's target, which the claim check matches against the reply.
+  const { envFailureClaims } = await import("@/lib/ai/chat/action-claim-detector");
+  const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
+  fabricatedClaims.push(
+    ...envFailureClaims(envVerification, cleanedText, { calls: capturedToolCalls, isRead: isReadSafeTool }),
+  );
 
 
 
