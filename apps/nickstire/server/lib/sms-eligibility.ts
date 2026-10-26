@@ -80,20 +80,38 @@ export const customerCampaignEligibleSql = (id: unknown) =>
   sql`SELECT 1 AS eligible FROM customers WHERE ${customers.id} = ${id} AND ${campaignEligiblePhoneSql} LIMIT 1`;
 
 /**
- * The input phones sendSms's suppression index would refuse: its opt-out set
- * (which also carries consent-ledger revocations) or a carrier block. The SQL
- * predicate above cannot see those two sources, so every campaign audience,
- * count and send also passes through here. Keys are last-10 digits, as the
- * index builds them (server/sms.ts addNorm).
+ * What sendSms would refuse for a marketing text that the SQL predicate above
+ * cannot see: its suppression index (opt-outs incl. consent-ledger revocations,
+ * carrier blocks) and, when SMS_CONSENT_GATE=enforce, the affirmative opt-in
+ * index (server/sms.ts consent gate; monitor/unset only counts misses there).
+ * Loaded once per call; either list unreadable = { ok: false } so the caller
+ * fails closed. A STALE list is still ok, as in sendSms.
  */
-export function suppressedPhones(
-  index: { phones: Set<string>; carrierBlocked: Set<string> },
-  phones: Array<string | null>,
-): Set<string> {
-  const out = new Set<string>();
-  for (const phone of phones) {
-    const key = phoneLast10(phone);
-    if (phone && (index.phones.has(key) || index.carrierBlocked.has(key))) out.add(phone);
+export async function loadSendGate() {
+  const { loadSuppressionIndex } = await import("../sms");
+  const index = await loadSuppressionIndex();
+  if (!index.ok) return { ok: false as const, reason: index.reason };
+  let consent: Set<string> | null = null;
+  if (process.env.SMS_CONSENT_GATE === "enforce") {
+    const { getSmsOptInIndex } = await import("../services/complianceLog");
+    const optIns = await getSmsOptInIndex();
+    if (!optIns.ok) return { ok: false as const, reason: `consent index unavailable: ${optIns.reason}` };
+    consent = optIns.phones;
   }
-  return out;
+  return { ok: true as const, phones: index.phones, carrierBlocked: index.carrierBlocked, consent };
+}
+
+/**
+ * THE one check every audience, count and send shares: why sendSms would
+ * refuse this phone, or null when it would not. Keys are last-10 digits, as
+ * both indexes build them (server/sms.ts addNorm).
+ */
+export function sendGateRefusal(
+  gate: { phones: Set<string>; carrierBlocked: Set<string>; consent: Set<string> | null },
+  phone: string | null,
+): string | null {
+  const key = phoneLast10(phone);
+  if (gate.phones.has(key) || gate.carrierBlocked.has(key)) return "customer suppressed (carrier block or consent ledger)";
+  if (gate.consent && !gate.consent.has(key)) return "no SMS consent on file (SMS_CONSENT_GATE=enforce)";
+  return null;
 }

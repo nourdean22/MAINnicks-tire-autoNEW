@@ -14,10 +14,10 @@ import { affectedRowCount } from "../lib/db-affected";
 import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
-import { sendSms, withOptOut, loadSuppressionIndex } from "../sms";
+import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { getReviewCopy, type ReviewCopy } from "../lib/reviewCopy";
-import { campaignEligiblePhoneSql, customerCampaignEligibleSql, suppressedPhones } from "../lib/sms-eligibility";
+import { campaignEligiblePhoneSql, customerCampaignEligibleSql, loadSendGate, sendGateRefusal } from "../lib/sms-eligibility";
 import { countLapsedRegulars, lapsedRegularCondition } from "../lib/customer-segments";
 
 import { db } from "../lib/db-helper";
@@ -260,29 +260,34 @@ function visitWindowSql(minDaysAgo: number, maxDaysAgo?: number): SQL {
 }
 
 /**
- * sendSms's suppression index (opt-outs, consent ledger, carrier blocks). A list
- * that cannot load is refused, never read as "nobody is suppressed": no count is
- * shown and no send is queued that the send gate could not check. A STALE index
- * is still ok, as in sendSms.
+ * sendSms's own gate (suppression index, plus the opt-in index under
+ * SMS_CONSENT_GATE=enforce; lib/sms-eligibility.ts loadSendGate). A list that
+ * cannot load is refused, never read as "nobody is suppressed": no count is
+ * shown and no send is queued that the send gate could not check.
  */
-async function suppressionIndexOrThrow() {
-  const index = await loadSuppressionIndex();
-  if (!index.ok) {
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "suppression list unavailable; try again", cause: index.reason });
+async function sendGateOrThrow() {
+  const gate = await loadSendGate();
+  if (!gate.ok) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "suppression list unavailable; try again", cause: gate.reason });
   }
-  return index;
+  return gate;
 }
 
-/** Audience size after the SQL filter AND the suppression index, and how many the index dropped. */
+/**
+ * Audience after the SQL filter AND the send gate: how many can be texted, how
+ * many the gate dropped, and the kept rows' average lifetime spend (cents; 0
+ * when none are kept), so a projection is never priced on people we cannot text.
+ */
 async function contactableAudience(
   d: any,
   filter: SQL,
-  index: Awaited<ReturnType<typeof suppressionIndexOrThrow>>,
-): Promise<{ count: number; suppressed: number }> {
-  const rows: Array<{ phone: string | null }> = await d.select({ phone: customers.phone }).from(customers).where(filter);
-  const blocked = suppressedPhones(index, rows.map((r) => r.phone));
-  const suppressed = rows.filter((r) => r.phone !== null && blocked.has(r.phone)).length;
-  return { count: rows.length - suppressed, suppressed };
+  gate: Awaited<ReturnType<typeof sendGateOrThrow>>,
+): Promise<{ count: number; suppressed: number; avgSpentCents: number }> {
+  const rows: Array<{ phone: string | null; totalSpent: number | null }> = await d
+    .select({ phone: customers.phone, totalSpent: customers.totalSpent }).from(customers).where(filter);
+  const kept = rows.filter((r) => sendGateRefusal(gate, r.phone) === null);
+  const avgSpentCents = kept.length ? kept.reduce((s, r) => s + Number(r.totalSpent ?? 0), 0) / kept.length : 0;
+  return { count: kept.length, suppressed: rows.length - kept.length, avgSpentCents };
 }
 
 function buildSegmentFilter(segment: string) {
@@ -423,18 +428,12 @@ export const winbackRouter = router({
       const d = await db();
       if (!d) return { netTargetCount: 0, projectedValueCents: 0, previewMessages: [] };
 
-      const index = await suppressionIndexOrThrow();
+      const gate = await sendGateOrThrow();
       const segmentFilter = buildSegmentFilter(input.targetSegment);
-      const [stats] = await d.select({
-        count: sql<number>`count(*)`,
-        avgSpent: sql<number>`COALESCE(AVG(${customers.totalSpent}), 0)`,
-      })
-        .from(customers)
-        .where(segmentFilter);
-
-      const netTargetCount = (await contactableAudience(d, segmentFilter, index)).count;
-      // 5% projected conversion rate
-      const projectedValueCents = Math.round(netTargetCount * (stats?.avgSpent ?? 10000) * 0.05);
+      const audience = await contactableAudience(d, segmentFilter, gate);
+      const netTargetCount = audience.count;
+      // 5% projected conversion rate, priced on the people who can actually be texted
+      const projectedValueCents = Math.round(netTargetCount * audience.avgSpentCents * 0.05);
 
       const [recentCustomer] = await d.select()
         .from(customers)
@@ -549,17 +548,17 @@ export const winbackRouter = router({
       };
     }
 
-    const index = await suppressionIndexOrThrow();
+    const gate = await sendGateOrThrow();
     const segments = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
     const countPromises = segments.map(async (seg) => {
-      const { count } = await contactableAudience(d, buildSegmentFilter(seg), index);
+      const { count } = await contactableAudience(d, buildSegmentFilter(seg), gate);
       return { [seg]: count };
     });
 
     // qualifying from the shared rule; contactable after the SQL predicate AND the index.
     const [{ qualifying }, regularsReach, ...results] = await Promise.all([
       countLapsedRegulars(d),
-      contactableAudience(d, buildSegmentFilter("lapsed_regulars"), index),
+      contactableAudience(d, buildSegmentFilter("lapsed_regulars"), gate),
       ...countPromises,
     ]);
     return {
@@ -586,8 +585,8 @@ export const winbackRouter = router({
       const cleanName = input.name.replace(/<[^>]*>/g, "").trim();
 
       // Count target customers: the segment filter, then the suppression index.
-      const index = await suppressionIndexOrThrow();
-      const audience = await contactableAudience(d, buildSegmentFilter(input.targetSegment), index);
+      const gate = await sendGateOrThrow();
+      const audience = await contactableAudience(d, buildSegmentFilter(input.targetSegment), gate);
 
       // Create campaign
       const [result] = await d.insert(winbackCampaigns).values({
@@ -691,13 +690,12 @@ export const winbackRouter = router({
       // inserts. 10K is generous (any larger campaign should be split).
       // Then sendSms's suppression index (carrier blocks, consent ledger): never queue a
       // send the gate would refuse, and refuse to queue at all when it cannot load.
-      const index = await suppressionIndexOrThrow();
+      const gate = await sendGateOrThrow();
       const segmentRows = await d.select()
         .from(customers)
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(10_000);
-      const blocked = suppressedPhones(index, segmentRows.map((c: typeof customers.$inferSelect) => c.phone));
-      const targetCustomers = segmentRows.filter((c: typeof customers.$inferSelect) => !(c.phone && blocked.has(c.phone)));
+      const targetCustomers = segmentRows.filter((c: typeof customers.$inferSelect) => sendGateRefusal(gate, c.phone) === null);
       const suppressed = segmentRows.length - targetCustomers.length;
 
       const targetCustomerIds = targetCustomers.map((c: any) => c.id);
@@ -774,7 +772,7 @@ export const winbackRouter = router({
 
     const now = new Date();
     // Before any row is read or claimed: an index that cannot load stops the drain (rows stay pending).
-    const index = await suppressionIndexOrThrow();
+    const gate = await sendGateOrThrow();
 
     // Get pending sends that are due and belong to active campaigns
     const pendingSends = await d.select({
@@ -806,9 +804,7 @@ export const winbackRouter = router({
       const [eligibleRows] = await d.execute(customerCampaignEligibleSql(send.customerId));
       const reason = (eligibleRows as unknown as unknown[]).length === 0
         ? "customer opted out of SMS"
-        : suppressedPhones(index, [send.phone]).size > 0
-          ? "customer suppressed (carrier block or consent ledger)"
-          : null;
+        : sendGateRefusal(gate, send.phone);
       if (reason) {
         const failRes = await d.update(winbackSends).set({ status: "failed", errorMessage: reason })
           .where(and(eq(winbackSends.id, send.id), eq(winbackSends.status, "pending")));

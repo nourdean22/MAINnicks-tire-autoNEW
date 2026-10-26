@@ -78,16 +78,17 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       return { recordsProcessed: 0, details: "No pending winback sends" };
     }
 
-    const { sendSms, loadSuppressionIndex } = await import("../sms");
-    // sendSms's suppression index (carrier blocks, consent ledger), which the SQL
-    // predicate cannot see. Unloadable = hold the drain: nothing claimed, rows stay
-    // pending, the next run retries. A STALE index is still ok, as in sendSms.
-    const index = await loadSuppressionIndex();
-    if (!index.ok) {
-      log.warn("[winbackProcessor] suppression list unavailable, held pending", { reason: index.reason });
-      return { recordsProcessed: 0, details: `suppression list unavailable (${index.reason}) — held pending` };
+    const { sendSms } = await import("../sms");
+    // sendSms's own gate that the SQL predicate cannot see (suppression index, and
+    // the opt-in index under SMS_CONSENT_GATE=enforce). Unloadable = hold the drain:
+    // nothing claimed, rows stay pending, the next run retries.
+    const { loadSendGate, sendGateRefusal } = await import("../lib/sms-eligibility");
+    const gate = await loadSendGate();
+    if (!gate.ok) {
+      log.warn("[winbackProcessor] suppression list unavailable, held pending", { reason: gate.reason });
+      return { recordsProcessed: 0, details: `suppression list unavailable (${gate.reason}) — held pending` };
     }
-    const { suppressedPhones } = await import("../lib/sms-eligibility");
+    const { affectedRowCount } = await import("../lib/db-affected");
     let sent = 0;
     let queued = 0; // parked for the 8 AM window (audit F-3)
     let heldOut = 0;
@@ -109,20 +110,16 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       // sms_preferences, inbound STOP). Ineligible rows are marked 'failed'
       // so they leave the 'pending' pool permanently.
       const [eligibleRows] = await db.execute(customerCampaignEligibleSql(send.customerId));
-      if ((eligibleRows as unknown as unknown[]).length === 0) {
-        await db.execute(sql`
-          UPDATE winback_sends SET status = 'failed', errorMessage = 'customer opted out of SMS'
+      const refusal = (eligibleRows as unknown as unknown[]).length === 0
+        ? "customer opted out of SMS"
+        : sendGateRefusal(gate, String(send.phone));
+      if (refusal) {
+        const failRes = await db.execute(sql`
+          UPDATE winback_sends SET status = 'failed', errorMessage = ${refusal}
           WHERE id = ${send.id} AND status = 'pending'
         `);
-        skipped++;
-        continue;
-      }
-      if (suppressedPhones(index, [String(send.phone)]).size > 0) {
-        await db.execute(sql`
-          UPDATE winback_sends SET status = 'failed', errorMessage = 'customer suppressed (carrier block or consent ledger)'
-          WHERE id = ${send.id} AND status = 'pending'
-        `);
-        skipped++;
+        // 0 rows: an overlapping drain changed this row first; it counts there.
+        if (affectedRowCount(failRes) > 0) skipped++;
         continue;
       }
 

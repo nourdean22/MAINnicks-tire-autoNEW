@@ -20,7 +20,7 @@ const dialect = new MySqlDialect();
 const render = (c: unknown) => dialect.sqlToQuery(c as SQL);
 
 const DAY = 86_400_000;
-type Cust = { id: number; visits: number; daysAgo: number; phone: string };
+type Cust = { id: number; visits: number; daysAgo: number; phone: string; spent?: number };
 // B is a lapsed regular who opted out in sms_preferences only (customers.smsOptOut = 0).
 const FIXTURE: Cust[] = [
   { id: 1, visits: 4, daysAgo: 120, phone: "2165550101" }, // A: lapsed regular, textable
@@ -28,7 +28,7 @@ const FIXTURE: Cust[] = [
   { id: 3, visits: 1, daysAgo: 150, phone: "2165550103" }, // C: one visit, below the floor
   { id: 4, visits: 5, daysAgo: 30, phone: "2165550104" }, // D: recent
   { id: 5, visits: 6, daysAgo: 400, phone: "2165550105" }, // E: lost
-  { id: 6, visits: 3, daysAgo: 100, phone: "+1 (216) 555-0106" }, // F: lapsed regular, carrier blocks the shop line
+  { id: 6, visits: 3, daysAgo: 100, phone: "+1 (216) 555-0106", spent: 900_000 }, // F: lapsed regular, carrier blocks the shop line
   { id: 7, visits: 4, daysAgo: 110, phone: "216-555-0107" }, // G: lapsed regular, revoked in the consent ledger
 ];
 const PREFS_OPTED_OUT = new Set(["2165550102"]);
@@ -42,6 +42,10 @@ const okIndex = () => ({
   stale: false,
 });
 const DOWN = { ok: false as const, reason: "consent ledger unavailable: test" };
+/** complianceLog getSmsOptInIndex: only A (2165550101) has a recorded opt-in. */
+const okConsent = () => ({ ok: true as const, phones: new Set(["2165550101"]), stale: false });
+const spentOf = (r: Cust) => r.spent ?? 10_000;
+const avgSpent = (rows: Cust[]) => (rows.length ? rows.reduce((s, r) => s + spentOf(r), 0) / rows.length : 0);
 
 /** Applies the legs present in the rendered SQL to the fixture. */
 function countFor(text: string): number {
@@ -65,15 +69,24 @@ const state = {
   dbOverride: null as unknown,
   inserts: [] as Array<{ values: unknown }>,
   index: okIndex() as ReturnType<typeof okIndex> | typeof DOWN,
+  consent: okConsent() as ReturnType<typeof okConsent> | typeof DOWN,
 };
 
-const { routerSendSms } = vi.hoisted(() => ({
-  routerSendSms: vi.fn(async (..._a: unknown[]) => ({ success: true, heldOut: true, experimentId: "t" })),
-}));
-vi.mock("../sms", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../sms")>()),
-  sendSms: routerSendSms,
-  loadSuppressionIndex: async () => state.index,
+const { routerSendSms, smsMock } = vi.hoisted(() => {
+  const routerSendSms = vi.fn(async (..._a: unknown[]) => ({ success: true, heldOut: true, experimentId: "t" }));
+  // Shared so the processor tests can put it back after their own doMock (doUnmock would drop it,
+  // and lib/sms-eligibility reaches ../sms through a dynamic import).
+  const smsMock = async (importOriginal: () => Promise<unknown>) => ({
+    ...((await importOriginal()) as object),
+    sendSms: routerSendSms,
+    loadSuppressionIndex: async () => state.index,
+  });
+  return { routerSendSms, smsMock };
+});
+vi.mock("../sms", smsMock);
+vi.mock("../services/complianceLog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/complianceLog")>()),
+  getSmsOptInIndex: async () => state.consent,
 }));
 
 function fakeDb() {
@@ -87,8 +100,8 @@ function fakeDb() {
           state.rendered.push(q);
           const result = Promise.resolve(
             proj && "phone" in proj
-              ? rowsFor(text).map((r) => ({ phone: r.phone }))
-              : [{ count: countFor(text), avgSpent: 0 }],
+              ? rowsFor(text).map((r) => ({ phone: r.phone, totalSpent: spentOf(r) }))
+              : [{ count: countFor(text), avgSpent: avgSpent(rowsFor(text)) }],
           );
           return Object.assign(result, { orderBy: () => ({ limit: async () => [] }) });
         },
@@ -133,6 +146,8 @@ beforeEach(() => {
   state.rendered = [];
   state.dbOverride = null;
   state.index = okIndex();
+  state.consent = okConsent();
+  vi.unstubAllEnvs();
   routerSendSms.mockClear();
   state.inserts = [];
 });
@@ -233,18 +248,20 @@ describe("the send-time check uses the same predicate", () => {
   const sendSms = vi.fn(async () => ({ success: true, heldOut: true, experimentId: "t" }));
   const executed: string[] = [];
 
-  async function runProcessor(eligible: boolean, phone = "2165550102") {
+  async function runProcessor(eligible: boolean, phone = "2165550102", failRows = 1) {
     sendSms.mockClear();
     executed.length = 0;
     const db = {
       execute: vi.fn(async (q: SQL) => {
-        const text = render(q).sql;
+        const r = render(q);
+        const text = `${r.sql} | ${JSON.stringify(r.params)}`;
         executed.push(text);
         if (/FROM winback_sends ws/.test(text)) {
           return [[{ id: 11, phone, personalizedBody: "Hi", campaignId: 3, customerId: 2 }]];
         }
         if (/FROM sms_preferences/.test(text)) return [eligible ? [{ eligible: 1 }] : []];
         if (/SET status = 'sent'/.test(text)) return [{ affectedRows: 1 }];
+        if (/SET status = 'failed'/.test(text)) return [{ affectedRows: failRows }];
         return [[]];
       }),
     };
@@ -257,7 +274,9 @@ describe("the send-time check uses the same predicate", () => {
       const { processWinbackPending } = await import("../services/winbackProcessor");
       return await processWinbackPending();
     } finally {
-      for (const m of ["../db", "../sms", "../services/featureFlags", "../services/telegram"]) vi.doUnmock(m);
+      for (const m of ["../db", "../services/featureFlags", "../services/telegram"]) vi.doUnmock(m);
+      vi.doMock("../sms", smsMock);
+      vi.resetModules();
     }
   }
 
@@ -283,6 +302,28 @@ describe("the send-time check uses the same predicate", () => {
     const fail = executed.find((t) => /SET status = 'failed'/.test(t));
     expect(fail).toMatch(/customer suppressed \(carrier block or consent ledger\)/);
     expect(fail).toMatch(/AND status = 'pending'/);
+  });
+
+  it("a skip is counted only when its fail write changed the row (an overlapping drain won it)", async () => {
+    expect((await runProcessor(false, "2165550102", 0)).details).toMatch(/0 skipped/);
+    expect((await runProcessor(true, "+12165550106", 0)).details).toMatch(/0 skipped/);
+    // control: the same writes changing the row are counted
+    expect((await runProcessor(false, "2165550102", 1)).details).toMatch(/1 skipped/);
+    expect((await runProcessor(true, "+12165550106", 1)).details).toMatch(/1 skipped/);
+  });
+
+  it("SMS_CONSENT_GATE=enforce: a phone with no recorded opt-in is failed at send time, never texted", async () => {
+    vi.stubEnv("SMS_CONSENT_GATE", "enforce");
+    await runProcessor(true, "2165550103");
+    expect(sendSms).not.toHaveBeenCalled();
+    const fail = executed.find((t) => /SET status = 'failed'/.test(t));
+    expect(fail).toMatch(/no SMS consent on file/);
+    expect(fail).toMatch(/AND status = 'pending'/);
+  });
+
+  it("SMS_CONSENT_GATE unset: the same phone is texted (today's behaviour)", async () => {
+    await runProcessor(true, "2165550103");
+    expect(sendSms).toHaveBeenCalledTimes(1);
   });
 
   it("an index that cannot load leaves the row pending and stops the run", async () => {
@@ -357,6 +398,52 @@ describe("audiences, counts and activation honour the full suppression index", (
     expect(res).toMatchObject({ success: true, sendsCreated: 2, suppressed: 2 });
     const phones = (state.inserts[0].values as Array<{ phone: string }>).map((v) => v.phone);
     expect(phones).toEqual(["2165550101", "2165550103"]);
+  });
+
+  it("projected value comes from the contactable set: a suppressed big spender does not inflate it", async () => {
+    // lapsed SQL set: A, C, F ($9,000 lifetime) and G; F and G are suppressed, A and C are $100 each.
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed" });
+    expect(res.netTargetCount).toBe(2);
+    expect(res.projectedValueCents).toBe(Math.round(2 * 10_000 * 0.05));
+  });
+
+  it("an empty contactable set projects 0", async () => {
+    state.index = { ...okIndex(), phones: new Set(["2165550101", "2165550103", "2165550107"]) };
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed" });
+    expect(res).toMatchObject({ netTargetCount: 0, projectedValueCents: 0 });
+  });
+
+  describe("SMS_CONSENT_GATE=enforce: only phones with a recorded opt-in are contactable", () => {
+    beforeEach(() => vi.stubEnv("SMS_CONSENT_GATE", "enforce"));
+
+    it("counts and readiness drop the customer with no consent record", async () => {
+      const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+      expect(counts.lapsed).toBe(1); // A only: C has no opt-in
+      expect(counts.lapsed_regulars).toEqual({ qualifying: 4, contactable: 1 });
+      expect((await admin().winback.campaignReadiness({ targetSegment: "lapsed" })).netTargetCount).toBe(1);
+    });
+
+    it("activation queues only the consented phone", async () => {
+      state.dbOverride = activationDb();
+      const res = await admin().winback.activate({ campaignId: 5 });
+      expect(res).toMatchObject({ success: true, sendsCreated: 1, suppressed: 3 });
+      expect((state.inserts[0].values as Array<{ phone: string }>).map((v) => v.phone)).toEqual(["2165550101"]);
+    });
+
+    it("an unreadable consent index throws on counts and refuses activation", async () => {
+      state.consent = DOWN;
+      await expect(admin().winback.segmentCounts()).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      state.dbOverride = activationDb();
+      await expect(admin().winback.activate({ campaignId: 5 })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      expect(state.inserts).toEqual([]);
+    });
+  });
+
+  it.each([[undefined], ["monitor"]])("SMS_CONSENT_GATE=%s keeps today's counts (consent not required)", async (mode) => {
+    if (mode) vi.stubEnv("SMS_CONSENT_GATE", mode);
+    state.consent = DOWN; // not even read outside enforce
+    const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+    expect(counts.lapsed).toBe(2);
   });
 
   it("activation refuses when the index cannot load and queues nothing", async () => {
