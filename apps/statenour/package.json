@@ -91,10 +91,10 @@
     "check:policy-coverage": "tsx scripts/check-policy-coverage.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.133",
-    "@ai-sdk/google": "3.0.135",
-    "@ai-sdk/openai": "^3.0.130",
-    "@ai-sdk/react": "^3.0.312",
+    "@ai-sdk/anthropic": "^3.0.135",
+    "@ai-sdk/google": "3.0.137",
+    "@ai-sdk/openai": "^3.0.131",
+    "@ai-sdk/react": "^3.0.317",
     "@base-ui/react": "^1.8.0",
     "@browserbasehq/stagehand": "3.7.3",
     "@e2b/code-interpreter": "2.4.2",
@@ -102,7 +102,7 @@
     "@langfuse/tracing": "5.10.1",
     "@mendable/firecrawl-js": "4.28.2",
     "@modelcontextprotocol/client": "2.2.0",
-    "@modelcontextprotocol/server": "2.3.0",
+    "@modelcontextprotocol/server": "2.3.1",
     "@next/env": "16.3.6",
     "@nour/ai-capabilities": "workspace:*",
     "@nour/social-assets": "workspace:*",
@@ -123,7 +123,7 @@
     "@trpc/client": "^11",
     "@trpc/react-query": "^11",
     "@trpc/server": "^11",
-    "ai": "6.0.309",
+    "ai": "6.0.314",
     "braintrust": "3.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -164,7 +164,7 @@
     "use-stick-to-bottom": "^1.1.6",
     "web-push": "^3.6.7",
     "zod": "^4.4.3",
-    "zustand": "5.0.15"
+    "zustand": "5.0.16"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.4.2",
