@@ -381,6 +381,8 @@ export async function getLatestLearningJournalEntry(): Promise<JournalEntry | nu
     return row.metadata as unknown as JournalEntry;
   } catch (err) {
     logError("brain.learning-journal", err, { fn: "getLatestLearningJournalEntry" });
-    return null;
+    // 2026-10-26 audit: null here read as "No nightly self-assessment yet" on a database failure;
+    // the card already renders a failed read (ReadStateNote), so let the failure reach it.
+    throw err;
   }
 }
