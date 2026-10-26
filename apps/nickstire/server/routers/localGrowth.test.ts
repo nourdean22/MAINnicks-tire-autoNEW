@@ -77,7 +77,7 @@ const fiveReviews = Array.from({ length: 5 }, (_, i) => ({
 
 describe("localGrowth.reviewsHealth", () => {
   it("live: reports the real Google total and rating, not the 5 reviews Places returns", async () => {
-    h.reviews = { placeId: "ChIJSWRRLdr_MIgRxdlMIMPcqww", totalReviews: 1715, rating: 4.9, reviews: fiveReviews };
+    h.reviews = { placeId: "ChIJSWRRLdr_MIgRxdlMIMPcqww", totalReviews: 1715, googleTotalReviews: 1715, rating: 4.9, reviews: fiveReviews, lastUpdated: Date.now() };
     const out = await caller().reviewsHealth();
     expect(out.status).toBe("live");
     expect(out.liveReachable).toBe(true);
@@ -97,10 +97,29 @@ describe("localGrowth.reviewsHealth", () => {
   });
 
   it("live with zero returned reviews is still live (control: liveness is the placeId, not the array)", async () => {
-    h.reviews = { placeId: "ChIJSWRRLdr_MIgRxdlMIMPcqww", totalReviews: 1715, rating: 4.9, reviews: [] };
+    h.reviews = { placeId: "ChIJSWRRLdr_MIgRxdlMIMPcqww", totalReviews: 1715, googleTotalReviews: 1715, rating: 4.9, reviews: [], lastUpdated: Date.now() };
     const out = await caller().reviewsHealth();
     expect(out.status).toBe("live");
     expect(out.liveReviewCount).toBe(1715);
+  });
+
+  // 2026-10-26 audit: totalReviews is resolveReviewDisplay's number, where an admin-entered
+  // shop_settings.reviewCount (set in prod since 2026-09-19) wins over Google, so "live reviews
+  // reachable (N)" printed the hand-set N. The live count is Google's own user_ratings_total.
+  it("live: reports Google's own total, never the admin-entered display number", async () => {
+    h.reviews = { placeId: "ChIJSWRRLdr_MIgRxdlMIMPcqww", totalReviews: 1700, googleTotalReviews: 1734, rating: 4.9, reviews: fiveReviews, lastUpdated: Date.now() };
+    const out = await caller().reviewsHealth();
+    expect(out.liveReachable).toBe(true);
+    expect(out.liveReviewCount).toBe(1734);
+  });
+
+  // A failed refresh keeps serving the last good read (google-reviews cachedData), placeId and all.
+  it("a read older than the cache hour is not live: a failed refresh is serving the old one", async () => {
+    h.reviews = { placeId: "ChIJSWRRLdr_MIgRxdlMIMPcqww", totalReviews: 1715, googleTotalReviews: 1715, rating: 4.9, reviews: fiveReviews, lastUpdated: Date.now() - 2 * 60 * 60 * 1000 };
+    const out = await caller().reviewsHealth();
+    expect(out.liveReachable).toBe(false);
+    expect(out.liveReviewCount).toBeNull();
+    expect(out.status).toBe("fallback");
   });
 
   it("no key: unconfigured, no count", async () => {

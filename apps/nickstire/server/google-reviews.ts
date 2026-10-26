@@ -39,7 +39,10 @@ export interface GoogleReviewData {
   placeId: string;
   name: string;
   rating: number;
+  /** The display count: an admin-entered shop_settings.reviewCount wins over Google (resolveReviewDisplay). */
   totalReviews: number;
+  /** Google's own user_ratings_total from this read; null when Places did not answer. */
+  googleTotalReviews: number | null;
   reviews: GoogleReview[];
   address: string;
   phone: string;
@@ -160,6 +163,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
       name: r.name || "Nick's Tire & Auto",
       rating: typeof r.rating === "number" && r.rating > 0 ? r.rating : BUSINESS.reviews.rating,
       totalReviews: resolved.numeric,
+      googleTotalReviews: rawGoogle,
       reviews: (r.reviews || []).map((rev) => ({
         authorName: rev.author_name,
         rating: rev.rating,
@@ -213,6 +217,7 @@ async function buildFallbackData(): Promise<GoogleReviewData> {
     name: BUSINESS.name,
     rating: dbStats?.rating ?? BUSINESS.reviews.rating,
     totalReviews: resolved.numeric,
+    googleTotalReviews: null,
     reviews: [],
     address: BUSINESS.address.full,
     phone: BUSINESS.phone.display,
