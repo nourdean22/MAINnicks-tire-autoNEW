@@ -187,7 +187,7 @@ describe("an unreadable queue is UNKNOWN, never 'clear'", () => {
     load([], false);
     render(<OpportunitiesSection />);
     expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
-    expect(screen.queryByText(/Nothing due/i)).toBeNull();
+    expect(screen.queryByText(/Nothing open/i)).toBeNull();
   });
 
   it("a network error is not an empty queue either, and names the next action", () => {
@@ -195,19 +195,19 @@ describe("an unreadable queue is UNKNOWN, never 'clear'", () => {
     render(<OpportunitiesSection />);
     expect(screen.getByText(/UNKNOWN, not clear/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
-    expect(screen.queryByText(/Nothing due/i)).toBeNull();
+    expect(screen.queryByText(/Nothing open/i)).toBeNull();
   });
 
   it("a paused query (offline PWA: no data, no error, not loading) is not an empty queue", () => {
     render(<OpportunitiesSection />);
     expect(screen.getByText(/have not loaded yet/i)).toBeTruthy();
-    expect(screen.queryByText(/Nothing due/i)).toBeNull();
+    expect(screen.queryByText(/Nothing open/i)).toBeNull();
   });
 
   it("a queue that WAS read and is empty says so", () => {
     load([]);
     render(<OpportunitiesSection />);
-    expect(screen.getByText(/Nothing due/i)).toBeTruthy();
+    expect(screen.getByText(/Nothing open/i)).toBeTruthy();
     expect(screen.queryByText(/UNKNOWN, not clear/i)).toBeNull();
     expect(screen.queryByText(/have not loaded yet/i)).toBeNull();
   });

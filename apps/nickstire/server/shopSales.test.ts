@@ -604,10 +604,17 @@ describe("previous: the same figures for the window of the same length just befo
     expect(r.previous?.window).toMatchObject({ fromISO: "2026-08-22", toISO: "2026-09-21" });
   });
 
-  it("month_to_date on the 25th: the 1st to the 25th of last month", async () => {
+  it("month_to_date on the 25th: last month's completed days only (the 1st to the 24th), because today is still open", async () => {
     const r = await readOk("month_to_date", { now: "2026-10-25T16:00:00Z" });
-    expect(r.window).toMatchObject({ fromISO: "2026-10-01", toISO: "2026-10-26" }); // 25 dates
-    expect(r.previous?.window).toMatchObject({ fromISO: "2026-09-01", toISO: "2026-09-26", label: "Same days last month" }); // 25 dates
+    expect(r.window).toMatchObject({ fromISO: "2026-10-01", toISO: "2026-10-26" }); // 25 dates, today included
+    // 2026-10-26 audit: comparing them with Sep 1..25 put a full billed day against today, which the
+    // overnight mirror leaves empty, so "This month" read "down" by about one shop day every day.
+    expect(r.previous?.window).toMatchObject({ fromISO: "2026-09-01", toISO: "2026-09-25", label: "Same days last month, before today's date" }); // 24 dates
+  });
+
+  it("month_to_date on the 1st has no earlier window: the month so far is only today, still open", async () => {
+    const r = await readOk("month_to_date", { now: "2026-10-01T16:00:00Z" });
+    expect(r.previous).toBeNull();
   });
 
   it("month_to_date on the 31st stops at the end of a 30-day last month, never into this month", async () => {

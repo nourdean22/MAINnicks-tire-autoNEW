@@ -201,7 +201,7 @@ const PREVIOUS_LABEL: Record<SalesPeriod, string> = {
   yesterday: "Day before",
   last_7d: "7 days before",
   last_30d: "30 days before",
-  month_to_date: "Same days last month",
+  month_to_date: "Same days last month, before today's date",
   prev_month: "Month before",
 };
 
@@ -271,10 +271,12 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
  * The window of the same length immediately before `w`, as half-open yyyy-mm-dd dates, for the
  * "vs the period before" figure. Pure calendar-day arithmetic on the dates salesWindow produced,
  * so it inherits the Eastern day boundaries. Day-length windows (today, yesterday, last 7 / 30
- * days) end exactly where `w` begins. Month windows follow the calendar: month_to_date takes the
- * same number of days from the 1st of last month, capped at that month's end so it never reaches
- * into the current window (the 31st against a 30-day month); prev_month takes the whole month
- * before it. null if `w` is empty or not a date range.
+ * days) end exactly where `w` begins. Month windows follow the calendar: month_to_date takes last
+ * month's days from the 1st up to, not including, today's date (today is in the current window but
+ * the overnight mirror leaves it empty, so its full counterpart day would always read "down"),
+ * capped at that month's end so it never reaches into the current window (the 31st against a
+ * 30-day month); prev_month takes the whole month before it. null if `w` is empty or not a date
+ * range, and for month_to_date on the 1st (nothing completed yet to compare).
  */
 function previousWindow(w: { from: string; to: string }, period: SalesPeriod): { from: string; to: string } | null {
   const day = (s: string) => Date.parse(`${s}T00:00:00Z`);
@@ -284,7 +286,10 @@ function previousWindow(w: { from: string; to: string }, period: SalesPeriod): {
   if (period === "month_to_date" || period === "prev_month") {
     const [y, m] = w.from.split("-").map(Number);
     const from = Date.UTC(y!, m! - 2, 1); // the 1st of the month before w.from's month
-    return { from: fmt(from), to: period === "prev_month" ? w.from : fmt(Math.min(from + days * 86400000, day(w.from))) };
+    if (period === "prev_month") return { from: fmt(from), to: w.from };
+    const completed = days - 1; // w ends after today
+    if (completed <= 0) return null;
+    return { from: fmt(from), to: fmt(Math.min(from + completed * 86400000, day(w.from))) };
   }
   return { from: fmt(day(w.from) - days * 86400000), to: w.from };
 }
