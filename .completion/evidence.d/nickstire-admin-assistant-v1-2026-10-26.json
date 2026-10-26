@@ -1,5 +1,10 @@
 {
   "evidence": {
-    "operator-walkthrough": { "ref": "Admin assistant v1 (docs/ADMIN-ASSISTANT.md): phone tab bar gains an Ask slot before Search (owner and manager only), laptop header gains an Ask button (Ctrl+J); the sheet answers from records with customer chips, shows UNKNOWN for a failed read, and a drafted text or note runs customers.quickSms / customers.updateNotes only on tap. client/src/__tests__/admin-assistant.test.tsx (8 tests) + admin-tab-bar.test.tsx (15) green; live 375 px read on nickstire.org after deploy." }
+    "operator-walkthrough": {
+      "ref": "Admin assistant v1 (docs/ADMIN-ASSISTANT.md): phone tab bar gains an Ask slot before Search (owner and manager only), laptop header gains an Ask button (Ctrl+J); the sheet answers from records with customer chips, shows UNKNOWN for a failed read, and a drafted text or note runs customers.quickSms / customers.updateNotes only on tap. client/src/__tests__/admin-assistant.test.tsx (8 tests) + admin-tab-bar.test.tsx (15) green; live 375 px read on nickstire.org after deploy."
+    },
+    "capability-ledger-updated": {
+      "ref": "The only client/src/lib touch is one line in unbatchedProcedures.ts routing nickActions.ask to its own HTTP request (pinned in admin-assistant.test.tsx); no capability state changed. The assistant itself is new and BUILT+WIRED, not yet LIVE+PROVEN: its state and kill criteria are in apps/nickstire/docs/ADMIN-ASSISTANT.md, and the live 375 px read lands in docs/agent-os/ledger/2026-10-26-admin-assistant.md after deploy."
+    }
   }
 }
