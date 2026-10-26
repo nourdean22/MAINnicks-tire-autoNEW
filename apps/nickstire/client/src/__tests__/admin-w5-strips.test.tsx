@@ -5,7 +5,7 @@
  * are sentence case. Deep links (?outreachTab=, ?growthTab=, ?settingsTab=, ?tab=, ?igview=) must
  * resolve exactly as before: tab ids and query keys are unchanged.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
@@ -44,9 +44,15 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: vi.fn(async 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin" }, loading: false }) }));
 
 // Outreach and Settings tab bodies are not under test.
-for (const p of ["SmsSection", "CampaignsSection", "ReviewRequestsSection", "WinBackSection", "SmsPerformanceSection"]) {
+const OUTREACH_BODIES = ["SmsSection", "CampaignsSection", "ReviewRequestsSection", "WinBackSection", "SmsPerformanceSection"];
+for (const p of OUTREACH_BODIES) {
   vi.doMock(`@/pages/admin/outreach/${p}`, () => ({ default: h.Null }));
 }
+// doMocks are NOT file-scoped in this single-process suite (apps/nickstire/AGENTS.md section 3).
+// afterAll, not afterEach: the deep-link test lazily loads these bodies after the first tests ran.
+afterAll(() => {
+  for (const p of OUTREACH_BODIES) vi.doUnmock(`@/pages/admin/outreach/${p}`);
+});
 vi.mock("@/pages/admin/outreach/OutreachBrief", () => ({ OutreachBrief: h.Null }));
 vi.mock("@/components/admin/GatewayPill", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/outreach/AutonomyCensusPanel", () => ({ default: h.Null }));

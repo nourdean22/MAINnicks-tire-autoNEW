@@ -68,10 +68,9 @@ vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin
 
 // The Messages body is a marker so "lands on Messages" means the Messages body rendered, not a blank pane.
 vi.mock("@/pages/admin/outreach/SmsSection", () => ({ default: () => <div data-testid="messages-body">messages</div> }));
-for (const p of ["CampaignsSection", "ReviewRequestsSection", "SmsPerformanceSection"]) {
-  vi.doMock(`@/pages/admin/outreach/${p}`, () => ({ default: h.Null }));
-}
-vi.mock("@/components/admin/GatewayPill", () => ({ default: h.Null }));
+// No doMock of the Campaigns / Reviews / Performance bodies: the hub mounts only the active tab and no
+// test here opens those tabs. doMocks are NOT file-scoped in this single-process suite
+// (apps/nickstire/AGENTS.md section 3), so an unused one would stub them for later files.vi.mock("@/components/admin/GatewayPill", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/outreach/AutonomyCensusPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/outreach/SmsOpsStrip", () => ({ default: h.Null }));
 
@@ -219,6 +218,19 @@ describe("Outreach brief", () => {
     expect(container.textContent).toContain("2 bulk campaigns lifetime (Campaigns tab)");
     expect(container.textContent).toContain("1,480 messages sent lifetime (review requests and bulk campaigns)");
     expect(container.textContent).not.toMatch(/customer touches/);
+  });
+});
+
+describe("module hygiene (positive control for the single-process suite)", () => {
+  // Red if this file doMocks these bodies (mutant-checked 2026-10-26). A stub leaked from an earlier
+  // file would land here too; that cross-file leak did not reproduce under seed 7 in a four-file run.
+  it("the Outreach tab bodies this file does not render are the real modules", async () => {
+    const real = {
+      CampaignsSection: (await import("@/pages/admin/outreach/CampaignsSection")).default,
+      ReviewRequestsSection: (await import("@/pages/admin/outreach/ReviewRequestsSection")).default,
+      SmsPerformanceSection: (await import("@/pages/admin/outreach/SmsPerformanceSection")).default,
+    };
+    for (const [name, Component] of Object.entries(real)) expect(Component.name, name).toBe(name);
   });
 });
 
