@@ -51,6 +51,8 @@ describe("every admin mutation is explicitly permissioned", () => {
 
   it.each([
     ["nickActions.runMigrations", "settings.manage"],
+    // 2026-10-26: the admin assistant spends model calls and drafts customer texts: owner and manager only.
+    ["nickActions.ask", "settings.manage"],
     ["adminDashboard.dbCleanupPrune", "settings.manage"],
     ["adStudio.post", "marketing.manage"],
     ["adminSecurity.rotateSecret", "security.manage"],

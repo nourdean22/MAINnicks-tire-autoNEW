@@ -28,6 +28,8 @@
  * markdown, the most recent user/assistant turn (we only touch HISTORY).
  */
 
+import { isEmptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
+
 const IMAGE_MARKDOWN_LINE =
   /!\[Generated Image\]\(\/api\/images\/[a-z0-9_-]{8,}(?:\?[^)\s]*)?\)/gi; // D13 · signed suffix tolerated
 
@@ -103,6 +105,10 @@ function neutralizeFabricatedHistory(text: string): string {
  * onto the UIMessage and DefaultChatTransport serializes messages
  * as-is (verified against ai@6.0.162 — no field stripping).
  */
+// Third person, like the verifier note above: no first-person sentence to parrot.
+const EMPTY_REPLY_NOTE =
+  "[removed by system: the assistant produced no reply on this turn; a system notice was shown instead. It is not the assistant's words and must not be referenced. The operator's message before it may still be unanswered.]";
+
 const STREAM_ERROR_NOTE =
   "[NOTE: my previous reply was interrupted mid-stream by a provider error and is incomplete — do not treat it as a completed answer or quote it as something I said. The operator's last request may still be unaddressed.]";
 
@@ -138,6 +144,13 @@ export function sanitizeMessageHistory<
     // the model sees the interruption, not a confident half-answer.
     if ((m as { streamingState?: unknown }).streamingState === "errored") {
       return { ...m, parts: [{ type: "text", text: STREAM_ERROR_NOTE }] };
+    }
+    // 2026-10-26 · an empty-response fallback is system copy shown in place of a
+    // reply. Read back as an assistant turn, the model continued it ("The action
+    // did go through ...") and echoed its duplicate warning at the operator.
+    const joined = m.parts.map((p) => (p?.type === "text" ? p.text ?? "" : "")).join("");
+    if (isEmptyResponseFallback(joined)) {
+      return { ...m, parts: [{ type: "text", text: EMPTY_REPLY_NOTE }] };
     }
     const parts = m.parts;
     const newParts = parts.map((part) => {

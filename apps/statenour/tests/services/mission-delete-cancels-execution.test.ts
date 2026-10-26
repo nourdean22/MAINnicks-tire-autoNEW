@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   softDelete: vi.fn(),
   softDeleteMany: vi.fn(),
   cancel: vi.fn(),
+  findUnique: vi.fn(),
   demo: false,
 }));
 
@@ -22,6 +23,7 @@ vi.mock("@/lib/auth-guard", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    mission: { findUnique: h.findUnique },
     apiRequestLog: { create: vi.fn().mockResolvedValue({}) },
     errorLog: { create: vi.fn().mockResolvedValue({}) },
   },
@@ -55,9 +57,43 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
 
 beforeEach(() => {
   h.demo = false;
+  h.findUnique.mockReset().mockResolvedValue({ systemKind: null });
   h.softDelete.mockReset().mockResolvedValue({ ok: true });
   h.softDeleteMany.mockReset().mockResolvedValue({ count: 0, actor: "user" });
   h.cancel.mockReset().mockResolvedValue({ cancelRequested: true, missionId: "m1", eventIds: ["e1"] });
+});
+
+describe("DELETE /api/missions/[id] · a system lane (GENERAL anchor) cannot be deleted (2026-10-26)", () => {
+  // The /missions lanes are the ACTIVE missions with systemKind GENERAL (isGeneralAnchor, the predicate
+  // lib/missions/deck.ts uses). The drawer now offers an edit entry on each lane; deleting one would
+  // soft-delete every task in it, habits included.
+  it("an anchor is refused with a clear 409, and nothing is deleted or cancelled", async () => {
+    h.findUnique.mockResolvedValue({ systemKind: "GENERAL" });
+    const res = await call("m-general-personal");
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(await res.json())).toMatch(/system lane/i);
+    await settle();
+    expect(h.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "m-general-personal" } }));
+    expect(h.softDelete).not.toHaveBeenCalled();
+    expect(h.softDeleteMany, "the task cascade must not run for an anchor").not.toHaveBeenCalled();
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: an ordinary project (systemKind null) is still deleted, with its task cascade", async () => {
+    h.findUnique.mockResolvedValue({ systemKind: null });
+    const res = await call("m1");
+    expect(res.status).toBe(200);
+    expect(h.softDelete).toHaveBeenCalledTimes(1);
+    expect(h.softDeleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed: if the anchor check cannot be read, nothing is deleted", async () => {
+    h.findUnique.mockRejectedValue(new Error("db down"));
+    const res = await call("m1");
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(h.softDelete).not.toHaveBeenCalled();
+    expect(h.softDeleteMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("DELETE /api/missions/[id] · a deleted mission's durable run is cancelled", () => {

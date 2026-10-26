@@ -213,6 +213,20 @@ function MissionsPageInner() {
     });
   }, [tasks, visibleTaskIds, filters.filtersActive, executionModeActive, filters.searchQuery, filters.kindFilter, filters.domainFilter, missions]);
 
+  // The rhythm row knows an id; the task editor needs the whole task. If task.list has not answered, say
+  // so rather than leave a dead title.
+  const handleEditRhythm = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) {
+        toast.error("That rhythm is not loaded yet. Try again in a moment.");
+        return;
+      }
+      actions.handleEditTask(task);
+    },
+    [tasks, actions],
+  );
+
   const handleQueueNext = useCallback((taskId: string) => {
     setQueuedTaskId(taskId);
     const task = tasks.find((t) => t.id === taskId);
@@ -327,7 +341,14 @@ function MissionsPageInner() {
             {deck && <DeckReadinessLine readiness={deck.readiness} />}
 
             {/* 2 · RHYTHMS: second on the page because ticking habits is the main job here */}
-            {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={(id, loopKind) => actions.handleCompleteTask(id, { loopKind })} />}
+            {deck && (
+              <DeckRhythms
+                rhythms={deck.rhythms}
+                onComplete={(id, loopKind) => actions.handleCompleteTask(id, { loopKind })}
+                onEdit={handleEditRhythm}
+                onAdd={actions.handleAddRhythm}
+              />
+            )}
 
             {/* W2 (2026-10-16): the deck's two mode controls sit in one compact strip under the hero,
                 so the capture row below is the page's one capture control. 44px targets. */}
@@ -464,7 +485,7 @@ function MissionsPageInner() {
                   <MissionFeed missions={boardMissions} tasks={boardTasks} taskRank={taskRank} />
                 </>
               )}
-              {deck && <DeckLanes lanes={deck.lanes} tasks={tasks} />}
+              {deck && <DeckLanes lanes={deck.lanes} tasks={tasks} onEditMission={actions.handleEditMission} />}
             </section>
           </div>
           <aside

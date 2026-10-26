@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "apps/nickstire/client/src/__tests__/admin-lot-eyes-ears.test.tsx 'a worker stuck in one recording says so' (red on the unfixed LotSection, green after): on Admin > Lot > Office intelligence, when the office worker reports CAPTURING with a capture older than 15 min (prod 2026-10-26 11:32Z: CAPTURING since 2026-10-22 17:51:58Z, heartbeat fresh), the worker badge reads 'stuck' in red, a red line reads 'Stuck in one recording for 95h; not listening. Restart the task StateNour-OfficeIntelligence-ShopPC on the front-desk PC, or restart that PC.', and the office mic chip reads 'not listening - stuck 95h'. Control: CAPTURING for 2 min still reads 'capturing' with nothing flagged. Live read of the card owed after deploy (job 2026-10-26-cameras-eyes-ears)."
+    }
+  }
+}

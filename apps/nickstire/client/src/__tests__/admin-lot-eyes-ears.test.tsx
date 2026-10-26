@@ -104,8 +104,9 @@ const SEGMENTS = [
   { start: 71, end: 72, text: "<b>thanks</b>" },
 ];
 
-function setLot({ counterTrust, staleSeconds = 40, sign = {}, wordsVisible = true, rows = [convo("e-1")] }: {
+function setLot({ counterTrust, staleSeconds = 40, sign = {}, wordsVisible = true, rows = [convo("e-1")], officeConversation = {} }: {
   counterTrust?: unknown; staleSeconds?: number; sign?: Record<string, unknown>; wordsVisible?: boolean | "absent"; rows?: unknown[];
+  officeConversation?: Record<string, unknown>;
 } = {}) {
   h.queries.set("lot.now", {
     data: {
@@ -120,7 +121,7 @@ function setLot({ counterTrust, staleSeconds = 40, sign = {}, wordsVisible = tru
   h.queries.set("lot.visits", { data: { ok: true, marksAvailable: false, rows: [visit("v-1", "FIX 1001", 20), visit("v-2", "FIX 1002", 8)] } });
   const office = {
     ...camera("office", "conversation"),
-    conversation: { workerOk: true, state: "READY", workerAgeSeconds: 10, listeningCoverage60m: 0.9, capturesLast60m: 3, captureFailuresLast60m: 0, wakeTriggersLast60m: 2, transcribeBacklog: 0 },
+    conversation: { workerOk: true, state: "READY", workerAgeSeconds: 10, listeningCoverage60m: 0.9, capturesLast60m: 3, captureFailuresLast60m: 0, wakeTriggersLast60m: 2, transcribeBacklog: 0, ...officeConversation },
   };
   h.queries.set("lot.health", {
     data: { ok: true, cameras: [camera("sign", "vehicle_truth", sign), office], transitions: [], thresholds: { staleAfterSeconds: 60, offlineAfterSeconds: 120 }, windowColumnsStored: true, shopOpen: true, coverage: null },
@@ -146,6 +147,26 @@ afterEach(() => {
 });
 
 const wordsButton = () => screen.queryByRole("button", { name: /what was said/ });
+
+describe("a worker stuck in one recording says so (2026-10-22 17:51Z to 10-26)", () => {
+  const STUCK = { state: "CAPTURING", captureAgeSeconds: 95 * 3600, listeningCoverage60m: null, capturesLast60m: 0, wakeTriggersLast60m: 0 };
+
+  it("the 10-26 production shape: red STUCK badge, the fix in words, and the chip says not listening", () => {
+    setLot({ officeConversation: STUCK });
+    render(<LotSection />);
+    expect(screen.getByText("stuck")).toBeTruthy();
+    expect(screen.getByText(/Stuck in one recording for 95h; not listening\./).className).toContain("text-red-300");
+    expect(screen.getByText("not listening · stuck 95h")).toBeTruthy();
+  });
+
+  it("CONTROL: CAPTURING for 2 minutes is a recording in progress, nothing is flagged", () => {
+    setLot({ officeConversation: { ...STUCK, captureAgeSeconds: 120 } });
+    render(<LotSection />);
+    expect(screen.getByText("capturing")).toBeTruthy();
+    expect(screen.queryByText(/Stuck in one recording/)).toBeNull();
+    expect(screen.queryByText(/not listening · stuck/)).toBeNull();
+  });
+});
 
 describe("C1 the owner can read what was said", () => {
   it("a closed card asks for nothing; the 48 px button opens the timed lines under the gist", () => {
