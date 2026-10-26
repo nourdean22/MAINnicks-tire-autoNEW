@@ -1283,19 +1283,6 @@ export async function markNotificationSent(id: number) {
   return { success: true, changed: affectedRows(any) > 0, cancelLostRace: false };
 }
 
-/**
- * 2026-09-01 · a notification that never went out must not sit `pending`
- * forever (audit F-1). `failed` is already in the status enum and is what the
- * admin's retry button re-queues from.
- */
-export async function markNotificationFailed(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.update(customerNotifications).set({ status: "failed" })
-    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "pending")));
-  return { success: true, changed: affectedRows(result) > 0 };
-}
-
 export async function getBookingServiceBreakdown() {
   const db = await getDb();
   if (!db) return [];

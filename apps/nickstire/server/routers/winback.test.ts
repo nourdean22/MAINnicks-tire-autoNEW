@@ -1,0 +1,547 @@
+/**
+ * Win-Back audiences use the canonical opt-out predicate and the shared
+ * lapsed-regulars rule (2026-10-25).
+ *
+ * Before: every segment filter excluded only `customers.smsOptOut = 1`, so a
+ * customer who texted STOP or opted out in sms_preferences still counted as a
+ * target (sendSms refused each send, but the "<n> TARGETS" number overstated
+ * reach), and Win-Back had no way to target the "lapsed regulars" the Customers
+ * tab counts (3+ visits, last visit 90 to 365 days ago).
+ *
+ * The fake db RENDERS every condition with drizzle's MySqlDialect and applies
+ * each leg it finds in the SQL to a small customers fixture, so dropping a leg
+ * from the filter changes a count here, not just a string.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+import type { SQL } from "drizzle-orm";
+
+const dialect = new MySqlDialect();
+const render = (c: unknown) => dialect.sqlToQuery(c as SQL);
+
+const DAY = 86_400_000;
+type Cust = { id: number; visits: number; daysAgo: number; phone: string; spent?: number };
+// B is a lapsed regular who opted out in sms_preferences only (customers.smsOptOut = 0).
+const FIXTURE: Cust[] = [
+  { id: 1, visits: 4, daysAgo: 120, phone: "2165550101" }, // A: lapsed regular, textable
+  { id: 2, visits: 3, daysAgo: 200, phone: "2165550102" }, // B: lapsed regular, opted out in preferences
+  { id: 3, visits: 1, daysAgo: 150, phone: "2165550103" }, // C: one visit, below the floor
+  { id: 4, visits: 5, daysAgo: 30, phone: "2165550104" }, // D: recent
+  { id: 5, visits: 6, daysAgo: 400, phone: "2165550105" }, // E: lost
+  { id: 6, visits: 3, daysAgo: 100, phone: "+1 (216) 555-0106", spent: 900_000 }, // F: lapsed regular, carrier blocks the shop line
+  { id: 7, visits: 4, daysAgo: 110, phone: "216-555-0107" }, // G: lapsed regular, revoked in the consent ledger
+];
+const PREFS_OPTED_OUT = new Set(["2165550102"]);
+
+/** sendSms's suppression index (server/sms.ts loadSuppressionIndex), last-10 keys. */
+const okIndex = () => ({
+  ok: true as const,
+  phones: new Set(["2165550107"]), // ledger-revoked phones are merged into `phones`
+  carrierBlocked: new Set(["2165550106"]),
+  voiceOnly: new Set<string>(),
+  stale: false,
+});
+const DOWN = { ok: false as const, reason: "consent ledger unavailable: test" };
+/** complianceLog getSmsOptInIndex: only A (2165550101) has a recorded opt-in. */
+const okConsent = () => ({ ok: true as const, phones: new Set(["2165550101"]), stale: false });
+const spentOf = (r: Cust) => r.spent ?? 10_000;
+const avgSpent = (rows: Cust[]) => (rows.length ? rows.reduce((s, r) => s + spentOf(r), 0) / rows.length : 0);
+
+/** Applies the legs present in the rendered SQL to the fixture. */
+function countFor(text: string): number {
+  return rowsFor(text).length;
+}
+function rowsFor(text: string): Cust[] {
+  let rows = FIXTURE;
+  const floor = /`totalVisits` >= (\d+)/.exec(text);
+  if (floor) rows = rows.filter((r) => r.visits >= Number(floor[1]));
+  const min = /`lastVisitDate` < DATE_SUB\(NOW\(\), INTERVAL (\d+) DAY\)/.exec(text);
+  if (min) rows = rows.filter((r) => r.daysAgo > Number(min[1]));
+  const max = /`lastVisitDate` >= DATE_SUB\(NOW\(\), INTERVAL (\d+) DAY\)/.exec(text);
+  if (max) rows = rows.filter((r) => r.daysAgo <= Number(max[1]));
+  if (/FROM sms_preferences/.test(text)) rows = rows.filter((r) => !PREFS_OPTED_OUT.has(r.phone));
+  return rows;
+}
+
+const state = {
+  conditions: [] as string[],
+  rendered: [] as Array<{ sql: string; params: unknown[] }>,
+  dbOverride: null as unknown,
+  inserts: [] as Array<{ values: unknown }>,
+  index: okIndex() as ReturnType<typeof okIndex> | typeof DOWN,
+  consent: okConsent() as ReturnType<typeof okConsent> | typeof DOWN,
+};
+
+const { routerSendSms, smsMock } = vi.hoisted(() => {
+  const routerSendSms = vi.fn(async (..._a: unknown[]) => ({ success: true, heldOut: true, experimentId: "t" }));
+  // Shared so the processor tests can put it back after their own doMock (doUnmock would drop it,
+  // and lib/sms-eligibility reaches ../sms through a dynamic import).
+  const smsMock = async (importOriginal: () => Promise<unknown>) => ({
+    ...((await importOriginal()) as object),
+    sendSms: routerSendSms,
+    loadSuppressionIndex: async () => state.index,
+  });
+  return { routerSendSms, smsMock };
+});
+vi.mock("../sms", smsMock);
+vi.mock("../services/complianceLog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/complianceLog")>()),
+  getSmsOptInIndex: async () => state.consent,
+}));
+
+function fakeDb() {
+  return {
+    select: (proj?: Record<string, unknown>) => ({
+      from: () => ({
+        where: (cond: unknown) => {
+          const q = render(cond);
+          const text = q.sql;
+          state.conditions.push(text);
+          state.rendered.push(q);
+          const result = Promise.resolve(
+            proj && "phone" in proj
+              ? rowsFor(text).map((r) => ({ phone: r.phone, totalSpent: spentOf(r) }))
+              : [{ count: countFor(text), avgSpent: avgSpent(rowsFor(text)) }],
+          );
+          return Object.assign(result, { orderBy: () => ({ limit: async () => [] }) });
+        },
+      }),
+    }),
+    insert: () => ({
+      values: (values: unknown) => {
+        state.inserts.push({ values });
+        return Object.assign(Promise.resolve([{ insertId: 1 }]), { $returningId: async () => [{ id: 99 }] });
+      },
+    }),
+  };
+}
+
+vi.mock("../lib/db-helper", () => ({
+  db: async () => state.dbOverride ?? fakeDb(),
+  dbTyped: async () => fakeDb(),
+  requireDb: async () => fakeDb(),
+}));
+vi.mock("../lib/reviewCopy", () => ({ getReviewCopy: async () => ({ rating: "4.9", countDisplay: "1,700+" }) }));
+
+import { appRouter } from "../routers";
+import type { TrpcContext } from "../_core/context";
+
+function ctx(): TrpcContext {
+  return {
+    user: {
+      id: 1, openId: "admin-user", email: "admin@nickstire.com", name: "Admin",
+      loginMethod: "manus", role: "admin",
+      createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    },
+    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    res: { clearCookie: () => {} } as TrpcContext["res"],
+  } as TrpcContext;
+}
+const admin = () => appRouter.createCaller(ctx());
+
+const OTHER_SEGMENTS = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
+
+beforeEach(() => {
+  state.conditions = [];
+  state.rendered = [];
+  state.dbOverride = null;
+  state.index = okIndex();
+  state.consent = okConsent();
+  vi.unstubAllEnvs();
+  routerSendSms.mockClear();
+  state.inserts = [];
+});
+
+describe("lapsed_regulars: the Customers tab's rule, contactable by the canonical predicate", () => {
+  it("segmentCounts carries qualifying and contactable for lapsed_regulars from one shared rule", async () => {
+    const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+    // A and B qualify (3+ visits, 90 to 365 days); B opted out in sms_preferences.
+    // A, B, F and G qualify. B opted out in sms_preferences (SQL leg); F's carrier blocks the
+    // shop line and G is revoked in the consent ledger (sendSms's index). Only A can be texted.
+    expect(counts.lapsed_regulars).toEqual({ qualifying: 4, contactable: 1 });
+    const pair = counts.lapsed_regulars as { qualifying: number; contactable: number };
+    expect(pair.contactable).toBeLessThanOrEqual(pair.qualifying);
+    for (const seg of OTHER_SEGMENTS) expect(typeof counts[seg], seg).toBe("number");
+  });
+
+  it("the lapsed_regulars target filter renders the shared SQL and both NOT EXISTS legs", async () => {
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed_regulars" } as never);
+    const text = state.conditions[0];
+    expect(text).toMatch(/`totalVisits` >= 3/);
+    expect(text).toMatch(/INTERVAL 90 DAY/);
+    expect(text).toMatch(/INTERVAL 365 DAY/);
+    expect(text).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM sms_preferences/);
+    expect(text).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM sms_messages/);
+    // The target count is the CONTACTABLE number, never the qualifying one.
+    expect(res.netTargetCount).toBe(1);
+  });
+});
+
+describe("every win-back audience excludes customers who opted out anywhere", () => {
+  it.each(OTHER_SEGMENTS)("%s uses the canonical predicate, not the bare smsOptOut flag", async (seg) => {
+    await admin().winback.campaignReadiness({ targetSegment: seg });
+    const text = state.conditions[0];
+    expect(text).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM sms_preferences/);
+    expect(text).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM sms_messages/);
+    expect(text, "bare eq(customers.smsOptOut, 0) renders as a bound parameter").not.toMatch(/`smsOptOut` = \?/);
+  });
+});
+
+/** Each `lastVisitDate <op> DATE_SUB(NOW(), INTERVAL n DAY)` comparison, in SQL order. */
+function visitIntervals(text: string): Array<{ op: string; days: number }> {
+  const re = /`lastVisitDate` (<|>=) DATE_SUB\(NOW\(\), INTERVAL (\d+) DAY\)/g;
+  return [...text.matchAll(re)].map((m) => ({ op: m[1], days: Number(m[2]) }));
+}
+
+describe("visit windows are day-buckets computed in SQL and can match a row", () => {
+  it("recent is last visit 30 to 90 days ago: < 30 days, then >= 90 days", async () => {
+    await admin().winback.campaignReadiness({ targetSegment: "recent" });
+    const text = state.conditions[0];
+    expect(visitIntervals(text)).toEqual([{ op: "<", days: 30 }, { op: ">=", days: 90 }]);
+    expect(text).toMatch(/`lastVisitDate` IS NOT NULL/);
+  });
+
+  it.each([
+    ["lapsed", [{ op: "<", days: 90 }, { op: ">=", days: 180 }]],
+    ["dormant", [{ op: "<", days: 180 }, { op: ">=", days: 365 }]],
+    ["lost", [{ op: "<", days: 365 }]],
+    ["tire_customer", [{ op: "<", days: 180 }]],
+  ] as const)("%s binds no JavaScript Date: its window is DATE_SUB in SQL", async (seg, expected) => {
+    await admin().winback.campaignReadiness({ targetSegment: seg });
+    expect(visitIntervals(state.conditions[0])).toEqual(expected);
+    expect(state.rendered[0].params.some((p) => p instanceof Date), `${seg} bound a JS Date`).toBe(false);
+  });
+
+  it.each([...OTHER_SEGMENTS, "lapsed_regulars"] as const)("%s: no self-contradictory lastVisitDate window", async (seg) => {
+    await admin().winback.campaignReadiness({ targetSegment: seg } as never);
+    const bounds = visitIntervals(state.conditions[0]);
+    for (const lo of bounds.filter((b) => b.op === "<")) for (const hi of bounds.filter((b) => b.op === ">=")) {
+      expect(lo.days, `${seg}: the < side must be the smaller interval`).toBeLessThan(hi.days);
+    }
+  });
+});
+
+describe("create", () => {
+  it("accepts lapsed_regulars and stores the lapsed templates verbatim", async () => {
+    const res = await admin().winback.create({ name: "Regulars", targetSegment: "lapsed_regulars" } as never);
+    expect(res).toMatchObject({ success: true });
+    const campaign = state.inserts[0].values as { targetSegment: string; targetCount: number };
+    expect(campaign).toMatchObject({ targetSegment: "lapsed_regulars", targetCount: 1 });
+    const regularBodies = state.inserts.slice(1).map((i) => (i.values as { body: string }).body);
+
+    state.inserts = [];
+    await admin().winback.create({ name: "Lapsed", targetSegment: "lapsed" });
+    const lapsedBodies = state.inserts.slice(1).map((i) => (i.values as { body: string }).body);
+    expect(regularBodies.length).toBe(4);
+    expect(regularBodies).toEqual(lapsedBodies);
+  });
+
+  it("still refuses the retired declined segment", async () => {
+    await expect(admin().winback.create({ name: "x", targetSegment: "declined" } as never)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+  });
+});
+
+describe("the send-time check uses the same predicate", () => {
+  // A holdout result skips the processor's real 1.5 s rate-limit sleep (no fake timers behind await import()).
+  const sendSms = vi.fn(async () => ({ success: true, heldOut: true, experimentId: "t" }));
+  const executed: string[] = [];
+
+  async function runProcessor(eligible: boolean, phone = "2165550102", failRows = 1) {
+    sendSms.mockClear();
+    executed.length = 0;
+    const db = {
+      execute: vi.fn(async (q: SQL) => {
+        const r = render(q);
+        const text = `${r.sql} | ${JSON.stringify(r.params)}`;
+        executed.push(text);
+        if (/FROM winback_sends ws/.test(text)) {
+          return [[{ id: 11, phone, personalizedBody: "Hi", campaignId: 3, customerId: 2 }]];
+        }
+        if (/FROM sms_preferences/.test(text)) return [eligible ? [{ eligible: 1 }] : []];
+        if (/SET status = 'sent'/.test(text)) return [{ affectedRows: 1 }];
+        if (/SET status = 'failed'/.test(text)) return [{ affectedRows: failRows }];
+        return [[]];
+      }),
+    };
+    vi.resetModules();
+    vi.doMock("../db", () => ({ getDb: async () => db }));
+    vi.doMock("../sms", () => ({ sendSms, isShopGatewayReachable: async () => true, loadSuppressionIndex: async () => state.index }));
+    vi.doMock("../services/featureFlags", () => ({ isEnabled: async () => true }));
+    vi.doMock("../services/telegram", () => ({ sendTelegram: async () => true }));
+    try {
+      const { processWinbackPending } = await import("../services/winbackProcessor");
+      return await processWinbackPending();
+    } finally {
+      for (const m of ["../db", "../services/featureFlags", "../services/telegram"]) vi.doUnmock(m);
+      vi.doMock("../sms", smsMock);
+      vi.resetModules();
+    }
+  }
+
+  it("a customer opted out in sms_preferences is marked failed and never texted", async () => {
+    await runProcessor(false);
+    expect(sendSms).not.toHaveBeenCalled();
+    const fail = executed.find((t) => /SET status = 'failed'/.test(t));
+    expect(fail).toMatch(/AND status = 'pending'/);
+  });
+
+  it("an eligible customer is texted", async () => {
+    await runProcessor(true);
+    expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["carrier-blocked", "+12165550106"],
+    ["ledger-revoked", "(216) 555-0107"],
+  ])("a %s phone is marked failed under the pending compare-and-swap, never claimed or texted", async (_why, phone) => {
+    await runProcessor(true, phone);
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(executed.some((t) => /SET status = 'sent'/.test(t)), "no claim").toBe(false);
+    const fail = executed.find((t) => /SET status = 'failed'/.test(t));
+    expect(fail).toMatch(/customer suppressed \(carrier block or consent ledger\)/);
+    expect(fail).toMatch(/AND status = 'pending'/);
+  });
+
+  it("a skip is counted only when its fail write changed the row (an overlapping drain won it)", async () => {
+    expect((await runProcessor(false, "2165550102", 0)).details).toMatch(/0 skipped/);
+    expect((await runProcessor(true, "+12165550106", 0)).details).toMatch(/0 skipped/);
+    // control: the same writes changing the row are counted
+    expect((await runProcessor(false, "2165550102", 1)).details).toMatch(/1 skipped/);
+    expect((await runProcessor(true, "+12165550106", 1)).details).toMatch(/1 skipped/);
+  });
+
+  it("SMS_CONSENT_GATE=enforce: a phone with no recorded opt-in is failed at send time, never texted", async () => {
+    vi.stubEnv("SMS_CONSENT_GATE", "enforce");
+    await runProcessor(true, "2165550103");
+    expect(sendSms).not.toHaveBeenCalled();
+    const fail = executed.find((t) => /SET status = 'failed'/.test(t));
+    expect(fail).toMatch(/no SMS consent on file/);
+    expect(fail).toMatch(/AND status = 'pending'/);
+  });
+
+  it("SMS_CONSENT_GATE unset: the same phone is texted (today's behaviour)", async () => {
+    await runProcessor(true, "2165550103");
+    expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it("an index that cannot load leaves the row pending and stops the run", async () => {
+    state.index = DOWN;
+    const res = await runProcessor(true);
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(executed.some((t) => /UPDATE winback_sends/.test(t)), "row untouched").toBe(false);
+    expect(res.details).toMatch(/suppression list unavailable/);
+  });
+});
+
+describe("audiences, counts and activation honour the full suppression index", () => {
+  it("segment counts subtract carrier-blocked and ledger-revoked phones", async () => {
+    const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+    // lapsed (90-180d): A (120), C (150), F (100), G (110) pass SQL; F and G are in the index.
+    expect(counts.lapsed).toBe(2);
+    expect(counts.lapsed_regulars).toEqual({ qualifying: 4, contactable: 1 });
+  });
+
+  it("campaignReadiness's target count is the same suppressed number", async () => {
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed" });
+    expect(res.netTargetCount).toBe(2);
+  });
+
+  it("create records the suppressed count beside the target count", async () => {
+    const res = await admin().winback.create({ name: "x", targetSegment: "lapsed" });
+    expect(res).toMatchObject({ success: true, suppressed: 2 });
+    expect(state.inserts[0].values).toMatchObject({ targetCount: 2 });
+  });
+
+  it.each(["segmentCounts", "campaignReadiness", "create"] as const)(
+    "%s throws when the index cannot load, never the unsuppressed number",
+    async (proc) => {
+      state.index = DOWN;
+      const call =
+        proc === "segmentCounts" ? admin().winback.segmentCounts()
+        : proc === "campaignReadiness" ? admin().winback.campaignReadiness({ targetSegment: "lapsed" })
+        : admin().winback.create({ name: "x", targetSegment: "lapsed" });
+      await expect(call).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: "suppression list unavailable; try again" });
+      expect(state.inserts).toEqual([]);
+    },
+  );
+
+  function activationDb() {
+    const customersRows = FIXTURE.filter((r) => r.daysAgo > 90 && r.daysAgo <= 180).map((r) => ({
+      id: r.id, phone: r.phone, firstName: "Pat", vehicleYear: null, vehicleMake: null, vehicleModel: null,
+    }));
+    const chain = (rows: unknown[]) => Object.assign(Promise.resolve(rows), {
+      orderBy: async () => rows,
+      limit: async () => rows,
+    });
+    return {
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () => {
+            const name = (table as Record<symbol, string>)[Symbol.for("drizzle:Name")];
+            if (name === "winback_campaigns") return chain([{ id: 5, status: "draft", targetSegment: "lapsed" }]);
+            if (name === "winback_messages") return chain([{ id: 1, step: 1, delayDays: 0, body: "Hi" }]);
+            if (name === "customers") return chain(customersRows);
+            return chain([]);
+          },
+        }),
+      }),
+      insert: () => ({ values: async (values: unknown) => { state.inserts.push({ values }); } }),
+      update: () => ({ set: () => ({ where: async () => [{ affectedRows: 1 }] }) }),
+    };
+  }
+
+  it("activation queues sends only for phones the index allows, and says how many it dropped", async () => {
+    state.dbOverride = activationDb();
+    const res = await admin().winback.activate({ campaignId: 5 });
+    expect(res).toMatchObject({ success: true, sendsCreated: 2, suppressed: 2 });
+    const phones = (state.inserts[0].values as Array<{ phone: string }>).map((v) => v.phone);
+    expect(phones).toEqual(["2165550101", "2165550103"]);
+  });
+
+  it("projected value comes from the contactable set: a suppressed big spender does not inflate it", async () => {
+    // lapsed SQL set: A, C, F ($9,000 lifetime) and G; F and G are suppressed, A and C are $100 each.
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed" });
+    expect(res.netTargetCount).toBe(2);
+    expect(res.projectedValueCents).toBe(Math.round(2 * 10_000 * 0.05));
+  });
+
+  it("an empty contactable set projects 0", async () => {
+    state.index = { ...okIndex(), phones: new Set(["2165550101", "2165550103", "2165550107"]) };
+    const res = await admin().winback.campaignReadiness({ targetSegment: "lapsed" });
+    expect(res).toMatchObject({ netTargetCount: 0, projectedValueCents: 0 });
+  });
+
+  describe("SMS_CONSENT_GATE=enforce: only phones with a recorded opt-in are contactable", () => {
+    beforeEach(() => vi.stubEnv("SMS_CONSENT_GATE", "enforce"));
+
+    it("counts and readiness drop the customer with no consent record", async () => {
+      const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+      expect(counts.lapsed).toBe(1); // A only: C has no opt-in
+      expect(counts.lapsed_regulars).toEqual({ qualifying: 4, contactable: 1 });
+      expect((await admin().winback.campaignReadiness({ targetSegment: "lapsed" })).netTargetCount).toBe(1);
+    });
+
+    it("activation queues only the consented phone", async () => {
+      state.dbOverride = activationDb();
+      const res = await admin().winback.activate({ campaignId: 5 });
+      expect(res).toMatchObject({ success: true, sendsCreated: 1, suppressed: 3 });
+      expect((state.inserts[0].values as Array<{ phone: string }>).map((v) => v.phone)).toEqual(["2165550101"]);
+    });
+
+    it("an unreadable consent index throws on counts and refuses activation", async () => {
+      state.consent = DOWN;
+      await expect(admin().winback.segmentCounts()).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      state.dbOverride = activationDb();
+      await expect(admin().winback.activate({ campaignId: 5 })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      expect(state.inserts).toEqual([]);
+    });
+  });
+
+  it.each([[undefined], ["monitor"]])("SMS_CONSENT_GATE=%s keeps today's counts (consent not required)", async (mode) => {
+    if (mode) vi.stubEnv("SMS_CONSENT_GATE", mode);
+    state.consent = DOWN; // not even read outside enforce
+    const counts = (await admin().winback.segmentCounts()) as Record<string, unknown>;
+    expect(counts.lapsed).toBe(2);
+  });
+
+  it("activation refuses when the index cannot load and queues nothing", async () => {
+    state.dbOverride = activationDb();
+    state.index = DOWN;
+    await expect(admin().winback.activate({ campaignId: 5 })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(state.inserts).toEqual([]);
+  });
+});
+
+describe("admin processPending counts a failure only on the row it changed", () => {
+  const updates: unknown[] = [];
+  function drainDb(failAffected: number, opts: { eligible?: boolean; phone?: string } = {}) {
+    updates.length = 0;
+    const send = { id: 7, customerId: 2, phone: opts.phone ?? "2165550102", personalizedBody: "Hi", campaignId: 3 };
+    return {
+      select: () => ({
+        from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ send, campaignStatus: "active" }] }) }) }),
+      }),
+      execute: async () => [opts.eligible ? [{ eligible: 1 }] : []],
+      update: () => ({ set: (v: unknown) => ({ where: async () => { updates.push(v); return [{ affectedRows: failAffected }]; } }) }),
+    };
+  }
+
+  it("a carrier-blocked phone is marked failed (counted) and never texted", async () => {
+    state.dbOverride = drainDb(1, { eligible: true, phone: "+12165550106" });
+    await expect(admin().winback.processPending()).resolves.toMatchObject({ processed: 1, failed: 1 });
+    expect(routerSendSms).not.toHaveBeenCalled();
+    expect(updates).toEqual([{ status: "failed", errorMessage: "customer suppressed (carrier block or consent ledger)" }]);
+  });
+
+  it("an index that cannot load refuses the drain and touches no row", async () => {
+    state.dbOverride = drainDb(1, { eligible: true });
+    state.index = DOWN;
+    await expect(admin().winback.processPending()).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(updates).toEqual([]);
+    expect(routerSendSms).not.toHaveBeenCalled();
+  });
+
+  it("a fail write that changed no row (the cron got there first) is not counted", async () => {
+    state.dbOverride = drainDb(0);
+    await expect(admin().winback.processPending()).resolves.toMatchObject({ processed: 1, failed: 0 });
+  });
+
+  it("control: a fail write that changed the row is counted", async () => {
+    state.dbOverride = drainDb(1);
+    await expect(admin().winback.processPending()).resolves.toMatchObject({ processed: 1, failed: 1 });
+  });
+});
+
+/**
+ * Consent chronology, run on the REAL rendered SQL in node:sqlite (the MySQL-only
+ * RIGHT() is registered as a function; everything else in the predicate is portable).
+ * Mirrors sendSms's index (server/sms.ts): a later START/UNSTOP/YES in the same
+ * conversation lifts a STOP; same timestamp, the higher id wins.
+ */
+describe("campaign eligibility honours a later START, like sendSms", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const { customerCampaignEligibleSql } = await import("../lib/sms-eligibility");
+
+  function eligible(messages: Array<{ id: number; body: string; at: string }>): boolean {
+    const db = new DatabaseSync(":memory:");
+    db.function("RIGHT", (s: unknown, n: unknown) => String(s ?? "").slice(-Number(n)));
+    db.exec(`
+      CREATE TABLE customers (id INTEGER, phone TEXT, smsOptOut INTEGER);
+      CREATE TABLE sms_preferences (phone TEXT, opted_out INTEGER);
+      CREATE TABLE sms_conversations (id INTEGER, phone TEXT);
+      CREATE TABLE sms_messages (id INTEGER, conversationId INTEGER, direction TEXT, body TEXT, createdAt TEXT);
+      INSERT INTO customers VALUES (1, '+12165550101', 0);
+      INSERT INTO sms_conversations VALUES (9, '2165550101');
+    `);
+    const ins = db.prepare("INSERT INTO sms_messages VALUES (?, 9, 'inbound', ?, ?)");
+    for (const m of messages) ins.run(m.id, m.body, m.at);
+    const q = render(customerCampaignEligibleSql(1));
+    return db.prepare(q.sql).all(...(q.params as never[])).length === 1;
+  }
+
+  it("positive control: no messages = eligible", () => {
+    expect(eligible([])).toBe(true);
+  });
+  it("STOP alone = not eligible", () => {
+    expect(eligible([{ id: 1, body: "stop", at: "2026-10-01 10:00:00" }])).toBe(false);
+  });
+  it("STOP then START = eligible", () => {
+    expect(eligible([
+      { id: 1, body: "STOP", at: "2026-10-01 10:00:00" },
+      { id: 2, body: " start ", at: "2026-10-02 10:00:00" },
+    ])).toBe(true);
+  });
+  it("START then STOP = not eligible", () => {
+    expect(eligible([
+      { id: 1, body: "START", at: "2026-10-01 10:00:00" },
+      { id: 2, body: "STOP", at: "2026-10-02 10:00:00" },
+    ])).toBe(false);
+  });
+  it("same timestamp: the higher id wins", () => {
+    const at = "2026-10-01 10:00:00";
+    expect(eligible([{ id: 1, body: "STOP", at }, { id: 2, body: "UNSTOP", at }])).toBe(true);
+    expect(eligible([{ id: 1, body: "YES", at }, { id: 2, body: "STOP", at }])).toBe(false);
+  });
+});

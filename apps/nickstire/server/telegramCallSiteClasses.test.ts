@@ -56,7 +56,6 @@ const TABLE: Row[] = [
   ["services/winbackProcessor.ts", "WINBACK AUTO", "receipt"],
   ["services/eventBus.ts", "JOB COMPLETED:", "receipt"],
   ["services/eventBus.ts", "PAYMENT:", "receipt"],
-  ["follow-ups.ts", "📨", "receipt"],
   ["routers/booking.ts", "UPSELL added", "receipt"],
   ["routers/gatewayTire.ts", "TIRES SHIPPING", "receipt"],
   ["routers/gatewayTire.ts", "INSTALLED —", "receipt"],

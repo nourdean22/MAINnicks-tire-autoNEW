@@ -9,14 +9,21 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
-import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
+import { eq, sql, desc, and, lte, isNull, type SQL } from "drizzle-orm";
+import { affectedRowCount } from "../lib/db-affected";
 import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
+import { TRPCError } from "@trpc/server";
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { getReviewCopy, type ReviewCopy } from "../lib/reviewCopy";
+import { campaignEligiblePhoneSql, customerCampaignEligibleSql, loadSendGate, sendGateRefusal } from "../lib/sms-eligibility";
+import { countLapsedRegulars, lapsedRegularCondition } from "../lib/customer-segments";
 
 import { db } from "../lib/db-helper";
+
+/** Selectable audiences. "declined" stays retired (see buildSegmentFilter). */
+const TARGET_SEGMENTS = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer", "lapsed_regulars"] as const;
 
 /**
  * Centrally verify which customer IDs have a verified tire purchase history.
@@ -119,7 +126,7 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
 // gating and scheduling are untouched.
 const buildWinbackTemplates = (
   { rating, countDisplay }: ReviewCopy,
-): Record<string, { step: number; delayDays: number; template: string }[]> => ({
+): Record<string, { step: number; delayDays: number; template: string }[]> => withLapsedRegulars({
   // ── LAPSED (90-180 days, was active) — 4-step sequence ──
   lapsed: [
     {
@@ -230,38 +237,70 @@ const buildWinbackTemplates = (
   ],
 });
 
+/** Lapsed regulars (3+ visits, 90-365 days) get the lapsed sequence verbatim: no new customer copy. */
+function withLapsedRegulars<T extends { lapsed: unknown }>(t: T): T & { lapsed_regulars: T["lapsed"] } {
+  return { ...t, lapsed_regulars: t.lapsed };
+}
+
 /**
  * Build a SQL WHERE filter for each customer segment.
- * Uses date-based logic instead of the limited DB enum.
+ * Uses date-based logic instead of the limited DB enum. Every audience carries
+ * campaignEligiblePhoneSql (customers.smsOptOut + sms_preferences + inbound
+ * STOP), so a target count is the number of people who can be texted.
  */
-function buildSegmentFilter(segment: string) {
-  const now = new Date();
-  const d90 = new Date(now.getTime() - 90 * 86400000);
-  const d180 = new Date(now.getTime() - 180 * 86400000);
-  const d365 = new Date(now.getTime() - 365 * 86400000);
-  const d30 = new Date(now.getTime() - 30 * 86400000);
+/**
+ * Last visit at least `minDaysAgo` and (when given) at most `maxDaysAgo` days ago,
+ * computed in SQL like lapsedCondition (AGENTS.md: day-buckets in SQL, never a JS Date).
+ */
+function visitWindowSql(minDaysAgo: number, maxDaysAgo?: number): SQL {
+  const newest = sql`${customers.lastVisitDate} IS NOT NULL AND ${customers.lastVisitDate} < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(minDaysAgo))} DAY)`;
+  return maxDaysAgo === undefined
+    ? newest
+    : sql`${newest} AND ${customers.lastVisitDate} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(maxDaysAgo))} DAY)`;
+}
 
+/**
+ * sendSms's own gate (suppression index, plus the opt-in index under
+ * SMS_CONSENT_GATE=enforce; lib/sms-eligibility.ts loadSendGate). A list that
+ * cannot load is refused, never read as "nobody is suppressed": no count is
+ * shown and no send is queued that the send gate could not check.
+ */
+async function sendGateOrThrow() {
+  const gate = await loadSendGate();
+  if (!gate.ok) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "suppression list unavailable; try again", cause: gate.reason });
+  }
+  return gate;
+}
+
+/**
+ * Audience after the SQL filter AND the send gate: how many can be texted, how
+ * many the gate dropped, and the kept rows' average lifetime spend (cents; 0
+ * when none are kept), so a projection is never priced on people we cannot text.
+ */
+async function contactableAudience(
+  d: any,
+  filter: SQL,
+  gate: Awaited<ReturnType<typeof sendGateOrThrow>>,
+): Promise<{ count: number; suppressed: number; avgSpentCents: number }> {
+  const rows: Array<{ phone: string | null; totalSpent: number | null }> = await d
+    .select({ phone: customers.phone, totalSpent: customers.totalSpent }).from(customers).where(filter);
+  const kept = rows.filter((r) => sendGateRefusal(gate, r.phone) === null);
+  const avgSpentCents = kept.length ? kept.reduce((s, r) => s + Number(r.totalSpent ?? 0), 0) / kept.length : 0;
+  return { count: kept.length, suppressed: rows.length - kept.length, avgSpentCents };
+}
+
+function buildSegmentFilter(segment: string) {
   switch (segment) {
+    case "lapsed_regulars":
+      // The Customers tab's rule (shared/customerSegments.ts), so both tabs count the same people.
+      return and(lapsedRegularCondition(), campaignEligiblePhoneSql)!;
     case "lapsed":
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d90}`,
-        sql`${customers.lastVisitDate} >= ${d180}`,
-        eq(customers.smsOptOut, 0)
-      )!;
+      return and(visitWindowSql(90, 180), campaignEligiblePhoneSql)!;
     case "dormant":
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d180}`,
-        sql`${customers.lastVisitDate} >= ${d365}`,
-        eq(customers.smsOptOut, 0)
-      )!;
+      return and(visitWindowSql(180, 365), campaignEligiblePhoneSql)!;
     case "lost":
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d365}`,
-        eq(customers.smsOptOut, 0)
-      )!;
+      return and(visitWindowSql(365), campaignEligiblePhoneSql)!;
     // wave-150 · "declined" winback segment RETIRED. It targeted
     // customers.segment='lapsed' (wrong people), and repointing it to the
     // alg_estimates declined pool would DOUBLE-TEXT the declined-recovery
@@ -271,9 +310,8 @@ function buildSegmentFilter(segment: string) {
     case "tire_customer":
       // tire_customer is revived only when invoice/service evidence proves prior tire purchase (excluding repair/rotation/etc.) or a tire order, and lastVisitDate is older than 180 days.
       return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d180}`,
-        eq(customers.smsOptOut, 0),
+        visitWindowSql(180),
+        campaignEligiblePhoneSql,
         // The whole OR chain is ONE parenthesised group. Without the outer parens
         // drizzle emits `A and B and optOut = 0 and EXISTS(X) OR EXISTS(Y) OR
         // EXISTS(Z)`, and MySQL binds AND tighter than OR — so the opt-out guard
@@ -319,23 +357,20 @@ function buildSegmentFilter(segment: string) {
       // (Was `> 500` = >$5, which matched nearly the entire paying base.)
       return and(
         sql`${customers.totalSpent} > 200000`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     case "fleet":
       // CENTS. Fleet = lifetime spend > $5,000 (500000c).
       // (Was `> 1000` = >$10.)
       return and(
         sql`${customers.totalSpent} > 500000`,
-        eq(customers.smsOptOut, 0)
+        campaignEligiblePhoneSql
       )!;
     case "recent":
-      return and(
-        sql`${customers.lastVisitDate} >= ${d30}`,
-        sql`${customers.lastVisitDate} < ${d90}`,
-        eq(customers.smsOptOut, 0)
-      )!;
+      // Last visit 30 to 90 days ago. It read `>= d30 AND < d90`, a window no row can be in (counted 0).
+      return and(visitWindowSql(30, 90), campaignEligiblePhoneSql)!;
     default:
-      return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), eq(customers.smsOptOut, 0))!;
+      return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), campaignEligiblePhoneSql)!;
   }
 }
 
@@ -382,7 +417,7 @@ export const winbackRouter = router({
   /** Calculate campaign readiness metrics */
   campaignReadiness: adminProcedure
     .input(z.object({
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
+      targetSegment: z.enum(TARGET_SEGMENTS),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),
@@ -393,17 +428,12 @@ export const winbackRouter = router({
       const d = await db();
       if (!d) return { netTargetCount: 0, projectedValueCents: 0, previewMessages: [] };
 
+      const gate = await sendGateOrThrow();
       const segmentFilter = buildSegmentFilter(input.targetSegment);
-      const [stats] = await d.select({
-        count: sql<number>`count(*)`,
-        avgSpent: sql<number>`COALESCE(AVG(${customers.totalSpent}), 0)`,
-      })
-        .from(customers)
-        .where(segmentFilter);
-
-      const netTargetCount = stats?.count ?? 0;
-      // 5% projected conversion rate
-      const projectedValueCents = Math.round(netTargetCount * (stats?.avgSpent ?? 10000) * 0.05);
+      const audience = await contactableAudience(d, segmentFilter, gate);
+      const netTargetCount = audience.count;
+      // 5% projected conversion rate, priced on the people who can actually be texted
+      const projectedValueCents = Math.round(netTargetCount * audience.avgSpentCents * 0.05);
 
       const [recentCustomer] = await d.select()
         .from(customers)
@@ -498,7 +528,11 @@ export const winbackRouter = router({
     };
   }),
 
-  /** Get segment counts for all cohorts in parallel */
+  /**
+   * Contactable count per cohort, in parallel. lapsed_regulars also carries
+   * how many qualify, so the owner sees reach beside the audience (the same
+   * pair the Customers tab shows, from the same rule).
+   */
   segmentCounts: adminProcedure.query(async () => {
     const d = await db();
     if (!d) {
@@ -510,27 +544,34 @@ export const winbackRouter = router({
         fleet: 0,
         recent: 0,
         tire_customer: 0,
+        lapsed_regulars: { qualifying: 0, contactable: 0 },
       };
     }
 
+    const gate = await sendGateOrThrow();
     const segments = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
     const countPromises = segments.map(async (seg) => {
-      const filter = buildSegmentFilter(seg);
-      const [row] = await d.select({ count: sql<number>`count(*)` })
-        .from(customers)
-        .where(filter);
-      return { [seg]: row?.count ?? 0 };
+      const { count } = await contactableAudience(d, buildSegmentFilter(seg), gate);
+      return { [seg]: count };
     });
 
-    const results = await Promise.all(countPromises);
-    return Object.assign({}, ...results) as Record<typeof segments[number], number>;
+    // qualifying from the shared rule; contactable after the SQL predicate AND the index.
+    const [{ qualifying }, regularsReach, ...results] = await Promise.all([
+      countLapsedRegulars(d),
+      contactableAudience(d, buildSegmentFilter("lapsed_regulars"), gate),
+      ...countPromises,
+    ]);
+    return {
+      ...(Object.assign({}, ...results) as Record<typeof segments[number], number>),
+      lapsed_regulars: { qualifying, contactable: regularsReach.count },
+    };
   }),
 
   /** Create a new win-back campaign */
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
+      targetSegment: z.enum(TARGET_SEGMENTS),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),
@@ -543,17 +584,15 @@ export const winbackRouter = router({
 
       const cleanName = input.name.replace(/<[^>]*>/g, "").trim();
 
-      // Count target customers — smart filter by segment type
-      const segmentFilter = buildSegmentFilter(input.targetSegment);
-      const [targetCount] = await d.select({ count: sql<number>`count(*)` })
-        .from(customers)
-        .where(segmentFilter);
+      // Count target customers: the segment filter, then the suppression index.
+      const gate = await sendGateOrThrow();
+      const audience = await contactableAudience(d, buildSegmentFilter(input.targetSegment), gate);
 
       // Create campaign
       const [result] = await d.insert(winbackCampaigns).values({
         name: cleanName,
         targetSegment: input.targetSegment,
-        targetCount: targetCount?.count ?? 0,
+        targetCount: audience.count,
         status: "draft",
       }).$returningId();
 
@@ -583,7 +622,7 @@ export const winbackRouter = router({
         }
       }
 
-      return { success: true, campaignId };
+      return { success: true, campaignId, suppressed: audience.suppressed };
     }),
 
   /** Preview messages for a campaign (shows first 5 customers with personalized text) */
@@ -649,10 +688,15 @@ export const winbackRouter = router({
       // be thousands of rows; without a cap an admin could accidentally
       // load 50K+ customers into Node memory + queue 50K×N message
       // inserts. 10K is generous (any larger campaign should be split).
-      const targetCustomers = await d.select()
+      // Then sendSms's suppression index (carrier blocks, consent ledger): never queue a
+      // send the gate would refuse, and refuse to queue at all when it cannot load.
+      const gate = await sendGateOrThrow();
+      const segmentRows = await d.select()
         .from(customers)
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(10_000);
+      const targetCustomers = segmentRows.filter((c: typeof customers.$inferSelect) => sendGateRefusal(gate, c.phone) === null);
+      const suppressed = segmentRows.length - targetCustomers.length;
 
       const targetCustomerIds = targetCustomers.map((c: any) => c.id);
       const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, targetCustomerIds);
@@ -697,7 +741,7 @@ export const winbackRouter = router({
         sentCount: 0,
       }).where(eq(winbackCampaigns.id, input.campaignId));
 
-      return { success: true, sendsCreated: created };
+      return { success: true, sendsCreated: created, suppressed };
     }),
 
   /** Pause a campaign */
@@ -727,6 +771,8 @@ export const winbackRouter = router({
     if (!d) return { processed: 0, sent: 0, queued: 0, heldOut: 0, failed: 0 };
 
     const now = new Date();
+    // Before any row is read or claimed: an index that cannot load stops the drain (rows stay pending).
+    const gate = await sendGateOrThrow();
 
     // Get pending sends that are due and belong to active campaigns
     const pendingSends = await d.select({
@@ -750,13 +796,20 @@ export const winbackRouter = router({
     let failed = 0;
 
     for (const { send } of pendingSends) {
-      // Opt-out guard — winback_sends carries customerId; resolve opt-out
-      // by exact id. Opted-out rows are marked 'failed' so they leave the
-      // pending pool permanently.
-      const [optRows] = await d.execute(sql`SELECT smsOptOut FROM customers WHERE id = ${send.customerId} LIMIT 1`);
-      if (!!((optRows as unknown as Array<{ smsOptOut?: number }>)[0]?.smsOptOut)) {
-        await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" }).where(eq(winbackSends.id, send.id));
-        failed++;
+      // Opt-out guard — winback_sends carries customerId; resolve it by exact
+      // id against the canonical predicate (the cron path does the same).
+      // Ineligible rows are marked 'failed' so they leave the pending pool
+      // permanently; only a row still 'pending' is rewritten.
+      // Then the suppression index (carrier blocks, consent ledger), which SQL cannot see.
+      const [eligibleRows] = await d.execute(customerCampaignEligibleSql(send.customerId));
+      const reason = (eligibleRows as unknown as unknown[]).length === 0
+        ? "customer opted out of SMS"
+        : sendGateRefusal(gate, send.phone);
+      if (reason) {
+        const failRes = await d.update(winbackSends).set({ status: "failed", errorMessage: reason })
+          .where(and(eq(winbackSends.id, send.id), eq(winbackSends.status, "pending")));
+        // 0 rows: the cron drain changed this row first; it counts there, not here.
+        if (affectedRowCount(failRes) > 0) failed++;
         continue;
       }
 
