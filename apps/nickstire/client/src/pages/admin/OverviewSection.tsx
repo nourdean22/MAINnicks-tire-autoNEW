@@ -23,7 +23,7 @@ import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
 import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem } from "./today/types";
-import { FOLLOW_UPS_ON_BOARD, LIST_INPUT as FOLLOW_UPS_INPUT, followUpTypeLabel, worklistOrder } from "./today/followUpsRead";
+import { FOLLOW_UPS_ON_BOARD, LISTED_ELSEWHERE_ON_TODAY, LIST_INPUT as FOLLOW_UPS_INPUT, followUpTypeLabel, worklistOrder } from "./today/followUpsRead";
 
 /**
  * One rule for the board, the verdict and the tiles: a lead is the shop's move while it is new. Marking it
@@ -186,7 +186,10 @@ export default function OverviewSection() {
    * a failed slice inside it, which is exactly why DegradedDataBanner never fired.
    */
   const unavailable = bundle?.unavailableSlices ?? [];
-  const followUps = useMemo(() => [...(followUpsFailed ? [] : followUpData?.items ?? [])].sort(worklistOrder), [followUpData, followUpsFailed]);
+  const followUps = useMemo(
+    () => (followUpsFailed ? [] : followUpData?.items ?? []).filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)).sort(worklistOrder),
+    [followUpData, followUpsFailed],
+  );
   const followUpsShown = useMemo(() => followUps.slice(0, FOLLOW_UPS_ON_BOARD), [followUps]);
   // The board shows five; the rest wait in Sales Pipeline, so the count is "at least".
   const followUpsMore = followUps.length > followUpsShown.length;
@@ -455,14 +458,18 @@ export default function OverviewSection() {
   const decisionsAnswered = proposalCounts?.readable === true && typeof proposalCounts.count === "number" && typeof opsSignal?.total === "number";
   const decisionCount = decisionsAnswered ? (proposalCounts?.count ?? 0) + (opsSignal?.total ?? 0) : null;
   const canOpenApprovals = sectionsForRole(adminRole).includes("approvals");
-  const mirrorTime = (at: string | Date | null | undefined) =>
-    at ? new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+  const mirrorTime = (at: string | Date | null | undefined) => {
+    const d = at ? new Date(at) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+  };
   // The ShopDriver mirror as one line in the rail, in words: no table name, no panel of its own.
   const mirrorLine =
     integration.state === "fresh"
       ? `ShopDriver mirror · fresh · as of ${mirrorTime(freshness?.lastSuccessfulAt)}`
-      : freshnessFailed || freshness?.readable === false || (integration.state === "unknown" && freshness?.lastSuccessfulAt)
+      : freshnessFailed || freshness?.readable === false
         ? "ShopDriver mirror · unreadable"
+        : integration.state === "unknown" && freshness?.lastSuccessfulAt
+          ? `ShopDriver mirror · unknown · last sync ${mirrorTime(freshness.lastSuccessfulAt) ?? "time unreadable"}`
         : integration.state === "offline"
           ? "ShopDriver mirror · offline"
           : integration.state === "failing" && freshness?.lastSuccessfulAt
@@ -519,7 +526,7 @@ export default function OverviewSection() {
       {/* The verdict: one line from the brief, read from the SAME `queue` and `urgentLeadCount` the
           board and strip below render, so it cannot disagree with them. Its calls and gateway line
           lives in the Checks rail. */}
-      <MorningBrief part="verdict" priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
+      <MorningBrief part="verdict" priorityQueueLength={queue.length} queueAtLeast={followUpsMore} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
       {/* A slice can fail while the request succeeds. Without this the operator
           sees a clean board built on reads that never happened. */}
@@ -657,7 +664,7 @@ export default function OverviewSection() {
 
       {/* CHECKS: everything that monitors rather than asks for work, under one rail. */}
       <ChecksRail status={checksStatus} alert={openChecks > 0 || promisesFailed}>
-        <MorningBrief part="signals" priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
+        <MorningBrief part="signals" priorityQueueLength={queue.length} queueAtLeast={followUpsMore} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
         {/* Promise Ledger (0102): log promises the moment they're made; the sweep escalates overdue
             ones into the queue read on the Opportunities tab. */}

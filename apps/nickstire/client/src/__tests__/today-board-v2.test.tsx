@@ -328,8 +328,60 @@ describe("what left the page", () => {
     expect(screen.getByText(/^ShopDriver mirror · stale since /)).toBeTruthy();
     first.unmount();
     h.queries.set("adminSecurity.integrationFreshness", FAILED);
-    render(<OverviewSection />);
+    const second = render(<OverviewSection />);
     expect(screen.getByText("ShopDriver mirror · unreadable")).toBeTruthy();
+    second.unmount();
+    // Unknown with a recorded last success is unknown, not unreadable: the read itself worked.
+    h.queries.set("adminSecurity.integrationFreshness", ok({ ...FRESH, lastSuccessfulAt: "not a timestamp" }));
+    render(<OverviewSection />);
+    expect(screen.getByText(/^ShopDriver mirror · unknown · last sync /)).toBeTruthy();
+    expect(screen.queryByText("ShopDriver mirror · unreadable")).toBeNull();
+  });
+});
+
+describe("manager rulings (2026-10-26)", () => {
+  const empty = () => BUNDLE({ bookings: [], leads: [], callbacks: [], owedTexts: [] });
+  const as = (row: ReturnType<typeof opp>, sourceType: string) => ({ ...row, sourceType });
+
+  it("follow-ups the board already lists as callbacks or owed texts are not listed or counted twice", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(empty()));
+    h.queries.set("opportunityQueue.list", ok({ items: [as(opp(1, 0), "callback"), as(opp(2, 0), "human_pending_sms"), as(opp(3, 0), "missed_call")], queryable: true }));
+    const first = render(<OverviewSection />);
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].textContent).toContain("Missed call");
+    expect(within(tile("Needs action")).getByText("1")).toBeTruthy();
+    first.unmount();
+    // Past five, the open count leaves them out too: 6 missed calls and 2 callbacks are 6 open.
+    const many = [...Array.from({ length: 6 }, (_, i) => as(opp(i + 1, 0), "missed_call")), as(opp(7, 0), "callback"), as(opp(8, 0), "callback")];
+    h.queries.set("opportunityQueue.list", ok({ items: many, queryable: true }));
+    render(<OverviewSection />);
+    expect(within(board()).getByRole("button", { name: "5 of 6 follow-ups open · Open Sales Pipeline" })).toBeTruthy();
+  });
+
+  it("no source on Today has the shape of a procedure name after via or Source:", () => {
+    standardDay();
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE({ stats: { tires: { new: 2 }, memberships: { warning: 1 } } })));
+    const { container } = render(<OverviewSection />);
+    // The control: the tire and membership rows rendered, so their source lines were read.
+    expect(screen.getByText("new tire orders")).toBeTruthy();
+    const text = [container.textContent ?? "", ...Array.from(container.querySelectorAll("[title]"), (el) => el.getAttribute("title") ?? "")].join("\n");
+    expect(text).toContain("via Dashboard counts");
+    // "<word>.<word>" after via or Source: is the shape of a tRPC procedure name.
+    expect(text.match(/(?:via|Source:)\s+[A-Za-z_]+\.[A-Za-z_]+/g)).toBeNull();
+  });
+
+  it("the verdict and the Needs action tile carry the same at-least plus", () => {
+    standardDay();
+    const first = render(<OverviewSection />);
+    expect(within(tile("Needs action")).getByText("10+")).toBeTruthy();
+    expect(screen.getByText(/^Now: /).textContent).toContain("10+ in queue");
+    first.unmount();
+    // The control: no follow-ups past five, no plus in either place.
+    h.queries.set("opportunityQueue.list", ok({ items: SEVEN.slice(0, 2), queryable: true }));
+    render(<OverviewSection />);
+    expect(within(tile("Needs action")).getByText("7")).toBeTruthy();
+    expect(screen.getByText(/^Now: /).textContent).toContain("7 in queue");
+    expect(screen.getByText(/^Now: /).textContent).not.toContain("+");
   });
 });
 

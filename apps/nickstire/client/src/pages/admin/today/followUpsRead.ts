@@ -13,6 +13,13 @@ const RELEVANT_STATES = ["new", "assigned", "attempted", "contacted", "scheduled
 
 export const LIST_INPUT = { states: [...RELEVANT_STATES], limit: 500, order: "worklist" as const };
 
+/**
+ * Source types Today already lists from the bundle: pending callbacks (as callbacks) and texts waiting
+ * on a human reply (as owed texts). Today leaves them out of its follow-up rows and count so one person
+ * is not counted twice; Sales Pipeline still shows them. Names from server/services/opportunityQueue.ts.
+ */
+export const LISTED_ELSEWHERE_ON_TODAY: readonly string[] = ["callback", "human_pending_sms"];
+
 /** Follow-up rows Today shows; the Pipeline shows the same five before Show all. */
 export const FOLLOW_UPS_ON_BOARD = 5;
 

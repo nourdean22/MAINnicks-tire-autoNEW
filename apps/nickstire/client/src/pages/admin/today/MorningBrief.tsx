@@ -34,6 +34,8 @@ import { Phone, AlertTriangle, CheckCircle2 } from "lucide-react";
 interface MorningBriefProps {
   /** Number of items currently in the priority action queue */
   priorityQueueLength: number;
+  /** The board's count is a lower bound (more follow-ups wait in Sales Pipeline): print "N+", as the tile does. */
+  queueAtLeast?: boolean;
   /** Number of urgent leads (subset of hot leads) */
   urgentLeads: number;
   /**
@@ -58,7 +60,7 @@ function greeting(): string {
   return "Good evening";
 }
 
-export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworthy = true, part }: MorningBriefProps) {
+export function MorningBrief({ priorityQueueLength, queueAtLeast = false, urgentLeads, queueTrustworthy = true, part }: MorningBriefProps) {
   // Existing queries that already render elsewhere · cheap to reuse
   const { data: dashStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
   const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
@@ -123,7 +125,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
     // Line 3 · MORNING PRIORITY
     const priorityBits: string[] = [];
     if (urgentLeads > 0) priorityBits.push(`${urgentLeads} urgent lead${urgentLeads === 1 ? "" : "s"}`);
-    if (priorityQueueLength > 0) priorityBits.push(`${priorityQueueLength} in queue`);
+    if (priorityQueueLength > 0) priorityBits.push(`${priorityQueueLength}${queueAtLeast ? "+" : ""} in queue`);
     if (!queueTrustworthy) {
       out.push({
         icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
@@ -148,7 +150,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
     }
 
     return out;
-  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, urgentLeads, queueTrustworthy]);
+  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, queueAtLeast, urgentLeads, queueTrustworthy]);
 
   const shown = part === "verdict" ? lines.filter((l) => l.now) : part === "signals" ? lines.filter((l) => !l.now) : lines;
   if (part === "signals" && shown.length === 0) return null;

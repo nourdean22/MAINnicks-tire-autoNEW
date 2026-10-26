@@ -96,7 +96,7 @@ export interface AdminSignalInputs {
   proposalsCount: number | undefined;
 }
 
-const BUNDLE = "adminDashboard.overviewMediumBundle";
+const BUNDLE = "Dashboard counts";
 // Sources in the owner's words: Today prints them ("via Instagram queue"), so never a procedure name.
 const OPS = "Instagram queue";
 const PROPOSALS = "Approvals";
@@ -116,6 +116,8 @@ function bundleSignal(
   const sliceFailed = sliceState?.available === false;
   // A per-count failure hides INSIDE a fulfilled slice — see _unavailableCounts.
   const countFailed = countKey !== undefined && inputs.stats?._unavailableCounts?.includes(countKey) === true;
+  // The failure reason names the failed slice or count so a "?" points somewhere; the "via" line
+  // Today prints is the source in words only.
   const sourceLabel = countFailed ? `${BUNDLE} (${countKey})` : `${BUNDLE} (${slice})`;
 
   return {
@@ -123,7 +125,7 @@ function bundleSignal(
     section,
     label,
     severity,
-    source: sourceLabel,
+    source: BUNDLE,
     updatedAt: null,
     reading: reading({
       failed: inputs.bundleFailed || sliceFailed || countFailed,
