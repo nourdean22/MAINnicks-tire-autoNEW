@@ -1047,6 +1047,18 @@ class OfficeWakeDaemon:
                 **common,
             )
 
+    def _capture_over(self, finished_at: float) -> None:
+        """The live capture has returned, whatever its result: the worker listens again.
+
+        _apply_result keeps CAPTURING on purpose (a background transcription finishing must not
+        pull a live capture out of it), so the capture's own end has to clear it here. Without
+        this, a no-segments capture left the worker CAPTURING for four days (2026-10-22 17:54Z)
+        and the probe loop, which skips while CAPTURING, never woke again.
+        """
+        self.current_capture_started_at = None
+        if self.runtime_state == "CAPTURING":
+            self.runtime_state = self._idle_state(finished_at)
+
     def _hung_capture(self, trigger: Trigger, hang_after: float) -> CaptureResult:
         """A capture thread past its ceiling: recorded, counted as failed, and left behind."""
         self.ledger.note("capture_hung", {"trigger": _trigger_payload(trigger), "abandonedAfterSeconds": hang_after})
@@ -1148,7 +1160,7 @@ class OfficeWakeDaemon:
                             episodes_failed=1,
                         )
                     finished_at = self.clock()
-                    self.current_capture_started_at = None
+                    self._capture_over(finished_at)
                     if trigger.event == "audioActivity":
                         self.last_audio_fallback_finished_at = finished_at
                     if result.status != "capture_blocked":
@@ -1186,7 +1198,7 @@ class OfficeWakeDaemon:
                         ),
                     )
                 finished_at = self.clock()
-                self.current_capture_started_at = None
+                self._capture_over(finished_at)
                 if trigger.event == "audioActivity":
                     self.last_audio_fallback_finished_at = finished_at
 
