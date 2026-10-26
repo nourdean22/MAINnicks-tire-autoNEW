@@ -304,7 +304,8 @@ async function judgeOfficeLane(
     SELECT UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationCaptureAt) AS captureAgeSeconds,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastConversationPostAt) AS postAgeSeconds,
-           UNIX_TIMESTAMP(lastConversationPostAt) AS postEpoch
+           UNIX_TIMESTAMP(lastConversationPostAt) AS postEpoch,
+           conversationWorkerState AS workerState
       FROM camera_runtime
      WHERE camera = ${camera}
   `);
@@ -314,6 +315,7 @@ async function judgeOfficeLane(
     heartbeatAgeSeconds: row ? numberOrNull(row.ageSeconds) : null,
     captureAgeSeconds: row ? numberOrNull(row.captureAgeSeconds) : null,
     postAgeSeconds: row ? numberOrNull(row.postAgeSeconds) : null,
+    workerState: row && typeof row.workerState === "string" ? row.workerState : null,
   });
   const none = { state: verdict.state, sent: false, held: false, deliveryError: null };
   if (verdict.state === "NOT_JUDGED") return none;
@@ -341,7 +343,7 @@ async function judgeOfficeLane(
       camera,
       state: verdict.state,
       claim,
-      alert: formatOfficeLaneAlert(label, verdict.reason, decision.recovery),
+      alert: formatOfficeLaneAlert(label, verdict.reason, decision.recovery, verdict.state),
     });
   } catch (err) {
     log.error("office lane alert delivery failed", { camera, state: verdict.state, error: err instanceof Error ? err.message : String(err) });

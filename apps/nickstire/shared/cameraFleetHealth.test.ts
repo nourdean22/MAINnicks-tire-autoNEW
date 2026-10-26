@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "./cameraFleetHealth";
+import {
+  CAPTURE_STUCK_AFTER_SECONDS,
+  conversationCaptureStuck,
+  summarizeCameraFleet,
+  WORKER_STALE_AFTER_SECONDS,
+} from "./cameraFleetHealth";
 
 const cam = (over: Record<string, unknown>) => ({
   camera: "sign",
@@ -69,6 +74,25 @@ describe("summarizeCameraFleet", () => {
     // judged by the state string alone, as before.
     const unaged = summarizeCameraFleet({ ok: true, cameras: [cam({ camera: "office", conversation: { workerOk: true, state: "READY" } })] });
     expect(unaged.state).toBe("HEALTHY");
+  });
+
+  it("a worker CAPTURING for 4 days is named as stuck even behind the camera's own amber state (2026-10-22..26)", () => {
+    const v = summarizeCameraFleet({
+      ok: true,
+      cameras: [
+        cam({
+          camera: "office",
+          label: "Office",
+          state: "UNVERIFIED_CAPABILITIES",
+          conversation: { workerOk: true, state: "CAPTURING", workerAgeSeconds: 10, captureAgeSeconds: 4 * 24 * 3600 },
+        }),
+      ],
+    });
+    expect(v.problems.map((p) => p.state)).toEqual(["conversation worker stuck in one recording (96h), not listening"]);
+    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: CAPTURE_STUCK_AFTER_SECONDS - 1 })).toBe(false);
+    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: CAPTURE_STUCK_AFTER_SECONDS + 1 })).toBe(true);
+    expect(conversationCaptureStuck({ state: "READY", captureAgeSeconds: 4 * 24 * 3600 })).toBe(false);
+    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: null })).toBe(false);
   });
 });
 

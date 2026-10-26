@@ -15,6 +15,7 @@
  * camera alert's job). Unknown capture activity is not a fault for this rule: no page.
  */
 import { BUSINESS } from "../../shared/business";
+import { conversationCaptureStuck } from "../../shared/cameraFleetHealth";
 import { HEALTH_THRESHOLDS } from "../lib/cameraHealth";
 import { cameraAlertCooldownSeconds } from "./cameraHealthAlertPolicy";
 
@@ -28,18 +29,30 @@ const NOT_POSTING_AFTER_SECONDS = 60 * 60;
  */
 const POST_GRACE_SECONDS = 10 * 60;
 
-type OfficeLaneState = "CONVERSATIONS_NOT_POSTING" | "CONVERSATIONS_POSTING" | "NOT_JUDGED";
+type OfficeLaneState = "CONVERSATIONS_NOT_POSTING" | "CAPTURE_STUCK" | "CONVERSATIONS_POSTING" | "NOT_JUDGED";
+type OfficeLaneFault = "CONVERSATIONS_NOT_POSTING" | "CAPTURE_STUCK";
 
 export function officeLaneVerdict(input: {
   shopOpen: boolean;
   heartbeatAgeSeconds: number | null;
   captureAgeSeconds: number | null;
   postAgeSeconds: number | null;
+  /** camera_runtime.conversationWorkerState; null when not reported. */
+  workerState?: string | null;
 }): { state: OfficeLaneState; reason: string } {
   const { heartbeatAgeSeconds: hb, captureAgeSeconds: cap, postAgeSeconds: post } = input;
   if (!input.shopOpen) return { state: "NOT_JUDGED", reason: "shop closed" };
   if (hb === null || hb > HEALTH_THRESHOLDS.staleAfterSeconds) {
     return { state: "NOT_JUDGED", reason: "office heartbeat not fresh; the camera alert covers it" };
+  }
+  // 2026-10-22 17:51Z to 10-26: one capture never returned, the worker stayed CAPTURING, and the
+  // probe loop skips every pass while it is. Heartbeat fresh, capture 4 days old: the rule below
+  // read that as "quiet" and paged nothing.
+  if (conversationCaptureStuck({ state: input.workerState ?? null, captureAgeSeconds: cap })) {
+    return {
+      state: "CAPTURE_STUCK",
+      reason: `The office worker has been stuck in one recording for ${formatSpan(cap ?? 0)} and is not listening.`,
+    };
   }
   if (post !== null && post <= NOT_POSTING_AFTER_SECONDS) {
     return { state: "CONVERSATIONS_POSTING", reason: `last conversation reached the server ${Math.floor(post / 60)} minutes ago` };
@@ -67,9 +80,11 @@ export function officeLaneAlertDecision(
   sinceLastAlertSeconds: number | null,
 ): { notify: boolean; recovery: boolean; held: boolean } {
   const held = sinceLastAlertSeconds !== null && Number.isFinite(sinceLastAlertSeconds) && sinceLastAlertSeconds < cameraAlertCooldownSeconds();
-  if (state === "CONVERSATIONS_NOT_POSTING") return { notify: !held, recovery: false, held };
+  if (state === "CONVERSATIONS_NOT_POSTING" || state === "CAPTURE_STUCK") return { notify: !held, recovery: false, held };
   if (state === "CONVERSATIONS_POSTING") {
-    const recovery = Boolean(latestKey && latestKey.endsWith(":CONVERSATIONS_NOT_POSTING"));
+    const recovery = Boolean(
+      latestKey && (latestKey.endsWith(":CONVERSATIONS_NOT_POSTING") || latestKey.endsWith(":CAPTURE_STUCK")),
+    );
     return { notify: recovery && !held, recovery, held: recovery && held };
   }
   return { notify: false, recovery: false, held: false };
@@ -81,7 +96,7 @@ export function officeLaneAlertDecision(
  */
 export function officeLaneAlertClaim(
   camera: string,
-  state: "CONVERSATIONS_NOT_POSTING" | "CONVERSATIONS_POSTING",
+  state: OfficeLaneFault | "CONVERSATIONS_POSTING",
   episode: number | null,
   now: Date = new Date(),
 ): { key: string; firedFor: string } {
@@ -91,7 +106,29 @@ export function officeLaneAlertClaim(
   return { key: `office_lane:${cam}:e${Math.floor(episode)}:${state}`, firedFor: shopDay(new Date(Math.floor(episode) * 1000)) };
 }
 
-export function formatOfficeLaneAlert(label: string, reason: string, recovery: boolean): { title: string; message: string } {
+/** 95 min -> "1 h 35 min"; 4 days -> "4 days 2 h". */
+function formatSpan(seconds: number): string {
+  const min = Math.floor(seconds / 60);
+  if (min < 60) return `${min} minutes`;
+  const h = Math.floor(min / 60);
+  if (h < 48) return `${h} h ${min % 60} min`;
+  return `${Math.floor(h / 24)} days ${h % 24} h`;
+}
+
+export function formatOfficeLaneAlert(
+  label: string,
+  reason: string,
+  recovery: boolean,
+  state: OfficeLaneState = "CONVERSATIONS_NOT_POSTING",
+): { title: string; message: string } {
+  if (!recovery && state === "CAPTURE_STUCK") {
+    return {
+      title: `Office worker stuck, not listening — ${label}`,
+      message:
+        `${reason}\n\nFix: restart the scheduled task StateNour-OfficeIntelligence-ShopPC on the front-desk PC ` +
+        `(MECHANICS), or restart that PC.\n\nReview: Admin → Lot / Office.`,
+    };
+  }
   if (recovery) {
     return {
       title: `Office conversations reaching the server again — ${label}`,
