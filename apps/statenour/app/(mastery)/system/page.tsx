@@ -230,8 +230,9 @@ export default function SystemPage() {
         health,
         diagnosticsReadFailed: diagnosticsQuery.isError,
         diagnosticsPaused: diagnosticsQuery.fetchStatus === "paused",
+        healthReadFailed: healthQuery.isError,
       }),
-    [d, health, diagnosticsQuery.isError, diagnosticsQuery.fetchStatus],
+    [d, health, diagnosticsQuery.isError, diagnosticsQuery.fetchStatus, healthQuery.isError],
   );
 
   return (

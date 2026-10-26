@@ -40,6 +40,8 @@ export interface TowerInput {
   diagnosticsReadFailed: boolean;
   /** The query is paused with nothing read (offline first load): not measuring, and not measured either. */
   diagnosticsPaused?: boolean;
+  /** The health summary (unresolved alerts) query failed: its count is unknown, never 0. */
+  healthReadFailed?: boolean;
 }
 
 export interface TowerException {
@@ -96,6 +98,15 @@ export function controlTower(input: TowerInput): TowerVerdict {
       key: "errors",
       line: `${plural(d.kpis.errors_24h, "error", "errors")} in the last 24h`,
       tone: d.kpis.errors_24h >= 10 ? "rose" : "amber",
+    });
+  }
+  // 2026-10-26 audit: a failed health read left `unresolved` at 0 and the tower said ALL SYSTEMS NOMINAL.
+  if (input.healthReadFailed && input.health?.alerts == null) {
+    exceptions.push({
+      key: "alerts-unknown",
+      line: "alerts read failed — unresolved alerts unknown",
+      tone: "amber",
+      href: "/system/alerts",
     });
   }
   const unresolved = input.health?.alerts?.unresolved ?? 0;

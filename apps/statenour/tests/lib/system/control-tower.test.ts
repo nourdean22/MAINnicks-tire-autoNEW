@@ -54,6 +54,19 @@ describe("controlTower: one verdict, then the exceptions", () => {
     expect(v.exceptions).toEqual([]);
   });
 
+  // 2026-10-26 audit: diagnostics read fine, the health read failed, and the tower said nominal.
+  it("a failed health read is never nominal: the unresolved-alert count is unknown, not 0", () => {
+    const v = controlTower({ diagnostics: clean, health: null, diagnosticsReadFailed: false, healthReadFailed: true });
+    expect(v.state).toBe("attention");
+    expect(v.headline).not.toMatch(/nominal/i);
+    expect(v.exceptions.map((e) => e.key)).toEqual(["alerts-unknown"]);
+  });
+
+  it("a failed refresh over a health read that has data keeps the measured count", () => {
+    const v = controlTower({ diagnostics: clean, health: { alerts: { unresolved: 2 } }, diagnosticsReadFailed: false, healthReadFailed: true });
+    expect(v.exceptions.map((e) => e.key)).toEqual(["alerts"]);
+  });
+
   it("counts every exception source once and grammars the headline", () => {
     const v = controlTower({
       diagnostics: {
