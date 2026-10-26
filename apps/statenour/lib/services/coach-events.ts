@@ -290,7 +290,10 @@ export async function getActiveCoachEvents(
       surface: opts.surface,
       err: err instanceof Error ? err.message : String(err),
     });
-    return [];
+    // 2026-10-26 audit: returning [] here made a failed read a 200 with no nudges, so the
+    // banner's failed note (showReadState, /stats Goals) could never show. Surfaces that stay
+    // silent on errors still do: an error renders nothing there, same as before.
+    throw err;
   }
 }
 
