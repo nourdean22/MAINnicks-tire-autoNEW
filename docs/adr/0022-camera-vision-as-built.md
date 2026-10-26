@@ -53,3 +53,19 @@ Decision 6 and decision 7 name NicksMax as the office host. Since 2026-10-17 tha
 - **Rollback.** Run `Disable-ScheduledTask StateNour-OfficeIntelligence-ShopPC` in an admin shell. Clear `OFFICE_CAMERA_HEARTBEAT_URL` to hand the heartbeat back.
 
 Runbook: [`camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md`](../../camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md), sections "Stills without a bridge" and "Office camera heartbeat from the shop PC".
+
+## Update 2026-10-26: decision 1 corrected, lot vision v2 approved
+
+- **Decision 1 was wrong about the relay.** The ":8554/:8080 relay" on NicksMax is not a vendor program. Its defaults match
+  the open-source V380Decoder family exactly (dotnet, RTSP `:8554/live`, web/API `:8080`, cloud login with device id and
+  password): STRONG INFERENCE from the supervisor (`scripts/nicksmax/nicksmax-camera-supervisor.ps1:841-868`) and the
+  project READMEs, read 2026-10-26. That is the class `docs/UPSTREAMS.md` rejected on 2026-09-08.
+- **Nour accepted it as a risk** (2026-10-26, verbatim: "Yes to design Z and to keeping the V380Decoder-class relay as an
+  accepted risk"); the UPSTREAMS row now records that. Never vendored into this repo.
+- **Design Z** (`camera-bridge/docs/LOT-VISION-V2-DESIGN-2026-10-26.md`): the counter moves off NicksMax to the front-desk
+  PC as producer `p1-shop-sign-*`, with a dormant Railway copy (`EDGE_ROLE=cloud`, `p3-cloud-*`,
+  `--dormant-until-authoritative`) that takes the existing 90 s producer lease when the PC goes quiet. Zero hardware
+  spend; design A (PoE camera + box) stays the spend fallback.
+- **New page:** the 5-minute camera pass now pages "Car counter sees cars but counts none" when the sign camera is
+  HEALTHY with detections and 0 arrivals for 3 hours since it woke (`apps/nickstire/server/services/lotCountingAlert.ts`),
+  the exact 2026-10-24 and 10-25 failure.

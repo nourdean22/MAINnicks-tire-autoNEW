@@ -1,6 +1,8 @@
 # Lot vision v2: the car counter, rebuilt without NicksMax (design, 2026-10-26)
 
-Status: DESIGN for Nour's review. Nothing here is built, bought or installed. Job 2026-10-26-lot-vision-v2.
+Status: APPROVED by Nour 2026-10-26 15:04Z, verbatim: "Yes to design Z and to keeping the V380Decoder-class relay as an
+accepted risk. Start phase 2". Phase 2 (the silent-zero page, the cloud host, the dormant standby) rides in the same PR as
+this design; the named dark window on Admin > Lot is not built yet. Nothing is installed or bought. Job 2026-10-26-lot-vision-v2.
 Re-planned 2026-10-26 after Nour's ruling: zero hardware spend, use what the shop owns, run it over the cloud,
 nothing manual for him. Labels: FACT (read in code, docs or production today), STRONG INFERENCE, INFERRED,
 NOT CHECKED. Perplexity lines are CLAIM until their primary page is read; the ones used here were read.

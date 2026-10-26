@@ -57,6 +57,8 @@ _EDGE_ROLE_PREFIX = {
     "shop": "p1-shop",
     "nicksmax": "p2-nicksmax",
     "nattynour": "p3-nattynour",
+    # The Railway copy of the sign producer (lot vision v2): last in line, dormant until elected.
+    "cloud": "p3-cloud",
 }
 _edge_role = os.environ.get("EDGE_ROLE", "").strip().lower()
 _edge_prefix = _EDGE_ROLE_PREFIX.get(_edge_role)
@@ -2192,6 +2194,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="exit(3) after this long with NO frame at all so the supervisor restarts; "
                          "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
                          "reported as degraded vision, and restarting on it would only thrash")
+    ap.add_argument("--dormant-until-authoritative", action="store_true",
+                    help="standby copy (EDGE_ROLE=cloud): heartbeat only and never read the camera "
+                         "until the shop grants the lease; exit on losing it")
     ap.add_argument("--stall-reopen-attempts", type=int, default=0,
                     help="with N > 0, a stalled RTSP edge stays up (tracker and producer instance "
                          "kept) while its own reader is still reopening the stream, until N reopens "
@@ -2213,6 +2218,21 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "whatever URL and key the config or .env carry. For hand-run commissioning")
     ap.add_argument("--log-level", default="INFO")
     return ap.parse_args(argv)
+
+
+def wait_until_authoritative(loop, stop: threading.Event, *, sleep=time.sleep, clock=time.time) -> bool:
+    """Dormant standby: heartbeat only, camera never read, until the shop grants this producer
+    the lease. True when granted, False when stopped first. A failed heartbeat keeps waiting."""
+    while not stop.is_set():
+        try:
+            loop.send_heartbeat(clock())
+        except Exception:
+            loop.pipeline.metrics.inc("edge_heartbeat_errors_total")
+            log.exception("dormant heartbeat error")
+        if loop.pipeline.shop.is_authoritative(loop.camera):
+            return True
+        sleep(loop.heartbeat_seconds)
+    return False
 
 
 def run_edge(args: argparse.Namespace) -> int:
@@ -2356,18 +2376,31 @@ def run_edge(args: argparse.Namespace) -> int:
         # Claim or confirm producer authority BEFORE the first frame can emit a visit.
         # Primary can buffer locally if the shop is temporarily unreachable; standbys
         # start fail-closed and only begin mirroring after the shop explicitly elects them.
-        try:
-            loop.send_heartbeat(time.time())
+        if args.dormant_until_authoritative:
+            log.info("dormant standby: heartbeat only, camera closed, until the shop grants the lease")
+            if wait_until_authoritative(loop, stop):
+                log.warning("dormant standby elected: opening the camera")
             loop.next_heartbeat = time.time() + loop.heartbeat_seconds
-        except Exception:
-            pipeline.metrics.inc("edge_heartbeat_errors_total")
-            log.exception("startup heartbeat error")
+        else:
+            try:
+                loop.send_heartbeat(time.time())
+                loop.next_heartbeat = time.time() + loop.heartbeat_seconds
+            except Exception:
+                pipeline.metrics.inc("edge_heartbeat_errors_total")
+                log.exception("startup heartbeat error")
         while not stop.is_set():
             if deadline is not None and time.time() >= deadline:
                 break
             started = time.time()
             loop.step()
             _refresh_progress_lease(progress_lease)
+            if args.dormant_until_authoritative and not pipeline.shop.is_authoritative(args.camera):
+                # The primary is back (or the lease lapsed): stop streaming and let the
+                # supervisor restart this copy dormant, so two sessions never hold the camera.
+                log.warning("dormant standby lost the lease: exiting to go dormant again")
+                # Nonzero: Railway's on-failure policy and Task Scheduler never restart a clean exit.
+                exit_code = 4
+                break
             if loop.stalled:
                 # Ask to be restarted rather than trying to resurrect in place. The OS
                 # supervisor already knows how to restart with a budget and a backoff;
