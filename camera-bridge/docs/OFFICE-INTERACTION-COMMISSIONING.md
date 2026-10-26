@@ -371,3 +371,23 @@ $v="C:\NOURCITY\camera-bridge\vision"; $e=Get-Content C:\NOURCITY\office-env-bef
 
 Partial rollback, new code kept: set `OFFICE_WAKE_GATE` to `energy` (or `OFFICE_WHISPER_NOISE_ARGS`
 to `off`) and restart the task.
+
+## 2026-10-26 hung capture (shop PC MECHANICS)
+
+From 2026-10-22 17:51Z the office lane posted nothing for four days while its heartbeat stayed
+fresh: one capture never returned, the worker stayed `CAPTURING`, and the audio probe loop skips
+every pass while `CAPTURING`. Nothing paged: the server's office-lane rule read a 4-day-old
+capture as a quiet office.
+
+- Server (nickstire): a worker reporting `CAPTURING` with a capture older than 15 minutes is
+  `CAPTURE_STUCK`. It pages once in open hours with the fix, and Admin -> Lot shows a red
+  "stuck" badge and "not listening" on the office chip.
+- Worker (`vision/officewake.py`): each capture is bounded by `OFFICE_CAPTURE_SECONDS` + 300 s.
+  Past that the capture is abandoned (its thread cannot be killed), recorded as a `capture_hung`
+  ledger row, settled as `capture_failed` (state DEGRADED, never CAPTURING), and the worker takes
+  the next wake. Installing it is one file: back up `vision\officewake.py`, copy the new one from
+  the merged commit with its hash checked, restart the task.
+
+Restarting the task alone clears a hang: `Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC`,
+end any `ffmpeg.exe` whose parent process is gone, `Start-ScheduledTask` with the same name.
+Task Scheduler's restart-on-failure setting is not a watchdog for this: the process never exited.
