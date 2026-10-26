@@ -144,6 +144,23 @@ describe("createInvoiceReviewRequests", () => {
     },
   );
 
+  // 2026-10-26 audit (PR 3268's promised follow-up): an accented first name greeted "there". It now
+  // greets by name with the accent folded, so the text stays GSM-7 (one accented letter outside GSM-7
+  // would turn the whole SMS into UCS-2 and cost about 2 more segments).
+  it.each([
+    [`JOS${String.fromCharCode(201)}`, "Jose"],
+    [`Mar${String.fromCharCode(237)}a L${String.fromCharCode(243)}pez`, "Maria Lopez"],
+    [`Zo${String.fromCharCode(235)}`, "Zoe"],
+    [`GARC${String.fromCharCode(205)}A, REN${String.fromCharCode(201)}E`, "Renee Garcia"],
+  ])("an accented name %j greets as %j, never 'there'", (raw, want) => {
+    expect(greetingName(raw)).toBe(want);
+    expect(greetingName(greetingName(raw))).toBe(want);
+  });
+
+  it("control: a non-letter word still greets 'there'", () => {
+    expect(greetingName("123")).toBe("there");
+  });
+
   it("the invoice's raw service text never reaches the SMS (service is NULL -> 'your service')", async () => {
     h.candidates = [{ id: 601, name: "Pat Doe", phone: "2165550601" }];
     await createInvoiceReviewRequests();
