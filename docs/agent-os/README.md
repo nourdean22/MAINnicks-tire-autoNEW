@@ -367,6 +367,41 @@ comments` returns only the first 100, which hid a later marker (Codex P2 on #314
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
 
+### Always on everywhere: repo re-arm, plugin recall, machine bootstrap (2026-10-26)
+
+Nour, 2026-10-26: every installed skill, plugin and MCP in play through the per-turn hooks, on any account or machine.
+Job 2026-10-26-always-on-hardening. Four pieces:
+
+1. **Repo re-arm.** SessionStart (startup, resume, clear, compact) runs `scripts/agent-os/always-on-skills.mjs --repo`.
+   It prints the always-on re-arm unless `~/.claude/settings.json` registers the machine copy AND that file exists, so a
+   fresh clone, a cloud session or another account is armed and the text never prints twice. The machine hook is a byte
+   copy of the same file. Canary: `alwaysOnRearm.test.mjs` (configured command verbatim; two mutation arms).
+2. **Plugin skills in skill-recall.** `plugin-index.mjs` reads the enabled plugins from the harness's own files:
+   `~/.claude/plugins/installed_plugins.json` filtered by `~/.claude/settings.json` `enabledPlugins` (machine installs),
+   and `~/.claude/plugins/synced/<organizationUuid>_<accountUuid>/<dir>` with an `.in_use` marker (claude.ai account
+   plugins; ids from `~/.claude.json` `oauthAccount`). Skills and commands index as `plugin:slug`, the form the Skill tool
+   resolves (proven 2026-10-26 with `agentic-council:advocate-a11y-audit`). This answers review round 3b (2026-10-16):
+   catalog copies and other accounts' buckets are not indexed. Rules: a plugin copy of a repo or user skill is deduped
+   by slug; a plugin entry always needs two matched terms; at most two of the five lines are plugin skills;
+   `config/agent-os/required-plugins.json` holds the rejects, single-skill rejects and extra routing triggers. A bad file
+   prints one `[skill-recall] warn:` line and recall continues on repo and user skills (fail open). Canary:
+   `pluginRecall.test.mjs` (7 mutants, each red on its own layer).
+3. **Bootstrap.** `node scripts/agent-os/bootstrap-machine.mjs` (wrappers `bootstrap-machine.ps1`, `.sh`) installs or
+   refreshes, from the repo: the two machine hooks, their `~/.claude/settings.json` registrations (found by script
+   name, only the command string replaced), the always-on skills that have a repo copy, and the marked block in
+   `~/.claude/CLAUDE.md`. It backs a file up to `~/.claude/bootstrap-backup/` before changing it; a second run changes
+   nothing; `--check` only reports. `find-skills` and `steal-like-an-artist` have no repo copy yet, so the script lists
+   them as machine-only. Canary: `bootstrapMachine.test.mjs`.
+4. **Health.** SessionStart startup runs `bootstrap-machine.mjs --check --hook`: one `[health] machine` line, on every
+   host (session-health is host-gated), with `FIX FIRST:` naming the bootstrap command and, for each required plugin
+   this account has not enabled, its enable line. Plugins are enabled per account by Nour; the line detects and
+   instructs only. It also counts the MCP servers last seen failing to connect (`knownConnectFailures`), so a session
+   reports them instead of retrying each one. `check-adapters.mjs` section 6 validates the list's shape.
+
+Required plugins (each with its reason and enable line in the JSON): agentic-council, receipts-check, desktop-commander
+(account plugins), avoid-ai-writing, pr-review-toolkit, hookify (machine installs). Not live until the primary checkout
+is fast-forwarded, because hooks load from there.
+
 ## MCP and native-runner coverage (2026-10-15)
 
 **The gap this closes.** `pretool.mjs` used to be registered only for

@@ -369,6 +369,25 @@ requireMatch(
   "launcher must pin the npx package (no unpinned npx in agent startup)"
 );
 
+// ── 6 · Required plugins (2026-10-26): the list the [health] machine line reads ──
+// bootstrap-machine.mjs --hook prints each missing required plugin's `enable` line as a FIX FIRST, and plugin-index.mjs
+// can match an installed one only by its `key`; a broken entry is a health line nobody can act on.
+if (requireFile("config/agent-os/required-plugins.json", "required-plugin list for the [health] machine line")) {
+  checks++;
+  let cfg = null;
+  try {
+    cfg = JSON.parse(read("config/agent-os/required-plugins.json"));
+  } catch {
+    errors.push("INVALID  required-plugins.json: not valid JSON");
+  }
+  for (const p of cfg?.required ?? []) {
+    const need = ["name", "reason", "enable"].filter((k) => typeof p?.[k] !== "string" || !p[k].trim());
+    if (!["synced", "installed"].includes(p?.source)) need.push("source synced|installed");
+    if (p?.source === "installed" && !/^[\w.-]+@[\w.-]+$/.test(p?.key ?? "")) need.push("key <name>@<marketplace>");
+    if (need.length) errors.push(`INVALID  required-plugins.json: ${p?.name ?? "?"} needs ${need.join(", ")}`);
+  }
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
 if (errors.length) {
   console.error(`agent-os parity: ${errors.length} violation(s) across ${checks} checks\n`);

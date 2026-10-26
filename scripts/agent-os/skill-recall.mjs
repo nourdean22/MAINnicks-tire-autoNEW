@@ -26,10 +26,19 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// Loaded dynamically so a missing or broken plugin reader degrades to repo and user skills with a warning, never a crash.
+let pluginIndex = null;
+let pluginIndexError = "";
+try {
+  pluginIndex = await import("./plugin-index.mjs");
+} catch (err) {
+  pluginIndexError = `plugin-index.mjs: ${String(err?.code || err?.message || err).split(/\r?\n/)[0]}`;
+}
 
 const MAX_LINES = 5;
+const MAX_PLUGIN_LINES = 2;
 // Hits on the skill NAME, and on its triggers: line, are the routing signal a prompt carries.
 const NAME_BOOST = 3;
 // Repo skills fired 18x more than the library in the 2026-08-03 audit; a tie goes to the skill written for this repo.
@@ -143,7 +152,28 @@ export function stem(w) {
   return w.replace(/(ations?|ings?|ies|ied|ers?|es|ed|e|s)$/, (m) => (m === "ies" || m === "ied" ? "i" : m.startsWith("ation") ? "at" : ""));
 }
 
-function buildIndex(roots) {
+/** Plugin skills and commands of the enabled plugins (plugin-index.mjs), by the `plugin:slug` name the Skill tool
+ * resolves. Routing (rejects, extra triggers) comes from THIS script's repo, so `--scope global` in another project
+ * still honours it. Any failure is a warning and an empty list: recall falls back to repo and user skills. */
+function pluginSource() {
+  if (!pluginIndex) return { files: [], triggers: {}, warning: pluginIndexError };
+  try {
+    const routing = pluginIndex.readRouting(join(dirname(fileURLToPath(import.meta.url)), "..", ".."));
+    const { files, warnings } = pluginIndex.pluginSkillFiles(process.env.USERPROFILE || process.env.HOME || homedir(), routing);
+    return { files, triggers: routing.triggers ?? {}, warning: warnings.join("; ") };
+  } catch (err) {
+    return { files: [], triggers: {}, warning: String(err?.message || err).split(/\r?\n/)[0] };
+  }
+}
+
+function indexEntry(s) {
+  // triggers: are routing words by definition, so they carry the name boost; realName keeps the bare name apart,
+  // because only a hit on it exempts an entry from the two-term minimum.
+  const realName = tokens(s.name.replace(/[:-]/g, " "));
+  return { ...s, realName, nameTokens: [...realName, ...tokens(s.triggers)], bodyTokens: tokens(s.description) };
+}
+
+function buildIndex(roots, plugins = { files: [], triggers: {} }) {
   const seen = new Set();
   const entries = [];
   for (const r of roots) {
@@ -151,11 +181,19 @@ function buildIndex(roots) {
       const s = readSkill(dir, r.kind);
       if (!s || seen.has(s.name)) continue;
       seen.add(s.name);
-      // triggers: are routing words by definition, so they carry the name boost; realName keeps the bare name apart,
-      // because only a hit on it exempts an entry from the two-term minimum.
-      const realName = tokens(s.name.replace(/[:-]/g, " "));
-      entries.push({ ...s, realName, nameTokens: [...realName, ...tokens(s.triggers)], bodyTokens: tokens(s.description) });
+      entries.push(indexEntry(s));
     }
+  }
+  // A plugin copy of a repo or user skill (agent-protocols:karpathy-guidelines) is the same skill: the slug is deduped.
+  for (const f of plugins.files) {
+    const slug = f.name.slice(f.name.indexOf(":") + 1);
+    if (seen.has(slug) || seen.has(f.name)) continue;
+    try {
+      const fm = frontmatter(readFileSync(f.path, "utf8"));
+      if (!NAME_OK.test(f.name) || !fm.description) continue;
+      seen.add(f.name);
+      entries.push(indexEntry({ name: f.name, description: fm.description, triggers: [fm.triggers, fm.when, plugins.triggers[f.name]].filter(Boolean).join(" "), kind: "plugin", path: f.path }));
+    } catch { /* unreadable file: skip it */ }
   }
   // Term statistics come from the REPO cohort when there is one (round 5): a repo result must not move when the user
   // installs 500 unrelated skills, and user entries are scored against the same table (a term the repo never uses is
@@ -171,19 +209,21 @@ function buildIndex(roots) {
 
 function loadIndex(root) {
   const roots = skillRoots(root);
-  const key = cacheKey(roots);
+  const plugins = pluginSource();
+  const sig = pluginIndex ? pluginIndex.signature(plugins.files) : "";
+  const key = createHash("sha1").update(cacheKey(roots)).update(sig).update(JSON.stringify(plugins.triggers)).digest("hex");
   const cacheDir = process.env.SKILL_RECALL_CACHE_DIR || join(tmpdir(), "skill-recall");
   const file = join(cacheDir, `index-${createHash("sha1").update(root).digest("hex").slice(0, 12)}.json`);
   try {
     const cached = JSON.parse(readFileSync(file, "utf8"));
-    if (cached.key === key && Array.isArray(cached.entries)) return cached;
+    if (cached.key === key && Array.isArray(cached.entries)) return { ...cached, pluginWarning: plugins.warning };
   } catch { /* missing or corrupt: rebuild below */ }
-  const index = { key, ...buildIndex(roots) };
+  const index = { key, ...buildIndex(roots, plugins) };
   try {
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(file, JSON.stringify(index));
   } catch { /* read-only temp: still answer from the fresh index */ }
-  return index;
+  return { ...index, pluginWarning: plugins.warning };
 }
 
 /** Distinct query terms, capped from both ends so a request after a long paste still counts. */
@@ -201,15 +241,19 @@ export function score(index, prompt) {
   const q = queryTerms(prompt);
   const N = index.N;
   const results = [];
+  const count = (list) => { const m = new Map(); for (const x of list) m.set(x, (m.get(x) || 0) + 1); return m; };
   for (const e of index.entries) {
     if (ALWAYS_ON.has(e.name)) continue;
     const len = e.bodyTokens.length;
+    // Term counts once per entry: with about a thousand plugin skills indexed, a filter per query term was quadratic.
+    const nameCount = count(e.nameTokens);
+    const bodyCount = count(e.bodyTokens);
     let s = 0;
     let nameHit = false;
     const hits = [];
     for (const t of q) {
-      const inName = e.nameTokens.filter((x) => x === t).length;
-      const inBody = e.bodyTokens.filter((x) => x === t).length;
+      const inName = nameCount.get(t) || 0;
+      const inBody = bodyCount.get(t) || 0;
       if (!inName && !inBody) continue;
       if (e.realName.includes(t)) nameHit = true;
       const df = index.df[t] || 1;
@@ -223,7 +267,9 @@ export function score(index, prompt) {
       s += w;
       hits.push({ word: word.get(t) || t, w });
     }
-    if (!nameHit && hits.length < MIN_HITS) continue;
+    // A plugin entry always needs MIN_HITS terms: one word of a long plugin slug ("atlassian:generate-status-report" on
+    // "status") is not a routing signal (measured 2026-10-26 on a status read against 480 plugin skills).
+    if ((!nameHit || e.kind === "plugin") && hits.length < MIN_HITS) continue;
     if (e.kind === "repo") s *= REPO_BOOST;
     // Printed hits are the heaviest terms first, so a brief's real subject shows before its filler words.
     hits.sort((a, b) => b.w - a.w);
@@ -273,15 +319,19 @@ function main() {
   const { prompt, json } = readInput(argv, root);
   const index = loadIndex(root);
   const ranked = score(index, prompt);
-  const picked = ranked.filter((r) => r.score >= FLOOR).slice(0, MAX_LINES);
+  // Plugin skills share the line budget but take at most MAX_PLUGIN_LINES of it, so a pack of a thousand plugin skills
+  // cannot crowd out the repo skills written for this repo.
+  let pluginLines = 0;
+  const picked = ranked.filter((r) => r.score >= FLOOR && (r.kind !== "plugin" || ++pluginLines <= MAX_PLUGIN_LINES)).slice(0, MAX_LINES);
+  const warn = index.pluginWarning ? [`[skill-recall] warn: plugin skills partly off (${index.pluginWarning}); repo and user skills unaffected`] : [];
   if (json) {
-    const counts = { total: index.entries.length, repo: 0, user: 0, names: index.entries.map((e) => e.name) };
+    const counts = { total: index.entries.length, repo: 0, user: 0, plugin: 0, names: index.entries.map((e) => e.name) };
     for (const e of index.entries) counts[e.kind] += 1;
-    process.stdout.write(JSON.stringify({ index: counts, floor: FLOOR, picked, ranked: ranked.slice(0, 25) }, null, 2) + "\n");
+    process.stdout.write(JSON.stringify({ index: counts, pluginWarning: index.pluginWarning || null, floor: FLOOR, picked, ranked: ranked.slice(0, 25) }, null, 2) + "\n");
     return;
   }
   const lines = picked.map((r) => `[skill-recall] invoke: ${r.name.slice(0, 64)} (${r.hits.slice(0, 4).join(", ")})`);
-  process.stdout.write((lines.length ? lines : ["[skill-recall] none beyond the always-on set"]).join("\n") + "\n");
+  process.stdout.write([...warn, ...(lines.length ? lines : ["[skill-recall] none beyond the always-on set"])].join("\n") + "\n");
 }
 
 /** True when node was started on this file (directly, through a junction, or with a differently cased drive letter). */

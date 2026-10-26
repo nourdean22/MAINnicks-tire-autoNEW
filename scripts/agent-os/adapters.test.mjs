@@ -73,6 +73,7 @@ const FIXTURE_FILES = [
   ".agents/core/IDENTITY.md",
   ".agents/core/USER.md",
   ".agents/core/CONSTITUTION.md",
+  "config/agent-os/required-plugins.json",
 ];
 
 function makeFixture() {
@@ -395,6 +396,27 @@ canary(
   "apps/worker/CLAUDE.md",
   (s) => s + "\n" + "x".repeat(200) + "\n",
   "never reflow to beat a line cap",
+);
+
+// required-plugins.json is read by the [health] machine line (bootstrap-machine.mjs --hook): an entry with no enable
+// line prints a FIX FIRST nobody can act on, and an installed entry with no key can never read as enabled.
+canary(
+  "a required plugin with no enable line is rejected",
+  "config/agent-os/required-plugins.json",
+  (s) => s.replace(/"enable": "claude\.ai > Settings > Plugins \(Anthropic Directory\): enable agentic-council on this account"/, '"enable": ""'),
+  "required-plugins.json: agentic-council needs",
+);
+canary(
+  "an installed required plugin with no key is rejected",
+  "config/agent-os/required-plugins.json",
+  (s) => s.replace('"key": "hookify@claude-plugins-official", ', ""),
+  "required-plugins.json: hookify needs",
+);
+canary(
+  "an unparseable required-plugins.json is rejected",
+  "config/agent-os/required-plugins.json",
+  (s) => s.slice(0, 40),
+  "required-plugins.json: not valid JSON",
 );
 
 test("spares: a wide markdown TABLE row is allowed through", () => {

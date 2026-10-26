@@ -245,8 +245,10 @@ test("index: every flat .claude/skills SKILL.md, the fixture user skills, no nes
   assert.equal(j.index.user, 3, `fixture home holds receiving-code-review, pptx and nested-host: indexed ${j.index.user}`);
   assert.ok(j.index.names.includes("pptx") && j.index.names.includes("nested-host"));
   assert.ok(!j.index.names.includes("nested-draft-skill"), "a SKILL.md under a skill's references must not be indexed");
-  assert.equal(j.index.total, j.index.repo + j.index.user);
-  assert.equal(j.index.plugin, undefined, "plugin trees must not be indexed: the Skill tool cannot load them by those names");
+  // 2026-10-26: enabled plugins ARE indexed now (plugin-index.mjs reads installed_plugins.json + enabledPlugins and the
+  // account's .in_use bucket, and `plugin:slug` was proven a successful Skill call); this fixture home has none.
+  assert.equal(j.index.plugin, 0, "the fixture home holds no plugin files");
+  assert.equal(j.index.total, j.index.repo + j.index.user + j.index.plugin);
 });
 
 test("the REAL user root is discovered when it exists (count only, no ranking asserted)", () => {
