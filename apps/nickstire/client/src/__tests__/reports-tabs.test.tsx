@@ -117,7 +117,7 @@ describe("Search card", () => {
     source: "gsc_official_no_dimension",
   };
   const SOURCE_LINE =
-    "Google Search Console, property total, through 2026-10-25; a 28-day read: position is an impression-weighted average and is not a rank.";
+    "Google Search Console, property total for the 28 days requested to 2026-10-25; Google's newest days can still be missing. Position is an impression-weighted average and is not a rank.";
 
   it("the master report card is gone even when its read would answer", () => {
     h.queries.set("market.summary", ok(SUMMARY));
@@ -129,7 +129,7 @@ describe("Search card", () => {
     expect(screen.getByText("246")).toBeTruthy();
   });
 
-  it("says what the totals are and the date they run through", () => {
+  it("says what the totals are and the end date it asked for, never that the data runs through it", () => {
     h.queries.set("market.summary", ok(SUMMARY));
     render(<MarketSection />);
     expect(screen.getByText(SOURCE_LINE)).toBeTruthy();
@@ -145,7 +145,7 @@ describe("Search card", () => {
   it("a partial stored-rows read never claims the property total", () => {
     h.queries.set("market.summary", ok({ ...SUMMARY, source: "stored_query_rows_partial" }));
     const { container } = render(<MarketSection />);
-    expect(container.textContent).not.toMatch(/property total, through/);
+    expect(container.textContent).not.toMatch(/property total for the 28 days/);
     expect(container.textContent).toMatch(/PARTIAL/);
   });
 

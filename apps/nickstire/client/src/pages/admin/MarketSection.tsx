@@ -85,7 +85,7 @@ export default function MarketSection() {
             <p className="col-span-full text-[11px] text-white/40">
               {str(s.source) === "gsc_official_no_dimension"
                 ? str(s.to)
-                  ? `Google Search Console, property total, through ${str(s.to)}; a 28-day read: position is an impression-weighted average and is not a rank.`
+                  ? `Google Search Console, property total for the 28 days requested to ${str(s.to)}; Google's newest days can still be missing. Position is an impression-weighted average and is not a rank.`
                   : "Google Search Console, property total."
                 : str(s.source) === "stored_query_rows_partial"
                   ? "Source: stored query rows, PARTIAL, anonymized queries are missing; not the property total"
