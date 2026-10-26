@@ -10,6 +10,7 @@
  * where shop operations belong (boundary §3).
  */
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import type { MissionsDeck } from "@/lib/missions/deck";
 import { MissionTaskRow } from "@/components/missions/mission-task-row";
 import type { Task } from "@/components/actions/shared";
@@ -17,9 +18,11 @@ import type { Task } from "@/components/actions/shared";
 type Props = {
   lanes: MissionsDeck["lanes"];
   tasks: Task[];
+  /** Opens the mission editor for the lane (a lane is a mission). */
+  onEditMission: (missionId: string) => void;
 };
 
-export function DeckLanes({ lanes, tasks }: Props) {
+export function DeckLanes({ lanes, tasks, onEditMission }: Props) {
   const [openLane, setOpenLane] = useState<string | null>(null);
 
   if (lanes.length === 0) return null;
@@ -68,6 +71,14 @@ export function DeckLanes({ lanes, tasks }: Props) {
                     ? ` · oldest ${lane.oldestOpenDays}d`
                     : ""}
                 </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onEditMission(lane.id)}
+                aria-label={`Edit mission ${lane.title}`}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface-hover hover:text-fg active:scale-95"
+              >
+                <Pencil size={14} strokeWidth={1.75} />
               </button>
               {lane.isShop && (
                 <a

@@ -87,7 +87,8 @@ function MissionEditDrawerBody({
           deadline: deadline.trim() || undefined,
         });
         toast.success(`Created mission “${trimmed}”.`);
-        await utils.task.missions.invalidate();
+        // task.deck feeds the lanes and the hero; task.missions alone left them stale for up to 45 s.
+        await Promise.all([utils.task.missions.invalidate(), utils.task.deck.invalidate()]);
         onSaved?.("");
         onClose();
       } else {
@@ -107,7 +108,7 @@ function MissionEditDrawerBody({
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         toast.success(`Updated “${trimmed}”.`);
-        await utils.task.missions.invalidate();
+        await Promise.all([utils.task.missions.invalidate(), utils.task.deck.invalidate()]);
         onSaved?.(missionId!);
         onClose();
       }
@@ -134,7 +135,9 @@ function MissionEditDrawerBody({
     if (!missionId) return;
     const confirmed = await confirm({
       title: `Delete mission "${initial?.title ?? missionId}"?`,
-      body: "All tasks attached to it become unattached. This cannot be undone.",
+      // deleteMission soft-deletes the mission AND every task in it (lib/services/missions.ts); the old
+      // copy said the tasks "become unattached", which is not what happens.
+      body: "Its tasks are deleted with it. This cannot be undone.",
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -147,8 +150,11 @@ function MissionEditDrawerBody({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast.success("Mission deleted.");
-      await utils.task.missions.invalidate();
-      await utils.task.list.invalidate();
+      await Promise.all([
+        utils.task.missions.invalidate(),
+        utils.task.list.invalidate(),
+        utils.task.deck.invalidate(),
+      ]);
       onSaved?.(missionId);
       onClose();
     } catch (err) {

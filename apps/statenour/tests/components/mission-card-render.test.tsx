@@ -87,4 +87,13 @@ describe("mission header · rendered output", () => {
     const textOnly = html.replace(/<[^>]*>/g, " ");
     expect(textOnly).toContain("7 open");
   });
+
+  it("every mission card carries an edit entry at the 44 px floor (Nour 2026-10-26: edit the missions)", () => {
+    // Control for the lane rows: the board cards already had it; this pins it so a card cannot lose it unseen.
+    const html = render(PROJECT);
+    const m = html.match(/<span[^>]*aria-label="edit mission GENERAL BUSINESS &amp; NICKS TIRE"[^>]*>/);
+    expect(m, "the edit entry rendered on the card header").toBeTruthy();
+    expect(m![0]).toMatch(/\bh-11\b/);
+    expect(m![0]).toMatch(/\bw-11\b/);
+  });
 });
