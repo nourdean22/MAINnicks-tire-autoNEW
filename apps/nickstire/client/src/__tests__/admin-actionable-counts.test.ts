@@ -36,6 +36,17 @@ describe("getAdminActionableCounts", () => {
     expect(counts.total).toBe(1);
   });
 
+  it("a contacted or qualified lead is waiting on the customer, not actionable: the badge drops it like the board", () => {
+    const counts = getAdminActionableCounts({
+      leads: [
+        { status: "contacted", urgencyScore: 5, source: "popup" },
+        { status: "qualified", source: "chat" },
+      ],
+    });
+
+    expect(counts).toMatchObject({ actionableLeads: 0, urgentLeads: 0, total: 0 });
+  });
+
   it("adds non-overlapping bookings, leads, and callbacks", () => {
     const counts = getAdminActionableCounts({
       bookings: [{ status: "new" }, { status: "confirmed" }],
@@ -50,9 +61,9 @@ describe("getAdminActionableCounts", () => {
     expect(counts).toMatchObject({
       newBookings: 1,
       newLeads: 1,
-      actionableLeads: 2,
+      actionableLeads: 1,
       pendingCallbacks: 1,
-      total: 4,
+      total: 3,
     });
   });
 });

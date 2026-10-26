@@ -3,12 +3,11 @@ import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
-import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
+import { getAdminActionableCounts, isOpenLead, isWaitingLead } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
 import { gatewayState } from "@/lib/gatewayState";
 import { trpc } from "@/lib/trpc";
-import { isCallbackDuplicateLead } from "@shared/leadSource";
 import { exceptionFeed } from "@shared/adminSignal";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState, type ElementType } from "react";
@@ -25,13 +24,8 @@ import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem } from "./today/types";
 import { FOLLOW_UPS_ON_BOARD, LISTED_ELSEWHERE_ON_TODAY, LIST_INPUT as FOLLOW_UPS_INPUT, followUpTypeLabel, worklistOrder } from "./today/followUpsRead";
 
-/**
- * One rule for the board, the verdict and the tiles: a lead is the shop's move while it is new. Marking it
- * contacted logs the attempt and moves it to "Waiting on customer"; a reply comes back as an owed text.
- */
-const isOpenLead = (lead: LeadItem) => lead.status === "new" && !isCallbackDuplicateLead(lead);
-const isWaitingLead = (lead: LeadItem) => lead.status === "contacted" && !isCallbackDuplicateLead(lead);
-const LEADS_LIST_HREF = "/admin?tab=leads&leadsTab=leads";
+// status=waiting is LeadsSection's bucket filter; contacted leads sit in Waiting, not the default Needs.
+const LEADS_LIST_HREF = "/admin?tab=leads&leadsTab=leads&status=waiting";
 const FOLLOW_UPS_HREF = "/admin?tab=leads&leadsTab=followups";
 const PLAIN_CLICK = { metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
 /** Same page size as PromisesPanel's PANEL_LIMIT: the rail shares that query's cache entry, so the two must match. */
@@ -103,9 +97,13 @@ export default function OverviewSection() {
   const [doneRows, setDoneRows] = useState<ReadonlyMap<string, string>>(() => new Map());
   // The polite live region's text: "Done: <name>" when a row leaves the board.
   const [announcement, setAnnouncement] = useState("");
-  const { data: security } = trpc.adminSecurity.status.useQuery();
-  // Same derivation as the shell (Admin.tsx): the role decides whether the Decisions tile can open Approvals.
+  const { data: security, isError: securityFailed } = trpc.adminSecurity.status.useQuery();
+  // Same derivation as the shell (Admin.tsx): the role decides what Today links to and reads.
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
+  // Until the role is read, the follow-ups source is pending (never "not applicable", which would allow an all-clear).
+  const rolePending = security === undefined && !securityFailed;
+  // Sales Pipeline holds the follow-ups and the Leads list; tech, accountant and viewer cannot open it.
+  const canOpenPipeline = security !== undefined && sectionsForRole(adminRole).includes("leads");
 
   const {
     data: bundle,
@@ -124,8 +122,14 @@ export default function OverviewSection() {
    * A separate query from the bundle, so its failure must veto "All clear" on its own (queueTrustworthy),
    * and `queryable: false` is the server saying it could not read the queue: unknown, never empty.
    */
-  const { data: followUpData, isError: followUpsReadFailed } = trpc.opportunityQueue.list.useQuery(FOLLOW_UPS_INPUT);
-  const followUpsFailed = followUpsReadFailed || followUpData?.queryable === false;
+  const { data: followUpData, isError: followUpsReadFailed } = trpc.opportunityQueue.list.useQuery(FOLLOW_UPS_INPUT, {
+    // A role that cannot open Sales Pipeline is not sent its rows (names and phones) at all.
+    enabled: canOpenPipeline,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+  // An unread role leaves the source unknown; for a role it does not apply to, it is not applicable, not unknown.
+  const followUpsFailed = securityFailed || (canOpenPipeline && (followUpsReadFailed || followUpData?.queryable === false));
   /**
    * Same key AND the same options as the shell's query in Admin.tsx, so this
    * second observer reads the shared react-query cache instead of triggering a
@@ -187,12 +191,15 @@ export default function OverviewSection() {
    */
   const unavailable = bundle?.unavailableSlices ?? [];
   const followUps = useMemo(
-    () => (followUpsFailed ? [] : followUpData?.items ?? []).filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)).sort(worklistOrder),
-    [followUpData, followUpsFailed],
+    () => (followUpsFailed || !canOpenPipeline ? [] : followUpData?.items ?? []).filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)).sort(worklistOrder),
+    [followUpData, followUpsFailed, canOpenPipeline],
   );
   const followUpsShown = useMemo(() => followUps.slice(0, FOLLOW_UPS_ON_BOARD), [followUps]);
+  // The server sent its full window, so more rows may exist past it. Read from the UNFILTERED length:
+  // the board's own filter can drop the count under the limit without making the window any less full.
+  const followUpsSaturated = canOpenPipeline && (followUpData?.items.length ?? 0) >= FOLLOW_UPS_INPUT.limit;
   // The board shows five; the rest wait in Sales Pipeline, so the count is "at least".
-  const followUpsMore = followUps.length > followUpsShown.length;
+  const followUpsMore = followUps.length > followUpsShown.length || followUpsSaturated;
   /**
    * Every source the queue is built from must be able to veto "All clear",
    * including the follow-ups read, which is not part of the bundle.
@@ -202,7 +209,8 @@ export default function OverviewSection() {
     !isError &&
     !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks" || s === "owedTexts");
   // Each card is only as known as its own slice: a failed bundle or slice is "unknown", never 0.
-  const leadsKnown = !isError && !unavailable.includes("leads");
+  // A bundle that never answered (paused offline) has read no leads: unknown, not 0.
+  const leadsKnown = bundle !== undefined && !isError && !unavailable.includes("leads");
 
   /**
    * Built from the SAME builder the sidebar badges use, so a section cannot be
@@ -328,7 +336,7 @@ export default function OverviewSection() {
    * isLoading as isPending && isFetching (query-core queryObserver.ts, `const isLoading`), and a
    * query that is pending has no data, so a separate isLoading check could never veto anything.
    */
-  const queueAnswered = bundle !== undefined && followUpData !== undefined;
+  const queueAnswered = bundle !== undefined && !rolePending && (!canOpenPipeline || followUpData !== undefined);
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
   const boardRows = showAll ? filteredQueue : filteredQueue.slice(0, BOARD_ROW_CAP);
@@ -450,14 +458,27 @@ export default function OverviewSection() {
   // The verdict's "N urgent leads" reads the board's own predicate: new, uncontacted, urgent.
   const urgentLeadCount = useMemo(() => leads.filter((lead) => isOpenLead(lead) && (lead.urgencyScore ?? 0) >= 4).length, [leads]);
   const waitingLeadCount = useMemo(() => leads.filter(isWaitingLead).length, [leads]);
+  const waitingLine = leadsKnown ? `Waiting on customer · ${waitingLeadCount} contacted lead${waitingLeadCount === 1 ? "" : "s"}` : "Waiting on customer · unknown";
   /**
    * Decisions waiting: proposals on Approvals plus publishing items held, the two numbers the exception
    * feed already reads. Either read failing or reporting unknown makes the sum unknown, never partial.
    */
   const decisionsFailed = proposalsFailed || proposalCounts?.readable === false || opsFailed || opsSignal?.unknown === true;
-  const decisionsAnswered = proposalCounts?.readable === true && typeof proposalCounts.count === "number" && typeof opsSignal?.total === "number";
-  const decisionCount = decisionsAnswered ? (proposalCounts?.count ?? 0) + (opsSignal?.total ?? 0) : null;
-  const canOpenApprovals = sectionsForRole(adminRole).includes("approvals");
+  const decisionsAnswered =
+    !decisionsFailed &&
+    proposalCounts?.readable === true &&
+    typeof proposalCounts.count === "number" &&
+    opsSignal?.unknown === false &&
+    typeof opsSignal.total === "number";
+  const pendingProposals = decisionsAnswered ? proposalCounts?.count ?? 0 : 0;
+  const heldPublishing = decisionsAnswered ? opsSignal?.total ?? 0 : 0;
+  const decisionCount = decisionsAnswered ? pendingProposals + heldPublishing : null;
+  // The tile opens where the decisions are: Approvals when any proposal waits, otherwise the Instagram
+  // queue that holds the publishing items (ops-instagram's section). A role that cannot open it gets text.
+  const decisionsTarget = pendingProposals > 0 ? "approvals" : heldPublishing > 0 ? "instagram" : null;
+  const canOpenDecisions = decisionsTarget !== null && sectionsForRole(adminRole).includes(decisionsTarget);
+  const decisionsDetail =
+    pendingProposals > 0 && heldPublishing > 0 ? "Approvals and Instagram" : pendingProposals > 0 ? "Approvals" : heldPublishing > 0 ? "Instagram" : undefined;
   const mirrorTime = (at: string | Date | null | undefined) => {
     const d = at ? new Date(at) : null;
     return d && !Number.isNaN(d.getTime()) ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
@@ -473,9 +494,9 @@ export default function OverviewSection() {
         : integration.state === "offline"
           ? "ShopDriver mirror · offline"
           : integration.state === "failing" && freshness?.lastSuccessfulAt
-            ? `ShopDriver mirror · failing since ${mirrorTime(freshness.lastSuccessfulAt)}`
+            ? `ShopDriver mirror · failing · last success ${mirrorTime(freshness.lastSuccessfulAt)}`
           : freshness?.lastSuccessfulAt
-            ? `ShopDriver mirror · stale since ${mirrorTime(freshness.lastSuccessfulAt)}`
+            ? `ShopDriver mirror · stale · last success ${mirrorTime(freshness.lastSuccessfulAt)}`
             : freshness
               ? "ShopDriver mirror · no successful sync recorded"
               : "ShopDriver mirror · checking";
@@ -526,7 +547,7 @@ export default function OverviewSection() {
       {/* The verdict: one line from the brief, read from the SAME `queue` and `urgentLeadCount` the
           board and strip below render, so it cannot disagree with them. Its calls and gateway line
           lives in the Checks rail. */}
-      <MorningBrief part="verdict" priorityQueueLength={queue.length} queueAtLeast={followUpsMore} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
+      <MorningBrief part="verdict" priorityQueueLength={queue.length} queueAtLeast={followUpsMore} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} queueAnswered={queueAnswered} />
 
       {/* A slice can fail while the request succeeds. Without this the operator
           sees a clean board built on reads that never happened. */}
@@ -548,16 +569,20 @@ export default function OverviewSection() {
         {/* What left "now" stays visible: contacted leads wait on the customer, extra follow-ups wait in Sales Pipeline. */}
         {(!leadsKnown || waitingLeadCount > 0 || followUpsFailed || followUpsMore) && (
           <div className="mt-1 flex flex-wrap gap-x-4">
-            {(!leadsKnown || waitingLeadCount > 0) && (
-              <button type="button" onClick={() => navigateToAdminUrl(PLAIN_CLICK, LEADS_LIST_HREF, "leads")} className="min-h-12 text-left text-[13px] text-muted-foreground underline-offset-2 hover:underline">
-                {leadsKnown ? `Waiting on customer · ${waitingLeadCount} contacted lead${waitingLeadCount === 1 ? "" : "s"}` : "Waiting on customer · unknown"}
-              </button>
-            )}
+            {(!leadsKnown || waitingLeadCount > 0) &&
+              // A role that cannot open Sales Pipeline reads the count as text: the link would be denied.
+              (canOpenPipeline ? (
+                <button type="button" onClick={() => navigateToAdminUrl(PLAIN_CLICK, LEADS_LIST_HREF, "leads")} className="min-h-12 text-left text-[13px] text-muted-foreground underline-offset-2 hover:underline">
+                  {waitingLine}
+                </button>
+              ) : (
+                <p className="min-h-12 flex items-center text-[13px] text-muted-foreground">{waitingLine}</p>
+              ))}
             {followUpsFailed ? (
               <p className="min-h-12 flex items-center text-[13px] text-amber-600">follow-ups unknown · a read failed</p>
             ) : followUpsMore ? (
               <button type="button" onClick={() => navigateToAdminUrl(PLAIN_CLICK, FOLLOW_UPS_HREF, "leads")} className="min-h-12 text-left text-[13px] text-muted-foreground underline-offset-2 hover:underline">
-                {`${followUpsShown.length} of ${followUps.length >= FOLLOW_UPS_INPUT.limit ? `${FOLLOW_UPS_INPUT.limit}+` : followUps.length} follow-ups open · Open Sales Pipeline`}
+                {`${followUpsShown.length} of ${followUps.length}${followUpsSaturated ? "+" : ""} follow-ups open · Open Sales Pipeline`}
               </button>
             ) : null}
           </div>
@@ -640,18 +665,19 @@ export default function OverviewSection() {
       <section className="grid grid-cols-3 gap-2" aria-label="Today summary">
         <SummaryCard
           label="Needs action"
-          value={queueTrustworthy ? (followUpsMore ? `${queue.length}+` : queue.length) : UNKNOWN}
-          detail={!queueTrustworthy ? "Unable to determine" : queue.length ? undefined : queueAnswered ? "All clear" : "Loading"}
-          alert={queue.length > 0 || !queueTrustworthy}
-          priority={queueTrustworthy && queue.length > 0}
+          // Not every source has answered: the count is not known yet, so the glyph, never a 0 or a partial count.
+          value={queueTrustworthy && queueAnswered ? (followUpsMore ? `${queue.length}+` : queue.length) : UNKNOWN}
+          detail={!queueTrustworthy ? "Unable to determine" : !queueAnswered ? "Loading" : queue.length ? undefined : "All clear"}
+          alert={!queueTrustworthy || (queueAnswered && queue.length > 0)}
+          priority={queueTrustworthy && queueAnswered && queue.length > 0}
         />
         <SummaryCard label="Waiting on customer" value={leadsKnown ? waitingLeadCount : UNKNOWN} detail={leadsKnown ? undefined : "Unable to determine"} />
         <SummaryCard
           label="Decisions waiting"
           value={decisionCount ?? UNKNOWN}
-          detail={decisionsFailed ? "Unable to determine" : decisionCount === null ? "Loading" : decisionCount > 0 ? "Approvals and Instagram" : undefined}
+          detail={decisionsFailed ? "Unable to determine" : decisionCount === null ? "Loading" : decisionsDetail}
           alert={decisionsFailed}
-          onClick={canOpenApprovals ? () => navigateToAdminSection("approvals") : undefined}
+          onClick={canOpenDecisions && decisionsTarget ? () => navigateToAdminSection(decisionsTarget) : undefined}
         />
       </section>
 
@@ -664,7 +690,7 @@ export default function OverviewSection() {
 
       {/* CHECKS: everything that monitors rather than asks for work, under one rail. */}
       <ChecksRail status={checksStatus} alert={openChecks > 0 || promisesFailed}>
-        <MorningBrief part="signals" priorityQueueLength={queue.length} queueAtLeast={followUpsMore} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
+        <MorningBrief part="signals" priorityQueueLength={queue.length} queueAtLeast={followUpsMore} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} queueAnswered={queueAnswered} />
 
         {/* Promise Ledger (0102): log promises the moment they're made; the sweep escalates overdue
             ones into the queue read on the Opportunities tab. */}

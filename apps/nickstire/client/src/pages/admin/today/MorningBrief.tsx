@@ -36,6 +36,8 @@ interface MorningBriefProps {
   priorityQueueLength: number;
   /** The board's count is a lower bound (more follow-ups wait in Sales Pipeline): print "N+", as the tile does. */
   queueAtLeast?: boolean;
+  /** False while a source the queue needs has not answered: the verdict says loading, never all clear. */
+  queueAnswered?: boolean;
   /** Number of urgent leads (subset of hot leads) */
   urgentLeads: number;
   /**
@@ -60,7 +62,7 @@ function greeting(): string {
   return "Good evening";
 }
 
-export function MorningBrief({ priorityQueueLength, queueAtLeast = false, urgentLeads, queueTrustworthy = true, part }: MorningBriefProps) {
+export function MorningBrief({ priorityQueueLength, queueAtLeast = false, urgentLeads, queueTrustworthy = true, queueAnswered = true, part }: MorningBriefProps) {
   // Existing queries that already render elsewhere · cheap to reuse
   const { data: dashStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
   const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
@@ -133,6 +135,13 @@ export function MorningBrief({ priorityQueueLength, queueAtLeast = false, urgent
         tone: "warn",
         now: true,
       });
+    } else if (!queueAnswered) {
+      out.push({
+        icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
+        text: "Now: loading the queue",
+        tone: "warn",
+        now: true,
+      });
     } else if (priorityBits.length > 0) {
       out.push({
         icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
@@ -150,7 +159,7 @@ export function MorningBrief({ priorityQueueLength, queueAtLeast = false, urgent
     }
 
     return out;
-  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, queueAtLeast, urgentLeads, queueTrustworthy]);
+  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, queueAtLeast, urgentLeads, queueTrustworthy, queueAnswered]);
 
   const shown = part === "verdict" ? lines.filter((l) => l.now) : part === "signals" ? lines.filter((l) => !l.now) : lines;
   if (part === "signals" && shown.length === 0) return null;

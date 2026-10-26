@@ -177,7 +177,8 @@ describe("gold marks owner priority only", () => {
   const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
   it("Today's Needs action card turns gold only when the queue is readable and holds items", () => {
     const card = sliceBlock(overview, 'label="Needs action"', "/>", { label: "OverviewSection.tsx" });
-    expect(card).toMatch(/priority=\{queueTrustworthy && queue\.length > 0\}/);
+    // Gold also waits for every source to answer: a count still loading is not work known to be waiting.
+    expect(card).toMatch(/priority=\{queueTrustworthy && queueAnswered && queue\.length > 0\}/);
     expect(overview).toMatch(/priority \? "[^"]*var\(--owner-priority\)/);
   });
 });

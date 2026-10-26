@@ -22,7 +22,13 @@ export interface AdminActionableCounts {
   total: number;
 }
 
-const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted", "qualified"]);
+/**
+ * ONE rule for the Today board, its tiles, its verdict and the sidebar badge: a lead is the shop's move
+ * while it is new. Marking it contacted logs the attempt and moves it to "Waiting on customer"; the
+ * reply comes back as an owed text. Linked callback-form leads are the callback row's duplicate.
+ */
+export const isOpenLead = (lead: LeadLike) => (lead.status ?? "new") === "new" && !isCallbackDuplicateLead(lead);
+export const isWaitingLead = (lead: LeadLike) => lead.status === "contacted" && !isCallbackDuplicateLead(lead);
 const PENDING_CALLBACK_STATUSES = new Set(["new", "pending"]);
 
 /**
@@ -42,11 +48,8 @@ export function getAdminActionableCounts(input: {
   const callbacks = input.callbacks ?? [];
 
   const newBookings = bookings.filter((booking) => booking.status === "new").length;
-  const actionableLeadRows = leads.filter((lead) => {
-    if (isCallbackDuplicateLead(lead)) return false;
-    return ACTIVE_LEAD_STATUSES.has(lead.status ?? "new");
-  });
-  const newLeads = actionableLeadRows.filter((lead) => (lead.status ?? "new") === "new").length;
+  const actionableLeadRows = leads.filter(isOpenLead);
+  const newLeads = actionableLeadRows.length;
   const urgentLeads = actionableLeadRows.filter((lead) => (lead.urgencyScore ?? 0) >= 4).length;
   const pendingCallbacks = callbacks.filter((callback) =>
     PENDING_CALLBACK_STATUSES.has(callback.status ?? "new"),

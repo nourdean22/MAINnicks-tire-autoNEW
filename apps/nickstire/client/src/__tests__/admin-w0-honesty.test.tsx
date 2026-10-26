@@ -125,6 +125,7 @@ beforeEach(() => {
   h.toastError.mockReset();
   h.user = { role: "admin" };
   h.queries.set("opportunityQueue.list", ok({ items: [], queryable: true }));
+  h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
   window.history.replaceState({}, "", "/admin");
 });
 

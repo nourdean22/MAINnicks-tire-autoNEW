@@ -131,6 +131,7 @@ beforeEach(() => {
   h.toastError.mockReset();
   h.onInvalidate = null;
   h.queries.set("opportunityQueue.list", ok({ items: [], queryable: true }));
+  h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
   h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
   try { window.localStorage.clear(); } catch { /* storage blocked: the rail must still render */ }
   setDesktop(false);

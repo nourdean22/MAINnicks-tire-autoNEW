@@ -17,16 +17,18 @@ import React from "react";
 type Q = { data: unknown; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void; isFetching: boolean; dataUpdatedAt: number };
 const h = vi.hoisted(() => ({
   queries: new Map<string, Partial<Q>>(),
+  /** The options each query was last called with, by dotted path. */
+  calls: new Map<string, any>(),
   mutations: new Map<string, (opts: any) => unknown>(),
   confirm: vi.fn(async () => true),
   Null: () => null,
   Marker: (id: string) => () => <div data-testid={id} />,
 }));
 vi.mock("@/lib/trpc", () => {
-  const query = (path: string) => () => ({
-    data: undefined, isLoading: false, isError: false, error: null, refetch: () => {}, isFetching: false,
-    ...h.queries.get(path),
-  });
+  const query = (path: string) => (_input?: unknown, opts?: any) => {
+    h.calls.set(path, opts);
+    return { data: undefined, isLoading: false, isError: false, error: null, refetch: () => {}, isFetching: false, ...h.queries.get(path) };
+  };
   const mutation = (path: string) => (opts: any) =>
     h.mutations.get(path)?.(opts) ?? { mutate: () => {}, mutateAsync: async () => ({}), isPending: false, isSuccess: false, reset: () => {} };
   const node = (path: string): any =>
@@ -125,6 +127,8 @@ const onNavigate = (e: Event) => navigations.push({ section: (e as CustomEvent<{
 
 beforeEach(() => {
   h.queries.clear();
+  h.calls.clear();
+  h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
   h.mutations.clear();
   h.confirm.mockReset();
   h.confirm.mockResolvedValue(true);
@@ -159,7 +163,8 @@ describe("queue membership: the board holds the shop's move, not the customer's"
     fireEvent.click(within(board()).getByRole("button", { name: /^Waiting on customer/ }));
     expect(navigations).toHaveLength(1);
     expect(navigations[0].section).toBe("leads");
-    expect(new URL(navigations[0].href).search).toBe("?tab=leads&leadsTab=leads");
+    // status=waiting is LeadsSection's bucket filter (useUrlFilter("status")): contacted leads sit under Waiting.
+    expect(new URL(navigations[0].href).search).toBe("?tab=leads&leadsTab=leads&status=waiting");
   });
 
   it("marking a lead contacted takes it off the board at once", async () => {
@@ -325,7 +330,7 @@ describe("what left the page", () => {
     standardDay();
     h.queries.set("adminSecurity.integrationFreshness", ok({ ...FRESH, lastSuccessfulAt: iso(3 * 24 * 60) }));
     const first = render(<OverviewSection />);
-    expect(screen.getByText(/^ShopDriver mirror · stale since /)).toBeTruthy();
+    expect(screen.getByText(/^ShopDriver mirror · stale · last success /)).toBeTruthy();
     first.unmount();
     h.queries.set("adminSecurity.integrationFreshness", FAILED);
     const second = render(<OverviewSection />);
@@ -382,6 +387,106 @@ describe("manager rulings (2026-10-26)", () => {
     expect(within(tile("Needs action")).getByText("7")).toBeTruthy();
     expect(screen.getByText(/^Now: /).textContent).toContain("7 in queue");
     expect(screen.getByText(/^Now: /).textContent).not.toContain("+");
+  });
+});
+
+describe("Codex review of PR 3316", () => {
+  it("bundle answered and follow-ups not yet: no all clear anywhere, and the tile is loading, not 0", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE({ bookings: [], leads: [], callbacks: [], owedTexts: [] })));
+    h.queries.set("opportunityQueue.list", { data: undefined, isLoading: true, isError: false });
+    const { container } = render(<OverviewSection />);
+    expect(container.textContent ?? "").not.toMatch(/all clear/i);
+    expect(within(tile("Needs action")).getByText("Loading")).toBeTruthy();
+    expect(tile("Needs action").textContent).not.toMatch(/\d/);
+  });
+
+  it("a full server window keeps the plus after the board's filter drops a row", () => {
+    standardDay();
+    const items = [...Array.from({ length: 499 }, (_, i) => ({ ...opp(i + 1, 1), sourceType: "missed_call" })), { ...opp(500, 1), sourceType: "callback" }];
+    h.queries.set("opportunityQueue.list", ok({ items, queryable: true }));
+    render(<OverviewSection />);
+    expect(within(board()).getByRole("button", { name: "5 of 499+ follow-ups open · Open Sales Pipeline" })).toBeTruthy();
+    expect(within(tile("Needs action")).getByText("10+")).toBeTruthy();
+  });
+
+  it("a failing mirror names its last success, not an onset it does not know", () => {
+    standardDay();
+    h.queries.set("adminSecurity.integrationFreshness", ok({ ...FRESH, failuresSinceLastSuccess: 2, lastAttemptOutcome: "auth_failed" }));
+    render(<OverviewSection />);
+    expect(screen.getByText(/^ShopDriver mirror · failing · last success /)).toBeTruthy();
+  });
+
+  it("a role that cannot open Sales Pipeline gets no follow-ups read, no follow-up rows and no Pipeline links", () => {
+    standardDay();
+    h.queries.set("adminSecurity.status", ok({ adminRole: "viewer", permissions: [] }));
+    render(<OverviewSection />);
+    expect(h.calls.get("opportunityQueue.list")?.enabled).toBe(false);
+    expect(rows().some((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""))).toBe(false);
+    expect(within(board()).queryByRole("button", { name: "Open in Sales Pipeline" })).toBeNull();
+    expect(within(board()).queryByText(/follow-ups open|follow-ups unknown/)).toBeNull();
+    // The waiting count still shows, as text: the link would land on a section this role cannot open.
+    expect(within(board()).getByText("Waiting on customer · 1 contacted lead")).toBeTruthy();
+    expect(within(board()).queryByRole("button", { name: /^Waiting on customer/ })).toBeNull();
+    // Not applicable is not unknown: 1 booking + 2 new leads + 1 callback + 1 text, exact.
+    expect(within(tile("Needs action")).getByText("5")).toBeTruthy();
+  });
+
+  it("the owner's follow-ups read is enabled and polls like the bundle", () => {
+    standardDay();
+    render(<OverviewSection />);
+    expect(h.calls.get("opportunityQueue.list")).toMatchObject({ enabled: true, refetchInterval: 30_000, refetchIntervalInBackground: false });
+    expect(rows().filter((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""))).toHaveLength(5);
+  });
+
+  it("Mark contacted also leaves the sidebar badge count: one predicate for board and badge", async () => {
+    const { getAdminActionableCounts, isOpenLead } = await import("@/lib/adminActionableCounts");
+    expect(getAdminActionableCounts({ leads: LEADS }).actionableLeads).toBe(LEADS.filter(isOpenLead).length);
+    const src = readFileSync(join(process.cwd(), "client/src/pages/admin/OverviewSection.tsx"), "utf8");
+    expect(src).toMatch(/import \{[^}]*\bisOpenLead\b[^}]*\} from "@\/lib\/adminActionableCounts"/);
+    expect(src).not.toMatch(/const isOpenLead\s*=/);
+  });
+
+  it("an unknown publishing reading makes Decisions waiting unknown, never the proposals number alone", () => {
+    standardDay();
+    h.queries.set("contentAdmin.operationsSignal", ok({ unknown: true, total: 0, videoProviderBlocked: 0 }));
+    render(<OverviewSection />);
+    expect(within(tile("Decisions waiting")).getByText("—")).toBeTruthy();
+    expect(tile("Decisions waiting").textContent).not.toMatch(/\d/);
+  });
+
+  it("the Decisions tile opens where the decisions are: Approvals, Instagram, or Approvals for both", () => {
+    const cases: Array<[number, number, string, string]> = [
+      [3, 0, "approvals", "Approvals"],
+      [0, 2, "instagram", "Instagram"],
+      [3, 2, "approvals", "Approvals and Instagram"],
+    ];
+    for (const [proposals, held, section, detail] of cases) {
+      standardDay();
+      h.queries.set("proposals.counts", ok({ readable: true, count: proposals }));
+      h.queries.set("contentAdmin.operationsSignal", ok({ unknown: false, total: held, videoProviderBlocked: 0 }));
+      const view = render(<OverviewSection />);
+      expect(within(tile("Decisions waiting")).getByText(detail), detail).toBeTruthy();
+      fireEvent.click(within(strip()).getByRole("button", { name: /Decisions waiting/ }));
+      expect(navigations.at(-1)?.section, detail).toBe(section);
+      view.unmount();
+    }
+  });
+
+  it("a role that cannot open Approvals or Instagram gets a Decisions tile that is not a button", () => {
+    standardDay();
+    h.queries.set("adminSecurity.status", ok({ adminRole: "viewer", permissions: [] }));
+    render(<OverviewSection />);
+    expect(within(strip()).queryByRole("button", { name: /Decisions waiting/ })).toBeNull();
+    expect(within(tile("Decisions waiting")).getByText("5")).toBeTruthy();
+  });
+
+  it("a bundle that never answered (paused offline) leaves Waiting on customer unknown, not 0", () => {
+    standardDay();
+    h.queries.set("adminDashboard.overviewMediumBundle", { data: undefined, isLoading: false, isError: false });
+    render(<OverviewSection />);
+    expect(tile("Waiting on customer").textContent).not.toMatch(/\d/);
+    expect(within(tile("Waiting on customer")).getByText("Unable to determine")).toBeTruthy();
+    expect(within(board()).getByRole("button", { name: "Waiting on customer · unknown" })).toBeTruthy();
   });
 });
 
