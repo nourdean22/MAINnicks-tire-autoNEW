@@ -20,14 +20,22 @@
 import type { SubAgentTask } from "@/lib/ai/multi-agent-orchestrator";
 
 const MAX_AUTO_AGENTS = 4; // bound cost · cap below the orchestrator's hard 8
+// The lane runs BEFORE the main stream and falls through on failure, so its
+// time is the operator's wait. Live 2026-10-26: four guardian timeouts (sub 12 s
+// and synth 15 s, each retried once) held the first token for 54 s.
+const AUTO_DECOMPOSE_CAP_MS = 20_000;
+// A long personal message has "and"s, commas and rhetorical "?"s, which the
+// structural signals below read as a multi-part ask. Talk it through instead.
+const PERSONAL_INTENTS = new Set(["emotional", "reflective", "casual"]);
 
 /**
  * Heuristic · is this a clear multi-part / comparison / multi-entity
  * question worth fanning out? Conservative by design — only TRUE when
  * the structure is unambiguous, so we don't pay the orchestrator tax on
- * ordinary single-answer turns.
+ * ordinary single-answer turns. `intent` is the turn classifier's.
  */
-export function isMultiPartQuestion(userContent: string): boolean {
+export function isMultiPartQuestion(userContent: string, intent?: string): boolean {
+  if (intent && PERSONAL_INTENTS.has(intent)) return false;
   const q = (userContent ?? "").trim();
   if (q.length < 40) return false; // too short to be a genuine multi-part ask
   if (q.length > 4000) return false; // pasted dumps → not a clean fan-out target
@@ -133,7 +141,15 @@ export async function runAutoDecompose(
       ? `${userContent.slice(0, 1500)}\n\n[CONTEXT]\n${brainContext.slice(0, 4000)}`
       : userContent.slice(0, 1500);
 
-    const report = await runMultiAgent({ goal, subAgents });
+    // shortcut: the abandoned run keeps going in the background (runMultiAgent takes no signal); bounded by its own guardians.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const report = await Promise.race([
+      runMultiAgent({ goal, subAgents }),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), AUTO_DECOMPOSE_CAP_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    if (!report) return "";
     const synthesis = (report.synthesis ?? "").trim();
     if (
       synthesis.length === 0 ||

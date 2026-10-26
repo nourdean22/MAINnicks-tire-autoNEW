@@ -24,6 +24,16 @@
  *
  * Pure — no IO.
  */
+/**
+ * 2026-10-26 · true when `text` is exactly one of the fallback copies above.
+ * The copy is the only marker these rows carry (persist stores it as plain
+ * content), so history sanitizing keys on exact equality, never a substring.
+ */
+export function isEmptyResponseFallback(text: string): boolean {
+  const t = text.trim();
+  return [undefined, "tool-calls", "content-filter"].some((r) => emptyResponseFallback(r) === t);
+}
+
 export function emptyResponseFallback(finishReason?: string): string {
   // 2026-08-11 · refusal branch. Claude 5-family models end a turn with
   // stop_reason "refusal" (HTTP 200) — the AI SDK surfaces it as

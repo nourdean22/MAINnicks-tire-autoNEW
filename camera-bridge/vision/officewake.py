@@ -36,6 +36,11 @@ DEFAULT_EVENTS = frozenset({"motion", "personDetected"})
 FALSE_MARKERS = frozenset({"0", "false", "off", "clear", "cleared", "idle", "inactive", "none"})
 #: Run outcomes the worker reports as DEGRADED (and counts in conversationFailuresToday).
 FAILED_STATUSES = frozenset({"capture_failed", "runner_failed", "partial", "failed"})
+#: Past the capture window: ffmpeg's own 120 s timeout, the closing still, the person count.
+#: On 2026-10-22 17:51Z one capture never returned; the worker stayed CAPTURING and the probe
+#: loop, which skips while CAPTURING, heard nothing for four days. A capture past this is
+#: abandoned (its thread cannot be killed) and settled as capture_failed so listening resumes.
+CAPTURE_HANG_GRACE_SECONDS = 300.0
 
 
 class OfficeWakeError(RuntimeError):
@@ -1042,6 +1047,16 @@ class OfficeWakeDaemon:
                 **common,
             )
 
+    def _hung_capture(self, trigger: Trigger, hang_after: float) -> CaptureResult:
+        """A capture thread past its ceiling: recorded, counted as failed, and left behind."""
+        self.ledger.note("capture_hung", {"trigger": _trigger_payload(trigger), "abandonedAfterSeconds": hang_after})
+        return CaptureResult(
+            "capture_failed",
+            f"capture did not return within {int(hang_after)} s; abandoned so listening resumes",
+            _trigger_payload(trigger),
+            episodes_failed=1,
+        )
+
     def _enqueue_phase(self, phase: CapturePhase) -> None:
         """Hand a captured wake to the transcribe worker; a full backlog drops the OLDEST."""
         if self.transcribe_queue.full():
@@ -1116,10 +1131,15 @@ class OfficeWakeDaemon:
                 )
                 self.ledger.note("capture_started", {"trigger": _trigger_payload(trigger)})
 
+                hang_after = float(self.config.seconds) + CAPTURE_HANG_GRACE_SECONDS
                 if self.runner is not None:
                     # Legacy single-call path: everything in one thread, result applied here.
                     try:
-                        result = await asyncio.to_thread(self.runner, self.config, trigger)
+                        result = await asyncio.wait_for(
+                            asyncio.to_thread(self.runner, self.config, trigger), timeout=hang_after
+                        )
+                    except asyncio.TimeoutError:
+                        result = self._hung_capture(trigger, hang_after)
                     except Exception as exc:  # noqa: BLE001
                         result = CaptureResult(
                             "runner_failed",
@@ -1138,8 +1158,18 @@ class OfficeWakeDaemon:
                     continue
 
                 try:
-                    phase = await asyncio.to_thread(
-                        self.capture_phase_fn, self.config, trigger, clock=self.clock
+                    phase = await asyncio.wait_for(
+                        asyncio.to_thread(self.capture_phase_fn, self.config, trigger, clock=self.clock),
+                        timeout=hang_after,
+                    )
+                except asyncio.TimeoutError:
+                    phase = CapturePhase(
+                        trigger=trigger,
+                        started_at=now,
+                        capture_seconds=0.0,
+                        segments=[],
+                        frames=[],
+                        result=self._hung_capture(trigger, hang_after),
                     )
                 except Exception as exc:  # noqa: BLE001
                     phase = CapturePhase(

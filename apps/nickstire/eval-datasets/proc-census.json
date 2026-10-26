@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-26T13:15:33.426Z",
-  "count": 653,
+  "generatedAt": "2026-10-26T14:30:47.063Z",
+  "count": 654,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -204,6 +204,7 @@
     "mutation.memberships.grantGracePeriod",
     "mutation.memberships.startCheckout",
     "mutation.metaAdsArchitect.generatePlan",
+    "mutation.nickActions.ask",
     "mutation.nickActions.runMigrations",
     "mutation.opportunityQueue.transition",
     "mutation.payments.confirmPayment",

@@ -9,7 +9,7 @@
  *     (Venice/Ollama/OpenAI keep the legacy system+messages split)
  *   · pruned tools + hallucinated-tool-name repair
  *   · smoothStream perceived-latency word chunking
- *   · step caps (standard 3 / deep 5)
+ *   · step caps (standard 3 / deep 5, +1 text-only belt step)
  *   · the prepareStep toolChoice ladder — python-execute step-0 pin →
  *     web-search step-0 pin → generic action "required" → default —
  *     each with the 2026-07-15 final-step text forcing, and the READ
@@ -35,6 +35,7 @@ import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
+import { salvageLengthCutoff } from "@/lib/services/chat/salvage-event-text";
 import { createInFlightToolCalls, type InFlightToolCalls } from "@/lib/services/chat/in-flight-tool-calls";
 import type { PersistBase } from "./alternate-paths";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -207,7 +208,10 @@ export function buildStreamConfigFactory(deps: {
       // Standard allows 3 tool-call steps; deep allows 5 for agentic
       // workflows. Keep step counts tight so a confused tool chain can't
       // blow through the whole context budget.
-      stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
+      // 2026-10-26 · +1: a text-only step that STILL returned tool calls gets
+      // one more text-only step instead of ending the turn with no prose. Tools
+      // stay limited to the first N-1 steps (prepareStep below).
+      stopWhen: stepCountIs((mode === "deep" ? 5 : 3) + 1),
       // Context-aware brevity cap — see prepare-tools.ts.
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
       // Apr 19 · Adaptive temperature from the turn classifier.
@@ -248,6 +252,16 @@ export function buildStreamConfigFactory(deps: {
         // produce text. Applies to all three branches, including the
         // previously-prepareStep-less default.
         const lastStep = (mode === "deep" ? 5 : 3) - 1;
+        // 2026-10-26 · tool_choice "none" is only a request. Ollama's
+        // OpenAI-compat surface ignores it: an ollama/minimax-m3 turn called
+        // tools on its last step and ended "tool-calls" with no prose. So the
+        // last step also sends NO tools (activeTools: []), which no provider
+        // can ignore. Anthropic, Gemini and OpenAI honour "none" natively and
+        // keep their tool definitions (Anthropic rejects tool history without them).
+        const textOnly =
+          fbProvider === "anthropic" || fbProvider === "gemini" || fbProvider === "openai"
+            ? { toolChoice: "none" as const }
+            : { toolChoice: "none" as const, activeTools: [] as string[] };
         // READ permission (composer selector) must not be contradicted by
         // structural tool forcing — a forced tool / toolChoice:"required"
         // makes the "observe and describe, don't act" directive impossible
@@ -270,7 +284,7 @@ export function buildStreamConfigFactory(deps: {
               stepNumber === 0
                 ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
                 : stepNumber >= lastStep
-                  ? { toolChoice: "none" as const }
+                  ? textOnly
                   : { toolChoice: "auto" as const },
           };
         }
@@ -298,13 +312,13 @@ export function buildStreamConfigFactory(deps: {
               stepNumber === 0
                 ? { toolChoice: "required" as const }
                 : stepNumber >= lastStep
-                  ? { toolChoice: "none" as const }
+                  ? textOnly
                   : { toolChoice: "auto" as const },
           };
         }
         return {
           prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-            stepNumber >= lastStep ? { toolChoice: "none" as const } : {},
+            stepNumber >= lastStep ? textOnly : {},
         };
       })(),
       // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
@@ -372,14 +386,29 @@ export function buildStreamConfigFactory(deps: {
       // May 02 · chat-route extract chunk 5 · onFinish moved to
       // lib/services/chat/persist-assistant-turn.ts. Factory pattern
       // returns the callback wired with all post-stream deps.
-      onFinish: buildOnFinish({
-        ...persistBase,
-        provider: fbProvider,
-        modelId: fbModelId,
-        model: __fbModel,
-        partialRef: __partialRef,
-        onWorkComplete: resolveOnFinish,
-      }) as Parameters<typeof streamText>[0]["onFinish"],
+      onFinish: ((persist) => async (event: Record<string, unknown>) => {
+        // 2026-10-26 · a reply cut off by the output cap before any text gets one
+        // bounded text-only retry (salvage-event-text.ts) before persist falls back.
+        const salvage = await salvageLengthCutoff({
+          event,
+          model: __fbModel,
+          system: finalSystemPrompt,
+          messages: sanitizedModelMessages,
+          privateMode,
+          conversationId: conversationId || undefined,
+          log,
+        });
+        return persist(salvage ? { ...event, ...salvage } : event);
+      })(
+        buildOnFinish({
+          ...persistBase,
+          provider: fbProvider,
+          modelId: fbModelId,
+          model: __fbModel,
+          partialRef: __partialRef,
+          onWorkComplete: resolveOnFinish,
+        }) as unknown as (event: Record<string, unknown>) => Promise<void>,
+      ) as Parameters<typeof streamText>[0]["onFinish"],
     } as never);
   };
 }

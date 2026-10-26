@@ -41,7 +41,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { VISIT_MARK_BUTTONS, VISIT_MARK_LABELS, type VisitMark, type VisitMarkState } from "@shared/visitMarks";
-import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
+import { conversationCaptureStuck, summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
 import { lotDataConfidence, type LotConfidence } from "@shared/lotDataConfidence";
 import { localClock } from "@shared/shopState";
 import { PageHeader, StatCard, Panel, MetricGrid, EmptyState } from "./shared";
@@ -1677,15 +1677,18 @@ function ConversationPanel({
   // live state off a dead process. Stale or from a dead producer, the state is UNKNOWN and
   // the last report is shown as history, dated.
   const reportFresh = workerReportFresh(officeCamera);
-  const workerState = runtime && !reportFresh ? "UNKNOWN" : reportedState;
+  // A fresh report that has said CAPTURING for 15+ min is a hung recording: the worker
+  // listens to nothing until it is restarted (2026-10-22 17:51Z to 10-26).
+  const captureStuck = reportFresh && conversationCaptureStuck(runtime);
+  const workerState = runtime && !reportFresh ? "UNKNOWN" : captureStuck ? "STUCK" : reportedState;
   const workerHealthy =
     reportFresh &&
     runtime?.workerOk === true &&
-    !["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED"].includes(workerState);
+    !["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED", "STUCK"].includes(workerState);
   const workerTone = workerHealthy
     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
     : runtime?.workerOk === false ||
-        ["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED"].includes(
+        ["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED", "STUCK"].includes(
           workerState
         )
       ? "border-red-500/30 bg-red-500/10 text-red-300"
@@ -1811,6 +1814,12 @@ function ConversationPanel({
               {formatAgo(runtime.workerAgeSeconds)} ago
               {officeCamera?.facets.producer !== "alive" ? " via a producer that is no longer heartbeating" : ""}.
               A worker that stopped reporting is not known to be listening.
+            </div>
+          )}
+          {captureStuck && runtime && (
+            <div className="mt-2 text-[12px] text-red-300">
+              Stuck in one recording for {formatAgo(runtime.captureAgeSeconds)}; not listening.
+              Restart the task StateNour-OfficeIntelligence-ShopPC on the front-desk PC, or restart that PC.
             </div>
           )}
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55 tabular-nums">
@@ -2294,6 +2303,12 @@ export default function LotSection() {
               ? "the office producer is not heartbeating; its last worker report is history"
               : "the worker stopped writing its status; a stale READY is not listening",
           }
+        : conversationCaptureStuck(officeRuntime)
+          ? {
+              value: `not listening · stuck ${formatAgo(officeRuntime.captureAgeSeconds)}`,
+              tone: "bad",
+              detail: "one recording never finished; restart the office task on the front-desk PC",
+            }
         : typeof officeCoverage === "number"
           ? {
               value: `listened ${Math.round(officeCoverage * 100)}% of the last hour`,

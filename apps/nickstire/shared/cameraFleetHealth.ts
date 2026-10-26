@@ -31,7 +31,28 @@ export interface CameraFleetInputCamera {
     state?: string | null;
     /** Seconds since the worker last wrote its own status (lot.health `workerAgeSeconds`). */
     workerAgeSeconds?: number | null;
+    /** Seconds since the current or last capture started (lot.health `captureAgeSeconds`). */
+    captureAgeSeconds?: number | null;
   } | null;
+}
+
+/**
+ * A capture is at most OFFICE_CAPTURE_SECONDS (120 s) plus ffmpeg's own 120 s timeout and a
+ * closing still. A worker still CAPTURING well past that is stuck: on 2026-10-22 17:51Z one
+ * capture never returned, the probe loop skips every pass while CAPTURING, and the lane heard
+ * nothing for four days with a fresh heartbeat.
+ */
+const CAPTURE_STUCK_AFTER_SECONDS = 15 * 60;
+
+export function conversationCaptureStuck(
+  conversation: { state?: string | null; captureAgeSeconds?: number | null } | null | undefined,
+): boolean {
+  const age = conversation?.captureAgeSeconds;
+  return (
+    conversation?.state?.toUpperCase() === "CAPTURING" &&
+    typeof age === "number" &&
+    age > CAPTURE_STUCK_AFTER_SECONDS
+  );
 }
 
 /**
@@ -92,6 +113,22 @@ export function summarizeCameraFleet(
     const label = c.label || c.camera;
     if (c.registered === false) {
       problems.push({ camera: c.camera, label, state: `UNREGISTERED (${c.state})` });
+      continue;
+    }
+    // Before the camera state: the office camera's own amber state (UNVERIFIED_CAPABILITIES)
+    // must not hide a worker that has stopped listening. Only a FRESH report: a heartbeat that
+    // stopped mid-capture is the camera's outage (PRODUCER_OFFLINE), not a stuck recording.
+    const reportAge = c.conversation?.workerAgeSeconds;
+    if (
+      typeof reportAge === "number" &&
+      reportAge <= WORKER_STALE_AFTER_SECONDS &&
+      conversationCaptureStuck(c.conversation)
+    ) {
+      problems.push({
+        camera: c.camera,
+        label,
+        state: `conversation worker stuck in one recording (${Math.round((c.conversation?.captureAgeSeconds ?? 0) / 3600)}h), not listening`,
+      });
       continue;
     }
     if (c.state !== "HEALTHY") {
