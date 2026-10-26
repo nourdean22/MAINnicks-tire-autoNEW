@@ -2,7 +2,7 @@
  * nickActions.cronHealthSummary: one row per scheduled job over the last 24 hours, plus what the cron-failure
  * observer already measured (stuck queues, lane shapes).
  *
- * The old cronHealth returned the newest 500 of ~116 jobs' runs, flat; the Settings tab printed 80 of them, every
+ * The removed cronHealth returned the newest 500 of ~116 jobs' runs, flat; the Settings tab printed 80 of them, every
  * one "completed", and the real signals sat inside one observer details string. This drives the REAL drizzle
  * builder over a fake mysql2 client that records the SQL and answers it the way the database would (window,
  * GROUP BY job, latest row per job), so a LIMIT, a lost window or a per-run read changes the answer.

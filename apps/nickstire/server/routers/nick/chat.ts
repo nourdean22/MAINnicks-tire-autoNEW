@@ -32,8 +32,8 @@ function toIso(value: unknown): string | null {
 }
 
 // ─── Cron Health Summary (one row per job · last 24h of cron_log) ───
-// 2026-10-25 · cronHealth above returns the newest 500 runs flat; with ~116 jobs the tab showed 80 "completed"
-// rows and buried the failures and the observer's stuck queues. Two grouped reads, no row cap:
+// 2026-10-25 · replaces cronHealth, which returned the newest 500 runs flat; with ~116 jobs the tab showed 80
+// "completed" rows and buried the failures and the observer's stuck queues. Two grouped reads, no row cap:
 //   (a) per job: runs, failed, skipped, last start, last success (GROUP BY job_name);
 //   (b) the latest row per job, via a join on MAX(started_at) per job (a correlated subquery would run once per
 //       row; one ordered fetch of the window would drag every run's details text over the wire for a latest-only read).
@@ -99,27 +99,4 @@ export async function handleCronHealthSummary() {
     : null;
 
   return { since: since.toISOString(), to: to.toISOString(), jobs, observer };
-}
-
-// ─── Cron Health (read-only · last 24h of cron_log) ───
-// wave-149 · the operator had NO UI to see which of ~40 crons ran / failed /
-// silently skipped — the exact blind spot that hid the never-scheduled
-// follow-up-cadence cron this session. Reads the existing cron_log table
-// (failed jobs put their error in `details`). No schema change.
-export async function handleCronHealth() {
-  const { getDb } = await import("../../db");
-  const { cronLog } = await import("../../../drizzle/schema");
-  const { desc, gte } = await import("drizzle-orm");
-  const db = await getDb();
-  if (!db) return [];
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  return db.select({
-    jobName: cronLog.jobName,
-    status: cronLog.status,
-    durationMs: cronLog.durationMs,
-    recordsProcessed: cronLog.recordsProcessed,
-    details: cronLog.details,
-    startedAt: cronLog.startedAt,
-    completedAt: cronLog.completedAt,
-  }).from(cronLog).where(gte(cronLog.startedAt, since)).orderBy(desc(cronLog.startedAt)).limit(500);
 }

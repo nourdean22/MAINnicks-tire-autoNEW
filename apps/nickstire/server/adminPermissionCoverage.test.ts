@@ -142,10 +142,9 @@ describe("queries stay permissive on purpose", () => {
   });
 
   it("the Settings status reads resolve exactly as the cron read they replace: operational queries stay admin.view", () => {
-    // cronHealthSummary is the grouped successor of cronHealth (2026-10-25): job names, run counts and the
-    // observer's queue ages, the same class of data. It must not need a stronger permission than the read
-    // the Status tab already made, or a role that sees the tab today would get FORBIDDEN on its replacement.
-    expect(permissionForAdminProcedure("nickActions.cronHealth", "query")).toBe("admin.view");
+    // cronHealthSummary replaced the flat cronHealth read (2026-10-25): job names, run counts and the
+    // observer's queue ages. It must not need a stronger permission than the read the Status tab made before,
+    // or a role that sees the tab would get FORBIDDEN on its replacement.
     expect(permissionForAdminProcedure("nickActions.cronHealthSummary", "query")).toBe("admin.view");
     // The flag list and the declined-recovery status carry who flipped a switch and send state: owner/manager only.
     expect(permissionForAdminProcedure("featureFlags.list", "query")).toBe("settings.manage");

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-26T12:13:43.487Z",
-  "count": 654,
+  "generatedAt": "2026-10-26T13:07:23.107Z",
+  "count": 651,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -427,7 +427,6 @@
     "query.gatewayTire.checkOrder",
     "query.gatewayTire.getPackage",
     "query.gatewayTire.listOrders",
-    "query.gatewayTire.markup",
     "query.gatewayTire.orderStats",
     "query.gatewayTire.popularSizes",
     "query.gatewayTire.publicPriceRanges",
@@ -435,7 +434,6 @@
     "query.gatewayTire.publicStats",
     "query.gatewayTire.searchBySize",
     "query.gatewayTire.status",
-    "query.gatewayTire.tireActivity",
     "query.gbp.getAuthStatus",
     "query.gbp.getAuthUrl",
     "query.gbp.listLocations",
@@ -517,7 +515,6 @@
     "query.market.topPages",
     "query.market.topQueries",
     "query.memberships.lookupByPhone",
-    "query.nickActions.cronHealth",
     "query.nickActions.cronHealthSummary",
     "query.nickActions.customerMessagePreviews",
     "query.nickActions.shopPulse",

@@ -189,6 +189,10 @@ export async function handleRunMigrations() {
       // 2026-10-22 · drizzle/0150_service_reminders_unique.sql: one reminder per customer, category and
       // closed job. The planner inserts with IGNORE, so it works before and after this lands.
       `CREATE UNIQUE INDEX IF NOT EXISTS uq_service_reminders_phone_type_date ON service_reminders (phone, serviceType, lastServiceDate)`,
+      // 2026-10-26 · drizzle/0152_audit_log_entity_id_100.sql: a 40-character flag key did not fit varchar(36), so its
+      // toggle audit row was rejected under strict mode. Widening only; re-asserts the width schema.ts declares
+      // (auditLogEntityIdWidth.test.ts pins that), and a re-run is a no-op.
+      `ALTER TABLE audit_log MODIFY COLUMN entity_id VARCHAR(100) NULL`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
