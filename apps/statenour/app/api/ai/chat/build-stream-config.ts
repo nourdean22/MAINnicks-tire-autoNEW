@@ -35,6 +35,7 @@ import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
+import { salvageLengthCutoff } from "@/lib/services/chat/salvage-event-text";
 import { createInFlightToolCalls, type InFlightToolCalls } from "@/lib/services/chat/in-flight-tool-calls";
 import type { PersistBase } from "./alternate-paths";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -385,14 +386,27 @@ export function buildStreamConfigFactory(deps: {
       // May 02 · chat-route extract chunk 5 · onFinish moved to
       // lib/services/chat/persist-assistant-turn.ts. Factory pattern
       // returns the callback wired with all post-stream deps.
-      onFinish: buildOnFinish({
-        ...persistBase,
-        provider: fbProvider,
-        modelId: fbModelId,
-        model: __fbModel,
-        partialRef: __partialRef,
-        onWorkComplete: resolveOnFinish,
-      }) as Parameters<typeof streamText>[0]["onFinish"],
+      onFinish: ((persist) => async (event: Record<string, unknown>) => {
+        // 2026-10-26 · a reply cut off by the output cap before any text gets one
+        // bounded text-only retry (salvage-event-text.ts) before persist falls back.
+        const salvage = await salvageLengthCutoff({
+          event,
+          model: __fbModel,
+          system: finalSystemPrompt,
+          messages: sanitizedModelMessages,
+          log,
+        });
+        return persist(salvage ? { ...event, ...salvage } : event);
+      })(
+        buildOnFinish({
+          ...persistBase,
+          provider: fbProvider,
+          modelId: fbModelId,
+          model: __fbModel,
+          partialRef: __partialRef,
+          onWorkComplete: resolveOnFinish,
+        }) as unknown as (event: Record<string, unknown>) => Promise<void>,
+      ) as Parameters<typeof streamText>[0]["onFinish"],
     } as never);
   };
 }

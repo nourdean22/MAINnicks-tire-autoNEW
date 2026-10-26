@@ -29,6 +29,60 @@ export interface SalvagedEventText {
   usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
 }
 
+// Strip Venice GLM <think>...</think> reasoning blocks that leak into responses
+const stripThink = (s: string) =>
+  s
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<\/?think>/gi, "")
+    .replace(/^[\s\n]+/, "")
+    .trim();
+
+const LENGTH_SALVAGE_MAX_TOKENS = 2_000;
+const LENGTH_SALVAGE_TIMEOUT_MS = 30_000;
+
+/**
+ * 2026-10-26 · a reply that hit the output cap ("length") before any visible
+ * text gets ONE bounded text-only retry before the fallback copy. Live: an
+ * ollama/minimax-m3 turn spent all 6,000 output tokens on hidden thinking (the
+ * openai chat adapter never surfaces Ollama's reasoning) and persisted the
+ * fallback. No tools; reasoning_effort "none" (ignored by non-OpenAI-shaped
+ * lanes, NOT live-checked on Ollama). Returns null when it does not apply or
+ * fails, so the fallback copy still covers it.
+ */
+export async function salvageLengthCutoff(args: {
+  event: { text?: string; finishReason?: string; response?: { messages?: unknown[] } };
+  model: unknown;
+  system: string;
+  messages: unknown;
+  log: ChatLogger;
+}): Promise<{ text: string; finishReason: string } | null> {
+  const { event, log } = args;
+  if (event.finishReason !== "length" || stripThink(event.text ?? "")) return null;
+  try {
+    const { generateText } = await import("ai");
+    // The cut-off step's own assistant message is empty; keep only messages with content (tool history).
+    const prior = (event.response?.messages ?? []).filter((m) => {
+      const c = (m as { content?: unknown }).content;
+      return Array.isArray(c) ? c.length > 0 : Boolean(c);
+    });
+    const r = await generateText({
+      model: args.model as never,
+      system: `${args.system}\n\nYour previous attempt ran out of room before writing anything. Reply to the last message now, directly, in plain prose.`,
+      messages: [...(args.messages as never[]), ...(prior as never[])],
+      maxOutputTokens: LENGTH_SALVAGE_MAX_TOKENS,
+      providerOptions: { openai: { reasoningEffort: "none" } },
+      abortSignal: AbortSignal.timeout(LENGTH_SALVAGE_TIMEOUT_MS),
+      maxRetries: 0,
+    });
+    const text = stripThink(r.text ?? "");
+    log.info("length_cutoff_salvage", { chars: text.length, finish: r.finishReason });
+    return text ? { text, finishReason: r.finishReason } : null;
+  } catch (err) {
+    log.warn("length_cutoff_salvage_failed", { error: err instanceof Error ? err.name : "Error" });
+    return null;
+  }
+}
+
 export function salvageEventText(args: {
   event: { text?: string; usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } } & Record<string, unknown>;
   provider: ProviderName;
@@ -112,14 +166,6 @@ export function salvageEventText(args: {
       })
       .join("\n");
   }
-
-  // Strip Venice GLM <think>...</think> reasoning blocks that leak into responses
-  const stripThink = (s: string) =>
-    s
-      .replace(/<think>[\s\S]*?<\/think>/gi, "")
-      .replace(/<\/?think>/gi, "")
-      .replace(/^[\s\n]+/, "")
-      .trim();
 
   let text = stripThink(rawText);
   let salvageSource: string | null = null;
