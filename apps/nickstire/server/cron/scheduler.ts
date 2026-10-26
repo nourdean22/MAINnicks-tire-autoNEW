@@ -727,7 +727,6 @@ function buildTiers(): void {
         name: "data-accuracy-check",
         handler: async () => {
           // Verify data consistency every 5 minutes
-          const issues: string[] = [];
           try {
             const { getDb } = await import("../db");
             const { sql } = await import("drizzle-orm");
@@ -749,19 +748,21 @@ function buildTiers(): void {
             // means the ALG import or the name-match phone backfill in
             // shopDriverMirror.ts is broken right now. Alert on that; report the
             // historical residue as context only.
-            const [recentMissing] = await d.execute(sql`SELECT COUNT(*) as cnt FROM invoices WHERE (customerPhone IS NULL OR customerPhone = '') AND invoiceDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)`);
-            const recentMissingCount = Number((recentMissing as Record<string, unknown>[])?.[0]?.cnt || (recentMissing as Record<string, unknown>)?.cnt || 0);
-            if (recentMissingCount > 0) issues.push(`${recentMissingCount} invoices missing customer phone in the last 7d (import may be broken)`);
+            //
+            // One query returns both the missing count and the 7-day total, so the finding names its population
+            // ("1 of 25") and both numbers come from the same snapshot. describeDataAccuracy words it.
+            const [invoicePhones] = await d.execute(sql`SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN customerPhone IS NULL OR customerPhone = '' THEN 1 ELSE 0 END), 0) as missing FROM invoices WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+            const phoneRow = (invoicePhones as Record<string, unknown>[])?.[0] ?? (invoicePhones as Record<string, unknown>);
+            const recentMissingCount = Number(phoneRow?.missing);
+            const invoices7dCount = Number(phoneRow?.total);
 
             // Check for stale leads (new status > 7 days old)
             const [staleLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
             const staleCount = (staleLeads as Record<string, unknown>[])?.[0]?.cnt || (staleLeads as Record<string, unknown>)?.cnt || 0;
-            if (Number(staleCount) > 3) issues.push(`${staleCount} stale leads (>7d untouched)`);
 
             // Check for callbacks stuck in "new" > 24h
             const [staleCallbacks] = await d.execute(sql`SELECT COUNT(*) as cnt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
             const cbCount = (staleCallbacks as Record<string, unknown>[])?.[0]?.cnt || (staleCallbacks as Record<string, unknown>)?.cnt || 0;
-            if (Number(cbCount) > 0) issues.push(`${cbCount} callbacks unanswered >24h`);
 
             // Q-26 · data contracts. Freshness is sourced from a REAL mirror
             // receipt, never inferred from whether today's row count is zero.
@@ -788,10 +789,6 @@ function buildTiers(): void {
               timeZone: BUSINESS.timezone,
               openWeekdays,
             });
-            if (invoiceFreshness.state === "warn" || invoiceFreshness.state === "error") {
-              issues.push(`invoice mirror freshness ${invoiceFreshness.state}: ${invoiceFreshness.reason}`);
-            }
-
             type DailyCountRow = { day: string | Date; cnt: string | number };
             const rowsFrom = (result: unknown): DailyCountRow[] =>
               Array.isArray(result) ? (result as DailyCountRow[]) : [];
@@ -871,17 +868,29 @@ function buildTiers(): void {
               ["leads", leadVolume],
               ["callbacks", callbackVolume],
             ] as const;
-            for (const [label, verdict] of volumes) {
-              if (verdict.state === "warn" || verdict.state === "error") {
-                issues.push(`${label} weekday volume ${verdict.state}: ${verdict.reason}; current=${verdict.current}, expected≈${verdict.expectedMean?.toFixed(1) ?? "?"}`);
-              }
-            }
             const contractDetails = [
               `invoiceFreshness=${invoiceFreshness.state}(${invoiceFreshness.shopDaysOld ?? "?"} shop-day-old)`,
               ...volumes.map(([label, verdict]) =>
                 `${label}Volume=${verdict.state}(n=${verdict.current ?? "?"},history=${verdict.historyPoints},z=${verdict.zScore?.toFixed(2) ?? "?"})`
               ),
             ].join(" | ");
+
+            const { describeDataAccuracy } = await import("./dataAccuracyDetails");
+            const { issues, details } = describeDataAccuracy({
+              recentMissing: recentMissingCount,
+              total7d: invoices7dCount,
+              staleLeads: Number(staleCount),
+              staleCallbacks: Number(cbCount),
+              freshness: { state: invoiceFreshness.state, reason: invoiceFreshness.reason },
+              volumes: volumes.map(([label, verdict]) => ({
+                label,
+                state: verdict.state,
+                current: verdict.current,
+                expectedMean: verdict.expectedMean,
+                zScore: verdict.zScore,
+              })),
+              contractDetails,
+            });
 
             if (issues.length > 0) {
               // Log internally only — no external notifications
@@ -894,11 +903,8 @@ function buildTiers(): void {
 
             return {
               recordsProcessed: issues.length,
-              // A zero now says WHAT was checked. "All data clean" with no
-              // denominator was indistinguishable from a checker that did no work.
-              details: issues.length === 0
-                ? `All declared checks clean · ${contractDetails}`
-                : `${issues.join("; ")} · ${contractDetails}`,
+              // A zero says WHAT was checked and over how many rows; the probe codes follow " · probes: ".
+              details,
             };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },

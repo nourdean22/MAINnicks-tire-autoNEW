@@ -1,6 +1,7 @@
 /**
  * SiteHealthSection — extracted from Admin.tsx for maintainability.
  */
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import {
@@ -29,6 +30,9 @@ export default function SiteHealthSection() {
   const { data: failData } = trpc.adminDashboard.integrationFailures.useQuery(undefined, { refetchInterval: 60_000 });
   // journey/CAPI wave 2026-06 - env-presence booleans only; values never leave the server.
   const { data: capi } = trpc.adminDashboard.capiStatus.useQuery(undefined, { staleTime: 60_000 });
+  // Failures older than 30 days fold behind a button and stop driving the red lead-risk banner (2026-10-26:
+  // one two-month-old SMS daily-limit row kept the panel red every day).
+  const [showOlderFailures, setShowOlderFailures] = useState(false);
 
   if (isLoading) {
     return (
@@ -77,6 +81,18 @@ export default function SiteHealthSection() {
   // failure feed. Pure mapper — sheets-sync logs failures only, so "Healthy" means
   // "no recent failures logged", never a fabricated last-success.
   const sheetsSync = deriveSheetsSyncHealth(failData);
+
+  const failCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const allFailures = failData?.failures ?? [];
+  const recentFailures = allFailures.filter((f) => new Date(f.createdAt).getTime() >= failCutoff);
+  const olderFailures = allFailures.filter((f) => new Date(f.createdAt).getTime() < failCutoff);
+  const leadRiskRecent = recentFailures.filter((f) => f.leadAffecting && !f.resolved).length;
+  const unresolvedRecent = recentFailures.filter((f) => !f.resolved).length;
+  const unresolvedOlder = olderFailures.filter((f) => !f.resolved).length;
+  const shownFailures = showOlderFailures ? allFailures : recentFailures;
+  const failuresByType: Record<string, number> = {};
+  for (const f of shownFailures) failuresByType[f.failureType] = (failuresByType[f.failureType] ?? 0) + 1;
+  const cutoffDay = new Date(failCutoff).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
   const sheetsSyncMeta: Record<SheetsSyncStatus, { label: string; pill: string; icon: string }> = {
     healthy: { label: "Healthy", pill: "text-emerald-400 bg-emerald-500/10", icon: "text-emerald-400" },
     warning: { label: "Warning", pill: "text-amber-400 bg-amber-500/10", icon: "text-amber-400" },
@@ -163,11 +179,11 @@ export default function SiteHealthSection() {
         <div className="bg-card border border-border/30 p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-bold text-sm tracking-wide text-foreground flex items-center gap-2">
-              <AlertTriangle className={`w-4 h-4 ${failData.counts.leadAffectingUnresolved > 0 ? "text-red-400" : failData.counts.unresolved > 0 ? "text-amber-400" : "text-emerald-400"}`} />
+              <AlertTriangle className={`w-4 h-4 ${leadRiskRecent > 0 ? "text-red-400" : unresolvedRecent + unresolvedOlder > 0 ? "text-amber-400" : "text-emerald-400"}`} />
               INTEGRATION FAILURES
             </h3>
-            <span className="text-[11px] text-foreground/40">
-              {failData.counts.unresolved} unresolved · {failData.counts.recent} recent
+            <span className="text-[12px] text-foreground/50">
+              {unresolvedRecent} unresolved in the last 30 days
             </span>
           </div>
 
@@ -200,20 +216,24 @@ export default function SiteHealthSection() {
             </div>
           ) : (
             <>
-              {failData.counts.leadAffectingUnresolved > 0 && (
+              {leadRiskRecent > 0 ? (
                 <div className="mb-3 border border-red-500/40 bg-red-500/5 p-3 text-[12px] text-red-300">
-                  {failData.counts.leadAffectingUnresolved} unresolved lead-affecting failure{failData.counts.leadAffectingUnresolved === 1 ? "" : "s"} (sheets / CAPI / SMS / email): a lead may have been lost. Review the rows below.
+                  {leadRiskRecent} unresolved lead-affecting failure{leadRiskRecent === 1 ? "" : "s"} in the last 30 days: a lead may have been lost. Review the rows below.
                 </div>
-              )}
+              ) : unresolvedOlder > 0 ? (
+                <div className="mb-3 border border-amber-500/30 bg-amber-500/5 p-3 text-[12px] text-amber-300">
+                  No lead-affecting failures in the last 30 days · {unresolvedOlder} older unresolved row{unresolvedOlder === 1 ? "" : "s"} hidden
+                </div>
+              ) : null}
               <div className="flex flex-wrap gap-2 mb-3">
-                {Object.entries(failData.counts.byType).sort((a, b) => b[1] - a[1]).map(([type, n]) => (
+                {Object.entries(failuresByType).sort((a, b) => b[1] - a[1]).map(([type, n]) => (
                   <span key={type} className="text-[11px] px-2 py-0.5 rounded bg-foreground/5 border border-border/30 text-foreground/60 capitalize">
                     {type.replace(/_/g, " ")}: {n}
                   </span>
                 ))}
               </div>
               <div className="space-y-2">
-                {failData.failures.map((f) => (
+                {shownFailures.map((f) => (
                   <div
                     key={f.id}
                     className={`flex items-start justify-between gap-3 p-3 border ${f.resolved ? "border-border/20 opacity-60" : f.leadAffecting ? "border-red-500/30" : "border-amber-500/30"}`}
@@ -235,6 +255,15 @@ export default function SiteHealthSection() {
                   </div>
                 ))}
               </div>
+              {olderFailures.length > 0 && !showOlderFailures && (
+                <button
+                  type="button"
+                  onClick={() => setShowOlderFailures(true)}
+                  className="mt-3 min-h-[44px] px-3 text-[13px] font-semibold text-foreground/70 border border-border/30 hover:bg-foreground/5 transition-colors"
+                >
+                  Show {olderFailures.length} older (before {cutoffDay})
+                </button>
+              )}
             </>
           )}
         </div>

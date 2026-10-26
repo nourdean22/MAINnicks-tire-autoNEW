@@ -2770,7 +2770,8 @@ export const auditLog = mysqlTable("audit_log", {
   actor: varchar("actor", { length: 100 }).notNull(),
   action: varchar("action", { length: 100 }).notNull(),
   entityType: varchar("entity_type", { length: 50 }),
-  entityId: varchar("entity_id", { length: 36 }),
+  // 0152: was 36; the flag key web_experiment_home_hero_subline_2026_09 (40) was rejected under strict mode.
+  entityId: varchar("entity_id", { length: 100 }),
   changes: json("changes"),
   ipAddress: varchar("ip_address", { length: 45 }),
   // 0110 (hand-apply required) — attributed activity-ledger columns. All

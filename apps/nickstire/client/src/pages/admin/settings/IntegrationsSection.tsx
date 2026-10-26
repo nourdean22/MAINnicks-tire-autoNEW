@@ -78,13 +78,18 @@ function VendorHealthStrip() {
     : WifiOff;
 
   const connectedCount = health.checks.filter((c: HealthCheck) => c.status === "connected").length;
+  // Named under the bar so a degraded count never hides WHICH vendors are down behind a tap.
+  const notConnected = health.checks
+    .filter((c: HealthCheck) => c.status !== "connected")
+    .map((c: HealthCheck) => (c.status === "degraded" ? `${c.name} (degraded)` : c.name));
 
   return (
     <div className="bg-card border border-border/30">
       {/* Summary bar */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/5 transition-colors"
+        aria-expanded={expanded}
+        className="w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/5 transition-colors"
       >
         <StatusIcon className={`w-4 h-4 ${statusColor}`} />
         <span className="text-xs font-semibold tracking-wide flex-1">
@@ -95,6 +100,9 @@ function VendorHealthStrip() {
         </span>
         <ChevronRight className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${expanded ? "rotate-90" : ""}`} />
       </button>
+      {notConnected.length > 0 && (
+        <p className="px-4 pb-2.5 text-[12px] text-amber-400/90 break-words">Not connected: {notConnected.join(", ")}</p>
+      )}
 
       {/* Expanded detail */}
       {expanded && (

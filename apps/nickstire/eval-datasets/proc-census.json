@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T14:03:17.225Z",
+  "generatedAt": "2026-10-26T15:02:56.415Z",
   "count": 654,
   "procedures": [
     "mutation.adStudio.generate",
@@ -518,7 +518,7 @@
     "query.market.topPages",
     "query.market.topQueries",
     "query.memberships.lookupByPhone",
-    "query.nickActions.cronHealth",
+    "query.nickActions.cronHealthSummary",
     "query.nickActions.customerMessagePreviews",
     "query.nickActions.shopPulse",
     "query.nourOsBridge.outboxCompleteness",

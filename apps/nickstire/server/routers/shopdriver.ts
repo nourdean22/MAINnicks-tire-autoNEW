@@ -385,6 +385,17 @@ export const shopdriverRouter = router({
    */
   declinedRecoveryStatus: adminProcedure.query(async () => {
     const featureEnabled = process.env.FEATURE_DECLINED_RECOVERY === "1";
+    // 2026-10-25 v2: the page showed three answers (env switch "live", static catalog "dry run", observer "dormant").
+    // The server derives ONE `state` from the env switch, the send predicate and the pause switch, and returns the
+    // sender's last real run beside it; the client renders them and derives nothing. Every field except the three new ones is
+    // unchanged from v1. `paused` is null when the switch could not be read, never false.
+    const { recoverySendsEnabled } = await import("../cron/jobs/declinedWorkRecovery");
+    const { sendPause } = await import("../services/sendPause");
+    const { deriveDeclinedRecoveryState } = await import("../lib/declinedRecoveryState");
+    const sendsEnabled = recoverySendsEnabled(process.env);
+    const pause = await sendPause("declined_recovery", { fresh: true });
+    const paused = pause.readable ? pause.paused : null;
+    const state = deriveDeclinedRecoveryState({ featureEnabled, sendsEnabled, paused });
     const d = await db();
     if (!d) {
       // NULL, not 0. `eligible: 0 / recoverableDollars: 0` is indistinguishable
@@ -394,10 +405,10 @@ export const shopdriverRouter = router({
       //
       // The number being replaced by that silent 0 is real: the same predicate
       // returns 64 estimates / $52,313 in production right now.
-      return { featureEnabled, eligible: null, recoverableDollars: null, dryRun: !featureEnabled, error: "Database not available" };
+      return { featureEnabled, sendsEnabled, paused, state, lastRun: null, eligible: null, recoverableDollars: null, dryRun: !featureEnabled, error: "Database not available" };
     }
     try {
-      const { algEstimates } = await import("../../drizzle/schema");
+      const { algEstimates, cronLog } = await import("../../drizzle/schema");
       const { isNull, gte, sql, lte } = await import("drizzle-orm");
       const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -413,8 +424,29 @@ export const shopdriverRouter = router({
         .where(sql`${algEstimates.matchedInvoiceId} IS NULL AND ${algEstimates.estimateDate} >= ${sixtyDaysAgo} AND ${algEstimates.estimateDate} <= ${sevenDaysAgo}`)
         .limit(500);
       const totalCents = rows.reduce((s: number, r: { estimatedAmount: number | null }) => s + (r.estimatedAmount || 0), 0);
+      // The sender is alg-declined-work-recovery. The job NAMED declined-work-recovery only reads the ledger and
+      // logs "N items checked", so taking the newest of the two would show a healthy ledger read over a skipped sender.
+      // Inside this try on purpose: a failed read takes the error branch below, so lastRun null always means no row.
+      const [run] = await d
+        .select({
+          jobName: cronLog.jobName,
+          startedAt: cronLog.startedAt,
+          status: cronLog.status,
+          details: cronLog.details,
+          recordsProcessed: cronLog.recordsProcessed,
+        })
+        .from(cronLog)
+        .where(eq(cronLog.jobName, "alg-declined-work-recovery"))
+        .orderBy(desc(cronLog.startedAt))
+        .limit(1);
       return {
         featureEnabled,
+        sendsEnabled,
+        paused,
+        state,
+        lastRun: run
+          ? { jobName: run.jobName, at: run.startedAt.toISOString(), status: run.status, details: run.details, recordsProcessed: run.recordsProcessed }
+          : null,
         dryRun: !featureEnabled,
         eligible: rows.length,
         recoverableDollars: Math.round(totalCents / 100),
@@ -427,7 +459,7 @@ export const shopdriverRouter = router({
     } catch (err) {
       log.warn("[shopdriver] declinedRecoveryStatus failed:", err instanceof Error ? err.message : err);
       // Same reasoning as the !d branch above — null, never 0.
-      return { featureEnabled, eligible: null, recoverableDollars: null, dryRun: !featureEnabled, error: "DB query failed" };
+      return { featureEnabled, sendsEnabled, paused, state, lastRun: null, eligible: null, recoverableDollars: null, dryRun: !featureEnabled, error: "DB query failed" };
     }
   }),
 

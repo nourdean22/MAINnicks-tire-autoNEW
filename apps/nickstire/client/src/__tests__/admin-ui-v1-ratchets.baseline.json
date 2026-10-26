@@ -1,11 +1,11 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 124,
+    "emDash": 123,
     "emoji": 0,
     "transitionAll": 46,
     "slowDuration": 7,
-    "smallInput": 88,
+    "smallInput": 87,
     "offPalette": 112
   },
   "files": {
@@ -192,9 +192,6 @@
     "client/src/pages/admin/settings/ComplianceSection.tsx": {
       "emDash": 9
     },
-    "client/src/pages/admin/settings/FeatureFlagsPanel.tsx": {
-      "smallInput": 1
-    },
     "client/src/pages/admin/settings/IntegrationsSection.tsx": {
       "emDash": 1,
       "smallInput": 1
@@ -203,7 +200,7 @@
       "offPalette": 1
     },
     "client/src/pages/admin/settings/SettingsStatusTab.tsx": {
-      "emDash": 2
+      "emDash": 1
     },
     "client/src/pages/admin/settings/SiteHealthSection.tsx": {
       "emDash": 8

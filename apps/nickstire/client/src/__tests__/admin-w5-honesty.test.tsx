@@ -141,7 +141,7 @@ describe("Declined-work recovery panel", () => {
   it("positive control: good data renders the tiles", () => {
     h.queries.set("shopdriver.declinedRecoveryStatus", ok({ featureEnabled: true, eligible: 4, recoverableDollars: 900, next7dSends: 1, next30dSends: 2, message: "ok" }));
     const { container } = render(<DeclinedRecoveryPanel />);
-    expect(screen.getByText("Recoverable")).toBeTruthy();
+    expect(screen.getByText("Estimated value")).toBeTruthy();
     expect(container.textContent).not.toMatch(/couldn't load/);
   });
 });

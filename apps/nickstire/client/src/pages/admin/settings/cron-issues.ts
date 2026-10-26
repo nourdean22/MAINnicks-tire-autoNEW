@@ -1,82 +1,126 @@
+import type { RouterOutputs } from "@/lib/trpc";
+import { timeAgoShort } from "../shared/format";
 import type { OpenIssue } from "./useSettingsStatus";
 
-/**
- * A single row from `nickActions.cronHealth` (a cron_log entry).
- * Kept permissive so the pure helper can be unit-tested without the tRPC types.
- */
-export interface CronHealthRow {
-  jobName: string;
-  status?: string | null;
-  recordsProcessed?: number | null;
-  details?: string | null;
-  startedAt?: string | Date | null;
+export type CronHealthSummary = RouterOutputs["nickActions"]["cronHealthSummary"];
+export type CronJobSummary = CronHealthSummary["jobs"][number];
+
+/** The Scheduled work panel on the Status tab; issues link here. */
+const SCHEDULED_WORK_HREF = "/admin?tab=settings&settingsTab=status#scheduled-work";
+
+/** The data-accuracy cron writes "<finding> · probes: <codes>"; only the finding is for the owner. */
+const PROBES_SEPARATOR = " · probes: ";
+
+const LOOP_WORDS: Record<string, string> = {
+  "reminder-queue": "maintenance reminders",
+  "followup-cadence": "follow-up cadence",
+  "reel-pipeline": "reel pipeline",
+  "reel-pipeline:publish": "reel publishing",
+};
+
+const LOOP_WHY: Record<string, string> = {
+  "reminder-queue":
+    "The reminder job holds a due reminder for a customer who got a retention or drip text or a reminder in the last 7 days, or has an open declined estimate from the last 30 days, and cancels it 30 days past due. Its last run below says how many it sent and how many it held.",
+};
+
+/** 23664 -> "16.4 days", 1440 -> "1 day", 120 -> "2 hours". */
+function waitInWords(minutes: number): string {
+  if (minutes < 1440) {
+    const hours = Math.max(1, Math.round(minutes / 60));
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  const text = String(Math.round((minutes / 1440) * 10) / 10);
+  return `${text} day${text === "1" ? "" : "s"}`;
 }
 
 /**
- * Derive Settings "Open issues" from the cron-health log.
- *
- * Why this exists: the Settings OPEN-ISSUES counter / all-clear banner used to
- * be built without ever reading cronHealth, so a perpetually-failing data check
- * ("2388 invoices missing customer phone") and a failing cron could sit under a
- * green "All clear" banner. This subscribes the counter to the real signals the
- * page already fetches.
- *
- * Rows arrive newest-first (the query orders by startedAt desc); we keep only
- * the LATEST run per jobName so a job that already recovered stops firing.
+ * Settings "Open issues" from the per-job cron summary (one row per job over 24 h) and the cron-failure observer.
+ * Skipped runs are expected (admin inactive, quiet hours) and are not issues; the panel lists them.
  */
-export function deriveCronIssues(rows: readonly CronHealthRow[]): OpenIssue[] {
+export function deriveCronIssues(summary: CronHealthSummary | undefined): OpenIssue[] {
+  if (!summary) return [];
   const issues: OpenIssue[] = [];
-  const seen = new Set<string>();
 
-  for (const row of rows) {
-    if (!row || !row.jobName || seen.has(row.jobName)) continue;
-    seen.add(row.jobName);
-
-    const details = row.details?.trim() || "";
-
-    // A) Any cron whose latest run failed → alert.
-    if (row.status === "failed") {
+  for (const job of summary.jobs) {
+    // A) latest run failed -> alert
+    if (job.lastStatus === "failed") {
+      const cause = job.lastErrorMessage?.trim() || job.lastDetails?.trim() || "No error text was logged.";
       issues.push({
-        key: `cron-failed-${row.jobName}`,
+        key: `cron-failed-${job.jobName}`,
         severity: "alert",
-        title: `Cron failing · ${row.jobName}`,
-        detail: details || "Latest run failed. See the Cron Health panel below for the error.",
-        whyText:
-          "A scheduled job is failing on its most recent run. Failing crons silently stop the automation they drive (sync, alerts, posting) until fixed.",
+        title: `Scheduled job failed · ${job.jobName}`,
+        detail: `${job.jobName} failed ${timeAgoShort(job.lastStartedAt)}; ${job.failed} of ${job.runs} runs in 24 h failed. ${cause}`,
+        whyText: "A failing job stops the automation it drives (sync, alerts, posting) until it is fixed.",
+        actionHref: SCHEDULED_WORK_HREF,
+        actionLabel: "See scheduled work",
       });
       continue;
     }
 
-    // B) data-accuracy-check found data defects → warning (carries the count).
-    if (row.jobName === "data-accuracy-check") {
-      if (details && details !== "All data clean" && (row.recordsProcessed ?? 0) > 0) {
+    // B) data-accuracy finding -> warning, in words; the probe codes go in the why text
+    if (job.jobName === "data-accuracy-check") {
+      const details = job.lastDetails?.trim() ?? "";
+      const cut = details.indexOf(PROBES_SEPARATOR);
+      const finding = cut >= 0 ? details.slice(0, cut) : details;
+      const probes = cut >= 0 ? details.slice(cut + PROBES_SEPARATOR.length) : "";
+      if (finding && !/^All (checks|data) clean/.test(finding)) {
         issues.push({
           key: "data-accuracy",
           severity: "warning",
-          title: "Data accuracy issues detected",
-          detail: details,
-          whyText:
-            "The data-accuracy cron found records that break downstream automation (e.g. invoices with no customer phone can never be texted). It only reports: remediation is manual until a backfill runs.",
+          title: "Data accuracy finding",
+          detail: finding,
+          whyText: `The data-accuracy check only reports; nothing is fixed automatically.${probes ? ` Checks run this pass: ${probes}` : ""}`,
         });
       }
-      continue;
+    }
+  }
+
+  const obs = summary.observer;
+  if (obs) {
+    // C) observer counted failing jobs -> alert (null = the count was not in its text: say nothing)
+    if (obs.failing !== null && obs.failing > 0) {
+      issues.push({
+        key: "cron-failures",
+        severity: "alert",
+        title: `${obs.failing} scheduled job${obs.failing === 1 ? "" : "s"} failing`,
+        detail: `The cron-failure observer counted ${obs.failing} failing job${obs.failing === 1 ? "" : "s"} on its run ${timeAgoShort(obs.at)}.`,
+        whyText: "The observer scans every job, so a failure counts here even when that job's own row is not in view.",
+        actionHref: SCHEDULED_WORK_HREF,
+        actionLabel: "See scheduled work",
+      });
     }
 
-    // C) cron-failure-observer counted >= 1 failing job → alert.
-    if (row.jobName === "cron-failure-observer") {
-      const match = details.match(/scanned:\s*(\d+)\s*failing/i);
-      const failing = match ? Number(match[1]) : 0;
-      if (failing > 0) {
-        issues.push({
-          key: "cron-failures",
-          severity: "alert",
-          title: `${failing} cron job${failing === 1 ? "" : "s"} failing`,
-          detail: details || `${failing} scheduled job(s) failing.`,
-          whyText:
-            "The cron-failure observer scans every job and counts failures. A non-zero count means at least one automation is broken even if its own row isn't currently in view.",
-        });
-      }
-      continue;
+    // D) a queue whose oldest due item is older than its loop's limit
+    for (const q of obs.queuesStuck) {
+      const lastRun = summary.jobs.find((j) => j.jobName === q.loop)?.lastDetails?.trim();
+      issues.push({
+        key: `queue-stuck-${q.loop}`,
+        severity: "warning",
+        title: `Queue stuck · ${LOOP_WORDS[q.loop] ?? q.loop}`,
+        detail: `The oldest due item has waited ${waitInWords(q.ageMinutes)} (limit ${waitInWords(q.maxAgeMinutes)}); the job may be running and sending nothing.`,
+        note: lastRun ? `Last run: ${lastRun}` : undefined,
+        whyText:
+          LOOP_WHY[q.loop] ??
+          "The cron-failure observer measures the age of the oldest due item in this loop's queue. Past the limit, the loop is not draining it.",
+        actionHref: SCHEDULED_WORK_HREF,
+        actionLabel: "See scheduled work",
+      });
+    }
+
+    // E) lanes declared but not running
+    const off = obs.shapes.filter((s) => s.shape === "missing" || s.shape === "dormant");
+    if (off.length > 0) {
+      const list = off.map((s) => `${s.job} (${s.shape})`).join(", ");
+      issues.push({
+        key: "lane-shapes",
+        severity: "warning",
+        title: `Scheduled lanes not running as declared · ${off.length}`,
+        detail: obs.shapesJudged !== null ? `${off.length} of ${obs.shapesJudged} judged lanes: ${list}` : list,
+        whyText:
+          "Missing means the lane never logged a run in the observer's window. Dormant means it is declared but did no work in that window.",
+        actionHref: SCHEDULED_WORK_HREF,
+        actionLabel: "See scheduled work",
+      });
     }
   }
 

@@ -77,9 +77,9 @@ export const FLAG_DEFINITIONS = [
   // The three mutes are PAUSE flags with the same inverted polarity as sms_global_pause: an absent row or an
   // unreadable flag table reads false = "not muted", so a database blip can never silence an incident.
   // Receipts are the opposite on purpose: an ENABLE flag, OFF by default, so receipts are held until you ask.
-  { key: "telegram_incident_muted", description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram incident alerts (outages, failures, a customer waiting). Default FALSE (alerts send). Unreadable = not muted." },
-  { key: "telegram_digest_muted", description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram digests (morning brief, daily summary, weekly reports, once-per-state business alerts). Default FALSE (they send)." },
-  { key: "telegram_approval_muted", description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram approval requests (drafts waiting for your yes). Default FALSE (they send). Muting one means the draft waits in the admin queue unseen." },
+  { key: "telegram_incident_muted", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram incident alerts (outages, failures, a customer waiting). Default FALSE (alerts send). Unreadable = not muted." },
+  { key: "telegram_digest_muted", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram digests (morning brief, daily summary, weekly reports, once-per-state business alerts). Default FALSE (they send)." },
+  { key: "telegram_approval_muted", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram approval requests (drafts waiting for your yes). Default FALSE (they send). Muting one means the draft waits in the admin queue unseen." },
   { key: "telegram_receipt", description: "Send Telegram receipts (job completed, payment, no-show, VIP, campaign sent). OFF by default: receipts are held and counted in the daily summary line. Turn ON to get each one." },
 
   // ─── NICKGPT (fine-tuned SMS drafter) ─────────────
@@ -126,8 +126,8 @@ export const FLAG_DEFINITIONS = [
   // until a row was hand-inserted, and re-killed it on every DB blip. Named as
   // a PAUSE, false (the failure value) means "not paused" → keeps sending →
   // current behaviour preserved. The safe state and the failure state match.
-  { key: "vapi_forward_followup_paused", description: "OFF-SWITCH (inverted). Set TRUE to STOP the immediate follow-up SMS sent when a VAPI call is forwarded to a human. Leave FALSE for normal operation — this path ships live and false is the safe default. Unlike the missed_call_recovery cron this fires straight off the webhook, so this is the only way to stop it without a redeploy." },
-  { key: "vapi_arrival_text_paused", description: "OFF-SWITCH (inverted). Set TRUE to STOP the internal text to the on-duty manager when a caller says they're coming in now or a tow is coming; the call then files the old 'said they're coming' row instead. Leave FALSE for normal operation — false is the safe default." },
+  { key: "vapi_forward_followup_paused", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to STOP the immediate follow-up SMS sent when a VAPI call is forwarded to a human. Leave FALSE for normal operation — this path ships live and false is the safe default. Unlike the missed_call_recovery cron this fires straight off the webhook, so this is the only way to stop it without a redeploy." },
+  { key: "vapi_arrival_text_paused", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to STOP the internal text to the on-duty manager when a caller says they're coming in now or a tow is coming; the call then files the old 'said they're coming' row instead. Leave FALSE for normal operation — false is the safe default." },
   // GLOBAL SMS PAUSE — same inverted PAUSE polarity as vapi_forward_followup_paused,
   // same rationale. This is the shop-wide emergency stop for automated customer
   // SMS: sendSms() HOLDS (durably queues) customer_marketing/customer_followup
@@ -136,26 +136,26 @@ export const FLAG_DEFINITIONS = [
   // services/smsControl.ts, not through the 60s isEnabled cache — an emergency
   // stop must land in seconds. Nothing is dropped: lifting the pause drains
   // the held queue through the normal window machinery.
-  { key: "sms_global_pause", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE all automated customer SMS shop-wide (marketing + follow-ups are durably queued, not dropped; confirmations and internal alerts still send). The first real kill switch for the F25e path — SMS_KILL_SWITCH env only ever gated the dead Twilio fallback." },
+  { key: "sms_global_pause", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE all automated customer SMS shop-wide (marketing + follow-ups are durably queued, not dropped; confirmations and internal alerts still send). The first real kill switch for the F25e path — SMS_KILL_SWITCH env only ever gated the dead Twilio fallback." },
   // IG IMAGE AUTOPOST PAUSE (2026-10-16). Same inverted polarity as the two
   // pauses above: an absent row or a failed read is false = "not paused", so the
   // live lane keeps its current behaviour. legacy_autopost_live OFF only turns
   // the lane into a dry run that still generates and spends; this stops it.
   // Read by runIgAutopostCron only; the manual Run-a-slot-now door ignores it.
-  { key: "ig_autopost_paused", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE the Instagram image autopost cron before any generation or spend; the manual Run-a-slot-now door still works. Default FALSE (lane runs)." },
+  { key: "ig_autopost_paused", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE the Instagram image autopost cron before any generation or spend; the manual Run-a-slot-now door still works. Default FALSE (lane runs)." },
   // REEL COMMENT RESPONDER PAUSE (2026-10-16). Same inverted polarity: an absent
   // row or a failed read is false = "not paused". Read by runReelCommentResponder,
   // which both the cron and the Meta comment webhook call.
-  { key: "reel_comment_responder_paused", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE public Instagram comment replies from the reel comment responder (cron and webhook) before any Graph read; drafts are not made either. Default FALSE (lane runs)." },
+  { key: "reel_comment_responder_paused", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE public Instagram comment replies from the reel comment responder (cron and webhook) before any Graph read; drafts are not made either. Default FALSE (lane runs)." },
   // C5.5 SEND PAUSES (2026-10-17). Runtime off-switches for the env-armed send lanes, read by
   // services/sendPause.ts on a 5 s cache (not isEnabled). Same inverted polarity: TRUE = paused.
   // Unlike the pauses above, an UNREADABLE switch is decided per lane: unattended lanes HOLD
   // (fail closed), the 1:1 confirmation lane SENDS (fail open). A held send is skipped, not queued.
-  { key: "send_pause_voice_outbound", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE every outbound AI voice call (voice recovery, confirmation calls, follow-up cadence, manual follow-up call) before any lookup or dial. Unreadable = HOLD (fail closed) for the crons; the operator's manual follow-up call fails OPEN on an unreadable switch (a person is present) but still honours TRUE. Default FALSE." },
-  { key: "send_pause_customer_confirmations", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE tire-order confirmation texts and emails (ENABLE_CUSTOMER_CONFIRMATIONS lane); skipped confirmations are not resent; texts already queued (gateway offline) are held and go out on resume. Unreadable = SEND (fail open: it answers the customer's own order). Default FALSE." },
-  { key: "send_pause_declined_recovery", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE declined-estimate recovery texts (cron, admin run-now and CLI) before any claim or send. Unreadable = HOLD (fail closed). Default FALSE." },
-  { key: "send_pause_weather_sms", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE weather-triggered texts to lapsed customers (WEATHER_SMS_SEND lane) before the audience query. Unreadable = HOLD (fail closed). Default FALSE." },
-  { key: "send_pause_missed_call_recovery", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE missed-caller follow-up texts (MISSED_CALL_RECOVERY_SEND lane) before any read or claim. Unreadable = HOLD (fail closed). Default FALSE." },
+  { key: "send_pause_voice_outbound", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE every outbound AI voice call (voice recovery, confirmation calls, follow-up cadence, manual follow-up call) before any lookup or dial. Unreadable = HOLD (fail closed) for the crons; the operator's manual follow-up call fails OPEN on an unreadable switch (a person is present) but still honours TRUE. Default FALSE." },
+  { key: "send_pause_customer_confirmations", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE tire-order confirmation texts and emails (ENABLE_CUSTOMER_CONFIRMATIONS lane); skipped confirmations are not resent; texts already queued (gateway offline) are held and go out on resume. Unreadable = SEND (fail open: it answers the customer's own order). Default FALSE." },
+  { key: "send_pause_declined_recovery", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE declined-estimate recovery texts (cron, admin run-now and CLI) before any claim or send. Unreadable = HOLD (fail closed). Default FALSE." },
+  { key: "send_pause_weather_sms", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE weather-triggered texts to lapsed customers (WEATHER_SMS_SEND lane) before the audience query. Unreadable = HOLD (fail closed). Default FALSE." },
+  { key: "send_pause_missed_call_recovery", inverted: true, description: "OFF-SWITCH (inverted). Set TRUE to PAUSE missed-caller follow-up texts (MISSED_CALL_RECOVERY_SEND lane) before any read or claim. Unreadable = HOLD (fail closed). Default FALSE." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
   // ─── TRUST LADDER (approval queue) ────────────────
   // OFF by default ON PURPOSE, and that is also the deploy-order guard: the
@@ -200,6 +200,15 @@ export const FLAG_DEFINITIONS = [
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
+
+/**
+ * Off-switches: TRUE pauses or mutes something that is otherwise running, so a switch that reads OFF means
+ * "running normally" and must never be counted as a disabled feature. Marked with `inverted: true` on the
+ * definition; a test pins this set to the definitions whose description starts "OFF-SWITCH (inverted)".
+ */
+export const INVERTED_FLAG_KEYS: ReadonlySet<string> = new Set(
+  FLAG_DEFINITIONS.filter((f) => "inverted" in f).map((f) => f.key),
+);
 
 /** Check if a feature flag is enabled */
 export async function isEnabled(key: FlagKey): Promise<boolean> {
@@ -341,6 +350,59 @@ export async function setFlag(key: FlagKey, value: boolean): Promise<void> {
     if (lane in SEND_PAUSE_LANES) invalidateSendPause(lane as keyof typeof SEND_PAUSE_LANES);
   }
   log.info(`Feature flag toggled: ${key} = ${value ? "ENABLED" : "DISABLED"}`);
+}
+
+export interface FlagChange {
+  by: string;
+  at: string;
+  value: boolean;
+}
+
+/**
+ * Who flipped each switch last and when, from the audit rows featureFlags.toggle writes (action flag.toggled,
+ * entity feature_flag, new value in changes.value.new). One grouped query for every key, not one per flag.
+ * Returns null when the audit table could not be read: that is UNKNOWN, never "nobody ever flipped it".
+ */
+export async function getLastFlagChanges(): Promise<Map<string, FlagChange> | null> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return null;
+    const [rows] = await db.execute(sql`
+      SELECT a.entity_id AS entityId, a.actor AS actor, a.changes AS changes, a.created_at AS createdAt
+      FROM audit_log a
+      INNER JOIN (
+        SELECT entity_id, MAX(created_at) AS lastAt
+        FROM audit_log
+        WHERE action = 'flag.toggled' AND entity_type = 'feature_flag'
+        GROUP BY entity_id
+      ) newest ON a.entity_id = newest.entity_id AND a.created_at = newest.lastAt
+      WHERE a.action = 'flag.toggled' AND a.entity_type = 'feature_flag'
+    `);
+    if (!Array.isArray(rows)) return null;
+    const out = new Map<string, FlagChange>();
+    for (const r of rows as Array<{ entityId: string; actor: string; changes: unknown; createdAt: Date | string }>) {
+      const changes = typeof r.changes === "string" ? parseJsonOrNull(r.changes) : r.changes;
+      const next = (changes as { value?: { new?: unknown } } | null)?.value?.new;
+      if (next !== "true" && next !== "false") continue; // a row whose value cannot be read says nothing about the switch
+      const at = r.createdAt instanceof Date ? r.createdAt : new Date(`${String(r.createdAt).replace(" ", "T")}Z`);
+      if (Number.isNaN(at.getTime())) continue;
+      out.set(String(r.entityId), { by: String(r.actor), at: at.toISOString(), value: next === "true" });
+    }
+    return out;
+  } catch (err) {
+    log.warn("flag change history unreadable", { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+function parseJsonOrNull(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 /** Get all flags with current values */

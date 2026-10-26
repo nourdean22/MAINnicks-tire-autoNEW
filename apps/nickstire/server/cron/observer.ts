@@ -683,6 +683,8 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
     }
   }
 
+  // This string is read back by parseObserverDetails (observerSummary.ts) for the Settings tab; its test pins the
+  // `scanned:`, `shapes:`, `undeclared loops:` and `queue-age: ...=stuck(Am>Mm)` tokens, so change them together.
   return {
     recordsProcessed: alertsSent,
     details:

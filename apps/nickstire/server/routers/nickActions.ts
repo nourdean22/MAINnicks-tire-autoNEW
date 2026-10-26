@@ -13,7 +13,7 @@ import { logAdminAction } from "../services/auditTrail";
 // ─── Sub-module imports ─────────────────────────────────
 import { handleRunMigrations } from "./nick/intelligence";
 import {
-  handleShopPulse, handleCronHealth,
+  handleShopPulse, handleCronHealthSummary,
 } from "./nick/chat";
 import { assistantAskSchema, handleAssistantAsk } from "./nick/assistant";
 
@@ -44,7 +44,7 @@ export const nickActionsRouter = router({
 
   // ─── Shop Status ──────────────────────────────────────
   shopPulse: adminProcedure.query(async () => handleShopPulse()),
-  cronHealth: dbAdminProcedure.query(async () => handleCronHealth()),
+  cronHealthSummary: dbAdminProcedure.query(async () => handleCronHealthSummary()),
 
   // ─── Admin assistant ("Ask" sheet on every admin page) ─
   // A mutation, so `nickActions.*` resolves it to settings.manage: owner and
