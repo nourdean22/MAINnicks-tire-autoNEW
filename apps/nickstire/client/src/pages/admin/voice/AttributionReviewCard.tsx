@@ -33,10 +33,13 @@ const fmtMoney = (cents: number | null) =>
     ? null
     : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 }).format(cents / 100);
 
+/** Candidate rows per read (reviewQueue's LIMIT). */
+const PAGE = 20;
+
 export function AttributionReviewCard() {
   const utils = trpc.useUtils();
   const { data, isLoading, isError, refetch } = trpc.revenueAttribution.reviewQueue.useQuery(
-    { limit: 20 },
+    { limit: PAGE },
     { staleTime: 60_000 },
   );
   const [open, setOpen] = useState(false);
@@ -90,6 +93,10 @@ export function AttributionReviewCard() {
 
   const duplicates = data?.duplicates?.length ?? 0;
   const n = rows.length;
+  // The read is one page of PAGE candidate rows (before same-invoice claims fold), so a full page
+  // means more may be waiting: say "at least", never the page size as the total.
+  const candidateRows = (data as { counts?: { candidateRows?: number } } | undefined)?.counts?.candidateRows ?? n + duplicates;
+  const pageFull = candidateRows >= PAGE;
   // Measured per band (PR 2). Read explicitly, same reason as `rows`: the server may stop
   // sending it and the cast would not tell us.
   const calibration = (data as { calibration?: { status: string; anyOpen: boolean; words: { status: string; weak: string; strong: string; control: string | null } } } | undefined)?.calibration;
@@ -134,7 +141,7 @@ export function AttributionReviewCard() {
         aria-expanded={open}
         className="w-full min-h-[48px] px-4 py-2 flex items-center justify-between gap-3 text-left text-sm"
       >
-        <span className="font-semibold">{n} match{n === 1 ? "" : "es"} to review</span>
+        <span className="font-semibold">{n}{pageFull ? "+" : ""} match{n === 1 && !pageFull ? "" : "es"} to review</span>
         <ChevronDown className={`w-4 h-4 shrink-0 text-foreground/50 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
