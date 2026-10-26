@@ -116,7 +116,9 @@ describe("gatewayTire.tireActivity", () => {
     expect(await caller().tireActivity({ days: 30 })).toEqual({
       available: true,
       days: 30,
-      from: "2026-09-25T21:00:00.000Z",
+      // 21:00Z on 10-25 is 17:00 ET, shop day 2026-10-25: 30 shop days is that day plus the 29 before it.
+      fromDayKey: "2026-09-26",
+      from: "2026-09-26T04:00:00.000Z",
       to: "2026-10-25T21:00:00.000Z",
       counts: {
         tire_search_submitted: 15, tire_quote_cta_click: 4, vehicle_size_selected: 9, tire_option_selected: 2, top_pick_selected: 1,
@@ -135,10 +137,44 @@ describe("gatewayTire.tireActivity", () => {
     expect(await caller().tireActivity({ days: 30 })).toMatchObject({ available: true, counts: zeros });
   });
 
-  it("honours the window: a row just inside counts, a row just outside does not", async () => {
-    h.events = [ev("tire_search_submitted", 5, 6.9), ev("tire_search_submitted", 100, 7.1)];
+  it("honours the window: a row at the ET midnight that opens it counts, one second earlier does not", async () => {
+    // days=7 at 17:00 ET on 2026-10-25 opens at ET midnight of 2026-10-19 (EDT, 04:00Z).
+    h.events = [
+      { name: "tire_search_submitted", n: 5, at: new Date("2026-10-19T04:00:00.000Z") },
+      { name: "tire_search_submitted", n: 100, at: new Date("2026-10-19T03:59:59.000Z") },
+    ];
     const out = await caller().tireActivity({ days: 7 });
-    expect(out).toMatchObject({ days: 7, from: "2026-10-18T21:00:00.000Z", counts: { tire_search_submitted: 5 } });
+    expect(out).toMatchObject({ days: 7, fromDayKey: "2026-10-19", from: "2026-10-19T04:00:00.000Z", counts: { tire_search_submitted: 5 } });
+  });
+
+  describe("the window is whole shop days in America/New_York (AGENTS.md, Time), filtered in SQL text", () => {
+    const sentSince = () => h.sent.filter((s) => /from `customer_events`/i.test(s.sql))[0].values[5];
+
+    it("days=30 before the DST end opens at the ET midnight of 2026-10-02 and the SQL carries that boundary", async () => {
+      vi.setSystemTime(new Date("2026-11-01T03:30:00.000Z")); // 2026-10-31 23:30 ET, still EDT
+      const out = await caller().tireActivity({ days: 30 });
+      expect(out).toMatchObject({ fromDayKey: "2026-10-02", from: "2026-10-02T04:00:00.000Z", to: "2026-11-01T03:30:00.000Z" });
+      expect(sentSince()).toBe("2026-10-02 04:00:00");
+    });
+
+    it("days=1 after the DST end opens at 05:00Z (EST), not 04:00Z", async () => {
+      vi.setSystemTime(new Date("2026-11-02T05:30:00.000Z")); // 2026-11-02 00:30 EST
+      const out = await caller().tireActivity({ days: 1 });
+      expect(out).toMatchObject({ fromDayKey: "2026-11-02", from: "2026-11-02T05:00:00.000Z" });
+      expect(sentSince()).toBe("2026-11-02 05:00:00");
+    });
+
+    it("days=1 is today only, whatever the hour", async () => {
+      vi.setSystemTime(new Date("2026-10-26T12:00:00.000Z"));
+      const out = await caller().tireActivity({ days: 1 });
+      expect(out).toMatchObject({ fromDayKey: "2026-10-26", from: "2026-10-26T04:00:00.000Z" });
+      expect(sentSince()).toBe("2026-10-26 04:00:00");
+    });
+
+    it("between 20:00 ET and midnight the UTC date is already tomorrow; the shop day is still today", async () => {
+      vi.setSystemTime(new Date("2026-10-26T01:30:00.000Z")); // 2026-10-25 21:30 ET
+      expect(await caller().tireActivity({ days: 1 })).toMatchObject({ fromDayKey: "2026-10-25", from: "2026-10-25T04:00:00.000Z" });
+    });
   });
 
   it("days defaults to 30 when the input is omitted or empty", async () => {
