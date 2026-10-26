@@ -10,4 +10,6 @@ export const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
   // Vision scorecard and image render for the Photo check card: tens of seconds each, own request.
   "instagramStudio.checkPhoto",
   "instagramStudio.brandedPhoto",
+  // Admin assistant: up to five model rounds plus tool reads; batched, it would hold the page's reads.
+  "nickActions.ask",
 ]);
