@@ -40,6 +40,11 @@ import { customers } from "../../drizzle/schema";
  * sms_conversations by `sc.id` through the JOIN, so the phone comparison is a
  * filter, never an index lookup. Suppression is the one place to prefer the
  * belt over the argument that braces suffice.
+ *
+ * 2026-10-26 · a later START/UNSTOP/YES in the same conversation lifts the STOP,
+ * the exact chronology sendSms's index uses (server/sms.ts; same timestamp, the
+ * higher id wins). Treating every STOP as permanent excluded people sendSms
+ * would text. Words pinned to SMS_OPT_IN_KEYWORDS by optOutVocabulary.test.ts.
  */
 const last10 = (col: unknown) =>
   sql`RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(${col}, '-', ''), ' ', ''), '(', ''), ')', ''), 10)`;
@@ -56,6 +61,13 @@ export const campaignEligiblePhoneSql = sql`${customers.phone} IS NOT NULL AND L
     WHERE sm.direction = 'inbound'
       AND UPPER(TRIM(sm.body)) IN ('STOP','STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','REVOKE','OPTOUT','OPT OUT')
       AND ${last10(sql`sc.phone`)} = ${last10(customers.phone)}
+      AND NOT EXISTS (
+        SELECT 1 FROM sms_messages smi
+        WHERE smi.conversationId = sm.conversationId
+          AND smi.direction = 'inbound'
+          AND UPPER(TRIM(smi.body)) IN ('START','UNSTOP','YES')
+          AND (smi.createdAt > sm.createdAt OR (smi.createdAt = sm.createdAt AND smi.id > sm.id))
+      )
   )`;
 
 /**

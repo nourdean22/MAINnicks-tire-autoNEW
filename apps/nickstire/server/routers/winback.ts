@@ -9,7 +9,8 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
-import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
+import { eq, sql, desc, and, lte, isNull, type SQL } from "drizzle-orm";
+import { affectedRowCount } from "../lib/db-affected";
 import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { sendSms, withOptOut } from "../sms";
@@ -246,37 +247,28 @@ function withLapsedRegulars<T extends { lapsed: unknown }>(t: T): T & { lapsed_r
  * campaignEligiblePhoneSql (customers.smsOptOut + sms_preferences + inbound
  * STOP), so a target count is the number of people who can be texted.
  */
-function buildSegmentFilter(segment: string) {
-  const now = new Date();
-  const d90 = new Date(now.getTime() - 90 * 86400000);
-  const d180 = new Date(now.getTime() - 180 * 86400000);
-  const d365 = new Date(now.getTime() - 365 * 86400000);
-  const d30 = new Date(now.getTime() - 30 * 86400000);
+/**
+ * Last visit at least `minDaysAgo` and (when given) at most `maxDaysAgo` days ago,
+ * computed in SQL like lapsedCondition (AGENTS.md: day-buckets in SQL, never a JS Date).
+ */
+function visitWindowSql(minDaysAgo: number, maxDaysAgo?: number): SQL {
+  const newest = sql`${customers.lastVisitDate} IS NOT NULL AND ${customers.lastVisitDate} < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(minDaysAgo))} DAY)`;
+  return maxDaysAgo === undefined
+    ? newest
+    : sql`${newest} AND ${customers.lastVisitDate} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(maxDaysAgo))} DAY)`;
+}
 
+function buildSegmentFilter(segment: string) {
   switch (segment) {
     case "lapsed_regulars":
       // The Customers tab's rule (shared/customerSegments.ts), so both tabs count the same people.
       return and(lapsedRegularCondition(), campaignEligiblePhoneSql)!;
     case "lapsed":
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d90}`,
-        sql`${customers.lastVisitDate} >= ${d180}`,
-        campaignEligiblePhoneSql
-      )!;
+      return and(visitWindowSql(90, 180), campaignEligiblePhoneSql)!;
     case "dormant":
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d180}`,
-        sql`${customers.lastVisitDate} >= ${d365}`,
-        campaignEligiblePhoneSql
-      )!;
+      return and(visitWindowSql(180, 365), campaignEligiblePhoneSql)!;
     case "lost":
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d365}`,
-        campaignEligiblePhoneSql
-      )!;
+      return and(visitWindowSql(365), campaignEligiblePhoneSql)!;
     // wave-150 · "declined" winback segment RETIRED. It targeted
     // customers.segment='lapsed' (wrong people), and repointing it to the
     // alg_estimates declined pool would DOUBLE-TEXT the declined-recovery
@@ -286,8 +278,7 @@ function buildSegmentFilter(segment: string) {
     case "tire_customer":
       // tire_customer is revived only when invoice/service evidence proves prior tire purchase (excluding repair/rotation/etc.) or a tire order, and lastVisitDate is older than 180 days.
       return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d180}`,
+        visitWindowSql(180),
         campaignEligiblePhoneSql,
         // The whole OR chain is ONE parenthesised group. Without the outer parens
         // drizzle emits `A and B and optOut = 0 and EXISTS(X) OR EXISTS(Y) OR
@@ -345,12 +336,7 @@ function buildSegmentFilter(segment: string) {
       )!;
     case "recent":
       // Last visit 30 to 90 days ago. It read `>= d30 AND < d90`, a window no row can be in (counted 0).
-      return and(
-        sql`${customers.lastVisitDate} IS NOT NULL`,
-        sql`${customers.lastVisitDate} < ${d30}`,
-        sql`${customers.lastVisitDate} >= ${d90}`,
-        campaignEligiblePhoneSql
-      )!;
+      return and(visitWindowSql(30, 90), campaignEligiblePhoneSql)!;
     default:
       return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), campaignEligiblePhoneSql)!;
   }
@@ -781,9 +767,10 @@ export const winbackRouter = router({
       // permanently; only a row still 'pending' is rewritten.
       const [eligibleRows] = await d.execute(customerCampaignEligibleSql(send.customerId));
       if ((eligibleRows as unknown as unknown[]).length === 0) {
-        await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" })
+        const failRes = await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" })
           .where(and(eq(winbackSends.id, send.id), eq(winbackSends.status, "pending")));
-        failed++;
+        // 0 rows: the cron drain changed this row first; it counts there, not here.
+        if (affectedRowCount(failRes) > 0) failed++;
         continue;
       }
 

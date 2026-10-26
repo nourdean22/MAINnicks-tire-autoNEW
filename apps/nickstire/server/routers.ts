@@ -11,6 +11,7 @@ import {
   contentAdminRouter,
   adminDashboardRouter,
   adminSecurityRouter,
+  followUpsRouter,
   weatherRouter,
   reviewsRouter,
   instagramRouter,
@@ -148,6 +149,7 @@ export const appRouter = router({
   adminSecurity: adminSecurityRouter,
   contentAdmin: contentAdminRouter,
   customerNotifications: customerNotificationsRouter,
+  followUps: followUpsRouter, // RETIRED adapter for old bundles (admin/followUps.ts), delete after 2026-11-09
   sms: smsRouter,
   reviewRequests: reviewRequestsRouter,
   reminders: remindersRouter,

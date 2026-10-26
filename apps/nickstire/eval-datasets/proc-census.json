@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T22:06:34.293Z",
-  "count": 646,
+  "generatedAt": "2026-10-26T11:11:40.585Z",
+  "count": 651,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -105,6 +105,9 @@
     "mutation.featureFlags.toggle",
     "mutation.financing.logApplication",
     "mutation.financing.trackApplication",
+    "mutation.followUps.cancel",
+    "mutation.followUps.retry",
+    "mutation.followUps.run",
     "mutation.garage.addVehicle",
     "mutation.garage.deleteVehicle",
     "mutation.gatewayOrder.clearOurLines",
@@ -417,6 +420,8 @@
     "query.fitment.status",
     "query.fitment.trims",
     "query.fitment.years",
+    "query.followUps.pending",
+    "query.followUps.recent",
     "query.garage.serviceHistory",
     "query.garage.vehicles",
     "query.gatewayTire.checkOrder",

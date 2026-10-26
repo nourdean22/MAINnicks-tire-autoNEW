@@ -47,6 +47,7 @@ function countFor(text: string): number {
 const state = {
   conditions: [] as string[],
   rendered: [] as Array<{ sql: string; params: unknown[] }>,
+  dbOverride: null as unknown,
   inserts: [] as Array<{ values: unknown }>,
 };
 
@@ -74,7 +75,7 @@ function fakeDb() {
 }
 
 vi.mock("../lib/db-helper", () => ({
-  db: async () => fakeDb(),
+  db: async () => state.dbOverride ?? fakeDb(),
   dbTyped: async () => fakeDb(),
   requireDb: async () => fakeDb(),
 }));
@@ -101,6 +102,7 @@ const OTHER_SEGMENTS = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "
 beforeEach(() => {
   state.conditions = [];
   state.rendered = [];
+  state.dbOverride = null;
   state.inserts = [];
 });
 
@@ -137,38 +139,36 @@ describe("every win-back audience excludes customers who opted out anywhere", ()
   });
 });
 
-/** Each `lastVisitDate <op> ?` comparison with the Date bound to its placeholder. */
-function visitBounds(q: { sql: string; params: unknown[] }): Array<{ op: string; at: Date }> {
-  const out: Array<{ op: string; at: Date }> = [];
-  let placeholder = 0;
-  const re = /`lastVisitDate` (<|>=) \?|\?/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(q.sql))) {
-    if (m[1]) out.push({ op: m[1], at: q.params[placeholder] as Date });
-    placeholder++;
-  }
-  return out;
+/** Each `lastVisitDate <op> DATE_SUB(NOW(), INTERVAL n DAY)` comparison, in SQL order. */
+function visitIntervals(text: string): Array<{ op: string; days: number }> {
+  const re = /`lastVisitDate` (<|>=) DATE_SUB\(NOW\(\), INTERVAL (\d+) DAY\)/g;
+  return [...text.matchAll(re)].map((m) => ({ op: m[1], days: Number(m[2]) }));
 }
 
-describe("visit windows can match a row", () => {
-  it("recent is last visit 30 to 90 days ago: before the 30-day bound and on or after the 90-day bound", async () => {
+describe("visit windows are day-buckets computed in SQL and can match a row", () => {
+  it("recent is last visit 30 to 90 days ago: < 30 days, then >= 90 days", async () => {
     await admin().winback.campaignReadiness({ targetSegment: "recent" });
-    const bounds = visitBounds(state.rendered[0]);
-    const before = bounds.find((b) => b.op === "<")!;
-    const onOrAfter = bounds.find((b) => b.op === ">=")!;
-    const daysAgo = (d: Date) => Math.round((Date.now() - d.getTime()) / DAY);
-    expect(daysAgo(before.at)).toBe(30);
-    expect(daysAgo(onOrAfter.at)).toBe(90);
-    expect(state.rendered[0].sql).toMatch(/`lastVisitDate` IS NOT NULL/);
+    const text = state.conditions[0];
+    expect(visitIntervals(text)).toEqual([{ op: "<", days: 30 }, { op: ">=", days: 90 }]);
+    expect(text).toMatch(/`lastVisitDate` IS NOT NULL/);
+  });
+
+  it.each([
+    ["lapsed", [{ op: "<", days: 90 }, { op: ">=", days: 180 }]],
+    ["dormant", [{ op: "<", days: 180 }, { op: ">=", days: 365 }]],
+    ["lost", [{ op: "<", days: 365 }]],
+    ["tire_customer", [{ op: "<", days: 180 }]],
+  ] as const)("%s binds no JavaScript Date: its window is DATE_SUB in SQL", async (seg, expected) => {
+    await admin().winback.campaignReadiness({ targetSegment: seg });
+    expect(visitIntervals(state.conditions[0])).toEqual(expected);
+    expect(state.rendered[0].params.some((p) => p instanceof Date), `${seg} bound a JS Date`).toBe(false);
   });
 
   it.each([...OTHER_SEGMENTS, "lapsed_regulars"] as const)("%s: no self-contradictory lastVisitDate window", async (seg) => {
     await admin().winback.campaignReadiness({ targetSegment: seg } as never);
-    const bounds = visitBounds(state.rendered[0]);
-    const lower = bounds.filter((b) => b.op === ">=");
-    const upper = bounds.filter((b) => b.op === "<");
-    for (const lo of lower) for (const up of upper) {
-      expect(lo.at.getTime(), `${seg}: lower bound must be older than upper bound`).toBeLessThan(up.at.getTime());
+    const bounds = visitIntervals(state.conditions[0]);
+    for (const lo of bounds.filter((b) => b.op === "<")) for (const hi of bounds.filter((b) => b.op === ">=")) {
+      expect(lo.days, `${seg}: the < side must be the smaller interval`).toBeLessThan(hi.days);
     }
   });
 });
@@ -241,10 +241,77 @@ describe("the send-time check uses the same predicate", () => {
   });
 });
 
-describe("the booking follow-up lane is gone", () => {
-  it("no followUps procedure is registered", () => {
-    const procedures = Object.keys((appRouter as unknown as { _def: { procedures: Record<string, unknown> } })._def.procedures);
-    expect(procedures.filter((p) => p.startsWith("followUps."))).toEqual([]);
-    expect(procedures.some((p) => p.startsWith("winback."))).toBe(true);
+describe("admin processPending counts a failure only on the row it changed", () => {
+  function drainDb(failAffected: number) {
+    const send = { id: 7, customerId: 2, phone: "2165550102", personalizedBody: "Hi", campaignId: 3 };
+    return {
+      select: () => ({
+        from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ send, campaignStatus: "active" }] }) }) }),
+      }),
+      execute: async () => [[]], // not eligible
+      update: () => ({ set: () => ({ where: async () => [{ affectedRows: failAffected }] }) }),
+    };
+  }
+
+  it("a fail write that changed no row (the cron got there first) is not counted", async () => {
+    state.dbOverride = drainDb(0);
+    await expect(admin().winback.processPending()).resolves.toMatchObject({ processed: 1, failed: 0 });
+  });
+
+  it("control: a fail write that changed the row is counted", async () => {
+    state.dbOverride = drainDb(1);
+    await expect(admin().winback.processPending()).resolves.toMatchObject({ processed: 1, failed: 1 });
+  });
+});
+
+/**
+ * Consent chronology, run on the REAL rendered SQL in node:sqlite (the MySQL-only
+ * RIGHT() is registered as a function; everything else in the predicate is portable).
+ * Mirrors sendSms's index (server/sms.ts): a later START/UNSTOP/YES in the same
+ * conversation lifts a STOP; same timestamp, the higher id wins.
+ */
+describe("campaign eligibility honours a later START, like sendSms", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const { customerCampaignEligibleSql } = await import("../lib/sms-eligibility");
+
+  function eligible(messages: Array<{ id: number; body: string; at: string }>): boolean {
+    const db = new DatabaseSync(":memory:");
+    db.function("RIGHT", (s: unknown, n: unknown) => String(s ?? "").slice(-Number(n)));
+    db.exec(`
+      CREATE TABLE customers (id INTEGER, phone TEXT, smsOptOut INTEGER);
+      CREATE TABLE sms_preferences (phone TEXT, opted_out INTEGER);
+      CREATE TABLE sms_conversations (id INTEGER, phone TEXT);
+      CREATE TABLE sms_messages (id INTEGER, conversationId INTEGER, direction TEXT, body TEXT, createdAt TEXT);
+      INSERT INTO customers VALUES (1, '+12165550101', 0);
+      INSERT INTO sms_conversations VALUES (9, '2165550101');
+    `);
+    const ins = db.prepare("INSERT INTO sms_messages VALUES (?, 9, 'inbound', ?, ?)");
+    for (const m of messages) ins.run(m.id, m.body, m.at);
+    const q = render(customerCampaignEligibleSql(1));
+    return db.prepare(q.sql).all(...(q.params as never[])).length === 1;
+  }
+
+  it("positive control: no messages = eligible", () => {
+    expect(eligible([])).toBe(true);
+  });
+  it("STOP alone = not eligible", () => {
+    expect(eligible([{ id: 1, body: "stop", at: "2026-10-01 10:00:00" }])).toBe(false);
+  });
+  it("STOP then START = eligible", () => {
+    expect(eligible([
+      { id: 1, body: "STOP", at: "2026-10-01 10:00:00" },
+      { id: 2, body: " start ", at: "2026-10-02 10:00:00" },
+    ])).toBe(true);
+  });
+  it("START then STOP = not eligible", () => {
+    expect(eligible([
+      { id: 1, body: "START", at: "2026-10-01 10:00:00" },
+      { id: 2, body: "STOP", at: "2026-10-02 10:00:00" },
+    ])).toBe(false);
+  });
+  it("same timestamp: the higher id wins", () => {
+    const at = "2026-10-01 10:00:00";
+    expect(eligible([{ id: 1, body: "STOP", at }, { id: 2, body: "UNSTOP", at }])).toBe(true);
+    expect(eligible([{ id: 1, body: "YES", at }, { id: 2, body: "STOP", at }])).toBe(false);
   });
 });

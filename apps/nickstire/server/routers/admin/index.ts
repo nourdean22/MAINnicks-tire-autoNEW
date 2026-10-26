@@ -11,6 +11,7 @@
  * procedure was modified.
  */
 export { adminDashboardRouter } from "./dashboard";
+export { followUpsRouter } from "./followUps"; // RETIRED adapter, delete after 2026-11-09
 export { callTrackingRouter } from "./callTracking";
 export { customerEventsRouter } from "./customerEvents";
 export { aiReferralsRouter } from "./aiReferrals";
