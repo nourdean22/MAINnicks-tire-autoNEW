@@ -81,6 +81,35 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     [createTask, refetchAll, telemetry, isAddingTask],
   );
 
+  /**
+   * Rhythms list "+ rhythm": a DAILY task with no mission (the server files it in the Inbox, as quick-add
+   * does). The list is read from task.deck, which refetchAll invalidates. One tap in the task editor
+   * switches it to weekly.
+   */
+  const handleAddRhythm = useCallback(
+    async (title: string): Promise<boolean> => {
+      const trimmed = title.trim();
+      if (!trimmed) return false;
+      try {
+        telemetry.event("addTask", { source: "rhythmAdd", missionId: null });
+        await createTask.mutateAsync({
+          title: trimmed,
+          missionId: null,
+          loopKind: "DAILY",
+          status: "READY",
+          originSource: "missions-page:rhythm-add",
+        });
+        await refetchAll();
+        return true;
+      } catch (err) {
+        log.error("addRhythm_failed", { err });
+        toast.error("Could not add the rhythm. Try again.");
+        return false;
+      }
+    },
+    [createTask, refetchAll, telemetry],
+  );
+
   const handleCompleteTask = useCallback(
     async (id: string, opts?: { loopKind?: string }): Promise<boolean> => {
       const task = tasks.find((t) => t.id === id);
@@ -225,13 +254,19 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   const handleEditMission = useCallback(
     (missionId: string) => {
       const mission = missions.find((m) => m.id === missionId);
-      if (!mission) return;
+      if (!mission) {
+        // The mission list is still loading or failed: an unresponsive Edit button reads as a dead control.
+        toast.error("That mission is not loaded yet. Try again in a moment.");
+        return;
+      }
       openMissionEdit(missionId, {
         title: mission.title,
         status: mission.status,
         domain: mission.domain ?? null,
         description: mission.description ?? null,
         deadline: mission.deadline ?? null,
+        // The drawer hides Delete for a system lane (GENERAL anchor); the server refuses it too.
+        systemKind: mission.systemKind ?? null,
       });
       telemetry.event("editMissionOpen", { missionId });
     },
@@ -472,6 +507,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
   return {
     handleAddTask,
+    handleAddRhythm,
     handleCompleteTask,
     handleStartTask,
     handleDeleteTask,

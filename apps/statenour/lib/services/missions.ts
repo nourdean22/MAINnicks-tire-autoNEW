@@ -20,6 +20,7 @@ import {
 } from "@/lib/missions/domains";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { invalidate } from "@/lib/utils/cache";
+import { isGeneralAnchor } from "@/lib/services/mission-helpers";
 // v10.0.174 · isInboxMission import removed when assertActiveMissionCap
 // became a no-op. If a future cap is restored that needs to filter
 // inboxes, re-import from "@/lib/services/mission-helpers".
@@ -381,6 +382,13 @@ export async function deleteMission(id: string) {
   }
 
   try {
+    // 2026-10-26 · the /missions lanes are GENERAL anchors (the predicate lib/missions/deck.ts uses) and the
+    // lane rows now open this mission's editor. Deleting one soft-deletes every task in it, habits included,
+    // so the server refuses. Read before the write, and fail closed: a lookup that throws deletes nothing.
+    const row = await prisma.mission.findUnique({ where: { id }, select: { systemKind: true } });
+    if (isGeneralAnchor(row)) {
+      throw new ServiceError("This is a system lane. It cannot be deleted.", 409);
+    }
     // v7.9: soft-delete preserves the row + cascades hidden via the
     // task service's active-only default filter.
     const result = await softDelete("mission", { id });

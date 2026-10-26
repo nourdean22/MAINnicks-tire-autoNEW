@@ -115,6 +115,8 @@ export type DeckRhythm = {
   id: string;
   title: string;
   loopKind: string;
+  /** Weekdays a WEEKLY rhythm runs on (0 = Sun .. 6 = Sat); empty when none are set. */
+  recurringDays?: number[];
   doneToday: boolean;
   /** Distinct ET days with a completion event in the trailing window. */
   windowDone: number;
@@ -244,6 +246,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
         lastTouchedAt: true,
         lastCompletedAt: true,
         loopKind: true,
+        recurringDays: true,
         manualPriorityOverride: true,
         waitingOn: true,
         startedAt: true,
@@ -559,6 +562,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
           id: t.id,
           title: t.title,
           loopKind: (t.loopKind ?? "DAILY").toUpperCase(),
+          recurringDays: t.recurringDays ?? [],
           doneToday,
           windowDone: days.size,
           windowOf: RHYTHM_WINDOW_DAYS,
@@ -571,6 +575,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
       id: t.id,
       title: t.title,
       loopKind: (t.loopKind ?? "DAILY").toUpperCase(),
+      recurringDays: t.recurringDays ?? [],
       doneToday:
         t.lastCompletedAt !== null && toDateString(new Date(t.lastCompletedAt)) === toDateString(now),
       windowDone: 0,

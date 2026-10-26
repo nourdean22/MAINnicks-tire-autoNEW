@@ -275,6 +275,20 @@ describe("deck · sections tell the truth about their shapes", () => {
     expect(r?.windowDone).toBe(2);
     expect(r?.doneToday).toBe(true);
   });
+
+  it("a weekly rhythm carries its weekdays to the row, and the task read selects them (2026-10-26)", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-weigh", title: "Weigh in", loopKind: "WEEKLY", missionId: "m-general-personal", recurringDays: [1, 3, 5] }),
+      task({ id: "t-bare", title: "Plan the week", loopKind: "WEEKLY", missionId: "m-general-personal" }),
+    ]);
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.rhythms.find((x) => x.id === "t-weigh")?.recurringDays).toEqual([1, 3, 5]);
+    // A row with no weekdays on file reads as an empty list, never undefined or a guessed day.
+    expect(deck.rhythms.find((x) => x.id === "t-bare")?.recurringDays).toEqual([]);
+    // The mock ignores `select`, so pin the request itself: a column nobody selects arrives as undefined in prod.
+    const taskRead = mocks.task.findMany.mock.calls.map((c) => c[0]).find((a) => a?.select?.loopKind === true);
+    expect(taskRead?.select.recurringDays).toBe(true);
+  });
 });
 
 describe("deck · readiness freshness bound (the 96/100-off-stale-logs pin)", () => {
