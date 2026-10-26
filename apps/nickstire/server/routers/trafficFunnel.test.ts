@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   row: { total: 20, declined: 18 } as Record<string, unknown>,
+  hold: null as string | null,
 }));
 
 vi.mock("../db", () => {
@@ -19,6 +20,7 @@ vi.mock("../db", () => {
   return { getDb: async () => db, getDbTyped: async () => db };
 });
 vi.mock("../pipelines/gsc-data", () => ({ getGscReport: async () => null }));
+vi.mock("../services/sendPause", () => ({ sendPauseHoldReason: async () => h.hold }));
 
 import { trafficFunnelRouter } from "./trafficFunnel";
 
@@ -40,6 +42,7 @@ async function declinedAction() {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  h.hold = null;
 });
 
 describe("trafficFunnel.overview declined-estimates action", () => {
@@ -55,6 +58,21 @@ describe("trafficFunnel.overview declined-estimates action", () => {
     vi.stubEnv("FEATURE_DECLINED_RECOVERY", "");
     const action = await declinedAction();
     expect(action?.fix).toBe("Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups.");
+  });
+
+  // 2026-10-26 audit: the cron also obeys send_pause_declined_recovery; the page used to read only the flag.
+  it("flag on but the runtime pause holds: says paused, never running", async () => {
+    vi.stubEnv("FEATURE_DECLINED_RECOVERY", "1");
+    h.hold = "send_pause:declined_recovery";
+    const action = await declinedAction();
+    expect(action?.fix).toContain("paused");
+    expect(action?.fix).not.toContain("running");
+  });
+
+  it("says the walk-out is an inference (no matching invoice), never a recorded fact", async () => {
+    const action = await declinedAction();
+    expect(action?.detail).toMatch(/no matching invoice/);
+    expect(action?.detail).toMatch(/most likely/);
   });
 
   it('flag "true" is off in the cron, so the page still says to enable it', async () => {
