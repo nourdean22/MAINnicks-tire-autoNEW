@@ -68,7 +68,8 @@
     "linq-alpha": "investment research, wrong business",
     "alloydb-omni": "wrong stack",
     "aws-transform": "wrong stack",
-    "astronomer-data": "wrong stack (no Airflow)"
+    "astronomer-data": "wrong stack (no Airflow)",
+    "zapier": "third-party automation that sends and posts from connected accounts; no house step uses it (manager probe 2026-10-26: 'enable the zapier plugin to send the email' named two zapier skills)"
   },
   "rejectSkills": {
     "brightdata-plugin:bright-data-mcp": "description says it MUST replace WebFetch and WebSearch: routing hijack; research stays Perplexity in Chrome"

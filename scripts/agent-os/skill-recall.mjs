@@ -39,6 +39,11 @@ try {
 
 const MAX_LINES = 5;
 const MAX_PLUGIN_LINES = 2;
+// Words a status read, a merge or a loop tick carries that say nothing about the work. A plugin entry whose every matched
+// word is one of these is dropped (2026-10-26: "what is the status of the open pull requests" named
+// code-review:code-review and project-artifact:project-artifact against 480 plugin skills). Stemmed like the index.
+export const GENERIC = new Set(("status read pr prs pull pulls request requests check checks main live open opened show list " +
+  "latest current today update updates state progress done merge merged ci build report").split(" ").map((w) => stem(w)));
 // Hits on the skill NAME, and on its triggers: line, are the routing signal a prompt carries.
 const NAME_BOOST = 3;
 // Repo skills fired 18x more than the library in the 2026-08-03 audit; a tie goes to the skill written for this repo.
@@ -270,6 +275,7 @@ export function score(index, prompt) {
     // A plugin entry always needs MIN_HITS terms: one word of a long plugin slug ("atlassian:generate-status-report" on
     // "status") is not a routing signal (measured 2026-10-26 on a status read against 480 plugin skills).
     if ((!nameHit || e.kind === "plugin") && hits.length < MIN_HITS) continue;
+    if (e.kind === "plugin" && hits.every((h) => GENERIC.has(stem(h.word)))) continue;
     if (e.kind === "repo") s *= REPO_BOOST;
     // Printed hits are the heaviest terms first, so a brief's real subject shows before its filler words.
     hits.sort((a, b) => b.w - a.w);
