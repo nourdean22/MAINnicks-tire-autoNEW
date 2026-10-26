@@ -9,6 +9,7 @@ import React from "react";
 const askMutateAsync = vi.fn();
 const smsMutateAsync = vi.fn();
 const notesMutateAsync = vi.fn();
+const getByIdFetch = vi.fn();
 vi.mock("@/lib/trpc", () => {
   const mutation = (mutateAsync: (...a: unknown[]) => unknown) => () => ({ mutateAsync, mutate: vi.fn(), isPending: false });
   return {
@@ -18,7 +19,7 @@ vi.mock("@/lib/trpc", () => {
         quickSms: { useMutation: mutation((...a) => smsMutateAsync(...a)) },
         updateNotes: { useMutation: mutation((...a) => notesMutateAsync(...a)) },
       },
-      useUtils: () => ({ customers: { getById: { fetch: vi.fn(async () => ({ notes: "old" })), invalidate: vi.fn() } } }),
+      useUtils: () => ({ customers: { getById: { fetch: (...a: unknown[]) => getByIdFetch(...a), invalidate: vi.fn() } } }),
     },
   };
 });
@@ -111,6 +112,25 @@ describe("Ask sheet", () => {
     expect(smsMutateAsync).toHaveBeenCalledWith({ customerId: 42, message: "Your car is ready, Pat." });
     expect(screen.queryByRole("button", { name: "Send text to Pat Doe" })).toBeNull();
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("a drafted note is appended to the notes read fresh at tap time, never replacing them", async () => {
+    askMutateAsync.mockResolvedValueOnce({
+      reply: "Drafted a note for Pat [[customer:42]].", citations: [{ type: "customer", id: 42, label: "Pat Doe" }],
+      proposals: [{ kind: "note", customerId: 42, customerName: "Pat Doe", note: "Wants Michelin next time" }], receipts: [], unmatchedRefs: 0,
+    });
+    getByIdFetch.mockResolvedValueOnce({ notes: "Pays cash" });
+    notesMutateAsync.mockResolvedValueOnce({ success: true });
+    mount();
+    act(() => openAdminAssistant());
+    fireEvent.change(await screen.findByLabelText("Ask a question"), { target: { value: "note he wants michelin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const add = await screen.findByRole("button", { name: "Add note to Pat Doe" });
+    expect(notesMutateAsync).not.toHaveBeenCalled();
+    fireEvent.click(add);
+    await waitFor(() => expect(screen.getByText("Saved: note on Pat Doe.")).toBeTruthy());
+    expect(getByIdFetch).toHaveBeenCalledWith({ id: 42 }, { staleTime: 0 });
+    expect(notesMutateAsync).toHaveBeenCalledWith({ id: 42, notes: expect.stringMatching(/^Pays cash\n\d{1,2}\/\d{1,2}\/\d{4}: Wants Michelin next time$/) });
   });
 
   it("dropping the page chip sends the question without the page", async () => {

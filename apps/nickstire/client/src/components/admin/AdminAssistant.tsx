@@ -316,7 +316,8 @@ function ProposalCard({ proposal, receipt, onDone, onOpenSection, allowedSection
       <button type="button" disabled={busy} className={action} onClick={async () => {
         try {
           // Read the current notes at tap time so the note is appended, never replacing what is there.
-          const current = await utils.customers.getById.fetch({ id: proposal.customerId });
+          // staleTime 0: the app default (10 s) could hand back cached notes, and updateNotes replaces the field.
+          const current = await utils.customers.getById.fetch({ id: proposal.customerId }, { staleTime: 0 });
           if (!current) { toast.error("Customer not found. Nothing saved."); return; }
           const stamp = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
           const next = [current.notes?.trim(), `${stamp}: ${proposal.note}`].filter(Boolean).join("\n").slice(0, 5000);
