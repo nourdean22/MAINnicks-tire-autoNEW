@@ -276,9 +276,9 @@ function TaskEditSheetBody({
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-50 bg-canvas/60"
+        overlayClassName="z-[70] bg-canvas/60"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[51] max-h-[90dvh] overflow-y-auto rounded-t-float border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] outline-none lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-overlay lg:border",
+          "fixed inset-x-0 bottom-0 z-[70] max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-float border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] outline-none lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-overlay lg:border",
           "shadow-l2",
         )}
       >
