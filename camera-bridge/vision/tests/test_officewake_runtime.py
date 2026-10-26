@@ -874,3 +874,41 @@ def test_a_capture_that_never_returns_is_abandoned_and_listening_resumes(tmp_pat
                 pass
 
     asyncio.run(scenario())
+
+
+def test_a_capture_with_no_speech_segments_returns_the_worker_to_listening(tmp_path):
+    """2026-10-22 17:51:58Z (ledger on the front-desk PC): capture_started, then capture_finished at
+    17:54:00 with no capture_captured, i.e. a no-segments result settled in phase 1. The worker stayed
+    CAPTURING for four days: _apply_result keeps CAPTURING by design (a background transcription must
+    not pull a live capture out of it), and the probe loop skips every pass while CAPTURING. A capture
+    that is over, whatever its result, must hand the worker back to listening."""
+
+    def no_segments_phase(cfg, trigger, *, clock=None, **_kw):
+        return CapturePhase(
+            trigger=trigger, started_at=trigger.received_at, capture_seconds=120.0, segments=[], frames=[],
+            result=CaptureResult("no_segments", "bounded capture returned no speech segments", asdict(trigger)),
+        )
+
+    def no_segments_runner(cfg, trigger):
+        return CaptureResult("no_segments", "bounded capture returned no speech segments", asdict(trigger))
+
+    async def scenario(**daemon_kw):
+        ledger = MemoryLedger()
+        daemon = OfficeWakeDaemon(_live_cfg(tmp_path), ledger=ledger, clock=lambda: MONDAY_10AM, **daemon_kw)
+        worker = asyncio.create_task(daemon.worker())
+        try:
+            await daemon.offer({"event": "motion", "deviceSn": OFFICE})
+            await asyncio.wait_for(daemon.queue.join(), timeout=3)
+        finally:
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
+        finished = [p for k, p in ledger.rows if k == "capture_finished"]
+        assert finished and finished[-1]["status"] == "no_segments"
+        assert daemon.runtime_state == "READY"
+        assert daemon.runtime.state["conversationWorkerState"] == "READY"
+
+    asyncio.run(scenario(capture_phase_fn=no_segments_phase))
+    asyncio.run(scenario(runner=no_segments_runner))
