@@ -65,7 +65,7 @@ describe("Ask sheet", () => {
     expect(await screen.findByText(/On: Customers · customer #42/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Ask a question"), { target: { value: "who is this" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-    expect(await screen.findByRole("button", { name: "Pat Doe" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Open Pat Doe" })).toBeTruthy();
     expect(screen.getByText(/spent \$10\./)).toBeTruthy();
     expect(askMutateAsync.mock.calls[0][0].page).toEqual({ section: "customers", title: "Customers", params: { tab: "customers", id: "42", customersTab: "members" }, customerId: 42 });
   });
@@ -102,7 +102,7 @@ describe("Ask sheet", () => {
       page: expect.objectContaining({ section: "customers", customerId: 42 }),
       messages: [{ role: "user", content: "text this customer his car is ready" }],
     }));
-    expect(screen.getByRole("button", { name: "Pat Doe" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Pat Doe" })).toBeTruthy();
     expect(smsMutateAsync).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("Text message"), { target: { value: "Your car is ready, Pat." } });

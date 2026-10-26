@@ -209,7 +209,7 @@ export function AdminAssistant({ userKey, section, sectionTitle, allowedSections
               enterKeyHint="send"
               maxLength={4000}
               aria-label="Ask a question"
-              placeholder="Ask about customers, sales, calls, tires..."
+              placeholder="Ask about the shop"
               className="flex-1 resize-none max-h-32 min-h-11 rounded-md border border-border bg-background px-3 py-2.5 text-[16px] leading-snug"
             />
             <button type="submit" disabled={!draft.trim() || ask.isPending} className="min-h-11 min-w-16 px-4 rounded-md bg-primary text-primary-foreground text-[14px] font-medium disabled:opacity-50">Ask</button>
@@ -242,9 +242,11 @@ function TurnView({ turn, onRecord, onDone, onOpenSection, allowedSections }: {
     <div className={`mr-4 text-[14px] leading-relaxed ${turn.error ? "text-destructive" : ""}`}>
       <div className="whitespace-pre-wrap">
         {splitReply(turn.content, a?.citations ?? []).map((p, i) => ("text" in p ? <span key={i}>{p.text}</span> : p.ref.type === "customer" ? (
-          <button key={i} type="button" onClick={() => onRecord(p.ref.type, p.ref.id)} className="mx-0.5 inline-flex items-center min-h-8 px-1.5 rounded border border-border text-[12px] underline-offset-2 hover:underline">{p.ref.label}</button>
+          // The model names the record in its own words just before the reference, so the chip is a compact
+          // footnote (#id) that opens the record, not a second copy of the name.
+          <button key={i} type="button" onClick={() => onRecord(p.ref.type, p.ref.id)} aria-label={`Open ${p.ref.label}`} title={p.ref.label} className="mx-0.5 inline-flex items-center justify-center min-h-8 min-w-8 px-1.5 rounded border border-border text-[12px] tabular-nums hover:bg-muted">#{p.ref.id}</button>
         ) : (
-          <span key={i} className="mx-0.5 inline-flex items-center px-1.5 rounded border border-border text-[12px]">{p.ref.label}</span>
+          <span key={i} title={p.ref.label} className="mx-0.5 inline-flex items-center px-1.5 rounded border border-border text-[12px] tabular-nums">{p.ref.type === "invoice" ? p.ref.label : `#${p.ref.id}`}</span>
         )))}
       </div>
       {a?.proposals.map((p, i) => (
