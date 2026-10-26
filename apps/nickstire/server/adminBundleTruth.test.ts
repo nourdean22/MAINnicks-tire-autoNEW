@@ -80,8 +80,11 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
     expect(overview).toMatch(/UNKNOWN, not clear/);
   });
 
-  it("the Active work orders card cannot show a count from a failed read", () => {
-    expect(overview).toMatch(/value=\{workOrdersFailed \? (?:UNKNOWN|"—")/);
+  // 2026-10-26: the work-order read left Today (one cancelled row in production since April); the
+  // separate read that can now fail outside the bundle is the Pipeline follow-ups, and it must veto
+  // the count the same way the work-order read did.
+  it("a failed follow-ups read vetoes the Needs-action count instead of hiding rows", () => {
+    expect(overview).toMatch(/!followUpsFailed &&/);
   });
 
   it("SummaryCard can express UNKNOWN at all", () => {
