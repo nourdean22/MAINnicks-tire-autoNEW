@@ -9,7 +9,7 @@
  *     (Venice/Ollama/OpenAI keep the legacy system+messages split)
  *   · pruned tools + hallucinated-tool-name repair
  *   · smoothStream perceived-latency word chunking
- *   · step caps (standard 3 / deep 5)
+ *   · step caps (standard 3 / deep 5, +1 text-only belt step)
  *   · the prepareStep toolChoice ladder — python-execute step-0 pin →
  *     web-search step-0 pin → generic action "required" → default —
  *     each with the 2026-07-15 final-step text forcing, and the READ
@@ -207,7 +207,10 @@ export function buildStreamConfigFactory(deps: {
       // Standard allows 3 tool-call steps; deep allows 5 for agentic
       // workflows. Keep step counts tight so a confused tool chain can't
       // blow through the whole context budget.
-      stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
+      // 2026-10-26 · +1: a text-only step that STILL returned tool calls gets
+      // one more text-only step instead of ending the turn with no prose. Tools
+      // stay limited to the first N-1 steps (prepareStep below).
+      stopWhen: stepCountIs((mode === "deep" ? 5 : 3) + 1),
       // Context-aware brevity cap — see prepare-tools.ts.
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
       // Apr 19 · Adaptive temperature from the turn classifier.
@@ -248,6 +251,16 @@ export function buildStreamConfigFactory(deps: {
         // produce text. Applies to all three branches, including the
         // previously-prepareStep-less default.
         const lastStep = (mode === "deep" ? 5 : 3) - 1;
+        // 2026-10-26 · tool_choice "none" is only a request. Ollama's
+        // OpenAI-compat surface ignores it: an ollama/minimax-m3 turn called
+        // tools on its last step and ended "tool-calls" with no prose. So the
+        // last step also sends NO tools (activeTools: []), which no provider
+        // can ignore. Anthropic, Gemini and OpenAI honour "none" natively and
+        // keep their tool definitions (Anthropic rejects tool history without them).
+        const textOnly =
+          fbProvider === "anthropic" || fbProvider === "gemini" || fbProvider === "openai"
+            ? { toolChoice: "none" as const }
+            : { toolChoice: "none" as const, activeTools: [] as string[] };
         // READ permission (composer selector) must not be contradicted by
         // structural tool forcing — a forced tool / toolChoice:"required"
         // makes the "observe and describe, don't act" directive impossible
@@ -270,7 +283,7 @@ export function buildStreamConfigFactory(deps: {
               stepNumber === 0
                 ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
                 : stepNumber >= lastStep
-                  ? { toolChoice: "none" as const }
+                  ? textOnly
                   : { toolChoice: "auto" as const },
           };
         }
@@ -298,13 +311,13 @@ export function buildStreamConfigFactory(deps: {
               stepNumber === 0
                 ? { toolChoice: "required" as const }
                 : stepNumber >= lastStep
-                  ? { toolChoice: "none" as const }
+                  ? textOnly
                   : { toolChoice: "auto" as const },
           };
         }
         return {
           prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-            stepNumber >= lastStep ? { toolChoice: "none" as const } : {},
+            stepNumber >= lastStep ? textOnly : {},
         };
       })(),
       // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
