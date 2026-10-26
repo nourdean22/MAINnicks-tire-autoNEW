@@ -189,16 +189,22 @@ function buildPostFlushRegen(a: {
       regenMs: regen.durationMs.regen,
       intent: a.turnSignal.intent,
     });
+    // Same shape the pre-stream lane had: tests/repo/regen-telemetry-strict.test.ts reads it from the syntax tree.
+    const { log } = a;
     try {
-      const m = formatRegenTelemetry(
+      const regenMetric = formatRegenTelemetry(
         regen,
         a.turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
         a.turnSignal.outputShape,
       );
       const { recordMetricStrict } = await import("@/lib/services/metrics");
-      await recordMetricStrict(m.metric, m.value, { unit: m.unit, tags: { ...m.tags, traceId: a.traceId, postFlush: "1" }, source: m.source });
+      await recordMetricStrict(regenMetric.metric, regenMetric.value, {
+        unit: regenMetric.unit,
+        tags: { ...regenMetric.tags, traceId: a.traceId, postFlush: "1" },
+        source: regenMetric.source,
+      });
     } catch (err) {
-      a.log.warn("verified_regen_telemetry_failed", { error: err instanceof Error ? err.name : "Error" });
+      log.warn("verified_regen_telemetry_failed", { error: err instanceof Error ? err.name : "Error" });
       void import("@/lib/utils/error-log")
         .then(({ logError }) => logError(instrumentScope("chat.pre_stream_regen"), err, { traceId: a.traceId }, "warn"))
         .catch(() => undefined);
