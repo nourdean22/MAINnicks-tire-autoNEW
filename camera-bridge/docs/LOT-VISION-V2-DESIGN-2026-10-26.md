@@ -19,10 +19,15 @@ NOT CHECKED. Perplexity lines are CLAIM until their primary page is read; the on
    runs as a standby and is promoted by that lease (FACT: `edge_main.py:57-59`, `957-1018`).
 4. **Cost:** $0 hardware. The dormant cloud copy costs roughly $1 to $3 a month while idle and about $10 to $30 a
    month only while it is actually counting (INFERRED from Railway's published rates, section 6).
-5. **Your hands, one line:** type the V380 password once for the new hosts (the old secret is locked to NicksMax by
-   Windows DPAPI, FACT: `nicksmax-camera-supervisor.ps1:52`), and say yes to running the relay below. Everything else
-   is agents: code by PR, the Railway service from the repo, the front-desk install through the Claude app on that PC
-   with a hash-pinned block, as done for the office lane today.
+5. **Your hands, honestly:** "nothing" is not reachable. Three things stay yours by house rule:
+   - type the V380 password once for the new hosts (the old secret is locked to NicksMax by Windows DPAPI, FACT:
+     `nicksmax-camera-supervisor.ps1:52`; agents never type or store a password);
+   - say yes to running the relay below, because it overrules a house rejection (section 2);
+   - name the front-desk install in your own words ("install the lot counter on the front-desk PC"), then either an
+     agent drives it over Chrome Remote Desktop, or you paste one hash-pinned block into the Claude app on that PC
+     (skill `shop-pc-remote-session`: a change on a shop PC needs your words naming it, and the Claude app there is
+     driven by you, not by another session).
+   Everything else is agents: code by PR, the Railway service from the repo, receipts read from production.
 
 ## 2. Two things you must know first
 
@@ -34,7 +39,12 @@ NOT CHECKED. Perplexity lines are CLAIM until their primary page is read; the on
    since 2026-09-28. Risks: the vendor can change its protocol and break it overnight; neither repo shows a licence,
    so we run it as-is for our own camera and never copy its code into this public repo. Confirming which build runs
    needs one look at NicksMax's relay folder (NOT CHECKED).
-   With zero spend there is no other way to read this camera except the SD-card unlock in section 3 alternative L.
+   Two house rules say no to it: the `docs/UPSTREAMS.md` row "V380 protocol bridges" (REJECT for production) and the
+   stop line in skill `camera-onboard-rtsp` ("no cloud-relay bridges, no protocol bridges for closed camera apps").
+   Design Z therefore needs your explicit yes, recorded in the build PR, which also changes that UPSTREAMS row to
+   "accepted risk, own camera and account, 2026-10-26" and corrects ADR-0022. Without that yes, zero spend leaves no
+   way to count from this camera: the SD-card unlock (alternative L) is blocked by the same skill, and design A costs
+   money.
 2. **The solar camera is asleep for part of every open day.** It is dark from civil dusk until about 2 hours after
    sunrise (FACT: `server/lib/solar.ts`); the shop opens at 8 AM (FACT: `shared/business.ts`). Roughly 8 to 10 AM is
    uncounted every day, and the last open hour in winter. Cars already there at open are estimated at first light.
@@ -74,7 +84,7 @@ silent zero pages the same day.
 1. A pinned build of the relay (source pinned by commit, built in CI or on the host, never vendored into this public
    repo) -> FFmpeg crop of the side-lot lens to 640x360 at 4 fps (today's command, `run-sign-crop.ps1:66`) ->
    MediaMTX -> `edge_main.py --source rtsp`. Same parts as NicksMax, minus the PowerShell supervisor loop.
-2. **Front-desk PC (primary, `p1-shop-sign-*`):** installed like the office lane
+2. **Front-desk PC (primary, `p1-shop-sign-*`):** installed, once you name it, like the office lane
    (`scripts/install-office-capture.ps1` pattern): SYSTEM scheduled tasks at below-normal priority; relay and counter
    as separate tasks so each restarts alone; a watchdog that restarts on stale decoded frames, not only on exit.
    The office lane is untouched.
@@ -138,7 +148,7 @@ account's included usage covers it is NOT CHECKED.
 | 1 | This design | your yes, and your yes to running the reverse-engineered relay |
 | 2 | Server: the silent-zero page and the named dark window. Edge: the cloud host, the dormant standby, the frame-progress watchdog. Tests, red first | nothing (PR) |
 | 3 | The relay pinned: confirm which build NicksMax ran (one look at its folder if you switch it on for 30 minutes; otherwise pin the three-lens fork by commit). It is proven on the live stream in phase 4 | your call on NicksMax |
-| 4 | Front-desk PC install by an agent (Claude app on that PC, hash-pinned block), new calibration, first arrivals on Admin > Lot | the V380 password, typed by you |
+| 4 | Front-desk PC install (agent over Chrome Remote Desktop, or your paste of one hash-pinned block into the Claude app there), new calibration, first arrivals on Admin > Lot | your words naming the install, and the V380 password typed by you |
 | 5 | Railway standby service from the repo; planted failover test (stop the PC task, watch the cloud take over) | your go on the service |
 | 6 | Acceptance audit and 7-day judgement; then NicksMax's sign lane is archived | 7 complete ET days |
 
