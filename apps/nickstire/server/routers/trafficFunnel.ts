@@ -431,9 +431,11 @@ export const trafficFunnelRouter = router({
           detail: "Quoted at the counter with no matching invoice, so the customer most likely walked.",
           fix: !armed
             ? "Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups."
-            : held
-              ? "Declined-recovery texts are paused (Settings > Safety), so none are going out; work the queue on Money > Declined."
-              : "Declined-recovery texts are running (7d / 30d); work the queue on Money > Declined.",
+            : held?.startsWith("send_pause_unreadable")
+              ? "Declined-recovery state unknown: the pause switch could not be read (the cron holds until it can); work the queue on Money > Declined."
+              : held
+                ? "Declined-recovery texts are paused (Settings > Safety), so none are going out; work the queue on Money > Declined."
+                : "Declined-recovery texts are running (7d / 30d); work the queue on Money > Declined.",
         });
       }
 

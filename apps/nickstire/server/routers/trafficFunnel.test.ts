@@ -69,6 +69,15 @@ describe("trafficFunnel.overview declined-estimates action", () => {
     expect(action?.fix).not.toContain("running");
   });
 
+  // Manager ruling 2026-10-26: a switch that cannot be read is UNKNOWN on this page, never "running" or "paused".
+  it("flag on but the pause switch cannot be read: says unknown, neither running nor paused", async () => {
+    vi.stubEnv("FEATURE_DECLINED_RECOVERY", "1");
+    h.hold = "send_pause_unreadable:declined_recovery";
+    const action = await declinedAction();
+    expect(action?.fix).toMatch(/unknown/i);
+    expect(action?.fix).not.toMatch(/running|paused/);
+  });
+
   it("says the walk-out is an inference (no matching invoice), never a recorded fact", async () => {
     const action = await declinedAction();
     expect(action?.detail).toMatch(/no matching invoice/);
