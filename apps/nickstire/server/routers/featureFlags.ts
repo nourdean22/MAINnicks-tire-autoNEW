@@ -8,12 +8,23 @@ import { logAdminAction } from "../services/auditTrail";
 
 export const featureFlagsRouter = router({
   list: dbAdminProcedure.query(async () => {
-    const { getAllFlags, FLAG_DEFINITIONS } = await import("../services/featureFlags");
+    const { getAllFlags, FLAG_DEFINITIONS, INVERTED_FLAG_KEYS, getLastFlagChanges } = await import("../services/featureFlags");
     // Only flags the code still defines. seedFlags inserts a row per definition
     // at boot and nothing deletes a retired one (e.g. contact_holdout_drip), so
     // listing raw rows showed switches that `toggle` rejects and nothing reads.
     const known = new Set<string>(FLAG_DEFINITIONS.map((f) => f.key));
-    return (await getAllFlags()).filter((f) => known.has(f.key));
+    const flags = (await getAllFlags()).filter((f) => known.has(f.key));
+    // Sequential: both reads import the db module, and concurrent first-time imports of a mocked module fail in vitest.
+    const changes = await getLastFlagChanges();
+    // 2026-10-25 · `inverted`: TRUE means paused/muted, so OFF is the normal state and must not read as a disabled feature.
+    // `lastChange`: who flipped it last and when, from the audit rows toggle writes; null = no toggle on record.
+    // `lastChangeKnown` false = the audit table could not be read, so a null lastChange is UNKNOWN, not "never flipped".
+    return flags.map((f) => ({
+      ...f,
+      inverted: INVERTED_FLAG_KEYS.has(f.key),
+      lastChange: changes?.get(f.key) ?? null,
+      lastChangeKnown: changes !== null,
+    }));
   }),
 
   toggle: adminProcedure

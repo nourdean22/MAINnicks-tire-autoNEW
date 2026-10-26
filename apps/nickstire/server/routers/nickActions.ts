@@ -13,7 +13,7 @@ import { logAdminAction } from "../services/auditTrail";
 // ─── Sub-module imports ─────────────────────────────────
 import { handleRunMigrations } from "./nick/intelligence";
 import {
-  handleShopPulse, handleCronHealth,
+  handleShopPulse, handleCronHealth, handleCronHealthSummary,
 } from "./nick/chat";
 
 export const nickActionsRouter = router({
@@ -44,6 +44,7 @@ export const nickActionsRouter = router({
   // ─── Shop Status ──────────────────────────────────────
   shopPulse: adminProcedure.query(async () => handleShopPulse()),
   cronHealth: dbAdminProcedure.query(async () => handleCronHealth()),
+  cronHealthSummary: dbAdminProcedure.query(async () => handleCronHealthSummary()),
   runMigrations: adminProcedure.mutation(async ({ ctx }) => {
     // Raw DDL execution — the single highest-privilege operator lever, and it
     // was completely unaudited. Log who ran it + the applied/skipped/error

@@ -141,6 +141,17 @@ describe("queries stay permissive on purpose", () => {
     expect(permissionForAdminProcedure("somethingInventedNextYear.list", "query")).toBe("admin.view");
   });
 
+  it("the Settings status reads resolve exactly as the cron read they replace: operational queries stay admin.view", () => {
+    // cronHealthSummary is the grouped successor of cronHealth (2026-10-25): job names, run counts and the
+    // observer's queue ages, the same class of data. It must not need a stronger permission than the read
+    // the Status tab already made, or a role that sees the tab today would get FORBIDDEN on its replacement.
+    expect(permissionForAdminProcedure("nickActions.cronHealth", "query")).toBe("admin.view");
+    expect(permissionForAdminProcedure("nickActions.cronHealthSummary", "query")).toBe("admin.view");
+    // The flag list and the declined-recovery status carry who flipped a switch and send state: owner/manager only.
+    expect(permissionForAdminProcedure("featureFlags.list", "query")).toBe("settings.manage");
+    expect(permissionForAdminProcedure("shopdriver.declinedRecoveryStatus", "query")).toBe("settings.manage");
+  });
+
   it("every role can hold admin.view, which is why it is unsafe for writes", () => {
     for (const r of ADMIN_ROLES) expect(hasAdminPermission(r, "admin.view")).toBe(true);
   });
