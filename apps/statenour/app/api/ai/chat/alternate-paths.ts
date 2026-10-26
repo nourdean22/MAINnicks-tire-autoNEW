@@ -99,8 +99,7 @@ function addUsage(acc: LaneUsage | undefined, u: unknown): LaneUsage | undefined
  * write (capped at 5 s) and the simulated stream still runs after the ship, so
  * a lane aims to ship by 150 s: 30 s of margin for both. Optional work runs
  * only while its usual cost still fits before that mark:
- *   - a second regen draft costs about what the first just did (same prompt,
- *     same tools), so it runs only if elapsed + firstMs fits;
+ *   - (the regen lane no longer buffers: it runs after the stream, 2026-10-26);
  *   - CoVe took 35 s on 2026-10-25 (12 s plan, 3 s answers, 20 s revise),
  *     reserved at 45 s. A skipped CoVe still runs post-flush in persist.
  * A draft that exists always ships; the budget never throws one away.
@@ -117,6 +116,104 @@ export type PersistBase = Omit<
   Parameters<typeof buildOnFinish>[0],
   "provider" | "modelId" | "model" | "onWorkComplete"
 >;
+
+/**
+ * 2026-10-26 · the second regen draft runs after the stream, so nobody waits on
+ * it for the first word; the bubble stays live until message.persisted. Cap it
+ * so a hung model call cannot hold the turn open: on a cut the streamed draft
+ * is kept (maybePreStreamRegen treats a failed regen as "regen-failed").
+ */
+const POST_FLUSH_REGEN_MS = 90_000;
+
+type PostFlushRegen = NonNullable<Parameters<typeof buildOnFinish>[0]["postFlushRegen"]>;
+
+/**
+ * The verified-regen lane, run on the draft that already streamed: the same
+ * maybePreStreamRegen selector, critic, repair prefix, read-only tools and
+ * temperature the pre-stream lane used. Returns null when no second draft ran
+ * (the critic passed the draft, or the intent is not gated). When one ran, its
+ * usage is returned either way (it was paid for); `text` and `steps` only when
+ * it won. A losing draft's tool calls go to tool_telemetry here, once; a
+ * winning draft's steps go to the persist walk instead.
+ */
+function buildPostFlushRegen(a: {
+  model: ReturnType<typeof getModel>;
+  sanitizedModelMessages: unknown;
+  prunedTools: unknown;
+  mode: ChatMode;
+  maxOutputTokens: number;
+  finalSystemPrompt: string;
+  userContent: string;
+  turnSignal: ReturnType<typeof classifyTurn>;
+  responseContract: PersistBase["responseContract"] | null;
+  convId: string | undefined;
+  traceId: string;
+  privateMode: boolean;
+  log: Logger;
+}): PostFlushRegen {
+  return async ({ draft }) => {
+    const { generateText } = await import("ai");
+    const { maybePreStreamRegen, formatRegenTelemetry } = await import("@/lib/ai/chat/pre-stream-regen");
+    let second: (GenerationLike & { text?: string; totalUsage?: unknown }) | null = null;
+    const regen = await maybePreStreamRegen({
+      intent: a.turnSignal.intent as Parameters<typeof maybePreStreamRegen>[0]["intent"],
+      shape: a.turnSignal.outputShape,
+      userPrompt: a.userContent,
+      turnSignal: a.turnSignal,
+      responseContract: a.responseContract ?? null,
+      generateOnce: async () => draft,
+      regenOnce: async ({ suggestedSystemPrefix }) => {
+        const r = await generateText({
+          model: a.model,
+          messages: a.sanitizedModelMessages as never,
+          tools: stripMutatingTools(a.prunedTools as Record<string, unknown>).tools as never,
+          stopWhen: stepCountIs(a.mode === "deep" ? 5 : 3),
+          ...(a.maxOutputTokens ? { maxOutputTokens: a.maxOutputTokens } : {}),
+          experimental_telemetry: langfuseTelemetry({ functionId: "chat-post-flush-regen", privateMode: a.privateMode }),
+          system: `${suggestedSystemPrefix}\n\n${a.finalSystemPrompt}`,
+          temperature: Math.min(0.9, a.turnSignal.temperature + 0.1),
+          abortSignal: AbortSignal.timeout(POST_FLUSH_REGEN_MS),
+        } as Parameters<typeof generateText>[0]);
+        second = r;
+        return r.text;
+      },
+    });
+    a.log.info("verified_regen_path", {
+      postFlush: true,
+      regenFired: regen.regenFired,
+      regenAttempted: regen.regenScore !== null,
+      selectionReason: regen.selectionReason,
+      firstOverall: regen.firstScore.overall,
+      regenOverall: regen.regenScore?.overall ?? null,
+      regenMs: regen.durationMs.regen,
+      intent: a.turnSignal.intent,
+    });
+    try {
+      const m = formatRegenTelemetry(
+        regen,
+        a.turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
+        a.turnSignal.outputShape,
+      );
+      const { recordMetricStrict } = await import("@/lib/services/metrics");
+      await recordMetricStrict(m.metric, m.value, { unit: m.unit, tags: { ...m.tags, traceId: a.traceId, postFlush: "1" }, source: m.source });
+    } catch (err) {
+      a.log.warn("verified_regen_telemetry_failed", { error: err instanceof Error ? err.name : "Error" });
+      void import("@/lib/utils/error-log")
+        .then(({ logError }) => logError(instrumentScope("chat.pre_stream_regen"), err, { traceId: a.traceId }, "warn"))
+        .catch(() => undefined);
+    }
+    const ran = second as (GenerationLike & { text?: string; totalUsage?: unknown }) | null;
+    if (!ran) return null;
+    const usage = addUsage(undefined, ran.totalUsage);
+    if (regen.regenFired) {
+      return { text: regen.text, steps: allSteps(ran), ...(usage ? { usage } : {}) };
+    }
+    void import("@/lib/services/chat/tool-telemetry-walk")
+      .then(({ recordToolObservations }) => recordToolObservations({ steps: allSteps(ran) }, a.convId))
+      .catch((err) => a.log.warn("lane_sample_telemetry_failed", { error: err instanceof Error ? err.name : "Error" }));
+    return { text: null, ...(usage ? { usage } : {}) };
+  };
+}
 
 export async function runAlternatePaths(args: {
   persistBase: PersistBase;
@@ -262,7 +359,7 @@ export async function runAlternatePaths(args: {
   };
 
   try {
-    const { shouldGateForIntent, maybePreStreamRegen } = await import(
+    const { shouldGateForIntent } = await import(
       "@/lib/ai/chat/pre-stream-regen"
     );
     const { isMultiPartQuestion } = await import(
@@ -327,7 +424,35 @@ export async function runAlternatePaths(args: {
     // (incl. python-execute), suppress ALL reasoning gates so the turn
     // falls through to the normal tool-FORCING streamText path, where
     // toolChoice:"required" makes the model call the real tool.
-    if (!actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn || preflushOn)) {
+    // 2026-10-26 · STREAM FIRST (job 2026-10-26-chat-latency). The regen lane
+    // gates most non-casual turns and used to build the whole first draft, and
+    // a second one when the critic failed it, before any byte reached the
+    // client: a 28-char message waited 106 s (reqId r659o0s). The first draft
+    // IS the normal stream now. The same critic-gated best-of-2 runs after it
+    // in the persist pipeline, and a better second draft replaces the bubble's
+    // text on message.persisted (the swap the post-flush CoVe already uses).
+    // regenOn still excludes self-consistency, exactly as before.
+    if (!actionIntent && regenOn) {
+      persistBase.postFlushRegen = buildPostFlushRegen({
+        model,
+        sanitizedModelMessages,
+        prunedTools,
+        mode,
+        maxOutputTokens,
+        finalSystemPrompt,
+        userContent,
+        turnSignal,
+        responseContract: persistBase.responseContract ?? null,
+        convId,
+        traceId,
+        privateMode,
+        log,
+      });
+      log.info("verified_regen_post_flush", { intent: turnSignal.intent });
+      return null;
+    }
+
+    if (!actionIntent && (deepOn || selfConsistencyOn || multiAgentOn || preflushOn)) {
       let winner = "";
       // 2026-10-25 · registered for the WHOLE generation (audit 04-F8 registered it only once the
       // reply existed): a stall reattach (use-chat-stream.ts) reads this row to tell "still
@@ -552,81 +677,6 @@ export async function runAlternatePaths(args: {
           recalledMemories: recalledHits,
           onFinishPromise: Promise.resolve(),
         });
-      } else if (regenOn) {
-        laneName = "regen";
-        const { generateText } = await import("ai");
-        const genOnce = async (sys: string, temp: number, abortSignal?: AbortSignal): Promise<string> => {
-          const r = await generateText({
-            ...genBase,
-            experimental_telemetry: langfuseTelemetry({ functionId: "chat-alternate-path", privateMode }),
-            system: sys,
-            temperature: temp,
-            ...(abortSignal ? { abortSignal } : {}),
-          } as Parameters<typeof generateText>[0]);
-          rememberLaneSample(r);
-          return r.text;
-        };
-        const regen = await maybePreStreamRegen({
-          intent: turnSignal.intent as Parameters<
-            typeof maybePreStreamRegen
-          >[0]["intent"],
-          shape: turnSignal.outputShape,
-          userPrompt: userContent,
-          turnSignal,
-          responseContract: persistBase.responseContract ?? null,
-          generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
-          allowRegen: (firstMs) => fitsBudget(laneName, "second_draft", firstMs),
-          // A cut throws; maybePreStreamRegen then ships the first draft ("regen-failed").
-          regenOnce: ({ suggestedSystemPrefix }) =>
-            withinBudget(laneName, "second_draft", (signal) =>
-              genOnce(
-                `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
-                Math.min(0.9, turnSignal.temperature + 0.1),
-                signal,
-              ),
-            ),
-        });
-        winner = regen.text;
-        log.info("verified_regen_path", {
-          generations: laneSamples.length,
-          regenFired: regen.regenFired,
-          regenAttempted: regen.regenScore !== null,
-          regenWasBetter: regen.regenWasBetter,
-          selectionReason: regen.selectionReason,
-          firstOverall: regen.firstScore.overall,
-          firstSeverity: regen.firstAssessment.severity,
-          regenOverall: regen.regenScore?.overall ?? null,
-          regenSeverity: regen.regenAssessment?.severity ?? null,
-          intent: turnSignal.intent,
-        });
-
-        // Persist one best-effort row per eligible regen turn so the operator can
-        // answer whether repair fires, wins, costs latency, or should be retired.
-        // Telemetry must NEVER become load-bearing for a valid chat response.
-        try {
-          const { formatRegenTelemetry } = await import(
-            "@/lib/ai/chat/pre-stream-regen"
-          );
-          const regenMetric = formatRegenTelemetry(
-            regen,
-            turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
-            turnSignal.outputShape,
-          );
-          const { recordMetricStrict } = await import("@/lib/services/metrics");
-          await recordMetricStrict(regenMetric.metric, regenMetric.value, {
-            unit: regenMetric.unit,
-            tags: { ...regenMetric.tags, traceId },
-            source: regenMetric.source,
-          });
-        } catch (err) {
-          log.warn("verified_regen_telemetry_failed", {
-            error: err instanceof Error ? err.name : "Error",
-          });
-          // Audit 01-F6: the instrument-health reader only sees failures logged under the instrument scope.
-          void import("@/lib/utils/error-log")
-            .then(({ logError }) => logError(instrumentScope("chat.pre_stream_regen"), err, { traceId }, "warn"))
-            .catch(() => undefined);
-        }
       } else if (selfConsistencyOn) {
         laneName = "self-consistency";
         const { generateText } = await import("ai");

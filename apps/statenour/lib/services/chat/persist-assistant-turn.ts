@@ -156,6 +156,16 @@ export interface BuildOnFinishInput {
   messages: ReadonlyArray<unknown>;
   topicTier: string;
   onWorkComplete?: () => void;
+  /**
+   * 2026-10-26 · the verified regen lane, after the stream (alternate-paths.ts
+   * buildPostFlushRegen). Null: no second draft ran. Otherwise its usage, and
+   * text + steps only when it beat the streamed draft.
+   */
+  postFlushRegen?: (a: { draft: string }) => Promise<{
+    text: string | null;
+    steps?: unknown[];
+    usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  } | null>;
 }
 
 // (buildMessageParts + runDeferredBackgroundWork moved VERBATIM to
@@ -261,8 +271,9 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           salvagedChars: text.length,
         });
       }
-      const { reasoningText, hasToolCalls, finishReason, usage } = __salvaged;
-      const ev = event as unknown as { steps?: unknown };
+      const { reasoningText, hasToolCalls, finishReason } = __salvaged;
+      let usage = __salvaged.usage;
+      let ev = event as unknown as { steps?: unknown };
 
       // ═══ CRITICAL PATH — must succeed for chat to work ═══
       // Save assistant message (cleaned). Bounded to 10s — if Neon
@@ -315,6 +326,36 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         });
       }
       const hasContent = cleanedText.trim().length > 0;
+
+      // 2026-10-26 · STREAM FIRST (job 2026-10-26-chat-latency): the verified
+      // regen lane's best-of-2, run on the draft that already streamed. A
+      // better second draft becomes the stored text, and the bubble swaps to it
+      // on message.persisted (the same swap the CoVe pass below uses). Its tool
+      // steps join the walk, so receipts cover what the stored reply used; its
+      // tokens are counted whether it won or not. Runs before CoVe, which then
+      // verifies the final text. Any failure keeps the streamed draft.
+      if (hasContent && deps.postFlushRegen) {
+        try {
+          const regen = await deps.postFlushRegen({ draft: cleanedText });
+          if (regen?.usage) {
+            const add = (x?: number, y?: number) => (typeof y === "number" ? (x ?? 0) + y : x);
+            usage = {
+              ...usage,
+              inputTokens: add(usage?.inputTokens, regen.usage.inputTokens),
+              outputTokens: add(usage?.outputTokens, regen.usage.outputTokens),
+              totalTokens: add(usage?.totalTokens, regen.usage.totalTokens),
+            } as typeof usage;
+          }
+          if (regen?.text && regen.text.trim().length > 0) {
+            cleanedText = regen.text;
+            const before = Array.isArray(ev.steps) ? (ev.steps as unknown[]) : [];
+            ev = { ...(ev as Record<string, unknown>), steps: [...before, ...(regen.steps ?? [])] };
+            log.info("post_flush_regen_swapped", { chars: cleanedText.length });
+          }
+        } catch (err) {
+          log.warn("post_flush_regen_failed", { error: err instanceof Error ? err.name : "Error" });
+        }
+      }
 
       // v-truth · Chain-of-Verification (NICK_COVE) · verify factual
       // answers in ISOLATION before the row persists, so the stored

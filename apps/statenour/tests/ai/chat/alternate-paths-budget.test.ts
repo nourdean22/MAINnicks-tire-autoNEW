@@ -6,12 +6,12 @@
  * the client gives up 180 s after submit. The reply was saved 45 s after nobody
  * was listening.
  *
- * Pinned, on the route's own turn clock (persistBase.startedAt) and the real
- * maybePreStreamRegen:
- *   1. a first draft that leaves too little room ships as is: no second draft,
- *      no pre-flush CoVe, one `lane_budget_skipped` line per skipped step;
- *   2. CONTROL: a fast first draft keeps today's behaviour (second draft and
- *      CoVe both run, nothing logged as skipped).
+ * 2026-10-26: the regen lane no longer buffers at all (it runs after the stream,
+ * tests/ai/chat/stream-first-regen.test.ts). The budget still bounds CoVe on the
+ * lanes that do buffer, pinned here on the self-consistency lane:
+ *   1. samples that leave too little room ship as is: no pre-flush CoVe, one
+ *      `lane_budget_skipped` line;
+ *   2. CONTROL: fast samples keep today's behaviour (CoVe runs, nothing skipped).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -55,6 +55,15 @@ const verifyAndRevise = vi.fn();
 vi.mock("@/lib/ai/chat/chain-of-verification", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/chat/chain-of-verification")>()),
   verifyAndRevise: (...a: unknown[]) => verifyAndRevise(...a),
+}));
+
+// Sequential samples, the first one wins: the lane's budget is what is under test, not the vote.
+vi.mock("@/lib/ai/chat/self-consistency", () => ({
+  selfConsistentAnswer: async ({ samples, generate }: { samples: number; generate: () => Promise<string> }) => {
+    const texts: string[] = [];
+    for (let i = 0; i < samples; i++) texts.push(await generate());
+    return { answer: texts[0], agreed: true, samples };
+  },
 }));
 
 import { runAlternatePaths } from "@/app/api/ai/chat/alternate-paths";
@@ -118,7 +127,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(T0 + 7_500); // prompt built, as on 2026-10-25
   for (const k of Object.keys(flags)) delete flags[k];
-  flags.NICK_VERIFIED_REGEN = true;
+  flags.NICK_SELF_CONSISTENCY = true;
   flags.NICK_COVE = true;
   generateText.mockReset();
   verifyAndRevise.mockReset();
@@ -131,30 +140,27 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("buffered lanes · one wall-clock budget from turn start", () => {
-  it("a slow first draft ships as is: no second draft, no pre-flush CoVe, each skip logged", async () => {
+  it("slow samples ship as is: no pre-flush CoVe, the skip logged", async () => {
     modelTaking(119_000); // 2026-10-25: first draft 118.7 s
     const res = await run();
 
-    expect(res, "the first draft must ship, never fall through").not.toBeNull();
-    expect(generateText, "the second regen draft ran past the budget").toHaveBeenCalledTimes(1);
+    expect(res, "the answer must ship, never fall through").not.toBeNull();
+    expect(generateText).toHaveBeenCalledTimes(3);
     expect(verifyAndRevise, "CoVe ran past the budget").not.toHaveBeenCalled();
     expect(shippedTexts).toEqual([VAGUE_REPLY]);
     expect(persistEvents[0]?.coveDone, "a skipped CoVe must stay owed to persist").toBeUndefined();
     const skips = skipLines();
-    expect(skips).toEqual([
-      expect.objectContaining({ lane: "regen", step: "second_draft" }),
-      expect.objectContaining({ lane: "regen", step: "cove" }),
-    ]);
-    // The elapsed time comes from persistBase.startedAt, the route's clock.
-    expect(skips[0].elapsedMs).toBe(126_500);
+    expect(skips).toEqual([expect.objectContaining({ lane: "self-consistency", step: "cove" })]);
+    // The elapsed time comes from persistBase.startedAt, the route's clock: 7.5 + 119 + 5 + 5 s.
+    expect(skips[0].elapsedMs).toBe(136_500);
   });
 
-  it("CONTROL: a fast first draft keeps today's behaviour", async () => {
+  it("CONTROL: fast samples keep today's behaviour", async () => {
     modelTaking(10_000);
     const res = await run();
 
     expect(res).not.toBeNull();
-    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(generateText).toHaveBeenCalledTimes(3);
     expect(verifyAndRevise).toHaveBeenCalledTimes(1);
     expect(shippedTexts).toEqual(["verified reply"]);
     expect(persistEvents[0]?.coveDone).toBe(true);
@@ -181,25 +187,25 @@ describe("buffered lanes · the remaining budget bounds the optional step itself
     return p;
   }
 
-  it("a second draft still running at the budget is cut and the first draft ships", async () => {
-    fakeAllTimers();
-    let calls = 0;
-    generateText.mockImplementation(async () => {
-      calls += 1;
-      if (calls === 1) {
-        vi.setSystemTime(Date.now() + 10_000); // fast first draft: the preflight lets a repair run
-        return { text: VAGUE_REPLY, toolCalls: [], toolResults: [] };
-      }
-      return slow({ text: CONCRETE_REPLY, toolCalls: [], toolResults: [] }, 200_000);
-    });
-
-    const res = await run();
-
-    expect(res).not.toBeNull();
-    expect(generateText).toHaveBeenCalledTimes(2);
-    expect(generateText.mock.calls[1][0], "the provider call itself must be cancellable").toHaveProperty("abortSignal");
-    expect(shippedTexts, "the repair outlived the budget: the first draft ships").toEqual([VAGUE_REPLY]);
-    expect(cutLines()).toEqual([expect.objectContaining({ lane: "regen", step: "second_draft" })]);
+  it("the regen lane has no pre-stream step left to budget; its post-stream second draft carries its own abort signal", async () => {
+    flags.NICK_VERIFIED_REGEN = true; // takes precedence over self-consistency, as before
+    generateText.mockResolvedValue({ text: CONCRETE_REPLY, toolCalls: [], toolResults: [] });
+    const args = {
+      persistBase: { startedAt: T0 } as Record<string, unknown>,
+      provider: "openai", modelId: "m", model: {}, sanitizedModelMessages: [], prunedTools: {},
+      mode: "standard", maxOutputTokens: 0, userContent: "what did the shop make this week",
+      finalSystemPrompt: "sys",
+      turnSignal: { ...classifyTurn("what did the shop make this week"), intent: "factual", complexity: "simple", temperature: 0.4 },
+      actionIntent: null, convId: "c1", traceId: "t_test", recalledHits: [], deeperContextCount: 0,
+      deeperContextTypes: [], contextBlocksFired: [], privateMode: false, log,
+    };
+    expect(await runAlternatePaths(args as unknown as Parameters<typeof runAlternatePaths>[0])).toBeNull();
+    expect(generateText).not.toHaveBeenCalled();
+    const regen = args.persistBase.postFlushRegen as (a: { draft: string }) => Promise<unknown>;
+    await regen({ draft: VAGUE_REPLY });
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(generateText.mock.calls[0][0], "the provider call itself must be cancellable").toHaveProperty("abortSignal");
+    expect(cutLines()).toEqual([]);
   });
 
   it("a CoVe pass past the budget is cut and the unrevised draft ships", async () => {
@@ -216,7 +222,7 @@ describe("buffered lanes · the remaining budget bounds the optional step itself
     expect(verifyAndRevise).toHaveBeenCalledTimes(1);
     expect(shippedTexts).toEqual([CONCRETE_REPLY]);
     expect(persistEvents[0]?.coveDone, "a cut CoVe stays owed to persist").toBeUndefined();
-    expect(cutLines()).toEqual([expect.objectContaining({ lane: "regen", step: "cove" })]);
+    expect(cutLines()).toEqual([expect.objectContaining({ lane: "self-consistency", step: "cove" })]);
   });
 });
 
@@ -227,6 +233,6 @@ describe("buffered lanes · the turn is in the registry while it is generated", 
   it("registers once, before the first draft, and completes after the ship", async () => {
     modelTaking(10_000);
     await run();
-    expect(order).toEqual(["register:c1:t_test:u1", "draft", "draft", "complete"]);
+    expect(order).toEqual(["register:c1:t_test:u1", "draft", "draft", "draft", "complete"]);
   });
 });
