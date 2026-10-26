@@ -242,7 +242,10 @@ export default function OpportunitiesSection() {
             before the rest, newest on top. Not a customer or Not relevant hides the row.
           </p>
           {readOk && items.length > 0 && (
-            <p className="text-sm font-medium mt-1">{`${shown.length} due now · ${totalLabel} open`}</p>
+            // The first TOP rows are a page, not a count of what is due: the queue has no due date.
+            <p className="text-sm font-medium mt-1">
+              {shown.length < items.length ? `Showing ${shown.length} of ${totalLabel} open` : `${totalLabel} open`}
+            </p>
           )}
         </div>
         <button
@@ -295,7 +298,7 @@ export default function OpportunitiesSection() {
       {/* Only claim "clear" when the queue was actually READ and was empty. */}
       {!query.isLoading && !query.isError && queryable === true && items.length === 0 && (
         <div className="rounded border border-border/40 p-4 text-sm text-foreground/60">
-          Nothing due. Every open follow-up has an attempt or a date.
+          Nothing open. No follow-up is waiting.
         </div>
       )}
 
