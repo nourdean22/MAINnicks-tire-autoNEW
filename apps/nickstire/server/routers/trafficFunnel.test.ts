@@ -20,7 +20,7 @@ vi.mock("../db", () => {
   return { getDb: async () => db, getDbTyped: async () => db };
 });
 vi.mock("../pipelines/gsc-data", () => ({ getGscReport: async () => null }));
-vi.mock("../services/sendPause", () => ({ sendPauseHoldReason: async () => h.hold }));
+vi.mock("../services/sendPause", async (importOriginal) => ({ ...(await importOriginal<typeof import("../services/sendPause")>()), sendPauseHoldReason: async () => h.hold }));
 
 import { trafficFunnelRouter } from "./trafficFunnel";
 

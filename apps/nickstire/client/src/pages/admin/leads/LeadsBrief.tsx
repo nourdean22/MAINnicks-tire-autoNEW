@@ -74,7 +74,7 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
     return (
       <div className="bg-card border border-amber-400/30 p-4 flex items-center justify-between gap-3 text-sm text-amber-200">
         <span>Lead pipeline couldn't load: unknown, not empty.</span>
-        <button type="button" onClick={() => void refetch()} className="min-h-[44px] px-3 text-primary hover:underline">
+        <button type="button" onClick={() => void refetch()} className="min-h-[48px] min-w-[48px] px-3 text-primary hover:underline">
           Retry
         </button>
       </div>
