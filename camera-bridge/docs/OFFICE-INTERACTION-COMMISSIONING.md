@@ -388,6 +388,13 @@ capture as a quiet office.
   the next wake. Installing it is one file: back up `vision\officewake.py`, copy the new one from
   the merged commit with its hash checked, restart the task.
 
+Root cause, found later the same day from the front-desk PC's ledger: the capture did NOT hang.
+`capture_started` 17:51:58Z, then `capture_finished` 17:54:00Z with no `capture_captured`: a
+no-speech-segments capture settled in phase 1. `_apply_result` keeps CAPTURING on purpose (a
+background transcription must not end a live capture), so nothing cleared it. The PC showed two
+python processes and no ffmpeg at all. Fix: the worker clears CAPTURING the moment its own capture
+returns (`_capture_over`), whatever the result; the 300 s bound above stays as the second layer.
+
 Restarting the task alone clears a hang: `Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC`,
 end any `ffmpeg.exe` whose parent process is gone, `Start-ScheduledTask` with the same name.
 Task Scheduler's restart-on-failure setting is not a watchdog for this: the process never exited.

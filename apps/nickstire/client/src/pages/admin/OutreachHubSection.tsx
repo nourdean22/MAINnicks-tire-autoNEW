@@ -1,11 +1,11 @@
 /**
  * Outreach Hub — Unified page for all customer outreach:
- * SMS, Follow-Ups, Campaigns, Reviews, Win-Back
+ * SMS, Campaigns, Reviews, Win-Back
  *
  * Tesla-style: one clean surface, tabs to navigate, all tools in one place.
  */
 import { lazy, Suspense } from "react";
-import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, BarChart3, Cpu } from "lucide-react";
+import { Send, MessageSquare, Star, RotateCcw, Loader2, BarChart3, Cpu } from "lucide-react";
 import { PageHeader, TabBar, useUrlFilter, navigateToAdminSection } from "./shared";
 // wave-181.x Outreach Hub Phase 2 · 3-line OutreachBrief above the
 // tab bar (queue/live/action) + GatewayPill hoisted into the hub
@@ -15,7 +15,6 @@ import GatewayPill from "@/components/admin/GatewayPill";
 
 const SmsSection = lazy(() => import("./outreach/SmsSection"));
 const CampaignsSection = lazy(() => import("./outreach/CampaignsSection"));
-const FollowUpsSection = lazy(() => import("./outreach/FollowUpsSection"));
 const ReviewRequestsSection = lazy(() => import("./outreach/ReviewRequestsSection"));
 const WinBackSection = lazy(() => import("./outreach/WinBackSection"));
 // wave-181.51 — SMS Performance read-out (reply + conversion attribution
@@ -27,15 +26,16 @@ const SmsOrchestratorSection = lazy(() => import("./outreach/SmsOrchestratorSect
 // 2026-05-19 Elon-cut · `reengage` tab deleted. Win-Back covers the same
 // cohort (lapsed customers receiving SMS); two surfaces was cognitive
 // overhead. Aliases `reengage`/`reengagement` still resolve to this hub.
-type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "performance" | "orchestrator";
+// 2026-10-25 · the Follow-Ups tab is gone with its unscheduled booking lane; an old
+// ?outreachTab=followups fails validation and lands on Messages.
+type OutreachTab = "sms" | "campaigns" | "reviews" | "winback" | "performance" | "orchestrator";
 
-// Admin UI v1 W5 · daily jobs first: Messages, Follow-Ups, Reviews, Win-Back. Campaigns (bulk),
+// Admin UI v1 W5 · daily jobs first: Messages, Reviews, Win-Back. Campaigns (bulk),
 // Performance (read-out) and Orchestrator (tooling) follow. Tab ids and ?outreachTab= are unchanged.
 // wave-181.51 — Performance tab appended at the end. It's the analytics
 // surface, not a sending surface, so it belongs after the action tabs.
 const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
   { id: "sms", label: "Messages", icon: <Send className="w-3.5 h-3.5" /> },
-  { id: "followups", label: "Follow-Ups", icon: <Timer className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
   { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-3.5 h-3.5" /> },
   { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-3.5 h-3.5" /> },
@@ -51,7 +51,7 @@ function TabSpinner() {
   );
 }
 
-const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "followups", "reviews", "winback", "performance", "orchestrator"];
+const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "reviews", "winback", "performance", "orchestrator"];
 
 export default function OutreachHubSection() {
   // wave-129 — default tab moved from "campaigns" → "sms". Operator
@@ -108,7 +108,7 @@ export default function OutreachHubSection() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <PageHeader
           title="Outreach Hub"
-          subtitle="Campaigns · review requests · win-back · follow-ups · loyalty: scheduled and bulk customer touches."
+          subtitle="Campaigns · review requests · win-back · loyalty: scheduled and bulk customer touches."
           icon={<Send className="w-5 h-5" />}
         />
         <GatewayPill />
@@ -119,7 +119,6 @@ export default function OutreachHubSection() {
       {/* Content */}
       <Suspense fallback={<TabSpinner />}>
         {tab === "campaigns" && <CampaignsSection />}
-        {tab === "followups" && <FollowUpsSection />}
         {tab === "reviews" && <ReviewRequestsSection />}
         {tab === "winback" && <WinBackSection />}
         {tab === "performance" && <SmsPerformanceSection />}

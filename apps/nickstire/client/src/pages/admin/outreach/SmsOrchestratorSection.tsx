@@ -34,6 +34,8 @@ import {
 import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState, TabBar } from "../shared";
 import AutonomyCensusPanel from "./AutonomyCensusPanel";
 import SmsOpsStrip from "./SmsOpsStrip";
+// One US phone formatter: the old inline regex printed "+12165550147" as "+(121) 655-50147".
+import { fmtPhone } from "../voice/format";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   inbound_sms: "Inbound SMS",
@@ -314,7 +316,7 @@ export default function SmsOrchestratorSection() {
                             {EVENT_TYPE_LABELS[item.eventType] || item.eventType}
                           </span>
                           <span className="text-[10px] text-foreground/45">
-                            {item.customerPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
+                            {fmtPhone(item.customerPhone)}
                           </span>
                         </div>
                         <div className="bg-card p-2 border border-border/25 rounded">
@@ -421,7 +423,7 @@ export default function SmsOrchestratorSection() {
                           {EVENT_TYPE_LABELS[item.eventType] || item.eventType}
                         </td>
                         <td className="py-3.5 px-4 text-foreground/75">
-                          {item.customerPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
+                          {fmtPhone(item.customerPhone)}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-[11px] text-foreground/60">
                           {item.variantKey}
@@ -727,7 +729,7 @@ export default function SmsOrchestratorSection() {
               <div>
                 <h3 className="text-base font-bold text-foreground/90 flex items-center gap-2">
                   <Cpu className="w-4 h-4 text-primary" />
-                  Decision Details & Customer Journey: {selectedItem.customerPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
+                  Decision Details & Customer Journey: {fmtPhone(selectedItem.customerPhone)}
                 </h3>
                 <p className="text-xs text-foreground/50">Decision triggered: {formatDate(selectedItem.createdAt)} (ID: #{selectedItem.id})</p>
               </div>

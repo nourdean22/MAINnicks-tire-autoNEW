@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { customers } from "../../drizzle/schema";
+import { phoneLast10 } from "./phone";
 
 /**
  * Canonical "campaign-eligible phone" predicate for outbound SMS.
@@ -40,6 +41,11 @@ import { customers } from "../../drizzle/schema";
  * sms_conversations by `sc.id` through the JOIN, so the phone comparison is a
  * filter, never an index lookup. Suppression is the one place to prefer the
  * belt over the argument that braces suffice.
+ *
+ * 2026-10-26 · a later START/UNSTOP/YES in the same conversation lifts the STOP,
+ * the exact chronology sendSms's index uses (server/sms.ts; same timestamp, the
+ * higher id wins). Treating every STOP as permanent excluded people sendSms
+ * would text. Words pinned to SMS_OPT_IN_KEYWORDS by optOutVocabulary.test.ts.
  */
 const last10 = (col: unknown) =>
   sql`RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(${col}, '-', ''), ' ', ''), '(', ''), ')', ''), 10)`;
@@ -56,4 +62,56 @@ export const campaignEligiblePhoneSql = sql`${customers.phone} IS NOT NULL AND L
     WHERE sm.direction = 'inbound'
       AND UPPER(TRIM(sm.body)) IN ('STOP','STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','REVOKE','OPTOUT','OPT OUT')
       AND ${last10(sql`sc.phone`)} = ${last10(customers.phone)}
+      AND NOT EXISTS (
+        SELECT 1 FROM sms_messages smi
+        WHERE smi.conversationId = sm.conversationId
+          AND smi.direction = 'inbound'
+          AND UPPER(TRIM(smi.body)) IN ('START','UNSTOP','YES')
+          AND (smi.createdAt > sm.createdAt OR (smi.createdAt = sm.createdAt AND smi.id > sm.id))
+      )
   )`;
+
+/**
+ * Send-time leg of the same predicate: one row when customer `id` can still be
+ * texted. A drip step scheduled days ago re-checks here, so a STOP that arrived
+ * after the audience was built stops the step (no row = do not send).
+ */
+export const customerCampaignEligibleSql = (id: unknown) =>
+  sql`SELECT 1 AS eligible FROM customers WHERE ${customers.id} = ${id} AND ${campaignEligiblePhoneSql} LIMIT 1`;
+
+/**
+ * What sendSms would refuse for a marketing text that the SQL predicate above
+ * cannot see: its suppression index (opt-outs incl. consent-ledger revocations,
+ * carrier blocks) and, when SMS_CONSENT_GATE=enforce, the affirmative opt-in
+ * index (server/sms.ts consent gate; monitor/unset only counts misses there).
+ * Loaded once per call; either list unreadable = { ok: false } so the caller
+ * fails closed. A STALE list is still ok, as in sendSms.
+ */
+export async function loadSendGate() {
+  const { loadSuppressionIndex } = await import("../sms");
+  const index = await loadSuppressionIndex();
+  if (!index.ok) return { ok: false as const, reason: index.reason };
+  let consent: Set<string> | null = null;
+  if (process.env.SMS_CONSENT_GATE === "enforce") {
+    const { getSmsOptInIndex } = await import("../services/complianceLog");
+    const optIns = await getSmsOptInIndex();
+    if (!optIns.ok) return { ok: false as const, reason: `consent index unavailable: ${optIns.reason}` };
+    consent = optIns.phones;
+  }
+  return { ok: true as const, phones: index.phones, carrierBlocked: index.carrierBlocked, consent };
+}
+
+/**
+ * THE one check every audience, count and send shares: why sendSms would
+ * refuse this phone, or null when it would not. Keys are last-10 digits, as
+ * both indexes build them (server/sms.ts addNorm).
+ */
+export function sendGateRefusal(
+  gate: { phones: Set<string>; carrierBlocked: Set<string>; consent: Set<string> | null },
+  phone: string | null,
+): string | null {
+  const key = phoneLast10(phone);
+  if (gate.phones.has(key) || gate.carrierBlocked.has(key)) return "customer suppressed (carrier block or consent ledger)";
+  if (gate.consent && !gate.consent.has(key)) return "no SMS consent on file (SMS_CONSENT_GATE=enforce)";
+  return null;
+}

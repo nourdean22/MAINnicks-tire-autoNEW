@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   SMS_OPT_OUT_KEYWORDS,
+  SMS_OPT_IN_KEYWORDS,
   isOptOutBody,
 } from "../../shared/smsOptOutKeywords";
 
@@ -52,6 +53,15 @@ describe("SMS opt-out vocabulary", () => {
       /UPPER\(TRIM\(sm\.body\)\)\s+IN\s*\(([^)]+)\)/,
     );
     expect(words.sort()).toEqual(CANON);
+  });
+
+  // 2026-10-26: the campaign predicate honours a later START the way the send index does,
+  // so the two opt-in literals must carry the same words as SMS_OPT_IN_KEYWORDS.
+  it.each([
+    ["server/sms.ts", /UPPER\(TRIM\(mi\.body\)\)\s+IN\s*\(([^)]+)\)/],
+    ["server/lib/sms-eligibility.ts", /UPPER\(TRIM\(smi\.body\)\)\s+IN\s*\(([^)]+)\)/],
+  ] as const)("%s: the later-START literal matches the shared opt-in vocabulary", (file, marker) => {
+    expect(sqlInList(read(file), marker).sort()).toEqual([...SMS_OPT_IN_KEYWORDS].sort());
   });
 
   it("no file redefines the vocabulary as its own array literal", () => {

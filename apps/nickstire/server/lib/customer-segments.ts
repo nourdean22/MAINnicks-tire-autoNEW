@@ -20,8 +20,8 @@ export function vipCondition(): SQL {
   return sql`${customers.totalVisits} >= ${sql.raw(String(VIP_MIN_VISITS))}`;
 }
 
-/** A regular who has lapsed: the Win-Back audience the Customers tab counts. */
-function lapsedRegularCondition(): SQL {
+/** A regular who has lapsed: the Win-Back audience the Customers tab counts (winback.ts targets it). */
+export function lapsedRegularCondition(): SQL {
   return sql`(${vipCondition()}) AND (${lapsedCondition()})`;
 }
 
