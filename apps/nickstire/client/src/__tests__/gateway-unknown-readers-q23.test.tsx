@@ -39,7 +39,7 @@ vi.mock("@/lib/trpc", () => ({
     featureFlags: { list: h.proc("featureFlags.list") },
     trafficFunnel: { overview: h.proc("trafficFunnel.overview") },
     autoLabor: { status: h.proc("autoLabor.status") },
-    nickActions: { cronHealth: h.proc("nickActions.cronHealth") },
+    nickActions: { cronHealthSummary: h.proc("nickActions.cronHealthSummary") },
     lot: { health: h.proc("lot.health") },
     intelligence: {
       masterReport: h.proc("intelligence.masterReport"),

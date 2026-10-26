@@ -1,6 +1,8 @@
 // ─── FEATURE FLAGS PANEL · wave-181.x Phase 3 ─────────────
 // Upgraded with search · filter chips · verification gate on
 // customer-contacting flag flips · iOS-PWA-safe confirmDialog.
+// 2026-10-26 · pause switches (inverted flags: TRUE = paused) are their own first group, read as
+// Running / Paused with who flipped them, and never counted as features on or off.
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -13,6 +15,7 @@ import {
   requiresConfirmation,
   confirmationCopy,
 } from "@shared/flagPolicy";
+import { pauseSwitchLabel, shopDay } from "./pauseSwitches";
 
 // ─── FEATURE FLAG CATEGORIES ──────────────────────────
 type FlagCategory = {
@@ -39,8 +42,8 @@ const FLAG_CATEGORIES: FlagCategory[] = [
   },
 ];
 
-function categorizeFlags(flags: Array<{ key: string; value: boolean; description: string | null }>) {
-  const categorized: Array<{ label: string; flags: typeof flags }> = [];
+function categorizeFlags<T extends { key: string }>(flags: T[]) {
+  const categorized: Array<{ label: string; flags: T[] }> = [];
   const claimed = new Set<string>();
 
   for (const cat of FLAG_CATEGORIES) {
@@ -69,12 +72,14 @@ function categorizeFlags(flags: Array<{ key: string; value: boolean; description
  * silently suppressed in the iOS PWA, per the nickstire-ios-pwa skill.
  */
 
+type Filter = "all" | "on" | "off" | "risky" | "switches";
+
 export default function FeatureFlagsPanel() {
   const utils = trpc.useUtils();
   const { data: flags, isLoading } = trpc.featureFlags.list.useQuery();
   const toggleMut = trpc.featureFlags.toggle.useMutation({
     onSuccess: (result) => {
-      toast.success(`${result.key} ${result.value ? "ENABLED" : "DISABLED"}`);
+      toast.success(isInvertedFlag(result.key) ? `${pauseSwitchLabel(result.key)} ${result.value ? "paused" : "running"}` : `${result.key} ${result.value ? "ENABLED" : "DISABLED"}`);
       utils.featureFlags.list.invalidate();
     },
     onError: (err) => toast.error(err.message),
@@ -82,7 +87,7 @@ export default function FeatureFlagsPanel() {
 
   // wave-181.x Phase 3 · search + filter state
   const [searchQ, setSearchQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "on" | "off" | "risky">("all");
+  const [filter, setFilter] = useState<Filter>("all");
 
   // Verification gate · confirms the direction that can REACH CUSTOMERS, which
   // for an off-switch like sms_global_pause is OFF, not ON.
@@ -93,6 +98,15 @@ export default function FeatureFlagsPanel() {
       if (!ok) return;
     }
     toggleMut.mutate({ key, value: newValue });
+  };
+
+  // Pausing stops a lane, so it is one tap. Resuming restarts a lane that may send, so it always asks first.
+  const handleResume = async (key: string) => {
+    const copy = isCustomerFacingFlag(key)
+      ? confirmationCopy(key, false)
+      : { message: "This lane starts again on its next run.", confirmLabel: "Resume", cancelLabel: "Stay paused" };
+    const ok = await confirmDialog({ ...copy, title: `Resume ${pauseSwitchLabel(key)}?`, tone: "danger" });
+    if (ok) toggleMut.mutate({ key, value: false });
   };
 
   if (isLoading) {
@@ -106,46 +120,39 @@ export default function FeatureFlagsPanel() {
   }
 
   const allFlags = flags ?? [];
-  const enabledCount = allFlags.filter(f => f.value).length;
-
-  // Apply search + filter
-  const q = searchQ.trim().toLowerCase();
-  const filtered = allFlags.filter((f) => {
-    if (q && !f.key.toLowerCase().includes(q) && !(f.description || "").toLowerCase().includes(q)) {
-      return false;
-    }
-    if (filter === "on" && !f.value) return false;
-    if (filter === "off" && f.value) return false;
-    if (filter === "risky" && !isCustomerFacingFlag(f.key)) return false;
-    return true;
-  });
   // The 19 engine_* flags were DECORATIVE — nothing ever called isEnabled()
   // for them; the intelligence engines run unconditionally, so the toggles
   // implied control that didn't exist. They've been removed from
   // FLAG_DEFINITIONS (no longer seeded) and a migration drops the existing
   // DB rows (drizzle/0066_drop_engine_flags.sql). This prefix guard stays so
   // any not-yet-migrated environment still hides the orphaned rows.
-  const grouped = categorizeFlags(filtered.filter((f) => !f.key.startsWith("engine_")));
+  const features = allFlags.filter((f) => !f.inverted && !f.key.startsWith("engine_"));
+  const switches = allFlags.filter((f) => f.inverted);
+  const enabledCount = features.filter((f) => f.value).length;
+  const pausedCount = switches.filter((f) => f.value).length;
+
+  // Apply search + filter
+  const q = searchQ.trim().toLowerCase();
+  const matchesSearch = (f: { key: string; description: string | null }) =>
+    !q || f.key.toLowerCase().includes(q) || (f.description || "").toLowerCase().includes(q) || pauseSwitchLabel(f.key).toLowerCase().includes(q);
+  const filtered = features.filter((f) => {
+    if (!matchesSearch(f)) return false;
+    if (filter === "switches") return false;
+    if (filter === "on" && !f.value) return false;
+    if (filter === "off" && f.value) return false;
+    if (filter === "risky" && !isCustomerFacingFlag(f.key)) return false;
+    return true;
+  });
+  const shownSwitches = filter === "all" || filter === "switches" ? switches.filter(matchesSearch) : [];
+  const grouped = categorizeFlags(filtered);
 
   return (
     <div className="bg-card border border-border/30 p-4">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-          <h3 className="font-bold text-sm text-foreground tracking-wide">FEATURE FLAGS</h3>
-          <p className="text-foreground/50 text-[11px] mt-0.5">
-            {enabledCount} of {allFlags.length} enabled. Customer-contacting flags require explicit confirmation to flip ON.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1 text-[10px] font-medium tracking-[0.12em] px-2 py-1 border ${
-            enabledCount > 0 ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" : "text-foreground/30 border-border/20"
-          }`}>
-            {enabledCount} ON
-          </span>
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-[0.12em] px-2 py-1 border text-foreground/30 border-border/20">
-            {allFlags.length - enabledCount} OFF
-          </span>
-        </div>
+      <div className="mb-4">
+        <h3 className="font-bold text-sm text-foreground tracking-wide">FEATURE FLAGS</h3>
+        <p className="text-foreground/60 text-[12px] mt-0.5">
+          {enabledCount} feature{enabledCount === 1 ? "" : "s"} on · {features.length - enabledCount} off · {pausedCount} of {switches.length} pause switches paused
+        </p>
       </div>
 
       {/* wave-181.x Phase 3 · search + filter row */}
@@ -157,16 +164,17 @@ export default function FeatureFlagsPanel() {
             placeholder="Search flags by key or description…"
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
-            className="w-full bg-foreground/5 border border-border/30 rounded pl-8 pr-3 py-1.5 text-[12px] text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+            className="w-full bg-foreground/5 border border-border/30 rounded pl-8 pr-3 py-1.5 text-[16px] min-h-[44px] text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
           />
         </div>
-        <div className="flex items-center gap-1">
-          {(["all", "on", "off", "risky"] as const).map((f) => (
+        <div className="flex items-center gap-1 flex-wrap">
+          {(["all", "on", "off", "risky", "switches"] as const).map((f) => (
             <button
               key={f}
               type="button"
               onClick={() => setFilter(f)}
-              className={`text-[10.5px] font-bold px-2.5 py-1.5 rounded border transition-colors ${
+              aria-pressed={filter === f}
+              className={`min-h-[44px] text-[12px] font-bold px-3 rounded border transition-colors ${
                 filter === f
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border/30 text-foreground/50 hover:text-foreground/80"
@@ -174,20 +182,69 @@ export default function FeatureFlagsPanel() {
             >
               {f}
               {f === "risky" && (
-                <AlertTriangle className="inline ml-1 w-3 h-3 opacity-70" aria-label="risky" />
+                <AlertTriangle className="inline ml-1 w-3 h-3 opacity-70" aria-hidden="true" />
               )}
             </button>
           ))}
         </div>
       </div>
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && shownSwitches.length === 0 && (
         <p className="text-foreground/40 text-[12px] text-center py-6">
           No flags match · adjust search or filter
         </p>
       )}
 
       <div className="space-y-4">
+        {shownSwitches.length > 0 && (
+          <div id="pause-switches">
+            <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-border/10">
+              <span className="font-bold text-[12px] text-foreground/60 tracking-wider">PAUSE SWITCHES</span>
+              <span className="text-[12px] text-foreground/40">{pausedCount} of {switches.length} paused</span>
+            </div>
+            <div className="space-y-1">
+              {shownSwitches.map((s) => {
+                const pending = toggleMut.isPending && toggleMut.variables?.key === s.key;
+                return (
+                  <div
+                    key={s.key}
+                    data-switch={s.key}
+                    className={`flex items-center gap-3 p-2.5 border ${s.value ? "border-amber-500/30 bg-amber-500/5" : "border-border/10"}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-foreground text-[13px] font-medium">{pauseSwitchLabel(s.key)}</span>
+                        <span className={`text-[12px] font-semibold ${s.value ? "text-amber-400" : "text-emerald-400"}`}>
+                          {s.value ? "Paused" : "Running"}
+                        </span>
+                      </div>
+                      <p className="text-foreground/45 text-[12px] break-words">
+                        {s.lastChange
+                          ? `changed ${shopDay(s.lastChange.at)} by ${s.lastChange.by}`
+                          : s.lastChangeKnown
+                            ? "never flipped since install, per the admin audit log"
+                            : "change history unavailable"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={toggleMut.isPending}
+                      onClick={() => (s.value ? void handleResume(s.key) : toggleMut.mutate({ key: s.key, value: true }))}
+                      className={`shrink-0 min-h-[44px] min-w-[88px] px-3 text-[13px] font-semibold border transition-colors disabled:opacity-50 ${
+                        s.value
+                          ? "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                          : "text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                      }`}
+                    >
+                      {pending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" aria-label="Saving" /> : s.value ? "Resume" : "Pause"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {grouped.map((group) => {
           const groupEnabled = group.flags.filter(f => f.value).length;
           return (
@@ -218,13 +275,7 @@ export default function FeatureFlagsPanel() {
                     }`}
                     aria-label={`Toggle ${flag.key}${isCustomerFacingFlag(flag.key) ? " (customer-facing · confirm required)" : ""}`}
                     aria-pressed={flag.value}
-                    title={
-                      !isCustomerFacingFlag(flag.key)
-                        ? undefined
-                        : isInvertedFlag(flag.key)
-                          ? "OFF-SWITCH · TRUE pauses sending · confirmation is asked when turning it OFF (resuming)"
-                          : "Customer-facing flag · flipping ON asks for confirmation"
-                    }
+                    title={isCustomerFacingFlag(flag.key) ? "Customer-facing flag · flipping ON asks for confirmation" : undefined}
                   >
                     <span className="shrink-0">
                       {toggleMut.isPending && toggleMut.variables?.key === flag.key ? (

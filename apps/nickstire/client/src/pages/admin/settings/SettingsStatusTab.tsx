@@ -7,15 +7,12 @@
  * HQ" tab as the default landing.
  *
  * COMPOSITION
- *   1. KPI strip — today / week / month at a glance (4 tiles)
- *   2. Open issues — severity-tagged stack with one-click action per row
- *      · sourced from:
- *        - feature flags currently OFF that have impact
- *        - bleeding SEO pages (high impr, low CTR)
- *        - gateway/integration disconnects
- *        - missed-followup buckets
- *   3. Connection health — 4 dots (ALG, F25e, VAPI, DB)
- *   4. Recent events — last 24h of deploys + alerts (placeholder feed)
+ *   1. KPI strip, then the pause switches as a state ("none paused" or who paused what, when)
+ *   2. Open issues: severity-tagged stack with one action per row, from the gateway, impactful OFF
+ *      features (never a pause switch), scheduled work (failed jobs, the data-accuracy finding in
+ *      words, stuck queues, lanes not running as declared) and the cameras
+ *   3. Connection health: 4 pills (ALG, F25e, VAPI, funnel)
+ *   4. Scheduled work: one row per job over 24 h, failures first, skipped and clean folded
  *
  * COOL FEATURES STOLEN FROM SKILLS
  *   · task-intelligence — severity-classified alerts with one-click action
@@ -47,7 +44,10 @@ import {
 } from "lucide-react";
 // wave-181.x bug-fix · removed unused Clock import (Recent Activity
 // panel was deleted due to roadmap-leak in placeholder text).
-import { PageHeader, KpiTile, Panel } from "../shared";
+import { PageHeader, KpiTile, Panel, ErrorState } from "../shared";
+import { timeAgoShort } from "../shared/format";
+import type { CronHealthSummary, CronJobSummary } from "./cron-issues";
+import { pauseSwitchLabel, pausedSince } from "./pauseSwitches";
 
 // ─── Open Issue types ────────────────────────────────────
 
@@ -77,7 +77,7 @@ const SEVERITY_STYLES: Record<IssueSeverity, { bg: string; border: string; text:
 function OpenIssueRow({ issue }: { issue: OpenIssue }) {
   const style = SEVERITY_STYLES[issue.severity];
   return (
-    <div className={`${style.bg} ${style.border} border p-4 flex items-start gap-3`}>
+    <div data-issue={issue.key} className={`${style.bg} ${style.border} border p-4 flex flex-wrap sm:flex-nowrap items-start gap-3`}>
       <div className="mt-0.5">{style.icon}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
@@ -86,7 +86,8 @@ function OpenIssueRow({ issue }: { issue: OpenIssue }) {
           </span>
           <span className="font-semibold text-foreground text-[13px]">{issue.title}</span>
         </div>
-        <p className="text-foreground/60 text-[12px] mt-1 leading-relaxed">{issue.detail}</p>
+        <p className="text-foreground/60 text-[12px] mt-1 leading-relaxed break-words">{issue.detail}</p>
+        {issue.note && <p className="text-foreground/45 text-[12px] mt-1 leading-relaxed break-words">{issue.note}</p>}
         {issue.whyText && (
           <details className="mt-2 text-[11px] text-foreground/45">
             <summary className="cursor-pointer hover:text-foreground/70 transition-colors">
@@ -99,7 +100,7 @@ function OpenIssueRow({ issue }: { issue: OpenIssue }) {
       {issue.actionHref && issue.actionLabel && (
         <Link
           href={issue.actionHref}
-          className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 ${style.text} bg-foreground/[0.04] hover:bg-foreground/[0.08] border border-border/30 rounded text-[11px] font-semibold transition-colors`}
+          className={`shrink-0 inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 ${style.text} bg-foreground/[0.04] hover:bg-foreground/[0.08] border border-border/30 rounded text-[11px] font-semibold transition-colors`}
         >
           {issue.actionLabel}
           <ArrowRight className="w-3 h-3" />
@@ -140,9 +141,125 @@ function ConnectionPill({
   );
 }
 
+// ─── Pause switches (a state, never an issue) ────────────
+
+type FlagRow = { key: string; value: boolean; inverted: boolean; lastChange: { by: string; at: string } | null; lastChangeKnown: boolean };
+
+function PauseSwitchesLine({ flags, isError, onOpen }: { flags: FlagRow[] | undefined; isError: boolean; onOpen?: () => void }) {
+  if (isError) {
+    return (
+      <p className="text-[13px] text-amber-400/90 border border-amber-500/30 bg-amber-500/[0.04] p-3">
+        Pause switches could not be read; whether any lane is paused is unknown.
+      </p>
+    );
+  }
+  if (!flags) return null;
+  const switches = flags.filter((f) => f.inverted);
+  if (switches.length === 0) return null;
+  const paused = switches.filter((f) => f.value);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`w-full min-h-[44px] text-left border p-3 space-y-1 transition-colors hover:bg-foreground/[0.03] ${paused.length > 0 ? "border-amber-500/30 bg-amber-500/[0.04]" : "border-border/30 bg-card"}`}
+    >
+      {paused.length === 0 ? (
+        <span className="block text-[13px] text-foreground/70">
+          Pause switches: none paused · {switches.length} switch{switches.length === 1 ? "" : "es"}
+        </span>
+      ) : (
+        paused.map((f) => (
+          <span key={f.key} className="block text-[13px] text-amber-300/90">
+            Paused: {pauseSwitchLabel(f.key)} {pausedSince(f)}
+          </span>
+        ))
+      )}
+    </button>
+  );
+}
+
+// ─── Scheduled work (one row per job, last 24 h) ─────────
+
+function JobRow({ job, line }: { job: CronJobSummary; line?: string }) {
+  return (
+    <div data-job={job.jobName} className="min-h-[44px] py-2 border-b border-border/10 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <span className="text-[13px] text-foreground font-medium break-all">{job.jobName}</span>
+        <span className="text-[12px] text-foreground/45">
+          last run {timeAgoShort(job.lastStartedAt)} · {job.runs} run{job.runs === 1 ? "" : "s"}
+        </span>
+      </div>
+      {line && <p className="text-[12px] text-foreground/55 mt-0.5 break-words">{line}</p>}
+    </div>
+  );
+}
+
+function ScheduledWorkPanel({ summary, isError, onRetry }: { summary: CronHealthSummary | undefined; isError: boolean; onRetry: () => void }) {
+  const jobs = summary?.jobs ?? [];
+  const failed = jobs.filter((j) => j.lastStatus === "failed");
+  const skipped = jobs.filter((j) => j.lastStatus === "skipped");
+  const clean = jobs.filter((j) => j.lastStatus === "completed");
+  const other = jobs.filter((j) => !["failed", "skipped", "completed"].includes(j.lastStatus));
+  const subtitle = summary
+    ? `${failed.length} need attention · ${skipped.length} skipped by design · ${clean.length} ran clean${other.length ? ` · ${other.length} running or unknown` : ""} · last 24 h`
+    : undefined;
+  const fold = "min-h-[44px] flex items-center cursor-pointer text-[13px] font-semibold text-foreground/70 hover:text-foreground";
+
+  return (
+    <div id="scheduled-work">
+      <Panel title="Scheduled work" subtitle={subtitle} icon={<Activity className="w-4 h-4" />}>
+        {isError ? (
+          <ErrorState message="Scheduled work could not be read; state unknown, not healthy." onRetry={onRetry} />
+        ) : !summary ? (
+          <p className="text-[13px] text-foreground/50 p-2">Scheduled work has not been read yet (offline or still loading); state unknown.</p>
+        ) : jobs.length === 0 ? (
+          <p className="text-[13px] text-amber-400/90 p-2">No scheduled work logged in the last 24 h. The scheduler may be down: check the server.</p>
+        ) : (
+          <div className="space-y-3">
+            {failed.length > 0 && (
+              <div className="border border-red-500/30 bg-red-500/[0.04] px-3">
+                {failed.map((j) => (
+                  <div key={j.jobName}>
+                    <JobRow job={j} line={j.lastErrorMessage?.trim() || j.lastDetails?.trim() || "No error text was logged."} />
+                    <p className="text-[12px] text-red-400 pb-2">{j.failed} of {j.runs} runs failed</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {skipped.length > 0 && (
+              <details>
+                <summary className={fold}>Skipped ({skipped.length})</summary>
+                <div className="px-3">
+                  {skipped.map((j) => <JobRow key={j.jobName} job={j} line={j.lastDetails?.trim() || undefined} />)}
+                </div>
+              </details>
+            )}
+            {other.length > 0 && (
+              <details>
+                <summary className={fold}>Running or unknown ({other.length})</summary>
+                <div className="px-3">
+                  {other.map((j) => <JobRow key={j.jobName} job={j} line={`last status: ${j.lastStatus}`} />)}
+                </div>
+              </details>
+            )}
+            {clean.length > 0 && (
+              <details>
+                <summary className={fold}>Ran clean ({clean.length})</summary>
+                <div className="px-3">
+                  {clean.map((j) => <JobRow key={j.jobName} job={j} />)}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
 // ─── Main StatusTab ──────────────────────────────────────
 
-export default function SettingsStatusTab() {
+export default function SettingsStatusTab({ onOpenPauseSwitches }: { onOpenPauseSwitches?: () => void } = {}) {
   const {
     isLoading,
     dashStats,
@@ -150,7 +267,11 @@ export default function SettingsStatusTab() {
     smsGwHealth,
     smsGwState,
     vapiStatus,
-    cronHealth,
+    cronSummary,
+    isCronError,
+    refetchCron,
+    flags,
+    isFlagsError,
     funnel,
     openIssues,
     alertCount,
@@ -195,6 +316,8 @@ export default function SettingsStatusTab() {
         />
       </div>
 
+      <PauseSwitchesLine flags={flags as FlagRow[] | undefined} isError={isFlagsError} onOpen={onOpenPauseSwitches} />
+
       {/* ── Open issues stack ───────────────────────────── */}
       {openIssues.length > 0 ? (
         <Panel
@@ -227,7 +350,7 @@ export default function SettingsStatusTab() {
           <div>
             <h3 className="font-semibold text-foreground tracking-tight">All clear.</h3>
             <p className="text-foreground/55 text-[12.5px] mt-0.5">
-              No open alerts or warnings detected. Crons green · connections healthy · cameras healthy · CTR thresholds clean.
+              No open alerts or warnings detected. Scheduled work clean · connections healthy · cameras healthy.
             </p>
           </div>
         </div>
@@ -278,34 +401,10 @@ export default function SettingsStatusTab() {
         </div>
       </Panel>
 
-      {/* ── Cron health (wave-149) ──────────────────────────
-          The blind spot that hid the never-scheduled cadence cron this
-          session. Read-only last-24h cron_log feed — failed RED, skipped
-          AMBER — so "what ran / what's failing" is one glance, not a log dive. */}
-      <Panel
-        title="Cron Health"
-        subtitle="Last 24h: failed (red) + skipped (amber) surfaced"
-        icon={<Activity className="w-4 h-4" />}
-      >
-        {(!cronHealth || cronHealth.length === 0) ? (
-          <p className="text-foreground/40 text-[12px] p-2">No cron runs logged in the last 24h.</p>
-        ) : (
-          <div className="space-y-0.5 max-h-72 overflow-y-auto">
-            {cronHealth.slice(0, 80).map((row: { jobName: string; status: string; durationMs: number | null; details: string | null; startedAt: string | Date | null }, i: number) => (
-              <div
-                key={`${row.jobName}-${i}`}
-                className={`flex items-center gap-2 py-1 text-[11px] ${row.status === "failed" ? "text-red-400" : row.status === "skipped" ? "text-amber-400/70" : "text-foreground/50"}`}
-              >
-                <span className="w-40 truncate font-mono shrink-0">{row.jobName}</span>
-                <span className="w-16 shrink-0">{row.status}</span>
-                <span className="w-14 text-right shrink-0">{row.durationMs != null ? `${row.durationMs}ms` : "—"}</span>
-                <span className="flex-1 truncate text-foreground/40">{row.details || ""}</span>
-                <span className="text-foreground/25 shrink-0 hidden sm:inline">{row.startedAt ? new Date(row.startedAt).toLocaleTimeString() : ""}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
+      {/* ── Scheduled work (2026-10-26) ─────────────────────
+          Replaces the flat 80-run log: one row per job over 24 h, failures first,
+          skipped-by-design and clean folded. A failed read says unknown. */}
+      <ScheduledWorkPanel summary={cronSummary} isError={isCronError} onRetry={() => void refetchCron()} />
 
       {/* wave-181.x · Recent-events panel REMOVED for now.
           Placeholder roadmap text was leaking developer intent to the

@@ -16,7 +16,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Loader2, RefreshCw, CheckCircle2, XCircle, Wifi, WifiOff,
-  Users, FileText, TrendingUp, Search, Zap,
+  Users, FileText, TrendingUp, Search,
   DollarSign, Wrench,
   Activity, Shield, Plug, Settings,
 } from "lucide-react";
@@ -32,7 +32,6 @@ import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { LlmSpendPanel } from "./intelligence/LlmSpendPanel";
 import DeclinedRecoveryPanel from "./settings/DeclinedRecoveryPanel";
 import FeatureFlagsPanel from "./settings/FeatureFlagsPanel";
-import { AUTONOMOUS_OPERATIONS } from "./settings/cronJobs";
 
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
@@ -77,14 +76,20 @@ export default function SettingsSection() {
   })();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
-  const handleTabChange = (tab: SettingsTab) => {
+  const handleTabChange = (tab: SettingsTab, anchor?: string) => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("settingsTab", tab);
+      url.hash = anchor ?? "";
       window.history.replaceState({}, "", url.toString());
+      // The target tab renders on the next commit; scroll once it is in the DOM.
+      if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ block: "start" }), 0);
     }
   };
+
+  // Same query (and cache entry) as the Status tab; here it only counts the jobs for the pointer line.
+  const { data: cronSummary } = trpc.nickActions.cronHealthSummary.useQuery(undefined, { staleTime: 30_000 });
 
   const [syncing, setSyncing] = useState<string | null>(null);
   // Sync result shape is consistent across all shopdriver mutations
@@ -215,7 +220,7 @@ export default function SettingsSection() {
           issues + connection health + KPI strip. */}
       {activeTab === "status" && (
         <Suspense fallback={<div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
-          <SettingsStatusTab />
+          <SettingsStatusTab onOpenPauseSwitches={() => handleTabChange("shopdriver", "pause-switches")} />
         </Suspense>
       )}
 
@@ -393,25 +398,20 @@ export default function SettingsSection() {
       {/* 2026-05-05 — DECLINED RECOVERY STATUS */}
       <DeclinedRecoveryPanel />
 
-      {/* Cron Status */}
-      <Panel
-        title="Autonomous Operations"
-        subtitle="These run automatically. No manual action needed."
-        icon={<Zap className="w-4 h-4" />}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {AUTONOMOUS_OPERATIONS.map(job => (
-            <div key={job.name} className="flex items-center gap-3 p-2.5 border border-border/10">
-              <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className="text-foreground text-[12px] font-medium">{job.name}</span>
-                <p className="text-foreground/40 text-[10px] truncate">{job.desc}</p>
-              </div>
-              <span className="font-mono text-[10px] text-primary/60 whitespace-nowrap">{job.interval}</span>
-            </div>
-          ))}
-        </div>
-      </Panel>
+      {/* 2026-10-26 · the static "Autonomous Operations" catalog (20 hand-written crons, stale text) is gone;
+          the live per-job list is the Status tab's Scheduled work panel. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap border border-border/30 bg-card p-3">
+        <p className="text-[13px] text-foreground/70">
+          {cronSummary ? `Scheduled work (${cronSummary.jobs.length} jobs in the last 24 h) is on the Status tab.` : "Scheduled work is on the Status tab."}
+        </p>
+        <button
+          type="button"
+          onClick={() => handleTabChange("status")}
+          className="min-h-[44px] px-4 text-[13px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors"
+        >
+          Open Status
+        </button>
+      </div>
 
       {/* Feature Flags */}
       <FeatureFlagsPanel />

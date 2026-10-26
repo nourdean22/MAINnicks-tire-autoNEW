@@ -12,6 +12,8 @@ export interface OpenIssue {
   severity: "alert" | "warning" | "info";
   title: string;
   detail: string;
+  /** A second plain line under the detail (the job's own last-run text). */
+  note?: string;
   actionHref?: string;
   actionLabel?: string;
   whyText?: string;
@@ -26,7 +28,7 @@ export function useSettingsStatus() {
   const { data: smsGwHealth, isLoading: isSmsGwLoading, isError: isSmsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
   const { data: smsStatus, isLoading: isSmsStatusLoading, isError: isSmsStatusError } = trpc.sms.status.useQuery(undefined, { staleTime: 60_000 });
   const { data: vapiStatus, isLoading: isVapiLoading, isError: isVapiError } = trpc.vapi.status.useQuery(undefined, { staleTime: 60_000 });
-  const { data: cronHealth, isLoading: isCronLoading, isError: isCronError } = trpc.nickActions.cronHealth.useQuery(undefined, { staleTime: 30_000 });
+  const { data: cronSummary, isLoading: isCronLoading, isError: isCronError, refetch: refetchCron } = trpc.nickActions.cronHealthSummary.useQuery(undefined, { staleTime: 30_000 });
   const { data: lotHealth, isLoading: isLotHealthLoading, isError: isLotHealthError } = trpc.lot.health.useQuery(undefined, { staleTime: 60_000 });
 
   // 2. Aggregate loading states
@@ -62,7 +64,7 @@ export function useSettingsStatus() {
     (isSmsGwError || gatewayState(smsGwHealth) === "unknown") && "SMS gateway health",
     isSmsStatusError && "SMS status",
     isVapiError && "voice (VAPI) status",
-    isCronError && "cron health",
+    isCronError && "scheduled work",
     // A camera read that failed — or answered but left nothing judgeable (no commissioned
     // camera, unreadable payload: fleet UNKNOWN) — is a check that did not run, never
     // "cameras healthy".
@@ -98,10 +100,11 @@ export function useSettingsStatus() {
       });
     }
 
-    // RULE 2 · disabled feature flags with impact → warning
+    // RULE 2 · disabled feature flags with impact → warning. A pause switch (inverted) OFF means sending
+    // normally, so it is never an issue; the "Pause switches" line shows its state instead.
     const flagsArr = Array.isArray(flags) ? flags : [];
     const highImpactDisabled = flagsArr.filter(
-      (f) => f && f.value === false && /(declined|recovery|sms_)/i.test(f.key || ""),
+      (f) => f && !f.inverted && f.value === false && /(declined|recovery|sms_)/i.test(f.key || ""),
     );
     for (const f of highImpactDisabled.slice(0, 4)) {
       issues.push({
@@ -115,29 +118,11 @@ export function useSettingsStatus() {
       });
     }
 
-    // RULE 3 · bleeding SEO pages (high impr · low CTR) → warning
-    const topPages = (funnel?.topPages ?? []).slice(0, 10);
-    const bleeders = topPages.filter(
-      (p) =>
-          p.impressions >= 10_000 &&
-          (p.clicks ?? 0) <= (p.impressions * 0.005), // CTR ≤ 0.5%
-    );
-    for (const p of bleeders.slice(0, 3)) {
-      issues.push({
-        key: `bleed-${p.page}`,
-        severity: "warning",
-        title: `${p.page.replace("https://nickstire.org", "")} · ${(p.ctr ?? 0).toFixed(2)}% CTR`,
-        detail: `${p.impressions.toLocaleString()} impressions over 30d · only ${p.clicks ?? 0} clicks. Meta title/description likely failing the SERP click test.`,
-        whyText: "Pages ranking but not converting impressions to clicks usually have a weak meta description, a buried H1, or a SERP snippet that competes against stronger options. Rewriting title + meta-description is typically a 15-min fix.",
-        actionHref: p.page,
-        actionLabel: "Open page",
-      });
-    }
+    // (RULE 3, low-CTR SEO pages, was removed 2026-10-26: Reports > Search lists every page's CTR.)
 
-    // RULE 4 · real cron signals (failing jobs + data-accuracy findings like the
-    // 2388 missing phones). Previously omitted, which let the "All clear" banner
-    // sit green over genuine problems. Latest-run-per-job, deduped in the helper.
-    issues.push(...deriveCronIssues(cronHealth ?? []));
+    // RULE 4 · scheduled work: failed jobs, the data-accuracy finding in words, the observer's stuck queues and
+    // lanes not running as declared. One row per job, so a recovered job stops firing.
+    issues.push(...deriveCronIssues(cronSummary));
 
     // RULE 5 · commissioned camera not HEALTHY (or its interaction worker down). Before
     // 2026-10-02 no rule read lot.health, so this tab said "All clear" while the sign camera
@@ -166,7 +151,7 @@ export function useSettingsStatus() {
     }
 
     return issues;
-  }, [flags, funnel, smsStatus, smsGwHealth, cronHealth, lotHealth]);
+  }, [flags, smsStatus, smsGwHealth, cronSummary, lotHealth]);
 
   const alertCount = useMemo(() => openIssues.filter((i) => i.severity === "alert").length, [openIssues]);
   const warningCount = useMemo(() => openIssues.filter((i) => i.severity === "warning").length, [openIssues]);
@@ -187,7 +172,10 @@ export function useSettingsStatus() {
     smsGwState: gatewayState(smsGwHealth, isSmsGwError),
     smsStatus,
     vapiStatus,
-    cronHealth,
+    cronSummary,
+    isCronError,
+    refetchCron,
+    isFlagsError,
     openIssues,
     alertCount,
     warningCount,
