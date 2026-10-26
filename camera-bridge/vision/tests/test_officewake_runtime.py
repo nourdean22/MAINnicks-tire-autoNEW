@@ -826,3 +826,51 @@ def test_a_failing_ledger_does_not_end_the_heartbeat(tmp_path):
 
     _run_heartbeats(daemon, post, until=lambda: calls["n"] >= 4)
     assert calls["n"] >= 4, "a ledger write error ended the heartbeat loop"
+
+
+def test_a_capture_that_never_returns_is_abandoned_and_listening_resumes(tmp_path, monkeypatch):
+    """2026-10-22 17:51Z: one capture never returned; the worker stayed CAPTURING for four days
+    and the probe loop, which skips while CAPTURING, heard nothing. Past its ceiling the capture
+    is settled as capture_failed (state DEGRADED, never CAPTURING) and the worker takes the next one."""
+    import vision.officewake as officewake
+
+    monkeypatch.setattr(officewake, "CAPTURE_HANG_GRACE_SECONDS", 0.2, raising=False)
+    release = threading.Event()
+    calls = {"n": 0}
+
+    def hanging_capture_phase(cfg, trigger, *, clock=None, **_kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            release.wait(timeout=10)  # the hung ffmpeg / detector call
+        return CapturePhase(trigger=trigger, started_at=trigger.received_at, capture_seconds=0.0, segments=[], frames=[])
+
+    async def scenario():
+        ledger = MemoryLedger()
+        daemon = OfficeWakeDaemon(
+            _live_cfg(tmp_path, seconds=0.05), ledger=ledger, clock=lambda: MONDAY_10AM,
+            capture_phase_fn=hanging_capture_phase,
+        )
+        worker = asyncio.create_task(daemon.worker())
+        try:
+            await daemon.offer({"event": "motion", "deviceSn": OFFICE})
+            await asyncio.wait_for(daemon.queue.join(), timeout=3)
+            assert daemon.runtime_state == "DEGRADED"
+            assert daemon.current_capture_started_at is None
+            hung = [p for k, p in ledger.rows if k == "capture_hung"]
+            assert len(hung) == 1 and hung[0]["abandonedAfterSeconds"] == 0.25
+            finished = [p for k, p in ledger.rows if k == "capture_finished"]
+            assert finished[-1]["status"] == "capture_failed"
+            assert "abandoned so listening resumes" in finished[-1]["reason"]
+            # The next wake is taken, not queued behind the abandoned thread.
+            await daemon.offer({"event": "personDetected", "deviceSn": OFFICE})
+            await asyncio.wait_for(daemon.queue.join(), timeout=3)
+            assert calls["n"] == 2
+        finally:
+            release.set()
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(scenario())
