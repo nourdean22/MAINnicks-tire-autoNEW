@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   verify: vi.fn(),
   stored: [] as string[],
+  deferredTexts: [] as string[],
+  persistArgs: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -74,8 +76,21 @@ vi.mock("@/lib/services/chat/post-turn-outbox", () => ({
   completePostTurnWork: async () => undefined,
 }));
 vi.mock("@/lib/services/chat/deferred-background-work", () => ({
-  runDeferredBackgroundWork: async () => undefined,
+  runDeferredBackgroundWork: async (ctx: { text: string }) => {
+    h.deferredTexts.push(ctx.text);
+  },
 }));
+// Pass-through spy: what the row is written with (finishReason, cleanedText).
+vi.mock("@/lib/services/chat/persist-assistant-message", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/services/chat/persist-assistant-message")>();
+  return {
+    ...real,
+    persistAssistantMessage: (a: Parameters<typeof real.persistAssistantMessage>[0]) => {
+      h.persistArgs.push(a as unknown as Record<string, unknown>);
+      return real.persistAssistantMessage(a);
+    },
+  };
+});
 vi.mock("@/lib/ai/runtime/sse-stream", () => ({ notifyMessagePersisted: () => false }));
 
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -115,6 +130,8 @@ const BETTER = "There are 14 open estimates this week, 9 of them older than thre
 
 beforeEach(() => {
   h.stored.length = 0;
+  h.deferredTexts.length = 0;
+  h.persistArgs.length = 0;
   h.verify.mockReset().mockImplementation(async (draft: string) => ({ revised: draft, changed: false, questions: [] }));
 });
 
@@ -122,7 +139,7 @@ describe("buildOnFinish - postFlushRegen", () => {
   it("a better second draft is what the row stores, and CoVe verifies that text", async () => {
     const regen = vi.fn(async () => ({ text: BETTER, steps: [], usage: { inputTokens: 10, outputTokens: 5 } }));
     await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop" } as never);
-    expect(regen).toHaveBeenCalledWith({ draft: DRAFT });
+    expect(regen).toHaveBeenCalledWith(expect.objectContaining({ draft: DRAFT }));
     expect(h.stored).toContain(BETTER);
     expect(h.stored).not.toContain(DRAFT);
     expect(h.verify).toHaveBeenCalledWith(BETTER, expect.any(String));
@@ -133,6 +150,40 @@ describe("buildOnFinish - postFlushRegen", () => {
     await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop" } as never);
     expect(regen).toHaveBeenCalledTimes(1);
     expect(h.stored).toContain(DRAFT);
+  }, 30_000);
+
+  // Review round 2 (Codex on PR 3312).
+  it("F1 · the deferred action parser reads the ACCEPTED draft's raw text, not the discarded one", async () => {
+    const regen = vi.fn(async () => ({ text: BETTER, steps: [], finishReason: "stop" }));
+    await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop" } as never);
+    expect(h.deferredTexts).toEqual([BETTER]);
+  }, 30_000);
+
+  it("F2 · the winning draft goes through the sanitizer before it is stored", async () => {
+    const regen = vi.fn(async () => ({ text: `Great question! ${BETTER}`, steps: [], finishReason: "stop" }));
+    await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop" } as never);
+    expect(h.persistArgs[0]?.cleanedText).toBe(BETTER);
+  }, 30_000);
+
+  it("F3 · a streamed draft the sanitizer would empty still gets the repair pass", async () => {
+    // Both lead-filler patterns strip it (output-guardian.ts LEAD_FILLER): it sanitizes to "".
+    const FILLER = "Certainly! Here's what I found.";
+    const regen = vi.fn(async () => ({ text: BETTER, steps: [], finishReason: "stop" }));
+    await buildOnFinish(deps(regen))({ text: FILLER, finishReason: "stop" } as never);
+    expect(regen).toHaveBeenCalledTimes(1);
+    expect(h.persistArgs[0]?.cleanedText).toBe(BETTER);
+  }, 30_000);
+
+  it("F4 · the repair runs on the model that actually served the turn (buildOnFinish's model)", async () => {
+    const regen = vi.fn(async () => null);
+    await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop" } as never);
+    expect(regen).toHaveBeenCalledWith(expect.objectContaining({ draft: DRAFT, model: "m" }));
+  }, 30_000);
+
+  it("F5 · a winning draft's finishReason is the one the row records", async () => {
+    const regen = vi.fn(async () => ({ text: BETTER, steps: [], finishReason: "stop" }));
+    await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "length" } as never);
+    expect(h.persistArgs[0]?.finishReason).toBe("stop");
   }, 30_000);
 
   it("CONTROL - a regen that throws keeps the streamed text and the row still saves", async () => {

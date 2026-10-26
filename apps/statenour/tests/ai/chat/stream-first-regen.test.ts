@@ -203,6 +203,22 @@ describe("persistBase.postFlushRegen · the same critic-gated best-of-2, after t
     expect(out?.text).toBe(CONCRETE_REPLY);
   });
 
+  // Review round 2 (Codex on PR 3312).
+  it("F4 · the second draft runs on the model persist hands it (the fallback that served the turn), not the route's first pick", async () => {
+    const regen = await attach();
+    modelReturning(CONCRETE_REPLY);
+    const FALLBACK_MODEL = { modelId: "fallback-model" };
+    await (regen as unknown as (a: { draft: string; model: unknown }) => Promise<unknown>)({ draft: VAGUE_REPLY, model: FALLBACK_MODEL });
+    expect((generateText.mock.calls[0][0] as { model: unknown }).model).toBe(FALLBACK_MODEL);
+  });
+
+  it("F5 · a winning second draft reports its own finishReason", async () => {
+    const regen = await attach();
+    generateText.mockResolvedValueOnce({ text: CONCRETE_REPLY, steps: [], finishReason: "stop", totalUsage: {} });
+    const out = (await regen({ draft: VAGUE_REPLY })) as { finishReason?: string } | null;
+    expect(out?.finishReason).toBe("stop");
+  });
+
   it("CONTROL: a draft the critic passes costs no model call and keeps the streamed text", async () => {
     const regen = await attach();
     modelReturning(VAGUE_REPLY);

@@ -134,10 +134,11 @@ type PostFlushRegen = NonNullable<Parameters<typeof buildOnFinish>[0]["postFlush
  * (the critic passed the draft, or the intent is not gated). When one ran, its
  * usage is returned either way (it was paid for); `text` and `steps` only when
  * it won. A losing draft's tool calls go to tool_telemetry here, once; a
- * winning draft's steps go to the persist walk instead.
+ * winning draft's steps go to the persist walk instead. The model is the one
+ * persist hands in: the model that served the turn (a same-turn fallback or an
+ * escalation override included), not the route's first pick.
  */
 function buildPostFlushRegen(a: {
-  model: ReturnType<typeof getModel>;
   sanitizedModelMessages: unknown;
   prunedTools: unknown;
   mode: ChatMode;
@@ -151,7 +152,7 @@ function buildPostFlushRegen(a: {
   privateMode: boolean;
   log: Logger;
 }): PostFlushRegen {
-  return async ({ draft }) => {
+  return async ({ draft, model }) => {
     const { generateText } = await import("ai");
     const { maybePreStreamRegen, formatRegenTelemetry } = await import("@/lib/ai/chat/pre-stream-regen");
     let second: (GenerationLike & { text?: string; totalUsage?: unknown }) | null = null;
@@ -164,7 +165,7 @@ function buildPostFlushRegen(a: {
       generateOnce: async () => draft,
       regenOnce: async ({ suggestedSystemPrefix }) => {
         const r = await generateText({
-          model: a.model,
+          model: model as ReturnType<typeof getModel>,
           messages: a.sanitizedModelMessages as never,
           tools: stripMutatingTools(a.prunedTools as Record<string, unknown>).tools as never,
           stopWhen: stepCountIs(a.mode === "deep" ? 5 : 3),
@@ -206,7 +207,13 @@ function buildPostFlushRegen(a: {
     if (!ran) return null;
     const usage = addUsage(undefined, ran.totalUsage);
     if (regen.regenFired) {
-      return { text: regen.text, steps: allSteps(ran), ...(usage ? { usage } : {}) };
+      const fr = (ran as { finishReason?: unknown }).finishReason;
+      return {
+        text: regen.text,
+        steps: allSteps(ran),
+        ...(typeof fr === "string" ? { finishReason: fr } : {}),
+        ...(usage ? { usage } : {}),
+      };
     }
     void import("@/lib/services/chat/tool-telemetry-walk")
       .then(({ recordToolObservations }) => recordToolObservations({ steps: allSteps(ran) }, a.convId))
@@ -434,7 +441,6 @@ export async function runAlternatePaths(args: {
     // regenOn still excludes self-consistency, exactly as before.
     if (!actionIntent && regenOn) {
       persistBase.postFlushRegen = buildPostFlushRegen({
-        model,
         sanitizedModelMessages,
         prunedTools,
         mode,
