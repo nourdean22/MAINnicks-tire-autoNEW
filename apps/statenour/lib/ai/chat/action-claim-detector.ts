@@ -291,6 +291,34 @@ export function detectActionClaimsWithoutTools(
 }
 
 /**
+ * A failed environment check (environment-verifier.ts: the tool failed, or a
+ * write's read-back did not find it) becomes a fabricated claim for the L2
+ * banner, but only when the reply CLAIMS that tool's action: a prose claim the
+ * detector maps to it, or a first-person statement naming the tool ("I ran
+ * invokeTool"). 2026-10-26: every failure used to count, so a reply narrating
+ * the operator's own week was bannered for a failed invokeTool read.
+ */
+export function envFailureClaims(
+  checks: ReadonlyArray<{ toolName: string; verified: boolean | null; reason?: string }>,
+  text: string,
+): ActionClaim[] {
+  const proseTools = detectActionClaims(text).claims.flatMap((c) => c.expectedTool.toLowerCase().split("|"));
+  const namesTool = (tool: string) =>
+    new RegExp(
+      `\\b(?:I|we)(?:'ve)?\\s+(?:(?:just|already|also)\\s+)?(?:ran|run|called|used|invoked|executed|fired)\\s+(?:the\\s+)?\`?${tool}\`?`,
+      "i",
+    ).test(text);
+  return checks
+    .filter((check) => check.verified === false)
+    .filter((check) => proseTools.includes(check.toolName.toLowerCase()) || namesTool(check.toolName))
+    .map((check) => ({
+      verb: check.toolName,
+      snippet: `[Tool reported success, but verification failed: ${check.reason}]`,
+      expectedTool: check.toolName,
+    }));
+}
+
+/**
  * Slice 1: Telemetry · Behavioral Probability Analysis
  * Calculate the Tool-to-Verb ratio for the calibration engine.
  * Ratio = Fired Tools / Claimed Verbs.
