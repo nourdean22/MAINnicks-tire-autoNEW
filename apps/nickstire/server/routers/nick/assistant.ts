@@ -94,7 +94,7 @@ const DROP_KEYS = /^(email|address|city|state|zip|phone2|psychoProfile\w*|alsCus
 const PHONE_KEYS = /^(phone|customerPhone|callerPhone|fromNumber|from|to)$/;
 const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue|cents|averageCents|pendingCents|partialCentsFullValue|refundedCents)$/;
 // services/shopSales.ts: the ShopDriver mirror maps the ALG ticket lifecycle onto paymentStatus.
-const STATUS_MEANING = "On a ShopDriver counter invoice (source shopdriver) paymentStatus is the ticket state, not money: paid = ticket closed (a sale; a missing or unknown feed state is also stored as paid), pending = ticket still open (not a sale yet). Payment is on a separate register, so it never says that customer paid. On an online tire order made in the app (source manual) it IS the real checkout state."; // under minimize's 400-character string cap
+const STATUS_MEANING = "ShopDriver counter invoice (source shopdriver): paymentStatus is the ticket state, not money. paid = closed, a sale (a missing or unknown feed state is also stored as paid). pending = open when last mirrored, not counted as a sale (the mirror never moves a row back to paid, so it may since have closed). Never a payment fact. Online tire order (source manual): it IS the real checkout state."; // under minimize's 400-character string cap
 
 function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   if (depth > 5) return undefined;
@@ -158,7 +158,9 @@ async function runAssistantTool(caller: Caller, tool: string, args: Record<strin
       case "sales_summary": {
         // The Money page's own read (services/shopSales.ts), so Ask and the page give the same number.
         source = "controlCenter.shopSales";
-        const period = SALES_PERIODS.find((p) => p === args.period) ?? "last_7d";
+        const period = SALES_PERIODS.find((p) => p === args.period);
+        // Never answer a different window than the one asked for: an unsupported period is UNKNOWN, not last_7d.
+        if (!period) throw new Error(`unsupported period ${JSON.stringify(args.period ?? null)}: the Money page has ${SALES_PERIODS.join(", ")}`);
         const r = await caller.controlCenter.shopSales({ period });
         if (!r.available) throw new Error(r.reason);
         // Same rule as the Money page (SalesCard dayNotShown): a single day shows only once a ShopDriver sync covers it.
@@ -263,7 +265,7 @@ function buildSystemPrompt(page: AssistantPage | undefined, todayEt: string): st
     `Today is ${todayEt} (America/New_York).`,
     "Answer only from tool results. If a tool failed or a fact is not in the results, say UNKNOWN for that part. Never guess numbers.",
     "After every fact taken from a record, cite it as [[customer:ID]], [[invoice:ID]] or [[lead:ID]] using ids from the tool results. Write the name first, then the reference right after it: it shows as a small link.",
-    "What the records mean: a closed ShopDriver counter invoice is a closed job (a sale). In the stored row, paymentStatus is the ALG ticket state, not money: paid = ticket closed (a sale; a missing or unknown feed state is also stored as paid, so one paid row is not proof), pending = ticket still open at the counter (not a sale yet). Payment is taken on a separate register, so never say whether a counter customer paid from it. On an online tire order made in the app (source manual) paymentStatus is the real checkout state.",
+    "What the records mean: a closed ShopDriver counter invoice is a closed job (a sale). In the stored row, paymentStatus is the ALG ticket state, not money: paid = ticket closed (a sale; a missing or unknown feed state is also stored as paid, so one paid row is not proof), pending = ticket open when last mirrored (not counted as a sale; the mirror never moves a row back to paid, so a pending row can be a ticket that has since closed). Payment is taken on a separate register, so never say whether a counter customer paid from it. On an online tire order made in the app (source manual) paymentStatus is the real checkout state.",
     "For sales, revenue or how the shop did, use sales_summary: it is the Money page's own figure. Never add up invoice rows yourself.",
     "An estimate with no matching invoice most likely means the customer walked (declined work), but it is an inference unless the counter recorded the no. Say which one you mean.",
     "Follow-ups key to invoices, not bookings. The shop is first come first served, walk-ins 7 days, no held appointment slots.",

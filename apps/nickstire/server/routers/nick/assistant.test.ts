@@ -93,7 +93,8 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     const { invoke } = await askWithTool("recent_calls", {});
     const system = String((invoke.mock.calls[0][0] as InvokeParams).messages[0].content);
     expect(system).toContain("a closed ShopDriver counter invoice is a closed job (a sale)");
-    expect(system).toContain("pending = ticket still open at the counter (not a sale yet)");
+    // Codex P2 on PR 3306 (round 4): a pending row can be stale, the mirror never moves a row back to paid.
+    expect(system).toContain("pending = ticket open when last mirrored (not counted as a sale; the mirror never moves a row back to paid, so a pending row can be a ticket that has since closed)");
     // Codex P2 on PR 3306 (round 3): no blanket "every counter invoice is a closed sale" beside "pending is not a sale".
     expect(system).not.toMatch(/\b(a|every|any) counter invoice is a closed job/i);
     // Codex P2 on PR 3306 (round 2): the mirror stores a missing or unknown ticket state as paid.
@@ -109,8 +110,8 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     fakeCaller();
     const { toolResult, answer } = await askWithTool("find_invoices", { search: "Pat" });
     expect(toolResult.data.invoices[0]).toMatchObject({ paymentStatus: "pending", totalAmountDollars: 459.99 });
-    expect(toolResult.data.statusMeaning).toMatch(/pending = ticket still open \(not a sale yet\)/);
-    expect(toolResult.data.statusMeaning).toMatch(/online tire order made in the app \(source manual\) it IS the real checkout state/);
+    expect(toolResult.data.statusMeaning).toMatch(/pending = open when last mirrored, not counted as a sale \(the mirror never moves a row back to paid, so it may since have closed\)/);
+    expect(toolResult.data.statusMeaning).toMatch(/Online tire order \(source manual\): it IS the real checkout state\.$/);
     expect(toolResult.data.statusMeaning).toMatch(/a missing or unknown feed state is also stored as paid/);
     expect(answer.receipts[0]).toMatchObject({ source: "invoices.list", count: 1 });
   });
@@ -154,6 +155,17 @@ describe("shop data meanings (docs/SHOP-SOUL.md section 3)", () => {
     fakeCaller({ controlCenter: { shopSales: vi.fn(async () => ({ available: true, cents: 90000, invoiceCount: 3, averageCents: 30000, period: "yesterday", previous: null, windowSynced: true })) } });
     const { toolResult } = await askWithTool("sales_summary", { period: "yesterday" });
     expect(toolResult.data).toMatchObject({ dollars: 900, invoiceCount: 3 });
+  });
+
+  it("an unsupported or missing period is UNKNOWN, never a different window's figure", async () => {
+    for (const args of [{ period: "last_14d" }, { days: 14 }, {}]) {
+      const { raw } = fakeCaller();
+      const { toolResult, answer } = await askWithTool("sales_summary", args);
+      expect(raw.controlCenter.shopSales).not.toHaveBeenCalled();
+      expect(answer.receipts[0]).toMatchObject({ ok: false, unknown: true });
+      expect(answer.receipts[0].error).toMatch(/^unsupported period/);
+      expect(toolResult.data).toBeUndefined();
+    }
   });
 
   it("sales totals say UNKNOWN when the Money read is unavailable, never a zero", async () => {
