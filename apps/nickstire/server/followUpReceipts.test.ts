@@ -13,7 +13,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const sendSms = vi.fn();
 const isEnabled = vi.fn();
-const notifyOwner = vi.fn(async () => undefined);
+// true = delivered. undefined fell through reportFollowUpsToOwner to the real sendTelegram (2026-10-26 page to Nour).
+const notifyOwner = vi.fn(async (..._a: unknown[]) => true);
 const createCustomerNotification = vi.fn(async () => ({ id: 77 }));
 const markNotificationSent = vi.fn(async () => undefined);
 const markNotificationFailed = vi.fn(async () => undefined);

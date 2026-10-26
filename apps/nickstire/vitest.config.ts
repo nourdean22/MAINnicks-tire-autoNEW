@@ -16,6 +16,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // No test may reach the real Telegram bot. apps/nickstire/.env (copied into every worktree) and
+    // `railway run` carry the live token; vitest assigns test.env to process.env in the worker AFTER the
+    // parent's values (setup-common: `process.env[key] = env[key]`), so empty strings win. Tests that need
+    // a token set their own (vi.stubEnv). Pin: server/__tests__/telegramTestIsolation.test.ts.
+    env: { TELEGRAM_BOT_TOKEN: "", TELEGRAM_CHAT_ID: "" },
     testTimeout: 30000,
     // Serial by DEFAULT, not by remembering a CLI flag.
     //

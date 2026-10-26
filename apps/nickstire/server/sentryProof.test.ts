@@ -13,6 +13,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("./db", () => ({ getDb: async () => null }));
+// The real healthHandler fires a Telegram memory alert once the shared test process heap passes 80%.
+vi.mock("./services/telegram", () => ({ sendTelegram: vi.fn(async () => undefined) }));
 
 import {
   __setSentryClientForTests,
