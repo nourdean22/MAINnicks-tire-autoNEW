@@ -136,6 +136,38 @@ describe("the last allowed step is text-only even when the provider ignores tool
     }
   });
 
+  // Codex P1 on PR 3296 (vercel/ai#13448: activeTools once filtered only what the
+  // provider saw, and the full map still executed). ai@6.0.309 builds the step's
+  // parse-and-execute set from activeTools; these pin that, so a downgrade or a
+  // strip that stops sending activeTools goes red.
+  it("a known tool call returned on a stripped step is never executed", async () => {
+    const execute = vi.fn(async () => ({ tasks: ["synthetic task"] }));
+    const getTasks = tool({ description: "List tasks", inputSchema: z.object({}), execute });
+    const { model } = fakeModel((i) => (i < 3 ? toolCallParts(i) : textParts("Closing reply.")));
+    const out = await run(model, { prunedTools: { getTasks } });
+
+    expect(out.text).toBe("Closing reply.");
+    // Steps 0 and 1 offered the tool and ran it; steps 2 and 3 offered none.
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("the real name-repair lane cannot route a stripped step's call onto a live tool", async () => {
+    const { buildRepairToolCall: realRepair } = await vi.importActual<typeof import("@/lib/ai/chat/repair-tool-call")>(
+      "@/lib/ai/chat/repair-tool-call",
+    );
+    const execute = vi.fn(async () => ({ ok: true }));
+    const createTask = tool({ description: "write", inputSchema: z.object({}), execute });
+    const prunedTools = { createTask };
+    // "task.create" is a curated alias the repair maps onto createTask.
+    const { model } = fakeModel((i) => (i < 3 ? toolCallParts(i, "task.create") : textParts("Closing reply.")));
+    const config = buildConfig(model, { prunedTools });
+    const result = streamText({ ...config, experimental_repairToolCall: realRepair(prunedTools as never), maxRetries: 0 } as never);
+    await result.consumeStream();
+
+    expect(await result.text).toBe("Closing reply.");
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
   it("CONTROL · a normal tool turn (tools on step 0, prose on step 1) is unchanged: two steps, tools offered on both", async () => {
     const { model, calls } = fakeModel((i) => (i === 0 ? toolCallParts(i) : textParts("Done reading.")));
     const out = await run(model);
