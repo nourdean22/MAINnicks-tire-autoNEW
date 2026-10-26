@@ -1,200 +1,193 @@
 # Lot vision v2: the car counter, rebuilt without NicksMax (design, 2026-10-26)
 
 Status: DESIGN for Nour's review. Nothing here is built, bought or installed. Job 2026-10-26-lot-vision-v2.
-Labels: FACT (read in code or production today), INFERRED (a design judgement), NOT CHECKED (an open fact).
+Re-planned 2026-10-26 after Nour's ruling: zero hardware spend, use what the shop owns, run it over the cloud,
+nothing manual for him. Labels: FACT (read in code, docs or production today), STRONG INFERENCE, INFERRED,
+NOT CHECKED. Perplexity lines are CLAIM until their primary page is read; the ones used here were read.
 
 ## 1. The answer
 
-1. **Replace the camera, not the code.** The counter is fragile because its eyes are a closed solar wifi V380 that goes
-   dark every night and is read through the vendor's relay on a desktop PC (FACT: ADR-0022). The counter sees one
-   lens of three, cropped from the relay's 1920x3240 stack and shrunk to 640x360 at 4 frames a second
-   (FACT: `scripts/nicksmax/run-sign-crop.ps1:3-4,66`). Every layer above it
-   inherits frozen frames, blackouts and restarts: about 180 health flaps a day and 0 arrivals since 10-23 19:24Z
-   while it reported HEALTHY (FACT, `camera_health_events`, `vehicle_visits`). Why that zero happened is UNKNOWN: the
-   edge log is on NicksMax, which is off. The design does not depend on finding out.
-2. **Recommended: a wired lot appliance.** One PoE camera on the entrance, one small Linux box that does nothing
-   else (Frigate 0.17.2 + our own `visitd`), on a UPS. NicksMax leaves the truth path for good.
-3. **Most of the software already exists and never ran.** `visitd` turns Frigate events into visits and already posts
-   the nickstire contract (`visitd/shop_mirror.py`, `visitd/main.py` shop heartbeat); the Frigate config is in
-   `frigate/config.example.yml`. The 2026-09-08 master plan priced this hardware and it was never bought.
-4. **Cost: about $500 to $1,340 in parts, typically about $750** (section 6). Your spend decision.
-5. **Counting within days of the parts arriving** (phase 4): camera up, box up, first real arrivals on Admin > Lot.
-   Phases 2 and 3 (the missing page, the box image) need no spend and start on your yes.
+1. **Recommended: the front-desk PC counts, the cloud stands by.** The counter runs on the front-desk PC MECHANICS
+   (always on, 7 days, already running the office lane as a SYSTEM task). A dormant copy waits in Railway and takes
+   over by itself if the PC goes quiet for 90 seconds. NicksMax is never needed.
+2. **Why it can run anywhere:** the sign camera's video reaches the counter from the V380 *cloud*, not from the shop
+   network. Today a .NET relay on NicksMax logs in to the V380 cloud and serves the stream as RTSP on `:8554/live`
+   (FACT: `scripts/nicksmax/nicksmax-camera-supervisor.ps1:841-868`, `run-sign-crop.ps1:64`). So any host with
+   internet can read it, including the front-desk PC and a Railway container.
+3. **The failover lease is already built.** The server ranks producers p1 > p2 > p3 and hands the camera to a lower
+   one after 90 s of silence (FACT: `apps/nickstire/server/routes/cameraProducerAuthority.ts`); `edge_main.py` already
+   runs as a standby and is promoted by that lease (FACT: `edge_main.py:57-59`, `957-1018`).
+4. **Cost:** $0 hardware. The dormant cloud copy costs roughly $1 to $3 a month while idle and about $10 to $30 a
+   month only while it is actually counting (INFERRED from Railway's published rates, section 6).
+5. **Your hands, one line:** type the V380 password once for the new hosts (the old secret is locked to NicksMax by
+   Windows DPAPI, FACT: `nicksmax-camera-supervisor.ps1:52`), and say yes to running the relay below. Everything else
+   is agents: code by PR, the Railway service from the repo, the front-desk install through the Claude app on that PC
+   with a hash-pinned block, as done for the office lane today.
 
-## 2. Outcome and proof
+## 2. Two things you must know first
 
-Every car that enters the lot is counted (arrival, departure, time in lot, already there at open); the count survives
-any one machine being off; a gap is re-counted from retained video; Admin > Lot says UNKNOWN, never 0, when the
-producer is silent; you are paged within minutes when it stops; the lane is rebuilt from `LOT-VISION-V2-RUNBOOK.md`
-in an afternoon. A counted arrival is a car in the lot, not a job; the attribution lane joins arrivals to invoices.
+1. **The relay is a reverse-engineered open-source bridge, not a vendor program (STRONG INFERENCE).** Its defaults
+   match V380Decoder exactly: .NET, RTSP `:8554/live`, web/API `:8080`, cloud login with device id and password
+   (https://github.com/PyanSofyan/V380Decoder and its three-lens fork https://github.com/felipemarques/camera-v380decoder,
+   READMEs read 2026-10-26). ADR-0022 calls it "the vendor's own relay"; `docs/UPSTREAMS.md` rejected exactly these
+   bridges for production on 2026-09-08 (reverse-engineered keys, no licence file). Production has depended on it
+   since 2026-09-28. Risks: the vendor can change its protocol and break it overnight; neither repo shows a licence,
+   so we run it as-is for our own camera and never copy its code into this public repo. Confirming which build runs
+   needs one look at NicksMax's relay folder (NOT CHECKED).
+   With zero spend there is no other way to read this camera except the SD-card unlock in section 3 alternative L.
+2. **The solar camera is asleep for part of every open day.** It is dark from civil dusk until about 2 hours after
+   sunrise (FACT: `server/lib/solar.ts`); the shop opens at 8 AM (FACT: `shared/business.ts`). Roughly 8 to 10 AM is
+   uncounted every day, and the last open hour in winter. Cars already there at open are estimated at first light.
+   Admin > Lot will say "camera asleep until about 10:05", never 0. No software fixes this; only power to the camera
+   does (section 11).
 
-## 3. Two designs that differ in kind, and the 10x option
+A likely cause of the 3-day zero, for the record (INFERRED, testable): the three-lens fork's README warns that these
+cameras deliver clean, decodable frames only at the camera's keyframe cadence. At 4 fps with frozen or repeated
+frames (DEGRADED "frozen or looping" about 40 times a day, FACT `camera_health_events`), a car may never form a track
+on both sides of the portal line. The acceptance audit in section 8 tests exactly this before anything is called LIVE.
 
-| | A. Lot appliance (RECOMMENDED) | B. Camera counts, server is the only code |
-|---|---|---|
-| What | PoE camera -> Frigate 0.17.2 on a dedicated N150 box (detection, tracking, zones, 7 days of recording) -> `visitd` -> nickstire `/api/camera/visits` + `/api/camera/heartbeat` | An AI PoE camera counts a directional line on the camera and pushes each crossing over HTTPS to a new nickstire ingest route; its SD card keeps the video |
-| Shop machines | camera + box | camera only |
-| Arrival / departure | yes, per car | yes, as crossings |
-| Time in lot per car | yes (one track id from entry to exit) | NO: crossings carry no identity, so only lot occupancy (ins minus outs) |
-| Already there at open | yes (INFERRED: Frigate tracks stationary cars from start; small `visitd` change) | only as an occupancy number (Axis occupancy-in-area), not per car |
-| Re-count a gap | from the box's 7 days, or the camera's SD card | from the SD card, needs a box or PC to process it |
-| Our new code | small (config, installer, health rules, re-count job) | a vendor adapter route + an event-to-visit translator |
-| Main risk | a new box at the shop; Frigate + `visitd` have never run on real traffic | vendor firmware is a black box we cannot pin; push often has weak auth and no buffering (pending research) |
-| Kill criterion | section 8 | same thresholds; fails outright if time-in-lot is required |
+## 3. Designs that differ in kind
 
-Rejected: **harden the existing producer on NicksMax** (fix the portal, replace the 60 s stall kill). It keeps the
-closed camera, the relay and the desktop PC in the truth path, which is what Nour ruled out on 2026-10-26.
+| | Z. Cloud bridge, shop PC primary, cloud standby (RECOMMENDED) | L. Local RTSP unlock, no bridge | A. Buy a wired camera and a box |
+|---|---|---|---|
+| How the video is read | V380Decoder-class relay logging in to the V380 cloud | the camera's own RTSP on the shop network after the `ceshi.ini` SD-card unlock | a PoE camera's own RTSP |
+| Hardware spend | $0 | $0 (an SD card the shop owns) | about $500 to $1,340, typically about $750 |
+| Manual steps | the V380 password once | someone opens the camera, inserts and later removes the card, three cold reboots | mounting, cabling |
+| Depends on | the vendor cloud and a reverse-engineered bridge | an unverified firmware trick: no report for firmware `Hw_HsAKQQXG_WIFI_20230421`; three-lens owners report 554 staying closed; can reset the camera; RTSP may be unauthenticated (gist https://gist.github.com/SolveSoul/9be5d9599c8b4b59f7cfa4cd0ce79c9c, read via research) | nothing closed |
+| Dark mornings | yes | yes | no |
+| Verdict | build | park: house skill `camera-onboard-rtsp` forbids running unlock tools, and it needs hands at the shop | your spend call, kept as the fallback |
 
-**The 10x option, one line:** two independent witnesses on one wired camera (the camera's own line counter pushing
-straight to the server, plus Frigate on the box), with billed invoices as the third check, so a silent zero cannot
-hide and any gap is re-counted from 7 days of video. Build it only after A has run clean for 2 weeks, and only if the
-camera bought for A can count on board (a config change, not a build). Buy A's camera with that ability.
+Within Z, the cloud-first variant (Railway primary, shop PC standby) is the same code with the priorities swapped. It
+survives a shop PC crash with no 90 s gap but costs about $10 to $30 a month all the time instead of only during a
+failover. Rejected for now because you said no new spend; one config line flips it later.
 
-## 4. Design A in detail
+Also rejected: Frigate on the front-desk PC (Frigate does not officially support Windows; a WSL2 VM on a staff PC,
+https://docs.frigate.video/frigate/installation/, read via research), and any change that depends on NicksMax.
 
-### 4.1 Hardware at the shop
-1. **Camera:** one 4 to 8 MP PoE bullet, starlight sensor, WDR, IR, rated to -30 C, ONVIF + RTSP, H.265, microSD
-   slot, on-board vehicle line crossing (for the 10x option later). Mounted 3 to 4 m up, 30 to 45 degrees down,
-   looking along the driveway so cars drive toward or away from it; headlights not straight into the lens. No plate
-   reading on this camera (a plate needs a second narrow camera and a separate privacy decision).
-2. **Box:** Intel N150 mini PC, 16 GB, 512 GB SSD, Ubuntu Server 24.04 LTS. BIOS set to power on after AC loss.
-3. **PoE switch** (or injector) and the box and the modem on one UPS.
-4. **Wired** outdoor Cat6 to the camera. No solar, no wifi: Cleveland winter, short days and cold batteries are the
-   failure we are leaving (INFERRED from the solar night window in `server/lib/solar.ts`).
+**The 10x option, one line:** the counter is a cloud-managed service with two hosts and a lease the server already
+enforces, so no single machine can silence it, and the server compares the day's count with billed invoices so a
+silent zero pages the same day.
 
-### 4.2 Software on the box (all pinned, all restarting on their own)
-1. Docker Compose: `mosquitto`, `frigate:0.17.2` (OpenVINO on the N150 iGPU; go2rtc inside Frigate gives the camera
-   one pull per stream), `visitd`. `restart: unless-stopped` on every service.
-2. `visitd` already does the truth path: deterministic visit state machine on Frigate `frame_time`, SQLite ledger and
-   durable outbox, idempotent `visitId` + `seq`, shop heartbeat. Internet outages delay visits, never lose them.
-3. Remote access: Tailscale (already the house tool). No port forwarding, camera never on the internet.
-4. chrony for time, unattended security upgrades, images pinned by tag; updates only by a reviewed tag change.
+## 4. Design Z in detail
 
-### 4.3 What changes in the repo (phases 3 and 4)
-1. `frigate/config.example.yml`: one camera, an entrance zone and a lot zone, recording 7 days (continuous for the
-   entrance), the old two-camera LPR layout moved out.
-2. `visitd`: mark cars already in the lot zone when the box starts or the shop opens as `preexisting` (today it
-   hard-codes `preexisting: False`, `visitd/shop_mirror.py:214`).
-3. A box installer and the runbook (`LOT-VISION-V2-RUNBOOK.md`): one script, one page.
-4. A re-count job (section 5.3).
-5. Server: the missing page (section 5.1), and the new camera's health profile (wired, no solar night). The new
-   camera posts under the camera id `sign`, so `lotDataConfidence.ts`, the alerts and Admin > Lot keep treating it as
-   the vehicle-truth camera without a rename; the producer id changes, which the 90 s takeover already allows. No
-   schema change: `vehicle_visits` already has `sourceGeneration`,
-   `dataClass`, `detectorName`, `calibrationVersion` for provenance (FACT, `drizzle/schema.ts:4724`).
-6. Retire: `edge_main.py`, the V380 relay, crop and MediaMTX launchers under `scripts/nicksmax/` move to an archive
-   folder only after A passes its kill criterion. Nothing is deleted before then.
+### 4.1 One package, two hosts
+1. A pinned build of the relay (source pinned by commit, built in CI or on the host, never vendored into this public
+   repo) -> FFmpeg crop of the side-lot lens to 640x360 at 4 fps (today's command, `run-sign-crop.ps1:66`) ->
+   MediaMTX -> `edge_main.py --source rtsp`. Same parts as NicksMax, minus the PowerShell supervisor loop.
+2. **Front-desk PC (primary, `p1-shop-sign-*`):** installed like the office lane
+   (`scripts/install-office-capture.ps1` pattern): SYSTEM scheduled tasks at below-normal priority; relay and counter
+   as separate tasks so each restarts alone; a watchdog that restarts on stale decoded frames, not only on exit.
+   The office lane is untouched.
+3. **Railway (standby, `p3-cloud-*`):** one container from a Dockerfile like `camera-bridge/visitd.Dockerfile`.
+   Dormant: it sends a heartbeat every 30 s and does not open the camera until the heartbeat reply says
+   `authoritative` (the field exists, `server/routes/cameraVisitsRoutes.ts` around line 777). Then it starts the
+   relay and counts until the PC is back and reclaims the lease.
+4. **One camera session at a time.** Whether the V380 cloud serves two sessions to one device is UNKNOWN, so the
+   standby never opens the stream while the primary holds the lease.
+5. **Calibration** re-made from a fresh still with `vision/scenelocator.py` and committed without addresses or
+   secrets, so it no longer lives on one PC (today it exists only on NicksMax, FACT: not in git).
+6. **Recording for re-count:** the primary writes the cropped stream as 10-minute segments, 3 days, to its own disk
+   (INFERRED about 1 to 2 GB a day of daylight at this resolution). The cloud copy records only while it is counting
+   (Railway's Hobby volume limit is 5 GB, https://docs.railway.com/pricing/plans, read via research).
+
+### 4.2 Code changes
+1. `edge_main.py`: a `cloud` host at p3, and a dormant mode (heartbeat only, stream closed until authoritative).
+2. A frame-progress watchdog for the relay and counter tasks (stale decoded frames -> restart), replacing the
+   NicksMax launcher's 60 s stall kill that churned 23 to 25 producer ids a day.
+3. Server: **the missing page**: frames flowing and 0 arrivals for 2 awake hours, or still 0 at noon ET while invoices
+   exist (the exact 10-24 and 10-25 failure). Admin > Lot names the dark window.
+4. A re-count job (section 5.1). No schema change: `vehicle_visits` already has `sourceGeneration`, `dataClass`,
+   `detectorName`, `calibrationVersion` (FACT, `drizzle/schema.ts:4724`).
 
 ## 5. When things break
 
-### 5.1 Pages (what exists, what is new)
-| Signal | Threshold | Status |
-|---|---|---|
-| Producer silent | heartbeat older than 120 s -> PRODUCER_OFFLINE (`server/lib/cameraHealth.ts:68`), paged by `cameraHealthAlerts.ts` | FACT: exists |
-| Lot tile when silent | counts UNKNOWN unless the sign camera is HEALTHY (`shared/lotDataConfidence.ts`) | FACT: exists |
-| Camera dead, box alive | Frigate `camera_fps` 0 for 2 min -> heartbeat `sourceConnected` false -> CAMERA_OFFLINE | NEW (small): today `visitd` sets `sourceConnected` from the broker and Frigate being up, and leaves frame fields None (`visitd/main.py:366`), so a dead camera behind a live Frigate reads as connected. Read Frigate's `stats` topic |
-| Looking but not counting | car detections flowing and 0 arrivals for 2 open hours, or the day still 0 at 11 AM ET while invoices exist | NEW. This is the exact failure of 10-24 and 10-25. Needs a detection count in the `visitd` heartbeat (from Frigate stats) |
-| Recording stopped | newest recording segment older than 5 min, or disk under 15% free | NEW (box heartbeat field). Frigate deletes the oldest footage first when the disk nears full, whatever the retention setting (Frigate record docs), so a full disk silently shortens the re-count window |
-
-The night state changes too: a wired camera is not dark at night, so EXPECTED_SOLAR_OFFLINE stops applying to the new
-camera's profile.
-
-### 5.2 Any one machine off
-| Off | What still works |
+| Off or broken | What happens |
 |---|---|
-| NicksMax | everything (it is no longer used) |
-| The box | the camera keeps recording to its SD card; the server pages PRODUCER_OFFLINE within about 2 min; Admin > Lot says UNKNOWN; the gap is re-counted when the box returns |
-| The camera | the box heartbeat says CAMERA_OFFLINE; page; nothing to re-count (no video exists) and the tile says so |
-| Internet or Railway | `visitd` keeps counting into its outbox and delivers in order when the link returns |
-| Power | the UPS carries the switch, box and modem; after a long cut the box powers on by itself (BIOS) and Compose restarts every service |
+| NicksMax | nothing; it is not used |
+| Front-desk PC | after 90 s of silence the cloud copy takes the lease and counts; INFERRED: no PRODUCER_OFFLINE page, because the row turns over before its 120 s offline threshold (`server/lib/cameraHealth.ts:68`); the planted test in section 8 proves or refutes this |
+| Railway | nothing while the PC counts; the standby's own heartbeat ages out and Admin > Lot shows "standby offline" |
+| The V380 cloud, the camera or the shop's internet | both hosts lose frames together (the camera reaches the V380 cloud over the shop's wifi); daylight CAMERA_OFFLINE pages; night reads as asleep; no video exists to re-count |
+| Frames flow but nothing is counted | the new page fires within 2 awake hours |
 
-### 5.3 Re-counting a gap
-1. A gap is a window where the producer's heartbeat was missing or the "looking but not counting" page fired.
-2. The re-count job on the box takes the window, pulls the video (the box's own recordings through Frigate's
-   `POST /export/custom/{camera}/start/{start}/end/{end}`, with `ffmpeg_output_args` set to a plain copy because the
-   default is a 25x time-lapse; or the camera's SD card over ONVIF playback when the box itself was off: NOT CHECKED
-   per model), runs it through a Frigate replay camera and `visitd`'s virtual clock (`visitd/replay.py` already
-   exists), and posts visits with `sourceGeneration = recount`.
-3. Only windows where the live producer posted no visits are re-counted, so a re-count can never double a live visit.
-4. Admin > Lot labels the window "re-counted".
+### 5.1 Re-counting a gap
+1. A gap is a window where no visits posted while the camera was awake.
+2. A one-shot job publishes that window's segments as a stream through MediaMTX and runs the same `edge_main.py`
+   over it, posting visits with `sourceGeneration = recount`; only windows with no live visits, so nothing doubles.
+3. Admin > Lot labels re-counted windows.
 
-### 5.4 Ground truth, without staff work
-Once a week a person counts the cars in one busy hour of recorded video by hand (about 10 minutes at 4x speed). That
-hour, plus the day's billed invoices, is what the counter is judged against. No tally sheet at the counter.
+### 5.2 Ground truth without staff work
+Before LIVE and then once a week, a person counts one busy hour of retained video at 4x (about 15 minutes). That
+hour and the day's billed invoices are what the counter is judged against.
 
-## 6. Hardware recommendation and cost (Nour's spend decision)
+## 6. What it costs
 
-Prices are bands from the 2026-09-08 master plan (section 17) and are 7 weeks old; exact models are confirmed against
-the research before anything is ordered.
+| Item | Cost |
+|---|---|
+| Hardware | $0 |
+| Railway standby, idle (heartbeat only) | INFERRED about $1 to $3 a month (Railway lists $20 per vCPU-month, $10 per GB RAM-month, $0.15 per GB-month of volume; a sleeping Python process uses a sliver of each) |
+| Railway while counting (failover only) | INFERRED $10 to $30 a month pro rata (Perplexity sizing, 0.25 to 1 vCPU and 0.5 to 1.25 GB) |
+| Front-desk PC | electricity it already uses; CPU share NOT CHECKED until the acceptance run |
 
-| Item | Band | Note |
-|---|---|---|
-| PoE lot camera (spec in 4.1) | $130 to $300 | the one item that decides quality |
-| N150 mini PC, 16 GB, 512 GB SSD | $180 to $260 | |
-| PoE switch, 4 to 8 ports | $50 to $110 | NOT CHECKED whether the shop already has one |
-| UPS 600 to 1000 VA | $90 to $150 | |
-| High-endurance microSD 128 GB | about $20 | camera-side video for re-count |
-| Outdoor Cat6 run | $30 cable if self-run, $150 to $500 installed | the one labour item |
-| **Total** | **about $500 to $1,340; typical about $750** | software $0 (Frigate MIT, visitd ours) |
-
-For comparison, the 2026-09-08 master plan's full builds (section 17) were Good $825 to $1,125, Better $1,730 to
-$2,130 and Best $2,130 to $2,630: they add a plate camera, bay cameras and more cable runs. This design buys only the
-entrance; the bay and plate cameras are separate decisions (section 11). An Axis camera with Object Analytics (the
-only camera-native counter read so far) sits at the top of the camera band or above it: price NOT CHECKED.
+A new Railway service is a deploy-config change: it needs your go (`AGENTS.md` protected operations). Whether the
+account's included usage covers it is NOT CHECKED.
 
 ## 7. Phase plan
 
 | Phase | What lands | Needs |
 |---|---|---|
-| 1 | This design, reviewed | Nour's yes |
-| 2 | Server: the "looking but not counting" page and the new camera's health profile; `visitd` replay tests for the preexisting census and the camera-dead signal | nothing (PR, no spend) |
-| 3 | Box image: Compose file, Frigate config for one entrance camera, `visitd` preexisting census, installer, runbook | nothing (PR) |
-| 4 | Install day: the box first runs Frigate + `visitd` on a 10-minute phone video of the lot entrance (dry run: no Docker on this dev machine, no lot footage while NicksMax is off), then the camera is mounted, the cable run, the box joined to the shop network; first arrivals on Admin > Lot | the parts (spend), someone at the shop for the mount and cable |
-| 5 | Re-count job and the 7-day judgement against invoices and the hand-counted hour; then archive the NicksMax lane | 7 complete ET days of data |
-| 6 (10x, optional) | The camera's own counter as a second witness, reconciled per hour by the server | A passed; the camera supports it |
+| 1 | This design | your yes, and your yes to running the reverse-engineered relay |
+| 2 | Server: the silent-zero page and the named dark window. Edge: the cloud host, the dormant standby, the frame-progress watchdog. Tests, red first | nothing (PR) |
+| 3 | The relay pinned: confirm which build NicksMax ran (one look at its folder if you switch it on for 30 minutes; otherwise pin the three-lens fork by commit). It is proven on the live stream in phase 4 | your call on NicksMax |
+| 4 | Front-desk PC install by an agent (Claude app on that PC, hash-pinned block), new calibration, first arrivals on Admin > Lot | the V380 password, typed by you |
+| 5 | Railway standby service from the repo; planted failover test (stop the PC task, watch the cloud take over) | your go on the service |
+| 6 | Acceptance audit and 7-day judgement; then NicksMax's sign lane is archived | 7 complete ET days |
 
 ## 8. Kill criteria
 
-1. **The count is real:** over 7 complete ET days, arrivals plus cars already there at open are at least the number
-   of billed invoices on every day that had invoices (they should run higher: some cars leave without a job), and the
-   hand-counted hour is within 10%. Fail after one geometry fix: stop and re-plan; do not add a second witness to a
-   first one that failed.
-2. **No silent zero:** zero open hours with 0 arrivals and live detections that did not page.
-3. **Stable:** at most 2 producer ids a day (today: 23 to 25).
-4. **The pages are real:** pulling the box's power, the camera's cable and the internet each pages within 5 minutes
-   in a planted test before the lane is called LIVE.
-5. **The 10x option:** dropped if the two witnesses disagree by more than 10% on more than 2 days in 14 with no
-   explainable cause.
+1. **The count is real:** a hand-labelled audit of at least 100 entrance passages in awake hours (cars, pickups,
+   vans; stops on the line, reversing, tailgating) finds at least 90% of entries and no more than 5% false entries,
+   and over 7 complete ET days awake-hour arrivals are at least 80% of billed invoices opened after the camera woke
+   (INFERRED proxy). Fail after one calibration fix: stop and put design A to you with its price. The research
+   suggests 98% as a target for a good camera (CLAIM); 90% is set for this one.
+2. **No silent zero:** zero awake hours with frames flowing and 0 arrivals that did not page.
+3. **Stable:** at most 3 producer ids a day across both hosts (today 23 to 25 on NicksMax alone).
+4. **Failover is real:** stopping the PC task hands the lease to the cloud copy and counting resumes within 5 minutes,
+   and the PC reclaims it on return, in a planted test before LIVE.
+5. **The relay:** if the pinned build cannot hold a stream for a full awake day on either host, Z stops and the
+   choice between L and A goes to you.
 
-## 9. Benchmarked against
+## 9. If you ever spend: design A
 
-Benchmarked against: Frigate 0.17 (https://docs.frigate.video/configuration/zones/, /integrations/mqtt/,
-/configuration/record/, read 2026-10-26) · adopted: zone membership on the box bottom-centre, MQTT tracked-object
-events, `frigate/available` online/offline (the broker publishes offline when Frigate drops), `continuous.days`
-retention, the custom export endpoint for re-count, go2rtc one-pull restream · rejected: native LPR on this camera
-because a wide counting view cannot read plates at night and plates need a separate privacy decision. Axis Object
-Analytics (https://help.axis.com/en-us/axis-object-analytics, read 2026-10-26) · adopted for the 10x witness:
-crossline counting in the arrow direction with an accumulated count kept 35 days, occupancy-in-area min/max/average
-per minute (the "already there at open" number without a box), MQTT publish from camera rules · rejected: as the
-only counter because crossings carry no identity (no time in lot) and firmware cannot be pinned. Hikvision AcuSense,
-Dahua IVS, Reolink and UniFi webhooks: NOT CHECKED (the Perplexity run froze Chrome's renderer three times on
-2026-10-26; the questions are listed in section 10). Scrypted, Blue Iris +
-CodeProject.AI, ZoneMinder, Viseron, Agent DVR, Coral, Ultralytics/BoxMOT: rejected in `docs/UPSTREAMS.md`
-(2026-09-08), verdicts re-read today. Prior art in this repo: `visitd/` (state machine, ledger, outbox, shop mirror),
-`frigate/config.example.yml`, `docs/research/2026-09-08-camera-vision-MASTER-PLAN.md` sections 9, 15, 17,
-`docs/adr/0022-camera-vision-as-built.md`, skill branch `docs/cameras-best-in-class-2026-10-26` (mechanisms table).
-Council lenses used: Architect, Skeptic, Operator, Sentinel (agentic-council, 2026-10-26).
+One wired PoE starlight camera on the entrance, one N150 mini PC running Frigate 0.17.2 + `visitd` (built, never
+run), a PoE switch and a UPS; 7 days of recordings; no dark mornings and no reverse-engineered bridge. Parts about
+$500 to $1,340, typically about $750 (camera $130 to $300, N150 box $180 to $260, PoE switch $50 to $110, UPS $90 to
+$150, microSD about $20, Cat6 $30 self-run or $150 to $500 installed). The 2026-09-08 master plan priced fuller builds
+at $825 to $2,630 (section 17). A camera with Axis-class on-board crossline counting adds a second witness later.
 
-## 10. Open research before ordering (NOT CHECKED)
+## 10. Benchmarked against
 
-1. Which mainstream PoE cameras count vehicles across a directional line on the camera and push each event over
-   HTTPS with a secret (Hikvision AcuSense, Dahua IVS, Reolink, UniFi Protect), with payload, auth, retry and price.
-2. Whether they keep 3 to 7 days on their SD card and serve a time range over RTSP playback, ISAPI or VAPIX.
-3. Measured accuracy of camera-native car counting at night, in rain and with headlights.
-These decide only the camera model and the 10x witness, not design A. They go to Perplexity in Chrome once its
-renderer stops freezing (three timeouts on 2026-10-26 ~14:45Z).
+Benchmarked against: V380Decoder (https://github.com/PyanSofyan/V380Decoder) and camera-v380decoder
+(https://github.com/felipemarques/camera-v380decoder), READMEs read 2026-10-26 · adopted: cloud mode, one upstream
+session fanned out locally, Docker on Linux for the standby · rejected: vendoring their code (no licence file) ·
+Frigate 0.17 (https://docs.frigate.video/configuration/record/, /integrations/mqtt/, read 2026-10-26) · adopted:
+rolling retention with oldest-first cleanup, time-range re-count, an availability signal the broker flips on a crash
+(our heartbeat lease is the same idea) · rejected: Frigate itself on a staff Windows PC · Roboflow Supervision
+LineZone + ByteTrack (MIT; research: ByteTrack moves to `trackers` from 0.28) · rejected for now: our portal counter
+already exists and is judged first; Supervision is the swap if kill criterion 1 fails on tracking, not on the camera ·
+WinSW and NSSM (research) · adopted: restart on stale frames, not only on exit · the office lane on MECHANICS
+(`docs/adr/0022-camera-vision-as-built.md`, update 2026-10-18) · adopted: SYSTEM task install, heartbeat as liveness,
+hash-pinned agent install. Research: Perplexity Pro thread b3bbfa8a (2026-10-26, 51 sources). In-repo verdicts
+re-read: `docs/UPSTREAMS.md` rows for V380 bridges, Frigate, MediaMTX, OpenVINO, Scrypted and others. Council lenses
+used: Architect, Skeptic, Operator, Sentinel (agentic-council, 2026-10-26).
 
-## 11. Not decided here
+## 11. Open, and adjacent
 
-Plate reading; a bay camera; the office audio lane (separate, working, untouched; nothing in the lot lane records
-audio); whether the box also replaces the front-desk PC's office lane later.
+1. Which relay build NicksMax ran (NOT CHECKED; one look at `C:\Users\nourd\NicksMax\lab\v380-cloud-relay`).
+2. Whether the V380 cloud allows two sessions per device (UNKNOWN; the design avoids needing it).
+3. Railway's real bill for an idle and a counting standby (NOT CHECKED).
+4. Whether the sign camera has a USB power input: a cable to an outlet would end the dark mornings (a hands-on step).
+5. Adjacent rot: ADR-0022 decision 1 and `docs/UPSTREAMS.md` disagree about this relay; the build PR fixes both in
+   words once phase 3 confirms the build.
+
+Not decided here: plate reading; the bay V380 (needs its own relay session and device password); the office audio
+lane (separate and working; nothing in the lot lane records audio).
