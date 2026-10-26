@@ -221,7 +221,8 @@ function TaskEditSheetBody({
     try {
       await deleteMutation.mutateAsync({ id: task.id });
       toast.success("Deleted.");
-      await utils.task.list.invalidate();
+      // The deck rows (rhythms, lanes, hero) come from task.deck: without it a deleted rhythm stayed up to 45 s.
+      await Promise.all([utils.task.list.invalidate(), utils.task.deck.invalidate()]);
       onSaved?.();
       onClose();
     } catch (err) {
