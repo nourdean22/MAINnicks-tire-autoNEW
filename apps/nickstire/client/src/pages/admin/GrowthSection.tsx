@@ -330,7 +330,7 @@ function SearchPosition() {
           </span>
         </div>
         <p className="text-[10px] text-foreground/50 leading-relaxed">
-          {`Recorded impressions only: Google hides most query impressions, so a blank keyword is unmeasured, not unranked. Site total this window: ${fmtCount(data.totals.impressions28d)} impressions across ${fmtCount(data.totals.distinctQueries28d)} queries.`}
+          {`Recorded impressions only: Google hides most query impressions, so a blank keyword is unmeasured, not unranked. Recorded rows this window (partial, a query counted once per page): ${fmtCount(data.totals.impressions28d)} impressions across ${fmtCount(data.totals.distinctQueries28d)} queries.`}
         </p>
       </div>
 
