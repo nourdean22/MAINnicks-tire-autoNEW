@@ -19,18 +19,20 @@ const NOT_COUNTING_AFTER_MS = 3 * 60 * 60_000;
 type LotCountingState = "NOT_COUNTING" | "COUNTING" | "NOT_JUDGED";
 
 /**
- * When today's watch began: the later of opening and the solar camera waking. Null while the shop
- * has not opened, has no hours today, or the solar camera is expected dark.
+ * When today's watch began: the latest of opening, the solar camera waking and the camera last
+ * becoming healthy (an outage from the wake until 12:59 must not count as hours watched; Codex on
+ * #3307). Null while the shop has not opened, has no hours today, or the solar camera is expected dark.
  */
 export function lotWatchedSinceMs(input: {
   openMs: number | null;
   nowMs: number;
   solar: { expectedOffline: boolean; fromMs: number } | null;
+  /** camera_runtime.stateSince while the state is HEALTHY; null when unknown. */
+  healthySinceMs?: number | null;
 }): number | null {
   if (input.openMs === null || input.openMs > input.nowMs) return null;
-  if (!input.solar) return input.openMs;
-  if (input.solar.expectedOffline) return null;
-  return Math.max(input.openMs, input.solar.fromMs);
+  if (input.solar?.expectedOffline) return null;
+  return Math.max(input.openMs, input.solar ? input.solar.fromMs : -Infinity, input.healthySinceMs ?? -Infinity);
 }
 
 export function lotCountingVerdict(input: {

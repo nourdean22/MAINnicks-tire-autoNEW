@@ -99,6 +99,14 @@ class ShopMirrorTest(unittest.TestCase):
         self.assertIsNone(m.queue_row(emission()))
         self.assertEqual(m.skipped, 1)
 
+    def test_the_p4_cloud_standby_is_lease_managed_too(self):
+        m = ShopMirror(
+            "https://nickstire.org/api/camera/visits", "k",
+            transport=Recorder(), producer_instance_id="p4-cloud-abc",
+        )
+        self.assertFalse(m.is_authoritative("sign"))
+        self.assertIsNone(m.queue_row(emission()))
+
     def test_heartbeat_reply_can_promote_and_demote_ONE_camera_without_touching_another(self):
         class AuthorityRecorder(Recorder):
             def __init__(self):

@@ -2,7 +2,8 @@
 const CAMERA_AUTHORITY_STALE_SECONDS = 90;
 
 function producerPriority(id: string | null | undefined): number {
-  const m = /^p([123])-/.exec(String(id ?? ""));
+  // p4 = the dormant cloud copy of the sign producer (lot vision v2), below every shop host.
+  const m = /^p([1-4])-/.exec(String(id ?? ""));
   return m ? Number(m[1]) : 99;
 }
 

@@ -374,11 +374,19 @@ async function judgeLotCounting(
   db: Db,
   camera: string,
   label: string,
-  input: { state: string; detections: number | null; shopOpen: boolean; solar: { expectedOffline: boolean; fromMs: number } | null },
+  input: {
+    state: string;
+    detections: number | null;
+    /** When the current state began (camera_runtime.stateSince), epoch seconds; null when unknown. */
+    stateSinceEpoch: number | null;
+    shopOpen: boolean;
+    solar: { expectedOffline: boolean; fromMs: number } | null;
+  },
 ): Promise<{ state: string; sent: boolean; held: boolean; deliveryError: unknown }> {
   const nowMs = Date.now();
   const openMs = shopDayWindow(new Date(nowMs), BUSINESS.timezone, BUSINESS.hours.structured).openMs;
-  const watchedSinceMs = lotWatchedSinceMs({ openMs, nowMs, solar: input.solar });
+  const healthySinceMs = input.state === "HEALTHY" && input.stateSinceEpoch !== null ? input.stateSinceEpoch * 1000 : null;
+  const watchedSinceMs = lotWatchedSinceMs({ openMs, nowMs, solar: input.solar, healthySinceMs });
   let arrivals: number | null = null;
   if (input.shopOpen && watchedSinceMs !== null && input.state === "HEALTHY") {
     const [rows] = await db.execute(sql`
@@ -494,7 +502,7 @@ export async function runCameraHealthAlerts(): Promise<{
   let deliveryFailure: unknown = null;
   const observed: string[] = [];
   const nowMs = Date.now();
-  let signSnapshot: { label: string; state: string; detections: number | null } | null = null;
+  let signSnapshot: { label: string; state: string; detections: number | null; stateSinceEpoch: number | null } | null = null;
 
   for (const expected of commissioned) {
     const row = byCamera.get(expected.camera);
@@ -532,7 +540,12 @@ export async function runCameraHealthAlerts(): Promise<{
     );
     observed.push(`${expected.camera}=${verdict.state}`);
     if (expected.camera === "sign") {
-      signSnapshot = { label: expected.label, state: verdict.state, detections: row ? numberOrNull(row.detectionsLast10m) : null };
+      signSnapshot = {
+        label: expected.label,
+        state: verdict.state,
+        detections: row ? numberOrNull(row.detectionsLast10m) : null,
+        stateSinceEpoch: row ? numberOrNull(row.stateSinceEpoch) : null,
+      };
     }
 
     // The timeline row for the state this pass derived (audit N6), written before the page so
@@ -687,6 +700,7 @@ export async function runCameraHealthAlerts(): Promise<{
       const lot = await judgeLotCounting(db, "sign", signSnapshot.label, {
         state: signSnapshot.state,
         detections: signSnapshot.detections,
+        stateSinceEpoch: signSnapshot.stateSinceEpoch,
         shopOpen,
         solar: cameraPowerFor("sign") === "solar" ? solar : null,
       });

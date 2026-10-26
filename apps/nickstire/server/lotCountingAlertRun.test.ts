@@ -40,7 +40,7 @@ const LATE_MORNING_MS = Date.UTC(2026, 9, 24, 15, 0, 0);
 
 const CATALOG = ["detectionsLast10m", "portalCrossingsLast60m"].map((columnName) => ({ columnName }));
 
-function healthySign(): Record<string, unknown> {
+function healthySign(healthyForSeconds = 4 * 3600): Record<string, unknown> {
   const now = Math.floor(Date.now() / 1000);
   return {
     camera: "sign",
@@ -49,8 +49,8 @@ function healthySign(): Record<string, unknown> {
     ageSeconds: 5,
     observedAtEdgeEpoch: now,
     receivedAtEpoch: now,
-    stateSinceEpoch: now - 4 * 3600,
-    stateAgeSeconds: 4 * 3600,
+    stateSinceEpoch: now - healthyForSeconds,
+    stateAgeSeconds: healthyForSeconds,
     sourceConnected: 1,
     lastHealthyFrameAtEpoch: now - 1,
     frameOk: 1,
@@ -65,7 +65,7 @@ function healthySign(): Record<string, unknown> {
   };
 }
 
-function install(arrivals: number | Error): Flat[] {
+function install(arrivals: number | Error, healthyForSeconds?: number): Flat[] {
   const executed: Flat[] = [];
   h.execute = async (q: unknown) => {
     const f = flat(q);
@@ -73,7 +73,7 @@ function install(arrivals: number | Error): Flat[] {
     const t = f.text;
     if (t.includes("INFORMATION_SCHEMA.COLUMNS")) return [CATALOG, []];
     if (t.includes("lastConversationPostAt")) return [[], []];
-    if (t.includes("FROM camera_runtime")) return [[healthySign()], []];
+    if (t.includes("FROM camera_runtime")) return [[healthySign(healthyForSeconds)], []];
     if (t.includes("FROM vehicle_visits")) {
       if (arrivals instanceof Error) throw arrivals;
       return [[{ n: arrivals }], []];
@@ -131,6 +131,13 @@ describe("car counter: NOT_COUNTING on the camera-health pass", () => {
     const executed = install(0);
     await runCameraHealthAlerts();
     expect(lotClaims(executed)).toEqual([]);
+  });
+
+  it("a camera healthy for one minute after a long outage is not judged on the hours before (Codex on #3307)", async () => {
+    const executed = install(0, 60);
+    const result = await runCameraHealthAlerts();
+    expect(lotClaims(executed)).toEqual([]);
+    expect(result.details).toContain("car-counter=NOT_JUDGED");
   });
 
   it("a failed arrivals read fails the run and pages nothing", async () => {

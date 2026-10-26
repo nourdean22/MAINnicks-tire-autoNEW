@@ -70,6 +70,12 @@ describe("lotWatchedSinceMs", () => {
     expect(lotWatchedSinceMs({ openMs: open, nowMs: now, solar: { expectedOffline: false, fromMs: woke } })).toBe(woke);
     expect(lotWatchedSinceMs({ openMs: open, nowMs: now, solar: null })).toBe(open);
   });
+  it("starts when the camera last became healthy, if that is later (offline 10:00-12:59, healthy at 13:00)", () => {
+    const healthyAt = Date.parse("2026-10-24T17:00:00Z"); // 13:00 ET
+    const since = lotWatchedSinceMs({ openMs: open, nowMs: now, solar: { expectedOffline: false, fromMs: woke }, healthySinceMs: healthyAt });
+    expect(since).toBe(healthyAt);
+    expect(lotCountingVerdict({ ...base, watchedSinceMs: since, nowMs: healthyAt + 60_000 }).state).toBe("NOT_JUDGED");
+  });
   it("is null while the solar camera is expected dark, before opening, or with no hours", () => {
     expect(lotWatchedSinceMs({ openMs: open, nowMs: now, solar: { expectedOffline: true, fromMs: woke } })).toBeNull();
     expect(lotWatchedSinceMs({ openMs: now + H, nowMs: now, solar: null })).toBeNull();

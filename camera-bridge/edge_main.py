@@ -58,7 +58,8 @@ _EDGE_ROLE_PREFIX = {
     "nicksmax": "p2-nicksmax",
     "nattynour": "p3-nattynour",
     # The Railway copy of the sign producer (lot vision v2): last in line, dormant until elected.
-    "cloud": "p3-cloud",
+    # p4, below p3: the shop route accepts an EQUAL-priority takeover.
+    "cloud": "p4-cloud",
 }
 _edge_role = os.environ.get("EDGE_ROLE", "").strip().lower()
 _edge_prefix = _EDGE_ROLE_PREFIX.get(_edge_role)
@@ -2230,9 +2231,20 @@ def wait_until_authoritative(loop, stop: threading.Event, *, sleep=time.sleep, c
             loop.pipeline.metrics.inc("edge_heartbeat_errors_total")
             log.exception("dormant heartbeat error")
         if loop.pipeline.shop.is_authoritative(loop.camera):
+            # The stall clock starts at election: the dormant hours were not capture downtime.
+            loop.started_at = clock()
             return True
         sleep(loop.heartbeat_seconds)
     return False
+
+
+def step_unless_lease_lost(loop, *, dormant: bool) -> bool:
+    """One loop step, but a dormant-mode copy checks its lease FIRST, so a lapsed lease never
+    reads or commits another frame. False means stop (and go dormant again)."""
+    if dormant and not loop.pipeline.shop.is_authoritative(loop.camera):
+        return False
+    loop.step()
+    return True
 
 
 def run_edge(args: argparse.Namespace) -> int:
@@ -2392,15 +2404,14 @@ def run_edge(args: argparse.Namespace) -> int:
             if deadline is not None and time.time() >= deadline:
                 break
             started = time.time()
-            loop.step()
-            _refresh_progress_lease(progress_lease)
-            if args.dormant_until_authoritative and not pipeline.shop.is_authoritative(args.camera):
+            if not step_unless_lease_lost(loop, dormant=args.dormant_until_authoritative):
                 # The primary is back (or the lease lapsed): stop streaming and let the
                 # supervisor restart this copy dormant, so two sessions never hold the camera.
                 log.warning("dormant standby lost the lease: exiting to go dormant again")
                 # Nonzero: Railway's on-failure policy and Task Scheduler never restart a clean exit.
                 exit_code = 4
                 break
+            _refresh_progress_lease(progress_lease)
             if loop.stalled:
                 # Ask to be restarted rather than trying to resurrect in place. The OS
                 # supervisor already knows how to restart with a budget and a backoff;

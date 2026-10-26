@@ -63,7 +63,7 @@ Runbook: [`camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md`](../../camera
 - **Nour accepted it as a risk** (2026-10-26, verbatim: "Yes to design Z and to keeping the V380Decoder-class relay as an
   accepted risk"); the UPSTREAMS row now records that. Never vendored into this repo.
 - **Design Z** (`camera-bridge/docs/LOT-VISION-V2-DESIGN-2026-10-26.md`): the counter moves off NicksMax to the front-desk
-  PC as producer `p1-shop-sign-*`, with a dormant Railway copy (`EDGE_ROLE=cloud`, `p3-cloud-*`,
+  PC as producer `p1-shop-sign-*`, with a dormant Railway copy (`EDGE_ROLE=cloud`, `p4-cloud-*`,
   `--dormant-until-authoritative`) that takes the existing 90 s producer lease when the PC goes quiet. Zero hardware
   spend; design A (PoE camera + box) stays the spend fallback.
 - **New page:** the 5-minute camera pass now pages "Car counter sees cars but counts none" when the sign camera is
