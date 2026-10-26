@@ -65,12 +65,24 @@ const SLA_BREACH_MS = 4 * 60 * 60 * 1000; // 4h
 const STALE_FOLLOWUP_MS = 3 * 24 * 60 * 60 * 1000; // 3d
 
 export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
-  const { data: leadsData, isLoading } = trpc.lead.list.useQuery(undefined, {
+  const { data, isLoading, isError, refetch } = trpc.lead.list.useQuery(undefined, {
     staleTime: 30_000,
   });
 
+  // A failed read is not a slow one: say so instead of "Loading" forever (2026-10-26 audit).
+  if (isError && !data) {
+    return (
+      <div className="bg-card border border-amber-400/30 p-4 flex items-center justify-between gap-3 text-sm text-amber-200">
+        <span>Lead pipeline couldn't load: unknown, not empty.</span>
+        <button type="button" onClick={() => void refetch()} className="min-h-[48px] min-w-[48px] px-3 text-primary hover:underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   // Clarity-gate · loading state · don't render fake numbers
-  if (isLoading || !leadsData) {
+  if (isLoading || !data) {
     return (
       <div className="bg-card border border-border/40 p-4">
         <div className="text-[11px] font-bold text-foreground/30 animate-pulse">
@@ -80,6 +92,8 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
     );
   }
 
+  // Same rule as the list below it (LeadsSection.webLeads): applicants live on the Hiring tab.
+  const leadsData = (data as Lead[]).filter((l) => l.source !== "careers");
   const now = Date.now();
   const oneDayAgo = now - 86_400_000;
 

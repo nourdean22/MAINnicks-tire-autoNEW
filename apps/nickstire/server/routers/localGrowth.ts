@@ -12,6 +12,9 @@
 import { z } from "zod";
 import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 
+/** google-reviews.ts caches a good Places read for one hour (CACHE_TTL); older means a refresh failed. */
+const LIVE_READ_MAX_AGE_MS = 60 * 60 * 1000;
+
 export const localGrowthRouter = router({
   /**
    * IG/GBP automation armed-state — booleans only. The sweep found two
@@ -110,8 +113,11 @@ export const localGrowthRouter = router({
           // Live means the Places path answered: the curated fallback has placeId "".
           // The total is user_ratings_total; res.reviews holds at most the 5 Places returns
           // (this card said "5 reviews" from 2026-06-10 to 2026-10-25 while Google had 1,715).
-          liveReachable = !!res.placeId;
-          reviewCount = liveReachable ? res.totalReviews : null;
+          // 2026-10-26 audit: a failed refresh keeps serving the last good read (placeId and all), so
+          // live also needs a read inside the one-hour cache. The count is Google's own total, not the
+          // display number, where an admin-entered shop_settings.reviewCount wins.
+          liveReachable = !!res.placeId && Date.now() - res.lastUpdated <= LIVE_READ_MAX_AGE_MS;
+          reviewCount = liveReachable ? res.googleTotalReviews ?? null : null;
           rating = liveReachable ? res.rating : null;
           status = liveReachable ? "live" : "fallback";
         } else {

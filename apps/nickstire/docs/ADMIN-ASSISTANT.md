@@ -16,15 +16,16 @@ actions the admin already has. Nothing it drafts runs until he taps the button o
 | Ask | `nickActions.ask` (mutation, `server/routers/nick/assistant.ts`) | owner and manager only (`nickActions.*` mutation = `settings.manage`) |
 | Model | `invokeLLM`, the app's configured provider | no new provider, key or plan |
 | Reads | 9 tools (customers, one customer + history, invoices, sales totals, declined work, calls, web leads, Google reviews, tire prices), each one an EXISTING admin procedure run through `appRouter.createCaller(ctx)` | the signed-in admin's own role is checked per procedure, exactly as when the page calls it |
-| Sales totals | summed from `invoices.list`, every counter invoice | `invoices.stats` and `nickActions.shopPulse` count only invoices marked "paid", which means nothing on a counter invoice (SHOP-SOUL section 3), so they can read lower; the tool says so in its result |
+| Sales totals | `controlCenter.shopSales`, the Money page's own read (`services/shopSales.ts`) | Ask and the Money page give the same figure for the same period. v1 (PR 3300) summed `invoices.list` instead and counted open tickets: live on 2026-10-26 it said 27 jobs / $15,848 for the last 7 days on the Money page that showed 25 / $14,363 |
+| Invoice status | kept on invoice reads, with its meaning | the ShopDriver mirror maps the ticket lifecycle onto `paymentStatus`: paid = closed (a sale), pending = still open (not a sale yet). It never says whether money was collected (payment is on a separate register) |
 | Page context | the sheet sends `{ section, title, url params, customer in view }` when he hits send | shown as a chip he can drop; treated as data, never as instructions |
 | Citations | the model writes `[[customer:123]]` / `[[invoice:456]]`; the server keeps only ids a tool returned this turn | a reference to a record the tools never read is removed and counted as "not matched" |
 | Unknown | a tool that throws or finds no database returns `unknown`, never zero | the prompt says to answer UNKNOWN for that part |
 | Actions | `propose_text`, `propose_note`, `open_page` return a card, never a write | the card runs the existing `customers.quickSms` / `customers.updateNotes` only when he taps; the receipt comes from the mutation result |
 | Thread | per device and admin user, last 40 messages in localStorage, "New chat" clears it | follows him across pages (Shopify Sidekick), new chat for a new topic (Linear) |
 
-Shop meanings the prompt carries (`.agents/core/USER.md`): a counter invoice is a closed job and its payment
-status means nothing; an estimate with no invoice most likely means the customer walked (an inference unless the
+Shop meanings the prompt carries (`.agents/core/USER.md`, `services/shopSales.ts`): a counter invoice is a closed
+job, and its payment status is the ticket state (closed or open), never a payment fact; an estimate with no invoice most likely means the customer walked (an inference unless the
 counter recorded the no); follow-ups key to invoices, not bookings; first come first served, no held slots.
 
 ## Benchmarked against (Perplexity Pro in Chrome, 2026-10-26)

@@ -88,7 +88,8 @@ interface HealthData {
   status: string;
   db?: { connected: boolean; latency_ms: number };
   devices?: { online: number; offline: number; total: number };
-  alerts?: { unresolved: number };
+  /** A MetricResult from buildSystemHealth (lib/services/system-pages.ts), not a bare count. */
+  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
   commitments?: { active: number };
 }
 
@@ -230,8 +231,9 @@ export default function SystemPage() {
         health,
         diagnosticsReadFailed: diagnosticsQuery.isError,
         diagnosticsPaused: diagnosticsQuery.fetchStatus === "paused",
+        healthReadFailed: healthQuery.isError,
       }),
-    [d, health, diagnosticsQuery.isError, diagnosticsQuery.fetchStatus],
+    [d, health, diagnosticsQuery.isError, diagnosticsQuery.fetchStatus, healthQuery.isError],
   );
 
   return (

@@ -57,6 +57,9 @@ _EDGE_ROLE_PREFIX = {
     "shop": "p1-shop",
     "nicksmax": "p2-nicksmax",
     "nattynour": "p3-nattynour",
+    # The Railway copy of the sign producer (lot vision v2): last in line, dormant until elected.
+    # p4, below p3: the shop route accepts an EQUAL-priority takeover.
+    "cloud": "p4-cloud",
 }
 _edge_role = os.environ.get("EDGE_ROLE", "").strip().lower()
 _edge_prefix = _EDGE_ROLE_PREFIX.get(_edge_role)
@@ -2192,6 +2195,12 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="exit(3) after this long with NO frame at all so the supervisor restarts; "
                          "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
                          "reported as degraded vision, and restarting on it would only thrash")
+    ap.add_argument("--dormant-until-authoritative", action="store_true",
+                    help="standby copy (EDGE_ROLE=cloud): heartbeat only and never read the camera "
+                         "until the shop grants the lease; exit on losing it")
+    ap.add_argument("--elected-file", default=None,
+                    help="with --dormant-until-authoritative: create this file on election "
+                         "(the cloud launcher starts the relay only then)")
     ap.add_argument("--stall-reopen-attempts", type=int, default=0,
                     help="with N > 0, a stalled RTSP edge stays up (tracker and producer instance "
                          "kept) while its own reader is still reopening the stream, until N reopens "
@@ -2213,6 +2222,37 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "whatever URL and key the config or .env carry. For hand-run commissioning")
     ap.add_argument("--log-level", default="INFO")
     return ap.parse_args(argv)
+
+
+def wait_until_authoritative(loop, stop: threading.Event, *, sleep=time.sleep, clock=time.time,
+                             elected_file: Optional[str] = None) -> bool:
+    """Dormant standby: heartbeat only, camera never read, until the shop grants this producer
+    the lease. True when granted, False when stopped first. A failed heartbeat keeps waiting.
+    On a grant, `elected_file` is created: the cloud launcher starts the relay only then."""
+    while not stop.is_set():
+        try:
+            loop.send_heartbeat(clock())
+        except Exception:
+            loop.pipeline.metrics.inc("edge_heartbeat_errors_total")
+            log.exception("dormant heartbeat error")
+        if loop.pipeline.shop.is_authoritative(loop.camera):
+            # The stall clock starts at election: the dormant hours were not capture downtime.
+            loop.started_at = clock()
+            if elected_file:
+                with open(elected_file, "w", encoding="utf-8") as fh:
+                    fh.write(str(clock()))
+            return True
+        sleep(loop.heartbeat_seconds)
+    return False
+
+
+def step_unless_lease_lost(loop, *, dormant: bool) -> bool:
+    """One loop step, but a dormant-mode copy checks its lease FIRST, so a lapsed lease never
+    reads or commits another frame. False means stop (and go dormant again)."""
+    if dormant and not loop.pipeline.shop.is_authoritative(loop.camera):
+        return False
+    loop.step()
+    return True
 
 
 def run_edge(args: argparse.Namespace) -> int:
@@ -2356,17 +2396,29 @@ def run_edge(args: argparse.Namespace) -> int:
         # Claim or confirm producer authority BEFORE the first frame can emit a visit.
         # Primary can buffer locally if the shop is temporarily unreachable; standbys
         # start fail-closed and only begin mirroring after the shop explicitly elects them.
-        try:
-            loop.send_heartbeat(time.time())
+        if args.dormant_until_authoritative:
+            log.info("dormant standby: heartbeat only, camera closed, until the shop grants the lease")
+            if wait_until_authoritative(loop, stop, elected_file=args.elected_file):
+                log.warning("dormant standby elected: opening the camera")
             loop.next_heartbeat = time.time() + loop.heartbeat_seconds
-        except Exception:
-            pipeline.metrics.inc("edge_heartbeat_errors_total")
-            log.exception("startup heartbeat error")
+        else:
+            try:
+                loop.send_heartbeat(time.time())
+                loop.next_heartbeat = time.time() + loop.heartbeat_seconds
+            except Exception:
+                pipeline.metrics.inc("edge_heartbeat_errors_total")
+                log.exception("startup heartbeat error")
         while not stop.is_set():
             if deadline is not None and time.time() >= deadline:
                 break
             started = time.time()
-            loop.step()
+            if not step_unless_lease_lost(loop, dormant=args.dormant_until_authoritative):
+                # The primary is back (or the lease lapsed): stop streaming and let the
+                # supervisor restart this copy dormant, so two sessions never hold the camera.
+                log.warning("dormant standby lost the lease: exiting to go dormant again")
+                # Nonzero: Railway's on-failure policy and Task Scheduler never restart a clean exit.
+                exit_code = 4
+                break
             _refresh_progress_lease(progress_lease)
             if loop.stalled:
                 # Ask to be restarted rather than trying to resurrect in place. The OS

@@ -56,6 +56,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
 import { reconcileStreamText } from "./reconcile-stream-text";
 import { currentTurn } from "@/lib/agent/turn-context";
+import { isEmptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -156,6 +157,17 @@ export interface BuildOnFinishInput {
   messages: ReadonlyArray<unknown>;
   topicTier: string;
   onWorkComplete?: () => void;
+  /**
+   * 2026-10-26 · the verified regen lane, after the stream (alternate-paths.ts
+   * buildPostFlushRegen). Null: no second draft ran. Otherwise its usage, and
+   * text + steps only when it beat the streamed draft.
+   */
+  postFlushRegen?: (a: { draft: string; model: unknown }) => Promise<{
+    text: string | null;
+    steps?: unknown[];
+    finishReason?: string;
+    usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  } | null>;
 }
 
 // (buildMessageParts + runDeferredBackgroundWork moved VERBATIM to
@@ -251,7 +263,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         promptChars: finalSystemPrompt.length,
         log,
       });
-      const text = __salvaged.text;
+      let text = __salvaged.text;
       if (streamReconciliation && streamReconciliation.relation !== "exact") {
         log.info("stream_text_reconciled", {
           relation: streamReconciliation.relation,
@@ -261,8 +273,45 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           salvagedChars: text.length,
         });
       }
-      const { reasoningText, hasToolCalls, finishReason, usage } = __salvaged;
-      const ev = event as unknown as { steps?: unknown };
+      const { reasoningText, hasToolCalls } = __salvaged;
+      let finishReason = __salvaged.finishReason;
+      let usage = __salvaged.usage;
+      let ev = event as unknown as { steps?: unknown };
+
+      // 2026-10-26 · STREAM FIRST (job 2026-10-26-chat-latency): the verified
+      // regen lane's best-of-2, run on the draft that already streamed. It
+      // runs on the SALVAGED raw draft, before the sanitizer, so a draft that
+      // is pure filler still gets its repair, and a winning draft then takes
+      // the same path the streamed one would have: sanitizer, image guard,
+      // CoVe, the stored row, message.persisted (the bubble swaps in place)
+      // and the deferred action parser, which reads `text`. Its tool steps
+      // join the walk; its finishReason replaces the draft's; its tokens are
+      // counted whether it won or not. It runs on the model that served this
+      // turn (a fallback included). The empty-reply notice is not a draft.
+      // Any failure keeps the streamed draft. (Codex review on #3312.)
+      if (deps.postFlushRegen && text.trim().length > 0 && !isEmptyResponseFallback(text)) {
+        try {
+          const regen = await deps.postFlushRegen({ draft: text, model });
+          if (regen?.usage) {
+            const add = (x?: number, y?: number) => (typeof y === "number" ? (x ?? 0) + y : x);
+            usage = {
+              ...usage,
+              inputTokens: add(usage?.inputTokens, regen.usage.inputTokens),
+              outputTokens: add(usage?.outputTokens, regen.usage.outputTokens),
+              totalTokens: add(usage?.totalTokens, regen.usage.totalTokens),
+            } as typeof usage;
+          }
+          if (regen?.text && regen.text.trim().length > 0) {
+            text = regen.text;
+            if (regen.finishReason) finishReason = regen.finishReason as typeof finishReason;
+            const before = Array.isArray(ev.steps) ? (ev.steps as unknown[]) : [];
+            ev = { ...(ev as Record<string, unknown>), steps: [...before, ...(regen.steps ?? [])] };
+            log.info("post_flush_regen_swapped", { chars: text.length });
+          }
+        } catch (err) {
+          log.warn("post_flush_regen_failed", { error: err instanceof Error ? err.name : "Error" });
+        }
+      }
 
       // ═══ CRITICAL PATH — must succeed for chat to work ═══
       // Save assistant message (cleaned). Bounded to 10s — if Neon

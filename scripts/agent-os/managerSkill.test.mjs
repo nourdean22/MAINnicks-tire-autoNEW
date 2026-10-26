@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -141,11 +141,20 @@ function skillMapProblems(root, dir, steps, homeSkills) {
     const [step, names = "", , where = ""] = row.split("|").map((c) => c.trim()).slice(1);
     const m = /^(\d+) (.+)$/.exec(step ?? "");
     if (step !== "every turn" && (!m || steps.get(Number(m[1])) !== m[2])) problems.push(`skill map: step "${step}" is not a step in SKILL.md`);
-    const skills = [...names.matchAll(/`([a-z0-9-]+)`/g)].map((x) => x[1]);
+    const skills = [...names.matchAll(/`([a-z0-9-]+(?::[a-z0-9-]+)?)`/g)].map((x) => x[1]);
     if (!skills.length) problems.push(`skill map: the row for "${step}" names no skill in backticks`);
-    if (where === "repo") {
+    if (/^plugin\b/.test(where)) {
+      // A plugin row (2026-10-26) names `plugin:skill`, and its plugin is on the required list, so the [health] machine
+      // line tells a session on an account without it how to enable it.
+      let required = [];
+      try { required = JSON.parse(readFileSync(join(root, "config", "agent-os", "required-plugins.json"), "utf8")).required.map((p) => p.name); } catch { /* reported below */ }
+      for (const s of skills) {
+        if (!s.includes(":")) problems.push(`skill map: ${s} is marked plugin but is not named plugin:skill`);
+        else if (!required.includes(s.split(":")[0])) problems.push(`skill map: plugin ${s.split(":")[0]} is not in config/agent-os/required-plugins.json`);
+      }
+    } else if (where === "repo") {
       for (const s of skills) if (!existsSync(join(root, ".claude", "skills", s, "SKILL.md"))) problems.push(`skill map: ${s} is marked repo but .claude/skills/${s}/SKILL.md does not exist`);
-    } else if (!/^machine\b/.test(where)) problems.push(`skill map: where "${where}" must be "repo" or start with "machine"`);
+    } else if (!/^machine\b/.test(where)) problems.push(`skill map: where "${where}" must be "repo" or start with "machine" or "plugin"`);
     // On a machine that has a user skills dir (NattyNour, not CI), a machine row's name must resolve there too.
     else if (existsSync(homeSkills)) {
       for (const s of skills) if (!existsSync(join(homeSkills, s, "SKILL.md"))) problems.push(`skill map: ${s} is marked machine but ${homeSkills}/${s}/SKILL.md does not exist`);
@@ -247,6 +256,16 @@ for (const [label, over, want] of [
     assert.ok(problems.some((p) => want.test(p)), `wanted ${want}; got ${JSON.stringify(problems)}`);
   });
 }
+
+test("skill map plugin rows: a plugin off the required list, or a bare name on a plugin row, is a problem; a listed one passes", () => {
+  const dir = mkdtempSync(join(base, "pluginmap-"));
+  const row = (name) => `| Step | Skill | When | Where |\n|---|---|---|---|\n| every turn | \`${name}\` | x | plugin (fallback: none) |\n`;
+  mkdirSync(dirname(join(dir, SKILL_MAP)), { recursive: true });
+  const run = (name) => { writeFileSync(join(dir, SKILL_MAP), row(name)); return skillMapProblems(REPO, dir, new Map(), join(dir, "no-home")); };
+  assert.deepEqual(run("agentic-council:brainstorm"), []);
+  assert.match(run("zoominfo:account-research").join("\n"), /zoominfo is not in config\/agent-os\/required-plugins\.json/);
+  assert.match(run("brainstorm").join("\n"), /marked plugin but is not named plugin:skill/);
+});
 
 test("the real monorepo-manager skill is a router with live links, two replays and a skill map that resolve", () => {
   const problems = check(REPO);

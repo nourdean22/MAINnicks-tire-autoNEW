@@ -60,12 +60,6 @@
     "triggers": "security scan vulnerability vulnerabilities audit exploit injection secure"
   },
   {
-    "name": "context-management",
-    "kind": "plugin",
-    "use": "save and restore session context across a long session or a handoff",
-    "triggers": "context save restore handoff long session compaction resume"
-  },
-  {
     "name": "before-you-build",
     "kind": "plugin",
     "use": "check for prior art and an existing implementation before building something new",
@@ -115,5 +109,53 @@
     "kind": "cli",
     "use": "railway run for a read-only probe with prod env, railway logs, railway variables (read only)",
     "triggers": "railway run variables logs probe cli"
+  },
+  {
+    "name": "agentic-council",
+    "kind": "plugin",
+    "use": "/brainstorm (3 agents: Architect, Advocate, Skeptic) or /council --quick --profile lean for a design with real tradeoffs; writes nothing, uses the machine's agent slots (manager step 2)",
+    "triggers": "design tradeoffs tradeoff options architecture second opinion gut check council brainstorm weigh",
+    "native": "brainstorming"
+  },
+  {
+    "name": "receipts-check",
+    "kind": "plugin",
+    "use": "prove-fix runs each added or edited test on new and old code and says PROVEN or THEATER (vitest); edits files in place and restores them (manager step 9)",
+    "triggers": "prove test proven theater red green old code regression canary mutation vitest",
+    "native": "positive-control-first"
+  },
+  {
+    "name": "pr-review-toolkit",
+    "kind": "plugin",
+    "use": "review-pr agents: silent-failure-hunter (swallowed errors, empty catches) and pr-test-analyzer (test gaps) as extra readers beside the adversarial review (manager step 12)",
+    "triggers": "silent failure swallowed error catch test gaps coverage reviewer second review",
+    "native": "differential-review"
+  },
+  {
+    "name": "hookify",
+    "kind": "plugin",
+    "use": "draft a hook rule from a repeated mistake; ships only with guard-red-team canaries, never unprobed",
+    "triggers": "hook rule mistake again repeated prevent block forever",
+    "native": "guard-red-team"
+  },
+  {
+    "name": "web-research-fallback",
+    "kind": "plugin",
+    "use": "exa, nimble, you or brightdata search only when Perplexity in Chrome is unavailable; never a replacement for it, never brightdata's own MUST-replace-WebFetch routing",
+    "triggers": "web search scrape fallback perplexity unavailable down exa nimble brightdata",
+    "native": "perplexity-in-chrome"
+  },
+  {
+    "name": "fiftyone",
+    "kind": "plugin",
+    "use": "vision dataset tooling: curation, duplicates, model evaluation; candidate for the lot-camera dataset review when that session asks",
+    "triggers": "dataset images vision labels detections evaluate model camera lot frames duplicates"
+  },
+  {
+    "name": "reel-video-candidates",
+    "kind": "plugin",
+    "use": "hyperframes and runway-api (video), postiz (scheduled social posting): UPSTREAMS candidates for the reel lane, nothing posts or spends without Nour's live go",
+    "triggers": "reel video generate render schedule post social instagram clip",
+    "native": "nickstire-reel-operator"
   }
 ]

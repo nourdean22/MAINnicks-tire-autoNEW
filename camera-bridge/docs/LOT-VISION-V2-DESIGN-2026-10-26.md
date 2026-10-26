@@ -1,6 +1,8 @@
 # Lot vision v2: the car counter, rebuilt without NicksMax (design, 2026-10-26)
 
-Status: DESIGN for Nour's review. Nothing here is built, bought or installed. Job 2026-10-26-lot-vision-v2.
+Status: APPROVED by Nour 2026-10-26 15:04Z, verbatim: "Yes to design Z and to keeping the V380Decoder-class relay as an
+accepted risk. Start phase 2". Phase 2 (the silent-zero page, the cloud host, the dormant standby) rides in the same PR as
+this design; the named dark window on Admin > Lot is not built yet. Nothing is installed or bought. Job 2026-10-26-lot-vision-v2.
 Re-planned 2026-10-26 after Nour's ruling: zero hardware spend, use what the shop owns, run it over the cloud,
 nothing manual for him. Labels: FACT (read in code, docs or production today), STRONG INFERENCE, INFERRED,
 NOT CHECKED. Perplexity lines are CLAIM until their primary page is read; the ones used here were read.
@@ -14,7 +16,7 @@ NOT CHECKED. Perplexity lines are CLAIM until their primary page is read; the on
    network. Today a .NET relay on NicksMax logs in to the V380 cloud and serves the stream as RTSP on `:8554/live`
    (FACT: `scripts/nicksmax/nicksmax-camera-supervisor.ps1:841-868`, `run-sign-crop.ps1:64`). So any host with
    internet can read it, including the front-desk PC and a Railway container.
-3. **The failover lease is already built.** The server ranks producers p1 > p2 > p3 and hands the camera to a lower
+3. **The failover lease is already built.** The server ranks producers p1 > p2 > p3 (p4 added for the cloud copy in phase 2) and hands the camera to a lower
    one after 90 s of silence (FACT: `apps/nickstire/server/routes/cameraProducerAuthority.ts`); `edge_main.py` already
    runs as a standby and is promoted by that lease (FACT: `edge_main.py:57-59`, `957-1018`).
 4. **Cost:** $0 hardware. The dormant cloud copy costs roughly $1 to $3 a month while idle and about $10 to $30 a
@@ -88,7 +90,7 @@ silent zero pages the same day.
    (`scripts/install-office-capture.ps1` pattern): SYSTEM scheduled tasks at below-normal priority; relay and counter
    as separate tasks so each restarts alone; a watchdog that restarts on stale decoded frames, not only on exit.
    The office lane is untouched.
-3. **Railway (standby, `p3-cloud-*`):** one container from a Dockerfile like `camera-bridge/visitd.Dockerfile`.
+3. **Railway (standby, `p4-cloud-*`, below every shop host because the server accepts an equal-priority takeover):** one container from a Dockerfile like `camera-bridge/visitd.Dockerfile`.
    Dormant: it sends a heartbeat every 30 s and does not open the camera until the heartbeat reply says
    `authoritative` (the field exists, `server/routes/cameraVisitsRoutes.ts` around line 777). Then it starts the
    relay and counts until the PC is back and reclaims the lease.
@@ -101,13 +103,32 @@ silent zero pages the same day.
    (Railway's Hobby volume limit is 5 GB, https://docs.railway.com/pricing/plans, read via research).
 
 ### 4.2 Code changes
-1. `edge_main.py`: a `cloud` host at p3, and a dormant mode (heartbeat only, stream closed until authoritative).
+1. `edge_main.py`: a `cloud` host at p4 (the server's priority rule extended to p1-p4), and a dormant mode (heartbeat only, stream closed until authoritative).
 2. A frame-progress watchdog for the relay and counter tasks (stale decoded frames -> restart), replacing the
    NicksMax launcher's 60 s stall kill that churned 23 to 25 producer ids a day.
 3. Server: **the missing page**: frames flowing and 0 arrivals for 2 awake hours, or still 0 at noon ET while invoices
    exist (the exact 10-24 and 10-25 failure). Admin > Lot names the dark window.
 4. A re-count job (section 5.1). No schema change: `vehicle_visits` already has `sourceGeneration`, `dataClass`,
    `detectorName`, `calibrationVersion` (FACT, `drizzle/schema.ts:4724`).
+
+### 4.3 The relay pin (phase 3, 2026-10-26)
+- **Pinned:** upstream V380Decoder release v1.0.4 (https://github.com/PyanSofyan/V380Decoder/releases/tag/v1.0.4,
+  published 2026-10-09, tag -> commit 14cb20fe70cf4c5639bbf15d3cfe453680c516ed). linux-x64: 10,815,382 bytes, SHA-256
+  `fe896ea6319273b3c6942f294ec8f58a150f1eef315b81d4280b9259bca4275c`; win-x64: 10,869,110 bytes, SHA-256
+  `3125fbefb9bc4a14faa8ec80d35c06e6bf00c9a20134c6c9b17196dc118a8126`. Source of each hash: GitHub's recorded asset digest,
+  which matched the publisher's own `.sha256` file. Not re-hashed locally (the binary was not downloaded to an agent
+  machine); the Dockerfile and the front-desk block re-hash it on download and fail closed.
+- **Why upstream, not the three-lens fork:** the fork (felipemarques/camera-v380decoder, HEAD 460c2a0e, last push
+  2026-03-09) has no releases, so it could only be built from source with a .NET SDK. Whether upstream v1.0.4 serves the
+  three-lens H.265 stream cleanly is NOT CHECKED until phase 4 runs it on the live camera; if it does not, the fork
+  built from 460c2a0e is the fallback.
+- **Licence:** neither repo has a licence file, so the binary is run-only: never vendored, copied into this repo or
+  redistributed (`docs/UPSTREAMS.md` row "V380 protocol bridges").
+- **Kill criterion:** any change of hash or byte count under the same tag fails the build closed and stops the lane
+  until a person re-pins it.
+- **The launcher** (`camera-bridge/cloud/run_cloud.py`) starts the relay only after the edge's election marker exists,
+  because the relay itself is the camera session. MediaMTX v1.21.2 is pinned the same way (linux_amd64 28,345,997 bytes,
+  `121be6e0...6a27`; windows_amd64 28,583,662 bytes, `a84224f5...e467`).
 
 ## 5. When things break
 

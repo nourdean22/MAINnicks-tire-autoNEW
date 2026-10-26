@@ -418,16 +418,24 @@ export const trafficFunnelRouter = router({
           detail: "Walk-in declined-work funnel is invisible until the ALG estimate mirror populates. Sync is wired but shop-protected — it runs only when admin is active.",
         });
       } else if (algDeclined > 0) {
-        // Same rule the cron applies ("1" only), so this page cannot tell the owner to
-        // enable texts that are already running.
+        // Same two gates the cron applies: the env flag ("1" only) and the runtime pause
+        // (send_pause_declined_recovery, fail closed), so this page cannot say texts run while they are held.
         const { recoverySendsEnabled } = await import("../cron/jobs/declinedWorkRecovery");
+        const { sendPauseHoldReason } = await import("../services/sendPause");
+        const armed = recoverySendsEnabled(process.env);
+        const held = armed ? await sendPauseHoldReason("declined_recovery") : null;
         alerts.push({
           level: "warning",
           title: `${algDeclined} declined walk-in estimates`,
-          detail: "Customers got quoted at the counter but walked without getting work done.",
-          fix: recoverySendsEnabled(process.env)
-            ? "Declined-recovery texts are running (7d / 30d); work the queue on Money > Declined."
-            : "Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups.",
+          // "declined" here is an estimate with no matching invoice: an inference, not a recorded no.
+          detail: "Quoted at the counter with no matching invoice, so the customer most likely walked.",
+          fix: !armed
+            ? "Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups."
+            : held?.startsWith("send_pause_unreadable")
+              ? "Declined-recovery state unknown: the pause switch could not be read (the cron holds until it can); work the queue on Money > Declined."
+              : held
+                ? "Declined-recovery texts are paused (Settings > Safety), so none are going out; work the queue on Money > Declined."
+                : "Declined-recovery texts are running (7d / 30d); work the queue on Money > Declined.",
         });
       }
 

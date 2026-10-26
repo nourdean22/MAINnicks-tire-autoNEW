@@ -12,6 +12,7 @@ import type { TrpcContext } from "../../_core/context";
 import type { InvokeParams, InvokeResult, Message, Tool } from "../../_core/llm";
 import type { appRouter } from "../../routers";
 import { createLogger } from "../../lib/logger";
+import { SALES_PERIODS } from "../../services/shopSales";
 
 const log = createLogger("routers:nick:assistant");
 
@@ -67,7 +68,9 @@ const ASSISTANT_TOOLS: Tool[] = [
     search: str("Customer name, invoice number or service text"),
     startDate: str("YYYY-MM-DD"), endDate: str("YYYY-MM-DD"),
   }),
-  fn("sales_summary", "Jobs (counter invoices), revenue and average ticket for the last N days, with the N days before for comparison.", { days: num("Period length in days, 1 to 90. 1 = since yesterday") }, ["days"]),
+  fn("sales_summary", "Sales (closed invoices), invoice count and average ticket for a period, with the period before, the same figures the Money page shows, plus what they exclude.", {
+    period: { type: "string", enum: [...SALES_PERIODS], description: "today, yesterday, last_7d, last_30d, month_to_date or prev_month" },
+  }, ["period"]),
   fn("declined_work", "Estimates with no matching invoice (inferred walked/declined work) and what the counter recorded.", { days: num("Look-back days, 1 to 365") }, ["days"]),
   fn("recent_calls", "Most recent phone calls logged by call tracking.", { limit: num("1 to 25") }),
   fn("recent_leads", "Most recent website leads (web forms and chat, not counter estimates). Up to 15."),
@@ -89,7 +92,9 @@ const ASSISTANT_TOOLS: Tool[] = [
 
 const DROP_KEYS = /^(email|address|city|state|zip|phone2|psychoProfile\w*|alsCustomerId|algTicketId|externalId|smsCampaign\w*|updatedAt)$/;
 const PHONE_KEYS = /^(phone|customerPhone|callerPhone|fromNumber|from|to)$/;
-const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue)$/;
+const CENTS_KEYS = /^(totalAmount|partsCost|laborCost|taxAmount|estimatedAmount|totalSpent|declinedValue|backlogValueCents|balanceDue|cents|averageCents|pendingCents|partialCentsFullValue|refundedCents)$/;
+// services/shopSales.ts: the ShopDriver mirror maps the ALG ticket lifecycle onto paymentStatus.
+const STATUS_MEANING = "ShopDriver counter invoice (source shopdriver): paymentStatus is the ticket state, not money. paid = closed, a sale (a missing or unknown feed state is also stored as paid). pending = open when last mirrored, not counted as a sale (the mirror never moves a row back to paid, so it may since have closed). Never a payment fact. Online tire order (source manual): it IS the real checkout state."; // under minimize's 400-character string cap
 
 function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   if (depth > 5) return undefined;
@@ -100,7 +105,7 @@ function minimize(value: unknown, depth = 0, centsAware = true): unknown {
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (DROP_KEYS.test(k)) continue;
     if (PHONE_KEYS.test(k) && typeof v === "string") { out[k] = v ? `...${v.replace(/\D/g, "").slice(-4)}` : ""; continue; }
-    if (centsAware && CENTS_KEYS.test(k) && typeof v === "number") { out[`${k.replace(/Cents$/, "")}Dollars`] = Math.round(v) / 100; continue; }
+    if (centsAware && CENTS_KEYS.test(k) && typeof v === "number") { out[k === "cents" ? "dollars" : `${k.replace("Cents", "")}Dollars`] = Math.round(v) / 100; continue; }
     out[k] = minimize(v, depth + 1, centsAware);
   }
   return out;
@@ -148,32 +153,25 @@ async function runAssistantTool(caller: Caller, tool: string, args: Record<strin
         const date = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
         const search = typeof args.search === "string" && args.search.trim() ? args.search.trim().slice(0, 200) : undefined;
         const r = await caller.invoices.list({ limit: 20, offset: 0, search, startDate: date(args.startDate), endDate: date(args.endDate) });
-        const items = r.items.map(({ paymentStatus: _ignored, ...rest }: Record<string, unknown>) => rest); // payment status on a counter invoice means nothing (SHOP-SOUL §3)
-        return ok(source, { total: r.total, invoices: items }, items.length, invoiceCites(r.items));
+        return ok(source, { total: r.total, invoices: r.items, statusMeaning: STATUS_MEANING }, r.items.length, invoiceCites(r.items));
       }
       case "sales_summary": {
-        // Built on invoices.list, not invoices.stats: stats (and nickActions.shopPulse) count only invoices
-        // marked "paid", and a counter invoice's payment status means nothing (docs/SHOP-SOUL.md section 3).
-        source = "invoices.list (sales totals)";
-        const days = clampInt(args.days, 1, 90, 7);
-        const etDay = (back: number) => new Date(Date.now() - back * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-        const period = async (startDate: string, endDate?: string) => {
-          const r = await caller.invoices.list({ limit: 5000, offset: 0, startDate, endDate });
-          const jobs = Number(r.total);
-          const complete = r.items.length >= jobs;
-          const cents = r.items.reduce((sum: number, i: { totalAmount?: number | null }) => sum + (i.totalAmount ?? 0), 0);
-          return {
-            from: startDate, to: endDate ?? "now", jobs,
-            revenueDollars: complete ? cents / 100 : "UNKNOWN (more invoices than one read returns)",
-            avgTicketDollars: !complete ? "UNKNOWN" : jobs ? Math.round(cents / jobs) / 100 : 0,
-          };
-        };
-        const current = await period(etDay(days));
-        const previous = await period(etDay(days * 2), etDay(days));
-        return ok(source, {
-          current, previous,
-          note: "Every counter invoice counts, whatever its payment status. The Money tab's totals count only invoices marked paid, so they can be lower. Day edges are UTC.",
-        }, current.jobs, [], false);
+        // The Money page's own read (services/shopSales.ts), so Ask and the page give the same number.
+        source = "controlCenter.shopSales";
+        const period = SALES_PERIODS.find((p) => p === args.period);
+        // Never answer a different window than the one asked for: an unsupported period is UNKNOWN, not last_7d.
+        if (!period) throw new Error(`unsupported period ${JSON.stringify(args.period ?? null)}: the Money page has ${SALES_PERIODS.join(", ")}`);
+        const r = await caller.controlCenter.shopSales({ period });
+        if (!r.available) throw new Error(r.reason);
+        // Same rule as the Money page (SalesCard dayNotShown): a single day shows only once a ShopDriver sync covers it.
+        if ((period === "today" || period === "yesterday") && r.windowSynced !== true) {
+          throw new Error(`${period} is not synced from ShopDriver yet, so its sales are not known (the Money page hides it too)`);
+        }
+        // Same rule as SalesCard previousLine: an earlier window not confirmed synced is not compared.
+        const previous = r.previous && r.previous.windowSynced !== true
+          ? { window: r.previous.window, comparison: "UNKNOWN: the earlier window is not confirmed synced, so it is not compared (the Money page withholds it too)" }
+          : r.previous;
+        return ok(source, { ...r, previous }, r.invoiceCount);
       }
       case "declined_work": {
         source = "invoices.declined";
@@ -267,7 +265,8 @@ function buildSystemPrompt(page: AssistantPage | undefined, todayEt: string): st
     `Today is ${todayEt} (America/New_York).`,
     "Answer only from tool results. If a tool failed or a fact is not in the results, say UNKNOWN for that part. Never guess numbers.",
     "After every fact taken from a record, cite it as [[customer:ID]], [[invoice:ID]] or [[lead:ID]] using ids from the tool results. Write the name first, then the reference right after it: it shows as a small link.",
-    "What the records mean: a counter invoice is a closed job (a sale); its payment status means nothing because payment is taken on a separate register.",
+    "What the records mean: a closed ShopDriver counter invoice is a closed job (a sale). In the stored row, paymentStatus is the ALG ticket state, not money: paid = ticket closed (a sale; a missing or unknown feed state is also stored as paid, so one paid row is not proof), pending = ticket open when last mirrored (not counted as a sale; the mirror never moves a row back to paid, so a pending row can be a ticket that has since closed). Payment is taken on a separate register, so never say whether a counter customer paid from it. On an online tire order made in the app (source manual) paymentStatus is the real checkout state.",
+    "For sales, revenue or how the shop did, use sales_summary: it is the Money page's own figure. Never add up invoice rows yourself.",
     "An estimate with no matching invoice most likely means the customer walked (declined work), but it is an inference unless the counter recorded the no. Say which one you mean.",
     "Follow-ups key to invoices, not bookings. The shop is first come first served, walk-ins 7 days, no held appointment slots.",
     "Website leads are web forms and chat, not counter estimates. Say Payment Programs, never financing.",

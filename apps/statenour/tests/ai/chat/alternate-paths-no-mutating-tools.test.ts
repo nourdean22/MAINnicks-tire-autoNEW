@@ -51,15 +51,19 @@ vi.mock("@/lib/services/chat/active-stream", () => ({ trackActiveStream: () => (
 vi.mock("@/lib/services/chat/response-shape", () => ({ buildChatResponse: ({ streamResponse }: { streamResponse: Response }) => streamResponse }));
 // Empty by default so the turn falls through; a test sets it to ship a reply.
 let regenWinner = "";
+let regenFired = true;
 vi.mock("@/lib/ai/chat/pre-stream-regen", () => ({
   shouldGateForIntent: () => true,
-  // Drive BOTH generations, then return `regenWinner` (empty: the turn falls through).
+  // Drive BOTH generations, then return `regenWinner`. Since 2026-10-26 the regen
+  // lane runs after the stream (persistBase.postFlushRegen): generateOnce returns the
+  // streamed draft, so only regenOnce reaches the model.
   maybePreStreamRegen: async (o: { generateOnce: () => Promise<string>; regenOnce: (a: { suggestedSystemPrefix: string }) => Promise<string> }) => {
     await o.generateOnce();
     await o.regenOnce({ suggestedSystemPrefix: "be better" });
     return {
       text: regenWinner,
-      regenFired: true,
+      regenFired,
+      durationMs: { first: 0, regen: 1, total: 1 },
       regenScore: null,
       regenWasBetter: false,
       selectionReason: "test",
@@ -82,10 +86,12 @@ vi.mock("@/lib/ai/chat/chain-of-verification", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/chat/chain-of-verification")>()),
   verifyAndRevise: (...a: unknown[]) => verifyAndRevise(...a),
 }));
+// Empty by default so a self-consistency turn falls through; a test sets it to ship a reply.
+let scAnswer = "";
 vi.mock("@/lib/ai/chat/self-consistency", () => ({
   selfConsistentAnswer: async ({ samples, generate }: { samples: number; generate: () => Promise<string> }) => {
     for (let i = 0; i < samples; i++) await generate();
-    return { answer: "", agreed: false, samples };
+    return { answer: scAnswer, agreed: false, samples };
   },
 }));
 vi.mock("@/lib/ai/chat/multi-agent-detect", () => ({ isMultiPartQuestion: () => false, runAutoDecompose: vi.fn() }));
@@ -150,6 +156,17 @@ const base = (userContent: string, prunedTools: Record<string, ToolLike>, intent
     log,
   }) as unknown as Parameters<typeof runAlternatePaths>[0];
 
+type PostFlushOut = { text: string | null; steps?: unknown[]; usage?: unknown } | null;
+/** The regen lane since 2026-10-26: no model call before the stream; the best-of-2 runs on the streamed draft. */
+async function postFlushRegen(userContent: string, tools: Record<string, ToolLike>, intent: string, draft = "the streamed draft") {
+  const args = base(userContent, tools, intent);
+  expect(await runAlternatePaths(args), "the regen lane must not buffer the reply").toBeNull();
+  expect(generateText, "no model call before the stream").not.toHaveBeenCalled();
+  const fn = (args.persistBase as { postFlushRegen?: (a: { draft: string }) => Promise<PostFlushOut> }).postFlushRegen;
+  expect(typeof fn).toBe("function");
+  return fn!({ draft });
+}
+
 const offeredTools = () => generateText.mock.calls.map((c) => Object.keys((c[0] as { tools?: object }).tools ?? {}));
 
 beforeEach(() => {
@@ -158,6 +175,8 @@ beforeEach(() => {
   createTaskRuns = 0;
   readRuns = 0;
   regenWinner = "";
+  regenFired = true;
+  scAnswer = "";
   persistEvents.length = 0;
   shippedTexts.length = 0;
   gateDrafts.length = 0;
@@ -166,17 +185,17 @@ beforeEach(() => {
 });
 
 describe("sampled lanes never execute a write", () => {
-  it("verified regen: both generations see reads but no createTask; 0 executions; the fall-through keeps the main stream's tools", async () => {
+  it("verified regen (after the stream): the second draft sees reads but no createTask; 0 executions; the stream keeps its tools", async () => {
     flags.NICK_VERIFIED_REGEN = true;
     const tools = freshTools();
-    expect(await runAlternatePaths(base("what did I decide about the shop hours", tools, "decision"))).toBeNull();
-    expect(generateText).toHaveBeenCalledTimes(2);
+    await postFlushRegen("what did I decide about the shop hours", tools, "decision");
+    expect(generateText).toHaveBeenCalledTimes(1);
     for (const offered of offeredTools()) {
       expect(offered).toContain("getHealthToday");
       expect(offered).not.toContain("createTask");
     }
     expect(createTaskRuns).toBe(0);
-    expect(readRuns).toBe(2);
+    expect(readRuns).toBe(1);
     // Nothing was written, so the main stream may still make the one real call.
     expect(Object.keys(tools)).toEqual(["createTask", "getHealthToday"]);
   });
@@ -241,15 +260,24 @@ const PAID = { inputTokens: 100, outputTokens: 40, totalTokens: 140 };
 const paidReply = (text: string) => async () => ({ text, toolCalls: [], toolResults: [], usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, totalUsage: PAID });
 
 describe("buffered lanes count every paid generation (audit 04-X12)", () => {
-  it("verified regen: two generations ran, the persisted usage is their sum", async () => {
+  it("verified regen (after the stream): the second draft's run total goes to persist, which adds it to the stream's usage", async () => {
     flags.NICK_VERIFIED_REGEN = true;
     regenWinner = "A considered reply about the shop hours.";
     generateText.mockImplementation(paidReply(regenWinner));
-    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
-    expect(generateText).toHaveBeenCalledTimes(2);
-    expect(persistEvents).toHaveLength(1);
-    expect(persistEvents[0].usage).toEqual({ inputTokens: 200, outputTokens: 80, totalTokens: 280 });
-    expect(log.info).toHaveBeenCalledWith("verified_regen_path", expect.objectContaining({ generations: 2 }));
+    const out = await postFlushRegen("what did I decide about the shop hours", {}, "decision");
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(out?.text).toBe(regenWinner);
+    expect(out?.usage).toEqual(PAID);
+    expect(log.info).toHaveBeenCalledWith("verified_regen_path", expect.objectContaining({ postFlush: true, regenFired: true }));
+  });
+
+  it("verified regen (after the stream): a LOSING second draft is still counted", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenFired = false;
+    generateText.mockImplementation(paidReply("A worse draft."));
+    const out = await postFlushRegen("what did I decide about the shop hours", {}, "decision");
+    expect(out?.text).toBeNull();
+    expect(out?.usage).toEqual(PAID);
   });
 
   it("control: the single pre-flush generation is counted once, not twice", async () => {
@@ -278,26 +306,34 @@ describe("every executed sample's tool calls reach tool_telemetry exactly once; 
   const recorded = () => recordToolInvocation.mock.calls.map((c) => c[0] as { toolName: string }).filter((c) => MINE.has(c.toolName));
   const recordedNames = () => recorded().map((c) => c.toolName).sort();
 
-  it("verified regen: the LOSING draft's tool call is recorded too (with its real failure); the chosen names stay the winner's", async () => {
+  it("verified regen (after the stream): a LOSING second draft's tool call is recorded here, once, with its real failure", async () => {
     flags.NICK_VERIFIED_REGEN = true;
-    regenWinner = "The winning reply about the shop hours.";
-    let n = 0;
-    generateText.mockImplementation(async () => {
-      n += 1;
-      return n === 1
-        ? { text: "A losing draft.", steps: stepOf("searchMemories", { error: "db down" }), toolCalls: [], toolResults: [] }
-        : { text: regenWinner, steps: stepOf("getCommitments"), toolCalls: [], toolResults: [] };
-    });
-    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
-    await vi.waitFor(() => expect(recordedNames()).toEqual(["getCommitments", "searchMemories"]));
+    regenFired = false;
+    generateText.mockImplementation(async () => ({
+      text: "A losing draft.",
+      steps: stepOf("searchMemories", { error: "db down" }),
+      toolCalls: [],
+      toolResults: [],
+    }));
+    const out = await postFlushRegen("what did I decide about the shop hours", {}, "decision");
+    expect(out?.steps, "a losing draft's steps never reach the persist walk").toBeUndefined();
+    await vi.waitFor(() => expect(recordedNames()).toEqual(["searchMemories"]));
     await settle();
-    expect(recorded()).toHaveLength(2);
+    expect(recorded()).toHaveLength(1);
     expect(recordToolInvocation).toHaveBeenCalledWith(
       expect.objectContaining({ toolName: "searchMemories", success: false, errorMessage: "db down" }),
     );
-    expect(persistEvents[0].laneToolNames).toEqual(["getCommitments"]);
-    // The persist walk must not record them a second time.
-    expect(persistEvents[0]).not.toHaveProperty("laneTelemetrySteps");
+  });
+
+  it("verified regen (after the stream): a WINNING second draft's steps go to the persist walk, not recorded here", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = "The winning reply about the shop hours.";
+    const steps = stepOf("getCommitments");
+    generateText.mockImplementation(async () => ({ text: regenWinner, steps, toolCalls: [], toolResults: [] }));
+    const out = await postFlushRegen("what did I decide about the shop hours", {}, "decision");
+    expect(out?.steps).toEqual(steps);
+    await settle();
+    expect(recorded()).toHaveLength(0);
   });
 
   it("self-consistency that falls through to the streaming path: all three samples are recorded once, and nothing is left for the stream to double", async () => {
@@ -312,9 +348,9 @@ describe("every executed sample's tool calls reach tool_telemetry exactly once; 
 
   it("CONTROL · a sample that executed no tool records nothing", async () => {
     flags.NICK_VERIFIED_REGEN = true;
-    regenWinner = "A plain reply.";
-    generateText.mockImplementation(async () => ({ text: regenWinner, steps: [], toolCalls: [], toolResults: [] }));
-    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    regenFired = false;
+    generateText.mockImplementation(async () => ({ text: "A plain reply.", steps: [], toolCalls: [], toolResults: [] }));
+    await postFlushRegen("what did I decide about the shop hours", {}, "decision");
     await settle();
     expect(recorded()).toHaveLength(0);
   });
@@ -335,9 +371,9 @@ describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", ()
   const DRAFT = "The shop opens at 8 and closes at 6 on weekdays, per the posted hours.";
 
   it("NICK_COVE on + factual intent: the stream carries the REVISED text and the event says CoVe is done", async () => {
-    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_SELF_CONSISTENCY = true;
     flags.NICK_COVE = true;
-    regenWinner = DRAFT;
+    scAnswer = DRAFT;
     generateText.mockImplementation(paidReply(DRAFT));
     verifyAndRevise.mockResolvedValue({ changed: true, revised: "R", questions: ["q"] });
     expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
@@ -349,10 +385,10 @@ describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", ()
   });
 
   it("the evidence gate judges the REVISED text, the one that ships (CoVe runs before the gate)", async () => {
-    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_SELF_CONSISTENCY = true;
     flags.NICK_COVE = true;
     flags.NICK_EVIDENCE_ENFORCEMENT = true;
-    regenWinner = DRAFT;
+    scAnswer = DRAFT;
     generateText.mockImplementation(paidReply(DRAFT));
     verifyAndRevise.mockResolvedValue({ changed: true, revised: "R", questions: ["q"] });
     expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
@@ -361,8 +397,8 @@ describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", ()
   });
 
   it("control: NICK_COVE off ships the draft, never calls CoVe, and leaves coveDone unset for the persist pipeline", async () => {
-    flags.NICK_VERIFIED_REGEN = true;
-    regenWinner = DRAFT;
+    flags.NICK_SELF_CONSISTENCY = true;
+    scAnswer = DRAFT;
     generateText.mockImplementation(paidReply(DRAFT));
     expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
     expect(verifyAndRevise).not.toHaveBeenCalled();
@@ -371,9 +407,9 @@ describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", ()
   });
 
   it("control: a non-factual intent is not verified here (same set the persist pipeline uses)", async () => {
-    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_SELF_CONSISTENCY = true;
     flags.NICK_COVE = true;
-    regenWinner = DRAFT;
+    scAnswer = DRAFT;
     generateText.mockImplementation(paidReply(DRAFT));
     expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
     expect(verifyAndRevise).not.toHaveBeenCalled();
@@ -381,9 +417,9 @@ describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", ()
   });
 
   it("a CoVe failure ships the draft and leaves coveDone unset, so the persist pipeline still tries", async () => {
-    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_SELF_CONSISTENCY = true;
     flags.NICK_COVE = true;
-    regenWinner = DRAFT;
+    scAnswer = DRAFT;
     generateText.mockImplementation(paidReply(DRAFT));
     verifyAndRevise.mockRejectedValue(new Error("provider down"));
     expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
@@ -397,14 +433,14 @@ describe("regen telemetry failures reach the instrument channel (audit 01-F6)", 
     flags.NICK_VERIFIED_REGEN = true;
     const boom = new Error("insert failed");
     recordMetricStrict.mockRejectedValue(boom);
-    await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"));
+    await postFlushRegen("what did I decide about the shop hours", {}, "decision");
     await vi.waitFor(() => expect(logError).toHaveBeenCalled());
     expect(logError).toHaveBeenCalledWith("instrument.chat.pre_stream_regen", boom, { traceId: "t1" }, "warn");
   });
 
   it("control: a successful write logs nothing", async () => {
     flags.NICK_VERIFIED_REGEN = true;
-    await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"));
+    await postFlushRegen("what did I decide about the shop hours", {}, "decision");
     expect(recordMetricStrict).toHaveBeenCalledTimes(1);
     expect(logError).not.toHaveBeenCalled();
   });

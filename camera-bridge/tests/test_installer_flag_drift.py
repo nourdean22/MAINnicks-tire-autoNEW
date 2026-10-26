@@ -61,6 +61,11 @@ DELIBERATELY_UNREACHABLE = {
     "--no-shop-ingest": "a local-only commissioning switch for hand-run launchers "
                         "(scripts/nicksmax/run-inside-rtsp.ps1). An installed producer either "
                         "feeds the shop or is not installed.",
+    "--dormant-until-authoritative": "the standby mode of the Railway copy (EDGE_ROLE=cloud, lot "
+                                     "vision v2), started by its container, never by this Windows "
+                                     "task: a shop PC producer is the primary and must read the camera.",
+    "--elected-file": "the marker the Railway launcher (camera-bridge/cloud/run_cloud.py) waits for "
+                      "before starting the relay; meaningless without --dormant-until-authoritative.",
 }
 
 

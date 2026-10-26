@@ -53,6 +53,15 @@ import {
   officeLaneAlertDecision,
   officeLaneVerdict,
 } from "./officeLaneAlert";
+import {
+  formatLotCountingAlert,
+  lotCountingAlertClaim,
+  lotCountingAlertDecision,
+  lotCountingVerdict,
+  lotWatchedSinceMs,
+} from "./lotCountingAlert";
+import { BUSINESS } from "../../shared/business";
+import { shopDayWindow } from "../../shared/shopState";
 
 const log = createLogger("camera-health-alerts");
 
@@ -174,9 +183,10 @@ async function latestCameraAlert(
   db: Db,
   camera: string,
   /** Claim key family: camera pages, or the office lane's own pages (officeLaneAlert.ts). */
-  family: "camera_health" | "office_lane" = "camera_health",
+  family: "camera_health" | "office_lane" | "lot_count" = "camera_health",
 ): Promise<{ key: string; ageSeconds: number | null; vision: string | null; frames: string | null } | null> {
-  const prefix = family === "office_lane" ? `office_lane:${camera}:%` : `camera_health:${camera}:%`;
+  const prefix =
+    family === "office_lane" ? `office_lane:${camera}:%` : family === "lot_count" ? `lot_count:${camera}:%` : `camera_health:${camera}:%`;
   const [rows] = await db.execute(sql`
     SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
       FROM cron_alerts_fired
@@ -356,6 +366,81 @@ async function judgeOfficeLane(
   return { ...none, sent: true };
 }
 
+/**
+ * One car-counter judgement (lotCountingAlert.ts) through the same rail. The arrivals read runs only
+ * when there is something to judge; a failed read THROWS (the caller fails the run, never "not counting").
+ */
+async function judgeLotCounting(
+  db: Db,
+  camera: string,
+  label: string,
+  input: {
+    state: string;
+    detections: number | null;
+    /** When the current state began (camera_runtime.stateSince), epoch seconds; null when unknown. */
+    stateSinceEpoch: number | null;
+    shopOpen: boolean;
+    solar: { expectedOffline: boolean; fromMs: number } | null;
+  },
+): Promise<{ state: string; sent: boolean; held: boolean; deliveryError: unknown }> {
+  const nowMs = Date.now();
+  const openMs = shopDayWindow(new Date(nowMs), BUSINESS.timezone, BUSINESS.hours.structured).openMs;
+  const healthySinceMs = input.state === "HEALTHY" && input.stateSinceEpoch !== null ? input.stateSinceEpoch * 1000 : null;
+  const watchedSinceMs = lotWatchedSinceMs({ openMs, nowMs, solar: input.solar, healthySinceMs });
+  let arrivals: number | null = null;
+  if (input.shopOpen && watchedSinceMs !== null && input.state === "HEALTHY") {
+    const [rows] = await db.execute(sql`
+      SELECT COUNT(*) AS n FROM vehicle_visits
+       WHERE camera = ${camera} AND dataClass = 'PRODUCTION' AND preexisting = 0
+         AND UNIX_TIMESTAMP(arrivedAt) >= ${Math.floor(watchedSinceMs / 1000)}
+    `);
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    arrivals = row ? numberOrNull(row.n) : null;
+  }
+  const verdict = lotCountingVerdict({
+    shopOpen: input.shopOpen,
+    cameraState: input.state,
+    detectionsLast10m: input.detections,
+    watchedSinceMs,
+    nowMs,
+    arrivalsSinceWatched: arrivals,
+  });
+  const none = { state: verdict.state, sent: false, held: false, deliveryError: null };
+  if (verdict.state === "NOT_JUDGED" || watchedSinceMs === null) return none;
+
+  const latest = await latestCameraAlert(db, camera, "lot_count");
+  const decision = lotCountingAlertDecision(verdict.state, latest?.key ?? null, latest?.ageSeconds ?? null);
+  if (!decision.notify) return { ...none, held: decision.held };
+
+  // A recovery is keyed on the page it closes; a page on the watch window it fired in.
+  const episode = decision.recovery ? episodeFromAlertKey(latest?.key ?? null) : Math.floor(watchedSinceMs / 1000);
+  if (episode === null) return none;
+  const claim = lotCountingAlertClaim(camera, verdict.state, episode);
+  const claimed = await claimAlert(db, claim, {
+    camera,
+    lane: "car_counter",
+    state: verdict.state,
+    reason: verdict.reason,
+    recovery: decision.recovery,
+    episode,
+  });
+  if (!claimed) return none;
+  try {
+    await deliverClaimedAlert({
+      db,
+      camera,
+      state: verdict.state,
+      claim,
+      alert: formatLotCountingAlert(label, verdict.reason, decision.recovery),
+    });
+  } catch (err) {
+    log.error("car counter alert delivery failed", { camera, state: verdict.state, error: err instanceof Error ? err.message : String(err) });
+    return { ...none, deliveryError: err };
+  }
+  log.warn(decision.recovery ? "car counter recovery fired" : "car counter alert fired", { camera, state: verdict.state, episode });
+  return { ...none, sent: true };
+}
+
 export async function runCameraHealthAlerts(): Promise<{
   recordsProcessed: number;
   details: string;
@@ -417,6 +502,7 @@ export async function runCameraHealthAlerts(): Promise<{
   let deliveryFailure: unknown = null;
   const observed: string[] = [];
   const nowMs = Date.now();
+  let signSnapshot: { label: string; state: string; detections: number | null; stateSinceEpoch: number | null } | null = null;
 
   for (const expected of commissioned) {
     const row = byCamera.get(expected.camera);
@@ -453,6 +539,14 @@ export async function runCameraHealthAlerts(): Promise<{
       { solar: cameraPowerFor(expected.camera) === "solar" ? solar : null },
     );
     observed.push(`${expected.camera}=${verdict.state}`);
+    if (expected.camera === "sign") {
+      signSnapshot = {
+        label: expected.label,
+        state: verdict.state,
+        detections: row ? numberOrNull(row.detectionsLast10m) : null,
+        stateSinceEpoch: row ? numberOrNull(row.stateSinceEpoch) : null,
+      };
+    }
 
     // The timeline row for the state this pass derived (audit N6), written before the page so
     // the two agree on what happened. A failure is kept, not thrown here: every camera is still
@@ -599,6 +693,33 @@ export async function runCameraHealthAlerts(): Promise<{
     }
   }
 
+  // THE CAR COUNTER: the sign camera healthy and seeing while nothing is counted (lotCountingAlert.ts).
+  let lotCountingFailure: unknown = null;
+  if (signSnapshot) {
+    try {
+      const lot = await judgeLotCounting(db, "sign", signSnapshot.label, {
+        state: signSnapshot.state,
+        detections: signSnapshot.detections,
+        stateSinceEpoch: signSnapshot.stateSinceEpoch,
+        shopOpen,
+        solar: cameraPowerFor("sign") === "solar" ? solar : null,
+      });
+      observed.push(`car-counter=${lot.state}`);
+      if (lot.sent) sent++;
+      if (lot.held) held++;
+      if (lot.deliveryError) deliveryFailure = lot.deliveryError;
+    } catch (err) {
+      lotCountingFailure = err;
+    }
+  }
+
+  if (lotCountingFailure) {
+    throw new Error(
+      `camera-health-alerts: ${sent} alert(s) sent, then the car counter read failed: ${
+        lotCountingFailure instanceof Error ? lotCountingFailure.message : String(lotCountingFailure)
+      }`,
+    );
+  }
   if (officeLaneFailure) {
     throw new Error(
       `camera-health-alerts: ${sent} alert(s) sent, then the office lane read failed: ${

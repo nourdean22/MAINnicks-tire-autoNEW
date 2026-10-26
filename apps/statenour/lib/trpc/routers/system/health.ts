@@ -163,8 +163,8 @@ export const healthProcedures = {
    * commitment / device / radar counts + morning-brief readiness +
    * Inngest + Braintrust visibility. Replaces GET /api/health ·
    * delegates to the shared `system-pages.buildSystemHealth` service
-   * (which owns the 30s cache). SystemPage reads `alerts.unresolved` +
-   * `commitments.active` off this.
+   * (which owns the 30s cache). SystemPage reads the `alerts` MetricResult
+   * (`alerts.value.unresolved` when its status is ok or degraded) off this.
    */
   healthSummary: operatorProcedure.query(async () => buildSystemHealth()),
 

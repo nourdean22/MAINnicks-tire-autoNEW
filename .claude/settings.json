@@ -59,11 +59,26 @@
         ]
       },
       {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/always-on-skills.mjs\" --repo",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "startup",
         "hooks": [
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/deps-check.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/bootstrap-machine.mjs\" --check --hook",
             "timeout": 10
           }
         ]
