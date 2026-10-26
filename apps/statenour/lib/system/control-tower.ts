@@ -104,7 +104,7 @@ export function controlTower(input: TowerInput): TowerVerdict {
   if (input.healthReadFailed && input.health?.alerts == null) {
     exceptions.push({
       key: "alerts-unknown",
-      line: "alerts read failed — unresolved alerts unknown",
+      line: "alerts read failed: unresolved alerts unknown",
       tone: "amber",
       href: "/system/alerts",
     });
