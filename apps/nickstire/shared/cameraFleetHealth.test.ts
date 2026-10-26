@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  CAPTURE_STUCK_AFTER_SECONDS,
   conversationCaptureStuck,
   summarizeCameraFleet,
   WORKER_STALE_AFTER_SECONDS,
@@ -89,8 +88,9 @@ describe("summarizeCameraFleet", () => {
       ],
     });
     expect(v.problems.map((p) => p.state)).toEqual(["conversation worker stuck in one recording (96h), not listening"]);
-    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: CAPTURE_STUCK_AFTER_SECONDS - 1 })).toBe(false);
-    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: CAPTURE_STUCK_AFTER_SECONDS + 1 })).toBe(true);
+    // The 15-minute line: a capture is at most 120 s + ffmpeg's 120 s timeout.
+    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: 15 * 60 - 1 })).toBe(false);
+    expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: 15 * 60 + 1 })).toBe(true);
     expect(conversationCaptureStuck({ state: "READY", captureAgeSeconds: 4 * 24 * 3600 })).toBe(false);
     expect(conversationCaptureStuck({ state: "CAPTURING", captureAgeSeconds: null })).toBe(false);
   });

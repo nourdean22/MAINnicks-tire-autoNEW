@@ -42,7 +42,7 @@ export interface CameraFleetInputCamera {
  * capture never returned, the probe loop skips every pass while CAPTURING, and the lane heard
  * nothing for four days with a fresh heartbeat.
  */
-export const CAPTURE_STUCK_AFTER_SECONDS = 15 * 60;
+const CAPTURE_STUCK_AFTER_SECONDS = 15 * 60;
 
 export function conversationCaptureStuck(
   conversation: { state?: string | null; captureAgeSeconds?: number | null } | null | undefined,
