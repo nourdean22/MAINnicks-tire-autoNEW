@@ -63,7 +63,8 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
     // work-order page is full), so this asserts the GUARANTEE — untrusted still
     // renders the em dash — rather than one exact line.
     // Admin UI v1 W0 routes the dash through one const; it must stay the dash, never a 0.
-    expect(overview).toMatch(/value=\{queueTrustworthy \?[\s\S]{0,90}: (?:UNKNOWN|"—")\}/);
+    // 2026-10-26: the count also waits for every source to answer (queueAnswered), still the dash before that.
+    expect(overview).toMatch(/value=\{queueTrustworthy(?: && queueAnswered)? \?[\s\S]{0,90}: (?:UNKNOWN|"—")\}/);
     expect(overview).toMatch(/^const UNKNOWN = "—";$/m);
     expect(overview).toMatch(/Unable to determine/);
   });
