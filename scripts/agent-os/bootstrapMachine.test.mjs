@@ -89,6 +89,20 @@ test("apply installs each item with a receipt; a second run changes nothing; --c
   assert.equal(run(home, "--check").code, 0);
 });
 
+test("an existing machine SKILL.md keeps its own description; everything else (the triggers line) comes from the repo", () => {
+  const home = makeHome("keep-desc");
+  const file = join(home, ".claude", "skills", "prompt-gallery", "SKILL.md");
+  const machineDesc = "description: Always on (machine wording). On EVERY operator request, check the gallery.";
+  write(file, `---\nname: prompt-gallery\n${machineDesc}\n---\n\n# machine body\n`);
+  assert.equal(run(home).code, 0);
+  const after = readFileSync(file, "utf8");
+  const repo = readFileSync(join(ROOT, ".claude", "skills", "prompt-gallery", "SKILL.md"), "utf8");
+  assert.ok(after.includes(`${machineDesc}\n`), `machine description lost:\n${after.slice(0, 400)}`);
+  assert.match(after, /^triggers: /m, "the repo triggers line must be added");
+  assert.equal(after.replace(machineDesc, ""), repo.replace(/^description:.*$/m, ""), "everything but the description must equal the repo copy");
+  assert.equal(run(home, "--check").code, 0, "a kept description must read ok, not DRIFT forever");
+});
+
 test("apply touches nothing else: unrelated settings, hooks, skills and CLAUDE.md lines survive", () => {
   const home = makeHome("preserve");
   run(home);

@@ -57,6 +57,18 @@ function filesUnder(dir) {
 
 const read = (f) => { try { return readFileSync(f); } catch { return null; } };
 
+// The frontmatter `description:` entry, with any indented continuation lines.
+const DESC = /^description:.*(?:\r?\n[ \t]+\S.*)*/m;
+/** The repo SKILL.md with the machine copy's description put back, when the machine copy has one. */
+export function keepDescription(repoBuf, machineBuf) {
+  const repo = repoBuf.toString("utf8");
+  const fm = (t) => /^---\r?\n[\s\S]*?\r?\n---/.exec(t)?.[0] ?? "";
+  const mine = machineBuf ? DESC.exec(fm(machineBuf.toString("utf8")))?.[0] : null;
+  const head = fm(repo);
+  if (!mine || !DESC.test(head)) return repoBuf;
+  return Buffer.from(head.replace(DESC, () => mine) + repo.slice(head.length), "utf8");
+}
+
 /** Every item as { label, state: ok|MISSING|DRIFT, apply() }. Nothing is written here. */
 export function plan(home) {
   const claude = join(home, ".claude");
@@ -75,16 +87,22 @@ export function plan(home) {
 
   for (const name of ["always-on-skills.mjs", "find-skills-turn.mjs"]) fileItem(`~/.claude/hooks/${name}`, join(HERE, name), join(claude, "hooks", name));
 
-  // Skills: whole folder, byte for byte; a machine-only extra file is left alone.
+  // Skills: whole folder from the repo, except that an existing machine SKILL.md keeps its own `description:` (the
+  // operator's wording on this machine wins: prompt-gallery's machine copy says "every request", ruling 2026-10-26).
+  // A machine-only extra file is left alone.
   const skillNames = [...new Set([...SKILLS.map((s) => s.split(" ")[0]), "antislop"])];
   for (const name of skillNames) {
     const src = join(REPO, ".claude", "skills", name);
     if (!existsSync(join(src, "SKILL.md"))) { items.push({ label: `~/.claude/skills/${name} (no repo copy: machine-only)`, state: "ok", apply() {} }); continue; }
-    const pairs = filesUnder(src).map((f) => [f, join(claude, "skills", name, relative(src, f))]);
-    const states = pairs.map(([s, d]) => { const h = read(d); return h === null ? "MISSING" : h.equals(readFileSync(s)) ? "ok" : "DRIFT"; });
+    const pairs = filesUnder(src).map((f) => {
+      const d = join(claude, "skills", name, relative(src, f));
+      const want = /SKILL\.md$/.test(f) ? keepDescription(readFileSync(f), read(d)) : readFileSync(f);
+      return [want, d];
+    });
+    const states = pairs.map(([want, d]) => { const h = read(d); return h === null ? "MISSING" : h.equals(want) ? "ok" : "DRIFT"; });
     const state = states.every((s) => s === "ok") ? "ok" : !existsSync(join(claude, "skills", name, "SKILL.md")) ? "MISSING" : "DRIFT";
     items.push({ label: `~/.claude/skills/${name}`, state, apply() {
-      pairs.forEach(([s, d], i) => { if (states[i] !== "ok") { backup(d); mkdirSync(dirname(d), { recursive: true }); copyFileSync(s, d); } });
+      pairs.forEach(([want, d], i) => { if (states[i] !== "ok") { backup(d); mkdirSync(dirname(d), { recursive: true }); writeFileSync(d, want); } });
     } });
   }
 
