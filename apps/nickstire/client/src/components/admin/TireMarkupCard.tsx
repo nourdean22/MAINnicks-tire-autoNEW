@@ -37,7 +37,9 @@ export default function TireMarkupCard() {
       setFailed(null);
       if (r.available && r.percent !== null) toast.success(`Markup saved: ${r.percent}%`);
       else setFailed("Saved, but the new value couldn't be read back: unknown.");
-      await markup.refetch();
+      const again = await markup.refetch();
+      // A transient read-back failure clears once the re-read confirms a value; a re-read that fails keeps it.
+      if (again.data?.available === true) setFailed(null);
       setDraft(null);
     },
     // A money-affecting setting: a failed save must be visible.

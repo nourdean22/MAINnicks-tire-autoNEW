@@ -3,9 +3,9 @@ import {
   Disc, Wrench, User, Car, Check, X, ChevronDown, ChevronUp, RefreshCw, FileText, CheckCircle2,
   Loader2, AlertTriangle
 } from "lucide-react";
-import { Section, Panel } from "./shared";
+import { Section, Panel, SearchInput } from "./shared";
 import { formatRelativeDate } from "./shared/format";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   getQuoteConfidence, getRiskFlags, getNextAction, getFulfillmentTimeline
@@ -62,6 +62,9 @@ const TIRE_EVENTS: { name: TireEventName; label: string; hint?: string }[] = [
 
 const nyDay = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
+/** "Sep 27" from an ET shop-day key (YYYY-MM-DD): noon UTC read in UTC, so no zone can move the day. */
+const dayKeyLabel = (key: string) =>
+  new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 
 const WINDOW_DAYS = 30;
 const LIST_LIMIT = 100;
@@ -70,18 +73,22 @@ const RETRY = "min-h-12 px-4 rounded-md border border-border/40 text-sm font-sem
 // listOrders also returns saved quotes (TQ- rows, server/lib/tire-order-guards.ts); orderStats does not count them.
 const isQuoteRow = (o: { orderNumber: string }) => o.orderNumber.startsWith("TQ-");
 
-/** "1 in 30 days": orders (not quotes) among the newest LIST_LIMIT rows; "N+" when more rows exist than were read
+/** "1 in 30 days": orders (not quotes) created at or after `since`, the activity read's own window start, so both
+ *  counts cover the same shop days; among the newest LIST_LIMIT rows; "N+" when more rows exist than were read
  *  and every row read is inside the window. */
-function ordersInWindow(rows: { createdAt: string | Date; orderNumber: string }[], total: number): string {
-  const since = Date.now() - WINDOW_DAYS * 86_400_000;
+function ordersInWindow(rows: { createdAt: string | Date; orderNumber: string }[], total: number, since: number): string {
   const inWindow = rows.filter((o) => new Date(o.createdAt).getTime() >= since);
   const n = inWindow.filter((o) => !isQuoteRow(o)).length;
   return inWindow.length === rows.length && total > rows.length ? `${n}+` : String(n);
 }
 
-function TireActivityStrip({ ordersLine }: { ordersLine: string }) {
-  // Every name is always present and 0 is a real zero: the query asked for that exact name and found no rows.
-  const activity = trpc.gatewayTire.tireActivity.useQuery({ days: WINDOW_DAYS }, { refetchInterval: 60_000 });
+type ActivityQuery = {
+  data: RouterOutputs["gatewayTire"]["tireActivity"] | undefined;
+  isError: boolean;
+  refetch: () => unknown;
+};
+
+function TireActivityStrip({ activity, ordersLine }: { activity: ActivityQuery; ordersLine: string }) {
   const read = activity.data;
 
   let events: React.ReactNode;
@@ -105,7 +112,7 @@ function TireActivityStrip({ ordersLine }: { ordersLine: string }) {
   return (
     <section aria-labelledby="tire-activity-title" className="rounded-lg border border-border/40 bg-card p-4">
       <h2 id="tire-activity-title" className="text-sm font-semibold">Online tire activity, last 30 days</h2>
-      {read?.available && <p className="mt-1 text-sm text-muted-foreground">{`${nyDay(read.from)} to ${nyDay(read.to)}`}</p>}
+      {read?.available && <p className="mt-1 text-sm text-muted-foreground">{`${dayKeyLabel(read.fromDayKey)} to ${nyDay(read.to)}`}</p>}
       {!Array.isArray(events) && <div className="mt-2">{events}</div>}
       <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {Array.isArray(events) && events}
@@ -128,11 +135,18 @@ function TireActivityStrip({ ordersLine }: { ordersLine: string }) {
 
 export default function TireOrdersSection() {
   const [activeTab, setActiveTab] = useState<OrderStatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const utils = trpc.useUtils();
 
-  // 60s auto-refresh so the list stays current on the counter screen without manual syncs.
+  // Every name is always present and 0 is a real zero: the query asked for that exact name and found no rows.
+  const activity = trpc.gatewayTire.tireActivity.useQuery({ days: WINDOW_DAYS }, { refetchInterval: 60_000 });
+
+  // 60s auto-refresh so the list stays current on the counter screen without manual syncs. The search runs on
+  // the server, so it finds an order older than the newest LIST_LIMIT rows.
   const { data: listData, isLoading, isError, refetch: refetchOrders } = trpc.gatewayTire.listOrders.useQuery({
     status: activeTab === "all" ? undefined : activeTab,
+    search: searchQuery || undefined,
     limit: LIST_LIMIT,
   }, { refetchInterval: 60_000 });
   // Unfiltered newest orders for the 30-day count; the same query as the list when the filter is All statuses.
@@ -146,10 +160,14 @@ export default function TireOrdersSection() {
   } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 60_000 });
 
   const lifetime = stats ? `${stats.total} lifetime` : statsError ? "lifetime unknown" : "lifetime loading";
-  const recent = allOrders.data
-    ? ordersInWindow(allOrders.data.orders, allOrders.data.total ?? 0)
+  // Orders are counted on the activity read's window (whole ET shop days), never a second client-side window.
+  const windowStart = activity.data?.available ? Date.parse(activity.data.from) : null;
+  const windowUnavailable = activity.isError || activity.data?.available === false;
+  const recent = windowUnavailable ? null
+    : windowStart === null ? "loading"
+    : allOrders.data ? ordersInWindow(allOrders.data.orders, allOrders.data.total ?? 0, windowStart)
     : allOrders.isError ? "unknown" : "loading";
-  const ordersLine = `${recent} in 30 days · ${lifetime}`;
+  const ordersLine = recent === null ? `window unavailable · ${lifetime}` : `${recent} in 30 days · ${lifetime}`;
   const lifetimeSentence = stats
     ? `${stats.total} online order${stats.total === 1 ? "" : "s"} recorded lifetime.`
     : statsError ? "The lifetime count couldn't load: unknown." : "";
@@ -194,7 +212,10 @@ export default function TireOrdersSection() {
   const handleRefresh = () => {
     refetchOrders();
     void allOrders.refetch();
+    void activity.refetch();
     refetchStats();
+    // A markup saved in another session shows after Refresh.
+    void utils.gatewayTire.markup.invalidate();
   };
 
   // Sort by next-action priority (urgent first) so the operator's next move is always at the top:
@@ -455,7 +476,7 @@ export default function TireOrdersSection() {
         </div>
       }
     >
-      <TireActivityStrip ordersLine={ordersLine} />
+      <TireActivityStrip activity={activity} ordersLine={ordersLine} />
 
       <section aria-labelledby="tire-orders-title" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -470,6 +491,10 @@ export default function TireOrdersSection() {
             {STATUS_OPTIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </div>
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search by name, phone, order #, size" />
+        {(listData?.orders.length ?? 0) >= LIST_LIMIT && (
+          <p className="text-sm text-muted-foreground">{`Showing the newest ${LIST_LIMIT}; search to find an older order.`}</p>
+        )}
 
         {isLoading ? (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">

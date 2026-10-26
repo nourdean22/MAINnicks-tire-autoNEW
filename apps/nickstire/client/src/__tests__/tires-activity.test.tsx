@@ -18,12 +18,15 @@ const h = vi.hoisted(() => ({
   queries: new Map<string, Partial<Q>>(),
   mutations: new Map<string, unknown[]>(),
   answers: new Map<string, unknown>(),
+  // Every query input by path, and every utils call ("utils.gatewayTire.markup.invalidate").
+  inputs: [] as [string, unknown][],
+  utilCalls: [] as string[],
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => {
-  const query = (path: string) => () => ({
+  const query = (path: string) => (input?: unknown) => (h.inputs.push([path, input]), {
     data: undefined,
     isLoading: false,
     isError: false,
@@ -51,6 +54,7 @@ vi.mock("@/lib/trpc", () => {
         return node(path ? `${path}.${String(key)}` : String(key));
       },
       apply() {
+        h.utilCalls.push(path);
         return undefined;
       },
     });
@@ -79,11 +83,14 @@ const MARKUP = "gatewayTire.markup";
 const SAVE = "gatewayTire.updateMarkup";
 
 // gatewayTire.tireActivity (server/lib/tireActivity.ts): all five names always present; 0 is a real zero.
+// fromDayKey is the first ET shop day; `from` is the instant that opens it (relative here, so the 5-day-old
+// order fixture stays inside the window whenever the suite runs); `to` is now.
 const COUNTS = {
   available: true,
   days: 30,
-  from: "2026-09-25T18:00:00.000Z",
-  to: "2026-10-25T18:00:00.000Z",
+  fromDayKey: "2026-09-27",
+  from: new Date(Date.now() - 29 * 86_400_000).toISOString(),
+  to: "2026-10-26T10:00:00.000Z",
   counts: { tire_search_submitted: 75, tire_quote_cta_click: 396, vehicle_size_selected: 14, tire_option_selected: 9, top_pick_selected: 0 },
 };
 const INSTALLED = {
@@ -94,7 +101,7 @@ const INSTALLED = {
   createdAt: new Date(Date.now() - 5 * 86_400_000).toISOString(),
 };
 const QUOTE = { ...INSTALLED, id: 8, orderNumber: "TQ-20261021-008", status: "received", statusLabel: "New request" };
-const STATS_LIVE ={ total: 1, received: 0, confirmed: 0, ordered: 0, inTransit: 0, delivered: 0, scheduled: 0, installed: 1, cancelled: 0, totalRevenue: 384 };
+const STATS_LIVE = { total: 1, received: 0, confirmed: 0, ordered: 0, inTransit: 0, delivered: 0, scheduled: 0, installed: 1, cancelled: 0, totalRevenue: 384 };
 const OWNER = { data: { adminRole: "owner", permissions: [] } };
 const SAVED = { available: true, percent: 100, updatedAt: "2026-10-25T18:00:00.000Z", updatedBy: "nour@example.com", note: null };
 const NEVER = { available: true, percent: null, updatedAt: null, updatedBy: null, note: null };
@@ -114,6 +121,8 @@ afterEach(() => {
   h.queries.clear();
   h.mutations.clear();
   h.answers.clear();
+  h.inputs.length = 0;
+  h.utilCalls.length = 0;
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
 });
@@ -133,7 +142,7 @@ describe("Tires: online tire activity strip", () => {
     expect(tile("Online orders").textContent).toMatch(/1 in 30 days/);
     expect(tile("Online orders").textContent).toMatch(/1 lifetime/);
     // The window the server counted, in New York dates.
-    expect(strip().getByText("Sep 25 to Oct 25")).toBeTruthy();
+    expect(strip().getByText("Sep 27 to Oct 26")).toBeTruthy();
     // Counts only, no stage percentages: the events are not one linked journey.
     expect(strip().queryByText(/%/)).toBeNull();
   });
@@ -142,7 +151,7 @@ describe("Tires: online tire activity strip", () => {
     setup();
     render(<TireOrdersSection />);
     expect(tile("Top picks chosen").textContent).toMatch(/^Top picks chosen0$/);
-    expect(strip().getByText("Sep 25 to Oct 25")).toBeTruthy();
+    expect(strip().getByText("Sep 27 to Oct 26")).toBeTruthy();
     expect(strip().queryByText("Not tracked")).toBeNull();
   });
 
@@ -296,6 +305,85 @@ describe("TireMarkupCard reads back the saved value before a save", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
     expect(h.mutations.get(SAVE)).toEqual([{ markup: 120 }]);
     expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Saved, but the new value couldn't be read back: unknown\./)).toBeTruthy();
+  });
+});
+
+describe("Tires: one shop-day window, Refresh, search (Codex round 2, PR 3293)", () => {
+  it("the range label reads the server's ET day key, not the from instant", () => {
+    // A from instant that disagrees with the key on purpose: the label must come from fromDayKey.
+    setup({ [ACTIVITY]: { data: { ...COUNTS, from: "2026-01-01T05:00:00.000Z" } } });
+    render(<TireOrdersSection />);
+    expect(strip().getByText("Sep 27 to Oct 26")).toBeTruthy();
+  });
+
+  it("online orders in the window count from the server's from instant, the same shop days as the events", () => {
+    // Window opens 10 days ago; the order is 20 days old: inside a client-side 30-day guess, outside the shop window.
+    const old = { ...INSTALLED, createdAt: new Date(Date.now() - 20 * 86_400_000).toISOString() };
+    setup({
+      [ACTIVITY]: { data: { ...COUNTS, from: new Date(Date.now() - 10 * 86_400_000).toISOString() } },
+      [LIST]: { data: { orders: [old], total: 1 } },
+    });
+    render(<TireOrdersSection />);
+    expect(tile("Online orders").textContent).toMatch(/^Online orders0 in 30 days/);
+  });
+
+  it.each([
+    ["answered unavailable", { data: { available: false, reason: "error", message: "The tire activity could not be read: timeout" } }],
+    ["threw", { isError: true, error: { message: "down" } }],
+  ])("while the activity read %s, the order count says window unavailable instead of counting another window", (_l, q) => {
+    setup({ [ACTIVITY]: q as Partial<Q> });
+    render(<TireOrdersSection />);
+    expect(tile("Online orders").textContent).toMatch(/window unavailable · 1 lifetime/);
+    expect(tile("Online orders").textContent).not.toMatch(/\d+ in 30 days/);
+  });
+
+  it("Refresh refetches the activity and invalidates the saved markup", () => {
+    const refetch = vi.fn();
+    setup({ [ACTIVITY]: { data: COUNTS, refetch } });
+    render(<TireOrdersSection />);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(refetch).toHaveBeenCalled();
+    expect(h.utilCalls).toContain("utils.gatewayTire.markup.invalidate");
+  });
+
+  it("the search box passes its text to listOrders, the server-backed search", () => {
+    setup();
+    render(<TireOrdersSection />);
+    fireEvent.change(screen.getByPlaceholderText("Search by name, phone, order #, size"), { target: { value: "2165550000" } });
+    const searched = h.inputs.filter(([p, i]) => p === LIST && (i as { search?: string } | undefined)?.search === "2165550000");
+    expect(searched.length).toBeGreaterThan(0);
+  });
+
+  it("at the 100-row cap the list says it shows the newest 100 and to search for an older order", () => {
+    const rows = Array.from({ length: 100 }, (_, i) => ({ ...INSTALLED, id: 1000 + i, orderNumber: `TO-20261020-${1000 + i}` }));
+    setup({ [LIST]: { data: { orders: rows, total: 140 } } });
+    render(<TireOrdersSection />);
+    expect(screen.getByText("Showing the newest 100; search to find an older order.")).toBeTruthy();
+  });
+
+  it("under the cap there is no cap line", () => {
+    setup();
+    render(<TireOrdersSection />);
+    expect(screen.queryByText(/Showing the newest 100/)).toBeNull();
+  });
+
+  it("a read-back that failed after a save clears once the re-read succeeds", async () => {
+    setup({ [MARKUP]: { data: SAVED, refetch: vi.fn().mockResolvedValue({ data: { ...SAVED, percent: 120 } }) } });
+    h.answers.set(SAVE, FAILED);
+    render(<TireMarkupCard />);
+    fireEvent.change(screen.getByLabelText("Markup percent"), { target: { value: "120" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(h.mutations.get(SAVE)).toEqual([{ markup: 120 }]);
+    await waitFor(() => expect(screen.queryByText(/Saved, but the new value couldn't be read back/)).toBeNull());
+  });
+
+  it("a read-back that still fails on the re-read keeps the error", async () => {
+    setup({ [MARKUP]: { data: SAVED, refetch: vi.fn().mockResolvedValue({ data: FAILED }) } });
+    h.answers.set(SAVE, FAILED);
+    render(<TireMarkupCard />);
+    fireEvent.change(screen.getByLabelText("Markup percent"), { target: { value: "120" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
     expect(await screen.findByText(/Saved, but the new value couldn't be read back: unknown\./)).toBeTruthy();
   });
 });
