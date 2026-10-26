@@ -377,7 +377,9 @@ Job 2026-10-26-always-on-hardening. Four pieces:
    fresh clone, a cloud session or another account is armed and the text never prints twice. The machine hook is a byte
    copy of the same file. Canary: `alwaysOnRearm.test.mjs` (configured command verbatim; two mutation arms).
 2. **Plugin skills in skill-recall.** `plugin-index.mjs` reads the enabled plugins from the harness's own files:
-   `~/.claude/plugins/installed_plugins.json` filtered by `~/.claude/settings.json` `enabledPlugins` (machine installs),
+   `~/.claude/plugins/installed_plugins.json` filtered by the effective `enabledPlugins` (user settings, then the
+   project's `.claude/settings.json` and `settings.local.json`, each overriding the last; `CLAUDE_CONFIG_DIR` honoured;
+   plugin.json `skills` dirs indexed beside `skills/`) (machine installs),
    and `~/.claude/plugins/synced/<organizationUuid>_<accountUuid>/<dir>` with an `.in_use` marker (claude.ai account
    plugins; ids from `~/.claude.json` `oauthAccount`). Skills and commands index as `plugin:slug`, the form the Skill tool
    resolves (proven 2026-10-26 with `agentic-council:advocate-a11y-audit`). This answers review round 3b (2026-10-16):
@@ -390,8 +392,10 @@ Job 2026-10-26-always-on-hardening. Four pieces:
    refreshes, from the repo: the two machine hooks, their `~/.claude/settings.json` registrations (found by script
    name, only the command string replaced), the always-on skills that have a repo copy, and the marked block in
    `~/.claude/CLAUDE.md`. It backs a file up to `~/.claude/bootstrap-backup/` before changing it; a second run changes
-   nothing; `--check` only reports. `find-skills` and `steal-like-an-artist` have no repo copy yet, so the script lists
-   them as machine-only. Canary: `bootstrapMachine.test.mjs`.
+   nothing; `--check` only reports. `find-skills` and `steal-like-an-artist` have no repo copy yet: the script cannot
+   install them and reads MISSING on a machine that lacks them. An existing machine SKILL.md keeps its own
+   `description:`. An always-on registration whose matcher misses a source reads DRIFT and is moved to a full group.
+   Every path honours `CLAUDE_CONFIG_DIR`. Canary: `bootstrapMachine.test.mjs`.
 4. **Health.** SessionStart startup runs `bootstrap-machine.mjs --check --hook`: one `[health] machine` line, on every
    host (session-health is host-gated), with `FIX FIRST:` naming the bootstrap command and, for each required plugin
    this account has not enabled, its enable line. Plugins are enabled per account by Nour; the line detects and

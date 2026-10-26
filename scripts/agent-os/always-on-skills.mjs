@@ -27,12 +27,20 @@ const SCOPED =
 
 const home = () => process.env.USERPROFILE || process.env.HOME || homedir();
 
-/** The machine hook counts only when ~/.claude/settings.json registers an always-on-skills.mjs that is not this repo
- * entry (no --repo) and the file it names exists: a dangling registration must not silence the repo re-arm. */
-export function machineHookPresent(h) {
+/** True when a SessionStart matcher fires on this source ("" and "*" fire on all). */
+export function matcherCovers(matcher, source) {
+  if (!matcher || matcher === "*") return true;
+  try { return new RegExp(`^(?:${matcher})$`).test(source); } catch { return false; }
+}
+
+/** The machine hook counts only when <config>/settings.json (CLAUDE_CONFIG_DIR, else ~/.claude) registers an
+ * always-on-skills.mjs that is not this repo entry (no --repo), in a group whose matcher fires on THIS source, and the
+ * file it names exists: a dangling or partial registration must not silence the repo re-arm (Codex 4380254400). */
+export function machineHookPresent(h, source = "startup") {
   try {
-    const s = JSON.parse(readFileSync(join(h, ".claude", "settings.json"), "utf8"));
-    return (s.hooks?.SessionStart ?? []).some((g) => (g.hooks ?? []).some((x) => {
+    const cfg = process.env.CLAUDE_CONFIG_DIR || join(h, ".claude");
+    const s = JSON.parse(readFileSync(join(cfg, "settings.json"), "utf8"));
+    return (s.hooks?.SessionStart ?? []).filter((g) => matcherCovers(g.matcher, source)).some((g) => (g.hooks ?? []).some((x) => {
       const cmd = String(x.command || "");
       if (!cmd.includes("always-on-skills.mjs") || cmd.includes("--repo")) return false;
       const file = /"([^"]*always-on-skills\.mjs)"|(\S*always-on-skills\.mjs)/.exec(cmd);
@@ -45,13 +53,13 @@ export function machineHookPresent(h) {
 
 function main(raw) {
   const repoMode = process.argv.includes("--repo");
-  if (repoMode && machineHookPresent(home())) return;
   let source = "startup";
   try {
     source = JSON.parse(raw).source || source;
   } catch {
     // no or bad stdin: treat as a fresh session
   }
+  if (repoMode && machineHookPresent(home(), source)) return;
   const list = SKILLS.join(", ");
   const lead =
     source === "compact"

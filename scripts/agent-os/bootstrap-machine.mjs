@@ -28,8 +28,8 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpat
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SKILLS } from "./always-on-skills.mjs";
-import { enabledPlugins, readRouting } from "./plugin-index.mjs";
+import { matcherCovers, SKILLS } from "./always-on-skills.mjs";
+import { configDir, enabledPlugins, readRouting } from "./plugin-index.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -71,7 +71,7 @@ export function keepDescription(repoBuf, machineBuf) {
 
 /** Every item as { label, state: ok|MISSING|DRIFT, apply() }. Nothing is written here. */
 export function plan(home) {
-  const claude = join(home, ".claude");
+  const claude = configDir(home); // CLAUDE_CONFIG_DIR when set (Codex 4380254412)
   const items = [];
   const backup = (file) => {
     if (!existsSync(file)) return;
@@ -93,7 +93,12 @@ export function plan(home) {
   const skillNames = [...new Set([...SKILLS.map((s) => s.split(" ")[0]), "antislop"])];
   for (const name of skillNames) {
     const src = join(REPO, ".claude", "skills", name);
-    if (!existsSync(join(src, "SKILL.md"))) { items.push({ label: `~/.claude/skills/${name} (no repo copy: machine-only)`, state: "ok", apply() {} }); continue; }
+    if (!existsSync(join(src, "SKILL.md"))) {
+      // No repo copy: the bootstrap cannot install it, so a machine without it reads MISSING, never ok (Codex 4380254390).
+      const have = existsSync(join(claude, "skills", name, "SKILL.md"));
+      items.push({ label: `~/.claude/skills/${name} (no repo copy: install it on this machine or vendor it into .claude/skills)`, state: have ? "ok" : "MISSING", manual: true, apply() {} });
+      continue;
+    }
     const pairs = filesUnder(src).map((f) => {
       const d = join(claude, "skills", name, relative(src, f));
       const want = /SKILL\.md$/.test(f) ? keepDescription(readFileSync(f), read(d)) : readFileSync(f);
@@ -109,7 +114,7 @@ export function plan(home) {
   // settings.json hook registrations.
   const settingsFile = join(claude, "settings.json");
   const wanted = [
-    { event: "SessionStart", matcher: "startup|resume|clear|compact", key: "always-on-skills.mjs", command: `node "${fwd(join(claude, "hooks", "always-on-skills.mjs"))}"` },
+    { event: "SessionStart", matcher: "startup|resume|clear|compact", sources: ["startup", "resume", "clear", "compact"], key: "always-on-skills.mjs", command: `node "${fwd(join(claude, "hooks", "always-on-skills.mjs"))}"` },
     { event: "UserPromptSubmit", matcher: "", key: "find-skills-turn.mjs", command: `node "${fwd(join(claude, "hooks", "find-skills-turn.mjs"))}"`, timeout: 5 },
     { event: "UserPromptSubmit", matcher: "", key: "skill-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "skill-recall.mjs"))}" --scope global` },
   ];
@@ -123,16 +128,26 @@ export function plan(home) {
   for (const w of wanted) {
     const label = `~/.claude/settings.json ${w.event} ${w.key}`;
     if (settingsErr) { items.push({ label: `${label} (${settingsErr})`, state: "DRIFT", apply() { throw new Error(settingsErr); } }); continue; }
-    const hooks = (settings.hooks?.[w.event] ?? []).flatMap((g) => g.hooks ?? []);
-    const found = hooks.find((h) => String(h.command || "").includes(w.key) && !String(h.command).includes("--repo"));
-    const state = !found ? "MISSING" : found.command === w.command ? "ok" : "DRIFT";
-    items.push({ label, state, apply() {
+    const isOurs = (h) => String(h.command || "").includes(w.key) && !String(h.command).includes("--repo");
+    const locate = (s) => { for (const g of s.hooks?.[w.event] ?? []) { const h = (g.hooks ?? []).find(isOurs); if (h) return { g, h }; } return null; };
+    // A registration whose group matcher misses one of the sources is partial: the repo hook re-arms only the sources
+    // it misses, so --check says DRIFT and apply moves the hook to a full group (Codex 4380254400).
+    const covers = (g) => !w.sources || w.sources.every((src) => matcherCovers(g.matcher, src));
+    const found = locate(settings);
+    const state = !found ? "MISSING" : found.h.command === w.command && covers(found.g) ? "ok" : "DRIFT";
+    items.push({ label: found && !covers(found.g) ? `${label} (matcher "${found.g.matcher}" is partial)` : label, state, apply() {
       const s = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, "utf8")) : {};
       s.hooks ??= {};
       s.hooks[w.event] ??= [];
-      const hit = s.hooks[w.event].flatMap((g) => g.hooks ?? []).find((h) => String(h.command || "").includes(w.key) && !String(h.command).includes("--repo"));
-      if (hit) hit.command = w.command;
-      else s.hooks[w.event].push({ matcher: w.matcher, hooks: [{ type: "command", command: w.command, timeout: w.timeout ?? 10 }] });
+      const hit = locate(s);
+      if (hit && covers(hit.g)) hit.h.command = w.command;
+      else {
+        if (hit) {
+          hit.g.hooks = hit.g.hooks.filter((h) => h !== hit.h);
+          s.hooks[w.event] = s.hooks[w.event].filter((g) => (g.hooks ?? []).length);
+        }
+        s.hooks[w.event].push({ matcher: w.matcher, hooks: [{ type: "command", command: w.command, timeout: w.timeout ?? 10 }] });
+      }
       backup(settingsFile);
       mkdirSync(claude, { recursive: true });
       writeFileSync(settingsFile, `${JSON.stringify(s, null, 2)}\n`);
@@ -160,7 +175,7 @@ export function plan(home) {
 
 /** Required plugins this account or machine has not enabled. */
 export function missingPlugins(home, routing) {
-  const { plugins } = enabledPlugins(home);
+  const { plugins } = enabledPlugins(home, resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd()));
   const have = new Set(plugins.map((p) => p.name));
   return (routing.required ?? []).filter((p) => !have.has(p.name));
 }
@@ -192,6 +207,7 @@ function main() {
   }
   for (const x of items) {
     if (x.state === "ok") { process.stdout.write(`[bootstrap] ok        ${x.label}\n`); continue; }
+    if (x.manual) { process.stdout.write(`[bootstrap] MISSING   ${x.label}\n`); continue; }
     x.apply();
     process.stdout.write(`[bootstrap] ${x.state === "MISSING" ? "installed" : "updated  "} ${x.label}\n`);
   }

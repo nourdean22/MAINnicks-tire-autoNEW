@@ -92,7 +92,8 @@ function repoRoot() {
  * user skill got REPO_BOOST and reported kind "repo"). */
 function skillRoots(root) {
   const repoDir = join(root, ".claude", "skills");
-  const userDir = join(homedir(), ".claude", "skills");
+  // CLAUDE_CONFIG_DIR moves the user skill root with the rest of the config (Codex 4380254412).
+  const userDir = join(process.env.CLAUDE_CONFIG_DIR ? resolve(process.env.CLAUDE_CONFIG_DIR) : join(homedir(), ".claude"), "skills");
   const roots = [{ kind: "user", dir: userDir }];
   if (resolve(repoDir) !== resolve(userDir)) roots.unshift({ kind: "repo", dir: repoDir });
   return roots.filter((r) => existsSync(r.dir));
@@ -167,7 +168,7 @@ function pluginSource() {
   if (!pluginIndex) return { files: [], triggers: {}, warning: pluginIndexError };
   try {
     const routing = pluginIndex.readRouting(join(dirname(fileURLToPath(import.meta.url)), "..", ".."));
-    const { files, warnings } = pluginIndex.pluginSkillFiles(process.env.USERPROFILE || process.env.HOME || homedir(), routing);
+    const { files, warnings } = pluginIndex.pluginSkillFiles(process.env.USERPROFILE || process.env.HOME || homedir(), routing, repoRoot());
     return { files, triggers: routing.triggers ?? {}, warning: warnings.join("; ") };
   } catch (err) {
     return { files: [], triggers: {}, warning: String(err?.message || err).split(/\r?\n/)[0] };

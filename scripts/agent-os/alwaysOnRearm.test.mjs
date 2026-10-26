@@ -91,6 +91,26 @@ test("machine hook registered but its file is gone: the repo hook still re-arms"
   assert.ok(armsStartup(runConfigured("startup", DANGLING).out));
 });
 
+test("a machine hook registered for startup only: the repo hook is silent on startup and re-arms on resume, clear and compact (Codex 4380254400)", () => {
+  const home = join(SCRATCH, "startup-only");
+  const hookFile = join(home, ".claude", "hooks", "always-on-skills.mjs").replaceAll("\\", "/");
+  write(hookFile, readFileSync(SCRIPT, "utf8"));
+  write(join(home, ".claude", "settings.json"), JSON.stringify({ hooks: { SessionStart: [{ matcher: "startup",
+    hooks: [{ type: "command", command: `node "${hookFile}"` }] }] } }));
+  assert.ok(silentWithMachine(runConfigured("startup", home).out));
+  for (const s of ["resume", "clear", "compact"]) assert.ok(context(runConfigured(s, home).out).startsWith("[always-on skills]"), s);
+});
+
+test("CLAUDE_CONFIG_DIR: the machine registration is read from the config dir, not ~/.claude (Codex 4380254412)", () => {
+  const empty = join(SCRATCH, "cfg-home");
+  mkdirSync(empty, { recursive: true });
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, HOME: empty, USERPROFILE: empty, CLAUDE_CONFIG_DIR: join(REGISTERED, ".claude") };
+  const cmd = configured()[0].hooks.find((h) => h.command.includes("always-on-skills.mjs")).command;
+  const r = spawnSync(process.platform === "win32" ? cmd.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : cmd, { shell: process.platform === "win32" ? true : "/bin/sh",
+    input: JSON.stringify({ source: "startup" }), encoding: "utf8", cwd: ROOT, env });
+  assert.ok(silentWithMachine(r.stdout), `printed although the config dir registers the machine hook:\n${r.stdout}`);
+});
+
 test("the machine copy (no --repo) always prints: bootstrap installs this same file", () => {
   const r = runCommand(`node "${SCRIPT}"`, "startup", REGISTERED);
   assert.ok(armsStartup(r.out), r.out);
@@ -113,7 +133,7 @@ function mutant(label, from, to) {
 }
 
 test("MUTANT the silence check removed: the never-twice control goes red", () => {
-  const file = mutant("no-silence", "if (repoMode && machineHookPresent(home())) return;", "");
+  const file = mutant("no-silence", "if (repoMode && machineHookPresent(home(), source)) return;", "");
   assert.ok(!silentWithMachine(runCommand(`node "${file}" --repo`, "startup", REGISTERED).out));
 });
 

@@ -60,6 +60,12 @@ function makeHome(label, broken) {
   const cal = join(cache, "calendar-tools", "1.0.0");
   manifest(cal, "calendar-tools");
   skill(cal, "calendar-sync", "Sync a Google calendar into a project board.");
+  // Codex 4380254418: skill dirs declared in plugin.json `skills` (a container of <slug>/SKILL.md, or one skill dir),
+  // the shape planetscale ships (["./database-skills/skills", "./planetscale-skills"]).
+  const dec = join(cache, "declared-kit", "1.0.0");
+  write(join(dec, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "declared-kit", skills: ["./extra/skills", "./single-skill"] }));
+  write(join(dec, "extra", "skills", "from-container", "SKILL.md"), "---\nname: from-container\ndescription: \"declared container skill\"\n---\n");
+  write(join(dec, "single-skill", "SKILL.md"), "---\nname: single-skill\ndescription: \"declared single skill\"\n---\n");
   const off = join(cache, "nightvision", "1.0.0"); // installed, enabledPlugins false: never indexed
   manifest(off, "nightvision");
   skill(off, "app-security-scan", BAIT);
@@ -75,6 +81,7 @@ function makeHome(label, broken) {
       "zapier@claude-plugins-official": [{ scope: "user", installPath: zap, version: "1.0.0" }],
       "calendar-tools@claude-plugins-official": [{ scope: "user", installPath: cal, version: "1.0.0" }],
       "proxy-kit@claude-plugins-official": [{ scope: "user", installPath: prx, version: "1.0.0" }],
+      "declared-kit@claude-plugins-official": [{ scope: "user", installPath: dec, version: "1.0.0" }],
       "nightvision@claude-plugins-official": [{ scope: "user", installPath: off, version: "1.0.0" }],
       "zoominfo@claude-plugins-official": [{ scope: "user", installPath: rej, version: "1.0.0" }],
       ...(broken === "missing-cache" ? { "gone@claude-plugins-official": [{ scope: "user", installPath: join(cache, "gone", "9.9.9") }] } : {}),
@@ -82,7 +89,7 @@ function makeHome(label, broken) {
   };
   write(join(plugins, "installed_plugins.json"), broken === "bad-json" ? "{ not json" : JSON.stringify(installed));
   write(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: {
-    "claude-security@claude-plugins-official": true, "atlassian@claude-plugins-official": true, "project-artifact@claude-plugins-official": true, "zapier@claude-plugins-official": true, "calendar-tools@claude-plugins-official": true, "proxy-kit@claude-plugins-official": true, "nightvision@claude-plugins-official": false,
+    "claude-security@claude-plugins-official": true, "atlassian@claude-plugins-official": true, "project-artifact@claude-plugins-official": true, "zapier@claude-plugins-official": true, "calendar-tools@claude-plugins-official": true, "proxy-kit@claude-plugins-official": true, "declared-kit@claude-plugins-official": true, "nightvision@claude-plugins-official": false,
     "zoominfo@claude-plugins-official": true, ...(broken === "missing-cache" ? { "gone@claude-plugins-official": true } : {}),
   } }));
   write(join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "acct-1", organizationUuid: "org-1" } }));
@@ -151,6 +158,30 @@ function indexNames(home, label) {
 test("the index holds the enabled plugins of this account by plugin:slug, skills and commands", () => {
   const names = indexNames(HOME, "ok");
   for (const n of ["claude-security:claude-security", "claude-security:scan", "agentic-council:architect-api-design", "agentic-council:brainstorm"]) assert.ok(names.includes(n), n);
+});
+
+test("skill dirs declared in plugin.json `skills` are indexed, container and single-dir forms (Codex 4380254418)", () => {
+  const names = indexNames(HOME, "ok");
+  for (const n of ["declared-kit:from-container", "declared-kit:single-skill"]) assert.ok(names.includes(n), n);
+});
+
+test("enabledPlugins is the effective map: project settings.json and settings.local.json override the user file (Codex 4380254379)", () => {
+  const project = join(SCRATCH, "project-override");
+  write(join(project, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "nightvision@claude-plugins-official": true } }));
+  write(join(project, ".claude", "settings.local.json"), JSON.stringify({ enabledPlugins: { "claude-security@claude-plugins-official": false } }));
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: project, HOME, USERPROFILE: HOME, SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-project-override") };
+  const r = spawnSync(process.execPath, [join(HERE, "skill-recall.mjs"), "--json", "--text", "probe"], { encoding: "utf8", cwd: project, env });
+  const names = JSON.parse(r.stdout).index.names;
+  assert.ok(names.includes("nightvision:app-security-scan"), "a plugin the project enables must be indexed");
+  assert.ok(!names.some((n) => n.startsWith("claude-security:")), "a plugin settings.local.json disables must not be indexed");
+});
+
+test("CLAUDE_CONFIG_DIR moves every plugin path: the fixture's .claude tree read through the env var (Codex 4380254412)", () => {
+  const empty = join(SCRATCH, "empty-home");
+  mkdirSync(empty, { recursive: true });
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, HOME: empty, USERPROFILE: empty, CLAUDE_CONFIG_DIR: join(HOME, ".claude"), SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-config-dir") };
+  const r = spawnSync(process.execPath, [join(HERE, "skill-recall.mjs"), "--json", "--text", "probe"], { encoding: "utf8", cwd: ROOT, env });
+  assert.ok(JSON.parse(r.stdout).index.names.includes("claude-security:claude-security"), r.stdout.slice(0, 300));
 });
 
 test("disabled, rejected, not-in-use and other-account plugins are not in the index at all", () => {
