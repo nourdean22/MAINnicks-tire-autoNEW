@@ -14,7 +14,7 @@
  *   2. drizzle/0146 APPENDS 'skipped' (append-only, like 0136) and schema.ts
  *      carries the same list; the admin Run-Migrations list re-asserts it and
  *      migrationListGuards.test.ts pins that copy to schema.ts;
- *   3. the router reads through dbTyped(), so the compiler owns this from now on.
+ *   3. (retired 2026-10-25: the Cancel router was deleted with the booking follow-up lane.)
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -37,25 +37,29 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Every `status: "<literal>"` inside an update/insert that targets customerNotifications. */
-function statusLiteralsWritten(): Array<{ file: string; value: string }> {
+/** Every `status: "<literal>"` inside an update/insert on customerNotifications in one source text. */
+function literalsIn(file: string, src: string): Array<{ file: string; value: string }> {
   const hits: Array<{ file: string; value: string }> = [];
-  for (const file of walk(SERVER)) {
-    const src = readFileSync(file, "utf8");
-    if (!src.includes("customerNotifications")) continue;
-    const re = /\.(?:update|insert)\(customerNotifications\)[\s\S]{0,400}?status:\s*"([a-z_]+)"/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(src))) hits.push({ file: file.replace(/\\/g, "/"), value: m[1] });
-  }
+  if (!src.includes("customerNotifications")) return hits;
+  const re = /\.(?:update|insert)\(customerNotifications\)[\s\S]{0,400}?status:\s*"([a-z_]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) hits.push({ file: file.replace(/\\/g, "/"), value: m[1] });
   return hits;
+}
+
+function statusLiteralsWritten(): Array<{ file: string; value: string }> {
+  return walk(SERVER).flatMap((file) => literalsIn(file, readFileSync(file, "utf8")));
 }
 
 describe("customer_notifications.status · every written value is a member of the ENUM", () => {
   const written = statusLiteralsWritten();
 
-  it("canary: the scan sees the Cancel writer (an empty scan would pass vacuously)", () => {
-    expect(written.some((h) => h.file.endsWith("routers/admin/followUps.ts") && h.value === "skipped")).toBe(true);
-    expect(written.length).toBeGreaterThanOrEqual(3); // skipped + sent + failed
+  // 2026-10-25: the Cancel/Retry router and the booking follow-up runner were deleted, and the
+  // writer left (db.ts markNotificationSent) sets a typed const, so the live scan can be empty.
+  // A planted writer proves the scan still finds a literal (an empty scan would pass vacuously).
+  it("canary: the scan finds a planted literal writer", () => {
+    const planted = literalsIn("planted.ts", 'await d.update(customerNotifications)\n  .set({ status: "skipped" })');
+    expect(planted).toEqual([{ file: "planted.ts", value: "skipped" }]);
   });
 
   it("each literal is in customerNotifications.status.enumValues", () => {
@@ -93,13 +97,5 @@ describe("0146 · 'skipped' is appended, never inserted", () => {
     expect(src).toContain(
       "ALTER TABLE customer_notifications MODIFY COLUMN status ENUM('pending','sent','failed','skipped') NOT NULL DEFAULT 'pending'",
     );
-  });
-});
-
-describe("the type leak is closed", () => {
-  it("followUps.ts reads the DB through dbTyped(), so .set() is checked against the ENUM", () => {
-    const src = readFileSync(join(__dirname, "routers/admin/followUps.ts"), "utf8");
-    expect(src).toMatch(/import \{ dbTyped \} from "\.\.\/\.\.\/lib\/db-helper"/);
-    expect(src).not.toMatch(/\bawait db\(\)/);
   });
 });

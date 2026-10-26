@@ -115,7 +115,8 @@ describe("an OR chain inside and() must be parenthesised", () => {
     // The opt-out guard must be followed by an OPEN paren before the first EXISTS,
     // and the chain must close with a matching one. A future edit that drops either
     // silently reinstates a consent defect, so it is pinned as text.
-    expect(source).toMatch(/eq\(customers\.smsOptOut, 0\),[\s\S]{0,600}sql`\(EXISTS \(/);
+    // 2026-10-25: the guard is the canonical campaignEligiblePhoneSql, not the bare smsOptOut flag.
+    expect(source).toMatch(/campaignEligiblePhoneSql,[\s\S]{0,600}sql`\(EXISTS \(/);
     expect(source).toContain("))`");
   });
 });

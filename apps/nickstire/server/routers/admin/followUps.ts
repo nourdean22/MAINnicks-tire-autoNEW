@@ -1,134 +1,26 @@
 /**
- * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
+ * RETIRED 2026-10-26 (PR 3294); delete after 2026-11-09 once old bundles have reloaded.
+ *
+ * The booking follow-up lane (server/follow-ups.ts) is gone: no cron ran it and bookings are
+ * rare at a walk-in shop; the post-visit and review texts key to invoices on their own lanes.
+ * An installed PWA on the old bundle keeps polling followUps.pending / followUps.recent until
+ * it reloads (client/public/sw.js is static), so this adapter answers instead of NOT_FOUND:
+ * empty lists for the reads, a reload message for the actions. Nothing here reads or writes.
  */
-import { adminProcedure, router } from "../../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
-import { and, eq, ne, desc } from "drizzle-orm";
-import { customerNotifications } from "../../../drizzle/schema";
+import { adminProcedure, router } from "../../_core/trpc";
 
-// dbTyped, not db(): db() returns an untyped (any) instance, which is how `status: "skipped"`
-// compiled for a year against an ENUM that did not have it (0146). The typed instance makes
-// .set() a compile error the next time a writer and the schema disagree.
-import { dbTyped } from "../../lib/db-helper";
-
-
+const retired = () => {
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message: "The booking follow-ups lane was retired on 2026-10-26; reload the admin.",
+  });
+};
 
 export const followUpsRouter = router({
-  run: adminProcedure.mutation(async () => {
-    const { runFollowUps } = await import("../../follow-ups");
-    return runFollowUps();
-  }),
-  pending: adminProcedure.query(async () => {
-    const d = await dbTyped();
-    if (!d) return [];
-    return d.select().from(customerNotifications)
-      .where(eq(customerNotifications.status, "pending"))
-      .orderBy(desc(customerNotifications.createdAt))
-      .limit(50);
-  }),
-  recent: adminProcedure.query(async () => {
-    const d = await dbTyped();
-    if (!d) return [];
-    // Exclude status='pending' — those rows are already shown in the
-    // `pending` query above. Without this filter, when total rows < 50
-    // the operator sees every pending item twice (once in PENDING, once
-    // in RECENT). `recent` is the sent/failed/skipped history list.
-    return d.select().from(customerNotifications)
-      .where(ne(customerNotifications.status, "pending"))
-      .orderBy(desc(customerNotifications.createdAt))
-      .limit(50);
-  }),
-  // wave-115 — per-item cancel: marks a pending follow-up as "skipped"
-  // so it never sends. Useful when the customer already called back or
-  // the booking was canceled.
-  cancel: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await dbTyped();
-      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [existing] = await d.select().from(customerNotifications)
-        .where(eq(customerNotifications.id, input.id)).limit(1);
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
-      }
-      const notPending = (status: string) =>
-        new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `Can only cancel pending follow-ups (this one is "${status}")`,
-        });
-      if (existing.status !== "pending") throw notPending(existing.status);
-      // Compare-and-swap: a send that lands between the read above and this write
-      // must win, never be overwritten to 'skipped' (followUpCancelRace.test.ts).
-      const result = await d.update(customerNotifications)
-        .set({ status: "skipped" })
-        .where(and(eq(customerNotifications.id, input.id), eq(customerNotifications.status, "pending")));
-      const header = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
-      if ((header?.affectedRows ?? 0) === 0) {
-        const [current] = await d.select().from(customerNotifications)
-          .where(eq(customerNotifications.id, input.id)).limit(1);
-        if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
-        throw notPending(current.status);
-      }
-      return { ok: true as const, id: input.id };
-    }),
-  /**
-   * Per-item retry of a "failed" follow-up.
-   *
-   * wave-115 flipped the row back to "pending" for "the next runFollowUps()
-   * to pick up" — but runFollowUps selects BOOKINGS by their followUp flags
-   * (already 1 by then) and nothing else drains pending notification rows,
-   * so a retried row sat "pending" forever while the operator's toast said
-   * "requeued" (self-review on PR #2063). The retry now SENDS, and the row
-   * records what happened.
-   */
-  retry: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input, ctx }) => {
-      const d = await dbTyped();
-      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [existing] = await d.select().from(customerNotifications)
-        .where(eq(customerNotifications.id, input.id)).limit(1);
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
-      }
-      if (existing.status !== "failed") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `Can only retry failed follow-ups (this one is "${existing.status}")`,
-        });
-      }
-      if (!existing.recipientPhone) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No phone on file for this follow-up — call or text the customer manually",
-        });
-      }
-      const { sendSms } = await import("../../sms");
-      const { smsOutcome, smsClaimConsumed } = await import("../../lib/smsOutcome");
-      const result = await sendSms(existing.recipientPhone, existing.message, {
-        via: "shop",
-        // A review request is marketing-class (quiet hours apply); a thank-you is a follow-up.
-        messageClass: existing.notificationType === "review_request" ? "customer_marketing" : "customer_followup",
-        humanInitiated: true,
-      });
-      const outcome = smsOutcome(result);
-      if (smsClaimConsumed(result)) {
-        // The status enum is pending/sent/failed: a queued or uncertain text
-        // is recorded as sent (it must not be retried); the outcome goes back
-        // to the operator verbatim.
-        await d.update(customerNotifications)
-          .set({ status: "sent", sentAt: new Date() })
-          .where(eq(customerNotifications.id, input.id));
-      }
-      const { logAdminAction } = await import("../../services/auditTrail");
-      logAdminAction({
-        action: outcome === "queued" ? "customer.sms_queued" : outcome === "failed" ? "customer.sms_failed" : "customer.sms_sent",
-        entityType: "customer_notification",
-        entityId: String(input.id),
-        details: `Follow-up retry (${existing.notificationType}) → ${outcome}`,
-        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
-      }).catch(() => { /* audit must never block the retry */ });
-      return { ok: outcome !== "failed", id: input.id, outcome, error: outcome === "failed" ? result.error ?? "send_failed" : undefined };
-    }),
+  pending: adminProcedure.query(() => [] as never[]),
+  recent: adminProcedure.query(() => [] as never[]),
+  run: adminProcedure.mutation(retired),
+  cancel: adminProcedure.mutation(retired),
+  retry: adminProcedure.mutation(retired),
 });
