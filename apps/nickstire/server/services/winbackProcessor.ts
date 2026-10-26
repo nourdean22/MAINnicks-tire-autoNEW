@@ -41,6 +41,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     if (!db) return { recordsProcessed: 0, details: "No DB" };
 
     const { sql } = await import("drizzle-orm");
+    const { customerCampaignEligibleSql } = await import("../lib/sms-eligibility");
 
     // Check if winback tables exist
     let hasTable = false;
@@ -78,6 +79,16 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     }
 
     const { sendSms } = await import("../sms");
+    // sendSms's own gate that the SQL predicate cannot see (suppression index, and
+    // the opt-in index under SMS_CONSENT_GATE=enforce). Unloadable = hold the drain:
+    // nothing claimed, rows stay pending, the next run retries.
+    const { loadSendGate, sendGateRefusal } = await import("../lib/sms-eligibility");
+    const gate = await loadSendGate();
+    if (!gate.ok) {
+      log.warn("[winbackProcessor] suppression list unavailable, held pending", { reason: gate.reason });
+      return { recordsProcessed: 0, details: `suppression list unavailable (${gate.reason}) — held pending` };
+    }
+    const { affectedRowCount } = await import("../lib/db-affected");
     let sent = 0;
     let queued = 0; // parked for the 8 AM window (audit F-3)
     let heldOut = 0;
@@ -94,19 +105,21 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         continue;
       }
 
-      // Opt-out guard — winback_sends carries customerId, so resolve
-      // opt-out by exact id (no fuzzy phone match). Opted-out rows are
-      // marked 'failed' so they leave the 'pending' pool permanently.
-      const [optRows] = await db.execute(sql`
-        SELECT smsOptOut FROM customers WHERE id = ${send.customerId} LIMIT 1
-      `);
-      const optedOut = !!((optRows as unknown as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
-      if (optedOut) {
-        await db.execute(sql`
-          UPDATE winback_sends SET status = 'failed', errorMessage = 'customer opted out of SMS'
+      // Opt-out guard — winback_sends carries customerId, so resolve it by
+      // exact id against the canonical predicate (customers.smsOptOut,
+      // sms_preferences, inbound STOP). Ineligible rows are marked 'failed'
+      // so they leave the 'pending' pool permanently.
+      const [eligibleRows] = await db.execute(customerCampaignEligibleSql(send.customerId));
+      const refusal = (eligibleRows as unknown as unknown[]).length === 0
+        ? "customer opted out of SMS"
+        : sendGateRefusal(gate, String(send.phone));
+      if (refusal) {
+        const failRes = await db.execute(sql`
+          UPDATE winback_sends SET status = 'failed', errorMessage = ${refusal}
           WHERE id = ${send.id} AND status = 'pending'
         `);
-        skipped++;
+        // 0 rows: an overlapping drain changed this row first; it counts there.
+        if (affectedRowCount(failRes) > 0) skipped++;
         continue;
       }
 

@@ -5,7 +5,8 @@
  * "Follow-Up Report: 1 sent · 1 queued · 4 failed". apps/nickstire/.env (copied into every
  * worktree) carries TELEGRAM_BOT_TOKEN, and railway run injects it too, so any real code path that
  * reaches sendTelegram posted to api.telegram.org. The fix is vitest.config.ts `test.env`; these
- * tests drive the two real paths that leaked and fail if a token ever reaches the test process.
+ * tests drive the real path that leaked and fail if a token ever reaches the test process (the
+ * follow-up report path was deleted on main by PR 3294, so its two cases went with it).
  *
  * Each "blocked" case has a positive control: the same path DOES fetch Telegram once the test
  * itself supplies a token, so a green "no fetch" is not a path that never ran.
@@ -38,30 +39,15 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  // singleFork: a stubbed fetch or env left behind here reaches the next test file (telegramClassMute went 11 red).
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("the vitest process carries no Telegram credentials", () => {
   it("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are empty, whatever the parent shell or .env held", () => {
     expect(process.env.TELEGRAM_BOT_TOKEN ?? "").toBe("");
     expect(process.env.TELEGRAM_CHAT_ID ?? "").toBe("");
-  });
-});
-
-describe("follow-up owner report", () => {
-  it("does not reach api.telegram.org from a test run", async () => {
-    const { reportFollowUpsToOwner } = await import("../follow-ups");
-    await reportFollowUpsToOwner("Follow-Up Report: 1 sent · 1 queued · 4 failed", "fixture");
-    await flush();
-    expect(telegramCalls()).toEqual([]);
-  });
-
-  it("positive control: with a token supplied by the test, the same call does fetch Telegram", async () => {
-    vi.stubEnv("TELEGRAM_BOT_TOKEN", "control-token");
-    vi.stubEnv("TELEGRAM_CHAT_ID", "control-chat");
-    const { reportFollowUpsToOwner } = await import("../follow-ups");
-    await reportFollowUpsToOwner("Follow-Up Report: 1 sent · 1 queued · 4 failed", "fixture");
-    await flush();
-    expect(telegramCalls().length).toBeGreaterThan(0);
   });
 });
 

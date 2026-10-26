@@ -4,8 +4,7 @@
  *
  * - markNotificationSent: the send HAPPENED, so the row ends 'sent' even over
  *   'skipped', and overwriting a 'skipped' logs followup.cancel_lost_race.
- * - markNotificationFailed: compare-and-swap on 'pending'; a failed send after a
- *   Cancel leaves 'skipped' (nothing went out, the operator's choice stands).
+ * (markNotificationFailed went with the booking follow-up lane, 2026-10-25: its only caller.)
  *
  * No real database: mysql2 and drizzle are mocked, and the fake evaluates the
  * UPDATE's real WHERE clause rendered by drizzle's MySqlDialect.
@@ -41,7 +40,7 @@ vi.mock("drizzle-orm/mysql2", () => ({ drizzle: () => fakeDb }));
 
 // stubEnv, not a bare assignment: process.env is shared with every other test file in this worker.
 vi.stubEnv("DATABASE_URL", "mysql://test:test@127.0.0.1:1/never");
-const { markNotificationSent, markNotificationFailed, resetDbConnection, getDb } = await import("./db");
+const { markNotificationSent, resetDbConnection, getDb } = await import("./db");
 // Build the (mocked) singleton now: the config unstubs env before each test, and getDb is lazy.
 await getDb();
 
@@ -68,17 +67,5 @@ describe("markNotificationSent records the truth: the text went out", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toBe("followup.cancel_lost_race");
     expect(warn.mock.calls[0][1]).toMatchObject({ notificationId: 7 });
-  });
-});
-
-describe("markNotificationFailed is a compare-and-swap", () => {
-  it("pending -> failed", async () => {
-    await expect(markNotificationFailed(7)).resolves.toMatchObject({ success: true, changed: true });
-    expect(store.row.status).toBe("failed");
-  });
-  it("an operator's 'skipped' is never overwritten by a late failure", async () => {
-    store.row.status = "skipped";
-    await expect(markNotificationFailed(7)).resolves.toMatchObject({ changed: false });
-    expect(store.row.status).toBe("skipped");
   });
 });

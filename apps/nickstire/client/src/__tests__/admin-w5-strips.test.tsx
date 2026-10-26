@@ -5,7 +5,7 @@
  * are sentence case. Deep links (?outreachTab=, ?growthTab=, ?settingsTab=, ?tab=, ?igview=) must
  * resolve exactly as before: tab ids and query keys are unchanged.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
@@ -44,9 +44,15 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: vi.fn(async 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin" }, loading: false }) }));
 
 // Outreach and Settings tab bodies are not under test.
-for (const p of ["SmsSection", "CampaignsSection", "FollowUpsSection", "ReviewRequestsSection", "WinBackSection", "SmsPerformanceSection"]) {
+const OUTREACH_BODIES = ["SmsSection", "CampaignsSection", "ReviewRequestsSection", "WinBackSection", "SmsPerformanceSection"];
+for (const p of OUTREACH_BODIES) {
   vi.doMock(`@/pages/admin/outreach/${p}`, () => ({ default: h.Null }));
 }
+// doMocks are NOT file-scoped in this single-process suite (apps/nickstire/AGENTS.md section 3).
+// afterAll, not afterEach: the deep-link test lazily loads these bodies after the first tests ran.
+afterAll(() => {
+  for (const p of OUTREACH_BODIES) vi.doUnmock(`@/pages/admin/outreach/${p}`);
+});
 vi.mock("@/pages/admin/outreach/OutreachBrief", () => ({ OutreachBrief: h.Null }));
 vi.mock("@/components/admin/GatewayPill", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/outreach/AutonomyCensusPanel", () => ({ default: h.Null }));
@@ -92,9 +98,10 @@ const isActive = (b: HTMLElement) => /text-primary-foreground|\bborder-primary\b
 const activeName = (buttons: HTMLElement[]) => names(buttons.filter(isActive))[0];
 
 describe("Outreach strip", () => {
-  it("the daily tabs come first: Messages, Follow-Ups, Reviews, Win-Back, then the rest", () => {
+  // 2026-10-25 · Follow-Ups removed with its unscheduled booking lane (job 2026-10-25-admin-tabs-outreach).
+  it("the daily tabs come first: Messages, Reviews, Win-Back, then the rest", () => {
     render(<OutreachHubSection />);
-    expect(names(strip("Messages").buttons)).toEqual(["Messages", "Follow-Ups", "Reviews", "Win-Back", "Campaigns", "Performance", "Orchestrator"]);
+    expect(names(strip("Messages").buttons)).toEqual(["Messages", "Reviews", "Win-Back", "Campaigns", "Performance", "Orchestrator"]);
   });
 
   it("is one horizontally scrolling strip with 48 px targets", () => {
@@ -106,7 +113,7 @@ describe("Outreach strip", () => {
 
   it("deep links still resolve: every ?outreachTab= id and the reengage aliases", () => {
     const expected: Record<string, string> = {
-      sms: "Messages", campaigns: "Campaigns", followups: "Follow-Ups", reviews: "Reviews", winback: "Win-Back",
+      sms: "Messages", campaigns: "Campaigns", followups: "Messages", reviews: "Reviews", winback: "Win-Back",
       performance: "Performance", orchestrator: "Orchestrator", reengage: "Win-Back", reengagement: "Win-Back", "re-engagement": "Win-Back",
     };
     for (const [id, label] of Object.entries(expected)) {

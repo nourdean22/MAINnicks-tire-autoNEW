@@ -53,7 +53,9 @@ const OUTBOUND_COUNT = 4;
 // panel (two confirms) with their surfaces; no customer copy moved.
 // 25 since 2026-10-25: the Sales Pipeline leads list dropped its Reopen and Delete confirms with the
 // row buttons (a status select replaces them); no customer copy moved.
-const CHROME_COUNT = 25;
+// 24 since 2026-10-25: Outreach's Follow-Ups tab was deleted with its booking lane (its "Cancel follow-up?"
+// confirm went with it); no customer copy moved.
+const CHROME_COUNT = 24;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [
