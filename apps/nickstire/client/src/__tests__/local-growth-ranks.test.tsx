@@ -97,7 +97,7 @@ describe("Local Growth: Search position per tracked keyword", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Recorded impressions only: Google hides most query impressions, so a blank keyword is unmeasured, not unranked. Site total this window: 57,361 impressions across 5,897 queries.",
+        "Recorded impressions only: Google hides most query impressions, so a blank keyword is unmeasured, not unranked. Recorded this window (partial): 57,361 impressions across 5,897 queries.",
       ),
     ).toBeTruthy();
     const text = container.textContent ?? "";
