@@ -57,7 +57,13 @@ const handle: { current: Actions | null } = { current: null };
 // Read through a getter so a stale capture cannot be called by mistake.
 const actions = new Proxy({} as Actions, { get: (_t, key) => (handle.current as Actions)[key as keyof Actions] });
 function Harness() {
-  const a = useMissionActions({ tasks: [], missions: [{ id: "m1", title: "HEALTH", status: "ACTIVE" } as never] });
+  const a = useMissionActions({
+    tasks: [],
+    missions: [
+      { id: "m1", title: "HEALTH", status: "ACTIVE" } as never,
+      { id: "m-anchor", title: "GENERAL PERSONAL & HOME", status: "ACTIVE", systemKind: "GENERAL" } as never,
+    ],
+  });
   React.useEffect(() => {
     handle.current = a;
   });
@@ -77,6 +83,8 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  // A failed assertion must not leave the drawer open for the next test.
+  useMissionUIStore.getState().closeMissionEdit();
   act(() => root.unmount());
   container.remove();
 });
@@ -114,6 +122,15 @@ describe("handleEditMission", () => {
     act(() => actions.handleEditMission("m1"));
     expect(useMissionUIStore.getState().missionEditOpen).toBe(true);
     expect(useMissionUIStore.getState().missionEditId).toBe("m1");
+    act(() => useMissionUIStore.getState().closeMissionEdit());
+  });
+
+  it("carries systemKind into the drawer so an anchor is recognised there; an ordinary project carries none", () => {
+    act(() => actions.handleEditMission("m-anchor"));
+    expect(useMissionUIStore.getState().missionEditInitial?.systemKind).toBe("GENERAL");
+    act(() => useMissionUIStore.getState().closeMissionEdit());
+    act(() => actions.handleEditMission("m1"));
+    expect(useMissionUIStore.getState().missionEditInitial?.systemKind ?? null).toBeNull();
     act(() => useMissionUIStore.getState().closeMissionEdit());
   });
 

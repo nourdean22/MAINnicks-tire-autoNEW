@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { isGeneralAnchor } from "@/lib/services/mission-helpers";
 
 const STATUSES = ["ACTIVE", "PAUSED", "COMPLETE", "KILLED"] as const;
 
@@ -39,6 +40,8 @@ export interface MissionEditDrawerProps {
     domain: string | null;
     description: string | null;
     deadline: string | null;
+    /** "GENERAL" for a system lane; such a mission cannot be deleted. */
+    systemKind?: string | null;
   };
   onSaved?: (missionId: string) => void;
 }
@@ -261,7 +264,12 @@ function MissionEditDrawerBody({
         </div>
 
         <footer className="sticky bottom-0 z-10 bg-overlay flex items-center gap-2 border-t border-edge-subtle px-4 py-3">
-          {!isCreate && (
+          {!isCreate && isGeneralAnchor(initial) && (
+            <p className="min-h-11 flex-1 py-2.5 text-[12px] leading-snug text-fg-tertiary">
+              System lane. It cannot be deleted.
+            </p>
+          )}
+          {!isCreate && !isGeneralAnchor(initial) && (
             <button
               type="button"
               onClick={handleHardDelete}

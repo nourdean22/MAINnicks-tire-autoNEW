@@ -265,6 +265,8 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         domain: mission.domain ?? null,
         description: mission.description ?? null,
         deadline: mission.deadline ?? null,
+        // The drawer hides Delete for a system lane (GENERAL anchor); the server refuses it too.
+        systemKind: mission.systemKind ?? null,
       });
       telemetry.event("editMissionOpen", { missionId });
     },
