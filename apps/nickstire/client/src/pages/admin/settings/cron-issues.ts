@@ -63,7 +63,9 @@ export function deriveCronIssues(summary: CronHealthSummary | undefined): OpenIs
       const cut = details.indexOf(PROBES_SEPARATOR);
       const finding = cut >= 0 ? details.slice(0, cut) : details;
       const probes = cut >= 0 ? details.slice(cut + PROBES_SEPARATOR.length) : "";
-      if (finding && !/^All (checks|data) clean/.test(finding)) {
+      // "No finding in the checks that ran" = nothing found, with a probe that could not measure named after it
+      // (server/cron/dataAccuracyDetails.ts); the Scheduled work panel shows that line, it is not a finding.
+      if (finding && !/^(All (checks|data) clean|No finding in the checks that ran)/.test(finding)) {
         issues.push({
           key: "data-accuracy",
           severity: "warning",

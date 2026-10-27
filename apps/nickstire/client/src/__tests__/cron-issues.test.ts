@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { deriveCronIssues, type CronHealthSummary } from "../pages/admin/settings/cron-issues";
+import { describeDataAccuracy } from "../../../server/cron/dataAccuracyDetails";
 
 /**
  * Locks the fix for the false "All clear / 0 open issues" banner: the Settings counter must surface the scheduled-work
@@ -75,6 +76,22 @@ describe("deriveCronIssues", () => {
       ),
     );
     expect(issues).toEqual([]);
+  });
+
+  // The writer's own output, not a pasted string: describeDataAccuracy words a probe it could not measure as
+  // "No finding in the checks that ran ...", which is not a finding and must not raise the Data accuracy warning.
+  it("an unmeasured probe is not a data-accuracy finding (reads the real writer's words)", () => {
+    const { details } = describeDataAccuracy({
+      recentMissing: 0,
+      total7d: 25,
+      staleLeads: 0,
+      staleCallbacks: 0,
+      freshness: { state: "unmeasured", reason: "no successful ShopDriver sync recorded since start" },
+      volumes: [{ label: "invoices", state: "unmeasured", current: 3, expectedMean: null, zScore: null }],
+      contractDetails: "x=1",
+    });
+    expect(details).not.toMatch(/^All checks clean/); // positive control: this really is the new wording
+    expect(deriveCronIssues(summary([job({ jobName: "data-accuracy-check", lastDetails: details })]))).toEqual([]);
   });
 
   it("a missing summary (still loading or failed) yields no issues; the failed-check banner covers the error", () => {
