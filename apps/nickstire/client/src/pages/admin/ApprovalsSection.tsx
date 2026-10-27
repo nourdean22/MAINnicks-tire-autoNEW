@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageHeader, LoadingState, ErrorState } from "./shared";
 import {
+  DECIDED_STATUSES,
   describeProposal,
   lastDecisionWords,
   localPart,
@@ -119,7 +120,7 @@ export default function ApprovalsSection() {
   // for the 30-day summary and the empty-state "last decision". Decisions invalidate it through
   // utils.proposals.list, so it needs no polling of its own.
   const decided = trpc.proposals.list.useQuery(
-    { statuses: ["executed", "rejected"], limit: SUMMARY_READ_LIMIT },
+    { statuses: [...DECIDED_STATUSES], limit: SUMMARY_READ_LIMIT },
     { staleTime: 60_000 },
   );
   const actionTypes = trpc.proposals.actionTypes.useQuery(undefined, { staleTime: 300_000 });
@@ -189,6 +190,7 @@ export default function ApprovalsSection() {
   }
 
   const rows = list.data ?? [];
+  const now = new Date(); // "today"/"tomorrow" on a card are read against this render, not the request date
   const rejectText = [rejectReason, rejectNote.trim()].filter(Boolean).join(" · ");
 
   return (
@@ -206,7 +208,7 @@ export default function ApprovalsSection() {
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
-            className={`text-xs px-3 py-2 min-h-11 rounded-md border transition-colors ${
+            className={`text-xs px-3 py-2 min-h-12 min-w-12 rounded-md border transition-colors ${
               filter === f.id
                 ? "bg-primary/15 text-primary border-primary/30"
                 : "bg-card/50 text-muted-foreground border-border/30 hover:text-foreground"
@@ -262,14 +264,14 @@ export default function ApprovalsSection() {
                 </div>
 
                 <div className="text-sm font-medium text-foreground">{p.title}</div>
-                <PayloadLines lines={describeProposal(p.actionType, p.payloadJson, p.createdAt)} />
+                <PayloadLines lines={describeProposal(p.actionType, p.payloadJson, now)} />
                 <div className="text-xs text-muted-foreground">
                   {`${describeAction(p.actionType)} · ${sourceWords(p.source, p.actor)}`}
                 </div>
 
                 {/* Intent preview: the exact payload the executor will receive, one tap down. */}
                 <details className="group text-xs text-muted-foreground">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-[13px] [&::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-12 min-w-12 cursor-pointer list-none items-center gap-1 text-[13px] [&::-webkit-details-marker]:hidden">
                     <ChevronRight aria-hidden className="w-4 h-4 transition-transform group-open:rotate-90" />
                     Technical details
                   </summary>
@@ -340,7 +342,7 @@ export default function ApprovalsSection() {
                           type="button"
                           aria-pressed={rejectReason === reason}
                           onClick={() => setRejectReason(rejectReason === reason ? null : reason)}
-                          className={`text-xs px-3 py-2 min-h-11 rounded-md border transition-colors ${
+                          className={`text-xs px-3 py-2 min-h-12 min-w-12 rounded-md border transition-colors ${
                             rejectReason === reason
                               ? "bg-primary/15 text-primary border-primary/30"
                               : "bg-card/50 text-muted-foreground border-border/30 hover:text-foreground"
@@ -362,13 +364,13 @@ export default function ApprovalsSection() {
                       <button
                         onClick={() => reject.mutate({ id: p.id, note: rejectText || undefined })}
                         disabled={reject.isPending}
-                        className="flex-1 min-h-[44px] text-xs font-bold bg-destructive text-destructive-foreground rounded-md px-3 py-2 disabled:opacity-50"
+                        className="flex-1 min-h-12 min-w-12 text-xs font-bold bg-destructive text-destructive-foreground rounded-md px-3 py-2 disabled:opacity-50"
                       >
                         Confirm reject
                       </button>
                       <button
                         onClick={() => setRejectingId(null)}
-                        className="flex-1 min-h-[44px] text-xs bg-secondary rounded-md px-3 py-2"
+                        className="flex-1 min-h-12 min-w-12 text-xs bg-secondary rounded-md px-3 py-2"
                       >
                         Keep
                       </button>
@@ -494,7 +496,7 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
         <button
           type="button"
           onClick={() => void query.refetch()}
-          className="min-h-11 rounded-md bg-secondary px-3 text-xs text-foreground hover:bg-secondary/80"
+          className="min-h-12 min-w-12 rounded-md bg-secondary px-3 text-xs text-foreground hover:bg-secondary/80"
         >
           Read again
         </button>
@@ -503,12 +505,13 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
   }
   if (query.isLoading || !summary) return <div className={box}>Last 30 days: reading…</div>;
 
-  const floor = summary.atLeast ? "at least " : "";
+  const floor = summary.full ? "at least " : "";
+  const stopped = `The read stopped at ${SUMMARY_READ_LIMIT} requests`;
   return (
     <section aria-label="Last 30 days" className={`${box} space-y-1.5`}>
       <h3 className="font-semibold text-foreground">Last 30 days</h3>
       {summary.types.length === 0 ? (
-        <p>No decisions in the last 30 days.</p>
+        <p>{summary.full ? `No decisions found in the last 30 days. ${stopped}, so there may be more.` : "No decisions in the last 30 days."}</p>
       ) : (
         <>
           {summary.types.map((t) => (
@@ -526,9 +529,7 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
               </ul>
             </div>
           )}
-          {summary.atLeast && (
-            <p>{`The read stops at ${SUMMARY_READ_LIMIT} decisions, so these counts may be low.`}</p>
-          )}
+          {summary.full && <p>{`${stopped}, so these counts may be low.`}</p>}
         </>
       )}
     </section>

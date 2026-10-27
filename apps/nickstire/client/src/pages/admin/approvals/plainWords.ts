@@ -59,16 +59,18 @@ function shopMoment(date: Date): string {
   return `${dayWords(date, BUSINESS_TIME_ZONE)}, ${t.hour}:${t.minute} ${t.dayPeriod}`;
 }
 
-/** "2026-10-25" as "Sun Oct 25", or "tomorrow (Sun Oct 25)" when it is the day after the request came in. */
-function whenWords(preferredDate: string, createdAt: Date | string): string {
+/**
+ * "2026-10-25" as "Sun Oct 25", "today (...)" or "tomorrow (...)" against the shop date NOW (not the day the
+ * request came in), and "Sun Oct 25 (passed)" for a day that is over.
+ */
+function whenWords(preferredDate: string, now: Date): string {
   const day = new Date(`${preferredDate}T12:00:00Z`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== preferredDate) {
     return preferredDate;
   }
   const words = dayWords(day, "UTC");
-  const created = new Date(createdAt);
-  if (Number.isNaN(created.getTime())) return words;
-  const away = Math.round((Date.parse(`${preferredDate}T00:00:00Z`) - Date.parse(`${getBusinessDateKey(created)}T00:00:00Z`)) / DAY_MS);
+  const away = Math.round((Date.parse(`${preferredDate}T00:00:00Z`) - Date.parse(`${getBusinessDateKey(now)}T00:00:00Z`)) / DAY_MS);
+  if (away < 0) return `${words} (passed)`;
   if (away === 0) return `today (${words})`;
   if (away === 1) return `tomorrow (${words})`;
   return words;
@@ -97,7 +99,7 @@ const keyInWords = (key: string) => {
  * its Technical details fold. Shapes follow server/services/proposals.ts (createBookingRequestPayload,
  * createCallbackPayload).
  */
-export function describeProposal(actionType: string, payload: unknown, createdAt: Date | string): PayloadLine[] {
+export function describeProposal(actionType: string, payload: unknown, now: Date): PayloadLine[] {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
   const p = payload as Record<string, unknown>;
   const lines: PayloadLine[] = [];
@@ -111,7 +113,7 @@ export function describeProposal(actionType: string, payload: unknown, createdAt
   if (actionType === "create_booking_request") {
     add("Wants", scalar(p.service));
     const date = scalar(p.preferredDate);
-    add("When", date ? whenWords(date, createdAt) : "no date given");
+    add("When", date ? whenWords(date, now) : "no date given");
     add("Note", scalar(p.note));
     add("Phone", phone && fmtPhone(phone));
     add("Name", realName);
@@ -136,6 +138,19 @@ interface DecidedRow {
   reviewNote?: string | null;
 }
 
+/**
+ * Every status a human decision leaves behind. "rejected" is a no; the rest are a yes that went on to run,
+ * fail, hang or park (an approved-then-failed request is still an approval).
+ */
+export const DECIDED_STATUSES = ["executed", "rejected", "failed", "approved", "executing", "execution_ambiguous"] as const;
+const isDecided = (status: string) => (DECIDED_STATUSES as readonly string[]).includes(status);
+
+/** When the human decided; legacy rows with no reviewedAt fall back to created. Null when neither parses. */
+function decidedAt(r: DecidedRow): Date | null {
+  const at = new Date(r.reviewedAt ?? r.createdAt);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
 /** A note that starts with a reason chip counts under the chip, so typed detail does not split the tally. */
 function reasonKey(note: string | null | undefined): string {
   const text = (note ?? "").trim();
@@ -148,15 +163,14 @@ export function summarizeDecisions(rows: DecidedRow[], now: number) {
   const perType = new Map<string, { approved: number; turnedDown: number }>();
   const reasons = new Map<string, number>();
   for (const r of rows) {
-    if (r.status !== "executed" && r.status !== "rejected") continue;
-    if (!(new Date(r.createdAt).getTime() >= since)) continue;
+    const at = isDecided(r.status) ? decidedAt(r) : null;
+    if (!at || at.getTime() < since) continue;
     const t = perType.get(r.actionType) ?? { approved: 0, turnedDown: 0 };
-    if (r.status === "executed") t.approved++;
-    else {
+    if (r.status === "rejected") {
       t.turnedDown++;
       const key = reasonKey(r.reviewNote);
       reasons.set(key, (reasons.get(key) ?? 0) + 1);
-    }
+    } else t.approved++;
     perType.set(r.actionType, t);
   }
   return {
@@ -167,8 +181,10 @@ export function summarizeDecisions(rows: DecidedRow[], now: number) {
       .map(([reason, count]) => ({ reason, count }))
       .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason))
       .slice(0, 3),
-    // A full read may have been cut short, so every number from it is a floor.
-    atLeast: rows.length >= SUMMARY_READ_LIMIT && perType.size > 0,
+    // The list is cut by created time but the window is by decision time, so a full read can omit an
+    // older-created request decided inside the window: every number from it is a floor, and an empty
+    // result is "none found", not "none".
+    full: rows.length >= SUMMARY_READ_LIMIT,
   };
 }
 
@@ -176,12 +192,10 @@ export function summarizeDecisions(rows: DecidedRow[], now: number) {
 export function lastDecisionWords(rows: DecidedRow[]): string | null {
   let best: { at: Date; row: DecidedRow } | null = null;
   for (const r of rows) {
-    if (r.status !== "executed" && r.status !== "rejected") continue;
-    const at = new Date(r.reviewedAt ?? r.createdAt);
-    if (Number.isNaN(at.getTime())) continue;
-    if (!best || at > best.at) best = { at, row: r };
+    const at = isDecided(r.status) ? decidedAt(r) : null;
+    if (at && (!best || at > best.at)) best = { at, row: r };
   }
   if (!best) return null;
-  const verdict = best.row.status === "executed" ? "approved" : "turned down";
+  const verdict = best.row.status === "rejected" ? "turned down" : "approved";
   return `${shopMoment(best.at)}, ${verdict} (${typeSingular(best.row.actionType)})`;
 }

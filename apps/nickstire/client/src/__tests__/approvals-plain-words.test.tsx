@@ -102,8 +102,15 @@ describe("the card in words", () => {
       contextJson: { callId: "call-1" },
       createdAt: new Date("2026-10-24T15:00:00.000Z"), // Sat Oct 24, 11:00 AM in America/New_York
     });
+  // "today" and "tomorrow" are read against the clock the owner looks at the card on, so pin Date only.
+  const viewedAt = (iso: string) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(iso));
+  };
+  afterEach(() => vi.useRealTimers());
 
   it("states a booking request as labelled lines, with the date as weekday and day", () => {
+    viewedAt("2026-10-24T16:00:00.000Z"); // Sat Oct 24, 12:00 PM shop time
     h.rows = [bookingCard()];
     render(<ApprovalsSection />);
     expect(line("Wants:")).toBe("Wants: Brake and rotor check");
@@ -122,7 +129,8 @@ describe("the card in words", () => {
     expect(line("Name:")).toBe("Name: Test Person");
   });
 
-  it("says 'today' when the date is the day the request came in, and the plain date otherwise", () => {
+  it("says 'today' when the date is the shop date now, and the plain date for a later day", () => {
+    viewedAt("2026-10-24T16:00:00.000Z");
     h.rows = [row({ payloadJson: { ...BOOKING_PAYLOAD, preferredDate: "2026-10-24" }, createdAt: new Date("2026-10-24T15:00:00.000Z") })];
     const { unmount } = render(<ApprovalsSection />);
     expect(line("When:")).toBe("When: today (Sat Oct 24)");
@@ -130,6 +138,22 @@ describe("the card in words", () => {
     h.rows = [row({ payloadJson: { ...BOOKING_PAYLOAD, preferredDate: "2026-10-30" }, createdAt: new Date("2026-10-24T15:00:00.000Z") })];
     render(<ApprovalsSection />);
     expect(line("When:")).toBe("When: Fri Oct 30");
+  });
+
+  it("reads 'tomorrow' against the day it is viewed, not the day the request was made", () => {
+    viewedAt("2026-10-27T16:00:00.000Z"); // Tue Oct 27 shop time
+    // Made Monday Oct 26 for Wednesday Oct 28: a day after the view, two after creation.
+    h.rows = [row({ payloadJson: { ...BOOKING_PAYLOAD, preferredDate: "2026-10-28" }, createdAt: new Date("2026-10-26T15:00:00.000Z") })];
+    render(<ApprovalsSection />);
+    expect(line("When:")).toBe("When: tomorrow (Wed Oct 28)");
+  });
+
+  it("marks a date that has gone by as passed instead of calling it tomorrow", () => {
+    viewedAt("2026-10-28T16:00:00.000Z"); // Wed Oct 28 shop time
+    // Made Monday Oct 26 for Tuesday Oct 27: it said "tomorrow" when made, but that day is over.
+    h.rows = [row({ payloadJson: { ...BOOKING_PAYLOAD, preferredDate: "2026-10-27" }, createdAt: new Date("2026-10-26T15:00:00.000Z") })];
+    render(<ApprovalsSection />);
+    expect(line("When:")).toBe("When: Tue Oct 27 (passed)");
   });
 
   it("keeps the raw payload and context JSON inside one closed Technical details fold, and nowhere else", () => {
@@ -195,12 +219,22 @@ describe("reject with one-tap reasons", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reject" }));
   };
 
-  it("offers the five reasons as 44px buttons that start unpressed", () => {
+  it("offers the five reasons as 48px buttons that start unpressed", () => {
     open();
     for (const label of ["Walk-in, no booking needed", "Not a real request", "Already handled", "Duplicate", "Other"]) {
       const chip = screen.getByRole("button", { name: label });
       expect(chip.getAttribute("aria-pressed")).toBe("false");
-      expect(chip.className).toContain("min-h-11");
+      expect(chip.className).toContain("min-h-12");
+      expect(chip.className).toContain("min-w-12");
+    }
+  });
+
+  it("makes Confirm reject and Keep 48px targets (apps/nickstire/AGENTS.md)", () => {
+    open();
+    for (const name of ["Confirm reject", "Keep"]) {
+      const cls = screen.getByRole("button", { name }).className;
+      expect(cls, name).toContain("min-h-12");
+      expect(cls, name).toContain("min-w-12");
     }
   });
 
@@ -245,8 +279,11 @@ describe("reject with one-tap reasons", () => {
 });
 
 describe("the last 30 days summary", () => {
-  const decided = (id: string, actionType: string, status: "executed" | "rejected", days: number, reviewNote: string | null = null) =>
+  const decided = (id: string, actionType: string, status: string, days: number, reviewNote: string | null = null) =>
     row({ id, actionType, status, createdAt: ago(days), reviewedAt: ago(days), reviewNote, reviewedBy: "owner@example.com" });
+  /** Created and decided on different days; decidedDaysAgo null is a legacy row with no reviewedAt. */
+  const decidedLater = (id: string, status: string, createdDaysAgo: number, decidedDaysAgo: number | null, actionType = "create_booking_request") =>
+    row({ id, actionType, status, createdAt: ago(createdDaysAgo), reviewedAt: decidedDaysAgo === null ? null : ago(decidedDaysAgo), reviewedBy: "owner@example.com" });
   const B = "create_booking_request";
   const C = "create_callback";
 
@@ -289,7 +326,48 @@ describe("the last 30 days summary", () => {
     render(<ApprovalsSection />);
     expect(screen.getByText("Booking requests: at least 0 approved, at least 500 turned down")).toBeTruthy();
     expect(screen.getByText("Duplicate · at least 500")).toBeTruthy();
-    expect(screen.getByText(/stops at 500 decisions/i)).toBeTruthy();
+    expect(screen.getByText("The read stopped at 500 requests, so these counts may be low.")).toBeTruthy();
+  });
+
+  it("cannot call a full read empty: older-created requests decided in the window may be past the cap", () => {
+    h.summary.data = Array.from({ length: 500 }, (_, i) => decided(`o${i}`, B, "rejected", 60, "Duplicate"));
+    render(<ApprovalsSection />);
+    expect(screen.queryByText("No decisions in the last 30 days.")).toBeNull();
+    expect(screen.getByText("No decisions found in the last 30 days. The read stopped at 500 requests, so there may be more.")).toBeTruthy();
+  });
+
+  it("counts every decided status the human said yes to as approved, not only executed", () => {
+    h.summary.data = [
+      decided("a1", B, "executed", 5),
+      decided("a2", B, "failed", 4),
+      decided("a3", B, "approved", 3),
+      decided("a4", B, "executing", 2),
+      decided("a5", B, "execution_ambiguous", 1),
+      decided("t1", B, "rejected", 1, "Duplicate"),
+      decided("n1", B, "pending_review", 1), // not decided yet: counts for neither
+      decided("n2", B, "draft", 1),
+    ];
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Booking requests: 5 approved, 1 turned down")).toBeTruthy();
+  });
+
+  it("windows the 30 days by when it was decided, so an old proposal decided today counts", () => {
+    h.summary.data = [
+      decidedLater("late", "executed", 40, 0), // created 40 days ago, decided today
+      decidedLater("early", "rejected", 10, 35), // created 10 days ago, decided 35 days ago
+    ];
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Booking requests: 1 approved, 0 turned down")).toBeTruthy();
+  });
+
+  it("falls back to the created time for a legacy row with no reviewedAt, and keeps it", () => {
+    h.summary.data = [
+      decidedLater("legacy-new", "rejected", 5, null),
+      decidedLater("legacy-old", "rejected", 40, null),
+    ];
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Booking requests: 0 approved, 1 turned down")).toBeTruthy();
+    expect(screen.getByText("No reason given · 1")).toBeTruthy();
   });
 
   it("says the number is not known, not zero, when the second read failed, and the list still renders", () => {
@@ -299,7 +377,10 @@ describe("the last 30 days summary", () => {
     expect(screen.getByText("Last 30 days: not known (the read failed).")).toBeTruthy();
     expect(screen.queryByText("No decisions in the last 30 days.")).toBeNull();
     expect(screen.getByRole("button", { name: "Approve & execute" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Read again" }));
+    const again = screen.getByRole("button", { name: "Read again" });
+    expect(again.className).toContain("min-h-12");
+    expect(again.className).toContain("min-w-12");
+    fireEvent.click(again);
     expect(h.summaryRefetch).toHaveBeenCalledTimes(1);
   });
 
@@ -313,7 +394,10 @@ describe("the last 30 days summary", () => {
     render(<ApprovalsSection />);
     const summaryRead = h.inputs.find((i) => i?.limit === 500);
     const listRead = h.inputs.find((i) => i?.limit === 100);
-    expect(summaryRead).toEqual({ statuses: ["executed", "rejected"], limit: 500 });
+    expect(summaryRead).toEqual({
+      statuses: ["executed", "rejected", "failed", "approved", "executing", "execution_ambiguous"],
+      limit: 500,
+    });
     expect(listRead).toBeDefined();
     expect(JSON.stringify(listRead)).not.toBe(JSON.stringify(summaryRead));
   });
@@ -330,6 +414,24 @@ describe("the empty Needs-decision state", () => {
     ];
     render(<ApprovalsSection />);
     expect(screen.getByText("Nothing waiting for you.")).toBeTruthy();
+    expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, turned down (booking request)")).toBeTruthy();
+  });
+
+  it("lets an approved-then-failed request be the last decision", () => {
+    h.summary.data = [
+      row({ id: "r", status: "rejected", createdAt: new Date("2026-10-23T15:00:00.000Z"), reviewedAt: new Date("2026-10-23T16:00:00.000Z") }),
+      row({
+        id: "f", status: "failed", actionType: "create_callback",
+        createdAt: new Date("2026-10-22T15:00:00.000Z"), reviewedAt: new Date("2026-10-24T19:30:00.000Z"), // approved later, then failed
+      }),
+    ];
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, approved (callback request)")).toBeTruthy();
+  });
+
+  it("uses the created time as the decision time for a legacy row with no reviewedAt", () => {
+    h.summary.data = [row({ id: "l", status: "rejected", createdAt: new Date("2026-10-24T19:30:00.000Z"), reviewedAt: null })];
+    render(<ApprovalsSection />);
     expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, turned down (booking request)")).toBeTruthy();
   });
 
@@ -357,10 +459,20 @@ describe("page chrome", () => {
     expect(document.body.textContent).not.toContain("Autonomy ladder");
   });
 
-  it("makes every filter chip a 44px target", () => {
+  it("makes every filter chip a 48px target", () => {
     render(<ApprovalsSection />);
     for (const label of ["Needs decision", "Executed", "Rejected", "Failed / stuck", "All"]) {
-      expect(screen.getByRole("button", { name: label }).className).toContain("min-h-11");
+      const cls = screen.getByRole("button", { name: label }).className;
+      expect(cls, label).toContain("min-h-12");
+      expect(cls, label).toContain("min-w-12");
     }
+  });
+
+  it("makes the Technical details summary a 48px target", () => {
+    h.rows = [row({ payloadJson: BOOKING_PAYLOAD })];
+    const { container } = render(<ApprovalsSection />);
+    const cls = container.querySelector("details > summary")?.className ?? "";
+    expect(cls).toContain("min-h-12");
+    expect(cls).toContain("min-w-12");
   });
 });
