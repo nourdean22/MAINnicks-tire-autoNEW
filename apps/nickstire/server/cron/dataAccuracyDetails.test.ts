@@ -51,6 +51,44 @@ describe("describeDataAccuracy", () => {
     expect(out.details).not.toContain("all carry a phone");
   });
 
+  // Bug hunt 2026-10-27: "All checks clean" over a freshness or volume probe that could not measure is an all-clear
+  // nobody earned (after a deploy the mirror clock is empty until the next sync, which also suppresses the invoice volume).
+  it("a freshness probe that could not measure is named, never folded into 'All checks clean'", () => {
+    const out = describeDataAccuracy({
+      ...base,
+      recentMissing: 0,
+      freshness: { state: "unmeasured" as const, reason: "no successful ShopDriver sync recorded since start" },
+    });
+    expect(out.issues).toEqual([]);
+    expect(out.details).not.toContain("All checks clean");
+    expect(out.details).toContain("Not measured: invoice mirror freshness (no successful ShopDriver sync recorded since start)");
+  });
+
+  it("a volume probe that could not measure is named, never folded into 'All checks clean'", () => {
+    const out = describeDataAccuracy({
+      ...base,
+      recentMissing: 0,
+      volumes: [
+        { label: "invoices", state: "unmeasured", current: 3, expectedMean: null, zScore: null },
+        { label: "leads", state: "normal", current: 2, expectedMean: 2, zScore: 0 },
+      ],
+    });
+    expect(out.issues).toEqual([]);
+    expect(out.details).not.toContain("All checks clean");
+    expect(out.details).toContain("Not measured: invoices volume");
+    expect(out.details).not.toContain("leads volume");
+  });
+
+  it("positive control: fresh mirror and every volume measured is still 'All checks clean'", () => {
+    const out = describeDataAccuracy({
+      ...base,
+      recentMissing: 0,
+      volumes: [{ label: "invoices", state: "normal", current: 3, expectedMean: 3, zScore: 0.1 }],
+    });
+    expect(out.details.startsWith("All checks clean:")).toBe(true);
+    expect(out.details).not.toContain("Not measured");
+  });
+
   it("web leads: 4 or more is a finding, 1 to 3 is stated honestly but is not one", () => {
     expect(describeDataAccuracy({ ...base, recentMissing: 0, staleLeads: 4 }).issues).toEqual(["4 web leads untouched for 7+ days"]);
     const few = describeDataAccuracy({ ...base, recentMissing: 0, staleLeads: 2 });

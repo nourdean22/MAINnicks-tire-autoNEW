@@ -66,5 +66,16 @@ export function describeDataAccuracy(input: DataAccuracyInput): { issues: string
     input.staleLeads === 0
       ? "no web lead untouched 7+ days"
       : `${input.staleLeads} web leads untouched 7+ days (fewer than ${STALE_LEADS_ALERT_FROM}, not flagged)`;
+  // A probe that could not measure (mirror clock empty after a deploy, too little history) found nothing, which is
+  // not the same as clean: say which ones, and do not claim "All checks clean" over them.
+  const unmeasured: string[] = [];
+  if (input.freshness.state === "unmeasured") unmeasured.push(`invoice mirror freshness (${input.freshness.reason})`);
+  for (const v of input.volumes) if (v.state === "unmeasured") unmeasured.push(`${v.label} volume`);
+  if (unmeasured.length > 0) {
+    return {
+      issues,
+      details: `No finding in the checks that ran: ${phonePart}; ${leadPart}. Not measured: ${unmeasured.join(", ")} · probes: ${input.contractDetails}`,
+    };
+  }
   return { issues, details: `All checks clean: ${phonePart}; ${leadPart} · probes: ${input.contractDetails}` };
 }
