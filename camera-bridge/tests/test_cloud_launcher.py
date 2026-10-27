@@ -192,5 +192,86 @@ class SuperviseTest(unittest.TestCase):
             self.assertLess(len([x for x in log if x[0] == "start"]), 5)
 
 
+class PrimaryTest(unittest.TestCase):
+    """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
+    session, so the relay and crop start at once and the edge is never dormant (phase 4)."""
+
+    def _run_primary(self, script, max_ticks=40, run_edge=True):
+        log, procs = [], {}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+
+        def start(name):
+            log.append(("start", name))
+            procs[name] = _Proc(name, log)
+            return procs[name]
+
+        ticks = {"n": 0}
+
+        def sleep(_s):
+            ticks["n"] += 1
+            script(ticks["n"], procs, elected)
+
+        code = run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=max_ticks,
+                                   primary=True, run_edge=run_edge)
+        return code, log
+
+    def test_primary_starts_relay_and_crop_without_an_election(self):
+        _code, log = self._run_primary(lambda n, p, e: None, max_ticks=3)
+        starts = [x[1] for x in log if x[0] == "start"]
+        self.assertEqual(sorted(starts), ["crop", "edge", "mediamtx", "relay"])
+
+    def test_primary_edge_is_not_dormant(self):
+        args = run_cloud.edge_args(ENV, elected_file="/e", ledger="/l", primary=True)
+        self.assertNotIn("--dormant-until-authoritative", args)
+        self.assertNotIn("--elected-file", args)
+        self.assertEqual(args[args.index("--calibration") + 1], GOOD_CAL)
+
+    def test_primary_without_calibration_streams_only_and_never_starts_the_edge(self):
+        # Install day: the relay and crop must run so a still can be taken for the calibration,
+        # while no producer claims anything (census mode would report 0 arrivals).
+        _code, log = self._run_primary(lambda n, p, e: None, max_ticks=3, run_edge=False)
+        self.assertNotIn(("start", "edge"), log)
+        self.assertIn(("start", "relay"), log)
+        self.assertIn(("start", "crop"), log)
+
+    def test_primary_build_commands_omits_the_edge_without_calibration(self):
+        env = dict(ENV)
+        env.pop("EDGE_CALIBRATION")
+        cmds = run_cloud.build_commands(env, primary=True, elected_file="/e", mtx_cfg="/m")
+        self.assertEqual(sorted(cmds), ["crop", "mediamtx", "relay"])
+        cmds = run_cloud.build_commands(ENV, primary=True, elected_file="/e", mtx_cfg="/m")
+        self.assertIn("edge", cmds)
+
+    def test_cloud_copy_still_refuses_without_calibration(self):
+        env = dict(ENV)
+        env.pop("EDGE_CALIBRATION")
+        with self.assertRaises(run_cloud.LauncherConfigError):
+            run_cloud.build_commands(env, primary=False, elected_file="/e", mtx_cfg="/m")
+
+    def test_primary_bad_calibration_still_refuses(self):
+        with self.assertRaises(run_cloud.LauncherConfigError):
+            run_cloud.build_commands(dict(ENV, EDGE_CALIBRATION=NO_PORTAL_CAL), primary=True,
+                                     elected_file="/e", mtx_cfg="/m")
+
+    def test_primary_any_edge_exit_ends_the_run_for_the_task_restart(self):
+        for code_in in (3, 4):
+            def script(n, procs, _e, code_in=code_in):
+                if n == 2:
+                    procs["edge"].code = code_in
+
+            code, log = self._run_primary(script)
+            self.assertEqual(code, code_in)
+            self.assertEqual(log.count(("start", "edge")), 1)
+
+    def test_primary_dead_relay_is_retried_in_place(self):
+        def script(n, procs, _e):
+            if n == 2:
+                procs["relay"].code = 1
+
+        code, log = self._run_primary(script, max_ticks=2 + run_cloud.RELAY_RETRY_TICKS + 2)
+        self.assertEqual(log.count(("start", "relay")), 2)
+        self.assertEqual(code, 3)
+
+
 if __name__ == "__main__":
     unittest.main()
