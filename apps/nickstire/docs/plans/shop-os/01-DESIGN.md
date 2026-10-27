@@ -30,13 +30,18 @@ Same login, same database, same role checks (09-ACCESS-AND-SECURITY). UI plan an
   dispatch (`dispatch.ts`: bay claim, tech assign, clock in/out), technicians, bays, inventory, tire registration,
   warranties. In production these tables are empty (1 cancelled work order, 0 items, 0 techs, 0 bays, 0 inventory).
   We reuse the code where it fits and reshape the tables freely: there is no data in them to protect.
+  Two defaults must change before reuse: a work order is created `status: "approved"` (`workOrderService.ts:141,179`)
+  and each line defaults to `approved = true` (`drizzle/schema.ts:2321`). /system needs draft/pending defaults and an
+  approval receipt per line (who approved, when, how: in person, phone or link, and the exact total shown); the Ohio
+  rules in 07-COMPLIANCE depend on it. Creating a work order also pushes it to a Google Sheet when
+  `GOOGLE_SHEETS_CRM_ID` is set (`workOrderService.ts:171`); that sync is off for /system (section 9).
 - The ALG mirror throws away line items, parts/labor/tax split, techs, VINs, mileage, notes, canned jobs and
   inventory. Getting them needs per-ticket calls that kick the counter's ALG login, so that work runs after hours
   with Nour's go (code comment `shopDriverMirror.ts:579-581`).
 
-## 3. Options (recommendation first)
+## 3. Options
 
-| | A. Build it in nickstire (recommended) | B. Buy Shopmonkey, put our AI on top | C. Keep ALG, improve around it |
+| | A. Build it in nickstire (approved 2026-10-26, under re-evaluation) | B. Buy Shopmonkey, put our AI on top | C. Keep ALG, improve around it |
 |---|---|---|---|
 | What | Our own RO screen, parts and tire ordering, copilot, on our database | Shopmonkey Basic as the counter system; its API feeds nickstire | Keep ShopDriver ($100/month + $17.50 per user per master doc); fix the mirror, add decline capture |
 | Cost | build time + PartsTech/MOTOR fees (UNKNOWN until quoted) | $239/month Basic (CLAIM, master doc :481) + build of the bridge | lowest |
@@ -46,8 +51,10 @@ Same login, same database, same role checks (09-ACCESS-AND-SECURITY). UI plan an
 | Risk | biggest build; must beat ALG at the counter | vendor lock-in, monthly fee, their roadmap | stays "basic", which is what Nour wants to leave |
 | Kill switch | if after 3 weeks of parallel run our screen is slower than ALG for a tire sale or a repair ticket, stop and take B | if their API cannot give per-line approvals and parts | n/a |
 
-Recommendation: A, built in phases that each pay off alone (05-ROADMAP), with ALG kept running until our screen wins
-the timed counter tests there.
+Status: Nour approved A on 2026-10-26. Both outside reviews (11-REVIEW) and roadmap v3 (05-ROADMAP) now default to
+buying the core ledger and building our layer on top (A-hybrid); the call is made on days 13-14 with the bake-off
+results, and nothing is built before it. If the call is A, it is built in phases that each pay off alone, with ALG
+kept running until our screen wins the timed counter tests.
 
 What the alternatives cost per month (CLAIM, vendors' pricing pages via research R16, thread 69890fcb; annual billing):
 ShopDriver Elite $100 (2 users, +$17.50 each; no parts-supplier ordering per its own FAQ); Tekmetric Grow $309 + Tire
@@ -122,5 +129,6 @@ command search, retail POS cart.
 - Outages: phone hotspot, numbered paper intake forms, entered once when back. No fake "offline mode".
 
 ## 9. Never cut
-Customer data stays in our database; no customer text, supplier order or payment without a person's tap; ALG keeps
+Customer data stays in our database (no copy to Google Sheets or any outside store from /system; the work-order sheet
+sync is off for it); no customer text, supplier order or payment without a person's tap; ALG keeps
 running until cutover; no copying of ALG's or MOTOR's licensed content beyond what the license allows.

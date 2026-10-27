@@ -33,8 +33,10 @@ language (`apps/nickstire/docs/ADMIN_PHILOSOPHY.md`), dial ENERGY 2 / RHYTHM 1 /
 
 ## 3. How it is wired (no new framework, reuse the house)
 
-- Same Vite/React app as nickstire.org; `/system` is a lazy-loaded route with its own shell (no admin sidebar),
-  registered in `shared/routes.ts` with `sitemap: false, prerender: false`, and noindex.
+- Same Vite/React app as nickstire.org; `/system` is a lazy-loaded route with its own shell (no admin sidebar).
+  Every static path (`/system`, `/system/quote`, `/system/board`, `/system/tech`, `/system/tv`) is registered in
+  `shared/routes.ts` with `sitemap: false, prerender: false`; the dynamic prefixes `/system/ro/` and `/approve/` go
+  into `DYNAMIC_ROUTE_PREFIXES` in the same file (`validate:routes` checks App.tsx against both). All noindex.
 - Its own installable home-screen app: a second web manifest scoped to `/system` so the crew installs "Nick's System"
   separately from the public site and /admin (iOS PWA rules from `nickstire-ios-pwa-primitives`: no window.confirm/alert,
   two-tap in-page confirms, 48 px targets).

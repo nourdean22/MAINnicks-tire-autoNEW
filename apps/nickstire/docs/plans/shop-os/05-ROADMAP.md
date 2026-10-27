@@ -61,7 +61,8 @@ after a price change, payment entered twice, refund after close, deposit moved, 
 and return, core outstanding, printer down, tech phone dead, webhook late, twice or never, API errors.
 
 ## Days 25-30: controlled production, then cut over only if the business is better
-Gates: every money difference explainable over 7 closes; common walk-in transactions no slower after the learning
+Gates (judged over at least 7 daily closes; days 25-30 hold only 6, so the decision slips until the 7th close):
+every money difference explainable over those 7 closes; common walk-in transactions no slower after the learning
 period (target 20% faster quoting); fewer than 2 avoidable owner interventions a day; no unofficial paper or text
 workflow; parts sourcing time down or first-choice availability up; quote-to-sale and average ticket not worse;
 outage drill passed; export opened and checked outside the vendor; our app receives enough data to rebuild the owner

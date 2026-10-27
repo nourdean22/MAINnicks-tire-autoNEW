@@ -50,7 +50,7 @@ add 10 ideas. ChatGPT ran signed out (free model) in Chrome; Perplexity ran Pro 
 
 ## Where we disagree, and why
 - **"Default to buying the core."** Both lean toward buying. That reverses Nour's approved approach A, so it is not
-  ours to decide: the bake-off week gives him the evidence, and the day-10 decision is his.
+  ours to decide: the bake-off week gives him the evidence, and the day-10 decision is his (days 13-14 in roadmap v3).
 - **"One hybrid technician."** That was our summary. The real number of people turning wrenches is UNKNOWN in our notes
   (USER.md names Zach as hybrid tech; Mash and Manny run operations). If there are more techs, dispatch matters more.
 

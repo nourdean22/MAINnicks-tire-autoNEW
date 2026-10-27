@@ -9,7 +9,7 @@ Job 2026-10-26-shop-os.
 | 0 | Name a counter lead for the days 1-3 money-leak sheet, and agree to the days 4-7 free-money moves and the days 8-12 bake-off (05-ROADMAP v3) | yes | the v3 roadmap starts here |
 | 0a | Sign the shop up for PartsTech's free plan and connect the parts accounts (account steps in 03-VENDORS) | this week | the cheapest test in the whole plan |
 | 0b | How many people turn wrenches on a normal day? | tell us | dispatch and the board depend on it |
-| 1 | Approach A (build in nickstire, /system), B (Shopmonkey + our AI) or C (keep ALG). APPROVED A on 2026-10-26; the day-10 bake-off decision can confirm A or switch to A-hybrid (buy the core, build our layer) | decide on day 10 with the bake-off results | everything else |
+| 1 | Approach A (build in nickstire, /system), B (Shopmonkey + our AI) or C (keep ALG). APPROVED A on 2026-10-26; the days 13-14 decision can confirm A or switch to A-hybrid (buy the core, build our layer) | decide on days 13-14 with the bake-off results | everything else |
 | 2 | Send the vendor emails (section 3) from the shop inbox, or let an agent draft them | send this week | parts and labor data take weeks to approve |
 | 3 | Crew roles (09-ACCESS section 2) and create their Google logins | front_desk for Mash and Manny, tech for Zach | nobody but Nour can use /system until then |
 | 4 | Pick a night for the ALG API map (needs your ALG sign-in after 6 PM) | this week | P0 data move |

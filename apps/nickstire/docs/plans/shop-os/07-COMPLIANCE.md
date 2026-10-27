@@ -33,7 +33,7 @@ This is a build checklist, not legal advice. Have the shop's accountant confirm 
 | Rate | Cuyahoga 8.00% (5.75 state, 1.25 county, 1.00 transit) | Rate table with effective dates, not a hard-coded number |
 | Labor, parts, tires, mount/install, shop supplies, disposal/environmental fees | taxable on a consumer repair | Taxable by default; exempt only with a reason (resale, exempt customer) |
 | Core charge | taxable; returning the core does NOT refund the tax | Core credit is its own workflow, never a "return" that reverses tax |
-| Ohio $1 replacement-tire fee | paid upstream by the distributor; if passed through it is taxable; not on used tires | Track fee-paid per purchase; never charge the state fee twice; no fee on used tires |
+| Ohio $1 replacement-tire fee | new tires with a rim diameter of 13 inches or more only; paid upstream by the distributor; if passed through it is taxable; not on used tires | Track fee-paid per purchase; the fee line checks rim size (13 inches or more) and new vs used; never charge the state fee twice |
 | Records | keep 4 years (ORC 5739.11) | No auto-delete under 4 years; legal hold flag |
 
 ## 4. Tires

@@ -46,7 +46,7 @@ working features. The real assets are customers, invoices, estimates, the mirror
 | Customers | yes (names, phones) | keep; add vehicles and notes from ALG |
 | Vehicles | no (customer_vehicles empty; `vehicleInfo` is free text on invoices) | pull from ALG `api/Vehicle/listVehicles` (seen in code, shape UNKNOWN) |
 | Tickets (closed) | header only: number, total, date, description, ALG ticket id | add line items (parts, labor, fees, tax, tech) via the ticket-detail call found in the API map |
-| Open tickets | no | not migrated; finished in ALG during the parallel run |
+| Open tickets | no | depends on the day 13-14 decision. Buy: move every open obligation (open ROs, deposits, ordered parts, promised callbacks) into the new system at one cutoff time, with a reconciliation sheet the counter lead signs off. Build: finish them in ALG during the parallel run; new work starts in /system |
 | Estimates | yes (header, amount) | add line items so declined lines are known per job |
 | Canned jobs | no | pull and rebuild as our canned jobs |
 | Inventory | no | pull counts; used tires become single units |

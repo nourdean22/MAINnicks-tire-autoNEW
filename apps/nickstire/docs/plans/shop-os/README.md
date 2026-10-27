@@ -35,7 +35,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 4. Ohio's repair rule (OAC 109:4-3-13) dictates the estimate and invoice screens: estimate choice, the 10% approval
    line, tech name on labor, replaced parts offered back.
 5. Sending customers to finance programs may make the shop an FTC "financial institution": staff get their own logins
-   with 2-step verification and an audit trail from day one.
+   with the app's own MFA and an audit trail from day one (09-ACCESS lists the P0 tasks that make crew logins possible).
 
 ## Labels used everywhere
 FACT = read this session from code, production or the primary page. CLAIM = a research report cites a source we did not
