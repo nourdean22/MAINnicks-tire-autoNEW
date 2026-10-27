@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Deferred to the owner's Chrome after deploy (the admin needs Nour's sign-in; the manager reads it from Nour's Chrome, never signs in). WHAT THE OPERATOR SEES after this diff, on Admin > Lot: the counting blocks unchanged (the Undercounting banner, the four '(camera saw)' tiles, the heartbeat, the last-event line, arrivals today); under Office intelligence the subtitle 'What the office camera and microphone heard today, and whether they are working'; a fault sentence first when the office camera or the listening worker is not working; the worker line in words ('Listening worker on the front-desk PC: last capture ... queue 0') with a closed 'Technical details' fold holding the engine, triggers and coverage; each counter-conversation card keeps coverage, facts, duration and people seen, with dBFS, detector count, STT engine, model, latency, host and camera serial in its own closed fold; the 'Office camera' card with 'Which camera: not known', the state chip in words and five planes ('Camera feed', 'Motion events', 'Video', 'Pan and tilt', 'Home position') with 'not known' in amber; the Recent visits Why column in words ('seen entering the lot', 'camera view <label>', 'N fields estimated'). Lane tests (lot-plain-words.test.tsx, 43) assert each; the manager's Chrome read after deploy is the live receipt, recorded in the shared notes and the job memory."
+    }
+  }
+}
