@@ -262,6 +262,13 @@ describe("readSendSwitchesStatus · v1.2 effectivePaused (the shop-wide SMS paus
   const globalOff = async () => ({ paused: false, readable: true });
   const globalUnreadable = async () => ({ paused: false, readable: false });
 
+  // smsControl keeps a process-wide 5 s cache; clear it even when an assertion above fails, so a paused
+  // state never leaks into the next serial test file.
+  afterEach(async () => {
+    const { _resetPauseCacheForTest } = await import("./services/smsControl");
+    _resetPauseCacheForTest();
+  });
+
   it("global pause ON, every lane switch OFF -> the three text lanes are held, and their own paused stays false", async () => {
     const { readSendSwitchesStatus } = await import("./services/sendPause");
     const s = await readSendSwitchesStatus({}, noQueue, globalOn);
@@ -322,7 +329,6 @@ describe("readSendSwitchesStatus · v1.2 effectivePaused (the shop-wide SMS paus
     const { readSendSwitchesStatus } = await import("./services/sendPause");
     const s = await readSendSwitchesStatus({}, noQueue);
     expect(s.lanes.find((l) => l.lane === "weather_sms")?.effectivePaused).toBe(true);
-    _resetPauseCacheForTest();
   });
 });
 
