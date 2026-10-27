@@ -366,29 +366,32 @@ async function judgeOfficeLane(
   return { ...none, sent: true };
 }
 
+type LotCountingInput = {
+  state: string;
+  detections: number | null;
+  /** When the current state began (camera_runtime.stateSince), epoch seconds; null when unknown. */
+  stateSinceEpoch: number | null;
+  shopOpen: boolean;
+  solar: { expectedOffline: boolean; fromMs: number } | null;
+};
+
 /**
- * One car-counter judgement (lotCountingAlert.ts) through the same rail. The arrivals read runs only
- * when there is something to judge; a failed read THROWS (the caller fails the run, never "not counting").
+ * The car counter's verdict now: the page alert below and Admin > Lot read this one function, so the
+ * headline and the page can never disagree. The arrivals read runs only when there is something to
+ * judge; a failed read THROWS (the alert run fails loudly; the Lot read turns it into NOT_JUDGED).
  */
-async function judgeLotCounting(
-  db: Db,
+export async function readLotCounting(
+  db: Pick<Db, "execute">,
   camera: string,
-  label: string,
-  input: {
-    state: string;
-    detections: number | null;
-    /** When the current state began (camera_runtime.stateSince), epoch seconds; null when unknown. */
-    stateSinceEpoch: number | null;
-    shopOpen: boolean;
-    solar: { expectedOffline: boolean; fromMs: number } | null;
-  },
-): Promise<{ state: string; sent: boolean; held: boolean; deliveryError: unknown }> {
+  input: LotCountingInput,
+): Promise<{ verdict: ReturnType<typeof lotCountingVerdict>; watchedSinceMs: number | null; readFailed: boolean }> {
   const nowMs = Date.now();
   const openMs = shopDayWindow(new Date(nowMs), BUSINESS.timezone, BUSINESS.hours.structured).openMs;
   const healthySinceMs = input.state === "HEALTHY" && input.stateSinceEpoch !== null ? input.stateSinceEpoch * 1000 : null;
   const watchedSinceMs = lotWatchedSinceMs({ openMs, nowMs, solar: input.solar, healthySinceMs });
   let arrivals: number | null = null;
-  if (input.shopOpen && watchedSinceMs !== null && input.state === "HEALTHY") {
+  const queried = input.shopOpen && watchedSinceMs !== null && input.state === "HEALTHY";
+  if (queried) {
     const [rows] = await db.execute(sql`
       SELECT COUNT(*) AS n FROM vehicle_visits
        WHERE camera = ${camera} AND dataClass = 'PRODUCTION' AND preexisting = 0
@@ -405,6 +408,18 @@ async function judgeLotCounting(
     nowMs,
     arrivalsSinceWatched: arrivals,
   });
+  // A read that ran and returned no row is a failure too, not a verdict.
+  return { verdict, watchedSinceMs, readFailed: queried && arrivals === null };
+}
+
+/** One car-counter judgement (lotCountingAlert.ts) through the same rail as the camera pages. */
+async function judgeLotCounting(
+  db: Db,
+  camera: string,
+  label: string,
+  input: LotCountingInput,
+): Promise<{ state: string; sent: boolean; held: boolean; deliveryError: unknown }> {
+  const { verdict, watchedSinceMs } = await readLotCounting(db, camera, input);
   const none = { state: verdict.state, sent: false, held: false, deliveryError: null };
   if (verdict.state === "NOT_JUDGED" || watchedSinceMs === null) return none;
 

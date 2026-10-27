@@ -274,3 +274,82 @@ describe("lot.health: dead unregistered camera rows are RETIRED, live ones still
     expect(res.retiredCameras).toEqual([]);
   });
 });
+describe("lot.health carries the car counter's own verdict and the solar wake time (job 2026-10-26-lot-vision-v2)", () => {
+  const WINDOW_COLUMNS = ["detectionsLast10m", "portalCrossingsLast60m",
+    "conversationListeningCoverage60m", "conversationCaptureSecondsLast60m", "conversationCapturesLast60m",
+    "conversationCaptureFailuresLast60m", "conversationWakeTriggersLast60m", "conversationTranscribeBacklog"];
+  // 15:00 EDT: the solar camera woke about 10:10, so 4 h HEALTHY since 11:00 is past the 3 h line.
+  const PM_MS = Date.UTC(2026, 9, 8, 19, 0, 0);
+  const PM_EPOCH = PM_MS / 1000;
+  /** HEALTHY since 11:00, seeing cars, nothing counted: the 2026-10-24 shape. */
+  const healthySign = {
+    ...signRuntime,
+    ageSeconds: 10, receivedAtEpoch: PM_EPOCH - 10, observedAtEdgeEpoch: PM_EPOCH - 11, lastHealthyFrameAtEpoch: PM_EPOCH - 11,
+    inferenceAgeSeconds: 10, detectionsLast10m: 40, portalCrossingsLast60m: 0,
+    stateForSeconds: 4 * 3600, stateSinceEpoch: PM_EPOCH - 4 * 3600,
+  };
+
+  function installCounting(arrivals: number | Error, runtime: Record<string, unknown> = healthySign): Flat[] {
+    const executed = install({ anchor: [], today: [] }, runtime);
+    const base = h.execute;
+    h.execute = async (q: unknown) => {
+      const f = flat(q);
+      if (f.text.includes("INFORMATION_SCHEMA.COLUMNS")) return [WINDOW_COLUMNS.map((columnName) => ({ columnName })), []];
+      if (f.text.startsWith("SELECT COUNT(*) AS n FROM vehicle_visits")) {
+        executed.push(f);
+        if (arrivals instanceof Error) throw arrivals;
+        return [[{ n: arrivals }], []];
+      }
+      return base(q);
+    };
+    return executed;
+  }
+
+  beforeEach(() => {
+    resetStorableHeartbeatColumns();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(PM_MS));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("healthy, seeing and 0 counted for 4 h: NOT_COUNTING, from the same arrivals read the page alert uses", async () => {
+    const executed = installCounting(0);
+    const res = await health();
+    expect(res.signCounting?.state).toBe("NOT_COUNTING");
+    expect(res.signCounting?.watchedSinceMs).toBe((PM_EPOCH - 4 * 3600) * 1000);
+    const q = executed.filter((x) => x.text.startsWith("SELECT COUNT(*) AS n FROM vehicle_visits"));
+    expect(q).toHaveLength(1);
+    expect(q[0].text).toContain("dataClass = 'PRODUCTION' AND preexisting = 0");
+  });
+
+  it("a counted car makes it COUNTING", async () => {
+    installCounting(2);
+    expect((await health()).signCounting).toMatchObject({ state: "COUNTING", readFailed: false });
+  });
+
+  it("a failed arrivals read is NOT_JUDGED with the reason, and the rest of the page still loads", async () => {
+    installCounting(new Error("vehicle_visits read timed out"));
+    const res = await health();
+    expect(res.signCounting).toMatchObject({ state: "NOT_JUDGED", readFailed: true });
+    expect(res.signCounting?.reason).toContain("vehicle_visits read timed out");
+    expect(res.cameras.find((c) => c.camera === "sign")?.state).toBe("HEALTHY");
+  });
+
+  it("at night the solar sign camera's wake time is in the payload; by day it is not expected dark", async () => {
+    const NIGHT_MS = Date.UTC(2026, 9, 8, 2, 0, 0); // 22:00 EDT on Oct 7
+    vi.setSystemTime(new Date(NIGHT_MS));
+    installCounting(0, { ...healthySign, ageSeconds: 20, receivedAtEpoch: NIGHT_MS / 1000 - 20 });
+    const night = await health();
+    expect(night.signSolar?.expectedOffline).toBe(true);
+    // Sunrise on Oct 8 in Cleveland is about 7:40 EDT; awake about 150 min later.
+    const wake = new Date(night.signSolar!.untilMs!);
+    expect(wake.getTime()).toBeGreaterThan(NIGHT_MS);
+    expect(wake.getTime() - NIGHT_MS).toBeLessThan(14 * 3600_000);
+
+    vi.setSystemTime(new Date(PM_MS));
+    installCounting(0);
+    expect((await health()).signSolar?.expectedOffline).toBe(false);
+  });
+});
