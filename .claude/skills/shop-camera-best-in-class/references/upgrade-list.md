@@ -6,8 +6,9 @@ spend, a production write or a credential), REJECTED. Update the status here in 
 
 | # | Upgrade | Lane | Mechanism row | Status | Needs | Kill criterion |
 |---|---|---|---|---|---|---|
-| 1 | Page and show a worker stuck in one recording | office ears, Admin > Lot | Progress watchdog | OPEN: PR 3297 | nothing | No silence over 15 min in open hours without a page |
-| 2 | Bound each capture so a hang cannot freeze the lane | office ears | Progress watchdog | OPEN: PR 3298, then PARKED for install | Nour's paste on the front-desk PC | `capture_hung` rows stay rare (under 1 a day) |
+| 0 | Clear CAPTURING when the worker's own capture returns with no speech segments (the real cause of the 10-22..26 silence) | office ears | Progress watchdog | BUILT: PR 3305, installed on the front-desk PC 2026-10-27 01:39Z | nothing | No CAPTURE_STUCK claim in open hours |
+| 1 | Page and show a worker stuck in one recording | office ears, Admin > Lot | Progress watchdog | BUILT: PR 3297, live 2026-10-26 14:25Z; fired on a real wedge at 12:41 ET that day | nothing | No silence over 15 min in open hours without a page |
+| 2 | Bound each capture so a hang cannot freeze the lane | office ears | Progress watchdog | BUILT: PR 3298, installed 2026-10-26 15:34Z | nothing | `capture_hung` rows stay rare (under 1 a day) |
 | 3 | ffmpeg RTSP `-timeout` on every office read, after checking `ffmpeg -h demuxer=rtsp` on the installed build | office ears | Reader timeout | PARKED | the build check runs on the front-desk PC (Nour's paste) | A hung read ends inside 15 s |
 | 4 | Find why the portal counted 0 crossings on 10-24 and 10-25 while detections flowed, then judge the existing rules (edge portal in `camera-bridge/edge_main.py`, visitd dwell machine in `camera-bridge/README.md` section 8) against billed jobs before writing any new one; replay fixtures already exist in `camera-bridge/tests/fixtures/` | car counter | Count an arrival | READY (read-only diagnosis + a replay test) | the lot PC for any install | Arrivals within 20% of billed jobs over 7 complete ET days |
 | 5 | Replace the launcher's 60 s stall kill with in-process reopen plus a 300 s exit (`--stall-reopen-attempts 40 --stall-exit-seconds 300`, proposed 10-22) | car counter | Supervisor | PARKED | Nour's paste on the lot PC | Distinct producer ids per day under 5 |

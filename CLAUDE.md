@@ -18,7 +18,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 87: 43 repo-specific + 19 always-on stance files + 25 vendored (SOURCE.md in each); invoke by exact name).
+- **Skills** (`.claude/skills/`, 88: 44 repo-specific + 19 always-on stance files + 25 vendored (SOURCE.md in each); invoke by exact name).
   `nour-command` is the cross-cutting router; each `SKILL.md` has its own trigger; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
     recurring business/platform reports → `docs/reporting/REPORT-SKILL-SUITE.md` + the narrow reporting skill.
@@ -38,7 +38,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   - A read-then-write that decides WHO acts (claim, lease, reclaim, dedupe marker) → **claim-before-act**.
   - Security review of a diff → **differential-review** (no checkout; report outside repo); dependency risk → **supply-chain-risk-auditor**.
   - Captures, bundles, devices of OUR OWN accounts or equipment → **reverse-engineer-anything** (static first; no evasion, keys, decoders).
-  - A new IP camera (standard ONVIF/RTSP only) → **camera-onboard-rtsp**; a shop PC over Chrome Remote Desktop → **shop-pc-remote-session**.
+  - New RTSP camera → **camera-onboard-rtsp**; cam/ears lane design → **shop-camera-best-in-class**; shop PC → **shop-pc-remote-session**.
   - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
     `docs/skill-proposals.md`). A job touching more than one lane → **monorepo-manager**.
