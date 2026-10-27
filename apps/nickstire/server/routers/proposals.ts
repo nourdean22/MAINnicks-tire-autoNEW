@@ -12,6 +12,7 @@
 import { z } from "zod";
 import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { deriveActor } from "../services/activityLedger";
+import { getDecisionSummary } from "../services/proposalDecisionSummary";
 import {
   approveAndExecute,
   countReviewable,
@@ -45,6 +46,15 @@ export const proposalsRouter = router({
       const { withDownstreamOutcomes } = await import("../services/proposalOutcomes");
       return withDownstreamOutcomes(await listProposals({ statuses: input?.statuses, limit: input?.limit }));
     }),
+
+  /**
+   * How the queue has been decided: counts by action type, the top turn-down reasons and the newest
+   * decision ever, read from the audit log's approve / reject rows (not from list rows or reviewedAt,
+   * which a retry rewrites). A failed read is `available: false`, never zeros.
+   */
+  decisionSummary: dbAdminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(30) }).prefault({}))
+    .query(({ input }) => getDecisionSummary({ days: input.days })),
 
   get: dbAdminProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
     return getProposal(input.id);
