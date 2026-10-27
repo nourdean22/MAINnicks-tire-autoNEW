@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Lot counter-truth headline (lot vision v2, 2026-10-27): on Admin > Lot the header badge now reads 'Not counting · sees cars, none counted since <time>' when lot.health signCounting is NOT_COUNTING (the 2026-10-24/25 silent zero; previously 'Live'), 'Not watching · camera asleep until about <wake time>' for the solar sign camera at night (previously 'sign dark (solar night)', kept for an older server with no wake time), and the Sign camera chip says '<n> detections in the last 10 min (a parked car is detected again in every frame, so this is not a car count)' instead of 'saw <n> vehicles'. Proven by admin-lot-eyes-ears.test.tsx rendering the real LotSection (34 passed); COUNTING, NOT_JUDGED and an older server without the field still read 'Live'. Not viewed in a browser yet: the live read follows the deploy."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: one test line on lot-truth-plausibility-20261007 for lot.health signCounting and signSolar (lotHealth.test.ts 13/13), read through readLotCounting, the function cameraHealthAlerts.ts's lot_count page now shares; REALITY-LEDGER.md re-rendered; no state, exposure or expiry change"
+    }
+  }
+}

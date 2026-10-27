@@ -2180,6 +2180,10 @@ export default function LotSection() {
   const windowColumnsStored = health.data?.ok === true ? health.data.windowColumnsStored : null;
   const shopOpenNow = health.data?.ok === true ? health.data.shopOpen : null;
   const signSolarNight = signCamera !== null && signCamera.state === "EXPECTED_SOLAR_OFFLINE";
+  // The counter's own verdict and the solar wake time (lot vision v2); both absent on an older server.
+  const signCounting = health.data?.ok === true ? health.data.signCounting ?? null : null;
+  const signWakeMs = health.data?.ok === true ? health.data.signSolar?.untilMs ?? null : null;
+  const signNotCounting = signCounting?.state === "NOT_COUNTING" && typeof signCounting.watchedSinceMs === "number";
   // The vehicle-truth camera's HEALTHY share of business time so far (audit N2), and the
   // business window every camera strip is drawn over.
   const coverage = health.data?.ok === true ? health.data.coverage : null;
@@ -2195,13 +2199,19 @@ export default function LotSection() {
           : signLoaded && signSolarNight
             ? // Dark on its battery, as expected: still not watching, but a fact about the sky.
               // Amber only while the shop is open on it (the 08:00 to ~09:30 overlap), calm at night.
-              shopOpenNow
-                ? { label: "Not watching · sign dark (solar) while open", variant: "warning" }
-                : { label: "Not watching · sign dark (solar night)", variant: "neutral" }
+              signWakeMs !== null
+                ? { label: `Not watching · camera asleep until about ${shopClock(signWakeMs)}`, variant: shopOpenNow ? "warning" : "neutral" }
+                : shopOpenNow
+                  ? { label: "Not watching · sign dark (solar) while open", variant: "warning" }
+                  : { label: "Not watching · sign dark (solar night)", variant: "neutral" }
           : signLoaded && signCamera && !signWatching
             ? // Never "Live" over a sign camera that is not HEALTHY: the visits below are
               // whatever it last managed to see. 2026-10-05 said "Live" over a blind lane.
               { label: `Not watching · sign ${signStateLabel}`, variant: "danger" }
+            : signNotCounting
+              ? // Healthy and seeing for 3 h with nothing counted (2026-10-24, 10-25): the same verdict
+                // that pages, so the headline and the page never disagree.
+                { label: `Not counting · sees cars, none counted since ${shopClock(signCounting!.watchedSinceMs!)}`, variant: "danger" }
             : undercounting
               ? // Watching, fresh, and still missing most cars (2026-09-28 on): never "Live" over it.
                 { label: "Undercounting cars", variant: "danger" }
@@ -2337,7 +2347,8 @@ export default function LotSection() {
             tone: "ok",
             detail:
               signCamera.facets.vision === "seeing" && typeof signCamera.vision?.detectionsLast10m === "number"
-                ? `saw ${signCamera.vision.detectionsLast10m} vehicle${signCamera.vision.detectionsLast10m === 1 ? "" : "s"} in the last 10 min`
+                ? // A sum over frames (edge_main detections_last_10m): two parked cars read about 96.
+                  `${signCamera.vision.detectionsLast10m} detection${signCamera.vision.detectionsLast10m === 1 ? "" : "s"} in the last 10 min (a parked car is detected again in every frame, so this is not a car count)`
                 : signCamera.facets.vision === "quiet"
                   ? "nothing seen in the last 10 min; nothing says there should have been"
                   : signCamera.facets.vision === "warming"

@@ -82,6 +82,7 @@ import { conversationSourceLabel, jsonArray, storedFacts, transcriptCoverage } f
 import { CONVERSATION_FLAG_KINDS, NOISE_ONLY_ACCOUNT, isConversationFlagKind } from "../../shared/conversationFlags";
 import { officeHourDigest } from "../services/officeDigest";
 import { readVehicleCounterTrust } from "../services/vehicleCounterTrust";
+import { readLotCounting } from "../services/cameraHealthAlerts";
 import { conversationEpisodeColumnPresent, officeVisualColumnPresent, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
 
 const log = createLogger("routers:lot");
@@ -1670,10 +1671,39 @@ export const lotRouter = router({
             })()
           : null;
 
+      // THE COUNTER'S OWN VERDICT, from the function the "sees cars, counts none" page uses, so the
+      // Lot headline and the page never disagree (lot vision v2). A failed arrivals read is
+      // NOT_JUDGED with its reason, never a quiet "counting", and never the whole Lot page.
+      const truthSolar = truth && cameraPowerFor(truth.camera) === "solar" ? solar : null;
+      let signCounting: { state: string; reason: string; watchedSinceMs: number | null } | null = null;
+      if (truth) {
+        const truthRow = runtime.find((r) => String(r.camera) === truth.camera);
+        try {
+          const read = await readLotCounting(d, truth.camera, {
+            state: truth.state,
+            detections: truth.vision?.detectionsLast10m ?? null,
+            stateSinceEpoch: truthRow ? numOrNull(truthRow.stateSinceEpoch) : null,
+            shopOpen,
+            solar: truthSolar,
+          });
+          signCounting = { ...read.verdict, watchedSinceMs: read.watchedSinceMs };
+        } catch (err) {
+          signCounting = {
+            state: "NOT_JUDGED",
+            reason: `arrivals read failed: ${err instanceof Error ? err.message : String(err)}`,
+            watchedSinceMs: null,
+          };
+        }
+      }
+
       return {
         ok: true as const,
         asOf: new Date().toISOString(),
         thresholds: HEALTH_THRESHOLDS,
+        /** The vehicle-truth camera's counting verdict now (NOT_COUNTING | COUNTING | NOT_JUDGED); null with no such camera. */
+        signCounting,
+        /** The solar sky over the vehicle-truth camera: dark now, and until about when; null for a mains camera. */
+        signSolar: truthSolar ? { expectedOffline: truthSolar.expectedOffline, untilMs: truthSolar.untilMs } : null,
         /** False until drizzle/0144 is applied: the window fields above are then NULL by absence, not by measurement. */
         windowColumnsStored,
         shopOpen,
