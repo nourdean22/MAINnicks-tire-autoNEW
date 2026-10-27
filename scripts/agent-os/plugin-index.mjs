@@ -16,7 +16,7 @@
  * dir is gone, is a warning the caller prints; the readable rest is still returned.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 function readJson(file) {
   let text;
@@ -120,7 +120,9 @@ export function pluginSkillFiles(home, routing = {}, projectDir) {
     try { declared = [].concat(JSON.parse(readFileSync(join(p.dir, ".claude-plugin", "plugin.json"), "utf8")).skills ?? []); } catch { /* no manifest: default dir only */ }
     for (const rel of ["skills", ...declared.filter((x) => typeof x === "string")]) {
       const dir = resolve(p.dir, rel);
-      if (!dir.startsWith(resolve(p.dir)) || !existsSync(dir)) continue; // a path outside the plugin is not followed
+      // A path outside the plugin is not followed. relative(), not a string prefix: <cache>/p-other starts with <cache>/p.
+      const inside = relative(resolve(p.dir), dir);
+      if (/^\.\.(?:[\\/]|$)/.test(inside) || isAbsolute(inside) || !existsSync(dir)) continue;
       if (existsSync(join(dir, "SKILL.md"))) { add(basename(dir), join(dir, "SKILL.md")); continue; }
       for (const e of readdirSync(dir, { withFileTypes: true })) {
         if (e.isDirectory() && existsSync(join(dir, e.name, "SKILL.md"))) add(e.name, join(dir, e.name, "SKILL.md"));
