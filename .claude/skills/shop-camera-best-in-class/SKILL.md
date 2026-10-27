@@ -13,8 +13,10 @@ smallest version that carries the mechanism, and end the PR body with a `Benchma
 camera-and-audio instance of the general "learn from the best" stance: the rows are the best implementations, already found.
 
 Why: three lanes were built from scratch and each missed a basic the mature stacks have (`evals/baseline.md`). The office worker
-hung for four days behind a fresh heartbeat (2026-10-22 to 10-26); the counter restarts 20 to 73 times a day and its portal counted
-0 crossings on 10-24 and 10-25 while detections flowed; the first fix for the hang left ffmpeg without its own read timeout.
+was deaf for four days behind a fresh heartbeat (2026-10-22 to 10-26): a no-speech capture returned and its CAPTURING state was
+never cleared (a state-transition bug, fixed in PR 3305), and nothing paged because liveness read the heartbeat, not the work.
+Reader timeouts and the capture bound (PR 3298) are separate hardening, not that fix. The counter restarts 20 to 73 times a day
+and its portal counted 0 crossings on 10-24 and 10-25 while detections flowed.
 
 ## Where the lanes live (read before changing one)
 
@@ -38,20 +40,26 @@ hung for four days behind a fresh heartbeat (2026-10-22 to 10-26); the counter r
    go2rtc and WinSW have no verdict yet: an offline bench is fine, an install needs a verdict row first (find-skill, prior-art-grep).
    Adopting anything that costs money or touches a shop PC needs Nour's go.
 4. **Keep the hard rules.** Audio never leaves the shop PC: the server gets the transcript and stills, never the audio. Local raw
-   clips are pruned after `OFFICE_RAW_AUDIO_RETENTION_HOURS` (6 h default); never lengthen that or upload audio. Crew consent
-   exists at hiring; do not widen what is recorded. Nothing customer-facing. No shop-PC change except through Nour's paste or
+   clips are pruned after `OFFICE_RAW_AUDIO_RETENTION_HOURS` (6 h default); never lengthen that or upload audio. Recording is
+   gated by `OFFICE_AUDIO_POLICY_ACK` / `-AcknowledgeRecordingPolicy`: an operator assertion that notice/consent and counsel
+   review are complete (`OFFICE-INTERACTION-COMMISSIONING.md`). An agent never sets it, and crew consent at hiring does not
+   stand in for it (customers are recorded too); do not widen what is recorded. Nothing customer-facing. No shop-PC change except through Nour's paste or
    his own go for that action (`shop-pc-remote-session`). No production write without his go. No purchase without the price.
-5. **Build the smallest carrier** of the mechanism, with a test that breaks it first (`positive-control-first`). Judge the car
-   counter only against billed jobs over complete ET days (a counter invoice is a closed job); that read is a production SELECT,
-   so it goes through `prod-db-guard`.
+5. **Build the smallest carrier** of the mechanism, with a test that breaks it first (`positive-control-first`). Billed jobs over
+   complete ET days are a LOWER bound for the car counter (every counter invoice is a car that came in; drive-ins that buy
+   nothing make arrivals above billed normal): flag arrivals below billed, and require an independently labelled arrival
+   sample before imposing any accuracy band. That read is a production SELECT, so it goes through `prod-db-guard`.
 6. **State the kill criterion** from the row in the PR body, with the date it will be read, and update the row's status in
    `upgrade-list.md` in the same PR.
 
 ## Liveness, the rule behind every lane
 
-A lane is alive only when its real output moves: PCM bytes for audio, decoded frames for video, posted episodes or visits for
-the server. A heartbeat thread beside the work proves the process exists, nothing more. Every lane needs three layers: a reader
-timeout inside ffmpeg (RTSP `-timeout` in microseconds, before `-i`; VERIFIED), a progress watchdog that kills and reaps a
+A lane is alive only when its real work moves: PCM bytes for audio, decoded frames for video. On the server, liveness is accepted
+heartbeats whose producer counters advance (frames, probes, captures), never posted episodes or visits: a quiet office or an
+empty lot is healthy. A post is owed only after a capture that should produce one (that is the not-posting rule). A heartbeat
+thread beside the work proves the process exists, nothing more, unless it reports the work's own counters and state. Every
+lane needs three layers: a reader timeout inside ffmpeg (RTSP `-timeout` in microseconds before `-i`, RTSP inputs only; HTTP
+and DirectShow inputs need their own bound; VERIFIED), a progress watchdog that kills and reaps a
 stalled reader (RESEARCH), and a supervisor that restarts a process that exits nonzero. Task Scheduler's restart settings retry
 a task that failed; a process that hangs never fails, so nothing restarts it (RESEARCH; seen live 2026-10-22 to 10-26).
 
