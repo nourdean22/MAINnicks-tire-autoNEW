@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
+import { getAdminActionableCounts, isOpenLead, isWaitingLead } from "@/lib/adminActionableCounts";
 
 describe("getAdminActionableCounts", () => {
   it("does not count an urgent new lead twice", () => {
@@ -45,6 +45,16 @@ describe("getAdminActionableCounts", () => {
     });
 
     expect(counts).toMatchObject({ actionableLeads: 0, urgentLeads: 0, total: 0 });
+  });
+
+  it("career applicants are not sales leads: neither open nor waiting, and not counted", () => {
+    // LeadsSection drops source "careers" before bucketing (they live on the Hiring tab).
+    expect(isOpenLead({ status: "new", source: "careers" })).toBe(false);
+    expect(isWaitingLead({ status: "contacted", source: "careers" })).toBe(false);
+    // The control: the same rows from a sales source are open and waiting.
+    expect(isOpenLead({ status: "new", source: "popup" })).toBe(true);
+    expect(isWaitingLead({ status: "contacted", source: "popup" })).toBe(true);
+    expect(getAdminActionableCounts({ leads: [{ status: "new", source: "careers" }, { status: "new", source: "popup" }] }).actionableLeads).toBe(1);
   });
 
   it("adds non-overlapping bookings, leads, and callbacks", () => {

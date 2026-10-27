@@ -488,6 +488,31 @@ describe("Codex review of PR 3316", () => {
     expect(within(tile("Waiting on customer")).getByText("Unable to determine")).toBeTruthy();
     expect(within(board()).getByRole("button", { name: "Waiting on customer · unknown" })).toBeTruthy();
   });
+
+  it("every follow-up row Today shows is inside Sales Pipeline's first five; the open count still filters the whole list", () => {
+    standardDay();
+    const items = [opp(1, 0), { ...opp(2, 0), sourceType: "callback" }, opp(3, 0), opp(4, 0), opp(5, 0), opp(6, 0), opp(7, 0)];
+    h.queries.set("opportunityQueue.list", ok({ items, queryable: true }));
+    render(<OverviewSection />);
+    const follow = rows().filter((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""));
+    expect(follow).toHaveLength(4);
+    // The Pipeline's first five, unfiltered, in worklist order: opp-1 .. opp-5.
+    const pipelineTop = ["Reason 1", "Reason 2", "Reason 3", "Reason 4", "Reason 5"];
+    for (const r of follow) expect(pipelineTop.some((reason) => (r.textContent ?? "").includes(reason)), r.textContent ?? "").toBe(true);
+    expect(within(board()).getByRole("button", { name: "4 of 6 follow-ups open · Open Sales Pipeline" })).toBeTruthy();
+  });
+
+  it("a failing mirror with no usable last success says so, never null or a quiet no-sync line", () => {
+    standardDay();
+    h.queries.set("adminSecurity.integrationFreshness", ok({ ...FRESH, lastSuccessfulAt: null, failuresSinceLastSuccess: 3 }));
+    const first = render(<OverviewSection />);
+    expect(screen.getByText("ShopDriver mirror · failing · no successful sync recorded")).toBeTruthy();
+    first.unmount();
+    h.queries.set("adminSecurity.integrationFreshness", ok({ ...FRESH, lastSuccessfulAt: "not a timestamp", failuresSinceLastSuccess: 3 }));
+    const { container } = render(<OverviewSection />);
+    expect(screen.getByText("ShopDriver mirror · failing · no successful sync recorded")).toBeTruthy();
+    expect(container.textContent).not.toContain("null");
+  });
 });
 
 describe("KpiTile separator (Settings > Status)", () => {

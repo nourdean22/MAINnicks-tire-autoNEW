@@ -190,11 +190,16 @@ export default function OverviewSection() {
    * a failed slice inside it, which is exactly why DegradedDataBanner never fired.
    */
   const unavailable = bundle?.unavailableSlices ?? [];
-  const followUps = useMemo(
-    () => (followUpsFailed || !canOpenPipeline ? [] : followUpData?.items ?? []).filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)).sort(worklistOrder),
+  // The Pipeline's own worklist, unfiltered, in its order.
+  const worklist = useMemo(
+    () => [...(followUpsFailed || !canOpenPipeline ? [] : followUpData?.items ?? [])].sort(worklistOrder),
     [followUpData, followUpsFailed, canOpenPipeline],
   );
-  const followUpsShown = useMemo(() => followUps.slice(0, FOLLOW_UPS_ON_BOARD), [followUps]);
+  // The open count leaves out rows the board already lists as callbacks and owed texts.
+  const followUps = useMemo(() => worklist.filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)), [worklist]);
+  // The rows shown are the Pipeline's first five cards minus those, so each one is on the Pipeline's
+  // first screen too; Today may show fewer than five.
+  const followUpsShown = useMemo(() => worklist.slice(0, FOLLOW_UPS_ON_BOARD).filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)), [worklist]);
   // The server sent its full window, so more rows may exist past it. Read from the UNFILTERED length:
   // the board's own filter can drop the count under the limit without making the window any less full.
   const followUpsSaturated = canOpenPipeline && (followUpData?.items.length ?? 0) >= FOLLOW_UPS_INPUT.limit;
@@ -484,22 +489,26 @@ export default function OverviewSection() {
     return d && !Number.isNaN(d.getTime()) ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
   };
   // The ShopDriver mirror as one line in the rail, in words: no table name, no panel of its own.
-  const mirrorLine =
+  // null when there is no last success or it does not parse: never printed as "null".
+  const lastSuccess = mirrorTime(freshness?.lastSuccessfulAt);
+  const sinceLast = lastSuccess ? `last success ${lastSuccess}` : "no successful sync recorded";
+  const mirrorLine = `ShopDriver mirror · ${
     integration.state === "fresh"
-      ? `ShopDriver mirror · fresh · as of ${mirrorTime(freshness?.lastSuccessfulAt)}`
+      ? `fresh · as of ${lastSuccess}`
       : freshnessFailed || freshness?.readable === false
-        ? "ShopDriver mirror · unreadable"
-        : integration.state === "unknown" && freshness?.lastSuccessfulAt
-          ? `ShopDriver mirror · unknown · last sync ${mirrorTime(freshness.lastSuccessfulAt) ?? "time unreadable"}`
+        ? "unreadable"
         : integration.state === "offline"
-          ? "ShopDriver mirror · offline"
-          : integration.state === "failing" && freshness?.lastSuccessfulAt
-            ? `ShopDriver mirror · failing · last success ${mirrorTime(freshness.lastSuccessfulAt)}`
-          : freshness?.lastSuccessfulAt
-            ? `ShopDriver mirror · stale · last success ${mirrorTime(freshness.lastSuccessfulAt)}`
-            : freshness
-              ? "ShopDriver mirror · no successful sync recorded"
-              : "ShopDriver mirror · checking";
+          ? "offline"
+          : integration.state === "failing"
+            ? `failing · ${sinceLast}`
+            : integration.state === "stale"
+              ? `stale · ${sinceLast}`
+              : freshness?.lastSuccessfulAt
+                ? `unknown · last sync ${lastSuccess ?? "time unreadable"}`
+                : freshness
+                  ? "no successful sync recorded"
+                  : "checking"
+  }`;
 
   /**
    * The Checks rail's summary. It folds every monitoring panel away on a phone, so it must say how

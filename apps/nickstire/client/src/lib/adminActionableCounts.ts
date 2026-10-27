@@ -25,10 +25,12 @@ export interface AdminActionableCounts {
 /**
  * ONE rule for the Today board, its tiles, its verdict and the sidebar badge: a lead is the shop's move
  * while it is new. Marking it contacted logs the attempt and moves it to "Waiting on customer"; the
- * reply comes back as an owed text. Linked callback-form leads are the callback row's duplicate.
+ * reply comes back as an owed text. Linked callback-form leads are the callback row's duplicate, and
+ * applicants (source "careers") live on the Hiring tab: LeadsSection drops them before bucketing.
  */
-export const isOpenLead = (lead: LeadLike) => (lead.status ?? "new") === "new" && !isCallbackDuplicateLead(lead);
-export const isWaitingLead = (lead: LeadLike) => lead.status === "contacted" && !isCallbackDuplicateLead(lead);
+const isSalesLead = (lead: LeadLike) => lead.source !== "careers" && !isCallbackDuplicateLead(lead);
+export const isOpenLead = (lead: LeadLike) => (lead.status ?? "new") === "new" && isSalesLead(lead);
+export const isWaitingLead = (lead: LeadLike) => lead.status === "contacted" && isSalesLead(lead);
 const PENDING_CALLBACK_STATUSES = new Set(["new", "pending"]);
 
 /**
