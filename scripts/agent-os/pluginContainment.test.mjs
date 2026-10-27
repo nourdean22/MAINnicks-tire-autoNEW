@@ -5,7 +5,7 @@
 // real ~/.claude is never read.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -20,9 +20,14 @@ const cache = join(claude, "plugins", "cache");
 const plugin = join(cache, "p");
 const sibling = join(cache, "p-other"); // shares the plugin dir's name as a string prefix, but is not inside it
 
-write(join(plugin, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "p", skills: ["./skills", "../p-other/skills", "../../outside"] }));
+write(join(plugin, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "p", skills: ["./skills", "../p-other/skills", "../../outside", "./linked-skills"] }));
 skill(join(plugin, "skills"), "inside");
 skill(join(sibling, "skills"), "sibling-skill");
+// A directory inside the plugin that is a symlink (a junction on Windows) to a folder outside it: lexically inside,
+// really outside (Codex on PR 3331).
+const outside = join(SCRATCH, "outside-skills");
+skill(outside, "linked-outside");
+symlinkSync(outside, join(plugin, "linked-skills"), "junction");
 write(join(claude, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "p@m": [{ scope: "user", installPath: plugin }] } }));
 write(join(claude, "settings.json"), JSON.stringify({ enabledPlugins: { "p@m": true } }));
 
@@ -35,4 +40,8 @@ test("positive control: the plugin's own skill is indexed (the scanner located i
 
 test("a declared skills dir that is a string-prefix sibling of the plugin dir is not followed", () => {
   assert.ok(!names.includes("p:sibling-skill"), `sibling indexed under the plugin: ${names.join(", ")}`);
+});
+
+test("a declared skills dir that is a symlink out of the plugin is not followed", () => {
+  assert.ok(!names.includes("p:linked-outside"), `symlinked outside dir indexed: ${names.join(", ")}`);
 });
