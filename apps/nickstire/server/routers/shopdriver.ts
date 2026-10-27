@@ -391,10 +391,13 @@ export const shopdriverRouter = router({
     // unchanged from v1. `paused` is null when the switch could not be read, never false.
     const { recoverySendsEnabled } = await import("../cron/jobs/declinedWorkRecovery");
     const { sendPause } = await import("../services/sendPause");
-    const { deriveDeclinedRecoveryState } = await import("../lib/declinedRecoveryState");
+    const { deriveDeclinedRecoveryState, combinePauses } = await import("../lib/declinedRecoveryState");
+    const { getSmsPauseState } = await import("../services/smsControl");
     const sendsEnabled = recoverySendsEnabled(process.env);
     const pause = await sendPause("declined_recovery", { fresh: true });
-    const paused = pause.readable ? pause.paused : null;
+    const globalPause = await getSmsPauseState();
+    // The shop-wide SMS pause holds these texts too, so "live" with only the lane's own switch off was the wrong word.
+    const paused = combinePauses(pause.readable ? pause.paused : null, globalPause.readable ? globalPause.paused : null);
     const state = deriveDeclinedRecoveryState({ featureEnabled, sendsEnabled, paused });
     const d = await db();
     if (!d) {

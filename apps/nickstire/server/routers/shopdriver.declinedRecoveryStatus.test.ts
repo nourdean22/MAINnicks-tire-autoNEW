@@ -19,6 +19,7 @@ import { deriveDeclinedRecoveryState } from "../lib/declinedRecoveryState";
 
 const h = vi.hoisted(() => ({
   pause: { paused: false, readable: true } as { paused: boolean; readable: boolean },
+  globalPause: { paused: false, readable: true } as { paused: boolean; readable: boolean },
   sendsEnabled: true,
   estimates: [] as Array<{ id: number; estimatedAmount: number | null; followUp7dSent: number; followUp30dSent: number; estimateDate: Date }>,
   lastRun: null as null | { jobName: string; startedAt: Date; status: string; details: string | null; recordsProcessed: number | null },
@@ -35,6 +36,10 @@ vi.mock("../services/sendPause", () => ({
 }));
 vi.mock("../cron/jobs/declinedWorkRecovery", () => ({
   recoverySendsEnabled: () => h.sendsEnabled,
+}));
+// The shop-wide SMS pause (Settings > Safety, "Automated customer texts") holds these texts too (sms.ts sendSms).
+vi.mock("../services/smsControl", () => ({
+  getSmsPauseState: async () => h.globalPause,
 }));
 
 // The router reads two tables through db(): alg_estimates (eligible rows) then cron_log (latest sender run).
@@ -86,6 +91,7 @@ const savedEnv = process.env.FEATURE_DECLINED_RECOVERY;
 beforeEach(() => {
   process.env.FEATURE_DECLINED_RECOVERY = "1";
   h.pause = { paused: false, readable: true };
+  h.globalPause = { paused: false, readable: true };
   h.sendsEnabled = true;
   h.estimates = [
     { id: 1, estimatedAmount: 30_000, followUp7dSent: 0, followUp30dSent: 0, estimateDate: new Date() },
@@ -146,6 +152,24 @@ describe("shopdriver.declinedRecoveryStatus v2", () => {
 
   it("paused: the pause switch is on", async () => {
     h.pause = { paused: true, readable: true };
+    expect(await status()).toMatchObject({ paused: true, state: "paused" });
+  });
+
+  // Bug hunt 2026-10-27: sendSms queues every automated customer text while sms_global_pause is on, so HQ saying
+  // "live" with the lane's own switch off was the wrong word. Positive control: the lane's own switch still pauses (above).
+  it("paused: the shop-wide SMS pause is on, even though the lane's own switch is off", async () => {
+    h.globalPause = { paused: true, readable: true };
+    expect(await status()).toMatchObject({ paused: true, state: "paused" });
+  });
+
+  it("unknown: the shop-wide SMS pause could not be read (marketing texts hold when it cannot be)", async () => {
+    h.globalPause = { paused: false, readable: false };
+    expect(await status()).toMatchObject({ paused: null, state: "unknown" });
+  });
+
+  it("an explicit pause outranks an unreadable switch", async () => {
+    h.pause = { paused: true, readable: true };
+    h.globalPause = { paused: false, readable: false };
     expect(await status()).toMatchObject({ paused: true, state: "paused" });
   });
 

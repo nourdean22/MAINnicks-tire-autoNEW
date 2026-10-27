@@ -11,6 +11,16 @@
  */
 export type DeclinedRecoveryState = "live" | "shadow" | "paused" | "off" | "unknown";
 
+/**
+ * Declined-recovery texts are held by two switches: the lane's own send_pause_declined_recovery and the shop-wide
+ * sms_global_pause ("Automated customer texts"; sendSms queues every automated text while it is on). One switch
+ * ON holds the lane even if the other could not be read; null (unknown) only when none is on and one is unreadable.
+ */
+export function combinePauses(...switches: Array<boolean | null>): boolean | null {
+  if (switches.some((s) => s === true)) return true;
+  return switches.some((s) => s === null) ? null : false;
+}
+
 export function deriveDeclinedRecoveryState(input: {
   featureEnabled: boolean;
   sendsEnabled: boolean;

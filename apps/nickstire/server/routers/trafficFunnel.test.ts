@@ -13,7 +13,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   row: { total: 20, declined: 18 } as Record<string, unknown>,
   hold: null as string | null,
+  globalPause: { paused: false, readable: true } as { paused: boolean; readable: boolean },
 }));
+// Shop-wide SMS pause: sendSms queues every automated text while it is on (bug hunt 2026-10-27).
+vi.mock("../services/smsControl", () => ({ getSmsPauseState: async () => h.globalPause }));
 
 vi.mock("../db", () => {
   const db = { execute: async () => [[h.row]] };
@@ -43,6 +46,7 @@ async function declinedAction() {
 afterEach(() => {
   vi.unstubAllEnvs();
   h.hold = null;
+  h.globalPause = { paused: false, readable: true };
 });
 
 describe("trafficFunnel.overview declined-estimates action", () => {
@@ -73,6 +77,22 @@ describe("trafficFunnel.overview declined-estimates action", () => {
   it("flag on but the pause switch cannot be read: says unknown, neither running nor paused", async () => {
     vi.stubEnv("FEATURE_DECLINED_RECOVERY", "1");
     h.hold = "send_pause_unreadable:declined_recovery";
+    const action = await declinedAction();
+    expect(action?.fix).toMatch(/unknown/i);
+    expect(action?.fix).not.toMatch(/running|paused/);
+  });
+
+  it("flag on, lane switch off, but the shop-wide SMS pause is on: says paused, never running", async () => {
+    vi.stubEnv("FEATURE_DECLINED_RECOVERY", "1");
+    h.globalPause = { paused: true, readable: true };
+    const action = await declinedAction();
+    expect(action?.fix).toContain("paused");
+    expect(action?.fix).not.toContain("running");
+  });
+
+  it("flag on, lane switch off, shop-wide SMS pause unreadable: says unknown, neither running nor paused", async () => {
+    vi.stubEnv("FEATURE_DECLINED_RECOVERY", "1");
+    h.globalPause = { paused: false, readable: false };
     const action = await declinedAction();
     expect(action?.fix).toMatch(/unknown/i);
     expect(action?.fix).not.toMatch(/running|paused/);
