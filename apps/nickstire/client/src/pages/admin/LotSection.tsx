@@ -474,6 +474,15 @@ function facetTone(value: string): string {
 }
 
 /**
+ * The office card's facet tone. facetTone paints "unknown" and "never" dim grey (right for the fleet
+ * cards, where a quiet plane is normal); on this card they mean "not proven", which is a fault colour.
+ * "not_required" really is not needed, so it keeps the dim grey.
+ */
+function notProvenTone(value: string): string {
+  return value === "unknown" || value === "never" ? "text-amber-400" : facetTone(value);
+}
+
+/**
  * Whether a worker's self-report is about NOW. The office worker writes its status every
  * ~30 s and the agent relays it on every heartbeat; a READY that is hours old was written by a
  * process that has since hung (2026-10-05/06), and the agent kept relaying it.
@@ -1810,13 +1819,13 @@ function ConversationPanel({
           </div>
           {officeCamera ? (
             <>
-              {/* Five planes, one line each. A plane nobody has measured keeps facetTone's dim grey and
-                  says "not known"; it is never worded like a measured good value. */}
+              {/* Five planes, one line each. A plane nobody has proven says "not known" in amber; it is
+                  never worded or coloured like a measured good value. */}
               <dl className="mt-2 space-y-1 text-[12px]">
                 {OFFICE_FACET_LABELS.map(([key, label]) => (
                   <div key={key} className="flex gap-2">
                     <dt className="text-foreground/55">{label}:</dt>
-                    <dd className={`font-medium ${facetTone(officeCamera.facets[key])}`}>
+                    <dd className={`font-medium ${notProvenTone(officeCamera.facets[key])}`}>
                       {facetWords(officeCamera.facets[key])}
                     </dd>
                   </div>

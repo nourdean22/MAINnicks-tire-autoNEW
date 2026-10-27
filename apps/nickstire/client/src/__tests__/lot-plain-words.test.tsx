@@ -315,12 +315,21 @@ describe("Office intelligence header and camera card", () => {
     expect(within(line("Camera feed:")).getByText("alive").className).toContain("text-emerald-400");
     for (const label of ["Motion events:", "Video:", "Pan and tilt:", "Home position:"]) {
       const value = within(line(label)).getByText("not known");
-      expect(value.className, label).toContain("text-foreground/35");
+      // Not proven is a fault-colour word: facetTone's dim grey at 12px fails contrast and reads as quiet.
+      expect(value.className, label).toContain("text-amber-400");
+      expect(value.className, label).not.toContain("text-foreground/35");
       expect(value.className, label).not.toContain("emerald");
     }
     // The camera-health panel further down still prints raw facets; this card must not.
     expect(within(officeCard()).queryByText("unknown")).toBeNull();
     expect(within(officeCard()).queryByText(/^producer$/)).toBeNull();
+  });
+
+  it("a feed that never reported is amber too; a plane that is not required stays dim", () => {
+    setLot({ office: { facets: { ...ALL_OK, producer: "never", events: "not_required" }, state: "NEVER_INGESTED" } });
+    render(<LotSection />);
+    expect(within(screen.getByText("Camera feed:").parentElement!).getByText("never").className).toContain("text-amber-400");
+    expect(within(screen.getByText("Motion events:").parentElement!).getByText("not required").className).toContain("text-foreground/35");
   });
 
   it("a proven plane that is down keeps the amber tone and its own word", () => {
