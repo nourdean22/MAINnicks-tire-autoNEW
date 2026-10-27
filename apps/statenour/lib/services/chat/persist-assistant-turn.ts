@@ -57,6 +57,7 @@ import { runDeferredBackgroundWork } from "./deferred-background-work";
 import { reconcileStreamText } from "./reconcile-stream-text";
 import { currentTurn } from "@/lib/agent/turn-context";
 import { isEmptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
+import { isReadSafeTool } from "@/lib/ai/capability-registry";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -289,7 +290,17 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // counted whether it won or not. It runs on the model that served this
       // turn (a fallback included). The empty-reply notice is not a draft.
       // Any failure keeps the streamed draft. (Codex review on #3312.)
-      if (deps.postFlushRegen && text.trim().length > 0 && !isEmptyResponseFallback(text)) {
+      // Bug hunt 2026-10-27: not after a WRITE. The second draft is built from the pre-turn messages
+      // with read-only tools, so it cannot see the write or its receipt; swapping it in would replace
+      // a reply that reported a real action with prose that omits or denies it (audit 04-F5).
+      const s = event as unknown as { steps?: unknown; toolCalls?: unknown };
+      const stepCalls = Array.isArray(s.steps) ? (s.steps as Array<{ toolCalls?: unknown }>).map((x) => x?.toolCalls) : [];
+      const ranWrite = [...stepCalls, s.toolCalls].some(
+        (calls) =>
+          Array.isArray(calls) &&
+          (calls as Array<{ toolName?: unknown }>).some((c) => typeof c?.toolName === "string" && !isReadSafeTool(c.toolName)),
+      );
+      if (deps.postFlushRegen && !ranWrite && text.trim().length > 0 && !isEmptyResponseFallback(text)) {
         try {
           const regen = await deps.postFlushRegen({ draft: text, model });
           if (regen?.usage) {

@@ -186,6 +186,27 @@ describe("buildOnFinish - postFlushRegen", () => {
     expect(h.persistArgs[0]?.finishReason).toBe("stop");
   }, 30_000);
 
+  // Bug hunt 2026-10-27. The streamed draft now runs with the turn's full tools, so it can execute a
+  // write. The second draft is built from the pre-turn messages with read-only tools: it cannot see
+  // that write or its receipt, so a "better" draft would replace a reply that reported a real action
+  // with prose that omits or denies it (audit 04-F5: a write runs once, and its report stays with it).
+  const stepWith = (toolName: string) => ({ steps: [{ toolCalls: [{ toolName, input: {} }], toolResults: [{ toolName, output: { ok: true } }] }] });
+
+  it("a draft that ran a WRITE tool is not replaced by the read-only second draft", async () => {
+    const regen = vi.fn(async () => ({ text: BETTER, steps: [], finishReason: "stop" }));
+    await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop", ...stepWith("createTask") } as never);
+    expect(regen).not.toHaveBeenCalled();
+    expect(h.stored).toContain(DRAFT);
+    expect(h.stored).not.toContain(BETTER);
+  }, 30_000);
+
+  it("CONTROL - a draft that only ran a READ tool still gets the second-draft pass", async () => {
+    const regen = vi.fn(async () => ({ text: BETTER, steps: [], finishReason: "stop" }));
+    await buildOnFinish(deps(regen))({ text: DRAFT, finishReason: "stop", ...stepWith("getTasks") } as never);
+    expect(regen).toHaveBeenCalledTimes(1);
+    expect(h.stored).toContain(BETTER);
+  }, 30_000);
+
   it("CONTROL - a regen that throws keeps the streamed text and the row still saves", async () => {
     const regen = vi.fn(async () => {
       throw new Error("model down");
