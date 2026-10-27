@@ -2,6 +2,9 @@
   "evidence": {
     "operator-walkthrough": {
       "ref": "Deferred to the owner's Chrome after deploy (the admin needs Nour's sign-in; the manager reads it from Nour's Chrome, never signs in). WHAT THE OPERATOR SEES after this diff, on Admin > Approvals: the subtitle 'Requests the receptionist and one-tap actions want to run. Nothing here runs until you approve it.'; a 'Last 30 days' summary above the list (per request type approved vs turned down, the top turned-down reasons, 'at least' when the 500-row read is full, 'not known (the read failed)' with Read again on a failed read); 44 px filter chips; an empty Needs decision reading 'Nothing waiting for you.' with the last decision's time and outcome; each card in words ('Wants: ...', 'When: <weekday month day>', 'Note: ...', 'Phone: ...', no 'Caller' placeholder name), the raw payload and context JSON inside a closed 'Technical details' fold; turning a request down offers one-tap reasons ('Walk-in, no booking needed', 'Not a real request', 'Already handled', 'Duplicate', 'Other') plus an optional note, sent only on the inline Confirm reject tap; decided lines read 'Turned down by <name>: <reason or no reason given>' and 'Approved by <name>'; the Afterwards line unchanged. Lane tests (approvals-plain-words.test.tsx, 23) assert each; the manager's Chrome read after deploy is the live receipt."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: new entry 'approvals-decision-summary' (codeState merged, operationalState unit_verified, exposure internal, one P3 blocker: the page read in production still owed) for server/services/proposalDecisionSummary.ts and proposals.decisionSummary; REALITY-LEDGER.md re-rendered (185 capabilities)."
     }
   }
 }
