@@ -192,6 +192,49 @@ class SuperviseTest(unittest.TestCase):
             self.assertLess(len([x for x in log if x[0] == "start"]), 5)
 
 
+class RelayLoginBackoffTest(unittest.TestCase):
+    """A relay that keeps dying fast is a refused V380 login (or a camera asleep), and retrying it
+    every minute is ~60 logins an hour against the account. NicksMax learned to hold to once per
+    30 minutes after a refusal (nicksmax-camera-supervisor.ps1); the front-desk PC hit the same 1002
+    on its first morning (2026-10-27)."""
+
+    def _starts(self, die_after: int, max_ticks: int):
+        log, procs, born = [], {}, {}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+        ticks = {"n": 0}
+
+        def start(name):
+            log.append((ticks["n"], name))
+            procs[name] = _Proc(name, [])
+            born[name] = ticks["n"]
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            relay = procs.get("relay")
+            if relay is not None and relay.code is None and ticks["n"] - born["relay"] >= die_after:
+                relay.code = 1
+
+        run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=max_ticks, primary=True, run_edge=False)
+        return [t for t, name in log if name == "relay"]
+
+    def test_three_fast_failures_hold_the_next_login_for_30_minutes(self):
+        starts = self._starts(die_after=5, max_ticks=3 * (5 + run_cloud.RELAY_RETRY_TICKS) + run_cloud.RELAY_LOGIN_HOLD_TICKS + 60)
+        gaps = [b - a for a, b in zip(starts, starts[1:])]
+        self.assertGreaterEqual(len(gaps), 3, starts)
+        self.assertLess(gaps[0], 120)                                       # first retries stay quick
+        self.assertLess(gaps[1], 120)
+        self.assertGreaterEqual(gaps[2], run_cloud.RELAY_LOGIN_HOLD_TICKS)  # then once per 30 min
+        self.assertEqual(run_cloud.RELAY_LOGIN_HOLD_TICKS, 30 * 60)
+
+    def test_a_relay_that_ran_for_a_while_is_not_a_refused_login(self):
+        # A stream that dropped after 10 minutes (camera battery, wifi) retries in a minute every time.
+        starts = self._starts(die_after=600, max_ticks=4 * (600 + run_cloud.RELAY_RETRY_TICKS) + 10)
+        gaps = [b - a for a, b in zip(starts, starts[1:])]
+        self.assertGreaterEqual(len(gaps), 3, starts)
+        self.assertTrue(all(g < 600 + 2 * run_cloud.RELAY_RETRY_TICKS for g in gaps), gaps)
+
+
 class PrimaryTest(unittest.TestCase):
     """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
     session, so the relay and crop start at once and the edge is never dormant (phase 4)."""

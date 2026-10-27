@@ -115,6 +115,12 @@ def edge_args(env: Mapping[str, str], *, elected_file: str, ledger: str, primary
 #: V380 login is not hammered (the NicksMax supervisor holds retries for the same reason).
 CROP_RETRY_TICKS = 10
 RELAY_RETRY_TICKS = 60
+#: A relay that dies within RELAY_FAST_EXIT_TICKS of starting, three times running, is a refused
+#: V380 login (code 1002: bad login, or the solar camera asleep). After that, one login per 30
+#: minutes, as NicksMax learned (2026-10-02/03: ~120 logins an hour for 11 h risked the account).
+RELAY_FAST_EXIT_TICKS = 120
+RELAY_FAST_EXITS_BEFORE_HOLD = 3
+RELAY_LOGIN_HOLD_TICKS = 30 * 60
 LEASE_LOST = 4
 
 
@@ -144,6 +150,8 @@ def supervise(
         procs["crop"] = start("crop")
     retry_at: Dict[str, int] = {}
     ticks = 0
+    relay_started_at = 0  # the primary's first relay starts at tick 0
+    relay_fast_exits = 0
 
     def stop(name: str) -> None:
         proc = procs.pop(name, None)
@@ -155,10 +163,13 @@ def supervise(
             if "relay" not in procs and "relay" not in retry_at and os.path.exists(elected_file):
                 procs["relay"] = start("relay")
                 procs["crop"] = start("crop")
+                relay_started_at = ticks
             for name, due in list(retry_at.items()):
                 if ticks >= due:
                     del retry_at[name]
                     procs[name] = start(name)
+                    if name == "relay":
+                        relay_started_at = ticks
             for name in list(procs):
                 if name not in procs:  # stopped by an earlier branch on this tick
                     continue
@@ -179,8 +190,11 @@ def supervise(
                     del procs["relay"]
                     stop("crop")
                     retry_at.pop("crop", None)
-                    retry_at["relay"] = ticks + RELAY_RETRY_TICKS
-                    retry_at["crop"] = ticks + RELAY_RETRY_TICKS + CROP_RETRY_TICKS
+                    fast = ticks - relay_started_at < RELAY_FAST_EXIT_TICKS
+                    relay_fast_exits = relay_fast_exits + 1 if fast else 0
+                    wait = RELAY_LOGIN_HOLD_TICKS if relay_fast_exits >= RELAY_FAST_EXITS_BEFORE_HOLD else RELAY_RETRY_TICKS
+                    retry_at["relay"] = ticks + wait
+                    retry_at["crop"] = ticks + wait + CROP_RETRY_TICKS
                 else:
                     return code or 3
             ticks += 1
