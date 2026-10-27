@@ -130,7 +130,7 @@ export function FollowUpTransferCard() {
             )}
           </div>
           <div className="text-sm font-mono text-foreground/80">
-            {fmtPhone(dest.currentNumber)}
+            {dest.currentNumber ? fmtPhone(dest.currentNumber) : "No number set"}
           </div>
           <div className="text-[10px] text-foreground/40 mt-0.5">
             Outbound campaign callbacks transfer here. Should stay set to the shop landline {SHOP_LANDLINE_DISPLAY}.

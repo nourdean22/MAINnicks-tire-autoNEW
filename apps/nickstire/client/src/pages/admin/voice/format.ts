@@ -219,3 +219,49 @@ export function classifyEvaluationLag(args: {
     ? "pending"
     : "behind";
 }
+
+// ─── Callback queue age (job 2026-10-25-admin-tabs-voice) ──────────
+// A pending caller newer than this is "call back now". Older ones sit in a closed fold on the Needs
+// Attention tab: kept, counted, never deleted and never treated as done.
+const FRESH_HOURS = 48;
+const DAY_MS = 86_400_000;
+// shortcut: the last band reads "30 to 90 days" because getMissedRevenueQueue cuts off at 90 days;
+// if that window grows, rename the band.
+const OLDER_BANDS = [
+  { label: "2 to 7 days", belowDays: 7 },
+  { label: "7 to 30 days", belowDays: 30 },
+  { label: "30 to 90 days", belowDays: Infinity },
+];
+
+/**
+ * Split a queue list at FRESH_HOURS, keeping the server's order inside each half. `olderWords` is the
+ * age split of the older half, empty bands left out ("2 to 7 days 1 · 30 to 90 days 4").
+ *
+ * The age is the server's `ageMinutes` (latest call to the server's clock at read time), so a wrong
+ * device clock cannot move a caller across the line; `createdAt` against `now` is the fallback for a
+ * row without it. An age that cannot be read (null, a string that is not a date, a time in the future)
+ * stays in the FRESH list: putting a caller into a closed fold takes proof, and the fold hides what it holds.
+ * shortcut: ageMinutes does not advance while a read sits in the cache; refetches (focus, 60 s stale)
+ * keep it close, and a SQL-computed age on the server read is the upgrade.
+ */
+export function splitQueueByAge<T extends { createdAt?: string | Date | null; ageMinutes?: number | null }>(
+  items: readonly T[],
+  now: number = Date.now(),
+): { fresh: T[]; older: T[]; olderWords: string } {
+  const fresh: T[] = [];
+  const older: T[] = [];
+  const perBand = OLDER_BANDS.map(() => 0);
+  for (const item of items) {
+    const ageMs = typeof item.ageMinutes === "number" && Number.isFinite(item.ageMinutes)
+      ? item.ageMinutes * 60_000
+      : now - new Date(item.createdAt ?? NaN).getTime();
+    if (!(ageMs >= FRESH_HOURS * 3_600_000)) {
+      fresh.push(item);
+      continue;
+    }
+    older.push(item);
+    perBand[OLDER_BANDS.findIndex((band) => ageMs < band.belowDays * DAY_MS)]++;
+  }
+  const olderWords = OLDER_BANDS.flatMap((band, i) => (perBand[i] > 0 ? [`${band.label} ${perBand[i]}`] : [])).join(" · ");
+  return { fresh, older, olderWords };
+}

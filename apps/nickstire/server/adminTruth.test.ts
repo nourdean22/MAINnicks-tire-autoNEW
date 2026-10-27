@@ -50,7 +50,10 @@ describe("Voice tells the truth about what it knows", () => {
     expect(s).not.toMatch(/Action Required/);
     // Upgraded in the PR-B closure: the pill reads a dedicated pending-only
     // query, so viewing 'reviewed' can no longer make it count history.
-    expect(s).toMatch(/pendingQueue!\.length/);
+    // 2026-10-27 (admin-tabs voice): the pill counts the last 2 days of that pending-only read,
+    // the fresh half of pendingQueue, so it still never counts the roster filter.
+    expect(s).toMatch(/const pendingSplit = pendingQueue \? splitQueueByAge\(pendingQueue,/);
+    expect(s).toMatch(/pendingSplit!\.fresh\.length/);
     expect(s).toMatch(/pendingQueueError &&/);
   });
 

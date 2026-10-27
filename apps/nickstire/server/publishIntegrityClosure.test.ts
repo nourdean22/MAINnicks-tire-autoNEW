@@ -313,7 +313,10 @@ describe("draft durability + attribution (PR B)", () => {
 
   it("Voice's tab badge counts PENDING work, never the selected roster filter", () => {
     const v = read("client/src/pages/admin/VoiceReceptionistSection.tsx");
-    expect(v).toMatch(/pendingQueue!\.length/);
+    // 2026-10-27 (admin-tabs voice): the badge counts the last 2 days of the PENDING read, so it is the
+    // fresh half of pendingQueue, still never the roster filter's queueItems.
+    expect(v).toMatch(/const pendingSplit = pendingQueue \? splitQueueByAge\(pendingQueue,/);
+    expect(v).toMatch(/pendingSplit!\.fresh\.length/);
     expect(v).not.toMatch(/queueItems!\.length/);
   });
 });
