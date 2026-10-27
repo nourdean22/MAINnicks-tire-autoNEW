@@ -2,6 +2,9 @@
   "evidence": {
     "cron-fail-closed": {
       "deferred": "No cron entry point, schedule or caller guard changes. server/cron/dataAccuracyDetails.ts is a pure words function (describeDataAccuracy) called by the data-accuracy-check job in scheduler.ts; this diff only changes the clean-branch wording when a freshness or volume probe is unmeasured. dataAccuracyDetails.test.ts: 13 passed, the two new arms were red (2 failed of 13) on the old code. The job's own throw-on-unreadable-counts arm is unchanged."
+    },
+    "operator-walkthrough": {
+      "ref": "What Nour sees: Admin > Settings > Status > Scheduled work, row data-accuracy-check. With no finding but a probe that could not measure (the mirror clock is empty until the first sync after a deploy), the line now reads 'No finding in the checks that ran: ... Not measured: invoice mirror freshness (...), invoices volume' instead of 'All checks clean'. The Open issues list does NOT gain a Data accuracy warning for that line: client/src/pages/admin/settings/cron-issues.ts treats it like the clean line, pinned by client/src/__tests__/cron-issues.test.ts which feeds the real describeDataAccuracy output through deriveCronIssues (red 1 failed of 9 before the regex change, 9 passed after). Not seen live yet: needs a deploy plus a restart window before the first ShopDriver sync."
     }
   }
 }
