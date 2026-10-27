@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "deferred": "No cron entry point, schedule or caller guard changes. server/cron/dataAccuracyDetails.ts is a pure words function (describeDataAccuracy) called by the data-accuracy-check job in scheduler.ts; this diff only changes the clean-branch wording when a freshness or volume probe is unmeasured. dataAccuracyDetails.test.ts: 13 passed, the two new arms were red (2 failed of 13) on the old code. The job's own throw-on-unreadable-counts arm is unchanged."
+    }
+  }
+}
