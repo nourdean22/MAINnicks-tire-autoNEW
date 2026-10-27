@@ -5776,6 +5776,33 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "approvals-decision-summary",
+      "name": "Admin > Approvals shows the last 30 days of approve and turn-down decisions per request type, the top turn-down reasons and the last decision, read from the audit log, unknown on a failed read",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-10-27 (admin-tabs job, Approvals PR 3323): server/services/proposalDecisionSummary.ts getDecisionSummary({ days }) reads audit_log rows (entity_type proposal, action proposal.approved / proposal.rejected, created_at in a DATE_SUB window) left-joined to admin_proposals for the action type, counts each proposal once by its latest decision event in the window, normalises the rejection note (after_json.note) against shared/proposalReasons.ts PROPOSAL_REASON_CHIPS, returns the top 3 reasons and the newest decision of all time, and returns available:false on any failed read (never zeros). Exposed as proposals.decisionSummary (dbAdminProcedure, same as proposals.list). Replaces a client-side summary over proposals.list that Codex showed was wrong: admin_proposals.reviewedAt is overwritten by retry and resolve, the list is ordered by created time and capped at 500, and it pulled full PII-bearing rows. client/src/pages/admin/ApprovalsSection.tsx consumes it with a 5-minute refetch and invalidates it after every decision. Because recordActivity is fail-soft, the read also returns missingDecisionEvents (decided proposals with no approve or reject audit event, all time; 0 in production 2026-10-27) and the page warns when it is above 0; a failed count makes the read unavailable.",
+        "tests": [
+          "server/services/proposalDecisionSummary.test.ts (15)",
+          "server/routers/proposalsDecisionSummaryProcedure.test.ts (4)",
+          "client/src/__tests__/approvals-plain-words.test.tsx"
+        ],
+        "liveRuns": [
+          "2026-10-27 13:35Z manager SELECT-only probe of the exact SQL shape on production TiDB: 15 approved and 56 rejected events all time; last 30 days 11 approved / 39 turned down, 0 events without a proposal row; 4 of 56 rejections carry a string note."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not yet read in production through the page. Proof needed: after deploy, Admin > Approvals shows a Last 30 days line whose counts equal a SELECT-only count of audit_log proposal.approved / proposal.rejected events in the window (2026-10-27 probe: 11 approved, 39 turned down)."
+        }
+      ],
+      "lastVerifiedAt": "2026-10-27",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": null
     }
   ],
   "axes": {
