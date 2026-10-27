@@ -133,6 +133,29 @@ describe("featureFlags.list v2", () => {
     expect(rows.find((r) => r.key === "sms_global_pause")).toMatchObject({ lastChange: null, lastChangeKnown: true });
   });
 
+  // Bug hunt 2026-10-27: the newest audit row says what the LAST AUDITED flip set. A flip with no audit row
+  // (the API-key route /api/admin/flags/toggle) leaves an older row behind, and "since Oct 12 by x" then names the
+  // person who UNPAUSED it as the one who paused it.
+  it("an audit row whose value is not the switch's current value is UNKNOWN history, not who paused it", async () => {
+    // send_pause_declined_recovery is TRUE (paused) in the fixture; the newest audit row says it was set FALSE.
+    h.audit = [
+      { entityId: "send_pause_declined_recovery", actor: "x@example.com", changes: { value: { old: null, new: "false" } }, createdAt: "2026-10-12 09:00:00" },
+    ];
+    const rows = await list();
+    expect(rows.find((r) => r.key === "send_pause_declined_recovery")).toMatchObject({ value: true, lastChange: null, lastChangeKnown: false });
+  });
+
+  it("positive control: an audit row that agrees with the current value is still shown", async () => {
+    h.audit = [
+      { entityId: "send_pause_declined_recovery", actor: "x@example.com", changes: { value: { old: null, new: "true" } }, createdAt: "2026-10-12 09:00:00" },
+    ];
+    const rows = await list();
+    expect(rows.find((r) => r.key === "send_pause_declined_recovery")).toMatchObject({
+      lastChange: { by: "x@example.com", at: "2026-10-12T09:00:00.000Z", value: true },
+      lastChangeKnown: true,
+    });
+  });
+
   it("an unreadable audit table is UNKNOWN (lastChangeKnown false), and the list itself still loads", async () => {
     h.auditFails = true;
     const rows = await list();

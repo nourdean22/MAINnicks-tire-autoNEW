@@ -610,6 +610,21 @@ export function registerAdminRoutes(app: Express): void {
     if (!key || typeof value !== "boolean") { res.status(400).json({ error: "key and value required" }); return; }
     const { setFlag } = await import("../services/featureFlags");
     await setFlag(key, value);
+    // The Settings pause line reads who and when from the newest flag.toggled row (featureFlags.list), so a flip with no
+    // row leaves an older attribution on screen. Same row featureFlags.toggle writes; an audit miss never blocks the flip.
+    try {
+      const { logAdminAction } = await import("../services/auditTrail");
+      await logAdminAction({
+        action: "flag.toggled",
+        entityType: "feature_flag",
+        entityId: key,
+        details: `Feature flag "${key}" set to ${value} (admin API key)`,
+        newValue: String(value),
+        actor: "admin-api-key",
+      });
+    } catch (err) {
+      serverLog.warn("flags/toggle: audit row not written", { key, error: err instanceof Error ? err.message : String(err) });
+    }
     res.json({ key, value, toggled: true });
   });
 
