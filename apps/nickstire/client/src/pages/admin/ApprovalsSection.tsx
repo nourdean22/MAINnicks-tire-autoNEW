@@ -9,22 +9,13 @@
  * never as an empty queue; approve/reject are two-tap via confirmDialog
  * (iOS-PWA-safe — window.confirm is silently suppressed in standalone mode).
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageHeader, LoadingState, ErrorState } from "./shared";
-import {
-  DECIDED_STATUSES,
-  describeProposal,
-  lastDecisionWords,
-  localPart,
-  REJECT_REASONS,
-  sourceWords,
-  SUMMARY_READ_LIMIT,
-  summarizeDecisions,
-  typePlural,
-} from "./approvals/plainWords";
+import { PROPOSAL_REASON_CHIPS } from "@shared/proposalReasons";
+import { describeProposal, lastDecisionWords, localPart, sourceWords, typePlural } from "./approvals/plainWords";
 import {
   AlertTriangle,
   Bot,
@@ -116,12 +107,11 @@ export default function ApprovalsSection() {
     { statuses: FILTER_STATUSES[filter], limit: 100 },
     { refetchInterval: 60_000 },
   );
-  // Second read of the same procedure (different input, so a different cache entry): decided rows
-  // for the 30-day summary and the empty-state "last decision". Decisions invalidate it through
-  // utils.proposals.list, so it needs no polling of its own.
-  const decided = trpc.proposals.list.useQuery(
-    { statuses: [...DECIDED_STATUSES], limit: SUMMARY_READ_LIMIT },
-    { staleTime: 60_000 },
+  // Counts, top reasons and the last decision come from the audit log on the server (not from list
+  // rows, whose reviewedAt a retry rewrites). Refreshed every 5 minutes so the 30-day window moves.
+  const decided = trpc.proposals.decisionSummary.useQuery(
+    { days: 30 },
+    { refetchInterval: 300_000, refetchIntervalInBackground: false },
   );
   const actionTypes = trpc.proposals.actionTypes.useQuery(undefined, { staleTime: 300_000 });
 
@@ -336,7 +326,7 @@ export default function ApprovalsSection() {
                 {reviewable && rejectingId === p.id && (
                   <div className="space-y-2 pt-1">
                     <div className="flex flex-wrap gap-2" role="group" aria-label="Why turn it down?">
-                      {REJECT_REASONS.map((reason) => (
+                      {PROPOSAL_REASON_CHIPS.map((reason) => (
                         <button
                           key={reason}
                           type="button"
@@ -459,13 +449,6 @@ function DownstreamLine({ downstream }: { downstream: Downstream | null }) {
   );
 }
 
-type DecidedQuery = {
-  data: RouterOutputs["proposals"]["list"] | undefined;
-  isLoading: boolean;
-  isError: boolean;
-  refetch: () => unknown;
-};
-
 /** The request in the owner's words. The raw payload stays one tap down, in Technical details. */
 function PayloadLines({ lines }: { lines: Array<{ label: string; value: string }> }) {
   if (lines.length === 0) return null;
@@ -480,16 +463,22 @@ function PayloadLines({ lines }: { lines: Array<{ label: string; value: string }
   );
 }
 
+type DecidedQuery = {
+  data: RouterOutputs["proposals"]["decisionSummary"] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => unknown;
+};
+
 /**
- * The queue's own track record over the last 30 days. Failed read = "not known", never "no decisions";
- * a read that hit its cap reports every number as a floor (empty-vs-error).
+ * The queue's own track record over the last 30 days, counted on the server from the audit log.
+ * A failed or unavailable read is "not known", never "no decisions" (empty-vs-error).
  */
 function DecisionSummary({ query }: { query: DecidedQuery }) {
-  const rows = query.data;
-  const summary = useMemo(() => (rows && !query.isError ? summarizeDecisions(rows, Date.now()) : null), [rows, query.isError]);
+  const data = query.data;
   const box = "border border-border/30 bg-card/50 rounded-lg px-3 py-2 text-xs text-muted-foreground";
 
-  if (query.isError) {
+  if (query.isError || (data && !data.available)) {
     return (
       <div className={`${box} flex flex-wrap items-center gap-2`}>
         <span>Last 30 days: not known (the read failed).</span>
@@ -503,33 +492,30 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
       </div>
     );
   }
-  if (query.isLoading || !summary) return <div className={box}>Last 30 days: reading…</div>;
+  if (query.isLoading || !data || !data.available) return <div className={box}>Last 30 days: reading…</div>;
 
-  const floor = summary.full ? "at least " : "";
-  const stopped = `The read stopped at ${SUMMARY_READ_LIMIT} requests`;
   return (
-    <section aria-label="Last 30 days" className={`${box} space-y-1.5`}>
-      <h3 className="font-semibold text-foreground">Last 30 days</h3>
-      {summary.types.length === 0 ? (
-        <p>{summary.full ? `No decisions found in the last 30 days. ${stopped}, so there may be more.` : "No decisions in the last 30 days."}</p>
+    <section aria-label={`Last ${data.days} days`} className={`${box} space-y-1.5`}>
+      <h3 className="font-semibold text-foreground">{`Last ${data.days} days`}</h3>
+      {data.byType.length === 0 ? (
+        <p>{`No decisions in the last ${data.days} days.`}</p>
       ) : (
         <>
-          {summary.types.map((t) => (
+          {data.byType.map((t) => (
             <p key={t.actionType} className="break-words text-foreground">
-              {`${typePlural(t.actionType)}: ${floor}${t.approved} approved, ${floor}${t.turnedDown} turned down`}
+              {`${typePlural(t.actionType)}: ${t.approved} approved, ${t.turnedDown} turned down`}
             </p>
           ))}
-          {summary.topReasons.length > 0 && (
+          {data.topReasons.length > 0 && (
             <div>
               <p>Turned down because</p>
               <ul className="mt-0.5 space-y-0.5 text-foreground">
-                {summary.topReasons.map((r) => (
-                  <li key={r.reason} className="break-words">{`${r.reason} · ${floor}${r.count}`}</li>
+                {data.topReasons.map((r) => (
+                  <li key={r.reason} className="break-words">{`${r.reason} · ${r.count}`}</li>
                 ))}
               </ul>
             </div>
           )}
-          {summary.full && <p>{`${stopped}, so these counts may be low.`}</p>}
         </>
       )}
     </section>
@@ -538,7 +524,9 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
 
 /** Empty-queue footer: when the owner last decided something. Says nothing if that read failed. */
 function LastDecisionLine({ query }: { query: DecidedQuery }) {
-  if (query.isError || query.isLoading || !query.data) return null;
-  const last = lastDecisionWords(query.data);
-  return <p className="mt-1 text-xs">{last ? `Last decision: ${last}` : "No decisions yet."}</p>;
+  const data = query.data;
+  if (query.isError || query.isLoading || !data || !data.available) return null;
+  if (!data.lastDecision) return <p className="mt-1 text-xs">No decisions yet.</p>;
+  const last = lastDecisionWords(data.lastDecision);
+  return last ? <p className="mt-1 text-xs">{`Last decision: ${last}`}</p> : null;
 }

@@ -4,7 +4,8 @@
  * The queue used to print the raw executor payload as JSON on every card, said nothing when it was
  * empty, hid the shop's own turn-down rate, and gave the owner a blank box for the reason, so 56 of 71
  * proposals were rejected with nobody able to learn why. These tests pin the card in words, the
- * one-tap reasons, the 30-day summary (with its cap and failed-read states) and the empty state.
+ * one-tap reasons, the 30-day summary (read from proposals.decisionSummary: data, unavailable and
+ * errored states) and the empty state.
  *
  * No real names or phones: "Caller" and 216-555-0100 style numbers only.
  */
@@ -12,15 +13,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
-type Summary = { data: unknown[] | undefined; isLoading: boolean; isError: boolean };
 const h = vi.hoisted(() => ({
   confirm: vi.fn(async (_opts: Record<string, unknown>) => false),
   approve: vi.fn(),
   reject: vi.fn(),
   summaryRefetch: vi.fn(),
+  /** Inputs of every proposals.list read: the filtered queue is the only one left. */
   inputs: [] as Array<Record<string, unknown> | undefined>,
+  /** Input and options of every proposals.decisionSummary read. */
+  summaryCalls: [] as Array<{ input: unknown; opts: unknown }>,
   rows: [] as unknown[],
-  summary: { data: [], isLoading: false, isError: false } as Summary,
+  summary: { data: undefined as unknown } as { data: unknown },
+  summaryState: { isLoading: false, isError: false },
 }));
 vi.mock("@/lib/trpc", () => {
   const node = (path: string): any =>
@@ -28,11 +32,13 @@ vi.mock("@/lib/trpc", () => {
       get(_t, key) {
         if (typeof key === "symbol" || key === "then") return undefined;
         if (key === "useQuery")
-          return (input?: Record<string, unknown>) => {
+          return (input?: Record<string, unknown>, opts?: unknown) => {
+            if (path === "proposals.decisionSummary") {
+              h.summaryCalls.push({ input, opts });
+              return { data: h.summary.data, ...h.summaryState, error: null, refetch: h.summaryRefetch };
+            }
             if (path !== "proposals.list") return { data: [], isLoading: false, isError: false, error: null, refetch: () => {} };
             h.inputs.push(input);
-            // The summary is the second read of the same procedure: the one with the 500-row limit.
-            if (input?.limit === 500) return { ...h.summary, error: null, refetch: h.summaryRefetch };
             return { data: h.rows, isLoading: false, isError: false, error: null, refetch: () => {} };
           };
         if (key === "useMutation")
@@ -56,6 +62,7 @@ vi.mock("@/lib/trpc", () => {
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: () => null }));
 import ApprovalsSection from "@/pages/admin/ApprovalsSection";
+import { PROPOSAL_REASON_CHIPS } from "@shared/proposalReasons";
 
 const DAY = 86_400_000;
 const ago = (days: number) => new Date(Date.now() - days * DAY);
@@ -82,10 +89,17 @@ const BOOKING_PAYLOAD = {
 /** The text of the line a label sits on, e.g. line("Wants:") -> "Wants: Brake and rotor check". */
 const line = (label: string) => screen.getByText(label).parentElement?.textContent;
 
+/** A decisionSummary answer that worked: empty unless the test says otherwise. */
+const summary = (over: Record<string, unknown>) => ({
+  available: true, days: 30, since: "2026-09-27T00:00:00.000Z", byType: [], topReasons: [], lastDecision: null, ...over,
+});
+
 beforeEach(() => {
   h.rows = [];
-  h.summary = { data: [], isLoading: false, isError: false };
+  h.summary = { data: summary({}) };
+  h.summaryState = { isLoading: false, isError: false };
   h.inputs.length = 0;
+  h.summaryCalls.length = 0;
 });
 afterEach(() => {
   cleanup();
@@ -221,7 +235,9 @@ describe("reject with one-tap reasons", () => {
 
   it("offers the five reasons as 48px buttons that start unpressed", () => {
     open();
-    for (const label of ["Walk-in, no booking needed", "Not a real request", "Already handled", "Duplicate", "Other"]) {
+    // The texts come from shared/proposalReasons.ts, the list the server counts reasons by.
+    expect(PROPOSAL_REASON_CHIPS.length).toBe(5);
+    for (const label of PROPOSAL_REASON_CHIPS) {
       const chip = screen.getByRole("button", { name: label });
       expect(chip.getAttribute("aria-pressed")).toBe("false");
       expect(chip.className).toContain("min-h-12");
@@ -278,104 +294,52 @@ describe("reject with one-tap reasons", () => {
   });
 });
 
-describe("the last 30 days summary", () => {
-  const decided = (id: string, actionType: string, status: string, days: number, reviewNote: string | null = null) =>
-    row({ id, actionType, status, createdAt: ago(days), reviewedAt: ago(days), reviewNote, reviewedBy: "owner@example.com" });
-  /** Created and decided on different days; decidedDaysAgo null is a legacy row with no reviewedAt. */
-  const decidedLater = (id: string, status: string, createdDaysAgo: number, decidedDaysAgo: number | null, actionType = "create_booking_request") =>
-    row({ id, actionType, status, createdAt: ago(createdDaysAgo), reviewedAt: decidedDaysAgo === null ? null : ago(decidedDaysAgo), reviewedBy: "owner@example.com" });
+describe("the last 30 days summary (proposals.decisionSummary)", () => {
   const B = "create_booking_request";
   const C = "create_callback";
 
-  it("counts approved and turned down per type, and the top three reasons, inside the 30 days only", () => {
-    h.summary.data = [
-      decided("b1", B, "executed", 5),
-      decided("b2", B, "executed", 6),
-      decided("b3", B, "rejected", 2, "Walk-in, no booking needed"),
-      decided("b4", B, "rejected", 3, "Walk-in, no booking needed · phone was busy"),
-      decided("b5", B, "rejected", 4, null),
-      decided("b6", B, "rejected", 5, "Not a real request"),
-      decided("c1", C, "executed", 1),
-      decided("c2", C, "rejected", 1, "Duplicate"),
-      decided("c3", C, "rejected", 2, "   "),
-      decided("old1", B, "rejected", 40, "Duplicate"), // outside the window: must not count
-      decided("old2", C, "executed", 45),
-    ];
+  it("shows approved and turned down per type, and the top reasons exactly as the server counted them", () => {
+    h.summary.data = summary({
+      byType: [
+        { actionType: B, approved: 2, turnedDown: 4 },
+        { actionType: C, approved: 1, turnedDown: 2 },
+      ],
+      topReasons: [
+        { reason: "Walk-in, no booking needed", count: 2 },
+        { reason: "No reason given", count: 2 },
+        { reason: "Duplicate", count: 1 },
+      ],
+    });
     render(<ApprovalsSection />);
     expect(screen.getByText("Last 30 days")).toBeTruthy();
     expect(screen.getByText("Booking requests: 2 approved, 4 turned down")).toBeTruthy();
     expect(screen.getByText("Callback requests: 1 approved, 2 turned down")).toBeTruthy();
-    // A chip with typed detail still counts under the chip.
     expect(screen.getByText("Walk-in, no booking needed · 2")).toBeTruthy();
-    // A missing or blank note is "No reason given".
     expect(screen.getByText("No reason given · 2")).toBeTruthy();
     expect(screen.getByText("Duplicate · 1")).toBeTruthy();
-    // Four reasons exist; only the top three show, and the old Duplicate did not count.
-    expect(screen.queryByText(/Not a real request · /)).toBeNull();
-    expect(screen.queryByText(/at least/i)).toBeNull();
+    // The server read has no row cap, so no hedging copy is left.
+    expect(document.body.textContent).not.toMatch(/at least|read stopped|may be low/i);
   });
 
   it("falls back to the raw action type for a type it has no words for", () => {
-    h.summary.data = [decided("x1", "send_thing", "rejected", 2, "Duplicate")];
+    h.summary.data = summary({ byType: [{ actionType: "send_thing", approved: 0, turnedDown: 1 }], topReasons: [{ reason: "Duplicate", count: 1 }] });
     render(<ApprovalsSection />);
     expect(screen.getByText("send_thing: 0 approved, 1 turned down")).toBeTruthy();
   });
 
-  it("says 'at least' on every number when the read hit its 500-row cap, and says why", () => {
-    h.summary.data = Array.from({ length: 500 }, (_, i) => decided(`r${i}`, B, "rejected", 1, "Duplicate"));
+  it("says there were no decisions when the read worked and the window is empty", () => {
+    h.summary.data = summary({});
     render(<ApprovalsSection />);
-    expect(screen.getByText("Booking requests: at least 0 approved, at least 500 turned down")).toBeTruthy();
-    expect(screen.getByText("Duplicate · at least 500")).toBeTruthy();
-    expect(screen.getByText("The read stopped at 500 requests, so these counts may be low.")).toBeTruthy();
+    expect(screen.getByText("No decisions in the last 30 days.")).toBeTruthy();
   });
 
-  it("cannot call a full read empty: older-created requests decided in the window may be past the cap", () => {
-    h.summary.data = Array.from({ length: 500 }, (_, i) => decided(`o${i}`, B, "rejected", 60, "Duplicate"));
-    render(<ApprovalsSection />);
-    expect(screen.queryByText("No decisions in the last 30 days.")).toBeNull();
-    expect(screen.getByText("No decisions found in the last 30 days. The read stopped at 500 requests, so there may be more.")).toBeTruthy();
-  });
-
-  it("counts every decided status the human said yes to as approved, not only executed", () => {
-    h.summary.data = [
-      decided("a1", B, "executed", 5),
-      decided("a2", B, "failed", 4),
-      decided("a3", B, "approved", 3),
-      decided("a4", B, "executing", 2),
-      decided("a5", B, "execution_ambiguous", 1),
-      decided("t1", B, "rejected", 1, "Duplicate"),
-      decided("n1", B, "pending_review", 1), // not decided yet: counts for neither
-      decided("n2", B, "draft", 1),
-    ];
-    render(<ApprovalsSection />);
-    expect(screen.getByText("Booking requests: 5 approved, 1 turned down")).toBeTruthy();
-  });
-
-  it("windows the 30 days by when it was decided, so an old proposal decided today counts", () => {
-    h.summary.data = [
-      decidedLater("late", "executed", 40, 0), // created 40 days ago, decided today
-      decidedLater("early", "rejected", 10, 35), // created 10 days ago, decided 35 days ago
-    ];
-    render(<ApprovalsSection />);
-    expect(screen.getByText("Booking requests: 1 approved, 0 turned down")).toBeTruthy();
-  });
-
-  it("falls back to the created time for a legacy row with no reviewedAt, and keeps it", () => {
-    h.summary.data = [
-      decidedLater("legacy-new", "rejected", 5, null),
-      decidedLater("legacy-old", "rejected", 40, null),
-    ];
-    render(<ApprovalsSection />);
-    expect(screen.getByText("Booking requests: 0 approved, 1 turned down")).toBeTruthy();
-    expect(screen.getByText("No reason given · 1")).toBeTruthy();
-  });
-
-  it("says the number is not known, not zero, when the second read failed, and the list still renders", () => {
-    h.summary = { data: undefined, isLoading: false, isError: true };
+  it("says the number is not known, not zero, when the server says the read was unavailable, and the list still renders", () => {
+    h.summary.data = { available: false, reason: "error", message: "The decision history could not be read." };
     h.rows = [row({ payloadJson: BOOKING_PAYLOAD })];
     render(<ApprovalsSection />);
     expect(screen.getByText("Last 30 days: not known (the read failed).")).toBeTruthy();
     expect(screen.queryByText("No decisions in the last 30 days.")).toBeNull();
+    expect(screen.queryByText(/approved,/)).toBeNull();
     expect(screen.getByRole("button", { name: "Approve & execute" })).toBeTruthy();
     const again = screen.getByRole("button", { name: "Read again" });
     expect(again.className).toContain("min-h-12");
@@ -384,67 +348,89 @@ describe("the last 30 days summary", () => {
     expect(h.summaryRefetch).toHaveBeenCalledTimes(1);
   });
 
-  it("says there were no decisions when the read worked and the window is empty", () => {
-    h.summary.data = [decided("old", B, "rejected", 40, "Duplicate")];
+  it("says the same when the query itself errors", () => {
+    h.summaryState = { isLoading: false, isError: true };
+    h.summary.data = undefined;
+    h.rows = [row({ payloadJson: BOOKING_PAYLOAD })];
     render(<ApprovalsSection />);
-    expect(screen.getByText("No decisions in the last 30 days.")).toBeTruthy();
+    expect(screen.getByText("Last 30 days: not known (the read failed).")).toBeTruthy();
+    expect(screen.queryByText("No decisions in the last 30 days.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Approve & execute" })).toBeTruthy();
   });
 
-  it("reads the summary with a different query than the filtered list", () => {
+  it("says it is reading while the first answer is on its way", () => {
+    h.summaryState = { isLoading: true, isError: false };
+    h.summary.data = undefined;
     render(<ApprovalsSection />);
-    const summaryRead = h.inputs.find((i) => i?.limit === 500);
-    const listRead = h.inputs.find((i) => i?.limit === 100);
-    expect(summaryRead).toEqual({
-      statuses: ["executed", "rejected", "failed", "approved", "executing", "execution_ambiguous"],
-      limit: 500,
-    });
-    expect(listRead).toBeDefined();
-    expect(JSON.stringify(listRead)).not.toBe(JSON.stringify(summaryRead));
+    expect(screen.getByText("Last 30 days: reading…")).toBeTruthy();
+  });
+
+  it("asks for 30 days and refreshes every 5 minutes, only while the page is in view", () => {
+    render(<ApprovalsSection />);
+    expect(h.summaryCalls.length).toBeGreaterThan(0);
+    for (const call of h.summaryCalls) {
+      expect(call.input).toEqual({ days: 30 });
+      expect(call.opts).toEqual({ refetchInterval: 300_000, refetchIntervalInBackground: false });
+    }
+  });
+
+  it("no longer reads decided proposals through proposals.list", () => {
+    render(<ApprovalsSection />);
+    expect(h.inputs.length).toBeGreaterThan(0);
+    for (const input of h.inputs) {
+      expect(input?.limit).toBe(100);
+      expect(JSON.stringify(input?.statuses)).not.toMatch(/executed|rejected/);
+    }
   });
 });
 
 describe("the empty Needs-decision state", () => {
+  const last = (over: Record<string, unknown>) => ({ at: "2026-10-24T19:30:00.000Z", decision: "turned_down", actionType: "create_booking_request", ...over }); // 3:30 PM EDT
+
   it("says nothing is waiting and names the last decision on the shop clock", () => {
-    h.summary.data = [
-      row({ id: "old", status: "executed", createdAt: new Date("2026-08-01T15:00:00.000Z"), reviewedAt: new Date("2026-08-01T15:00:00.000Z") }),
-      row({
-        id: "last", status: "rejected", actionType: "create_booking_request",
-        createdAt: new Date("2026-10-24T18:00:00.000Z"), reviewedAt: new Date("2026-10-24T19:30:00.000Z"), // 3:30 PM EDT
-      }),
-    ];
+    h.summary.data = summary({ lastDecision: last({}) });
     render(<ApprovalsSection />);
     expect(screen.getByText("Nothing waiting for you.")).toBeTruthy();
     expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, turned down (booking request)")).toBeTruthy();
   });
 
-  it("lets an approved-then-failed request be the last decision", () => {
-    h.summary.data = [
-      row({ id: "r", status: "rejected", createdAt: new Date("2026-10-23T15:00:00.000Z"), reviewedAt: new Date("2026-10-23T16:00:00.000Z") }),
-      row({
-        id: "f", status: "failed", actionType: "create_callback",
-        createdAt: new Date("2026-10-22T15:00:00.000Z"), reviewedAt: new Date("2026-10-24T19:30:00.000Z"), // approved later, then failed
-      }),
-    ];
+  it("names an approval and a callback in words", () => {
+    h.summary.data = summary({ lastDecision: last({ decision: "approved", actionType: "create_callback" }) });
     render(<ApprovalsSection />);
     expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, approved (callback request)")).toBeTruthy();
   });
 
-  it("uses the created time as the decision time for a legacy row with no reviewedAt", () => {
-    h.summary.data = [row({ id: "l", status: "rejected", createdAt: new Date("2026-10-24T19:30:00.000Z"), reviewedAt: null })];
+  it("drops the type when the server does not know it", () => {
+    h.summary.data = summary({ lastDecision: last({ decision: "approved", actionType: null }) });
     render(<ApprovalsSection />);
-    expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, turned down (booking request)")).toBeTruthy();
+    expect(screen.getByText("Last decision: Sat Oct 24, 3:30 PM, approved")).toBeTruthy();
   });
 
-  it("says 'No decisions yet.' when the read worked and found none", () => {
+  it("shows the last decision even when nothing was decided in the 30 days", () => {
+    h.summary.data = summary({ lastDecision: last({ at: "2026-08-01T15:00:00.000Z" }) });
+    render(<ApprovalsSection />);
+    expect(screen.getByText("No decisions in the last 30 days.")).toBeTruthy();
+    expect(screen.getByText("Last decision: Sat Aug 1, 11:00 AM, turned down (booking request)")).toBeTruthy();
+  });
+
+  it("says 'No decisions yet.' when the read worked and there has never been one", () => {
     render(<ApprovalsSection />);
     expect(screen.getByText("Nothing waiting for you.")).toBeTruthy();
     expect(screen.getByText("No decisions yet.")).toBeTruthy();
   });
 
-  it("adds nothing about decisions when that read failed", () => {
-    h.summary = { data: undefined, isLoading: false, isError: true };
+  it("adds nothing about decisions when the read was unavailable", () => {
+    h.summary.data = { available: false, reason: "no_db", message: "no database" };
     render(<ApprovalsSection />);
     expect(screen.getByText("Nothing waiting for you.")).toBeTruthy();
+    expect(screen.queryByText(/Last decision/)).toBeNull();
+    expect(screen.queryByText("No decisions yet.")).toBeNull();
+  });
+
+  it("adds nothing about decisions when the query errored", () => {
+    h.summaryState = { isLoading: false, isError: true };
+    h.summary.data = undefined;
+    render(<ApprovalsSection />);
     expect(screen.queryByText(/Last decision/)).toBeNull();
     expect(screen.queryByText("No decisions yet.")).toBeNull();
   });
