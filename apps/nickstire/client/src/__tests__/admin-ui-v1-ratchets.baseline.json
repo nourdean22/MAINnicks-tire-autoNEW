@@ -3,10 +3,10 @@
     "uppercase": 4,
     "emDash": 120,
     "emoji": 0,
-    "transitionAll": 46,
-    "slowDuration": 7,
+    "transitionAll": 42,
+    "slowDuration": 4,
     "smallInput": 86,
-    "offPalette": 112
+    "offPalette": 102
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -227,11 +227,6 @@
     "client/src/pages/admin/voice/TransferDestinationCard.tsx": {
       "emDash": 1,
       "smallInput": 3
-    },
-    "client/src/pages/admin/voice/VoiceAchievements.tsx": {
-      "transitionAll": 4,
-      "slowDuration": 3,
-      "offPalette": 10
     },
     "client/src/pages/admin/voice/VoiceBrief.tsx": {
       "emDash": 5

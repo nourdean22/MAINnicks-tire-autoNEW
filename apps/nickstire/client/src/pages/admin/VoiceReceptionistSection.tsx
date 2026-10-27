@@ -13,7 +13,7 @@
  * Data: trpc.vapi.todayMetrics + trpc.vapi.todayCalls + trpc.vapi.callDetails.
  * Server-side memo'd 60s; client polls every 60s.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { compileRecoverySms, type CompiledSms, type ObservedCallFacts } from "@shared/smsFactCompiler";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -75,6 +75,7 @@ import {
   prettyReason,
   maskPhone,
   prettyOutcome,
+  splitQueueByAge,
   EXCLUSION_LABELS,
 } from "./voice/format";
 import { DateRangeSelector } from "./voice/DateRangeSelector";
@@ -83,7 +84,6 @@ import { TransferDestinationCard } from "./voice/TransferDestinationCard";
 import { FollowUpTransferCard } from "./voice/FollowUpTransferCard";
 import { LiveCallsCard } from "./voice/LiveCallsCard";
 import { CallDetailsDrawer } from "./voice/CallDetailsDrawer";
-import { VoiceAchievements } from "./voice/VoiceAchievements";
 import VapiPanel from "./settings/VapiPanel";
 
 // ─── Section ────────────────────────────────────────────────
@@ -93,7 +93,7 @@ export default function VoiceReceptionistSection() {
   // Wave-89 — sort + filter state
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [searchQuery, setSearchQuery] = useState("");
-  const [reasonFilter, setReasonFilter] = useState<string | null>(null); // null = "all"
+  const [reasonFilter, setReasonFilter] = useState<string | null>(null); // null = "all"; else a chip LABEL ("Other" covers several raw reasons)
 
   // 2026-10-19 (admin prune W1): a URL key, so ?tab=calls and the old Call
   // Tracking links can select the Calls tab (Call Tracking folded in here).
@@ -101,6 +101,7 @@ export default function VoiceReceptionistSection() {
     validate: (v) => resolveInnerTab("voiceReceptionist", v, null),
   });
   const [queueStatusFilter, setQueueStatusFilter] = useState<"pending" | "reviewed" | "converted" | "came_in" | "ignored">("pending");
+  const [olderOpen, setOlderOpen] = useState(false);
 
   // Wave-91 — date range state.
   // wave-181.x Voice Phase 1 · audit agent cleanup #10 · customSince
@@ -213,9 +214,9 @@ export default function VoiceReceptionistSection() {
   const callsList = (() => {
     let list = [...rawCalls];
 
-    // Reason filter
+    // Reason filter: by label, so "Other" keeps every raw reason that reads "Other"
     if (reasonFilter) {
-      list = list.filter((c) => c.endedReason === reasonFilter);
+      list = list.filter((c) => prettyReason(c.endedReason).label === reasonFilter);
     }
 
     // Search filter (caller phone, customer name, summary)
@@ -299,12 +300,77 @@ export default function VoiceReceptionistSection() {
     );
   };
 
-  const reasonsChart = m
-    ? Object.entries(m.endReasons).map(([reason, count]) => ({
-        name: prettyReason(reason).label,
-        value: count,
-      })).sort((a, b) => b.value - a.value)
-    : [];
+  // One chip per LABEL, built from the loaded list. Five raw end reasons read "Other", and the old chips
+  // (one per raw reason, counted over the whole range) printed "Other" four times and added up to more
+  // than "All". Counts here come from the same list the rows are drawn from, so they add up.
+  const reasonGroups = (() => {
+    const byLabel = new Map<string, { label: string; count: number; tone: string }>();
+    for (const c of rawCalls) {
+      const label = prettyReason(c.endedReason).label;
+      const group = byLabel.get(label) ?? { label, count: 0, tone: c.endedReason ?? "" };
+      group.count += 1;
+      byLabel.set(label, group);
+    }
+    return [...byLabel.values()].sort((a, b) => b.count - a.count);
+  })();
+  // The list holds the newest inbound calls only; say so when the range holds more than the list.
+  const rangeWords = rangePreset === "today" ? "today" : rangePreset === "custom" ? "in this date range" : `in the ${range.shortLabel}`;
+  // Outcome bars are summed by label for the same reason: one label, one bar.
+  const outcomeChart = (() => {
+    const byLabel = new Map<string, number>();
+    for (const [outcome, count] of Object.entries(m?.outcomeBreakdown ?? {})) {
+      const label = prettyOutcome(outcome).label;
+      byLabel.set(label, (byLabel.get(label) ?? 0) + count);
+    }
+    return [...byLabel].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  })();
+
+  // The queue is split at 48 hours (voice/format.ts splitQueueByAge). The tab badge and the summary count
+  // the pending list's fresh half; the roster renders the fresh half as cards and keeps the older half in a
+  // closed fold, mounted only while open (1,300 cards with SMS drafts froze the renderer for 45 s).
+  // `card` is the existing per-row renderer, so the markup below stays where it was.
+  const queueNow = Date.now();
+  const pendingSplit = pendingQueue ? splitQueueByAge(pendingQueue, queueNow) : null;
+  const renderQueueSplit = (card: (item: any) => ReactNode) => {
+    const { fresh, older, olderWords } = splitQueueByAge(queueItems ?? [], queueNow);
+    const isPending = queueStatusFilter === "pending";
+    return (
+      <>
+        <h3 className="text-sm font-semibold text-foreground">
+          {isPending ? "Call back now" : "Last 2 days"}{" "}
+          <span className="text-muted-foreground tabular-nums">{fresh.length}</span>
+        </h3>
+        {fresh.length === 0 ? (
+          <EmptyState
+            icon={<Clock className="w-10 h-10 text-foreground/40" />}
+            title={isPending ? "No one from the last 2 days is waiting." : `Nothing marked "${queueStatusFilter}" from the last 2 days.`}
+            subtitle="Older callers are in the section below."
+          />
+        ) : (
+          fresh.map(card)
+        )}
+        {older.length > 0 && (
+          <details open={olderOpen} className="border border-border/20 rounded-lg bg-card">
+            <summary
+              onClick={(e) => {
+                e.preventDefault();
+                setOlderOpen((open) => !open);
+              }}
+              className="flex min-h-12 min-w-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden"
+            >
+              <span className="block space-y-0.5">
+                <span className="block text-sm font-semibold text-foreground">Older than 2 days: {older.length}</span>
+                <span className="block text-xs text-muted-foreground">{olderWords}</span>
+                <span className="block text-xs text-muted-foreground">Not deleted and not counted as done. Open to review them.</span>
+              </span>
+              {olderOpen ? <ChevronUp className="w-4 h-4 shrink-0 text-foreground/50" /> : <ChevronDown className="w-4 h-4 shrink-0 text-foreground/50" />}
+            </summary>
+            {olderOpen && <div className="space-y-4 border-t border-border/20 p-4">{older.map(card)}</div>}
+          </details>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -422,15 +488,16 @@ export default function VoiceReceptionistSection() {
               permanent red badge with zero connection to queue contents. A
               badge that is always on trains the operator to ignore red
               badges everywhere. It now reflects what the queue query
-              actually returned, and shows "?" when that read failed. */}
+              actually returned, and shows "?" when that read failed. It counts
+              the last 2 days only: older callers sit in the fold on the tab. */}
           {activeTab !== "queue" && pendingQueueError && (
             <span className="bg-amber-500/15 text-amber-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold" title="Queue could not be read">
               ?
             </span>
           )}
-          {activeTab !== "queue" && !pendingQueueError && (pendingQueue?.length ?? 0) > 0 && (
+          {activeTab !== "queue" && !pendingQueueError && (pendingSplit?.fresh.length ?? 0) > 0 && (
             <span className="bg-rose-500/15 text-rose-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-              {pendingQueue!.length}
+              {pendingSplit!.fresh.length}
             </span>
           )}
         </button>
@@ -480,7 +547,7 @@ export default function VoiceReceptionistSection() {
                 color="text-emerald-400"
                 trendLabel={
                   scorecard
-                    ? `${scorecard.rates.qualifiedToLead.percent ?? 0}% of ${scorecard.rates.qualifiedToLead.denominator} qualified calls → lead · verified (leadId/callbackId/bookingId row exists)`
+                    ? `${scorecard.rates.qualifiedToLead.percent ?? 0}% of ${scorecard.rates.qualifiedToLead.denominator} qualified calls → lead · verified (a lead, callback or booking was saved)`
                     : m.total > 0
                       ? `Legacy: ${m.legacyConversionRate}%, Revised: ${m.revisedHardConversionRate}%`
                       : undefined
@@ -568,10 +635,7 @@ export default function VoiceReceptionistSection() {
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart
-                      data={Object.entries(m.outcomeBreakdown || {}).map(([outcome, count]) => ({
-                        name: prettyOutcome(outcome).label,
-                        value: count,
-                      })).sort((a, b) => b.value - a.value)}
+                      data={outcomeChart}
                       layout="vertical"
                       margin={{ left: 50, right: 12, top: 8, bottom: 8 }}
                     >
@@ -656,15 +720,22 @@ export default function VoiceReceptionistSection() {
                   {(searchQuery || reasonFilter) && (
                     <button
                       onClick={() => { setSearchQuery(""); setReasonFilter(null); }}
-                      className="text-[11px] text-foreground/50 hover:text-foreground border border-border/30 hover:border-primary/40 rounded px-2 py-1.5 transition-colors"
+                      className="min-h-12 min-w-12 text-[11px] text-foreground/50 hover:text-foreground border border-border/30 hover:border-primary/40 rounded px-3 py-1.5 transition-colors"
                     >
                       Reset filters
                     </button>
                   )}
                 </div>
 
+                {/* The list is the newest inbound calls only (todayCalls caps it at 200, outbound excluded). */}
+                {m && rawCalls.length < m.inbound && (
+                  <p className="text-[11px] text-foreground/50">
+                    {`Showing the newest ${rawCalls.length} of ${m.inbound} calls ${rangeWords}.`}
+                  </p>
+                )}
+
                 {/* Reason filter chips */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] text-foreground/45 mr-1">Filter:</span>
                   <FilterChip
                     label="All"
@@ -673,19 +744,16 @@ export default function VoiceReceptionistSection() {
                     onClick={() => setReasonFilter(null)}
                     tone="neutral"
                   />
-                  {m && Object.entries(m.endReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => {
-                    const pretty = prettyReason(reason);
-                    return (
-                      <FilterChip
-                        key={reason}
-                        label={pretty.label}
-                        count={count}
-                        active={reasonFilter === reason}
-                        onClick={() => setReasonFilter(reasonFilter === reason ? null : reason)}
-                        tone={reason}
-                      />
-                    );
-                  })}
+                  {reasonGroups.map((group) => (
+                    <FilterChip
+                      key={group.label}
+                      label={group.label}
+                      count={group.count}
+                      active={reasonFilter === group.label}
+                      onClick={() => setReasonFilter(reasonFilter === group.label ? null : group.label)}
+                      tone={group.tone}
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -782,9 +850,22 @@ export default function VoiceReceptionistSection() {
             </div>
           ) : queueSummary ? (
             <div className="bg-card border border-border/20 rounded-lg p-4 space-y-3">
+              {/* The line a person can act on: the pending list's last 2 days. A failed read is
+                  unknown, never zero; the older half is counted, not hidden. */}
+              {pendingSplit ? (
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <span className="text-2xl font-semibold text-foreground tabular-nums">{pendingSplit.fresh.length}</span>
+                  <span className="text-sm text-foreground">to call back now (last 2 days)</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {`${pendingSplit.older.length} older than 2 days (kept, not deleted)`}
+                  </span>
+                </div>
+              ) : pendingQueueError ? (
+                <p className="text-xs text-amber-400">Callbacks due now: unknown, the list could not be read.</p>
+              ) : null}
               <div className="flex items-baseline gap-3 flex-wrap">
                 <span className="text-xs text-muted-foreground">
-                  Needs attention
+                  Needs attention, last {queueSummary.windowDays} days
                 </span>
                 <span className="text-2xl font-semibold text-foreground tabular-nums">
                   {queueSummary.needsAttention}
@@ -795,8 +876,7 @@ export default function VoiceReceptionistSection() {
                   </span>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">
-                  from {queueSummary.sourceCallCount.toLocaleString()} call records ·{" "}
-                  {queueSummary.windowDays}d
+                  from {queueSummary.sourceCallCount.toLocaleString()} call records
                 </span>
               </div>
 
@@ -934,7 +1014,10 @@ export default function VoiceReceptionistSection() {
             {(["pending", "reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
               <button
                 key={status}
-                onClick={() => setQueueStatusFilter(status)}
+                onClick={() => {
+                  setQueueStatusFilter(status);
+                  setOlderOpen(false);
+                }}
                 className={`text-xs px-3 py-1 rounded-full border transition-all ${
                   queueStatusFilter === status
                     ? "bg-primary/10 border-primary text-primary font-medium"
@@ -964,7 +1047,7 @@ export default function VoiceReceptionistSection() {
             />
           ) : (
             <div className="space-y-4">
-              {queueItems.map((item: any) => {
+              {renderQueueSplit((item: any) => {
                 const outcome = prettyOutcome(item.evalOutcome);
                 const smsDraft = buildSmsDraft(item);
                 const smsText = smsDraft.body;
@@ -1151,22 +1234,6 @@ export default function VoiceReceptionistSection() {
           </div>
         )}
       </div>
-
-      {/* 2026-09-18 · DEMOTED, and this time actually to the bottom.
-          XP, levels and badges reward call VOLUME, not outcomes, and return no
-          time, money or decision quality to the operator — while occupying the
-          vertical space above a customer who is on the phone right now. Kept
-          rather than deleted (harmless here, and the operator may enjoy it),
-          but it no longer outranks live demand.
-
-          THE FIRST ATTEMPT MOVED IT AND THEN OVERSTATED THE MOVE. It went below
-          Live Calls but stayed ABOVE the date range, the tabs, the Performance
-          Dashboard and the whole call list — while the comment and the shipped
-          completion evidence both said "to the bottom of the page". Caught by
-          loading the deployed page and reading the render order, not by any
-          gate. A wave about the UI making claims it cannot support should not
-          leave one in its own source. */}
-      <VoiceAchievements />
 
       {/* ─── Drawer: full transcript + tool calls ────── */}
       {selectedCallId && (

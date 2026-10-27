@@ -19,7 +19,7 @@ export function FilterChip({
     <button
       onClick={onClick}
       className={
-        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] " +
+        "inline-flex items-center justify-center gap-1.5 min-h-12 min-w-12 px-3 rounded-full text-[11px] " +
         "border transition-colors " +
         (active
           ? activeClass

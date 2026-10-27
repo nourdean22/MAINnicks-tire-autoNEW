@@ -25,7 +25,7 @@ function startOfTodayIso(): string {
 
 function formatRate(rate: { numerator: number; denominator: number; percent: number | null }): string {
   return rate.percent == null
-    ? `${rate.numerator}/${rate.denominator} · not enough denominator`
+    ? `${rate.numerator}/${rate.denominator} · too few calls for a percent`
     : `${rate.percent}% · ${rate.numerator}/${rate.denominator}`;
 }
 
@@ -114,10 +114,11 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="text-[11px] font-bold text-foreground/45">
-            Voice revenue operations · today
+            Today so far
           </div>
           <p className="mt-1 text-xs text-foreground/50">
-            Version {scorecard.metricDefinitionVersion} · source {scorecard.source} · refreshed {scorecard.dataAsOf ? new Date(scorecard.dataAsOf).toLocaleTimeString() : "not available"}
+            {scorecard.dataAsOf ? `Updated ${new Date(scorecard.dataAsOf).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Update time not available"}
+            . This card always shows today, whatever range is picked below.
           </p>
         </div>
         {noVersionedData && evaluationLag === "pending" ? (
@@ -141,7 +142,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 px-2.5 py-1 text-[10px] font-bold text-emerald-300">
-            <CheckCircle2 className="h-3 w-3" /> Versioned data
+            <CheckCircle2 className="h-3 w-3" /> Scored calls included
           </span>
         )}
       </div>
@@ -156,14 +157,14 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
               will be". The count is identical; the meaning is opposite, and the
               operator acts differently on each. */}
           <p className="text-[11px] text-foreground/45">
-            {counts.versionedCalls} v1 · {counts.legacyUnversioned}{" "}
-            {evaluationLag === "pending" ? "awaiting scoring" : "unscored"}
+            {counts.versionedCalls} scored, {counts.legacyUnversioned}{" "}
+            {evaluationLag === "pending" ? "not scored yet" : "not scored"}
           </p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
           <p className="text-[10px] font-bold text-foreground/40">Qualified inquiries</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{counts.qualifiedServiceInquiries}</p>
-          <p className="text-[11px] text-foreground/45">classifier-v2 · inferred</p>
+          <p className="text-[11px] text-foreground/45">From the AI&apos;s read of the call</p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
           <p className="text-[10px] font-bold text-foreground/40">Verified capture</p>
