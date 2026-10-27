@@ -33,7 +33,10 @@ const state: {
   queries: Array<{ sql: string; values: unknown[] }>;
   failWith: Error | null;
   noDb: boolean;
-} = { rows: [], queries: [], failWith: null, noDb: false };
+  /** What the "decided proposals with no decision event" count returns (mysql2 may hand COUNT(*) back as text). */
+  missing: number;
+  failMissing: Error | null;
+} = { rows: [], queries: [], failWith: null, noDb: false, missing: 0, failMissing: null };
 
 const utcText = (daysAgo: number) =>
   new Date(NOW.getTime() - daysAgo * DAY).toISOString().slice(0, 19).replace("T", " ");
@@ -43,6 +46,11 @@ const fake = {
   query: async (q: { sql: string }, params: unknown[] = []) => {
     state.queries.push({ sql: q.sql, values: params });
     if (state.failWith) throw state.failWith;
+    if (/not exists/i.test(q.sql)) {
+      // select list: count(*) -- the decided proposals that have no approve / reject audit row
+      if (state.failMissing) throw state.failMissing;
+      return [[[String(state.missing)]], []];
+    }
     const values = params;
     const actions = values.filter((v): v is string => typeof v === "string" && v.startsWith("proposal."));
     const windowed = /interval/i.test(q.sql);
@@ -113,6 +121,8 @@ beforeEach(() => {
   state.queries = [];
   state.failWith = null;
   state.noDb = false;
+  state.missing = 0;
+  state.failMissing = null;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -214,6 +224,58 @@ describe("getDecisionSummary -- lastDecision", () => {
   it("is null only when there has never been a decision", async () => {
     state.rows = [{ entityId: "x", action: "proposal.executed", daysAgo: 1, actionType: BOOKING }];
     expect((await ok()).lastDecision).toBeNull();
+  });
+});
+
+describe("getDecisionSummary -- decisions whose audit write was lost", () => {
+  // recordActivity never throws, so a decided proposal can exist with no approve / reject audit row.
+  // The summary counts audit rows, so it must say how many decided proposals it cannot see.
+  it("reports 0 when every decided proposal has its decision event", async () => {
+    const out = await ok();
+    expect(out.missingDecisionEvents).toBe(0);
+  });
+
+  it("reports how many decided proposals have no decision event, as a number even when the driver returns text", async () => {
+    state.missing = 2;
+    const out = await ok();
+    expect(out.missingDecisionEvents).toBe(2);
+    // the audit-backed counts are untouched: the line is a warning, not a correction
+    expect(out.byType.find((t) => t.actionType === BOOKING)).toEqual({ actionType: BOOKING, approved: 3, turnedDown: 5 });
+  });
+
+  it("asks all-time (no window) over the decided statuses and NOT EXISTS an approve / reject audit row for the proposal id", async () => {
+    await ok(14);
+    const q = state.queries.find((x) => /not exists/i.test(x.sql));
+    expect(q, "the missing-event count was sent").toBeDefined();
+    expect(q!.sql).toMatch(/from `admin_proposals`/i);
+    expect(q!.sql).toMatch(/audit_log\.entity_id = admin_proposals\.id/i);
+    expect(q!.sql).not.toMatch(/interval/i);
+    expect(q!.values).toEqual(
+      expect.arrayContaining(["rejected", "approved", "executing", "executed", "failed", "execution_ambiguous", "proposal", "proposal.approved", "proposal.rejected"]),
+    );
+    expect(q!.values).not.toContain("draft");
+    expect(q!.values).not.toContain("pending_review");
+    expect(q!.values).not.toContain(14);
+  });
+
+  it("a failure of the count alone makes the whole result available:false, never a silent 0", async () => {
+    state.failMissing = new Error("connect ETIMEDOUT");
+    const out = await getDecisionSummary({ days: 30 });
+    expect(out.available).toBe(false);
+    if (out.available) throw new Error("unreachable");
+    expect(out.reason).toBe("error");
+    expect(out).not.toHaveProperty("missingDecisionEvents");
+    expect(out).not.toHaveProperty("byType");
+  });
+
+  it("an unreadable count fails the read rather than reporting 0", async () => {
+    const realQuery = fake.query;
+    fake.query = async (q, params) => (/not exists/i.test(q.sql) ? [[[null]], []] : realQuery(q, params));
+    try {
+      expect((await getDecisionSummary({ days: 30 })).available).toBe(false);
+    } finally {
+      fake.query = realQuery;
+    }
   });
 });
 

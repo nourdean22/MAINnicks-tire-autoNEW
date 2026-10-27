@@ -10,7 +10,7 @@
  * No real names or phones: "Caller" and 216-555-0100 style numbers only.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 const h = vi.hoisted(() => ({
@@ -22,6 +22,10 @@ const h = vi.hoisted(() => ({
   inputs: [] as Array<Record<string, unknown> | undefined>,
   /** Input and options of every proposals.decisionSummary read. */
   summaryCalls: [] as Array<{ input: unknown; opts: unknown }>,
+  /** Latest options each mutation was created with, by procedure path (to fire onSuccess). */
+  mutationOpts: {} as Record<string, { onSuccess?: (r: unknown) => void } | undefined>,
+  /** Paths of every utils.*.invalidate() call. */
+  invalidated: [] as string[],
   rows: [] as unknown[],
   summary: { data: undefined as unknown } as { data: unknown },
   summaryState: { isLoading: false, isError: false },
@@ -42,11 +46,14 @@ vi.mock("@/lib/trpc", () => {
             return { data: h.rows, isLoading: false, isError: false, error: null, refetch: () => {} };
           };
         if (key === "useMutation")
-          return () => ({
-            mutate: path === "proposals.approve" ? h.approve : path === "proposals.reject" ? h.reject : () => {},
-            isPending: false,
-          });
-        if (key === "invalidate") return async () => {};
+          return (opts?: { onSuccess?: (r: unknown) => void }) => {
+            h.mutationOpts[path] = opts;
+            return {
+              mutate: path === "proposals.approve" ? h.approve : path === "proposals.reject" ? h.reject : () => {},
+              isPending: false,
+            };
+          };
+        if (key === "invalidate") return async () => { h.invalidated.push(path); };
         return node(path ? `${path}.${String(key)}` : String(key));
       },
     });
@@ -91,7 +98,8 @@ const line = (label: string) => screen.getByText(label).parentElement?.textConte
 
 /** A decisionSummary answer that worked: empty unless the test says otherwise. */
 const summary = (over: Record<string, unknown>) => ({
-  available: true, days: 30, since: "2026-09-27T00:00:00.000Z", byType: [], topReasons: [], lastDecision: null, ...over,
+  available: true, days: 30, since: "2026-09-27T00:00:00.000Z", byType: [], topReasons: [], lastDecision: null,
+  missingDecisionEvents: 0, ...over,
 });
 
 beforeEach(() => {
@@ -100,6 +108,8 @@ beforeEach(() => {
   h.summaryState = { isLoading: false, isError: false };
   h.inputs.length = 0;
   h.summaryCalls.length = 0;
+  h.invalidated.length = 0;
+  h.mutationOpts = {};
 });
 afterEach(() => {
   cleanup();
@@ -285,6 +295,24 @@ describe("reject with one-tap reasons", () => {
     expect(h.reject).toHaveBeenLastCalledWith({ id: "p-1", note: "wrong shop" });
   });
 
+  it("makes the detail box a 48px target as well as 16px text", () => {
+    open();
+    const cls = screen.getByLabelText("Add detail (optional)").className;
+    expect(cls).toContain("min-h-12");
+    expect(cls).toContain("text-base");
+  });
+
+  it("a decision refreshes the queue, the counts and the 30-day summary", () => {
+    open();
+    for (const path of ["proposals.reject", "proposals.approve"]) {
+      h.invalidated.length = 0;
+      act(() => h.mutationOpts[path]?.onSuccess?.({ ok: true, status: "rejected" }));
+      expect(h.invalidated, path).toEqual(
+        expect.arrayContaining(["utils.proposals.list", "utils.proposals.counts", "utils.proposals.decisionSummary"]),
+      );
+    }
+  });
+
   it("Keep closes the form without sending anything", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
@@ -319,6 +347,26 @@ describe("the last 30 days summary (proposals.decisionSummary)", () => {
     expect(screen.getByText("Duplicate · 1")).toBeTruthy();
     // The server read has no row cap, so no hedging copy is left.
     expect(document.body.textContent).not.toMatch(/at least|read stopped|may be low/i);
+  });
+
+  it("warns that the counts may be low when decided proposals have no decision event in the history", () => {
+    h.summary.data = summary({ byType: [{ actionType: B, approved: 1, turnedDown: 1 }], missingDecisionEvents: 2 });
+    render(<ApprovalsSection />);
+    expect(screen.getByText("2 earlier decisions were not recorded in the history, so these counts may be low.")).toBeTruthy();
+  });
+
+  it("says it in the singular for one, and also when the window itself is empty", () => {
+    h.summary.data = summary({ missingDecisionEvents: 1 });
+    render(<ApprovalsSection />);
+    expect(screen.getByText("1 earlier decision was not recorded in the history, so these counts may be low.")).toBeTruthy();
+    expect(screen.getByText("No decisions in the last 30 days.")).toBeTruthy();
+  });
+
+  it("says nothing about missing events when there are none", () => {
+    h.summary.data = summary({ byType: [{ actionType: B, approved: 1, turnedDown: 1 }], missingDecisionEvents: 0 });
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Booking requests: 1 approved, 1 turned down")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/not recorded in the history/);
   });
 
   it("falls back to the raw action type for a type it has no words for", () => {

@@ -26,6 +26,9 @@ const DECISION_OF: Record<(typeof DECISION_ACTIONS)[number], Decision> = {
   "proposal.rejected": "turned_down",
 };
 
+/** Every status a human decision leaves behind (a yes that then ran, failed or hung, or a no). */
+const DECIDED_STATUSES = ["rejected", "approved", "executing", "executed", "failed", "execution_ambiguous"];
+
 const NO_REASON = "No reason given";
 const UNKNOWN_TYPE = "unknown";
 const REASON_MAX = 80;
@@ -45,6 +48,12 @@ export type ProposalDecisionSummary =
       topReasons: Array<{ reason: string; count: number }>;
       /** The newest decision event of ALL time (not windowed); null only when there has never been one. */
       lastDecision: { at: string; decision: Decision; actionType: string | null } | null;
+      /**
+       * Decided proposals (all time) with NO approve / reject audit row. recordActivity is fail-soft, so a
+       * decision whose audit write failed exists in admin_proposals but is invisible to every count above.
+       * 0 means every decided proposal is accounted for.
+       */
+      missingDecisionEvents: number;
     }
   | { available: false; reason: "error" | "no_db"; message: string };
 
@@ -112,6 +121,24 @@ export async function getDecisionSummary({ days }: { days: number }): Promise<Pr
       .orderBy(desc(auditLog.createdAt))
       .limit(1);
 
+    // Decided proposals the audit log never heard about (fail-soft writer). A failure here fails the whole read.
+    const [missingRow] = await d
+      .select({ n: sql<number | string | null>`COUNT(*)` })
+      .from(adminProposals)
+      .where(
+        and(
+          inArray(adminProposals.status, DECIDED_STATUSES),
+          sql`NOT EXISTS (SELECT 1 FROM audit_log WHERE audit_log.entity_type = ${"proposal"} AND audit_log.entity_id = admin_proposals.id AND audit_log.action IN (${sql.join(
+            DECISION_ACTIONS.map((a) => sql`${a}`),
+            sql`, `,
+          )}))`,
+        ),
+      );
+    const missingDecisionEvents = Number(missingRow?.n);
+    if (missingRow?.n == null || !Number.isInteger(missingDecisionEvents) || missingDecisionEvents < 0) {
+      throw new Error("the missing-decision count is not a readable number");
+    }
+
     // Each proposal counts once, by its latest decision event in the window.
     const latest = new Map<string, { at: number; decision: Decision; note: string | null; actionType: string }>();
     windowRows.forEach((r, i) => {
@@ -160,6 +187,7 @@ export async function getDecisionSummary({ days }: { days: number }): Promise<Pr
       byType,
       topReasons,
       lastDecision,
+      missingDecisionEvents,
     };
   } catch (err) {
     const message = logSafeErrorMessage(err);

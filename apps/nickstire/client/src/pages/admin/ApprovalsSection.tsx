@@ -118,6 +118,7 @@ export default function ApprovalsSection() {
   const invalidate = () => {
     void utils.proposals.list.invalidate();
     void utils.proposals.counts.invalidate();
+    void utils.proposals.decisionSummary.invalidate();
   };
 
   const approve = trpc.proposals.approve.useMutation({
@@ -348,7 +349,7 @@ export default function ApprovalsSection() {
                       maxLength={800}
                       aria-label="Add detail (optional)"
                       placeholder="Add detail (optional)"
-                      className="w-full bg-background/50 border border-border/30 rounded-md px-3 py-2 text-base"
+                      className="w-full min-h-12 bg-background/50 border border-border/30 rounded-md px-3 py-2 text-base"
                     />
                     <div className="flex gap-2">
                       <button
@@ -517,6 +518,11 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
             </div>
           )}
         </>
+      )}
+      {data.missingDecisionEvents > 0 && (
+        <p>
+          {`${data.missingDecisionEvents} earlier ${data.missingDecisionEvents === 1 ? "decision was" : "decisions were"} not recorded in the history, so these counts may be low.`}
+        </p>
       )}
     </section>
   );
