@@ -424,6 +424,11 @@ export const trafficFunnelRouter = router({
         const { sendPauseHoldReason } = await import("../services/sendPause");
         const armed = recoverySendsEnabled(process.env);
         const held = armed ? await sendPauseHoldReason("declined_recovery") : null;
+        // The shop-wide SMS pause also queues these texts (sms.ts sendSms), so it counts like the lane's own switch.
+        const globalPause = armed ? await (await import("../services/smsControl")).getSmsPauseState() : null;
+        const laneUnreadable = held?.startsWith("send_pause_unreadable") ?? false;
+        const isPaused = (!!held && !laneUnreadable) || (globalPause?.readable === true && globalPause.paused);
+        const isUnknown = !isPaused && (laneUnreadable || (globalPause !== null && !globalPause.readable));
         alerts.push({
           level: "warning",
           title: `${algDeclined} declined walk-in estimates`,
@@ -431,9 +436,9 @@ export const trafficFunnelRouter = router({
           detail: "Quoted at the counter with no matching invoice, so the customer most likely walked.",
           fix: !armed
             ? "Enable FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups."
-            : held?.startsWith("send_pause_unreadable")
+            : isUnknown
               ? "Declined-recovery state unknown: the pause switch could not be read (the cron holds until it can); work the queue on Money > Declined."
-              : held
+              : isPaused
                 ? "Declined-recovery texts are paused (Settings > Safety), so none are going out; work the queue on Money > Declined."
                 : "Declined-recovery texts are running (7d / 30d); work the queue on Money > Declined.",
         });
