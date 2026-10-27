@@ -361,7 +361,9 @@ export default function VoiceReceptionistSection() {
               <span className="block space-y-0.5">
                 <span className="block text-sm font-semibold text-foreground">Older than 2 days: {older.length}</span>
                 <span className="block text-xs text-muted-foreground">{olderWords}</span>
-                <span className="block text-xs text-muted-foreground">Not deleted and not counted as done. Open to review them.</span>
+                <span className="block text-xs text-muted-foreground">
+                  {isPending ? "Not deleted and not counted as done. Open to review them." : "Open to see them."}
+                </span>
               </span>
               {olderOpen ? <ChevronUp className="w-4 h-4 shrink-0 text-foreground/50" /> : <ChevronDown className="w-4 h-4 shrink-0 text-foreground/50" />}
             </summary>
@@ -851,8 +853,11 @@ export default function VoiceReceptionistSection() {
           ) : queueSummary ? (
             <div className="bg-card border border-border/20 rounded-lg p-4 space-y-3">
               {/* The line a person can act on: the pending list's last 2 days. A failed read is
-                  unknown, never zero; the older half is counted, not hidden. */}
-              {pendingSplit ? (
+                  unknown, never zero, even when the cache still holds the last rows; the older half is
+                  counted, not hidden. */}
+              {pendingQueueError ? (
+                <p className="text-xs text-amber-400">Callbacks due now: unknown, the list could not be read.</p>
+              ) : pendingSplit ? (
                 <div className="flex items-baseline gap-3 flex-wrap">
                   <span className="text-2xl font-semibold text-foreground tabular-nums">{pendingSplit.fresh.length}</span>
                   <span className="text-sm text-foreground">to call back now (last 2 days)</span>
@@ -860,8 +865,6 @@ export default function VoiceReceptionistSection() {
                     {`${pendingSplit.older.length} older than 2 days (kept, not deleted)`}
                   </span>
                 </div>
-              ) : pendingQueueError ? (
-                <p className="text-xs text-amber-400">Callbacks due now: unknown, the list could not be read.</p>
               ) : null}
               <div className="flex items-baseline gap-3 flex-wrap">
                 <span className="text-xs text-muted-foreground">

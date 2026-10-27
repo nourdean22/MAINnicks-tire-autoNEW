@@ -456,3 +456,36 @@ describe("Plain words on the page", () => {
     expect(screen.queryByText("No number set")).toBeNull();
   });
 });
+
+describe("Codex round 1 on PR 3334", () => {
+  it("the fold under a finished status does not call its rows unfinished", () => {
+    openTab("queue");
+    setQueue({ pending: SIX(), reviewed: [queueItem("rev-20d", 20 * 24, { queueStatus: "reviewed" })] });
+    render(<VoiceReceptionistSection />);
+    fireEvent.click(screen.getByRole("button", { name: "REVIEWED" }));
+    const summary = screen.getByText(/Older than 2 days: 1/).closest("summary") as HTMLElement;
+    expect(summary.textContent).not.toContain("not counted as done");
+    expect(summary.textContent).toContain("Open to see them.");
+  });
+
+  it("a failed pending re-read that still holds the last rows shows unknown, not the old counts", () => {
+    openTab("queue");
+    h.queries.set("vapi.getMissedRevenueQueue", (input: { status: string }) =>
+      input.status === "pending" ? { data: SIX(), isError: true, error: new Error("refetch failed") } : ok([]),
+    );
+    render(<VoiceReceptionistSection />);
+    expect(screen.getByText(/Callbacks due now: unknown/)).toBeTruthy();
+    expect(screen.queryByText("to call back now (last 2 days)")).toBeNull();
+  });
+
+  it("splits on the server's ageMinutes, not the device clock, and falls back to createdAt only without it", () => {
+    const rows = [
+      { createdAt: hoursAgo(1), ageMinutes: 50 * 60 },
+      { createdAt: hoursAgo(60), ageMinutes: 30 },
+      { createdAt: hoursAgo(60) },
+    ];
+    const { fresh, older } = voiceFormat.splitQueueByAge(rows, NOW.getTime());
+    expect(fresh).toEqual([rows[1]]);
+    expect(older).toEqual([rows[0], rows[2]]);
+  });
+});
