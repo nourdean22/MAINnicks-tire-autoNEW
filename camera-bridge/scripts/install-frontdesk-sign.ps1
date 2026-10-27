@@ -45,8 +45,6 @@ param(
 $ErrorActionPreference = "Stop"
 $bridge = Split-Path -Parent $PSScriptRoot
 if (-not $Root) { $Root = Split-Path -Parent $bridge }
-$secretDir = Join-Path $env:ProgramData "NickLotVision"
-$secretFile = Join-Path $secretDir "v380.machine"
 
 $pins = @{
   relay = @{
@@ -100,6 +98,9 @@ if ($VerifyOnly) {
   exit 0
 }
 
+# After -VerifyOnly: ProgramData exists only on Windows, and the pin check also runs on Linux CI.
+$secretDir = Join-Path $env:ProgramData "NickLotVision"
+$secretFile = Join-Path $secretDir "v380.machine"
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) { Fail "not elevated: open PowerShell as Administrator" }
 

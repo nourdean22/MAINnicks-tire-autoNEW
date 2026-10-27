@@ -40,7 +40,9 @@ def _pwsh() -> str:
 def _verify(tmp_path: Path, relay: Path):
     cmd = [_pwsh(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(INSTALLER),
            "-VerifyOnly", "-RelayZip", str(relay), "-Root", str(tmp_path / "lot-vision")]
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    # No ProgramData: CI runs this on Linux pwsh, where it does not exist (red on PR 3317).
+    env = {k: v for k, v in os.environ.items() if k.lower() != "programdata"}
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
 
 
 def test_pins_are_the_phase_3_windows_pins():
