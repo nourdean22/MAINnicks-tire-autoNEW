@@ -701,8 +701,11 @@ function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | n
               is shown; NULL (a pre-0144 edge) says nothing rather than claiming a zero.
             */}
             {typeof c.vision?.detectionsLast10m === "number" && (
-              <span className={c.facets.vision === "blind" ? "text-amber-400" : undefined}>
-                saw {c.vision.detectionsLast10m} vehicle{c.vision.detectionsLast10m === 1 ? "" : "s"} in 10m
+              <span
+                className={c.facets.vision === "blind" ? "text-amber-400" : undefined}
+                title="A sum over frames: a parked car is detected again in every frame, so this is not a car count"
+              >
+                {c.vision.detectionsLast10m} detection{c.vision.detectionsLast10m === 1 ? "" : "s"} in 10m
               </span>
             )}
             {typeof c.vision?.portalCrossingsLast60m === "number" && (

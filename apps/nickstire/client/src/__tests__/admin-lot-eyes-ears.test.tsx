@@ -425,5 +425,8 @@ describe("the headline says what the counter is doing, not only the camera (job 
     expect(chip.textContent).toContain("96 detections in the last 10 min");
     expect(chip.textContent).toContain("not a car count");
     expect(chip.textContent).not.toMatch(/saw \d+ vehicle/);
+    // The camera card says the same thing in its own words.
+    expect(document.body.textContent).toContain("96 detections in 10m");
+    expect(document.body.textContent).not.toMatch(/saw \d+ vehicles? in 10m/);
   });
 });
