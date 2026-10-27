@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state moves. PR bughunt-1027-pause-since only widens the audit-action list getLastFlagChanges reads (services/featureFlags.ts) so the Settings pause line shows who and when for the SMS-panel pause; the capability is the same admin read as before and no ledger row changes."
+    }
+  }
+}
