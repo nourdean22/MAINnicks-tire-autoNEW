@@ -360,7 +360,8 @@ export interface FlagChange {
 
 /**
  * Who flipped each switch last and when, from the audit rows featureFlags.toggle writes (action flag.toggled,
- * entity feature_flag, new value in changes.value.new). One grouped query for every key, not one per flag.
+ * entity feature_flag, new value in changes.value.new). The SMS panel's pause button writes the same shape under
+ * action sms.global_pause (smsOps.setPause); leaving it out made that pause read "never flipped since install". One grouped query for every key, not one per flag.
  * Returns null when the audit table could not be read: that is UNKNOWN, never "nobody ever flipped it".
  */
 export async function getLastFlagChanges(): Promise<Map<string, FlagChange> | null> {
@@ -375,10 +376,10 @@ export async function getLastFlagChanges(): Promise<Map<string, FlagChange> | nu
       INNER JOIN (
         SELECT entity_id, MAX(created_at) AS lastAt
         FROM audit_log
-        WHERE action = 'flag.toggled' AND entity_type = 'feature_flag'
+        WHERE action IN ('flag.toggled', 'sms.global_pause') AND entity_type = 'feature_flag'
         GROUP BY entity_id
       ) newest ON a.entity_id = newest.entity_id AND a.created_at = newest.lastAt
-      WHERE a.action = 'flag.toggled' AND a.entity_type = 'feature_flag'
+      WHERE a.action IN ('flag.toggled', 'sms.global_pause') AND a.entity_type = 'feature_flag'
     `);
     if (!Array.isArray(rows)) return null;
     const out = new Map<string, FlagChange>();
