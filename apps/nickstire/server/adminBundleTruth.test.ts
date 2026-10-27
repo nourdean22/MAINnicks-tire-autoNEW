@@ -63,7 +63,8 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
     // work-order page is full), so this asserts the GUARANTEE — untrusted still
     // renders the em dash — rather than one exact line.
     // Admin UI v1 W0 routes the dash through one const; it must stay the dash, never a 0.
-    expect(overview).toMatch(/value=\{queueTrustworthy \?[\s\S]{0,90}: (?:UNKNOWN|"—")\}/);
+    // 2026-10-26: the count also waits for every source to answer (queueAnswered), still the dash before that.
+    expect(overview).toMatch(/value=\{queueTrustworthy(?: && queueAnswered)? \?[\s\S]{0,90}: (?:UNKNOWN|"—")\}/);
     expect(overview).toMatch(/^const UNKNOWN = "—";$/m);
     expect(overview).toMatch(/Unable to determine/);
   });
@@ -80,8 +81,11 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
     expect(overview).toMatch(/UNKNOWN, not clear/);
   });
 
-  it("the Active work orders card cannot show a count from a failed read", () => {
-    expect(overview).toMatch(/value=\{workOrdersFailed \? (?:UNKNOWN|"—")/);
+  // 2026-10-26: the work-order read left Today (one cancelled row in production since April); the
+  // separate read that can now fail outside the bundle is the Pipeline follow-ups, and it must veto
+  // the count the same way the work-order read did.
+  it("a failed follow-ups read vetoes the Needs-action count instead of hiding rows", () => {
+    expect(overview).toMatch(/!followUpsFailed &&/);
   });
 
   it("SummaryCard can express UNKNOWN at all", () => {

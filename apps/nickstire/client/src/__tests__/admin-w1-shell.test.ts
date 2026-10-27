@@ -123,7 +123,7 @@ describe("48 px targets on Today and the section boundary", () => {
   it("queue filter chips, queue verbs and the call/message links are min-h-12", () => {
     // W2 moved the row verbs and the call/message links into today/QueueRow.tsx, so both files are scanned.
     const queue =
-      sliceBlock(overview, 'aria-label="Filter queue"', 'aria-labelledby="history-title"', { label: "OverviewSection.tsx" }) +
+      sliceBlock(overview, 'aria-label="Filter queue"', "<SalesCard />", { label: "OverviewSection.tsx" }) +
       readFileSync(join(ROOT, "client/src/pages/admin/today/QueueRow.tsx"), "utf8");
     const controls = controlClassNames(queue);
     expect(controls.length).toBeGreaterThanOrEqual(5);
@@ -177,7 +177,8 @@ describe("gold marks owner priority only", () => {
   const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
   it("Today's Needs action card turns gold only when the queue is readable and holds items", () => {
     const card = sliceBlock(overview, 'label="Needs action"', "/>", { label: "OverviewSection.tsx" });
-    expect(card).toMatch(/priority=\{queueTrustworthy && queue\.length > 0\}/);
+    // Gold also waits for every source to answer: a count still loading is not work known to be waiting.
+    expect(card).toMatch(/priority=\{queueTrustworthy && queueAnswered && queue\.length > 0\}/);
     expect(overview).toMatch(/priority \? "[^"]*var\(--owner-priority\)/);
   });
 });

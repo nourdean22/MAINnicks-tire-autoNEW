@@ -265,7 +265,7 @@ describe("reel video provider readiness is a signal, not a silence", () => {
   });
 
   it("names its source so the number can be traced", () => {
-    expect(providerSignal().source).toBe("contentAdmin.operationsSignal");
+    expect(providerSignal().source).toBe("Instagram queue");
   });
 });
 

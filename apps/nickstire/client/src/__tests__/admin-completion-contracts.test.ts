@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
+import { getBusinessDateKey } from "@/lib/businessDate";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
 import { getQueueActionDefinition } from "@/pages/admin/today/queueActions";
 import { hasAdminPermission } from "@shared/adminPermissions";
@@ -8,14 +8,13 @@ import { generateTotpCode, generateTotpSecret, verifyTotpCode } from "../../../s
 describe("Cleveland business date", () => {
   it("does not roll to tomorrow at 8pm Eastern", () => {
     expect(getBusinessDateKey(new Date("2026-07-17T00:30:00.000Z"))).toBe("2026-07-16");
-    expect(isBusinessDate("2026-07-17T00:30:00.000Z", "2026-07-16")).toBe(true);
   });
 });
 
 describe("truthful queue actions", () => {
-  it("never describes callback completion or work-order navigation as deletion", () => {
+  it("never describes callback completion or follow-up navigation as deletion", () => {
     expect(getQueueActionDefinition("callback").secondaryLabel).toBe("Open callback");
-    expect(getQueueActionDefinition("workOrder").primaryLabel).toBe("Open work order");
+    expect(getQueueActionDefinition("followUp").primaryLabel).toBe("Open in Sales Pipeline");
   });
   it("uses entity-specific primary labels", () => {
     expect(getQueueActionDefinition("booking").primaryLabel).toBe("Confirm booking");

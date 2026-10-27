@@ -76,7 +76,6 @@ vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user, loadin
 
 vi.mock("@/pages/admin/SalesCard", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/ClosedLoopLiftPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/Today", () => ({ default: h.Null }));
@@ -98,7 +97,6 @@ import CallTrackingSection from "@/pages/admin/CallTrackingSection";
 import WinBackSection from "@/pages/admin/outreach/WinBackSection";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
-import { getQueueActionDefinition } from "@/pages/admin/today/queueActions";
 
 const FAILED: Partial<Q> = { data: undefined, isError: true, error: new Error("read failed") };
 const ok = (data: unknown): Partial<Q> => ({ data, isError: false });
@@ -126,6 +124,8 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.user = { role: "admin" };
+  h.queries.set("opportunityQueue.list", ok({ items: [], queryable: true }));
+  h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
   window.history.replaceState({}, "", "/admin");
 });
 
@@ -167,7 +167,7 @@ describe("Today (OverviewSection)", () => {
     expect(refetch).toHaveBeenCalled();
     expect(screen.queryByText("All clear")).toBeNull();
     expect(screen.queryByText(/all clear/i)).toBeNull();
-    for (const label of ["Needs action", "Bookings today", "Urgent leads"]) {
+    for (const label of ["Needs action", "Waiting on customer"]) {
       const card = summaryCard(label);
       expect(within(card).getByText("Unable to determine"), label).toBeTruthy();
       expect(card.textContent, label).not.toMatch(/\d/);
@@ -178,115 +178,22 @@ describe("Today (OverviewSection)", () => {
   it("an unavailable slice makes only its own card unknown", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok({ ...EMPTY_BUNDLE, unavailableSlices: ["bookings"] }));
     const { unmount } = render(<OverviewSection />);
-    expect(within(summaryCard("Bookings today")).getByText("Unable to determine")).toBeTruthy();
-    expect(within(summaryCard("Urgent leads")).getByText("0")).toBeTruthy();
+    expect(within(summaryCard("Waiting on customer")).getByText("0")).toBeTruthy();
     expect(screen.getByText(/Now: queue unknown/)).toBeTruthy();
     unmount();
     h.queries.set("adminDashboard.overviewMediumBundle", ok({ ...EMPTY_BUNDLE, unavailableSlices: ["leads"] }));
     render(<OverviewSection />);
-    expect(within(summaryCard("Urgent leads")).getByText("Unable to determine")).toBeTruthy();
+    expect(within(summaryCard("Waiting on customer")).getByText("Unable to determine")).toBeTruthy();
   });
 
   it("positive control: a clean empty read still says All clear in the card and the brief", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(EMPTY_BUNDLE));
-    h.queries.set("workOrders.list", ok([]));
     render(<OverviewSection />);
     expect(within(summaryCard("Needs action")).getByText("All clear")).toBeTruthy();
-    expect(within(summaryCard("Bookings today")).getByText("0")).toBeTruthy();
+    expect(within(summaryCard("Waiting on customer")).getByText("0")).toBeTruthy();
     expect(screen.getByText(/Now: all clear/)).toBeTruthy();
   });
 
-  function workOrderScenario(role: string, customerId?: number) {
-    h.queries.set("adminSecurity.status", ok({ adminRole: role, permissions: [] }));
-    h.queries.set("adminDashboard.overviewMediumBundle", ok(EMPTY_BUNDLE));
-    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", customerId, createdAt: new Date().toISOString() }]));
-    const receipts: Array<{ action: string; changes: Record<string, unknown> }> = [];
-    h.mutations.set("adminSecurity.recordAction", () => ({
-      mutateAsync: async (input: { action: string; changes: Record<string, unknown> }) => {
-        receipts.push(input);
-        return { reference: "ACT-1" };
-      },
-      isPending: false,
-    }));
-    const sections: string[] = [];
-    const listener = (e: Event) => sections.push((e as CustomEvent<{ section: string }>).detail.section);
-    window.addEventListener("admin:navigate-section", listener);
-    return { receipts, sections, done: () => window.removeEventListener("admin:navigate-section", listener) };
-  }
-
-  it("front desk opens the customer's Active Backlog instead of Money, and the receipt names it", async () => {
-    const s = workOrderScenario("front_desk", 42);
-    try {
-      render(<OverviewSection />);
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
-      });
-      expect(s.sections).toEqual(["customers"]);
-      const url = new URL(window.location.href);
-      expect(url.searchParams.get("id")).toBe("42");
-      expect(url.searchParams.get("profileTab")).toBe("backlog");
-      expect(s.receipts).toEqual([expect.objectContaining({ action: "admin.work_order_opened", changes: expect.objectContaining({ target: "customers" }) })]);
-    } finally {
-      s.done();
-    }
-  });
-
-  it("front desk with no customer on the work order: no navigation, a toast, and no opened receipt", async () => {
-    const s = workOrderScenario("front_desk");
-    try {
-      render(<OverviewSection />);
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
-      });
-      expect(s.sections).toEqual([]);
-      expect(h.toastError).toHaveBeenCalledWith("This work order has no customer on file, so there is no profile to open.");
-      expect(s.receipts).toEqual([]);
-    } finally {
-      s.done();
-    }
-  });
-
-  it("an accountant (Money but not Customers) gets a toast, no navigation and no receipt", async () => {
-    const s = workOrderScenario("accountant", 42);
-    try {
-      render(<OverviewSection />);
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
-      });
-      expect(s.sections).toEqual([]);
-      expect(h.toastError).toHaveBeenCalledWith("Work orders open in Customers, which your role cannot open.");
-      expect(s.receipts).toEqual([]);
-    } finally {
-      s.done();
-    }
-  });
-
-  // 2026-10-25: Money no longer carries a work-order board, so the owner goes to the customer's
-  // Active Backlog like everyone else; a link into Money would land on Billed with no work order.
-  it("Open work order goes to the customer's Active Backlog for an owner, and shows one button", async () => {
-    window.history.replaceState({}, "", "/admin?tab=overview&moneyTab=declined");
-    const s = workOrderScenario("owner", 42);
-    const { sections, receipts } = s;
-    try {
-      render(<OverviewSection />);
-      const buttons = screen.getAllByRole("button", { name: "Open work order" });
-      expect(buttons).toHaveLength(1);
-      await act(async () => {
-        fireEvent.click(buttons[0]);
-      });
-      expect(sections).toEqual(["customers"]);
-      const url = new URL(window.location.href);
-      expect(url.searchParams.get("id")).toBe("42");
-      expect(url.searchParams.get("profileTab")).toBe("backlog");
-      expect(url.searchParams.get("wo")).toBeNull();
-      expect(receipts).toEqual([expect.objectContaining({ action: "admin.work_order_opened", changes: expect.objectContaining({ target: "customers" }) })]);
-      const wo = getQueueActionDefinition("workOrder");
-      expect(wo.primaryConfirmMessage("Pat")).toBe("Open Pat's work order in their customer profile.");
-      expect(wo.secondaryConfirmMessage("Pat")).toBe("Open Pat's work order in their customer profile.");
-    } finally {
-      s.done();
-    }
-  });
 });
 
 describe("Customers", () => {

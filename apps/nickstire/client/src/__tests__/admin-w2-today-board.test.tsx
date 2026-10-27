@@ -2,7 +2,7 @@
  * Admin UI v1 Wave 2: Today becomes a board (apps/nickstire/docs/design/admin-ui-v1/PLAN.md section 3, W2).
  *
  * The priority queue is the page's first object, as finite ruled rows acted on in place; a one-line
- * verdict sits above it; four numbers sit in one strip below it; Billed and Arrival load follow; every
+ * verdict sits above it; three numbers sit in one strip below it; Billed and Arrival load follow; every
  * monitoring panel lives under one collapsed "Checks" rail. Each test mounts the real OverviewSection
  * with "@/lib/trpc" replaced by the same proxy admin-w0-honesty.test.tsx uses (every query returns
  * { data: undefined } unless a test sets its dotted path), so the queue actions run through the real
@@ -66,7 +66,6 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, d
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin" }, loading: false }) }));
 vi.mock("@/pages/admin/SalesCard", () => ({ default: h.Marker("sales-card") }));
 vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Marker("promises") }));
-vi.mock("@/pages/admin/ClosedLoopLiftPanel", () => ({ default: h.Marker("closed-loop") }));
 vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Marker("arrival") }));
 vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Marker("exceptions") }));
 import OverviewSection from "@/pages/admin/OverviewSection";
@@ -131,7 +130,8 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.onInvalidate = null;
-  h.queries.set("workOrders.list", ok([]));
+  h.queries.set("opportunityQueue.list", ok({ items: [], queryable: true }));
+  h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
   h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
   try { window.localStorage.clear(); } catch { /* storage blocked: the rail must still render */ }
   setDesktop(false);
@@ -161,10 +161,10 @@ describe("Today reads top to bottom as verdict, board, strip, Billed, Arrival, C
     expect(before(strip, sales)).toBe(true);
     expect(before(sales, arrival)).toBe(true);
     expect(before(arrival, checks)).toBe(true);
-    for (const id of ["promises", "closed-loop", "exceptions"]) {
+    for (const id of ["promises", "exceptions"]) {
       expect(screen.getByTestId(id).closest("details"), id).toBe(checks);
     }
-    expect(screen.getByRole("heading", { name: "Integration freshness" }).closest("details")).toBe(checks);
+    expect(screen.getByText(/^ShopDriver mirror · /).closest("details")).toBe(checks);
   });
 
   it("the gateway and calls line moves into the rail; only the Now line stays on top", () => {
@@ -195,39 +195,21 @@ describe("the board", () => {
     expect(screen.queryByText(/UNKNOWN, not clear/)).toBeNull();
   });
 
-  it("the end state waits for the work-order read too: bundle answered, work orders pending, no all-clear", () => {
+  it("the end state waits for the follow-ups read too: bundle answered, follow-ups pending, no all-clear", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
-    h.queries.set("workOrders.list", { data: undefined, isLoading: true, isError: false });
+    h.queries.set("opportunityQueue.list", { data: undefined, isLoading: true, isError: false });
     render(<OverviewSection />);
     expect(screen.queryByText(/Done for today/)).toBeNull();
     expect(screen.queryByText("All clear")).toBeNull();
     expect(screen.getByText("Loading the queue")).toBeTruthy();
   });
 
-  it("a paused work-order read (no data, not loading, not failed) is not an all-clear either", () => {
+  it("a paused follow-ups read (no data, not loading, not failed) is not an all-clear either", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
-    h.queries.set("workOrders.list", { data: undefined, isLoading: false, isError: false });
+    h.queries.set("opportunityQueue.list", { data: undefined, isLoading: false, isError: false });
     render(<OverviewSection />);
     expect(screen.queryByText(/Done for today/)).toBeNull();
     expect(screen.getByText("Loading the queue")).toBeTruthy();
-  });
-
-  it("a live work order outside the old five statuses is on the board and blocks the all-clear", () => {
-    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
-    // The real lifecycle (server workOrderService) has these live statuses; the old set only knew five.
-    for (const status of ["approved", "parts_ordered", "ready_for_pickup", "on_hold"]) {
-      h.queries.set("workOrders.list", ok([{ id: 7, status, customerName: "Dana Whitfield", createdAt: now() }]));
-      const { unmount } = render(<OverviewSection />);
-      expect(rows().some((r) => r.textContent?.includes("Dana Whitfield")), status).toBe(true);
-      expect(screen.queryByText(/Done for today/), status).toBeNull();
-      expect(within(screen.getByText("Active work orders").parentElement as HTMLElement).getByText("1"), status).toBeTruthy();
-      unmount();
-    }
-    // The control: a finished order is not on the board, so the all-clear is still reachable.
-    h.queries.set("workOrders.list", ok([{ id: 8, status: "picked_up", customerName: "Dana Whitfield", createdAt: now() }]));
-    render(<OverviewSection />);
-    expect(rows()).toHaveLength(0);
-    expect(screen.getByText("Done for today. Nothing needs you.")).toBeTruthy();
   });
 
   it("an urgent item past position 12 is sorted into the first 12 rows", () => {
@@ -253,7 +235,7 @@ describe("the board", () => {
     const src = readFileSync(join(process.cwd(), "client/src/pages/admin/today/queueActions.ts"), "utf8");
     const types = [...src.matchAll(/^\s*case "(\w+)":/gm)].map((m) => m[1]);
     // The scrape must still find the five known types, or the loop below would pass over nothing.
-    expect(types).toEqual(expect.arrayContaining(["booking", "callback", "lead", "text", "workOrder"]));
+    expect(types).toEqual(expect.arrayContaining(["booking", "callback", "lead", "text", "followUp"]));
     for (const type of types) {
       const { shortLabel } = getQueueActionDefinition(type as Parameters<typeof getQueueActionDefinition>[0]);
       expect(shortLabel.trim().length, `${type} has a short verb`).toBeGreaterThan(0);
@@ -268,9 +250,9 @@ describe("the board", () => {
     expect(screen.queryByText(/Done for today/)).toBeNull();
   });
 
-  it("a failed work-order read alone also blocks the end state", () => {
+  it("a failed follow-ups read alone also blocks the end state", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
-    h.queries.set("workOrders.list", FAILED);
+    h.queries.set("opportunityQueue.list", FAILED);
     render(<OverviewSection />);
     expect(screen.queryByText(/Done for today/)).toBeNull();
     expect(screen.getByText("Queue unreadable: this is UNKNOWN, not clear")).toBeTruthy();
@@ -426,28 +408,16 @@ describe("act in place", () => {
     expect(screen.getByText("Rosa Delgado")).toBeTruthy();
   });
 
-  it("a lead marked contacted stays on the board: contacted is still an active lead", async () => {
-    const leadUpdate = vi.fn(async () => ({}));
-    h.mutations.set("lead.update", () => ({ mutateAsync: leadUpdate, isPending: false }));
-    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { leads: [{ id: 9, name: "Aisha Brooks", status: "new", phone: "(216) 555-0109", createdAt: now() }] })));
-    render(<OverviewSection />);
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Mark contacted" }));
-    });
-    await new Promise((r) => setTimeout(r, 200));
-    expect(leadUpdate).toHaveBeenCalledWith({ id: 9, status: "contacted", contacted: 1 });
-    expect(screen.getByText("Aisha Brooks")).toBeTruthy();
-  });
 });
 
 describe("the summary strip", () => {
-  it("holds four numbers in one row with no card borders, and keeps the unknown shape", () => {
+  it("holds three numbers in one row with no card borders, and keeps the unknown shape", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", FAILED);
     render(<OverviewSection />);
     const strip = screen.getByRole("region", { name: "Today summary" });
-    expect(strip.className).toMatch(/(^|\s)grid-cols-4(\s|$)/);
+    expect(strip.className).toMatch(/(^|\s)grid-cols-3(\s|$)/);
     expect(strip.className).not.toMatch(/(^|\s)lg:grid-cols|(^|\s)grid-cols-2(\s|$)/);
-    expect(strip.children).toHaveLength(4);
+    expect(strip.children).toHaveLength(3);
     for (const cell of Array.from(strip.children)) expect(cell.className).not.toMatch(/(^|\s)border(\s|-)/);
     expect(within(needsAction()).getByText("Unable to determine")).toBeTruthy();
     expect(needsAction().textContent).not.toMatch(/\d/);
