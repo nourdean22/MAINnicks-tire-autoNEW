@@ -314,7 +314,7 @@ export default function ApprovalsSection() {
                     <button
                       onClick={() => void onApprove(p.id, p.title, p.actionType)}
                       disabled={approve.isPending}
-                      className="flex-1 min-h-[44px] text-xs font-bold bg-primary text-primary-foreground rounded-md px-3 py-2 hover:bg-primary/90 disabled:opacity-50"
+                      className="flex-1 min-h-12 min-w-12 text-xs font-bold bg-primary text-primary-foreground rounded-md px-3 py-2 hover:bg-primary/90 disabled:opacity-50"
                     >
                       Approve & execute
                     </button>
@@ -325,7 +325,7 @@ export default function ApprovalsSection() {
                         setRejectReason(null);
                       }}
                       disabled={reject.isPending}
-                      className="flex-1 min-h-[44px] text-xs font-medium bg-secondary text-foreground rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
+                      className="flex-1 min-h-12 min-w-12 text-xs font-medium bg-secondary text-foreground rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
                     >
                       Reject
                     </button>
@@ -386,7 +386,7 @@ export default function ApprovalsSection() {
                   <button
                     onClick={() => retry.mutate({ id: p.id })}
                     disabled={retry.isPending}
-                    className="inline-flex items-center gap-1.5 min-h-[44px] text-xs font-medium bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 min-h-12 min-w-12 text-xs font-medium bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     {p.status === "approved" ? "Resume execution" : "Retry execution"}
@@ -410,14 +410,14 @@ export default function ApprovalsSection() {
                       <button
                         onClick={() => resolve.mutate({ id: p.id, outcome: "executed" })}
                         disabled={resolve.isPending}
-                        className="flex-1 min-h-[44px] text-xs font-bold bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
+                        className="flex-1 min-h-12 min-w-12 text-xs font-bold bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
                       >
                         It DID happen
                       </button>
                       <button
                         onClick={() => resolve.mutate({ id: p.id, outcome: "failed" })}
                         disabled={resolve.isPending}
-                        className="flex-1 min-h-[44px] text-xs font-bold bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
+                        className="flex-1 min-h-12 min-w-12 text-xs font-bold bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
                       >
                         It never happened
                       </button>

@@ -468,6 +468,31 @@ describe("page chrome", () => {
     }
   });
 
+  it("makes Approve and Reject 48px targets", () => {
+    h.rows = [row({ payloadJson: BOOKING_PAYLOAD })];
+    render(<ApprovalsSection />);
+    for (const name of ["Approve & execute", "Reject"]) {
+      const cls = screen.getByRole("button", { name }).className;
+      expect(cls, name).toContain("min-h-12");
+      expect(cls, name).toContain("min-w-12");
+      expect(cls, name).not.toContain("min-h-[44px]");
+    }
+  });
+
+  it("makes Retry, Resume and the two ambiguous-outcome buttons 48px targets", () => {
+    h.rows = [
+      row({ id: "f", status: "failed" }),
+      row({ id: "a", status: "approved" }),
+      row({ id: "x", status: "execution_ambiguous" }),
+    ];
+    render(<ApprovalsSection />);
+    for (const name of ["Retry execution", "Resume execution", "It DID happen", "It never happened"]) {
+      const cls = screen.getByRole("button", { name }).className;
+      expect(cls, name).toContain("min-h-12");
+      expect(cls, name).toContain("min-w-12");
+    }
+  });
+
   it("makes the Technical details summary a 48px target", () => {
     h.rows = [row({ payloadJson: BOOKING_PAYLOAD })];
     const { container } = render(<ApprovalsSection />);
