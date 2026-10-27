@@ -2,7 +2,7 @@
 # Read by the phase 4 paste block (shop-pc-remote-session section 4). Regenerate for a new install; never hand-edit.
 8f68f3b982fcaee1b64b02dff6185d92523fcabfb33402772e00595c34cbc7ad 61 cloud/__init__.py
 98d7e9325a202e1906d1bb6de4820fe2c304096ccfc39e94bf6ada47e22256a9 5733 cloud/config.cloud.yaml
-6442381ebbb55ebaf9d316f6802263d622460669099c89509e8314b2eed6e2fa 9657 cloud/run_cloud.py
+d432e5bc9f3a2cb38db09b8f817f637bc2e25c1e40a3ca630e60b63ec186dd99 10517 cloud/run_cloud.py
 8141566f7c1967095ff96c48bf696637747064bafec39ad0d581cee7606d3dc2 5660 edge_health.py
 2700c1ae635450c6f0e212b6109b41da13bc1ae7478341e70d3402a28ed31475 144005 edge_main.py
 47ec885ad4efff9231f198da8c94dbd1df8e32765e81e5f6aa4b36c2a434195b 373 requirements.txt
