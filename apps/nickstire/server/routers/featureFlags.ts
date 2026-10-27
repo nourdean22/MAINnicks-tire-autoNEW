@@ -19,12 +19,18 @@ export const featureFlagsRouter = router({
     // 2026-10-25 · `inverted`: TRUE means paused/muted, so OFF is the normal state and must not read as a disabled feature.
     // `lastChange`: who flipped it last and when, from the audit rows toggle writes; null = no toggle on record.
     // `lastChangeKnown` false = the audit table could not be read, so a null lastChange is UNKNOWN, not "never flipped".
-    return flags.map((f) => ({
-      ...f,
-      inverted: INVERTED_FLAG_KEYS.has(f.key),
-      lastChange: changes?.get(f.key) ?? null,
-      lastChangeKnown: changes !== null,
-    }));
+    return flags.map((f) => {
+      const last = changes?.get(f.key) ?? null;
+      // 2026-10-27 · an audit row that set the OTHER value than the switch holds now is not the flip that put it here
+      // (a flip with no audit row, e.g. /api/admin/flags/toggle, leaves the older row behind): history UNKNOWN.
+      const agrees = last === null || last.value === f.value;
+      return {
+        ...f,
+        inverted: INVERTED_FLAG_KEYS.has(f.key),
+        lastChange: agrees ? last : null,
+        lastChangeKnown: changes !== null && agrees,
+      };
+    });
   }),
 
   toggle: adminProcedure
