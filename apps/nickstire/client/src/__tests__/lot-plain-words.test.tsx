@@ -16,6 +16,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
+import { sliceBlock } from "../../../server/testUtils/sourceBlock";
 
 type Q = { data: unknown; isPending: boolean; isError: boolean; error: unknown; fetchStatus: string };
 const h = vi.hoisted(() => ({
@@ -483,7 +484,7 @@ describe("DRIFT: the words rest on strings other code emits", () => {
 
   it("every state the server can send has a row in the chip table above", () => {
     const source = read("../../../server/lib/cameraHealth.ts");
-    const block = source.slice(source.indexOf("const CAMERA_STATES = ["), source.indexOf("] as const;"));
+    const block = sliceBlock(source, "const CAMERA_STATES = [", "] as const;", { label: "server/lib/cameraHealth.ts" });
     const served = [...block.matchAll(/^\s*"([A-Z_]+)",?\s*$/gm)].map((m) => m[1]);
     expect(served).toHaveLength(15);
     expect(served.filter((state) => !STATES.some(([known]) => known === state))).toEqual([]);
