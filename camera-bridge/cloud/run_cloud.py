@@ -7,6 +7,9 @@ until the shop elects it, writes the elected marker, and only then do the relay 
 start. Any child dying takes the whole copy down with a nonzero code, so Railway's on-failure
 restart brings it back dormant. One process tree, no second supervisor inside.
 
+The front-desk PC (p1) runs the same launcher with --primary (scripts/run-frontdesk-sign.ps1):
+no election, relay and crop at once, and no edge until a calibration is installed.
+
 Design: camera-bridge/docs/LOT-VISION-V2-DESIGN-2026-10-26.md section 4.
 """
 from __future__ import annotations
@@ -88,7 +91,7 @@ def _check_calibration(path: str) -> None:
         raise LauncherConfigError(f"EDGE_CALIBRATION {path} cannot count arrivals: {cal.fault or 'no portal'}")
 
 
-def edge_args(env: Mapping[str, str], *, elected_file: str, ledger: str) -> List[str]:
+def edge_args(env: Mapping[str, str], *, elected_file: str, ledger: str, primary: bool = False) -> List[str]:
     # Without the shop key the heartbeat never reaches the shop, so the copy could never be elected.
     _need(env, "CAMERA_INGEST_KEY")
     calibration = _need(env, "EDGE_CALIBRATION")
@@ -99,9 +102,9 @@ def edge_args(env: Mapping[str, str], *, elected_file: str, ledger: str) -> List
         "--ledger", ledger,
         "--source", "rtsp", "--camera", "sign",
         "--calibration", calibration,
-        "--dormant-until-authoritative",
-        "--elected-file", elected_file,
     ]
+    if not primary:
+        args += ["--dormant-until-authoritative", "--elected-file", elected_file]
     if env.get("VISION_OV_MODEL"):
         args += ["--model", env["VISION_OV_MODEL"]]
     return args
@@ -121,13 +124,24 @@ def supervise(
     elected_file: str,
     sleep: Callable[[float], None] = time.sleep,
     max_ticks: int = 0,
+    primary: bool = False,
+    run_edge: bool = True,
 ) -> int:
     """Run the copy. Returns the container's exit code, never 0, only on a fault the copy cannot
     heal in place: MediaMTX dying, or the edge exiting for any reason but a lost lease. A lost lease
-    goes back to dormant here, because Railway caps On-Failure restarts (Codex on #3313)."""
+    goes back to dormant here, because Railway caps On-Failure restarts (Codex on #3313).
+
+    primary (the front-desk PC, p1): the relay and crop start at once, and any edge exit ends the
+    run so the scheduled task restarts it. run_edge=False streams only (install day, before the
+    calibration exists)."""
     if os.path.exists(elected_file):
         os.remove(elected_file)  # a marker from an earlier run must not start the relay
-    procs: Dict[str, object] = {"mediamtx": start("mediamtx"), "edge": start("edge")}
+    procs: Dict[str, object] = {"mediamtx": start("mediamtx")}
+    if run_edge:
+        procs["edge"] = start("edge")
+    if primary:
+        procs["relay"] = start("relay")
+        procs["crop"] = start("crop")
     retry_at: Dict[str, int] = {}
     ticks = 0
 
@@ -151,7 +165,7 @@ def supervise(
                 code = procs[name].poll()
                 if code is None:
                     continue
-                if name == "edge" and code == LEASE_LOST:
+                if name == "edge" and code == LEASE_LOST and not primary:
                     for n in ("crop", "relay"):
                         stop(n)
                         retry_at.pop(n, None)
@@ -178,25 +192,36 @@ def supervise(
             stop(name)
 
 
-def main() -> int:
+def build_commands(env: Mapping[str, str], *, primary: bool, elected_file: str, mtx_cfg: str) -> Dict[str, List[str]]:
+    commands = {
+        "mediamtx": [env.get("MEDIAMTX_BIN") or "/opt/mediamtx/mediamtx", mtx_cfg],
+        "relay": relay_args(env),
+        "crop": crop_args(env.get("FFMPEG_BIN") or "ffmpeg"),
+    }
+    # Only the primary may stream with no edge, and only while no calibration is installed yet.
+    if not primary or (env.get("EDGE_CALIBRATION") or "").strip():
+        commands["edge"] = edge_args(env, elected_file=elected_file, ledger=ledger_path(env), primary=primary)
+    return commands
+
+
+def main(argv: List[str] | None = None) -> int:
     env = os.environ
+    primary = "--primary" in (sys.argv[1:] if argv is None else argv)
     workdir = tempfile.mkdtemp(prefix="lot-vision-")
     elected = os.path.join(workdir, "elected")
     mtx_cfg = os.path.join(workdir, "mediamtx.yml")
     with open(mtx_cfg, "w", encoding="utf-8") as fh:
         fh.write(mediamtx_config())
     try:
-        commands = {
-            "mediamtx": [env.get("MEDIAMTX_BIN") or "/opt/mediamtx/mediamtx", mtx_cfg],
-            "edge": edge_args(env, elected_file=elected, ledger=ledger_path(env)),
-            "relay": relay_args(env),
-            "crop": crop_args(env.get("FFMPEG_BIN") or "ffmpeg"),
-        }
+        commands = build_commands(env, primary=primary, elected_file=elected, mtx_cfg=mtx_cfg)
     except LauncherConfigError as exc:
-        print(f"lot-vision cloud: refusing to start: {exc}", file=sys.stderr)
+        print(f"lot-vision: refusing to start: {exc}", file=sys.stderr)
         return 2
+    if "edge" not in commands:
+        print("lot-vision: no EDGE_CALIBRATION yet: relay and crop only, nothing is counted", file=sys.stderr)
     os.makedirs(os.path.dirname(ledger_path(env)), exist_ok=True)
-    return supervise(lambda name: subprocess.Popen(commands[name], cwd=HERE), elected_file=elected)
+    return supervise(lambda name: subprocess.Popen(commands[name], cwd=HERE), elected_file=elected,
+                     primary=primary, run_edge="edge" in commands)
 
 
 if __name__ == "__main__":
