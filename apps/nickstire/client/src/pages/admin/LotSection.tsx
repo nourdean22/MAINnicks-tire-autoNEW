@@ -2187,6 +2187,7 @@ export default function LotSection() {
   const signCounting = health.data?.ok === true ? health.data.signCounting ?? null : null;
   const signWakeMs = health.data?.ok === true ? health.data.signSolar?.untilMs ?? null : null;
   const signNotCounting = signCounting?.state === "NOT_COUNTING" && typeof signCounting.watchedSinceMs === "number";
+  const signCountingUnknown = signCounting?.state === "NOT_JUDGED" && signCounting.readFailed === true;
   // The vehicle-truth camera's HEALTHY share of business time so far (audit N2), and the
   // business window every camera strip is drawn over.
   const coverage = health.data?.ok === true ? health.data.coverage : null;
@@ -2197,6 +2198,14 @@ export default function LotSection() {
       ? { label: "Unavailable", variant: "danger" }
       : nowLoading
         ? { label: "Loading", variant: "neutral" }
+        : signNotCounting
+          ? // Healthy and seeing for 3 h with nothing counted (2026-10-24, 10-25): the same verdict
+            // that pages, so the headline and the page never disagree. Before "Awaiting first
+            // event": a counter that has never counted a car is that fault at its worst (Codex on #3318).
+            { label: `Not counting · sees cars, none counted since ${shopClock(signCounting!.watchedSinceMs!)}`, variant: "danger" }
+        : signCountingUnknown
+          ? // The arrivals read failed: unknown, never the green fallback below (Codex on #3318).
+            { label: "Counting unknown · arrivals could not be read", variant: "warning" }
         : n?.ok === true && n.neverIngested
           ? { label: "Awaiting first event", variant: "neutral" }
           : signLoaded && signSolarNight
@@ -2211,10 +2220,6 @@ export default function LotSection() {
             ? // Never "Live" over a sign camera that is not HEALTHY: the visits below are
               // whatever it last managed to see. 2026-10-05 said "Live" over a blind lane.
               { label: `Not watching · sign ${signStateLabel}`, variant: "danger" }
-            : signNotCounting
-              ? // Healthy and seeing for 3 h with nothing counted (2026-10-24, 10-25): the same verdict
-                // that pages, so the headline and the page never disagree.
-                { label: `Not counting · sees cars, none counted since ${shopClock(signCounting!.watchedSinceMs!)}`, variant: "danger" }
             : undercounting
               ? // Watching, fresh, and still missing most cars (2026-09-28 on): never "Live" over it.
                 { label: "Undercounting cars", variant: "danger" }

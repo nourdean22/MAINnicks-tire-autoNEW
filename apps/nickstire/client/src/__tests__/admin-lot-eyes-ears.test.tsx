@@ -402,6 +402,22 @@ describe("the headline says what the counter is doing, not only the camera (job 
     });
   }
 
+  it("a failed arrivals read is counting unknown, never Live (Codex on #3318)", () => {
+    setLot({ health: { signCounting: { state: "NOT_JUDGED", reason: "arrivals read failed: timeout", watchedSinceMs: null, readFailed: true } } });
+    render(<LotSection />);
+    expect(screen.getByText("Counting unknown · arrivals could not be read")).toBeTruthy();
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("never ingested but healthy and seeing for 3 h: not counting wins over awaiting first event (Codex on #3318)", () => {
+    setLot({ health: { signCounting: { state: "NOT_COUNTING", reason: "x", watchedSinceMs: ELEVEN_AM, readFailed: false } } });
+    const now = h.queries.get("lot.now") as { data: Record<string, unknown> };
+    h.queries.set("lot.now", { data: { ...now.data, neverIngested: true } });
+    render(<LotSection />);
+    expect(screen.getByText("Not counting · sees cars, none counted since 11:00 AM")).toBeTruthy();
+    expect(screen.queryByText("Awaiting first event")).toBeNull();
+  });
+
   it("the solar camera at night: asleep until about its wake time, never a zero", () => {
     const WAKE = Date.UTC(2026, 9, 8, 14, 5, 0); // 10:05 EDT
     setLot({

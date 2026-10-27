@@ -384,13 +384,14 @@ export async function readLotCounting(
   db: Pick<Db, "execute">,
   camera: string,
   input: LotCountingInput,
-): Promise<{ verdict: ReturnType<typeof lotCountingVerdict>; watchedSinceMs: number | null }> {
+): Promise<{ verdict: ReturnType<typeof lotCountingVerdict>; watchedSinceMs: number | null; readFailed: boolean }> {
   const nowMs = Date.now();
   const openMs = shopDayWindow(new Date(nowMs), BUSINESS.timezone, BUSINESS.hours.structured).openMs;
   const healthySinceMs = input.state === "HEALTHY" && input.stateSinceEpoch !== null ? input.stateSinceEpoch * 1000 : null;
   const watchedSinceMs = lotWatchedSinceMs({ openMs, nowMs, solar: input.solar, healthySinceMs });
   let arrivals: number | null = null;
-  if (input.shopOpen && watchedSinceMs !== null && input.state === "HEALTHY") {
+  const queried = input.shopOpen && watchedSinceMs !== null && input.state === "HEALTHY";
+  if (queried) {
     const [rows] = await db.execute(sql`
       SELECT COUNT(*) AS n FROM vehicle_visits
        WHERE camera = ${camera} AND dataClass = 'PRODUCTION' AND preexisting = 0
@@ -407,7 +408,8 @@ export async function readLotCounting(
     nowMs,
     arrivalsSinceWatched: arrivals,
   });
-  return { verdict, watchedSinceMs };
+  // A read that ran and returned no row is a failure too, not a verdict.
+  return { verdict, watchedSinceMs, readFailed: queried && arrivals === null };
 }
 
 /** One car-counter judgement (lotCountingAlert.ts) through the same rail as the camera pages. */

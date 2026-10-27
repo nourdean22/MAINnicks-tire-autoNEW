@@ -1675,7 +1675,7 @@ export const lotRouter = router({
       // Lot headline and the page never disagree (lot vision v2). A failed arrivals read is
       // NOT_JUDGED with its reason, never a quiet "counting", and never the whole Lot page.
       const truthSolar = truth && cameraPowerFor(truth.camera) === "solar" ? solar : null;
-      let signCounting: { state: string; reason: string; watchedSinceMs: number | null } | null = null;
+      let signCounting: { state: string; reason: string; watchedSinceMs: number | null; readFailed: boolean } | null = null;
       if (truth) {
         const truthRow = runtime.find((r) => String(r.camera) === truth.camera);
         try {
@@ -1686,12 +1686,13 @@ export const lotRouter = router({
             shopOpen,
             solar: truthSolar,
           });
-          signCounting = { ...read.verdict, watchedSinceMs: read.watchedSinceMs };
+          signCounting = { ...read.verdict, watchedSinceMs: read.watchedSinceMs, readFailed: read.readFailed };
         } catch (err) {
           signCounting = {
             state: "NOT_JUDGED",
             reason: `arrivals read failed: ${err instanceof Error ? err.message : String(err)}`,
             watchedSinceMs: null,
+            readFailed: true,
           };
         }
       }

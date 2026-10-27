@@ -326,13 +326,13 @@ describe("lot.health carries the car counter's own verdict and the solar wake ti
 
   it("a counted car makes it COUNTING", async () => {
     installCounting(2);
-    expect((await health()).signCounting?.state).toBe("COUNTING");
+    expect((await health()).signCounting).toMatchObject({ state: "COUNTING", readFailed: false });
   });
 
   it("a failed arrivals read is NOT_JUDGED with the reason, and the rest of the page still loads", async () => {
     installCounting(new Error("vehicle_visits read timed out"));
     const res = await health();
-    expect(res.signCounting).toMatchObject({ state: "NOT_JUDGED" });
+    expect(res.signCounting).toMatchObject({ state: "NOT_JUDGED", readFailed: true });
     expect(res.signCounting?.reason).toContain("vehicle_visits read timed out");
     expect(res.cameras.find((c) => c.camera === "sign")?.state).toBe("HEALTHY");
   });
