@@ -15,8 +15,8 @@
  * Empty vs error: a home with no plugin files is a real none (no warning). Bad JSON, or an enabled plugin whose install
  * dir is gone, is a warning the caller prints; the readable rest is still returned.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 function readJson(file) {
   let text;
@@ -100,6 +100,15 @@ export function enabledPlugins(home, projectDir) {
   return { plugins: out, warnings };
 }
 
+/** `to` relative to `from`, both resolved through symlinks; null when either does not exist. */
+function realRel(from, to) {
+  try {
+    return relative(realpathSync(from), realpathSync(to));
+  } catch {
+    return null;
+  }
+}
+
 /** Skill and command files of the enabled plugins, minus the routing config's rejects: [{ name, path, plugin }]. */
 export function pluginSkillFiles(home, routing = {}, projectDir) {
   const { plugins, warnings } = enabledPlugins(home, projectDir);
@@ -120,7 +129,10 @@ export function pluginSkillFiles(home, routing = {}, projectDir) {
     try { declared = [].concat(JSON.parse(readFileSync(join(p.dir, ".claude-plugin", "plugin.json"), "utf8")).skills ?? []); } catch { /* no manifest: default dir only */ }
     for (const rel of ["skills", ...declared.filter((x) => typeof x === "string")]) {
       const dir = resolve(p.dir, rel);
-      if (!dir.startsWith(resolve(p.dir)) || !existsSync(dir)) continue; // a path outside the plugin is not followed
+      // A path outside the plugin is not followed. relative(), not a string prefix (<cache>/p-other starts with
+      // <cache>/p), on REAL paths, so a symlink or junction inside the plugin that points out of it is outside too.
+      const inside = realRel(p.dir, dir);
+      if (inside === null || /^\.\.(?:[\\/]|$)/.test(inside) || isAbsolute(inside)) continue;
       if (existsSync(join(dir, "SKILL.md"))) { add(basename(dir), join(dir, "SKILL.md")); continue; }
       for (const e of readdirSync(dir, { withFileTypes: true })) {
         if (e.isDirectory() && existsSync(join(dir, e.name, "SKILL.md"))) add(e.name, join(dir, e.name, "SKILL.md"));
