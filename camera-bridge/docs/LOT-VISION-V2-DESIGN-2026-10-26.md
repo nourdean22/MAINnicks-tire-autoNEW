@@ -130,6 +130,20 @@ silent zero pages the same day.
   because the relay itself is the camera session. MediaMTX v1.21.2 is pinned the same way (linux_amd64 28,345,997 bytes,
   `121be6e0...6a27`; windows_amd64 28,583,662 bytes, `a84224f5...e467`).
 
+### 4.4 The front-desk install (phase 4, 2026-10-27)
+
+`camera-bridge/scripts/install-frontdesk-sign.ps1` makes the front-desk PC the primary (p1) sign producer. One SYSTEM
+task at below-normal priority (`NickLotVisionFrontDesk`) runs `scripts/run-frontdesk-sign.ps1`, which runs
+`cloud/run_cloud.py --primary`: the same supervisor as the cloud copy, with no election (the relay and crop start at
+once) and no edge until a calibration is installed, so install day yields the still the calibration is drawn on and
+never counts in census mode. The relay and MediaMTX come from the phase 3 Windows pins and fail closed; the V380 login
+is typed by Nour into a LocalMachine DPAPI file under ProgramData that only SYSTEM and Administrators can read; the
+shop ingest key is the one the office lane already put in the machine environment. The code reaches the PC through
+`scripts/frontdesk-files.txt` (SHA-256, bytes and path for every runtime file at the pinned commit; the paste block
+pins the manifest's own hash). NOT CHECKED until it runs on the PC: the relay archive's layout (`V380Decoder.exe`),
+whether the Windows relay needs a .NET runtime, the PC's ffmpeg version, and whether the V380 cloud serves the PC and
+NicksMax at the same time.
+
 ## 5. When things break
 
 | Off or broken | What happens |

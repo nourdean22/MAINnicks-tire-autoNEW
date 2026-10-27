@@ -104,9 +104,9 @@ const SEGMENTS = [
   { start: 71, end: 72, text: "<b>thanks</b>" },
 ];
 
-function setLot({ counterTrust, staleSeconds = 40, sign = {}, wordsVisible = true, rows = [convo("e-1")], officeConversation = {} }: {
+function setLot({ counterTrust, staleSeconds = 40, sign = {}, wordsVisible = true, rows = [convo("e-1")], officeConversation = {}, health = {} }: {
   counterTrust?: unknown; staleSeconds?: number; sign?: Record<string, unknown>; wordsVisible?: boolean | "absent"; rows?: unknown[];
-  officeConversation?: Record<string, unknown>;
+  officeConversation?: Record<string, unknown>; health?: Record<string, unknown>;
 } = {}) {
   h.queries.set("lot.now", {
     data: {
@@ -124,7 +124,7 @@ function setLot({ counterTrust, staleSeconds = 40, sign = {}, wordsVisible = tru
     conversation: { workerOk: true, state: "READY", workerAgeSeconds: 10, listeningCoverage60m: 0.9, capturesLast60m: 3, captureFailuresLast60m: 0, wakeTriggersLast60m: 2, transcribeBacklog: 0, ...officeConversation },
   };
   h.queries.set("lot.health", {
-    data: { ok: true, cameras: [camera("sign", "vehicle_truth", sign), office], transitions: [], thresholds: { staleAfterSeconds: 60, offlineAfterSeconds: 120 }, windowColumnsStored: true, shopOpen: true, coverage: null },
+    data: { ok: true, cameras: [camera("sign", "vehicle_truth", sign), office], transitions: [], thresholds: { staleAfterSeconds: 60, offlineAfterSeconds: 120 }, windowColumnsStored: true, shopOpen: true, coverage: null, ...health },
   });
   h.queries.set("lot.activity", {
     data: {
@@ -357,7 +357,7 @@ describe("C2 the sign chip says when the camera software keeps restarting", () =
     expect(signChip().textContent).toContain(
       "camera software restarted at least 4 times in the last hour; each restart drops the cars it was tracking",
     );
-    expect(signChip().textContent).toContain("saw 2 vehicles in the last 10 min");
+    expect(signChip().textContent).toContain("2 detections in the last 10 min");
     expect(summary()).toMatch(/^Checks1 not healthy/);
   });
 
@@ -376,4 +376,73 @@ describe("C2 the sign chip says when the camera software keeps restarting", () =
       expect(summary()).not.toMatch(/not healthy/);
     });
   }
+});
+
+
+describe("the headline says what the counter is doing, not only the camera (job 2026-10-26-lot-vision-v2)", () => {
+  const ELEVEN_AM = Date.UTC(2026, 9, 8, 15, 0, 0); // 11:00 EDT
+
+  it("the 10-24 silent zero: healthy, seeing, none counted. The headline says not counting, never Live", () => {
+    setLot({ health: { signCounting: { state: "NOT_COUNTING", reason: "x", watchedSinceMs: ELEVEN_AM } } });
+    render(<LotSection />);
+    expect(screen.getByText("Not counting · sees cars, none counted since 11:00 AM")).toBeTruthy();
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  for (const [name, signCounting] of [
+    ["COUNTING", { state: "COUNTING", reason: "2 car(s) counted since 11:00", watchedSinceMs: ELEVEN_AM }],
+    ["NOT_JUDGED", { state: "NOT_JUDGED", reason: "under 3 hours watched", watchedSinceMs: ELEVEN_AM }],
+    ["absent (older server)", undefined],
+  ] as const) {
+    it(`${name}: Live as before`, () => {
+      setLot({ health: signCounting === undefined ? {} : { signCounting } });
+      render(<LotSection />);
+      expect(screen.getByText("Live")).toBeTruthy();
+      expect(screen.queryByText(/Not counting/)).toBeNull();
+    });
+  }
+
+  it("a failed arrivals read is counting unknown, never Live (Codex on #3318)", () => {
+    setLot({ health: { signCounting: { state: "NOT_JUDGED", reason: "arrivals read failed: timeout", watchedSinceMs: null, readFailed: true } } });
+    render(<LotSection />);
+    expect(screen.getByText("Counting unknown · arrivals could not be read")).toBeTruthy();
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("never ingested but healthy and seeing for 3 h: not counting wins over awaiting first event (Codex on #3318)", () => {
+    setLot({ health: { signCounting: { state: "NOT_COUNTING", reason: "x", watchedSinceMs: ELEVEN_AM, readFailed: false } } });
+    const now = h.queries.get("lot.now") as { data: Record<string, unknown> };
+    h.queries.set("lot.now", { data: { ...now.data, neverIngested: true } });
+    render(<LotSection />);
+    expect(screen.getByText("Not counting · sees cars, none counted since 11:00 AM")).toBeTruthy();
+    expect(screen.queryByText("Awaiting first event")).toBeNull();
+  });
+
+  it("the solar camera at night: asleep until about its wake time, never a zero", () => {
+    const WAKE = Date.UTC(2026, 9, 8, 14, 5, 0); // 10:05 EDT
+    setLot({
+      sign: { state: "EXPECTED_SOLAR_OFFLINE", facets: { ...camera("sign", "vehicle_truth").facets, frames: "stale" } },
+      health: { shopOpen: false, signSolar: { expectedOffline: true, untilMs: WAKE } },
+    });
+    render(<LotSection />);
+    expect(screen.getByText("Not watching · camera asleep until about 10:05 AM")).toBeTruthy();
+  });
+
+  it("an older server with no wake time keeps the old solar words", () => {
+    setLot({ sign: { state: "EXPECTED_SOLAR_OFFLINE" }, health: { shopOpen: false } });
+    render(<LotSection />);
+    expect(screen.getByText("Not watching · sign dark (solar night)")).toBeTruthy();
+  });
+
+  it("the detector figure is detections, not cars: a parked car is detected again in every frame", () => {
+    setLot({ sign: { vision: { ...camera("sign", "vehicle_truth").vision, detectionsLast10m: 96 } } });
+    render(<LotSection />);
+    const chip = screen.getByText("Sign camera").parentElement!;
+    expect(chip.textContent).toContain("96 detections in the last 10 min");
+    expect(chip.textContent).toContain("not a car count");
+    expect(chip.textContent).not.toMatch(/saw \d+ vehicle/);
+    // The camera card says the same thing in its own words.
+    expect(document.body.textContent).toContain("96 detections in 10m");
+    expect(document.body.textContent).not.toMatch(/saw \d+ vehicles? in 10m/);
+  });
 });
