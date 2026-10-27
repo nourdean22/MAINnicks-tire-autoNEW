@@ -9,15 +9,26 @@
  * never as an empty queue; approve/reject are two-tap via confirmDialog
  * (iOS-PWA-safe — window.confirm is silently suppressed in standalone mode).
  */
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { useMemo, useState } from "react";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageHeader, LoadingState, ErrorState } from "./shared";
 import {
+  describeProposal,
+  lastDecisionWords,
+  localPart,
+  REJECT_REASONS,
+  sourceWords,
+  SUMMARY_READ_LIMIT,
+  summarizeDecisions,
+  typePlural,
+} from "./approvals/plainWords";
+import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
   Clock,
   PhoneCall,
@@ -97,10 +108,19 @@ export default function ApprovalsSection() {
   const [filter, setFilter] = useState<StatusFilter>("needs_decision");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
+  // One-tap reason; the note sent is "<reason> · <typed detail>" with either part optional.
+  const [rejectReason, setRejectReason] = useState<string | null>(null);
 
   const list = trpc.proposals.list.useQuery(
     { statuses: FILTER_STATUSES[filter], limit: 100 },
     { refetchInterval: 60_000 },
+  );
+  // Second read of the same procedure (different input, so a different cache entry): decided rows
+  // for the 30-day summary and the empty-state "last decision". Decisions invalidate it through
+  // utils.proposals.list, so it needs no polling of its own.
+  const decided = trpc.proposals.list.useQuery(
+    { statuses: ["executed", "rejected"], limit: SUMMARY_READ_LIMIT },
+    { staleTime: 60_000 },
   );
   const actionTypes = trpc.proposals.actionTypes.useQuery(undefined, { staleTime: 300_000 });
 
@@ -123,6 +143,7 @@ export default function ApprovalsSection() {
       else toast.error(`Could not reject · ${r.error ?? r.status}`);
       setRejectingId(null);
       setRejectNote("");
+      setRejectReason(null);
       invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -168,21 +189,24 @@ export default function ApprovalsSection() {
   }
 
   const rows = list.data ?? [];
+  const rejectText = [rejectReason, rejectNote.trim()].filter(Boolean).join(" · ");
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Approvals"
-        subtitle="AI- and one-tap-originated proposals wait here as drafts. Nothing in THIS queue executes without your approval: enforced server-side. Separate SMS lanes (safe auto-replies, campaigns, reminders) run under their own rollout modes: Outreach → SMS → Autonomy ladder."
+        subtitle="Requests the receptionist and one-tap actions want to run. Nothing here runs until you approve it."
         icon={<ShieldCheck className="w-5 h-5" />}
       />
+
+      <DecisionSummary query={decided} />
 
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
-            className={`text-xs px-3 py-2 min-h-[40px] rounded-md border transition-colors ${
+            className={`text-xs px-3 py-2 min-h-11 rounded-md border transition-colors ${
               filter === f.id
                 ? "bg-primary/15 text-primary border-primary/30"
                 : "bg-card/50 text-muted-foreground border-border/30 hover:text-foreground"
@@ -204,9 +228,14 @@ export default function ApprovalsSection() {
       ) : rows.length === 0 ? (
         <div className="border border-border/30 bg-card/50 rounded-lg px-4 py-8 text-center text-sm text-muted-foreground">
           <ClipboardList className="w-5 h-5 mx-auto mb-2 opacity-50" />
-          {filter === "needs_decision"
-            ? "No proposals waiting for a decision."
-            : "Nothing here for this filter."}
+          {filter === "needs_decision" ? (
+            <>
+              <p className="text-foreground">Nothing waiting for you.</p>
+              <LastDecisionLine query={decided} />
+            </>
+          ) : (
+            "Nothing here for this filter."
+          )}
         </div>
       ) : (
         <ul className="space-y-2">
@@ -233,38 +262,47 @@ export default function ApprovalsSection() {
                 </div>
 
                 <div className="text-sm font-medium text-foreground">{p.title}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {describeAction(p.actionType)} · by {p.actor}
+                <PayloadLines lines={describeProposal(p.actionType, p.payloadJson, p.createdAt)} />
+                <div className="text-xs text-muted-foreground">
+                  {`${describeAction(p.actionType)} · ${sourceWords(p.source, p.actor)}`}
                 </div>
 
-                {/* Intent preview: the exact payload the executor will receive. */}
-                <pre className="text-[11px] bg-background/60 border border-border/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words">
-                  {JSON.stringify(p.payloadJson, null, 1)}
-                </pre>
-
-                {p.contextJson != null && (
-                  <details className="text-[11px] text-muted-foreground">
-                    <summary className="cursor-pointer py-1">Call / source context</summary>
-                    <pre className="bg-background/60 border border-border/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words">
-                      {JSON.stringify(p.contextJson, null, 1)}
+                {/* Intent preview: the exact payload the executor will receive, one tap down. */}
+                <details className="group text-xs text-muted-foreground">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-[13px] [&::-webkit-details-marker]:hidden">
+                    <ChevronRight aria-hidden className="w-4 h-4 transition-transform group-open:rotate-90" />
+                    Technical details
+                  </summary>
+                  <div className="space-y-2 pb-1">
+                    <div>Payload the executor will receive</div>
+                    <pre className="text-xs bg-background/60 border border-border/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words">
+                      {JSON.stringify(p.payloadJson, null, 1)}
                     </pre>
-                  </details>
-                )}
+                    {p.contextJson != null && (
+                      <>
+                        <div>Call / source context</div>
+                        <pre className="text-xs bg-background/60 border border-border/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words">
+                          {JSON.stringify(p.contextJson, null, 1)}
+                        </pre>
+                      </>
+                    )}
+                  </div>
+                </details>
 
                 {p.status === "rejected" && (
-                  <div className="text-[11px] text-muted-foreground">
-                    Rejected{p.reviewedBy ? ` by ${p.reviewedBy}` : ""}: {p.reviewNote || "no reason given"}
+                  <div className="text-xs text-muted-foreground">
+                    {`Turned down${p.reviewedBy ? ` by ${localPart(p.reviewedBy)}` : ""}: ${p.reviewNote?.trim() || "no reason given"}`}
                   </div>
                 )}
                 <DownstreamLine downstream={p.downstream ?? null} />
                 {p.status === "failed" && (
-                  <div className="text-[11px] text-red-500">
+                  <div className="text-xs text-red-500">
                     Execution failed: {String((p.executionResultJson as { error?: string } | null)?.error ?? "unknown")}
                   </div>
                 )}
                 {p.status === "executed" && p.reviewedBy && (
-                  <div className="text-[11px] text-muted-foreground">
-                    Approved by {p.reviewedBy}
+                  <div className="text-xs text-muted-foreground">
+                    Approved by {localPart(p.reviewedBy)}
                     {p.executedAt ? ` · executed ${new Date(p.executedAt).toLocaleString()}` : ""}
                   </div>
                 )}
@@ -282,6 +320,7 @@ export default function ApprovalsSection() {
                       onClick={() => {
                         setRejectingId(p.id);
                         setRejectNote("");
+                        setRejectReason(null);
                       }}
                       disabled={reject.isPending}
                       className="flex-1 min-h-[44px] text-xs font-medium bg-secondary text-foreground rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
@@ -294,15 +333,34 @@ export default function ApprovalsSection() {
                 {/* In-DOM two-tap reject — dialog globals are dead on the iOS PWA. */}
                 {reviewable && rejectingId === p.id && (
                   <div className="space-y-2 pt-1">
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Why turn it down?">
+                      {REJECT_REASONS.map((reason) => (
+                        <button
+                          key={reason}
+                          type="button"
+                          aria-pressed={rejectReason === reason}
+                          onClick={() => setRejectReason(rejectReason === reason ? null : reason)}
+                          className={`text-xs px-3 py-2 min-h-11 rounded-md border transition-colors ${
+                            rejectReason === reason
+                              ? "bg-primary/15 text-primary border-primary/30"
+                              : "bg-card/50 text-muted-foreground border-border/30 hover:text-foreground"
+                          }`}
+                        >
+                          {reason}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       value={rejectNote}
                       onChange={(e) => setRejectNote(e.target.value)}
-                      placeholder="Why? e.g. duplicate · already a walk-in · wrong date (optional)"
-                      className="w-full bg-background/50 border border-border/30 rounded-md px-3 py-2 text-sm"
+                      maxLength={800}
+                      aria-label="Add detail (optional)"
+                      placeholder="Add detail (optional)"
+                      className="w-full bg-background/50 border border-border/30 rounded-md px-3 py-2 text-base"
                     />
                     <div className="flex gap-2">
                       <button
-                        onClick={() => reject.mutate({ id: p.id, note: rejectNote || undefined })}
+                        onClick={() => reject.mutate({ id: p.id, note: rejectText || undefined })}
                         disabled={reject.isPending}
                         className="flex-1 min-h-[44px] text-xs font-bold bg-destructive text-destructive-foreground rounded-md px-3 py-2 disabled:opacity-50"
                       >
@@ -385,7 +443,7 @@ type Downstream =
 function DownstreamLine({ downstream }: { downstream: Downstream | null }) {
   if (!downstream) return null;
   if (!downstream.readable) {
-    return <div className="text-[11px] text-amber-500">Afterwards: unknown (outcome read failed)</div>;
+    return <div className="text-xs text-amber-500">Afterwards: unknown (outcome read failed)</div>;
   }
   const parts = [
     downstream.invoicedOn && `invoiced ${downstream.invoicedOn}`,
@@ -393,8 +451,93 @@ function DownstreamLine({ downstream }: { downstream: Downstream | null }) {
     downstream.callbackOn && `callback requested ${downstream.callbackOn}`,
   ].filter(Boolean);
   return (
-    <div className={`text-[11px] ${parts.length ? "text-emerald-500" : "text-muted-foreground"}`}>
+    <div className={`text-xs ${parts.length ? "text-emerald-500" : "text-muted-foreground"}`}>
       Afterwards: {parts.length ? parts.join(" · ") : "no invoice, booking or callback found for this phone"}
     </div>
   );
+}
+
+type DecidedQuery = {
+  data: RouterOutputs["proposals"]["list"] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => unknown;
+};
+
+/** The request in the owner's words. The raw payload stays one tap down, in Technical details. */
+function PayloadLines({ lines }: { lines: Array<{ label: string; value: string }> }) {
+  if (lines.length === 0) return null;
+  return (
+    <div className="space-y-0.5 text-sm text-foreground">
+      {lines.map((l) => (
+        <p key={l.label} className="break-words">
+          <span className="text-muted-foreground">{l.label}:</span> {l.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The queue's own track record over the last 30 days. Failed read = "not known", never "no decisions";
+ * a read that hit its cap reports every number as a floor (empty-vs-error).
+ */
+function DecisionSummary({ query }: { query: DecidedQuery }) {
+  const rows = query.data;
+  const summary = useMemo(() => (rows && !query.isError ? summarizeDecisions(rows, Date.now()) : null), [rows, query.isError]);
+  const box = "border border-border/30 bg-card/50 rounded-lg px-3 py-2 text-xs text-muted-foreground";
+
+  if (query.isError) {
+    return (
+      <div className={`${box} flex flex-wrap items-center gap-2`}>
+        <span>Last 30 days: not known (the read failed).</span>
+        <button
+          type="button"
+          onClick={() => void query.refetch()}
+          className="min-h-11 rounded-md bg-secondary px-3 text-xs text-foreground hover:bg-secondary/80"
+        >
+          Read again
+        </button>
+      </div>
+    );
+  }
+  if (query.isLoading || !summary) return <div className={box}>Last 30 days: reading…</div>;
+
+  const floor = summary.atLeast ? "at least " : "";
+  return (
+    <section aria-label="Last 30 days" className={`${box} space-y-1.5`}>
+      <h3 className="font-semibold text-foreground">Last 30 days</h3>
+      {summary.types.length === 0 ? (
+        <p>No decisions in the last 30 days.</p>
+      ) : (
+        <>
+          {summary.types.map((t) => (
+            <p key={t.actionType} className="break-words text-foreground">
+              {`${typePlural(t.actionType)}: ${floor}${t.approved} approved, ${floor}${t.turnedDown} turned down`}
+            </p>
+          ))}
+          {summary.topReasons.length > 0 && (
+            <div>
+              <p>Turned down because</p>
+              <ul className="mt-0.5 space-y-0.5 text-foreground">
+                {summary.topReasons.map((r) => (
+                  <li key={r.reason} className="break-words">{`${r.reason} · ${floor}${r.count}`}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {summary.atLeast && (
+            <p>{`The read stops at ${SUMMARY_READ_LIMIT} decisions, so these counts may be low.`}</p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Empty-queue footer: when the owner last decided something. Says nothing if that read failed. */
+function LastDecisionLine({ query }: { query: DecidedQuery }) {
+  if (query.isError || query.isLoading || !query.data) return null;
+  const last = lastDecisionWords(query.data);
+  return <p className="mt-1 text-xs">{last ? `Last decision: ${last}` : "No decisions yet."}</p>;
 }

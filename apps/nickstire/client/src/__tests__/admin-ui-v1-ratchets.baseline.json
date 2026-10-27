@@ -5,7 +5,7 @@
     "emoji": 0,
     "transitionAll": 46,
     "slowDuration": 7,
-    "smallInput": 87,
+    "smallInput": 86,
     "offPalette": 112
   },
   "files": {
@@ -23,7 +23,6 @@
       "transitionAll": 2
     },
     "client/src/pages/admin/ApprovalsSection.tsx": {
-      "smallInput": 1,
       "offPalette": 2
     },
     "client/src/pages/admin/CallTrackingSection.tsx": {
