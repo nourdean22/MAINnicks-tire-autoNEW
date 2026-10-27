@@ -49,6 +49,15 @@ import { PageHeader, StatCard, Panel, MetricGrid, EmptyState } from "./shared";
 // never timestamps" contract documented next to them.
 import { formatDuration, advanceOpenDuration } from "./shared/format";
 import CommissioningPanel from "./CommissioningPanel";
+import {
+  cameraStateWords,
+  entryEvidenceWords,
+  estimatedWords,
+  facetWords,
+  hostLabel,
+  OFFICE_FACET_LABELS,
+  reasonWords,
+} from "./lot/plainWords";
 import ChecksRail from "./today/ChecksRail";
 import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
 import {
@@ -476,6 +485,34 @@ function workerReportFresh(camera: CameraHealth | null): boolean {
     camera.facets.producer === "alive" &&
     typeof runtime?.workerAgeSeconds === "number" &&
     runtime.workerAgeSeconds <= WORKER_STALE_AFTER_SECONDS
+  );
+}
+
+/** Worker states that mean it is not listening. */
+const BAD_WORKER_STATES = ["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED", "STUCK"];
+
+/**
+ * Diagnostics one tap deeper: engine names, latency, serials, host names. Native details, so it
+ * works in the installed iOS PWA with no script. A row with no value is left out; no rows, no fold.
+ * Nothing that is the only sign of a fault belongs in here: say that one outside, in words.
+ */
+function TechnicalDetails({ rows }: { rows: Array<[label: string, value: string | null | undefined]> }) {
+  const shown = rows.filter((r): r is [string, string] => r[1] !== null && r[1] !== undefined && r[1] !== "");
+  if (shown.length === 0) return null;
+  return (
+    <details className="mt-1">
+      <summary className="flex min-h-11 cursor-pointer items-center rounded-md text-[13px] text-foreground/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        Technical details
+      </summary>
+      <dl className="mb-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[12px] text-foreground/60">
+        {shown.map(([label, value]) => (
+          <Fragment key={label}>
+            <dt className="text-foreground/55">{label}</dt>
+            <dd className="break-words">{value}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    </details>
   );
 }
 
@@ -1257,7 +1294,7 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
             {!v.plateText && <span className="text-foreground/35">plate {v.plateStatus.toLowerCase()}</span>}
             <span>{v.camera}</span>
             {v.estimatedFields.length > 0 && (
-              <span className="text-amber-400/70">{v.estimatedFields.length} estimated</span>
+              <span className="text-amber-400/70">{estimatedWords(v.estimatedFields.length)}</span>
             )}
           </div>
 
@@ -1652,6 +1689,20 @@ function SaidWords({ episodeId }: { episodeId: string }) {
   );
 }
 
+/** The office worker's freshness as one sentence, from the fields the health read already carries. */
+function workerSentence(runtime: NonNullable<CameraHealth["conversation"]>): string {
+  const ago = (label: string, seconds: number | null) => (typeof seconds === "number" ? `${label} ${formatAgo(seconds)} ago` : null);
+  const parts = [
+    ago("reported", runtime.workerAgeSeconds),
+    ago("last capture", runtime.captureAgeSeconds),
+    ago("last transcript", runtime.sttAgeSeconds),
+    ago("posted", runtime.postAgeSeconds),
+    typeof runtime.queueDepth === "number" ? `queue ${runtime.queueDepth}` : null,
+  ].filter((p): p is string => p !== null);
+  const host = runtime.captureHost ? ` on ${hostLabel(runtime.captureHost)}` : "";
+  return `Listening worker${host}${parts.length > 0 ? `: ${parts.join(", ")}` : ""}.`;
+}
+
 function ConversationPanel({
   query,
   officeCamera,
@@ -1684,22 +1735,54 @@ function ConversationPanel({
   const workerHealthy =
     reportFresh &&
     runtime?.workerOk === true &&
-    !["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED", "STUCK"].includes(workerState);
+    !BAD_WORKER_STATES.includes(workerState);
+  const workerBad = runtime?.workerOk === false || BAD_WORKER_STATES.includes(workerState);
   const workerTone = workerHealthy
     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-    : runtime?.workerOk === false ||
-        ["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED", "STUCK"].includes(
-          workerState
-        )
+    : workerBad
       ? "border-red-500/30 bg-red-500/10 text-red-300"
       : "border-amber-500/30 bg-amber-500/10 text-amber-300";
+
+  // Faults first: a camera or worker that is not working says so in one line above the summaries,
+  // so it is never read below them. A camera nobody commissioned has not failed.
+  const officeFault =
+    officeCamera === null ||
+    !(
+      officeCamera.state === "HEALTHY" ||
+      officeCamera.state === "EXPECTED_SOLAR_OFFLINE" ||
+      (officeCamera.state === "NEVER_INGESTED" && !officeCamera.commissioned)
+    );
+  const workerFault =
+    captureStuck && runtime
+      ? `Listening worker: stuck in one recording for ${formatAgo(runtime.captureAgeSeconds)}, not listening.`
+      : !runtime
+        ? "Listening worker: has not reported yet."
+        : !reportFresh
+          ? `Listening worker: last report was ${reportedState.replace(/_/g, " ").toLowerCase()} ${formatAgo(runtime.workerAgeSeconds)} ago, so it is not known to be listening.`
+          : workerBad
+            ? `Listening worker: ${workerState.replace(/_/g, " ").toLowerCase()}.`
+            : null;
 
   return (
     <Panel
       title="Office intelligence"
       icon={<MessageSquare className="w-4 h-4" />}
-      subtitle="NICKS EUCLID camera health, counter capture/STT health, and evidence-backed summaries in one truth surface"
+      subtitle="What the office camera and microphone picked up, and whether they are working"
     >
+      {(officeFault || workerFault) && (
+        <ul aria-label="Needs attention now" className="mb-3 space-y-1.5">
+          {officeFault && (
+            <li
+              className={`rounded-lg border px-3 py-2 text-[13px] ${officeCamera ? stateTone(officeCamera.state, officeCamera.commissioned) : CHIP_TONE.warn}`}
+            >
+              Office camera: {officeCamera ? cameraStateWords(officeCamera.state, officeCamera.commissioned) : "not known"}.
+            </li>
+          )}
+          {workerFault && (
+            <li className={`rounded-lg border px-3 py-2 text-[13px] ${workerTone}`}>{workerFault}</li>
+          )}
+        </ul>
+      )}
       <WorthKnowing />
       <OfficeDigest />
       <div className="grid gap-3 lg:grid-cols-2">
@@ -1707,58 +1790,38 @@ function ConversationPanel({
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold">
-                NICKS EUCLID · office camera
+                Office camera
               </div>
               <div className="mt-0.5 text-[11px] text-foreground/45">
-                {officeCamera?.source?.generation ?? "camera identity unknown"}
+                {`Which camera: ${officeCamera?.source?.generation ?? "not known"}`}
               </div>
             </div>
             {officeCamera ? (
               <span
                 className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${stateTone(officeCamera.state, officeCamera.commissioned)}`}
               >
-                {officeCamera.state.replace(/_/g, " ").toLowerCase()}
+                {cameraStateWords(officeCamera.state, officeCamera.commissioned)}
               </span>
             ) : (
               <span className="rounded-full border border-foreground/20 px-2 py-0.5 text-[10px] text-foreground/50">
-                unknown
+                not known
               </span>
             )}
           </div>
           {officeCamera ? (
             <>
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55">
-                <span>
-                  producer{" "}
-                  <b className={facetTone(officeCamera.facets.producer)}>
-                    {officeCamera.facets.producer}
-                  </b>
-                </span>
-                <span>
-                  events{" "}
-                  <b className={facetTone(officeCamera.facets.events)}>
-                    {officeCamera.facets.events}
-                  </b>
-                </span>
-                <span>
-                  media{" "}
-                  <b className={facetTone(officeCamera.facets.media)}>
-                    {officeCamera.facets.media}
-                  </b>
-                </span>
-                <span>
-                  control{" "}
-                  <b className={facetTone(officeCamera.facets.control)}>
-                    {officeCamera.facets.control}
-                  </b>
-                </span>
-                <span>
-                  home{" "}
-                  <b className={facetTone(officeCamera.facets.home)}>
-                    {officeCamera.facets.home.replace(/_/g, " ")}
-                  </b>
-                </span>
-              </div>
+              {/* Five planes, one line each. A plane nobody has measured keeps facetTone's dim grey and
+                  says "not known"; it is never worded like a measured good value. */}
+              <dl className="mt-2 space-y-1 text-[12px]">
+                {OFFICE_FACET_LABELS.map(([key, label]) => (
+                  <div key={key} className="flex gap-2">
+                    <dt className="text-foreground/55">{label}:</dt>
+                    <dd className={`font-medium ${facetTone(officeCamera.facets[key])}`}>
+                      {facetWords(officeCamera.facets[key])}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/45 tabular-nums">
                 <span>heartbeat {formatAgo(officeCamera.ageSeconds)} ago</span>
                 {officeCamera.transport?.eventProofAgeSeconds !== null &&
@@ -1781,7 +1844,7 @@ function ConversationPanel({
                   )}
               </div>
               <div className="mt-2 text-[11px] text-foreground/40">
-                {officeCamera.reason}
+                {reasonWords(officeCamera.reason)}
               </div>
             </>
           ) : (
@@ -1798,8 +1861,7 @@ function ConversationPanel({
                 Conversation intelligence
               </div>
               <div className="mt-0.5 text-[11px] text-foreground/45">
-                {runtime?.audioSource ?? "audio source unknown"}
-                {runtime?.captureHost ? ` · ${runtime.captureHost}` : ""}
+                Counter microphone and transcription
               </div>
             </div>
             <span
@@ -1822,20 +1884,12 @@ function ConversationPanel({
               Restart the task StateNour-OfficeIntelligence-ShopPC on the front-desk PC, or restart that PC.
             </div>
           )}
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55 tabular-nums">
-            <span>
-              worker {formatAgo(runtime?.workerAgeSeconds ?? null)} ago
-            </span>
-            {/*
-              Listening over the last hour (0144). The lane listened about 8% of the day on
-              2026-10-03 to 10-05 while READY; "latest coverage" below is one clip's
-              transcript coverage, a different number. typeof === "number": 0% is a reading.
-            */}
-            {typeof runtime?.listeningCoverage60m === "number" && (
-              <span className={runtime.listeningCoverage60m < 0.2 ? "text-amber-400" : undefined}>
-                listened {Math.round(runtime.listeningCoverage60m * 100)}% of the last hour
-              </span>
-            )}
+          {runtime && (
+            <div className="mt-2 text-[12px] text-foreground/60 tabular-nums">
+              {workerSentence(runtime)}
+            </div>
+          )}
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55 tabular-nums">
             {typeof runtime?.captureSecondsLast60m === "number" && (
               <span>{Math.round(runtime.captureSecondsLast60m / 60)}m recorded</span>
             )}
@@ -1850,50 +1904,46 @@ function ConversationPanel({
             {typeof runtime?.wakeTriggersLast60m === "number" && (
               <span>{runtime.wakeTriggersLast60m} wake{runtime.wakeTriggersLast60m === 1 ? "" : "s"}/h</span>
             )}
-            {typeof runtime?.transcribeBacklog === "number" && runtime.transcribeBacklog > 0 && (
-              <span className="text-amber-400">backlog {runtime.transcribeBacklog}</span>
-            )}
-            {runtime?.queueDepth !== null &&
-              runtime?.queueDepth !== undefined && (
-                <span>queue {runtime.queueDepth}</span>
-              )}
-            {runtime?.sttEngine && <span>{runtime.sttEngine}</span>}
-            {runtime?.lastTrigger && <span>trigger {runtime.lastTrigger}</span>}
-            {runtime?.eventAgeSeconds !== null &&
-              runtime?.eventAgeSeconds !== undefined && (
-                <span>event {formatAgo(runtime.eventAgeSeconds)} ago</span>
-              )}
-            {runtime?.captureAgeSeconds !== null &&
-              runtime?.captureAgeSeconds !== undefined && (
-                <span>capture {formatAgo(runtime.captureAgeSeconds)} ago</span>
-              )}
-            {runtime?.sttAgeSeconds !== null &&
-              runtime?.sttAgeSeconds !== undefined && (
-                <span>STT {formatAgo(runtime.sttAgeSeconds)} ago</span>
-              )}
-            {runtime?.postAgeSeconds !== null &&
-              runtime?.postAgeSeconds !== undefined && (
-                <span>posted {formatAgo(runtime.postAgeSeconds)} ago</span>
-              )}
-            {runtime?.summaryAgeSeconds !== null &&
-              runtime?.summaryAgeSeconds !== undefined && (
-                <span>summary {formatAgo(runtime.summaryAgeSeconds)} ago</span>
-              )}
-            {runtime?.lastCoverage !== null &&
-              runtime?.lastCoverage !== undefined && (
-                <span>
-                  {Math.round(runtime.lastCoverage * 100)}% latest coverage
-                </span>
-              )}
-            {runtime?.failuresToday !== null &&
-              runtime?.failuresToday !== undefined &&
-              runtime.failuresToday > 0 && (
-                <span className="text-amber-400">
-                  {runtime.failuresToday} failure
-                  {runtime.failuresToday === 1 ? "" : "s"} today
-                </span>
-              )}
           </div>
+          {/*
+            Faults stay outside the fold, in words (a queue above 0, a backlog, a failure today, listening
+            under a fifth of the hour). The last-hour coverage fell to about 8% of the day on
+            2026-10-03 to 10-05 while READY (0144); typeof === "number" because 0% is a reading.
+          */}
+          {runtime && (
+            <div className="mt-1 space-y-0.5 text-[12px]">
+              {typeof runtime.listeningCoverage60m === "number" && runtime.listeningCoverage60m < 0.2 && (
+                <div className="text-amber-400">Listened only {Math.round(runtime.listeningCoverage60m * 100)}% of the last hour.</div>
+              )}
+              {typeof runtime.queueDepth === "number" && runtime.queueDepth > 0 && (
+                <div className="text-amber-400">{runtime.queueDepth} item{runtime.queueDepth === 1 ? "" : "s"} waiting in the worker's queue.</div>
+              )}
+              {typeof runtime.transcribeBacklog === "number" && runtime.transcribeBacklog > 0 && (
+                <div className="text-amber-400">
+                  {runtime.transcribeBacklog} recording{runtime.transcribeBacklog === 1 ? "" : "s"} waiting to be transcribed.
+                </div>
+              )}
+              {typeof runtime.failuresToday === "number" && runtime.failuresToday > 0 && (
+                <div className="text-amber-400">
+                  {runtime.failuresToday} failure{runtime.failuresToday === 1 ? "" : "s"} today.
+                </div>
+              )}
+            </div>
+          )}
+          {runtime && (
+            <TechnicalDetails
+              rows={[
+                ["Speech engine", runtime.sttEngine],
+                ["Audio source", runtime.audioSource ?? "not known"],
+                ["Computer", runtime.captureHost],
+                ["Last trigger", runtime.lastTrigger],
+                ["Last motion event", typeof runtime.eventAgeSeconds === "number" ? `${formatAgo(runtime.eventAgeSeconds)} ago` : null],
+                ["Last summary", typeof runtime.summaryAgeSeconds === "number" ? `${formatAgo(runtime.summaryAgeSeconds)} ago` : null],
+                ["Listening, last hour", typeof runtime.listeningCoverage60m === "number" ? `${Math.round(runtime.listeningCoverage60m * 100)}%` : null],
+                ["Latest clip covered", typeof runtime.lastCoverage === "number" ? `${Math.round(runtime.lastCoverage * 100)}%` : null],
+              ]}
+            />
+          )}
           {runtime?.lastError && (
             <div className="mt-2 text-[11px] text-red-300/90">
               {runtime.lastError}
@@ -2050,27 +2100,28 @@ function ConversationPanel({
                         {row.speakerCount === 1 ? "" : "s"}
                       </span>
                     )}
-                    {row.meanVolumeDb !== null && (
-                      <span>{row.meanVolumeDb.toFixed(1)} dBFS</span>
-                    )}
                     {row.visual?.status === "DONE" && row.visual.peopleCount !== null && (
                       <span>
                         {row.visual.peopleCount} {row.visual.peopleCount === 1 ? "person" : "people"} seen
                       </span>
                     )}
-                    {typeof row.visual?.onBoxPeople === "number" && (
-                      <span>
-                        detector: {row.visual.onBoxPeople} {row.visual.onBoxPeople === 1 ? "person" : "people"}
-                      </span>
-                    )}
-                    {row.sttEngine && <span>{row.sttEngine}</span>}
-                    {row.sttModel && <span>{row.sttModel}</span>}
-                    {row.sttLatencyMs !== null && (
-                      <span>STT {row.sttLatencyMs}ms</span>
-                    )}
-                    {row.captureHost && <span>{row.captureHost}</span>}
-                    {row.cameraSerial && <span>camera {row.cameraSerial}</span>}
                   </div>
+                  <TechnicalDetails
+                    rows={[
+                      ["Audio level", typeof row.meanVolumeDb === "number" ?`${row.meanVolumeDb.toFixed(1)} dBFS` : null],
+                      [
+                        "Detector",
+                        typeof row.visual?.onBoxPeople === "number"
+                          ? `counted ${row.visual.onBoxPeople} ${row.visual.onBoxPeople === 1 ? "person" : "people"}`
+                          : null,
+                      ],
+                      ["Speech engine", row.sttEngine],
+                      ["Speech model", row.sttModel],
+                      ["Transcription took", typeof row.sttLatencyMs === "number" ? `${row.sttLatencyMs}ms` : null],
+                      ["Computer", row.captureHost],
+                      ["Camera serial", row.cameraSerial],
+                    ]}
+                  />
 
                   {(row.candidateVehicleVisitId ||
                     row.candidateWorkOrderId) && (
@@ -2943,13 +2994,14 @@ export default function LotSection() {
                           )}
                         </td>
                         <td className="py-2 text-foreground/50">
-                          {v.entryEvidence ?? "—"}
+                          {/* The raw code stays reachable as the cell's title; the words are for the owner. */}
+                          <span title={v.entryEvidence ?? undefined}>{v.entryEvidence ? entryEvidenceWords(v.entryEvidence) : "—"}</span>
                           {/* Pose is the provenance that says whether the geometry behind this
                               row was even valid; it was being sent to the browser and rendered
                               nowhere. */}
-                          {v.cameraPose && <span className="text-foreground/40"> · {v.cameraPose}</span>}
+                          {v.cameraPose && <span className="text-foreground/40"> · camera view {v.cameraPose}</span>}
                           {v.estimatedFields.length > 0 && (
-                            <span className="text-amber-400"> · {v.estimatedFields.length} estimated</span>
+                            <span className="text-amber-400"> · {estimatedWords(v.estimatedFields.length)}</span>
                           )}
                         </td>
                       </tr>

@@ -140,7 +140,7 @@ describe("Last 6 hours digest", () => {
   it("sits at the top of the Office intelligence panel, before the camera cards", () => {
     setOffice();
     render(<LotSection />);
-    const camera = screen.getByText("NICKS EUCLID · office camera");
+    const camera = screen.getByText("Office camera");
     expect(Boolean(block().compareDocumentPosition(camera) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
