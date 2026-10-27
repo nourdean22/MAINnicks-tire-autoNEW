@@ -24,6 +24,7 @@
  * by autonomyControl's publishingKillSwitch and their own *_paused flags.
  */
 import { createLogger } from "../lib/logger";
+import { combinePauses } from "../lib/declinedRecoveryState";
 
 const log = createLogger("send-pause");
 
@@ -135,7 +136,7 @@ export function envArmed(lane: SendPauseLane, env: Record<string, string | undef
 }
 
 /**
- * Contract sendSwitchesStatus v1.1 (client: the send switches card). v1.1 adds heldQueued (additive).
+ * Contract sendSwitchesStatus v1.2 (client: the send switches card). v1.1 adds heldQueued, v1.2 effectivePaused (additive).
  * paused is null when the switch could not be read: UNKNOWN, never false.
  * heldQueued: texts in the delayed SMS queue mapped to this lane, which go out
  * when the lane is resumed; null when the queue could not be read.
@@ -143,33 +144,47 @@ export function envArmed(lane: SendPauseLane, env: Record<string, string | undef
 export interface SendSwitchesStatus {
   lanes: Array<{
     lane: SendPauseLane;
+    /** The lane's OWN switch (what the card's Pause / Resume writes). Unchanged by the shop-wide pause. */
     paused: boolean | null;
     readable: boolean;
     failClass: SendPauseFailClass;
     envArmed: boolean | null;
     heldQueued: number | null;
+    /** v1.2, text lanes only: held by the lane's own switch OR the shop-wide SMS pause (sms_global_pause), via
+     *  combinePauses. null = nothing holds it and a switch could not be read. Absent = the shop-wide pause
+     *  does not hold this lane (calls; order confirmations, which sendSms exempts). */
+    effectivePaused?: boolean | null;
   }>;
 }
+
+/** Lanes whose texts sendSms queues while sms_global_pause is on: every automated customer text. Order
+ *  confirmations (messageClass customer_confirmation) and the calls lane are exempt. */
+const HELD_BY_GLOBAL_SMS_PAUSE: ReadonlySet<SendPauseLane> = new Set(["declined_recovery", "weather_sms", "missed_call_recovery"]);
 
 export async function readSendSwitchesStatus(
   env: Record<string, string | undefined> = process.env,
   countQueued: () => Promise<Map<SendPauseLane, number> | null> = async () => (await import("../sms")).countQueuedByLane(),
+  readGlobalPause: () => Promise<{ paused: boolean; readable: boolean }> = async () => (await import("./smsControl")).getSmsPauseState(),
 ): Promise<SendSwitchesStatus> {
   const out: SendSwitchesStatus["lanes"] = [];
   const queued = await countQueued().catch(() => null);
+  // A throw is UNKNOWN (null), never "not paused": the lane rows still render from their own switches.
+  const globalPause = await readGlobalPause().catch(() => null);
   // Sequential on purpose: five one-row reads, and concurrent first-time dynamic
   // imports of a mocked ../db fail under vitest, which would read as UNKNOWN.
   for (const lane of Object.keys(SEND_PAUSE_LANES) as SendPauseLane[]) {
     // Fresh: the card refetches right after a toggle, and a cached answer would show the old chip
     // (in this process for 5 s, and in any other process that cached it).
     const s = await sendPause(lane, { fresh: true });
+    const own = s.readable ? s.paused : null;
     out.push({
       lane,
-      paused: s.readable ? s.paused : null,
+      paused: own,
       readable: s.readable,
       failClass: SEND_PAUSE_LANES[lane].failClass,
       envArmed: envArmed(lane, env),
       heldQueued: queued ? (queued.get(lane) ?? 0) : null,
+      ...(HELD_BY_GLOBAL_SMS_PAUSE.has(lane) && { effectivePaused: combinePauses(own, globalPause?.readable ? globalPause.paused : null) }),
     });
   }
   return { lanes: out };

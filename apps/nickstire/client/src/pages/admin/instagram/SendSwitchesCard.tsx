@@ -3,7 +3,8 @@
  * operator's phone.
  *
  * Consumer of contract sendSwitchesStatus v1 (instagramAdmin.sendSwitchesStatus) and the existing
- * featureFlags.toggle. TRUE = paused. Three chip states, never two: a switch the server could not
+ * featureFlags.toggle. TRUE = paused. A text lane held only by the shop-wide text pause reads "Paused, all
+ * texts" (effectivePaused, v1.2), never Live; its button still follows the lane's own switch. Three chip states, never two: a switch the server could not
  * read (paused null or readable false), a lane missing from the response and a failed query are all
  * Unknown, in words, and never Live. Pause stays available on an Unknown lane. Pause is one tap
  * (the safe direction); Resume asks first through confirmDialog with the flagPolicy copy, because
@@ -20,7 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 // heldQueued is the additive v1.1 field (texts held by the pause): number, null = unknown, absent = lane without a queue.
-type LaneEntry = RouterOutputs["instagramAdmin"]["sendSwitchesStatus"]["lanes"][number] & { heldQueued?: number | null };
+// effectivePaused is the additive v1.2 field on the text lanes: the lane's own switch OR the shop-wide text pause.
+type LaneEntry = RouterOutputs["instagramAdmin"]["sendSwitchesStatus"]["lanes"][number] & { heldQueued?: number | null; effectivePaused?: boolean | null };
 
 /** The server caches a switch for 5 s, so a read right after a toggle can still be the old value. */
 const REREAD_MS = 6000;
@@ -38,14 +40,22 @@ const LANES = [
 const TONE = {
   Live: "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-500",
   Paused: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-500",
+  // Held: the lane's own switch is not paused, but the shop-wide pause on automated customer texts holds it.
+  Held: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-500",
   Unknown: "border-dashed border-muted-foreground/40 text-muted-foreground",
 } as const;
 
 type ChipState = keyof typeof TONE;
 
+const CHIP_WORD: Record<ChipState, string> = { Live: "Live", Paused: "Paused", Held: "Paused, all texts", Unknown: "Unknown" };
+
 function chipState(e: LaneEntry | undefined): ChipState {
-  if (!e || e.paused === null || !e.readable) return "Unknown";
-  return e.paused ? "Paused" : "Live";
+  if (!e) return "Unknown";
+  if (e.paused === true && e.readable) return "Paused";
+  // One switch ON holds the lane even if the other could not be read (server combinePauses).
+  if (e.effectivePaused === true) return "Held";
+  if (e.paused === null || !e.readable || e.effectivePaused === null) return "Unknown";
+  return "Live";
 }
 
 const envLine = (e: LaneEntry | undefined) => (e?.envArmed === true ? "env armed" : e?.envArmed === false ? "env off" : "env unknown");
@@ -57,7 +67,10 @@ function unknownNote(failClass: "closed" | "open"): string {
     : `${base} A failed read does not hold this lane, so confirmations keep sending.`;
 }
 
-const QUEUE_LINE = "Texts queued before or during the pause send on resume.";
+const HELD_NOTE = "Held by the shop-wide pause on automated customer texts. Queued texts send when it is lifted.";
+const GLOBAL_UNKNOWN_NOTE = "The shop-wide text pause could not be read, state unknown.";
+
+const QUEUE_LINE ="Texts queued before or during the pause send on resume.";
 
 function resumeNote(e: LaneEntry | undefined): string {
   if (e?.heldQueued === undefined) return QUEUE_LINE;
@@ -93,10 +106,15 @@ function LaneRow({ lane, label, failClass, entry, onSettled }: RowProps) {
     <li className="flex min-w-0 flex-col gap-2 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">{label}</span>
-        <Badge variant="outline" className={TONE[state]}>{state}</Badge>
+        <Badge variant="outline" className={TONE[state]}>{CHIP_WORD[state]}</Badge>
       </div>
       <p className="text-muted-foreground">{envLine(entry)}</p>
-      {state === "Unknown" && <p className="break-words text-muted-foreground">{unknownNote(entry?.failClass ?? failClass)}</p>}
+      {state === "Held" && <p className="break-words text-muted-foreground">{HELD_NOTE}</p>}
+      {state === "Unknown" && (
+        <p className="break-words text-muted-foreground">
+          {entry?.readable && entry.paused === false && entry.effectivePaused === null ? GLOBAL_UNKNOWN_NOTE : unknownNote(entry?.failClass ?? failClass)}
+        </p>
+      )}
       {error && <p role="alert" className="break-words rounded-md border border-border p-3">{error}</p>}
       <Button
         variant="outline"
