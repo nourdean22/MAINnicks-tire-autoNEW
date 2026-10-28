@@ -255,6 +255,83 @@ describe("readSendSwitchesStatus · v1.1 heldQueued", () => {
   });
 });
 
+describe("readSendSwitchesStatus · v1.2 effectivePaused (the shop-wide SMS pause, sms_global_pause)", () => {
+  const noQueue = async () => new Map();
+  const SMS_LANES = ["declined_recovery", "weather_sms", "missed_call_recovery"] as const;
+  const globalOn = async () => ({ paused: true, readable: true });
+  const globalOff = async () => ({ paused: false, readable: true });
+  const globalUnreadable = async () => ({ paused: false, readable: false });
+
+  // smsControl keeps a process-wide 5 s cache; clear it even when an assertion above fails, so a paused
+  // state never leaks into the next serial test file.
+  afterEach(async () => {
+    const { _resetPauseCacheForTest } = await import("./services/smsControl");
+    _resetPauseCacheForTest();
+  });
+
+  it("global pause ON, every lane switch OFF -> the three text lanes are held, and their own paused stays false", async () => {
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue, globalOn);
+    const by = Object.fromEntries(s.lanes.map((l) => [l.lane, l]));
+    for (const lane of SMS_LANES) {
+      expect(by[lane].effectivePaused, lane).toBe(true);
+      expect(by[lane].paused, `${lane}: the toggle still follows its own switch`).toBe(false);
+    }
+  });
+
+  it("CONTROL: calls and order confirmations are not held by the text pause (sendSms exempts confirmations), so they carry no effectivePaused", async () => {
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue, globalOn);
+    const by = Object.fromEntries(s.lanes.map((l) => [l.lane, l]));
+    expect(by.voice_outbound).not.toHaveProperty("effectivePaused");
+    expect(by.customer_confirmations).not.toHaveProperty("effectivePaused");
+  });
+
+  it("CONTROL: global pause OFF -> effectivePaused false (a measured not-held), own pause ON still true", async () => {
+    flagRows = { send_pause_weather_sms: 1 };
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue, globalOff);
+    const by = Object.fromEntries(s.lanes.map((l) => [l.lane, l.effectivePaused]));
+    expect(by.declined_recovery).toBe(false);
+    expect(by.missed_call_recovery).toBe(false);
+    expect(by.weather_sms).toBe(true);
+  });
+
+  it("global switch unreadable and nothing else holds -> null (UNKNOWN, never false); the other switch ON still wins", async () => {
+    flagRows = { send_pause_weather_sms: 1 };
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue, globalUnreadable);
+    const by = Object.fromEntries(s.lanes.map((l) => [l.lane, l.effectivePaused]));
+    expect(by.declined_recovery).toBeNull();
+    expect(by.weather_sms).toBe(true);
+  });
+
+  it("the lane's own switch unreadable + global ON -> held (true), not unknown", async () => {
+    dbMode = "throw";
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue, globalOn);
+    for (const l of s.lanes.filter((x) => (SMS_LANES as readonly string[]).includes(x.lane))) {
+      expect(l.paused).toBeNull();
+      expect(l.effectivePaused, l.lane).toBe(true);
+    }
+  });
+
+  it("a global read that throws is UNKNOWN, not a crash of the whole card", async () => {
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue, async () => { throw new Error("boom"); });
+    expect(s.lanes.find((l) => l.lane === "declined_recovery")?.effectivePaused).toBeNull();
+  });
+
+  it("default reader: the real getSmsPauseState over the fake table (sms_global_pause row) reaches the lanes", async () => {
+    flagRows = { sms_global_pause: 1 };
+    const { _resetPauseCacheForTest } = await import("./services/smsControl");
+    _resetPauseCacheForTest();
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, noQueue);
+    expect(s.lanes.find((l) => l.lane === "weather_sms")?.effectivePaused).toBe(true);
+  });
+});
+
 describe("actor · an operator at the manual door (C5.5 follow-up)", () => {
   it("operator + unreadable switch -> SEND (fail open: a person is present)", async () => {
     const { shouldHold } = await import("./services/sendPause");

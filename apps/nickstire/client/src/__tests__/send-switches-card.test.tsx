@@ -13,7 +13,10 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
-type Lane = { lane: string; paused: boolean | null; readable: boolean; failClass: "closed" | "open"; envArmed: boolean | null; heldQueued?: number | null };
+type Lane = {
+  lane: string; paused: boolean | null; readable: boolean; failClass: "closed" | "open"; envArmed: boolean | null;
+  heldQueued?: number | null; effectivePaused?: boolean | null;
+};
 
 const h = vi.hoisted(() => ({
   status: undefined as { lanes: Lane[] } | undefined,
@@ -77,6 +80,8 @@ const LABEL: Record<string, string> = {
 const LANES = Object.keys(LABEL);
 const CLOSED_NOTE = "This switch could not be read, state unknown. A failed read holds this lane's automatic sends until it reads.";
 const OPEN_NOTE = "This switch could not be read, state unknown. A failed read does not hold this lane, so confirmations keep sending.";
+
+const HELD_NOTE = "Held by the shop-wide pause on automated customer texts. Queued texts send when it is lifted.";
 
 const lane = (name: string, over: Partial<Lane> = {}): Lane => ({
   lane: name,
@@ -142,6 +147,39 @@ describe("Send switches card: three chip states, never two", () => {
     expect(within(r).queryByText("Live")).toBeNull();
     expect(within(r).queryByText("Paused")).toBeNull();
     expect(within(r).getByText(CLOSED_NOTE)).toBeTruthy();
+  });
+
+  it("a text lane held by the shop-wide text pause says so and never reads Live, while its own Pause button stays", () => {
+    h.status = { lanes: LANES.map((n) => lane(n, n === "weather_sms" ? { effectivePaused: true } : {})) };
+    render(<Controls />);
+    const r = within(row("weather_sms"));
+    expect(r.queryByText("Live")).toBeNull();
+    expect(r.getByText("Paused, all texts")).toBeTruthy();
+    expect(r.getByText(HELD_NOTE)).toBeTruthy();
+    expect(pause("weather_sms")).toBeTruthy(); // the button still follows the lane's OWN switch
+    expect(within(row("voice_outbound")).getByText("Live")).toBeTruthy();
+  });
+
+  it("CONTROL: effectivePaused false stays Live; a lane's own pause stays plain Paused with Resume", () => {
+    h.status = {
+      lanes: LANES.map((n) =>
+        lane(n, n === "weather_sms" ? { effectivePaused: false } : n === "declined_recovery" ? { paused: true, effectivePaused: true } : {}),
+      ),
+    };
+    render(<Controls />);
+    expect(within(row("weather_sms")).getByText("Live")).toBeTruthy();
+    expect(within(row("declined_recovery")).getByText("Paused")).toBeTruthy();
+    expect(within(row("declined_recovery")).queryByText(HELD_NOTE)).toBeNull();
+    expect(resume("declined_recovery")).toBeTruthy();
+  });
+
+  it("an unreadable shop-wide pause on a lane whose own switch reads off is Unknown, in words, never Live", () => {
+    h.status = { lanes: LANES.map((n) => lane(n, n === "missed_call_recovery" ? { effectivePaused: null } : {})) };
+    render(<Controls />);
+    const r = within(row("missed_call_recovery"));
+    expect(r.getByText("Unknown")).toBeTruthy();
+    expect(r.queryByText("Live")).toBeNull();
+    expect(r.getByText("The shop-wide text pause could not be read, state unknown.")).toBeTruthy();
   });
 
   it("readable false is Unknown even when the server sent paused false", () => {

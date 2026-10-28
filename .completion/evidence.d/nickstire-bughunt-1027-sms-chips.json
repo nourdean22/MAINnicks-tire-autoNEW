@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Admin -> Instagram -> Controls -> Send switches (2026-10-27 bug hunt): while the shop-wide pause on automated customer texts (sms_global_pause) is on, the Declined-work follow-ups, Weather texts and Missed-call texts rows used to read a green Live chip; they now read an amber 'Paused, all texts' chip with the line 'Held by the shop-wide pause on automated customer texts. Queued texts send when it is lifted.' The row's Pause button still writes that lane's own switch, so it stays Pause. Outbound calls and Order confirmations are unchanged (sendSms exempts confirmations; the pause never held calls). An unreadable shop-wide switch on an otherwise live row reads Unknown with 'The shop-wide text pause could not be read, state unknown.' Proof: client/src/__tests__/send-switches-card.test.tsx (3 new arms, 2 red on the old card: Live still rendered, Unknown missing) and server/sendPause.test.ts (7 new arms, 6 red on the old read: effectivePaused undefined). Live look after deploy is owed to Nour: turn the Automated customer texts switch on in Settings and open this card."
+    },
+    "capability-ledger-updated": {
+      "ref": "No ledger change: capability-ledger entry send-pause-switches (state unchanged) already covers the five send lanes; this diff changes only what the status read and the card SAY about three of them while the shop-wide text pause is on (additive effectivePaused, contract v1.2) and adds no capability or send path. The pause itself (sendSms global-pause hold) is untouched. Evidence: sendPause.test.ts v1.2 arms and send-switches-card.test.tsx (6 files, all green; tsc exit 0)."
+    }
+  }
+}
