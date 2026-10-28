@@ -80,7 +80,8 @@ export async function handleCronHealthSummary() {
     return {
       jobName,
       lastStatus: l?.status ?? "unknown",
-      lastStartedAt: toIso(g.lastStartedAt) ?? to.toISOString(),
+      // null = the database sent a start time we cannot read; the reader says "unknown", never "just now".
+      lastStartedAt: toIso(g.lastStartedAt),
       lastDurationMs: l?.durationMs ?? null,
       lastDetails: l?.details ?? null,
       lastErrorMessage: l?.errorMessage ?? null,
@@ -91,11 +92,11 @@ export async function handleCronHealthSummary() {
     };
   });
   const rank = (status: string) => (status === "failed" ? 0 : status === "skipped" ? 1 : 2);
-  jobs.sort((a, b) => rank(a.lastStatus) - rank(b.lastStatus) || b.lastStartedAt.localeCompare(a.lastStartedAt));
+  jobs.sort((a, b) => rank(a.lastStatus) - rank(b.lastStatus) || (b.lastStartedAt ?? "").localeCompare(a.lastStartedAt ?? ""));
 
   const obs = latest.get(OBSERVER_JOB);
   const observer = obs?.details
-    ? { at: toIso(obs.startedAt) ?? to.toISOString(), ...parseObserverDetails(obs.details) }
+    ? { at: toIso(obs.startedAt), ...parseObserverDetails(obs.details) }
     : null;
 
   return { since: since.toISOString(), to: to.toISOString(), jobs, observer };

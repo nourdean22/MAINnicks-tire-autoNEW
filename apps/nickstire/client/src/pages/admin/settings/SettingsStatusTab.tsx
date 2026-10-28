@@ -186,7 +186,7 @@ function JobRow({ job, line }: { job: CronJobSummary; line?: string }) {
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <span className="text-[13px] text-foreground font-medium break-all">{job.jobName}</span>
         <span className="text-[12px] text-foreground/45">
-          last run {timeAgoShort(job.lastStartedAt)} · {job.runs} run{job.runs === 1 ? "" : "s"}
+          last run {job.lastStartedAt ? timeAgoShort(job.lastStartedAt) : "time unknown"} · {job.runs} run{job.runs === 1 ? "" : "s"}
         </span>
       </div>
       {line && <p className="text-[12px] text-foreground/55 mt-0.5 break-words">{line}</p>}
