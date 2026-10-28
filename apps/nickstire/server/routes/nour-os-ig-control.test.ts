@@ -11,6 +11,15 @@ const runSpy = vi.fn(async (opts: unknown) => ({ status: "dry_run", opts }));
 const setFlagSpy = vi.fn(async (_key: string, _on: boolean) => undefined);
 let flagOn = false;
 
+const auditRows: Array<{ action: string; entityType: string; entityId: string; newValue?: string; actor?: string }> = [];
+let auditFails = false;
+
+vi.mock("../services/auditTrail", () => ({
+  logAdminAction: async (a: (typeof auditRows)[number]) => {
+    if (auditFails) throw new Error("audit_log unreadable");
+    auditRows.push(a);
+  },
+}));
 vi.mock("../services/igAutopost", () => ({ runIgAutopost: runSpy }));
 vi.mock("../services/featureFlags", () => ({
   isEnabled: vi.fn(async () => flagOn),
@@ -46,6 +55,8 @@ beforeEach(() => {
   runSpy.mockClear();
   setFlagSpy.mockClear();
   flagOn = false;
+  auditRows.length = 0;
+  auditFails = false;
   process.env.STATENOUR_SYNC_KEY = SYNC;
   process.env.NOUR_OS_IG_CONTROL_KEY = CONTROL;
 });
@@ -165,5 +176,64 @@ describe("/api/nour-os/ig-control behaviour (moved verbatim)", () => {
     const res = await run({ action: "autopost_run", filters: "x" });
     expect(res.statusCode).toBe(400);
     expect(runSpy).not.toHaveBeenCalled();
+  });
+});
+
+// Bug hunt 2026-10-27: this route flipped legacy_autopost_live with no audit row, while the Settings switches card reads
+// "changed <when> by <who>" from the newest flag.toggled row (services/featureFlags.ts flag-change reader). Every writer of a
+// flag leaves that row (PR 3332 did it for /api/admin/flags/toggle).
+describe("/api/nour-os/ig-control leaves the flag.toggled audit row the Settings card reads", () => {
+  async function run(body: unknown) {
+    const handler = await mount("./nour-os-ig-control");
+    const res = fakeRes();
+    await handler({ headers: { "x-ig-control-key": CONTROL }, body }, res);
+    return res;
+  }
+  const row = (value: boolean) => ({
+    action: "flag.toggled",
+    entityType: "feature_flag",
+    entityId: "legacy_autopost_live",
+    newValue: String(value),
+    actor: "nour-os-ig-control",
+  });
+
+  it("set_config writes one row for the new value", async () => {
+    const res = await run({ action: "autopost_set_config", filters: { enabled: true } });
+    expect(setFlagSpy).toHaveBeenCalledWith("legacy_autopost_live", true); // positive control: the flip ran
+    expect(res.statusCode).toBe(200);
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject(row(true));
+  });
+
+  it("set_config off writes a false row", async () => {
+    await run({ action: "autopost_set_config", filters: { enabled: false } });
+    expect(auditRows.map((r) => r.newValue)).toEqual(["false"]);
+  });
+
+  it("a live run on a disarmed lane writes a row for the arm and one for the restore", async () => {
+    await run({ action: "autopost_run", filters: { dryRun: false } });
+    expect(setFlagSpy.mock.calls).toEqual([["legacy_autopost_live", true], ["legacy_autopost_live", false]]);
+    expect(auditRows).toMatchObject([row(true), row(false)]);
+  });
+
+  it("a live run that throws still audits the restore", async () => {
+    runSpy.mockRejectedValueOnce(new Error("boom"));
+    const res = await run({ action: "autopost_run", filters: { dryRun: false } });
+    expect(res.statusCode).toBe(500);
+    expect(auditRows.map((r) => r.newValue)).toEqual(["true", "false"]);
+  });
+
+  it("a dry run flips nothing, so it audits nothing", async () => {
+    await run({ action: "autopost_run" });
+    expect(setFlagSpy).not.toHaveBeenCalled();
+    expect(auditRows).toEqual([]);
+  });
+
+  it("an audit miss never blocks the flip or the answer", async () => {
+    auditFails = true;
+    const res = await run({ action: "autopost_set_config", filters: { enabled: true } });
+    expect(setFlagSpy).toHaveBeenCalledWith("legacy_autopost_live", true);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data).toEqual({ success: true, livePostingEnabled: true });
   });
 });
