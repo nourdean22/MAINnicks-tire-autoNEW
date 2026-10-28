@@ -200,7 +200,7 @@ function buildPostFlushRegen(a: {
       const { recordMetricStrict } = await import("@/lib/services/metrics");
       await recordMetricStrict(regenMetric.metric, regenMetric.value, {
         unit: regenMetric.unit,
-        tags: { ...regenMetric.tags, traceId: a.traceId, postFlush: "1" },
+        tags: { ...regenMetric.tags, traceId: a.traceId },
         source: regenMetric.source,
       });
     } catch (err) {
