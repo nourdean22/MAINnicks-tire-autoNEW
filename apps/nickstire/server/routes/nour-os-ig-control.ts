@@ -39,10 +39,13 @@ function safeCompare(a: string, b: string): boolean {
 /**
  * Flip the live-posting flag and leave the flag.toggled audit row the Settings switches card reads for "changed <when> by
  * <who>" (same row as /api/admin/flags/toggle and featureFlags.toggle). An audit miss never blocks the flip.
+ * `audit: false` is for the temporary arm of a live run: audit_log.created_at is one-second precision and its id a random
+ * UUID, so an arm row and the restore row written in the same second cannot be ordered and the reader may pick the arm.
  */
-async function setLiveFlag(on: boolean): Promise<void> {
+async function setLiveFlag(on: boolean, audit = true): Promise<void> {
   const { setFlag } = await import("../services/featureFlags");
   await setFlag("legacy_autopost_live", on);
+  if (!audit) return;
   try {
     const { logAdminAction } = await import("../services/auditTrail");
     await logAdminAction({
@@ -73,7 +76,7 @@ const IG_CONTROL_HANDLERS: Record<string, IgControlHandler> = {
     const initialFlag = await isEnabled("legacy_autopost_live");
 
     if (!initialFlag && !dryRun) {
-      await setLiveFlag(true);
+      await setLiveFlag(true, false); // the restore below is the audited row
     }
 
     try {

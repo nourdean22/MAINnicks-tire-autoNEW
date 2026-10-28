@@ -14,7 +14,9 @@ let flagOn = false;
 const auditRows: Array<{ action: string; entityType: string; entityId: string; newValue?: string; actor?: string }> = [];
 let auditFails = false;
 
-vi.mock("../services/auditTrail", () => ({
+// Keep every real export (getAuditTrail, ...) so a later file in a shared registry never gets a partial module.
+vi.mock("../services/auditTrail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/auditTrail")>()),
   logAdminAction: async (a: (typeof auditRows)[number]) => {
     if (auditFails) throw new Error("audit_log unreadable");
     auditRows.push(a);
@@ -210,17 +212,22 @@ describe("/api/nour-os/ig-control leaves the flag.toggled audit row the Settings
     expect(auditRows.map((r) => r.newValue)).toEqual(["false"]);
   });
 
-  it("a live run on a disarmed lane writes a row for the arm and one for the restore", async () => {
+  // audit_log.created_at has one-second precision and audit_log.id is a random UUID, so two rows for one flag written in the
+  // same second cannot be ordered: the reader (getLastFlagChanges, MAX(created_at) join) may pick the arm row and read the
+  // restored "off" as unknown. A live run arms and restores inside one request (often under a second when it fails), so only
+  // the final state is audited: the lane is back where it started and the newest row says who ran it and when.
+  it("a live run on a disarmed lane writes ONE row: the restored final state, never the arm", async () => {
     await run({ action: "autopost_run", filters: { dryRun: false } });
     expect(setFlagSpy.mock.calls).toEqual([["legacy_autopost_live", true], ["legacy_autopost_live", false]]);
-    expect(auditRows).toMatchObject([row(true), row(false)]);
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject(row(false));
   });
 
-  it("a live run that throws still audits the restore", async () => {
+  it("a live run that throws still audits the restore, and only that", async () => {
     runSpy.mockRejectedValueOnce(new Error("boom"));
     const res = await run({ action: "autopost_run", filters: { dryRun: false } });
     expect(res.statusCode).toBe(500);
-    expect(auditRows.map((r) => r.newValue)).toEqual(["true", "false"]);
+    expect(auditRows.map((r) => r.newValue)).toEqual(["false"]);
   });
 
   it("a dry run flips nothing, so it audits nothing", async () => {
