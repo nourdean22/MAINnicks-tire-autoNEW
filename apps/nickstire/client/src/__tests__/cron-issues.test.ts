@@ -56,6 +56,14 @@ describe("deriveCronIssues", () => {
     expect(deriveCronIssues(summary([], observer({ failing: null })))).toEqual([]);
   });
 
+  it("a failed job or observer run with no readable start time says the time is unknown, not 'NaNd ago'", () => {
+    const failed = deriveCronIssues(summary([job({ jobName: "sms-sender", lastStatus: "failed", lastStartedAt: null })]));
+    expect(failed[0].detail).toContain("sms-sender failed at a time the log did not record;");
+    expect(failed[0].detail).not.toMatch(/NaN|ago/);
+    const obs = deriveCronIssues(summary([], observer({ failing: 2, at: null })));
+    expect(obs[0].detail).toBe("The cron-failure observer counted 2 failing jobs on its latest run (time unknown).");
+  });
+
   it("surfaces a failed job as an alert with its error and its 24 h denominator", () => {
     const issues = deriveCronIssues(summary([job({ jobName: "statenour-live-sync", lastStatus: "failed", lastErrorMessage: "ECONNRESET", runs: 4, failed: 2 })]));
     expect(issues).toHaveLength(1);

@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
   sent: [] as { sql: string; values: unknown[] }[],
   dead: false,
   failQuery: false,
+  /** Make the database hand back a start time (job rows and the observer row) that is not a date. */
+  badStamp: false,
 }));
 
 // mysql2 with drizzle's typeCast hands TIMESTAMP back as a "YYYY-MM-DD HH:mm:ss" string; counts and sums can be strings.
@@ -60,7 +62,7 @@ const fakeClient = {
           durationMs: r.durationMs ?? null,
           details: r.details ?? null,
           errorMessage: r.errorMessage ?? null,
-          startedAt: stamp(r.at),
+          startedAt: h.badStamp ? "not-a-date" : stamp(r.at),
         })),
         [],
       ];
@@ -74,7 +76,7 @@ const fakeClient = {
           runs: runs.length,
           failed: String(runs.filter((r) => r.status === "failed").length),
           skipped: String(runs.filter((r) => r.status === "skipped").length),
-          lastStartedAt: max(runs),
+          lastStartedAt: h.badStamp ? "not-a-date" : max(runs),
           lastSuccessAt: max(done),
         };
       }),
@@ -129,6 +131,7 @@ beforeEach(() => {
   h.sent.length = 0;
   h.dead = false;
   h.failQuery = false;
+  h.badStamp = false;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -198,6 +201,21 @@ describe("handleCronHealthSummary", () => {
     const out = await handleCronHealthSummary();
     expect(out.observer).toBeNull();
     expect(out.jobs[0]).toMatchObject({ jobName: "cron-failure-observer", lastStatus: "failed" });
+  });
+
+  it("a start time the database returns unreadable is null, never 'just now'; the job and the observer stay in the list", async () => {
+    h.badStamp = true;
+    h.rows = [run("sms-sender", "failed", 1, { errorMessage: "gateway 502" }), run("cron-failure-observer", "completed", 0.1, { details: OBSERVER })];
+    const out = await handleCronHealthSummary();
+    const sms = out.jobs.find((j) => j.jobName === "sms-sender");
+    expect(sms).toMatchObject({ lastStatus: "failed", lastStartedAt: null });
+    expect(out.observer?.at).toBeNull();
+    expect(out.observer?.failing).toBe(0);
+  });
+
+  it("control: a readable start time is still the real time (the null above is the unreadable case only)", async () => {
+    h.rows = [run("sms-sender", "failed", 1)];
+    expect((await handleCronHealthSummary()).jobs[0].lastStartedAt).toBe("2026-10-25T21:00:00.000Z");
   });
 
   it("an empty window is an empty list with the window, not an error", async () => {
