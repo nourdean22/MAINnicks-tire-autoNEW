@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Admin -> Settings -> Status -> Scheduled work: a job row whose start time the database returned unreadable now reads 'last run time unknown' where it used to read 'last run 0s ago'; a failed job in Open issues reads 'failed at a time the log did not record'; the observer alert reads 'on its latest run (time unknown)'. A readable start time renders exactly as before ('last run 20m ago'); the existing settings-status and cron-issues tests pass unchanged and the new tests cover the unreadable case."
+    }
+  }
+}
