@@ -36,6 +36,31 @@ function safeCompare(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Flip the live-posting flag and leave the flag.toggled audit row the Settings switches card reads for "changed <when> by
+ * <who>" (same row as /api/admin/flags/toggle and featureFlags.toggle). An audit miss never blocks the flip.
+ * `audit: false` is for the temporary arm of a live run: audit_log.created_at is one-second precision and its id a random
+ * UUID, so an arm row and the restore row written in the same second cannot be ordered and the reader may pick the arm.
+ */
+async function setLiveFlag(on: boolean, audit = true): Promise<void> {
+  const { setFlag } = await import("../services/featureFlags");
+  await setFlag("legacy_autopost_live", on);
+  if (!audit) return;
+  try {
+    const { logAdminAction } = await import("../services/auditTrail");
+    await logAdminAction({
+      action: "flag.toggled",
+      entityType: "feature_flag",
+      entityId: "legacy_autopost_live",
+      details: `Feature flag "legacy_autopost_live" set to ${on} (NOUR OS Instagram control)`,
+      newValue: String(on),
+      actor: "nour-os-ig-control",
+    });
+  } catch (err) {
+    log.warn("ig-control: flag audit row not written", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 type IgControlHandler = (filters: Record<string, unknown>) => Promise<unknown>;
 
 const IG_CONTROL_HANDLERS: Record<string, IgControlHandler> = {
@@ -43,7 +68,7 @@ const IG_CONTROL_HANDLERS: Record<string, IgControlHandler> = {
   // legacy_autopost_live for the duration of this run and restores it after.
   autopost_run: async (filters) => {
     const { runIgAutopost } = await import("../services/igAutopost");
-    const { isEnabled, setFlag } = await import("../services/featureFlags");
+    const { isEnabled } = await import("../services/featureFlags");
 
     const dryRun = filters.dryRun !== false;
     const forceArchetype = filters.forceArchetype as any;
@@ -51,7 +76,7 @@ const IG_CONTROL_HANDLERS: Record<string, IgControlHandler> = {
     const initialFlag = await isEnabled("legacy_autopost_live");
 
     if (!initialFlag && !dryRun) {
-      await setFlag("legacy_autopost_live", true);
+      await setLiveFlag(true, false); // the restore below is the audited row
     }
 
     try {
@@ -62,15 +87,14 @@ const IG_CONTROL_HANDLERS: Record<string, IgControlHandler> = {
       });
     } finally {
       if (!initialFlag && !dryRun) {
-        await setFlag("legacy_autopost_live", false);
+        await setLiveFlag(false);
       }
     }
   },
 
   autopost_set_config: async (filters) => {
-    const { setFlag } = await import("../services/featureFlags");
     const enabled = filters.enabled === true;
-    await setFlag("legacy_autopost_live", enabled);
+    await setLiveFlag(enabled);
     return { success: true, livePostingEnabled: enabled };
   },
 };
