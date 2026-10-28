@@ -14,9 +14,15 @@ import { describe, expect, it, vi } from "vitest";
 const execute = vi.fn();
 vi.mock("../db", () => ({ getDb: async () => ({ execute }) }));
 const invokeLLM = vi.fn();
-vi.mock("../_core/llm", () => ({ invokeLLM: (...a: unknown[]) => invokeLLM(...a) }));
+vi.mock("../_core/llm", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../_core/llm")>()),
+  invokeLLM: (...a: unknown[]) => invokeLLM(...a),
+}));
 const createProposal = vi.fn();
-vi.mock("./proposals", () => ({ createProposal: (...a: unknown[]) => createProposal(...a) }));
+vi.mock("./proposals", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./proposals")>()),
+  createProposal: (...a: unknown[]) => createProposal(...a),
+}));
 
 import {
   ACTIONABLE_OUTCOMES,
