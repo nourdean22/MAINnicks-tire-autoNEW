@@ -116,8 +116,8 @@ export function OmniCaptureModal({
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-50 bg-overlay/70"
-        className="fixed left-1/2 top-[20vh] z-[51] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-overlay border border-edge-default bg-overlay shadow-l2 outline-none sm:top-[18vh]"
+        overlayClassName="z-[70] bg-overlay/70"
+        className="fixed left-1/2 top-[20vh] z-[70] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-overlay border border-edge-default bg-overlay shadow-l2 outline-none sm:top-[18vh]"
       >
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-2.5">
           <Sparkles size={13} className="text-fg-tertiary" strokeWidth={1.75} />

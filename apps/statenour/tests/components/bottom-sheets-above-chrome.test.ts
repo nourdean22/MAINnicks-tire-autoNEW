@@ -41,8 +41,11 @@ const sheets: Array<{ file: string; sheetZ: number[]; overlayZ: number[] }> = []
 for (const file of [...walk("components"), ...walk("app"), ...walk("features")]) {
   const src = read(file);
   const sheetZ = [...src.matchAll(SHEET_Z)].map((m) => Number(m[1]));
-  if (sheetZ.length === 0) continue;
-  sheets.push({ file, sheetZ, overlayZ: [...src.matchAll(OVERLAY_Z)].map((m) => Number(m[1])) });
+  const overlayZ = [...src.matchAll(OVERLAY_Z)].map((m) => Number(m[1]));
+  // A centered dialog (omni capture) has no bottom sheet but its dim layer still
+  // has to sit above the chrome, or the tab bar stays tappable through it.
+  if (sheetZ.length === 0 && overlayZ.length === 0) continue;
+  sheets.push({ file, sheetZ, overlayZ });
 }
 
 describe("every bottom sheet stacks above the bottom chrome", () => {
@@ -58,6 +61,7 @@ describe("every bottom sheet stacks above the bottom chrome", () => {
   for (const known of [
     "components/relationships/person-edit-drawer.tsx",
     "components/missions/mission-retro-modal.tsx",
+    "components/actions/omni-capture-modal.tsx",
   ]) {
     it(`${known} reads at least one overlay z-index (so the overlay assertion below is not vacuous)`, () => {
       expect(sheets.find((s) => s.file === known)?.overlayZ.length ?? 0).toBeGreaterThan(0);
@@ -70,5 +74,12 @@ describe("every bottom sheet stacks above the bottom chrome", () => {
       ...s.overlayZ.filter((z) => z <= chromeZ).map((z) => `${s.file}: overlay z-${z}`),
     ]);
     expect(under, `chrome is z-[${chromeZ}]; these paint under it`).toEqual([]);
+  });
+
+  it("the omni capture dialog panel sits above the chrome and not above the Dialog layer", () => {
+    const src = read("components/actions/omni-capture-modal.tsx");
+    const panelZ = Number(src.match(/className="fixed left-1\/2 [^"]*?z-\[(\d+)\]/)?.[1]);
+    expect(panelZ).toBeGreaterThan(chromeZ);
+    expect(panelZ).toBeLessThanOrEqual(70);
   });
 });
