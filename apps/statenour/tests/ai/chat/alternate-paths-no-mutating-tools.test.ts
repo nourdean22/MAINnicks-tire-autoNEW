@@ -438,6 +438,15 @@ describe("regen telemetry failures reach the instrument channel (audit 01-F6)", 
     expect(logError).toHaveBeenCalledWith("instrument.chat.pre_stream_regen", boom, { traceId: "t1" }, "warn");
   });
 
+  it("the metric row carries only tags something reads (traceId), not a postFlush marker nobody queries", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    await postFlushRegen("what did I decide about the shop hours", {}, "decision");
+    expect(recordMetricStrict).toHaveBeenCalledTimes(1);
+    const opts = recordMetricStrict.mock.calls[0][2] as { tags: Record<string, unknown> };
+    expect(opts.tags.traceId, "positive control: the tags object is the one the writer built").toBe("t1");
+    expect(Object.keys(opts.tags)).not.toContain("postFlush");
+  });
+
   it("control: a successful write logs nothing", async () => {
     flags.NICK_VERIFIED_REGEN = true;
     await postFlushRegen("what did I decide about the shop hours", {}, "decision");
