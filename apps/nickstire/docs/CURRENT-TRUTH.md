@@ -1420,6 +1420,10 @@ crawler, not the agent that answers a customer question (ROS-076).
 - **The five existing approval lanes are untouched** (Instagram Studio drafts, `review_replies`,
   `sms_learning_recommendations`, `revenue_opportunities`, `nickgpt_drafts`). This table is for NEW
   action classes only; it does not absorb them and their hash-sealing/TTL semantics still govern.
+- **Nick's call-end extraction no longer drafts bookings (2026-10-28, Nour).** Only `create_callback`
+  drafts reach the queue; `create_booking_request` is dropped in `dropAlreadyOwned` and the extractor prompt does not offer it
+  (walk-in shop, no held slots; 45 of 58 booking drafts were turned down). The executor stays registered for older rows and the
+  admin plain-words copy. Takes effect on deploy; no VAPI assistant change is involved (the extractor runs on our server at call end).
 - **Nick's call-end extraction is DRAFT-ONLY and flag-gated** (`vapi_action_proposals`, ships OFF).
   Deterministic gate first (`classifyCall` — spam, tech failures, handled and walk-in-directed
   calls, and any call without a verified telephony number never reach the LLM), then a pinned

@@ -108,12 +108,11 @@ export function shouldExtract(meta: CallMeta): VapiOutcomeCategory | null {
   // No verified number = no proposal can safely name a contact. Skip.
   if (!meta.customerPhone || meta.customerPhone.replace(/\D/g, "").length < 7) return null;
   if (meta.transcript.trim().length < 40) return null;
-  // Both draft kinds already owned by an operational row — nothing could survive
-  // dropAlreadyOwned, so do not spend an LLM pass finding that out.
-  if (callbackOwned(meta) && bookingOwned(meta)) return null;
+  // Booking drafts are never created (dropAlreadyOwned), so a callback already owned by an
+  // operational row leaves nothing that could survive: do not spend an LLM pass finding that out.
+  if (callbackOwned(meta)) return null;
   // Captured ids are deliberately NOT passed to classifyCall: a linked callback would make
-  // the WHOLE call hard_conversion and suppress a separate, explicit booking ask in the same
-  // call. Ownership is decided per draft kind (dropAlreadyOwned), not per call.
+  // the WHOLE call hard_conversion. Ownership is decided per draft kind (dropAlreadyOwned).
   const { outcome } = classifyCall({
     durationSeconds: meta.durationSeconds,
     endedReason: meta.endedReason,
@@ -155,9 +154,9 @@ export function buildExtractionPrompt(today: string): string {
     "You read ONE phone call transcript from an auto shop's AI receptionist.",
     `Today is ${weekday}, ${today} (shop time, ${BUSINESS.timezone}).`,
     "",
-    "Extract ONLY actions the CALLER explicitly asked for. Two kinds exist:",
-    '  "create_callback"        — the caller asked to be called back.',
-    '  "create_booking_request" — the caller asked to bring the vehicle in / book work.',
+    "Extract ONLY actions the CALLER explicitly asked for. One kind exists:",
+    '  "create_callback" — the caller asked to be called back.',
+    "The shop is walk-in, first come first served: a caller who wants to bring the vehicle in or book work is NOT an action.",
     "",
     "Rules:",
     "- Only explicit asks. A pricing question alone is NOT a callback request.",
@@ -168,7 +167,7 @@ export function buildExtractionPrompt(today: string): string {
     "- Nothing actionable => an empty actions array. That is a good answer.",
     "",
     "Reply with ONE line of JSON:",
-    '{"actions":[{"kind":"create_callback|create_booking_request","name":"...or null","reason":"caller\'s ask, one sentence","service":"...or null","preferredDate":"YYYY-MM-DD or null","confidence":0-100}]}',
+    '{"actions":[{"kind":"create_callback","name":"...or null","reason":"caller\'s ask, one sentence","service":"...or null","preferredDate":"YYYY-MM-DD or null","confidence":0-100}]}',
   ].join("\n");
 }
 
@@ -216,13 +215,6 @@ export function parseExtraction(raw: string, today?: string): ExtractedAction[] 
 }
 
 /**
- * Pure: drop draft kinds an operational row already owns for this call.
- *   · create_callback — scheduleCallback/escalate already wrote callback_requests.
- *   · create_booking_request — bookSlot already recorded an expected arrival
- *     and told the caller NO appointment was booked (walk-in shop); approving a
- *     booking draft would contradict that.
- */
-/**
  * Someone already owes this caller a contact: a linked callback, a callback row naming the
  * call, or a lead row (tireInquiry's rack check — staff follow up on it). A callback draft
  * would duplicate any of them.
@@ -230,11 +222,14 @@ export function parseExtraction(raw: string, today?: string): ExtractedAction[] 
 function callbackOwned(meta: CallMeta): boolean {
   return meta.callbackId != null || meta.leadId != null || meta.existingCallbackForCall === true;
 }
-/** A booking or the walk-in commitment for this call already exists. */
-function bookingOwned(meta: CallMeta): boolean {
-  return meta.bookingId != null || meta.hasExpectedArrival === true;
-}
 
+/**
+ * Pure: drop the drafts that must not reach the approval queue.
+ *   · create_callback — scheduleCallback/escalate already wrote callback_requests.
+ *   · create_booking_request — never created (Nour, 2026-10-28): the shop is walk-in, first come
+ *     first served, with no held slots, and 45 of 58 such drafts were turned down. The prompt no
+ *     longer offers the kind; this drops it if a model emits it anyway.
+ */
 export function dropAlreadyOwned(
   actions: readonly ExtractedAction[],
   meta: CallMeta,
@@ -244,8 +239,8 @@ export function dropAlreadyOwned(
   for (const a of actions) {
     if (a.kind === "create_callback" && callbackOwned(meta)) {
       dropped.push({ kind: a.kind, reason: "callback_request_exists_for_call" });
-    } else if (a.kind === "create_booking_request" && bookingOwned(meta)) {
-      dropped.push({ kind: a.kind, reason: "booking_or_expected_arrival_exists_for_call" });
+    } else if (a.kind === "create_booking_request") {
+      dropped.push({ kind: a.kind, reason: "walk_in_shop_no_booking_drafts" });
     } else {
       kept.push(a);
     }

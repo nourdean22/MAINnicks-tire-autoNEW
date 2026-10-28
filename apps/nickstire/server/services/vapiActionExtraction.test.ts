@@ -13,6 +13,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const execute = vi.fn();
 vi.mock("../db", () => ({ getDb: async () => ({ execute }) }));
+const invokeLLM = vi.fn();
+vi.mock("../_core/llm", () => ({ invokeLLM: (...a: unknown[]) => invokeLLM(...a) }));
+const createProposal = vi.fn();
+vi.mock("./proposals", () => ({ createProposal: (...a: unknown[]) => createProposal(...a) }));
 
 import {
   ACTIONABLE_OUTCOMES,
@@ -21,6 +25,7 @@ import {
   dropAlreadyOwned,
   isOutboundCall,
   loadCallCaptureEvidence,
+  maybeProposeCallActions,
   parseExtraction,
   shopToday,
   shouldExtract,
@@ -215,7 +220,8 @@ describe("prompt contract", () => {
     expect(prompt).toContain("NEVER invent contact information");
     expect(prompt).toContain("empty actions array");
     expect(prompt).toContain("create_callback");
-    expect(prompt).toContain("create_booking_request");
+    // 2026-10-28: Nour stopped booking proposals; the model is not even offered the kind.
+    expect(prompt).not.toContain("create_booking_request");
   });
 });
 
@@ -227,30 +233,21 @@ describe("prompt contract", () => {
  * (and told "no appointment was booked").
  */
 describe("capture-aware gate — no draft for a kind a tool already captured", () => {
-  it("a linked callback does NOT suppress the whole call — a separate booking ask still extracts", () => {
+  it("a call whose callback is already captured never reaches the LLM", () => {
     expect(shouldExtract(meta())).toBe("callback_needed");
-    // Ownership is per draft kind: the callback draft is dropped later (dropAlreadyOwned),
-    // the booking ask in the same call must still reach the extractor.
-    expect(shouldExtract(meta({ callbackId: 41 }))).toBe("callback_needed");
-    expect(shouldExtract(meta({ leadId: 9 }))).toBe("callback_needed");
-    // Both kinds owned (linked callback + linked booking) -> no LLM pass.
-    expect(shouldExtract(meta({ callbackId: 41, bookingId: 3 }))).toBeNull();
+    // Booking drafts are off (below), so a captured callback leaves nothing that could survive.
+    expect(shouldExtract(meta({ callbackId: 41 }))).toBeNull();
+    expect(shouldExtract(meta({ leadId: 9 }))).toBeNull();
+    expect(shouldExtract(meta({ existingCallbackForCall: true }))).toBeNull();
   });
 
   it("a linked callbackId owns the callback kind exactly like a callback row naming the call", () => {
-    const { kept, dropped } = dropAlreadyOwned(
-      parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90},{"kind":"create_booking_request","reason":"Friday","confidence":80}]}'),
-      meta({ callbackId: 41 }),
-    );
-    expect(kept.map((a) => a.kind)).toEqual(["create_booking_request"]);
+    const ask = parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90}]}');
+    const { kept, dropped } = dropAlreadyOwned(ask, meta({ callbackId: 41 }));
+    expect(kept).toEqual([]);
     expect(dropped.map((d) => d.kind)).toEqual(["create_callback"]);
     // A rack-check lead also owes the caller a contact.
-    expect(dropAlreadyOwned(parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90}]}'), meta({ leadId: 9 })).kept).toEqual([]);
-  });
-
-  it("skips the LLM entirely when BOTH kinds are already owned", () => {
-    expect(shouldExtract(meta({ existingCallbackForCall: true }))).toBe("callback_needed");
-    expect(shouldExtract(meta({ existingCallbackForCall: true, hasExpectedArrival: true }))).toBeNull();
+    expect(dropAlreadyOwned(ask, meta({ leadId: 9 })).kept).toEqual([]);
   });
 
   const both = parseExtraction(
@@ -259,18 +256,60 @@ describe("capture-aware gate — no draft for a kind a tool already captured", (
 
   it("drops the callback draft when a callback row already names this call", () => {
     const { kept, dropped } = dropAlreadyOwned(both, meta({ existingCallbackForCall: true }));
-    expect(kept.map((a) => a.kind)).toEqual(["create_booking_request"]);
-    expect(dropped).toEqual([{ kind: "create_callback", reason: "callback_request_exists_for_call" }]);
+    expect(kept).toEqual([]);
+    expect(dropped).toEqual([
+      { kind: "create_callback", reason: "callback_request_exists_for_call" },
+      { kind: "create_booking_request", reason: "walk_in_shop_no_booking_drafts" },
+    ]);
   });
 
-  it("drops the booking draft when bookSlot already recorded an expected arrival", () => {
-    const { kept, dropped } = dropAlreadyOwned(both, meta({ hasExpectedArrival: true }));
-    expect(kept.map((a) => a.kind)).toEqual(["create_callback"]);
-    expect(dropped).toEqual([{ kind: "create_booking_request", reason: "booking_or_expected_arrival_exists_for_call" }]);
+  it("keeps the callback draft when nothing was captured", () => {
+    expect(dropAlreadyOwned(both, meta()).kept.map((a) => a.kind)).toEqual(["create_callback"]);
+  });
+});
+
+/**
+ * 2026-10-28, Nour: "stop the receptionist booking its annoying". The shop is walk-in, first come
+ * first served, no held slots; 45 of 58 booking drafts were turned down. The extractor must never
+ * land a create_booking_request in the approval queue, however the model answers.
+ */
+describe("no booking drafts (walk-in shop)", () => {
+  const bookingOnly = parseExtraction(
+    '{"actions":[{"kind":"create_booking_request","reason":"bring it in Friday","service":"brakes","confidence":95}]}',
+  );
+
+  it("drops a booking draft even when nothing was captured", () => {
+    const { kept, dropped } = dropAlreadyOwned(bookingOnly, meta());
+    expect(kept).toEqual([]);
+    expect(dropped).toEqual([{ kind: "create_booking_request", reason: "walk_in_shop_no_booking_drafts" }]);
   });
 
-  it("keeps everything when nothing was captured", () => {
-    expect(dropAlreadyOwned(both, meta()).kept).toHaveLength(2);
+  it("the full pass creates the callback proposal and never the booking one", async () => {
+    createProposal.mockReset();
+    invokeLLM.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content:
+              '{"actions":[{"kind":"create_callback","reason":"call me back","confidence":90},{"kind":"create_booking_request","reason":"bring it in Friday","service":"brakes","confidence":80}]}',
+          },
+        },
+      ],
+    });
+    createProposal.mockResolvedValue({ created: true });
+    const res = await maybeProposeCallActions(meta());
+    expect(res).toMatchObject({ ran: true, created: 1 });
+    expect(createProposal.mock.calls.map((c) => (c[0] as { actionType: string }).actionType)).toEqual(["create_callback"]);
+  });
+
+  it("a booking-only answer creates nothing", async () => {
+    createProposal.mockReset();
+    invokeLLM.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"actions":[{"kind":"create_booking_request","reason":"bring it in","confidence":95}]}' } }],
+    });
+    const res = await maybeProposeCallActions(meta());
+    expect(res).toMatchObject({ ran: true, created: 0 });
+    expect(createProposal).not.toHaveBeenCalled();
   });
 });
 
