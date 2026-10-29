@@ -183,6 +183,28 @@ describe("pre-flush evidence lane", () => {
     expect(plain.prepareStep({ stepNumber: 0 }).toolChoice).toBe("auto");
   });
 
+  // Codex P2 on PR 3341 · ai@6.0.314+ throws ToolChoiceViolationError when a model
+  // calls a tool on a toolChoice "none" step, and a provider that ignores tool_choice
+  // (Ollama-class) does. The throw lands in the lane's catch and the turn silently
+  // falls back to the plain stream, skipping evidence enforcement. Same last-step
+  // shape as build-stream-config: no toolChoice, no active tools.
+  it("a provider that ignores tool_choice gets a tool-less last step with NO toolChoice; honouring providers keep none", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    type Cfg = { prepareStep: (s: { stepNumber: number }) => unknown };
+    const lastStep = async (over: Parameters<typeof base>[1]) => {
+      vi.clearAllMocks();
+      expect(await runAlternatePaths(base(HIGH, over))).toBeInstanceOf(Response);
+      return (generateText.mock.calls[0][0] as Cfg).prepareStep({ stepNumber: 2 });
+    };
+    expect(await lastStep({ provider: "ollama" as never })).toEqual({ activeTools: [] });
+    expect(await lastStep({ provider: "ollama" as never, webSearchIntent: true })).toEqual({ activeTools: [] });
+    // CONTROL: honouring providers are unchanged.
+    for (const honours of ["openai", "anthropic", "gemini"]) {
+      expect(await lastStep({ provider: honours as never })).toEqual({ toolChoice: "none" });
+    }
+  });
+
   it("a lookup that will hit a tool anyway streams (its receipt will exist); the same lookup with no tool expected is buffered", async () => {
     flags.NICK_EVIDENCE_PREFLUSH = true;
     flags.NICK_EVIDENCE_ENFORCEMENT = true;

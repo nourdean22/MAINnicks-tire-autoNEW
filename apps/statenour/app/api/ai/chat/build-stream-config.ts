@@ -38,6 +38,7 @@ import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
 import { salvageLengthCutoff } from "@/lib/services/chat/salvage-event-text";
 import { createInFlightToolCalls, type InFlightToolCalls } from "@/lib/services/chat/in-flight-tool-calls";
 import type { PersistBase } from "./alternate-paths";
+import { textOnlyStep } from "./text-only-step";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { ChatMode } from "@/lib/ai/chat-mode";
@@ -252,16 +253,8 @@ export function buildStreamConfigFactory(deps: {
         // produce text. Applies to all three branches, including the
         // previously-prepareStep-less default.
         const lastStep = (mode === "deep" ? 5 : 3) - 1;
-        // 2026-10-26 · tool_choice "none" is only a request. Ollama's
-        // OpenAI-compat surface ignores it: an ollama/minimax-m3 turn called
-        // tools on its last step and ended "tool-calls" with no prose. So the
-        // last step also sends NO tools (activeTools: []), which no provider
-        // can ignore. Anthropic, Gemini and OpenAI honour "none" natively and
-        // keep their tool definitions (Anthropic rejects tool history without them).
-        const textOnly =
-          fbProvider === "anthropic" || fbProvider === "gemini" || fbProvider === "openai"
-            ? { toolChoice: "none" as const }
-            : { toolChoice: "none" as const, activeTools: [] as string[] };
+        // Why the strip differs per provider: see text-only-step.ts.
+        const textOnly = textOnlyStep(fbProvider);
         // READ permission (composer selector) must not be contradicted by
         // structural tool forcing — a forced tool / toolChoice:"required"
         // makes the "observe and describe, don't act" directive impossible
