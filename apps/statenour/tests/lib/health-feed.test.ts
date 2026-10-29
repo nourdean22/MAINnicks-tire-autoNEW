@@ -5,7 +5,7 @@
  * no usable body.
  */
 import { describe, expect, it } from "vitest";
-import { healthAlertsUnresolved, readHealthFeed } from "@/lib/state/health-feed";
+import { healthDriftUnresolved, readHealthFeed } from "@/lib/state/health-feed";
 
 const res = (status: number, body: unknown, json = true) =>
   ({ ok: status < 400, status, json: async () => { if (!json) throw new Error("not json"); return body; } }) as unknown as Response;
@@ -23,13 +23,15 @@ describe("readHealthFeed", () => {
     expect(await readHealthFeed(async () => res(200, { ok: true, meta: {}, data: { status: "healthy" } }))).toEqual({ status: "healthy" });
   });
 
-  it("the alerts metric is read as a number only when its MetricResult carries one (review round 3, item 2)", () => {
-    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "ok", value: { unresolved: 2 } } })).toBe(2);
-    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "degraded", value: { unresolved: 0 } } })).toBe(0);
-    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "unavailable", source: "db", errorCode: "ECONN" } })).toBeNull();
-    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "degraded", source: "db", errorCode: "ETIMEDOUT" } })).toBeNull();
-    expect(healthAlertsUnresolved({ status: "healthy" })).toBeNull();
-    expect(healthAlertsUnresolved(null)).toBeNull();
+  it("the drift metric is read as a number only when its MetricResult carries one (review round 3, item 2)", () => {
+    expect(healthDriftUnresolved({ status: "degraded", drift: { status: "ok", value: { unresolved: 2 } } })).toBe(2);
+    expect(healthDriftUnresolved({ status: "degraded", drift: { status: "degraded", value: { unresolved: 0 } } })).toBe(0);
+    expect(healthDriftUnresolved({ status: "degraded", drift: { status: "unavailable", source: "db", errorCode: "ECONN" } })).toBeNull();
+    expect(healthDriftUnresolved({ status: "degraded", drift: { status: "degraded", source: "db", errorCode: "ETIMEDOUT" } })).toBeNull();
+    expect(healthDriftUnresolved({ status: "healthy" })).toBeNull();
+    expect(healthDriftUnresolved(null)).toBeNull();
+    // `alerts` is the /system/alerts count since 2026-10-29: it is not the drift signal.
+    expect(healthDriftUnresolved({ status: "healthy", alerts: { status: "ok", value: { unresolved: 4 } } })).toBeNull();
   });
 
   it("a network error, a non-JSON body, or a body without a status is a failed read (null)", async () => {

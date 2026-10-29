@@ -89,7 +89,7 @@ interface HealthData {
   db?: { connected: boolean; latency_ms: number };
   devices?: { online: number; offline: number; total: number };
   /** A MetricResult from buildSystemHealth (lib/services/system-pages.ts), not a bare count. */
-  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
+  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number; priority?: number } } | null;
   commitments?: { active: number };
   /** buildSystemHealth rollup: sources whose read was not ok. */
   degradedSources?: string[];

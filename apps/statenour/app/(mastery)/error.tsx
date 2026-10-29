@@ -35,10 +35,15 @@ export default function MasteryError({
         <AlertTriangle className="w-7 h-7 text-red-400" strokeWidth={1.75} />
       </div>
       <div className="text-center">
-        <h2 className="text-xl font-semibold mb-2">Something broke</h2>
+        <h2 className="text-xl font-semibold mb-2">This page didn&apos;t load</h2>
+        {/* A fixed sentence, never error.message: raw server text is not for the screen (2026-10-29 sync
+            audit, finding 8). The digest matches the server log line; the full error went to reportPageError. */}
         <p className="text-sm text-[var(--text-secondary)] max-w-md">
-          {error.message || "An unexpected error occurred. Try again, or head back home."}
+          Something failed while building it. Try again, or go back home.
         </p>
+        {error.digest && (
+          <p className="mt-2 font-mono text-[11px] text-fg-tertiary">ref {error.digest}</p>
+        )}
       </div>
       {/* Two escapes: retry the failed render, OR leave for home so a
           non-recoverable error (bad deploy, missing env) isn't a retry trap. */}

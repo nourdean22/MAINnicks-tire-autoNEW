@@ -148,9 +148,10 @@ export async function getKpiSummary(): Promise<Record<string, unknown>> {
   const h24 = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  const [latency24h, errors24h, requests24h, aiCost7d] = await Promise.all([
+  const [latency24h, errors24h, errorLevel24h, requests24h, aiCost7d] = await Promise.all([
     getMetricSummary("api.latency", { from: h24 }),
     prisma.errorLog.count({ where: { createdAt: { gte: h24 } } }),
+    prisma.errorLog.count({ where: { createdAt: { gte: h24 }, level: "error" } }),
     prisma.apiRequestLog.count({ where: { createdAt: { gte: h24 } } }),
     prisma.systemMetric.aggregate({
       where: { metric: "ai.cost", createdAt: { gte: d7 } },
@@ -161,6 +162,8 @@ export async function getKpiSummary(): Promise<Record<string, unknown>> {
   return {
     latency_24h: { avg_ms: Math.round(latency24h.avg), p95_ms: Math.round(latency24h.max) },
     errors_24h: errors24h,
+    // level='error' only: the count the health verdicts read (lib/system/error-thresholds.ts).
+    error_level_24h: errorLevel24h,
     requests_24h: requests24h,
     ai_cost_7d_cents: aiCost7d._sum.value ?? 0,
   };
