@@ -31,6 +31,7 @@ import { isReadSafeTool, stripMutatingTools } from "@/lib/ai/capability-registry
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
 import { instrumentScope } from "@/lib/observability/instrument-scope";
 import type { getModel, ProviderName } from "@/lib/ai/provider";
+import { textOnlyStep } from "./text-only-step";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { ChatMode } from "@/lib/ai/chat-mode";
@@ -738,7 +739,7 @@ export async function runAlternatePaths(args: {
             stepNumber === 0 && webSearchPinned
               ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
               : stepNumber >= lastStep
-                ? { toolChoice: "none" as const }
+                ? textOnlyStep(provider)
                 : { toolChoice: "auto" as const },
         } as Parameters<typeof generateText>[0]);
         winner = r.text;
