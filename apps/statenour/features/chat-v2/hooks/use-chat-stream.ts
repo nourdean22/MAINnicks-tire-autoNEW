@@ -27,12 +27,15 @@ import {
   RETRY_HELD_RESENT_UNKNOWN,
   RETRY_HELD_UNCONFIRMED,
   RETRY_STILL_CHECKING,
+  savedReplyForTrace,
   type SavedRow,
   type SavedTurnVerdict,
 } from "../lib/saved-turn";
 
 /** How long Retry waits for the saved turn before it gives up and holds. */
 const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
+/** When a turn ended without its stored reply: read for it at these gaps (~2 min, the verify tail). */
+const SAVED_REPLY_READ_DELAYS_MS = [2_000, 5_000, 10_000, 15_000, 20_000, 30_000, 30_000];
 
 /** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
 type SavedTurnCheck = { kind: "go"; rows: readonly SavedRow[] | null } | { kind: "stale" } | { kind: "hold"; message: string };
@@ -588,15 +591,49 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // so the read-aloud follower flushes its tail under the old id first.
   // A payload from another turn (trace mismatch) is dropped.
   const { setMessages } = chat;
+  const bindReply = useCallback(
+    (persisted: { id: string; content: string }, bubbleId: string | undefined) => {
+      setMessages((messages) => (messages[messages.length - 1]?.id === bubbleId ? bindPersistedMessage(messages, persisted) : messages));
+      setStopped((s) => (s && s.messageId === bubbleId ? { ...s, messageId: persisted.id } : s));
+    },
+    [setMessages],
+  );
+  // 2026-10-29 · the settle read below; a send, a stream restart or another conversation ends it.
+  const savedReplyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cancelSavedReplyRead = useCallback(() => clearTimeout(savedReplyTimerRef.current), []);
+  useEffect(() => cancelSavedReplyRead, [cancelSavedReplyRead]);
   useEffect(() => {
-    if (isStreaming) return;
+    if (isStreaming) return cancelSavedReplyRead();
     const persisted = persistedRef.current;
     persistedRef.current = null;
-    if (!persisted || persisted.traceId !== lastTraceIdRef.current) return;
-    const boundId = messagesRef.current[messagesRef.current.length - 1]?.id;
-    setMessages((messages) => bindPersistedMessage(messages, persisted));
-    setStopped((s) => (s && s.messageId === boundId ? { ...s, messageId: persisted.id } : s));
-  }, [isStreaming, setMessages]);
+    const trace = lastTraceIdRef.current;
+    const bubbleId = messagesRef.current[messagesRef.current.length - 1]?.id;
+    if (persisted) {
+      if (persisted.traceId === trace) bindReply(persisted, bubbleId);
+      return;
+    }
+    // 2026-10-29 (Nour's recordings, 21:35Z) · no message.persisted for this turn. Since the
+    // stream-first change the draft streams, then the server verifies for 45-90 s before it
+    // announces the stored reply, and a stream that ends in that window (iOS drops the fetch,
+    // Stop, a proxy) left the raw step drafts, or no text at all, on screen for good. The row is
+    // still written (consumeStream), so read it until it exists and bind it the same way. A stream
+    // that ended in an error is left to Retry and the reattach, which read the saved turn themselves.
+    if (chat.status !== "ready") return;
+    const conversationId = bodyRef.current.conversationId as string | undefined;
+    const read = readSavedTurnRef.current;
+    const last = messagesRef.current[messagesRef.current.length - 1];
+    if (!trace || last?.role !== "assistant" || bodyRef.current.privateMode || !conversationId || !read) return;
+    let attempt = 0;
+    const tryRead = async () => {
+      const rows = await read(conversationId).catch(() => null);
+      // The operator moved on (a new turn, another conversation, the bubble already rebound).
+      if (lastTraceIdRef.current !== trace || messagesRef.current[messagesRef.current.length - 1]?.id !== bubbleId) return;
+      const saved = savedReplyForTrace(rows, trace);
+      if (saved) return bindReply(saved, bubbleId);
+      if (attempt < SAVED_REPLY_READ_DELAYS_MS.length) savedReplyTimerRef.current = setTimeout(tryRead, SAVED_REPLY_READ_DELAYS_MS[attempt++]);
+    };
+    savedReplyTimerRef.current = setTimeout(tryRead, SAVED_REPLY_READ_DELAYS_MS[attempt++]);
+  }, [isStreaming, chat.status, bindReply, cancelSavedReplyRead]);
 
   // Put back the reply regenerate() removed when the server refused the replay. Only once the status has
   // settled: restored while still 'submitted' it reads as a streaming reply and read-aloud speaks it again.
@@ -776,8 +813,11 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     },
   });
 
+  // 2026-10-29 · "stalled" only. A gated turn's verify tail (the draft is done, the server checks it
+  // for 45-90 s before the stored reply) is silent past the 30 s warning on every turn, so "warn"
+  // painted "Chat degraded" on healthy turns.
   useEffect(() => {
-    if (stallStatus === "stalled" || stallStatus === "warn") {
+    if (stallStatus === "stalled") {
       setConnection("degraded");
     }
   }, [stallStatus, setConnection]);
@@ -811,6 +851,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const requestInFlight = chat.status === "submitted" || chat.status === "streaming";
   const resetTurn = useCallback(() => {
     cancelPartialResume();
+    cancelSavedReplyRead();
     clearStall();
     retryCountRef.current = 0;
     setStopped(null);
@@ -826,7 +867,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setLastTraceId(null);
     replayOutstandingRef.current = null;
     acknowledgedTracesRef.current.clear();
-  }, [cancelPartialResume, clearStall, clearError, requestInFlight, reattachPageContext]);
+  }, [cancelPartialResume, cancelSavedReplyRead, clearStall, clearError, requestInFlight, reattachPageContext]);
 
   return {
     messages: chat.messages,
@@ -841,6 +882,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
+      cancelSavedReplyRead();
       clearStall();
       setStopped(null);
       setHold(null);
@@ -867,6 +909,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
+      cancelSavedReplyRead();
       clearStall();
       setStopped(null);
       setHold(null);
