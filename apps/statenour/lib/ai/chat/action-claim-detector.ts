@@ -152,6 +152,8 @@ export interface ActionClaim {
   snippet: string;
   /** Tool the claim implies should have fired */
   expectedTool: string;
+  /** The tool DID fire and failed (envFailureClaims), so the banner must not say nothing fired. */
+  toolFailed?: boolean;
 }
 
 export interface ActionClaimReport {
@@ -337,6 +339,7 @@ export function envFailureClaims(
       verb: check.toolName,
       snippet: `[Tool reported success, but verification failed: ${check.reason}]`,
       expectedTool: check.toolName,
+      toolFailed: true,
     }));
 }
 

@@ -792,7 +792,11 @@ export async function findCompileEligibleConversations(
       },
     },
     orderBy: { updatedAt: "asc" },
-    take: limit * 2, // small oversample for the freshness re-filter below
+    // The freshness filter below needs every candidate in the window: a
+    // `limit * 2` page held only the oldest rows, which are already fresh, so
+    // the sweep found 0 of 8 stale summaries every night (prod, 2026-10-29).
+    // shortcut: 500 cap, the 30-day window held 38; page by updatedAt if it nears it.
+    take: 500,
     select: { id: true, updatedAt: true },
   });
 

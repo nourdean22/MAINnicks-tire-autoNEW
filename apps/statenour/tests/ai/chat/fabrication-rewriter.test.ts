@@ -43,6 +43,15 @@ describe("rewriteForFabrication", () => {
     expect(r.text.length).toBeGreaterThan(original.length);
   });
 
+  it("a mix of unfired and failed claims names each with what happened to it", () => {
+    const r = rewriteForFabrication("Sent the email. Your week was calm.", [
+      sampleClaim({ verb: "sent/emailed/messaged", expectedTool: "sendEmail" }),
+      sampleClaim({ verb: "invokeTool", expectedTool: "invokeTool", toolFailed: true }),
+    ]);
+    const firstLine = r.text.split("\n")[0];
+    expect(firstLine).toContain("(sent/emailed/messaged) with no matching tool call, and (invokeTool) whose tool call failed.");
+  });
+
   it("banner mentions the detected verb so operator sees the diagnostic", () => {
     const r = rewriteForFabrication("Sent the email.", [
       sampleClaim({ verb: "sent/emailed/messaged", expectedTool: "sendEmail" }),

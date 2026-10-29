@@ -127,7 +127,7 @@ export type BannerCause = "l2_action_claim" | "action_receipt" | "known_truth" |
 
 export function classifyBannerCause(bannerText: string): BannerCause {
   const firstLine = bannerText.split("\n")[0] ?? "";
-  if (/but no matching tool call fired/.test(firstLine)) return "l2_action_claim";
+  if (/but no matching tool call fired|but the tool call failed|whose tool call failed/.test(firstLine)) return "l2_action_claim";
   if (/claimed action\(s\)/.test(firstLine)) return "action_receipt";
   if (/asserts a status|references retired or inactive infrastructure/.test(firstLine)) return "known_truth";
   return "other";

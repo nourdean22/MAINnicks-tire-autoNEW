@@ -82,11 +82,20 @@ export function buildKnownTruthBanner(kinds: string[]): string {
  * tools so the operator sees the diagnostic up front.
  */
 function buildBanner(claims: ActionClaim[]): string {
-  const verbs = [...new Set(claims.map((c) => c.verb))].slice(0, 3);
-  const verbList = verbs.join(", ");
-  return buildVerifierBanner(
-    `The response below claimed ${claims.length === 1 ? "an action" : "actions"} (${verbList}) but no matching tool call fired.`,
-  );
+  const list = (cs: ActionClaim[]) => [...new Set(cs.map((c) => c.verb))].slice(0, 3).join(", ");
+  const article = claims.length === 1 ? "an action" : "actions";
+  // A failed environment check means the tool fired and failed; saying "no
+  // matching tool call fired" there contradicted the turn's own receipts
+  // (7 of 9 banners in the 2026-10-29 audit).
+  const unfired = claims.filter((c) => !c.toolFailed);
+  const failed = claims.filter((c) => c.toolFailed);
+  const diagnostic =
+    failed.length === 0
+      ? `(${list(unfired)}) but no matching tool call fired.`
+      : unfired.length === 0
+        ? `(${list(failed)}) but the tool call failed.`
+        : `(${list(unfired)}) with no matching tool call, and (${list(failed)}) whose tool call failed.`;
+  return buildVerifierBanner(`The response below claimed ${article} ${diagnostic}`);
 }
 
 /**

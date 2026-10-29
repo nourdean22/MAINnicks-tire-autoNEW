@@ -20,5 +20,8 @@ export const maxDuration = 60;
  * Schedule: NIGHTLY via the mega-evening fan-out (EVENING_JOBS).
  */
 export const GET = cronHandler(async () => {
-  return await summarizeIdleConversations({ limit: 10 });
+  const result = await summarizeIdleConversations({ limit: 10 });
+  // cron-manager's countFrom() records only `resultCount`; without it every
+  // night logged NULL, so a sweep that compiled nothing read as success.
+  return { ...result, resultCount: result.compiled };
 });
