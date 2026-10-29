@@ -1435,6 +1435,27 @@ const TIRE_SIZE_ROUTE_PAGES: RouteEntry[] = TIRE_SIZE_PAGES.map(t => ({
   prerender: true,
 }));
 
+// ─── DISCOUNT PAGES ──────────────────────────────────────
+// 2026-10-29 · /discounts hub + one page per audience. Terms come from
+// DISCOUNT_PROGRAMS in ./business.ts; leaf content and titles from
+// ./discountPages. The hub's title stays a literal here (validate:routes reads
+// it as text); DiscountsHub.tsx reads it back from this registry.
+import { DISCOUNT_PAGES } from "./discountPages";
+
+const DISCOUNT_ROUTE_PAGES: RouteEntry[] = [
+  { path: "/discounts", priority: 0.7, changefreq: "monthly", title: "Auto Repair Discounts in Cleveland · Nick's Tire & Auto", description: "Discounts on labor for military, first responders, students, seniors, teachers, healthcare and gig drivers at Nick's Tire & Auto, Euclid Ave, Cleveland.", group: "utility", sitemap: true, prerender: true },
+  ...DISCOUNT_PAGES.map(p => ({
+    path: `/discounts/${p.slug}`,
+    priority: 0.6,
+    changefreq: "monthly" as const,
+    title: p.metaTitle,
+    description: p.metaDescription,
+    group: "utility" as const,
+    sitemap: true,
+    prerender: true,
+  })),
+];
+
 // ─── VEHICLE + SERVICE COMBO PAGES (50 programmatic SEO pages) ──
 // Vehicle+service pages (honda-brake-repair, toyota-oil-change, etc.)
 // removed 2026-04-24 per T5 audit — 50 auto-generated pages × 0 imps × 0
@@ -1452,6 +1473,7 @@ export const ALL_ROUTES: RouteEntry[] = [
   ...PROBLEM_PAGES,
   ...SEASONAL_PAGES,
   ...TIRE_SIZE_ROUTE_PAGES,
+  ...DISCOUNT_ROUTE_PAGES,
   ...COMPARISON_PAGES,
   ...UTILITY_PAGES,
   ...LEGAL_PAGES,
@@ -1515,6 +1537,7 @@ export const DYNAMIC_ROUTE_PREFIXES = [
   "/blog/",
   "/guides/",
   "/tires/",
+  "/discounts/",
   "/inspection/",
   "/share/",
 ] as const;

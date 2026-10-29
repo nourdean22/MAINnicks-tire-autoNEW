@@ -33,7 +33,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { BUSINESS } from "@shared/business";
+import { BUSINESS, DISCOUNT_PROGRAMS } from "@shared/business";
 import { BRAKE_PRICE, DIAGNOSTIC_PRICE, OIL_COUPON, OIL_PRICE } from "@shared/pricing";
 import { OHIO_ECHECK } from "@shared/echeck";
 import { findVoiceViolations, KILL_RULES } from "@shared/voice";
@@ -1444,5 +1444,62 @@ describe("facts the claim rules cannot express", () => {
     expect(JSONLD_CLAIM_NAME.test('{ name: "RepairPal Certified listing", type: "directory" }')).toBe(false);
     expect(JSONLD_CLAIM_NAME.test('name: "ASE-Certified Technicians"')).toBe(false);
     expect(JSONLD_CLAIM_NAME.test('name: "Payment Programs"')).toBe(false);
+  });
+});
+
+/**
+ * A discount is a price the counter has to honor. The terms live in ONE entry,
+ * DISCOUNT_PROGRAMS in shared/business.ts (Nour, 2026-10-29: "do 20 percent off
+ * but with all that and up to 250"), and the /discounts pages read them from
+ * there. A page that types its own figure is a promise nobody agreed to.
+ */
+describe("discount terms come from DISCOUNT_PROGRAMS in shared/business.ts", () => {
+  const DISCOUNT_FILES = ["shared/discountPages.ts", "client/src/pages/DiscountPage.tsx", "client/src/pages/DiscountsHub.tsx"];
+  const OFFER_FIGURE = /\b\d+\s?%\s?off\b|\bup to \$\d+|\$\d+\s?off\b|\b\d+\s?percent\b/i;
+
+  it("Nour's terms: 20% off labor, at most $250, proof at the counter, one per visit, no stacking", () => {
+    expect(DISCOUNT_PROGRAMS.offer.percentOffLabor).toBe(20);
+    expect(DISCOUNT_PROGRAMS.offer.maxDollarsOff).toBe(250);
+    expect(DISCOUNT_PROGRAMS.offer.finePrint.join(" ")).toMatch(/one discount per visit/i);
+    expect(DISCOUNT_PROGRAMS.offer.finePrint.join(" ")).toMatch(/not combined with other offers/i);
+    expect(DISCOUNT_PROGRAMS.offer.finePrint.join(" ")).toMatch(/tires already on sale/i);
+    expect(DISCOUNT_PROGRAMS.offer.finePrint.join(" ")).toMatch(/proof/i);
+  });
+
+  it("the display line is built from the two numbers, so it cannot drift from them", () => {
+    const { percentOffLabor, maxDollarsOff, display } = DISCOUNT_PROGRAMS.offer;
+    expect(display).toContain(`${percentOffLabor}% off labor`);
+    expect(display).toContain(`$${maxDollarsOff}`);
+  });
+
+  it("every group that gets the offer says who qualifies and what proof works", () => {
+    for (const g of DISCOUNT_PROGRAMS.groups) {
+      expect(g.qualifies.length, g.id).toBeGreaterThan(10);
+      if (g.offer) expect(g.proof.length, g.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("the LGBTQ+ group is a welcome, not a price (no price tied to sexual orientation)", () => {
+    const lgbtq = DISCOUNT_PROGRAMS.groups.find((g) => g.id === "lgbtq");
+    expect(lgbtq, "group exists").toBeTruthy();
+    expect(lgbtq!.offer).toBe(false);
+    expect(lgbtq!.proof).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: every discount file is read by the scanner", () => {
+    for (const f of DISCOUNT_FILES) expect(LINES.some((l) => l.file === f), f).toBe(true);
+  });
+
+  it("no discount page or its content file types its own percent or dollar-off figure", () => {
+    const hits = LINES.filter((l) => DISCOUNT_FILES.includes(l.file) && OFFER_FIGURE.test(l.text)).map((l) => `${l.file}:${l.line} ${l.text.trim()}`);
+    expect(hits).toEqual([]);
+  });
+
+  it("the figure matcher catches hand-typed offers and spares real prices", () => {
+    expect(OFFER_FIGURE.test("Show your badge for 15% off labor")).toBe(true);
+    expect(OFFER_FIGURE.test("up to $75 back")).toBe(true);
+    expect(OFFER_FIGURE.test("$20 off any brake job")).toBe(true);
+    expect(OFFER_FIGURE.test("Used tires from $25 installed")).toBe(false);
+    expect(OFFER_FIGURE.test("Conventional oil change is $49")).toBe(false);
   });
 });

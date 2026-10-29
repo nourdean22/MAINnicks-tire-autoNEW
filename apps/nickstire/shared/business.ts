@@ -288,6 +288,108 @@ export const BUSINESS = {
   },
 } as const;
 
+// ─── DISCOUNT PROGRAMS ───────────────────────────────
+// 2026-10-29 · Nour's terms, verbatim: "do 20 percent off but with all that
+// and up to 250" (20% off labor, up to $250, with the proof and no-stacking
+// fine print below). The counter honors these, so every page, its JSON-LD and
+// the tests read them from here; no page types its own figure
+// (canonical-business-truth.test.ts).
+// The LGBTQ+ group is a welcome with no price: a price tied to sexual
+// orientation is the protected-class risk under Cleveland's public
+// accommodations chapter (667). Members still get any discount they qualify
+// for through another group.
+const DISCOUNT_PERCENT_OFF_LABOR = 20;
+const DISCOUNT_MAX_DOLLARS_OFF = 250;
+
+export const DISCOUNT_PROGRAMS = {
+  status: "confirmed-2026-10-29" as const,
+  offer: {
+    percentOffLabor: DISCOUNT_PERCENT_OFF_LABOR,
+    maxDollarsOff: DISCOUNT_MAX_DOLLARS_OFF,
+    display: `${DISCOUNT_PERCENT_OFF_LABOR}% off labor, up to $${DISCOUNT_MAX_DOLLARS_OFF} off`,
+    finePrint: [
+      "Show a valid ID or proof at the counter before the work is written up.",
+      "One discount per visit.",
+      "Not combined with other offers, coupons or specials.",
+      "Not on tires already on sale.",
+    ],
+  },
+  groups: [
+    {
+      id: "military",
+      label: "Military and veterans",
+      qualifies: "Active duty, Guard, Reserve, retirees and veterans",
+      proof: ["Military ID", "VA health card", "DD-214", "Ohio driver license or ID with the veteran mark"],
+      offer: true,
+    },
+    {
+      id: "first-responders",
+      label: "Police, fire, EMS and 911 dispatch",
+      qualifies: "Police officers, firefighters (career and volunteer), EMTs, paramedics and 911 dispatchers",
+      proof: ["Department or agency ID", "Ohio EMS certification card with a photo ID"],
+      offer: true,
+    },
+    {
+      id: "students",
+      label: "College students",
+      qualifies: "Students enrolled at any college, university or trade school",
+      proof: ["Current student ID"],
+      offer: true,
+    },
+    {
+      id: "seniors",
+      label: "Seniors",
+      qualifies: "Drivers 60 and older",
+      proof: ["Any photo ID with your date of birth"],
+      offer: true,
+    },
+    {
+      id: "gig-drivers",
+      label: "Rideshare and delivery drivers",
+      qualifies: "Drivers who drive for DoorDash, Uber, Lyft, Grubhub, Instacart or Amazon Flex",
+      proof: ["Your driver profile open in the app on your phone"],
+      offer: true,
+    },
+    {
+      id: "teachers",
+      label: "Teachers and school staff",
+      qualifies: "Teachers, aides and staff at any K-12 school",
+      proof: ["School ID badge", "A recent pay stub from the school or district"],
+      offer: true,
+    },
+    {
+      id: "healthcare",
+      label: "Healthcare workers",
+      qualifies: "Nurses, aides, techs, doctors and staff at hospitals, clinics, nursing homes and home health agencies",
+      proof: ["Hospital, clinic or agency ID badge", "Your nursing or professional license card"],
+      offer: true,
+    },
+    {
+      id: "dancers",
+      label: "Dancers and performers",
+      qualifies: "Working dancers and performers: studio, stage, company and club",
+      proof: ["Studio, company or venue ID", "A booking or pay record from the last 60 days"],
+      offer: true,
+    },
+    {
+      id: "fighters",
+      label: "Fighters and combat-sports athletes",
+      qualifies: "Boxers, MMA fighters, wrestlers, and Muay Thai, kickboxing and jiu-jitsu athletes",
+      proof: ["Gym membership card or app", "A fighter license or federation card"],
+      offer: true,
+    },
+    {
+      id: "lgbtq",
+      label: "LGBTQ+ drivers",
+      qualifies: "Everyone: same fair price, same respect",
+      proof: [] as readonly string[],
+      offer: false,
+    },
+  ] as const satisfies readonly { id: string; label: string; qualifies: string; proof: readonly string[]; offer: boolean }[],
+} as const;
+
+export type DiscountGroup = (typeof DISCOUNT_PROGRAMS.groups)[number];
+
 export type Business = typeof BUSINESS;
 
 /** Inputs for unified review count (GBP live + admin override + marketing floor). */

@@ -57,6 +57,8 @@ const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
 const DiagnosePage = lazy(() => import("./pages/DiagnosePage"));
 const SpecialsPage = lazy(() => import("./pages/SpecialsPage"));
+const DiscountsHub = lazy(() => import("./pages/DiscountsHub"));
+const DiscountPage = lazy(() => import("./pages/DiscountPage"));
 const MyGaragePage = lazy(() => import("./pages/MyGaragePage"));
 const ReferralPage = lazy(() => import("./pages/ReferralPage"));
 const AskMechanicPage = lazy(() => import("./pages/AskMechanicPage"));
@@ -357,6 +359,9 @@ function Router() {
             <Route path={"/diagnose"} component={DiagnosePage} />
             {/* Specials & Coupons */}
             <Route path={"/specials"} component={SpecialsPage} />
+            {/* Discounts by group: terms in DISCOUNT_PROGRAMS (shared/business.ts) */}
+            <Route path={"/discounts"} component={DiscountsHub} />
+            <Route path={"/discounts/:slug"} component={DiscountPage} />
             {/* My Garage */}
             <Route path={"/my-garage"} component={MyGaragePage} />
             {/* Referral Program */}

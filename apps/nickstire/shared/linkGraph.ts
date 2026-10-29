@@ -98,7 +98,7 @@ export const SITEWIDE_COMPONENT_LINKS: readonly string[] = [
   "/diagnose", "/pricing", "/services", "/specials", "/reviews", "/blog", "/guides",
   "/guides/how-to-read-tire-size", "/guides/when-to-replace-tires",
   "/guides/new-vs-used-tires-cleveland", "/guides/annual-car-maintenance-cost-guide",
-  "/faq", "/contact", "/booking", "/fleet", "/financing", "/rewards", "/car-care-guide",
+  "/faq", "/contact", "/booking", "/fleet", "/financing", "/rewards", "/discounts", "/car-care-guide",
   "/about", "/careers", "/cleveland-auto-repair", "/euclid-auto-repair",
   "/lakewood-auto-repair", "/parma-auto-repair", "/shaker-heights-auto-repair",
   "/cleveland-heights-auto-repair", "/mentor-auto-repair", "/tires#tire-repair",

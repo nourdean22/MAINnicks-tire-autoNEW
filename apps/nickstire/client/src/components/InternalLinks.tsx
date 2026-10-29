@@ -55,6 +55,7 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   { href: "/fleet", label: "Fleet Accounts", desc: "Commercial vehicle maintenance" },
   { href: "/financing", label: "Payment Programs", desc: "5 providers · some don't require established credit" },
   { href: "/rewards", label: "Rewards Program", desc: "Earn points on every service" },
+  { href: "/discounts", label: "Discounts", desc: "Military, first responders, students, seniors, teachers, gig drivers" },
   { href: "/car-care-guide", label: "Car Care Guide", desc: "Seasonal maintenance tips" },
   { href: "/about", label: "About Us", desc: "Cleveland's Euclid Ave shop since 2018" },
   { href: "/careers", label: "Careers at Nick's", desc: "Join our team — mechanics and service advisors" },

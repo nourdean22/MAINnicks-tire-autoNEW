@@ -196,6 +196,7 @@ export default function SiteFooter() {
                   { href: "/diagnose", label: "Diagnose My Car" },
                   { href: "/financing", label: "Payment Programs" },
                   { href: "/specials", label: "Specials" },
+              { href: "/discounts", label: "Discounts" },
                   // 2026-05-06 wave-34 · entry point to the comparison hub
                   // (14 honest competitor comparisons). Internal link gives
                   // Googlebot a crawl path beyond the sitemap and a real
