@@ -988,10 +988,13 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
       customerId: identity.customerId,
       customerName: name,
       customerPhone: r.customerPhone == null ? null : String(r.customerPhone),
-      expectedRevenueCents: amountCents,
+      // An amount the guard calls a likely slip must not set the value, urgency or rank.
+      expectedRevenueCents: amountSane ? amountCents : null,
       dataQuality: label.dataQuality,
-      urgency: amountCents >= 80_000 ? "today" : "this_week",
-      recommendedAction: `Call ${name} about the $${Math.round(amountCents / 100)} ${service} quote`,
+      urgency: amountSane && amountCents >= 80_000 ? "today" : "this_week",
+      recommendedAction: amountSane
+        ? `Call ${name} about the $${Math.round(amountCents / 100)} ${service} quote`
+        : `Check the quote amount in ShopDriver, then call ${name} about the ${service} quote`,
       reason:
         label.reason +
         (belowPartsCost ? ` QUOTE GUARD: quote is BELOW captured parts cost ($${Math.round(partsCostCents / 100)}) — review before contacting.` : "") +
