@@ -132,7 +132,10 @@ describe("the last allowed step is text-only even when the provider ignores tool
     ];
     for (const b of branches) {
       const cfg = buildConfig({ modelId: "fake-model" }, b) as { prepareStep: (a: { stepNumber: number }) => unknown };
-      expect(cfg.prepareStep({ stepNumber: 2 })).toEqual({ toolChoice: "none", activeTools: [] });
+      // No toolChoice on purpose: ai@6.0.314+ throws ToolChoiceViolationError when a
+      // model calls a tool on a "none" step, and these providers do. activeTools: []
+      // is the strip; the belt step and the execute-count tests below pin the behaviour.
+      expect(cfg.prepareStep({ stepNumber: 2 })).toEqual({ activeTools: [] });
     }
   });
 

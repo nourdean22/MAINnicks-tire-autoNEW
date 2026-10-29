@@ -258,10 +258,14 @@ export function buildStreamConfigFactory(deps: {
         // last step also sends NO tools (activeTools: []), which no provider
         // can ignore. Anthropic, Gemini and OpenAI honour "none" natively and
         // keep their tool definitions (Anthropic rejects tool history without them).
+        // 2026-10-28 · the strip sends NO toolChoice: ai@6.0.314+ throws
+        // ToolChoiceViolationError when a model calls a tool on a "none" step instead of
+        // looping to the extra text-only step above, and these providers do exactly that.
+        // With no tools active a stray call parses as an invalid call and the loop moves on.
         const textOnly =
           fbProvider === "anthropic" || fbProvider === "gemini" || fbProvider === "openai"
             ? { toolChoice: "none" as const }
-            : { toolChoice: "none" as const, activeTools: [] as string[] };
+            : { activeTools: [] as string[] };
         // READ permission (composer selector) must not be contradicted by
         // structural tool forcing — a forced tool / toolChoice:"required"
         // makes the "observe and describe, don't act" directive impossible
