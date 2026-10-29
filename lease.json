@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/chat-audit-bubbles",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "c10759fe-43bf-4a4b-abfc-0cdf5ee03996",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\bdnick-chat-9080fc",
   "claimedBy": "2026-10-29-manager-sweep",
   "claimedAt": "2026-10-29T18:12:08.418Z",
   "expiresAt": "2026-10-30T06:12:08.418Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-29T20:43:57.095Z",
+  "releaseReason": "work merged as PR 3351 (31f6cb89) from a hook-free clone; the staged tree here is a duplicate of merged commits",
+  "priorLeaseSha": "2ea571924423d40e75222a458f33e64ca65c8371",
+  "releasedBy": "c10759fe-43bf-4a4b-abfc-0cdf5ee03996",
+  "foreignReleaseReason": null
 }
