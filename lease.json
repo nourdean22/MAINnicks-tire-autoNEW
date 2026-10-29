@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/observability-proof",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-16-nickstire-observability (manager: bdnick ui upgrade session)",
   "claimedAt": "2026-10-16T16:53:11.633Z",
   "expiresAt": "2026-10-17T04:53:11.633Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-29T18:53:20.377Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "a02219ec1fde3309718b5105a3331450ce6cc0d7",
+  "releasedBy": "c81d6a5b-5d05-461f-bee5-5c189d570abc",
+  "foreignReleaseReason": null
 }
