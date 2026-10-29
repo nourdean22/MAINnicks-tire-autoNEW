@@ -62,7 +62,7 @@ export function HomeConsole() {
   const refreshFailed = briefQ.isError && !!brief;
 
   return (
-    <div className="mx-auto w-full max-w-[760px] px-4 pb-16 sm:px-6 xl:grid xl:max-w-[1260px] xl:grid-cols-[minmax(0,780px)_minmax(320px,1fr)] xl:items-start xl:gap-x-14">
+    <div className="mx-auto w-full max-w-[760px] px-4 sm:px-6 xl:grid xl:max-w-[1260px] xl:grid-cols-[minmax(0,780px)_minmax(320px,1fr)] xl:items-start xl:gap-x-14">
       <div className="flex min-w-0 flex-col" data-home-column="queue">
         <BriefStateLine
           state={brief?.state ?? null}

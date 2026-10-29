@@ -254,7 +254,6 @@ function MissionsPageInner() {
       <StandardPage
         eyebrow="Execution Deck"
         title="Missions"
-        description="The work that needs you."
         width="workspace"
         rhythm="workspace"
         className="w-full"
