@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/leftovers-stale-2026-10-25",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-23-bdnick-pro-rebuild leftovers",
   "claimedAt": "2026-10-25T00:27:35.794Z",
   "expiresAt": "2026-10-25T12:27:35.794Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-29T18:24:28.508Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "8885853499dba32ec0edc5cc9b0b93541911334f",
+  "releasedBy": "96b6b177-26e3-41fd-9d21-83642e607d61",
+  "foreignReleaseReason": null
 }
