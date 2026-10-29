@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type Row = { idempotencyKey: string; route: string; resultRef: string | null; firstSeenAt: Date; lastSeenAt: Date; seenCount: number };
-type Where = { idempotencyKey: string; resultRef?: null | { not: null }; lastSeenAt?: Date | { lt: Date } };
+type Where = { idempotencyKey: string; resultRef?: null | string | { not: null }; lastSeenAt?: Date | { lt: Date } };
 
 const { store, eventCreate, claimCreate, createTask, requireSyncAuth, requireEvidenceAuth, receiptFault } = vi.hoisted(() => ({
   store: new Map<string, Row>(),
@@ -31,7 +31,8 @@ const { store, eventCreate, claimCreate, createTask, requireSyncAuth, requireEvi
 function matches(row: Row, where: Where): boolean {
   if (row.idempotencyKey !== where.idempotencyKey) return false;
   if (where.resultRef === null && row.resultRef !== null) return false;
-  if (where.resultRef && "not" in where.resultRef && row.resultRef === null) return false;
+  if (typeof where.resultRef === "string" && row.resultRef !== where.resultRef) return false;
+  if (where.resultRef && typeof where.resultRef === "object" && "not" in where.resultRef && row.resultRef === null) return false;
   if (where.lastSeenAt instanceof Date && row.lastSeenAt.getTime() !== where.lastSeenAt.getTime()) return false;
   if (where.lastSeenAt && !(where.lastSeenAt instanceof Date) && !(row.lastSeenAt < where.lastSeenAt.lt)) return false;
   return true;
@@ -82,16 +83,20 @@ const prismaMock = {
   errorLog: { create: vi.fn().mockResolvedValue({}) },
   // Fallback dedupe reads: an open task with the same title in the same mission.
   task: {
-    findFirst: vi.fn(async ({ where }: { where: { missionId?: string; title: { equals: string } } }) =>
+    findFirst: vi.fn(async ({ where }: { where: { id?: string; missionId?: string; title?: { equals: string }; status?: { in: string[] } } }) =>
       createdTasks.find(
-        (t) => (where.missionId === undefined || t.missionId === where.missionId) && t.title.toLowerCase() === where.title.equals.toLowerCase(),
+        (t) =>
+          (where.id === undefined || t.id === where.id) &&
+          (where.status === undefined || where.status.in.includes(t.status)) &&
+          (where.missionId === undefined || t.missionId === where.missionId) &&
+          (where.title === undefined || t.title.toLowerCase() === where.title.equals.toLowerCase()),
       ) ?? null,
     ),
   },
   $executeRaw: vi.fn(async () => 0),
   $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
 };
-const createdTasks: Array<{ id: string; title: string; missionId: string }> = [];
+const createdTasks: Array<{ id: string; title: string; missionId: string; status: string }> = [];
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock, resetQueryCount: vi.fn(), getQueryCount: vi.fn().mockReturnValue(0) }));
 vi.mock("@/lib/auth-guard", () => ({
   requireSyncAuth: (req: Request) => requireSyncAuth(req),
@@ -124,7 +129,7 @@ beforeEach(() => {
   claimCreate.mockImplementation(async () => ({ id: `clm_${++nextId}` }));
   createdTasks.length = 0;
   createTask.mockImplementation(async (d: { title: string; missionId: string }) => {
-    const t = { id: `task_${++nextId}`, title: d.title, missionId: d.missionId };
+    const t = { id: `task_${++nextId}`, title: d.title, missionId: d.missionId, status: "INBOX" };
     createdTasks.push(t);
     return { id: t.id };
   });
@@ -350,5 +355,109 @@ describe("runOnceByKey · the unsettled window (claim -> act -> settle)", () => 
     expect(await settleReceipt(prismaMock as never, K, "task_a")).toBe(true);
     expect(await settleReceipt(prismaMock as never, K, "task_b")).toBe(false);
     expect(store.get(K)!.resultRef).toBe("task_a");
+  });
+});
+
+// Job 2026-10-29: the attribution escalation is keyed by its SET of unruled
+// calls, so every new call, ruling or 21-day age-out is a new key, and each new
+// key opened another task beside the still-open one (61 open duplicates on prod,
+// SELECT 2026-10-29). A STANDING obligation holds one open task per trigger: a
+// new set reuses the open task; only after that task is closed does a new set
+// open a new one. The same set after a close stays a duplicate (no nag).
+describe("POST /api/sync/nour-os open_loop · standing obligation (one open task per trigger)", () => {
+  const SLOT = "v1:obligation.standing:attribution_weak_matches";
+  const post = async (key: string, standing?: string) => {
+    const { POST } = await import("@/app/api/sync/nour-os/route");
+    const res = await POST(
+      new Request("http://x/api/sync/nour-os", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": key },
+        body: JSON.stringify({
+          module: "open_loop",
+          data: { title: "[Nick's Tire] Rule on ambiguous call-invoice matches", source: "nickstire", ...(standing ? { standing } : {}) },
+        }),
+      }),
+      {} as never,
+    );
+    return { status: res.status, body: await res.json() };
+  };
+  const SET_A = "v1:obligation.opened:attribution_weak_matches:aaaaaaaaaaaaaaaa";
+  const SET_B = "v1:obligation.opened:attribution_weak_matches:bbbbbbbbbbbbbbbb";
+  const SET_C = "v1:obligation.opened:attribution_weak_matches:cccccccccccccccc";
+
+  it("positive control: two different sets WITHOUT standing open two tasks (the pre-fix behaviour)", async () => {
+    await post(SET_A);
+    await post(SET_B);
+    expect(createTask).toHaveBeenCalledTimes(2);
+  });
+
+  it("two runs whose ambiguous set changed, while the first task is open, leave ONE task", async () => {
+    const a = await post(SET_A, "attribution_weak_matches");
+    const b = await post(SET_B, "attribution_weak_matches");
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(createTask).toHaveBeenCalledTimes(1);
+    expect(store.get(SET_B)?.resultRef).toBe("task_1");
+    expect(store.get(SLOT)).toMatchObject({ resultRef: "task_1" });
+  });
+
+  it("the same set twice is still one task (the per-key receipt answers first)", async () => {
+    await post(SET_A, "attribution_weak_matches");
+    const b = await post(SET_A, "attribution_weak_matches");
+    expect(createTask).toHaveBeenCalledTimes(1);
+    expect(b.body.data.result).toEqual({ duplicate: true, resultRef: "task_1" });
+  });
+
+  it("after the open task is closed, a NEW set opens a new task; the closed set does not reopen", async () => {
+    await post(SET_A, "attribution_weak_matches");
+    createdTasks[0].status = "DONE";
+    const again = await post(SET_A, "attribution_weak_matches");
+    expect(again.body.data.result).toEqual({ duplicate: true, resultRef: "task_1" });
+    expect(createTask).toHaveBeenCalledTimes(1);
+    await post(SET_B, "attribution_weak_matches");
+    expect(createTask).toHaveBeenCalledTimes(2);
+    expect(store.get(SLOT)).toMatchObject({ resultRef: "task_2" });
+    await post(SET_C, "attribution_weak_matches");
+    expect(createTask).toHaveBeenCalledTimes(2);
+  });
+
+  it("the reopen is a compare-and-swap on the closed task id: a racer that already reopened the slot wins, the loser writes nothing", async () => {
+    await post(SET_A, "attribution_weak_matches");
+    createdTasks[0].status = "DONE";
+    // The racer reopened the slot (and is still creating) between our read and our swap.
+    const realUpdate = bridgeReceipt.updateMany.getMockImplementation()!;
+    let raced = false;
+    bridgeReceipt.updateMany.mockImplementation(async (args) => {
+      if (!raced && args.where.idempotencyKey === SLOT && typeof args.where.resultRef === "string") {
+        raced = true;
+        const row = store.get(SLOT)!;
+        row.resultRef = null;
+        row.lastSeenAt = new Date();
+      }
+      return realUpdate(args);
+    });
+    const b = await post(SET_B, "attribution_weak_matches");
+    expect(b.status).toBe(503);
+    expect(createTask).toHaveBeenCalledTimes(1);
+    expect(store.has(SET_B)).toBe(false); // the per-key receipt was given back, so the retry is first
+  });
+
+  it("a failed create after a reopen gives the slot back, so the retry opens the task", async () => {
+    await post(SET_A, "attribution_weak_matches");
+    createdTasks[0].status = "DONE";
+    createTask.mockRejectedValueOnce(new Error("db blip"));
+    const b = await post(SET_B, "attribution_weak_matches");
+    expect(b.status).toBe(500);
+    expect(store.has(SLOT)).toBe(false);
+    const c = await post(SET_B, "attribution_weak_matches");
+    expect(c.status).toBe(200);
+    expect(store.get(SLOT)).toMatchObject({ resultRef: "task_2" });
+  });
+
+  it("a malformed standing value is ignored: the post behaves as an ordinary keyed escalation", async () => {
+    await post(SET_A, "Not A Trigger!");
+    await post(SET_B, "Not A Trigger!");
+    expect(createTask).toHaveBeenCalledTimes(2);
+    expect(store.has(SLOT)).toBe(false);
   });
 });

@@ -165,6 +165,78 @@ export async function releaseReceipt(db: Db, key: string, leaseAt: Date): Promis
   await db.bridgeReceipt.deleteMany({ where: { idempotencyKey: key, resultRef: null, lastSeenAt: leaseAt } });
 }
 
+/** A standing obligation's trigger: snake_case, as nickstire's `escalateToOwner` names it. */
+const STANDING_TRIGGER = /^[a-z][a-z0-9_]{0,60}$/;
+
+/** The trigger a payload marks as standing, or null (absent or malformed = an ordinary escalation). */
+export function parseStandingTrigger(raw: unknown): string | null {
+  return typeof raw === "string" && STANDING_TRIGGER.test(raw) ? raw : null;
+}
+
+/**
+ * One OPEN result per standing obligation (job 2026-10-29). Some obligations are
+ * keyed by a snapshot that keeps changing — the attribution escalation's key is
+ * its SET of unruled calls — so each new snapshot is a new key, and each new
+ * key used to open a task beside the one still open. The slot is one receipt
+ * row per trigger whose `result_ref` is the open task:
+ *
+ *   · no slot -> `open()`, settle the slot to it;
+ *   · slot points at an open task -> reuse it, write nothing;
+ *   · slot points at a closed task -> a new episode: take the slot with a
+ *     compare-and-swap on that exact `result_ref` (claim-before-act), then
+ *     `open()`. A racer that swapped first wins; the loser gets a retryable 503.
+ *
+ * Without the receipts table the slot cannot exist, so it degrades to `open()`.
+ */
+export async function holdStandingSlot(
+  db: Db,
+  slotKey: string,
+  route: string,
+  open: () => Promise<string>,
+  isOpen: (ref: string) => Promise<boolean>,
+  opts: { staleMs: number },
+): Promise<{ ref: string; reused: boolean }> {
+  let claim: ReceiptClaim;
+  try {
+    claim = await claimReceipt(db, slotKey, route, { staleMs: opts.staleMs });
+  } catch (err) {
+    if (!isReceiptTableMissing(err)) throw err;
+    return { ref: await open(), reused: false };
+  }
+
+  let leaseAt: Date;
+  if (claim.first) {
+    leaseAt = claim.leaseAt;
+  } else {
+    if (claim.resultRef === null) {
+      throw new ServiceError("This standing obligation is being opened by another delivery; retry later.", 503);
+    }
+    if (await isOpen(claim.resultRef)) return { ref: claim.resultRef, reused: true };
+    leaseAt = new Date();
+    const swapped = await db.bridgeReceipt.updateMany({
+      where: { idempotencyKey: slotKey, resultRef: claim.resultRef },
+      data: { resultRef: null, lastSeenAt: leaseAt },
+    });
+    if (swapped.count !== 1) {
+      throw new ServiceError("This standing obligation was reopened by another delivery; retry later.", 503);
+    }
+  }
+
+  let ref: string;
+  try {
+    ref = await open();
+  } catch (err) {
+    await releaseReceipt(db, slotKey, leaseAt).catch((releaseErr) =>
+      log.error("bridge_receipt_release_failed", { route, keyTag: keyTag(slotKey), error: String(releaseErr) }),
+    );
+    throw err;
+  }
+  await settleReceipt(db, slotKey, ref).catch((settleErr) =>
+    log.error("bridge_receipt_settle_failed", { route, keyTag: keyTag(slotKey), error: String(settleErr) }),
+  );
+  return { ref, reused: false };
+}
+
 /** The missing-table warning fires once per process, not once per delivery. */
 let warnedMissingTable = false;
 

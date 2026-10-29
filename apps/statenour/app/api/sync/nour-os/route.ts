@@ -8,7 +8,7 @@ import { createTask } from "@/lib/services/tasks";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
-import { readIdempotencyKey, runOnceByKey } from "@/lib/services/bridge-receipts";
+import { holdStandingSlot, parseStandingTrigger, readIdempotencyKey, runOnceByKey } from "@/lib/services/bridge-receipts";
 
 export const dynamic = "force-dynamic";
 
@@ -199,28 +199,49 @@ export const POST = syncHandler(async (req) => {
       // 2026-09-29 · ADR-0019 · an `Idempotency-Key` header makes this
       // at-most-one task per key: nickstire re-escalating the same subject is
       // the same obligation. Without the header, behaviour is unchanged.
+      //
+      // 2026-10-29 · `data.standing: "<trigger>"` marks an obligation whose key
+      // is a changing snapshot (the attribution escalation keys its SET of
+      // unruled calls): one open task per trigger, reused until it is closed.
       const idempotencyKey = readIdempotencyKey(req.headers);
       const openLoopTitle = String(data.title ?? "Untitled task").slice(0, 150);
+      const standingTrigger = parseStandingTrigger(data.standing);
+      const createOpenLoopTask = async () => {
+        const inboxMissionId = await resolveInboxMissionId();
+        const priorityLabel = String(data.priority ?? "medium");
+        return createTask({
+          title: openLoopTitle,
+          missionId: inboxMissionId,
+          status: "INBOX",
+          nextPhysicalAction: String(data.title ?? "").slice(0, 150) || "start",
+          effort: "M15",
+          roiScore: 50,
+          frictionScore: 50,
+          energyRequired: "MEDIUM",
+          context: "ANYWHERE",
+          finishCondition: data.description ? String(data.description).slice(0, 200) : "done when complete",
+          autoPriorityExplanation: `from ${data.source ?? "nour-os-local"}${data.domain ? ` · ${data.domain}` : ""} · operator-priority=${priorityLabel}`,
+        });
+      };
       const once = await runOnceByKey(
         prisma,
         idempotencyKey,
         OPEN_LOOP_RECEIPT_ROUTE,
         async () => {
-          const inboxMissionId = await resolveInboxMissionId();
-          const priorityLabel = String(data.priority ?? "medium");
-          return createTask({
-            title: openLoopTitle,
-            missionId: inboxMissionId,
-            status: "INBOX",
-            nextPhysicalAction: String(data.title ?? "").slice(0, 150) || "start",
-            effort: "M15",
-            roiScore: 50,
-            frictionScore: 50,
-            energyRequired: "MEDIUM",
-            context: "ANYWHERE",
-            finishCondition: data.description ? String(data.description).slice(0, 200) : "done when complete",
-            autoPriorityExplanation: `from ${data.source ?? "nour-os-local"}${data.domain ? ` · ${data.domain}` : ""} · operator-priority=${priorityLabel}`,
-          });
+          if (!standingTrigger) return createOpenLoopTask();
+          const slot = await holdStandingSlot(
+            prisma,
+            `v1:obligation.standing:${standingTrigger}`,
+            OPEN_LOOP_RECEIPT_ROUTE,
+            async () => (await createOpenLoopTask())?.id ?? "created",
+            async (taskId) =>
+              (await prisma.task.findFirst({
+                where: { id: taskId, deletedAt: null, status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },
+                select: { id: true },
+              })) !== null,
+            { staleMs: OPEN_LOOP_RECEIPT_STALE_MS },
+          );
+          return { id: slot.ref, reused: slot.reused };
         },
         // createTask returns its view model; `null` only if the re-read raced a delete.
         (task) => task?.id ?? "created",
