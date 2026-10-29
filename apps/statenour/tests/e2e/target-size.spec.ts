@@ -25,7 +25,12 @@ import { test, expect } from "@playwright/test";
 // tab at a time (?tab= read by lib/stats/resolve-tab.ts), so Goals and Body and learning are audited by URL.
 // Wave F (2026-10-25): /brain and /people join (census 3A.5: no tap-size check); their controls were floored
 // first and are pinned at the source by tests/components/wave-f-target-floor.test.ts.
-const PAGES = ["/", "/missions", "/chat", "/journal", "/system", "/stats", "/stats?tab=goals", "/stats?tab=body", "/settings", "/brain", "/people"] as const;
+// 2026-10-29 sync audit (gates wave): the six page routes no phone spec visited join, after W5c floored the
+// System detail pages' controls at 44 px (crons, inbox, alerts pills, ConfirmHold).
+const PAGES = [
+  "/", "/missions", "/chat", "/journal", "/system", "/stats", "/stats?tab=goals", "/stats?tab=body", "/settings", "/brain", "/people",
+  "/system/actions", "/system/alerts", "/system/crons", "/system/inbox", "/decisions/1", "/auth/sign-in",
+] as const;
 // The hermetic CI database renders these three pages short at 390x844 (nothing below the
 // fold), so the focus probe also walks pages whose length does not depend on data.
 const FOCUS_PAGES = ["/", "/missions", "/chat", "/system", "/settings", "/journal"] as const;
