@@ -201,20 +201,50 @@ class SuperviseTest(unittest.TestCase):
             self.assertLess(len([x for x in log if x[0] == "start"]), 5)
 
     def test_a_standby_edge_stall_with_its_relay_running_ends_the_run(self):
-        # Forgiving it would leave a relay logged in with no election behind it (a second session).
+        # The relay is OLD (exactly RELAY_FAST_EXIT_TICKS): a stall now is a hung relay or reader, so
+        # the container restarts. A young relay's stall is handled in place (test below).
         seen = []
+        stall_at = 100 + run_cloud.RELAY_FAST_EXIT_TICKS
 
         def script(n, procs, elected):
             seen.append(n)
             if n == 100:
-                open(elected, "w").close()                      # relay starts at 100, still young at 180
-            if n == 180:
+                open(elected, "w").close()                      # relay starts at 100
+            if n == stall_at:
                 procs["edge"].code = run_cloud.EDGE_STALL_EXIT
 
         code, log, _ = self._run(script, max_ticks=400)
-        self.assertEqual((code, seen[-1]), (run_cloud.EDGE_STALL_EXIT, 180))
+        self.assertEqual((code, seen[-1]), (run_cloud.EDGE_STALL_EXIT, stall_at))
         self.assertIn(("stop", "relay"), log)
         self.assertEqual(log.count(("start", "edge")), 1)
+
+    def test_a_standby_edge_stall_with_no_relay_running_or_waiting_ends_the_run(self):
+        # Never elected: no relay and no relay retry, so there is no login to protect.
+        seen = []
+
+        def script(n, procs, elected):
+            seen.append(n)
+            if n == 5:
+                procs["edge"].code = run_cloud.EDGE_STALL_EXIT
+
+        code, _log, _ = self._run(script, max_ticks=100)
+        self.assertEqual((code, seen[-1]), (run_cloud.EDGE_STALL_EXIT, 5))
+
+    def test_an_unelected_standby_does_not_restart_the_crop(self):
+        # The relay retry and its paired crop retry come due after the lease was lost: neither starts.
+        crops = []
+
+        def script(n, procs, elected):
+            if n == 2:
+                open(elected, "w").close()                      # relay and crop start at 2
+            if n == 4:
+                procs["relay"].code = 1                         # retries due at 64 (relay) and 74 (crop)
+            if n == 6:
+                procs["edge"].code = run_cloud.LEASE_LOST       # never re-elected
+
+        _code, log, _ = self._run(script, max_ticks=4 + run_cloud.RELAY_RETRY_TICKS + 2 * run_cloud.CROP_RETRY_TICKS)
+        self.assertEqual(log.count(("start", "crop")), 1, log)
+        self.assertEqual(log.count(("start", "relay")), 1, log)
 
     def test_a_lease_lost_while_the_marker_appears_never_starts_the_relay(self):
         # The edge wrote the marker and lost the lease in the same sleep: the marker is stale.
@@ -281,6 +311,51 @@ class RelayLoginBackoffTest(unittest.TestCase):
         self.assertLess(gaps[1], 120)
         self.assertGreaterEqual(gaps[2], run_cloud.RELAY_LOGIN_HOLD_TICKS)  # then once per 30 min
         self.assertEqual(run_cloud.RELAY_LOGIN_HOLD_TICKS, 30 * 60)
+
+    def test_a_relay_that_dies_at_exactly_the_fast_exit_age_resets_the_count(self):
+        # Lives 5, 5, RELAY_FAST_EXIT_TICKS, 5: the third is not a refused login, so the fourth
+        # failure is the first of a new run and retries in a minute, not after the 30-minute hold.
+        lives = [5, 5, run_cloud.RELAY_FAST_EXIT_TICKS, 5, 5]
+        procs, born, relays, ticks = {}, {}, [], {"n": 0}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+
+        def start(name):
+            if name == "relay":
+                relays.append(ticks["n"])
+            procs[name] = _Proc(name, [])
+            born[name] = ticks["n"]
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            relay = procs.get("relay")
+            if relay is not None and relay.code is None and ticks["n"] - born["relay"] >= lives[len(relays) - 1]:
+                relay.code = 1
+
+        run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=400, primary=True, run_edge=False)
+        retry, boundary = run_cloud.RELAY_RETRY_TICKS, run_cloud.RELAY_FAST_EXIT_TICKS
+        self.assertEqual(relays[:5], [0, 5 + retry, 10 + 2 * retry, 10 + boundary + 3 * retry, 15 + boundary + 4 * retry])
+
+    def test_a_dead_relay_takes_its_crop_down_before_the_crop_retry(self):
+        log, procs = [], {}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+        ticks = {"n": 0}
+
+        def start(name):
+            log.append(("start", name))
+            procs[name] = _Proc(name, log)
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            if ticks["n"] == 2:
+                procs["relay"].code = 1
+
+        run_cloud.supervise(start, elected_file=elected, sleep=sleep, primary=True, run_edge=False,
+                            max_ticks=2 + run_cloud.RELAY_RETRY_TICKS + run_cloud.CROP_RETRY_TICKS + 2)
+        second_crop = len(log) - 1 - log[::-1].index(("start", "crop"))
+        self.assertEqual(log.count(("start", "crop")), 2, log)
+        self.assertLess(log.index(("stop", "crop")), second_crop, log)
 
     def test_a_relay_that_ran_for_a_while_is_not_a_refused_login(self):
         # A stream that dropped after 10 minutes (camera battery, wifi) retries in a minute every time.
@@ -434,11 +509,12 @@ class EdgeStallDuringRelayHoldTest(unittest.TestCase):
         self.assertEqual(crops[-1], relays[-1] + run_cloud.CROP_RETRY_TICKS, (relays, crops))  # its crop came back
 
     def test_a_crop_retry_with_a_running_relay_is_dropped_on_lease_loss(self):
-        # The relay is stopped and restarts WITH its crop on re-election; a kept crop retry would
-        # start a second crop on top of that one.
+        # The (old, working) relay is stopped and restarts WITH its crop on re-election; a kept crop
+        # retry would start a second crop on top of that one.
         procs, crops = {}, []
         elected = os.path.join(tempfile.mkdtemp(), "elected")
         ticks = {"n": 0}
+        lost_at = 2 + run_cloud.RELAY_FAST_EXIT_TICKS + 4
 
         def start(name):
             if name == "crop":
@@ -449,15 +525,116 @@ class EdgeStallDuringRelayHoldTest(unittest.TestCase):
         def sleep(_s):
             ticks["n"] += 1
             n = ticks["n"]
-            if n in (2, 8):
+            if n in (2, lost_at + 2):
                 open(elected, "w").close()             # elected, then re-elected after the loss
-            if n == 4:
-                procs["crop"].code = 1                 # crop retry due at 5 + CROP_RETRY_TICKS
-            if n == 6:
+            if n == lost_at - 2:
+                procs["crop"].code = 1                 # crop retry due at lost_at - 2 + CROP_RETRY_TICKS
+            if n == lost_at:
                 procs["edge"].code = run_cloud.LEASE_LOST
 
-        run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=40, primary=False, run_edge=True)
-        self.assertEqual(crops, [2, 8], crops)
+        run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=lost_at + 30, primary=False, run_edge=True)
+        self.assertEqual(crops, [2, lost_at + 2], crops)
+
+    def test_a_standby_edge_stall_with_a_young_relay_stops_it_and_keeps_the_hold(self):
+        # Review K3: ending the run here let the Railway restart reset the fast-exit count. The young
+        # relay is stopped (never left running unelected) and counted; the edge restarts in place.
+        procs, born, relays, unelected, ticks = {}, {}, [], [], {"n": 0}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+        horizon = 3 * (50 + run_cloud.RELAY_RETRY_TICKS) + 2 * run_cloud.RELAY_LOGIN_HOLD_TICKS + 100
+
+        def start(name):
+            if name == "relay":
+                relays.append(ticks["n"])
+            procs[name] = _Proc(name, [])
+            born[name] = ticks["n"]
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            n = ticks["n"]
+            relay, edge = procs.get("relay"), procs.get("edge")
+            if relay is not None and relay.code is None and not os.path.exists(elected):
+                unelected.append(n)                              # a relay running with no election
+            if edge is not None and edge.code is None:
+                if not os.path.exists(elected):
+                    open(elected, "w").close()                   # (re-)elected
+                if (relay is not None and relay.code is None and n - born["relay"] >= 50) or n - born["edge"] >= self.STALL:
+                    edge.code = run_cloud.EDGE_STALL_EXIT        # the relay logs in but no frame comes
+
+        run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=horizon, primary=False, run_edge=True)
+        self.assertGreater(ticks["n"], horizon - 5, "the launcher ended early on the edge stall exit")
+        self.assertEqual(unelected, [])
+        gaps = [b - a for a, b in zip(relays, relays[1:])]
+        self.assertGreaterEqual(len(gaps), 4, relays)
+        self.assertTrue(all(g >= run_cloud.RELAY_LOGIN_HOLD_TICKS for g in gaps[2:]), relays)
+
+
+class LeaseLossLoginHoldTest(unittest.TestCase):
+    """A lease lost while the relay logs in kills that login, and re-election would log in again at
+    once: lease flapping every 10 s gave up to 180 V380 logins per 30 minutes (round-2 review K1, K2)."""
+
+    def _run(self, on_tick, max_ticks):
+        procs, born, relays, ticks = {}, {}, [], {"n": 0}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+
+        def start(name):
+            if name == "relay":
+                relays.append(ticks["n"])
+            procs[name] = _Proc(name, [])
+            born[name] = ticks["n"]
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            n = ticks["n"]
+            edge = procs.get("edge")
+            if edge is not None and edge.code is None and n - born["edge"] == 3:
+                open(elected, "w").close()                       # (re-)elected 3 s after each edge start
+            on_tick(n, procs, born)
+
+        code = run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=max_ticks, primary=False, run_edge=True)
+        return code, ticks["n"], relays
+
+    def _assert_held(self, relays):
+        gaps = [b - a for a, b in zip(relays, relays[1:])]
+        self.assertGreaterEqual(len(gaps), 4, relays)
+        self.assertTrue(all(g >= run_cloud.RELAY_LOGIN_HOLD_TICKS for g in gaps[2:]), relays)
+
+    def test_a_lease_lost_while_a_young_relay_logs_in_counts_toward_the_hold(self):
+        def on_tick(n, procs, born):
+            relay = procs.get("relay")
+            if relay is not None and relay.code is None and n - born["relay"] >= 10:
+                procs["edge"].code = run_cloud.LEASE_LOST        # the lease flaps mid-login
+
+        _code, _ticks, relays = self._run(on_tick, max_ticks=3 * 70 + 2 * run_cloud.RELAY_LOGIN_HOLD_TICKS + 100)
+        self._assert_held(relays)
+
+    def test_a_lease_lost_the_tick_the_relay_exits_counts_toward_the_hold(self):
+        # The edge is polled first; its stop() must not swallow the relay's fast exit (fuzz seed 705).
+        def on_tick(n, procs, born):
+            relay = procs.get("relay")
+            if relay is not None and relay.code is None and n - born["relay"] >= 5:
+                relay.code = 1
+                procs["edge"].code = run_cloud.LEASE_LOST
+
+        _code, _ticks, relays = self._run(on_tick, max_ticks=3 * 70 + 2 * run_cloud.RELAY_LOGIN_HOLD_TICKS + 100)
+        self._assert_held(relays)
+
+    def test_a_lease_lost_with_an_old_relay_is_not_a_refused_login(self):
+        # A working stream that loses its lease logs in again at re-election, as before; one that
+        # exited on that same tick waits the ordinary relay retry, as any dead relay does.
+        lost_at = 3 + run_cloud.RELAY_FAST_EXIT_TICKS + 10
+        for relay_exits, second in ((False, lost_at + 3), (True, lost_at + run_cloud.RELAY_RETRY_TICKS)):
+            with self.subTest(relay_exits=relay_exits):
+                def on_tick(n, procs, born, relay_exits=relay_exits):
+                    if n == lost_at:
+                        procs["edge"].code = run_cloud.LEASE_LOST
+                        if relay_exits:
+                            procs["relay"].code = 1
+
+                _code, _ticks, relays = self._run(on_tick, max_ticks=lost_at + run_cloud.RELAY_RETRY_TICKS + 20)
+                self.assertEqual(relays, [3, second])
+
 
 class PrimaryTest(unittest.TestCase):
     """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
@@ -548,6 +725,21 @@ class PrimaryTest(unittest.TestCase):
         self.assertEqual((code, seen[-1]), (3, 39))          # only the tick budget ended it
         self.assertEqual(log.count(("start", "edge")), 2)
         self.assertEqual(log.count(("start", "relay")), 1)
+
+    def test_primary_edge_stall_at_exactly_the_fast_exit_age_ends_the_run(self):
+        # The boundary: one tick younger is still a login in progress; RELAY_FAST_EXIT_TICKS is not.
+        boundary = run_cloud.RELAY_FAST_EXIT_TICKS
+        for exit_at, ended_at in ((boundary - 1, boundary + 59), (boundary, boundary)):
+            with self.subTest(exit_at=exit_at):
+                seen = []
+
+                def script(n, procs, _e, exit_at=exit_at, seen=seen):
+                    seen.append(n)
+                    if n == exit_at:
+                        procs["edge"].code = run_cloud.EDGE_STALL_EXIT
+
+                code, _log = self._run_primary(script, max_ticks=boundary + 60)
+                self.assertEqual((code, seen[-1]), (3, ended_at))
 
     def test_primary_dead_relay_is_retried_in_place(self):
         def script(n, procs, _e):
