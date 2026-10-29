@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/discount-pages",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "9f7a6338-3e34-4e8f-a57a-b9f1c383b3fb",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\discount-pages-292c72",
+  "claimedBy": "2026-10-29-manager-sweep",
+  "claimedAt": "2026-10-29T17:51:22.476Z",
+  "expiresAt": "2026-10-30T05:51:22.476Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
