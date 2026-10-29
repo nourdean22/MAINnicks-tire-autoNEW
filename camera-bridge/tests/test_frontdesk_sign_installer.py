@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -205,7 +206,10 @@ def _rotate_twice(tmp_path: Path, block: str) -> list:
         f.write_text("old", encoding="utf-8")
         stamp = f.stat().st_mtime - age
         os.utime(f, (stamp, stamp))
-    head = f"$logDir = '{logs}'; $outLog = '{out}'; $errLog = '{err}'; "
+    # Both runs see the same clock, down to the millisecond: CI once ran them inside one second (Codex on #3349).
+    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    head = (f"$logDir = '{logs}'; $outLog = '{out}'; $errLog = '{err}'; "
+            f"function Get-Date {{ param([string]$Format) $d = [datetime]'{now}'; if ($Format) {{ $d.ToString($Format) }} else {{ $d }} }}; ")
     for run in ("run1", "run2"):
         out.write_text(run, encoding="utf-8")
         err.write_text(run, encoding="utf-8")
@@ -219,7 +223,7 @@ def test_launcher_keeps_a_week_of_earlier_run_logs(tmp_path):
     # The login-hold kill criterion reads 7 days of relay lines; one .prev lost them on the third restart (Codex on #3349).
     names = _rotate_twice(tmp_path / "real", _rotation_block())
     stdout_runs = [n for n in names if n.startswith("frontdesk-sign.stdout.log.2") and not n.endswith("20261025-000000-000")]
-    assert len(stdout_runs) == 2, names                       # both earlier runs kept, even a second apart
+    assert len(stdout_runs) == 2, names                       # both earlier runs kept, even in one millisecond
     assert len([n for n in names if n.startswith("frontdesk-sign.stderr.log.")]) == 2, names
     assert "frontdesk-sign.stdout.log.20261025-000000-000" in names   # 4 days old: kept
     assert "frontdesk-sign.stdout.log.prev" not in names              # 10 days old: pruned

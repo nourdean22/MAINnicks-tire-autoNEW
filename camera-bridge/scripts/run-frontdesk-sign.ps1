@@ -16,7 +16,7 @@ $outLog = Join-Path $logDir "frontdesk-sign.stdout.log"
 $errLog = Join-Path $logDir "frontdesk-sign.stderr.log"
 
 # Keep 8 days of earlier runs' output: the relay login-hold check reads a week of relay lines.
-$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$stamp = (Get-Date -Format "yyyyMMdd-HHmmss-fff") + "-" + $PID  # two runs in one second never share a name
 foreach ($log in @($outLog, $errLog)) {
   if (Test-Path -LiteralPath $log) { Move-Item -LiteralPath $log -Destination ($log + "." + $stamp) -Force -ErrorAction SilentlyContinue }
 }
