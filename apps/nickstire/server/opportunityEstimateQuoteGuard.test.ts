@@ -8,7 +8,7 @@
  * Fixture amounts are the stored prod values (3,347,410 and 455,031 cents),
  * names are invented.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
 let estimateRows: Array<Record<string, unknown>> = [];
 let inserts: string[] = [];
@@ -48,6 +48,13 @@ function estimate(id: number, amountCents: number): Record<string, unknown> {
 beforeEach(() => {
   estimateRows = [];
   inserts = [];
+});
+
+// Serial mode shares one mock registry across files: drop this partial ./db
+// mock so a later file cannot import it.
+afterAll(() => {
+  vi.doUnmock("./db");
+  vi.resetModules();
 });
 
 describe("collectUnapprovedEstimates · quote guard", () => {
