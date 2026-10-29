@@ -1537,7 +1537,6 @@ export const DYNAMIC_ROUTE_PREFIXES = [
   "/blog/",
   "/guides/",
   "/tires/",
-  "/discounts/",
   "/inspection/",
   "/share/",
 ] as const;

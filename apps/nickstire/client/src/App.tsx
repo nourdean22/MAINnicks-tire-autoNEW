@@ -9,6 +9,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
+import { DISCOUNT_PAGES } from "@shared/discountPages";
 // VEHICLE_SERVICE_PAGES removed 2026-04-24 per T5 audit
 import { SkipToContent } from "@/components/SEO";
 // 2026-05-19 · QuickAccessDock deleted · superseded by the unified
@@ -361,7 +362,8 @@ function Router() {
             <Route path={"/specials"} component={SpecialsPage} />
             {/* Discounts by group: terms in DISCOUNT_PROGRAMS (shared/business.ts) */}
             <Route path={"/discounts"} component={DiscountsHub} />
-            <Route path={"/discounts/:slug"} component={DiscountPage} />
+            {/* One route per known leaf, no :slug, so an unknown slug falls through to the 404 (server and client) */}
+            {DISCOUNT_PAGES.map((p) => <Route key={p.slug} path={`/discounts/${p.slug}`} component={DiscountPage} />)}
             {/* My Garage */}
             <Route path={"/my-garage"} component={MyGaragePage} />
             {/* Referral Program */}

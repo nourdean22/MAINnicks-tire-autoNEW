@@ -6,7 +6,7 @@
 
 import type { Tool } from "../_core/llm";
 
-import { BUSINESS } from "@shared/business";
+import { BUSINESS, DISCOUNT_PROGRAMS } from "@shared/business";
 import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
 import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE, DIAGNOSTIC_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
@@ -382,6 +382,18 @@ async function executeLookupCustomer(phone: string): Promise<string> {
   }
 }
 
+/** The /discounts terms, read from DISCOUNT_PROGRAMS so chat and pages never disagree. */
+function discountProgramForChat() {
+  return {
+    offer: DISCOUNT_PROGRAMS.offer.display,
+    whoQualifies: DISCOUNT_PROGRAMS.groups
+      .filter((g) => g.offer)
+      .map((g) => ({ group: g.label, qualifies: g.qualifies, proof: [...g.proof] })),
+    finePrint: [...DISCOUNT_PROGRAMS.offer.finePrint],
+    details: "nickstire.org/discounts",
+  };
+}
+
 async function executeGetCurrentSpecials(): Promise<string> {
   try {
     const { getDb } = await import("../db");
@@ -415,6 +427,7 @@ async function executeGetCurrentSpecials(): Promise<string> {
     return JSON.stringify({
       activeSpecials: specials,
       alwaysAvailable: alwaysOn,
+      discountProgram: discountProgramForChat(),
       note: "We match honest competitor pricing on the same tire — bring a written quote.",
     });
   } catch (e) {
@@ -424,6 +437,7 @@ async function executeGetCurrentSpecials(): Promise<string> {
         { title: "Free Inspection", discount: "Free" },
         { title: "Payment Programs", discount: "5 providers" },
       ],
+      discountProgram: discountProgramForChat(),
     });
   }
 }

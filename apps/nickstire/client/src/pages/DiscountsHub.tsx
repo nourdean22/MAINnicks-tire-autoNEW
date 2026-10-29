@@ -9,7 +9,10 @@ import { DISCOUNT_PAGES, DISCOUNTS_HUB, getDiscountGroup } from "@shared/discoun
 import { getRouteByPath } from "@shared/routes";
 
 export default function DiscountsHub() {
-  const cards = DISCOUNT_PAGES.map((p) => ({ page: p, group: getDiscountGroup(p.groupId)! }));
+  const all = DISCOUNT_PAGES.map((p) => ({ page: p, group: getDiscountGroup(p.groupId)! }));
+  // A group with no offer (the LGBTQ+ welcome page) never sits under "Who gets a discount".
+  const cards = all.filter((c) => c.group.offer);
+  const welcome = all.filter((c) => !c.group.offer);
   const seo = getRouteByPath("/discounts")!;
 
   return (
@@ -44,6 +47,20 @@ export default function DiscountsHub() {
             ))}
           </ul>
         </section>
+
+        {welcome.length > 0 && (
+          <section aria-labelledby="welcome-heading">
+            <h2 id="welcome-heading" className="text-2xl font-bold text-foreground">Same price for everyone</h2>
+            <ul className="mt-3 space-y-2">
+              {welcome.map(({ page, group }) => (
+                <li key={page.slug}>
+                  <Link href={`/discounts/${page.slug}`} className="text-primary underline hover:no-underline">{page.h1}</Link>
+                  <span className="block text-sm text-foreground/70">{group.qualifies}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <VisitBox />
         <FaqList faqs={DISCOUNTS_HUB.faqs} />

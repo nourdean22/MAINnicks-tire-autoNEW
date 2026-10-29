@@ -101,7 +101,9 @@ describe("discount pages are wired into the site", () => {
       expect(sitemap.has(path), `${path} in sitemap`).toBe(true);
       expect(prerender.has(path), `${path} prerendered`).toBe(true);
     }
-    expect(DYNAMIC_ROUTE_PREFIXES).toContain("/discounts/");
+    // No blanket prefix: the leaves are a finite registered set, so an unknown slug 404s
+    // (server/discountRoutes404.test.ts).
+    expect(DYNAMIC_ROUTE_PREFIXES).not.toContain("/discounts/");
   });
 
   it("the committed prerendered pages (what Googlebot reads) carry the current terms", () => {
@@ -225,6 +227,25 @@ describe("each page renders the shop's real facts and the configured offer", () 
     }
     expect(container.textContent).toContain(DISCOUNT_PROGRAMS.offer.display);
     expect(container.querySelector("h1")).not.toBeNull();
+  });
+
+  it("the hub's discount list holds only groups that get the offer; the welcome page sits apart", async () => {
+    const { default: DiscountsHub } = await import("../pages/DiscountsHub");
+    const { container } = render(React.createElement(DiscountsHub));
+    const list = container.querySelector('[aria-labelledby="groups-heading"]')!;
+    for (const p of DISCOUNT_PAGES) {
+      const inList = list.querySelector(`a[href="/discounts/${p.slug}"]`) !== null;
+      expect(inList, `${p.slug} in the discount list`).toBe(getDiscountGroup(p.groupId)!.offer);
+    }
+  });
+
+  it("the public /site-map directory lists the hub and every discount page", async () => {
+    const { default: SiteMap } = await import("../pages/SiteMap");
+    const { container } = render(React.createElement(SiteMap));
+    const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    for (const path of ["/discounts", ...DISCOUNT_PAGES.map((p) => `/discounts/${p.slug}`)]) {
+      expect(hrefs, path).toContain(path);
+    }
   });
 
   it("an unknown slug renders a not-found with a way back to the hub", async () => {

@@ -26,6 +26,7 @@ import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { SERVICES } from "@shared/services";
 import { GUIDES } from "@shared/guides";
 import { ALL_ROUTES } from "@shared/routes";
+import { DISCOUNT_PAGES, getDiscountGroup } from "@shared/discountPages";
 import {
   Wrench, MapPin, AlertTriangle, BookOpen, PhoneCall, FileText,
   Gauge, Shield, Zap, DollarSign, Settings, Calendar,
@@ -107,6 +108,16 @@ const CUSTOMER_TOOLS: LinkItem[] = [
   { label: "Request Callback", href: "/contact" },
 ];
 
+// Built from DISCOUNT_PAGES so a new audience page appears here without a second list.
+const DISCOUNT_LINKS: LinkItem[] = [
+  { label: "All discounts", href: "/discounts" },
+  ...DISCOUNT_PAGES.map((p) => {
+    const g = getDiscountGroup(p.groupId);
+    // A no-offer group (the LGBTQ+ welcome page) is listed by its page title, never as "<group> discount".
+    return { label: g?.offer ? `${g.label} discount` : p.h1, href: `/discounts/${p.slug}` };
+  }),
+];
+
 const ABOUT_LEGAL: LinkItem[] = [
   { label: "About Nick's", href: "/about" },
   { label: "Reviews", href: "/reviews" },
@@ -186,7 +197,7 @@ export default function SiteMap() {
 
   const totalPages =
     FEATURED_SERVICES.length + TIRE_SIZE_PAGES.length + PROBLEM_PAGES.length + cityLinks.length +
-    neighborhoodLinks.length + GUIDE_PAGES.length + CUSTOMER_TOOLS.length + ABOUT_LEGAL.length +
+    neighborhoodLinks.length + GUIDE_PAGES.length + CUSTOMER_TOOLS.length + DISCOUNT_LINKS.length + ABOUT_LEGAL.length +
     blogLinks.length + 1; // +1 for homepage
 
   return (
@@ -271,6 +282,13 @@ export default function SiteMap() {
               title="Customer Tools"
               description="Booking, estimating, symptom-check tools — everything you can do without picking up the phone."
               items={CUSTOMER_TOOLS}
+            />
+
+            <Section
+              icon={<DollarSign className="w-5 h-5" />}
+              title="Discounts"
+              description="Discounts on labor by group, plus our same-price-for-everyone page."
+              items={DISCOUNT_LINKS}
             />
 
             <Section
