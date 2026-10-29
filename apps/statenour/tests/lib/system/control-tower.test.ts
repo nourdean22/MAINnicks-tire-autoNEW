@@ -82,6 +82,39 @@ describe("controlTower: one verdict, then the exceptions", () => {
     expect(v.exceptions.map((e) => e.key)).toEqual(["alerts-unknown"]);
   });
 
+  // PR 3310 fixed only the alerts sub-read. buildSystemHealth also measures radar, morningBrief and autonomic and
+  // returns status + degradedSources; the tower ignored both and said nominal.
+  it("an unavailable radar, morningBrief or autonomic read is an exception, never nominal", () => {
+    const v = controlTower({
+      diagnostics: clean,
+      health: { status: "degraded", alerts: alertsOk(0), degradedSources: ["radar", "morningBrief", "autonomic"] },
+      diagnosticsReadFailed: false,
+    });
+    expect(v.state).toBe("attention");
+    expect(v.headline).toBe("3 REQUIRE ATTENTION");
+    expect(v.exceptions.map((e) => e.key)).toEqual(["health-radar", "health-morningBrief", "health-autonomic"]);
+  });
+
+  it("a degraded health status with no named source still raises one exception", () => {
+    const v = controlTower({ diagnostics: clean, health: { status: "degraded", alerts: alertsOk(0) }, diagnosticsReadFailed: false });
+    expect(v.state).toBe("attention");
+    expect(v.exceptions.map((e) => e.key)).toEqual(["health-degraded"]);
+  });
+
+  it("does not double count: alerts has its own row, and db is already shown when diagnostics says it is down", () => {
+    const v = controlTower({
+      diagnostics: { ...clean, db: { connected: false, latency_ms: 0 } },
+      health: { status: "degraded", alerts: { status: "unavailable", source: "alerts", errorCode: "db" }, degradedSources: ["db", "alerts"] },
+      diagnosticsReadFailed: false,
+    });
+    expect(v.exceptions.map((e) => e.key)).toEqual(["db", "alerts-unknown"]);
+  });
+
+  it("a healthy status with an empty degradedSources list stays nominal (control)", () => {
+    const v = controlTower({ diagnostics: clean, health: { status: "healthy", alerts: alertsOk(0), degradedSources: [] }, diagnosticsReadFailed: false });
+    expect(v.state).toBe("nominal");
+  });
+
   it("a measured count from the real payload shape shows as unresolved alerts", () => {
     const v = controlTower({ diagnostics: clean, health: { status: "ok", alerts: alertsOk(3) }, diagnosticsReadFailed: false });
     expect(v.exceptions.find((e) => e.key === "alerts")?.line).toBe("3 unresolved alerts");

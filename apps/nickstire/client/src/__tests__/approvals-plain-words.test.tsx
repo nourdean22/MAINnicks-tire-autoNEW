@@ -99,7 +99,7 @@ const line = (label: string) => screen.getByText(label).parentElement?.textConte
 /** A decisionSummary answer that worked: empty unless the test says otherwise. */
 const summary = (over: Record<string, unknown>) => ({
   available: true, days: 30, since: "2026-09-27T00:00:00.000Z", byType: [], topReasons: [], lastDecision: null,
-  missingDecisionEvents: 0, ...over,
+  missingDecisionEvents: 0, stuckCount: 0, ...over,
 });
 
 beforeEach(() => {
@@ -467,10 +467,56 @@ describe("the empty Needs-decision state", () => {
     expect(screen.getByText("No decisions yet.")).toBeTruthy();
   });
 
+  it("does not say all clear while proposals sit stuck, and says how many", () => {
+    h.summary.data = summary({ stuckCount: 2 });
+    render(<ApprovalsSection />);
+    expect(screen.queryByText("Nothing waiting for you.")).toBeNull();
+    expect(screen.getByText("Nothing new to decide, but 2 proposals are stuck or failed.")).toBeTruthy();
+    expect(screen.getByText("These need a person to retry them or confirm what happened.")).toBeTruthy();
+    expect(screen.queryByText(/may or may not exist/)).toBeNull();
+    // the Failed / stuck chip carries the same number
+    expect(screen.getByText("Failed / stuck (2)")).toBeTruthy();
+  });
+
+  it("uses the singular for one stuck proposal and opens the stuck list on tap", () => {
+    h.summary.data = summary({ stuckCount: 1 });
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Nothing new to decide, but 1 proposal is stuck or failed.")).toBeTruthy();
+    h.inputs.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: "Open Failed / stuck" }));
+    expect(h.inputs.some((i) => JSON.stringify(i?.statuses) === JSON.stringify(["failed", "execution_ambiguous", "executing", "approved"]))).toBe(true);
+  });
+
+  it("does not say all clear while the stuck count is still loading", () => {
+    h.summaryState = { isLoading: true, isError: false };
+    h.summary.data = undefined;
+    render(<ApprovalsSection />);
+    expect(screen.queryByText("Nothing waiting for you.")).toBeNull();
+    expect(screen.getByText("Nothing new to decide. Checking for stuck proposals…")).toBeTruthy();
+  });
+
+  it("reads the Failed / stuck list with the largest page so every counted row can be reached", () => {
+    h.summary.data = summary({ stuckCount: 1 });
+    render(<ApprovalsSection />);
+    h.inputs.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: "Open Failed / stuck" }));
+    expect(h.inputs.at(-1)?.limit).toBe(500);
+  });
+
+  it("keeps the all-clear copy when the server counted zero stuck", () => {
+    h.summary.data = summary({ stuckCount: 0 });
+    render(<ApprovalsSection />);
+    expect(screen.getByText("Nothing waiting for you.")).toBeTruthy();
+    expect(screen.getByText("Failed / stuck")).toBeTruthy();
+  });
+
   it("adds nothing about decisions when the read was unavailable", () => {
     h.summary.data = { available: false, reason: "no_db", message: "no database" };
     render(<ApprovalsSection />);
-    expect(screen.getByText("Nothing waiting for you.")).toBeTruthy();
+    // unknown is not zero: the stuck count could not be read, so no all-clear
+    expect(screen.queryByText("Nothing waiting for you.")).toBeNull();
+    expect(screen.getByText("Nothing new to decide, but stuck proposals could not be checked.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Failed / stuck" })).toBeTruthy();
     expect(screen.queryByText(/Last decision/)).toBeNull();
     expect(screen.queryByText("No decisions yet.")).toBeNull();
   });
@@ -479,6 +525,8 @@ describe("the empty Needs-decision state", () => {
     h.summaryState = { isLoading: false, isError: true };
     h.summary.data = undefined;
     render(<ApprovalsSection />);
+    expect(screen.queryByText("Nothing waiting for you.")).toBeNull();
+    expect(screen.getByText("Nothing new to decide, but stuck proposals could not be checked.")).toBeTruthy();
     expect(screen.queryByText(/Last decision/)).toBeNull();
     expect(screen.queryByText("No decisions yet.")).toBeNull();
   });
