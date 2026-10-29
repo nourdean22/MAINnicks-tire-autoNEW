@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/gates-wave-f-2026-10-25",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "d6a11a27-84ff-4160-a05b-6b82948ef199",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-23-bdnick-pro-rebuild wave F",
   "claimedAt": "2026-10-25T02:41:50.487Z",
   "expiresAt": "2026-10-25T14:41:50.487Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-29T18:25:03.735Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "55d1367269695977336ffb887c0b14e20b06a1c4",
+  "releasedBy": "96b6b177-26e3-41fd-9d21-83642e607d61",
+  "foreignReleaseReason": null
 }
