@@ -105,8 +105,14 @@ export function transformHaePayload(payload: unknown): CanonicalSample[] {
       // specific value; sleep gets its own metric names so the
       // summarizer never has to guess.
       if (name === "sleep_analysis") {
-        const asleep = typeof point.asleep === "number" ? point.asleep : null;
-        const inBed = typeof point.inBed === "number" ? point.inBed : null;
+        // 2026-10-29 · time asleep is `totalSleep` (vendor doc); on a staged
+        // Apple Watch night `asleep` is 0 and the hours sit in the stages:
+        // reading `asleep` alone stored 75 of 93 nights as 0 h. A night with
+        // nothing measured emits no sample: unknown, never 0 hours.
+        const num = (v: unknown) => (typeof v === "number" && v > 0 ? v : null);
+        const stages = (num(point.core) ?? 0) + (num(point.deep) ?? 0) + (num(point.rem) ?? 0);
+        const asleep = num(point.totalSleep) ?? num(stages) ?? num(point.asleep);
+        const inBed = num(point.inBed);
         if (asleep != null) {
           out.push({ type: "sleep_asleep_hours", startAt, value: asleep, unit: "hr", sourceName: typeof point.source === "string" ? point.source : undefined });
         }
