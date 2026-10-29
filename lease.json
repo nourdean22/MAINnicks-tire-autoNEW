@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/ui-v3-w3b",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-16-bdnick-ui-v3-w3b (manager: bdnick UI upgrade session)",
   "claimedAt": "2026-10-16T13:38:02.767Z",
   "expiresAt": "2026-10-17T01:38:02.767Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-29T18:53:56.495Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "e49e45c3066e32d4f3f286c2abc831fbf7c3dd3a",
+  "releasedBy": "c81d6a5b-5d05-461f-bee5-5c189d570abc",
+  "foreignReleaseReason": null
 }
