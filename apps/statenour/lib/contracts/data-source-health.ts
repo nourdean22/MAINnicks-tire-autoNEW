@@ -95,6 +95,36 @@ const PROBES: ProbeSpec[] = [
     kind: "personal",
   },
 
+  // 2026-10-29 · the iPhone stopped posting Apple Health on 2026-08-03 and
+  // nothing noticed for 87 days: the ingest route only speaks when a
+  // request arrives. A stale last batch is a FAILED probe so the cron's
+  // "Data feeder down" event fires. 48h = two missed daily automations.
+  {
+    name: "personal.appleHealthSync",
+    label: "Apple Health sync (last batch within 48h)",
+    probe: timed(async () => {
+      const last = await prisma.healthIngestBatch.findFirst({
+        orderBy: { receivedAt: "desc" },
+        select: { receivedAt: true },
+      });
+      if (!last) {
+        return { ok: false, rowCount: 0, latencyMs: 0, reason: "no Apple Health sync ever received" };
+      }
+      const ageH = (Date.now() - last.receivedAt.getTime()) / 3_600_000;
+      if (ageH > 48) {
+        return {
+          ok: false,
+          rowCount: 0,
+          latencyMs: 0,
+          reason: `last Apple Health sync ${Math.floor(ageH / 24)}d ago, check the Health Auto Export automation on the iPhone`,
+        };
+      }
+      return { ok: true, rowCount: 1, latencyMs: 0 };
+    }),
+    emptyDaysAlertThreshold: 2,
+    kind: "personal",
+  },
+
   // ── Shop-side bridge probes ──
   {
     name: "bridge.revenue_today",

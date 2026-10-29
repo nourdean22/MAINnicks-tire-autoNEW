@@ -39,6 +39,23 @@ Expect `201` with a receipt (`accepted: 1` first run, `replayed: true`
 on the identical re-run). `401` = token mismatch · `503` = env unset ·
 `422` = payload shape unrecognized (check JSON format + metric selection).
 
+## When it goes quiet (2026-10-29)
+
+The phone stopped posting on 2026-08-03 and nothing noticed for 87 days:
+the route only speaks when a request arrives. The daily data-source canary
+now carries `personal.appleHealthSync`, which fails when the newest
+`health_ingest_batches` row is older than 48h and raises the cron's
+"Data feeder down" event on /system. Silence on Railway's HTTP log for
+this path means the iPhone is not sending; check the HAE automation
+(enabled, REST target, Background App Refresh on) before the server.
+
+Sleep: HAE's aggregated `sleep_analysis` carries time asleep in
+`totalSleep` and the `core`/`deep`/`rem` stages; `asleep` is 0 on a staged
+Apple Watch night. The transform reads `totalSleep`, then the stage sum,
+then `asleep`, and emits no sample for a night with nothing measured.
+Imports before this fix stored such nights as 0 h, and BodyTracking is
+fill-nulls-only, so a re-export does not replace those zeros by itself.
+
 ## What happens on ingest
 
 Raw samples land in `health_samples` (provenance + dedupe), a receipt
