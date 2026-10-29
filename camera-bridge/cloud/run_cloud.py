@@ -125,6 +125,18 @@ LEASE_LOST = 4
 EDGE_STALL_EXIT = 3  # edge_main: no frame for --stall-exit-seconds
 
 
+def _utc(seconds_from_now: float = 0.0) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + seconds_from_now))
+
+
+def _say(msg: str) -> None:
+    # stdout is frontdesk-sign.stdout.log on the front desk: the login-hold kill criterion is read from these lines.
+    try:
+        print(f"{_utc()} run_cloud {msg}", flush=True)
+    except (OSError, ValueError):
+        pass  # a full or closed log must never stop the launcher before it can end its children
+
+
 def supervise(
     start: Callable[[str], object],
     *,
@@ -149,10 +161,17 @@ def supervise(
     if primary:
         procs["relay"] = start("relay")
         procs["crop"] = start("crop")
+        _say("relay start fast_exits=0 hold_until=none")
     retry_at: Dict[str, int] = {}
     ticks = 0
     relay_started_at = 0  # the primary's first relay starts at tick 0
     relay_fast_exits = 0
+    relay_hold_until = "none"
+
+    def relay_started() -> None:
+        nonlocal relay_started_at
+        relay_started_at = ticks
+        _say(f"relay start fast_exits={relay_fast_exits} hold_until={relay_hold_until}")
 
     def stop(name: str) -> None:
         proc = procs.pop(name, None)
@@ -167,21 +186,25 @@ def supervise(
     def relay_ended() -> None:
         # The relay exited, or is being stopped young: one that ends within RELAY_FAST_EXIT_TICKS is a
         # refused (or cut) login and counts toward the hold, wherever the end was noticed.
-        nonlocal relay_fast_exits
+        nonlocal relay_fast_exits, relay_hold_until
         stop("relay")
         stop("crop")
         fast = ticks - relay_started_at < RELAY_FAST_EXIT_TICKS
         relay_fast_exits = relay_fast_exits + 1 if fast else 0
-        wait = RELAY_LOGIN_HOLD_TICKS if relay_fast_exits >= RELAY_FAST_EXITS_BEFORE_HOLD else RELAY_RETRY_TICKS
+        held = relay_fast_exits >= RELAY_FAST_EXITS_BEFORE_HOLD
+        wait = RELAY_LOGIN_HOLD_TICKS if held else RELAY_RETRY_TICKS
         retry_at["relay"] = ticks + wait
         retry_at["crop"] = ticks + wait + CROP_RETRY_TICKS
+        relay_hold_until = _utc(wait)  # a tick is at least a second, so the next login is no sooner
+        _say(f"relay ended fast_exits={relay_fast_exits} wait={'hold' if held else 'retry'} "
+             f"next_login_after={relay_hold_until}")
 
     try:
         while True:
             if "relay" not in procs and "relay" not in retry_at and elected():
                 procs["relay"] = start("relay")
                 procs["crop"] = start("crop")
-                relay_started_at = ticks
+                relay_started()
             for name, due in list(retry_at.items()):
                 if ticks >= due:
                     if not primary and name in ("relay", "crop") and not elected():
@@ -189,7 +212,7 @@ def supervise(
                     del retry_at[name]
                     procs[name] = start(name)
                     if name == "relay":
-                        relay_started_at = ticks
+                        relay_started()
             for name in list(procs):
                 if name not in procs:  # stopped by an earlier branch on this tick
                     continue
@@ -202,6 +225,8 @@ def supervise(
                     # re-election must not repeat at once. A working (old) relay is stopped uncounted.
                     if relay is not None and (relay.poll() is not None or ticks - relay_started_at < RELAY_FAST_EXIT_TICKS):
                         relay_ended()
+                    elif relay is not None:
+                        _say(f"relay stopped reason=lease_lost fast_exits={relay_fast_exits}")
                     for n in ("crop", "relay"):
                         stop(n)
                     # A held relay retry stays held through re-election; a crop retry with no relay
@@ -240,6 +265,8 @@ def supervise(
                 return 3
             sleep(1.0)
     finally:
+        if "relay" in procs:
+            _say(f"relay stopped reason=launcher_exit fast_exits={relay_fast_exits}")
         for name in list(procs):
             stop(name)
 

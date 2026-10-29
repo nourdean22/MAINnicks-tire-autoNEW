@@ -7,10 +7,14 @@ handback must never count as a crash (Codex on #3313).
 """
 from __future__ import annotations
 
+import calendar
+import contextlib
+import io
 import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -311,6 +315,24 @@ class RelayLoginBackoffTest(unittest.TestCase):
         self.assertLess(gaps[1], 120)
         self.assertGreaterEqual(gaps[2], run_cloud.RELAY_LOGIN_HOLD_TICKS)  # then once per 30 min
         self.assertEqual(run_cloud.RELAY_LOGIN_HOLD_TICKS, 30 * 60)
+
+    def test_every_relay_start_and_end_prints_the_count_and_the_next_login_time(self):
+        # frontdesk-sign.stdout.log keeps these lines: the PR 3347 kill criterion is read from them.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            before = time.time()
+            starts = self._starts(die_after=5, max_ticks=3 * (5 + run_cloud.RELAY_RETRY_TICKS) + run_cloud.RELAY_LOGIN_HOLD_TICKS + 10)
+        lines = out.getvalue().splitlines()
+        started = [ln for ln in lines if " run_cloud relay start " in ln]
+        ended = [ln for ln in lines if " run_cloud relay ended " in ln]
+        self.assertEqual(len(started), len(starts), lines)
+        self.assertEqual(len(started), 4, lines)
+        self.assertEqual([ln.split("fast_exits=")[1].split()[0] for ln in started], ["0", "1", "2", "3"])
+        self.assertTrue(started[0].endswith("hold_until=none"), started[0])
+        self.assertEqual([ln.split("wait=")[1].split()[0] for ln in ended[:3]], ["retry", "retry", "hold"])
+        deadline = calendar.timegm(time.strptime(ended[2].split("next_login_after=")[1], "%Y-%m-%dT%H:%M:%SZ"))
+        self.assertAlmostEqual(deadline - before, run_cloud.RELAY_LOGIN_HOLD_TICKS, delta=5)
+        self.assertTrue(started[3].endswith("hold_until=" + ended[2].split("next_login_after=")[1]), started[3])
 
     def test_a_relay_that_dies_at_exactly_the_fast_exit_age_resets_the_count(self):
         # Lives 5, 5, RELAY_FAST_EXIT_TICKS, 5: the third is not a refused login, so the fourth
@@ -635,6 +657,24 @@ class LeaseLossLoginHoldTest(unittest.TestCase):
                 _code, _ticks, relays = self._run(on_tick, max_ticks=lost_at + run_cloud.RELAY_RETRY_TICKS + 20)
                 self.assertEqual(relays, [3, second])
 
+    def test_a_relay_the_supervisor_stops_still_gets_an_end_line(self):
+        # An old relay stopped on lease loss, and one stopped as the launcher exits, are ends too.
+        lost_at = 3 + run_cloud.RELAY_FAST_EXIT_TICKS + 10
+
+        def on_tick(n, procs, born):
+            if n == lost_at:
+                procs["edge"].code = run_cloud.LEASE_LOST
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            _code, _ticks, relays = self._run(on_tick, max_ticks=lost_at + 20)
+        lines = out.getvalue().splitlines()
+        ends = [ln for ln in lines if " run_cloud relay ended " in ln or " run_cloud relay stopped " in ln]
+        self.assertEqual(len(relays), 2, lines)
+        self.assertEqual(len(ends), 2, lines)
+        self.assertIn("reason=lease_lost", ends[0])
+        self.assertIn("reason=launcher_exit", ends[1])
+
 
 class PrimaryTest(unittest.TestCase):
     """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
@@ -742,6 +782,21 @@ class PrimaryTest(unittest.TestCase):
 
                 code, _log = self._run_primary(script, max_ticks=boundary + 60)
                 self.assertEqual((code, seen[-1]), (3, ended_at))
+
+    def test_a_log_write_that_fails_never_orphans_the_children(self):
+        # A full log disk must not end the launcher before its cleanup guard (Codex on #3349).
+        class FullDisk(io.TextIOBase):
+            def write(self, _s):
+                raise OSError(28, "No space left on device")
+
+        def script(n, procs, _e):
+            if n == 2:
+                procs["relay"].code = 1
+
+        with contextlib.redirect_stdout(FullDisk()):
+            code, log = self._run_primary(script, max_ticks=10)
+        self.assertEqual(code, 3)                            # the tick budget ended it, not the log
+        self.assertIn(("stop", "mediamtx"), log)
 
     def test_primary_dead_relay_is_retried_in_place(self):
         def script(n, procs, _e):
