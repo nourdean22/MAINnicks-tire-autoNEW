@@ -14,6 +14,7 @@ import {
   listTaskAttachments,
   deleteTaskAttachment,
 } from "@/lib/services/task-attachments";
+import { listSubtasks, addSubtask } from "@/lib/services/task-subtasks";
 
 const id = z.string().min(1).max(64);
 
@@ -41,4 +42,12 @@ export const taskDetailProcedures = {
   attachmentDelete: operatorProcedure
     .input(z.object({ taskId: id, attachmentId: id }))
     .mutation(({ input }) => mapped(() => deleteTaskAttachment(input.taskId, input.attachmentId))),
+
+  subtasks: operatorProcedure
+    .input(z.object({ parentId: id }))
+    .query(({ input }) => listSubtasks(input.parentId)),
+
+  subtaskAdd: operatorProcedure
+    .input(z.object({ parentId: id, title: z.string().max(500) }))
+    .mutation(({ input }) => mapped(() => addSubtask(input.parentId, input.title))),
 };

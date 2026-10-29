@@ -157,12 +157,18 @@ describe("TaskInspector · page actions", () => {
 });
 
 describe("TaskInspector · detail sections (2026-10-29)", () => {
-  it("renders notes with the stored text, and photos", () => {
+  it("renders steps, notes with the stored text, and photos for a top-level task", () => {
     stubs.query = { ...stubs.blank(), data: { ...TASK, notes: "fixture note" } };
     const html = render();
+    expect(html).toContain('data-task-subtasks="t1"');
     expect(html).toContain('data-task-notes="t1"');
     expect(html).toContain("fixture note");
     expect(html).toContain('data-task-photos="t1"');
     expect(html).toContain("No photos yet");
+  });
+
+  it("a step (child task) gets no steps of its own", () => {
+    stubs.query = { ...stubs.blank(), data: { ...TASK, parentTaskId: "p1" } };
+    expect(render()).not.toContain("data-task-subtasks");
   });
 });

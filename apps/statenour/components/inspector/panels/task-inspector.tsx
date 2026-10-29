@@ -28,6 +28,7 @@ import { PriorityBreakdownView } from "@/components/inspector/priority-breakdown
 import type { InspectorPanelProps } from "@/components/inspector/panels/memory-inspector";
 import { TaskNotes } from "@/components/inspector/panels/task-notes";
 import { TaskPhotos } from "@/components/inspector/panels/task-photos";
+import { TaskSubtasks } from "@/components/inspector/panels/task-subtasks";
 
 function dueLine(dueDate: string | null | undefined, now: Date): string | null {
   if (!dueDate) return null;
@@ -110,6 +111,7 @@ type TaskDetail = Record<string, unknown> & {
   mission?: { title: string; domain: string } | null;
   promiseTo?: string | null;
   notes?: string | null;
+  parentTaskId?: string | null;
 };
 
 export function TaskInspector({ entity }: InspectorPanelProps) {
@@ -164,6 +166,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
         <Row label="last touched" value={untouched} />
       </dl>
 
+      <TaskSubtasks taskId={t.id} isChild={Boolean(t.parentTaskId)} />
       <TaskNotes key={t.id} taskId={t.id} initial={t.notes ?? null} />
       <TaskPhotos taskId={t.id} />
 
