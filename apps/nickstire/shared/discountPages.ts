@@ -142,7 +142,7 @@ export const DISCOUNT_PAGES: DiscountPageContent[] = [
       },
       {
         heading: "A car that is not driven much",
-        body: "A car that mostly goes to church, the store and the doctor has different problems than a commuter car. Short trips never fully recharge the battery. Tires can crack with age long before the tread wears out, so the age of a tire matters as much as its tread. Brakes can rust from sitting. Ask for a free quick check if the car has been parked a while.",
+        body: "A car that mostly makes short trips for errands and appointments has different problems than a commuter car. Short trips never fully recharge the battery. Tires can crack with age long before the tread wears out, so the age of a tire matters as much as its tread. Brakes can rust from sitting. Ask for a free quick check if the car has been parked a while.",
       },
       {
         heading: "Stay or drop it off",
@@ -166,7 +166,7 @@ export const DISCOUNT_PAGES: DiscountPageContent[] = [
     metaTitle: "Uber, Lyft & DoorDash Driver Car Repair Discount · Cleveland",
     metaDescription: "Discount on labor for rideshare and delivery drivers: tires, brakes, oil. Walk in 7 days at Nick's Tire & Auto, Euclid Ave, Cleveland. Show your driver app.",
     h1: "Car repair discount for rideshare and delivery drivers",
-    intro: "Open your driver profile at the counter and the discount comes off your labor. Nick's Tire & Auto is an independent shop and is not connected to any of these apps; the names are here so drivers can find this page.",
+    intro: "Open your driver profile at the counter and the discount comes off your labor. Nick's Tire & Auto is an independent shop and is not connected to any of these apps.",
     sections: [
       {
         heading: "An hour in the shop is an hour you are not earning",
@@ -233,16 +233,16 @@ export const DISCOUNT_PAGES: DiscountPageContent[] = [
     intro: "Hospital floor, clinic, nursing home or home health: show your badge or license card at the counter and the discount comes off your labor.",
     sections: [
       {
-        heading: "Down the road from the hospitals",
-        body: "Our shop is on Euclid Ave, the same road that runs past University Circle and Cleveland Clinic's main campus. If you work a hospital shift on the east side, getting here is a straight drive down Euclid.",
+        heading: "On Euclid Ave, the same road as the hospitals",
+        body: "Our shop is on Euclid Ave, the same road that runs past University Circle and Cleveland Clinic's main campus. If you work a hospital shift on the east side, getting here is a straight drive east on Euclid.",
       },
       {
         heading: "Twelve-hour shifts and night shifts",
-        body: "After a night shift, the last thing you need is a car that will not start in the parking garage. A weak battery and a slow leak in a tire are the usual culprits on a car that sits through a long shift in the cold. A free quick check finds both before they leave you stuck.",
+        body: "After a night shift, a car that will not start in the parking garage is a long wait for a jump. A weak battery and a slow leak in a tire are the usual culprits on a car that sits through a long shift in the cold. A free quick check finds both before they leave you stuck.",
       },
       {
         heading: "Home health and visiting nurses",
-        body: "If you drive from patient to patient, your car is part of your job. Those miles wear brakes and tires fast, so keep up with oil changes and rotate the tires so they wear evenly. A car that will not start in a patient's driveway puts your whole schedule behind, so if the battery is more than a few years old, have it tested before winter. The test is free and takes a few minutes.",
+        body: "If you drive from patient to patient, your car is part of your job. Those miles wear brakes and tires fast, so keep up with oil changes and rotate the tires so they wear evenly. A car that will not start in a patient's driveway puts your whole schedule behind, so if the battery is more than a few years old, have it tested before winter.",
       },
     ],
     faqs: [
@@ -306,7 +306,7 @@ export const DISCOUNT_PAGES: DiscountPageContent[] = [
       },
       {
         heading: "Driving to a fight out of town",
-        body: "Before a long drive to a weigh-in, have the tires and brakes looked at. A blown tire on the highway the day before weigh-ins is the last thing you need. A free quick check covers tread, tire pressure and brakes. If your coach or a teammate is riding with you, that is more weight and more reason to have the tires at the right pressure. After the fight, when you are sore and driving home late, you want the car to be the one thing you do not have to think about.",
+        body: "Before a long drive to a weigh-in, have the tires and brakes looked at. A blown tire on the highway the day before weigh-ins can cost you the fight. A free quick check covers tread, tire pressure and brakes. If your coach or a teammate is riding with you, that is more weight and more reason to have the tires at the right pressure.",
       },
     ],
     faqs: [
