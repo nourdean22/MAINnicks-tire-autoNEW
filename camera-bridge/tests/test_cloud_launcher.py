@@ -235,6 +235,48 @@ class RelayLoginBackoffTest(unittest.TestCase):
         self.assertTrue(all(g < 600 + 2 * run_cloud.RELAY_RETRY_TICKS for g in gaps), gaps)
 
 
+class EdgeStallDuringRelayHoldTest(unittest.TestCase):
+    """While the relay is refused or held, no frame reaches MediaMTX, so the edge's own stall exit
+    (default 180 s) fires. If that ended the launcher, the task restart would reset the fast-exit
+    counter and the hold would never last: ~30-45 V380 logins an hour, the NicksMax incident again."""
+
+    STALL = 180
+
+    def _run(self, primary: bool, max_ticks: int):
+        log, procs, born, ticks = [], {}, {}, {"n": 0}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+
+        def start(name):
+            log.append((ticks["n"], name))
+            procs[name] = _Proc(name, [])
+            born[name] = ticks["n"]
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            if not primary and ticks["n"] == 1:
+                open(elected, "w").close()                       # the Railway copy is elected
+            relay = procs.get("relay")
+            if relay is not None and relay.code is None and ticks["n"] - born["relay"] >= 5:
+                relay.code = 1                                   # login refused, every time
+            edge = procs.get("edge")
+            if edge is not None and edge.code is None and ticks["n"] - born["edge"] >= self.STALL:
+                edge.code = 3                                    # never saw a frame: stall exit
+
+        code = run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=max_ticks,
+                                   primary=primary, run_edge=True)
+        return code, ticks["n"], [t for t, name in log if name == "relay"]
+
+    def test_edge_stall_while_relay_is_down_does_not_end_the_run_or_reset_the_hold(self):
+        horizon = 3 * (5 + run_cloud.RELAY_RETRY_TICKS) + run_cloud.RELAY_LOGIN_HOLD_TICKS + 60
+        for primary in (True, False):          # front-desk PC, and the Railway copy once elected
+            with self.subTest(primary=primary):
+                _code, ticks, relays = self._run(primary=primary, max_ticks=horizon)
+                self.assertGreater(ticks, horizon - 5, "the launcher ended early on the edge stall exit")
+                gaps = [b - a for a, b in zip(relays, relays[1:])]
+                self.assertGreaterEqual(gaps[2], run_cloud.RELAY_LOGIN_HOLD_TICKS, relays)
+
+
 class PrimaryTest(unittest.TestCase):
     """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
     session, so the relay and crop start at once and the edge is never dormant (phase 4)."""

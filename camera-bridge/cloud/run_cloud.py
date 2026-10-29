@@ -183,6 +183,12 @@ def supervise(
                     if os.path.exists(elected_file):
                         os.remove(elected_file)
                     procs["edge"] = start("edge")
+                elif name == "edge" and "relay" not in procs and "relay" in retry_at:
+                    # No relay, so no frames: the edge's own stall exit (180 s) is expected here,
+                    # not a fault. Ending the run would let the task restart reset the fast-exit
+                    # count and log in to V380 again every few minutes, defeating the 30-minute hold.
+                    del procs["edge"]
+                    retry_at["edge"] = ticks + CROP_RETRY_TICKS
                 elif name == "crop":
                     del procs["crop"]
                     retry_at["crop"] = ticks + CROP_RETRY_TICKS
