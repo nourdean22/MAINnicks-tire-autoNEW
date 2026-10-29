@@ -620,7 +620,7 @@ export const vapiRouter = router({
             metadata: vapiCallLogs.metadata,
           })
           .from(vapiCallLogs)
-          .where(and(...conds, sql`${vapiCallLogs.evalOutcome} != 'outbound' OR ${vapiCallLogs.evalOutcome} IS NULL`))
+          .where(and(...conds, sql`(${vapiCallLogs.evalOutcome} != 'outbound' OR ${vapiCallLogs.evalOutcome} IS NULL)`))
           .orderBy(desc(vapiCallLogs.createdAt))
           .limit(200);
 
