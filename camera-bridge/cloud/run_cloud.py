@@ -139,8 +139,8 @@ def supervise(
     goes back to dormant here, because Railway caps On-Failure restarts (Codex on #3313).
 
     primary (the front-desk PC, p1): the relay and crop start at once, and any edge exit ends the
-    run so the scheduled task restarts it. run_edge=False streams only (install day, before the
-    calibration exists)."""
+    run so the scheduled task restarts it, except a stall while the relay is down or still logging
+    in. run_edge=False streams only (install day, before the calibration exists)."""
     if os.path.exists(elected_file):
         os.remove(elected_file)  # a marker from an earlier run must not start the relay
     procs: Dict[str, object] = {"mediamtx": start("mediamtx")}
@@ -159,15 +159,20 @@ def supervise(
         if proc is not None and proc.poll() is None:
             proc.terminate()
 
+    def elected() -> bool:
+        # The marker is stale until a lease-lost exit is polled, so a standby also needs a live edge.
+        edge = procs.get("edge")
+        return edge is not None and edge.poll() is None and os.path.exists(elected_file)
+
     try:
         while True:
-            if "relay" not in procs and "relay" not in retry_at and os.path.exists(elected_file):
+            if "relay" not in procs and "relay" not in retry_at and elected():
                 procs["relay"] = start("relay")
                 procs["crop"] = start("crop")
                 relay_started_at = ticks
             for name, due in list(retry_at.items()):
                 if ticks >= due:
-                    if not primary and name in ("relay", "crop") and not os.path.exists(elected_file):
+                    if not primary and name in ("relay", "crop") and not elected():
                         continue  # a standby that lost its election waits for the next one
                     del retry_at[name]
                     procs[name] = start(name)
@@ -182,14 +187,21 @@ def supervise(
                 if name == "edge" and code == LEASE_LOST and not primary:
                     for n in ("crop", "relay"):
                         stop(n)
-                        retry_at.pop(n, None)
+                    # A held relay retry stays held through re-election; a crop retry with no relay
+                    # retry behind it is dropped, because the relay restarts with its own crop.
+                    if "relay" not in retry_at:
+                        retry_at.pop("crop", None)
                     if os.path.exists(elected_file):
                         os.remove(elected_file)
                     procs["edge"] = start("edge")
-                elif name == "edge" and code == EDGE_STALL_EXIT and "relay" not in procs and "relay" in retry_at:
-                    # No relay, so no frames: the edge's own stall exit (180 s) is expected here,
-                    # not a fault. Ending the run would let the task restart reset the fast-exit
-                    # count and log in to V380 again every few minutes, defeating the 30-minute hold.
+                elif name == "edge" and code == EDGE_STALL_EXIT and (
+                        ("relay" not in procs and "relay" in retry_at)
+                        or (primary and "relay" in procs and ticks - relay_started_at < RELAY_FAST_EXIT_TICKS)):
+                    # No relay, or (primary only) one still logging in, so no frames: the edge's own
+                    # stall exit (180 s) is expected here, not a fault. Ending the run would let the
+                    # task restart reset the fast-exit count and log in to V380 again every few
+                    # minutes, defeating the 30-minute hold; the relay's own exit decides the hold.
+                    # A standby is never forgiven with its relay up: that relay would run unelected.
                     # A standby also drops its election: the new edge must win it again before the
                     # held relay may log in, or a primary that took the lease meanwhile gets a second session.
                     if os.path.exists(elected_file):
