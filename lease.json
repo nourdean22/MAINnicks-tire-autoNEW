@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/fix-estimate-total-inflation-r2",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "3907f1b2-2411-4df7-b4aa-070a1c558825",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\estimate-totals-r2-dab167",
+  "claimedBy": "2026-10-29-manager-sweep",
+  "claimedAt": "2026-10-29T18:02:40.317Z",
+  "expiresAt": "2026-10-30T06:02:40.317Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
