@@ -139,8 +139,8 @@ def supervise(
     goes back to dormant here, because Railway caps On-Failure restarts (Codex on #3313).
 
     primary (the front-desk PC, p1): the relay and crop start at once, and any edge exit ends the
-    run so the scheduled task restarts it. run_edge=False streams only (install day, before the
-    calibration exists)."""
+    run so the scheduled task restarts it, except a stall while the relay is down or still logging
+    in. run_edge=False streams only (install day, before the calibration exists)."""
     if os.path.exists(elected_file):
         os.remove(elected_file)  # a marker from an earlier run must not start the relay
     procs: Dict[str, object] = {"mediamtx": start("mediamtx")}
@@ -159,15 +159,32 @@ def supervise(
         if proc is not None and proc.poll() is None:
             proc.terminate()
 
+    def elected() -> bool:
+        # The marker is stale until a lease-lost exit is polled, so a standby also needs a live edge.
+        edge = procs.get("edge")
+        return edge is not None and edge.poll() is None and os.path.exists(elected_file)
+
+    def relay_ended() -> None:
+        # The relay exited, or is being stopped young: one that ends within RELAY_FAST_EXIT_TICKS is a
+        # refused (or cut) login and counts toward the hold, wherever the end was noticed.
+        nonlocal relay_fast_exits
+        stop("relay")
+        stop("crop")
+        fast = ticks - relay_started_at < RELAY_FAST_EXIT_TICKS
+        relay_fast_exits = relay_fast_exits + 1 if fast else 0
+        wait = RELAY_LOGIN_HOLD_TICKS if relay_fast_exits >= RELAY_FAST_EXITS_BEFORE_HOLD else RELAY_RETRY_TICKS
+        retry_at["relay"] = ticks + wait
+        retry_at["crop"] = ticks + wait + CROP_RETRY_TICKS
+
     try:
         while True:
-            if "relay" not in procs and "relay" not in retry_at and os.path.exists(elected_file):
+            if "relay" not in procs and "relay" not in retry_at and elected():
                 procs["relay"] = start("relay")
                 procs["crop"] = start("crop")
                 relay_started_at = ticks
             for name, due in list(retry_at.items()):
                 if ticks >= due:
-                    if not primary and name in ("relay", "crop") and not os.path.exists(elected_file):
+                    if not primary and name in ("relay", "crop") and not elected():
                         continue  # a standby that lost its election waits for the next one
                     del retry_at[name]
                     procs[name] = start(name)
@@ -180,18 +197,33 @@ def supervise(
                 if code is None:
                     continue
                 if name == "edge" and code == LEASE_LOST and not primary:
+                    relay = procs.get("relay")
+                    # A relay that exited this same tick, or one still logging in, is a login the
+                    # re-election must not repeat at once. A working (old) relay is stopped uncounted.
+                    if relay is not None and (relay.poll() is not None or ticks - relay_started_at < RELAY_FAST_EXIT_TICKS):
+                        relay_ended()
                     for n in ("crop", "relay"):
                         stop(n)
-                        retry_at.pop(n, None)
+                    # A held relay retry stays held through re-election; a crop retry with no relay
+                    # retry behind it is dropped, because the relay restarts with its own crop.
+                    if "relay" not in retry_at:
+                        retry_at.pop("crop", None)
                     if os.path.exists(elected_file):
                         os.remove(elected_file)
                     procs["edge"] = start("edge")
-                elif name == "edge" and code == EDGE_STALL_EXIT and "relay" not in procs and "relay" in retry_at:
-                    # No relay, so no frames: the edge's own stall exit (180 s) is expected here,
-                    # not a fault. Ending the run would let the task restart reset the fast-exit
-                    # count and log in to V380 again every few minutes, defeating the 30-minute hold.
-                    # A standby also drops its election: the new edge must win it again before the
-                    # held relay may log in, or a primary that took the lease meanwhile gets a second session.
+                elif name == "edge" and code == EDGE_STALL_EXIT and (
+                        ("relay" not in procs and "relay" in retry_at)
+                        or ("relay" in procs and ticks - relay_started_at < RELAY_FAST_EXIT_TICKS)):
+                    # No relay, or one still logging in, so no frames: the edge's own stall exit
+                    # (180 s) is expected here, not a fault. Ending the run would let the restart
+                    # reset the fast-exit count and log in to V380 again every few minutes, defeating
+                    # the 30-minute hold. The primary's relay keeps logging in and its own exit decides
+                    # the hold; a standby's young relay is stopped and counted instead, because it
+                    # would run unelected. A standby also drops its election: the new edge must win it
+                    # again before the held relay may log in, or a primary that took the lease
+                    # meanwhile gets a second session.
+                    if not primary and "relay" in procs:
+                        relay_ended()
                     if os.path.exists(elected_file):
                         os.remove(elected_file)
                     del procs["edge"]
@@ -200,14 +232,7 @@ def supervise(
                     del procs["crop"]
                     retry_at["crop"] = ticks + CROP_RETRY_TICKS
                 elif name == "relay":
-                    del procs["relay"]
-                    stop("crop")
-                    retry_at.pop("crop", None)
-                    fast = ticks - relay_started_at < RELAY_FAST_EXIT_TICKS
-                    relay_fast_exits = relay_fast_exits + 1 if fast else 0
-                    wait = RELAY_LOGIN_HOLD_TICKS if relay_fast_exits >= RELAY_FAST_EXITS_BEFORE_HOLD else RELAY_RETRY_TICKS
-                    retry_at["relay"] = ticks + wait
-                    retry_at["crop"] = ticks + wait + CROP_RETRY_TICKS
+                    relay_ended()
                 else:
                     return code or 3
             ticks += 1
