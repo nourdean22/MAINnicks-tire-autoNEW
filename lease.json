@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/apple-health-sync-fix",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "dc60a5cd-1b4d-4f27-97fa-45682b48a1ad",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\apple-health-3d94b3\\apps\\statenour",
+  "claimedBy": "2026-10-29-manager-sweep",
+  "claimedAt": "2026-10-29T18:34:34.757Z",
+  "expiresAt": "2026-10-30T06:34:34.757Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
