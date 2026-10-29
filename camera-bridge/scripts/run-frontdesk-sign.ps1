@@ -15,10 +15,13 @@ $logDir = Join-Path $root "logs"
 $outLog = Join-Path $logDir "frontdesk-sign.stdout.log"
 $errLog = Join-Path $logDir "frontdesk-sign.stderr.log"
 
-# Keep the last run's output beside the new one.
+# Keep 8 days of earlier runs' output: the relay login-hold check reads a week of relay lines.
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 foreach ($log in @($outLog, $errLog)) {
-  if (Test-Path -LiteralPath $log) { Move-Item -LiteralPath $log -Destination ($log + ".prev") -Force -ErrorAction SilentlyContinue }
+  if (Test-Path -LiteralPath $log) { Move-Item -LiteralPath $log -Destination ($log + "." + $stamp) -Force -ErrorAction SilentlyContinue }
 }
+Get-ChildItem -LiteralPath $logDir -Filter "frontdesk-sign.std*.log.*" -ErrorAction SilentlyContinue |
+  Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-8) } | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Add-Type -AssemblyName System.Security
 $enc = [Convert]::FromBase64String([IO.File]::ReadAllText($secretFile).Trim())

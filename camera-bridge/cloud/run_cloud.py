@@ -131,7 +131,10 @@ def _utc(seconds_from_now: float = 0.0) -> str:
 
 def _say(msg: str) -> None:
     # stdout is frontdesk-sign.stdout.log on the front desk: the login-hold kill criterion is read from these lines.
-    print(f"{_utc()} run_cloud {msg}", flush=True)
+    try:
+        print(f"{_utc()} run_cloud {msg}", flush=True)
+    except (OSError, ValueError):
+        pass  # a full or closed log must never stop the launcher before it can end its children
 
 
 def supervise(
@@ -222,6 +225,8 @@ def supervise(
                     # re-election must not repeat at once. A working (old) relay is stopped uncounted.
                     if relay is not None and (relay.poll() is not None or ticks - relay_started_at < RELAY_FAST_EXIT_TICKS):
                         relay_ended()
+                    elif relay is not None:
+                        _say(f"relay stopped reason=lease_lost fast_exits={relay_fast_exits}")
                     for n in ("crop", "relay"):
                         stop(n)
                     # A held relay retry stays held through re-election; a crop retry with no relay
@@ -260,6 +265,8 @@ def supervise(
                 return 3
             sleep(1.0)
     finally:
+        if "relay" in procs:
+            _say(f"relay stopped reason=launcher_exit fast_exits={relay_fast_exits}")
         for name in list(procs):
             stop(name)
 

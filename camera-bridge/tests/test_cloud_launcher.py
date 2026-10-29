@@ -657,6 +657,24 @@ class LeaseLossLoginHoldTest(unittest.TestCase):
                 _code, _ticks, relays = self._run(on_tick, max_ticks=lost_at + run_cloud.RELAY_RETRY_TICKS + 20)
                 self.assertEqual(relays, [3, second])
 
+    def test_a_relay_the_supervisor_stops_still_gets_an_end_line(self):
+        # An old relay stopped on lease loss, and one stopped as the launcher exits, are ends too.
+        lost_at = 3 + run_cloud.RELAY_FAST_EXIT_TICKS + 10
+
+        def on_tick(n, procs, born):
+            if n == lost_at:
+                procs["edge"].code = run_cloud.LEASE_LOST
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            _code, _ticks, relays = self._run(on_tick, max_ticks=lost_at + 20)
+        lines = out.getvalue().splitlines()
+        ends = [ln for ln in lines if " run_cloud relay ended " in ln or " run_cloud relay stopped " in ln]
+        self.assertEqual(len(relays), 2, lines)
+        self.assertEqual(len(ends), 2, lines)
+        self.assertIn("reason=lease_lost", ends[0])
+        self.assertIn("reason=launcher_exit", ends[1])
+
 
 class PrimaryTest(unittest.TestCase):
     """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
@@ -764,6 +782,21 @@ class PrimaryTest(unittest.TestCase):
 
                 code, _log = self._run_primary(script, max_ticks=boundary + 60)
                 self.assertEqual((code, seen[-1]), (3, ended_at))
+
+    def test_a_log_write_that_fails_never_orphans_the_children(self):
+        # A full log disk must not end the launcher before its cleanup guard (Codex on #3349).
+        class FullDisk(io.TextIOBase):
+            def write(self, _s):
+                raise OSError(28, "No space left on device")
+
+        def script(n, procs, _e):
+            if n == 2:
+                procs["relay"].code = 1
+
+        with contextlib.redirect_stdout(FullDisk()):
+            code, log = self._run_primary(script, max_ticks=10)
+        self.assertEqual(code, 3)                            # the tick budget ended it, not the log
+        self.assertIn(("stop", "mediamtx"), log)
 
     def test_primary_dead_relay_is_retried_in_place(self):
         def script(n, procs, _e):

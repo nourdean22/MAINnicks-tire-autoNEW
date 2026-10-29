@@ -185,3 +185,11 @@ function Get-CimInstance {
     killed = next(line for line in done.stdout.splitlines() if line.startswith("KILLED="))
     # 1001 lane venv, 1002 lane relay, 1007 edge by command line. Never 1003 (office lane), 1004/1006 (siblings), 1005 (shell).
     assert killed == "KILLED=1001,1002,1007"
+
+
+def test_launcher_keeps_a_week_of_earlier_run_logs():
+    # The login-hold kill criterion reads 7 days of relay lines; one .prev lost them on the third restart (Codex on #3349).
+    text = launcher()
+    assert '+ ".prev"' not in text
+    assert 'Move-Item -LiteralPath $log -Destination ($log + "." + $stamp)' in text
+    assert "AddDays(-8)" in text
