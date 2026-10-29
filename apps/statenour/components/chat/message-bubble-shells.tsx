@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useLongPress } from "@/components/chat/use-long-press";
 import { ContextBlockBadges, type ContextBlocks } from "@/components/chat/context-block-badges";
 import { MessageDiagnostics } from "@/components/chat/message-diagnostics";
 import { type QualityPayload } from "@/components/chat/quality-bar";
@@ -16,16 +15,15 @@ import { type QualityPayload } from "@/components/chat/quality-bar";
  * semantics live next to the only consumers that need them.
  *
  * Both wrap a longer-running content surface (markdown render, user
- * bubble text) and add the long-press → MessageActionSheet drawer
- * gesture. React.memo prevents re-renders on every composer keystroke
- * + every streaming token, which would otherwise re-render the
- * entire history stack.
+ * bubble text). Long-press is left to iOS text selection; the action
+ * sheet opens from the visible More button (2026-10-29). React.memo
+ * prevents re-renders on every composer keystroke + every streaming
+ * token, which would otherwise re-render the entire history stack.
  */
 
 /**
- * UserMessageBubble — user-side message bubble with long-press
- * support. Tap = existing edit behavior. Long-press = open the
- * MessageActionSheet bottom drawer.
+ * UserMessageBubble — user-side message text. Tap = edit-resend;
+ * hold = the native iOS text selection (Copy).
  *
  * Wrapped in React.memo: a long conversation has N user bubbles
  * and none of them change once rendered — but every keystroke in
@@ -37,23 +35,21 @@ import { type QualityPayload } from "@/components/chat/quality-bar";
 export const UserMessageBubble = React.memo(function UserMessageBubble({
   text,
   onClick,
-  onLongPress,
 }: {
   text: string;
   onClick: () => void;
-  onLongPress: () => void;
 }) {
-  const lp = useLongPress({ onLongPress, onClick, holdMs: 450 });
   return (
     <span
-      {...lp}
-      // 2026-07-06 bug fix · was `select-none`, which blocked desktop
-      // drag-select + Ctrl+C on the user's own messages (assistant text is
-      // already selectable — this makes them consistent). useLongPress cancels
-      // on >8px pointer movement, so a drag-to-select doesn't trip the
-      // long-press action sheet.
-      className="cursor-pointer select-text"
-      title="Tap to edit · long-press for actions"
+      // 2026-10-29 · a plain click, no long-press timer: the old 450 ms timer
+      // opened the action sheet before iOS's own selection hold, so text could
+      // not be copied. A click that ends a drag or a selection is a copy.
+      onClick={() => {
+        if (window.getSelection()?.isCollapsed === false) return;
+        onClick();
+      }}
+      className="cursor-pointer select-text [-webkit-touch-callout:default]"
+      title="Tap to edit · hold to select text"
       style={{ touchAction: "manipulation" }}
     >
       {text}
@@ -63,8 +59,7 @@ export const UserMessageBubble = React.memo(function UserMessageBubble({
 
 /**
  * AssistantMessageShell — wraps a NickMessage with:
- *   • long-press bottom-sheet for Copy / Pin / Save-as-belief /
- *     Save-as-decision (phone-first)
+ *   • selectable text (a hold is the native iOS selection)
  *   • ContextBlockBadges underneath showing which brain blocks fed
  *     the reply (tokenUsage.contextBlocks on persisted messages)
  *
@@ -81,7 +76,6 @@ export const UserMessageBubble = React.memo(function UserMessageBubble({
  */
 export const AssistantMessageShell = React.memo(function AssistantMessageShell({
   children,
-  onLongPress,
   contextBlocks,
   quality,
   citations,
@@ -90,15 +84,15 @@ export const AssistantMessageShell = React.memo(function AssistantMessageShell({
   children: React.ReactNode;
   text: string;
   messageId?: string;
-  onLongPress: () => void;
   contextBlocks?: ContextBlocks;
   quality?: QualityPayload;
   citations?: Array<{ raw: string; category: string; detail?: string; start?: number; end?: number }>;
   onRegen?: () => void;
 }) {
-  const lp = useLongPress({ onLongPress, holdMs: 450 });
+  // No long-press handler: a hold is iOS text selection (2026-10-29). The
+  // action sheet opens from the More button under the reply.
   return (
-    <div {...lp} style={{ touchAction: "manipulation" }}>
+    <div className="select-text [-webkit-touch-callout:default]" style={{ touchAction: "manipulation" }}>
       {children}
       <ContextBlockBadges blocks={contextBlocks} />
       {/* v10.0.161 · diagnostic strip — Citation + Quality on ONE row

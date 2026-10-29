@@ -43,12 +43,7 @@ vi.mock("@/hooks/chat/use-lazy-render-messages", () => ({
 vi.mock("@/components/chat/nick-message", () => ({ NickMessage: ({ text }: { text: string }) => <div>{text}</div> }));
 vi.mock("@/components/chat/message-bubble-shells", () => ({
   UserMessageBubble: ({ text }: { text: string }) => <div>{text}</div>,
-  AssistantMessageShell: ({ children, onLongPress }: { children: React.ReactNode; onLongPress?: () => void }) => (
-    <div>
-      <button type="button" aria-label="Long-press reply" onClick={onLongPress} />
-      {children}
-    </div>
-  ),
+  AssistantMessageShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/components/chat/tool-result-card", () => ({ ToolResultCard: () => null, isKnownToolName: () => false }));
 vi.mock("@/components/chat/reasoning-trace-modal", () => ({ ReasoningTraceModal: () => null }));
@@ -123,21 +118,22 @@ describe("thumbs in the action sheet", () => {
 
   // R3-15 (review finding 7): a reply still streaming has no row yet, so the
   // server's newest-row fallback would score the PREVIOUS reply.
+  // 2026-10-29: the long-press sheet is gone (a hold is iOS text selection), so
+  // More is the only way into the sheet, and the streaming reply has none.
   describe("while the latest reply streams", () => {
-    const longPress = (reply: number) => {
+    const streaming = () =>
       act(() => root.render(<ChatMessageList messages={thread} isLoading error={undefined} conversationId="c1" />));
-      const shells = container.querySelectorAll<HTMLButtonElement>('button[aria-label="Long-press reply"]');
-      act(() => shells[reply].click());
-    };
 
-    it("its long-press sheet offers no thumbs", () => {
-      longPress(1);
-      expect(h.sheet.role).toBe("assistant");
-      expect(h.sheet.onFeedback).toBeUndefined();
+    it("it has no More button, so no sheet and no thumbs", () => {
+      streaming();
+      const more = container.querySelectorAll('button[aria-label="More actions"]');
+      expect(more).toHaveLength(3); // u0, a0, u1; the streaming a1 has none
     });
 
     it("CONTROL: an older reply keeps its thumbs", () => {
-      longPress(0);
+      streaming();
+      openMore(1);
+      expect(h.sheet.role).toBe("assistant");
       expect(h.sheet.onFeedback).toBeTypeOf("function");
     });
   });
