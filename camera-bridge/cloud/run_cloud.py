@@ -122,6 +122,7 @@ RELAY_FAST_EXIT_TICKS = 120
 RELAY_FAST_EXITS_BEFORE_HOLD = 3
 RELAY_LOGIN_HOLD_TICKS = 30 * 60
 LEASE_LOST = 4
+EDGE_STALL_EXIT = 3  # edge_main: no frame for --stall-exit-seconds
 
 
 def supervise(
@@ -166,6 +167,8 @@ def supervise(
                 relay_started_at = ticks
             for name, due in list(retry_at.items()):
                 if ticks >= due:
+                    if not primary and name in ("relay", "crop") and not os.path.exists(elected_file):
+                        continue  # a standby that lost its election waits for the next one
                     del retry_at[name]
                     procs[name] = start(name)
                     if name == "relay":
@@ -183,6 +186,16 @@ def supervise(
                     if os.path.exists(elected_file):
                         os.remove(elected_file)
                     procs["edge"] = start("edge")
+                elif name == "edge" and code == EDGE_STALL_EXIT and "relay" not in procs and "relay" in retry_at:
+                    # No relay, so no frames: the edge's own stall exit (180 s) is expected here,
+                    # not a fault. Ending the run would let the task restart reset the fast-exit
+                    # count and log in to V380 again every few minutes, defeating the 30-minute hold.
+                    # A standby also drops its election: the new edge must win it again before the
+                    # held relay may log in, or a primary that took the lease meanwhile gets a second session.
+                    if os.path.exists(elected_file):
+                        os.remove(elected_file)
+                    del procs["edge"]
+                    retry_at["edge"] = ticks + CROP_RETRY_TICKS
                 elif name == "crop":
                     del procs["crop"]
                     retry_at["crop"] = ticks + CROP_RETRY_TICKS
