@@ -7,10 +7,14 @@ handback must never count as a crash (Codex on #3313).
 """
 from __future__ import annotations
 
+import calendar
+import contextlib
+import io
 import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -311,6 +315,24 @@ class RelayLoginBackoffTest(unittest.TestCase):
         self.assertLess(gaps[1], 120)
         self.assertGreaterEqual(gaps[2], run_cloud.RELAY_LOGIN_HOLD_TICKS)  # then once per 30 min
         self.assertEqual(run_cloud.RELAY_LOGIN_HOLD_TICKS, 30 * 60)
+
+    def test_every_relay_start_and_end_prints_the_count_and_the_next_login_time(self):
+        # frontdesk-sign.stdout.log keeps these lines: the PR 3347 kill criterion is read from them.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            before = time.time()
+            starts = self._starts(die_after=5, max_ticks=3 * (5 + run_cloud.RELAY_RETRY_TICKS) + run_cloud.RELAY_LOGIN_HOLD_TICKS + 10)
+        lines = out.getvalue().splitlines()
+        started = [ln for ln in lines if " run_cloud relay start " in ln]
+        ended = [ln for ln in lines if " run_cloud relay ended " in ln]
+        self.assertEqual(len(started), len(starts), lines)
+        self.assertEqual(len(started), 4, lines)
+        self.assertEqual([ln.split("fast_exits=")[1].split()[0] for ln in started], ["0", "1", "2", "3"])
+        self.assertTrue(started[0].endswith("hold_until=none"), started[0])
+        self.assertEqual([ln.split("wait=")[1].split()[0] for ln in ended[:3]], ["retry", "retry", "hold"])
+        deadline = calendar.timegm(time.strptime(ended[2].split("next_login_after=")[1], "%Y-%m-%dT%H:%M:%SZ"))
+        self.assertAlmostEqual(deadline - before, run_cloud.RELAY_LOGIN_HOLD_TICKS, delta=5)
+        self.assertTrue(started[3].endswith("hold_until=" + ended[2].split("next_login_after=")[1]), started[3])
 
     def test_a_relay_that_dies_at_exactly_the_fast_exit_age_resets_the_count(self):
         # Lives 5, 5, RELAY_FAST_EXIT_TICKS, 5: the third is not a refused login, so the fourth
