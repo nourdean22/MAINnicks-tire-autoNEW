@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -185,3 +186,52 @@ function Get-CimInstance {
     killed = next(line for line in done.stdout.splitlines() if line.startswith("KILLED="))
     # 1001 lane venv, 1002 lane relay, 1007 edge by command line. Never 1003 (office lane), 1004/1006 (siblings), 1005 (shell).
     assert killed == "KILLED=1001,1002,1007"
+
+
+def _rotation_block() -> str:
+    text = launcher()
+    start = text.index("\n", text.index("$errLog = Join-Path"))     # everything between the log paths and the secret read
+    return text[start:text.index("Add-Type")]
+
+
+def _rotate_twice(tmp_path: Path, block: str) -> list:
+    """Two task starts over a log folder that already holds a 4-day and a 10-day archive."""
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    out, err = logs / "frontdesk-sign.stdout.log", logs / "frontdesk-sign.stderr.log"
+    week_old = 10 * 86400
+    for name, age in (("frontdesk-sign.stdout.log.prev", week_old), ("frontdesk-sign.stdout.log.20261025-000000-000", 4 * 86400),
+                      ("office-capture.log", week_old)):
+        f = logs / name
+        f.write_text("old", encoding="utf-8")
+        stamp = f.stat().st_mtime - age
+        os.utime(f, (stamp, stamp))
+    # Both runs see the same clock, down to the millisecond: CI once ran them inside one second (Codex on #3349).
+    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    head = (f"$logDir = '{logs}'; $outLog = '{out}'; $errLog = '{err}'; "
+            f"function Get-Date {{ param([string]$Format) $d = [datetime]'{now}'; if ($Format) {{ $d.ToString($Format) }} else {{ $d }} }}; ")
+    for run in ("run1", "run2"):
+        out.write_text(run, encoding="utf-8")
+        err.write_text(run, encoding="utf-8")
+        done = subprocess.run([_pwsh(), "-NoProfile", "-NonInteractive", "-Command", head + block],
+                              capture_output=True, text=True, timeout=60)
+        assert done.returncode == 0, done.stderr + done.stdout
+    return sorted(f.name for f in logs.iterdir())
+
+
+def test_launcher_keeps_a_week_of_earlier_run_logs(tmp_path):
+    # The login-hold kill criterion reads 7 days of relay lines; one .prev lost them on the third restart (Codex on #3349).
+    names = _rotate_twice(tmp_path / "real", _rotation_block())
+    stdout_runs = [n for n in names if n.startswith("frontdesk-sign.stdout.log.2") and not n.endswith("20261025-000000-000")]
+    assert len(stdout_runs) == 2, names                       # both earlier runs kept, even in one millisecond
+    assert len([n for n in names if n.startswith("frontdesk-sign.stderr.log.")]) == 2, names
+    assert "frontdesk-sign.stdout.log.20261025-000000-000" in names   # 4 days old: kept
+    assert "frontdesk-sign.stdout.log.prev" not in names              # 10 days old: pruned
+    assert "office-capture.log" in names                              # never another lane's log
+
+    # The broken shape (one .prev) keeps a single earlier run: the same check must see that.
+    broken = _rotation_block().replace('($log + "." + $stamp)', '($log + ".prev")')
+    assert broken != _rotation_block()
+    names = _rotate_twice(tmp_path / "broken", broken)
+    assert "frontdesk-sign.stdout.log.prev" in names
+    assert not [n for n in names if n.startswith("frontdesk-sign.stdout.log.2") and not n.endswith("20261025-000000-000")]
