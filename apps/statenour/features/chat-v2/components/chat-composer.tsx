@@ -569,6 +569,8 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
           {(voice.isRecording || voice.continuous) && <VoiceWaveformOverlay audioLevel={voice.audioLevel} mode={voice.continuous ? "continuous" : "recording"} />}
           <textarea
             ref={textareaRef}
+            // chat-message-list.tsx focuses this inside the edit tap (iOS keyboard).
+            data-chat-composer-input=""
             value={draft}
             onChange={(event) => {
               const value = event.target.value;

@@ -9,6 +9,14 @@ import {
   selectQ32Turn,
 } from "@/lib/evals/q32-regression";
 
+describe("isL2VerifierBanner", () => {
+  it("counts the failed-call banner wording as an L2 action banner (2026-10-29)", () => {
+    expect(
+      isL2VerifierBanner("[VERIFIER · v10.0.162] ⚠ The response below claimed an action (invokeTool) but the tool call failed.\nbody"),
+    ).toBe(true);
+  });
+});
+
 describe("Q-32 deterministic selector", () => {
   it("selects each required signal without raw-text export", () => {
     const selected = selectQ32Turn({

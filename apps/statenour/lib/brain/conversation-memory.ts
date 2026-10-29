@@ -782,43 +782,50 @@ export async function findCompileEligibleConversations(
   // The denormalized counter was measured lying low on 5 rows first,
   // backfilled to truth (45 drifted rows corrected), and is bumped on
   // both turn writers going forward.
-  const candidates = await prisma.chatConversation.findMany({
-    where: {
-      ...(opts.includeArchived ? {} : { archivedAt: null }),
-      messageCount: { gte: 4 },
-      updatedAt: {
-        lt: idleCutoff,
-        gt: new Date(Date.now() - windowDays * 86_400_000),
+  //
+  // The freshness filter runs in JS, so the window is read in pages until
+  // `limit` stale rows are found or it runs out: one capped page held only
+  // the oldest rows, already fresh, and the sweep found 0 of 8 stale
+  // summaries every night (prod, 2026-10-29).
+  const PAGE = 200;
+  const eligible: string[] = [];
+  let cursor: string | null = null;
+  while (eligible.length < limit) {
+    const page: Array<{ id: string; updatedAt: Date }> = await prisma.chatConversation.findMany({
+      where: {
+        ...(opts.includeArchived ? {} : { archivedAt: null }),
+        messageCount: { gte: 4 },
+        updatedAt: {
+          lt: idleCutoff,
+          gt: new Date(Date.now() - windowDays * 86_400_000),
+        },
       },
-    },
-    orderBy: { updatedAt: "asc" },
-    take: limit * 2, // small oversample for the freshness re-filter below
-    select: { id: true, updatedAt: true },
-  });
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: PAGE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: { id: true, updatedAt: true },
+    });
+    if (page.length === 0) break;
 
-  const withEnough = candidates;
-  if (withEnough.length === 0) return [];
-
-  // Deleted rows are read too: a merge-ground summary = recompile; anyone
-  // else's delete = not eligible (it would otherwise be picked every night).
-  const existing = await prisma.brainMemory.findMany({
-    where: {
-      category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
-      key: { in: withEnough.map((c) => `conv_${c.id}`) },
-    },
-    select: { key: true, updatedAt: true, deletedAt: true, metadata: true },
-  });
-  const summarized = new Map(existing.map((e) => [e.key, e]));
-
-  return withEnough
-    .filter((c) => {
+    // Deleted rows are read too: a merge-ground summary = recompile; anyone
+    // else's delete = not eligible (it would otherwise be picked every night).
+    const existing = await prisma.brainMemory.findMany({
+      where: {
+        category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
+        key: { in: page.map((c) => `conv_${c.id}`) },
+      },
+      select: { key: true, updatedAt: true, deletedAt: true, metadata: true },
+    });
+    const summarized = new Map(existing.map((e) => [e.key, e]));
+    for (const c of page) {
       const row = summarized.get(`conv_${c.id}`);
-      if (!row) return true;
-      if (row.deletedAt) return grinderDeleted(row);
-      return c.updatedAt.getTime() > row.updatedAt.getTime();
-    })
-    .slice(0, limit)
-    .map((c) => c.id);
+      const stale = !row || (row.deletedAt ? grinderDeleted(row) : c.updatedAt.getTime() > row.updatedAt.getTime());
+      if (stale) eligible.push(c.id);
+    }
+    if (page.length < PAGE) break;
+    cursor = page[page.length - 1].id;
+  }
+  return eligible.slice(0, limit);
 }
 
 export interface CompileSweepResult {

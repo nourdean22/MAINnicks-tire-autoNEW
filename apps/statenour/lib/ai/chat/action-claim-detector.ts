@@ -152,6 +152,10 @@ export interface ActionClaim {
   snippet: string;
   /** Tool the claim implies should have fired */
   expectedTool: string;
+  /** Set by envFailureClaims: the tool DID fire, so the banner must not say nothing fired.
+   *  "failed": the call returned ok: false. "unconfirmed": it returned ok but the
+   *  read-back did not find the write (a partial success; a retry may duplicate it). */
+  toolOutcome?: "failed" | "unconfirmed";
 }
 
 export interface ActionClaimReport {
@@ -307,7 +311,7 @@ export function envFailureClaims(
   checks: ReadonlyArray<{ toolName: string; verified: boolean | null; reason?: string }>,
   text: string,
   opts: {
-    calls?: ReadonlyArray<{ name: string; args?: Record<string, unknown> }>;
+    calls?: ReadonlyArray<{ name: string; ok?: boolean; args?: Record<string, unknown> }>;
     isRead?: (toolName: string) => boolean;
   } = {},
 ): ActionClaim[] {
@@ -333,10 +337,16 @@ export function envFailureClaims(
       ({ check, i }) =>
         proseTools.includes(check.toolName.toLowerCase()) || namesTool(check.toolName) || readClaimed(check, i),
     )
-    .map(({ check }) => ({
+    .map(({ check, i }) => ({
       verb: check.toolName,
       snippet: `[Tool reported success, but verification failed: ${check.reason}]`,
       expectedTool: check.toolName,
+      // Paired by index (environment-verifier.ts contract). Without the calls,
+      // the verifier's own "Tool execution failed" reason is the only !ok signal.
+      toolOutcome:
+        (opts.calls?.[i]?.ok ?? (check.reason === "Tool execution failed" ? false : true)) === false
+          ? ("failed" as const)
+          : ("unconfirmed" as const),
     }));
 }
 

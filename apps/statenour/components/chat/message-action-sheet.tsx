@@ -35,6 +35,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 export interface MessageActionSheetProps {
   open: boolean;
   onClose: () => void;
+  /** Where focus goes when the sheet closes (Base UI inalFocus); default: back to the opener. */
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"];
   role: "user" | "assistant";
   text: string;
   onCopy?: () => void;
@@ -127,6 +129,7 @@ export function MessageActionSheet({
   onFeedback,
   onFork,
   isPinned = false,
+  finalFocus,
 }: MessageActionSheetProps) {
   // Drag-to-dismiss state. Tracks vertical translation while the user
   // drags the handle; commits a close at >80px, snaps back otherwise.
@@ -182,6 +185,7 @@ export function MessageActionSheet({
     >
       <DialogContent
         ref={sheetRef}
+        finalFocus={finalFocus}
         unstyled
         showCloseButton={false}
         overlayClassName="z-120 bg-(--bg-void)/70 animate-fade-in"

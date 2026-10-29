@@ -270,6 +270,9 @@ describe("banner causes (review on #2509)", () => {
   const ROOT = joinPath(__dirname, "..", "..");
   it("classifies the four producers by the text they actually emit", () => {
     expect(classifyBannerCause(buildVerifierBanner("The response below claimed an action (added task) but no matching tool call fired."))).toBe("l2_action_claim");
+    expect(classifyBannerCause(buildVerifierBanner("The response below claimed an action (invokeTool) but the tool call failed."))).toBe("l2_action_claim");
+    expect(classifyBannerCause(buildVerifierBanner("The response below claimed actions (sent) with no matching tool call, and (invokeTool) whose tool call failed."))).toBe("l2_action_claim");
+    expect(classifyBannerCause(buildVerifierBanner("The response below claimed an action (createTask) but its result could not be confirmed."))).toBe("l2_action_claim");
     expect(classifyBannerCause(buildVerifierBanner("The response below claimed action(s) (createTask) but tool call(s) failed."))).toBe("action_receipt");
     expect(classifyBannerCause(buildVerifierBanner("The response below claimed action(s) (createTask) but the tool(s) could not be verified."))).toBe("action_receipt");
     expect(classifyBannerCause(buildKnownTruthBanner(["status_claim"]))).toBe("known_truth");

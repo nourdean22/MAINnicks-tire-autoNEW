@@ -43,6 +43,15 @@ describe("rewriteForFabrication", () => {
     expect(r.text.length).toBeGreaterThan(original.length);
   });
 
+  it("a mix of unfired and failed claims names each with what happened to it", () => {
+    const r = rewriteForFabrication("Sent the email. Your week was calm.", [
+      sampleClaim({ verb: "sent/emailed/messaged", expectedTool: "sendEmail" }),
+      sampleClaim({ verb: "invokeTool", expectedTool: "invokeTool", toolOutcome: "failed" }),
+    ]);
+    const firstLine = r.text.split("\n")[0];
+    expect(firstLine).toContain("(sent/emailed/messaged) with no matching tool call, and (invokeTool) whose tool call failed.");
+  });
+
   it("banner mentions the detected verb so operator sees the diagnostic", () => {
     const r = rewriteForFabrication("Sent the email.", [
       sampleClaim({ verb: "sent/emailed/messaged", expectedTool: "sendEmail" }),
@@ -155,5 +164,22 @@ describe("buildKnownTruthBanner", () => {
     const banner = buildKnownTruthBanner(["stale_active_claim"]);
     expect(banner).toContain("retired or inactive infrastructure");
     expect(isVerifierRewritten(banner)).toBe(true);
+  });
+});
+
+describe("rewriteForFabrication · banner wording per outcome (PR 3351 review)", () => {
+  const claim = (verb: string, toolOutcome?: "failed" | "unconfirmed"): ActionClaim => ({ verb, snippet: "s", expectedTool: verb, toolOutcome });
+  const first = (claims: ActionClaim[]) => rewriteForFabrication("Body.", claims).text.split("\n")[0];
+
+  it("a write whose read-back failed says its result could not be confirmed, not that it failed", () => {
+    const line = first([claim("createTask", "unconfirmed")]);
+    expect(line).toContain("(createTask) but its result could not be confirmed.");
+    expect(line).not.toContain("failed");
+  });
+
+  it("names each kind when they mix", () => {
+    expect(first([claim("sent"), claim("invokeTool", "failed"), claim("createTask", "unconfirmed")])).toContain(
+      "(sent) with no matching tool call, (invokeTool) whose tool call failed, and (createTask) whose result could not be confirmed.",
+    );
   });
 });

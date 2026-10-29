@@ -82,11 +82,19 @@ export function buildKnownTruthBanner(kinds: string[]): string {
  * tools so the operator sees the diagnostic up front.
  */
 function buildBanner(claims: ActionClaim[]): string {
-  const verbs = [...new Set(claims.map((c) => c.verb))].slice(0, 3);
-  const verbList = verbs.join(", ");
-  return buildVerifierBanner(
-    `The response below claimed ${claims.length === 1 ? "an action" : "actions"} (${verbList}) but no matching tool call fired.`,
-  );
+  const list = (cs: ActionClaim[]) => [...new Set(cs.map((c) => c.verb))].slice(0, 3).join(", ");
+  const article = claims.length === 1 ? "an action" : "actions";
+  // A failed environment check means the tool FIRED; saying "no matching tool
+  // call fired" there contradicted the turn's own receipts (7 of 9 banners in
+  // the 2026-10-29 audit). A failed read-back is not a failed call either.
+  const kinds = [
+    { claims: claims.filter((c) => !c.toolOutcome), alone: "but no matching tool call fired", mixed: "with no matching tool call" },
+    { claims: claims.filter((c) => c.toolOutcome === "failed"), alone: "but the tool call failed", mixed: "whose tool call failed" },
+    { claims: claims.filter((c) => c.toolOutcome === "unconfirmed"), alone: "but its result could not be confirmed", mixed: "whose result could not be confirmed" },
+  ].filter((k) => k.claims.length > 0);
+  const parts = kinds.map((k) => `(${list(k.claims)}) ${kinds.length === 1 ? k.alone : k.mixed}`);
+  const diagnostic = parts.length > 1 ? `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}` : parts[0];
+  return buildVerifierBanner(`The response below claimed ${article} ${diagnostic}.`);
 }
 
 /**

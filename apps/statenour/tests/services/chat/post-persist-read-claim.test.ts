@@ -13,6 +13,7 @@ vi.mock("@/lib/errors/record-error", () => ({ withErrorCapture: vi.fn() }));
 vi.mock("@/lib/ai/track", () => ({ trackGeneration: vi.fn() }));
 
 import { runPostPersistVerification } from "@/lib/services/chat/post-persist-verification";
+import { classifyBannerCause } from "@/lib/observability/evidence-gate-calibration";
 
 function args(cleanedText: string, target: string) {
   const log = { info: vi.fn(), warn: vi.fn() };
@@ -55,6 +56,19 @@ describe("runPostPersistVerification hands the failed read's target to the claim
 
     expect(log.warn).toHaveBeenCalledWith("action_claim_without_tools", expect.objectContaining({ claims: 1 }));
     expect(out.cleanedText).not.toBe("Your sleep streak is five days.");
+  });
+
+  // 2026-10-29 audit: 7 of 9 bannered replies that week said "no matching tool
+  // call fired" for invokeTool/searchTools while the turn's own receipts show
+  // the call fired and failed. The banner must say what happened.
+  it("the banner for a call that fired and failed says it failed, not that nothing fired", async () => {
+    const { input } = args("Your sleep streak is five days.", "getSleepSummary");
+    const out = await runPostPersistVerification(input);
+
+    const firstLine = out.cleanedText.split("\n")[0];
+    expect(firstLine).toContain("(invokeTool) but the tool call failed.");
+    expect(firstLine).not.toContain("no matching tool call fired");
+    expect(classifyBannerCause(out.cleanedText)).toBe("l2_action_claim");
   });
 
   it("CONTROL · the same reply after a failed read of an unrelated target is left alone", async () => {

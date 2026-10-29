@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
-import { Fragment, useState, useCallback, useEffect } from "react";
+import { Fragment, useState, useCallback, useEffect, useRef } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
@@ -375,6 +375,17 @@ export function ChatMessageList({
   const setDiagnosticReport = useChatUiStore((state) => state.setDiagnosticReport);
   // 09-F11 · a tap on a sent message never overwrites a typed draft in one go.
   const offerDraft = useChatUiStore((state) => state.offerDraft);
+  // Focus inside the same tap: iOS raises the keyboard only for a focus made
+  // during the gesture, so an edit armed without it looked like nothing
+  // happened (2026-10-29). The draft lands on the next render.
+  const editMessage = useCallback(
+    (text: string, messageId: string) => {
+      offerDraft(text, messageId);
+      document.querySelector<HTMLTextAreaElement>("[data-chat-composer-input]")?.focus();
+    },
+    [offerDraft],
+  );
+  const editFromSheetRef = useRef(false);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
 
@@ -600,7 +611,7 @@ export function ChatMessageList({
                     // editingMessageId) instead of bare prefill — sending
                     // used to APPEND a duplicate while the original stayed.
                     // The composer shows a visible editing banner w/ cancel.
-                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => offerDraft(part.text, message.id)} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
+                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => editMessage(part.text, message.id)} />;
                   }
                   const contextBlocks = extractContextBlocks(message, liveContextBlocks ?? null);
                   const quality = extractQuality(message);
@@ -608,7 +619,7 @@ export function ChatMessageList({
                   const reasoningSteps = ((message.parts as any[]) || []).filter((item) => item?.type === "data-reasoningStep").map((item) => item.data);
                   return (
                     <div key={`${message.id}-${index}`}>
-                      <AssistantMessageShell text={part.text} messageId={message.id} onLongPress={() => setActionSheetMsg({ id: message.id, role: "assistant", text: part.text })} contextBlocks={contextBlocks} quality={quality} citations={citations} onRegen={() => onRetry?.()}>
+                      <AssistantMessageShell text={part.text} messageId={message.id} contextBlocks={contextBlocks} quality={quality} citations={citations} onRegen={() => onRetry?.()}>
                         <ReasoningTraceLive steps={reasoningSteps} />
                         <NickMessage text={part.text} streaming={isLoading && isLatestAssistant} messageId={message.id} />
                         {/* BDN-312 · seek controls for any time refs in the
@@ -660,7 +671,7 @@ export function ChatMessageList({
                     onEdit={
                       role === "user"
                         ? () => {
-                            offerDraft(bodyText, message.id);
+                            editMessage(bodyText, message.id);
                             haptic.tap();
                           }
                         : undefined
@@ -746,7 +757,22 @@ export function ChatMessageList({
         role={actionSheetMsg?.role || "user"}
         text={actionSheetMsg?.text || ""}
         onCopy={() => actionSheetMsg?.text && void copyToClipboard(actionSheetMsg.text)}
-        onEdit={actionSheetMsg?.role === "user" ? () => { if (actionSheetMsg?.text) offerDraft(actionSheetMsg.text, actionSheetMsg.id); } : undefined}
+        onEdit={
+          actionSheetMsg?.role === "user"
+            ? () => {
+                if (!actionSheetMsg.text) return;
+                editFromSheetRef.current = true;
+                editMessage(actionSheetMsg.text, actionSheetMsg.id);
+              }
+            : undefined
+        }
+        // The sheet restores focus to More when it closes, which undid the
+        // edit's composer focus and closed the iOS keyboard (PR 3351 review).
+        finalFocus={() => {
+          if (!editFromSheetRef.current) return true;
+          editFromSheetRef.current = false;
+          return document.querySelector<HTMLTextAreaElement>("[data-chat-composer-input]") ?? true;
+        }}
         onShowReasoning={() => {
           if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);

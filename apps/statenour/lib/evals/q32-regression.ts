@@ -8,6 +8,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { classifyBannerCause } from "@/lib/observability/evidence-gate-calibration";
 
 export const Q32_DATASET_VERSION = "2026-09-29.v1";
 export const Q32_ANNOTATION_QUEUE_KEY = "nour-os-q32-regression-review";
@@ -64,10 +65,8 @@ export function isL2VerifierBanner(content: string | null | undefined): boolean 
   // These are the two action-honesty banners the existing calibration module
   // classifies as repairable L2/action-receipt outcomes. Known-truth banners
   // share the marker but are a different lane and must not pollute this cohort.
-  return (
-    first.includes("but no matching tool call fired") ||
-    first.includes("claimed action(s)")
-  );
+  const cause = classifyBannerCause(first);
+  return cause === "l2_action_claim" || cause === "action_receipt";
 }
 
 export function hasEvidenceGateBlock(tokenUsage: unknown): boolean {
