@@ -68,4 +68,28 @@ describe("findCompileEligibleConversations", () => {
     const ids = await findCompileEligibleConversations({ limit: 3 });
     expect(ids).toEqual(["conv-30", "conv-31", "conv-32"]);
   });
+
+  // Codex P2 on PR 3351: a fixed 500-row pre-filter cap repeats the same
+  // oldest page every night once the window outgrows it.
+  it("pages past the first page when the window is larger than one read", async () => {
+    const BIG = Array.from({ length: 600 }, (_, i) => ({
+      id: `big-${String(i).padStart(3, "0")}`,
+      updatedAt: new Date(NOW - (700 - i) * HOUR),
+    }));
+    const bigStale = new Set(BIG.slice(590).map((c) => c.id));
+    // Prisma cursor paging over orderBy [updatedAt asc, id asc].
+    h.convFindMany.mockImplementation(async (args: { take: number; cursor?: { id: string }; skip?: number }) => {
+      const start = args.cursor ? BIG.findIndex((c) => c.id === args.cursor!.id) + (args.skip ?? 0) : 0;
+      return BIG.slice(start, start + args.take);
+    });
+    h.memFindMany.mockImplementation(async (args: { where: { key: { in: string[] } } }) =>
+      args.where.key.in.map((key) => {
+        const id = key.replace(/^conv_/, "");
+        const conv = BIG.find((c) => c.id === id)!;
+        return { key, deletedAt: null, metadata: null, updatedAt: new Date(conv.updatedAt.getTime() + (bigStale.has(id) ? -HOUR : HOUR)) };
+      }),
+    );
+    const ids = await findCompileEligibleConversations({ limit: 10 });
+    expect(new Set(ids)).toEqual(bigStale);
+  });
 });
