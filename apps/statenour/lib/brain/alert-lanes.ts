@@ -32,6 +32,12 @@ export const ALERT_LANE = {
   update_spike_alert: "other",
 } as const satisfies Record<AlertCategory, AlertLane>;
 
+/**
+ * What /system/alerts lists when it opens: the window and per-category cap. The tower and the hub tile
+ * count the same view (countOpenAlerts in lib/services/brain-domain.ts), so the three agree (2026-10-29).
+ */
+export const ALERTS_DEFAULT_VIEW = { sinceDays: 30, limit: 50 } as const;
+
 /** A category the map does not know lands in Priority: an unclassified alert is never hidden. */
 export function alertLane(category: string): AlertLane {
   return (ALERT_LANE as Record<string, AlertLane>)[category] ?? "priority";

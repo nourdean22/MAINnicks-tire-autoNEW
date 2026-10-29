@@ -45,6 +45,7 @@ import { buildSystemHub } from "@/lib/services/system-hub";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { listPendingActions } from "@/lib/automation/approval-queue";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
+import { countLiveDecisions } from "@/lib/automation/live-decisions";
 import { countUnresolvedContradictions } from "@/lib/services/contradictions";
 import { listProposed } from "@/lib/services/commitments";
 import { getMit } from "@/lib/services/mit";
@@ -377,16 +378,17 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
   // authorizations as decisions waiting on the operator. Live = still
   // executable if approved now; expired = the window passed, needs a
   // re-request or a dismissal. Both stay visible; only live is "waiting".
+  // One count shared with the app badge and /system/actions (lib/automation/live-decisions.ts).
   const nowForExpiry = new Date(nowMs);
-  const expiredDecisions =
+  const decisions =
     pendingActions === null || approvalRequests === null
       ? null
-      : pendingActions.filter((a) => a.expired).length +
-        approvalRequests.filter((r) => isApprovalRequestExpired(r, nowForExpiry)).length;
-  const pendingDecisions =
-    pendingActions === null || approvalRequests === null || expiredDecisions === null
-      ? null
-      : pendingActions.length + approvalRequests.length - expiredDecisions;
+      : countLiveDecisions(
+          approvalRequests.map((r) => ({ expired: isApprovalRequestExpired(r, nowForExpiry) })),
+          pendingActions,
+        );
+  const expiredDecisions = decisions?.expired ?? null;
+  const pendingDecisions = decisions?.live ?? null;
 
   const findingsCount = rescue?.findings.length ?? 0;
 

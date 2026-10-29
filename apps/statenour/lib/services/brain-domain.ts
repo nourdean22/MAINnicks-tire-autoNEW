@@ -21,7 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { hourET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
-import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
+import { ALERT_CATEGORIES, ALERTS_DEFAULT_VIEW, alertLane } from "@/lib/brain/alert-lanes";
 import { LEAVE_REASONS, MAX_DWELL_MS, type LeaveReason } from "@/lib/brain/page-dwell";
 import { getAlertSuppression, isAlertSuppressed } from "@/lib/brain/alert-suppression";
 import {
@@ -142,6 +142,22 @@ export async function buildActiveAlerts(args: {
     ),
     alerts: grouped,
   };
+}
+
+/**
+ * The open-alert count /system/alerts shows on open (ALERTS_DEFAULT_VIEW, dismissals and mutes applied),
+ * read by the /system tower (buildSystemHealth) and the hub Alerts tile (buildSystemHub). Throws when the
+ * read fails, so each caller reports unknown, never 0.
+ */
+export async function countOpenAlerts(): Promise<{ open: number; priority: number }> {
+  const view = await buildActiveAlerts(ALERTS_DEFAULT_VIEW);
+  let open = 0;
+  let priority = 0;
+  for (const [category, n] of Object.entries(view.counts)) {
+    open += n;
+    if (alertLane(category) === "priority") priority += n;
+  }
+  return { open, priority };
 }
 
 // ──────────────── brain maturity ────────────────

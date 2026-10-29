@@ -215,7 +215,10 @@ export interface SystemHealthView {
   status: string;
   db: { connected: boolean; latency_ms: number };
   tasks: { inbox: number; ready: number; doing: number; done: number; total: number };
-  alerts: MetricResult<{ unresolved: number }>;
+  /** What /system/alerts lists (countOpenAlerts): `unresolved` = open rows, `priority` = the Priority lane. */
+  alerts: MetricResult<{ unresolved: number; priority: number }>;
+  /** Unacked drift-recovery coach events: the drift signal NourStateProvider reads (lib/state/health-feed.ts). */
+  drift: MetricResult<{ unresolved: number }>;
   commitments: { active: number };
   /** Same split as DiagnosticsView: ERROR and never-reported UNKNOWN are not offline. */
   devices: { online: number; offline: number; error: number; notReporting: number; total: number };
@@ -271,7 +274,17 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
     // False-green-prone reads: each MEASURED. A failure becomes `unavailable`
     // (distinct from a real zero) instead of the old silent .catch(()=>0/[]/null),
     // so the UI can render "unknown" and the headline can reflect the failure.
+    // The count /system/alerts lists (2026-10-29 sync audit, finding 1). Until then this counted
+    // unacked drift-recovery coach events, which the Alerts page never shows (they reach the operator
+    // through the coach banner), so the tower said NOMINAL while priority alerts were open.
     const alertsMetric = measure("alerts", async () => {
+      const { countOpenAlerts } = await import("@/lib/services/brain-domain");
+      const { open, priority } = await countOpenAlerts();
+      return { unresolved: open, priority };
+    });
+
+    // The drift signal, kept apart from alerts: what `alerts` counted before 2026-10-29.
+    const driftMetric = measure("drift", async () => {
       const rows = await prisma.brainMemory.findMany({
         where: { category: "coach_event", key: { startsWith: "coach:drift-recovery:" } },
         select: { metadata: true },
@@ -325,10 +338,11 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       };
     });
 
-    const [[db, taskCounts, commitmentCount, deviceCounts], alerts, radar, morningBrief, autonomic, inngestFunctions] =
+    const [[db, taskCounts, commitmentCount, deviceCounts], alerts, drift, radar, morningBrief, autonomic, inngestFunctions] =
       await Promise.all([
         hard,
         alertsMetric,
+        driftMetric,
         radarMetric,
         morningBriefMetric,
         autonomicMetric,
@@ -359,6 +373,7 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
     // succeeded. A swallowed sub-read can no longer read "healthy" (audit #4).
     const { status, degradedSources } = deriveHealthHeadline(db.connected, [
       alerts,
+      drift,
       radar,
       morningBrief,
       autonomic,
@@ -369,6 +384,7 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       db: { connected: db.connected, latency_ms: db.latency_ms },
       tasks,
       alerts,
+      drift,
       commitments: { active: commitmentCount },
       devices,
       radar,

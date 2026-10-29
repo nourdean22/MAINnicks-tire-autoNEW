@@ -6,8 +6,8 @@
  * Pending-approval count on the installed PWA's home-screen icon via
  * the Badge API (navigator.setAppBadge). The queue is invisible when
  * the app is closed; the badge is the $0, zero-UI surface for it —
- * and the count matches the header pill (home-identity-header.tsx:32:
- * ApprovalRequest pending + AutonomousAction queue rows).
+ * and the count matches Home's approvals line and /system/actions (live
+ * ApprovalRequest rows + live AutonomousAction queue rows, countLiveDecisions).
  *
  * Renders nothing. Feature-detected: iOS 16.4+ standalone PWAs support
  * setAppBadge (notification permission required on iOS — when it's not
@@ -18,6 +18,7 @@
 
 import { useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { countLiveDecisions } from "@/lib/automation/live-decisions";
 
 type BadgeNavigator = Navigator & {
   setAppBadge?: (count?: number) => Promise<void>;
@@ -41,7 +42,8 @@ export function AppBadge() {
   // enough that filtering on them directly trips TS2589.
   const requests: ReadonlyArray<{ expired?: boolean }> = pendingQ.data ?? [];
   const actions: ReadonlyArray<{ expired?: boolean }> = approvalsQ.data?.rows ?? [];
-  const count = requests.filter((r) => !r.expired).length + actions.filter((r) => !r.expired).length;
+  // The same live count Home and /system/actions show (lib/automation/live-decisions.ts).
+  const count = countLiveDecisions(requests, actions).live;
 
   useEffect(() => {
     const nav = navigator as BadgeNavigator;

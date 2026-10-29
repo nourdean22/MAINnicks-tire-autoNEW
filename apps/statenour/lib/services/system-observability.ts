@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { liveApprovalRequestWhere } from "@/lib/automation/live-decisions";
 import {
   computeBurnRateForecast,
   costByProvider,
@@ -175,7 +176,8 @@ export async function buildCockpitStats() {
       _avg: { feedbackScore: true },
     }),
     prisma.approvalRequest.count({
-      where: { status: "pending_approval" },
+      // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
+    where: liveApprovalRequestWhere(),
     }),
     prisma.agentTrace.findMany({
       orderBy: { startedAt: "desc" },

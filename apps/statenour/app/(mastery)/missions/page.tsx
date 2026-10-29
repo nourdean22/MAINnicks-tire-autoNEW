@@ -43,6 +43,7 @@ import { DeckDecide } from "@/components/missions/deck-decide";
 import { DeckLanes } from "@/components/missions/deck-lanes";
 import { DeckRhythms } from "@/components/missions/deck-rhythms";
 import { DeckEvidence } from "@/components/missions/deck-evidence";
+import { ReadFailed } from "@/components/ui/read-failed";
 
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { ExecutionPanel } from "@/components/missions/execution-panel";
@@ -323,9 +324,9 @@ function MissionsPageInner() {
             {deckQuery.isLoading ? (
               <ShimmerSkeleton className="h-40 rounded-surface" />
             ) : deckQuery.isError ? (
-              <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
-                Deck unreadable: the read failed, so the state is unknown, not empty. Pull to refresh.
-              </p>
+              <ReadFailed onRetry={() => void deckQuery.refetch()}>
+                Deck unreadable: the read failed, so the state is unknown, not empty.
+              </ReadFailed>
             ) : (
               deck && (
                 <DeckNextMove
@@ -429,6 +430,7 @@ function MissionsPageInner() {
                 onDeleteTask={actions.handleDeleteTask}
                 onUnblock={handleUnblock}
                 unmeasured={deck.unmeasured}
+                onRetry={() => void deckQuery.refetch()}
               />
             )}
 
@@ -466,9 +468,14 @@ function MissionsPageInner() {
               </div>
               {/* Unknown is not empty: a failed task/mission read never renders as a cleared board. */}
               {boardReadState === "unreadable" ? (
-                <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
-                  Board unreadable: the reads failed, so the state is unknown, not empty. Pull to refresh.
-                </p>
+                <ReadFailed
+                  onRetry={() => {
+                    void tasksQuery.refetch();
+                    void missionsQuery.refetch();
+                  }}
+                >
+                  Board unreadable: the reads failed, so the state is unknown, not empty.
+                </ReadFailed>
               ) : boardReadState === "loading" ? (
                 <div role="status" className="space-y-2" aria-busy aria-label="loading the board">
                   <ShimmerSkeleton className="h-12 rounded-surface" />
@@ -501,6 +508,7 @@ function MissionsPageInner() {
                 tasksState={tasksQuery.isError ? "error" : tasksQuery.data === undefined ? "loading" : "ready"}
                 liveIds={liveIds}
                 onSnoozeTask={actions.handleSnoozeTask}
+                onRetry={() => void tasksQuery.refetch()}
               />
             )}
 

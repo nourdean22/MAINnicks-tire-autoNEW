@@ -31,6 +31,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { liveApprovalRequestWhere } from "@/lib/automation/live-decisions";
 import { sendTelegram } from "@/lib/services/telegram";
 
 /**
@@ -264,7 +265,8 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
   const top = set?.questions?.[0];
   
   const pendingApprovalsCount = await prisma.approvalRequest.count({
-    where: { status: "pending_approval" },
+    // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
+    where: liveApprovalRequestWhere(),
   }).catch((err) => {
     logError("brain.proactive-pushes", err, { fn: "fireMorningPush.countApprovals" });
     return 0;
@@ -704,7 +706,8 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
     where: { approval: "pending" },
   });
   const pendingSystemCount = await prisma.approvalRequest.count({
-    where: { status: "pending_approval" },
+    // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
+    where: liveApprovalRequestWhere(),
   }).catch((err) => {
     logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.countApprovals" });
     return 0;

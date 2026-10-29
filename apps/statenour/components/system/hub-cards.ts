@@ -44,6 +44,8 @@ export interface HubPayload {
   devices: { online: number; offline: number; total: number; measured?: boolean };
   pulse: { priorityCount: number; measured?: boolean };
   ai: { calls24h: number; costCents7d: number; measured?: boolean };
+  /** What /system/alerts lists (countOpenAlerts); optional for an older payload. */
+  alerts?: { open: number; priority: number; measured?: boolean };
   generatedAt: string;
 }
 
@@ -113,7 +115,15 @@ export const CARDS: HubCard[] = [
     icon: AlertCircle,
     group: "health",
     description: "Cross-category alerts inspector · filter by category",
-    chip: () => ({ label: "browse", severity: "info" }),
+    // The same open count as the /system tower and the Alerts page (countOpenAlerts, 2026-10-29).
+    chip: (d) => {
+      if (!d) return NOT_READ_CHIP;
+      if (!d.alerts || d.alerts.measured === false) return UNMEASURED_CHIP;
+      const { open, priority } = d.alerts;
+      if (priority > 0) return { label: `${open} open · ${priority} priority`, severity: "critical" };
+      if (open > 0) return { label: `${open} open`, severity: "warning" };
+      return { label: "none open", severity: "healthy" };
+    },
   },
   {
     href: "/system/actions",

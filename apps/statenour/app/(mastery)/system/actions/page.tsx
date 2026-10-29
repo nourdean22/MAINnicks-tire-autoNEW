@@ -39,6 +39,7 @@ import { offlineCopy, readState } from "@/lib/query-state";
 // AbortController the prior code juggled is React Query's job now.
 // The 30s `cache:"no-store"` poll maps to `refetchInterval`.
 import { trpc } from "@/lib/trpc/client";
+import { countLiveDecisions } from "@/lib/automation/live-decisions";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 import { approveTone } from "./approve-tone";
 import { toast } from "sonner";
@@ -333,7 +334,12 @@ function ActionsPageInner() {
     });
   };
 
-  const pendingCount = approvals.length;
+  // The same live count Home and the app badge show (lib/automation/live-decisions.ts): live requests plus
+  // live autonomous actions; expired rows stay listed but are not waiting on you.
+  const decisions = countLiveDecisions(approvals, autoQueue.data?.rows ?? []);
+  const pendingCount = decisions.live;
+  // This panel lists requests only; the autonomous queue below carries its own live/expired line.
+  const liveRequests = countLiveDecisions(approvals, []).live;
 
   return (
     <StandardPage
@@ -342,7 +348,7 @@ function ActionsPageInner() {
       descriptionVisibility="always"
       description={
         feed
-          ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} pending approval` : ""}`
+          ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} live` : ""}${decisions.expired > 0 ? `, ${decisions.expired} expired` : ""}`
           : actionsQuery.isError
             ? "unknown: read failed"
             : actionsState === "offline"
@@ -375,9 +381,9 @@ function ActionsPageInner() {
             <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
               pending action queue
               {/* A failed read never shows 0: the last count if a refetch failed, a dash if nothing was ever read. */}
-              {(approvalsQuery.isError || pendingCount > 0) && (
+              {(approvalsQuery.isError || liveRequests > 0) && (
                 <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-mono font-normal text-amber-200">
-                  {approvalsQuery.isError && !approvalsQuery.data ? "-" : pendingCount}
+                  {approvalsQuery.isError && !approvalsQuery.data ? "-" : liveRequests}
                 </span>
               )}
             </h2>

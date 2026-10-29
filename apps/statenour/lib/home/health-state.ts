@@ -16,6 +16,8 @@
  * (hub-grid was the first).
  */
 
+import { errorSeverity } from "@/lib/system/error-thresholds";
+
 export type ChipState = "unknown" | "healthy" | "degraded" | "broken";
 
 /** The slice of the system.hub payload this verdict actually reads. */
@@ -36,20 +38,20 @@ export function homeHealthState(
   ) {
     return { state: "unknown", detail: "sections unmeasured — db quota or scan failure" };
   }
-  // fatal24h counts level='error' (no writer ever emits 'fatal'; the old
-  // >0 branch could never fire). "Needs attention" on the HOME page means
-  // clearly elevated: >=40/24h is ~3x the live 2026-08-04 baseline of
-  // ~12.6 errors/day. A bare >0 would paint most ordinary days red.
-  if (d.errors.fatal24h >= 40) {
+  // fatal24h counts level='error' (no writer ever emits 'fatal'). Thresholds come from the one table
+  // the /system tower also reads (lib/system/error-thresholds.ts), so both pages give the same verdict.
+  const errors = errorSeverity(d.errors.fatal24h);
+  if (errors === "critical") {
     return {
       state: "broken",
-      detail: `${d.errors.fatal24h} errors in 24h — well above baseline`,
+      detail: `${d.errors.fatal24h} errors in 24h, well above baseline`,
     };
   }
-  if (d.crons.silent > 0 || d.devices.offline > 0) {
+  if (errors === "elevated" || d.crons.silent > 0 || d.devices.offline > 0) {
     return {
       state: "degraded",
       detail: [
+        errors === "elevated" ? `${d.errors.fatal24h} errors in 24h, above baseline` : null,
         d.crons.silent > 0 ? `${d.crons.silent} silent cron${d.crons.silent === 1 ? "" : "s"}` : null,
         d.devices.offline > 0 ? `${d.devices.offline} device${d.devices.offline === 1 ? "" : "s"} offline` : null,
       ]
