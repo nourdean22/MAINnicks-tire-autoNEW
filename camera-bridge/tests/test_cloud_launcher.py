@@ -714,10 +714,11 @@ class PrimaryTest(unittest.TestCase):
             self.assertEqual(log.count(("start", "edge")), 1)
 
     def test_primary_edge_stall_with_a_young_relay_restarts_the_edge_in_place(self):
-        seen = []
+        seen, relay_alive = [], []
 
         def script(n, procs, _e):
             seen.append(n)
+            relay_alive.append(procs["relay"].code is None)
             if n == 2:
                 procs["edge"].code = run_cloud.EDGE_STALL_EXIT
 
@@ -725,6 +726,7 @@ class PrimaryTest(unittest.TestCase):
         self.assertEqual((code, seen[-1]), (3, 39))          # only the tick budget ended it
         self.assertEqual(log.count(("start", "edge")), 2)
         self.assertEqual(log.count(("start", "relay")), 1)
+        self.assertTrue(all(relay_alive))                    # the primary's login is never cut
 
     def test_primary_edge_stall_at_exactly_the_fast_exit_age_ends_the_run(self):
         # The boundary: one tick younger is still a login in progress; RELAY_FAST_EXIT_TICKS is not.
