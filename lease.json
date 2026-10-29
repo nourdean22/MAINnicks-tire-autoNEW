@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/admin-opportunities-path-2026-10-23",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-admin-opportunities-path (manager 0900c49a)",
   "claimedAt": "2026-10-23T11:01:16.247Z",
   "expiresAt": "2026-10-23T23:01:16.247Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-29T18:25:56.521Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "b175c1015983ed7fb2ff7b71f78de6b645b45c4d",
+  "releasedBy": "96b6b177-26e3-41fd-9d21-83642e607d61",
+  "foreignReleaseReason": null
 }
