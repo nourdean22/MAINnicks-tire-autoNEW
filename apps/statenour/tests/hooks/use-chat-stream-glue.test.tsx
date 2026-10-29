@@ -38,6 +38,7 @@ const h = vi.hoisted(() => ({
   chat: {} as Record<string, unknown>,
   transport: undefined as unknown,
   stall: undefined as unknown,
+  stallStatus: "ok" as string,
 }));
 vi.mock("@ai-sdk/react", () => ({ useChat: () => h.chat }));
 // The real isResumedMessage: the Retry gate (turn-side-effect.ts) reads it.
@@ -51,7 +52,7 @@ vi.mock("@/hooks/chat/use-chat-transport", async (importOriginal) => ({
 vi.mock("@/hooks/chat/use-chat-stall", () => ({
   useChatStall: (opts: unknown) => {
     h.stall = opts;
-    return { stallStatus: "ok" };
+    return { stallStatus: h.stallStatus };
   },
 }));
 vi.mock("@/hooks/chat/use-streaming-error-guard", () => ({ useStreamingErrorGuard: () => {} }));
@@ -94,6 +95,7 @@ function settle() {
 
 beforeEach(() => {
   setMessages.mockReset();
+  h.stallStatus = "ok";
   h.chat = {
     status: "streaming",
     messages: [user, reply],
@@ -2571,5 +2573,102 @@ describe("stall abort reattaches to a turn the server still holds", () => {
     stallFires();
     expect(h.chat.resumeStream).not.toHaveBeenCalled();
     expect(stuckToasts()).toHaveLength(1);
+  });
+});
+
+// 2026-10-29 (Nour's recordings, 21:35Z) · since the stream-first change the server streams the
+// draft, then verifies for 45-90 s before it sends message.persisted. A stream that ends in that
+// window (iOS drops the fetch, Stop, a proxy) never got the stored reply: the bubble kept the raw
+// step drafts or no text at all, for good. The settle now reads the saved row for this turn.
+describe("a turn that settles without message.persisted reads its saved reply", () => {
+  const savedRow = (trace: string, content = "stored reply") => ({ id: `db-${trace}`, role: "assistant", content, tokenUsage: { traceId: trace } });
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("binds the saved row of this turn once it exists", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValueOnce([user]).mockResolvedValue([user, savedRow("T1")]);
+    hookOptions = { readSavedTurn };
+    render();
+    settle();
+    expect(setMessages, "nothing to bind yet").not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+
+    expect(readSavedTurn).toHaveBeenCalledWith("c1");
+    expect(setMessages).toHaveBeenCalledTimes(1);
+    const bound = (setMessages.mock.calls[0][0] as (m: Msg[]) => Msg[])([user, reply]);
+    expect(bound.at(-1)).toMatchObject({ id: "db-T1", parts: [{ type: "text", text: "stored reply" }] });
+    const reads = readSavedTurn.mock.calls.length;
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn, "stops reading once bound").toHaveBeenCalledTimes(reads);
+  });
+
+  it("never binds another turn's row", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, savedRow("T0")]);
+    hookOptions = { readSavedTurn };
+    render();
+    settle();
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(setMessages).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: a turn that got message.persisted reads nothing", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, savedRow("T1")]);
+    hookOptions = { readSavedTurn };
+    render();
+    act(() => transport().onMessagePersisted({ id: "db-1", content: "stored text", traceId: "T1" }));
+    settle();
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn).not.toHaveBeenCalled();
+    expect(setMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it("a new send cancels the read for the old turn", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, savedRow("T1")]);
+    hookOptions = { readSavedTurn };
+    render();
+    settle();
+    act(() => void ctl.sendText("next"));
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn).not.toHaveBeenCalled();
+  });
+
+  it("a stream that ended in an error is left to Retry: no settle read", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, savedRow("T1")]);
+    hookOptions = { readSavedTurn };
+    render();
+    h.chat.status = "error";
+    h.chat.error = new Error("stream failed");
+    render();
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn).not.toHaveBeenCalled();
+  });
+
+  it("a private turn reads nothing", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, savedRow("T1")]);
+    hookOptions = { readSavedTurn };
+    act(() => useChatUiStore.setState({ privateMode: true }));
+    render();
+    settle();
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-10-29 · the verify tail after the draft is 45-90 s of silence on every gated turn, so the
+// 30 s "warn" painted "Chat degraded" on healthy turns. Only a real stall (the abort) says so.
+describe("the stall warning does not mark the chat degraded", () => {
+  it("warn leaves the connection alone", () => {
+    useChatUiStore.setState({ connection: "online" });
+    h.stallStatus = "warn";
+    render();
+    expect(useChatUiStore.getState().connection).toBe("online");
+  });
+
+  it("CONTROL: a stalled turn still marks it degraded", () => {
+    useChatUiStore.setState({ connection: "online" });
+    h.stallStatus = "stalled";
+    render();
+    expect(useChatUiStore.getState().connection).toBe("degraded");
   });
 });
