@@ -254,8 +254,8 @@ class EdgeStallDuringRelayHoldTest(unittest.TestCase):
 
         def sleep(_s):
             ticks["n"] += 1
-            if not primary and ticks["n"] == 1:
-                open(elected, "w").close()                       # the Railway copy is elected
+            if not primary and ticks["n"] >= 1 and "edge" in procs and not os.path.exists(elected):
+                open(elected, "w").close()                       # the Railway copy is (re-)elected
             relay = procs.get("relay")
             if relay is not None and relay.code is None and ticks["n"] - born["relay"] >= 5:
                 relay.code = 1                                   # login refused, every time
@@ -276,6 +276,54 @@ class EdgeStallDuringRelayHoldTest(unittest.TestCase):
                 gaps = [b - a for a, b in zip(relays, relays[1:])]
                 self.assertGreaterEqual(gaps[2], run_cloud.RELAY_LOGIN_HOLD_TICKS, relays)
 
+
+    def test_only_the_stall_exit_is_forgiven_while_the_relay_waits(self):
+        # Codex P2 on #3342: a config failure (2) or any other exit stays fatal during the hold.
+        log, procs, ticks = [], {}, {"n": 0}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+
+        def start(name):
+            procs[name] = _Proc(name, [])
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            if ticks["n"] == 3:
+                procs["relay"].code = 1
+            if ticks["n"] == 10:
+                procs["edge"].code = 2
+
+        code = run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=500, primary=True, run_edge=True)
+        self.assertEqual((code, ticks["n"]), (2, 10))
+
+    def test_a_standby_must_win_its_election_again_before_the_held_relay_logs_in(self):
+        # Codex P1 on #3342: a primary may have taken the lease while the standby's edge restarted.
+        procs, born, relays, ticks = {}, {}, [], {"n": 0}
+        elected = os.path.join(tempfile.mkdtemp(), "elected")
+        reelected_at = 4000                      # well past the 30-minute hold
+
+        def start(name):
+            if name == "relay":
+                relays.append(ticks["n"])
+            procs[name] = _Proc(name, [])
+            born[name] = ticks["n"]
+            return procs[name]
+
+        def sleep(_s):
+            ticks["n"] += 1
+            n = ticks["n"]
+            if n == 1 or n == reelected_at:
+                open(elected, "w").close()
+            relay = procs.get("relay")
+            if relay is not None and relay.code is None and n - born["relay"] >= 5:
+                relay.code = 1
+            edge = procs.get("edge")
+            if edge is not None and edge.code is None and n - born["edge"] >= self.STALL:
+                edge.code = 3
+
+        run_cloud.supervise(start, elected_file=elected, sleep=sleep, max_ticks=reelected_at + 20, primary=False, run_edge=True)
+        self.assertFalse([t for t in relays if run_cloud.RELAY_LOGIN_HOLD_TICKS < t < reelected_at], relays)
+        self.assertTrue([t for t in relays if t >= reelected_at], relays)
 
 class PrimaryTest(unittest.TestCase):
     """The front-desk PC (p1) runs the same launcher with --primary: it IS the camera's main
