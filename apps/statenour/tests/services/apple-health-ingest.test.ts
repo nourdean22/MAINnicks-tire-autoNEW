@@ -64,6 +64,17 @@ describe("HAE payload transform (pure)", () => {
     expect(v).toBeCloseTo(6.0, 5);
   });
 
+  it("a positive asleep total beats a partial stage sum when totalSleep is absent", () => {
+    expect(hours(sleepOnly({ asleep: 6, core: 3 }), "sleep_asleep_hours")).toEqual([6]);
+  });
+
+  it("a date-only aggregate date stays on its own ET calendar day", () => {
+    const s = transformHaePayload({
+      data: { metrics: [{ name: "sleep_analysis", units: "hr", data: [{ date: "2026-08-02", totalSleep: 7 }] }] },
+    });
+    expect(datesTouchedEt(s)).toEqual(["2026-08-02"]);
+  });
+
   it("a night with no sleep measured is UNKNOWN (no sample), never 0 hours", () => {
     expect(sleepOnly({ totalSleep: 0, asleep: 0, core: 0, deep: 0, rem: 0, inBed: 0 })).toEqual([]);
   });
