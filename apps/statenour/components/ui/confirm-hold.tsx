@@ -134,7 +134,7 @@ export function ConfirmHold({
       onKeyDown={onKeyDown}
       disabled={disabled}
       className={cn(
-        "relative flex items-center gap-2 h-9 px-3 rounded-control border text-[13px] font-medium transition-colors duration-[var(--motion-state)] select-none touch-none",
+        "relative flex items-center gap-2 min-h-[44px] px-3 rounded-control border text-[13px] font-medium transition-colors duration-[var(--motion-state)] select-none touch-none",
         c.border,
         c.text,
         c.bg,

@@ -105,6 +105,22 @@ describe("/system/inbox: conflicting first, the rest behind Other", () => {
     expect(h.mutateAsync).toHaveBeenCalledWith({ id: "i2", verdict: "coexist" });
   });
 
+  // 2026-10-29 sync audit, finding 6: Overwrite replaces a saved memory, so it asks first, in the DOM.
+  it("Overwrite asks first: Cancel writes nothing, Overwrite in the dialog sends the verdict", async () => {
+    render();
+    const inDialog = (name: RegExp) =>
+      Array.from(document.body.querySelectorAll('[role="dialog"] button, [role="alertdialog"] button')).find((b) =>
+        name.test(b.textContent ?? ""),
+      ) as HTMLButtonElement | undefined;
+    await act(async () => button(/^Overwrite Conflicting$/)!.click());
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+    await act(async () => inDialog(/^Cancel$/)!.click());
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+    await act(async () => button(/^Overwrite Conflicting$/)!.click());
+    await act(async () => inDialog(/^Overwrite$/)!.click());
+    expect(h.mutateAsync).toHaveBeenCalledWith({ id: "i2", verdict: "overwrite" });
+  });
+
   // Codex P2 on #3161: with only Other items the detail pane opened on a hidden item, showing its
   // raw text and its Reject / Coexist verbs while Other was still collapsed.
   it("only-Other inbox: no detail until Other is opened and an item tapped; collapsing clears it", () => {

@@ -21,7 +21,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
-import { Panel } from "@/components/panel";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -302,7 +301,7 @@ export default function AlertsInspectorPage() {
       className="px-4 py-6"
     >
 
-      <Panel className="mt-4">
+      <section className="mt-4 border-l-2 border-edge-strong pl-4 sm:pl-5">
         {/* Controls row */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* W5b self-review: no answer yet (or a failed read) has no count; never print 0. */}
@@ -339,7 +338,7 @@ export default function AlertsInspectorPage() {
         </div>
 
         {/* Window selector */}
-        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className="font-mono text-[11px] text-fg-tertiary">
             Window:
           </span>
@@ -349,7 +348,7 @@ export default function AlertsInspectorPage() {
               type="button"
               onClick={() => setSinceDays(opt.v)}
               className={
-                "rounded-full border px-2 py-0.5 text-[11px] font-mono transition-colors " +
+                "inline-flex min-h-[44px] items-center rounded-full border px-3 text-[12px] font-mono transition-colors " +
                 (sinceDays === opt.v
                   ? "border-edge-strong bg-surface-interactive text-fg"
                   : "border-edge-subtle bg-canvas text-fg-tertiary hover:text-fg")
@@ -377,7 +376,7 @@ export default function AlertsInspectorPage() {
         </div>
 
         {/* Category filter chips */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="font-mono text-[11px] text-fg-tertiary">
             Categories:
           </span>
@@ -393,7 +392,7 @@ export default function AlertsInspectorPage() {
                 onDoubleClick={() => selectOnly(cat)}
                 title={`Click to toggle. Double-click to isolate.`}
                 className={
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-mono transition-colors " +
+                  "inline-flex min-h-[44px] items-center gap-1 rounded-full border px-3 text-[12px] font-mono transition-colors " +
                   (active
                     ? meta.tint
                     : "border-edge-subtle bg-canvas text-fg-tertiary hover:text-fg")
@@ -413,15 +412,15 @@ export default function AlertsInspectorPage() {
             <button
               type="button"
               onClick={selectAll}
-              className="ml-2 rounded-full border border-emerald-500/40 px-2 py-0.5 text-[11px] font-mono text-emerald-300 hover:bg-emerald-500/10"
+              className="ml-2 inline-flex min-h-[44px] items-center rounded-full border border-emerald-500/40 px-3 text-[12px] font-mono text-emerald-300 hover:bg-emerald-500/10"
             >
               Show all
             </button>
           )}
         </div>
-      </Panel>
+      </section>
 
-      <Panel className="mt-4">
+      <section className="mt-4 border-l-2 border-edge-strong pl-4 sm:pl-5">
         {/* W5b: one state block. A failed read (stale data kept by React Query included) is
             unknown with a Retry, never "no alerts" (skill empty-vs-error). */}
         {readFailed && (
@@ -494,7 +493,7 @@ export default function AlertsInspectorPage() {
             )}
           </div>
         )}
-      </Panel>
+      </section>
       {dismissing && (
         <AlertDismissSheet
           alert={{

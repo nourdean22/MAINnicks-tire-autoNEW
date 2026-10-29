@@ -1,7 +1,7 @@
 /**
  * UI v3 ratchets (Wave 0, 2026-10-15, docs/design/ui-v3/PLAN.md).
  *
- * Eight UI-grammar counters over the rendered source (six from Wave 0, two from bdnick wave F), with a per-file baseline in
+ * Nine UI-grammar counters over the rendered source (six from Wave 0, two from bdnick wave F, one from W5c), with a per-file baseline in
  * ui-v3-ratchets.baseline.json. W0 changes no class name anywhere: the baseline RECORDS today's
  * violations, and the test fails when a file goes above its number, when a file the baseline has
  * never seen has any, when a total rises, or when the baseline names a file the scan no longer
@@ -56,6 +56,8 @@
  *                  node_modules/tailwindcss/theme.css, and a test fails when Tailwind ships a palette none
  *                  of them names. SYSTEM.md:31 also calls `text-zinc-400` off-grammar; neutrals are a token
  *                  question, not a hue one, and are not counted here.
+ *   panel          (W5c, 2026-10-29) a `<Panel>` element (components/panel.tsx), the second boxed-card primitive:
+ *                  the System detail pages moved to ruled sections, so a new Panel is a regression.
  *   glassCard      (wave F) a `<GlassCard>` element (components/ui/glass-card.tsx) that renders the solid glass
  *                  panel: no `ruled` prop, or `ruled` set to anything but bare `ruled` or `ruled={true}`. The
  *                  ruled form (glass-card.tsx:8-11: a left rule, no glass, no radius) is the allowed one.
@@ -124,12 +126,12 @@ const BASELINE_PATH = join(__dirname, "ui-v3-ratchets.baseline.json");
 
 /* ----------------------------- the instrument ----------------------------- */
 
-export const COUNTERS = ["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput", "offGrammarHue", "glassCard"] as const;
+export const COUNTERS = ["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput", "offGrammarHue", "glassCard", "panel"] as const;
 export type Counter = (typeof COUNTERS)[number];
 export type Counts = Record<Counter, number>;
 /** App-root-relative POSIX path -> counts. */
 export type Scan = Record<string, Counts>;
-export const zero = (): Counts => ({ uppercase: 0, emDash: 0, emoji: 0, transitionAll: 0, slowDuration: 0, smallInput: 0, offGrammarHue: 0, glassCard: 0 });
+export const zero = (): Counts => ({ uppercase: 0, emDash: 0, emoji: 0, transitionAll: 0, slowDuration: 0, smallInput: 0, offGrammarHue: 0, glassCard: 0, panel: 0 });
 
 const EM_DASH = String.fromCharCode(0x2014);
 const ZWJ = 0x200d;
@@ -431,6 +433,7 @@ export function scanSource(text: string, tsx: boolean): Counts {
     } else if (ts.isJsxOpeningLikeElement(n)) {
       if (isSmallInput(n, consts, sf)) c.smallInput++;
       if (isSolidGlassCard(n, sf)) c.glassCard++;
+      if (n.tagName.getText(sf) === "Panel") c.panel++;
     }
     ts.forEachChild(n, visit);
   })(sf);
@@ -954,6 +957,17 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
       "export const m = () => <p>{/* <GlassCard> */}ok</p>;", // 0 a comment
     ].join("\n"),
   },
+  "components/planted-panel.tsx": {
+    counts: { panel: 3 },
+    src: [
+      "export const a = () => <Panel>a</Panel>;", // 1
+      'export const b = () => <Panel className="p-4" />;', // 2 self-closing
+      "export const c = () => <div><Panel>c</Panel></div>;", // 3 nested
+      "export const d = () => <PanelHeader />;", // 0 another component
+      'export const e = "<Panel>";', // 0 a string is not an element
+      "export const f = () => <p>{/* <Panel> */}ok</p>;", // 0 a comment
+    ].join(String.fromCharCode(10)),
+  },
   "lib/mastery/config.ts": { counts: { emoji: 1 }, src: 'export const icon = "<GRIN>";' },
   "lib/floating-home/smart-now.ts": { counts: { emDash: 1 }, src: 'export const line = "a<D>b";' },
 };
@@ -970,7 +984,7 @@ const CLEAN: Record<string, string> = {
     "export const f = 'digits 123, hash #, star *, one 1';", // a bare digit is not a keycap
   ].join("\n"),
   "components/comments-only.tsx": [
-    "// uppercase <D> <GRIN> transition-all duration-500 text-purple-500 <GlassCard>",
+    "// uppercase <D> <GRIN> transition-all duration-500 text-purple-500 <GlassCard> <Panel>",
     "/* uppercase <D> <GRIN> transition: all duration-[900ms] bg-blue-500 <GlassCard /> */",
     "export const a = () => <p>{/* uppercase <D> <GRIN> transition-all duration-700 text-pink-300 <GlassCard> */}ok</p>;",
   ].join("\n"),
@@ -1002,8 +1016,8 @@ const withZeros = (counts: Partial<Counts>): Counts => ({ ...zero(), ...counts }
 describe("the instrument: every counter sees its planted violation (positive controls)", () => {
   const tree = () => makeTree({ ...plantedFiles(), ...CLEAN, ...NOT_SCANNED });
 
-  it("lists exactly eight counters", () => {
-    expect([...COUNTERS]).toEqual(["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput", "offGrammarHue", "glassCard"]);
+  it("lists exactly nine counters", () => {
+    expect([...COUNTERS]).toEqual(["uppercase", "emDash", "emoji", "transitionAll", "slowDuration", "smallInput", "offGrammarHue", "glassCard", "panel"]);
   });
 
   for (const [rel, planted] of Object.entries(PLANTED)) {
@@ -1024,7 +1038,7 @@ describe("the instrument: every counter sees its planted violation (positive con
     const expected = zero();
     for (const p of Object.values(PLANTED)) for (const k of COUNTERS) expected[k] += p.counts[k] ?? 0;
     expect(sumTotals(scanTree(tree()))).toEqual(expected);
-    expect(expected).toEqual({ uppercase: 15, emDash: 18, emoji: 15, transitionAll: 39, slowDuration: 7, smallInput: 17, offGrammarHue: 28, glassCard: 6 });
+    expect(expected).toEqual({ uppercase: 15, emDash: 18, emoji: 15, transitionAll: 39, slowDuration: 7, smallInput: 17, offGrammarHue: 28, glassCard: 6, panel: 3 });
   });
 });
 
@@ -1273,6 +1287,7 @@ describe("the walker", () => {
       "components/planted-glass.tsx",
       "components/planted-hue.tsx",
       "components/planted-input.tsx",
+      "components/planted-panel.tsx",
       "components/planted-transition.tsx",
       "components/planted-uppercase.tsx",
       "features/planted-duration.tsx",

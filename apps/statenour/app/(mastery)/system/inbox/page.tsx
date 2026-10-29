@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils/cn";
 import { trpc } from "@/lib/trpc/client";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+
+// UI v3 W5c: 44 px verbs (iOS tap floor), one shape for all three.
+const VERB =
+  "inline-flex min-h-[44px] items-center rounded-control px-4 text-[13px] font-semibold transition-colors duration-[var(--motion-state)] disabled:opacity-50";
 
 interface ExtractedClaim {
   id?: string;
@@ -55,11 +61,26 @@ export default function MemoryInboxPage() {
   const readFailed = quarantinedQuery.isError && items.length === 0;
   const notYetRead = !quarantinedQuery.data && !quarantinedQuery.isError;
 
+  const { confirm, dialog } = useConfirmDialog();
   const handleResolve = async (id: string, verdict: "overwrite" | "reject" | "coexist") => {
+    // Overwrite replaces a saved memory with the quarantined claim: one in-DOM confirm first
+    // (2026-10-29 sync audit, finding 6; never window.confirm, which iOS standalone suppresses).
+    if (
+      verdict === "overwrite" &&
+      !(await confirm({
+        title: "Overwrite the saved memory?",
+        body: "The conflicting memory is replaced by this claim.",
+        confirmLabel: "Overwrite",
+        tone: "danger",
+      }))
+    ) {
+      return;
+    }
     try {
       await resolveMutation.mutateAsync({ id, verdict });
-    } catch (err) {
-      console.error("Failed to resolve memory inbox item:", err);
+    } catch {
+      // A failed ruling used to vanish into the console; the item stays in the queue, so say so.
+      toast.error("Could not save the ruling. The item is still in the queue.");
     }
   };
 
@@ -129,7 +150,7 @@ export default function MemoryInboxPage() {
   return (
     <StandardPage
       eyebrow="NOUR OS · System"
-      title="Memory Ingestion Inbox"
+      title="Memory inbox"
       descriptionVisibility="always"
       description={
         items.length > 0
@@ -156,7 +177,7 @@ export default function MemoryInboxPage() {
           <button
             onClick={() => quarantinedQuery.refetch()}
             disabled={loading}
-            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-control border border-edge-strong bg-content px-4 text-[13px] font-medium text-fg-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
@@ -164,22 +185,23 @@ export default function MemoryInboxPage() {
       }
     >
       {readFailed ? (
-        <Panel className="border-edge-subtle flex flex-col items-center justify-center p-12 text-center">
-          <h3 className="text-lg font-semibold text-fg mb-1">Queue state unknown - read failed</h3>
-          <p className="text-xs text-fg-tertiary max-w-sm">{quarantinedQuery.error?.message ?? "No reason returned"}</p>
-          <p className="text-xs text-fg-tertiary max-w-sm mt-1">A failed read clears nothing. Refresh reads it again.</p>
-        </Panel>
+        // A fixed sentence, never the raw server message (2026-10-29 sync audit, finding 16).
+        <EmptyState
+          provenance="ERROR"
+          tone="warning"
+          title="Queue state unknown - read failed"
+          why="A failed read clears nothing. The quarantine queue was not read, so it may not be empty."
+          cta={{ label: "Retry", onClick: () => void quarantinedQuery.refetch() }}
+        />
       ) : notYetRead ? (
-        <Panel className="border-edge-subtle p-12 text-center">
-          <p className="text-xs text-fg-tertiary">Reading the queue…</p>
-        </Panel>
+        <p className="border-l-2 border-edge-strong py-1 pl-4 text-[15px] text-fg-tertiary">Reading the queue…</p>
       ) : items.length === 0 ? (
-        <Panel className="border-edge-subtle flex flex-col items-center justify-center p-12 text-center">
-              <h3 className="text-lg font-semibold text-fg mb-1">Memory Queue Clear</h3>
-          <p className="text-xs text-fg-tertiary max-w-sm">
-              All facts ingested from external sources are safe. Any contradiction or security warnings will quarantine items here.
+        <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
+          <h2 className="vt-eyebrow text-fg-secondary">Memory Queue Clear</h2>
+          <p className="mt-2 max-w-[56ch] text-[15px] leading-relaxed text-fg-secondary">
+            All facts ingested from external sources are safe. Any contradiction or security warning quarantines an item here.
           </p>
-        </Panel>
+        </section>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Sidebar list of quarantined items */}
@@ -222,7 +244,7 @@ export default function MemoryInboxPage() {
           {/* Main detail area */}
           {selectedItem && (
             <div className="lg:col-span-7 space-y-4">
-              <Panel className="border-edge-subtle p-6 space-y-4">
+              <section aria-label="Memory review" className="space-y-4 border-l-2 border-edge-strong pl-5 sm:pl-6">
                 {/* Header detail */}
                 <div className="flex items-start justify-between flex-wrap gap-4 border-b border-edge-subtle pb-4">
                   <div>
@@ -258,11 +280,11 @@ export default function MemoryInboxPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-3">
                     <button
                       onClick={() => handleResolve(selectedItem.id, "reject")}
                       disabled={resolveMutation.isPending}
-                      className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
+                      className={cn(VERB, "border border-edge-subtle bg-content text-fg hover:bg-surface-hover")}
                     >
                       Reject
                     </button>
@@ -270,7 +292,7 @@ export default function MemoryInboxPage() {
                       <button
                         onClick={() => handleResolve(selectedItem.id, "overwrite")}
                         disabled={resolveMutation.isPending}
-                        className="rounded-control bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50 transition"
+                        className={cn(VERB, "bg-amber-500 text-black hover:bg-amber-600")}
                       >
                         Overwrite Conflicting
                       </button>
@@ -278,7 +300,7 @@ export default function MemoryInboxPage() {
                     <button
                       onClick={() => handleResolve(selectedItem.id, "coexist")}
                       disabled={resolveMutation.isPending}
-                      className="rounded-control bg-accent hover:bg-accent-hover px-3 py-1.5 text-xs font-semibold text-[var(--text-inverse)] disabled:opacity-50 transition"
+                      className={cn(VERB, "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover")}
                     >
                       Coexist
                     </button>
@@ -397,11 +419,12 @@ export default function MemoryInboxPage() {
                     </div>
                   </div>
                 )}
-              </Panel>
+              </section>
             </div>
           )}
         </div>
       )}
+      {dialog}
     </StandardPage>
   );
 }

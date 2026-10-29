@@ -51,6 +51,7 @@ import { trpc } from "@/lib/trpc/client";
 import { Eye } from "lucide-react";
 import { cronRunbookHref } from "@/lib/system/cron-runbooks";
 import { useInspector } from "@/hooks/use-inspector";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type CronMode = "active" | "folded" | "retired" | "dormant";
 type Category = "ingest" | "brain" | "hygiene" | "signals" | "review" | "compose" | "device" | "alert" | "action";
@@ -216,6 +217,7 @@ export default function CronsPage() {
   const [showFolded, setShowFolded] = useState(false);
   const [pendingRun, setPendingRun] = useState<Set<string>>(new Set());
   const [pendingToggle, setPendingToggle] = useState<Set<string>>(new Set());
+  const { confirm, dialog } = useConfirmDialog();
   // v9.1.26 · removed page-level tick state. The 1s countdown re-render
   // moved to per-row <NextRunCountdown /> leaves so the whole page
   // doesn't re-render every second.
@@ -317,6 +319,17 @@ export default function CronsPage() {
     }
   }
 
+  // Run-now fires the job once, outside its schedule, against live data: one in-DOM confirm first
+  // (2026-10-29 sync audit, finding 5; never window.confirm, which iOS standalone suppresses).
+  async function confirmRunNow(jobName: string) {
+    const ok = await confirm({
+      title: `Run ${jobName} now?`,
+      body: "It runs once, outside its schedule, against live data.",
+      confirmLabel: "Run now",
+    });
+    if (ok) await runNow(jobName);
+  }
+
   async function runNow(jobName: string) {
     setPendingRun((s) => new Set(s).add(jobName));
     try {
@@ -404,7 +417,7 @@ export default function CronsPage() {
           aria-pressed={categoryFilter === "all"}
           aria-label="show all categories"
           className={cn(
-            "rounded-full px-3 py-1 text-xs transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+            "inline-flex min-h-[44px] items-center rounded-full px-4 text-[13px] transition-colors focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
             categoryFilter === "all"
               ? "bg-surface-interactive text-fg"
               : "bg-content text-fg-secondary hover:bg-surface-hover",
@@ -419,7 +432,7 @@ export default function CronsPage() {
             aria-pressed={categoryFilter === c}
             aria-label={`filter to ${CATEGORY_META[c].label}`}
             className={cn(
-              "rounded-full px-3 py-1 text-xs transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+              "inline-flex min-h-[44px] items-center rounded-full px-4 text-[13px] transition-colors focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
               categoryFilter === c
                 ? cn("bg-surface-interactive", CATEGORY_META[c].tint)
                 : cn("bg-content hover:bg-surface-hover", "text-fg-secondary"),
@@ -460,16 +473,16 @@ export default function CronsPage() {
         {[...grouped.entries()].map(([category, list]) => {
           const groupMeta = CATEGORY_META[category] ?? FALLBACK_META;
           return (
-          <section key={category} className="space-y-2">
-              <h2 className={cn("font-mono text-[11px]", groupMeta.tint)}>
+          <section key={category} className="border-l-2 border-edge-strong pl-4 sm:pl-5">
+            <h2 className={cn("vt-eyebrow", groupMeta.tint)}>
               {groupMeta.label} · <span className="text-fg-tertiary font-normal normal-case">{list.length}</span>
             </h2>
-            <div className="space-y-1.5" data-selection-scope={`crons-${category}`}>
+            <div className="mt-1" data-selection-scope={`crons-${category}`}>
               {list.map((row) => (
                 <CronRowView
                   key={row.name}
                   row={row}
-                  runNow={() => runNow(row.name)}
+                  runNow={() => void confirmRunNow(row.name)}
                   toggle={(v) => toggle(row.name, v)}
                   isRunning={pendingRun.has(row.name)}
                   isToggling={pendingToggle.has(row.name)}
@@ -486,6 +499,7 @@ export default function CronsPage() {
           generated {timeAgo(feed.generatedAt)} · auto-refresh 30s · {CRONS_LABEL}
         </p>
       )}
+      {dialog}
     </StandardPage>
   );
 }
@@ -515,10 +529,11 @@ function CronRowView({
       data-entity={`cron:${row.name}`}
       data-entity-label={row.name}
       className={cn(
-        "group grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 rounded-surface border border-edge-subtle px-3 py-2.5 transition hover:border-edge-default",
-        "data-[entity-focused=true]:border-edge-subtle data-[entity-selected=true]:bg-accent-soft",
+        // UI v3 W5c: a ruled row, not a boxed card (the Home / Missions row grammar).
+        "group grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 border-b border-edge-subtle py-3",
+        "data-[entity-selected=true]:bg-accent-soft",
         row.mode === "retired" && "opacity-40",
-        !row.enabled && row.mode === "active" && "border-amber-500/20 bg-amber-500/[0.02]",
+        !row.enabled && row.mode === "active" && "bg-amber-500/[0.04]",
         isRunning && "chat-tool-shimmer",
       )}
     >
@@ -589,7 +604,10 @@ function CronRowView({
         </div>
       </div>
 
-      <Sparkline values={row.recentDurations} status={row.lastStatus} />
+      {/* Below sm the two 44 px controls need the room; the sparkline is detail. */}
+      <div className="hidden sm:block">
+        <Sparkline values={row.recentDurations} status={row.lastStatus} />
+      </div>
 
       <div className="hidden sm:block text-right">
         <div className={cn(
@@ -603,7 +621,7 @@ function CronRowView({
         <div className="font-mono text-[11px] text-fg-tertiary">14d</div>
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-3">
         {row.mode === "active" && (
           <button
             onClick={() => toggle(!row.enabled)}
@@ -615,7 +633,7 @@ function CronRowView({
             aria-checked={row.enabled}
             aria-label={`cron ${row.name} enabled`}
             className={cn(
-              "rounded-control px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+              "inline-flex min-h-[44px] min-w-[52px] items-center justify-center rounded-control px-3 text-[13px] transition-colors focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
               row.enabled
                 ? "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
                 : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
@@ -631,7 +649,7 @@ function CronRowView({
           disabled={!canTrigger || isRunning}
           aria-label={`run cron ${row.name} now`}
           className={cn(
-            "rounded-control px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+            "inline-flex min-h-[44px] min-w-[52px] items-center justify-center rounded-control px-3 text-[13px] transition-colors focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
             canTrigger
               ? "bg-surface-interactive text-fg hover:bg-surface-hover"
               : "cursor-not-allowed bg-content text-fg-tertiary",

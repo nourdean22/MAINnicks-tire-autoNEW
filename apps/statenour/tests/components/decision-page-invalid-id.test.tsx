@@ -84,5 +84,8 @@ describe("/decisions/[id]: an invalid id is not found, not a blank page", () => 
     const html = renderToStaticMarkup(<DecisionDetailPage />);
     expect(html).toContain("load failed");
     expect(html).not.toContain("Decision not found");
+    // 2026-10-29 sync audit, finding 17: a Retry, and never the raw message.
+    expect(html).toContain("Retry");
+    expect(html).not.toContain("boom");
   });
 });

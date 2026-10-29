@@ -1,7 +1,6 @@
 "use client";
 
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { Panel } from "@/components/panel";
 import { trpc } from "@/lib/trpc/client";
 
 function timeAgo(date: Date | string | null): string {
@@ -23,7 +22,7 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
   const { data: items, isLoading } = queryResult;
 
   return (
-    <Panel className="border-edge-default p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1 ">
+    <section className="flex flex-col gap-4 md:col-span-2 lg:col-span-1 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
         <div>
           <span className="font-mono text-[11px] text-fg-tertiary">A1 · Agenda Desk</span>
@@ -96,6 +95,6 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
       ) : (
         <div className="text-fg-tertiary text-xs py-4">No agenda items available.</div>
       )}
-    </Panel>
+    </section>
   );
 }
