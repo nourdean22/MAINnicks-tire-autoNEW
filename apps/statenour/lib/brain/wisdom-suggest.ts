@@ -71,8 +71,10 @@ const SOURCE_TRUST_WEIGHT: Record<string, number> = {
   device_analysis: 0.70,
 };
 
-function sourceTrustWeight(source: string | null | undefined): number {
+export function sourceTrustWeight(source: string | null | undefined): number {
   if (!source) return 1.0;
+  // ingest-wisdom-pack.ts writes `pack:<name>`: hand-curated, same tier as skill_ingestion.
+  if (source.startsWith("pack:")) return SOURCE_TRUST_WEIGHT.skill_ingestion;
   return SOURCE_TRUST_WEIGHT[source] ?? 1.0;
 }
 
@@ -83,11 +85,12 @@ function sourceTrustWeight(source: string | null | undefined): number {
 // Bezos for principle-grade clarity · Jobs / Greene for tactical
 // situations · Satori (paraphrased) gets a small demotion to reflect
 // its lower trust. Matches the wider library's tone hierarchy.
-function personaBoost(key: string): number {
+export function personaBoost(key: string): number {
   if (key.startsWith("wisdom_buffett_")) return 1.20;
-  if (key.startsWith("wisdom_naval_")) return 1.20;
-  if (key.startsWith("wisdom_munger_")) return 1.18;
-  if (key.startsWith("wisdom_bezos_")) return 1.15;
+  // Pack keys carry the full pack name (ingest-wisdom-pack.ts): wisdom_naval-ravikant_NNN.
+  if (key.startsWith("wisdom_naval-ravikant_")) return 1.20;
+  if (key.startsWith("wisdom_charlie-munger_")) return 1.18;
+  if (key.startsWith("wisdom_bezos-letters_")) return 1.15;
   if (key.startsWith("wisdom_jobs_")) return 1.10;
   if (key.startsWith("wisdom_greene_")) return 1.10;
   if (key.startsWith("wisdom_gates_")) return 1.05;

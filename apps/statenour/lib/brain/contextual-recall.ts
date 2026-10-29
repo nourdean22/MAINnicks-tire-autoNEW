@@ -58,6 +58,7 @@ import {
   type MemoryEvidenceClass,
   isOperatorSource,
 } from "@/lib/brain/memory-commit-gateway";
+import { CURATED_WISDOM_ORIGINS, resolveWisdomOrigin, wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
 
 /**
  * v-truth · Importance-weighted recall (Generative-Agents R+R+I).
@@ -181,8 +182,13 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
  * appendCrossSourceContext, so the block stays visually consistent.
  */
 export function provenancePrefix(m: RelevantMemory): string {
-  const cls = evidenceClassForSource(m.source ?? "");
   const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
+  // 2026-10-29 · curated wisdom names its author: the cite rule may only use a
+  // name this line shows, and pack rows stored as source "manual" are not
+  // something the operator stated.
+  const author = curatedWisdomAuthor(m);
+  if (author) return `[${m.category} · ${author} · curated${seen}]`;
+  const cls = evidenceClassForSource(m.source ?? "");
   // 05-X7: the ladder files model-made sources under its fallback; say inferred.
   const label =
     classifyTrustTier(m.source || "unclassified", null, m.category) === "AGENT_INFERRED"
@@ -197,7 +203,20 @@ export function provenancePrefix(m: RelevantMemory): string {
  * one helper, so the budget charges exactly what the model is shown.
  */
 export function renderedContent(m: RelevantMemory): string {
+  // Wisdom gets 300: 75 of the 113 pack entries run past 150 chars and were cut mid-principle.
+  if (m.category === "wisdom") return m.content.slice(0, 300);
   return m.content.slice(0, m.relevance === "direct" ? 200 : 150);
+}
+
+/** "Naval", "Greene · Law 28", or null for machine-made / unattributed rows. */
+export function curatedWisdomAuthor(m: Pick<RelevantMemory, "category" | "key">): string | null {
+  if (m.category === "greene_law") {
+    const law = /^law_(\d+)$/.exec(m.key ?? "");
+    return law ? `Greene · Law ${law[1]}` : null;
+  }
+  if (m.category !== "wisdom" || !m.key) return null;
+  const origin = resolveWisdomOrigin(m.key);
+  return CURATED_WISDOM_ORIGINS.has(origin) ? wisdomOriginMeta(origin).badge : null;
 }
 
 /**
@@ -476,9 +495,16 @@ const SOURCE_TRUST_WEIGHT: Record<string, number> = {
   device_analysis: 0.80,           // device-derived
 };
 
-function sourceTrustWeight(source: string | null | undefined): number {
+export function sourceTrustWeight(source: string | null | undefined): number {
   if (!source) return 1.0;
+  // ingest-wisdom-pack.ts writes `pack:<name>`: hand-curated, same tier as skill_ingestion.
+  if (source.startsWith("pack:")) return SOURCE_TRUST_WEIGHT.skill_ingestion;
   return SOURCE_TRUST_WEIGHT[source] ?? 1.0;
+}
+
+/** Curated wisdom is timeless: exempt from the cold-wisdom decay below. */
+export function isCuratedWisdomSource(source: string): boolean {
+  return isOperatorSource(source) || source.startsWith("pack:");
 }
 
 // v10.0.397 · Operator's favorite-persona bias.
@@ -489,8 +515,11 @@ function sourceTrustWeight(source: string | null | undefined): number {
 // when they're a clearer match · just breaks ties in Greene's favor.
 const FAVORITE_PERSONA_BOOST = 1.10;
 
-function favoritePersonaBoost(key: string): number {
-  if (key.startsWith("wisdom_greene_")) return FAVORITE_PERSONA_BOOST;
+export function favoritePersonaBoost(key: string, category: string): number {
+  // Greene's seeds live in category greene_law, key law_<N>; no row has a wisdom_greene_ key.
+  if (key.startsWith("wisdom_greene_") || (category === "greene_law" && key.startsWith("law_"))) {
+    return FAVORITE_PERSONA_BOOST;
+  }
   return 1.0;
 }
 
@@ -1351,7 +1380,7 @@ export async function getContextualMemories(
   const now = Date.now();
   const memScores = candidatePool.map((m) => {
     let freshness = 1.0;
-    if (m.category === "wisdom" && !isOperatorSource(m.source)) {
+    if (m.category === "wisdom" && !isCuratedWisdomSource(m.source)) {
       const ageDays = Math.max(0, (now - new Date(m.createdAt).getTime()) / 86_400_000);
       const seenCount = m.seenCount ?? 0;
       // Cold wisdom > 90d old gets penalized · 0.5% per day past 90d
@@ -1413,7 +1442,7 @@ export async function getContextualMemories(
     // v10.0.396 · wisdom freshness decay · pre-computed in memScores
     const freshness = m.sFreshness ?? 1.0;
     // v10.0.397 · operator's favorite-persona bias (Greene · 1.10x)
-    const favoriteMul = favoritePersonaBoost(m.key);
+    const favoriteMul = favoritePersonaBoost(m.key, m.category);
     // v-truth · R+R+I third axis · 1.0 when NICK_IMPORTANCE_RECALL off.
     const importanceMul = importanceMultiplier(m.content, importanceOn);
     const hybrid = entry.score * trust * recencyMul * kindMul * topicMul * freshness * favoriteMul * importanceMul;

@@ -111,13 +111,11 @@ describe("operator-rules · BREVITY_DEFAULT (v10.0.392)", () => {
 });
 
 describe("operator-rules · INLINE_CITATIONS (v10.0.393)", () => {
-  it("lists the seven citation tags by name", () => {
-    expect(INLINE_CITATIONS).toContain("Buffett");
-    expect(INLINE_CITATIONS).toContain("Greene");
-    expect(INLINE_CITATIONS).toContain("Jobs");
-    expect(INLINE_CITATIONS).toContain("Satori");
-    expect(INLINE_CITATIONS).toContain("Musk");
-    expect(INLINE_CITATIONS).toContain("Gates");
+  it("tags with the author the recalled line names, never a fixed list (2026-10-29)", () => {
+    // The old fixed list named five authors with zero rows in prod; see
+    // tests/brain/wisdom-honest-render.test.ts.
+    expect(INLINE_CITATIONS).toContain("the author its memory line names");
+    expect(INLINE_CITATIONS).toContain("Greene · Law 28");
   });
 
   it("requires paraphrase, not verbatim", () => {
