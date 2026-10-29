@@ -133,3 +133,55 @@ def test_uninstall_and_reinstall_end_the_lane_children_not_just_the_task():
     assert uninstall.index("Stop-FrontDeskSign") < uninstall.index("UNINSTALLED")
     assert text.index("Stop-FrontDeskSign  #") < text.index("Expand-Archive")
     assert 'Contains("127.0.0.1:8555/sign")' in text
+
+
+def _lane_functions() -> str:
+    """The installer's process-matching code, cut out so a probe can run it against fake processes."""
+    text = installer()
+    start = min(i for i in (text.find("function Test-FrontDeskLaneProcess"), text.find("function Stop-FrontDeskSign")) if i >= 0)
+    end = text.index("\n}\n", text.index("function Stop-FrontDeskSign")) + 3
+    return text[start:end]
+
+
+def test_stop_ends_only_this_lane_never_the_office_lane_venv_or_a_sibling_folder(tmp_path):
+    """Reinstall and uninstall run Stop-FrontDeskSign; it must leave the office capture lane alone.
+
+    Root is the parent of camera-bridge, so camera-bridge/.venv (the interpreter that
+    install-office-capture.ps1 registers) sits under Root. The old filter killed every process whose
+    exe started with Root as a plain string, which also matched the sibling folder NickLotVision2.
+    """
+    probe = tmp_path / "probe.ps1"
+    probe.write_text(
+        r"""$ErrorActionPreference = 'Stop'
+$Root = Join-Path $env:PROBE_DIR 'NickLot'
+$bridge = Join-Path $Root 'camera-bridge'
+$sibling = Join-Path $env:PROBE_DIR 'NickLotVision2'
+$TaskName = 'probe'
+$script:killed = @()
+function Stop-ScheduledTask { }
+function Start-Sleep { }
+function Stop-Process { [CmdletBinding()] param($Id, [switch]$Force) $script:killed += $Id }
+function J { $p = $args[0]; foreach ($c in $args[1..($args.Count - 1)]) { $p = Join-Path $p $c }; $p }
+function P($id, $exe, $cmd, $name) { [pscustomobject]@{ ProcessId = $id; ExecutablePath = $exe; CommandLine = $cmd; Name = $name } }
+function Get-CimInstance {
+  param($ClassName)
+  P 1001 (J $Root 'venv' 'Scripts' 'python.exe') 'python.exe -m cloud.run_cloud --primary' 'python.exe'
+  P 1002 (J $Root 'bin' 'relay' 'V380Decoder.exe') $null 'V380Decoder.exe'
+  P 1003 (J $bridge '.venv' 'Scripts' 'python.exe') 'python.exe -m vision.officewake --capture' 'python.exe'
+  P 1004 (J $sibling 'venv' 'Scripts' 'python.exe') 'python.exe -m something_else' 'python.exe'
+  P 1005 (J $env:PROBE_DIR 'shell' 'pwsh.exe') ('pwsh.exe -NoExit -Command cd ' + $Root) 'pwsh.exe'
+  P 1006 (J $Root 'venv2' 'Scripts' 'python.exe') 'python.exe -m other' 'python.exe'
+  P 1007 (J $env:PROBE_DIR 'elsewhere' 'python.exe') ('python.exe ' + (Join-Path $bridge 'edge_main.py')) 'python.exe'
+}
+"""
+        + _lane_functions()
+        + "\nStop-FrontDeskSign | Out-Null\nWrite-Output ('KILLED=' + (($script:killed | Sort-Object) -join ','))\n",
+        encoding="utf-8",
+    )
+    env = dict(os.environ, PROBE_DIR=str(tmp_path))
+    done = subprocess.run([_pwsh(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
+                          capture_output=True, text=True, timeout=60, env=env)
+    assert done.returncode == 0, done.stderr + done.stdout
+    killed = next(line for line in done.stdout.splitlines() if line.startswith("KILLED="))
+    # 1001 lane venv, 1002 lane relay, 1007 edge by command line. Never 1003 (office lane), 1004/1006 (siblings), 1005 (shell).
+    assert killed == "KILLED=1001,1002,1007"
