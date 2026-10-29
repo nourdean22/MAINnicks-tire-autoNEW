@@ -42,6 +42,22 @@ describe("ReadFailed · a Retry that refetches", () => {
     expect(html).toMatch(/could not be read/);
   });
 
+  it("DeckTriage with rows from the sources that answered still shows Retry for the one that failed", () => {
+    const html = renderToStaticMarkup(
+      <DeckTriage
+        triage={{ rows: [{ id: "r1", kind: "task", title: "Call the parts desk", taskId: null }], totalCount: 1 } as never}
+        tasks={[]}
+        onEditTask={() => {}}
+        onSnoozeTask={async () => true}
+        onDeleteTask={() => {}}
+        incomplete
+        onRetry={() => {}}
+      />,
+    );
+    expect(html).toContain("Call the parts desk");
+    expect(html).toContain("Retry");
+  });
+
   it("no page copy tells the operator to pull to refresh", () => {
     let out = "";
     try {

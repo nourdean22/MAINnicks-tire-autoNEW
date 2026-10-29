@@ -335,9 +335,17 @@ function ActionsPageInner() {
   };
 
   // The same live count Home and the app badge show (lib/automation/live-decisions.ts): live requests plus
-  // live autonomous actions; expired rows stay listed but are not waiting on you.
-  const decisions = countLiveDecisions(approvals, autoQueue.data?.rows ?? []);
-  const pendingCount = decisions.live;
+  // live autonomous actions; expired rows stay listed but are not waiting on you. Only a count of BOTH
+  // reads is a total: with either one unread the total is unknown, never the other queue's number.
+  const decisions =
+    approvalsQuery.data !== undefined && autoQueue.data !== undefined
+      ? countLiveDecisions(approvals, autoQueue.data.rows)
+      : null;
+  const decisionsLine = decisions
+    ? `${decisions.live > 0 ? ` · ${decisions.live} live` : ""}${decisions.expired > 0 ? `, ${decisions.expired} expired` : ""}`
+    : approvalsQuery.isError || autoQueue.isError
+      ? " · live decisions unknown"
+      : "";
   // This panel lists requests only; the autonomous queue below carries its own live/expired line.
   const liveRequests = countLiveDecisions(approvals, []).live;
 
@@ -348,7 +356,7 @@ function ActionsPageInner() {
       descriptionVisibility="always"
       description={
         feed
-          ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} live` : ""}${decisions.expired > 0 ? `, ${decisions.expired} expired` : ""}`
+          ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${decisionsLine}`
           : actionsQuery.isError
             ? "unknown: read failed"
             : actionsState === "offline"

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { liveApprovalRequestWhere } from "@/lib/automation/live-decisions";
+import { summarizeQueue } from "@/lib/automation/approval-queue";
 import {
   computeBurnRateForecast,
   costByProvider,
@@ -175,10 +176,12 @@ export async function buildCockpitStats() {
       },
       _avg: { feedbackScore: true },
     }),
-    prisma.approvalRequest.count({
-      // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
-    where: liveApprovalRequestWhere(),
-    }),
+    // Live decisions, the same population Home, the badge and /system/actions count
+    // (lib/automation/live-decisions.ts): live requests plus the live autonomous queue (Codex P2 on #3354).
+    Promise.all([
+      prisma.approvalRequest.count({ where: liveApprovalRequestWhere() }),
+      summarizeQueue(),
+    ]).then(([requests, queue]) => requests + queue.live),
     prisma.agentTrace.findMany({
       orderBy: { startedAt: "desc" },
       take: 20,

@@ -44,6 +44,13 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
 
   return (
     <div>
+      {/* A source failed to read but others still answered: the rows below are not the whole queue
+          (Codex P2 on #3354), so the Retry shows beside them, not only on an empty list. */}
+      {incomplete && onRetry && (
+        <div className="mb-3">
+          <ReadFailed onRetry={onRetry}>Part of this queue could not be read, so more may be waiting.</ReadFailed>
+        </div>
+      )}
       <ul className="divide-y divide-edge">
         {triage.rows.map((row) => {
           const task = row.taskId ? taskById.get(row.taskId) : undefined;

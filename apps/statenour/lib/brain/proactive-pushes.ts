@@ -266,7 +266,7 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
   
   const pendingApprovalsCount = await prisma.approvalRequest.count({
     // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
-    where: liveApprovalRequestWhere(),
+    where: liveApprovalRequestWhere(now),
   }).catch((err) => {
     logError("brain.proactive-pushes", err, { fn: "fireMorningPush.countApprovals" });
     return 0;
@@ -707,7 +707,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
   });
   const pendingSystemCount = await prisma.approvalRequest.count({
     // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
-    where: liveApprovalRequestWhere(),
+    where: liveApprovalRequestWhere(now),
   }).catch((err) => {
     logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.countApprovals" });
     return 0;

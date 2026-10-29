@@ -214,6 +214,20 @@ describe("consumer 1: buildActiveAlerts honours dismissals and mutes", () => {
     expect(JSON.stringify(where.OR)).toContain("expiresAt");
   });
 
+  // Codex P2 on #3354: a shared take across categories let a noisy category starve another to a false zero,
+  // and the tower and hub tile count this view.
+  it("a noisy category neither caps another category's count nor hides its rows; counts are uncapped", async () => {
+    h.state.alerts = [
+      ...Array.from({ length: 80 }, (_, i) => alert(`n${i}`, "creation_spike_alert", `task:2026-10-${String((i % 28) + 1).padStart(2, "0")}T0${i % 10}`, `spike ${i}`)),
+      alert("q1", "storage_quota_alert", "quota:db", "Storage near quota"),
+    ];
+    const view = await buildActiveAlerts({ limit: 10, sinceDays: 30 });
+    expect(view.counts.creation_spike_alert).toBe(80);
+    expect(view.alerts.creation_spike_alert).toHaveLength(10);
+    expect(view.counts.storage_quota_alert).toBe(1);
+    expect(view.alerts.storage_quota_alert.map((a) => a.id)).toEqual(["q1"]);
+  });
+
   it("CONTROL: with no suppression rows every alert shows", async () => {
     h.state.alerts = [alert("a1", "brain_bus_alert", "dead-event:one", "Dead event one")];
     const view = await buildActiveAlerts({ limit: 10, sinceDays: 30 });
