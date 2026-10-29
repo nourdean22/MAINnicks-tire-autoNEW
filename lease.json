@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/chat-audit-bubbles",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "c10759fe-43bf-4a4b-abfc-0cdf5ee03996",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\bdnick-chat-9080fc",
+  "claimedBy": "2026-10-29-manager-sweep",
+  "claimedAt": "2026-10-29T18:12:08.418Z",
+  "expiresAt": "2026-10-30T06:12:08.418Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
