@@ -73,19 +73,29 @@ function Assert-Pinned([string]$name, [string]$path) {
   Write-Host "  [ok] $name $bytes bytes, SHA-256 matches the pin"
 }
 
+# True when a process belongs to THIS lane. Matched on what the lane runs, never on the folder name
+# alone: the shell that started this installer has the folder on its own command line, and the office
+# lane's venv python (camera-bridge/.venv, install-office-capture.ps1) sits under the same Root. The
+# exe test is the lane's own venv and bin folders with a trailing separator, so a sibling such as
+# NickLotVision2 or venv2 never matches.
+function Test-FrontDeskLaneProcess([string]$ExePath, [string]$CommandLine, [string]$Name) {
+  $edge = Join-Path $bridge "edge_main.py"
+  foreach ($dir in @("venv", "bin")) {
+    $prefix = (Join-Path $Root $dir).TrimEnd("\", "/") + [IO.Path]::DirectorySeparatorChar
+    if ($ExePath -and $ExePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+  }
+  if (-not $CommandLine) { return $false }
+  return ($CommandLine.Contains("run-frontdesk-sign.ps1") -or $CommandLine.Contains("cloud.run_cloud --primary") -or
+    $CommandLine.Contains($edge) -or ($Name -eq "ffmpeg.exe" -and $CommandLine.Contains("127.0.0.1:8555/sign")))
+}
+
 # Stop-ScheduledTask ends the launcher but not its children (the office lane left orphan ffmpeg the
 # same way, 2026-10-26), so a reinstall or uninstall also ends every process this lane started.
 function Stop-FrontDeskSign {
   Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 3
-  # Matched on what the lane runs, never on the folder name alone: the shell that started this
-  # installer has the folder on its own command line.
-  $edge = Join-Path $bridge "edge_main.py"
   $mine = Get-CimInstance Win32_Process | Where-Object {
-    $_.ProcessId -ne $PID -and (
-      ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase)) -or
-      ($_.CommandLine -and ($_.CommandLine.Contains("run-frontdesk-sign.ps1") -or $_.CommandLine.Contains("cloud.run_cloud --primary") -or
-        $_.CommandLine.Contains($edge) -or ($_.Name -eq "ffmpeg.exe" -and $_.CommandLine.Contains("127.0.0.1:8555/sign")))))
+    $_.ProcessId -ne $PID -and (Test-FrontDeskLaneProcess $_.ExecutablePath $_.CommandLine $_.Name)
   }
   $mine | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Write-Host "  [ok] lane stopped; processes ended: $(@($mine).Count)"
