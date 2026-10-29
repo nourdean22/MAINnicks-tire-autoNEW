@@ -48,6 +48,7 @@ const FILTER_STATUSES: Record<StatusFilter, ProposalStatusName[] | undefined> = 
   needs_decision: ["draft", "pending_review"],
   executed: ["executed"],
   rejected: ["rejected"],
+  // (The list is read with the server's largest page for this filter, so every counted row can be reached.)
   // Everything that needs a human but is not a fresh decision: real failures,
   // sweep-parked ambiguity, and the two crash-orphan resting states.
   failed: ["failed", "execution_ambiguous", "executing", "approved"],
@@ -104,7 +105,7 @@ export default function ApprovalsSection() {
   const [rejectReason, setRejectReason] = useState<string | null>(null);
 
   const list = trpc.proposals.list.useQuery(
-    { statuses: FILTER_STATUSES[filter], limit: 100 },
+    { statuses: FILTER_STATUSES[filter], limit: filter === "failed" ? 500 : 100 },
     { refetchInterval: 60_000 },
   );
   // Counts, top reasons and the last decision come from the audit log on the server (not from list
@@ -536,21 +537,34 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
  */
 function EmptyQueueNotice({ query, onOpenStuck }: { query: DecidedQuery; onOpenStuck: () => void }) {
   const data = query.data;
-  const stuck = data && data.available ? data.stuckCount : 0;
-  if (!(stuck > 0)) return <p className="text-foreground">Nothing waiting for you.</p>;
+  const openButton = (
+    <button
+      type="button"
+      onClick={onOpenStuck}
+      className="mt-2 min-h-12 min-w-12 rounded-md bg-secondary px-3 text-xs text-foreground hover:bg-secondary/80"
+    >
+      Open Failed / stuck
+    </button>
+  );
+  // Unknown is not zero: until the server has counted the stuck rows, the queue must not read as all clear.
+  if (query.isLoading && !data) return <p className="text-foreground">Nothing new to decide. Checking for stuck proposals…</p>;
+  if (query.isError || !data || !data.available || typeof data.stuckCount !== "number") {
+    return (
+      <>
+        <p className="text-foreground">Nothing new to decide, but stuck proposals could not be checked.</p>
+        {openButton}
+      </>
+    );
+  }
+  const stuck = data.stuckCount;
+  if (stuck <= 0) return <p className="text-foreground">Nothing waiting for you.</p>;
   return (
     <>
       <p className="text-foreground">
         {`Nothing new to decide, but ${stuck} ${stuck === 1 ? "proposal is" : "proposals are"} stuck or failed.`}
       </p>
-      <p className="mt-1 text-xs">A booking or callback may or may not exist for these. Check each one.</p>
-      <button
-        type="button"
-        onClick={onOpenStuck}
-        className="mt-2 min-h-12 min-w-12 rounded-md bg-secondary px-3 text-xs text-foreground hover:bg-secondary/80"
-      >
-        Open Failed / stuck
-      </button>
+      <p className="mt-1 text-xs">These need a person to retry them or confirm what happened.</p>
+      {openButton}
     </>
   );
 }
