@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/task-upgrades-phase2",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "06dc4bb1-7365-4dd9-8068-7db61c0e687d",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\discount-pages-292c72",
+  "claimedBy": "2026-10-29-task-upgrades",
+  "claimedAt": "2026-10-29T21:26:28.969Z",
+  "expiresAt": "2026-10-30T09:26:28.969Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
