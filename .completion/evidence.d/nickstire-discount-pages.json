@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "2026-10-29 discount pages: /discounts/rideshare-delivery-drivers, /discounts, /discounts/lgbtq-friendly, /discounts/military-veterans and /discounts/seniors opened at 375px in the built-in browser against the production build (vite preview): h1 present, page width 371-375 with no horizontal overflow, call and directions buttons 48-52px tall, offer reads '20% off labor, up to $250 off' (labor only, no 'parts and labor'), LGBTQ+ page states no percent off. Footer gains one 'Discounts' link; InternalLinks gains one hub entry. client/src/__tests__/discount-pages.test.tsx renders all 10 pages + hub and checks address, hours, phone, directions link, offer, proof, fine print and JSON-LD."
+    }
+  }
+}

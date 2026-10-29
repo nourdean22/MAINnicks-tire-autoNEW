@@ -2,6 +2,24 @@
   "$comment": "Completion Authority capability ledger — THE canonical record of what is actually done. States only advance with evidence; scripts/check-capability-ledger.mjs enforces the gates and CI runs it. 'Merged' is not a state on purpose: code merge and capability promotion are independent events. Render docs/operations/REALITY-LEDGER.md from this file via scripts/render-reality-ledger.mjs — never edit the rendered file by hand.",
   "capabilities": [
     {
+      "capabilityId": "site-chat-discount-program",
+      "name": "The site chat's get_current_specials states the /discounts program (20% off labor, up to $250) from DISCOUNT_PROGRAMS, not a second copy",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "PR nourdean22/MAINnicks-tire-autoNEW#3352 (branch nickstire/discount-pages, fix commit 1de2bf59e7): server/services/chatTools.ts discountProgramForChat() reads DISCOUNT_PROGRAMS in shared/business.ts (Nour 2026-10-29: \"do 20 percent off but with all that and up to 250\") and executeGetCurrentSpecials returns it as discountProgram on both its normal and its fallback path; groups with offer:false (the LGBTQ+ welcome page) are excluded.",
+        "tests": "server/services/chatTools-discounts.test.ts (2, DB mocked out): the tool's discountProgram equals DISCOUNT_PROGRAMS.offer.display, carries every offer group's label and the fine print, and never lists the LGBTQ+ group. Red first on the unchanged tool (discountProgram undefined), green after.",
+        "deploymentId": null
+      },
+      "blockers": [],
+      "deferredScope": [
+        "The VAPI phone receptionist prompt (server/services/vapi.ts) does not state the discount; adding it changes live-call wording and passes through voiceClaimGuard, so it waits for the operator's go as its own change."
+      ],
+      "lastVerifiedAt": "2026-10-29",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
+    },
+    {
       "capabilityId": "sms-send-receipts",
       "name": "SMS send receipts derive from outcomes (sent / queued / uncertain / failed)",
       "owner": "operator",
