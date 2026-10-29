@@ -36,7 +36,10 @@ const state: {
   /** What the "decided proposals with no decision event" count returns (mysql2 may hand COUNT(*) back as text). */
   missing: number;
   failMissing: Error | null;
-} = { rows: [], queries: [], failWith: null, noDb: false, missing: 0, failMissing: null };
+  /** What the "stuck proposals" count returns (failed / ambiguous / executing / approved at rest). */
+  stuck: number;
+  failStuck: Error | null;
+} = { rows: [], queries: [], failWith: null, noDb: false, missing: 0, failMissing: null, stuck: 0, failStuck: null };
 
 const utcText = (daysAgo: number) =>
   new Date(NOW.getTime() - daysAgo * DAY).toISOString().slice(0, 19).replace("T", " ");
@@ -50,6 +53,11 @@ const fake = {
       // select list: count(*) -- the decided proposals that have no approve / reject audit row
       if (state.failMissing) throw state.failMissing;
       return [[[String(state.missing)]], []];
+    }
+    if (/count\(\*\)/i.test(q.sql)) {
+      // select list: count(*) -- the proposals resting in failed / execution_ambiguous / executing / approved
+      if (state.failStuck) throw state.failStuck;
+      return [[[String(state.stuck)]], []];
     }
     const values = params;
     const actions = values.filter((v): v is string => typeof v === "string" && v.startsWith("proposal."));
@@ -123,6 +131,8 @@ beforeEach(() => {
   state.noDb = false;
   state.missing = 0;
   state.failMissing = null;
+  state.stuck = 0;
+  state.failStuck = null;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -271,6 +281,45 @@ describe("getDecisionSummary -- decisions whose audit write was lost", () => {
   it("an unreadable count fails the read rather than reporting 0", async () => {
     const realQuery = fake.query;
     fake.query = async (q, params) => (/not exists/i.test(q.sql) ? [[[null]], []] : realQuery(q, params));
+    try {
+      expect((await getDecisionSummary({ days: 30 })).available).toBe(false);
+    } finally {
+      fake.query = realQuery;
+    }
+  });
+});
+
+describe("getDecisionSummary -- proposals stuck outside the Needs decision view", () => {
+  // execution_ambiguous means a booking or callback may or may not exist; the default view only holds
+  // draft + pending_review, so the owner must be told how many sit elsewhere.
+  it("reports 0 when nothing is stuck", async () => {
+    expect((await ok()).stuckCount).toBe(0);
+  });
+
+  it("reports how many proposals are stuck, as a number even when the driver returns text", async () => {
+    state.stuck = 3;
+    expect((await ok()).stuckCount).toBe(3);
+  });
+
+  it("counts all-time over exactly the four stuck statuses and no window", async () => {
+    await ok(14);
+    const q = state.queries.find((x) => /count\(\*\)/i.test(x.sql) && !/not exists/i.test(x.sql));
+    expect(q, "the stuck count was sent").toBeDefined();
+    expect(q!.sql).toMatch(/from `admin_proposals`/i);
+    expect(q!.sql).not.toMatch(/interval/i);
+    expect([...q!.values].sort()).toEqual(["approved", "executing", "execution_ambiguous", "failed"]);
+  });
+
+  it("a failure of the count alone makes the whole result available:false, never a silent 0", async () => {
+    state.failStuck = new Error("connect ETIMEDOUT");
+    const out = await getDecisionSummary({ days: 30 });
+    expect(out.available).toBe(false);
+    expect(out).not.toHaveProperty("stuckCount");
+  });
+
+  it("an unreadable count fails the read rather than reporting 0", async () => {
+    const realQuery = fake.query;
+    fake.query = async (q, params) => (/count\(\*\)/i.test(q.sql) && !/not exists/i.test(q.sql) ? [[[null]], []] : realQuery(q, params));
     try {
       expect((await getDecisionSummary({ days: 30 })).available).toBe(false);
     } finally {
