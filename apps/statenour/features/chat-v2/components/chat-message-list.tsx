@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
-import { Fragment, useState, useCallback, useEffect } from "react";
+import { Fragment, useState, useCallback, useEffect, useRef } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
@@ -385,6 +385,7 @@ export function ChatMessageList({
     },
     [offerDraft],
   );
+  const editFromSheetRef = useRef(false);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
 
@@ -756,7 +757,22 @@ export function ChatMessageList({
         role={actionSheetMsg?.role || "user"}
         text={actionSheetMsg?.text || ""}
         onCopy={() => actionSheetMsg?.text && void copyToClipboard(actionSheetMsg.text)}
-        onEdit={actionSheetMsg?.role === "user" ? () => { if (actionSheetMsg?.text) editMessage(actionSheetMsg.text, actionSheetMsg.id); } : undefined}
+        onEdit={
+          actionSheetMsg?.role === "user"
+            ? () => {
+                if (!actionSheetMsg.text) return;
+                editFromSheetRef.current = true;
+                editMessage(actionSheetMsg.text, actionSheetMsg.id);
+              }
+            : undefined
+        }
+        // The sheet restores focus to More when it closes, which undid the
+        // edit's composer focus and closed the iOS keyboard (PR 3351 review).
+        finalFocus={() => {
+          if (!editFromSheetRef.current) return true;
+          editFromSheetRef.current = false;
+          return document.querySelector<HTMLTextAreaElement>("[data-chat-composer-input]") ?? true;
+        }}
         onShowReasoning={() => {
           if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);

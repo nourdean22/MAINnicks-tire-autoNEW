@@ -36,8 +36,12 @@ vi.mock("@/hooks/chat/use-lazy-render-messages", () => ({
 }));
 vi.mock("@/components/chat/nick-message", () => ({ NickMessage: ({ text }: { text: string }) => <div>{text}</div> }));
 vi.mock("@/components/chat/tool-result-card", () => ({ ToolResultCard: () => null, isKnownToolName: () => false }));
+const sheet = vi.hoisted(() => ({ props: {} as { onEdit?: () => void; finalFocus?: (closeType: string) => unknown } }));
 vi.mock("@/components/chat/message-action-sheet", () => ({
-  MessageActionSheet: ({ open }: { open: boolean }) => (open ? <div data-testid="action-sheet" /> : null),
+  MessageActionSheet: (props: { open: boolean; onEdit?: () => void; finalFocus?: (t: string) => unknown }) => {
+    sheet.props = props;
+    return props.open ? <div data-testid="action-sheet" /> : null;
+  },
 }));
 vi.mock("@/components/chat/reasoning-trace-modal", () => ({ ReasoningTraceModal: () => null }));
 vi.mock("@/components/chat/reasoning-trace-live", () => ({ ReasoningTraceLive: () => null }));
@@ -133,6 +137,22 @@ describe("tap-to-edit on the operator's own message", () => {
     act(() => el.click());
     expect(useChatUiStore.getState().editingMessageId).toBeNull();
     expect(useChatUiStore.getState().draft).toBe("");
+  });
+
+  // Codex P2 on PR 3351: the sheet's own focus restoration ran after the edit
+  // and put focus back on More, so the keyboard closed again.
+  it("Edit from the More sheet hands the sheet's closing focus to the composer", () => {
+    const more = host.querySelectorAll<HTMLButtonElement>('button[aria-label="More actions"]')[0];
+    act(() => more.click());
+    act(() => sheet.props.onEdit?.());
+    expect(useChatUiStore.getState().editingMessageId).toBe("u1");
+    expect(sheet.props.finalFocus?.("click")).toBe(composer);
+  });
+
+  it("CONTROL · any other sheet action keeps the default focus restoration", () => {
+    const more = host.querySelectorAll<HTMLButtonElement>('button[aria-label="More actions"]')[0];
+    act(() => more.click());
+    expect(sheet.props.finalFocus?.("click")).toBe(true);
   });
 
   it("the Edit button focuses the composer too", () => {

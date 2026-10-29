@@ -108,3 +108,24 @@ describe("envFailureClaims · an invented result from a failed read", () => {
     expect(envFailureClaims(SLEEP_READ_FAILED, "Your sleep streak is five days.", { calls })).toEqual([]);
   });
 });
+
+/**
+ * Codex P1 on PR 3351: a write that returned ok but whose read-back did not
+ * find it is NOT a failed call. Saying "the tool call failed" there hides a
+ * possible partial success, and a retry can duplicate what was written.
+ */
+describe("envFailureClaims · failed call vs failed read-back", () => {
+  it("a call that returned ok: false is marked failed", () => {
+    const [claim] = envFailureClaims(FAILED_CREATE, "Added the task to your list.", {
+      calls: [{ name: "createTask", ok: false, args: { title: "t" } }],
+    });
+    expect(claim.toolOutcome).toBe("failed");
+  });
+
+  it("a call that returned ok but whose read-back failed is marked unconfirmed", () => {
+    const [claim] = envFailureClaims(FAILED_CREATE, "Added the task to your list.", {
+      calls: [{ name: "createTask", ok: true, args: { title: "t" } }],
+    });
+    expect(claim.toolOutcome).toBe("unconfirmed");
+  });
+});
