@@ -15,6 +15,7 @@ import {
   deleteTaskAttachment,
 } from "@/lib/services/task-attachments";
 import { listSubtasks, addSubtask } from "@/lib/services/task-subtasks";
+import { getTaskRecallLine } from "@/lib/services/task-recall-line";
 
 const id = z.string().min(1).max(64);
 
@@ -50,4 +51,8 @@ export const taskDetailProcedures = {
   subtaskAdd: operatorProcedure
     .input(z.object({ parentId: id, title: z.string().max(500) }))
     .mutation(({ input }) => mapped(() => addSubtask(input.parentId, input.title))),
+
+  recallLine: operatorProcedure
+    .input(z.object({ taskId: id }))
+    .query(({ input }) => getTaskRecallLine(input.taskId)),
 };

@@ -29,6 +29,7 @@ import type { InspectorPanelProps } from "@/components/inspector/panels/memory-i
 import { TaskNotes } from "@/components/inspector/panels/task-notes";
 import { TaskPhotos } from "@/components/inspector/panels/task-photos";
 import { TaskSubtasks } from "@/components/inspector/panels/task-subtasks";
+import { TaskRecallLine } from "@/components/inspector/panels/task-recall-line";
 
 function dueLine(dueDate: string | null | undefined, now: Date): string | null {
   if (!dueDate) return null;
@@ -152,6 +153,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
           ) : null}
         </div>
         <h2 className="text-[17px] font-semibold leading-tight text-fg">{t.title}</h2>
+        <TaskRecallLine taskId={t.id} />
       </header>
 
       {pageActions && pageActions.length > 0 ? <PageActions taskId={t.id} actions={pageActions} /> : null}
