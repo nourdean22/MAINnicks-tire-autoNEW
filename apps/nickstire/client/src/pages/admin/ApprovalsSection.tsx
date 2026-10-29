@@ -181,6 +181,8 @@ export default function ApprovalsSection() {
   }
 
   const rows = list.data ?? [];
+  // Stuck rows are not in the default view; the server counts them so the chip and the empty state can say so.
+  const stuckCount = decided.data?.available ? decided.data.stuckCount : 0;
   const now = new Date(); // "today"/"tomorrow" on a card are read against this render, not the request date
   const rejectText = [rejectReason, rejectNote.trim()].filter(Boolean).join(" · ");
 
@@ -205,7 +207,7 @@ export default function ApprovalsSection() {
                 : "bg-card/50 text-muted-foreground border-border/30 hover:text-foreground"
             }`}
           >
-            {f.label}
+            {f.id === "failed" && stuckCount > 0 ? `${f.label} (${stuckCount})` : f.label}
           </button>
         ))}
       </div>
@@ -223,7 +225,7 @@ export default function ApprovalsSection() {
           <ClipboardList className="w-5 h-5 mx-auto mb-2 opacity-50" />
           {filter === "needs_decision" ? (
             <>
-              <p className="text-foreground">Nothing waiting for you.</p>
+              <EmptyQueueNotice query={decided} onOpenStuck={() => setFilter("failed")} />
               <LastDecisionLine query={decided} />
             </>
           ) : (
@@ -525,6 +527,31 @@ function DecisionSummary({ query }: { query: DecidedQuery }) {
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Empty Needs-decision copy. "Nothing waiting for you" is only true when nothing is stuck either: an
+ * execution_ambiguous row means a booking or callback may or may not exist, and it lives under Failed / stuck.
+ */
+function EmptyQueueNotice({ query, onOpenStuck }: { query: DecidedQuery; onOpenStuck: () => void }) {
+  const data = query.data;
+  const stuck = data && data.available ? data.stuckCount : 0;
+  if (!(stuck > 0)) return <p className="text-foreground">Nothing waiting for you.</p>;
+  return (
+    <>
+      <p className="text-foreground">
+        {`Nothing new to decide, but ${stuck} ${stuck === 1 ? "proposal is" : "proposals are"} stuck or failed.`}
+      </p>
+      <p className="mt-1 text-xs">A booking or callback may or may not exist for these. Check each one.</p>
+      <button
+        type="button"
+        onClick={onOpenStuck}
+        className="mt-2 min-h-12 min-w-12 rounded-md bg-secondary px-3 text-xs text-foreground hover:bg-secondary/80"
+      >
+        Open Failed / stuck
+      </button>
+    </>
   );
 }
 

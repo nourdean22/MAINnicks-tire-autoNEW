@@ -29,6 +29,13 @@ const DECISION_OF: Record<(typeof DECISION_ACTIONS)[number], Decision> = {
 /** Every status a human decision leaves behind (a yes that then ran, failed or hung, or a no). */
 const DECIDED_STATUSES = ["rejected", "approved", "executing", "executed", "failed", "execution_ambiguous"];
 
+/**
+ * Proposals resting where the default Needs decision view (draft + pending_review) never shows them: real
+ * failures, sweep-parked ambiguity (a booking or callback may or may not exist) and the two crash-orphan
+ * states. Keep in step with FILTER_STATUSES.failed in client/src/pages/admin/ApprovalsSection.tsx.
+ */
+const STUCK_STATUSES = ["failed", "execution_ambiguous", "executing", "approved"];
+
 const NO_REASON = "No reason given";
 const UNKNOWN_TYPE = "unknown";
 const REASON_MAX = 80;
@@ -54,6 +61,8 @@ export type ProposalDecisionSummary =
        * 0 means every decided proposal is accounted for.
        */
       missingDecisionEvents: number;
+      /** Proposals (all time) in a stuck status: they need a human but are not in the Needs decision view. */
+      stuckCount: number;
     }
   | { available: false; reason: "error" | "no_db"; message: string };
 
@@ -139,6 +148,16 @@ export async function getDecisionSummary({ days }: { days: number }): Promise<Pr
       throw new Error("the missing-decision count is not a readable number");
     }
 
+    // Stuck proposals: the empty Needs decision view must not read as all clear while these exist.
+    const [stuckRow] = await d
+      .select({ n: sql<number | string | null>`COUNT(*)` })
+      .from(adminProposals)
+      .where(inArray(adminProposals.status, STUCK_STATUSES));
+    const stuckCount = Number(stuckRow?.n);
+    if (stuckRow?.n == null || !Number.isInteger(stuckCount) || stuckCount < 0) {
+      throw new Error("the stuck-proposal count is not a readable number");
+    }
+
     // Each proposal counts once, by its latest decision event in the window.
     const latest = new Map<string, { at: number; decision: Decision; note: string | null; actionType: string }>();
     windowRows.forEach((r, i) => {
@@ -188,6 +207,7 @@ export async function getDecisionSummary({ days }: { days: number }): Promise<Pr
       topReasons,
       lastDecision,
       missingDecisionEvents,
+      stuckCount,
     };
   } catch (err) {
     const message = logSafeErrorMessage(err);
