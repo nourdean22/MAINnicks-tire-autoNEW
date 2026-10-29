@@ -36,6 +36,12 @@ export interface TowerHealth {
    * `{ unresolved }`, so `alerts.unresolved` was always undefined and the alerts line never showed.
    */
   alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
+  /**
+   * buildSystemHealth's rollup: the sources (alerts, radar, morningBrief, autonomic, and "db" when down) whose
+   * read was not ok. Until 2026-10-29 only the alerts read was checked, so an unavailable radar, morningBrief or
+   * autonomic read still rendered ALL SYSTEMS NOMINAL.
+   */
+  degradedSources?: string[];
 }
 
 export interface TowerInput {
@@ -125,6 +131,16 @@ export function controlTower(input: TowerInput): TowerVerdict {
       tone: "amber",
       href: "/system/alerts",
     });
+  }
+  // alerts has its own row above; db is already an exception when diagnostics says it is down.
+  const namedSources = input.health?.degradedSources ?? [];
+  for (const source of namedSources) {
+    if (source === "alerts" || (source === "db" && !d.db.connected)) continue;
+    exceptions.push({ key: `health-${source}`, line: `${source} health read unavailable`, tone: "amber" });
+  }
+  // Degraded with no source named (older payload): still not nominal.
+  if (input.health?.status === "degraded" && namedSources.length === 0) {
+    exceptions.push({ key: "health-degraded", line: "health summary degraded", tone: "amber" });
   }
   const devError = d.devices?.error ?? 0;
   if (devError > 0) {

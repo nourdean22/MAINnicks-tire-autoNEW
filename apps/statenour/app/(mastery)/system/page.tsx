@@ -91,6 +91,8 @@ interface HealthData {
   /** A MetricResult from buildSystemHealth (lib/services/system-pages.ts), not a bare count. */
   alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
   commitments?: { active: number };
+  /** buildSystemHealth rollup: sources whose read was not ok. */
+  degradedSources?: string[];
 }
 
 function StatusDot({ status }: { status: string }) {
