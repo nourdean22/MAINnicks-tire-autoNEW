@@ -465,6 +465,9 @@ export async function listTasks(filter: TaskFilter = {}) {
   try {
     tasks = (await prisma.task.findMany({
       where,
+      // 2026-10-29 · notes are read on the task's own detail only, never in bulk
+      // (tests/services/task-notes-reads.test.ts).
+      omit: { notes: true },
       include: {
         mission: true,
         // Apr 26 · F5 — pull the first `created` event per task so
@@ -487,6 +490,7 @@ export async function listTasks(filter: TaskFilter = {}) {
     });
     tasks = (await prisma.task.findMany({
       where,
+      omit: { notes: true },
       include: { mission: true },
       orderBy: { updatedAt: "desc" },
       take: TASK_FETCH_CAP,

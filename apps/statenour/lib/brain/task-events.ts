@@ -55,7 +55,10 @@ export type TaskEventKind =
   | "killed"
   /** Execution Deck (2026-09-01): DOING → READY with a ready-to-resume
    *  note in payload.note — read back by the deck's next-move hero. */
-  | "parked";
+  | "parked"
+  /** 2026-10-29 · a photo added to or removed from the task; payload.attachmentId only. */
+  | "attachment_added"
+  | "attachment_removed";
 
 export interface TaskEventInput {
   taskId: string;

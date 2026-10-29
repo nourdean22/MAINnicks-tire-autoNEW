@@ -26,6 +26,8 @@ import { InspectorNotice } from "@/components/inspector/inspector-notice";
 import { EntityActionRow } from "@/components/inspector/entity-action-row";
 import { PriorityBreakdownView } from "@/components/inspector/priority-breakdown";
 import type { InspectorPanelProps } from "@/components/inspector/panels/memory-inspector";
+import { TaskNotes } from "@/components/inspector/panels/task-notes";
+import { TaskPhotos } from "@/components/inspector/panels/task-photos";
 
 function dueLine(dueDate: string | null | undefined, now: Date): string | null {
   if (!dueDate) return null;
@@ -107,6 +109,7 @@ type TaskDetail = Record<string, unknown> & {
   createdAt?: string | Date | null;
   mission?: { title: string; domain: string } | null;
   promiseTo?: string | null;
+  notes?: string | null;
 };
 
 export function TaskInspector({ entity }: InspectorPanelProps) {
@@ -160,6 +163,9 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
         <Row label="shape" value={meta || null} />
         <Row label="last touched" value={untouched} />
       </dl>
+
+      <TaskNotes key={t.id} taskId={t.id} initial={t.notes ?? null} />
+      <TaskPhotos taskId={t.id} />
 
       <section aria-label="Why">
         <p className="mb-1 font-mono text-[11px] text-fg-tertiary">Why this priority</p>
