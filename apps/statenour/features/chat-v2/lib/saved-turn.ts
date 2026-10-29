@@ -58,6 +58,18 @@ function traceOf(row: SavedRow): string | undefined {
 }
 
 /**
+ * The stored reply of the attempt `traceId` (row id + stored text, banners included), or null when
+ * that row is not written yet. The newest match wins; a row with no text is no reply.
+ */
+export function savedReplyForTrace(rows: readonly SavedRow[] | null | undefined, traceId: string): { id: string; content: string } | null {
+  for (const row of [...(rows ?? [])].reverse()) {
+    if (row?.role !== "assistant" || traceOf(row) !== traceId) continue;
+    if (typeof row.id === "string" && typeof row.content === "string" && row.content.length > 0) return { id: row.id, content: row.content };
+  }
+  return null;
+}
+
+/**
  * safe: every saved row says nothing a replay would repeat. ran: a settled row
  * records a write (or an action block). unconfirmed: nothing saved, nothing read,
  * a row not settled yet, or a row the gate cannot read (the gate throwing on a

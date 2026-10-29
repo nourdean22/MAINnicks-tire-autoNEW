@@ -54,6 +54,22 @@ function textOf(message: UIMessage): string {
     .trim();
 }
 
+type ListPart = UIMessage["parts"][number];
+const wordedText = (part: ListPart) => part.type === "text" && part.text.trim().length > 0;
+
+/** Index of the last text part with words in it, -1 when none. */
+function lastWordedTextIndex(parts: readonly ListPart[]): number {
+  for (let i = parts.length - 1; i >= 0; i--) if (wordedText(parts[i])) return i;
+  return -1;
+}
+
+/** The reply's text is written (its last part is finished text) and no tool is still running. */
+function isVerifyTail(parts: readonly ListPart[]): boolean {
+  const last = [...parts].reverse().find((part) => part.type !== "step-start");
+  if (!last || !wordedText(last) || (last as { state?: string }).state !== "done") return false;
+  return !parts.some((part) => part.type.startsWith("tool-") && !["output-available", "output-error"].includes((part as { state?: string }).state ?? ""));
+}
+
 async function copyToClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
@@ -549,6 +565,11 @@ export function ChatMessageList({
       {renderedMessages.map((message, messageIndex) => {
         if (isErroredAssistantTurn(message)) return <InterruptedTurnCard key={message.id} message={message} onRetry={onRetry} />;
         const isLatestAssistant = message.role === "assistant" && messageIndex === renderedMessages.length - 1;
+        const streamingHere = isLoading && isLatestAssistant;
+        // 2026-10-29 · one reply, one badge strip: a multi-step reply (text, tools, text) repeated
+        // the strip under every step and drew a blank shell for a step with no text, so it read as
+        // several replies. The strip sits under the last text that has words.
+        const lastTextIndex = lastWordedTextIndex(message.parts ?? []);
         // 2026-08-29 · When recall was broken the model retried the same
         // search several times in one turn and the transcript rendered five
         // byte-identical "0 matches" cards in a row -- on a phone that is
@@ -613,9 +634,12 @@ export function ChatMessageList({
                     // The composer shows a visible editing banner w/ cancel.
                     return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => editMessage(part.text, message.id)} />;
                   }
-                  const contextBlocks = extractContextBlocks(message, liveContextBlocks ?? null);
-                  const quality = extractQuality(message);
-                  const citations = extractCitations(message);
+                  // An empty step draws nothing; the part still streaming keeps its shell (the caret).
+                  if (!part.text.trim() && !(streamingHere && index === (message.parts?.length ?? 0) - 1)) return null;
+                  const underThis = index === lastTextIndex;
+                  const contextBlocks = underThis ? extractContextBlocks(message, liveContextBlocks ?? null) : undefined;
+                  const quality = underThis ? extractQuality(message) : undefined;
+                  const citations = underThis ? extractCitations(message) : undefined;
                   const reasoningSteps = ((message.parts as any[]) || []).filter((item) => item?.type === "data-reasoningStep").map((item) => item.data);
                   return (
                     <div key={`${message.id}-${index}`}>
@@ -651,6 +675,15 @@ export function ChatMessageList({
                 </ToolReceiptSummary>
               )}
               {message.role === "assistant" && <TypedToolCards message={message} />}
+              {/* 2026-10-29 · the draft is written but the turn is still open: the server checks the
+                  reply (45-90 s on a gated turn) before it sends the stored version. Without this
+                  the only sign was the red Stop button, and a Stop here loses the checked text. */}
+              {streamingHere && isVerifyTail(message.parts ?? []) && (
+                <p className="mt-3 flex items-center gap-2 font-mono text-[11.5px] text-fg-tertiary">
+                  <span aria-hidden className="pulse-live inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  Checking the reply…
+                </p>
+              )}
               {/* 2026-08-28 · always-visible actions. Suppressed on the
                   assistant turn that is still streaming: Copy would
                   capture a half-written reply and Read would narrate a
