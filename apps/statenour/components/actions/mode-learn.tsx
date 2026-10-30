@@ -681,12 +681,12 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             {detectedTool === "research" ? (
               <>
                 <Globe size={9} className="text-sky-400" />
-                <span className="text-sky-400/80">Nick will search the live web</span>
+                <span className="text-sky-300">Nick will search the live web</span>
               </>
             ) : (
               <>
                 <BookOpen size={9} className="text-accent" />
-                <span className="text-accent/80">Nick will build you a micro-course</span>
+                <span className="text-accent">Nick will build you a micro-course</span>
               </>
             )}
           </div>
@@ -696,7 +696,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {/* ── Decision-linked learning — "you're deciding X, learn about Y" ── */}
       {!active && activeDecisions.length > 0 && (
         <div className="space-y-1.5">
-          <p className="font-mono text-[11px] text-sky-400/80 px-0.5">
+          <p className="font-mono text-[11px] text-sky-300 px-0.5">
             Learn before you decide
           </p>
           {activeDecisions.map((dec, i) => (
@@ -706,12 +706,12 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               disabled={loading}
               className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2.5 rounded-control border border-sky-500/20 bg-sky-500/[0.03] hover:bg-sky-500/[0.06] hover:border-sky-500/30 text-left transition-colors group"
             >
-              <Lightbulb size={12} className="text-sky-500/60 group-hover:text-sky-400 shrink-0 mt-0.5" />
+              <Lightbulb size={12} className="text-sky-300 group-hover:text-sky-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-fg-secondary group-hover:text-fg">
                   {dec.topic}
                 </p>
-                <p className="font-mono text-[11px] text-sky-500/50 mt-0.5">
+                <p className="font-mono text-[11px] text-sky-300 mt-0.5">
                   Active decision: {dec.title}
                 </p>
               </div>
@@ -741,9 +741,9 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               >
                 <div className="mt-0.5 shrink-0">
                   {s.tool === "research" ? (
-                    <Globe size={12} className="text-sky-500/60 group-hover:text-sky-400" />
+                    <Globe size={12} className="text-sky-300 group-hover:text-sky-400" />
                   ) : (
-                    <BookOpen size={12} className="text-accent/60 group-hover:text-accent" />
+                    <BookOpen size={12} className="text-fg-tertiary group-hover:text-fg" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -774,7 +774,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             <div className="flex items-center gap-2 text-[11px] text-fg-tertiary font-mono">
               <span>{totalLearned} topics</span>
               {thisWeek > 0 && (
-                <span className="text-accent/70">{thisWeek} this week</span>
+                <span className="text-accent">{thisWeek} this week</span>
               )}
             </div>
           </div>
@@ -787,9 +787,9 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               >
                 <div className="mt-0.5 shrink-0">
                   {h.tool === "teach" ? (
-                    <BookOpen size={11} className="text-accent/50" />
+                    <BookOpen size={11} className="text-fg-tertiary" />
                   ) : (
-                    <Globe size={11} className="text-sky-500/50" />
+                    <Globe size={11} className="text-sky-300" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -877,7 +877,7 @@ function TeachCard({
             <button
               onClick={() => onSaveToBrain(data.topic, data.mvuRead!)}
               title="Save to brain"
-              className="min-h-11 min-w-11 p-1.5 text-accent/50 hover:text-fg rounded-control hover:bg-accent/10"
+              className="min-h-11 min-w-11 p-1.5 text-fg-tertiary hover:text-fg rounded-control hover:bg-accent/10"
             >
               <Brain size={12} />
             </button>
@@ -903,7 +903,7 @@ function TeachCard({
               ? "bg-accent/5 border-accent/20"
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
-            <p className="font-mono text-[11px] text-accent/70 mb-1">
+            <p className="font-mono text-[11px] text-accent mb-1">
               The one thing to understand
             </p>
             <p className={cn(
@@ -929,7 +929,7 @@ function TeachCard({
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
             <div className="flex items-center justify-between">
-              <p className="font-mono text-[11px] text-sky-400/70">
+              <p className="font-mono text-[11px] text-sky-300">
                 Key concepts
               </p>
               <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-3.5">
@@ -940,7 +940,7 @@ function TeachCard({
               <div className="mt-1.5 space-y-1">
                 {data.keyConcepts.map((c, i) => (
                   <div key={i} className="flex items-start gap-2 text-[11px]">
-                    <span className="text-sky-400/50 font-mono shrink-0 w-4 text-right">{i + 1}</span>
+                    <span className="text-sky-300 font-mono shrink-0 w-4 text-right">{i + 1}</span>
                     <span className="text-fg-secondary">{c}</span>
                   </div>
                 ))}
@@ -1023,7 +1023,7 @@ function TeachCard({
           </p>
           {data.resources.map((r, i) => (
             <div key={i} className="flex items-start gap-2 text-[12px]">
-              <ExternalLink size={9} className="text-sky-400/50 shrink-0 mt-0.5" />
+              <ExternalLink size={9} className="text-sky-300 shrink-0 mt-0.5" />
               {r.url ? (
                 <a
                   href={r.url}
@@ -1044,7 +1044,7 @@ function TeachCard({
       {/* Learning path chain — structured progression, not random follow-ups */}
       {data.learningPath && data.learningPath.length > 0 && (
         <div className="pt-2 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] text-accent/70 mb-1.5">
+          <p className="font-mono text-[11px] text-accent mb-1.5">
             Your learning path
           </p>
           <div className="space-y-1">
@@ -1052,7 +1052,7 @@ function TeachCard({
               <button
                 key={i}
                 onClick={() => onFollowUp(step.topic)}
-                className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-accent/20 text-left transition-colors group"
+                className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-colors group"
               >
                 <div className="flex flex-col items-center shrink-0 mt-0.5">
                   <span className="w-5 h-5 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center text-[11px] font-semibold text-accent">
@@ -1068,7 +1068,7 @@ function TeachCard({
                   </p>
                   <p className="text-[11px] text-fg-tertiary mt-0.5">{step.why}</p>
                 </div>
-                <ArrowRight size={10} className="text-fg-tertiary group-hover:text-accent shrink-0 mt-1 transition-colors" />
+                <ArrowRight size={10} className="text-fg-tertiary group-hover:text-fg shrink-0 mt-1 transition-colors" />
               </button>
             ))}
           </div>
@@ -1124,7 +1124,7 @@ function ResearchCard({
             <button
               onClick={() => onSaveToBrain(data.query, data.content!)}
               title="Save to brain"
-              className="min-h-11 min-w-11 p-1.5 text-sky-400/50 hover:text-sky-300 rounded-control hover:bg-sky-500/10"
+              className="min-h-11 min-w-11 p-1.5 text-sky-300 hover:text-sky-300 rounded-control hover:bg-sky-500/10"
             >
               <Brain size={12} />
             </button>
@@ -1155,7 +1155,7 @@ function ResearchCard({
       {/* Citations */}
       {cites.length > 0 && (
         <div className="space-y-0.5 pt-1.5 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] text-sky-400/60">
+          <p className="font-mono text-[11px] text-sky-300">
             Sources ({cites.length})
           </p>
           {cites.map((c, i) => (
