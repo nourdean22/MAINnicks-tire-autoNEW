@@ -52,6 +52,7 @@ import { ContextRail } from "./context-rail";
 import { MaximLine } from "@/components/wisdom/maxim-line";
 import { HomeShortcuts } from "./home-shortcuts";
 import { ShopTodayCard } from "./shop-today-card";
+import { HomeCards } from "./home-cards";
 
 export function HomeConsole() {
   const briefQ = trpc.operator.brief.useQuery(undefined, {
@@ -92,6 +93,7 @@ export function HomeConsole() {
         {/* home-pulse W2 (2026-10-30): shortcuts to the surfaces the tab bar lacks, then today's shop sales. */}
         <section aria-label="Shortcuts and shop" className="mt-5 flex flex-col gap-3">
           <HomeShortcuts />
+          <HomeCards />
           <ShopTodayCard />
         </section>
 
