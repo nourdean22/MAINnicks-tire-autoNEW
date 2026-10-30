@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-import { selectWisdomSlots, WISDOM_SLOT_MIN_SIMILARITY } from "@/lib/brain/contextual-recall";
+import { selectWisdomSlots, WISDOM_SLOT_MIN_SIMILARITY, isNonWisdomPayload } from "@/lib/brain/contextual-recall";
 
 const NOW = new Date("2026-10-29T23:00:00Z");
 const DAY = 86_400_000;
@@ -83,8 +83,42 @@ describe("selectWisdomSlots", () => {
     expect(selectWisdomSlots(pool, 3, { useEmbeddings: false, now: NOW }).map((r) => r.id)).toEqual(["some"]);
   });
 
+  it.each([
+    [0.349, 0],
+    [0.35, 1],
+    [0.351, 1],
+  ])("the floor as literals: cosine %s gives %s row(s)", (semantic, n) => {
+    expect(selectWisdomSlots([row({ semantic })], 3, { useEmbeddings: true, now: NOW })).toHaveLength(n);
+  });
+
+  it("with 2 slots a recent and a rested row both come back, rested first", () => {
+    const pool = [
+      row({ id: "recent", key: "wisdom_naval-ravikant_001", hybrid: 0.6, lastSeen: new Date(NOW.getTime() - 3_600_000) }),
+      row({ id: "rested", key: "wisdom_charlie-munger_002", hybrid: 0.5 }),
+    ];
+    expect(selectWisdomSlots(pool, 2, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["rested", "recent"]);
+  });
+
+  it.each(["consolidation", "output_critic", "skill_graduation", "wisdom-distiller", "distillation"])(
+    "principle producer %s qualifies without a curated author",
+    (source) => {
+      expect(selectWisdomSlots([row({ key: `w_${source}`, source })], 3, { useEmbeddings: true, now: NOW })).toHaveLength(1);
+    },
+  );
+
   it("ignores rows outside category wisdom", () => {
     const pool = [row({ category: "insight", key: "wisdom_naval-ravikant_001" })];
     expect(selectWisdomSlots(pool, 3, { useEmbeddings: true, now: NOW })).toEqual([]);
+  });
+});
+
+describe("isNonWisdomPayload", () => {
+  it("flags archive chunks and cron outputs filed as wisdom", () => {
+    expect(isNonWisdomPayload({ category: "wisdom", key: "archive_756b_doc.txt_chunk71", source: "manual" })).toBe(true);
+    expect(isNonWisdomPayload({ category: "wisdom", key: "move_2026-05-24_2", source: "cron:revenue-decision" })).toBe(true);
+  });
+  it("CONTROL: leaves curated wisdom and other categories alone", () => {
+    expect(isNonWisdomPayload({ category: "wisdom", key: "wisdom_naval-ravikant_001", source: "manual" })).toBe(false);
+    expect(isNonWisdomPayload({ category: "insight", key: "archive_x", source: "cron:x" })).toBe(false);
   });
 });

@@ -254,6 +254,11 @@ interface WisdomSlotCandidate {
   lastSeen?: Date | null;
 }
 
+/** Archive chunks and cron outputs filed under category wisdom (prod, 2026-10-29: the two most-injected "wisdom" rows). */
+export function isNonWisdomPayload(m: { category: string; key: string; source: string | null }): boolean {
+  return m.category === "wisdom" && (m.key.startsWith("archive_") || (m.source ?? "").startsWith("cron:"));
+}
+
 export function selectWisdomSlots<T extends WisdomSlotCandidate>(
   scored: T[],
   slots: number,
@@ -1713,8 +1718,11 @@ export async function getContextualMemories(
   // of the 0.15 threshold. This ensures contextual recall never comes
   // back empty just because the semantic scores are all weak — the top
   // of the scored list always represents the BEST available match.
-  const topCandidates = scored.filter((m) => !addedIds.has(m.id));
-  const guaranteedTop3 = topCandidates.slice(0, 3);
+  // 2026-10-29 (W2 review) · a wisdom row selectWisdomSlots refused may come back
+  // only on the 0.15 threshold below, never through this guarantee or the pad
+  // (both skip the threshold), and a non-wisdom payload filed as wisdom enters no lane.
+  const topCandidates = scored.filter((m) => !addedIds.has(m.id) && !isNonWisdomPayload(m));
+  const guaranteedTop3 = topCandidates.filter((m) => m.category !== "wisdom").slice(0, 3);
   for (const m of guaranteedTop3) {
     relevant.push({
       id: m.id,
@@ -1765,7 +1773,7 @@ export async function getContextualMemories(
   // Pad if too few
   if (relevant.length < 10) {
     const padding = scored
-      .filter((m) => !relevant.some((r) => r.content === m.content))
+      .filter((m) => m.category !== "wisdom" && !relevant.some((r) => r.content === m.content))
       .slice(0, 10 - relevant.length);
     for (const m of padding) {
       relevant.push({
