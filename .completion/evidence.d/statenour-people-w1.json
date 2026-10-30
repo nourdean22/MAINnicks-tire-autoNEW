@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w1": {
+      "ref": "statenour/people-w1 (job 2026-10-30-people-tracker, W1). Adds lib/services/people/backfill-plan.ts (pure planner: exact or case-insensitive names only, ambiguous refused, never creates a person, interacted digest verdicts only, the ledger's own conversation window as the dedupe rule, one row per conversation and person, a confirm token over the planned ids; 8 tests, red first as a missing module) and scripts/people-backfill.ts (dry run only: --apply exits 2 before any connection; prints counts and person-id suffixes, never names or notes; model calls paced 3 s apart and stopped after 3 provider failures in a row). Script typecheck with a scoped tsconfig: exit 0. Prod dry runs (reads only; the one write on the path is the AgentTrace telemetry row per model call, lib/ai/agent-trace.ts): --no-model gave 20 live people, lane A 0 links, lane B 84 candidate conversations; --limit 84 at 22:31Z (manager's yes, three conditions) gave 27 planned chat rows across 8 people, 66 of 84 digested before the 3-failure stop, 80 model calls (74 ok), confirm token d86d9928b211. No ledger, person or task row written."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the people tracker backfill. State after this PR: planner BUILT, dry run LIVE+PROVEN on prod reads; the apply is MISSING by design and waits for Nour's typed yes on the counts."
+    }
+  }
+}
