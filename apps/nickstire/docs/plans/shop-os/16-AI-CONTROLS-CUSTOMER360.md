@@ -90,3 +90,48 @@ changed what, custom roles; rejected: a role builder, because six fixed roles co
 
 **Nour decides:** (1) Settings screen yes (doc 13 recommends yes); (2) who else may edit (proposal: only you; managers
 may change hours); (3) send ALG settings screenshots so the key list matches what you use.
+
+## C. Customer profile searcher (outreach, reporting, knowing our customers)
+
+**What exists (FACT)** customer record with timeline and history (memory idea-crm-unified-customer-record); identity
+verdicts computed on read (`server/services/identityResolution.ts`); per-purpose consent ledger, mode off to enforce
+(`server/services/consentLedger.ts`); `review_requests`, `review_pipeline`; report skills `shop-retention-report`,
+`nicks-demand-report`, `gbp-local-report`. No social handle column on customers (schema grep, 0 hits).
+
+| Source | What it gives | Platform terms (quote, url) | Allowed? |
+|---|---|---|---|
+| Find a person's IG/FB by phone or name | nothing: Business Discovery covers only "Instagram Business or Creator IG User", by `username` | developers.facebook.com/docs/instagram-platform (ig-user business_discovery) | NO lookup exists |
+| Scraping IG or FB | n/a | "You may not access or collect data from our Products using automated means (without our prior permission)" (facebook.com/terms.php, eff. 2025-01-01); "You will not engage in Automated Data Collection without first obtaining Meta's express written permission" (facebook.com/legal/automated_data_collection_terms) | NO |
+| Comments on our own posts | commenter `from.username` (ig-comment reference) | Platform Terms 3.a.v bans "Processing Platform Data without valid User consent in order to build or augment user profiles for any purpose." (developers.facebook.com/terms/dfc_platform_terms) | reply YES; attach to a customer only with their consent |
+| Google reviews of our shop | `displayName`, `profilePhotoUrl`, `isAnonymous`; no phone or email (GBP reviews reference) | API content "must be stored temporarily for no more than 30 calendar days" (developers.google.com/my-business/content/policies) | read YES; keep a link, not a copy; a name match is an inference |
+| Twilio Lookup on our own list | Caller Name (CNAM) $0.01, Line Type $0.008, Reassigned Number $0.02 each at low volume; no social data (twilio.com Lookup docs and pricing) | Twilio AUP: NOT CHECKED | YES; flags landlines and reassigned numbers before a text |
+| Paid enrichment (People Data Labs) | `facebook_url`, `linkedin_url`, `twitter_url`; no Instagram field; free 100 credits/mo with contact data hidden, Pro from $98/mo (docs.peopledatalabs.com/docs/fields, pricing page) | PDL consumer-use terms: NOT CHECKED; Meta 3.a.iv bans "Selling, licensing, or purchasing Platform Data." | not for consumers |
+
+Law (finding a profile grants no consent): marketing texts by autodialer need prior express written consent
+(47 CFR 64.1200(a)(2), law.cornell.edu); email: "You must honor a recipient's opt-out request within 10 business days"
+(ftc.gov CAN-SPAM guide). Ohio has no comprehensive consumer privacy law in force (CLAIM, secondary sources). Nour's
+"dont worry about safeguards" covers the FTC Safeguards Rule only; terms and consent still hold.
+
+| Option | Mechanism | Stolen from | Cost | Risk | Kill criterion | Verdict |
+|---|---|---|---|---|---|---|
+| C1 profile from what they give us | profile card: visits, vehicles, declines, consent, matched reviews, plus an optional social handle the customer gives (counter question or a reply to a "follow us" text), stored with a new consent scope `social_link` | Meta Platform Terms 3.a.v (consent first); our consent ledger | 2 days | low | under 1 in 10 asked give a handle after 60 days | DO |
+| C2 Twilio Lookup pass | one pass on active customers: line type, CNAM, reassigned flag; re-check before a campaign | Twilio Lookup v2 packages | under $0.04 per number | none for social; cost only | under 5% of numbers change anything: stop re-checking | DO, needs your spend go |
+| C3 paid consumer enrichment | append social URLs from phone or email | PDL person schema | $98+/mo | profile building without consent; terms unchecked | n/a | REJECT; reopen for fleet accounts (businesses) |
+
+Benchmarked against: Meta Platform Terms and Instagram Graph API (2026-10-30); adopted: consent before linking;
+rejected: lookup by phone, because no Meta API offers it.
+
+Reporting and "knowing our customers" run on our own data (the three report skills), never on outside profiles.
+Outreach stays per 01 s.9 and 09 s.3: consent per purpose, a person's tap, STOP honored.
+
+**Nour decides:** (1) ask for social handles at the counter; (2) go on the Lookup spend; (3) which outreach first.
+
+## What Nour sends next
+1. Screenshots of the ALG settings screens you use (B).
+2. The first outreach you want: win-back, declined work, reviews or follow us (C).
+
+## NOT CHECKED (manager queries)
+- Tekmetric help pages (403): "Tekmetric set up taxes changes do not update existing repair orders".
+- OpenAI help on developer-mode plans (403): "ChatGPT developer mode MCP apps which plans write confirmation".
+- Instagram terms page (script-rendered): "Instagram terms of use automated collection sentence 2025".
+- PDL and Twilio use policies; Instagram 24-hour messaging window; Ohio HB 345 and HB 801 status on legislature.ohio.gov.
