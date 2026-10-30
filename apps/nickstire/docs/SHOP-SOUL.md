@@ -66,6 +66,9 @@ Bookings are rare: 13 bookings against 280 invoices in the 90 days to 2026-10-22
 
 1. **The car arrives.** The customer walks in, drives up, or calls first.
 2. **Quick free check.** We look before we talk price. (`shared/business.ts` `model.freeInspections`)
+   The quick check is a look at the tires from outside the car (Nour, 2026-10-30: "we look at the tires
+   from outside"). These are free too, and real (Nour, 2026-10-30: "all of them"): the brake check, the
+   battery test, the E-Check readiness check, the alignment pull-check and the 27-point inspection.
 3. **Written estimate before any work.** Beyond the fixed prices, we never quote a number blind: free
    check, written quote, you don't pay until you say yes. (`businessFacts.ts` `repair.pricing_policy`)
 4. **The customer says yes or no.**
@@ -299,6 +302,8 @@ Only Nour can answer these. When he does, write the answer into the right sectio
 7. **Drop-off cutoff.** Two pages say "drop off before 10 AM for same-day". Is 10 AM the rule?
 8. **The free inspection.** The About page says a free 27-point inspection on every visit, with photos of
    worn parts. Is that what the crew does on every car?
+   Answered in part (Nour, 2026-10-30): the free 27-point inspection is real (section 2). Still open: whether
+   photos of worn parts go with every car.
 9. **Register payment types.** The April doc listed cash, Visa, SNAP and Afterpay. What does the register
    take today?
 10. **Flat repair price.** Not in `shared/pricing.ts` yet. What should the site and the receptionist quote?
