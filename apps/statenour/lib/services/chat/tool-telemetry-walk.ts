@@ -10,6 +10,7 @@
 import { recordToolInvocation, isConfigurationError } from "@/lib/ai/tool-telemetry";
 import { logError } from "@/lib/utils/error-log";
 import { instrumentScope } from "@/lib/observability/instrument-scope";
+import { logger as rootLogger } from "@/lib/logger";
 import { classifyToolEffect, type ToolEffectClass } from "@/lib/ai/receipts/action-receipt";
 import { operationStateFrom, type OperationState } from "@/lib/ai/chat/turn-control-plane";
 import { summarizeOperations } from "@/lib/ai/chat/turn-execution-summary";
@@ -49,7 +50,11 @@ export interface CapturedToolCall {
    * full search payload would bloat every persisted turn.
    */
   resultDigest?: string;
+  /** Refused on a step that offered no tools: never ran, kept for the claim checks, no telemetry. */
+  notRun?: boolean;
 }
+
+const log = rootLogger.withSurface("chat/tool-telemetry-walk");
 
 /** Flatten an arbitrary tool result into matchable text. */
 function digestResult(result: unknown, max = 4000): string {
@@ -363,6 +368,13 @@ export function recordToolObservations(
   const observations = normalizeAiSdkToolObservations(event);
 
   for (const call of observations) {
+    // Refused on a step that offered no tools: it never ran, so it is not a tool failure and
+    // must not feed tool_telemetry (the breaker's input). It stays a captured call (ok:false,
+    // notRun) because the claim checks still need it: a result stated from a read that never
+    // ran is exactly what the banner exists for.
+    if (call.notRun) {
+      log.info("tool_call_not_run", { toolName: call.toolName, conversationId: convId ?? null });
+    }
     const toolName = call.toolName;
     const sdkErrored = call.error !== undefined && call.error !== null;
     const result = call.output;
@@ -403,7 +415,7 @@ export function recordToolObservations(
       verified: !errored && effectClass === "read" && resultObserved,
     });
 
-    recordToolInvocation({
+    if (!call.notRun) recordToolInvocation({
       toolName,
       success: !errored,
       durationMs,
@@ -434,6 +446,7 @@ export function recordToolObservations(
       effectClass,
       operationState,
       resultDigest: digestResult(result),
+      ...(call.notRun ? { notRun: true } : {}),
     });
   }
 

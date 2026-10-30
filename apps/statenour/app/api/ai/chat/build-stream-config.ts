@@ -25,7 +25,7 @@
  */
 
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
-import type { streamText } from "ai";
+import type { ModelMessage, streamText } from "ai";
 import { smoothStream } from "ai";
 import { stepCountIs } from "ai";
 import { GEMINI_SAFETY_OFF, type ProviderName } from "@/lib/ai/provider";
@@ -254,7 +254,7 @@ export function buildStreamConfigFactory(deps: {
         // previously-prepareStep-less default.
         const lastStep = (mode === "deep" ? 5 : 3) - 1;
         // Why the strip differs per provider: see text-only-step.ts.
-        const textOnly = textOnlyStep(fbProvider);
+        const textOnly = (messages?: ModelMessage[]) => textOnlyStep(fbProvider, messages);
         // READ permission (composer selector) must not be contradicted by
         // structural tool forcing — a forced tool / toolChoice:"required"
         // makes the "observe and describe, don't act" directive impossible
@@ -273,11 +273,11 @@ export function buildStreamConfigFactory(deps: {
           log.info("web_search_intent_detected", { surface: "chat" });
           noteForcedTool(__traceId, "arsenalWebSearch", provider, modelId);
           return {
-            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            prepareStep: ({ stepNumber, messages }: { stepNumber: number; messages?: ModelMessage[] }) =>
               stepNumber === 0
                 ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
                 : stepNumber >= lastStep
-                  ? textOnly
+                  ? textOnly(messages)
                   : { toolChoice: "auto" as const },
           };
         }
@@ -301,17 +301,17 @@ export function buildStreamConfigFactory(deps: {
             noteForcedTool(__traceId, intent.expectedTool, provider, modelId);
           }
           return {
-            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            prepareStep: ({ stepNumber, messages }: { stepNumber: number; messages?: ModelMessage[] }) =>
               stepNumber === 0
                 ? { toolChoice: "required" as const }
                 : stepNumber >= lastStep
-                  ? textOnly
+                  ? textOnly(messages)
                   : { toolChoice: "auto" as const },
           };
         }
         return {
-          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-            stepNumber >= lastStep ? textOnly : {},
+          prepareStep: ({ stepNumber, messages }: { stepNumber: number; messages?: ModelMessage[] }) =>
+            stepNumber >= lastStep ? textOnly(messages) : {},
         };
       })(),
       // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are

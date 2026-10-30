@@ -350,7 +350,7 @@ const MATH_ARGUMENTS = [
     today: { amount: `$${OIL_PRICE.fullSynthetic}`, thing: "synthetic oil change today" },
     later: { amount: "$4,000+", thing: "engine rebuild in 60K miles if you skip oil changes" },
     explanation: "Sludge from old oil destroys engines. The math is brutal but the maintenance is cheap.",
-    paymentProgram: "Walk in any day. 30 minutes. Free multi-point check while you wait.",
+    paymentProgram: "Walk in any day. 30 minutes. Ask for a free 27-point inspection.",
     imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
   },
   {
@@ -433,7 +433,7 @@ function pickSeasonalContext(): SeasonalContext {
     return {
       title: "First frost is 4-6 weeks out. Cars don't care, but they should.",
       consequence: "Battery failure rate triples below 32°F. Wiper blades crack in cold. Antifreeze freezes if it's old. Tire pressure drops 1 PSI per 10° drop.",
-      service: "Free 27-point winter inspection: battery test, tire pressure, antifreeze concentration check. While you wait.",
+      service: "Ask for a free 27-point winter inspection: battery test, tire pressure, antifreeze concentration check.",
       imageHint: "battery tester hooked up showing voltage reading",
     };
   }

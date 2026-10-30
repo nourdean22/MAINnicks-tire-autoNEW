@@ -506,7 +506,21 @@ export const metaTools = {
       if (aiConfig?.disabledTools?.includes(name)) return { error: `${name} is disabled by operator config.` };
       let parsedArgs: unknown = args;
       if (target.inputSchema && typeof target.inputSchema.safeParse === "function") {
-        const parsed: z.ZodSafeParseResult<unknown> = target.inputSchema.safeParse(args);
+        let parsed: z.ZodSafeParseResult<unknown> = target.inputSchema.safeParse(args);
+        if (!parsed.success) {
+          // Models send numbers and booleans as strings (prod 2026-10-30: daysBack:"30",
+          // limit:"5"). Retry once with ONLY the rejected top-level fields converted, and only
+          // clean "30" / "true" style strings; the result still has to pass the target's schema.
+          const rejected = new Set(parsed.error.issues.map((i: z.core.$ZodIssue) => String(i.path[0])));
+          const coerced = Object.fromEntries(
+            Object.entries(args).map(([k, v]) => [
+              k,
+              !rejected.has(k) || typeof v !== "string" ? v : /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v === "true" ? true : v === "false" ? false : v,
+            ]),
+          );
+          const retry: z.ZodSafeParseResult<unknown> = target.inputSchema.safeParse(coerced);
+          if (retry.success) parsed = retry;
+        }
         if (!parsed.success) {
           return {
             error: `arguments failed ${name}'s schema`,

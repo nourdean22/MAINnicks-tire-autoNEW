@@ -5,6 +5,7 @@
  * light cleveland" (151 imps #13.1) — this page captures the cluster.
  */
 
+import { BUSINESS } from "@shared/business";
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { DIAGNOSTICS_PHOTOS } from "@/components/PhotoRibbon";
 import { useReviewStats } from "@/hooks/useReviewStats";
@@ -165,7 +166,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         icon: <Clock className="w-5 h-5" />,
         symptom: "Just need oil and a check?",
         consequence: "Skipping intervals leads to engine sludge and longer-term codes anyway.",
-        relief: "Free 27-point inspection on every oil change.",
+        relief: BUSINESS.freeInspection.short,
         ctaLabel: "OIL CHANGE",
         ctaHref: "/oil-change",
       },

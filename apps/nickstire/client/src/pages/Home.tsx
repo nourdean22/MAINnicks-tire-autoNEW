@@ -939,7 +939,7 @@ function TriageGrid() {
             icon={<Wrench className="w-5 h-5" />}
             symptom="Just need the basics?"
             consequence="Routine oil + filter is the cheapest engine insurance there is — sludge is what kills engines early."
-            relief="Free 27-point check on every oil change. Walk-ins welcome 7 days."
+            relief={`${BUSINESS.freeInspection.short} Walk-ins welcome 7 days.`}
             ctaLabel="SCHEDULE DROP-OFF"
             ctaHref="/oil-change"
           />

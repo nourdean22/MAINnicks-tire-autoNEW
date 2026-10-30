@@ -228,6 +228,11 @@ async function markMemoryEmbeddingSuccess(memoryId: string): Promise<void> {
  * vector table. Contextual recall can then search across types
  * (e.g. "when Nick wrote X in a brain dump on April 2nd").
  */
+/** The text every brain_memory vector is built from: the embed-backfill cron, the drain script and the wisdom loaders share it. */
+export function brainMemoryEmbedText(m: { category: string; key: string; content: string }): string {
+  return `[${m.category}] ${m.key}: ${m.content}`;
+}
+
 export async function storeGenericEmbedding(
   sourceType: EmbeddingSourceType,
   sourceId: string,

@@ -330,9 +330,19 @@ export function envFailureClaims(
     }
     return opts.isRead?.(check.toolName) === true && readResultClaimed(text, check.toolName, call.args);
   };
+  // A failed READ that repeats one already answered earlier in this turn (same tool, same
+  // args) adds no unbacked result: the earlier success is the receipt. 2026-10-30 14:03Z.
+  const repeatOfEarlierRead = (check: { toolName: string }, i: number) => {
+    const call = opts.calls?.[i];
+    if (call?.name !== check.toolName) return false;
+    if (check.toolName !== "invokeTool" && opts.isRead?.(check.toolName) !== true) return false;
+    const args = JSON.stringify(call.args ?? {});
+    return (opts.calls ?? []).slice(0, i).some((c) => c.name === call.name && c.ok === true && JSON.stringify(c.args ?? {}) === args);
+  };
   return checks
     .map((check, i) => ({ check, i }))
     .filter(({ check }) => check.verified === false)
+    .filter(({ check, i }) => !repeatOfEarlierRead(check, i))
     .filter(
       ({ check, i }) =>
         proseTools.includes(check.toolName.toLowerCase()) || namesTool(check.toolName) || readClaimed(check, i),

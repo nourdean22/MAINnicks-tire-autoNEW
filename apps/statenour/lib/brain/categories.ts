@@ -174,6 +174,7 @@ export const BRAIN_CATEGORIES = {
   CHAT_IMPORTANCE: "chat_importance",
   CHAT_PATTERN: "chat_pattern",
   CHAT_SUMMARY: "chat_summary",
+  DISTILL_ATTEMPT: "distill_attempt", // 2026-10-30 · one row per failed session distill (key <convId>:<n>); 2 parks the chat
   CONVERSATION_SUMMARY: "conversation_summary",
   PINNED_USER: "pinned_user",
   ENGAGEMENT: "engagement",

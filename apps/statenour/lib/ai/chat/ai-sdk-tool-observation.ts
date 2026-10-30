@@ -27,6 +27,18 @@ export interface NormalizedToolObservation {
   error: unknown;
   source: "tool-result" | "tool-call" | "tool-error";
   shape: ToolObservationShape;
+  /**
+   * The SDK refused the call because the step offered NO tools (the text-only last
+   * step): it never ran, so it is not a failed operation. 2026-10-30 prod: 12 of 16
+   * tool "failures" in one morning were these.
+   */
+  notRun?: boolean;
+}
+
+/** NoSuchToolError with an empty availableTools list: the step offered no tools at all. */
+function refusedWithNoToolsOffered(error: unknown): boolean {
+  const offered = (error as { availableTools?: unknown } | null | undefined)?.availableTools;
+  return Array.isArray(offered) && offered.length === 0;
 }
 
 interface LooseToolObservation {
@@ -129,6 +141,7 @@ function normalizeOne(
     error: explicitError,
     source,
     shape,
+    ...(refusedWithNoToolsOffered(raw.error) ? { notRun: true } : {}),
   };
 }
 
@@ -158,8 +171,10 @@ function normalizeToolErrorPart(
   const { output, outputObserved } = outputFrom(raw);
   const directInput = asRecord(raw.input) ?? asRecord(raw.args);
   const duration = durationFrom(raw);
+  const notRun = refusedWithNoToolsOffered(raw.error) || matchingCall?.notRun === true;
 
   return {
+    ...(notRun ? { notRun: true } : {}),
     toolName,
     toolCallId,
     durationMs: duration > 0 ? duration : matchingCall?.durationMs ?? 0,

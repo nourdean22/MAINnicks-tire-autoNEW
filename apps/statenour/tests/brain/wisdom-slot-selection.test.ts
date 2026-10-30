@@ -69,10 +69,40 @@ describe("selectWisdomSlots", () => {
   });
 
   it("caps at the slot count, best first", () => {
+    const packs = ["bezos-letters", "naval-ravikant", "charlie-munger", "baltasar-gracian"];
     const pool = [1, 2, 3, 4].map((i) =>
-      row({ id: `w${i}`, key: `wisdom_bezos-letters_00${i}`, hybrid: i / 10 }),
+      row({ id: `w${i}`, key: `wisdom_${packs[i - 1]}_00${i}`, hybrid: i / 10 }),
     );
     expect(selectWisdomSlots(pool, 3, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["w4", "w3", "w2"]);
+  });
+
+  // Brain backfill W2 (2026-10-30): Gracian is 300 of 413 curated pack rows, so without a cap one author fills
+  // every slot. Readwise frequency tuning weights a source by its share; here each author gets at most one slot.
+  it("one slot per curated author: a second Gracian row yields to the next author", () => {
+    const pool = [
+      row({ id: "g1", key: "wisdom_baltasar-gracian_001", hybrid: 0.9 }),
+      row({ id: "g2", key: "wisdom_baltasar-gracian_002", hybrid: 0.8 }),
+      row({ id: "n1", key: "wisdom_naval-ravikant_001", hybrid: 0.4 }),
+    ];
+    expect(selectWisdomSlots(pool, 3, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["g1", "n1"]);
+  });
+
+  it("the cap never reorders: a non-Gracian row that scores higher still wins the first slot", () => {
+    const pool = [
+      row({ id: "g1", key: "wisdom_baltasar-gracian_001", hybrid: 0.5 }),
+      row({ id: "m1", key: "wisdom_charlie-munger_001", hybrid: 0.7 }),
+      row({ id: "g2", key: "wisdom_baltasar-gracian_002", hybrid: 0.45 }),
+    ];
+    expect(selectWisdomSlots(pool, 1, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["m1"]);
+    expect(selectWisdomSlots(pool, 3, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["m1", "g1"]);
+  });
+
+  it("principle rows have no author and are not capped against each other", () => {
+    const pool = [
+      row({ id: "p1", key: "from_skill_a", source: "skill_graduation", hybrid: 0.6 }),
+      row({ id: "p2", key: "from_skill_b", source: "skill_graduation", hybrid: 0.5 }),
+    ];
+    expect(selectWisdomSlots(pool, 3, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["p1", "p2"]);
   });
 
   it("keyword mode: one or two topic hits stay out, three get in", () => {
