@@ -1,52 +1,104 @@
-# Shop OS 15: gaps (what the plan, the research and Nour's asks have not covered)
+# Shop OS 15: gaps (what the plan, research and Nour's asks have not covered)
 
-Job 2026-10-30-shop-os-gaps. Built 2026-10-30 from files 01-11, sibling docs 12 (local AI), 13 (toolkit), 14 (mechanisms,
-in progress), SHOP-SOUL, truth_os and agent memory. Every row was grepped against this folder and 08-IDEAS first; a
-gap 08 already lists is marked "listed, not scheduled", not new. Angles: a = Nour's words, b = the shop's day, c = data,
-d = integrations, e = operations, f = research never run. Owners: Nour, a session, the manager, a vendor.
+Job 2026-10-30-shop-os-gaps, read 2026-10-30: files 01-11, docs 12 (local AI), 13 (toolkit), 14 (mechanisms), SHOP-SOUL,
+truth_os, agent memory. Each row was grepped in this folder and 08-IDEAS first; a gap 08 lists is "listed, not
+scheduled". Angles: a his words, b the shop's day, c data, d integrations, e operations, f research never run.
 
-## a. Nour's words vs what the plan writes down
+## Top 10 by cost of missing it
 
-| # | Gap | Why it matters | Evidence it is missing | Who | Next step |
-|---|---|---|---|---|---|
-| a1 | Google ruling contradicts the plan: Nour wants Drive and Sheets on the shop account with his CEO account viewing; 01 section 9 and 09 section 3 forbid copying customer data to Sheets from /system | each session follows one rule and breaks the other; customer rows in Sheets widen the leak surface | 01-DESIGN.md:131-133, 09:62-64; `server/sheets-sync.ts` already writes a CRM sheet; doc 13 section 2b covers only the folder share | Nour | one ruling: reports and exports to Sheets yes, customer rows yes or no |
-| a2 | "dont worry about safeguards" is not written into the plan: README fact 5, 06 row 6 and 09 section 3 still treat the FTC rule as a gate | sessions keep building to a rule Nour retired | README.md:37-38, 06:17, 09:53-58 (read 2026-10-30) | manager | mark those rows "good practice, not a gate (Nour 2026-10-30)" |
-| a3 | "alg is the protype" vs roadmap v3, which defaults to buying a core and spends days 8-12 on a crew bake-off | the bake-off costs about 5 crew days for a choice Nour may have already made | 05-ROADMAP.md:30-47; memory shop-os-planning-manager-2026-10-30 ruling 2 | Nour | answer now: is the bake-off still on, or is ALG the baseline to rebuild |
-| a4 | "everything interconnext my apps, comps, websites": no plan file names StateNour / NOUR OS or the bridge that already exists | the owner dashboard and alerts get built twice, in two apps | grep `statenour|bdnick|NOUR OS` in this folder: 0 files; `server/_core/statenour-bridge-routes.ts`, `cron/jobs/statenourSync.ts`; SHOP-SOUL section 9 split | session (doc 16 is closest) | one map: which /system events cross the bridge, which stay |
-| a5 | "the alg scrape should be happening every day": it does (3 AM, 8 PM, admin page loads at most 1 per 30 min, chat), and every probe logs the counter out of ALG; the plan counts only the per-ticket pull as a login risk | in a parallel run each admin refresh can kick the counter mid-ticket; nobody counts those logouts | truth_os.md:133-137, `server/services/algProbeBudget.ts:15-16`; plan names only 01:38-40, 04:58 | server lane | count probes per shop hour in `alg_probe_log` before the parallel run starts |
-| a6 | "how many ompleyees ... edit whenever": doc 13 has the Settings DECIDE row, but 10-UI-BUILD's screen list has no Settings route | the screen is decided but never scheduled | 10-UI-BUILD.md:24-32 (7 routes, none for settings) | session | add /system/settings to the screen list after Nour's yes |
+| Rank | Row | Cost if missed | Who | Next step |
+|---|---|---|---|---|
+| 1 | e1 deploys in shop hours | a restart mid-checkout can lose a ticket worth $150-1,000; 7 open days, a deploy on every merge | platform lane | write the deploy window rule before /system code |
+| 2 | a5 ALG logouts | each probe kicks the counter mid-ticket during the parallel run, uncounted | server lane | count probes per shop hour |
+| 3 | a3 ALG baseline vs bake-off | about 5 crew days on days 8-12 | Nour | one yes/no now |
+| 4 | e2 owner-away rules | refunds, voids and overrides wait for Nour or go unchecked | Nour | fill the 6-row table |
+| 5 | b5 free checks unrecorded | no finding, no quote, no follow-up from the top of the funnel | Nour | photo of the 27-point sheet |
+| 6 | a1 Google ruling | two sessions build against opposite rules | Nour | one ruling |
+| 7 | b4 discounts | up to $250 per ticket given without proof, or promised and missed | session | proof field |
+| 8 | c1 bays count | every per-bay number is wrong | Nour | 30-second answer |
+| 9 | b2 status texts | status calls interrupt the counter; unseen replies lose approvals | session | inbound map |
+| 10 | e3 new-hire training | a new counter hire learns on live tickets | session | practice-ticket spec |
 
-## b. The shop's day, open to close
-
-| # | Gap | Why it matters | Evidence it is missing | Who | Next step |
-|---|---|---|---|---|---|
-| b1 | No opening routine: sign-in on the counter PC, cars left overnight, open ROs, parts due today, drawer start | only the close exists (08 #28); the first hour runs on memory | grep `opening|open the shop|morning`: 0 relevant hits | session | 5-line opening card spec in 01 section 5 |
-| b2 | Status texts during the job (approved, started, ready) and where a customer's reply lands | "how's my car" calls interrupt the counter; a reply nobody sees is a lost approval | 08 #16 lists "ready car not texted" as a blocker only; grep `inbound|reply`: 0 relevant hits; SMS lane is live (SHOP-SOUL section 9) | session | map inbound shop texts onto the ticket card |
-| b3 | The tire fast lane: the manager quotes at the car window and techs work outside, about 20 minutes; the plan's quick quote is a keyboard counter screen | the most common sale happens on a phone outside, not at the desk | SHOP-SOUL.md:82-86 and open question 5; 10-UI-BUILD.md:26 | Nour (q5), then session | time a window quote on a phone in the bake-off scripts |
-| b4 | The site's discount programs (students, seniors, school and health staff, rideshare drivers, performers; each needs proof) and 20% off labor up to $250 have no counter line or proof field | a discount given without proof, or promised online and missed at checkout | `shared/business.ts:293-370`, PR 3352; grep `teacher|nurse`: 0 | session | discount line type with a proof field in 01 section 4 |
-| b5 | The free checks (brake, battery, E-Check readiness, alignment pull, 27-point) have no recorded template | a check with no record gives no finding to quote or follow up | SHOP-SOUL.md:68-71 (Nour 2026-10-30); grep `27-point|brake check|E-Check`: 0 | Nour, then session | photograph the paper 27-point sheet; it becomes the template |
-| b6 | No plan for the first-snow tire rush (board, stock, staffing); the weather text lane is already live | the busiest money days of the year | grep `season|winter|snow|weather`: 0; USER.md "Weather SMS stays on" | manager (query f2) | run f2, then a surge section in 05 |
-| b7 | A paid online tire order (payment tracked) has no handoff into an RO when the customer arrives | double charge or a lost order at the counter | 01-DESIGN.md:28 names online orders as an asset only; memory shop-data-meanings rule 1 | session | one flow line in 01 section 4 |
-
-## c. Data: entities with no source, table or path
+## a. Nour's words vs the plan
 
 | # | Gap | Why it matters | Evidence it is missing | Who | Next step |
 |---|---|---|---|---|---|
-| c1 | Bays and lifts: the site says "two lifts, two flat bays" in one place and "4 lifts" in another; 06 asks for techs but not bays | the board, bay dispatch and gross profit per bay hour (05 scoreboard) all divide by it | SHOP-SOUL.md:297 (open question 3); 06-OPEN-QUESTIONS.md:11 asks techs only | Nour (30 seconds) | add bays to 06 row 0b, or make it a Settings entry |
-| c2 | How techs are paid (hourly, flat rate, tire commission), the crew schedule for a 7-day week, and a payroll export | three tech clocks are planned but nothing says what pay reads from them; unused clock data dies | grep `payroll|commission|flat.rate|shift|schedule` in this folder: 0 relevant hits | Nour, then query f3 | Nour answers one question: how is each person paid |
-| c3 | Charge customers and fleets (house accounts, statements, net terms) | an open balance with no statement is cash never collected | 05:55 says "receivables" once; grep `fleet|house account|net 30`: 0 | Nour | add "does the shop run charge accounts?" to 06 |
-| c4 | Code that already exists and the plan never names for reuse: `server/storage.ts` (S3-compatible photo storage, `storagePut`), `server/services/vinDecode.ts` (VIN decode), `server/sheets-sync.ts`, the StateNour bridge | a build session rebuilds them or picks a second store | 10-UI-BUILD.md section 3 reuse list names none of them; 02 R15 treats VIN decode as research | session | add the four paths to 10 section 3 |
-| c5 | Customer and vehicle duplicate cleanup (merge, review queue) | duplicates split history, declines and texts across records | listed in 11-REVIEW.md:37-38 "Add"; grep `duplicate|merge|dedupe` in 05: 0; memory idea-crm-unified-customer-record calls the identity crosswalk "the real work" | session | listed, not scheduled: give it a day in 05 days 15-20 |
-| c6 | How a signature or approval is captured on the Ohio estimate form (paper, screen, link) | an approval you cannot show is no approval; 07 depends on it | 07-COMPLIANCE.md section 1-2 state the rule only; grep `signature` in 01 and 10: 0 | session, query f4 | pick one capture per channel in 01 section 4 |
+| a1 | Google ruling (shop account owns Drive/Sheets, CEO account views) contradicts 01 s.9 and 09 s.3: no customer data to Sheets | sessions follow one rule and break the other | 01-DESIGN.md:131-133, 09:62-64; `server/sheets-sync.ts` already writes a sheet; doc 13 s.2b covers only the share | Nour | rule: reports to Sheets yes; customer rows yes or no |
+| a2 | "dont worry about safeguards" not written in: README fact 5, 06 row 6, 09 s.3 still gate on FTC | sessions build to a retired rule | README.md:37-38, 06:17, 09:53-58 | manager | mark them "good practice, not a gate" |
+| a3 | "alg is the protype" vs roadmap v3 default "buy the core" plus a crew bake-off | crew days spent on a choice he may have made | 05-ROADMAP.md:30-47; memory planning-manager ruling 2 | Nour | is the bake-off still on? |
+| a4 | "everything interconnext my apps": no plan file names StateNour or the existing bridge | owner dashboards built twice | grep `statenour|bdnick|NOUR OS`: 0 files; `server/_core/statenour-bridge-routes.ts`; SHOP-SOUL s.9 | session (doc 16) | map which /system events cross the bridge |
+| a5 | "alg scrape ... every day": it runs (3 AM, 8 PM, admin loads at most 1 per 30 min, chat) and each probe logs the counter out; plan counts only per-ticket pulls | logouts mid-ticket in the parallel run | truth_os.md:133-137, `algProbeBudget.ts:15-16`; plan 01:38-40, 04:58 | server lane | count probes per shop hour in `alg_probe_log` |
+| a6 | "how many ompleyees ... edit": doc 13 decides Settings; 10's screen list has no route | decided, never scheduled | 10-UI-BUILD.md:24-32 | session | add /system/settings |
 
-## d. Integrations named with no concrete path
-
-Covered elsewhere, not repeated here: local AI and the two laptops (doc 12), Maverick, Koalafi, QuickBooks, Google
-Routes, Bitwarden and the Drive folder share (doc 13), ALG screens (doc 14), AI over MCP inside /system (doc 16).
+## b. The shop's day
 
 | # | Gap | Why it matters | Evidence it is missing | Who | Next step |
 |---|---|---|---|---|---|
-| d1 | CARFAX gives shops free plate-to-VIN in exchange for publishing their service records; no decision row exists | paid plate-to-VIN runs about $40 a month plus $0.09 a lookup (R15); sharing every customer's service history is a privacy and brand call | 02-RESEARCH.md:36-38; grep `CARFAX` in 06: 0 | Nour | add as a 06 decision with both costs |
-| d2 | Electronic tire registration: 07 sets the 30-day rule, no provider or flow is chosen | a missed registration is a federal record-keeping failure on every new tire | 07-COMPLIANCE.md section 4; `tire_registrations` has 0 rows (04-DATA-MAP) | manager (query f5) | run f5, then name the provider in 07 |
-| d3 | Printing from the /system web app on the counter PC (estimate form, invoice, night-drop form, signed copies) | 07 requires printed forms; a PWA print path is untested | grep `print` in 10-UI-BUILD: 0; R9 names a laser printer | client lane | add a print view to the 10 screen list |
-| d4 | Caller-ID screen pop through the Twilio forward | the counter knows who is calling before answering | listed in 08 #14 and 01 section 8; the Spectrum forwarding test was never scheduled | Nour (10-minute test call) | listed, not scheduled: book the test |
+| b1 | Opening routine: sign-in, cars left overnight, open ROs, parts due, drawer start | only the close exists (08 #28) | grep `opening|morning`: 0 relevant | session | 5-line opening card in 01 s.5 |
+| b2 | Status texts (approved, started, ready) and where replies land | status calls interrupt; unseen replies lose approvals | 08 #16 only; grep `inbound|reply`: 0 relevant | session | map inbound texts to the ticket |
+| b3 | Tire fast lane: quote at the car window, ~20 min; plan's quote is a keyboard screen | the common sale happens on a phone outside | SHOP-SOUL.md:82-86, q5; 10-UI-BUILD.md:26 | Nour, session | time a phone window quote |
+| b4 | Site discount programs (each needs proof), 20% off labor up to $250: no counter line | discount without proof, or missed | `shared/business.ts:293-370`, PR 3352; grep `teacher|nurse`: 0 | session | discount line with proof field |
+| b5 | Free checks (brake, battery, E-Check, alignment pull, 27-point): no template | no record, no finding to quote | SHOP-SOUL.md:68-71; grep `27-point|E-Check`: 0 | Nour, session | photo the paper sheet |
+| b6 | First-snow tire rush: board, stock, staffing | busiest money days | grep `season|winter|snow`: 0 | manager (f2) | run f2, add to 05 |
+| b7 | Paid online tire order has no handoff into an RO | double charge or lost order | 01-DESIGN.md:28 asset only; memory shop-data-meanings rule 1 | session | one flow line in 01 s.4 |
+
+## c. Data
+
+| # | Gap | Why it matters | Evidence it is missing | Who | Next step |
+|---|---|---|---|---|---|
+| c1 | Bays: site says "two lifts, two flat bays" and "4 lifts"; 06 asks techs, not bays | per-bay metrics divide by it | SHOP-SOUL.md:297; 06:11 | Nour | add to 06 row 0b |
+| c2 | Tech pay (hourly, flat rate, commission), 7-day crew schedule, payroll export | clocks nobody's pay reads get ignored | grep `payroll|commission|shift`: 0 | Nour (f3) | how is each person paid |
+| c3 | Charge customers and fleets: statements, terms | uncollected balances | 05:55 "receivables" once; grep `fleet`: 0 | Nour | add to 06 |
+| c4 | Code the plan never names for reuse: `server/storage.ts` (photo store), `services/vinDecode.ts`, `sheets-sync.ts`, the bridge | rebuilt, or a second store | 10 s.3 names none; 02 R15 treats VIN decode as research | session | add to 10 s.3 |
+| c5 | Customer and vehicle dedupe | split history and texts | 11-REVIEW.md:37-38; grep `dedupe|merge` in 05: 0 | session | listed, not scheduled: day in 05 15-20 |
+| c6 | How approval is captured on the estimate form (paper, screen, link) | an approval you cannot show | 07 s.1-2 rule only; grep `signature` in 01, 10: 0 | session (f4) | one capture per channel |
+
+## d. Integrations
+
+Covered elsewhere: local AI and laptops (12); Maverick, Koalafi, QuickBooks, Routes, Drive share (13); ALG (14); MCP (16).
+
+| # | Gap | Why it matters | Evidence it is missing | Who | Next step |
+|---|---|---|---|---|---|
+| d1 | CARFAX free plate-to-VIN for publishing service records: no decision row | paid lookup ~$40/mo + $0.09; sharing history is a privacy call | 02-RESEARCH.md:36-38; grep `CARFAX` in 06: 0 | Nour | add to 06 |
+| d2 | Electronic tire registration: no provider | federal 30-day rule on every new tire | 07 s.4; `tire_registrations` 0 rows | manager (f5) | name provider |
+| d3 | Printing from /system on the counter PC | 07 needs printed forms | grep `print` in 10: 0 | client lane | add a print view |
+| d4 | Caller-ID screen pop | know the caller first | 08 #14; test never booked | Nour (10 min) | listed, not scheduled |
+
+## e. Operations
+
+| # | Gap | Why it matters | Evidence it is missing | Who | Next step |
+|---|---|---|---|---|---|
+| e1 | No deploy window: the shop is open 7 days and a merge redeploys mid-day | lost draft or payment record | grep `deploy|freeze`: 0; root AGENTS.md "CI cost": a merge redeploys both services | platform lane | /system merges outside open hours |
+| e2 | Owner-away matrix: refunds, voids, price overrides, discounts, supplier orders, comeback write-offs | waits for Nour or goes unchecked | 09:47-48 covers checkout only; SHOP-SOUL s.7 "clear lines" | Nour | 6-row table |
+| e3 | New-hire training: no practice tickets | learning on live money | 05 weights training 10% only; grep `practice`: 0 | session | practice-ticket flag |
+| e4 | Saturday support: who fixes /system mid-day | 11 scored support 2-3/10 | no runbook or owner in 05, 09 | Nour, manager | one-page runbook |
+| e5 | One front-desk PC carries counter, office ears and lot counting; it crashed once | one box down stops all three | memory office-lane-shop-pc, lot-vision-v2; doc 12 s.1 | Nour | measure load with all three |
+
+## f. Research never run (manager runs these; this lane does not)
+
+| # | Exact query | Decision it changes |
+|---|---|---|
+| f1 | "ShopDriver Elite Dowell Systems terms of service data export automated access customer data ownership" | whether the full history pull is allowed (a5, 04 s.3) |
+| f2 | "Cleveland Ohio first snowfall tire shop demand spike weeks winter tire sales Google Trends" | b6 surge stock and staffing |
+| f3 | "independent tire and auto shop technician pay plan flat rate vs hourly vs commission 3 to 5 techs survey" | c2 which clock data matters |
+| f4 | "Ohio OAC 109:4-3-13 electronic signature estimate authorization ORC 1306 repair shop" | c6 paper or screen |
+| f5 | "electronic tire registration service independent dealer cost 49 CFR 574.8 TIN registration provider" | d2 provider |
+| f6 | "auto repair shop share of inbound calls that are vehicle status checks" | b2 value |
+
+## Things Nour mentioned that nobody wrote down (verbatim; addresses replaced by role words)
+
+| Quote | Where it stands |
+|---|---|
+| "buld my own crm ... i want everything interconnext my apps, comps, websites, everything" | a4 |
+| "things like how many ompleyees n all that i should be able to edit and do whatever i want with whenever i want" | doc 13 Settings row; a6 |
+| "the alg scrape should be happening every day now? we shouldnt have a pronlem getting all the data form alg" | a5, f1 |
+| "alg is kind of like the protype set up i want because its fast n simple but smart too" | doc 14; a3 |
+| "dont worry about safeguards i check with laywrrs already ... be fully aggressive in incorperating our stuff" | a2 |
+| "use google drive n google sheets n everything google connected to [shop account] but i also want my ceo email [CEO account] too see" | doc 13 s.2b; a1 |
+| "download a offline ai from huggingface ... interconnect nattynour ... and nicksmax" | doc 12 |
+| "i was going to send some screenshots of alg and tell u to reverse enginner them" | doc 14 |
+| "even incorperating claud n chat into it with mcps", "make sure all controls options edits, are available for me from inside the crm", "a customer profile searcher ... instagrams facebooks ... public info" | doc 16 (paused) |
+| "examin all the invoices in alg every single one ... and estimates" | doc 17 (paused) |
+| "keep all sessions up to date with each other" | manager process (memory feedback-sessions-share-findings) |
+
+Quotes still uncovered after docs 16 and 17: a1-a6. Everything above is a plan gap, not code; nothing here is built.

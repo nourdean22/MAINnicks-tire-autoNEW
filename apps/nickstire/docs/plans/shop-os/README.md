@@ -25,6 +25,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [07-COMPLIANCE](07-COMPLIANCE.md) | Ohio estimate, invoice, tax, tire and used-tire rules as screen behaviour |
 | [09-ACCESS-AND-SECURITY](09-ACCESS-AND-SECURITY.md) | crew logins and roles, MFA, audit log, FTC and Ohio data duties |
 | [02-RESEARCH](02-RESEARCH.md) | the 16 research runs with sources and labels |
+| [15-GAPS](15-GAPS.md) | 28 gaps no plan file covers (his words, the shop's day, data, integrations, operations), top 10 by cost, 6 unrun research queries |
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).
