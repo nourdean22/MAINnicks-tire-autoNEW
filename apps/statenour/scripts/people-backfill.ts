@@ -2,17 +2,19 @@
  * People W1 backfill, DRY RUN ONLY (2026-10-30).
  *
  * Reads production and prints what a backfill would add to the people tracker:
- * counts and person-id suffixes, never names or notes. It writes nothing. The
- * apply is a production write and lands in its own change after Nour's yes;
- * until then `--apply` is refused before any connection opens.
+ * counts and person-id suffixes, never names or notes. By default it writes
+ * nothing. The apply is a production write and lands in its own change after
+ * Nour's yes; until then `--apply` is refused before any connection opens.
  *
- *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--no-model]
+ *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model]
  *
  * Lane A (tasks): promise tasks whose promiseTo names a live person exactly.
- * Lane B (chat): conversations where his own messages name a tracked person
- *   and no digest ledger row exists yet, oldest first, `--limit` of them,
- *   re-read by the live digest extractor (digestConversation: reads plus one
- *   model call each). `--no-model` stops after counting the candidates.
+ * Lane B (chat): conversations where his own messages name a tracked person who
+ *   has no digest ledger row for that conversation yet, oldest first.
+ *   `--with-model` re-reads `--limit` of them with the live digest extractor
+ *   (digestConversation), one model call each, and EACH CALL WRITES ONE
+ *   AgentTrace ROW to production (tracedAiChat). Without it the run counts
+ *   candidates only and writes nothing.
  */
 import { loadEnvConfig } from "@next/env";
 import Module from "node:module";
@@ -37,9 +39,11 @@ if (args.includes("--apply")) {
 }
 const limitArg = args.indexOf("--limit");
 const LIMIT = limitArg >= 0 ? Math.max(1, Number(args[limitArg + 1]) || 20) : 20;
-const NO_MODEL = args.includes("--no-model");
+// The model step is opt-in: each digest call goes through tracedAiChat, which
+// writes one AgentTrace row to production. The default run writes nothing
+// (Codex on 3419); --with-model is for a run that write was approved for.
+const NO_MODEL = !args.includes("--with-model");
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const suffix = (id: string) => id.slice(-6);
 
 async function main() {
@@ -62,27 +66,21 @@ async function main() {
   const ledger = await prisma.relationshipLedger.findMany({
     select: { personId: true, createdAt: true, metadata: true },
   });
-  const digested = new Set(
-    ledger
-      .map((r) => (r.metadata as { conversationId?: unknown } | null)?.conversationId)
-      .filter((v): v is string => typeof v === "string"),
-  );
+  const digestRows = ledger.flatMap((r) => {
+    const conversationId = (r.metadata as { conversationId?: unknown } | null)?.conversationId;
+    return typeof conversationId === "string" ? [{ personId: r.personId, conversationId }] : [];
+  });
   const userMsgs = await prisma.chatMessage.findMany({
     where: { role: "user" },
     select: { conversationId: true, content: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
-  const nameRes = people.map((p) => new RegExp(`\\b${escapeRe(p.name)}\\b`, "i"));
-  const firstSeen = new Map<string, Date>();
-  for (const m of userMsgs) {
-    if (digested.has(m.conversationId) || firstSeen.has(m.conversationId)) continue;
-    if (nameRes.some((re) => re.test(m.content))) firstSeen.set(m.conversationId, m.createdAt);
-  }
-  const candidates = [...firstSeen.entries()].sort((a, b) => a[1].getTime() - b[1].getTime()).map(([id]) => id);
+  const candidates = plan.selectCandidates(userMsgs, people, digestRows);
 
   console.log(`people live: ${people.length}`);
   console.log(`lane A tasks: ${laneA.rows.length} links planned, ${laneA.untrackedNames} promise tasks name someone not tracked`);
-  console.log(`lane B candidate conversations (name in his own message, no digest row yet): ${candidates.length}`);
+  console.log(`lane B candidate conversations (a person he named has no digest row for it yet): ${candidates.length}`);
+  if (NO_MODEL) console.log("model step skipped (pass --with-model to digest; each call writes one AgentTrace row)");
 
   let laneB: ReturnType<typeof plan.planChatInteractions> = {
     rows: [],
@@ -95,17 +93,21 @@ async function main() {
     // Shared Ollama, no cross-app scheduler (board rule): one call at a time,
     // paced, and stop after 3 failures in a row instead of hammering a 429.
     let failStreak = 0;
-    for (const conversationId of candidates.slice(0, LIMIT)) {
+    for (const { conversationId, firstMatchAt } of candidates.slice(0, LIMIT)) {
       if (failStreak >= 3) {
         console.log("lane B stopped early: 3 digest failures in a row (provider busy or down)");
         break;
       }
       if (convs.length + digestFailed > 0) await new Promise((r) => setTimeout(r, 3000));
-      const messages = await prisma.chatMessage.findMany({
+      const all = await prisma.chatMessage.findMany({
         where: { conversationId },
         orderBy: { createdAt: "asc" },
         select: { role: true, content: true, createdAt: true },
       });
+      // The digest keeps the last 30 messages only, so hand it the window around the
+      // turn that made this a candidate. shortcut: a message over 500 chars is still
+      // cut by the digest, so a name past char 500 can undercount (never a wrong write).
+      const messages = plan.digestWindow(all, firstMatchAt);
       const digest = await digestConversation(conversationId, messages).catch(() => null);
       if (!digest || messages.length === 0) {
         digestFailed++;
@@ -134,7 +136,7 @@ async function main() {
   for (const r of laneA.rows) (perPerson.get(r.personId) ?? perPerson.set(r.personId, { chat: 0, tasks: 0 }).get(r.personId)!).tasks++;
   for (const [id, n] of perPerson) console.log(`  person ...${suffix(id)}: chat ${n.chat}, tasks ${n.tasks}`);
 
-  console.log(`confirm token: ${plan.planToken({ chat: laneB.rows, tasks: laneA.rows })}${NO_MODEL ? " (lane A only)" : ""}`);
+  console.log(`confirm token: ${plan.planToken({ chat: laneB.rows, tasks: laneA.rows })}${NO_MODEL ? " (no model run: lane A only)" : ""}`);
   await prisma.$disconnect();
 }
 

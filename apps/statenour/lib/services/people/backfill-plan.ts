@@ -8,6 +8,8 @@
  */
 import { createHash } from "node:crypto";
 
+import { isContactRow } from "./contact-rows";
+
 export interface PersonRef {
   id: string;
   name: string;
@@ -57,11 +59,59 @@ export interface PlannedChatRow {
   backfillKey: string;
 }
 
+/**
+ * The name as a whole word, on Unicode boundaries: `\b` is ASCII-only, so a name
+ * ending in "é" or "." never matched (Codex on 3419).
+ */
+export function nameMatcher(name: string): RegExp {
+  const esc = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}_])${esc}(?![\\p{L}\\p{N}_])`, "iu");
+}
+
+/**
+ * Conversations worth digesting, oldest first: his own message names a tracked
+ * person who has no digest row for that conversation yet. Per person, not per
+ * conversation (Codex on 3419): one logged person must not hide the others.
+ */
+export function selectCandidates(
+  userMsgs: ReadonlyArray<{ conversationId: string; content: string; createdAt: Date }>,
+  people: readonly PersonRef[],
+  digestRows: ReadonlyArray<{ personId: string; conversationId: string }>,
+): Array<{ conversationId: string; firstMatchAt: Date }> {
+  const logged = new Set(digestRows.map((r) => `${r.conversationId}:${r.personId}`));
+  const matchers = people.map((p) => ({ id: p.id, re: nameMatcher(p.name) }));
+  const firstMatch = new Map<string, Date>();
+  for (const m of userMsgs) {
+    if (firstMatch.has(m.conversationId)) continue;
+    if (matchers.some((p) => !logged.has(`${m.conversationId}:${p.id}`) && p.re.test(m.content))) {
+      firstMatch.set(m.conversationId, m.createdAt);
+    }
+  }
+  return [...firstMatch.entries()]
+    .sort((a, b) => a[1].getTime() - b[1].getTime())
+    .map(([conversationId, firstMatchAt]) => ({ conversationId, firstMatchAt }));
+}
+
+const DIGEST_MAX = 30;
+
+/**
+ * At most 30 messages that include the turn that made this a candidate (10
+ * before it, the rest after). digestConversation keeps only the LAST 30, so an
+ * early report in a long conversation was never seen (Codex on 3419).
+ */
+export function digestWindow<T extends { createdAt: Date }>(messages: readonly T[], firstMatchAt: Date): T[] {
+  const i = Math.max(0, messages.findIndex((m) => m.createdAt.getTime() >= firstMatchAt.getTime()));
+  const start = Math.max(0, Math.min(i - 10, messages.length - DIGEST_MAX));
+  return messages.slice(start, start + DIGEST_MAX);
+}
+
 export function planChatInteractions(
   conversations: readonly DigestedConversation[],
   people: readonly PersonRef[],
-  ledger: ReadonlyArray<{ personId: string; createdAt: Date }>,
+  ledger: ReadonlyArray<{ personId: string; createdAt: Date; metadata?: unknown }>,
 ) {
+  // Only real contacts count as "already logged": a status flip or a synthetic mention is not one.
+  const contacts = ledger.filter((r) => isContactRow({ metadata: r.metadata }));
   const rows: PlannedChatRow[] = [];
   const skipped = { mentionOnly: 0, unmatched: 0, alreadyLogged: 0, duplicate: 0 };
   const seen = new Set<string>();
@@ -81,8 +131,10 @@ export function planChatInteractions(
         skipped.duplicate++;
         continue;
       }
-      // Same rule as recordInteractionOnce: a row already inside the window wins.
-      const logged = ledger.some(
+      // A contact row already inside [start, end] wins. Bounded on both sides, which
+      // recordInteractionOnce is NOT (it skips on any row after start), so the apply
+      // must check this same bounded window itself (Codex on 3419).
+      const logged = contacts.some(
         (r) => r.personId === p.id && r.createdAt >= c.start && r.createdAt <= c.end,
       );
       if (logged) {

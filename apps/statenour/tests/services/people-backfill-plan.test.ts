@@ -14,10 +14,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  digestWindow,
   matchPersonExact,
+  nameMatcher,
   planChatInteractions,
   planPromiseLinks,
   planToken,
+  selectCandidates,
 } from "@/lib/services/people/backfill-plan";
 
 const people = [
@@ -115,6 +118,53 @@ describe("planChatInteractions", () => {
     );
     expect(plan.rows).toHaveLength(1);
     expect(plan.skipped.duplicate).toBe(1);
+  });
+});
+
+describe("Codex review on 3419", () => {
+  it("a status-flip or synthetic row inside the window does not count as already logged", () => {
+    const plan = planChatInteractions(
+      [{ conversationId: "c1", start: new Date("2026-06-01T10:00:00Z"), end: new Date("2026-06-01T11:00:00Z"), mentioned: [{ name: "Ana", interacted: true, interactionKind: null }] }],
+      people,
+      [
+        { personId: "p2", createdAt: new Date("2026-06-01T10:30:00Z"), metadata: { kind: "status_flip" } },
+        { personId: "p2", createdAt: new Date("2026-06-01T10:40:00Z"), metadata: { synthetic: true } },
+      ],
+    );
+    expect(plan.rows).toHaveLength(1);
+  });
+
+  it("names match on Unicode letter boundaries, so a name ending in a non-ASCII letter or a dot is found", () => {
+    expect(nameMatcher("José").test("dinner with josé last night")).toBe(true);
+    expect(nameMatcher("A.J.").test("called A.J. today")).toBe(true);
+    expect(nameMatcher("Ana").test("banana bread")).toBe(false);
+    expect(nameMatcher("Ana").test("Ana's birthday")).toBe(true);
+  });
+
+  it("a conversation stays a candidate while any person he named in it has no digest row for it", () => {
+    const msgs = [
+      { conversationId: "c1", content: "saw Sam Rivers and Ana", createdAt: new Date("2026-06-01T10:00:00Z") },
+      { conversationId: "c2", content: "talked to Ana", createdAt: new Date("2026-06-02T10:00:00Z") },
+      { conversationId: "c3", content: "nothing about anyone", createdAt: new Date("2026-06-03T10:00:00Z") },
+    ];
+    // c1: only Sam logged from it, Ana still missing -> candidate. c2: Ana logged -> done.
+    const out = selectCandidates(msgs, people, [
+      { personId: "p1", conversationId: "c1" },
+      { personId: "p2", conversationId: "c2" },
+    ]);
+    expect(out.map((c) => c.conversationId)).toEqual(["c1"]);
+    expect(out[0].firstMatchAt).toEqual(new Date("2026-06-01T10:00:00Z"));
+  });
+
+  it("the digest sees the turn that made the conversation a candidate, even past the last 30", () => {
+    const messages = Array.from({ length: 80 }, (_, i) => ({ createdAt: new Date(Date.UTC(2026, 5, 1, 0, i)) }));
+    const win = digestWindow(messages, messages[5].createdAt);
+    expect(win.length).toBeLessThanOrEqual(30);
+    expect(win).toContain(messages[5]);
+    expect(win[0]).toBe(messages[0]);
+    const late = digestWindow(messages, messages[70].createdAt);
+    expect(late).toContain(messages[70]);
+    expect(late.length).toBe(30);
   });
 });
 
