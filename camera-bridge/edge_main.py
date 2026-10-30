@@ -532,6 +532,12 @@ class EdgeLoop:
         self.detections_total = 0
         self.work_heartbeat_seq = 0
         self._work_prev: Optional[Dict[str, Any]] = None
+        #: The in-flight work-beat sender. One at a time, OFF the frame thread: a slow bdnick
+        #: (8 s timeout) must never cost frames at the portal (Codex P1 on #3414).
+        self._work_thread: Optional[threading.Thread] = None
+        #: Frames whose vision step raised. They were decoded but never reasoned over, so the
+        #: work beat reports them as unusable beside the blind-gate suppressions.
+        self.vision_errors = 0
         self.vision = vision
         self.source = source
         #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
@@ -748,6 +754,7 @@ class EdgeLoop:
                 out = self.vision.step(frame)
             except Exception:
                 self.pipeline.metrics.inc("edge_vision_errors_total")
+                self.vision_errors += 1
                 log.exception("vision step error")
                 out = {"emissions": [], "suppressed": "vision error"}
 
@@ -1026,6 +1033,7 @@ class EdgeLoop:
             "unverified": int(getattr(stats, "suppressed_unverified", 0) or 0),
             "unhealthy": int(getattr(stats, "suppressed_unhealthy", 0) or 0),
             "camera_motion": int(getattr(stats, "suppressed_camera_motion", 0) or 0),
+            "vision_error": int(self.vision_errors),
         }
         arrivals = int(getattr(stats, "arrivals", 0) or 0)
         prev = self._work_prev or {}
@@ -1046,7 +1054,27 @@ class EdgeLoop:
             "calibrationVersion": self.calibration_version,
         }}
         self._work_prev = {"arrivals": arrivals, "suppressed": suppressed}
-        return bool(cloud.heartbeat(self.cloud_device_id, body))
+        if self._work_thread is not None and self._work_thread.is_alive():
+            # The previous beat is still waiting on bdnick. Drop this one rather than queue:
+            # the next beat carries running totals, so nothing is lost but freshness.
+            self.pipeline.metrics.inc("edge_work_heartbeat_skipped_total")
+            return False
+        self._work_thread = threading.Thread(
+            target=self._post_work_heartbeat, args=(cloud, self.cloud_device_id, body),
+            name="edge-work-heartbeat", daemon=True)
+        self._work_thread.start()
+        return True
+
+    def _post_work_heartbeat(self, cloud: Any, device_id: str, body: Dict[str, Any]) -> None:
+        """Runs on the sender thread. `CloudClient.heartbeat` returns False on a network, auth
+        or HTTP failure instead of raising, so False counts as a failure too (Codex P2 on #3414)."""
+        try:
+            ok = bool(cloud.heartbeat(device_id, body))
+        except Exception:
+            log.warning("work heartbeat error", exc_info=True)
+            ok = False
+        if not ok:
+            self.pipeline.metrics.inc("edge_work_heartbeat_errors_total")
 
     def send_heartbeat(self, now: Optional[float] = None) -> bool:
         """Compose and post one heartbeat. False when no shop is configured."""

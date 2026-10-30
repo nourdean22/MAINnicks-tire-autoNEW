@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { db } = vi.hoisted(() => ({
-  db: { smartDevice: { findFirst: vi.fn(), update: vi.fn() } },
+  db: { smartDevice: { findFirst: vi.fn(), update: vi.fn() }, deviceEvent: { createMany: vi.fn() } },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -23,6 +23,7 @@ import {
   EDGE_WORK_KIND,
 } from "@/lib/services/device-work-heartbeat";
 import { PATCH } from "@/app/api/devices/[id]/route";
+import { POST as POST_EVENTS } from "@/app/api/devices/[id]/events/route";
 
 const T0 = new Date("2026-10-30T20:00:00Z");
 const at = (s: number) => new Date(T0.getTime() + s * 1000);
@@ -160,5 +161,34 @@ describe("PATCH /api/devices/:id with edge work counters", () => {
     const data = db.smartDevice.update.mock.calls.at(-1)![0].data;
     expect(data.status).toBe("ONLINE");
     expect(data.lastSeenAt).toEqual(at(0));
+  });
+});
+
+describe("POST /api/devices/:id/events on a work-heartbeat device (Codex P2 on #3414)", () => {
+  const ctx = { params: Promise.resolve({ id: "v380-shopsign" }) };
+  const post = (body: unknown) => (POST_EVENTS as unknown as (r: Request, c: unknown) => Promise<unknown>)(
+    new Request("https://bdnick.info/api/devices/v380-shopsign/events", { method: "POST", body: JSON.stringify(body) }), ctx);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.deviceEvent.createMany.mockResolvedValue({ count: 1 });
+    db.smartDevice.update.mockResolvedValue({});
+  });
+
+  it("a late event never flips a work-heartbeat device ONLINE or moves its lastSeenAt", async () => {
+    db.smartDevice.findFirst.mockResolvedValueOnce({
+      id: "cmn-sign", status: "ERROR",
+      currentState: { kind: EDGE_WORK_KIND, producerInstanceId: "inst-a", framesTotal: 9 },
+    });
+    await post({ event: "note", data: {} });
+    expect(db.deviceEvent.createMany).toHaveBeenCalledTimes(1);
+    expect(db.smartDevice.update).not.toHaveBeenCalled();
+  });
+
+  it("a device without the work heartbeat keeps the old ONLINE + lastSeenAt on every event", async () => {
+    db.smartDevice.findFirst.mockResolvedValueOnce({ id: "cmn-other", status: "OFFLINE", currentState: null });
+    await post({ event: "note", data: {} });
+    expect(db.smartDevice.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "ONLINE" }) }));
   });
 });

@@ -31,6 +31,9 @@ const log = rootLogger.withSurface("cron/device-heartbeat-sentinel");
 /** Two missed 60 s heartbeats plus one 15-min worker tick of slack. */
 export const STALE_AFTER_MS = 20 * 60_000;
 
+/** Statuses the silence check may flip to OFFLINE. */
+const STALE_ELIGIBLE = ["ONLINE", "ERROR"];
+
 const WATCHED = {
   OR: [{ deviceType: "CAMERA" }, { deviceType: "BRIDGE" }, { platform: "V380" }, { platform: "FRIGATE" }],
 };
@@ -106,7 +109,9 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   // 1. Silent devices. `lastSeenAt: { lt }` excludes NULL, so a device that
   //    has never reported cannot be selected here.
   const stale = await prisma.smartDevice.findMany({
-    where: { status: "ONLINE", lastSeenAt: { lt: cutoff }, ...WATCHED },
+    // ERROR too: the lot edge's work heartbeat (#3414) sets ERROR when frames stop, and the
+    // edge then exits; without this a stalled-then-dead camera stayed ERROR and never paged.
+    where: { status: { in: STALE_ELIGIBLE }, lastSeenAt: { lt: cutoff }, ...WATCHED },
     select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
 
@@ -126,7 +131,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
     // to STILL be silent, and only alert when the transition really happened
     // - otherwise a fresh ONLINE would be overwritten and a false outage paged.
     const transition = await prisma.smartDevice.updateMany({
-      where: { id: d.id, status: "ONLINE", lastSeenAt: { lt: cutoff } },
+      where: { id: d.id, status: { in: STALE_ELIGIBLE }, lastSeenAt: { lt: cutoff } },
       data: { status: "OFFLINE", metadata },
     });
     if (transition.count === 0) {

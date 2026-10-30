@@ -3095,30 +3095,34 @@ class BlindGateStatsTest(unittest.TestCase):
 class WorkHeartbeatTest(unittest.TestCase):
     """2026-10-30: bdnick's lot camera read "last seen 10-23" for a week while the camera ran,
     because the edge never PATCHed the StateNour device. The beat carries the WORK totals and
-    never a status or lastSeenAt: bdnick derives "online" from frames advancing."""
+    never a status or lastSeenAt: bdnick derives "online" from usable frames advancing."""
 
-    def _setup(self, cloud_device_id="v380-shopsign", raise_on_send=False):
+    def _setup(self, cloud_device_id="v380-shopsign", send=None, boom=None):
         from vision.pipeline import PipelineStats
         pipeline = make_pipeline()
         sent = []
 
         def heartbeat(device_id, body):
-            if raise_on_send:
-                raise RuntimeError("bdnick down")
             sent.append((device_id, body))
-            return True
+            return True if send is None else send(device_id, body)
 
         pipeline.cloud.heartbeat = heartbeat
-        vision = FakeVision(pipeline.tracker)
+        vision = FakeVision(pipeline.tracker, boom=boom)
         vision.stats = PipelineStats(frames=40, arrivals=2, suppressed_unverified=3)
         clock = _Clock(1000.0)
         loop = _loop(pipeline, vision, FakeSource(frames=[FakeFrame(1000.0)]), clock=clock,
                      cloud_device_id=cloud_device_id)
         return pipeline, vision, loop, clock, sent
 
+    @staticmethod
+    def _settle(loop):
+        if loop._work_thread is not None:
+            loop._work_thread.join(5)
+
     def test_each_beat_patches_the_device_with_work_totals_and_no_status(self):
         pipeline, vision, loop, clock, sent = self._setup()
         loop.step()
+        self._settle(loop)
         self.assertEqual(len(sent), 1, sent)
         device_id, body = sent[0]
         self.assertEqual(device_id, "v380-shopsign")
@@ -3138,6 +3142,7 @@ class WorkHeartbeatTest(unittest.TestCase):
         vision.stats.suppressed_unhealthy = 5
         clock.t += loop.heartbeat_seconds + 1
         loop.step()
+        self._settle(loop)
         work2 = sent[-1][1]["currentState"]
         self.assertEqual(work2["framesTotal"], 160)
         self.assertEqual(work2["crossingsSinceLastBeat"], 1)
@@ -3147,13 +3152,51 @@ class WorkHeartbeatTest(unittest.TestCase):
     def test_no_device_id_sends_nothing(self):
         _pipeline, _vision, loop, _clock, sent = self._setup(cloud_device_id=None)
         loop.step()
+        self._settle(loop)
         self.assertEqual(sent, [])
 
-    def test_a_failing_bdnick_never_costs_the_shop_beat_or_the_frame(self):
-        pipeline, vision, loop, _clock, _sent = self._setup(raise_on_send=True)
+    def test_a_raising_bdnick_never_costs_the_frame_and_is_counted(self):
+        def boom(_d, _b):
+            raise RuntimeError("bdnick down")
+        pipeline, vision, loop, _clock, _sent = self._setup(send=boom)
         loop.step()
+        self._settle(loop)
         self.assertEqual(vision.calls, 1, "the frame was still processed")
         self.assertEqual(pipeline.metrics.get("edge_work_heartbeat_errors_total"), 1)
+
+    def test_a_false_result_is_a_failure_too(self):
+        """Codex P2 on #3414: CloudClient.heartbeat returns False on a network, auth or HTTP
+        failure; it does not raise."""
+        pipeline, _vision, loop, _clock, _sent = self._setup(send=lambda _d, _b: False)
+        loop.step()
+        self._settle(loop)
+        self.assertEqual(pipeline.metrics.get("edge_work_heartbeat_errors_total"), 1)
+
+    def test_a_slow_bdnick_never_blocks_the_frame_loop(self):
+        """Codex P1 on #3414: the PATCH has an 8 s timeout; on the frame thread it would cost
+        ~32 frames at 4 fps every beat. It runs on its own thread, one at a time."""
+        import threading
+        import time as _time
+        release = threading.Event()
+        pipeline, _vision, loop, clock, sent = self._setup(send=lambda _d, _b: release.wait(5))
+        t0 = _time.monotonic()
+        loop.step()
+        self.assertLess(_time.monotonic() - t0, 1.0, "the frame loop waited on bdnick")
+        clock.t += loop.heartbeat_seconds + 1
+        loop.source._frames.append(FakeFrame(clock.t))
+        loop.step()   # the first beat is still in flight: this one is dropped, not queued
+        self.assertEqual(pipeline.metrics.get("edge_work_heartbeat_skipped_total"), 1)
+        release.set()
+        self._settle(loop)
+        self.assertEqual(len(sent), 1)
+
+    def test_vision_error_frames_are_reported_unusable(self):
+        """Codex P1 on #3414: vision.step increments stats.frames before it can raise, so a
+        pipeline failing on every frame would otherwise look like work."""
+        _pipeline, _vision, loop, _clock, sent = self._setup(boom=RuntimeError("vision broke"))
+        loop.step()
+        self._settle(loop)
+        self.assertEqual(sent[0][1]["currentState"]["suppressedFramesTotal"]["vision_error"], 1)
 
 
 if __name__ == "__main__":

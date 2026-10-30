@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
 import { resolveDevice } from "@/lib/services/devices";
+import { isEdgeWork } from "@/lib/services/device-work-heartbeat";
 import { VehicleEventSchema, ALERT_STATES } from "@/lib/services/vehicle-event-contract";
 
 export const dynamic = "force-dynamic";
@@ -106,11 +107,15 @@ export const POST = apiHandler(async (req, { params }) => {
     }
   }
 
-  // Update device lastSeenAt
-  await prisma.smartDevice.update({
-    where: { id: device.id },
-    data: { lastSeenAt: new Date(), status: "ONLINE" },
-  });
+  // Update device lastSeenAt. A device that sends the edge work heartbeat (#3414) gets its
+  // status and lastSeenAt from that beat only: an outbox draining late must not mark a
+  // stalled camera ONLINE or stamp "last working" with the delivery time.
+  if (!isEdgeWork(device.currentState)) {
+    await prisma.smartDevice.update({
+      where: { id: device.id },
+      data: { lastSeenAt: new Date(), status: "ONLINE" },
+    });
+  }
 
   return { synced: syncedCount, deviceId: device.id };
 }, { auth: "sync" });
