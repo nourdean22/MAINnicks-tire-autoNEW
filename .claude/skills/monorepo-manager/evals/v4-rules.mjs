@@ -29,6 +29,9 @@ function read(rel) {
   return r.status === 0 ? r.stdout : "";
 }
 
+/** Whether a repo path exists in the tree being judged: the working tree, or the commit named by --ref (Codex review, PR 3389). */
+const repoHas = (p) => (ref ? spawnSync("git", ["cat-file", "-e", `${ref}:${p}`], { cwd: REPO }).status === 0 : existsSync(join(REPO, p)));
+
 const skill = read("SKILL.md");
 if (!skill) {
   console.error(`no SKILL.md at ${ref ?? "the working tree"}`);
@@ -72,24 +75,26 @@ const CASES = [
   {
     id: "R1",
     rule: "RAM gate before every session start (baseline T1)",
-    scenario: "free RAM 400 MB docs-only / 900 MB docs-only / 900 MB writer / 1,600 MB writer: start or wait?",
+    // Boundaries pinned at cap-1 and cap (Codex review, PR 3389): broad samples let a drifted threshold stay green.
+    scenario: "free RAM 1,999 / 2,000 MB for a docs-only session; 2,999 / 3,000 MB for a writer: start or wait?",
     want: "wait,start,wait,start",
     decide: () => {
       const g = ramGate();
       if (!g) return "no thresholds in the text";
       const gate = (mb, kind) => (mb < g.under ? "wait" : kind === "writer" && mb < g.writer ? "wait" : "start");
-      return [gate(400, "docs"), gate(900, "docs"), gate(900, "writer"), gate(1600, "writer")].join(",");
+      return [gate(1999, "docs"), gate(2000, "docs"), gate(2999, "writer"), gate(3000, "writer")].join(",");
     },
   },
   {
     id: "R2",
     rule: "machine-wide session cap, other managers' sessions included (baseline T1)",
-    scenario: "12 sessions run on the laptop (8 of them another manager's), 2,000 MB free: start a docs session?",
-    want: "wait",
+    scenario: "9, 10, then 11 sessions run on the laptop (most of them another manager's), 4,000 MB free: start a docs session?",
+    want: "start,wait,wait",
     decide: () => {
       const g = ramGate();
       if (!g?.cap) return "no session cap in the text";
-      return /other managers'/.test(lineWith(/cap: \d+ running sessions/) ?? "") ? (12 >= g.cap ? "wait" : "start") : "cap ignores other managers";
+      if (!/other managers'/.test(lineWith(/cap: \d+ running sessions/) ?? "")) return "cap ignores other managers";
+      return [9, 10, 11].map((n) => (n >= g.cap ? "wait" : "start")).join(",");
     },
   },
   {
@@ -105,13 +110,13 @@ const CASES = [
   {
     id: "R4",
     rule: "the manager's sweep cadence while sessions run (baseline T2)",
-    scenario: "the manager's own loop: is a 1,500 s delay right? is 700 s?",
-    want: "too slow,ok",
+    scenario: "the manager's own loop delay at 599, 600, 900, 901 and 1,500 s: too fast, ok or too slow?",
+    want: "too fast,ok,ok,too slow,too slow",
     decide: () => {
       const m = /sweep every ([\d,]+) to ([\d,]+) s/.exec(text);
       if (!m) return "no sweep cadence in the text";
       const ok = (s) => (s > num(m[2]) ? "too slow" : s < num(m[1]) ? "too fast" : "ok");
-      return `${ok(1500)},${ok(700)}`;
+      return [599, 600, 900, 901, 1500].map(ok).join(",");
     },
   },
   {
@@ -212,7 +217,7 @@ const CASES = [
       const paths = [...s.matchAll(/`([\w./-]+\.(?:md|ts))`/g)].map((m) => m[1]);
       const need = ["USER.md", "SHOP-SOUL.md", "business.ts", "NOUR-RUNTIME-KERNEL.md"];
       const missing = need.filter((n) => !paths.some((p) => p.endsWith(n)));
-      const absent = paths.filter((p) => p.includes("/") && !existsSync(join(REPO, p)));
+      const absent = paths.filter((p) => p.includes("/") && !repoHas(p));
       if (missing.length || absent.length) return `missing: ${missing.join(",")} absent on disk: ${absent.join(",")}`;
       return /money frame/i.test(s) ? "ok" : "no money frame line";
     },

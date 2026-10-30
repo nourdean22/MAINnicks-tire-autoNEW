@@ -59,8 +59,8 @@ Writers at once: 2; heavy builds or full suites: 1, through `node scripts/agent-
 ## Session pipeline (every session you start, in order; detail: [references/session-pipeline.md](references/session-pipeline.md); example: [references/worked-example-2026-10-30.md](references/worked-example-2026-10-30.md))
 
 1. Brief: step 6, and every brief carries the lines LOOP RULE, STANDARD and SIBLINGS from the reference. Rule `session-dispatch-brief` (advisory for the three lines).
-2. RAM gate, read `node scripts/agent-os/heavy.mjs status` before every start: under 500 MB start nothing and stop the least
-   important idle session; 500 to 1,499 MB docs-only or read-only sessions only; 1,500 MB and up a writer session may start too.
+2. RAM gate, read `node scripts/agent-os/heavy.mjs status` before every start (a session is budgeted 1,500 MB over a 500 MB floor):
+   under 2,000 MB start nothing (under 500 MB also stop this job's least important idle session); 2,000 to 2,999 MB docs-only or read-only sessions only; 3,000 MB and up a writer session may start too.
    Machine-wide cap: 10 running sessions, other managers' included (`list_sessions` unfiltered). Advisory; `heavy.mjs` gates runs only.
 3. Queue: a brief the gate blocks is written now and listed as QUEUED in the takeover file; start it the moment a slot frees.
 4. Start: `start_session` with `model`, `effort` and `permission_mode` set, the brief file in `prompt`, tier named in your intro

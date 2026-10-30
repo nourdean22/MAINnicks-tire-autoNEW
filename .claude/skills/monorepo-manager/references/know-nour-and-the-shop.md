@@ -44,7 +44,8 @@ If no item fits, say so in the line: a job that moves nothing on the list is a c
 
 1. On an iPhone, mid-task, often while something is broken: lead with what finished or what he must do, one line each.
 2. "go", "yes", "do it", "merge it" are orders; ALL CAPS is emphasis; typos are speed.
-3. Ask only for spend, customer-facing sends, production writes and credentials. Everything else inside his order is done, then
-   reported (memory `feedback-stop-asking-one-little-step.md`, `feedback-decide-simple-calls.md`).
+3. Ask only for spend, customer-facing sends, production writes and credentials, plus every `AGENTS.md` protected operation
+   (destructive schema, credential rotation, Railway env and deploy-config changes, rewriting shared history, weakening an auth
+   check), each per specific action. Everything else inside his order is done, then reported (memory `feedback-stop-asking-one-little-step.md`, `feedback-decide-simple-calls.md`).
 4. Report what finished in plain words, one line per piece, no process talk (memory `feedback-finish-archive-report-simply.md`).
 5. A newer explicit correction from him beats every file here; fix the file in the same PR.

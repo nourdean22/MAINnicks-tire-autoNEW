@@ -32,7 +32,21 @@ R3's third brief was added after the mutation pass below, and v3 still answers i
 
 `working tree: 15 of 15 pass`, exit 0.
 
+## Codex round 1 (PR 3389, 6 threads)
+
+- R1, R2, R4 now probe each number at its boundary (cap-1 and cap; 599, 600, 900, 901 s; 9, 10, 11 sessions), so a drifted
+  threshold goes red. The RAM gate itself moved: a session is budgeted 1,500 MB over a 500 MB floor (docs from 2,000 MB,
+  writers from 3,000 MB), so R1's expected answers follow the new numbers. The first v4 head (ba28b67685, old thresholds) now
+  scores 14 of 15 (R1 red): the boundary probes catch the drift they were added for.
+- R14 checks the job-start files at `--ref` with `git cat-file -e` instead of the working tree. Positive control: `--ref HEAD`
+  on ba28b67685 passes R14 through that path.
+
 ## Mutation pass (one rule broken in a temp copy, the case must go red)
+
+Round 2 (after the Codex fixes): killed 14 of 16. New boundary mutants all killed: docs floor 2,000 to 1,999, writer 3,000 to
+2,999, cap 10 to 11, cadence 900 to 901. The same two equivalent survivors as round 1 (R6, R10).
+
+Round 1:
 
 Killed 11 of 13. R1, R2, R3, R4, R8, R9, R11, R12, R13 each killed by a single edit to SKILL.md or the reference. R6 and R10
 survive a SKILL.md-only edit because `references/session-pipeline.md` states the same rule (equivalent mutants: the skill text

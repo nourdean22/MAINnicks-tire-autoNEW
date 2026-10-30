@@ -36,15 +36,21 @@ Machine facts (FACT unless labelled): NattyNour is a 16 GB laptop. Four concurre
 (v3 Workers section). On 2026-10-30 free RAM read 615 MB at 14:03Z with about 11 sessions of another manager running, then
 160 MB with 15 sessions, and the laptop crashed before 15:25Z (memory `shop-os-planning-manager-2026-10-30.md`). On 2026-10-29
 seven sessions carried 1.1 to 1.4 GB of MCP child processes each and the PC crashed at 02:28Z (ledger
-`2026-10-29-manager-sweep.md`). `node scripts/agent-os/heavy.mjs status` prints `free RAM: N MB`.
+`2026-10-29-manager-sweep.md`). On 2026-10-30 at 16:50Z, with 17 open sessions on the machine, 25 `claude` processes held
+4,950 MB and 23 `node` processes 3,854 MB of working set (about 520 MB per open session on average), and free RAM was 874 MB.
+`node scripts/agent-os/heavy.mjs status` prints `free RAM: N MB`.
 
-The gate, read before every `start_session`:
+Each new session is budgeted 1,500 MB (STRONG INFERENCE: it covers the 1.1 to 1.4 GB of MCP children measured per session on
+10-29 plus the session itself; today's average is lower, so this errs safe; recalibrate from a new measurement). A start is
+admitted only when free RAM covers that budget plus the 500 MB floor; a writer also needs room for its own heavy run, which
+`heavy.mjs` admits at 1,500 MB free. The gate, read before every `start_session`:
 
 | Free RAM | May start | Also do |
 |---|---|---|
-| under 500 MB | nothing | stop (`stop_session`) the least important idle session: a paused research or docs session first, a writer last; never one mid-commit |
-| 500 to 1,499 MB | docs-only or read-only sessions (no suites, no builds) | queue writers (section 3) |
-| 1,500 MB and up | a writer session too, within the 2-writer limit | suites still go one at a time through `heavy.mjs run --` |
+| under 500 MB | nothing | stop (`stop_session`) the least important idle session THIS job started: a paused research or docs session first, a writer last; never one mid-commit, never Nour's own or another manager's. If none of yours is idle, queue and tell Nour which sessions hold the RAM |
+| 500 to 1,999 MB | nothing | queue every start (section 3) |
+| 2,000 to 2,999 MB | docs-only or read-only sessions (no suites, no builds) | queue writers |
+| 3,000 MB and up | a writer session too, within the 2-writer limit | suites still go one at a time through `heavy.mjs run --` |
 
 The 2-writer and 1-heavy-run limits count research agents, reviewers, workflow fan-outs and background suites too (v3 Workers
 section, kept). Raise any limit only with a measured reason.
@@ -60,15 +66,16 @@ advisory (cross-lane need 2).
 Benchmarked against: Kubernetes node-pressure eviction, https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
 (read 2026-10-30): the default hard threshold is `memory.available<100Mi` on Linux nodes and `memory.available<500Mi` on Windows
 nodes; a node past it gets the `MemoryPressure` condition, and pods "where the usage exceeds requests" are "evicted based on their
-Priority" first. Adopted: a fixed floor (500 MB, this is a Windows laptop) below which nothing new is admitted, and eviction by
-priority (idle research and docs before writers). Not adopted: automatic eviction; the manager stops a session by hand.
+Priority" first. Adopted: a fixed floor (500 MB, this is a Windows laptop), admission only when the new session's budget fits
+above the floor (the scheduler's resource requests, applied by hand), and eviction by priority (idle research and docs before
+writers), limited to sessions this job owns. Not adopted: automatic eviction; the manager stops a session by hand.
 
 ## 3. Queue (pipeline, never batch)
 
 When the gate or the writer limit blocks a session, write its brief now and add a line to the takeover file:
 
 ```
-QUEUED <yyyy-mm-dd hh:mmZ> <title> - brief <path> - <model>/<effort> - start when: <the trigger, e.g. "doc 12 is archived" or "free RAM >= 500 MB">
+QUEUED <yyyy-mm-dd hh:mmZ> <title> - brief <path> - <model>/<effort> - start when: <the trigger, e.g. "doc 12 is archived" or "free RAM >= 2,000 MB">
 ```
 
 On every sweep, start it the moment a slot frees, oldest first unless a ruling says otherwise. Memory
@@ -83,7 +90,9 @@ On every sweep, start it the moment a slot frees, oldest first unless a ruling s
   tier the job needs. A `fork` runs on your model.
 - `permission_mode`: set it explicitly (Nour runs bypass; memory `feedback-stop-asking-one-little-step.md` item 4) so a session
   never stops on a prompt he has to tap.
-- `name`: short and stable (it is how sweeps and digests address the session); `use_worktree: true` for anything that writes.
+- `title` (required, under 60 characters, shown on the session row; the field the `session-dispatch-brief` canaries use) and
+  `name` (optional, `[a-z0-9-]`, at most 24 characters: the short handle linked sessions and sweeps address it by). Set both;
+  `use_worktree: true` for anything that writes.
 - The tier table is the template's (`subagent-brief.md`, "Picking model and effort": tier C = opus for judgement). The memory file
   `feedback-session-model-by-tier.md` uses the letters the other way round (tier A = Opus); the template wins, say the model by name.
 
@@ -146,7 +155,9 @@ After the PR merged (steps 12-17) or the result is folded in, in this order:
 ## Parked for Nour
 
 Nour wants questions only for the four protected classes (spend, customer-facing sends, production writes, credentials;
-`.agents/core/USER.md`). Every other choice is decided, done and reported with a `Ruling:` line. When he defers a decision
+`.agents/core/USER.md`) and for every `AGENTS.md` protected operation, each of which needs his instruction for the specific
+action every time: destructive schema commands, credential rotation, Railway env edits, deploy-config changes, rewriting shared
+history, weakening an auth or signature check. Every other choice is decided, done and reported with a `Ruling:` line. When he defers a decision
 ("leave these for later", "remind me"), it goes in the takeover memory file under this heading:
 
 ```
@@ -174,7 +185,7 @@ USER.md lists as settled. Witness: 2026-10-30 10:30 EDT, six Shop OS decisions, 
 ## Cross-lane needs (proposals for a platform PR; not built here)
 
 1. `session-dispatch-brief`: also deny a `start_session` whose brief file lacks a `LOOP RULE:` line (canary: a brief with and without).
-2. A PreToolUse check on `start_session` that reads free RAM and denies under 500 MB, with `HEAVY_FREE_MB` as the canary input.
+2. A PreToolUse check on `start_session` that reads free RAM and denies under 2,000 MB, with `HEAVY_FREE_MB` as the canary input.
 3. A Stop-hook rule for the manager: a session's PR reported as done with no `gh pr checks` read in the turn (extends `skills-check.mjs`).
 4. Template v4: add the three lines of section 1 to `.agents/core/templates/subagent-brief.md`.
 
