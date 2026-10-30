@@ -40,6 +40,7 @@ export type ConversionFields = Pick<
   | "ctaHeadline"
   | "ctaSub"
   | "aeoAnswer"
+  | "aeoLink"
 >;
 
 /**
@@ -150,7 +151,8 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   emissions: {
     // 2026-10-29 · GSC audit: the searcher asks where to get tested, so the
     // first body answer says that, from OHIO_ECHECK, before the repair pitch.
-    aeoAnswer: `${OHIO_ECHECK.whoTests} ${OHIO_ECHECK.freeTests.display} Before you test, Nick's Tire & Auto at ${BUSINESS.address.street} runs a free readiness check, and if your car failed, we find and fix what failed. Walk in 7 days or call ${BUSINESS.phone.display}.`,
+    aeoAnswer: `${OHIO_ECHECK.whoTests} ${OHIO_ECHECK.freeTests.display} Before you test, stop in at Nick's Tire & Auto, ${BUSINESS.address.street}, for a free quick check, and if your car failed, we find and fix what failed. Walk in 7 days or call ${BUSINESS.phone.display}.`,
+    aeoLink: { href: "/blog/ohio-echeck-locations-near-euclid", label: "E-Check stations closest to Euclid" },
     // Operator call (2026-07-04): NO repair prices on this page — dollar
     // ranges scare customers into price-shopping before we've seen the
     // car. The pricing-tier grid is replaced by a trust/approval block

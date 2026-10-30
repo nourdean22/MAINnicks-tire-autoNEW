@@ -2226,7 +2226,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What Uneven Wear Tells You",
-        content: "When you check tread depth, pay attention to the pattern of wear. Worn on both edges but good in the center means under-inflation — you have been driving with too little air pressure. Worn in the center but good on edges means over-inflation. Worn on one edge only usually means an alignment problem — camber or toe is off. Scalloped or cupped wear means worn shocks or struts. Each pattern tells a story. If you see uneven wear, bring the car to Nick's Tire and Auto and we will diagnose the cause before you buy new tires. No point putting new rubber on if the underlying problem is going to chew them up again. Free tire inspections every day — walk in or call (216) 862-0005. Check our [tire inventory](/tires) or learn about [wheel alignment](/alignment)."
+        content: "When you check tread depth, pay attention to the pattern of wear. Worn on both edges but good in the center means under-inflation — you have been driving with too little air pressure. Worn in the center but good on edges means over-inflation. Worn on one edge only usually means an alignment problem — camber or toe is off. Scalloped or cupped wear means worn shocks or struts. Each pattern tells a story. If you see uneven wear, bring the car to Nick's Tire and Auto and we will diagnose the cause before you buy new tires. No point putting new rubber on if the underlying problem is going to chew them up again. Free tire inspections every day — walk in or call (216) 862-0005. Check our [tire inventory](/tires) or learn about [wheel alignment](/wheel-alignment-cleveland)."
       }
     ],
     relatedServices: ["/tires", "/wheel-alignment-cleveland"],
@@ -2296,7 +2296,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What To Do When You Spot Uneven Wear",
-        content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $60, new tires at competitive prices, and alignment at $80 to $100. We are at 17625 Euclid Ave, Cleveland — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/alignment)."
+        content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $60, new tires at competitive prices, and alignment at $80 to $100. We are at 17625 Euclid Ave, Cleveland — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/wheel-alignment-cleveland)."
       }
     ],
     relatedServices: ["/tires", "/wheel-alignment-cleveland", "/general-repair"],

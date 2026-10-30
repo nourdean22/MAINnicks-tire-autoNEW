@@ -354,7 +354,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // Unified with services.ts:401's metaTitle so the title/meta split-brain
     // (prerender vs. live SPA) can't show two different claims either.
     title: "E-Check Near Me Cleveland: Where to Test | Nick's",
-    description: "Only official E-Check stations run the state test. Get a free readiness check here first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.",
+    description: "Only official E-Check stations run the state test. Stop in for a free quick check first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,

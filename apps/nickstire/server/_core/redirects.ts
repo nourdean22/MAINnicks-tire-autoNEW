@@ -215,11 +215,22 @@ const REDIRECTS: RedirectRule[] = [
   { from: "/tire-shop-open-sunday-cleveland", to: "/tires#open-sundays", reason: "§11 tire-silo consolidation; 0 impressions in the 28-day post-rewrite window" },
 ];
 
+// Carry the request's query string onto the target, before any #fragment, so
+// ?utm_ links in reels, GBP and texts keep their attribution through the 301
+// (2026-10-29: the old handler dropped it).
+function withQuery(target: string, originalUrl: string | undefined): string {
+  const q = originalUrl?.indexOf("?") ?? -1;
+  if (q < 0) return target;
+  const query = originalUrl!.slice(q).split("#")[0];
+  const hash = target.indexOf("#");
+  return hash < 0 ? target + query : target.slice(0, hash) + query + target.slice(hash);
+}
+
 // Returns a 301 redirect if the path matches, otherwise falls through.
 export function installRedirects(app: Express): void {
   for (const rule of REDIRECTS) {
-    app.get(rule.from, (_req: Request, res: Response) => {
-      res.redirect(301, rule.to);
+    app.get(rule.from, (req: Request, res: Response) => {
+      res.redirect(301, withQuery(rule.to, req.originalUrl));
     });
   }
 

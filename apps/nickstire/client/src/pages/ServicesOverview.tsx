@@ -38,6 +38,7 @@ import {
 } from "@/components/SEO";
 import ServicesDifferentiators from "@/components/ServicesDifferentiators";
 import { BUSINESS } from "@shared/business";
+import { canonicalServicePath } from "@shared/internalLinks";
 import { trpc } from "@/lib/trpc";
 import { SERVICES, type ServiceData } from "@shared/services";
 
@@ -300,12 +301,12 @@ export default function ServicesOverview() {
             {SERVICES_LIST.map((service) => (
               <Link
                 key={service.slug}
-                href={`/${service.slug}`}
+                href={canonicalServicePath(service.slug)}
                 onClick={() =>
                   trackServicesAction(
                     "service_board",
                     "open_service",
-                    `/${service.slug}`,
+                    canonicalServicePath(service.slug),
                     service.title,
                   )
                 }

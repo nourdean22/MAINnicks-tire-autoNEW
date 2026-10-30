@@ -413,7 +413,7 @@ export const SERVICES: ServiceData[] = [
     // get an echeck" at pos 8-15, 0 clicks. Searchers ask where to test, so the
     // title and description answer that first. Keep in sync with routes.ts.
     metaTitle: "E-Check Near Me Cleveland: Where to Test | Nick's",
-    metaDescription: `${OHIO_ECHECK.whoTests} Get a free readiness check here first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.`,
+    metaDescription: `${OHIO_ECHECK.whoTests} Stop in for a free quick check first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.`,
     heroHeadline: "Failed E-Check?\nWe'll find what failed.",
     heroSubline: "The state runs the official E-Check — we run a FREE readiness check that shows whether your car is ready to test, then diagnose and repair the exact emissions problem and help the monitors complete before you retest.",
     heroCTA: "SCHEDULE E-CHECK REPAIR",
@@ -465,7 +465,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "Where do I get an E-Check near Euclid?",
-        answer: `${OHIO_ECHECK.whoTests} Nick's Tire & Auto does not run the state test. ${OHIO_ECHECK.freeTests.display} Before you go, we run a free readiness check at 17625 Euclid Ave so you know whether the car is ready, and if it failed, we find and fix what failed.`,
+        answer: `${OHIO_ECHECK.whoTests} Nick's Tire & Auto does not run the state test. ${OHIO_ECHECK.freeTests.display} Before you go, stop in at 17625 Euclid Ave for a free quick check, and if it failed, we find and fix what failed.`,
       },
       {
         question: "Why did my car fail the Ohio E-Check?",
