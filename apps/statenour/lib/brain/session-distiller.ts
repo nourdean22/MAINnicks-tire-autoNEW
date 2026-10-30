@@ -102,29 +102,67 @@ export async function findEligibleConversations(limit = 10): Promise<string[]> {
   const withEnough = candidates.filter((c) => c._count.messages >= 4);
   if (withEnough.length === 0) return [];
 
-  // Skip any that already have a fresh distill
+  // Every chat_summary row counts, soft-deleted ones included. A tombstone is not a gap: remember()
+  // reinforces a deleted row without reviving it, so "redistilling" it wrote into the trash and the
+  // same chats came back every night (PR 3379 review). Someone's delete stands, as in conversation-memory.
+  const ids = withEnough.map((c) => c.id);
   const existing = await prisma.brainMemory.findMany({
-    where: {
-      category: BRAIN_CATEGORIES.CHAT_SUMMARY,
-      key: { in: withEnough.map((c) => c.id) },
-      deletedAt: null, // v10.0.66 · soft-deleted distill = redistill
-    },
-    select: { key: true, updatedAt: true },
+    where: { category: BRAIN_CATEGORIES.CHAT_SUMMARY, key: { in: ids } },
+    select: { key: true, updatedAt: true, deletedAt: true },
   });
-  const distilled = new Map(existing.map((e) => [e.key, e.updatedAt]));
+  const distilled = new Map(existing.map((e) => [e.key, e]));
+  const parked = await parkedConversations(ids);
 
   const recentFrom = Date.now() - RECENT_MS;
   const isRecent = (c: { updatedAt: Date }) => c.updatedAt.getTime() > recentFrom;
   const due = withEnough.filter((c) => {
-    const existingAt = distilled.get(c.id);
-    if (!existingAt) return true;
+    if (parked.has(c.id)) return false;
+    const row = distilled.get(c.id);
+    if (!row) return true;
+    if (row.deletedAt) return false;
     // Redistill after new activity only for a recent, unarchived chat. A backlog chat that already has
     // a distill is done: an updated_at bump from a later writer is not a new conversation.
-    return !c.archivedAt && isRecent(c) && c.updatedAt.getTime() > existingAt.getTime();
+    return !c.archivedAt && isRecent(c) && c.updatedAt.getTime() > row.updatedAt.getTime();
   });
   const recent = due.filter(isRecent);
   const backlog = due.filter((c) => !isRecent(c));
   return [...recent, ...backlog].slice(0, limit).map((c) => c.id);
+}
+
+/**
+ * Failed distills, one distill_attempt row per failure keyed `<conversationId>:<n>`. remember() cannot
+ * count (a repeat is a gateway noop, a changed text skips the seenCount bump), so each attempt is its
+ * own row; MAX_ATTEMPTS parks the chat. Read without a deletedAt filter: the nightly prune soft-deletes
+ * these probation rows, and a parked chat must stay parked.
+ */
+const MAX_ATTEMPTS = 2;
+
+async function parkedConversations(ids: string[]): Promise<Set<string>> {
+  const rows = await prisma.brainMemory.findMany({
+    where: { category: BRAIN_CATEGORIES.DISTILL_ATTEMPT, key: { in: ids.map((id) => `${id}:${MAX_ATTEMPTS}`) } },
+    select: { key: true },
+  });
+  return new Set(rows.map((r) => r.key.slice(0, -`:${MAX_ATTEMPTS}`.length)));
+}
+
+async function recordDistillFailure(conversationId: string, reason: string): Promise<void> {
+  log.warn("distill_unusable_reply", { conversationId, reason });
+  try {
+    const prior = await prisma.brainMemory.findMany({
+      where: { category: BRAIN_CATEGORIES.DISTILL_ATTEMPT, key: { in: [`${conversationId}:1`] } },
+      select: { key: true },
+    });
+    const n = prior.length > 0 ? MAX_ATTEMPTS : 1;
+    const { brainMemory } = await import("@/lib/brain/memory-manager");
+    await brainMemory.remember(
+      BRAIN_CATEGORIES.DISTILL_ATTEMPT,
+      `${conversationId}:${n}`,
+      `Session distill attempt ${n} failed: ${reason}.`,
+      "session_distiller",
+    );
+  } catch (err) {
+    logError("brain.session-distiller", err, { fn: "recordDistillFailure", conversationId });
+  }
 }
 
 async function loadConversation(conversationId: string): Promise<ConversationSnapshot | null> {
@@ -192,11 +230,23 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
     return null;
   });
 
-  if (!aiResult || !aiResult.content) return null;
+  // A provider outage (aiChat's sentinel) is transient and says nothing about this chat: retry it
+  // tomorrow without counting. Only an unusable reply from a working provider counts as an attempt.
+  if (!aiResult || aiResult.provider === "none" || aiResult.provider === "emergency") {
+    log.warn("distill_provider_outage", { conversationId, provider: aiResult?.provider ?? "threw" });
+    return null;
+  }
+  if (!aiResult.content) {
+    await recordDistillFailure(conversationId, "empty model reply");
+    return null;
+  }
 
   // v10.0.229 · extractJsonObject with repair pass
   const extracted = extractJsonObject<Partial<SessionDistill>>(aiResult.content);
-  if (!extracted.ok) return null;
+  if (!extracted.ok) {
+    await recordDistillFailure(conversationId, "model reply was not the expected JSON");
+    return null;
+  }
   const parsed: Partial<SessionDistill> = extracted.value;
 
   const distill: SessionDistill = {
@@ -412,8 +462,10 @@ export async function distillIdleSessions(batchSize = 10): Promise<{
   for (const id of ids) {
     try {
       const result = await distillConversation(id);
+      // The queue only serves chats with >=4 messages, so a null here is a failed distill (outage or an
+      // unusable reply, both logged in distillConversation), never a skip: an outage must not read "skipped:10".
       if (result) distilled++;
-      else skipped++;
+      else failures++;
     } catch (err) {
       failures++;
       logError("brain.session-distiller", err, { fn: "distillIdleSessions", conversationId: id });

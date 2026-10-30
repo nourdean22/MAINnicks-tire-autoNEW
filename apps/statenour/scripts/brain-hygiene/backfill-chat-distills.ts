@@ -20,7 +20,26 @@
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/backfill-chat-distills.ts --read       # count and ids, SELECT only
  *   railway run -s statenour-web -- pnpm exec tsx scripts/brain-hygiene/backfill-chat-distills.ts --execute --expect=<count from --read>
  */
+import { Module } from "node:module";
 import { fail, finish, isEntry, runHygiene, toCount, type Db, type HygieneSpec } from "./_run";
+
+/**
+ * session-distiller reaches lib/ai/extract-structured.ts, which does `import "server-only"` and throws
+ * under bare tsx (PR 3379 review). Same neutralizer as scripts/backfill-persona-judgments.ts and
+ * scripts/measure-prompt-size.ts: an empty module is what server-only's own react-server build returns.
+ * Tooling only; the production build is unaffected.
+ */
+function neutralizeServerOnly(): void {
+  const cjs = Module as unknown as { _load: (request: string, parent: unknown, isMain: boolean) => unknown };
+  const original = cjs._load;
+  cjs._load = (request, parent, isMain) => (request === "server-only" ? {} : original(request, parent, isMain));
+}
+
+/** The real writer, loaded lazily so plan and --read never import Prisma or the AI chain. */
+export async function loadDistill(): Promise<Distill> {
+  neutralizeServerOnly();
+  return (await import("@/lib/brain/session-distiller")).distillConversation;
+}
 
 /** Ids and dates only: never message or summary text. Oldest first, so the backlog fills in chronologically. */
 export const READ_SQL = `
@@ -31,10 +50,18 @@ SELECT c.id, c.updated_at::text AS updated_at
    AND NOT EXISTS (SELECT 1 FROM brain_memories bm WHERE bm.category = 'chat_summary' AND bm.key = c.id)
  ORDER BY c.updated_at ASC, c.id`;
 
-/** Claim check right before each distill (the nightly cron may have reached the chat since --read) and the landed check after. */
+/** Claim check right before each distill: the nightly cron may have reached the chat since --read. */
 const ROWS_SQL = `
-SELECT COUNT(*)::int AS any_rows, COUNT(*) FILTER (WHERE deleted_at IS NULL)::int AS live_rows
+SELECT COUNT(*)::int AS any_rows
   FROM brain_memories WHERE category = 'chat_summary' AND key = $1 /* chat_summary_rows */`;
+
+/** The database clock (created_at is a UTC timestamp), read right before each distill. Never the client clock. */
+const NOW_SQL = `SELECT (now() AT TIME ZONE 'UTC')::text AS db_now`;
+
+/** The landed check: the live row for the chat, and whether it was created at or after that clock read (ours) or before it (raced). */
+const LANDED_SQL = `
+SELECT id, created_at >= $2::timestamp AS ours
+  FROM brain_memories WHERE category = 'chat_summary' AND key = $1 AND deleted_at IS NULL /* chat_summary_landed */`;
 
 /** Consecutive misses at the start that mean the provider is down: stop spending. */
 const EARLY_ABORT = 3;
@@ -48,9 +75,8 @@ interface Deps {
 
 const loadIds = (db: Db) => db.query<Row>(READ_SQL);
 
-async function rowCounts(db: Db, id: string): Promise<{ any: number; live: number }> {
-  const r = (await db.query<{ any_rows: number; live_rows: number }>(ROWS_SQL, id))[0];
-  return { any: toCount(r?.any_rows), live: toCount(r?.live_rows) };
+async function anyRows(db: Db, id: string): Promise<number> {
+  return toCount((await db.query<{ any_rows: number }>(ROWS_SQL, id))[0]?.any_rows);
 }
 
 export const spec: HygieneSpec = {
@@ -92,41 +118,56 @@ export const spec: HygieneSpec = {
       log("nothing to do.");
       return 0;
     }
-    const distill: Distill = d.distill ?? (await import("@/lib/brain/session-distiller")).distillConversation;
+    const distill: Distill = d.distill ?? (await loadDistill());
     const pauseMs = d.pauseMs ?? 200;
-    const startedAt = new Date().toISOString();
 
     const landed: string[] = [];
+    const rowIds: string[] = [];
     const missed: string[] = [];
     let skipped = 0;
-    for (const { id } of rows) {
-      if ((await rowCounts(db, id)).any > 0) {
-        skipped++;
-        continue;
+    let raced = 0;
+    // try/finally (PR 3379 review): a throw part-way (a dropped connection on a read) must still print what
+    // landed and the rollback for it, then rethrow.
+    try {
+      for (const { id } of rows) {
+        if ((await anyRows(db, id)) > 0) {
+          skipped++;
+          continue;
+        }
+        const dbNow = (await db.query<{ db_now: string }>(NOW_SQL))[0]?.db_now;
+        if (!dbNow) throw new Error("database clock read returned nothing");
+        try {
+          await distill(id);
+        } catch (e) {
+          log(`  ${id}: distill threw (${e instanceof Error ? e.message.slice(0, 120) : "unknown"})`);
+        }
+        const row = (await db.query<{ id: string; ours: boolean }>(LANDED_SQL, id, dbNow))[0];
+        if (row?.ours) {
+          landed.push(id);
+          rowIds.push(row.id);
+        } else if (row) {
+          raced++; // the nightly cron wrote it between the claim check and the distill: not ours to roll back
+        } else {
+          missed.push(id);
+        }
+        if (landed.length === 0 && missed.length >= EARLY_ABORT) {
+          log(`ABORT: the first ${EARLY_ABORT} chats wrote nothing (provider down or replies unparseable). Stopped spending.`);
+          break;
+        }
+        if (pauseMs > 0) await new Promise((r) => setTimeout(r, pauseMs));
       }
-      try {
-        await distill(id);
-      } catch (e) {
-        log(`  ${id}: distill threw (${e instanceof Error ? e.message.slice(0, 120) : "unknown"})`);
-      }
-      if ((await rowCounts(db, id)).live > 0) landed.push(id);
-      else missed.push(id);
-      if (landed.length === 0 && missed.length >= EARLY_ABORT) {
-        log(`ABORT: the first ${EARLY_ABORT} chats wrote nothing (provider down or replies unparseable). Stopped spending.`);
-        break;
-      }
-      if (pauseMs > 0) await new Promise((r) => setTimeout(r, pauseMs));
-    }
-
-    log(`landed ${landed.length} of ${rows.length} · skipped ${skipped} (gained a row since --read) · missed ${missed.length}`);
-    if (missed.length) log(`not landed: ${missed.join(",")}`);
-    if (landed.length) {
+    } finally {
       log(
-        `\nROLLBACK (soft delete of exactly the rows this run wrote):\n` +
-          `UPDATE brain_memories SET deleted_at = now(), metadata = COALESCE(metadata, '{}'::jsonb) || '{"deletedBy":"backfill-chat-distills-rollback"}'::jsonb\n` +
-          ` WHERE category = 'chat_summary' AND source = 'session_distiller' AND deleted_at IS NULL\n` +
-          `   AND created_at >= '${startedAt}' AND key = ANY('{${landed.join(",")}}'::text[]);\n`,
+        `landed ${landed.length} of ${rows.length} · skipped ${skipped} (gained a row since --read) · raced ${raced} (the cron wrote it first) · missed ${missed.length}`,
       );
+      if (missed.length) log(`not landed: ${missed.join(",")}`);
+      if (rowIds.length) {
+        log(
+          `\nROLLBACK (soft delete of exactly the ${rowIds.length} rows this run wrote, by row id):\n` +
+            `UPDATE brain_memories SET deleted_at = now(), metadata = COALESCE(metadata, '{}'::jsonb) || '{"deletedBy":"backfill-chat-distills-rollback"}'::jsonb\n` +
+            ` WHERE category = 'chat_summary' AND deleted_at IS NULL AND id = ANY('{${rowIds.join(",")}}'::text[]);\n`,
+        );
+      }
     }
     return missed.length === 0 ? 0 : 1;
   },

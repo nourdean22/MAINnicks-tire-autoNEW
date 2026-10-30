@@ -39,6 +39,8 @@ export const TELEMETRY_CATEGORIES = [
   "reply_quality",
   "brain_dump_event",
   "task_completion",
+  // 2026-10-30 · session-distiller failure markers (brain backfill W1): queue bookkeeping, not a belief.
+  "distill_attempt",
   // 2026-09-22 brain audit (read-only, 42,129 live memories): five machine
   // categories were still recall-visible and embedded. `semantic_edge` is the
   // one that matters — 18,358 live rows (44% of the live brain), text

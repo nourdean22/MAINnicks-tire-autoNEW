@@ -3,22 +3,30 @@
  * The write path against a recording fake Db and a fake distiller; the plan-mode network guard is
  * spawned in brain-hygiene-run.test.ts.
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { READ_SQL, spec } from "@/scripts/brain-hygiene/backfill-chat-distills";
 import { APP_ROOT, fakeDb, normalize } from "./_lib/brain-hygiene-harness";
 
-function world(opts: { ids?: string[]; claimedLater?: string[]; landed?: (id: string) => boolean } = {}) {
+const DB_NOW = "2026-10-30 13:00:00";
+
+function world(opts: { ids?: string[]; claimedLater?: string[]; landed?: (id: string) => boolean; cronWroteDuringRun?: string[] } = {}) {
   const ids = opts.ids ?? ["c1", "c2", "c3"];
   const claimed = new Set(opts.claimedLater ?? []);
+  const cron = new Set(opts.cronWroteDuringRun ?? []);
   const distilled = new Set<string>();
   const w = fakeDb((sql, params) => {
     const s = normalize(sql);
     if (s.includes("FROM chat_conversations c")) return ids.map((id, i) => ({ id, updated_at: `2026-05-0${i + 1}` }));
-    if (s.includes("chat_summary_rows")) {
+    if (s.includes("AS db_now")) return [{ db_now: DB_NOW }];
+    if (s.includes("chat_summary_rows")) return [{ any_rows: claimed.has(String(params[0])) ? 1 : 0 }];
+    if (s.includes("chat_summary_landed")) {
       const id = String(params[0]);
+      expect(params[1]).toBe(DB_NOW);
       const live = distilled.has(id) && (opts.landed ? opts.landed(id) : true);
-      return [{ any_rows: claimed.has(id) || live ? 1 : 0, live_rows: live ? 1 : 0 }];
+      return live ? [{ id: `row-${id}`, ours: !cron.has(id) }] : [];
     }
     throw new Error(`unexpected statement: ${s.slice(0, 80)}`);
   });
@@ -47,15 +55,27 @@ describe("read", () => {
 });
 
 describe("execute", () => {
-  it("distills each chat through the live writer, oldest first, and prints a soft-delete rollback for exactly those ids", async () => {
+  it("distills each chat through the live writer, oldest first, and the rollback names exactly the row ids it wrote", async () => {
     const w = world();
     const log: string[] = [];
     expect(await run(w, 3, log)).toBe(0);
     expect(w.distill.mock.calls.map((c) => c[0])).toEqual(["c1", "c2", "c3"]);
     const out = log.join("\n");
     expect(out).toContain("landed 3 of 3");
-    expect(out).toMatch(/ROLLBACK[\s\S]*SET deleted_at = now\(\)[\s\S]*category = 'chat_summary'[\s\S]*'\{c1,c2,c3\}'/);
+    expect(out).toMatch(/ROLLBACK[\s\S]*SET deleted_at = now\(\)[\s\S]*id = ANY\('\{row-c1,row-c2,row-c3\}'::text\[\]\)/);
+    expect(out).not.toMatch(/created_at >=/);
     expect(out).not.toMatch(/\bDELETE\s+FROM\b/i);
+  });
+
+  it("a row the nightly cron wrote for the same chat during the run is not counted as ours and stays out of the rollback", async () => {
+    const w = world({ cronWroteDuringRun: ["c2"] });
+    const log: string[] = [];
+    expect(await run(w, 3, log)).toBe(0);
+    const out = log.join("\n");
+    expect(out).toContain("landed 2 of 3");
+    expect(out).toContain("raced 1");
+    expect(out).toContain("'{row-c1,row-c3}'");
+    expect(out).not.toContain("row-c2");
   });
 
   it("a count that moved since --read aborts before any distill", async () => {
@@ -93,4 +113,26 @@ describe("execute", () => {
     expect(src, "POSITIVE CONTROL: the scan sees the script's SQL").toContain("FROM chat_conversations c");
     expect(src).not.toMatch(/\bDELETE\s+FROM\b|\bDROP\s+(TABLE|INDEX|COLUMN)\b|\bTRUNCATE\b/i);
   });
+});
+
+describe("the real writer loads under bare tsx (PR 3379 review: server-only threw on --execute)", () => {
+  it("loadDistill imports lib/brain/session-distiller in a tsx child and returns the function, with no network", () => {
+    // Every other test injects a fake distill, so only a child process with the real import can see this.
+    const code =
+      'import("./scripts/brain-hygiene/backfill-chat-distills.ts").then((m) => m.loadDistill())' +
+      '.then((f) => { console.log("DISTILL_TYPE=" + typeof f); process.exit(0); })' +
+      '.catch((e) => { console.log("LOAD_FAIL " + String(e && e.message).slice(0, 200)); process.exit(1); });';
+    const env: NodeJS.ProcessEnv = { ...process.env, DATABASE_URL: "postgres://hygiene:secret-pw@invalid.invalid/x" };
+    env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ?? ""} --require ${join(APP_ROOT, "tests/scripts/_lib/no-network.cjs")}`.trim();
+    const r = spawnSync(process.execPath, [join(APP_ROOT, "node_modules/tsx/dist/cli.mjs"), "--eval", code], {
+      cwd: APP_ROOT,
+      encoding: "utf8",
+      env,
+      timeout: 120_000,
+    });
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    expect(out).not.toContain("NETWORK_ATTEMPT");
+    expect(out, out.slice(0, 600)).toContain("DISTILL_TYPE=function");
+    expect(r.status).toBe(0);
+  }, 150_000);
 });

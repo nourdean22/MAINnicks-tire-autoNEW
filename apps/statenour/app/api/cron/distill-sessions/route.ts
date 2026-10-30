@@ -29,8 +29,11 @@
  * Each run picks up to 10 conversations that:
  *   • have >= 4 messages
  *   • have been idle >= 30 min
- *   • are younger than 30 days
- *   • haven't been distilled since their last message
+ *   • have no chat_summary row at all (any age, archived included: a queue,
+ *     not a window, since 2026-10-30), or are recent (30 days), unarchived and
+ *     active again since their live distill. A soft-deleted distill stands.
+ *   • have fewer than 2 failed attempts (an unusable model reply; an outage
+ *     does not count)
  *
  * Writes one BrainMemory row per session (category "chat_summary",
  * key = conversationId) plus the rolling `nick_current_concerns` aggregate.
@@ -38,8 +41,8 @@
  * contextual-recall + chat-recall surface them in future chats.
  *
  * COST: bounded. One LLM call per distilled conversation, capped at 10 per
- * run by the batch size below, and only for conversations that have actually
- * changed since their last distill.
+ * run by the batch size below, and only for conversations never distilled or
+ * active again since their last distill.
  */
 import { cronHandler } from "@/lib/utils/http";
 import { distillIdleSessions } from "@/lib/brain/session-distiller";
