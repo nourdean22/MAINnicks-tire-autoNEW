@@ -166,14 +166,43 @@ describe("chat composer message queue", () => {
     expect(sendText.mock.calls.map((c) => c[0])).toEqual(["after the edit"]);
   });
 
-  it("a message typed in a new chat moves with it when the chat gets an id", async () => {
+  it("a new chat with no id yet does not queue: it says so and keeps the draft (Codex P1)", async () => {
     useChatUiStore.setState({ activeConversationId: null } as never);
     mount(true);
     await typeAndEnter("new chat question");
-    expect(stored()[0].conversationId).toBeNull();
-    act(() => useChatUiStore.setState({ activeConversationId: "c9" } as never));
+    expect(stored()).toEqual([]);
+    expect(useChatUiStore.getState().draft).toBe("new chat question");
+    expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("first reply"), expect.anything());
+  });
+
+  it("an armed edit is not queued as a new message: it says so and the edit stays armed (Codex P2)", async () => {
+    mount(true);
+    act(() => useChatUiStore.setState({ editingMessageId: "m1" } as never));
+    await typeAndEnter("replacement text");
+    expect(stored()).toEqual([]);
+    expect(useChatUiStore.getState().editingMessageId).toBe("m1");
+    expect(useChatUiStore.getState().draft).toBe("replacement text");
+  });
+
+  it("while one queued send is on its way, no other Send can start (Codex P2, order)", async () => {
+    localStorage.setItem(KEY, JSON.stringify([
+      { id: "q1", text: "first", conversationId: "c1" },
+      { id: "q2", text: "second", conversationId: "c1" },
+    ]));
+    let finish!: () => void;
+    sendText.mockImplementationOnce(() => new Promise<void>((r) => { finish = r; }));
+    mount(false);
+    const sendButtons = () => [...host.querySelectorAll('button[aria-label^="Send now"]')] as HTMLButtonElement[];
+    expect(sendButtons()).toHaveLength(2);
+
+    await act(async () => { sendButtons()[0].click(); });
     await flush();
-    expect(stored()[0].conversationId).toBe("c9");
+    expect(sendText.mock.calls.map((c) => c[0])).toEqual(["first"]);
+    expect(sendButtons()).toHaveLength(0);
+
+    await act(async () => { finish(); });
+    await flush();
+    expect(sendButtons()).toHaveLength(1);
   });
 
   it("stays with its chat: another chat's message is neither shown nor sent", async () => {

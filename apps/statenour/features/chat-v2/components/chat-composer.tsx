@@ -21,7 +21,7 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import { isSubmitEnter } from "../lib/submit-enter";
-import { EMPTY_QUEUE, forConversation, getQueueSnapshot, loadQueue, saveQueue, subscribeQueue } from "../lib/message-queue";
+import { EMPTY_QUEUE, forConversation, getQueueSnapshot, mutateQueue, subscribeQueue, type QueuedMessage } from "../lib/message-queue";
 
 /** 09-F12 · put a draft saved before a reload back, never over text already
  *  in the composer (a deep-link prefill lands first). */
@@ -380,16 +380,30 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
   // finished reply. Stop ends the reply, so Stop also sends the next one.
   const activeConversationId = useChatUiStore((s) => s.activeConversationId);
   const queue = useSyncExternalStore(subscribeQueue, getQueueSnapshot, () => EMPTY_QUEUE);
-  const updateQueue = saveQueue;
   const visibleQueue = forConversation(queue, activeConversationId);
+  const removeQueued = (id: string) => void mutateQueue((q) => ({ next: q.filter((x) => x.id !== id) }));
+  // A queued send is resolving mentions or running: no second one may start (Codex P2, order).
+  const [queuedSending, setQueuedSending] = useState(false);
 
   const enqueue = (text: string) => {
+    // Each case says why it did not queue, and keeps the draft.
     if (imgAttached) {
       toast("Photos send after Nick finishes this reply.", { id: "composer-busy", duration: 3000 });
       return;
     }
+    if (editingMessageId) {
+      // Queuing would disarm the edit and send the text as a new message (Codex P2).
+      toast("Edits wait until Nick finishes this reply.", { id: "composer-busy", duration: 3000 });
+      return;
+    }
+    if (!activeConversationId) {
+      // A brand-new chat has no id until its first reply lands; nothing to tie the message to.
+      toast("This new chat can queue once Nick's first reply is in.", { id: "composer-busy", duration: 3000 });
+      return;
+    }
     if (!text) return;
-    updateQueue([...loadQueue(), { id: crypto.randomUUID(), text, conversationId: activeConversationId }]);
+    const item = { id: crypto.randomUUID(), text, conversationId: activeConversationId };
+    void mutateQueue((q) => ({ next: [...q, item] }));
     setDraft("");
     clearDraft();
   };
@@ -412,22 +426,23 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
   // Taken out of storage under a cross-tab lock BEFORE the send, so two tabs or a reload can never
   // send it twice (claim-before-act). The caller has already checked the composer can send.
   const takeAndSend = async (id?: string) => {
-    const take = async () => {
-      const stored = loadQueue();
-      const item = id
-        ? stored.find((q) => q.id === id)
-        : forConversation(stored, useChatUiStore.getState().activeConversationId)[0];
-      if (!item) return null;
-      updateQueue(stored.filter((q) => q.id !== item.id));
-      return item;
-    };
-    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
-    const item = locks ? await locks.request("nick-chat-queue", take) : await take();
-    if (item) await sendQueued(item.text);
+    setQueuedSending(true);
+    try {
+      const item = await mutateQueue<QueuedMessage | null>((stored) => {
+        const found = id
+          ? stored.find((q) => q.id === id)
+          : forConversation(stored, useChatUiStore.getState().activeConversationId)[0];
+        return found ? { next: stored.filter((q) => q.id !== found.id), result: found } : { next: stored, result: null };
+      });
+      if (item) await sendQueued(item.text);
+    } finally {
+      setQueuedSending(false);
+    }
   };
 
-  // Blocked moments hold the queue: a photo or an armed edit in the composer, a chat still opening.
-  const canDrain = !imgAttached && !editingMessageId && !disabledReason;
+  // Blocked moments hold the queue: a photo or an armed edit in the composer, a chat still opening,
+  // a queued send still on its way.
+  const canDrain = !imgAttached && !editingMessageId && !disabledReason && !queuedSending;
   // One message per reply that FINISHES (status back to "ready" with no error; Stop ends that way).
   // A reply that errors holds the queue, so an outage cannot burn through it. A reload never
   // auto-sends: the list shows and each item has its own Send.
@@ -446,15 +461,6 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reacts to the reply ending and the composer unblocking
   }, [chat.status, chat.error, canDrain]);
-
-  // Messages typed in a chat that had no id yet move with it once it gets one.
-  useEffect(() => {
-    if (!activeConversationId) return;
-    const stored = loadQueue();
-    if (stored.some((q) => q.conversationId === null)) {
-      saveQueue(stored.map((q) => (q.conversationId === null ? { ...q, conversationId: activeConversationId } : q)));
-    }
-  }, [activeConversationId]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -541,7 +547,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
                 type="button"
                 aria-label={`Edit: ${q.text}`}
                 onClick={() => {
-                  updateQueue(loadQueue().filter((x) => x.id !== q.id));
+                  removeQueued(q.id);
                   const current = useChatUiStore.getState().draft;
                   setDraft(current ? `${current} ${q.text}` : q.text);
                   textareaRef.current?.focus();
@@ -553,7 +559,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
               <button
                 type="button"
                 aria-label={`Remove from queue: ${q.text}`}
-                onClick={() => updateQueue(loadQueue().filter((x) => x.id !== q.id))}
+                onClick={() => removeQueued(q.id)}
                 className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-control hover:bg-surface-interactive"
               >
                 <X size={14} />
