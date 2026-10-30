@@ -175,6 +175,10 @@ export function buildRepairToolCall(
 
     // Everything below repairs a hallucinated tool NAME.
     if (!NoSuchToolError.isInstance(error)) return null;
+    // The step offered NO tools (the text-only last step): the call must not run at all,
+    // and rerouting it to invokeTool only produced a second refusal logged under the wrong
+    // tool (2026-10-30 prod).
+    if (Array.isArray(error.availableTools) && error.availableTools.length === 0) return null;
 
     const name = toolCall.toolName;
     const args = safeParse(toolCall.input ?? "{}");
