@@ -62,3 +62,25 @@ Skills this build needs (exact names; all in `.claude/skills/` at base 33d02c1a2
 | `nickstire-tidb-ddl` | repair-order, inventory and tech tables (TiDB row-loss traps) |
 | `prod-db-guard` | any script that opens a DB, the ALG import included |
 | `shop-pc-remote-session` | driving the front-desk PC; a denied write means the hand-off block |
+
+## 4. Devices and the route to each
+| Device | State | Receipt | Route, who |
+|---|---|---|---|
+| NattyNour (dev laptop) | HAVE F | start health line: claude, codex, vscode, hooks ok; memory nattynour-machine-setup | RAM is the limit (docs and single-file checks only until it frees up) |
+| MECHANICS (front-desk PC) | HAVE F | memory office-lane-shop-pc: office camera task runs there; 16 GB | Chrome Remote Desktop, skill `shop-pc-remote-session`; denied write means hand-off block. Future /system counter screen (Nour installs the PWA) |
+| NicksMax (lot PC) | U | memory office-lane-shop-pc (offline since 2026-10-16, as of 2026-10-18); lot-vision-v2-2026-10-26 moved the counting to MECHANICS | Owned by the nicksmax session; do not touch |
+| Zach's phone (tech view) | U | no test yet; light theme for bright bays is open (06 row 8) | Nour: 10 min outdoor test before /system/tech is built |
+
+## 5. Nour does these, in order (each under 10 minutes unless marked)
+1. Send screenshots of the screens you want from each product (replaces the vendor email, PARKED).
+2. Sign up PartsTech's free plan and connect the parts accounts (about 20 min; 06 row 0a, the cheapest test in the plan).
+3. Answer in one line: card terminal model, QuickBooks yes or no, how many wrenches on a normal day (06 rows 0b, 7).
+4. Google Cloud console: is Routes API enabled on the Maps key's project (3 min).
+5. Enable `agentic-council` and `receipts-check` (claude.ai Settings > Plugins) and lift the Chrome site-access policy for Perplexity.
+6. Create the Bitwarden vault for shop logins; pick an after-6-PM night for the ALG API map; give the crew roles (09, 06 row 3).
+
+## 6. NOT CHECKED
+- Searches that came up empty (0 hits, not proof of "no account"): partstech, routes.googleapis, computeRoutes, quickbooks, maverick, tireweb, wheelpros in `apps/nickstire` server/shared/client and `apps/statenour` lib/app.
+- Whether any key NAME above is set in Railway (no prod read); Koalafi's reply; Google Cloud console; claude.ai connector auth.
+- repomix; Perplexity itself; sibling doc 12 (local AI); the Shopmonkey and Tekmetric trial terms.
+- Plan-gate note for the manager: UPSTREAMS lists PartsTech and MOTOR as WATCH (2026-09-23) while 05 days 4-7 reopens PartsTech; record the verdict change there.
