@@ -125,6 +125,7 @@ async function main() {
 
     let ingestedHere = 0;
     let skippedHere = 0;
+    const written: string[] = [];
     for (let i = 0; i < pack.entries.length; i++) {
       const row = packRowData(pack, pack.entries[i], i);
       if (!row) {
@@ -132,11 +133,12 @@ async function main() {
         continue;
       }
       try {
-        await prisma.brainMemory.upsert({
+        const saved = await prisma.brainMemory.upsert({
           where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: row.key } },
           create: { category: BRAIN_CATEGORIES.WISDOM, ...row.create } as Parameters<typeof prisma.brainMemory.upsert>[0]["create"],
           update: row.update as Parameters<typeof prisma.brainMemory.upsert>[0]["update"],
         });
+        written.push(saved.id);
         ingestedHere++;
       } catch (err) {
         console.error(
@@ -145,8 +147,9 @@ async function main() {
         skippedHere++;
       }
     }
+    const { embedLoadedRows, embedSummary } = await import("./_lib/embed-loaded-rows");
     console.log(
-      `[ok] ${pack.pack} · ingested ${ingestedHere}/${pack.entries.length} (skipped ${skippedHere})`,
+      `[ok] ${pack.pack} · ingested ${ingestedHere}/${pack.entries.length} (skipped ${skippedHere}) · ${embedSummary(await embedLoadedRows(written))}`,
     );
     totalIngested += ingestedHere;
     totalSkipped += skippedHere;

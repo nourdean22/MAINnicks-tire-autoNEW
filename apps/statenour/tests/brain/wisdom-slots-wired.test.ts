@@ -167,8 +167,8 @@ describe("metadata.lastRecalledAt reaches the slot picker", () => {
     h.memories = [
       row("recent", { category: "wisdom", key: "wisdom_naval-ravikant_002", source: "manual", content: "RECENT curated tire supplier invoice" }),
       row("r1", { category: "wisdom", key: "wisdom_naval-ravikant_003", source: "manual", content: "REST1 curated tire supplier invoice" }),
-      row("r2", { category: "wisdom", key: "wisdom_naval-ravikant_004", source: "manual", content: "REST2 curated tire supplier invoice" }),
-      row("r3", { category: "wisdom", key: "wisdom_naval-ravikant_005", source: "manual", content: "REST3 curated tire supplier invoice" }),
+      row("r2", { category: "wisdom", key: "wisdom_charlie-munger_004", source: "manual", content: "REST2 curated tire supplier invoice" }),
+      row("r3", { category: "wisdom", key: "wisdom_bezos-letters_005", source: "manual", content: "REST3 curated tire supplier invoice" }),
       row("i1", {}),
     ];
     h.scores = [{ id: "recent", score: 0.62 }, { id: "r1", score: 0.6 }, { id: "r2", score: 0.6 }, { id: "r3", score: 0.6 }, { id: "i1", score: 0.3 }];

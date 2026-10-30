@@ -285,9 +285,19 @@ export function selectWisdomSlots<T extends WisdomSlotCandidate>(
     m.lastRecalledAt && opts.now.getTime() - new Date(m.lastRecalledAt).getTime() < WISDOM_RECENT_MS
       ? m.hybrid * WISDOM_RECENT_PENALTY
       : m.hybrid;
+  // One slot per curated author (brain backfill W2, 2026-10-30): Gracian alone is 300 of 413 pack rows, and
+  // Readwise weights a source by its share. Principle rows have no author and are not capped.
+  const authors = new Set<string>();
   return scored
     .filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= floor && wisdomSlotEligible(m))
     .sort((a, b) => rank(b) - rank(a))
+    .filter((m) => {
+      const author = curatedWisdomAuthor(m);
+      if (!author) return true;
+      if (authors.has(author)) return false;
+      authors.add(author);
+      return true;
+    })
     .slice(0, slots);
 }
 
