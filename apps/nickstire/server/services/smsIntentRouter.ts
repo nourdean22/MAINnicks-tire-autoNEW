@@ -167,13 +167,20 @@ const RULES: Rule[] = [
     priority: 2,
     risk: "deterministic",
     catalogEvent: "job_inquiry",
+    // Every arm is keyed on an employment word. A bare "job", "apply" or role
+    // word is a customer's car job ("apply the coupon to my brake job", "do you
+    // need a tech to look at my car"): manager review 2026-10-30, controls in
+    // hiringAnswers.test.ts.
     test: (b) =>
-      /\bhiring\b/i.test(b) ||
+      /\b(hiring|careers?)\b/i.test(b) ||
       /\binterviews?\b/i.test(b) ||
-      /\b(do|does) (you|y'?all|the shop) need (a |any |another |more )?(mechanics?|techs?|technicians?|workers?|employees?)\b/i.test(b) ||
-      /\b(looking for|need|want) (a |some )?(job|employment)\b(?! (done|on|for my))/i.test(b) ||
-      /\b(apply|application)\b[^.?!]{0,30}\b(job|position|tech|technician|mechanic|advisor)\b/i.test(b) ||
-      /\b(service advisor|technician|tech|mechanic) (position|job|role|opening)\b/i.test(b) ||
+      /\b(do|does) (you|y'?all|the shop) (need|have room for) (a |any |another |more )?(mechanics?|techs?|technicians?|workers?|employees?|help)\s*(\?|$|right now|on staff)/i.test(b) ||
+      /\b(looking for|need|want) (a |some )?(job|work|employment)\s*([?.!,]|$|here|with you|at (the|your) shop)/i.test(b) ||
+      /\b(apply|application)\b[^.?!]{0,30}\b(for (a |the |this |that )?((tire |hybrid |service )?(tech|technician|mechanic|advisor) )?(job|position|role|opening)|to work|for work|position|opening)\b/i.test(b) ||
+      /\bhow (do|can|would) i apply\s*[?.!]*\s*$/i.test(b) ||
+      /\b(i|to|can i|could i) work (here|for you|at (the|your) shop)\b/i.test(b) ||
+      /\ba job (here|with you|at (the|your) shop)\b/i.test(b) ||
+      /\b(service advisor|technician|tech|mechanic) (position|role|opening)s?\b/i.test(b) ||
       /\b(positions?|job openings?)\b[^.?!]{0,20}\b(open|available|still|filled)\b/i.test(b) ||
       /\b(job openings?|open positions?)\b/i.test(b) ||
       /\b(do|does) (you|y'?all|the shop) hire\b/i.test(b),

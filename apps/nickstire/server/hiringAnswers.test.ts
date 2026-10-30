@@ -50,6 +50,14 @@ describe("SMS: a job question gets the hiring answer", () => {
     "can you do the job today",
     "how much for tires",
     "are you open today",
+    // Manager review 2026-10-30: customer texts that use "job", "apply" or a role word.
+    "can you apply the coupon to my brake job",
+    "can I apply the discount to the tire job",
+    "I need a job quoted for 4 tires",
+    "do you need a tech to look at my car",
+    "want a job estimate on brakes",
+    "does the tech job include alignment",
+    "is the mechanic job done yet",
   ])("control, not a job question: %s", (body) => {
     expect(routeInboundSms(body, noCtx).primary).not.toBe("job_inquiry");
   });
