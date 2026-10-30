@@ -92,7 +92,15 @@ async function main() {
   if (!NO_MODEL) {
     const { digestConversation } = await import("@/lib/brain/conversation-memory");
     const convs: Parameters<typeof plan.planChatInteractions>[0][number][] = [];
+    // Shared Ollama, no cross-app scheduler (board rule): one call at a time,
+    // paced, and stop after 3 failures in a row instead of hammering a 429.
+    let failStreak = 0;
     for (const conversationId of candidates.slice(0, LIMIT)) {
+      if (failStreak >= 3) {
+        console.log("lane B stopped early: 3 digest failures in a row (provider busy or down)");
+        break;
+      }
+      if (convs.length + digestFailed > 0) await new Promise((r) => setTimeout(r, 3000));
       const messages = await prisma.chatMessage.findMany({
         where: { conversationId },
         orderBy: { createdAt: "asc" },
@@ -101,8 +109,10 @@ async function main() {
       const digest = await digestConversation(conversationId, messages).catch(() => null);
       if (!digest || messages.length === 0) {
         digestFailed++;
+        if (messages.length >= 3) failStreak++; // too-short conversations are not provider failures
         continue;
       }
+      failStreak = 0;
       convs.push({
         conversationId,
         start: messages[0].createdAt,
