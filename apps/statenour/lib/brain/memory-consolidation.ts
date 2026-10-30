@@ -29,6 +29,22 @@ import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import type { Prisma } from "@prisma/client";
 const log = rootLogger.withSurface("brain/memory-consolidation");
 
+// Rows no machine pass may rewrite or delete: the operator's own (see the
+// 2026-08-27 note in mergeMemories), and curated wisdom packs (pack:*, written
+// by scripts/ingest-wisdom-pack.ts; added 2026-10-29). Shared by the merge and
+// by both pruneNoise sweeps and the scoring pass. created_by is nullable and
+// Prisma renders NOT(created_by = 'user'), which is UNKNOWN for NULL and drops the
+// row (checked read-only on prod 2026-10-29), so legacy NULL rows are admitted
+// explicitly. source is NOT NULL, so its clauses stay inside NOT.
+const CURATED_GUARD = {
+  OR: [{ createdBy: null }, { createdBy: { not: "user" } }],
+  NOT: [
+    { source: { in: [...OPERATOR_SOURCE_NAMES] } },
+    { source: { startsWith: "pin:" } },
+    { source: { startsWith: "pack:" } },
+  ],
+};
+
 // ─── 1. MERGE: Combine similar memories ──────────────────
 
 export async function mergeMemories(): Promise<{ merged: number }> {
@@ -47,13 +63,7 @@ export async function mergeMemories(): Promise<{ merged: number }> {
   // 2026-09-08 · the same operator-source predicate the evidence ladder uses:
   // user_save (explicit /save), operator (outreach/media) and pin:* rows are the
   // operator's too, and were only protected by luck of category before.
-  const CURATED_GUARD = {
-    NOT: [
-      { createdBy: "user" },
-      { source: { in: [...OPERATOR_SOURCE_NAMES] } },
-      { source: { startsWith: "pin:" } },
-    ],
-  };
+  // (CURATED_GUARD is module-level now: the pruneNoise sweeps use it too.)
 
   const categories = await prisma.brainMemory.groupBy({
     by: ["category"],
@@ -311,6 +321,10 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
 // ─── 3. PRUNE: Garbage collect noise ─────────────────────
 
 const SCHEDULE_CATEGORY = "spaced_review";
+// 2026-10-29 · curated wisdom has no TTL and sits at confidence 1.0, so neither sweep reaches it
+// today (read-only prod check: 0 curated live rows with a TTL or under 0.2). contradict() lowers
+// confidence by 0.2 a time and nothing stops a future writer setting a TTL, so the sweeps guard it.
+const SWEEP_SKIP_CATEGORIES = [SCHEDULE_CATEGORY, BRAIN_CATEGORIES.GREENE_LAW];
 
 export async function pruneNoise(): Promise<{ pruned: number }> {
   // TTL expiry now SOFT-deletes. It hard-deleted until 2026-08-16, and that is
@@ -336,7 +350,7 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
   // skip them, so a stray expiresAt or a low confidence on one cannot clear a card.
   // remember() already gives the category no TTL; this is the second guard (2026-10-17).
   const expired = await prisma.brainMemory.updateMany({
-    where: { expiresAt: { lt: new Date() }, deletedAt: null, category: { not: SCHEDULE_CATEGORY } },
+    where: { expiresAt: { lt: new Date() }, deletedAt: null, category: { notIn: SWEEP_SKIP_CATEGORIES }, ...CURATED_GUARD },
     data: { deletedAt: new Date() },
   });
 
@@ -350,7 +364,8 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
       confidence: { lt: 0.1 },
       lastSeen: { lt: daysAgo(14) },
       deletedAt: null,
-      category: { not: SCHEDULE_CATEGORY },
+      category: { notIn: SWEEP_SKIP_CATEGORIES },
+      ...CURATED_GUARD,
     },
     data: { deletedAt: new Date() },
   });
@@ -505,7 +520,8 @@ export async function scoreMemories(): Promise<{ scored: number }> {
     // same rationale: manual confidence is an explicit operator signal
     // (the highest-trust value in the system); the recency scorer must
     // not silently erode it.
-    where: { confidence: { gt: 0 }, category: { not: "wisdom" }, source: { not: "manual" } },
+    // 2026-10-29 · curated rows keep their confidence (the guard covers "manual"; greene_law seeds are 1.0 by design).
+    where: { confidence: { gt: 0 }, category: { notIn: ["wisdom", BRAIN_CATEGORIES.GREENE_LAW] }, ...CURATED_GUARD },
     orderBy: { updatedAt: "asc" },
     take: 100,
     select: { id: true, category: true, content: true, confidence: true, seenCount: true, lastSeen: true, createdAt: true },

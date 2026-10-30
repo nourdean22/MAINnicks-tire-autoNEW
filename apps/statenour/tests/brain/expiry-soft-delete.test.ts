@@ -69,16 +69,20 @@ describe("pruneNoise · TTL expiry", () => {
     ];
     // Evaluates the operators pruneNoise's where clauses use, against the rows above.
     const matches = (row: Record<string, unknown>, where: Record<string, unknown>): boolean =>
-      Object.entries(where).every(([field, cond]) => {
+      Object.entries(where).every(([field, cond]): boolean => {
+        // 2026-10-29 · the curated guard: NOT [...] passes only when no listed clause matches.
+        if (field === "NOT") return !(cond as Record<string, unknown>[]).some((c) => matches(row, c));
+        if (field === "OR") return (cond as Record<string, unknown>[]).some((c) => matches(row, c));
         const v = row[field];
         if (cond === null || cond instanceof Date || typeof cond !== "object") return v === cond;
         const c = cond as Record<string, unknown>;
-        const unknownOp = Object.keys(c).find((k) => !["lt", "not", "notIn", "in"].includes(k));
+        const unknownOp = Object.keys(c).find((k) => !["lt", "not", "notIn", "in", "startsWith"].includes(k));
         if (unknownOp) throw new Error(`evaluator does not model "${unknownOp}" on ${field}`);
         if ("lt" in c && !(v != null && (v as number) < (c.lt as number))) return false;
         if ("not" in c && v === c.not) return false;
         if ("notIn" in c && (c.notIn as unknown[]).includes(v)) return false;
         if ("in" in c && !(c.in as unknown[]).includes(v)) return false;
+        if ("startsWith" in c && !(typeof v === "string" && v.startsWith(c.startsWith as string))) return false;
         return true;
       });
     updateMany.mockImplementation((async (arg: { where: Record<string, unknown>; data: Record<string, unknown> }) => {

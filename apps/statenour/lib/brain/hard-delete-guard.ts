@@ -46,6 +46,8 @@ export const NEVER_HARD_DELETE_CATEGORIES: readonly string[] = [
   "decision_pattern",
   "anti_pattern",
   "wisdom",
+  // 2026-10-29 · curated Greene seeds; pruneNoise skips them, the data-cleanup hard delete must too.
+  "greene_law",
   "insight",
   "pattern",
   "blind_spot",

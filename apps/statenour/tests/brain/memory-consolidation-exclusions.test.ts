@@ -85,10 +85,13 @@ describe("mergeMemories · category exclusions", () => {
     // 2026-09-08: the guard uses the gateway's operator-source predicate — user_save,
     // operator, owner and every pin:* row are the operator's as much as "manual" is.
     const guard = {
+      // 2026-10-29 · legacy NULL created_by rows admitted explicitly (SQL NOT(NULL = x) is UNKNOWN).
+      OR: [{ createdBy: null }, { createdBy: { not: "user" } }],
       NOT: [
-        { createdBy: "user" },
         { source: { in: expect.arrayContaining(["manual", "user_save", "operator", "skill_ingestion", "user"]) } },
         { source: { startsWith: "pin:" } },
+        // 2026-10-29 · curated wisdom packs (scripts/ingest-wisdom-pack.ts).
+        { source: { startsWith: "pack:" } },
       ],
     };
     expect(mocks.brainMemory.groupBy.mock.calls[0][0].where).toMatchObject(guard);
