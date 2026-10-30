@@ -19,13 +19,13 @@ heartbeat so a dead box reads "offline", never zero. Rejected: always-on models 
 
 | | MECHANICS (front desk) | NattyNour (Nour's laptop) | NicksMax (lot PC) |
 |---|---|---|---|
-| CPU | Ryzen 5 7520U (FACT, memory office-lane-shop-pc) | Core Ultra 7 266V, 8 cores 8 threads (FACT, block below run here 2026-10-30) | UNKNOWN |
+| CPU | Ryzen 5 7520U (FACT, memory office-lane-shop-pc) | Core Ultra 7 266V, 8 cores 8 threads (FACT, block below run here 2026-10-30) | Core i5-5350U (FACT, the NicksMax session, 2026-10-30) |
 | GPU | integrated only, no discrete GPU (FACT, same memory) | Arc 140V iGPU; own memory UNKNOWN, it borrows system RAM; the "(8GB)" in its name is not VRAM (FACT, same run) | UNKNOWN |
-| RAM | 16 GB (FACT, same memory) | 15.7 GB visible, 0.4-0.8 GB free with 8 agent sessions open (FACT, same day) | UNKNOWN |
-| Free disk | UNKNOWN | 38-41 GB of 237 GB (FACT, same day) | about 40 MB on 2026-10-27 (FACT, manager brief) |
-| AI it runs now | faster-whisper base.en on CPU, 2 threads, rtf 0.267, 0 fails on 10 clips (FACT, bench 2026-10-22) | none; Ollama not on PATH (FACT, same run) | sign-camera producer when up |
+| RAM | 16 GB (FACT, same memory) | 15.7 GB visible, 0.4-0.8 GB free with 8 agent sessions open (FACT, same day) | 7.9 GB (FACT, the NicksMax session, 2026-10-30) |
+| Free disk | UNKNOWN | 38-41 GB of 237 GB (FACT, same day) | 8.26 GB after the 2026-10-30 cleanup, up from 1.26 GB; the earlier 40 MB figure was stale (FACT, the NicksMax session) |
+| AI it runs now | faster-whisper base.en on CPU, 2 threads, rtf 0.267, 0 fails on 10 clips (FACT, bench 2026-10-22) | none; Ollama not on PATH (FACT, same run) | sign-camera producer when up; the camera stack holds the CPU at 100% (FACT, the NicksMax session) |
 | Always at the shop | yes (staff machine; one Kernel-Power crash 2026-09-29, FACT, memory office-lane-shop-pc) | no, it travels (INFERENCE) | UNKNOWN ("down till further notice" 10-26, seen back 10-27, CLAIM, memory lot-vision-v2-2026-10-26) |
-| Measured LLM speed | UNKNOWN until step 4 of the hand-off block prints its eval rate | Qwen3-8B INT4 about 19.6 tok/s on an Arc 140V with 32 GB (CLAIM, Perplexity 2026-10-18, memory idea-personal-local-ai-helper); this box has 16 GB | none: no disk |
+| Measured LLM speed | UNKNOWN until step 4 of the hand-off block prints its eval rate | Qwen3-8B INT4 about 19.6 tok/s on an Arc 140V with 32 GB (CLAIM, Perplexity 2026-10-18, memory idea-personal-local-ai-helper); this box has 16 GB | none: no room for a local model (7.9 GB RAM, CPU already full) |
 
 Traps (2026-10-18 research round): shared RAM is not VRAM; TOPS do not predict speed; "a GGUF exists" is not runtime
 support; image plus LLM on one box collapsed decode from 18.5 to 0.12 tok/s (CLAIM); local is not private by itself.
@@ -69,7 +69,7 @@ MECHANICS: run the rollback line and return to A.
 **C. Mesh through our own server (no VPN, no spend).** The same pull queue, with more than one node claiming
 (claim-before-act lease, like the camera producer lease). No inbound port, no VPN. A Tailscale mesh was the first idea,
 but its free plan "is only suitable for non-commercial use" and the cheapest business plan is $8 per user per month
-(FACT, tailscale.com/pricing, read 2026-10-30); Nour ruled no spend. The laptop travels and NicksMax has no disk, so
+(FACT, tailscale.com/pricing, read 2026-10-30); Nour ruled no spend. The laptop travels and NicksMax has no room for a model, so
 MECHANICS carries the queue. Kill: jobs wait over 15 minutes with no claimer more than twice a week.
 
 Order: B now, C when a second node is worth adding; A stays the fallback.
@@ -117,7 +117,7 @@ $d = Get-PSDrive -Name C
 ## 7. Nour's rulings (2026-10-30, his words) and status
 1. Spec block on both PCs: "u do that". Chrome Remote Desktop would not load from NattyNour, so the front-desk PC got a
    hand-off block (specs, winget install, model pull, speed test, health, one-line rollback). NicksMax: specs only, via
-   the session already on it (about 40 MB free, no install).
+   the session already on it (8.26 GB free after cleanup, no install, no room for a model).
 2. Installs: "install anything yes". 3. Spend: "not spending". 4. Ports: "any port is fin" (the pull design needs none).
 5. Customer text: "always reach the local model, thats what its there for".
 
