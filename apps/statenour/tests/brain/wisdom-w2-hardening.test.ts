@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   metaCalls: 0,
   metaFail: false,
   bumpFail: false,
+  knn: [] as Record<string, unknown>[],
   logError: vi.fn(),
 }));
 
@@ -23,6 +24,7 @@ vi.mock("@/lib/utils/error-log", () => ({ logError: h.logError }));
 vi.mock("@/lib/prisma", () => {
   const record = (sql: string) => {
     if (sql.includes('DISTINCT ON (ve."sourceId")')) return Promise.resolve(h.scores.map((s) => ({ ...s, json: null })));
+    if (sql.includes("ORDER BY ve.embedding_vec_1536 <=>")) return Promise.resolve(h.knn);
     return Promise.resolve([]);
   };
   const exec = (sql: string, ...params: unknown[]) => {
@@ -115,6 +117,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 const slotLog = () =>
   logSpy.mock.calls.find((c) => c[0] === "[brain-recall] wisdom_slots")?.[1] as Record<string, unknown> | undefined;
 const errFns = () => h.logError.mock.calls.map((c) => (c[2] as { fn?: string } | undefined)?.fn);
+const errLevel = (fn: string) => h.logError.mock.calls.find((c) => (c[2] as { fn?: string } | undefined)?.fn === fn)?.[3];
 
 const GOOD = () => [
   row("good", { category: "wisdom", key: "wisdom_charlie-munger_001", source: "manual", content: "GOOD curated tire supplier invoice" }),
@@ -133,6 +136,7 @@ beforeEach(() => {
   h.metaCalls = 0;
   h.metaFail = false;
   h.bumpFail = false;
+  h.knn = [];
   h.logError.mockClear();
   unhandled.length = 0;
   process.on("unhandledRejection", onUnhandled);
@@ -156,6 +160,7 @@ describe("a failed recall bump", () => {
     expect(block).toContain("GOOD curated");
     expect(bump()).toBeDefined(); // POSITIVE CONTROL: the bump was attempted
     expect(errFns()).toContain("wisdomRecallBump");
+    expect(errLevel("wisdomRecallBump")).toBe("warn");
     expect(unhandled).toEqual([]);
   });
 });
@@ -171,7 +176,28 @@ describe("a failed by-id metadata read", () => {
     expect(block).toContain("GOOD curated");
     expect((bump()?.params[0] as string[]) ?? []).toContain("good");
     expect(errFns()).toContain("attachWisdomOrigins");
+    expect(errLevel("attachWisdomOrigins")).toBe("warn");
     expect(slotLog()?.wisdomMetaOk).toBe(false);
+  });
+
+  // Documents the contrast with the success path (wisdom-slots-wired: the same row loses its slot when
+  // its stamp IS read). Prove-fix calls it THEATER: a failed read can only penalize uniformly, and a
+  // uniform 0.55 keeps the slot order, so no mutation of the failure path can turn this red.
+  it("no penalty after a failed read: a row recalled an hour ago keeps its slot, since its stamp was never read", async () => {
+    h.metaFail = true;
+    h.meta = { recent: { lastRecalledAt: new Date(Date.now() - 3_600_000).toISOString() } };
+    h.memories = [
+      row("recent", { category: "wisdom", key: "wisdom_naval-ravikant_002", source: "manual", content: "RECENT curated tire supplier invoice" }),
+      row("r1", { category: "wisdom", key: "wisdom_naval-ravikant_003", source: "manual", content: "REST1 curated tire supplier invoice" }),
+      row("r2", { category: "wisdom", key: "wisdom_naval-ravikant_004", source: "manual", content: "REST2 curated tire supplier invoice" }),
+      row("r3", { category: "wisdom", key: "wisdom_naval-ravikant_005", source: "manual", content: "REST3 curated tire supplier invoice" }),
+      row("i1", {}),
+    ];
+    h.scores = [{ id: "recent", score: 0.62 }, { id: "r1", score: 0.6 }, { id: "r2", score: 0.6 }, { id: "r3", score: 0.6 }, { id: "i1", score: 0.3 }];
+    await run();
+    await flush();
+    expect(h.metaReads).toContain("recent"); // POSITIVE CONTROL: the read ran and failed
+    expect((bump()?.params[0] as string[]) ?? []).toContain("recent");
   });
 
   it("CONTROL: a successful read logs wisdomMetaOk true", async () => {
@@ -228,7 +254,22 @@ describe("an empty wisdom pool", () => {
     expect(block).toContain("tire supplier invoice");
     expect(h.metaCalls).toBe(0);
     expect(bump()).toBeUndefined();
-    expect(slotLog()).toMatchObject({ wisdomPool: 0, wisdomInjected: 0, candidatePool: 5, knnRows: 0 });
+    expect(slotLog()).toMatchObject({ wisdomPool: 0, wisdomInjected: 0, wisdomMetaOk: true, candidatePool: 5, knnRows: 0 });
+  });
+});
+
+describe("pool sizes in the wisdom_slots log", () => {
+  const knnRow = (id: string) => ({
+    id, content: `${id} knn-only row about the tire supplier invoice`, category: "insight", key: `k_${id}`, confidence: 0.9,
+    created_at: OLD, source: "cron:x", seen_count: 1, updated_at: OLD, rank: 0,
+    valid_until: null, superseded_by_id: null, expires_at: null, valid_from: null,
+  });
+  it("two KNN rows outside the 300-row pool: knnRows 2, candidatePool 5 + 2", async () => {
+    h.memories = [row("i1", {}), row("i2", {}), row("i3", {}), row("i4", {}), row("i5", {})];
+    h.scores = [1, 2, 3, 4, 5].map((i) => ({ id: `i${i}`, score: 0.3 }));
+    h.knn = [knnRow("k1"), knnRow("k2")];
+    await run();
+    expect(slotLog()).toMatchObject({ candidatePool: 7, knnRows: 2 });
   });
 });
 
@@ -248,5 +289,14 @@ describe("decay against stored timestamp text", () => {
   });
   it("exactly 24 hours ago is not penalized", () => {
     expect(winner("2026-10-28T23:00:00.000000+00:00")).toBe("recent");
+  });
+  it("one millisecond inside 24 hours is penalized", () => {
+    expect(winner("2026-10-28T23:00:00.001+00:00")).toBe("rested");
+  });
+  it("a -04:00 offset is read as the same instant (18:00-04:00 is 22:00Z, an hour ago)", () => {
+    expect(winner("2026-10-29T18:00:00.000-04:00")).toBe("rested");
+  });
+  it("a future stamp (clock skew) counts as just shown, so it yields", () => {
+    expect(winner("2026-10-30T02:00:00.000+00:00")).toBe("rested");
   });
 });

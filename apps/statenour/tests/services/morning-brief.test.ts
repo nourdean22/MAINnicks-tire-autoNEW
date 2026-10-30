@@ -80,9 +80,13 @@ vi.mock("@/lib/utils/datetime", async (importOriginal) => {
 });
 vi.mock("@/lib/services/not-seeing-note", () => ({ buildNotSeeingSlice: weekly.build }));
 const maximCtl = vi.hoisted(() => ({ pick: null as null | ((tag: string, seed: string) => unknown) }));
-vi.mock("@/lib/brain/maxims", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/brain/maxims")>();
-  return { ...actual, pickMaxim: (tag: string, seed: string) => (maximCtl.pick ? maximCtl.pick(tag, seed) : actual.pickMaxim(tag, seed)) };
+vi.mock("@/lib/wisdom/maxims", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/wisdom/maxims")>();
+  return {
+    ...actual,
+    pickMaximForDay: (...a: Parameters<typeof actual.pickMaximForDay>) =>
+      maximCtl.pick ? maximCtl.pick(a[1], a[2]) : actual.pickMaximForDay(...a),
+  };
 });
 
 import { buildMorningBrief, readLotBriefLines } from "@/lib/services/morning-brief";
@@ -524,6 +528,54 @@ describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => 
   });
 });
 
+// 2026-10-30 · the Shop slice's "Declined work:" line on the keys statenourSync.ts actually sends
+// (customerCount, totalRecoverable, measured, source, topItems). It read count/openCount/total and
+// topByScore before, so it never rendered in production; an unmeasured source now says so.
+describe("Morning Brief · Declined work line on the real sync payload (2026-10-30)", () => {
+  const DEC = (over: Record<string, unknown> = {}) => ({
+    declinedWork: {
+      measured: true, source: "populated", sourceNote: "counted", totalRecoverable: 3400, customerCount: 4,
+      safetyItemCount: 1, topItems: [{ workOrderId: "wo1", orderNumber: "1001", customer: "Pat Doe", value: 900 }],
+      ...over,
+    },
+  });
+  const fresh = (payload: Record<string, unknown>) =>
+    mocks.auditEvent.findFirst.mockResolvedValue({ createdAt: new Date(), payload });
+
+  beforeEach(() => {
+    resetMocks();
+    weekly.weekday = 3;
+  });
+
+  it("measured: the count and dollars render, and the follow-up names come from topItems", async () => {
+    fresh(DEC());
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 4 open · $3.4k");
+    expect(brief.text).toContain("Follow-ups: Pat Doe");
+  });
+
+  it("source empty: one honest line, never a zero", async () => {
+    fresh(DEC({ measured: false, source: "empty", customerCount: 0, totalRecoverable: 0, topItems: [] }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: not measured yet");
+    expect(brief.text).not.toContain("Declined work: 0");
+    expect((brief.payload as { shop: { declined: unknown } }).shop.declined).toEqual({ measured: false, source: "empty" });
+  });
+
+  it("source unknown: the count failed, said as such", async () => {
+    fresh(DEC({ measured: false, source: "unknown", customerCount: 0, totalRecoverable: 0, topItems: [] }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: unknown (the count failed)");
+    expect(brief.text).not.toContain("not measured yet");
+  });
+
+  it("CONTROL: the legacy count/value shape still renders as before", async () => {
+    fresh({ declinedWork: { count: 12, countYesterday: 10, value: 14500 } });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 12 open (+2 vs yest) · $14.5k");
+  });
+});
+
 // 2026-10-29 · wisdom-brain upgrade 5: on Mondays one plain maxim, matched by tag to one real
 // shop number the brief already read. Nothing new is sent; it is one line in the same brief.
 describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
@@ -622,17 +674,17 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
     expect(first).toBeDefined();
     expect(await lineAt("2026-11-02T13:00:00Z")).toBe(first);
     expect(await lineAt("2026-11-03T03:00:00Z")).toBe(first);
-    const { pickMaxim } = await import("@/lib/brain/maxims");
-    expect(first).toContain((pickMaxim("customers", "2026-11-02") as Maxim).text);
+    const [{ pickMaximForDay }, { MAXIM_POOL }] = await Promise.all([import("@/lib/wisdom/maxims"), import("@/lib/wisdom/maxim-pool")]);
+    expect(first).toContain(pickMaximForDay(MAXIM_POOL, "customers", "2026-11-02")!.text);
   });
 
   it("the maxims module failing costs only the wisdom line: the other Shop lines stay", async () => {
     maximCtl.pick = () => {
       throw new Error("pack without entries");
     };
-    fresh({ ...SYNC(), declinedWork: { ...SYNC().declinedWork, count: 12 }, lineOfCars: 8 });
+    fresh({ ...SYNC(), lineOfCars: 8 });
     const brief = await buildMorningBrief();
-    expect(brief.text).toContain("Declined work: 12 open");
+    expect(brief.text).toContain("Declined work: 4 open");
     expect(brief.text).toContain("Line of cars: 8");
     expect(brief.text).not.toContain("Shop slice unavailable");
     expect(wisdomLine(brief.text)).toBeUndefined();
@@ -647,8 +699,9 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
     expect(line).not.toContain("<b>score");
   });
 
-  it("pickMaxim returns only maxims carrying the tag, varies across 60 dates, and an unknown tag gives null", async () => {
-    const { pickMaxim } = await import("@/lib/brain/maxims");
+  it("pickMaximForDay returns only maxims carrying the tag, varies across 60 dates, and an unknown tag gives null", async () => {
+    const [{ pickMaximForDay }, { MAXIM_POOL }] = await Promise.all([import("@/lib/wisdom/maxims"), import("@/lib/wisdom/maxim-pool")]);
+    const pickMaxim = (tag: string, seed: string) => pickMaximForDay(MAXIM_POOL, tag, seed);
     for (const tag of ["customers", "money", "reputation"]) {
       const refs = new Set<string>();
       for (let d = 1; d <= 60; d++) {

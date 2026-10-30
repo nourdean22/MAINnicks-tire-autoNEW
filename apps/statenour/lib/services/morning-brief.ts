@@ -483,8 +483,11 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
         const rowIso = new Date(latestContext.createdAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
         const fact = wisdomAppliedFact(ctx, rowIso === todayIso);
         if (fact) {
-          const { pickMaxim } = await import("@/lib/brain/maxims");
-          const maxim = pickMaxim(fact.tag, todayIso);
+          const [{ MAXIM_POOL }, { pickMaximForDay }] = await Promise.all([
+            import("@/lib/wisdom/maxim-pool"),
+            import("@/lib/wisdom/maxims"),
+          ]);
+          const maxim = pickMaximForDay(MAXIM_POOL, fact.tag, todayIso);
           if (maxim) {
             lines.push(
               `Wisdom applied · ${fact.label}: "${escapeHtml(maxim.text)}" (${escapeHtml(maxim.source)})`,
@@ -798,8 +801,19 @@ function extractDeclinedDelta(
   const dec = ctx.declinedWork as Record<string, unknown> | undefined;
   if (!dec) return null;
 
-  const todayCount = numericField(dec, ["count", "openCount", "total"]);
+  // statenourSync.ts sends `measured` + `source`: when work_order_items holds no declined rows
+  // ("empty") or could not be counted ("unknown"), its zeros mean nothing. Say which, never a 0.
+  if (dec.measured === false) {
+    const failed = dec.source === "unknown";
+    return {
+      text: failed ? "Declined work: unknown (the count failed)" : "Declined work: not measured yet",
+      payload: { measured: false, source: typeof dec.source === "string" ? dec.source : null },
+    };
+  }
+
+  const todayCount = numericField(dec, ["customerCount", "count", "openCount", "total"]);
   const todayValue = numericField(dec, [
+    "totalRecoverable",
     "value",
     "valueCents",
     "totalValue",
@@ -852,7 +866,7 @@ interface DeclinedTopRow {
 function extractDeclinedTopWithIds(ctx: Record<string, unknown>): DeclinedTopRow[] {
   const dec = ctx.declinedWork as Record<string, unknown> | undefined;
   if (!dec) return [];
-  const top = dec.topByScore ?? dec.top ?? dec.followUps;
+  const top = dec.topByScore ?? dec.top ?? dec.followUps ?? dec.topItems;
   if (!Array.isArray(top)) return [];
   return top
     .slice(0, 3)
@@ -861,7 +875,7 @@ function extractDeclinedTopWithIds(ctx: Record<string, unknown>): DeclinedTopRow
       if (row && typeof row === "object") {
         const r = row as Record<string, unknown>;
         const name =
-          r.customerName ?? r.name ?? r.title ?? r.label ?? "Unnamed";
+          r.customerName ?? r.customer ?? r.name ?? r.title ?? r.label ?? "Unnamed";
         const id = r.customerId ?? r.id;
         return {
           name: typeof name === "string" ? name : "Unnamed",
