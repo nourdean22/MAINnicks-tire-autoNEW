@@ -1,7 +1,8 @@
 # Shop OS 15: gaps (what the plan, research and Nour's asks have not covered)
 
-Job 2026-10-30-shop-os-gaps, read 2026-10-30: files 01-11, docs 12 (local AI), 13 (toolkit), 14 (mechanisms), SHOP-SOUL,
-truth_os, agent memory. Each row was grepped in this folder and 08-IDEAS first; a gap 08 lists is "listed, not
+Job 2026-10-30-shop-os-gaps, read 2026-10-30: files 01-11, SHOP-SOUL, truth_os, agent memory, and sibling docs still in
+open PRs: 12 local AI (PR 3382), 13 toolkit (PR 3383), 14 mechanisms (PR 3385). A topic marked covered by 12, 13 or 14
+reopens here if that PR does not merge. Each row was grepped in this folder and 08-IDEAS first; a gap 08 lists is "listed, not
 scheduled". Angles: a his words, b the shop's day, c data, d integrations, e operations, f research never run.
 
 ## Top 10 by cost of missing it
@@ -9,7 +10,7 @@ scheduled". Angles: a his words, b the shop's day, c data, d integrations, e ope
 | Rank | Row | Cost if missed | Who | Next step |
 |---|---|---|---|---|
 | 1 | e1 deploys in shop hours | a restart mid-checkout can lose a ticket worth $150-1,000; 7 open days, a deploy on every merge | platform lane | write the deploy window rule before /system code |
-| 2 | a5 ALG logouts | each probe kicks the counter mid-ticket during the parallel run, uncounted | server lane | count probes per shop hour |
+| 2 | a5 ALG logouts | each probe kicks the counter mid-ticket during the parallel run, uncounted | server lane | count every ShopDriver login per shop hour |
 | 3 | a3 ALG baseline vs bake-off | about 5 crew days on days 8-12 | Nour | one yes/no now |
 | 4 | e2 owner-away rules | refunds, voids and overrides wait for Nour or go unchecked | Nour | fill the 6-row table |
 | 5 | b5 free checks unrecorded | no finding, no quote, no follow-up from the top of the funnel | Nour | photo of the 27-point sheet |
@@ -27,7 +28,7 @@ scheduled". Angles: a his words, b the shop's day, c data, d integrations, e ope
 | a2 | "dont worry about safeguards" not written in: README fact 5, 06 row 6, 09 s.3 still gate on FTC | sessions build to a retired rule | README.md:37-38, 06:17, 09:53-58 | manager | mark them "good practice, not a gate" |
 | a3 | "alg is the protype" vs roadmap v3 default "buy the core" plus a crew bake-off | crew days spent on a choice he may have made | 05-ROADMAP.md:30-47; memory planning-manager ruling 2 | Nour | is the bake-off still on? |
 | a4 | "everything interconnext my apps": no plan file names StateNour or the existing bridge | owner dashboards built twice | grep `statenour|bdnick|NOUR OS`: 0 files; `server/_core/statenour-bridge-routes.ts`; SHOP-SOUL s.9 | session (doc 16) | map which /system events cross the bridge |
-| a5 | "alg scrape ... every day": it runs (3 AM, 8 PM, admin loads at most 1 per 30 min, chat) and each probe logs the counter out; plan counts only per-ticket pulls | logouts mid-ticket in the parallel run | truth_os.md:133-137, `algProbeBudget.ts:15-16`; plan 01:38-40, 04:58 | server lane | count probes per shop hour in `alg_probe_log` |
+| a5 | "alg scrape ... every day": it runs (3 AM, 8 PM, admin loads at most 1 per 30 min, chat) and each probe logs the counter out; plan counts only per-ticket pulls | logouts mid-ticket in the parallel run | truth_os.md:133-137, `algProbeBudget.ts:15-16`; plan 01:38-40, 04:58; the Settings buttons `shopdriver.syncInvoices` / `syncCustomers` write no log row (`server/routers/shopdriver.ts:660-669, 797-801`) | server lane | log every ShopDriver login (probe rows plus both Settings buttons), then count per shop hour |
 | a6 | "how many ompleyees ... edit": doc 13 decides Settings; 10's screen list has no route | decided, never scheduled | 10-UI-BUILD.md:24-32 | session | add /system/settings |
 
 ## b. The shop's day
@@ -51,16 +52,16 @@ scheduled". Angles: a his words, b the shop's day, c data, d integrations, e ope
 | c3 | Charge customers and fleets: statements, terms | uncollected balances | 05:55 "receivables" once; grep `fleet`: 0 | Nour | add to 06 |
 | c4 | Code the plan never names for reuse: `server/storage.ts` (photo store), `services/vinDecode.ts`, `sheets-sync.ts`, the bridge | rebuilt, or a second store | 10 s.3 names none; 02 R15 treats VIN decode as research | session | add to 10 s.3 |
 | c5 | Customer and vehicle dedupe | split history and texts | 11-REVIEW.md:37-38; grep `dedupe|merge` in 05: 0 | session | listed, not scheduled: day in 05 15-20 |
-| c6 | How approval is captured on the estimate form (paper, screen, link) | an approval you cannot show | 07 s.1-2 rule only; grep `signature` in 01, 10: 0 | session (f4) | one capture per channel |
 
 ## d. Integrations
 
-Covered elsewhere: local AI and laptops (12); Maverick, Koalafi, QuickBooks, Routes, Drive share (13); ALG (14); MCP (16).
+Covered in open sibling PRs (reopen here if one does not merge): local AI and laptops (12, PR 3382); Maverick, Koalafi,
+QuickBooks, Routes, Drive share (13, PR 3383); ALG screens (14, PR 3385); MCP (16, not started yet).
 
 | # | Gap | Why it matters | Evidence it is missing | Who | Next step |
 |---|---|---|---|---|---|
 | d1 | CARFAX free plate-to-VIN for publishing service records: no decision row | paid lookup ~$40/mo + $0.09; sharing history is a privacy call | 02-RESEARCH.md:36-38; grep `CARFAX` in 06: 0 | Nour | add to 06 |
-| d2 | Electronic tire registration: no provider | federal 30-day rule on every new tire | 07 s.4; `tire_registrations` 0 rows | manager (f5) | name provider |
+| d2 | Tire registration path not chosen: an independent dealer may hand the buyer a paper card at sale, or submit the TIN itself within 30 days (paper or electronic) | a new tire sold with neither is a federal record failure | 49 CFR 574.8(a)(1) (ecfr.gov); 07 s.4 names only the dealer-submits path; `tire_registrations` 0 rows | Nour, then manager (f4) | pick paper card or dealer-submit; only dealer-submit needs a provider |
 | d3 | Printing from /system on the counter PC | 07 needs printed forms | grep `print` in 10: 0 | client lane | add a print view |
 | d4 | Caller-ID screen pop | know the caller first | 08 #14; test never booked | Nour (10 min) | listed, not scheduled |
 
@@ -81,9 +82,8 @@ Covered elsewhere: local AI and laptops (12); Maverick, Koalafi, QuickBooks, Rou
 | f1 | "ShopDriver Elite Dowell Systems terms of service data export automated access customer data ownership" | whether the full history pull is allowed (a5, 04 s.3) |
 | f2 | "Cleveland Ohio first snowfall tire shop demand spike weeks winter tire sales Google Trends" | b6 surge stock and staffing |
 | f3 | "independent tire and auto shop technician pay plan flat rate vs hourly vs commission 3 to 5 techs survey" | c2 which clock data matters |
-| f4 | "Ohio OAC 109:4-3-13 electronic signature estimate authorization ORC 1306 repair shop" | c6 paper or screen |
-| f5 | "electronic tire registration service independent dealer cost 49 CFR 574.8 TIN registration provider" | d2 provider |
-| f6 | "auto repair shop share of inbound calls that are vehicle status checks" | b2 value |
+| f4 | "electronic tire registration service independent dealer cost 49 CFR 574.8 TIN registration provider" | d2 cost of dealer-submit vs paper card |
+| f5 | "auto repair shop share of inbound calls that are vehicle status checks" | b2 value |
 
 ## Things Nour mentioned that nobody wrote down (verbatim; addresses replaced by role words)
 
