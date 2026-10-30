@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
-import { deviceWhere, resolveDevice } from "@/lib/services/devices";
+import { deviceWhere, redactDevice, resolveDevice, stripDeviceSecrets } from "@/lib/services/devices";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +27,8 @@ export const GET = apiHandler(async (_req, { params }) => {
     throw new ServiceError("Device not found", 404);
   }
 
-  return { device };
-}, { auth: "sync" });
+  return { device: redactDevice(device) };
+}, { auth: "device" });
 
 /**
  * PATCH /api/devices/:id — Update device status/state (bridge heartbeat)
@@ -59,15 +59,15 @@ export const PATCH = apiHandler(async (req, { params }) => {
             ? { ...((resolved.currentState as Record<string, unknown> | null) ?? {}), ...body.currentStateMerge }
             : undefined,
         capabilities: body.capabilities || undefined,
-        metadata: body.metadata || undefined,
+        metadata: stripDeviceSecrets(body.metadata) || undefined,
       },
     });
 
-    return { device };
+    return { device: redactDevice(device) };
   } catch {
     throw new ServiceError("Device not found", 404);
   }
-}, { auth: "sync" });
+}, { auth: "device" });
 
 /**
  * DELETE /api/devices/:id — Retire a device (v11.1 G6).

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession, requireSyncAuth } from "@/lib/auth-guard";
+import { requireSession, requireDeviceAgentAuth } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 
 export const runtime = "nodejs";
@@ -17,12 +17,12 @@ export async function GET(
   // v10.0.183 · was unauthenticated. Device commands include payload
   // metadata (URLs, app actions) — leaking by ID enumeration would
   // expose what other devices have been told to do. Allow either
-  // operator session OR sync key (cross-device polling needs the
-  // sync path).
+  // operator session OR the device agent door (DEVICE_AGENT_KEY or
+  // the bridge key; cross-device polling needs the agent path).
   try {
     await requireSession(req);
   } catch {
-    await requireSyncAuth(req);
+    requireDeviceAgentAuth(req);
   }
   try {
     const { id } = await params;
@@ -86,7 +86,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    requireSyncAuth(req);
+    requireDeviceAgentAuth(req);
   } catch (err) {
     if (err instanceof ServiceError) {
       return NextResponse.json(

@@ -26,8 +26,9 @@
  *     the only wall.
  *   · A signal must be CODE: a CALL to a guard (requireSession, ...), a
  *     constant-time compare whose argument reaches a secret, or apiHandler's
- *     `auth: "owner" | "cron" | "sync" | "evidence" | "queue"` option (last writer
- *     wins; "queue" is the scoped /api/sync/queue key).
+ *     `auth: "owner" | "cron" | "sync" | "evidence" | "queue" | "device"` option (last
+ *     writer wins; "queue" is the scoped /api/sync/queue key, "device" the home
+ *     device agent's DEVICE_AGENT_KEY door).
  *     A comment, string, type or bare reference that names requireSession no
  *     longer counts.
  *   · The auth call must run on EVERY path before the handler returns: not in
@@ -124,7 +125,7 @@ const READ_METHODS = new Set(["GET", "HEAD"]);
 // assertRunnerRequest / requireBridgeAuth are the runner and bridge guards
 // (lib/internal/runner-auth.ts, lib/bridge-auth.ts; red team F04/F05).
 const GUARD_IDENT =
-  /^(?:requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|validateToken|assertRunnerRequest|requireBridgeAuth)$/;
+  /^(?:requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|requireDeviceAgentAuth|validateToken|assertRunnerRequest|requireBridgeAuth)$/;
 // An inline Bearer/x-sync-key check counts by its constant-time COMPARE, and only
 // when an argument reaches a secret: app/api/version reads `Boolean(env.CRON_SECRET)`
 // and is open, and an ETag compare is not auth (red team B14).
@@ -132,7 +133,7 @@ const COMPARE_IDENT = /^(?:safeEqual|timingSafeEqual)$/;
 const SECRET_NAME = /secret|key|token/i;
 // apiHandler pre-set to that auth (lib/utils/http.ts).
 const AUTH_WRAPPERS = new Set(["cronHandler", "syncHandler", "evidenceHandler"]);
-const AUTH_MODES = new Set(["owner", "cron", "sync", "evidence", "queue"]);
+const AUTH_MODES = new Set(["owner", "cron", "sync", "evidence", "queue", "device"]);
 const SHORT_CIRCUIT = new Set([
   ts.SyntaxKind.AmpersandAmpersandToken,
   ts.SyntaxKind.BarBarToken,

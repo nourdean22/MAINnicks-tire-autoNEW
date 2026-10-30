@@ -737,6 +737,10 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
  */
 export async function enrichTaskLinkage(taskId: string): Promise<void> {
   if (isDemoMode) return; // demo has no classifier
+  // People W0: a promise task names a person -> link it (never throws).
+  await import("@/lib/services/people/link-promise")
+    .then((m) => m.linkPromiseToPerson(taskId))
+    .catch(() => undefined);
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },

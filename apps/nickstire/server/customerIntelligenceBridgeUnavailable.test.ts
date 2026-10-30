@@ -61,6 +61,7 @@ vi.mock("./services/declinedWorkSource", () => ({
   declinedWorkSourceState: async () => "unmeasured",
   isMeasured: () => false,
   sourceNote: () => "unmeasured",
+  declinedSourceWarning: () => "unmeasured",
 }));
 vi.mock("./services/shopDriverMirror", () => ({ checkMirrorHealth: async () => ({ recordsProcessed: 0, details: "" }) }));
 

@@ -137,6 +137,33 @@ describe("planViolations — the executable invariants", () => {
   it("a reserved-appointment claim trips on ANY plan", () => {
     expect(planViolations(planFor("do you do financing?"), "Your appointment is confirmed for 2pm.")).toContain("reserved_appointment_claim");
   });
+
+  // 2026-10-30 · 10 drafts like these were SENT in September (paraphrased shapes).
+  it.each(["Hey, this", "We're", "We don", "Got a", "Yo. We're", "Hey Maria, I"])(
+    "a draft that stops mid-sentence trips unfinished_draft: %s",
+    (draft) => {
+      expect(planViolations(planFor("hello?"), draft)).toContain("unfinished_draft");
+    },
+  );
+
+  it.each(["Constraints:** answer first", "REPLY PLAN constraints", "GOAL: answer price. Tires are $60."])(
+    "a draft that leaks the prompt trips prompt_leak: %s",
+    (draft) => {
+      expect(planViolations(planFor("how much for tires"), draft)).toContain("prompt_leak");
+    },
+  );
+
+  it.each([
+    "Yes, we do alignments on trucks. Want to bring it by?",
+    "Hey.",
+    "Call or text us at (216) 862-0005",
+    "Book online at nickstire.org/tires",
+    "We're open until 6 (first come, first served)",
+  ])("finished replies stay clean: %s", (draft) => {
+    const labels = planViolations(planFor("hello?"), draft);
+    expect(labels).not.toContain("unfinished_draft");
+    expect(labels).not.toContain("prompt_leak");
+  });
 });
 
 describe("the prompt block and the wiring", () => {

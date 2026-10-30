@@ -5,6 +5,7 @@ import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { evidenceDoorAccepts, presentedLedgerKey } from "@/lib/security/evidence-ledger-auth";
 import { queueDoorAccepts } from "@/lib/security/queue-auth";
+import { deviceDoorAccepts } from "@/lib/security/device-agent-auth";
 
 // v10.0.529.105 · Wave 49 · structured logger surface for auth-bypass
 // events. Pre-Wave-49 console.error was the only signal · meant the
@@ -78,6 +79,14 @@ export function requireSyncAuth(req: Request): void {
 export function requireEvidenceAuth(req: Request): void {
   const env = { EVIDENCE_LEDGER_KEY: process.env.EVIDENCE_LEDGER_KEY, STATENOUR_SYNC_KEY: process.env.STATENOUR_SYNC_KEY };
   if (!evidenceDoorAccepts(presentedLedgerKey(req.headers), env)) {
+    throw new ServiceError("Unauthorized", 401);
+  }
+}
+
+/** The home device agent's door: DEVICE_AGENT_KEY, or the bridge key (lib/security/device-agent-auth.ts). */
+export function requireDeviceAgentAuth(req: Request): void {
+  const env = { DEVICE_AGENT_KEY: process.env.DEVICE_AGENT_KEY, STATENOUR_SYNC_KEY: process.env.STATENOUR_SYNC_KEY };
+  if (!deviceDoorAccepts(presentedLedgerKey(req.headers), env)) {
     throw new ServiceError("Unauthorized", 401);
   }
 }

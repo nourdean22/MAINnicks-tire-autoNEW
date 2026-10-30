@@ -23,6 +23,7 @@ const TRACE_CALL = /\btrace(Chat|Generation)\(/;
 /** Files that name an endpoint but make no generation call. Each needs a reason. */
 const EXEMPT: Record<string, string> = {
   "lib/langfuse-ingest.ts": "the tracer itself",
+  "services/smsReplyEval.ts": "the SMS eval's fetch allow-list names the model hosts it lets through; it makes no generation call (orchestrateSms -> draftSmsReply does, traced)",
 };
 
 function stripComments(src: string): string {

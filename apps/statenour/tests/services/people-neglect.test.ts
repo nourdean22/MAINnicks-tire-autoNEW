@@ -75,3 +75,28 @@ describe("isNeglected", () => {
     expect(MIN_LOGGED_CONTACTS).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("isNeglected honours the cadence he set (people W0, 2026-10-30)", () => {
+  // Before W0 the 14-day clock ran for everyone: a person he sees once a month
+  // read "going cold" on day 14, and a weekly person stayed quiet until day 14.
+  it("a monthly person 20 days quiet is not neglected", () => {
+    expect(isNeglected({ interactionCount: 2, lastInteraction: daysAgo(20), cadenceDays: 30 }, NOW)).toBe(false);
+    expect(isNeglected({ interactionCount: 2, lastInteraction: daysAgo(30), cadenceDays: 30 }, NOW)).toBe(true);
+  });
+
+  it("a weekly person 8 days quiet is neglected", () => {
+    expect(isNeglected({ interactionCount: 2, lastInteraction: daysAgo(8), cadenceDays: 7 }, NOW)).toBe(true);
+    expect(isNeglected({ interactionCount: 2, lastInteraction: daysAgo(6), cadenceDays: 7 }, NOW)).toBe(false);
+  });
+
+  it("no cadence, or a nonsense one, keeps the 14-day default", () => {
+    for (const cadenceDays of [null, undefined, 0, -3]) {
+      expect(isNeglected({ interactionCount: 1, lastInteraction: daysAgo(14), cadenceDays }, NOW)).toBe(true);
+      expect(isNeglected({ interactionCount: 1, lastInteraction: daysAgo(13), cadenceDays }, NOW)).toBe(false);
+    }
+  });
+
+  it("a cadence never makes a never-logged person neglected", () => {
+    expect(isNeglected({ interactionCount: 0, lastInteraction: null, cadenceDays: 7 }, NOW)).toBe(false);
+  });
+});
