@@ -79,7 +79,7 @@ import {
   X as XIcon,
   Check,
 } from "lucide-react";
-import { computePace, goalDue, paceLabel, formatRate, timeLeftLabel, type PaceVerdict } from "@/lib/brain/goal-pace";
+import { formatRate, goalPaceView } from "@/lib/brain/goal-pace";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import {
   effectiveHorizon,
@@ -196,47 +196,6 @@ const HORIZON_LABELS: Record<string, { label: string; accent: string }> = {
   YEAR: { label: "Year", accent: "text-sky-400 border-sky-500/30 bg-sky-500/5" },
   LIFE: { label: "Life", accent: "text-sky-400 border-sky-500/30 bg-sky-500/5" },
 };
-
-/**
- * The pace chip's content (2026-10-30, job goals-system W1). A horizon gives a
- * derived date when Nour set none; its label says "(from horizon)" so it never
- * reads as his deadline. An active goal with no date says why it is unscored.
- */
-export function goalPaceView(g: {
-  currentValue: number;
-  targetValue: number;
-  unit: string;
-  status: string;
-  deadline: string | null;
-  horizon: string | null;
-  createdAt: string;
-  horizonSetAt?: string | null;
-}, now: number = Date.now()):
-  | { kind: "note"; text: string }
-  | { kind: "time"; label: string }
-  | { kind: "chip"; verdict: PaceVerdict; label: string }
-  | null {
-  const due = goalDue(g);
-  if (due.at === null) return g.status === "active" ? { kind: "note", text: due.label } : null;
-  const dueMs = Date.parse(due.at);
-  const start = g.horizonSetAt ?? g.createdAt;
-  // computePace floors a period at one day, so a horizon period under two days (a DAY goal, a WEEK
-  // goal set on a Sunday) would read "behind" minutes after it starts: show time left instead.
-  const shortPeriod = due.source === "horizon" && dueMs - Date.parse(start) < 2 * 86_400_000;
-  const verdict = shortPeriod
-    ? ({ kind: "unscored" } as const)
-    : computePace({ currentValue: g.currentValue, targetValue: g.targetValue, deadline: due.at, createdAt: start, now });
-  if (verdict.kind === "unscored") {
-    // No target (4 of 6 live goals, 2026-10-30) or a short period: the date still tells time left.
-    if (g.status !== "active") return null;
-    const noTarget = g.targetValue > 0 ? "" : " · no target set";
-    return { kind: "time", label: `${timeLeftLabel(now, dueMs)} · ${due.label}${noTarget}` };
-  }
-  // A derived date is never "his deadline": a passed one reads "ended", not "past deadline".
-  const pace = due.source === "horizon" && verdict.kind === "missed" ? `ended ${verdict.overdueDays}d ago` : paceLabel(verdict, g.unit);
-  const label = due.source === "horizon" ? `${pace} · ${due.label}` : pace;
-  return { kind: "chip", verdict, label };
-}
 
 /**
  * Which goal-list state to render. 2026-10-10 · audit 02-F13: a failed read
