@@ -90,3 +90,53 @@ INFERENCE, UNKNOWN. No ALG login, no customer contact, no prod write.
   October has the largest average ticket.
 - The mirror's own probes log the counter out about twice per shop day, Sundays most (FACT, alg_probe_log last 30
   days; ties to 15-GAPS a5).
+
+## 8. Ten rules for execution the data supports
+Each rule names the private-study block that supports it and the reading that would refute it.
+
+| # | Rule | Supported by | Refuted if |
+|---|---|---|---|
+| 1 | Close the estimate at the counter or by the next morning; the follow-up that matters is the same-day one, not the week-two text | lag buckets: conversions cluster same/next day, near zero after a week | live-era conversions after day seven grow to a real share |
+| 2 | Quote big jobs as "must do now / can wait" options and record which lines were declined | billed-to-quoted ratio: partial approval is common | line items (s.9 call 1) show the gap is discounts, not dropped lines |
+| 3 | Split four-figure quotes into stages (safety first) | conversion by band: smaller quotes convert more often | live-era band rates flatten |
+| 4 | Call back cooling, brake and exhaust estimates within a day with a price check | conversion by family: these three convert least | the next six months of live estimates bring them to average |
+| 5 | Write an estimate for every car that leaves without a ticket, and capture a decline reason with one tap | estimates are rare next to tickets; counter declines recorded: none | the counter shows most walk-outs never got a quote because none was wanted |
+| 6 | Key reminders and win-backs to the last invoice (not bookings) and run them on a schedule | repeat customers are a quarter of customers and over two fifths of revenue; return rate rose as recovery work began | a reminder test does not move the one-year return rate of the next cohort |
+| 7 | Give every tire-only ticket a free-check offer for the next visit (the free inspection is real, SHOP-SOUL) | tire-first customers rarely return for service | described-ticket bias: re-test on line items once pulled |
+| 8 | Keep bay time for the mid-to-large repair; do not let small jobs block a lift on Saturday or Thursday | bands: high-hundreds tickets carry the most dollars; Saturday and Thursday busiest | gross profit by band (needs line items) shows small jobs earn more per hour |
+| 9 | Move every ALG probe out of shop hours (keep the 3 AM run, drop daytime admin-load syncs or push them past close) | probe log: about two counter logouts per shop day | the counter reports no logouts felt, or ALG allows a second session |
+| 10 | Make a job line mandatory on every ticket in the new system (no blank descriptions) | half of all tickets have no description; the live era almost none | ALG ticket lines (s.9 call 1) already carry the job for every ticket |
+
+## 9. Five things the mirror cannot tell us, and the ALG call that would
+1. **Gross profit and parts margin.** The split is sale price only, and only for the history era. Needs the closed
+   ticket WITH its lines and part cost: `/api/ticket/listTicketSessions` per ticket (04-DATA-MAP s.2; each call kicks
+   the counter login, so run it overnight, one time, for history).
+2. **Labor hours, effective labor rate, which tech.** Same ticket-detail call (hours per labor line, tech name).
+3. **Which estimate lines were declined.** Estimate detail lines (call not yet mapped; API map night item).
+4. **VIN, mileage, the vehicle behind each visit.** `api/Vehicle/listVehicles` (seen in code, shape UNKNOWN); needed
+   for maintenance-due timing and household vs vehicle history.
+5. **Why a customer walked, and whether a repeat visit was a comeback.** Not in ALG either: the new counter screen has
+   to capture a decline reason and a "redo" flag. Also unknown today: time in shop (ALG open-to-close stamps may exist
+   on ticket detail).
+
+## 10. Scoreboard: what we can compute today vs what needs line items
+Steal from Tekmetric's own KPI set (End of Day and Multi-Shop reports, Tekmetric Shop Index, read 2026-10-30:
+support.tekmetric.com/hc/en-us/articles/4421136234775, .../8612596034071, tours.tekmetric.com/answers/tekmetric-shop-index).
+
+| KPI (Tekmetric name) | Today from the mirror | Needs |
+|---|---|---|
+| Car count | yes (closed tickets per day/month) | nothing |
+| ARO (sales) | yes | nothing |
+| Close ratio | yes, but only with the any-amount same-phone match, not the strict matcher | fix or replace the matcher |
+| Retention / return rate | yes (phone key) | vehicle key for households |
+| Parts vs labor mix | history era only | ticket lines for the live era |
+| Effective labor rate, gross profit/hr, labor GP %, ARO profit | no | ticket lines with hours and part cost |
+| Comeback rate | no | a redo flag at the counter |
+
+The private study compares our car count and ARO with the Tekmetric Shop Index medians; the gap is in ARO, not volume.
+
+## 11. What the one-time history pull adds (for the API map night)
+One overnight run of the ticket-detail call over the full history (outside shop hours, the counter warned) would turn
+sections 5-6 from described-ticket shares into exact job mixes, give the first gross-profit and labor-rate baseline,
+and let rules 2, 7 and 8 be confirmed or killed. It does not need the live per-ticket feed; that decision stays with
+day 13-14.
