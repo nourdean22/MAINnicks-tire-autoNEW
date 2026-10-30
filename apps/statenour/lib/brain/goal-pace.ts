@@ -13,6 +13,7 @@
  *
  * Pure function — no DB, no React. Caller renders the verdict.
  */
+import { etCalendarParts, etMidnightToUtc } from "@/lib/utils/datetime";
 
 export type PaceVerdict =
   | { kind: "unscored" }
@@ -27,21 +28,86 @@ interface PaceInput {
   targetValue: number;
   deadline: string | null;
   createdAt: string | null;
+  /** Clock for the verdict; defaults to Date.now(). */
+  now?: number;
 }
 
 const DAY_MS = 86_400_000;
+
+/** Whole ET calendar days from `fromMs` to `toMs` (Fri -> Sun = 2), negative when `toMs` is earlier. */
+export function etDaysBetween(fromMs: number, toMs: number): number {
+  const day = (ms: number) => {
+    const { year, month, day: d } = etCalendarParts(new Date(ms));
+    return Date.UTC(year, month - 1, d) / DAY_MS;
+  };
+  return day(toMs) - day(fromMs);
+}
+
+/** "2d left" · "ended today" · "ended 3d ago": past is read from the instant, the count from ET days. */
+export function timeLeftLabel(now: number, dueMs: number): string {
+  const days = etDaysBetween(now, dueMs);
+  if (dueMs >= now) return `${days}d left`;
+  return days === 0 ? "ended today" : `ended ${-days}d ago`;
+}
+
+export type GoalDue =
+  | { at: string; source: "set" | "horizon"; label: string }
+  | { at: null; source: null; label: string };
+
+const HORIZON_END_LABEL: Record<string, string> = {
+  DAY: "end of day",
+  WEEK: "end of week",
+  MONTH: "month end",
+  QUARTER: "quarter end",
+  YEAR: "year end",
+};
+
+/**
+ * The date a goal's pace is measured against. A deadline Nour set wins. With
+ * none, a DAY..YEAR horizon gives a DERIVED date: the last ms of the ET period
+ * (Mon-Sun week, calendar month/quarter/year) the goal was created in. The
+ * label says "(from horizon)" so it never reads as a date he committed to.
+ */
+export function goalDue(g: {
+  deadline: string | Date | null;
+  horizon: string | null;
+  createdAt: string | Date | null;
+  /** When the current horizon was set (latest horizon_set GoalEvent); the period counts from here. */
+  horizonSetAt?: string | Date | null;
+}): GoalDue {
+  // An unreadable date reads as unscored; toISOString() on it would throw inside a render.
+  const deadline = g.deadline ? new Date(g.deadline) : null;
+  if (deadline && !Number.isNaN(deadline.getTime())) return { at: deadline.toISOString(), source: "set", label: "deadline" };
+  const horizon = g.horizon?.toUpperCase() ?? null;
+  if (horizon === "LIFE") return { at: null, source: null, label: "unscored: a lifetime goal has no date" };
+  if (!horizon) return { at: null, source: null, label: "unscored: no deadline or horizon set" };
+  const label = HORIZON_END_LABEL[horizon];
+  const setAt = g.horizonSetAt ? new Date(g.horizonSetAt) : null;
+  const created = setAt && !Number.isNaN(setAt.getTime()) ? setAt : g.createdAt ? new Date(g.createdAt) : null;
+  if (!label || !created || Number.isNaN(created.getTime())) {
+    return { at: null, source: null, label: "unscored: horizon or date unreadable" };
+  }
+  const { year, month, day, weekday } = etCalendarParts(created);
+  const nextStart =
+    horizon === "DAY" ? etMidnightToUtc(year, month, day + 1)
+    : horizon === "WEEK" ? etMidnightToUtc(year, month, day + (weekday === 0 ? 1 : 8 - weekday))
+    : horizon === "MONTH" ? etMidnightToUtc(year, month + 1, 1)
+    : horizon === "QUARTER" ? etMidnightToUtc(year, Math.floor((month - 1) / 3) * 3 + 4, 1)
+    : etMidnightToUtc(year + 1, 1, 1);
+  return { at: new Date(nextStart.getTime() - 1).toISOString(), source: "horizon", label: `${label} (from horizon)` };
+}
 
 export function computePace({
   currentValue,
   targetValue,
   deadline,
   createdAt,
+  now = Date.now(),
 }: PaceInput): PaceVerdict {
   if (!deadline || !targetValue || targetValue <= 0) {
     return { kind: "unscored" };
   }
 
-  const now = Date.now();
   const deadlineMs = new Date(deadline).getTime();
   const startMs = createdAt ? new Date(createdAt).getTime() : now - DAY_MS;
   const totalDuration = Math.max(DAY_MS, deadlineMs - startMs);

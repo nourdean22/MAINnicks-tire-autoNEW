@@ -190,7 +190,7 @@ function etOffsetMs(at: Date): number {
 }
 
 /** ET wall-clock calendar parts of `at` (month 1-12, weekday 0=Sun). */
-function etCalendarParts(at: Date): {
+export function etCalendarParts(at: Date): {
   year: number;
   month: number;
   day: number;

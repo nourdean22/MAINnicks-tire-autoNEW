@@ -45,7 +45,9 @@ export type GoalEventKind =
   | "achieved"
   | "missed"
   | "linked_project"
-  | "unlinked_project";
+  | "unlinked_project"
+  /** The horizon changed (payload { from, to }); a derived due date counts from here. */
+  | "horizon_set";
 
 export interface GoalEventInput {
   goalId: string;
