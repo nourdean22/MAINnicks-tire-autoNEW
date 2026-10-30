@@ -295,7 +295,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       declinedWork: await (async () => {
         try {
           const { getDeclinedWorkLedger } = await import("../../services/declinedWorkRecovery");
-          const { declinedWorkSourceState, isMeasured, sourceNote } = await import("../../services/declinedWorkSource");
+          const { declinedWorkSourceState, declinedSourceWarning, isMeasured, sourceNote } = await import("../../services/declinedWorkSource");
           const ledger = await getDeclinedWorkLedger(10);
           const unrecovered = ledger.filter(e => e.declinedItems.some(i => !i.recovered));
           // UNKNOWN IS NOT ZERO. The ledger reads work_order_items, which held
@@ -307,7 +307,8 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           // keep their shape so no consumer breaks; `measured` is what says
           // whether to believe them.
           const sourceState = await declinedWorkSourceState();
-          if (!isMeasured(sourceState)) log.warn(`[statenourSync] ${sourceNote(sourceState)}`);
+          const sourceWarning = declinedSourceWarning(sourceState);
+          if (sourceWarning) log.warn(`[statenourSync] ${sourceWarning}`);
           return {
             measured: isMeasured(sourceState),
             source: sourceState,

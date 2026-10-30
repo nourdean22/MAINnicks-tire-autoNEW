@@ -37,6 +37,8 @@
  * unknown   - the count could not be read. NOT collapsed into "empty":
  *             a failed read must never present as a confident answer.
  */
+import { changedSinceLastLog } from "../lib/logOnChange";
+
 export type DeclinedSourceState = "populated" | "empty" | "unknown";
 
 /**
@@ -73,6 +75,16 @@ export function sourceNote(state: DeclinedSourceState): string {
     return "work_order_items holds no declined rows - declined-work totals are UNMEASURED, not zero";
   }
   return "work_order_items could not be counted - declined-work totals are UNKNOWN, not zero";
+}
+
+/**
+ * The sync's warning line, or null when it should stay quiet. Logged on the first sync, on every
+ * state change (empty -> unknown, populated -> empty) and every 6 h while standing; 23 identical
+ * lines in 5.5 h on 2026-10-30 (railway-audit). Every state is recorded, so a return logs again.
+ */
+export function declinedSourceWarning(state: DeclinedSourceState): string | null {
+  const changed = changedSinceLastLog("statenourSync:declined-source", state);
+  return !isMeasured(state) && changed ? sourceNote(state) : null;
 }
 
 /** Counts declined line items. Never throws; a failed read reports "unknown". */

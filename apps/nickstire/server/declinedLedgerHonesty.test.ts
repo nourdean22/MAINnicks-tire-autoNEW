@@ -132,7 +132,8 @@ describe("canary - the flag is WIRED into what actually gets published", () => {
   });
 
   it("an unmeasured source is logged, not silently swallowed", () => {
-    expect(sync).toMatch(/if \(!isMeasured\(sourceState\)\) log\.warn/);
+    // Since 2026-10-30 the line is logged on change (declinedSourceWarning), not on every sync.
+    expect(sync).toMatch(/const sourceWarning = declinedSourceWarning\(sourceState\);\s*if \(sourceWarning\) log\.warn/);
   });
 
   it("BREAKS: the source is probed with LIMIT 1, never COUNT(*)", () => {
