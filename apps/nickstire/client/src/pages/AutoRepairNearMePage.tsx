@@ -11,6 +11,7 @@
  * Replaces /general-repair as the canonical page for this intent.
  */
 
+import { BUSINESS } from "@shared/business";
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
@@ -59,7 +60,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     "12-month parts / 90-day labor warranty",
     "Walk-ins welcome 7 days a week — most repairs same or next day",
     "Payment programs: Kafene, Snap Finance, Acima, Koalafi, American First Finance",
-    "Free multi-point check with every oil change",
+    BUSINESS.freeInspection.short,
     "30+ years of experience on domestic, Asian, and European vehicles",
   ],
   faqs: [
@@ -127,7 +128,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         icon: <Wrench className="w-5 h-5" />,
         symptom: "Just need maintenance?",
         consequence: "Skipping intervals causes the failures we're warning about above.",
-        relief: "Free 27-point inspection on every oil change.",
+        relief: BUSINESS.freeInspection.short,
         ctaLabel: "OIL CHANGE",
         ctaHref: "/oil-change",
       },

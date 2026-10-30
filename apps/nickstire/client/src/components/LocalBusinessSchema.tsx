@@ -197,7 +197,7 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter, 20-point check, and tire pressure check." },
+          itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter and tire pressure check." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "49", description: "Conventional oil change from $49" },
         },
         {

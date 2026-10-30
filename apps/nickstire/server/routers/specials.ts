@@ -1,6 +1,7 @@
 /**
  * Specials/Promotions Router — CRUD for active deals
  */
+import { BUSINESS } from "../../shared/business";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
@@ -106,7 +107,7 @@ export const specialsRouter = router({
     const expiresAt = new Date(startsAt.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     const SEED_SPECIALS = [
-      { title: "Conventional Oil Change", description: "Full conventional oil change with filter replacement. Includes complimentary multi-point vehicle inspection.", discountType: "fixed" as const, discountValue: "20", serviceCategory: "oil-change", couponCode: "OILSAVE20", startsAt, expiresAt, maxUses: 100 },
+      { title: "Conventional Oil Change", description: "Full conventional oil change with filter replacement. " + BUSINESS.freeInspection.offer + "", discountType: "fixed" as const, discountValue: "20", serviceCategory: "oil-change", couponCode: "OILSAVE20", startsAt, expiresAt, maxUses: 100 },
       { title: "Economy Brake Pad Replacement", description: "New economy brake pads installed per axle. Includes rotor inspection and brake system check.", discountType: "fixed" as const, discountValue: "50", serviceCategory: "brakes", couponCode: "BRAKES50", startsAt, expiresAt, maxUses: 50 },
       { title: "Free Diagnostic Scan", description: "Check engine light on? Free OBD-II diagnostic scan with any repair over $200.", discountType: "free_service" as const, discountValue: "89.99", serviceCategory: "diagnostics", couponCode: "FREESCAN", startsAt, expiresAt, maxUses: 100 },
       { title: "Tire Rotation", description: "Extend tire life with professional 4-tire rotation. Includes pressure check and visual inspection. Free for life when you buy your tires from us.", discountType: "fixed" as const, discountValue: "10", serviceCategory: "tires", couponCode: "ROTATE10", startsAt, expiresAt, maxUses: 100 },

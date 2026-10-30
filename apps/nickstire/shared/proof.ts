@@ -5,6 +5,8 @@
  * price surprise, distrust of mechanics, experience as a woman, wait time.
  */
 
+import { BUSINESS } from "./business";
+
 export interface ProofQuote {
   text: string;
   author: string;
@@ -348,7 +350,7 @@ export const PROOF_CONFIG: Record<string, ServiceProofConfig> = {
     trustTags: [
       { label: "Walk-Ins Always Welcome" },
       { label: "No Upsell Policy" },
-      { label: "Multi-Point Check Included Free" },
+      { label: BUSINESS.freeInspection.short },
       { label: "Done in 30–45 min" },
     ],
     statLine: "Same-day oil changes, no appointment required.",
