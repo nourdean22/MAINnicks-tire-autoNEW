@@ -15,13 +15,15 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ALL_GREENE_ENTRIES, GREENE_CORPUS_COUNTS } from "@/lib/brain/greene-corpus";
+import { MAXIM_TAGS } from "@/lib/wisdom/maxims";
 
 type Maxim = { text: string; source: string; ref: string; tags: string[] };
 const DIR = resolve(__dirname, "../../data/wisdom");
 const load = (name: string) =>
   (JSON.parse(readFileSync(resolve(DIR, "maxims", `${name}-maxims.json`), "utf8")) as { entries: Maxim[] }).entries;
 
-const TAGS = ["customers", "people", "money", "timing", "focus", "conflict", "hiring", "reputation", "learning", "decisions", "health"];
+// The tag list comes from the one the picker uses, so adding a tag (People W3: "boundaries") cannot fail here.
+const TAGS: readonly string[] = MAXIM_TAGS;
 const BANNED = [/;/, /:/, /—/, /–/, /!/, /\bthus\b/i, /\bhence\b/i, /\bone must\b/i, /\bshall\b/i, /\bought\b/i, /\bwhilst\b/i, /\btherefore\b/i];
 
 const words = (s: string) => s.replace(/[^A-Za-z0-9' -]/g, " ").split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w));

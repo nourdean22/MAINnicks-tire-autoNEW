@@ -41,6 +41,8 @@ export interface RelationshipPick {
   personName: string;
   rationale: string;
   draft?: string;
+  /** People W3: one maxim from his books fitted to this pick's situation. */
+  maxim?: { text: string; source: string };
 }
 
 export interface PicksResult {
@@ -139,6 +141,18 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
       personName: c.personName,
       rationale: heuristicRationale(c),
     }));
+  }
+
+  // People W3: the right maxim under each pick (no model call; see maxim-for-pick.ts).
+  {
+    const { maximForPick } = await import("@/lib/services/people/maxim-for-pick");
+    const day = picksDayKey();
+    const byId = new Map(shortlist.map((c) => [c.personId, c] as const));
+    picks = picks.map((p) => {
+      const c = byId.get(p.personId);
+      const m = c ? maximForPick(c, day) : null;
+      return m ? { ...p, maxim: { text: m.text, source: m.source } } : p;
+    });
   }
 
   // ── Cache write ──

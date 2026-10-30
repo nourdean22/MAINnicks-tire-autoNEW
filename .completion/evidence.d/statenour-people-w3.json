@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w3": {
+      "ref": "statenour/people-w3 (job 2026-10-30-people-tracker, W3; manager rulings: data-only boundaries tag owned by this lane, lib/brain untouched). Nour's theme 'don't let other people's opinions and expectations hold you back' gets its own tag: 19 curated maxims (Gracian, Greene, Munger, Naval) tagged boundaries in data/wisdom/maxims/*.json, and MAXIM_TAGS gains it. lib/services/people/maxim-for-pick.ts picks the situation: a drained relationship (ledger down 2 or more) gets boundaries, an open promise gets reputation, otherwise people; seeded by the New York day key and the person id (pickMaximForDay), no model call. lib/ai/relationships-pick-today.ts attaches one maxim to each pick (seeded from picksDayKey, the same ET key W2b made the cache use); components/relationships/todays-picks.tsx shows it when a pick is opened. tests/brain/home-maxims.test.ts and tests/services/home-maxim.test.ts read the tag list from MAXIM_TAGS instead of a second literal copy. Rebased on main after #3426 (one import conflict, resolved to picksDayKey) and stacked on W2c #3428. 16 maxim and picks test files, 157 tests, UTC and America/New_York."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers pick maxims. Live check after merge: /people, open a pick, a maxim and its source show under it; a pick for a drained relationship shows a boundaries maxim. Kill criterion (phase 1 plan): Skip above 70% after 30 shows -> off."
+    }
+  }
+}
