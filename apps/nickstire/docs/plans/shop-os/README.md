@@ -25,6 +25,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [07-COMPLIANCE](07-COMPLIANCE.md) | Ohio estimate, invoice, tax, tire and used-tire rules as screen behaviour |
 | [09-ACCESS-AND-SECURITY](09-ACCESS-AND-SECURITY.md) | crew logins and roles, MFA, audit log, FTC and Ohio data duties |
 | [02-RESEARCH](02-RESEARCH.md) | the 16 research runs with sources and labels |
+| [17-ALG-LEDGER-STUDY](17-ALG-LEDGER-STUDY.md) | every mirrored ALG ticket and estimate: how, why, what, who, when; ten execution rules; five blind spots (figures private) |
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).
