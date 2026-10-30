@@ -50,7 +50,7 @@ Rows 1-3: Stop hooks `scripts/agent-os/health-first.mjs` and `scripts/agent-os/s
 | statenour | `lane-statenour` | `apps/statenour/**` | branch `statenour/<task>` |
 | worker | `lane-worker` | `apps/worker/**` | branch `chore/<task>` |
 | platform | `lane-platform` | `.github`, `scripts`, `config`, `packages`, `.claude`, `.agents`, `docs/agent-os`, root configs, lockfile | branch `chore/<task>` or `docs/<task>` |
-| research | `lane-research` | nothing: read-only answers, journey maps, Langfuse reads | docs-only, no branch unless it writes a doc |
+| research | `lane-research` | nothing: read-only answers, journey maps, Langfuse reads | read-only; `docs/<task>` if it writes a doc |
 
 A lane agent suits a bounded diff you read back; a session suits work Nour may watch or steer, or that outlives this context.
 When lane agents are missing (the harness says not available), dispatch the same brief with `start_session`. Same brief, same checks.
@@ -72,7 +72,7 @@ Writers at once: 2; heavy builds or full suites: 1, through `node scripts/agent-
 7. Check: step 7. A thin doc, an unlabelled number, a placeholder or a "not found" with no search receipt:
    send it back once with the exact gap; a second miss on the same gap gets a higher tier or a replacement. Lanes: `subagent-receipt-check.mjs`; sessions: advisory.
 8. Close out, in order, after merge (steps 12-17): takeover memory, `archive_session`, one line per finished piece to Nour;
-   never while its PR is open or its worktree holds uncommitted work. Advisory (`archive_session` asks for Nour's standing order).
+   never while its PR is open or its worktree holds uncommitted work. Advisory (the tool wants his agreement: his 2026-10-30 order covers his jobs).
 
 ## Procedure (Execute)
 
@@ -87,16 +87,16 @@ Writers at once: 2; heavy builds or full suites: 1, through `node scripts/agent-
 4. **Split.** Name each lane and its exact paths. Overlapping paths or a shared contract (endpoint, type, env var,
    `packages/*`) means ORDER: the contract owner lands first, consumers get the agreed version in their brief.
 5. **Claim.** `node scripts/agent-os/agent-start.mjs --branch <integration-branch> --claimed-by "<job id>"`; only a line starting
-   `[agent-start] leased` is a receipt (it exits 0 without one). No receipt = no writers; read-only work continues; tell Nour.
+   `[agent-start] leased` is a receipt (it exits 0 without one). No receipt = no writers; read-only work continues; tell Nour. Check open PRs and sibling worktrees first.
 6. **Dispatch.** One brief file ending `brief.md` per worker from `.agents/core/templates/subagent-brief.md`, every field filled,
    Nour's verbatim words and memory files by path, `SHOP DATA:` if it reads shop data, sibling files to cite. Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
-   `model` and `effort` from MODEL / EFFORT on every lane and session (rules `lane-dispatch-brief`, `session-dispatch-brief`, `brief-shop-data` deny a miss); one decision per message; dispatch time (UTC) in your notes ([references/job-lessons.md](references/job-lessons.md)).
+   `model` and `effort` from MODEL / EFFORT on every lane and session (rules `lane-dispatch-brief`, `session-dispatch-brief`, `brief-shop-data` deny a miss); background, no polling; one decision per message; dispatch time (UTC) in your notes ([references/job-lessons.md](references/job-lessons.md)).
 7. **Check every return.** Read the real diff; `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <sha>`
    (exit 1 reject, exit 2 not checked); re-run one receipt yourself; every RETURN fact labelled FACT, INFERRED or NOT CHECKED.
    A failed or BLOCKED worker is re-dispatched only with a change: more context, a higher tier, a smaller task or a ruling (B18).
 8. **Relay.** Before Nour hears a worker's claim, classify it (shop or money, an absolute, a state, a plan), check it against
    USER.md's shop data meanings, memory and the source, forward the receipt verbatim with its source, label what you could not
-   check ([references/relay.md](references/relay.md)); fix the brief gap behind a wrong shop fact in the same turn.
+   check ([references/relay.md](references/relay.md)); a wrong shop fact: correct the worker and fix the brief gap in the same turn.
 9. **Probe it yourself.** Any guard, gate, hook, validator or parser: your OWN probes against the REAL binary, every numeric cap at
    cap-1, cap, cap+1 and bad-item-last, plus `guard-red-team`; send each bypass back as the exact input ([references/verify.md](references/verify.md)).
 10. **Check the names.** Any list a rule relies on (tool names, permission rules, env vars, rule ids, file or skill names) is
@@ -105,7 +105,7 @@ Writers at once: 2; heavy builds or full suites: 1, through `node scripts/agent-
     date, labelled FACT, STRONG INFERENCE or CLAIM. An agent's "not documented" is a CLAIM until you search the page.
 12. **Review before the PR opens.** Lenses find, skeptics refute (`.claude/workflows/adversarial-review.js` with Nour's opt-in, else `lane-research` 2 at a time);
     `receiving-code-review` per Codex round; `differential-review` for auth, payments, guards, customer data; two red rounds on one finding: one tier up (B20) ([references/review-and-merge.md](references/review-and-merge.md)).
-13. **Integrate.** One integration branch and PR per coherent job; gates run ON THE COMBINED TREE. A skill job runs `skill-forge`'s
+13. **Integrate.** One integration branch and PR per coherent job, lane commits cherry-picked onto current origin/main; gates run ON THE COMBINED TREE. A skill job runs `skill-forge`'s
     `check <dir> --git` (`--existing --git` for an existing skill). Push from the tip's checkout or a hook-free clone, never
     `--no-verify`. Protected operations not pre-cleared stop here with the exact one-liner.
 14. **Consumer check.** Anything that enforces: prove the real consumer applies it in a FRESH session (`assert-the-consumer`).

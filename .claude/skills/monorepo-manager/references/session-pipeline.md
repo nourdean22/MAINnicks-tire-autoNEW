@@ -46,6 +46,9 @@ The gate, read before every `start_session`:
 | 500 to 1,499 MB | docs-only or read-only sessions (no suites, no builds) | queue writers (section 3) |
 | 1,500 MB and up | a writer session too, within the 2-writer limit | suites still go one at a time through `heavy.mjs run --` |
 
+The 2-writer and 1-heavy-run limits count research agents, reviewers, workflow fan-outs and background suites too (v3 Workers
+section, kept). Raise any limit only with a measured reason.
+
 Machine-wide cap: 10 running sessions, counting every session on the machine (`list_sessions` without `linked`), other
 managers' included. STRONG INFERENCE: set between the two measured points (about 11 ran at 615 MB; 15 crashed it). Recalibrate
 from a new measurement only, and write the reading next to the new number. Stopped sessions keep their worktree and resume from a

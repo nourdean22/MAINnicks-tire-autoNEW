@@ -54,9 +54,11 @@ function requiredBriefLines() {
   return m ? m[1].split(/, | and /).map((s) => s.trim()).filter(Boolean) : [];
 }
 
-// A brief built only from the v3 template's fields (it has no loop, standard or sibling lines), and one that adds them.
+// A brief built only from the v3 template's fields (it has no loop, standard or sibling lines), one that adds all three, and
+// one that adds all but LOOP RULE (mutation pass 2026-10-30: dropping LOOP RULE alone from the rule survived a two-brief case).
 const V3_BRIEF = ["LANE: platform", "MODEL / EFFORT: opus / high", "GOAL: x", "ACCEPTANCE: x", "SELF-AUDIT: x", "RETURN: x"].join("\n");
 const V4_BRIEF = `${V3_BRIEF}\nLOOP RULE: x\nSTANDARD: x\nSIBLINGS: x`;
+const NO_LOOP_BRIEF = `${V3_BRIEF}\nSTANDARD: x\nSIBLINGS: x`;
 const lint = (brief, req) => (req.every((f) => new RegExp(`^${f}:`, "m").test(brief)) ? "accept" : "reject");
 
 const CASES = [
@@ -93,11 +95,11 @@ const CASES = [
   {
     id: "R3",
     rule: "every brief carries the loop, standard and sibling lines (baseline T2, T3, T5)",
-    scenario: "lint a brief made only of v3 template fields, then one that adds the v4 lines",
-    want: "reject,accept",
+    scenario: "lint a brief made only of v3 template fields, one with every v4 line but LOOP RULE, then one with all three",
+    want: "reject,reject,accept",
     decide: () => {
       const req = requiredBriefLines();
-      return `${lint(V3_BRIEF, req)},${lint(V4_BRIEF, req)}`;
+      return `${lint(V3_BRIEF, req)},${lint(NO_LOOP_BRIEF, req)},${lint(V4_BRIEF, req)}`;
     },
   },
   {
