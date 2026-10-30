@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "PR #3356 (job 2026-10-29-dedupe-gracian) touches apps/nickstire/server/services only on the owner-escalation SENDER: ownerEscalation.ts adds an optional `standing` flag that puts `data.standing = <trigger>` in the open_loop payload, and revenueReconciliation.ts sets it for attribution_weak_matches and drops the count from the task title. No capability changes state: the reconciliation run, its matching, calibration and auto-confirm are untouched, and the receiver half (statenour bridge_receipts holdStandingSlot) is not a nickstire capability in this ledger. No ledger row tracks the owner-escalation bridge, and adding one for a dedupe refinement would claim a capability this PR does not create. Receipts: apps/nickstire/server/ownerEscalationKey.test.ts + bridgeKeysCallSites.test.ts 13/13 (new case pins the standing payload and its absence on ordinary escalations); statenour tests/api/bridge-receipts.test.ts 27/27 with 4 red-first cases and a killed CAS-predicate mutant; tsc exit 0 in both apps. Live proof owed after deploy: the next attribution escalation whose call set changed must reuse the one open task (bridge_receipts slot v1:obligation.standing:attribution_weak_matches, seen_count rising, no new INBOX task)."
+    }
+  }
+}

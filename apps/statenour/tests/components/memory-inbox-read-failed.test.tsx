@@ -59,7 +59,9 @@ describe("/system/inbox: a failed read is unknown, not clear", () => {
     stub.q = q({ isError: true, error: { message: "upstream 500" } });
     const html = render();
     expect(html).toContain("unknown - read failed");
-    expect(html).toContain("upstream 500");
+    // 2026-10-29 sync audit, finding 16: a fixed sentence and a Retry, never the raw server message.
+    expect(html).not.toContain("upstream 500");
+    expect(html).toContain("Retry");
     expect(html).not.toContain("Memory Queue Clear");
     expect(html).not.toMatch(/\bsafe\b/);
     expect(html).not.toContain("clear and committed");
@@ -69,7 +71,7 @@ describe("/system/inbox: a failed read is unknown, not clear", () => {
     stub.q = q({ data: [], isError: true, error: { message: "poll 500" } });
     const html = render();
     expect(html).toContain("unknown - read failed");
-    expect(html).toContain("poll 500");
+    expect(html).not.toContain("poll 500");
     expect(html).not.toContain("Memory Queue Clear");
     expect(html).not.toContain("clear and committed");
   });

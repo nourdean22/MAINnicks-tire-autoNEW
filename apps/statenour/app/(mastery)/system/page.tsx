@@ -19,7 +19,6 @@
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { usePullRefresh } from "@/lib/hooks/use-pull-refresh";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -89,7 +88,7 @@ interface HealthData {
   db?: { connected: boolean; latency_ms: number };
   devices?: { online: number; offline: number; total: number };
   /** A MetricResult from buildSystemHealth (lib/services/system-pages.ts), not a bare count. */
-  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
+  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number; priority?: number } } | null;
   commitments?: { active: number };
   /** buildSystemHealth rollup: sources whose read was not ok. */
   degradedSources?: string[];
@@ -418,7 +417,7 @@ export default function SystemPage() {
       {/* ── SYSTEM DIGESTS (Wire 3) ────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Change Digest Card */}
-        <Panel className="border-edge-default p-5 flex flex-col gap-4">
+        <section className="flex flex-col gap-4 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
               <span className="font-mono text-[11px] text-fg-tertiary">F2 · System Change Digest</span>
@@ -507,10 +506,10 @@ export default function SystemPage() {
           ) : (
             <div className="text-fg-tertiary text-xs py-4">No change digest available.</div>
           )}
-        </Panel>
+        </section>
 
         {/* Memory Evals Card */}
-        <Panel className="border-edge-default p-5 flex flex-col gap-4">
+        <section className="flex flex-col gap-4 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
               <span className="font-mono text-[11px] text-fg-tertiary">P5 · Grounded Truth Evals</span>
@@ -587,10 +586,10 @@ export default function SystemPage() {
           ) : (
             <div className="text-fg-tertiary text-xs py-4">No evaluations available.</div>
           )}
-        </Panel>
+        </section>
 
         {/* Action Receipt Feed Card */}
-        <Panel className="border-edge-default p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1">
+        <section className="flex flex-col gap-4 md:col-span-2 lg:col-span-1 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
               <span className="font-mono text-[11px] text-fg-tertiary">F4 · Action Receipt Feed</span>
@@ -651,7 +650,7 @@ export default function SystemPage() {
           ) : (
             <div className="text-fg-tertiary text-xs py-4">No recent receipts available.</div>
           )}
-        </Panel>
+        </section>
 
         {/* Agenda Desk Card */}
         <AgendaDesk queryResult={agendaItemsQuery} />

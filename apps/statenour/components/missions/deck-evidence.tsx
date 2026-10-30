@@ -16,12 +16,15 @@ import type { MissionsDeck } from "@/lib/missions/deck";
 import type { Task } from "@/components/actions/shared";
 import { RESURFACE_PROMISE, tomorrowMorning } from "@/lib/missions/snooze-presets";
 import { rollStragglers, rollSummary } from "@/lib/missions/roll-day";
+import { ReadFailed } from "@/components/ui/read-failed";
 
 type Props = {
   evidence: MissionsDeck["evidence"];
   tasks: Task[];
   /** The task list's read state: the close step never claims "nothing left" over an unread list. */
   tasksState: "loading" | "error" | "ready";
+  /** Refetches today's tasks after a failed read. */
+  onRetry: () => void;
   /** Live open task ids (deck.taskOrder): leftovers come from the same set the deck works from. */
   liveIds: Set<string>;
   onSnoozeTask: (taskId: string, untilIso: string, opts?: { quiet?: boolean }) => Promise<boolean>;
@@ -30,7 +33,7 @@ type Props = {
 const VERB =
   "inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-60";
 
-export function DeckEvidence({ evidence, tasks, tasksState, liveIds, onSnoozeTask }: Props) {
+export function DeckEvidence({ evidence, tasks, tasksState, liveIds, onSnoozeTask, onRetry }: Props) {
   const [closing, setClosing] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -105,9 +108,7 @@ export function DeckEvidence({ evidence, tasks, tasksState, liveIds, onSnoozeTas
           {tasksState === "loading" ? (
             <p className="text-[15px] text-fg-secondary">Reading today&apos;s tasks…</p>
           ) : tasksState === "error" ? (
-            <p className="border-l-2 border-rose-500/60 pl-4 text-[15px] text-rose-300/90">
-              Could not read today&apos;s tasks, so nothing can be moved yet. Pull to refresh and try again.
-            </p>
+            <ReadFailed onRetry={onRetry}>Could not read today&apos;s tasks, so nothing can be moved yet.</ReadFailed>
           ) : stragglers.length > 0 ? (
             <>
               <p className="text-[15px] text-fg">

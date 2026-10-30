@@ -20,7 +20,6 @@
  */
 
 import { useState } from "react";
-import { Panel } from "@/components/panel";
 import { cn } from "@/lib/utils/cn";
 import { Sparkles } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -51,7 +50,7 @@ export function KnowledgeRefreshPanel() {
   };
 
   return (
-    <Panel>
+    <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
       <div className="flex items-center justify-between mb-2 gap-2">
         {/* <p role="heading"> not <h2>, see contradiction-slot.tsx for the
             unlayered-base.css cascade trap. This markup rode along from the
@@ -100,6 +99,6 @@ export function KnowledgeRefreshPanel() {
           ))}
         </div>
       )}
-    </Panel>
+    </section>
   );
 }

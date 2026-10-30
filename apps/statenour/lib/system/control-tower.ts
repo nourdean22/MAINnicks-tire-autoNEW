@@ -16,11 +16,16 @@
  * Canary: tests/lib/system/control-tower.test.ts.
  */
 
+import { errorSeverity } from "@/lib/system/error-thresholds";
+
 export interface TowerDiagnostics {
   db: { connected: boolean; latency_ms: number };
   kpis: {
     latency_24h: { avg_ms: number; p95_ms: number };
+    /** All ErrorLog rows (error + warn): the raw KPI the page prints. */
     errors_24h: number;
+    /** level='error' rows only: what the health verdict reads. Optional so an older payload still reads. */
+    error_level_24h?: number;
     requests_24h: number;
   };
   /** notReporting = status UNKNOWN (never reported); optional so an older payload still reads. */
@@ -35,7 +40,7 @@ export interface TowerHealth {
    * "degraded" read that still carries a value, holds a count. Until 2026-10-26 this was typed as a bare
    * `{ unresolved }`, so `alerts.unresolved` was always undefined and the alerts line never showed.
    */
-  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number } } | null;
+  alerts?: { status: "ok" | "degraded" | "unavailable"; value?: { unresolved: number; priority?: number } } | null;
   /**
    * buildSystemHealth's rollup: the sources (alerts, radar, morningBrief, autonomic, and "db" when down) whose
    * read was not ok. Until 2026-10-29 only the alerts read was checked, so an unavailable radar, morningBrief or
@@ -104,11 +109,15 @@ export function controlTower(input: TowerInput): TowerVerdict {
   if (!d.db.connected) {
     exceptions.push({ key: "db", line: "database unreachable", tone: "rose" });
   }
-  if (d.kpis.errors_24h > 0) {
+  // level='error' rows against the threshold table Home reads too (2026-10-29 sync audit, finding 3).
+  // An older payload without the level count falls back to all rows: it can over-warn, never under-warn.
+  const errorRows = d.kpis.error_level_24h ?? d.kpis.errors_24h;
+  const errorLevel = errorSeverity(errorRows);
+  if (errorLevel !== "normal") {
     exceptions.push({
       key: "errors",
-      line: `${plural(d.kpis.errors_24h, "error", "errors")} in the last 24h`,
-      tone: d.kpis.errors_24h >= 10 ? "rose" : "amber",
+      line: `${plural(errorRows, "error", "errors")} in the last 24h, ${errorLevel === "critical" ? "well " : ""}above baseline`,
+      tone: errorLevel === "critical" ? "rose" : "amber",
     });
   }
   // 2026-10-26 audit: a failed health query, or an alerts metric that came back unavailable, left
@@ -118,17 +127,19 @@ export function controlTower(input: TowerInput): TowerVerdict {
   if ((input.health != null || input.healthReadFailed) && alertsCount === undefined) {
     exceptions.push({
       key: "alerts-unknown",
-      line: "alerts read failed: unresolved alerts unknown",
+      line: "alerts read failed: open alerts unknown",
       tone: "amber",
       href: "/system/alerts",
     });
   }
+  // The same open count /system/alerts lists and the hub tile shows (countOpenAlerts).
   const unresolved = alertsCount ?? 0;
+  const priority = alertsMetric?.value?.priority ?? 0;
   if (unresolved > 0) {
     exceptions.push({
       key: "alerts",
-      line: `${plural(unresolved, "unresolved alert", "unresolved alerts")}`,
-      tone: "amber",
+      line: `${plural(unresolved, "open alert", "open alerts")}${priority > 0 ? `, ${priority} priority` : ""}`,
+      tone: priority > 0 ? "rose" : "amber",
       href: "/system/alerts",
     });
   }

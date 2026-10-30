@@ -24,7 +24,6 @@ const SITES: Record<string, number> = {
   "components/actions/task-filters.tsx": 1,
   "components/actions/mode-learn.tsx": 1,
   "components/settings/ai-settings-panel.tsx": 1,
-  "components/actions/loop-row-item.tsx": 2,
 };
 
 /** Code only: a comment line that names the old check is not a site (blanked, so line numbers hold). */

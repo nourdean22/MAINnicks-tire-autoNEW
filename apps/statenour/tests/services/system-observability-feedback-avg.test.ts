@@ -12,6 +12,7 @@ vi.mock("@/lib/prisma", () => ({
     aiGeneration: { aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 }, _avg: { durationMs: 0 } }) },
     chatMessage: { findMany: vi.fn().mockResolvedValue([]), aggregate: (...a: unknown[]) => s.chatAggregate(...a) },
     approvalRequest: { count: vi.fn().mockResolvedValue(0) },
+    autonomousAction: { findMany: vi.fn().mockResolvedValue([]) },
     agentTrace: { findMany: vi.fn().mockResolvedValue([]) },
     brainMemory: { groupBy: vi.fn().mockResolvedValue([]), findMany: vi.fn().mockResolvedValue([]) },
     promptVersion: { findMany: vi.fn().mockResolvedValue([]) },

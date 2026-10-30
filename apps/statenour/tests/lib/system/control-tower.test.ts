@@ -115,16 +115,16 @@ describe("controlTower: one verdict, then the exceptions", () => {
     expect(v.state).toBe("nominal");
   });
 
-  it("a measured count from the real payload shape shows as unresolved alerts", () => {
+  it("a measured count from the real payload shape shows as open alerts", () => {
     const v = controlTower({ diagnostics: clean, health: { status: "ok", alerts: alertsOk(3) }, diagnosticsReadFailed: false });
-    expect(v.exceptions.find((e) => e.key === "alerts")?.line).toBe("3 unresolved alerts");
+    expect(v.exceptions.find((e) => e.key === "alerts")?.line).toBe("3 open alerts");
   });
   it("counts every exception source once and grammars the headline", () => {
     const v = controlTower({
       diagnostics: {
         ...clean,
         db: { connected: false, latency_ms: 0 },
-        kpis: { ...clean.kpis, errors_24h: 3 },
+        kpis: { ...clean.kpis, errors_24h: 30, error_level_24h: 25 },
         devices: { online: 1, offline: 2, error: 1, total: 4 },
         integrations: [
           { name: "resend", status: "ok", enabled: true },
@@ -145,18 +145,43 @@ describe("controlTower: one verdict, then the exceptions", () => {
       "integration-vapi",
     ]);
     expect(v.headline).toBe("6 REQUIRE ATTENTION");
-    expect(v.exceptions.find((e) => e.key === "errors")?.line).toBe("3 errors in the last 24h");
+    expect(v.exceptions.find((e) => e.key === "errors")?.line).toBe("25 errors in the last 24h, above baseline");
     expect(v.exceptions.find((e) => e.key === "errors")?.href).toBeUndefined();
   });
 
   it("says REQUIRES for exactly one exception", () => {
     const v = controlTower({
-      diagnostics: { ...clean, kpis: { ...clean.kpis, errors_24h: 1 } },
+      diagnostics: { ...clean, kpis: { ...clean.kpis, errors_24h: 45, error_level_24h: 41 } },
       health: null,
       diagnosticsReadFailed: false,
     });
     expect(v.headline).toBe("1 REQUIRES ATTENTION");
-    expect(v.exceptions[0]?.line).toBe("1 error in the last 24h");
+    expect(v.exceptions[0]).toMatchObject({ line: "41 errors in the last 24h, well above baseline", tone: "rose" });
+  });
+
+  it("errors below the shared threshold (lib/system/error-thresholds.ts) are not an exception; warn rows do not count", () => {
+    const quiet = controlTower({
+      diagnostics: { ...clean, kpis: { ...clean.kpis, errors_24h: 60, error_level_24h: 12 } },
+      health: null,
+      diagnosticsReadFailed: false,
+    });
+    expect(quiet.state).toBe("nominal");
+    // An older payload without the level count reads all rows: over-warns, never under-warns.
+    const old = controlTower({
+      diagnostics: { ...clean, kpis: { ...clean.kpis, errors_24h: 22 } },
+      health: null,
+      diagnosticsReadFailed: false,
+    });
+    expect(old.exceptions[0]).toMatchObject({ key: "errors", tone: "amber" });
+  });
+
+  it("open alerts with priority rows go rose and name the priority count", () => {
+    const v = controlTower({
+      diagnostics: clean,
+      health: { alerts: { status: "ok", value: { unresolved: 5, priority: 2 } } },
+      diagnosticsReadFailed: false,
+    });
+    expect(v.exceptions[0]).toMatchObject({ key: "alerts", line: "5 open alerts, 2 priority", tone: "rose" });
   });
 
   it("device exceptions carry no link: no page shows device rows (10-X2)", () => {

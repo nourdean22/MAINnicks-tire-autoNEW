@@ -8,7 +8,7 @@
  *    saves "" as null, so its empty option is a real choice, "No conviction", and stays enabled.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
@@ -17,7 +17,9 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8").replace(/\/\
 describe("stored names and titles render as authored", () => {
   it("no mission title, board name or advisor name is lowercased on render", () => {
     const hits: string[] = [];
-    for (const f of ["components/actions/loop-row-item.tsx"]) {
+    // loop-row-item.tsx (the first subject) was deleted with the dead loops island on 2026-10-29; the live
+    // renderers of mission and task titles are the components/missions tree.
+    for (const f of readdirSync(join(ROOT, "components/missions")).filter((n) => n.endsWith(".tsx")).map((n) => `components/missions/${n}`)) {
       for (const m of read(f).matchAll(/\b(?:title|boardName|advisorName|name)\.toLowerCase\(\)/g)) hits.push(`${f}: ${m[0]}`);
     }
     expect(hits).toEqual([]);

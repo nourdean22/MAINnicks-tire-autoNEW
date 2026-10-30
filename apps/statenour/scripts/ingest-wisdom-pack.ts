@@ -23,15 +23,16 @@
  * with confidence < 0.5 (placeholder threshold for paraphrased
  * material — operator can tune).
  *
- * Run: `pnpm tsx scripts/ingest-wisdom-pack.ts [pack-name]`
+ * Run: `pnpm tsx scripts/ingest-wisdom-pack.ts [pack-name] [--dry-run]`
  *      With no arg: ingest all *.json in data/wisdom/.
  *      With arg `naval-ravikant`: ingest just that pack.
+ *      --dry-run (2026-10-29): validate and print what would be written,
+ *      then exit. Prisma is imported only AFTER that return, so a dry run
+ *      cannot open a database connection, let alone write.
  */
 
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { prisma } from "@/lib/prisma";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomEntry {
   text: string;
@@ -48,7 +49,8 @@ interface WisdomPack {
 }
 
 async function main() {
-  const filter = process.argv[2] ?? null;
+  const dryRun = process.argv.includes("--dry-run");
+  const filter = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? null;
   const wisdomDir = resolve(process.cwd(), "data", "wisdom");
   const files = await readdir(wisdomDir).catch(() => [] as string[]);
   const targets = files
@@ -81,6 +83,20 @@ async function main() {
       console.error(`[!] Invalid pack shape in ${filename} · skipping.`);
       continue;
     }
+
+    if (dryRun) {
+      const keep = pack.entries.filter((e) => typeof e?.text === "string" && e.text.length >= 20 && e.confidence >= 0.5);
+      const last = String(pack.entries.length - 1).padStart(3, "0");
+      console.log(
+        `[dry-run] ${pack.pack} - would upsert ${keep.length}/${pack.entries.length} (skip ${pack.entries.length - keep.length})` +
+          ` - keys wisdom_${pack.pack}_000..wisdom_${pack.pack}_${last}`,
+      );
+      totalIngested += keep.length;
+      totalSkipped += pack.entries.length - keep.length;
+      continue;
+    }
+    const { prisma } = await import("@/lib/prisma");
+    const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
 
     let ingestedHere = 0;
     let skippedHere = 0;
@@ -142,8 +158,9 @@ async function main() {
   }
 
   console.log(
-    `\n[done] total ingested: ${totalIngested} · skipped: ${totalSkipped}`,
+    `\n[done] total ${dryRun ? "would ingest" : "ingested"}: ${totalIngested} · skipped: ${totalSkipped}`,
   );
+  if (dryRun) console.log("[dry-run] nothing written; no database connection was opened.");
   process.exit(0);
 }
 

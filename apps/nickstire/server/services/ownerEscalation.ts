@@ -44,6 +44,13 @@ export interface OwnerEscalation {
    * task, not one per call. Omitted, the post carries no key (legacy path).
    */
   subjectId?: string | number | { opaque: string };
+  /**
+   * The subject is a SNAPSHOT that keeps changing (a set of ids), not one
+   * thing: StateNour then keeps one open task per trigger and reuses it for
+   * every new snapshot until the owner closes it (job 2026-10-29; before this,
+   * each new set opened a task beside the open one).
+   */
+  standing?: boolean;
 }
 
 function statenourTarget(): { url: string; key: string } | null {
@@ -73,6 +80,7 @@ function buildOpenLoopPayload(e: OwnerEscalation) {
       priority: e.priority ?? (e.authorization.tier === 0 ? "high" : "medium"),
       source: "nickstire",
       domain: "shop",
+      ...(e.standing ? { standing: e.trigger } : {}),
     },
   };
 }

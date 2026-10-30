@@ -173,7 +173,11 @@ function StatsContent() {
       <div
         role="tablist"
         aria-label="Stats sections"
-        className="sticky top-0 z-20 -mx-4 flex gap-x-6 overflow-x-auto border-b border-edge-subtle bg-canvas px-4 sm:mx-0 sm:px-0"
+        // Sticks below the iOS status bar: the window scrolls, and with black-translucent + viewportFit cover
+        // (app/layout.tsx) a top-0 bar slid under the clock (2026-10-29 sync audit, finding 7). The bar keeps its
+        // own tablist rather than PageTabs because it resolves the retired keys (?tab=learning lands on Body
+        // and scrolls to the section; resolveStatsTab), which PageTabs would send to the first tab.
+        className="sticky top-[env(safe-area-inset-top,0px)] z-20 -mx-4 flex gap-x-6 overflow-x-auto border-b border-edge-subtle bg-canvas px-4 sm:mx-0 sm:px-0"
       >
         {STATS_TABS.map((tab) => {
           const isActive = activeTab === tab.id;

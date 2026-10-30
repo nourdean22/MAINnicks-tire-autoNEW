@@ -31,6 +31,7 @@ export async function buildSystemHub() {
     deviceStats,
     aiStats,
     pulsePriority,
+    alertStats,
   ] = await Promise.all([
     scanCronHealth().catch(() => null),
     scanStaleData().catch(() => null),
@@ -140,6 +141,11 @@ export async function buildSystemHub() {
     // back.
     Promise.resolve<number | null>(null),
     // power and governance sections removed 2026-10-11 (10-X6): computed every poll, rendered by no chip.
+
+    // The Alerts tile counts what /system/alerts lists, the same reader as the /system tower (2026-10-29).
+    import("@/lib/services/brain-domain")
+      .then((m) => m.countOpenAlerts())
+      .catch(() => null),
   ]);
 
   // Every section carries `measured`. A sub-rollup that crashed or was
@@ -207,6 +213,11 @@ export async function buildSystemHub() {
       calls24h: aiStats?.calls24h ?? 0,
       costCents7d: aiStats?.costCents7d ?? 0,
       measured: aiStats !== null,
+    },
+    alerts: {
+      open: alertStats?.open ?? 0,
+      priority: alertStats?.priority ?? 0,
+      measured: alertStats !== null,
     },
     generatedAt: new Date().toISOString(),
   };

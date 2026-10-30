@@ -259,7 +259,9 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
         escalateToOwner({
           trigger: "attribution_weak_matches",
           summary: `Revenue reconciliation run #${runId} left ${ambiguous} call↔invoice match${ambiguous === 1 ? "" : "es"} ambiguous (${verified} verified, ${inferred} inferred, ${unmatched} unmatched).`,
-          decisionRequested: `Rule on ${ambiguous} ambiguous call↔invoice match${ambiguous === 1 ? "" : "es"}`,
+          // No count in the title: the one open task outlives many runs, and the
+          // live count is on the Attribution review card.
+          decisionRequested: "Rule on ambiguous call↔invoice matches",
           consequence: "Until ruled, these calls carry no revenue attribution and the voice scorecard under-counts.",
           deadline: null,
           evidenceLinks: ["/admin?tab=voiceReceptionist"],
@@ -271,6 +273,7 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
           // open a fresh StateNour task for the same unchanged set (ADR-0019 §2.1).
           // A new ambiguous call, or a ruling that shrinks the set, is a new fact.
           subjectId: attributionObligationSubject(ambiguousCallIds),
+          standing: true,
         });
       } catch (e) {
         log.warn("[revenueReconciliation] escalation failed (run result unaffected)", { error: e instanceof Error ? e.message : String(e) });

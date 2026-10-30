@@ -511,7 +511,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           <div className="h-1.5 w-full bg-surface-interactive rounded-full overflow-hidden border border-edge-subtle">
             <div
               className={cn(
-                "h-full transition-all duration-1000 rounded-full",
+                "h-full transition-[width] duration-1000 rounded-full",
                 reviewTimeLeft <= 10 ? "bg-red-500" : "bg-amber-500"
               )}
               style={{ width: `${timerPercent}%` }}
@@ -529,7 +529,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             <Button
               onClick={() => setShowSummary(true)}
               variant="outline"
-              className="min-h-11 min-w-11 mx-auto h-10 px-6 border-violet-500/30 text-violet-300 hover:bg-violet-500/10 hover:text-violet-200 text-xs font-mono"
+              className="min-h-11 min-w-11 mx-auto h-10 px-6 border-accent/30 text-fg hover:bg-accent/10 hover:text-fg text-xs font-mono"
             >
               Show Summary
             </Button>
@@ -557,7 +557,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
         <div className="flex gap-2 pt-2">
           <button
             onClick={() => handleCompleteActiveReview(currentReviewCard.key)}
-            className="flex-1 min-h-[44px] rounded-control bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 min-h-[44px] rounded-control bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
             aria-label="Mark as remembered"
             id="got-it-focus-btn"
           >
@@ -565,7 +565,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           </button>
           <button
             onClick={() => handleDeepDiveActiveReview(currentReviewCard.topic, currentReviewCard.key)}
-            className="flex-1 min-h-[44px] rounded-control bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 min-h-[44px] rounded-control bg-accent/20 text-fg border border-accent/30 hover:bg-accent hover:text-black text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
             aria-label="Deep dive on this topic"
             id="deep-dive-focus-btn"
           >
@@ -573,7 +573,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           </button>
           <button
             onClick={handleSkipActiveReview}
-            className="min-w-11 min-h-[44px] px-3.5 rounded-control bg-content text-fg-secondary border border-edge-default hover:bg-surface-hover hover:text-fg text-xs font-medium transition-all"
+            className="min-w-11 min-h-[44px] px-3.5 rounded-control bg-content text-fg-secondary border border-edge-default hover:bg-surface-hover hover:text-fg text-xs font-medium transition-colors"
             aria-label="Skip to next review card"
             id="skip-focus-btn"
           >
@@ -628,7 +628,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => run(rev.topic, "teach")}
-                  className="min-h-11 min-w-11 text-[11px] px-2 py-0.5 rounded-control bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 border border-violet-500/20 font-semibold"
+                  className="min-h-11 min-w-11 text-[11px] px-2 py-0.5 rounded-control bg-accent/15 text-fg hover:bg-accent/30 border border-accent/20 font-semibold"
                 >
                   Deep dive
                 </button>
@@ -663,13 +663,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => isSubmitEnter(e) && run()}
             disabled={loading}
-            className="min-h-11 h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
+            className="min-h-11 h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-colors"
           />
           <Button
             size="sm"
             onClick={() => run()}
             disabled={loading || !query.trim()}
-            className="min-h-11 min-w-11 h-9 px-3 bg-violet-500/20 text-violet-200 hover:bg-violet-500 hover:text-black border border-violet-500/30 font-semibold shrink-0"
+            className="min-h-11 min-w-11 h-9 px-3 bg-accent/20 text-fg hover:bg-accent hover:text-black border border-accent/30 font-semibold shrink-0"
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={14} />}
           </Button>
@@ -680,13 +680,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           <div className="flex items-center gap-1.5 px-1 text-[11px]">
             {detectedTool === "research" ? (
               <>
-                <Globe size={9} className="text-cyan-400" />
-                <span className="text-cyan-400/80">Nick will search the live web</span>
+                <Globe size={9} className="text-sky-400" />
+                <span className="text-sky-300">Nick will search the live web</span>
               </>
             ) : (
               <>
-                <BookOpen size={9} className="text-violet-400" />
-                <span className="text-violet-400/80">Nick will build you a micro-course</span>
+                <BookOpen size={9} className="text-accent" />
+                <span className="text-accent">Nick will build you a micro-course</span>
               </>
             )}
           </div>
@@ -696,7 +696,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {/* ── Decision-linked learning — "you're deciding X, learn about Y" ── */}
       {!active && activeDecisions.length > 0 && (
         <div className="space-y-1.5">
-          <p className="font-mono text-[11px] text-cyan-400/80 px-0.5">
+          <p className="font-mono text-[11px] text-sky-300 px-0.5">
             Learn before you decide
           </p>
           {activeDecisions.map((dec, i) => (
@@ -704,18 +704,18 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               key={i}
               onClick={() => run(dec.topic, "teach")}
               disabled={loading}
-              className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2.5 rounded-control border border-cyan-500/20 bg-cyan-500/[0.03] hover:bg-cyan-500/[0.06] hover:border-cyan-500/30 text-left transition-all group"
+              className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2.5 rounded-control border border-sky-500/20 bg-sky-500/[0.03] hover:bg-sky-500/[0.06] hover:border-sky-500/30 text-left transition-colors group"
             >
-              <Lightbulb size={12} className="text-cyan-500/60 group-hover:text-cyan-400 shrink-0 mt-0.5" />
+              <Lightbulb size={12} className="text-sky-300 group-hover:text-sky-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-fg-secondary group-hover:text-fg">
                   {dec.topic}
                 </p>
-                <p className="font-mono text-[11px] text-cyan-500/50 mt-0.5">
+                <p className="font-mono text-[11px] text-sky-300 mt-0.5">
                   Active decision: {dec.title}
                 </p>
               </div>
-              <ArrowRight size={10} className="text-fg-tertiary group-hover:text-cyan-400 shrink-0 mt-1 transition-colors" />
+              <ArrowRight size={10} className="text-fg-tertiary group-hover:text-sky-400 shrink-0 mt-1 transition-colors" />
             </button>
           ))}
         </div>
@@ -737,13 +737,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 key={s.query}
                 onClick={() => run(s.query, s.tool)}
                 disabled={loading}
-                className="min-h-11 min-w-11 flex items-start gap-2.5 p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-all group"
+                className="min-h-11 min-w-11 flex items-start gap-2.5 p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-colors group"
               >
                 <div className="mt-0.5 shrink-0">
                   {s.tool === "research" ? (
-                    <Globe size={12} className="text-cyan-500/60 group-hover:text-cyan-400" />
+                    <Globe size={12} className="text-sky-300 group-hover:text-sky-400" />
                   ) : (
-                    <BookOpen size={12} className="text-violet-500/60 group-hover:text-violet-400" />
+                    <BookOpen size={12} className="text-fg-tertiary group-hover:text-fg" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -774,7 +774,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             <div className="flex items-center gap-2 text-[11px] text-fg-tertiary font-mono">
               <span>{totalLearned} topics</span>
               {thisWeek > 0 && (
-                <span className="text-violet-400/70">{thisWeek} this week</span>
+                <span className="text-accent">{thisWeek} this week</span>
               )}
             </div>
           </div>
@@ -787,9 +787,9 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               >
                 <div className="mt-0.5 shrink-0">
                   {h.tool === "teach" ? (
-                    <BookOpen size={11} className="text-violet-500/50" />
+                    <BookOpen size={11} className="text-fg-tertiary" />
                   ) : (
-                    <Globe size={11} className="text-cyan-500/50" />
+                    <Globe size={11} className="text-sky-300" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -859,7 +859,7 @@ function TeachCard({
   const [expandedSection, setExpandedSection] = useState<string | null>("mvu");
 
   return (
-    <div className="space-y-2 rounded-surface border border-violet-500/20 bg-violet-500/[0.03] p-3">
+    <div className="space-y-2 rounded-surface border border-accent/20 bg-accent/[0.03] p-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -877,7 +877,7 @@ function TeachCard({
             <button
               onClick={() => onSaveToBrain(data.topic, data.mvuRead!)}
               title="Save to brain"
-              className="min-h-11 min-w-11 p-1.5 text-violet-400/50 hover:text-violet-300 rounded-control hover:bg-violet-500/10"
+              className="min-h-11 min-w-11 p-1.5 text-fg-tertiary hover:text-fg rounded-control hover:bg-accent/10"
             >
               <Brain size={12} />
             </button>
@@ -898,12 +898,12 @@ function TeachCard({
           className="min-h-11 min-w-11 w-full text-left"
         >
           <div className={cn(
-            "p-2.5 rounded-control border transition-all",
+            "p-2.5 rounded-control border transition-colors",
             expandedSection === "mvu"
-              ? "bg-violet-500/5 border-violet-500/20"
+              ? "bg-accent/5 border-accent/20"
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
-            <p className="font-mono text-[11px] text-violet-400/70 mb-1">
+            <p className="font-mono text-[11px] text-accent mb-1">
               The one thing to understand
             </p>
             <p className={cn(
@@ -923,13 +923,13 @@ function TeachCard({
           className="min-h-11 min-w-11 w-full text-left"
         >
           <div className={cn(
-            "p-2.5 rounded-control border transition-all",
+            "p-2.5 rounded-control border transition-colors",
             expandedSection === "concepts"
-              ? "bg-blue-500/5 border-blue-500/20"
+              ? "bg-sky-500/5 border-sky-500/20"
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
             <div className="flex items-center justify-between">
-              <p className="font-mono text-[11px] text-blue-400/70">
+              <p className="font-mono text-[11px] text-sky-300">
                 Key concepts
               </p>
               <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-3.5">
@@ -940,7 +940,7 @@ function TeachCard({
               <div className="mt-1.5 space-y-1">
                 {data.keyConcepts.map((c, i) => (
                   <div key={i} className="flex items-start gap-2 text-[11px]">
-                    <span className="text-blue-400/50 font-mono shrink-0 w-4 text-right">{i + 1}</span>
+                    <span className="text-sky-300 font-mono shrink-0 w-4 text-right">{i + 1}</span>
                     <span className="text-fg-secondary">{c}</span>
                   </div>
                 ))}
@@ -958,7 +958,7 @@ function TeachCard({
           className="min-h-11 min-w-11 w-full text-left"
         >
           <div className={cn(
-            "p-2.5 rounded-control border transition-all",
+            "p-2.5 rounded-control border transition-colors",
             expandedSection === "rules"
               ? "bg-content border-edge-default"
               : "bg-content border-edge-subtle hover:border-edge-strong"
@@ -1007,7 +1007,7 @@ function TeachCard({
           <button
             onClick={() => onSpawn(data.tryToday!)}
             disabled={spawning}
-            className="min-h-11 min-w-11 shrink-0 px-2.5 py-1 rounded-control bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black text-[11px] font-semibold border border-emerald-500/30 transition-all"
+            className="min-h-11 min-w-11 shrink-0 px-2.5 py-1 rounded-control bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black text-[11px] font-semibold border border-emerald-500/30 transition-colors"
           >
             <Plus size={10} className="inline mr-0.5" />
             Loop it
@@ -1023,13 +1023,13 @@ function TeachCard({
           </p>
           {data.resources.map((r, i) => (
             <div key={i} className="flex items-start gap-2 text-[12px]">
-              <ExternalLink size={9} className="text-cyan-400/50 shrink-0 mt-0.5" />
+              <ExternalLink size={9} className="text-sky-300 shrink-0 mt-0.5" />
               {r.url ? (
                 <a
                   href={r.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center text-cyan-300 hover:text-cyan-200 underline truncate"
+                  className="inline-flex min-h-11 items-center text-sky-300 hover:text-sky-200 underline truncate"
                 >
                   {r.title}
                 </a>
@@ -1044,7 +1044,7 @@ function TeachCard({
       {/* Learning path chain — structured progression, not random follow-ups */}
       {data.learningPath && data.learningPath.length > 0 && (
         <div className="pt-2 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] text-violet-400/70 mb-1.5">
+          <p className="font-mono text-[11px] text-accent mb-1.5">
             Your learning path
           </p>
           <div className="space-y-1">
@@ -1052,14 +1052,14 @@ function TeachCard({
               <button
                 key={i}
                 onClick={() => onFollowUp(step.topic)}
-                className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-violet-500/20 text-left transition-all group"
+                className="min-h-11 min-w-11 w-full flex items-start gap-2.5 p-2 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-colors group"
               >
                 <div className="flex flex-col items-center shrink-0 mt-0.5">
-                  <span className="w-5 h-5 rounded-full bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-[11px] font-semibold text-violet-400">
+                  <span className="w-5 h-5 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center text-[11px] font-semibold text-accent">
                     {i + 1}
                   </span>
                   {i < (data.learningPath?.length ?? 0) - 1 && (
-                    <span className="w-px h-3 bg-violet-500/20 mt-0.5" />
+                    <span className="w-px h-3 bg-accent/20 mt-0.5" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1068,7 +1068,7 @@ function TeachCard({
                   </p>
                   <p className="text-[11px] text-fg-tertiary mt-0.5">{step.why}</p>
                 </div>
-                <ArrowRight size={10} className="text-fg-tertiary group-hover:text-violet-400 shrink-0 mt-1 transition-colors" />
+                <ArrowRight size={10} className="text-fg-tertiary group-hover:text-fg shrink-0 mt-1 transition-colors" />
               </button>
             ))}
           </div>
@@ -1112,11 +1112,11 @@ function ResearchCard({
 }) {
   const cites = data.citations && data.citations.length > 0 ? data.citations : [];
   return (
-    <div className="space-y-2 rounded-surface border border-cyan-500/20 bg-cyan-500/[0.03] p-3">
+    <div className="space-y-2 rounded-surface border border-sky-500/20 bg-sky-500/[0.03] p-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Globe size={14} className="text-cyan-400 shrink-0" />
+          <Globe size={14} className="text-sky-400 shrink-0" />
           <p className="text-[14px] font-semibold text-fg truncate">{data.query}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -1124,7 +1124,7 @@ function ResearchCard({
             <button
               onClick={() => onSaveToBrain(data.query, data.content!)}
               title="Save to brain"
-              className="min-h-11 min-w-11 p-1.5 text-cyan-400/50 hover:text-cyan-300 rounded-control hover:bg-cyan-500/10"
+              className="min-h-11 min-w-11 p-1.5 text-sky-300 hover:text-sky-300 rounded-control hover:bg-sky-500/10"
             >
               <Brain size={12} />
             </button>
@@ -1155,7 +1155,7 @@ function ResearchCard({
       {/* Citations */}
       {cites.length > 0 && (
         <div className="space-y-0.5 pt-1.5 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] text-cyan-400/60">
+          <p className="font-mono text-[11px] text-sky-300">
             Sources ({cites.length})
           </p>
           {cites.map((c, i) => (
@@ -1164,7 +1164,7 @@ function ResearchCard({
               href={c}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-h-11 min-w-11 block text-[11px] text-cyan-300 hover:text-cyan-200 underline truncate"
+              className="min-h-11 min-w-11 block text-[11px] text-sky-300 hover:text-sky-200 underline truncate"
             >
               {c}
             </a>

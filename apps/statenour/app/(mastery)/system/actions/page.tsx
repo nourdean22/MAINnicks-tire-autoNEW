@@ -22,7 +22,6 @@ import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { DetailFold } from "@/components/system/detail-fold";
-import { Panel } from "@/components/panel";
 import { ACTIONS_TAB_PARAM, resolveActionsTab } from "./actions-tab";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -39,6 +38,7 @@ import { offlineCopy, readState } from "@/lib/query-state";
 // AbortController the prior code juggled is React Query's job now.
 // The 30s `cache:"no-store"` poll maps to `refetchInterval`.
 import { trpc } from "@/lib/trpc/client";
+import { countLiveDecisions } from "@/lib/automation/live-decisions";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 import { approveTone } from "./approve-tone";
 import { toast } from "sonner";
@@ -333,7 +333,20 @@ function ActionsPageInner() {
     });
   };
 
-  const pendingCount = approvals.length;
+  // The same live count Home and the app badge show (lib/automation/live-decisions.ts): live requests plus
+  // live autonomous actions; expired rows stay listed but are not waiting on you. Only a count of BOTH
+  // reads is a total: with either one unread the total is unknown, never the other queue's number.
+  const decisions =
+    approvalsQuery.data !== undefined && autoQueue.data !== undefined
+      ? countLiveDecisions(approvals, autoQueue.data.rows)
+      : null;
+  const decisionsLine = decisions
+    ? `${decisions.live > 0 ? ` · ${decisions.live} live` : ""}${decisions.expired > 0 ? `, ${decisions.expired} expired` : ""}`
+    : approvalsQuery.isError || autoQueue.isError
+      ? " · live decisions unknown"
+      : "";
+  // This panel lists requests only; the autonomous queue below carries its own live/expired line.
+  const liveRequests = countLiveDecisions(approvals, []).live;
 
   return (
     <StandardPage
@@ -342,7 +355,7 @@ function ActionsPageInner() {
       descriptionVisibility="always"
       description={
         feed
-          ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} pending approval` : ""}`
+          ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${decisionsLine}`
           : actionsQuery.isError
             ? "unknown: read failed"
             : actionsState === "offline"
@@ -370,14 +383,14 @@ function ActionsPageInner() {
     >
       <NeedsReviewGroup />
 
-        <Panel className="border-edge-default">
+        <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
               pending action queue
               {/* A failed read never shows 0: the last count if a refetch failed, a dash if nothing was ever read. */}
-              {(approvalsQuery.isError || pendingCount > 0) && (
+              {(approvalsQuery.isError || liveRequests > 0) && (
                 <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-mono font-normal text-amber-200">
-                  {approvalsQuery.isError && !approvalsQuery.data ? "-" : pendingCount}
+                  {approvalsQuery.isError && !approvalsQuery.data ? "-" : liveRequests}
                 </span>
               )}
             </h2>
@@ -633,7 +646,7 @@ function ActionsPageInner() {
               An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
             </p>
           </div>
-        </Panel>
+        </section>
 
       {/* History (wave E1, 2026-10-24): the success rings, the rule leaderboard and the recent feed. Closed by default; ?tab=logs opens it. */}
       <DetailFold label="History" open={activeTab === "logs"} unreadable={actionsQuery.isError && !feed ? 1 : 0}>
@@ -693,7 +706,7 @@ function ActionsPageInner() {
           </div>
 
           {/* Rule leaderboard */}
-          <Panel className="border-edge-default">
+          <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-fg">rule leaderboard</h2>
               <span className="text-xs text-fg-tertiary">click to filter recent feed</span>
@@ -738,10 +751,10 @@ function ActionsPageInner() {
                 ))}
               </div>
             )}
-          </Panel>
+          </section>
 
           {/* Recent feed */}
-          <Panel className="border-edge-default">
+          <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
             <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-fg">recent · last 100</h2>
               <div className="flex items-center gap-2">
@@ -861,7 +874,7 @@ function ActionsPageInner() {
                 })}
               </div>
             )}
-          </Panel>
+          </section>
       </DetailFold>
 
       <p className="pt-2 text-center text-[11px] text-fg-tertiary">

@@ -13,6 +13,7 @@ import type { MissionsDeck } from "@/lib/missions/deck";
 import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
 import type { Task } from "@/components/actions/shared";
 import { inDaysMorning } from "@/lib/missions/snooze-presets";
+import { ReadFailed } from "@/components/ui/read-failed";
 
 type Props = {
   triage: MissionsDeck["triage"];
@@ -22,18 +23,20 @@ type Props = {
   onDeleteTask: (taskId: string) => Promise<void> | void;
   /** A source failed to read: an empty list is not "nothing to decide". */
   incomplete?: boolean;
+  /** Refetches the deck; shown with the incomplete line. */
+  onRetry?: () => void;
 };
 
 const VERB =
   "inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
-export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask, incomplete = false }: Props) {
+export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask, incomplete = false, onRetry }: Props) {
   if (triage.rows.length === 0) {
-    return (
+    return incomplete && onRetry ? (
+      <ReadFailed onRetry={onRetry}>Part of this queue could not be read, so it may not be empty.</ReadFailed>
+    ) : (
       <p className="text-[15px] text-fg-tertiary">
-        {incomplete
-          ? "Part of this queue could not be read, so it may not be empty. Pull to refresh."
-          : "Nothing to decide right now."}
+        {incomplete ? "Part of this queue could not be read, so it may not be empty." : "Nothing to decide right now."}
       </p>
     );
   }
@@ -41,6 +44,13 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
 
   return (
     <div>
+      {/* A source failed to read but others still answered: the rows below are not the whole queue
+          (Codex P2 on #3354), so the Retry shows beside them, not only on an empty list. */}
+      {incomplete && onRetry && (
+        <div className="mb-3">
+          <ReadFailed onRetry={onRetry}>Part of this queue could not be read, so more may be waiting.</ReadFailed>
+        </div>
+      )}
       <ul className="divide-y divide-edge">
         {triage.rows.map((row) => {
           const task = row.taskId ? taskById.get(row.taskId) : undefined;

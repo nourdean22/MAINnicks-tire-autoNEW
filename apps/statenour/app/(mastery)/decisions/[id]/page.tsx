@@ -27,7 +27,7 @@ import { useParams } from "next/navigation";
 // off authedFetch onto trpc.operator.decisionDetail / gradeDecision.
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
-import { Panel } from "@/components/panel";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StandardPage } from "@/components/layout/standard-page";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { ReadStateNote } from "@/components/ui/read-state-note";
@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/comparison-matrix";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { AlertCircle, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 interface Decision {
   id: number;
@@ -181,14 +181,10 @@ export default function DecisionDetailPage() {
         className="px-3 py-6 sm:px-4"
         parent={{ href: "/journal", label: "journal" }}
       >
-        <Panel>
-          <div className="p-3">
-            <p className="text-[12px] font-bold text-fg">Decision not found</p>
-            <p className="mt-0.5 text-[12px] text-fg-secondary">
-              The number in this address is not a valid decision id.
-            </p>
-          </div>
-        </Panel>
+        <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
+          <h2 className="vt-eyebrow text-fg-secondary">Decision not found</h2>
+          <p className="mt-2 text-[15px] text-fg-secondary">The number in this address is not a valid decision id.</p>
+        </section>
       </StandardPage>
     );
   }
@@ -217,15 +213,14 @@ export default function DecisionDetailPage() {
         className="px-3 py-6 sm:px-4"
         parent={{ href: "/journal", label: "journal" }}
       >
-        <Panel className="border-rose-500/30 bg-rose-500/[0.04]">
-          <div className="flex items-start gap-3 p-3">
-            <AlertCircle size={14} className="mt-0.5 text-rose-300/80" />
-            <div>
-              <p className="text-[12px] font-bold text-rose-300">load failed</p>
-              <p className="mt-0.5 font-mono text-[11px] text-rose-300/70">{error}</p>
-            </div>
-          </div>
-        </Panel>
+        {/* A fixed sentence and a Retry, never the raw message (2026-10-29 sync audit, finding 17). */}
+        <EmptyState
+          provenance="ERROR"
+          tone="warning"
+          title="Decision load failed"
+          why="The read failed, so this decision's evidence is unknown right now, not empty."
+          cta={{ label: "Retry", onClick: () => void detailQuery.refetch() }}
+        />
       </StandardPage>
     );
   }
@@ -505,8 +500,8 @@ export default function DecisionDetailPage() {
 
       {/* ── Edit form · folds out below the spread ───────────────── */}
       {editing && (
-        <Panel className="border-edge-default bg-content">
-          <div className="space-y-3 p-3">
+        <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
+          <div className="space-y-3">
             <h3 className="text-sm font-semibold text-fg">
               {timeline.isReviewed ? "Edit grade" : "Grade decision"}
             </h3>
@@ -568,7 +563,7 @@ export default function DecisionDetailPage() {
               </button>
             </div>
           </div>
-        </Panel>
+        </section>
       )}
 
       {/* ── Anti-pattern hints · DecisionSpread for matching domain ── */}
@@ -648,8 +643,8 @@ export default function DecisionDetailPage() {
       )}
 
       {/* ── Reasoning + context · expanded fields below the fold ── */}
-      <Panel>
-        <div className="grid gap-4 p-3 md:grid-cols-2">
+      <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
+        <div className="grid gap-4 md:grid-cols-2">
           {d.context && (
             <div>
               <p className="font-mono text-[11px] text-fg-tertiary mb-1.5">
@@ -681,7 +676,7 @@ export default function DecisionDetailPage() {
             </div>
           )}
         </div>
-      </Panel>
+      </section>
     </StandardPage>
   );
 }
