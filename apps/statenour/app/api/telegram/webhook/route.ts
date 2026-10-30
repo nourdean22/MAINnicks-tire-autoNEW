@@ -16,6 +16,7 @@
  *   /brain     — Brain health stats
  */
 
+import { clipTelegramHtml } from "@/lib/utils/escape-html";
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
@@ -1265,7 +1266,7 @@ async function cmdBoard(args: string[], chatId: string): Promise<void> {
       (s.tension ? `<b>Tension:</b> ${escapeHtml(s.tension)}\n\n` : "") +
       (s.consensus.length ? `<b>Consensus:</b> ${escapeHtml(s.consensus.slice(0, 3).join(" · "))}\n\n` : "") +
       `<b>Advisors</b>\n${takes}`;
-    await sendTelegram(msg.slice(0, 3900), chatId);
+    await sendTelegram(clipTelegramHtml(msg), chatId);
   } catch (err) {
     await sendTelegram(`⚠️ Board consult failed: ${await safeErrorText(err)}`, chatId);
   }
@@ -1300,7 +1301,7 @@ async function cmdTeam(question: string, chatId: string): Promise<void> {
       .map((r) => `• <b>${escapeHtml(r.name)}</b>: ${escapeHtml(r.output.slice(0, 220))}`)
       .join("\n\n");
     await sendTelegram(
-      `👥 <b>Team</b>\n\n${escapeHtml(report.synthesis.slice(0, 1700))}\n\n${lines}`.slice(0, 3900),
+      clipTelegramHtml(`👥 <b>Team</b>\n\n${escapeHtml(report.synthesis.slice(0, 1700))}\n\n${lines}`),
       chatId
     );
   } catch (err) {
@@ -1748,13 +1749,13 @@ async function cmdBrief(chatId: string): Promise<void> {
       })
       .catch(() => null);
     if (cached?.content) {
-      await sendTelegram(cached.content.slice(0, 3900), chatId);
+      await sendTelegram(clipTelegramHtml(cached.content), chatId);
       return;
     }
     // Cron hasn't run yet (or cache miss) — compose fresh, same builder.
     const { buildMorningBrief } = await import("@/lib/services/morning-brief");
     const brief = await buildMorningBrief();
-    await sendTelegram(brief.text.slice(0, 3900), chatId);
+    await sendTelegram(clipTelegramHtml(brief.text), chatId);
   } catch (err) {
     await sendTelegram(`⚠️ Brief failed: ${await safeErrorText(err)}`, chatId);
   }
@@ -2179,7 +2180,7 @@ async function igRead<T>(
     await sendTelegram(`⚠️ IG ${label} read failed: ${escapeHtml(err)}`, chatId);
     return;
   }
-  await sendTelegram(render((res as { data: T }).data).slice(0, 3900), chatId);
+  await sendTelegram(clipTelegramHtml(render((res as { data: T }).data)), chatId);
 }
 
 async function cmdIg(args: string[], chatId: string): Promise<void> {
