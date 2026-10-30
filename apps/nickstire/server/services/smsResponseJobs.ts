@@ -244,6 +244,18 @@ export async function ensureResponseObligation(input: EnqueueInput): Promise<Obl
  */
 export async function answerResponseObligation(handle: ObligationHandle, input: EnqueueInput): Promise<void> {
   if (!handle.durable || handle.jobId === null) {
+    const { isHiringSms, recordHiringSms } = await import("./smsHiringIntake");
+    if (isHiringSms(input.body)) {
+      // No job row to retry from: a failed save is logged, and the text itself
+      // is already in the conversation thread for the admin inbox.
+      await recordHiringSms({ phone: input.phone, body: input.body }).catch((err) =>
+        log.error("text application not saved (no job to retry)", {
+          error: err instanceof Error ? err.message : String(err),
+          errorId: "SMS_HIRING_SAVE_FAILED",
+        }),
+      );
+      return;
+    }
     const { orchestrateSms } = await import("./smsOrchestrator");
     await orchestrateSms({
       type: "inbound_sms",
@@ -338,6 +350,14 @@ async function setJobStatus(
  */
 export async function runResponseJob(job: ResponseJob): Promise<void> {
   try {
+    // Text-to-apply token: save the application, alert the owner, send no
+    // reply. A failed save throws into the retry below (smsHiringIntake.ts).
+    const { isHiringSms, recordHiringSms } = await import("./smsHiringIntake");
+    if (isHiringSms(job.body)) {
+      await recordHiringSms({ phone: job.customerPhone, body: job.body });
+      await setJobStatus(job.id, "suppressed");
+      return;
+    }
     const { orchestrateSms } = await import("./smsOrchestrator");
     const result = await orchestrateSms({
       type: "inbound_sms",

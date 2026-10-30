@@ -221,6 +221,29 @@ export const JOB_OPENINGS: JobOpening[] = [
   },
 ];
 
+/**
+ * Text-to-apply. The careers pages' text button prefills a body that STARTS
+ * with this exact token; the inbound SMS path (server/services/smsHiringIntake.ts)
+ * routes on the token alone, never on a guess about intent, so a customer
+ * text that mentions a job or hiring keeps the normal customer flow.
+ */
+export const HIRING_SMS_TOKEN = "JOB-APPLY";
+
+/** Prefilled text body, e.g. "JOB-APPLY Automotive Technician. My name is ". */
+function hiringSmsBody(title?: string): string {
+  return title ? `${HIRING_SMS_TOKEN} ${title}. My name is ` : `${HIRING_SMS_TOKEN} My name is `;
+}
+
+/** sms: link to the shop line; the `?&body=` form works on iOS and Android. */
+export function hiringSmsHref(phoneRaw: string, title?: string): string {
+  return `sms:${phoneRaw}?&body=${encodeURIComponent(hiringSmsBody(title))}`;
+}
+
+/** True when an inbound body opens with the token as its own word. */
+export function startsWithHiringToken(body: string): boolean {
+  return new RegExp(`^\\s*${HIRING_SMS_TOKEN}(?![\\w-])`, "i").test(body);
+}
+
 /** Canonical leaf path for an opening. The ONLY URL its JobPosting may claim. */
 export function jobOpeningPath(slug: string): string {
   return `/careers/${slug}`;

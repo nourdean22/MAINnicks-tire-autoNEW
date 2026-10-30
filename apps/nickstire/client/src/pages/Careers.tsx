@@ -8,7 +8,7 @@ import { useEffect, useId, useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
-import { openJobOpenings, jobOpeningPath, formatHourlyPayRange } from "@shared/jobOpenings";
+import { openJobOpenings, jobOpeningPath, formatHourlyPayRange, hiringSmsHref } from "@shared/jobOpenings";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { getRouteByPath } from "@shared/routes";
@@ -33,6 +33,7 @@ import {
   CheckCircle2,
   ArrowRight,
   Phone,
+  MessageSquare,
   Mail,
   Star,
   Send,
@@ -719,6 +720,14 @@ export default function Careers() {
               >
                 <Phone className="w-4 h-4" />
                 Call to Inquire
+              </a>
+              <a
+                href={hiringSmsHref(BUSINESS.phone.raw)}
+                onClick={() => trackEvent("careers_text_apply_click", { position: "any", surface: "hero" })}
+                className="inline-flex items-center gap-2 stagger-in border border-border/40 text-foreground/80 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:border-primary/40 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Text Us to Apply
               </a>
             </div>
             <a

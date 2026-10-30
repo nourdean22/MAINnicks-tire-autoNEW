@@ -12,8 +12,8 @@
  * applying ever routes somewhere else, that flag has to change with it.
  */
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, CheckCircle2, Clock, DollarSign, Gift, MapPin, Phone } from "lucide-react";
-import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { ArrowLeft, CheckCircle2, Clock, DollarSign, Gift, MapPin, MessageSquare, Phone } from "lucide-react";
+import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { BUSINESS, SITE_URL } from "@shared/business";
@@ -21,6 +21,7 @@ import { getRouteByPath } from "@shared/routes";
 import {
   buildJobPostingSchema,
   formatHourlyPayRange,
+  hiringSmsHref,
   jobOpeningBySlug,
   jobOpeningPath,
 } from "@shared/jobOpenings";
@@ -124,6 +125,13 @@ export default function JobPage() {
               Apply in 2 minutes
             </a>
             <a
+              href={hiringSmsHref(BUSINESS.phone.raw, job.title)}
+              onClick={() => trackEvent("careers_text_apply_click", { position: job.title, surface: "job_page" })}
+              className="inline-flex items-center gap-2 border border-border/40 text-foreground/80 px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px]"
+            >
+              <MessageSquare className="w-4 h-4" /> Text us to apply
+            </a>
+            <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("careers-job-page")}
               className="inline-flex items-center gap-2 border border-border/40 text-foreground/80 px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px]"
@@ -131,6 +139,9 @@ export default function JobPage() {
               <Phone className="w-4 h-4" /> Call {BUSINESS.phone.display}
             </a>
           </div>
+          <p className="mt-3 text-[13px] text-foreground/50">
+            Texting opens a message to the shop with the job filled in. Add your name and send.
+          </p>
         </div>
       </section>
 

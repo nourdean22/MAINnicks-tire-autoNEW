@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Text-to-apply (job 2026-10-30-tech-hiring-page W1). What a visitor sees: /careers hero gains a third button 'Text Us to Apply'; each /careers/<slug> job page gains 'Text us to apply' beside Call, plus one line: 'Texting opens a message to the shop with the job filled in. Add your name and send.' Tapping opens the phone's texts to the shop line (BUSINESS.phone.raw) prefilled 'JOB-APPLY <role>. My name is '. What Nour sees: the text lands in the admin SMS inbox as before, a candidates row with source 'sms' appears in Leads > Candidates, and the existing candidate owner alert (store line to his mobile, CANDIDATE_OWNER_SMS switch) fires. The customer reply bot does not answer that text. Any text without the leading token, including 'are you hiring' or 'job openings for a tech', keeps the normal customer flow (server/smsHiringIntake.test.ts controls). Live screenshots at 390x844 and 1440x900 follow after deploy."
+    }
+  }
+}
