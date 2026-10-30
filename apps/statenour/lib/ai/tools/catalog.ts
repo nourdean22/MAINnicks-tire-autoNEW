@@ -98,6 +98,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // capability registry strips it in read mode and it needs a receipt.
   { name: "getMissionDetail",             category: "personal_read",  battle: true,  cost: "free" },
   { name: "getTasks",                     category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getTaskDetails",               category: "personal_read",  battle: true,  cost: "free" },
   // v10.0.515 · #12 Calendar bidirectional
   { name: "getTodaySchedule",             category: "personal_read",  battle: true,  cost: "free" },
   // 2026-09-02 deep-research audit (C-5) · RECLASSIFIED from

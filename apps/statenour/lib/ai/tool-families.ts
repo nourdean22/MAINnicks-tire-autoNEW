@@ -74,6 +74,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getCommitments: { family: "personal-read", description: "Active commitments (active/in_progress)" },
   getAgendaItems: { family: "personal-read", description: "Active agenda items - witnessed commitments, intentions, contradictions, neglect alerts (JIT complement to the gated inline agenda section)" },
   getTasks: { family: "personal-read", description: "INBOX/READY/DOING tasks with mission context" },
+  getTaskDetails: { family: "personal-read", description: "One task in full: notes, photo captions, parent, subtasks" },
   getMissions: { family: "personal-read", description: "ACTIVE missions sorted by priority" },
   getMissionDetail: { family: "personal-read", description: "One mission with task progress, next actions, deadline health" },
   getHabitStreaks: { family: "personal-read", description: "Habit completion summary (last 7 days)" },

@@ -41,7 +41,8 @@ import { stripCitations } from "@/lib/ai/memory-citations";
 export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // Subject-prefix forms ("I've added the tasks") — verb is buried
   // and the object may not follow within 40 chars.
-  { regex: /\bI'?ve?\s+added\b/i, verb: "I've added", mapsToTool: "createTask" },
+  // 2026-10-30 (W3): "I've added that to the notes" is true after updateTask(appendNotes).
+  { regex: /\bI'?ve?\s+added\b/i, verb: "I've added", mapsToTool: "createTask|updateTask|addTasksToProject" },
   // Object-leads forms ("tasks added", "task created") — past-tense
   // verb after a noun-phrase, no subject. Common in terse summaries.
   { regex: /\btask(?:s)?\s+(?:added|created)\b/i, verb: "task(s) added", mapsToTool: "createTask" },
