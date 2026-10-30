@@ -1,0 +1,359 @@
+{
+  "pack": "munger-maxims",
+  "source_credit": "Charlie Munger: Poor Charlie's Almanack and his talks. Plain one-line maxims in our own words.",
+  "version": "2026-10-29",
+  "entries": [
+    {
+      "text": "Before you start a plan, ask what would make it fail. Then avoid those things.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_000",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "You win more by avoiding dumb mistakes than by trying to be a genius.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_001",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Look at each problem from several angles. One way of thinking misses a lot.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_002",
+      "tags": [
+        "decisions",
+        "learning"
+      ]
+    },
+    {
+      "text": "Once you own something good, be patient. Most gains come from waiting.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_003",
+      "tags": [
+        "money",
+        "timing"
+      ]
+    },
+    {
+      "text": "Pick one simple idea that works and use it every single day.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_004",
+      "tags": [
+        "focus"
+      ]
+    },
+    {
+      "text": "Try to learn one new thing each day. Small daily gains add up over years.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_005",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Learn the common ways people misjudge things, you included. Ignoring them leads to surprises.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_006",
+      "tags": [
+        "learning",
+        "decisions"
+      ]
+    },
+    {
+      "text": "To change what people do, change what they get paid or praised for.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_007",
+      "tags": [
+        "people",
+        "hiring"
+      ]
+    },
+    {
+      "text": "Avoid the games you do not understand. Play the ones where you know more.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_008",
+      "tags": [
+        "decisions",
+        "focus"
+      ]
+    },
+    {
+      "text": "Do not envy a rival. It costs you and gives you nothing back.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_009",
+      "tags": [
+        "health",
+        "conflict"
+      ]
+    },
+    {
+      "text": "If a deal is too hard to understand, say no and move on.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_010",
+      "tags": [
+        "decisions",
+        "money"
+      ]
+    },
+    {
+      "text": "Know the limits of what you know. Ask for help past that line.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_011",
+      "tags": [
+        "learning",
+        "decisions"
+      ]
+    },
+    {
+      "text": "Only sell what you would buy. Work with people you respect and enjoy.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_012",
+      "tags": [
+        "customers",
+        "people"
+      ]
+    },
+    {
+      "text": "Teach others what you know. Helping people learn more is worth your time.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_013",
+      "tags": [
+        "people",
+        "learning"
+      ]
+    },
+    {
+      "text": "When you notice you are copying others, stop. Ask if you would do it alone.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_014",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Do not lock in a choice out loud too early. You will defend it too long.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_015",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "People return favors and slights. Be kind first, and watch for small gifts in deals.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_016",
+      "tags": [
+        "people",
+        "conflict"
+      ]
+    },
+    {
+      "text": "Be extra careful judging people you like. Liking someone hides their faults.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_017",
+      "tags": [
+        "people",
+        "hiring"
+      ]
+    },
+    {
+      "text": "When something feels urgent only because it is scarce, slow down and check its real value.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_018",
+      "tags": [
+        "decisions",
+        "money"
+      ]
+    },
+    {
+      "text": "People link a feeling to the place they felt it. Give bad news somewhere else.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_019",
+      "tags": [
+        "customers",
+        "people"
+      ]
+    },
+    {
+      "text": "Do not follow advice just because of who gave it. Check whether it is right.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_020",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "When many pressures push you toward yes at once, slow down before you agree.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_021",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "A bad deal stays bad at any price. Walk away from it.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_022",
+      "tags": [
+        "money",
+        "decisions"
+      ]
+    },
+    {
+      "text": "Use a checklist for hard jobs. Do not trust memory for the simple steps.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_023",
+      "tags": [
+        "focus"
+      ]
+    },
+    {
+      "text": "A great thing at a fair price beats an average thing at a cheap price.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_024",
+      "tags": [
+        "money",
+        "decisions"
+      ]
+    },
+    {
+      "text": "Spend less than you earn and keep learning. Stay away from toxic people.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_025",
+      "tags": [
+        "money",
+        "health"
+      ]
+    },
+    {
+      "text": "If you defend an idea because it feels like part of you, recheck it.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_026",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Going against the crowd only pays if you are right. Do the homework first.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_027",
+      "tags": [
+        "decisions",
+        "learning"
+      ]
+    },
+    {
+      "text": "Expect some losses. Keep them small and let your wins grow bigger.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_028",
+      "tags": [
+        "money"
+      ]
+    },
+    {
+      "text": "Before you act, ask what happens next, and then what happens after that.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_029",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Write down each mistake and what caused it so you do not repeat it.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_030",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Read a little every day. Over years, what you know grows a lot.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_031",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Learn from many fields, like psychology, money and history. Problems rarely fit just one.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_032",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Deciding where each dollar goes is your most important job. Treat it that way.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_033",
+      "tags": [
+        "money",
+        "decisions"
+      ]
+    },
+    {
+      "text": "Learn basic bookkeeping. It shows you how your business is really doing.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_034",
+      "tags": [
+        "money",
+        "learning"
+      ]
+    },
+    {
+      "text": "You will make many mistakes. Learn from them and keep going.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_035",
+      "tags": [
+        "health",
+        "learning"
+      ]
+    },
+    {
+      "text": "Steady wealth comes from good choices made slowly. Save part of what you earn, every time.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_036",
+      "tags": [
+        "money"
+      ]
+    },
+    {
+      "text": "Keep your costs under your income and invest the difference. Learn what your work needs.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_037",
+      "tags": [
+        "money",
+        "learning"
+      ]
+    },
+    {
+      "text": "List the sure ways to fail at a goal. Then make a rule against each one.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_038",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Always do what you promised. Being unreliable ruins everything else you do well.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_039",
+      "tags": [
+        "reputation",
+        "people"
+      ]
+    },
+    {
+      "text": "When something hurts you, turn it into work or let it go. Grudges get nothing done.",
+      "source": "Munger",
+      "ref": "wisdom_charlie-munger_040",
+      "tags": [
+        "health",
+        "conflict"
+      ]
+    }
+  ]
+}
