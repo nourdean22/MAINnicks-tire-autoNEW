@@ -411,7 +411,7 @@ function renderTemporal(ctx: NickPrimeContext): string {
  * Missions + Active Goals + their progress. Closes the missions
  * coverage gap from v1's prompt.
  */
-function renderWhyBlock(ctx: NickPrimeContext): string {
+export function renderWhyBlock(ctx: NickPrimeContext): string {
   const lines: string[] = [];
   const missions = ctx.activeMissions ?? [];
   const goals = ctx.activeGoals ?? [];
@@ -437,10 +437,14 @@ function renderWhyBlock(ctx: NickPrimeContext): string {
     for (const g of goals) {
       const horizon = g.horizon ? `[${safe(g.horizon, 20)}] ` : "";
       const value = `${Math.round(g.currentValue * 10) / 10}/${g.targetValue}${safe(g.unit, 8)}`;
-      const dl =
-        g.daysToDeadline != null ? ` · ${g.daysToDeadline}d left` : "";
+      // goals-system W3 · the goal card's own label (a derived date says "(from horizon)"), and
+      // "no next step" when no open task is linked, so Nick can propose one. Unknown claims nothing.
+      const dl = g.paceLine
+        ? ` · ${safe(g.paceLine, 80)}`
+        : g.daysToDeadline != null ? ` · ${g.daysToDeadline}d left` : "";
+      const next = g.openTasks === 0 ? " · no next step" : "";
       lines.push(
-        `- ${horizon}${safe(g.title, 100)} (${safe(g.domain, 30)}) · ${g.progress}% · ${value}${dl}`,
+        `- ${horizon}${safe(g.title, 100)} (${safe(g.domain, 30)}) · ${g.progress}% · ${value}${dl}${next}`,
       );
     }
   }

@@ -23,6 +23,7 @@
  * (see the marked hook below) so the 6 scattered brains converge into one loop.
  */
 
+import { linkJournalTasksToGoal, unlinkJournalTasksFromGoal } from "@/lib/brain/journal-task-link";
 import { prisma } from "@/lib/prisma";
 import { admitMemory } from "@/lib/brain/memory-admission";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
@@ -155,7 +156,7 @@ async function resolveCreditGoal(
 /** Persist the grounding columns to the correct silo table. entry_type is a
  *  real column on brain_dumps only; the other silos keep their own type-ish
  *  columns (category/context) and just get the link + enrichedAt. */
-async function writeGrounding(
+export async function writeGrounding(
   silo: JournalSilo,
   id: string,
   g: Grounding,
@@ -171,6 +172,8 @@ async function writeGrounding(
   switch (silo) {
     case "brain_dump":
       await prisma.brainDump.update({ where: { id }, data: { ...linkData, entryType: g.entryType } });
+      // goals-system W3b · a trusted goal link carries the entry's own tasks with it.
+      if (g.goalId && status === "auto") await linkJournalTasksToGoal(id, g.goalId);
       break;
     case "reflection":
       await prisma.reflection.update({ where: { id }, data: linkData });
@@ -627,7 +630,14 @@ export async function confirmJournalLink(
   const data = accept
     ? { linkStatus: "confirmed" }
     : { linkStatus: "rejected", goalId: null, missionId: null };
-  if (silo === "brain_dump") await prisma.brainDump.update({ where: { id }, data });
+  if (silo === "brain_dump") {
+    await prisma.brainDump.update({ where: { id }, data });
+    // goals-system W3b · the entry's tasks follow Nour's decision on the goal link.
+    if (row.goalId) {
+      if (accept) await linkJournalTasksToGoal(id, row.goalId);
+      else await unlinkJournalTasksFromGoal(id, row.goalId);
+    }
+  }
   else if (silo === "reflection") await prisma.reflection.update({ where: { id }, data });
   else if (silo === "situation_log") await prisma.situationLog.update({ where: { id }, data });
   else await prisma.decisionReplay.update({ where: { id }, data });

@@ -17,6 +17,8 @@
  * reflects.
  */
 
+import { goalPaceView } from "@/lib/brain/goal-pace";
+import { NEXT_STEP_STATUSES } from "@/lib/services/goal-next-step";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AI_GENERATION_SUCCESS_STATUSES as GENERATION_SUCCESS } from "@/lib/ai/generation-status";
@@ -85,6 +87,10 @@ export interface GoalSummary {
   progress: number; // 0-100
   horizon: string | null;
   daysToDeadline: number | null;
+  /** The goal card's date/pace line (lib/brain/goal-pace.ts goalPaceView); a derived date says "(from horizon)". */
+  paceLine?: string | null;
+  /** Open linked tasks (INBOX/READY/DOING); null = not read. 0 = "no next step". */
+  openTasks?: number | null;
 }
 
 /** v9.1.5 · Recent BrainDump summary — what Nour was thinking lately. */
@@ -486,9 +492,16 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           progress: true,
           horizon: true,
           deadline: true,
+          createdAt: true,
+          // goals-system W3 · open linked tasks ("no next step" when 0) and the latest horizon_set.
+          _count: { select: { tasks: { where: { deletedAt: null, status: { in: [...NEXT_STEP_STATUSES] } } } } },
+          events: { where: { kind: "horizon_set" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
         },
       })
-      .catch(() => [] as Array<GoalRow>),
+      .catch((err): Array<GoalRow> => {
+        console.warn("[command-center-state] active goals read failed:", err instanceof Error ? err.message : err);
+        return [];
+      }),
     // v9.1.5 · recent brain dumps — what Nour was actively chewing on.
     prisma.brainDump
       .findMany({
@@ -1059,9 +1072,29 @@ interface GoalRow {
   progress: number;
   horizon: string | null;
   deadline: Date | null;
+  createdAt?: Date;
+  _count?: { tasks: number };
+  events?: { createdAt: Date }[];
 }
 
-function toGoalSummary(g: GoalRow): GoalSummary {
+/** `opts` is an object, so `rows.map(toGoalSummary)` can never pass the array index as the clock. */
+export function toGoalSummary(g: GoalRow, opts?: { now?: number } | number): GoalSummary {
+  const now = (typeof opts === "object" && opts?.now) || Date.now();
+  const view = g.createdAt
+    ? goalPaceView(
+        {
+          currentValue: g.currentValue,
+          targetValue: g.targetValue,
+          unit: g.unit,
+          status: "active",
+          deadline: g.deadline ? g.deadline.toISOString() : null,
+          horizon: g.horizon,
+          createdAt: g.createdAt.toISOString(),
+          horizonSetAt: g.events?.[0]?.createdAt.toISOString() ?? null,
+        },
+        now,
+      )
+    : null;
   return {
     id: g.id,
     title: g.title,
@@ -1075,6 +1108,8 @@ function toGoalSummary(g: GoalRow): GoalSummary {
     daysToDeadline: g.deadline
       ? Math.max(0, Math.round((g.deadline.getTime() - Date.now()) / 86_400_000))
       : null,
+    paceLine: view ? (view.kind === "note" ? view.text : view.label) : null,
+    openTasks: g._count ? g._count.tasks : null,
   };
 }
 

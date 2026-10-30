@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   task: {
     findMany: vi.fn(),
   },
+  brainDump: {
+    findMany: vi.fn(),
+  },
   taskEvent: {
     findMany: vi.fn(),
   },
@@ -26,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
     lifeGoal: mocks.lifeGoal,
     task: mocks.task,
     taskEvent: mocks.taskEvent,
+    brainDump: mocks.brainDump,
   },
 }));
 
@@ -143,6 +147,55 @@ describe("Goals Service", () => {
         oldStatus: "active",
         newStatus: "achieved",
       }));
+    });
+  });
+
+  describe("getGoals · suggestedStep from the journal (2026-10-30 goals-system W3)", () => {
+    it("offers a journal action item only to a goal with no open task, never one already a task", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([
+        { id: "g1", title: "T", domain: "business", status: "active", currentValue: 0, targetValue: 0, progress: 0, events: [] },
+        { id: "g2", title: "U", domain: "business", status: "active", currentValue: 0, targetValue: 0, progress: 0, events: [] },
+      ]);
+      // g2 has an open task, so it gets no suggestion and its journal is not read
+      mocks.task.findMany
+        .mockResolvedValueOnce([{ id: "t1", title: "Open one", goalId: "g2", status: "READY", loopKind: null, actualMinutes: 0, priority: null, dueDate: null }])
+        .mockResolvedValueOnce([{ title: "Book the dyno slot" }]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.brainDump.findMany.mockResolvedValue([
+        { id: "d1", goalId: "g1", createdAt: new Date("2026-10-29T12:00:00Z"), extractedItems: JSON.stringify({ actionItems: [{ title: "Book the dyno slot" }, { title: "Call the supplier" }] }) },
+      ]);
+      const result = await getGoals();
+      expect(result.find((g) => g.id === "g1")?.suggestedStep).toEqual({ title: "Call the supplier", dumpId: "d1" });
+      expect(result.find((g) => g.id === "g2")?.suggestedStep).toBeNull();
+      const where = mocks.brainDump.findMany.mock.calls[0][0].where;
+      expect(where.goalId).toEqual({ in: ["g1"] });
+      expect(where.linkStatus).toEqual({ in: ["auto", "confirmed"] });
+      // a task Nour threw away still counts as "already a task": no deletedAt filter (W3 review P2)
+      expect(mocks.task.findMany.mock.calls[1][0].where).not.toHaveProperty("deletedAt");
+    });
+
+    it("a WAITING task is a next step (GTD waiting-for): no 'no next step', no suggestion", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([
+        { id: "g1", title: "T", domain: "business", status: "active", currentValue: 0, targetValue: 0, progress: 0, events: [] },
+      ]);
+      mocks.task.findMany.mockResolvedValueOnce([{ id: "t1", title: "Waiting on the quote", goalId: "g1", status: "WAITING", loopKind: null, actualMinutes: 0, priority: null, dueDate: null }]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.brainDump.findMany.mockResolvedValue([]);
+      const result = await getGoals();
+      expect(result[0].linkedNextStepCount).toBe(1);
+      expect(result[0].suggestedStep).toBeNull();
+      expect(mocks.brainDump.findMany).not.toHaveBeenCalled();
+    });
+
+    it("a failed journal read offers nothing and never breaks the goals list", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([
+        { id: "g1", title: "T", domain: "business", status: "active", currentValue: 0, targetValue: 0, progress: 0, events: [] },
+      ]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.brainDump.findMany.mockRejectedValue(new Error("neon down"));
+      const result = await getGoals();
+      expect(result[0].suggestedStep).toBeNull();
     });
   });
 
