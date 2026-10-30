@@ -209,10 +209,12 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
     "We start with a free check on the brakes and give you the price before any work. Bring it by and we'll take a look.",
     "Free check first on brakes. Bring it in and we'll inspect them and quote you before any work."
   ],
+  // W3 (2026-10-30): answers the alignment question the customer asked. The old
+  // copy pitched a steering and suspension check first (3 pushbacks in 90 days).
   price_question_alignment: [
-    "If the car pulls, shakes, or the tires wear uneven, bring it by — we check the alignment plus steering and suspension first, then give you the price before any work.",
-    "Alignment starts with an inspection: we check steering, suspension and tire wear, then quote you before doing anything.",
-    "We'll check the alignment and what's behind it first, and you get the price before any work happens. Just pull up."
+    "Yes, we do alignments. Walk in Mon-Sat 8-6 or Sun 9-4, first come, first served, and you get the price before we start.",
+    "We do wheel alignments, no appointment needed. Pull up Mon-Sat 8-6 or Sun 9-4 and you get the price before any work.",
+    "Yes, we can do the alignment. Walk-ins welcome Mon-Sat 8-6, Sun 9-4, and you get the price before any work."
   ],
   price_question_diagnostic: [
     "Diagnostics start with a free check first. Bring it by and we'll scan it, look it over, and tell you what it needs before doing any work.",
@@ -236,6 +238,16 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
   ],
   // 2026-10-30 · built from shared/jobOpenings.ts; {shopPhone} is filled below.
   job_inquiry: [hiringSmsReply("{shopPhone}")],
+  // W3 (2026-10-30): "who is this" / "hello?" texts, and a bare answer to the
+  // forwarded-call menu question ("something else", "engine").
+  identity: [
+    "This is Nick's Tire & Auto, 17625 Euclid Ave in Cleveland. What can we help you with?",
+    "You've reached Nick's Tire & Auto on Euclid Ave. What can we help you with today?",
+  ],
+  menu_reply: [
+    "Got it. What's the car doing? A few words is plenty and the crew will take it from there.",
+    "Okay. What's going on with it? Tell us what the car is doing and we'll point you the right way.",
+  ],
 };
 
 export function getTemplateVariant(

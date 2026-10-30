@@ -174,11 +174,11 @@ describe("the preserved happy paths still answer deterministically", () => {
     });
   }
 
-  it("W2 (2026-10-30): alignment routes to price_alignment but has no auto-sent template until W3", () => {
+  it("W3 (2026-10-30): alignment routes to the alignment answer template (no inspection pitch)", () => {
     const d = routeInboundSms("do you do alignment", noCtx);
     expect(d.primary).toBe("price_alignment");
-    expect(d.catalogEvent).toBeNull();
-    expect(d.risk).toBe("human_assisted");
+    expect(d.catalogEvent).toBe("price_question_alignment");
+    expect(d.risk).toBe("deterministic");
   });
 
   it("word boundaries: 'sometimes it squeaks' does not route to hours", () => {
