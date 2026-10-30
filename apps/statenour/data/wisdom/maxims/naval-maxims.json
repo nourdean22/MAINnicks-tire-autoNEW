@@ -1,0 +1,363 @@
+{
+  "pack": "naval-maxims",
+  "source_credit": "Naval Ravikant: tweetstorms and The Almanack of Naval Ravikant (Eric Jorgenson, 2020). Plain one-line maxims in our own words.",
+  "version": "2026-10-29",
+  "entries": [
+    {
+      "text": "Build things that keep earning when you are away. Chasing status or quick cash wastes time.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_000",
+      "tags": [
+        "money",
+        "focus"
+      ]
+    },
+    {
+      "text": "Hourly pay alone will not make you rich. Own a piece of the business you build.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_001",
+      "tags": [
+        "money"
+      ]
+    },
+    {
+      "text": "Get paid for what you know and decide, not just for the hours you put in.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_002",
+      "tags": [
+        "money",
+        "learning"
+      ]
+    },
+    {
+      "text": "Find something people want but cannot easily get yet. Then offer it to many of them.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_003",
+      "tags": [
+        "customers",
+        "money"
+      ]
+    },
+    {
+      "text": "Your hours run out. Set up software and videos that keep working when you are away.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_004",
+      "tags": [
+        "money",
+        "focus"
+      ]
+    },
+    {
+      "text": "Make a video, post or simple tool once. It can bring in customers for years.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_005",
+      "tags": [
+        "customers",
+        "money"
+      ]
+    },
+    {
+      "text": "Learn what truly interests you. Skills anyone can be taught make you easy to replace.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_006",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "The best skills are learned by doing the work, not from a class. Keep doing it.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_007",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Work with people you can stick with for years. Small gains add up over time.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_008",
+      "tags": [
+        "people",
+        "money"
+      ]
+    },
+    {
+      "text": "Picture the payoff of waiting clearly. Then waiting takes much less willpower.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_009",
+      "tags": [
+        "decisions",
+        "health"
+      ]
+    },
+    {
+      "text": "Pick partners who are smart, driven and honest. If honesty is missing, walk away.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_010",
+      "tags": [
+        "people",
+        "hiring"
+      ]
+    },
+    {
+      "text": "Never cheat to win. Even if it works, you become someone who cheats.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_011",
+      "tags": [
+        "reputation",
+        "decisions"
+      ]
+    },
+    {
+      "text": "Put your own name on your work and own the results. People trust and reward that.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_012",
+      "tags": [
+        "reputation"
+      ]
+    },
+    {
+      "text": "Stay honest year after year. A good name lets you take bigger chances later.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_013",
+      "tags": [
+        "reputation"
+      ]
+    },
+    {
+      "text": "Make calls you can stand behind and own the outcome. Good judgment is your best tool.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_014",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Most problems come from seeing things wrong. Take time to check how things really work.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_015",
+      "tags": [
+        "learning",
+        "decisions"
+      ]
+    },
+    {
+      "text": "If you cannot write it down simply, you do not understand it yet. Write it out.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_016",
+      "tags": [
+        "learning",
+        "focus"
+      ]
+    },
+    {
+      "text": "Skip petty fights. What you build matters more than who you beat in an argument.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_017",
+      "tags": [
+        "conflict",
+        "focus"
+      ]
+    },
+    {
+      "text": "Calm and good mood can be practiced. Work on them daily like any other skill.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_018",
+      "tags": [
+        "health"
+      ]
+    },
+    {
+      "text": "Every want you chase brings some worry. Only chase the few that are worth it.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_019",
+      "tags": [
+        "health",
+        "focus"
+      ]
+    },
+    {
+      "text": "Where you live, who you are with and your work matter most. Choose them with care.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_020",
+      "tags": [
+        "decisions"
+      ]
+    },
+    {
+      "text": "Read what you enjoy. If a book bores you, drop it and pick another.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_021",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Build a habit of reading for fun. You can carry almost any book on your phone.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_022",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Do the task instead of watching videos about it. Reading beats listening when time is short.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_023",
+      "tags": [
+        "learning",
+        "focus"
+      ]
+    },
+    {
+      "text": "Choose who you work with before you choose the work. The right people make it work.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_024",
+      "tags": [
+        "people",
+        "hiring"
+      ]
+    },
+    {
+      "text": "If you would not work with someone for years, do not start with them today.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_025",
+      "tags": [
+        "people",
+        "hiring"
+      ]
+    },
+    {
+      "text": "Do not copy rivals. Serve people your own way, since no one can copy that.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_026",
+      "tags": [
+        "customers",
+        "reputation"
+      ]
+    },
+    {
+      "text": "Skip business fads. Learn how people think, how money works, and basic math instead.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_027",
+      "tags": [
+        "learning"
+      ]
+    },
+    {
+      "text": "Learn to sell and learn to make things. Doing both makes you very hard to beat.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_028",
+      "tags": [
+        "learning",
+        "customers"
+      ]
+    },
+    {
+      "text": "Use your rare skills, own the result, and use tools that multiply your effort.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_029",
+      "tags": [
+        "money",
+        "learning"
+      ]
+    },
+    {
+      "text": "Turn what you do best into a service people can buy again and again.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_030",
+      "tags": [
+        "customers",
+        "money"
+      ]
+    },
+    {
+      "text": "Be really good at something and be yourself. People pay for that over time.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_031",
+      "tags": [
+        "reputation",
+        "money"
+      ]
+    },
+    {
+      "text": "Build something that can grow without you. Over time, your good calls build your name.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_032",
+      "tags": [
+        "reputation",
+        "money"
+      ]
+    },
+    {
+      "text": "Stop checking the numbers all day. Keep doing good work and the results will follow.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_033",
+      "tags": [
+        "focus",
+        "health"
+      ]
+    },
+    {
+      "text": "Your relationships shape your happiness most. Choose the people around you with care.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_034",
+      "tags": [
+        "people",
+        "health"
+      ]
+    },
+    {
+      "text": "Set a value on your hour. Hand off or skip tasks worth less than that.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_035",
+      "tags": [
+        "focus",
+        "money"
+      ]
+    },
+    {
+      "text": "When you know you should do one thing but you are doing another, stop and switch.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_036",
+      "tags": [
+        "focus"
+      ]
+    },
+    {
+      "text": "Ignore hype and trends. Keep building the steady thing that gets better each year.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_037",
+      "tags": [
+        "focus",
+        "decisions"
+      ]
+    },
+    {
+      "text": "Most fights are about who looks important. Skip them and get back to real work.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_038",
+      "tags": [
+        "conflict",
+        "focus"
+      ]
+    },
+    {
+      "text": "No one else can make you healthy, rich or calm. Take charge of it yourself.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_039",
+      "tags": [
+        "health"
+      ]
+    },
+    {
+      "text": "Skip any plan that promises fast money. Someone else is usually the one getting rich.",
+      "source": "Naval",
+      "ref": "wisdom_naval-ravikant_040",
+      "tags": [
+        "money",
+        "decisions"
+      ]
+    }
+  ]
+}
