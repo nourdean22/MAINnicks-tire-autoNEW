@@ -14,7 +14,7 @@ type MutationOpts = { onSuccess: (res: { ok: boolean }, vars: { id: string }) =>
 
 const h = vi.hoisted(() => ({
   query: {} as { data: unknown; isFetching: boolean; isError: boolean; isPlaceholderData: boolean },
-  inputs: [] as Array<{ step: number; tags: string[] }>,
+  inputs: [] as Array<{ step: number; tags: string[]; require?: string }>,
   queryOpts: [] as Array<{ enabled: boolean }>,
   keep: vi.fn(),
   skip: vi.fn(),
@@ -53,10 +53,10 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: h.toastOk, error: h.toastErr } }));
 
-import { MaximLine, maximErrorText } from "@/components/home/maxim-line";
+import { DecisionMaxim, MaximLine, maximErrorText } from "@/components/wisdom/maxim-line";
 
 const ID = "greene-maxims:law_1";
-const MAXIM = { id: ID, text: "Let a big customer feel smart.", source: "Greene · 48 Laws", reason: "for today: customers", position: 3, total: 40 };
+const MAXIM = { id: ID, text: "Let a big customer feel smart.", source: "Greene · 48 Laws", topic: "customers", position: 3, total: 40 };
 const HEADLINE = "Send the Smith estimate follow-up";
 
 let root: Root;
@@ -109,7 +109,7 @@ describe("MaximLine", () => {
     const kept = button("Kept");
     expect(kept.getAttribute("aria-pressed")).toBe("true");
     expect(kept.disabled).toBe(true);
-    expect(h.toastOk).toHaveBeenCalledWith("Kept. Nick can use it in chat.");
+    expect(h.toastOk).toHaveBeenCalledWith("Maxim kept. Nick can use it in chat.");
   });
 
   it("a failed Keep leaves the button on Keep and says why in plain words", () => {
@@ -166,6 +166,34 @@ describe("MaximLine", () => {
       expect(button(name).className).toContain("min-h-[44px]");
       expect(button(name).className).toContain("min-w-[44px]");
     }
+  });
+});
+
+describe("DecisionMaxim (the decision page and the top pending approval)", () => {
+  function mountDecision(text: string, label: string) {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root.render(<DecisionMaxim text={text} label={label} />));
+  }
+
+  it("requires a decisions maxim, narrows by the text's own tags, and still sends no text", () => {
+    // No decision word in the text: only the surface can require "decisions".
+    mountDecision("Refund customer Mrs Smith", "for this approval");
+    expect(h.inputs[0]).toEqual({ step: 0, tags: ["conflict", "customers"], require: "decisions" });
+    expect(JSON.stringify(h.inputs)).not.toContain("Smith");
+    expect(h.queryOpts[0]!.enabled).toBe(true);
+  });
+
+  it("words the topic for its own surface, sits compact, and its verbs name the maxim", () => {
+    mountDecision("Lease the second bay", "for this decision");
+    expect(host.textContent).toContain("Greene · 48 Laws · for this decision: customers");
+    expect(host.querySelector("section")!.className).not.toContain("mt-10");
+    for (const name of ["Next maxim", "Keep maxim", "Skip maxim"]) expect(button(name).className).toContain("min-h-[44px]");
+    act(() => h.keepOpts.onSuccess({ ok: true }, { id: ID }));
+    expect(button("Maxim kept").getAttribute("aria-pressed")).toBe("true");
+    act(() => h.skipOpts.onSuccess({ ok: true }, { id: ID }));
+    expect(h.toastOk).toHaveBeenLastCalledWith("Maxim skipped for 30 days");
   });
 });
 

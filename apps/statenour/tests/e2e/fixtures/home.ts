@@ -156,12 +156,12 @@ export const HOME_REMEMBERS: inferRouterOutputs<AppRouter>["operator"]["nickReme
 };
 
 // A Demo maxim, shaped like operator.maxim's output. Fictional like every fixture string (v3-gate.test.ts);
-// the reason is the one the real pick gives for HOME_BRIEF's lead line ("...supplier quote" -> customers).
+// the topic is the one the real pick gives for HOME_BRIEF's lead line ("...supplier quote" -> customers).
 export const HOME_MAXIM: inferRouterOutputs<AppRouter>["operator"]["maxim"] = {
   id: "demo-maxims:1",
   text: "Demo maxim: call the demo customer back the same day.",
   source: "Demo Book",
-  reason: "for today: customers",
+  topic: "customers",
   position: 3,
   total: 40,
 };

@@ -12,6 +12,8 @@ import { createRoot, type Root } from "react-dom/client";
 
 const h = vi.hoisted(() => ({ autoFailed: false }));
 
+// The decisions maxim has its own tests (maxim-line, decision-maxim-pages); this page test reads the page's own controls.
+vi.mock("@/components/wisdom/maxim-line", () => ({ DecisionMaxim: () => null }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("tab=logs"),
   usePathname: () => "/system/actions",

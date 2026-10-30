@@ -34,6 +34,7 @@ import { ReadStateNote } from "@/components/ui/read-state-note";
 import { readState } from "@/lib/query-state";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { DecisionMaxim } from "@/components/wisdom/maxim-line";
 import {
   ComparisonMatrix,
   type MatrixCell,
@@ -677,6 +678,8 @@ export default function DecisionDetailPage() {
           )}
         </div>
       </section>
+      {/* One decisions maxim, last so loading it pushes nothing down; tags from this decision's own words only. */}
+      <DecisionMaxim text={[d.title, d.context].filter(Boolean).join(" ")} label="for this decision" />
     </StandardPage>
   );
 }

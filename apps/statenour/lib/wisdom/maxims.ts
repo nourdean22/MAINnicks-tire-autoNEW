@@ -85,16 +85,15 @@ export function etHourKey(at: Date): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}`;
 }
 
-/** "for today: customers": the maxim's first tag that today's line also carries. A cut headline read badly. */
-function reasonFor(maxim: Maxim, want: ReadonlySet<MaximTag>): string | null {
-  const tag = maxim.tags.find((t) => want.has(t as MaximTag));
-  return tag ? `for today: ${tag}` : null;
-}
 
 export interface MaximPick {
   maxim: Maxim;
-  /** Why this one, in a few words, only when today's line matched a tag. */
-  reason: string | null;
+  /**
+   * Why this one: the maxim's first tag the asked-for tags also carry, never the required tag (a decision page
+   * saying "for this decision: decisions" says nothing), or null. Each surface words it: "for today: customers"
+   * on Home, "for this approval: money" on an approval whose reason mentions an invoice.
+   */
+  topic: MaximTag | null;
   /** 1-based place in the candidate list and its size, so "Next" has an end it can say. */
   position: number;
   total: number;
@@ -105,21 +104,26 @@ export function pickMaxim(args: {
   skipped: ReadonlySet<string>;
   /** Tags read off today's top line on the client (tagsForText); empty means plain rotation. */
   tags?: readonly MaximTag[];
+  /** A tag every pick must carry (a decision surface requires "decisions"); `tags` then only narrow within it. */
+  require?: MaximTag;
   at: Date;
   /** How many times Next was tapped this visit. */
   step?: number;
 }): MaximPick | null {
   const open = args.pool.filter((m) => !args.skipped.has(m.id));
   if (open.length === 0) return null;
+  const req = args.require;
+  const allowed = req ? open.filter((m) => m.tags.includes(req)) : open;
+  if (allowed.length === 0) return null;
   const want: ReadonlySet<MaximTag> = new Set(args.tags ?? []);
-  const matched = want.size > 0 ? open.filter((m) => m.tags.some((t) => want.has(t as MaximTag))) : [];
-  const candidates = matched.length > 0 ? matched : open;
+  const matched = want.size > 0 ? allowed.filter((m) => m.tags.some((t) => want.has(t as MaximTag))) : [];
+  const candidates = matched.length > 0 ? matched : allowed;
   const base = stableIndex(etHourKey(args.at), candidates.length);
   const i = (base + Math.max(0, Math.floor(args.step ?? 0))) % candidates.length; // Next wraps past the end
   const maxim = candidates[i]!;
   return {
     maxim,
-    reason: matched.length > 0 ? reasonFor(maxim, want) : null,
+    topic: (maxim.tags.find((t) => t !== req && want.has(t as MaximTag)) as MaximTag | undefined) ?? null,
     position: i + 1,
     total: candidates.length,
   };

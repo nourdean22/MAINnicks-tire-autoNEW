@@ -8,6 +8,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
+// The decisions maxim has its own tests (maxim-line, decision-maxim-pages); this page test reads the page's own controls.
+vi.mock("@/components/wisdom/maxim-line", () => ({ DecisionMaxim: () => null }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(""), usePathname: () => "/system/actions", useRouter: () => ({ replace: () => {}, push: () => {} }) }));
 
 const stub = vi.hoisted(() => ({ review: {} as Record<string, unknown> }));

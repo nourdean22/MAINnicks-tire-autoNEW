@@ -92,25 +92,50 @@ describe("the pick", () => {
     expect(pick(1.9).maxim.id).toBe(pick(1).maxim.id);
   });
 
-  it("leans toward today's top line when a tag matches, and names the matched topic", () => {
+  it("leans toward today's top line when a tag matches, and names the matched topic (the tag, worded by each surface)", () => {
     const p = pickMaxim({ pool, skipped: none, tags: tagsOf("Send the Smith estimate follow-up"), at: NINE_PM })!;
     expect(p.maxim.tags).toContain("customers");
     expect(p.total).toBe(1);
-    expect(p.reason).toBe("for today: customers");
+    expect(p.topic).toBe("customers");
   });
 
   it("falls back to the plain rotation, with no reason, when nothing matches", () => {
     const p = pickMaxim({ pool, skipped: none, tags: tagsOf("Water the plants"), at: NINE_PM })!;
     expect(p.total).toBe(4);
-    expect(p.reason).toBeNull();
+    expect(p.topic).toBeNull();
   });
 
   it("the four fixed lead headlines in operator-brief.ts: only the decisions one fits a tag, the rest rotate", () => {
-    const fits = (headline: string) => pickMaxim({ pool: MAXIM_POOL, skipped: none, tags: tagsOf(headline), at: NINE_PM })!.reason;
-    expect(fits("Decisions are blocking the system")).toBe("for today: decisions");
+    const fits = (headline: string) => pickMaxim({ pool: MAXIM_POOL, skipped: none, tags: tagsOf(headline), at: NINE_PM })!.topic;
+    expect(fits("Decisions are blocking the system")).toBe("decisions");
     expect(fits("Finish what's in motion")).toBeNull();
     expect(fits("Resume the open loop")).toBeNull();
     expect(fits("Inbox needs triage")).toBeNull();
+  });
+
+  it("a required tag is a filter, not one more option: every pick carries it, and text tags only narrow", () => {
+    for (let step = 0; step < 4; step++) {
+      const p = pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM, step })!;
+      expect(p.maxim.tags).toContain("decisions");
+    }
+    // No decision entry also carries "customers": the whole decisions pool, and no topic to name (the page
+    // already says it is a decision; "for this decision: decisions" says nothing).
+    expect(pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM })!.topic).toBeNull();
+    // Text that itself says "approve" asks for decisions too; the topic still never repeats the required tag.
+    expect(pickMaxim({ pool, skipped: none, tags: ["decisions", "health"], require: "decisions", at: NINE_PM })!.topic).toBe("health");
+    expect(pickMaxim({ pool, skipped: none, tags: ["decisions"], require: "decisions", at: NINE_PM })!.topic).toBeNull();
+    // A text tag the decision entry also carries narrows to it and names it.
+    const narrowed = pickMaxim({ pool, skipped: none, tags: ["health"], require: "decisions", at: NINE_PM })!;
+    expect(narrowed.maxim.id).toBe("a:2");
+    expect(narrowed.topic).toBe("health");
+  });
+
+  it("the real pool: every decision-surface pick is a decisions maxim, whatever the text says", () => {
+    for (const tags of [["customers"], ["conflict", "customers"], ["money"], []] as MaximTag[][]) {
+      for (let step = 0; step < 6; step++) {
+        expect(pickMaxim({ pool: MAXIM_POOL, skipped: none, tags, require: "decisions", at: NINE_PM, step })!.maxim.tags).toContain("decisions");
+      }
+    }
   });
 
   it("never shows a skipped maxim, and has nothing to show when all are skipped", () => {

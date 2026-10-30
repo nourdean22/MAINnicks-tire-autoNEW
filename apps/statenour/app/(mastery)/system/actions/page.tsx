@@ -42,6 +42,7 @@ import { countLiveDecisions } from "@/lib/automation/live-decisions";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 import { approveTone } from "./approve-tone";
 import { toast } from "sonner";
+import { DecisionMaxim } from "@/components/wisdom/maxim-line";
 
 interface RuleRow {
   ruleName: string;
@@ -544,6 +545,8 @@ function ActionsPageInner() {
                   </div>
                 );
               })}
+              {/* One decisions maxim after the cards, so loading it moves no Approve or Reject; tags from the top approval's reason. */}
+              <DecisionMaxim text={approvals[0]?.reason ?? ""} label="for this approval" />
             </div>
           )}
 
