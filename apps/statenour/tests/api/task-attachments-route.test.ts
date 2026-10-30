@@ -68,12 +68,13 @@ describe("GET /api/tasks/[id]/attachments/[attachmentId]", () => {
     expect(svc.readTaskAttachmentImage).not.toHaveBeenCalled();
   });
 
-  it("serves the bytes with their mime, a private immutable cache and a sha256 ETag", async () => {
+  it("serves the bytes with their mime, revalidated on every view, with a sha256 ETag", async () => {
     svc.readTaskAttachmentImage.mockResolvedValue({ data: Buffer.from([1, 2, 3]), mimeType: "image/webp", sha256: "abc" });
     const res = await image();
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/webp");
-    expect(res.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    // Never a long-lived cache: a deleted photo or a signed-out device must stop showing it.
+    expect(res.headers.get("cache-control")).toBe("private, no-cache");
     expect(res.headers.get("etag")).toBe('"abc"');
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([1, 2, 3]);

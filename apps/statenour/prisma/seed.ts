@@ -27,6 +27,8 @@ async function main() {
 
   await seedSources(prisma);
   await prisma.taskEvent.deleteMany();
+  // task_attachments references Task with RESTRICT, like task_events.
+  await prisma.taskAttachment.deleteMany();
   await prisma.task.deleteMany();
   await prisma.personalDailyLog.deleteMany();
   await prisma.mission.deleteMany();

@@ -10,6 +10,12 @@ const m = vi.hoisted(() => ({
   resolveInboxMissionId: vi.fn(async () => "inbox-1"),
   tracedAiChat: vi.fn(),
 }));
+const runtime = vi.hoisted(() => ({ demo: false }));
+vi.mock("@/lib/runtime", () => ({
+  get isDemoMode() {
+    return runtime.demo;
+  },
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: { task: m.task, relationshipLedger: m.relationshipLedger } }));
 vi.mock("@/lib/services/tasks", () => ({ createTask: m.createTask }));
 vi.mock("@/lib/services/missions", () => ({ resolveInboxMissionId: m.resolveInboxMissionId }));
@@ -19,11 +25,19 @@ import { listSubtasks, addSubtask } from "@/lib/services/task-subtasks";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runtime.demo = false;
   m.createTask.mockImplementation(async (p: { title: string }) => ({ id: `new-${p.title}`, title: p.title, status: "READY" }));
 });
 
 
 describe("subtasks", () => {
+  it("demo mode: no list read, and adding says it needs the database", async () => {
+    runtime.demo = true;
+    await expect(listSubtasks("p1")).resolves.toEqual([]);
+    await expect(addSubtask("p1", "x")).rejects.toMatchObject({ status: 503 });
+    expect(m.task.findMany).not.toHaveBeenCalled();
+  });
+
   it("lists live, non-archived children oldest first with three fields", async () => {
     m.task.findMany.mockResolvedValue([]);
     await listSubtasks("p1");

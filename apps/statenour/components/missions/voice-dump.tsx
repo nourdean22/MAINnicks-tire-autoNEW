@@ -67,9 +67,16 @@ export function MissionsCapture({
 
   const split = trpc.task.dumpSplit.useMutation();
   const save = trpc.task.dumpSave.useMutation({
-    onSuccess: async (res) => {
-      setRows(null);
-      setNote(`Saved ${res.created} to the Inbox`);
+    onSuccess: async (res, vars) => {
+      if (res.failed.length === 0) {
+        setRows(null);
+        setNote(`Saved ${res.created} to the Inbox`);
+      } else {
+        // Keep only the rows that failed, so Save again cannot duplicate the saved ones.
+        const failedTitles = new Set(res.failed.map((i) => vars.items[i]?.title));
+        setRows((cur) => (cur ?? []).filter((r) => failedTitles.has(r.title.trim())));
+        setNote(`Saved ${res.created}. ${res.failed.length} not saved; Save again to retry them.`);
+      }
       await utils.task.invalidate();
     },
   });
@@ -111,7 +118,8 @@ export function MissionsCapture({
     <div>
       <MissionsQuickAdd
         onSubmit={onSubmit}
-        busy={busy || save.isPending}
+        // One dump at a time: a second recording must not race the first one's split.
+        busy={busy || save.isPending || voice.transcribing || split.isPending}
         onVoice={() => {
           if (voice.isRecording) return voice.stopRecording();
           const start = Date.now();

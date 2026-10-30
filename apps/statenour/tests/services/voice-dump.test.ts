@@ -10,6 +10,12 @@ const m = vi.hoisted(() => ({
   resolveInboxMissionId: vi.fn(async () => "inbox-1"),
   tracedAiChat: vi.fn(),
 }));
+const runtime = vi.hoisted(() => ({ demo: false }));
+vi.mock("@/lib/runtime", () => ({
+  get isDemoMode() {
+    return runtime.demo;
+  },
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: { task: m.task, relationshipLedger: m.relationshipLedger } }));
 vi.mock("@/lib/services/tasks", () => ({ createTask: m.createTask }));
 vi.mock("@/lib/services/missions", () => ({ resolveInboxMissionId: m.resolveInboxMissionId }));
@@ -19,6 +25,7 @@ import { splitBrainDump, saveBrainDump } from "@/lib/services/voice-dump";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runtime.demo = false;
   m.createTask.mockImplementation(async (p: { title: string }) => ({ id: `new-${p.title}`, title: p.title, status: "READY" }));
 });
 
@@ -61,6 +68,24 @@ describe("voice brain dump", () => {
     expect(m.createTask.mock.calls.map((c) => c[0].title)).toEqual(["First", "Second"]);
     expect(m.createTask.mock.calls[0][0]).toMatchObject({ missionId: "inbox-1", status: "INBOX" });
     expect(m.createTask.mock.calls[1][0].dueDate).toEqual(new Date("2026-10-31T00:00:00.000Z"));
-    expect(res).toEqual({ created: 2, ids: ["new-First", "new-Second"] });
+    expect(res).toEqual({ created: 2, ids: ["new-First", "new-Second"], failed: [] });
+  });
+
+  it("a row that fails is reported by index and the others still save, so a retry never duplicates", async () => {
+    m.createTask
+      .mockImplementationOnce(async (p: { title: string }) => ({ id: `new-${p.title}`, title: p.title, status: "INBOX" }))
+      .mockRejectedValueOnce(new Error("db hiccup"))
+      .mockImplementationOnce(async (p: { title: string }) => ({ id: `new-${p.title}`, title: p.title, status: "INBOX" }));
+    const res = await saveBrainDump([
+      { title: "A", dueDate: null },
+      { title: "B", dueDate: null },
+      { title: "C", dueDate: null },
+    ]);
+    expect(res).toEqual({ created: 2, ids: ["new-A", "new-C"], failed: [1] });
+  });
+
+  it("a transcript longer than one split reads is refused, never silently cut", async () => {
+    await expect(splitBrainDump("x".repeat(6001))).rejects.toMatchObject({ status: 400 });
+    expect(m.tracedAiChat).not.toHaveBeenCalled();
   });
 });

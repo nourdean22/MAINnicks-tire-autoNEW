@@ -100,6 +100,23 @@ describe("TaskNotes", () => {
     expect(h.saveNotes).toHaveBeenCalledWith({ id: "t1", notes: "typed then closed" });
   });
 
+  it("saves run one at a time, in order: a slow save cannot land after a newer one", async () => {
+    let releaseFirst!: () => void;
+    h.saveNotes.mockImplementationOnce(
+      () => new Promise((r) => (releaseFirst = () => r({ notes: "x", savedAt: "2026-10-29T16:05:00.000Z" }))),
+    );
+    await mount(<TaskNotes taskId="t1" initial="" />);
+    const area = host.querySelector("textarea")!;
+    await act(async () => type(area, "first"));
+    await act(async () => vi.advanceTimersByTime(800));
+    await act(async () => type(area, "second"));
+    await act(async () => vi.advanceTimersByTime(800));
+    expect(h.saveNotes).toHaveBeenCalledTimes(1); // the second waits for the first
+    await act(async () => releaseFirst());
+    expect(h.saveNotes).toHaveBeenCalledTimes(2);
+    expect(h.saveNotes.mock.calls.map((c) => c[0].notes)).toEqual(["first", "second"]);
+  });
+
   it("an unchanged note is never re-saved", async () => {
     await mount(<TaskNotes taskId="t1" initial="same" />);
     await act(async () => host.querySelector("textarea")!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));

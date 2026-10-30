@@ -20,6 +20,8 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { emitTaskEvent } from "@/lib/brain/task-events";
+import { isDemoMode } from "@/lib/runtime";
+import { getDemoState } from "@/lib/demo-store";
 
 import { TASK_NOTES_MAX_CHARS, TASK_PHOTO_MAX_BYTES } from "@/lib/services/task-attachments-limits";
 
@@ -58,9 +60,21 @@ async function requireLiveTask(taskId: string): Promise<void> {
   if (!task) throw new ServiceError("Task not found.", 404);
 }
 
+/** Demo data (no DATABASE_URL) has no photo storage; reads are empty and writes say so. */
+function refuseInDemo(what: string): void {
+  if (isDemoMode) throw new ServiceError(`${what} need the database; this is demo data.`, 503);
+}
+
 export async function saveTaskNotes(taskId: string, notes: string): Promise<{ notes: string | null; savedAt: string }> {
   if (notes.length > TASK_NOTES_MAX_CHARS) {
     throw new ServiceError(`Notes are capped at ${TASK_NOTES_MAX_CHARS} characters.`, 400);
+  }
+  if (isDemoMode) {
+    // Same store getTaskById reads in demo mode, so the inspector shows what was typed.
+    const task = getDemoState().tasks.find((t) => t.id === taskId) as { notes?: string | null } | undefined;
+    if (!task) throw new ServiceError("Task not found.", 404);
+    task.notes = notes.trim() ? notes : null;
+    return { notes: task.notes, savedAt: new Date().toISOString() };
   }
   await requireLiveTask(taskId);
   // Notes skip updateTask on purpose: no re-score and no entity_audits copy
@@ -74,8 +88,10 @@ export async function saveTaskNotes(taskId: string, notes: string): Promise<{ no
 }
 
 export async function listTaskAttachments(taskId: string) {
+  if (isDemoMode) return [];
   return prisma.taskAttachment.findMany({
-    where: { taskId, deletedAt: null },
+    // A soft-deleted task keeps its photo rows (a restore brings them back) but serves none.
+    where: { taskId, deletedAt: null, task: { deletedAt: null } },
     orderBy: { createdAt: "asc" },
     select: ATTACHMENT_META,
   });
@@ -104,6 +120,7 @@ export async function addTaskAttachment(input: {
   height?: number;
 }): Promise<{ attachment: TaskAttachmentMeta; created: boolean }> {
   const { taskId, bytes } = input;
+  refuseInDemo("Photos");
   if (bytes.length === 0) throw new ServiceError("Empty file.", 400);
   if (bytes.length > TASK_PHOTO_MAX_BYTES) {
     throw new ServiceError(`Photo is over ${TASK_PHOTO_MAX_BYTES / 1024} KB after resize.`, 413);
@@ -158,6 +175,7 @@ export async function addTaskAttachment(input: {
 }
 
 export async function deleteTaskAttachment(taskId: string, attachmentId: string): Promise<{ ok: true }> {
+  refuseInDemo("Photos");
   const res = await prisma.taskAttachment.updateMany({
     where: { id: attachmentId, taskId, deletedAt: null },
     data: { deletedAt: new Date() },
@@ -169,8 +187,9 @@ export async function deleteTaskAttachment(taskId: string, attachmentId: string)
 
 /** The ONLY read that loads `data`. Caller: the owner-gated image route. */
 export async function readTaskAttachmentImage(taskId: string, attachmentId: string) {
+  if (isDemoMode) return null;
   return prisma.taskAttachment.findFirst({
-    where: { id: attachmentId, taskId, deletedAt: null },
+    where: { id: attachmentId, taskId, deletedAt: null, task: { deletedAt: null } },
     select: { data: true, mimeType: true, sha256: true },
   });
 }

@@ -15,7 +15,8 @@ export function TaskSubtasks({ taskId, isChild }: { taskId: string; isChild: boo
   const utils = trpc.useUtils();
   const list = trpc.task.subtasks.useQuery({ parentId: taskId }, { staleTime: 15_000, retry: 1, enabled: !isChild });
   const [title, setTitle] = useState("");
-  const refresh = () => utils.task.subtasks.invalidate({ parentId: taskId });
+  // Steps are Task rows: the board, deck and mission counts read them too.
+  const refresh = () => utils.task.invalidate();
   const add = trpc.task.subtaskAdd.useMutation({
     onSuccess: async () => {
       setTitle("");

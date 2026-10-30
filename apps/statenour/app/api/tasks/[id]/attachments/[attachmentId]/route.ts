@@ -1,9 +1,10 @@
 /**
  * GET /api/tasks/[id]/attachments/[attachmentId] · 2026-10-29 · a task photo.
  *
- * Owner-only, the one read that loads the bytes. A photo row never changes
- * after insert (same id, same sha256), so the browser may keep it forever,
- * privately.
+ * Owner-only, the one read that loads the bytes. The browser revalidates on
+ * every view (no-cache plus the sha256 ETag, so an unchanged photo is a 304 with
+ * no bytes): a deleted photo, a deleted task or a signed-out device must stop
+ * showing it, which a long-lived immutable cache would not.
  */
 import { readTaskAttachmentImage } from "@/lib/services/task-attachments";
 import { apiHandler } from "@/lib/utils/http";
@@ -17,7 +18,7 @@ export const GET = apiHandler(async (req, { params }) => {
   if (!photo) throw new ServiceError("Photo not found.", 404);
   const etag = `"${photo.sha256}"`;
   const headers = {
-    "Cache-Control": "private, max-age=31536000, immutable",
+    "Cache-Control": "private, no-cache",
     ETag: etag,
     "X-Content-Type-Options": "nosniff",
   };

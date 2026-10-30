@@ -16,10 +16,14 @@ import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { ServiceError } from "@/lib/utils/service-error";
 import { createTask } from "@/lib/services/tasks";
+import { logger as rootLogger } from "@/lib/logger";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 
 export const DUMP_MAX_ROWS = 20;
 export const DUMP_TITLE_MAX = 200;
+/** What one split call reads. Longer is refused, never cut: a cut dump would drop tasks silently. */
+export const DUMP_TRANSCRIPT_MAX = 6000;
 
 export interface DumpRow {
   title: string;
@@ -28,10 +32,14 @@ export interface DumpRow {
 }
 
 const rowShape = z.object({ title: z.string() });
+const log = rootLogger.withSurface("services/voice-dump");
 
 export async function splitBrainDump(transcript: string): Promise<{ items: Array<{ title: string }> }> {
   const text = transcript.trim();
   if (!text) return { items: [] };
+  if (text.length > DUMP_TRANSCRIPT_MAX) {
+    throw new ServiceError(`Too long to split in one go (over ${DUMP_TRANSCRIPT_MAX.toLocaleString("en-US")} characters). Record it in parts.`, 400);
+  }
 
   const result = await tracedAiChat(
     { label: "voice-dump-split", source: "tool" },
@@ -43,7 +51,7 @@ export async function splitBrainDump(transcript: string): Promise<{ items: Array
       },
       {
         role: "user",
-        content: `Transcript:\n"""${text.slice(0, 6000)}"""\n\nSplit it into one item per separate thing to do. Rules:
+        content: `Transcript:\n"""${text}"""\n\nSplit it into one item per separate thing to do. Rules:
 - Keep the speaker's own words; fix only filler ("um", "like", "and then") and grammar.
 - Start each title with the action. One action per item.
 - Keep any deadline phrase in the title as "by <day>" (for example "by friday", "by tomorrow").
@@ -71,20 +79,29 @@ Return: [{"title":"..."}]`,
   return { items };
 }
 
-export async function saveBrainDump(rows: DumpRow[]): Promise<{ created: number; ids: string[] }> {
+/**
+ * Rows are created one by one (createTask runs its own transaction). Each row's
+ * outcome is returned, so the review list drops what was saved and keeps what
+ * failed: pressing Save again retries only the failures and never duplicates.
+ */
+export async function saveBrainDump(rows: DumpRow[]): Promise<{ created: number; ids: string[]; failed: number[] }> {
   const missionId = await resolveInboxMissionId();
   const ids: string[] = [];
-  // Sequential on purpose: rows land in the order he said them, and a failure
-  // part way reports how many were created instead of a half-known batch.
-  for (const row of rows) {
-    const vm = await createTask({
-      title: row.title,
-      missionId,
-      status: "INBOX",
-      ...(row.dueDate ? { dueDate: new Date(row.dueDate) } : {}),
-    });
-    if (!vm) throw new ServiceError(`Saved ${ids.length} of ${rows.length}; the next row failed.`, 500);
-    ids.push(vm.id);
+  const failed: number[] = [];
+  for (const [i, row] of rows.entries()) {
+    try {
+      const vm = await createTask({
+        title: row.title,
+        missionId,
+        status: "INBOX",
+        ...(row.dueDate ? { dueDate: new Date(row.dueDate) } : {}),
+      });
+      if (!vm) throw new Error("create returned no task");
+      ids.push(vm.id);
+    } catch (err) {
+      log.warn("dump_row_failed", { index: i, error: sanitizeError(err) });
+      failed.push(i);
+    }
   }
-  return { created: ids.length, ids };
+  return { created: ids.length, ids, failed };
 }

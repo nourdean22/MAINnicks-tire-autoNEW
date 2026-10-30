@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   onTranscript: null as null | ((t: string) => void),
   split: vi.fn(),
   save: vi.fn(),
+  saveResult: null as null | { created: number; ids: string[]; failed: number[] },
 }));
 
 vi.mock("@/hooks/use-voice-input", () => ({
@@ -26,7 +27,17 @@ vi.mock("@/lib/trpc/client", () => ({
   trpc: {
     task: {
       dumpSplit: { useMutation: () => ({ mutateAsync: h.split, isPending: false }) },
-      dumpSave: { useMutation: () => ({ mutate: h.save, isPending: false, isError: false, error: null }) },
+      dumpSave: {
+        useMutation: (opts: { onSuccess?: (res: unknown, vars: unknown) => unknown }) => ({
+          mutate: (vars: unknown) => {
+            h.save(vars);
+            if (h.saveResult) void opts.onSuccess?.(h.saveResult, vars);
+          },
+          isPending: false,
+          isError: false,
+          error: null,
+        }),
+      },
     },
     useUtils: () => ({ task: { invalidate: async () => {} } }),
   },
@@ -40,6 +51,7 @@ const buttons = (text: string) => Array.from(host.querySelectorAll("button")).fi
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.saveResult = null;
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -73,6 +85,17 @@ describe("MissionsCapture voice dump", () => {
     const due = new Date(saved[0].dueDate);
     expect(due.getDay()).toBe(5);
     expect(due.getHours()).toBe(23);
+  });
+
+  it("a partial save keeps only the rows that failed, so Save again retries just those", async () => {
+    h.split.mockResolvedValue({ items: [{ title: "First" }, { title: "Second" }, { title: "Third" }] });
+    h.saveResult = { created: 2, ids: ["a", "c"], failed: [1] };
+    await act(async () => root.render(<MissionsCapture onSubmit={() => {}} />));
+    await act(async () => h.onTranscript!("first second third"));
+    await act(async () => buttons("Save 3 tasks")[0].click());
+    const left = Array.from(host.querySelectorAll('input[aria-label="Task title"]')) as HTMLInputElement[];
+    expect(left.map((i) => i.value)).toEqual(["Second"]);
+    expect(host.textContent).toContain("1 not saved");
   });
 
   it("a failed split keeps the transcript as one editable row and says so", async () => {

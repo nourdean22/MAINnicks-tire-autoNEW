@@ -10,6 +10,12 @@ const m = vi.hoisted(() => ({
   resolveInboxMissionId: vi.fn(async () => "inbox-1"),
   tracedAiChat: vi.fn(),
 }));
+const runtime = vi.hoisted(() => ({ demo: false }));
+vi.mock("@/lib/runtime", () => ({
+  get isDemoMode() {
+    return runtime.demo;
+  },
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: { task: m.task, relationshipLedger: m.relationshipLedger } }));
 vi.mock("@/lib/services/tasks", () => ({ createTask: m.createTask }));
 vi.mock("@/lib/services/missions", () => ({ resolveInboxMissionId: m.resolveInboxMissionId }));
@@ -19,6 +25,7 @@ import { getTaskRecallLine } from "@/lib/services/task-recall-line";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runtime.demo = false;
   m.createTask.mockImplementation(async (p: { title: string }) => ({ id: `new-${p.title}`, title: p.title, status: "READY" }));
 });
 
@@ -41,7 +48,7 @@ describe("recall line", () => {
     const res = await getTaskRecallLine("t1");
     expect(m.relationshipLedger.findMany.mock.calls[0][0]).toMatchObject({
       where: { personId: "pp1" },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     expect(res).toEqual({
       state: "line",
@@ -50,6 +57,28 @@ describe("recall line", () => {
       source: "chat",
       at: "2026-10-27T15:00:00.000Z",
     });
+  });
+
+  it("pages past a full page of non-contact rows to the older contact row", async () => {
+    m.task.findFirst.mockResolvedValue({ personId: "pp1", person: { name: "Fixture Person" } });
+    const noise = Array.from({ length: 20 }, (_, i) => ({
+      note: `mention ${i}`,
+      source: "chat",
+      createdAt: new Date("2026-10-29T15:00:00Z"),
+      metadata: { synthetic: true },
+    }));
+    m.relationshipLedger.findMany
+      .mockResolvedValueOnce(noise)
+      .mockResolvedValueOnce([{ note: "Older real contact", source: "telegram", createdAt: new Date("2026-10-01T15:00:00Z"), metadata: null }]);
+    const res = await getTaskRecallLine("t1");
+    expect(res).toMatchObject({ state: "line", note: "Older real contact" });
+    expect(m.relationshipLedger.findMany.mock.calls[1][0]).toMatchObject({ skip: 20, take: 20 });
+  });
+
+  it("demo mode shows nothing and reads nothing", async () => {
+    runtime.demo = true;
+    await expect(getTaskRecallLine("t1")).resolves.toEqual({ state: "none" });
+    expect(m.task.findFirst).not.toHaveBeenCalled();
   });
 
   it("a person with no ledger rows says so instead of inventing a line", async () => {

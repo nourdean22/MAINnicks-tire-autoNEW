@@ -24,9 +24,15 @@ export function TaskNotes({ taskId, initial }: { taskId: string; initial: string
   const utils = trpc.useUtils();
   const { mutateAsync } = trpc.task.notesSave.useMutation();
 
-  const flush = async () => {
+  // One save at a time, in order: a slow request can never land after a newer one.
+  const chain = useRef<Promise<void>>(Promise.resolve());
+  const flush = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    chain.current = chain.current.then(saveLatest);
+    return chain.current;
+  };
+  const saveLatest = async () => {
     const value = pending.current;
     if (value === null || value === lastSaved.current) return;
     pending.current = null;
@@ -39,7 +45,8 @@ export function TaskNotes({ taskId, initial }: { taskId: string; initial: string
       utils.task.byId.setData({ id: taskId }, (old) => (old ? { ...old, notes: res.notes } : old));
       setState({ kind: "saved", at: res.savedAt });
     } catch (err) {
-      pending.current = value;
+      // Re-queue only if nothing newer was typed while this one was in flight.
+      if (pending.current === null) pending.current = value;
       setState({ kind: "failed", message: err instanceof Error ? err.message : "save failed" });
     }
   };

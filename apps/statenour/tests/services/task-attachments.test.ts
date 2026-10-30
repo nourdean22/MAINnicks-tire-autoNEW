@@ -24,6 +24,14 @@ const { task, taskAttachment, emitTaskEvent } = vi.hoisted(() => ({
   emitTaskEvent: vi.fn(async () => undefined),
 }));
 
+const runtime = vi.hoisted(() => ({ demo: false }));
+vi.mock("@/lib/runtime", () => ({
+  get isDemoMode() {
+    return runtime.demo;
+  },
+}));
+const demoTasks = vi.hoisted(() => [{ id: "demo-1", notes: null as string | null }]);
+vi.mock("@/lib/demo-store", () => ({ getDemoState: () => ({ tasks: demoTasks }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: { task, taskAttachment } }));
 vi.mock("@/lib/brain/task-events", () => ({ emitTaskEvent: (a: unknown) => emitTaskEvent(a as never) }));
 
@@ -67,6 +75,7 @@ const META = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runtime.demo = false;
   task.findFirst.mockResolvedValue({ id: "t1" });
 });
 
@@ -158,7 +167,8 @@ describe("list, read and delete", () => {
     taskAttachment.findMany.mockResolvedValue([META]);
     await listTaskAttachments("t1");
     const arg = taskAttachment.findMany.mock.calls[0][0];
-    expect(arg.where).toEqual({ taskId: "t1", deletedAt: null });
+    // A soft-deleted task keeps its rows but serves none of them.
+    expect(arg.where).toEqual({ taskId: "t1", deletedAt: null, task: { deletedAt: null } });
     expect(arg.select).toBeDefined();
     expect(arg.select.data).toBeUndefined();
   });
@@ -166,7 +176,12 @@ describe("list, read and delete", () => {
   it("the image read is scoped to the task and to live rows", async () => {
     taskAttachment.findFirst.mockResolvedValue(null);
     await expect(readTaskAttachmentImage("t1", "att1")).resolves.toBeNull();
-    expect(taskAttachment.findFirst.mock.calls[0][0].where).toEqual({ id: "att1", taskId: "t1", deletedAt: null });
+    expect(taskAttachment.findFirst.mock.calls[0][0].where).toEqual({
+      id: "att1",
+      taskId: "t1",
+      deletedAt: null,
+      task: { deletedAt: null },
+    });
   });
 
   it("delete is a soft delete and 404s when nothing live matched", async () => {
@@ -200,6 +215,27 @@ describe("saveTaskNotes", () => {
     task.findFirst.mockResolvedValue(null);
     await expect(saveTaskNotes("gone", "x")).rejects.toMatchObject({ status: 404 });
     expect(task.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("demo mode (no DATABASE_URL)", () => {
+  it("reads are empty and photo writes refuse with a reason, without touching Prisma", async () => {
+    runtime.demo = true;
+    await expect(listTaskAttachments("t1")).resolves.toEqual([]);
+    await expect(readTaskAttachmentImage("t1", "a1")).resolves.toBeNull();
+    await expect(addTaskAttachment({ taskId: "t1", bytes: jpeg() })).rejects.toMatchObject({ status: 503 });
+    await expect(deleteTaskAttachment("t1", "a1")).rejects.toMatchObject({ status: 503 });
+    expect(taskAttachment.findMany).not.toHaveBeenCalled();
+    expect(taskAttachment.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("notes save into the demo store the inspector reads", async () => {
+    runtime.demo = true;
+    const res = await saveTaskNotes("demo-1", "kept in memory");
+    expect(res.notes).toBe("kept in memory");
+    expect(demoTasks[0].notes).toBe("kept in memory");
+    expect(task.update).not.toHaveBeenCalled();
+    await expect(saveTaskNotes("missing", "x")).rejects.toMatchObject({ status: 404 });
   });
 });
 

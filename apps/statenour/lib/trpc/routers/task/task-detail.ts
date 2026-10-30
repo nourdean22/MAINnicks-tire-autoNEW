@@ -16,7 +16,7 @@ import {
 } from "@/lib/services/task-attachments";
 import { listSubtasks, addSubtask } from "@/lib/services/task-subtasks";
 import { getTaskRecallLine } from "@/lib/services/task-recall-line";
-import { DUMP_MAX_ROWS, DUMP_TITLE_MAX, splitBrainDump, saveBrainDump } from "@/lib/services/voice-dump";
+import { DUMP_MAX_ROWS, DUMP_TITLE_MAX, DUMP_TRANSCRIPT_MAX, splitBrainDump, saveBrainDump } from "@/lib/services/voice-dump";
 
 const id = z.string().min(1).max(64);
 
@@ -58,7 +58,7 @@ export const taskDetailProcedures = {
     .query(({ input }) => getTaskRecallLine(input.taskId)),
 
   dumpSplit: operatorProcedure
-    .input(z.object({ transcript: z.string().max(20_000) }))
+    .input(z.object({ transcript: z.string().max(DUMP_TRANSCRIPT_MAX * 2) }))
     .mutation(({ input }) => mapped(() => splitBrainDump(input.transcript))),
 
   dumpSave: operatorProcedure

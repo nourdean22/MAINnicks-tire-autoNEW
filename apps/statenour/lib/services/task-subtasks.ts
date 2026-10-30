@@ -9,8 +9,10 @@
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { createTask } from "@/lib/services/tasks";
+import { isDemoMode } from "@/lib/runtime";
 
 export async function listSubtasks(parentId: string) {
+  if (isDemoMode) return [];
   return prisma.task.findMany({
     where: { parentTaskId: parentId, deletedAt: null, status: { not: "ARCHIVED" } },
     orderBy: { createdAt: "asc" },
@@ -21,6 +23,7 @@ export async function listSubtasks(parentId: string) {
 export async function addSubtask(parentId: string, rawTitle: string) {
   const title = rawTitle.trim();
   if (!title) throw new ServiceError("A step needs a title.", 400);
+  if (isDemoMode) throw new ServiceError("Steps need the database; this is demo data.", 503);
   const parent = await prisma.task.findFirst({
     where: { id: parentId, deletedAt: null },
     select: { id: true, missionId: true, parentTaskId: true },
