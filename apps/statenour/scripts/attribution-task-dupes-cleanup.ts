@@ -7,10 +7,13 @@
  * tasks still open, created 2026-09-15 .. 2026-10-06. The standing-obligation
  * slot (lib/services/bridge-receipts.ts `holdStandingSlot`) stops new ones.
  *
+ * The family is both titles: the old counted one and the count-free one the
+ * fixed sender opens once PR 3356 is live (it may exist by the time this runs).
+ *
  * Plan, printed in both modes (ids and counts only, never task text):
- *   · keeper  = the newest open task of the family; it is retitled count-free
- *               and the standing slot is seeded to it, so the next escalation
- *               reuses it instead of opening one more;
+ *   · keeper  = the open family task the standing slot already points at, else
+ *               the newest open one; it is retitled count-free and the slot is
+ *               pointed at it, so the next escalation reuses it;
  *   · targets = the other open tasks still untouched in the Inbox: status INBOX,
  *               updated_by 'system', lastTouchedAt still its create time (createTask
  *               stamps it; crons bump only updatedAt), no subtasks;
@@ -23,7 +26,10 @@
  *   3. soft delete the targets (deleted_at = now()), re-checking every
  *      condition in the WHERE; the updated count must equal the plan;
  *   4. retitle the keeper; 5. point the slot at the keeper (insert, or
- *      overwrite a slot a delivery created after the dry run).
+ *      overwrite a slot a delivery created after the dry run);
+ *   6. the open family must now be exactly the keeper plus the open rows left
+ *      as-is, or everything rolls back.
+ * Refuses to run while the slot is unsettled (a delivery is opening a task).
  *
  * Restore: UPDATE "Task" t SET deleted_at = b.deleted_at, title = b.title,
  *            updated_by = b.updated_by, "updatedAt" = b."updatedAt"
@@ -41,7 +47,7 @@ const BAK = "_bak_task_dupes_20261029";
 const SLOT_KEY = "v1:obligation.standing:attribution_weak_matches";
 const SLOT_ROUTE = "sync/nour-os:open_loop";
 const KEEPER_TITLE = "[Nick's Tire] Rule on ambiguous call↔invoice matches";
-const FAMILY = String.raw`^\[Nick's Tire\] Rule on [0-9]+ ambiguous call.invoice match(es)?$`;
+const FAMILY = String.raw`^\[Nick's Tire\] Rule on ([0-9]+ )?ambiguous call.invoice match(es)?$`;
 const OPEN = ["INBOX", "READY", "DOING", "WAITING"];
 const ACTOR = "cleanup-attribution-dupes-20261029";
 
@@ -62,15 +68,16 @@ async function main(): Promise<void> {
      WHERE t.deleted_at IS NULL AND t.title ~ ${FAMILY}
      ORDER BY t."createdAt" DESC, t.id`;
 
+  const slot = await prisma.bridgeReceipt.findUnique({ where: { idempotencyKey: SLOT_KEY }, select: { resultRef: true } });
   const open = rows.filter((r) => OPEN.includes(r.status));
-  const keeper = open[0] ?? null;
+  const keeper = open.find((r) => r.id === slot?.resultRef) ?? open[0] ?? null;
   const targets = open.filter((r) => r !== keeper && r.status === "INBOX" && !r.touched && r.children === 0);
   const keptAsIs = rows.length - targets.length - (keeper ? 1 : 0);
-  const slot = await prisma.bridgeReceipt.findUnique({ where: { idempotencyKey: SLOT_KEY }, select: { resultRef: true } });
+  const openLeft = open.length - targets.length; // the keeper plus open rows left as-is
 
   console.log(`family alive  : ${rows.length} (open ${open.length})`);
   console.log(`keeper        : ${keeper ? `${keeper.id} (created ${keeper.created.toISOString()})` : "(none)"}`);
-  console.log(`soft-delete   : ${targets.length}`);
+  console.log(`soft-delete   : ${targets.length} (open after: ${openLeft})`);
   console.log(`left as-is    : ${keptAsIs} (touched, moved out of the Inbox, closed, or with subtasks)`);
   console.log(`slot today    : ${slot ? `points at ${slot.resultRef ?? "(unsettled)"}` : "(none)"}`);
   console.log(`target ids    : ${targets.map((t) => t.id).join(",") || "(none)"}`);
@@ -81,6 +88,7 @@ async function main(): Promise<void> {
     return;
   }
   if (!keeper) throw new Error("no open task in the family; nothing to keep, refusing to run");
+  if (slot && slot.resultRef === null) throw new Error("slot is unsettled (a delivery is opening a task right now); re-run in a few minutes");
 
   const ids = [keeper.id, ...targets.map((t) => t.id)];
   const targetIds = targets.map((t) => t.id);
@@ -108,14 +116,20 @@ async function main(): Promise<void> {
         INSERT INTO bridge_receipts (idempotency_key, route, result_ref, first_seen_at, last_seen_at, seen_count)
         VALUES (${SLOT_KEY}, ${SLOT_ROUTE}, ${keeper.id}, now(), now(), 1)
         ON CONFLICT (idempotency_key) DO UPDATE SET result_ref = EXCLUDED.result_ref, last_seen_at = now()`;
+
+      const [{ n: stillOpen }] = await tx.$queryRaw<Array<{ n: number }>>`
+        SELECT count(*)::int AS n FROM "Task"
+         WHERE deleted_at IS NULL AND status::text = ANY(${OPEN}::text[]) AND title ~ ${FAMILY}`;
+      if (stillOpen !== openLeft) throw new Error(`open family is ${stillOpen}, expected ${openLeft}; rolled back`);
     },
     { timeout: 30_000 },
   );
 
-  const [after] = await prisma.$queryRaw<Array<{ alive: number }>>`
-    SELECT count(*)::int AS alive FROM "Task" WHERE deleted_at IS NULL AND title ~ ${FAMILY}`;
+  const [after] = await prisma.$queryRaw<Array<{ open: number }>>`
+    SELECT count(*)::int AS open FROM "Task"
+     WHERE deleted_at IS NULL AND status::text = ANY(${OPEN}::text[]) AND title ~ ${FAMILY}`;
   console.log(`\nEXECUTED: backup ${BAK} (${ids.length} rows), soft-deleted ${targetIds.length}, keeper retitled, slot points at the keeper.`);
-  console.log(`after: counted-title family alive = ${after.alive} (keeper now has the count-free title)`);
+  console.log(`after: open family tasks = ${after.open} (the keeper${openLeft > 1 ? ` + ${openLeft - 1} left as-is` : ""})`);
   await prisma.$disconnect();
 }
 
