@@ -47,7 +47,11 @@ describe("a thank-you or FYI needs no reply and no staff-queue item", () => {
       expect(d.catalogEvent).toBeNull();
     },
   );
-  it.each(["thanks, but the noise is back", "thanks, how much for 2 tires?", "thanks for checking, is my car done?"])(
+  it.each([
+    "thanks, but the noise is back", "thanks, how much for 2 tires?", "thanks for checking, is my car done?",
+    // Codex review of #3393: a request with no router rule of its own must still reach staff.
+    "Thanks, I also need help with my starter", "thank you, can you look at my brakes too", "thanks, please call me back",
+  ])(
     "control, a question or a problem is not a thank-you: %s",
     (body) => {
       expect(routeInboundSms(body, noCtx).primary).not.toBe("no_reply_needed");

@@ -158,6 +158,25 @@ function isFragment(body: string): boolean {
 }
 
 /**
+ * The runner's exit code (Codex review of #3393): a run that measured nothing is a
+ * failure, not a score. Any errored case, any failed draft (provider down or bad
+ * credentials), an empty result set, a paid-lane attempt or unclean isolation exits 1.
+ */
+export function evalExitCode(input: {
+  rows: Array<{ score: EvalScore | "error"; draftFailed: boolean }>;
+  paidAttempts: number;
+  isolationClean: boolean;
+}): { code: 0 | 1; reason: string } {
+  if (input.paidAttempts > 0) return { code: 1, reason: "the drafter attempted a paid lane (refused)" };
+  if (!input.isolationClean) return { code: 1, reason: "replay isolation was not clean" };
+  if (input.rows.length === 0) return { code: 1, reason: "no cases ran" };
+  const errored = input.rows.filter((r) => r.score === "error").length;
+  if (errored > 0) return { code: 1, reason: `${errored} case(s) errored` };
+  const failed = input.rows.filter((r) => r.draftFailed).length;
+  if (failed > 0) return { code: 1, reason: `${failed} draft(s) failed: no valid measurement for those cases` };
+  return { code: 0, reason: "ok" };
+}
+/**
  * Score one orchestrateSms decision against its case, from the customer's side.
  * Manager rule (2026-10-30): "wrong" counts only what would actually be SENT; a
  * draft held for staff is never wrong. The holding reply is an acknowledgement:

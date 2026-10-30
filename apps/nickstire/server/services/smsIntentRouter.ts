@@ -120,7 +120,9 @@ const NOT_A_CUSTOMER_RES: RegExp[] = [
 
 /** A short thank-you or "all good so far" with no question or problem in it. */
 const THANKS_RE = /\b(thanks?|thank you|thx|appreciate it|good so far|ok so far|all good|got it (fixed|taken care of))\b/i;
-const NOT_JUST_THANKS_RE = /\?|\b(but|still|again|noise|problem|issue|broke|broken|wrong|how much|when|is my)\b/i;
+// Request words keep a thank-you text out of the silent skip (Codex review of #3393:
+// "Thanks, I also need help with my starter" has no router rule of its own).
+const NOT_JUST_THANKS_RE = /\?|\b(but|still|again|noise|problem|issue|broke|broken|wrong|how much|when|is my|need|needs|want|help|also|please|call me|can you|could you|can i|look at|book|schedule|appointment|quote|price)\b/i;
 
 const RULES: Rule[] = [
   {

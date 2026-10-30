@@ -35,7 +35,7 @@ import {
   truncateForPrint,
   type ReplayPhoneDelta,
 } from "../server/services/smsReplayScope";
-import { SMS_EVAL_CASES, installModelOnlyFetch, scoreEvalOutcome, type EvalScore } from "../server/services/smsReplyEval";
+import { SMS_EVAL_CASES, evalExitCode, installModelOnlyFetch, scoreEvalOutcome, type EvalScore } from "../server/services/smsReplyEval";
 import { getDbTyped } from "../server/db";
 
 process.env.REPLAY_DRY_RUN = "true";
@@ -71,16 +71,16 @@ async function main(): Promise<number> {
   const guard = installModelOnlyFetch(globalThis as { fetch?: unknown }, ["ollama.com", "generativelanguage.googleapis.com", "router.huggingface.co"]);
   const PAID_LANES = ["api.openai.com", "openrouter.ai", "api.anthropic.com"];
   const startedAt = Date.now();
-  const rows: Array<{ id: string; group: string; expect: string; score: EvalScore | "error"; why: string; ms: number; reply: string }> = [];
+  const rows: Array<{ id: string; group: string; expect: string; score: EvalScore | "error"; why: string; draftFailed: boolean; ms: number; reply: string }> = [];
   try {
     for (const { c, phone, conversationId } of cases) {
       const t0 = Date.now();
       try {
         const r = await runInSmsReplayScope(() => orchestrateSms({ type: "inbound_sms", phone, body: c.body, conversationId } as never), recorder);
         const s = scoreEvalOutcome(c, { status: r.status, shouldAutoSend: r.shouldAutoSend, body: r.body ?? "", holdingReply: r.holdingReply });
-        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: s.score, why: s.why, ms: Date.now() - t0, reply: r.shouldAutoSend ? truncateForPrint(r.body ?? "", 160) : `(${r.status}) ${truncateForPrint(r.body ?? "", 120)}` });
+        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: s.score, why: s.why, draftFailed: r.statusReason === "nickgpt_failed", ms: Date.now() - t0, reply: r.shouldAutoSend ? truncateForPrint(r.body ?? "", 160) : `(${r.status}) ${truncateForPrint(r.body ?? "", 120)}` });
       } catch (err) {
-        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: "error", why: err instanceof Error ? err.message.slice(0, 120) : "error", ms: Date.now() - t0, reply: "" });
+        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: "error", why: err instanceof Error ? err.message.slice(0, 120) : "error", draftFailed: false, ms: Date.now() - t0, reply: "" });
       }
     }
   } finally {
@@ -116,11 +116,9 @@ async function main(): Promise<number> {
   console.log(`paid-lane attempts (OpenAI/OpenRouter/Anthropic): ${paidAttempts}`);
   console.log(`isolation: ${isolation.verdict.toUpperCase()}`);
   for (const line of isolation.lines) console.log(`- ${line}`);
-  if (paidAttempts > 0) {
-    console.error("FAILED: the drafter attempted a paid lane (refused). Report before trusting these scores.");
-    return 1;
-  }
-  return isolation.verdict === "clean" ? 0 : 1;
+  const verdict = evalExitCode({ rows, paidAttempts, isolationClean: isolation.verdict === "clean" });
+  if (verdict.code !== 0) console.error(`FAILED: ${verdict.reason}. Report before trusting these scores.`);
+  return verdict.code;
 }
 
 main().then((code) => flushThenExit(code)).catch((err) => { console.error("eval crashed", err); flushThenExit(1); });

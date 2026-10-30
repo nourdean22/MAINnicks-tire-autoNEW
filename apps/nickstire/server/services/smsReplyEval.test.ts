@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { SMS_EVAL_CASES, installModelOnlyFetch, scoreEvalOutcome, type EvalCase } from "./smsReplyEval";
+import { SMS_EVAL_CASES, evalExitCode, installModelOnlyFetch, scoreEvalOutcome, type EvalCase } from "./smsReplyEval";
+
+// Codex review of #3393: a run that measured nothing must not exit 0.
+describe("SMS reply eval · exit code", () => {
+  const ok = { score: "right" as const, draftFailed: false };
+  const clean = { paidAttempts: 0, isolationClean: true };
+  it("a clean run with valid results exits 0", () => {
+    expect(evalExitCode({ rows: [ok, { score: "none", draftFailed: false }], ...clean }).code).toBe(0);
+  });
+  it.each([
+    ["a case errored", { rows: [ok, { score: "error" as const, draftFailed: false }], ...clean }],
+    ["a draft failed (provider down)", { rows: [ok, { score: "none" as const, draftFailed: true }], ...clean }],
+    ["no rows at all", { rows: [], ...clean }],
+    ["a paid lane was attempted", { rows: [ok], paidAttempts: 1, isolationClean: true }],
+    ["isolation was not clean", { rows: [ok], paidAttempts: 0, isolationClean: false }],
+  ])("%s exits 1", (_why, input) => {
+    expect(evalExitCode(input).code).toBe(1);
+  });
+});
 
 const sent = (body: string) => ({ status: "compiled", shouldAutoSend: true, body });
 const held = { status: "drafted", shouldAutoSend: false, body: "a draft staff will see" };

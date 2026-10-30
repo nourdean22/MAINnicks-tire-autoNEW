@@ -302,7 +302,10 @@ describe("orchestrateSms · W2 non-customer filter and holding reply", () => {
     mockIsEnabled.mockResolvedValue(true);
   });
   const draft = (text: string, completion: string) => ({ ok: true, draft: text, source: "fallback-claude", modelName: "m", latencyMs: 100, completion });
-  const inbound = (body = INBOUND) => orchestrateSms({ type: "inbound_sms", phone: "2165550077", body, conversationId: 777 });
+  // Each call is a new thread unless one is passed: the holding-reply claim is per thread.
+  let nextConversationId = 7000;
+  const inbound = (body = INBOUND, conversationId = nextConversationId++) =>
+    orchestrateSms({ type: "inbound_sms", phone: "2165550077", body, conversationId });
 
   it("a bulk marketing text gets no draft, no staff-queue item and no text", async () => {
     const res = await inbound("Automate HR with our AI payroll software. Reply YES for a demo, STOP to end");
@@ -358,5 +361,33 @@ describe("orchestrateSms · W2 non-customer filter and holding reply", () => {
     expect(res.status).toBe("skipped");
     expect(res.requiresHumanApproval).toBe(false);
     expect(mockSendSms).not.toHaveBeenCalled();
+  });
+
+  // Codex review of #3393 (2026-10-30), one case per finding.
+  it("two texts in one thread processed at once get one holding reply, not two", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft(DRAFT_CUT, "truncated"));
+    await Promise.all([inbound(INBOUND, 9001), inbound(INBOUND, 9001)]);
+    const holding = mockSendSms.mock.calls.filter((c) => c[1] === "A staff member will get back to you shortly.");
+    expect(holding).toHaveLength(1);
+  });
+
+  it("draft_only rollout keeps a non-customer text skipped, out of the staff queue", async () => {
+    mockRolloutEventMode = "draft_only";
+    const res = await inbound("Automate HR with our AI payroll software. Reply YES for a demo, STOP to end");
+    expect(res.status).toBe("skipped");
+    expect(res.requiresHumanApproval).toBe(false);
+  });
+
+  it("a noise marker never hides a safety text: it reaches staff", async () => {
+    const res = await inbound("here is the tracking number, but my brakes failed");
+    expect(res.status).not.toBe("skipped");
+    expect(res.requiresHumanApproval).toBe(true);
+  });
+
+  it("a proven primary with an unproven second question is held, not auto-sent", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft(DRAFT_FINISHED, "complete"));
+    const res = await inbound("do you have 225/65R17 and can I pay monthly?");
+    expect(res.shouldAutoSend).toBe(false);
+    expect(res.reason).toMatch(/^intent_not_proven:/);
   });
 });

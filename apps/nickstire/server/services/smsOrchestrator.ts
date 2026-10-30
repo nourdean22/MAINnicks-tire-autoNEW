@@ -101,6 +101,28 @@ export interface SmsOrchestratorResult {
  * intent's draft goes to staff and the customer gets HOLDING_REPLY, until a W3
  * catalog reply proves it (the bounded-library pattern: Kenect, Podium).
  */
+/**
+ * Holding-reply claim per thread (Codex review of #3393). Two inbound jobs for one
+ * thread can both pass the durable 24 h read before either holding reply is
+ * persisted (the gateway's write is fire-and-forget), so the claim is taken
+ * synchronously, before the first await, and held long enough for the outbound
+ * row to land; after that the durable read decides.
+ * shortcut: process-local; a second running instance (the planned web/jobs split,
+ * or a deploy overlap) needs a durable claim row, which is a hand-applied migration.
+ */
+const HOLDING_CLAIM_MS = 10 * 60_000;
+const holdingReplyClaims = new Map<number, number>();
+function claimHoldingReply(conversationId: number, now = Date.now()): boolean {
+  const at = holdingReplyClaims.get(conversationId);
+  if (at !== undefined && now - at < HOLDING_CLAIM_MS) return false;
+  // A claim only matters until the outbound row lands (seconds), so dropping the
+  // whole map at 1,000 threads is safe; no .delete( here, which the replay
+  // isolation scan reads as a database write.
+  if (holdingReplyClaims.size > 1000) holdingReplyClaims.clear();
+  holdingReplyClaims.set(conversationId, now);
+  return true;
+}
+
 const AUTO_SEND_PROVEN_INTENTS: ReadonlySet<string> = new Set([
   "arrival_committed", "tire_inventory", "price_tires", "price_brakes", "price_oil", "hours_location", "same_day_visit", "drop_off",
 ]);
@@ -1379,7 +1401,12 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         metadataJson.router = routerDecision;
         const matchedCatalogEvent: string | null = routerDecision.catalogEvent;
 
-        if (routerDecision.primary === "not_a_customer" || routerDecision.primary === "no_reply_needed") {
+        if (
+          (routerDecision.primary === "not_a_customer" || routerDecision.primary === "no_reply_needed") &&
+          // A noise marker never hides a real ask: any other matched intent or a
+          // human_only risk (safety) goes on to staff (Codex review of #3393).
+          routerDecision.secondary.length === 0 && routerDecision.risk !== "human_only"
+        ) {
           // W2: spam, carrier notices, auto-replies and plain thank-yous get no
           // draft, no staff-queue item and no text. Opt-out keywords were handled
           // above and are untouched.
@@ -1603,10 +1630,13 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
               riskTier = "high";
             }
 
-            if (!AUTO_SEND_PROVEN_INTENTS.has(routerDecision.primary)) {
+            // Every matched intent must be proven, not only the primary: a proven
+            // tire question plus "can I pay monthly?" is held (Codex review of #3393).
+            const unprovenIntent = [routerDecision.primary, ...routerDecision.secondary].find((i) => !AUTO_SEND_PROVEN_INTENTS.has(i));
+            if (unprovenIntent) {
               isLowRisk = false;
               requiresHumanApproval = true;
-              if (!humanReviewReason) humanReviewReason = `intent_not_proven:${routerDecision.primary}`;
+              if (!humanReviewReason) humanReviewReason = `intent_not_proven:${unprovenIntent}`;
             }
 
             // F4a: a draft the provider cut off at the token cap reads exactly
@@ -1928,7 +1958,9 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       // customer first names, so a replay logs lengths only. Live logging is unchanged.
       if (isSmsReplayActive()) log.info(`[Shadow Mode] Would send orchestrator body (${body.length} chars) but sending legacy instead (${legacyBody.length} chars)`);
       else log.info(`[Shadow Mode] Would send orchestrator body: "${body}" but sending legacy instead: "${legacyBody}"`);
-    } else if (rolloutMode === "draft_only") {
+    } else if (rolloutMode === "draft_only" && status !== "skipped") {
+      // A skip (non-customer, thank-you) stays a skip: draft_only must not put it
+      // back in the staff queue (Codex review of #3393).
       shouldAutoSend = false;
       status = "drafted";
       statusReason = "draft_only_rollout_mode";
@@ -2012,7 +2044,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     // they never reach "drafted".
     if (
       event.type === "inbound_sms" && event.conversationId && status === "drafted" && requiresHumanApproval &&
-      rolloutMode === "live_send" && db
+      rolloutMode === "live_send" && db && claimHoldingReply(event.conversationId)
     ) {
       let alreadySent: boolean | null = null;
       try {
@@ -2043,6 +2075,8 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         );
         holdingReply = held.success === true && !("notQueued" in held && held.notQueued);
         metadataJson.holdingReply = holdingReply;
+        // Nothing went out: free the claim so the next text in the thread can try.
+        if (!holdingReply) holdingReplyClaims.set(event.conversationId, 0); // 0 = released (always expired)
       }
     }
 
