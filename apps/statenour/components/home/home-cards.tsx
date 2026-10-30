@@ -13,7 +13,8 @@ import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { timeLeftLabel } from "@/lib/brain/goal-pace";
 
-const CARD = "block min-h-11 rounded-card px-4 py-3";
+// UI v3 grammar (ratchet glassCard): ruled, not glass: a left rule, no panel, no radius, like the brief rows.
+const CARD = "block min-h-11 py-2";
 const OPEN_STATUSES = new Set(["active", "in_progress"]);
 
 export interface NextGoal {
@@ -43,7 +44,7 @@ function Skeleton() {
 
 export function PeopleCardView({ read }: { read: { neglected: number; total: number } | "loading" | "error" }) {
   return (
-    <GlassCard as="a" href="/people" className={CARD}>
+    <GlassCard as="a" ruled href="/people" className={CARD}>
       <div aria-busy={read === "loading"}>
         <p className="text-[13px] text-fg-secondary">People</p>
         {read === "loading" ? (
@@ -64,7 +65,7 @@ export function PeopleCardView({ read }: { read: { neglected: number; total: num
 
 export function GoalsCardView({ read }: { read: NextGoal | null | "loading" | "error" }) {
   return (
-    <GlassCard as="a" href="/stats" className={CARD}>
+    <GlassCard as="a" ruled href="/stats" className={CARD}>
       <div aria-busy={read === "loading"}>
         <p className="text-[13px] text-fg-secondary">Goals</p>
         {read === "loading" ? (

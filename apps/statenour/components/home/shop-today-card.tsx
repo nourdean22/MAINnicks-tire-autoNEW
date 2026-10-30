@@ -14,7 +14,7 @@ const SHOP_ADMIN = "https://nickstire.org/admin";
 export function ShopTodayCardView({ read }: { read: ShopToday | "loading" | "error" }) {
   const unknown = read === "error" || (typeof read === "object" && read.status === "unknown");
   return (
-    <GlassCard as="a" href={SHOP_ADMIN} target="_blank" className="block min-h-11 rounded-card px-4 py-3">
+    <GlassCard as="a" ruled href={SHOP_ADMIN} target="_blank" className="block min-h-11 py-2">
       <div className="flex items-baseline justify-between gap-4" aria-busy={read === "loading"}>
         {/* "so far": the bridge sends no sync time yet (a nickstire follow-up adds syncedAt, then "as of HH:MM"). */}
         <p className="text-[13px] text-fg-secondary">Nick&apos;s Tire · today so far</p>
