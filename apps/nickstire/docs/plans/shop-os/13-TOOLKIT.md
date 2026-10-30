@@ -20,3 +20,19 @@ screens he wants instead of vendor emails (06 row 2); emails stay ready if the b
 | QuickBooks Online | U | 0 code hits; UPSTREAMS ADOPT-CANDIDATE 2026-09-23 | Nour: does the shop use it (06 row 7) |
 | ALG / ShopDriver Elite | HAVE mirror F | names `ALG_USERNAME/_PASSWORD`, `AUTO_LABOR_*`; one login at a time (memory shop-os-job-2026-10-26) | Nour picks an after-6-PM night and signs in himself |
 | Shopmonkey, Tekmetric, Shop-Ware trials | MISSING | UPSTREAMS WATCH, operator decision (2026-09-23) | Nour, days 8-12 only (05) |
+
+## 2. Our own services and keys (names only; every "set in prod" is U until a prod read)
+| Item | State | Receipt | Next, who |
+|---|---|---|---|
+| Railway, 3 services | HAVE F | AGENTS.md topology; `apps/worker/DEPLOY.md`; railway CLI 5.64.0 runs here | none |
+| TiDB (nickstire), Neon (statenour) | HAVE F | `DATABASE_URL` in nickstire env example; `DATABASE_URL`, `DIRECT_URL` in statenour's | none. Schema work: `nickstire-tidb-ddl` |
+| Shop SMS gateway (primary), Twilio (fallback) | HAVE F | names `SHOP_SMS_GATEWAY_USERNAME/_PASSWORD/_URL/_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID/_AUTH_TOKEN/_PHONE_NUMBER`; INTEGRATION_REGISTRY | none |
+| Vapi (receptionist) | HAVE F | names `VAPI_API_KEY`, `VAPI_WEBHOOK_SECRET`, `VAPI_RECEPTIONIST_ASSISTANT_ID`, `VAPI_FOLLOWUP_ASSISTANT_ID` read in `server/` | none |
+| Stripe | HAVE F | names `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY` | none |
+| Google login, Maps, Places, Sheets | HAVE F | names `GOOGLE_OAUTH_CLIENT_ID/_SECRET`, `OWNER_OPEN_ID`, `GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACES_API_KEY`, `GOOGLE_SHEETS_CRM_ID` | Sheet sync stays off for /system (09 section 3) |
+| AI providers | HAVE F | names `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_BASE_URL/_API_KEY/_MODEL`; UPSTREAMS Ollama NATIVE | Local-model plan: sibling doc 12 |
+| Langfuse, Sentry | HAVE F | names `LANGFUSE_PUBLIC_KEY/_SECRET_KEY/_BASE_URL`, `SENTRY_DSN`; UPSTREAMS Langfuse ADOPTED | none |
+| Cross-app bridge, cron, email | HAVE F | names `STATENOUR_SYNC_KEY`, `BRIDGE_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY` | none |
+| Staff provisioning, checkout permission, tech clock, MFA gate | MISSING (code) | 09 section 2 P0 tasks 1-4; `isAdminMfaRequired()` is OFF | Agent builds after Nour's day 13-14 go |
+| New vendor key names (Koalafi private key, PartsTech) | MISSING | names TBD; Nour sets values in Railway himself, never in chat | blocked on vendor issue |
+| Bitwarden vault for shop logins | MISSING | memory shop-os-job-2026-10-26, "Owed by Nour"; 0 repo hits | Nour creates it (10 min); agents never type passwords |
