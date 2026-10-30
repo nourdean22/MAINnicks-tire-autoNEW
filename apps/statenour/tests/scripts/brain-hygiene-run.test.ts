@@ -15,6 +15,7 @@ const SCRIPTS = [
   "scripts/brain-hygiene/dedupe-blind-spots.ts",
   "scripts/brain-hygiene/close-overdue-replays.ts",
   "scripts/brain-hygiene/apply-decay.ts",
+  "scripts/brain-hygiene/backfill-trust-tier.ts",
 ];
 
 function harness(count = 7) {

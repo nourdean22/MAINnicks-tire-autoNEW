@@ -15,6 +15,7 @@ import {
 } from "@/lib/brain/categories";
 import { gateWisdom } from "@/lib/brain/wisdom-quality-gate";
 import { computeExpiresAt } from "@/lib/brain/category-ttl";
+import { resolveTrustTier } from "@/lib/brain/memory-trust";
 import {
   closeTransactionWindowIfAvailable,
   effectiveInvalidationAt,
@@ -689,6 +690,10 @@ export class BrainMemoryManager {
     // New memory — temporary (24h expiry) until reinforced. One-shot
     // RECORD categories skip the probation and take their category-ttl
     // policy directly — see ONE_SHOT_RECORD_CATEGORIES above.
+    // Brain backfill W3 (2026-10-30): stamp the tier every reader resolves for this row anyway. Before
+    // this, only admitMemory wrote trust_tier, and 8,663 live rows sat NULL; resolveTrustTier only ever
+    // tightens the source-derived tier, so storing its result cannot loosen trust.
+    const rowMetadata = { ...(metadata ?? {}), ...gateMetadata };
     const created = await prisma.brainMemory.create({
       data: {
         category: effectiveCategory,
@@ -696,10 +701,11 @@ export class BrainMemoryManager {
         content,
         confidence: 0.5,
         source,
+        trustTier: resolveTrustTier({ source, category: effectiveCategory, metadata: rowMetadata, trustTier: null }),
         expiresAt: ONE_SHOT_RECORD_CATEGORIES.has(effectiveCategory)
           ? computeExpiresAt(effectiveCategory)
           : new Date(Date.now() + 24 * 60 * 60 * 1000),
-        metadata: { ...(metadata ?? {}), ...gateMetadata } as any,
+        metadata: rowMetadata as any,
         // Brain plan Wave 2 (2026-09-08): every row written THROUGH remember() starts its
         // validity interval. As-of recall (validityWhere) reads valid_from/valid_until, and
         // the 2026-09-08 prod probe found 0 of 40,889 rows carrying either — data-empty then.
