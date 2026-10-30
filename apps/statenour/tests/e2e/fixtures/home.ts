@@ -4,7 +4,7 @@
  * builders' own exported contracts, so a contract change breaks `tsc` here
  * (a failing type is a fixture bug, not something to cast away).
  *
- * Home's three reads: operator.brief, operator.waitingSummary,
+ * Home's four reads: operator.brief, operator.waitingSummary, operator.maxim,
  * operator.nickRemembersContext. operator.briefChanges is not stubbed: it is
  * only requested once a last-visit cursor exists, and a fresh browser has none.
  */
@@ -153,4 +153,14 @@ export const HOME_WAITING: WaitingSummary = {
 export const HOME_REMEMBERS: inferRouterOutputs<AppRouter>["operator"]["nickRemembersContext"] = {
   anticipatedQuestions: [],
   followUps: [],
+};
+
+// The real pick (lib/wisdom/maxims.ts over MAXIM_POOL) for HOME_BRIEF's lead line at FIXED_TIME, step 0.
+export const HOME_MAXIM: inferRouterOutputs<AppRouter>["operator"]["maxim"] = {
+  id: "naval-maxims:wisdom_naval-ravikant_005",
+  text: "Make a video, post or simple tool once. It can bring in customers for years.",
+  source: "Naval",
+  reason: "for today: customers",
+  position: 93,
+  total: 105,
 };

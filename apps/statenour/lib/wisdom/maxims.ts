@@ -85,11 +85,10 @@ export function etHourKey(at: Date): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour").replace("24", "00")}`;
 }
 
-/** "for: the estimate follow-up" from the line that matched, at most four words, or null. */
-function reasonFor(context: string): string | null {
-  const words = context.replace(/[^\p{L}\p{N}' -]/gu, " ").trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return null;
-  return `for: ${words.slice(0, 4).join(" ").toLowerCase()}`;
+/** "for today: customers": the maxim's first tag that today's line also carries. A cut headline read badly. */
+function reasonFor(maxim: Maxim, want: ReadonlySet<MaximTag>): string | null {
+  const tag = maxim.tags.find((t) => want.has(t as MaximTag));
+  return tag ? `for today: ${tag}` : null;
 }
 
 export interface MaximPick {
@@ -112,15 +111,15 @@ export function pickMaxim(args: {
 }): MaximPick | null {
   const open = args.pool.filter((m) => !args.skipped.has(m.id));
   if (open.length === 0) return null;
-  const context = (args.context ?? "").trim();
-  const want = tagsForText(context);
+  const want = tagsForText((args.context ?? "").trim());
   const matched = want.size > 0 ? open.filter((m) => m.tags.some((t) => want.has(t as MaximTag))) : [];
   const candidates = matched.length > 0 ? matched : open;
   const base = stableIndex(etHourKey(args.at), candidates.length);
   const i = (base + Math.max(0, Math.floor(args.step ?? 0))) % candidates.length;
+  const maxim = candidates[i]!;
   return {
-    maxim: candidates[i]!,
-    reason: matched.length > 0 ? reasonFor(context) : null,
+    maxim,
+    reason: matched.length > 0 ? reasonFor(maxim, want) : null,
     position: i + 1,
     total: candidates.length,
   };

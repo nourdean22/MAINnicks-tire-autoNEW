@@ -60,11 +60,11 @@ describe("the pick", () => {
     expect(etHourKey(at("2026-10-30T01:30:00Z"))).toBe("2026-10-29T21");
   });
 
-  it("leans toward today's top line when a tag matches, and says why in a few words", () => {
+  it("leans toward today's top line when a tag matches, and names the matched topic", () => {
     const p = pickMaxim({ pool, skipped: none, context: "Send the Smith estimate follow-up", at: at("2026-10-29T21:00:00-04:00") })!;
     expect(p.maxim.tags).toContain("customers");
     expect(p.total).toBe(1);
-    expect(p.reason).toBe("for: send the smith estimate");
+    expect(p.reason).toBe("for today: customers");
   });
 
   it("falls back to the plain rotation, with no reason, when nothing matches", () => {

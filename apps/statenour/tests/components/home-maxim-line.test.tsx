@@ -50,7 +50,7 @@ beforeEach(() => {
   h.inputs = [];
   h.keep.mockClear();
   h.skip.mockClear();
-  h.data = { id: "greene-maxims:law_1", text: "Let a big customer feel smart.", source: "Greene · 48 Laws", reason: "for: send the smith estimate", position: 3, total: 40 };
+  h.data = { id: "greene-maxims:law_1", text: "Let a big customer feel smart.", source: "Greene · 48 Laws", reason: "for today: customers", position: 3, total: 40 };
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -61,7 +61,7 @@ describe("MaximLine", () => {
   it("shows the maxim, its source and the reason, and passes the brief's lead line as context", () => {
     mount();
     expect(host.textContent).toContain("Let a big customer feel smart.");
-    expect(host.textContent).toContain("Greene · 48 Laws · for: send the smith estimate");
+    expect(host.textContent).toContain("Greene · 48 Laws · for today: customers");
     expect(h.inputs[0]).toEqual({ step: 0, context: "Send the Smith estimate follow-up" });
   });
 
