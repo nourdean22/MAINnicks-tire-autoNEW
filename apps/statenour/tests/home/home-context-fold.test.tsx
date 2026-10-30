@@ -33,6 +33,7 @@ vi.mock("@/hooks/use-min-width", () => ({ useMinWidth: () => h.wide }));
 vi.mock("@/lib/trpc/client", () => ({ trpc: { operator: { brief: { useQuery: () => h.query } } } }));
 vi.mock("@/components/home/brief-state-line", () => ({ BriefStateLine: () => null }));
 vi.mock("@/components/home/brief-rows", () => ({ BriefRows: () => null }));
+vi.mock("@/components/home/maxim-line", () => ({ MaximLine: () => null }));
 vi.mock("@/components/home/nick-command-line", () => ({ NickCommandLine: () => null }));
 vi.mock("@/components/home/horizon-line", () => ({
   HorizonLine: () => (h.horizon ? <section aria-label="horizon">Horizon</section> : null),

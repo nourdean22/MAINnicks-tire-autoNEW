@@ -106,7 +106,7 @@ export function HomeConsole() {
         )}
 
         {/* 2026-10-29 · one plain maxim from every book pack, leaning toward the brief's lead line. */}
-        <MaximLine context={brief?.lead.headline ?? null} ready={!!brief || unreadable} />
+        <MaximLine context={brief?.lead?.headline ?? null} ready={!!brief || unreadable} />
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail
