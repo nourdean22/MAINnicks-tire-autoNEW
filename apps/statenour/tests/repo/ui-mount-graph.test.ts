@@ -41,12 +41,6 @@ export const PARKED: Record<string, string> = {
   "components/3d/canvas-inner.tsx": "3D scene island (audit W-2) · reached only via scene-canvas, which nothing imports · re-mount or delete is an operator call",
   "components/3d/scene-canvas.tsx": "3D scene island (audit W-2) · zero importers · re-mount or delete is an operator call",
   "components/3d/scene-skeleton.tsx": "3D scene island (audit W-2) · loading skeleton for scene-canvas · dead with its parent",
-  // actions/loops island · entry loop-stream has zero importers.
-  "components/actions/break-promise-modal.tsx": "actions/loops island (audit W-2) · child of loop-stream · dead with its parent",
-  "components/actions/event-timeline.tsx": "actions/loops island (audit W-2) · child of loop-stream · dead with its parent",
-  "components/actions/loop-row-item.tsx": "actions/loops island (audit W-2) · child of loop-stream · dead with its parent",
-  "components/actions/loop-stream.tsx": "actions/loops island (audit W-2) · island entry, zero importers · re-mount or delete is an operator call",
-  "components/actions/todays-compound.tsx": "actions/loops island (audit W-2) · child of loop-stream · dead with its parent",
   // A UI whose backend is fully alive.
   "components/operator/compound-chain.tsx": "audit W-2 · never mounted while lib/services/compound-chain.ts + /api/operator/compound are live · the consumer the service was built for",
   // Ultron HQ island · the route is gone. (ask/omni-capture.tsx, a duplicate

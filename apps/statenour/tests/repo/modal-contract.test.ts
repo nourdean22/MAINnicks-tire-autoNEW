@@ -30,7 +30,6 @@ function stripComments(source: string): string {
 }
 
 const ALLOWED_MANUAL = new Set([
-  "components/actions/break-promise-modal.tsx",
   "components/inspector/inspector-frame.tsx",
   "components/operator/mega-confirm-dialog.tsx",
 ]);
@@ -59,18 +58,11 @@ describe("modal runtime contract", () => {
     expect(mega).toContain("previousFocusRef");
     expect(mega).toContain('document.body.style.overflow = "hidden"');
 
-    const promise = readFileSync(join(ROOT, "components/actions/break-promise-modal.tsx"), "utf8");
-    expect(promise).toContain("previouslyFocused");
-    expect(promise).toContain('document.body.style.overflow = "hidden"');
   });
 
   it("manual confirmation actions keep a 44px phone floor", () => {
     const mega = readFileSync(join(ROOT, "components/operator/mega-confirm-dialog.tsx"), "utf8");
     expect(mega.match(/min-h-\[44px\]/g)?.length).toBeGreaterThanOrEqual(2);
 
-    const promise = readFileSync(join(ROOT, "components/actions/break-promise-modal.tsx"), "utf8");
-    expect(promise).toContain("h-11 w-11");
-    expect(promise.match(/min-h-11/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(promise).toContain('text-[16px]');
   });
 });
