@@ -208,14 +208,37 @@ export function renderedContent(m: RelevantMemory): string {
   return m.content.slice(0, m.relevance === "direct" ? 200 : 150);
 }
 
+/**
+ * Fills `origin` from metadata.origin for the wisdom rows about to render. The
+ * recall pool never selects metadata (it is large on some rows), so this is one
+ * by-id read of a handful of rows. Best-effort: on failure the key prefix decides.
+ */
+export async function attachWisdomOrigins(rows: Array<Pick<RelevantMemory, "id" | "category" | "origin">>): Promise<void> {
+  const wisdom = rows.filter((r) => r.category === "wisdom" && r.id);
+  if (wisdom.length === 0) return;
+  try {
+    const found = await prisma.brainMemory.findMany({
+      where: { id: { in: wisdom.map((r) => r.id!) } },
+      select: { id: true, metadata: true },
+    });
+    const byId = new Map(found.map((f) => [f.id, (f.metadata as { origin?: unknown } | null)?.origin]));
+    for (const r of wisdom) {
+      const origin = byId.get(r.id!);
+      if (typeof origin === "string" && origin) r.origin = origin;
+    }
+  } catch (err) {
+    logError("brain.contextual-recall", err, { fn: "attachWisdomOrigins" }, "warn");
+  }
+}
+
 /** "Naval", "Greene · Law 28", or null for machine-made / unattributed rows. */
-export function curatedWisdomAuthor(m: Pick<RelevantMemory, "category" | "key">): string | null {
+export function curatedWisdomAuthor(m: Pick<RelevantMemory, "category" | "key" | "origin">): string | null {
   if (m.category === "greene_law") {
     const law = /^law_(\d+)$/.exec(m.key ?? "");
     return law ? `Greene · Law ${law[1]}` : null;
   }
   if (m.category !== "wisdom" || !m.key) return null;
-  const origin = resolveWisdomOrigin(m.key);
+  const origin = resolveWisdomOrigin(m.key, m.origin);
   return CURATED_WISDOM_ORIGINS.has(origin) ? wisdomOriginMeta(origin).badge : null;
 }
 
@@ -276,6 +299,8 @@ export interface RelevantMemory {
   relevance: "direct" | "supporting" | "background";
   /** Raw BrainMemory.source — mapped to an evidence class at render time. */
   source?: string;
+  /** metadata.origin of a wisdom row; outranks the key prefix (resolveWisdomOrigin). */
+  origin?: string | null;
   /** Re-sighting count. confidence is derived from this, not from evidence. */
   seenCount?: number;
   /** W1 (2026-10-16) · validity columns as fetched (already filtered by validityWhere/notExpiredWhere); the evidence pack reads them. */
@@ -1733,6 +1758,8 @@ export async function getContextualMemories(
   // guarantee that the always-on wisdom layer never gets dropped.
   const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdomSlots);
 
+  await attachWisdomOrigins(relevant);
+
   // Format for system prompt
   const mode = useEmbeddings ? "semantic" : "keyword";
   const lines: string[] = [
@@ -2233,7 +2260,8 @@ async function getFallbackMemories(max: number): Promise<string> {
     // provenance as the main one. Patching only the three main render sites
     // would leave the no-topics path printing bare lines — an inconsistency
     // that reads as a bug.
-    select: { category: true, content: true, confidence: true, source: true, seenCount: true },
+    // 2026-10-29 · key + metadata so curated wisdom names its author here too (Codex on PR 3357).
+    select: { category: true, key: true, content: true, confidence: true, source: true, seenCount: true, metadata: true },
   });
 
   if (memories.length === 0) return "";
@@ -2242,7 +2270,9 @@ async function getFallbackMemories(max: number): Promise<string> {
   for (const m of memories) {
     // relevance "direct" = the same 200-char slice this path always rendered
     // (provenancePrefix ignores relevance); renderMemoryLine adds the trust fence.
-    lines.push(renderMemoryLine({ ...m, relevance: "direct" }));
+    const { metadata, ...row } = m;
+    const origin = (metadata as { origin?: unknown } | null)?.origin;
+    lines.push(renderMemoryLine({ ...row, origin: typeof origin === "string" ? origin : null, relevance: "direct" }));
   }
 
   return fenceRecallBlock(lines);

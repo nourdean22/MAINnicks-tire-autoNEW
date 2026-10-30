@@ -203,6 +203,7 @@ export const WISDOM_ORIGIN_KEY_PREFIXES: ReadonlyArray<readonly [string, WisdomO
   ["wisdom_naval-ravikant_", "naval-ravikant"],
   ["wisdom_charlie-munger_", "charlie-munger"],
   ["wisdom_bezos-letters_", "bezos-letters"],
+  ["wisdom_baltasar-gracian_", "baltasar-gracian"],
   ["wisdom_greene_", "greene-laws"],
   ["wisdom_distilled_", "distiller"],
   ["wisdom_from_", "consolidation"],
@@ -223,6 +224,7 @@ export const CURATED_WISDOM_ORIGINS: ReadonlySet<string> = new Set<WisdomOrigin>
   "naval-ravikant",
   "charlie-munger",
   "bezos-letters",
+  "baltasar-gracian",
   "greene-laws",
 ]);
 
