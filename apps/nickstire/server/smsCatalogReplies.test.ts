@@ -85,10 +85,18 @@ describe("comebacks and named repairs go to staff, never a free-check template",
     "you fixed my car last week and it's doing the same thing, stopped again, the starter",
     "everything is fine but an emissions light came on as I drove away, did you clear all the codes?",
     "the alignment is off again since you did it",
+    // Codex review of #3417: prior-work language with no date or "still".
+    "you did my alignment and now the wheel is crooked",
+    "you replaced my tires and now it shakes",
   ])("%s -> complaint_or_comeback", (b) => {
     const d = route(b);
     expect(d.primary).toBe("complaint_or_comeback");
     expect(d.risk).toBe("human_only");
+  });
+
+  it("a dashboard light with a named repair is not the free-check template either (Codex review of #3417)", () => {
+    const d = route("my check engine light is on and I think the starter is bad");
+    expect(d.catalogEvent).toBeNull();
   });
 
   it("a named repair with several symptoms is not the diagnostic template", () => {

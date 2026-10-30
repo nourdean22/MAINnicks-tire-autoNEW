@@ -126,6 +126,10 @@ const THANKS_RE = /\b(thanks?|thank you|thx|appreciate it|good so far|ok so far|
 // "Thanks, I also need help with my starter" has no router rule of its own).
 const NOT_JUST_THANKS_RE = /\?|\b(but|still|again|noise|problem|issue|broke|broken|wrong|how much|when|is my|need|needs|want|help|also|please|call me|can you|could you|can i|look at|book|schedule|appointment|quote|price)\b/i;
 
+// W3: a named repair or a string of symptoms is a staff question; the free-check
+// template must not answer it (diagnostic and dashboard_light share it).
+const NAMED_REPAIR_RE = /\b(timing (chain|belt)|rattl\w*|hesitat\w*|knock\w*|misfir\w*|transmission|starter|head gasket)\b/i;
+
 const RULES: Rule[] = [
   {
     intent: "not_a_customer",
@@ -207,6 +211,8 @@ const RULES: Rule[] = [
       /\byou (fixed|did|worked on|replaced|repaired)\b[^.?!]{0,40}\b(last (week|time)|yesterday)\b/i.test(b) ||
       /\bdid you (clear|reset)\b/i.test(b) ||
       /\bas I (drove|pulled) (away|off|out)\b/i.test(b) ||
+      // Codex review of #3417: prior work, then a problem, with no date or "still".
+      /\byou (did|fixed|replaced|repaired|aligned|worked on|put on|installed|changed)\b[^.?!]{0,50}\b(and now|now it|now the|since then)\b/i.test(b) ||
       /\b(not (happy|satisfied)|unacceptable|worse than before|you (broke|damaged|messed))\b/i.test(b) ||
       /\b(refund|lawsuit|lawyer|attorney|sue|suing|bbb|better business)\b/i.test(b),
   },
@@ -268,9 +274,11 @@ const RULES: Rule[] = [
     priority: 3,
     risk: "deterministic",
     catalogEvent: "price_question_diagnostic", // the free-check triage copy fits
+    // A named repair goes to staff here too (Codex review of #3417).
     test: (b) =>
-      /\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
-      /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b),
+      !NAMED_REPAIR_RE.test(b) &&
+      (/\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
+        /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b)),
   },
 
   // ─── Tier 3a: the car cannot be driven here ────────────────────────────
@@ -421,11 +429,7 @@ const RULES: Rule[] = [
     priority: 6,
     risk: "deterministic",
     catalogEvent: "price_question_diagnostic",
-    // W3: a named repair or a string of symptoms is a staff question; the
-    // free-check template answered one in the eval.
-    test: (b) =>
-      /\b(diagnostics?|check engine|scan|code[sp]?|e-?check)\b/i.test(b) &&
-      !/\b(timing (chain|belt)|rattl\w*|hesitat\w*|knock\w*|misfir\w*|transmission|starter|head gasket)\b/i.test(b),
+    test: (b) => /\b(diagnostics?|check engine|scan|code[sp]?|e-?check)\b/i.test(b) && !NAMED_REPAIR_RE.test(b),
   },
   /**
    * Symptoms nobody can price over the phone, and nothing else claims.
