@@ -45,3 +45,20 @@ describe("pushBodyFromBrief · the weekly gap section never reaches a lock scree
   });
 });
 
+describe("pushBodyFromBrief · the Monday Goals section never reaches a lock screen (2026-10-30)", () => {
+  it("a thin brief cuts at the Goals header, so no goal title is in the preview", () => {
+    const body = pushBodyFromBrief(
+      [
+        "<b>Brief · 2026-11-02</b>",
+        "Drift: <b>LOW</b>",
+        "Open tasks: 12",
+        "<i>· · ·</i>",
+        "<b>Goals</b> · 1 active · 0 with a next step",
+        "Past its date: Private goal title · ended 1d ago",
+      ].join("\n"),
+    );
+    expect(body).not.toContain("Private goal title");
+    expect(body).not.toContain("Goals");
+    expect(body).toContain("Open tasks: 12");
+  });
+});

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { goalPaceView } from "@/components/goals/goal-board";
+import { goalPaceView } from "@/lib/brain/goal-pace";
 
 const base = { currentValue: 0, targetValue: 5, unit: "", status: "active", createdAt: "2026-10-28T16:00:00.000Z" };
 
