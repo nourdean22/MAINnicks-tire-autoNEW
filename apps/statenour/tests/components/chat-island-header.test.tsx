@@ -123,7 +123,7 @@ describe("chat-island header, W3b composition", () => {
     const button = (label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}[^"]*"[^>]*>`))?.[0] ?? "";
     expect(button("Auto-read replies")).toContain("max-md:hidden");
     expect(button("Context and memory")).toContain("max-md:hidden");
-    expect(button("Open voice")).toContain("max-md:hidden");
+    expect(button("Start voice typing")).toContain("max-md:hidden");
     expect(button("Conversation history")).not.toContain("max-md:hidden");
     expect(button("More chat controls")).toContain("md:hidden");
     expect(button("More chat controls")).not.toContain("max-md:hidden");

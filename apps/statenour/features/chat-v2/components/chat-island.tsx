@@ -15,7 +15,6 @@ import { ChatMediaFocusPanel } from "./chat-media-focus-panel";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatCapabilityIndicator } from "./chat-capability-indicator";
 import { OperatorConversationDrawer } from "./operator-conversation-drawer";
-import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 import { extractQuality } from "@/lib/chat/extract-message-metadata";
 import { useConversations } from "@/hooks/use-conversations";
@@ -374,7 +373,7 @@ export function ChatIsland() {
           <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <History size={16} /><span className="sr-only">History</span>
           </button>
-          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Stop voice typing" : "Start voice typing"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}<span className="sr-only">Voice</span>
           </button>
           <button ref={moreButtonRef} type="button" onClick={() => setMoreOpen(true)} aria-label="More chat controls" aria-expanded={moreOpen} aria-haspopup="dialog" className="flex h-11 w-11 items-center justify-center rounded-control md:hidden text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg">
@@ -407,8 +406,8 @@ export function ChatIsland() {
           </button>
           <button type="button" aria-pressed={isVoiceDocked} onClick={() => { toggleVoiceDock(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}
-            Voice
-            <span className="ml-auto text-[13px] text-fg-tertiary">{isVoiceDocked ? "Open" : "Closed"}</span>
+            Voice typing
+            <span className="ml-auto text-[13px] text-fg-tertiary">{isVoiceDocked ? "On" : "Off"}</span>
           </button>
         </DialogContent>
       </Dialog>
@@ -464,7 +463,6 @@ export function ChatIsland() {
             <ArrowDown size={18} />
           </button>
         )}
-        {isVoiceDocked && <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />}
       </div>
 
       {/* pb-3, not pb-safe. The route shell now reserves the MEASURED
