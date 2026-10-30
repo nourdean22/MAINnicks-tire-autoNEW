@@ -57,7 +57,6 @@ import { generateAiTasks, decomposeTaskWithAi } from "@/lib/services/ai-tasks";
 import { backfillProjectTasks } from "@/lib/services/backfill-tasks";
 import { buildTodayCompound } from "@/lib/services/today-compound";
 import { buildNextMove } from "@/lib/services/next-move";
-import { buildGoalNextActions } from "@/lib/services/goal-next-actions";
 import { buildTaskRescue, buildDomainAnchors } from "@/lib/services/task-rescue";
 import { buildMissionsDeck } from "@/lib/missions/deck";
 import { spawnProjectTasks } from "@/lib/services/spawn-tasks";
@@ -870,21 +869,6 @@ export const taskRouter = router({
    * delegates to `next-move.buildNextMove` · drift impossible.
    */
   nextMove: operatorProcedure.query(async () => buildNextMove()),
-
-  /**
-   * Phase WW · owner-only · behind-pace goal nudges feeding
-   * GoalNextActionsCard on /plan. Replaces GET /api/goals/next-actions
-   * · delegates to `goal-next-actions.buildGoalNextActions`. The
-   * legacy route's `?limit=` query param (clamped 1..20, default 5)
-   * is mirrored as a typed optional input.
-   */
-  goalNextActions: operatorProcedure
-    .input(
-      z
-        .object({ limit: z.number().int().min(1).max(20).optional() })
-        .optional(),
-    )
-    .query(async ({ input }) => buildGoalNextActions(input?.limit ?? 5)),
 
   /**
    * Phase WW · owner-only · create a LifeGoal. Replaces POST
