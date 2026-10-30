@@ -165,3 +165,11 @@ export const HOME_MAXIM: inferRouterOutputs<AppRouter>["operator"]["maxim"] = {
   position: 3,
   total: 40,
 };
+
+/** The Home Nick's Tire card (home-pulse W2, 2026-10-30): demo sales, fictional like everything here. */
+export const HOME_SHOP_TODAY: inferRouterOutputs<AppRouter>["operator"]["shopToday"] = {
+  status: "ok",
+  dollars: 1240,
+  jobs: 6,
+  asOf: NOW_ISO,
+};

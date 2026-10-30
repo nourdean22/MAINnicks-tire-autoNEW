@@ -28,9 +28,11 @@
  * the payload as a receipt.
  *
  * Absent by design: dashboard grid, stat gauges, glass-glow chrome, nested
- * mini-apps, Nick's Tire anything (shop surfaces live at nickstire.org/admin;
- * /business was deleted 2026-09-02 on operator verdict — never on the personal
- * command surface).
+ * mini-apps. Shop surfaces live at nickstire.org/admin (/business was deleted
+ * 2026-09-02 on operator verdict: nothing of Nick's Tire on the personal command
+ * surface). One exception since 2026-10-30, Nour 13:53 EDT: "u can put a small
+ * nicks tire card on there with total sales for the day" (ShopTodayCard, which
+ * links out to the shop dashboard).
  *
  * 2026-09-16 · Visible Transformation wave: same six sections, same data,
  * recomposed. The state sentence is the NOW region (one display line the
@@ -48,6 +50,8 @@ import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
 import { ContextRail } from "./context-rail";
 import { MaximLine } from "@/components/wisdom/maxim-line";
+import { HomeShortcuts } from "./home-shortcuts";
+import { ShopTodayCard } from "./shop-today-card";
 
 export function HomeConsole() {
   const briefQ = trpc.operator.brief.useQuery(undefined, {
@@ -83,6 +87,12 @@ export function HomeConsole() {
             five phone jobs in reach. */}
         <section aria-label="Nick" className="mt-8">
           <NickCommandLine />
+        </section>
+
+        {/* home-pulse W2 (2026-10-30): shortcuts to the surfaces the tab bar lacks, then today's shop sales. */}
+        <section aria-label="Shortcuts and shop" className="mt-5 flex flex-col gap-3">
+          <HomeShortcuts />
+          <ShopTodayCard />
         </section>
 
         {unreadable ? (
