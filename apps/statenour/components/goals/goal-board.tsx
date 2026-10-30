@@ -79,7 +79,7 @@ import {
   X as XIcon,
   Check,
 } from "lucide-react";
-import { computePace, etDaysBetween, goalDue, paceLabel, formatRate, type PaceVerdict } from "@/lib/brain/goal-pace";
+import { computePace, goalDue, paceLabel, formatRate, timeLeftLabel, type PaceVerdict } from "@/lib/brain/goal-pace";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import {
   effectiveHorizon,
@@ -127,6 +127,8 @@ interface LifeGoal {
   deadline: string | null;
   createdAt: string;
   updatedAt: string;
+  /** When the current horizon was set (lib/services/goals.ts getGoals); null = since creation. */
+  horizonSetAt?: string | null;
   linkedTaskCount?: number;
   linkedDoneCount?: number;
   linkedActiveCount?: number;
@@ -208,6 +210,7 @@ export function goalPaceView(g: {
   deadline: string | null;
   horizon: string | null;
   createdAt: string;
+  horizonSetAt?: string | null;
 }, now: number = Date.now()):
   | { kind: "note"; text: string }
   | { kind: "time"; label: string }
@@ -215,13 +218,19 @@ export function goalPaceView(g: {
   | null {
   const due = goalDue(g);
   if (due.at === null) return g.status === "active" ? { kind: "note", text: due.label } : null;
-  const verdict = computePace({ currentValue: g.currentValue, targetValue: g.targetValue, deadline: due.at, createdAt: g.createdAt, now });
+  const dueMs = Date.parse(due.at);
+  const start = g.horizonSetAt ?? g.createdAt;
+  // computePace floors a period at one day, so a horizon period under two days (a DAY goal, a WEEK
+  // goal set on a Sunday) would read "behind" minutes after it starts: show time left instead.
+  const shortPeriod = due.source === "horizon" && dueMs - Date.parse(start) < 2 * 86_400_000;
+  const verdict = shortPeriod
+    ? ({ kind: "unscored" } as const)
+    : computePace({ currentValue: g.currentValue, targetValue: g.targetValue, deadline: due.at, createdAt: start, now });
   if (verdict.kind === "unscored") {
-    // No target (4 of 6 live goals, 2026-10-30): pace cannot score, but the date still tells time left.
+    // No target (4 of 6 live goals, 2026-10-30) or a short period: the date still tells time left.
     if (g.status !== "active") return null;
-    const days = etDaysBetween(now, Date.parse(due.at));
-    const when = days >= 0 ? `${days}d left` : `ended ${-days}d ago`;
-    return { kind: "time", label: `${when} · ${due.label} · no target set` };
+    const noTarget = g.targetValue > 0 ? "" : " · no target set";
+    return { kind: "time", label: `${timeLeftLabel(now, dueMs)} · ${due.label}${noTarget}` };
   }
   // A derived date is never "his deadline": a passed one reads "ended", not "past deadline".
   const pace = due.source === "horizon" && verdict.kind === "missed" ? `ended ${verdict.overdueDays}d ago` : paceLabel(verdict, g.unit);

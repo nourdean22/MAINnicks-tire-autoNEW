@@ -43,6 +43,13 @@ export function etDaysBetween(fromMs: number, toMs: number): number {
   return day(toMs) - day(fromMs);
 }
 
+/** "2d left" · "ended today" · "ended 3d ago": past is read from the instant, the count from ET days. */
+export function timeLeftLabel(now: number, dueMs: number): string {
+  const days = etDaysBetween(now, dueMs);
+  if (dueMs >= now) return `${days}d left`;
+  return days === 0 ? "ended today" : `ended ${-days}d ago`;
+}
+
 export type GoalDue =
   | { at: string; source: "set" | "horizon"; label: string }
   | { at: null; source: null; label: string };
@@ -65,6 +72,8 @@ export function goalDue(g: {
   deadline: string | Date | null;
   horizon: string | null;
   createdAt: string | Date | null;
+  /** When the current horizon was set (latest horizon_set GoalEvent); the period counts from here. */
+  horizonSetAt?: string | Date | null;
 }): GoalDue {
   // An unreadable date reads as unscored; toISOString() on it would throw inside a render.
   const deadline = g.deadline ? new Date(g.deadline) : null;
@@ -73,7 +82,8 @@ export function goalDue(g: {
   if (horizon === "LIFE") return { at: null, source: null, label: "unscored: a lifetime goal has no date" };
   if (!horizon) return { at: null, source: null, label: "unscored: no deadline or horizon set" };
   const label = HORIZON_END_LABEL[horizon];
-  const created = g.createdAt ? new Date(g.createdAt) : null;
+  const setAt = g.horizonSetAt ? new Date(g.horizonSetAt) : null;
+  const created = setAt && !Number.isNaN(setAt.getTime()) ? setAt : g.createdAt ? new Date(g.createdAt) : null;
   if (!label || !created || Number.isNaN(created.getTime())) {
     return { at: null, source: null, label: "unscored: horizon or date unreadable" };
   }

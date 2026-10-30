@@ -146,6 +146,39 @@ describe("Goals Service", () => {
     });
   });
 
+  describe("getGoals · horizonSetAt (2026-10-30 goals-system W1)", () => {
+    it("passes the latest horizon_set time through, and asks Prisma for it", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([
+        { id: "g1", title: "T", domain: "business", status: "active", currentValue: 0, targetValue: 0, progress: 0, events: [{ createdAt: new Date("2026-10-30T15:00:00.000Z") }] },
+        { id: "g2", title: "U", domain: "business", status: "active", currentValue: 0, targetValue: 0, progress: 0, events: [] },
+      ]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      const result = await getGoals();
+      expect(result.map((g) => g.horizonSetAt)).toEqual(["2026-10-30T15:00:00.000Z", null]);
+      expect(result[0]).not.toHaveProperty("events");
+      expect(mocks.lifeGoal.findMany.mock.calls[0][0].include.events).toMatchObject({ where: { kind: "horizon_set" }, take: 1 });
+    });
+  });
+
+  describe("updateGoal · horizon_set (2026-10-30 goals-system W1)", () => {
+    it("emits horizon_set when the horizon actually changes", async () => {
+      mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "T", status: "active", currentValue: 0, targetValue: 0, horizon: "YEAR" });
+      mocks.lifeGoal.update.mockResolvedValue({ id: "g1", title: "T", status: "active", currentValue: 0, targetValue: 0, horizon: "WEEK" });
+      await updateGoal({ id: "g1", horizon: "WEEK" });
+      expect(mocks.emitGoalEventAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ goalId: "g1", kind: "horizon_set", payload: { from: "YEAR", to: "WEEK" } }),
+      );
+    });
+
+    it("the edit form re-sending the same horizon is not a change", async () => {
+      mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "T", status: "active", currentValue: 0, targetValue: 0, horizon: "WEEK" });
+      mocks.lifeGoal.update.mockResolvedValue({ id: "g1", title: "T", status: "active", currentValue: 0, targetValue: 0, horizon: "WEEK" });
+      await updateGoal({ id: "g1", horizon: "WEEK", title: "T2" });
+      expect(mocks.emitGoalEventAsync).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "horizon_set" }));
+    });
+  });
+
   describe("removeGoal", () => {
     it("soft deletes a goal", async () => {
       mocks.softDelete.mockResolvedValue({ ok: true, noop: false });

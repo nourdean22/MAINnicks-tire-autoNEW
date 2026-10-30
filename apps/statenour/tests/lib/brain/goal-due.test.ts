@@ -52,6 +52,12 @@ describe("goalDue", () => {
     expect(goalDue({ deadline: new Date("2026-12-01T12:00:00.000Z"), horizon: null, createdAt: null }).source).toBe("set");
   });
 
+  it("a horizon set after creation counts from when it was set, not from createdAt (Codex P2)", () => {
+    // created in September, re-paced to WEEK on Mon 2026-10-26: the week of Oct 26
+    const d = goalDue({ deadline: null, horizon: "WEEK", createdAt: "2026-09-08T02:00:00.000Z", horizonSetAt: "2026-10-26T15:00:00.000Z" });
+    expect(d.at).toBe("2026-11-02T04:59:59.999Z");
+  });
+
   it("LIFE and no horizon stay unscored and say why", () => {
     expect(goalDue({ deadline: null, horizon: "LIFE", createdAt: "2026-10-28T16:00:00.000Z" })).toEqual({
       at: null,

@@ -57,6 +57,28 @@ describe("goalPaceView", () => {
     });
   });
 
+  it("a horizon period under two days shows time left, not a pace verdict that floors to one day (Codex P2)", () => {
+    const now = Date.parse("2026-10-30T13:05:00.000Z");
+    const v = goalPaceView({ ...base, targetValue: 5, currentValue: 1, deadline: null, horizon: "DAY", createdAt: "2026-10-30T13:00:00.000Z" }, now);
+    expect(v).toEqual({ kind: "time", label: "0d left · end of day (from horizon)" });
+  });
+
+  it("a date that passed earlier today reads 'ended today', never '0d left' (Codex P2)", () => {
+    const now = Date.parse("2026-10-30T16:00:00.000Z");
+    const v = goalPaceView({ ...base, targetValue: 0, deadline: "2026-10-30T14:00:00.000Z", horizon: null }, now);
+    expect(v).toEqual({ kind: "time", label: "ended today · deadline · no target set" });
+  });
+
+  it("a goal created 40 days ago and re-paced to WEEK today is due this week, not overdue (manager case)", () => {
+    const now = Date.parse("2026-10-30T15:30:00.000Z"); // Fri 11:30 ET
+    const g = { ...base, targetValue: 0, deadline: null, horizon: "WEEK", createdAt: "2026-09-20T15:00:00.000Z" };
+    expect(goalPaceView(g, now)).toEqual({ kind: "time", label: "ended 40d ago · end of week (from horizon) · no target set" });
+    expect(goalPaceView({ ...g, horizonSetAt: "2026-10-30T15:00:00.000Z" }, now)).toEqual({
+      kind: "time",
+      label: "2d left · end of week (from horizon) · no target set",
+    });
+  });
+
   it("a finished goal shows no unscored note", () => {
     expect(goalPaceView({ ...base, status: "achieved", deadline: null, horizon: null })).toBeNull();
   });

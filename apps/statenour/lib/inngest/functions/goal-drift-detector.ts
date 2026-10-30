@@ -62,37 +62,40 @@ async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string
       deadline: true,
       createdAt: true,
       targetValue: true,
+      currentValue: true,
       progress: true,
       updatedAt: true,
       events: {
         where: { createdAt: { gte: priorCutoff } },
-        select: { createdAt: true },
+        select: { kind: true, createdAt: true },
       },
     },
   });
+  // When each goal's current horizon was set (any age): a derived due date counts from it.
+  const horizonSets = await prisma.goalEvent.findMany({
+    where: { goalId: { in: goals.map((g) => g.id) }, kind: "horizon_set" },
+    orderBy: { createdAt: "desc" },
+    select: { goalId: true, createdAt: true },
+  });
+  const horizonSetAt = new Map<string, Date>();
+  for (const h of horizonSets) if (!horizonSetAt.has(h.goalId)) horizonSetAt.set(h.goalId, h.createdAt);
 
   const flagged: DriftFlag[] = [];
   const recovered: string[] = [];
 
   for (const g of goals) {
-    let recentEvents = 0;
-    let priorEvents = 0;
-    let lastActivity = new Date(g.updatedAt);
-    for (const e of g.events) {
-      const t = new Date(e.createdAt);
-      if (t >= recentCutoff) recentEvents++;
-      else priorEvents++;
-      if (t > lastActivity) lastActivity = t;
-    }
+    const { recentEvents, priorEvents, lastEvent } = movementCounts(g.events, recentCutoff);
+    const lastActivity = lastEvent && lastEvent > g.updatedAt ? lastEvent : new Date(g.updatedAt);
     const daysSinceActivity = Math.floor((now - lastActivity.getTime()) / 86_400_000);
-    const due = goalDue(g);
+    const due = goalDue({ ...g, horizonSetAt: horizonSetAt.get(g.id) ?? null });
     const daysToDeadline = daysToDue(due, g.targetValue, now);
+    const progress = driftProgress(g);
 
     const verdict = classifyDrift({
       recentEvents,
       priorEvents,
       daysSinceActivity,
-      progress: g.progress,
+      progress,
       daysToDeadline,
     });
 
@@ -103,7 +106,7 @@ async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string
         horizon: g.horizon,
         verdict,
         daysSinceActivity,
-        progress: g.progress,
+        progress,
         daysToDeadline,
         dueLabel: due.label,
       });
@@ -125,7 +128,35 @@ async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string
 export function daysToDue(due: GoalDue, targetValue: number, now: number): number | null {
   if (due.at === null) return null;
   if (due.source === "horizon" && !(targetValue > 0)) return null;
-  return etDaysBetween(now, Date.parse(due.at));
+  const dueMs = Date.parse(due.at);
+  const days = etDaysBetween(now, dueMs);
+  // Passed earlier today is past (the classifier only alerts on >= 0), not "0 days left".
+  return dueMs < now ? Math.min(days, -1) : days;
+}
+
+/** Percent done from the live values; the stored `progress` goes stale when the target is edited. */
+export function driftProgress(g: { currentValue: number; targetValue: number; progress: number }): number {
+  return g.targetValue > 0 ? Math.min(100, Math.round((g.currentValue / g.targetValue) * 100)) : g.progress;
+}
+
+/** Lifecycle events are not movement: a goal's own creation would otherwise hide a quiet week. */
+const NOT_MOVEMENT = new Set(["created", "horizon_set"]);
+
+export function movementCounts(
+  events: { kind: string; createdAt: Date }[],
+  recentCutoff: Date,
+): { recentEvents: number; priorEvents: number; lastEvent: Date | null } {
+  let recentEvents = 0;
+  let priorEvents = 0;
+  let lastEvent: Date | null = null;
+  for (const e of events) {
+    if (NOT_MOVEMENT.has(e.kind)) continue;
+    const t = new Date(e.createdAt);
+    if (t >= recentCutoff) recentEvents++;
+    else priorEvents++;
+    if (!lastEvent || t > lastEvent) lastEvent = t;
+  }
+  return { recentEvents, priorEvents, lastEvent };
 }
 
 export function titleFor(f: DriftFlag): string {
