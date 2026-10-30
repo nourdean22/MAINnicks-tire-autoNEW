@@ -54,7 +54,7 @@ vi.mock("@/lib/utils/http", () => ({
   cronHandler: (h: (req: Request, ctx: unknown) => Promise<unknown>) => h,
 }));
 
-import { GET } from "@/app/api/cron/embed-backfill/route";
+import { GET, STALE_WINDOW_DAYS } from "@/app/api/cron/embed-backfill/route";
 
 const req = new Request("http://test/api/cron/embed-backfill");
 const ctx = { params: Promise.resolve({}) };
@@ -156,6 +156,20 @@ describe("cron/embed-backfill: stale vectors are re-embedded", () => {
     expect(stale).toMatch(/deleted_at IS NULL/i);
     expect(stale).toMatch(/confidence >= 0\.2/i);
     expect(mockPrisma.$queryRaw.mock.calls[1].slice(1).flat()).toContain("mastery_xp_event");
+  });
+
+  // Brain backfill W6 (2026-10-30): unbounded, the strpos check ran on every live embedded row (18,111) to find 7,
+  // 16 s on prod, twice per run (candidates + backlog count) inside a 60 s maxDuration. Every stale row found was
+  // updated in the last 14 days (a rewrite bumps updated_at); bounded, the same query took 168 ms on the updated_at index.
+  it("the stale candidates and the stale backlog count are both bounded to recently updated rows", async () => {
+    await invoke();
+    const staleCalls = mockPrisma.$queryRaw.mock.calls.filter((c) => /strpos/i.test((c[0] as string[]).join("?")));
+    expect(staleCalls).toHaveLength(2);
+    for (const c of staleCalls) {
+      expect((c[0] as string[]).join("?")).toMatch(/bm\.updated_at > now\(\) - \? \* interval '1 day'/);
+      expect(c.slice(1)).toContain(STALE_WINDOW_DAYS);
+    }
+    expect(STALE_WINDOW_DAYS).toBeGreaterThanOrEqual(7); // the cron runs twice a day: at least 14 retries of a failed re-embed
   });
 });
 

@@ -35,6 +35,13 @@ const BATCH_PER_TYPE = 15;
  */
 const BRAIN_BATCH = 100;
 
+/**
+ * The stale lane only looks at rows updated in this window (a rewrite bumps updated_at). Unbounded, its strpos
+ * check read every embedded row: 18,111 to find 7, 16 s on prod, twice a run. Measured 2026-10-30: all 7 stale rows
+ * were under 14 days old; bounded, 168 ms. At two runs a day a failed re-embed still gets 28 retries.
+ */
+export const STALE_WINDOW_DAYS = 14;
+
 
 export const GET = cronHandler(async () => {
   const report: Record<string, { processed: number; success: number; remaining: number }> = {};
@@ -96,6 +103,7 @@ export const GET = cronHandler(async () => {
       WHERE bm.deleted_at IS NULL
         AND bm.confidence >= 0.2
         AND NOT (bm.category = ANY(${TELEMETRY_CATEGORY_LIST}))
+        AND bm.updated_at > now() - ${STALE_WINDOW_DAYS} * interval '1 day'
         AND EXISTS (
           SELECT 1 FROM vector_embeddings v
           WHERE v."sourceType" = 'brain_memory' AND v."sourceId" = bm.id
@@ -138,6 +146,7 @@ export const GET = cronHandler(async () => {
       WHERE bm.deleted_at IS NULL
         AND bm.confidence >= 0.2
         AND NOT (bm.category = ANY(${TELEMETRY_CATEGORY_LIST}))
+        AND bm.updated_at > now() - ${STALE_WINDOW_DAYS} * interval '1 day'
         AND EXISTS (
           SELECT 1 FROM vector_embeddings v
           WHERE v."sourceType" = 'brain_memory' AND v."sourceId" = bm.id
