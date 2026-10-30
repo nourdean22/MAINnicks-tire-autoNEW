@@ -107,6 +107,13 @@ function createPrismaClient(): PrismaClient {
           // Client-side per-query timer (driver-level, works through the
           // -pooler endpoint regardless of server session settings).
           query_timeout: 30_000,
+          // 2026-10-30 (railway-audit): the driver default closed idle sockets
+          // after 30 s, so the first query after each 15-minute worker tick
+          // re-opened WebSocket + TLS + auth and logged as an 800 ms-4.8 s
+          // "slow query" that EXPLAIN put at 0.03 ms. 20 min outlasts the tick.
+          // The adapter listens for pool "error", so a socket the proxy drops
+          // is discarded, not fatal (@prisma/adapter-neon dist/index.mjs:643).
+          idleTimeoutMillis: 20 * 60_000,
         });
 
   // v10.0.18 — emit "query" events in BOTH dev + prod so the slow-query

@@ -38,6 +38,7 @@ const db = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: db, resetQueryCount: vi.fn(), getQueryCount: vi.fn(() => 0) }));
 vi.mock("@/lib/auth-guard", () => ({
   requireSyncAuth: vi.fn(),
+  requireDeviceAgentAuth: vi.fn(),
   requireCronAuth: vi.fn(),
   requireSession: vi.fn(async () => ({ id: "op", email: "op@test", role: "operator" })),
   safeEqual: () => true,

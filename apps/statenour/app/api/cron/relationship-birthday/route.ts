@@ -23,13 +23,16 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { monthDayET } from "@/lib/services/people/birthday";
+import { toDateString } from "@/lib/utils/datetime";
 
 export const maxDuration = 30;
 
 export const GET = cronHandler(async () => {
   const now = new Date();
-  const todayMmdd = now.toISOString().slice(5, 10);
-  const todayIso = now.toISOString().slice(0, 10);
+  // New York date (people W0): toISOString() is UTC and runs a day ahead after 20:00 ET.
+  const todayMmdd = monthDayET(now);
+  const todayIso = toDateString(now);
 
   const candidates = await prisma.personProfile.findMany({
     where: {

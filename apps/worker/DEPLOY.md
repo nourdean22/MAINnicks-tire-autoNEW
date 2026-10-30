@@ -63,6 +63,15 @@ USED:
 - `AWS_REGION`, `S3_BUCKET`, `CLOUDFRONT_DOMAIN`, `SITE_URL` · video-render upload path; with
   `S3_BUCKET` unset, renders fall back to local `data/generated/`
 
+OPTIONAL, the Ring poller (`src/ring-poller.ts`, `src/ring-vault.ts`; off unless ALL of these are set):
+- `RING_POLL_ENABLED` · exactly `1` turns it on; anything else is off
+- `REDIS_URL` · reference to the existing Railway Redis (`redis://`, private network); holds only
+  the sealed Ring token record (`ring:auth`) and its lease (`ring:lock`), never business data
+- `RING_TOKEN_KEY` · seals that record (AES-256-GCM); losing it means Nour re-runs the Ring login
+- `DEVICE_AGENT_KEY` · same value as on statenour-web; the scoped door to `/api/devices/**`
+- `RING_REFRESH_TOKEN_SEED` · read only while Redis holds no token; stale after the first rotation
+- `RING_USER_AGENT` · optional, the current Ring Android app User-Agent (default `android:com.ringapp`)
+
 NOT read by this service: `DATABASE_URL`, `DIRECT_URL`, `GITHUB_TOKEN`,
 `NICKSTIRE_DATABASE_URL`, `OPENAI_API_KEY`, `VENICE_API_KEY`, `TELEGRAM_BOT_TOKEN`.
 Q-36 pins the first three high-risk absences in an executable repo test. They may still be set on

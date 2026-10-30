@@ -116,6 +116,25 @@ Operator steps: run `railway config plan` and expect exactly 1 change (the `stat
 and `0 to destroy`. Then run `railway config apply`, then `railway config plan` again, which must read
 *already up to date*.
 
+## 2026-10-30 · railway.ts matches live, and a plan with any destroy is refused
+
+The first plan after #3384 merged read `2 to change, 28 to destroy`, so nothing was applied. Variables run in
+managed mode: 28 variables set in the dashboard were never declared here and would have been deleted. Also,
+nickstire's start command here (`pnpm --filter nicks-tire-auto start`) differed from live, which runs
+`cd apps/nickstire && NODE_ENV=production exec node dist/index.js`. All 28 are now declared with `preserve()` (names
+only, never values), the live start and pre-deploy commands are pinned, and `railway config plan` reads
+`0 to add, 1 to change, 0 to destroy` (the worker watchPatterns change from #3384).
+
+Before every apply:
+
+1. `railway config plan > plan.txt`
+2. `node scripts/agent-os/railway-plan-guard.mjs plan.txt`, which exits 1 on any destroy and on a plan that did not finish
+3. Apply only on exit 0. A variable added in the dashboard goes into `railway.ts` and `.railway/live-variables.json` in
+   the same PR; `railwayWatchCoverage.test.mjs` fails when railway.ts stops declaring a listed name.
+
+Running the plan from Git Bash fails the SDK version check (`railway/iac` runs `process.env._ --version`, and Bash sets
+`_` to the last command). Run it from PowerShell, or set `_` to the `railway.exe` path.
+
 ## Notes
 
 - `.railway/package.json` declares `{"type":"module"}`. The monorepo root has no `type` field, so it

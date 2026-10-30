@@ -18,7 +18,8 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
-import { NEGLECT_AFTER_DAYS, isNeglected } from "@/lib/services/people/neglect";
+import { isNeglected } from "@/lib/services/people/neglect";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
 
@@ -46,6 +47,8 @@ function reviewedWithin(
 export async function runPeopleIntelligence(): Promise<{
   profilesUpdated: number;
   alerts: string[];
+  /** Set when the enrich pass could not read its context: 0 updates then means UNKNOWN, not a quiet day. */
+  enrich?: "ledger_read_failed";
 }> {
   const alerts: string[] = [];
 
@@ -73,6 +76,7 @@ export async function runPeopleIntelligence(): Promise<{
       lastInteraction: true,
       dossierUpdatedAt: true,
       interactionCount: true,
+      cadenceDays: true,
       leverageNotes: true,
       metadata: true,
       pendingClassification: true,
@@ -107,40 +111,45 @@ export async function runPeopleIntelligence(): Promise<{
   );
 
   let updated = 0;
-  if (sparse.length > 0 && sparse.length <= 10) {
-    // Get recent conversation digests mentioning these people
-    const digests = await prisma.auditEvent
+  let ledgerReadFailed = false;
+  if (sparse.length > 0) {
+    // People W0 (2026-10-30): the context is the person's own ledger notes.
+    // This used to read payload.peopleMentioned off conversation_digest audit
+    // rows, which the digest strips before insert (AuditEvent has no row-level
+    // access control, v10.0.35), so it always read nothing; a `<= 10` sparse
+    // gate also kept it from running on prod's 12. A failed read is no
+    // context at all, never a guess.
+    const notes = await prisma.relationshipLedger
       .findMany({
-        where: { eventType: "conversation_digest" },
+        where: { personId: { in: sparse.map((p) => p.id) } },
         orderBy: { createdAt: "desc" },
-        take: 20,
-        select: { payload: true },
+        take: 200,
+        select: { personId: true, note: true, metadata: true },
       })
+      // Only real contacts are context: a status-flip or synthetic row is not an interaction.
+      .then(contactRowsOnly)
       .catch((err) => {
-        logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.findDigests" });
-        return [];
+        logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.findLedgerNotes" });
+        ledgerReadFailed = true;
+        return null;
       });
 
-    const mentionContext: Record<string, string[]> = {};
-    for (const d of digests) {
-      const p = d.payload as any;
-      if (!p?.peopleMentioned) continue;
-      for (const mention of p.peopleMentioned) {
-        if (!mentionContext[mention.name]) mentionContext[mention.name] = [];
-        mentionContext[mention.name].push(mention.context);
-      }
+    const ledgerContext: Record<string, string[]> = {};
+    for (const n of notes ?? []) {
+      const list = (ledgerContext[n.personId] ??= []);
+      if (list.length < 3 && n.note.trim()) list.push(n.note.trim().slice(0, 200));
     }
 
     let enrichFailCount = 0;
-    for (const person of sparse.slice(0, 5)) {
-      const contexts = mentionContext[person.name] || [];
-      if (contexts.length === 0 && person.role === "unknown") continue;
+    // Nothing on record means nothing to ground a suggestion in: no call.
+    for (const person of sparse.filter((p) => ledgerContext[p.id]?.length).slice(0, 5)) {
+      const contexts = ledgerContext[person.id];
 
       const enrichResult = await aiChat(
         [
           {
             role: "system",
-            content: `Based on these conversation mentions, determine this person's role and strategic relevance to Nour (CEO of an auto repair shop).
+            content: `Based on these logged interactions, determine this person's role and strategic relevance to Nour (CEO of an auto repair shop).
 
 Pick the role from EXACTLY this list (use the closest fit; do not invent one):
 ${PERSON_ROLE_PROMPT_LIST}
@@ -154,7 +163,7 @@ Return ONLY JSON:
           },
           {
             role: "user",
-            content: `Person: ${person.name}\nCurrent role: ${person.role}\nRelationship: ${person.relationship}\nMention contexts: ${contexts.join("; ") || "no recent mentions"}\nInteraction count: ${person.interactionCount}`,
+            content: `Person: ${person.name}\nCurrent role: ${person.role}\nRelationship: ${person.relationship}\nLogged interactions: ${contexts.join("; ")}\nInteraction count: ${person.interactionCount}`,
           },
         ],
         "fast"
@@ -194,7 +203,7 @@ Return ONLY JSON:
                   role: suggestedRole,
                   leverageNotes: suggestedNotes,
                   trustAdjustment,
-                  basis: contexts.slice(0, 3).join("; ").slice(0, 400) || "no recent mentions",
+                  basis: contexts.join("; ").slice(0, 400),
                   suggestedAt: today(),
                 } as object,
               },
@@ -212,98 +221,7 @@ Return ONLY JSON:
     }
   }
 
-  return { profilesUpdated: updated, alerts };
-}
-
-/**
- * Get people intelligence for the system prompt.
- */
-export async function getPeopleIntelligence(): Promise<string> {
-  const people = await prisma.personProfile
-    .findMany({
-      // Soft-deleted profiles must not leak into Nick's system prompt —
-      // otherwise he keeps referencing people the operator deleted. The
-      // scan (runPeopleIntelligence) already filters; this builder didn't.
-      where: { deletedAt: null },
-      // W8 · recency first (see the note above); the count and then trust
-      // break ties beneath it.
-      orderBy: [
-        { lastInteraction: { sort: "desc", nulls: "last" } },
-        { interactionCount: "desc" },
-        { trustScore: "desc" },
-      ],
-      take: 15,
-      select: {
-        name: true,
-        role: true,
-        relationship: true,
-        trustScore: true,
-        lastInteraction: true,
-        dossierUpdatedAt: true,
-        interactionCount: true,
-        leverageNotes: true,
-      },
-    })
-    .catch((err) => {
-      logError("brain.people-intelligence", err, { fn: "getPeopleIntelligence.findProfiles" });
-      return [];
-    });
-
-  if (people.length === 0) return "";
-
-  const lines: string[] = [
-    `\n## L11 — People Intelligence (${people.length} profiles)`,
-  ];
-
-  // Categorize by role
-  type Person = (typeof people)[number];
-  const byRole: Record<string, Person[]> = {};
-  for (const p of people) {
-    const role = p.role || "unknown";
-    const bucket = byRole[role] ?? (byRole[role] = []);
-    bucket.push(p);
-  }
-
-  for (const [role, members] of Object.entries(byRole)) {
-    lines.push(
-      `**${role}**: ${members.map((p) => {
-        const daysSince = p.lastInteraction
-          ? Math.round(
-              (Date.now() - new Date(p.lastInteraction).getTime()) /
-                (24 * 60 * 60 * 1000)
-            )
-          : null;
-        const marker =
-          daysSince && daysSince > 14
-            ? reviewedWithin(p.dossierUpdatedAt)
-              ? " 📝reviewed"
-              : " ⚠️STALE"
-            : "";
-        return `${p.name} (trust: ${(p.trustScore * 100).toFixed(0)}%, ${p.interactionCount} interactions${marker})`;
-      }).join(", ")}`
-    );
-  }
-
-  // Surface neglected relationships — no real CONTACT in NEGLECT_AFTER_DAYS+ days. Someone
-  // whose dossier the operator just reviewed is NOT neglected (clearly
-  // still tracked) — split those into a truthful "reach out" nudge instead
-  // of crying neglect right after they engaged with the record.
-  const staleContact = people.filter((p) => isNeglected(p));
-  const neglected = staleContact.filter((p) => !reviewedWithin(p.dossierUpdatedAt));
-  const reviewedNotContacted = staleContact.filter((p) =>
-    reviewedWithin(p.dossierUpdatedAt)
-  );
-
-  if (neglected.length > 0) {
-    lines.push(
-      `**NEGLECTED**: ${neglected.map((n) => n.name).join(", ")} — no contact in 14+ days`
-    );
-  }
-  if (reviewedNotContacted.length > 0) {
-    lines.push(
-      `**REACH OUT**: ${reviewedNotContacted.map((n) => n.name).join(", ")} — notes fresh, no actual contact yet`
-    );
-  }
-
-  return lines.join("\n");
+  return ledgerReadFailed
+    ? { profilesUpdated: updated, alerts, enrich: "ledger_read_failed" }
+    : { profilesUpdated: updated, alerts };
 }

@@ -51,7 +51,7 @@ const STRICT = process.argv.includes("--strict");
 const AUTH_SIGNAL = new RegExp(
   [
     // explicit guards
-    "require(Session|CronAuth|SyncAuth|BridgeAuth)",
+    "require(Session|CronAuth|SyncAuth|BridgeAuth|DeviceAgentAuth)",
     // wrapper-style handlers that carry their own guard
     "(cron|sync|bridge|evidence)Handler",
     // assert-style guards (runner, bridge, mcp)
@@ -64,7 +64,7 @@ const AUTH_SIGNAL = new RegExp(
     // raw next-auth session check (brain/suggestion-loop idiom)
     "await auth\\(\\)|session\\?\\.user\\?\\.email",
     // declarative markers
-    'auth:\\s*"(owner|cron|sync|bridge|evidence)"',
+    'auth:\\s*"(owner|cron|sync|bridge|evidence|device)"',
   ].join("|"),
 );
 

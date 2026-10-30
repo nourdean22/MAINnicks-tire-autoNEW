@@ -57,6 +57,8 @@ export type SmsIntent =
   | "financing"
   | "human_requested"
   | "job_inquiry"
+  | "not_a_customer"
+  | "no_reply_needed"
   | "general";
 
 export type SmsRouteRisk =
@@ -96,7 +98,47 @@ interface Rule {
 const FINANCING_EVERYDAY_RE =
   /\b((do|make|doing|making|set up) (monthly |weekly )?payments|monthly payments?|payments? on (?:(?:my|the|a|an|those|these|new|used|front|rear|\d+) )*(?:brakes?|tires?|wheels?|rims?|repairs?|alignment|exhaust|muffler|transmission|engine|job|work)\b|pay(ing)? (it |this |that )?(off )?(over time|monthly|weekly|in (installments|parts|pieces))|installments?|split (?:it|the (?:payment|bill|cost)) (?:up|into|over)|spread (?:the )?(?:cost|bill|payments?) out|spread out (?:the )?(?:cost|bill|payments?)|lay ?away)\b/i;
 
+/**
+ * W2 (2026-10-30) · not a shop conversation. Phase 1 (90 days): a third of
+ * non-STOP inbound was carrier block notices, bulk marketing, auto-replies,
+ * bare links and personal texts sent to the shop line by mistake; each got an AI
+ * draft and a staff-queue item, and five spam senders got a reply. Every pattern
+ * is a shape seen in those rows. A missed real customer is worse than a spam
+ * text, so each needs a bulk-sender marker, not a topic word.
+ */
+const NOT_A_CUSTOMER_RES: RegExp[] = [
+  /you have been blocked from originating messages/i,
+  /\bsent from my car\b/i,
+  /\b(reply|text|send)\s+(stop|end|quit|remove|yes)\b[^.!?]{0,40}\b(opt[- ]?out|to (stop|end)|unsubscribe|for (a )?(demo|quote|pricing))\b/i,
+  /\b(health (plans?|coverage|insurance|quote)|open enrollment|payroll software)\b/i,
+  /\bi buy (vacant )?(land|houses|property|junk cars)\b/i,
+  /\b(tracking number|has been moved into approved status)\b/i,
+  /\b(no cost to join|pick up (and drop off )?packages at your (store|shop|business))\b/i,
+  /^\s*https?:\/\/\S+\s*$/i,
+  /\b(babe|bby)\b/i,
+];
+
+/** A short thank-you or "all good so far" with no question or problem in it. */
+const THANKS_RE = /\b(thanks?|thank you|thx|appreciate it|good so far|ok so far|all good|got it (fixed|taken care of))\b/i;
+// Request words keep a thank-you text out of the silent skip (Codex review of #3393:
+// "Thanks, I also need help with my starter" has no router rule of its own).
+const NOT_JUST_THANKS_RE = /\?|\b(but|still|again|noise|problem|issue|broke|broken|wrong|how much|when|is my|need|needs|want|help|also|please|call me|can you|could you|can i|look at|book|schedule|appointment|quote|price)\b/i;
+
 const RULES: Rule[] = [
+  {
+    intent: "not_a_customer",
+    priority: -1,
+    risk: "deterministic",
+    catalogEvent: null,
+    test: (b) => NOT_A_CUSTOMER_RES.some((re) => re.test(b)),
+  },
+  {
+    intent: "no_reply_needed",
+    priority: 9,
+    risk: "deterministic",
+    catalogEvent: null,
+    test: (b) => b.trim().split(/\s+/).length <= 12 && THANKS_RE.test(b) && !NOT_JUST_THANKS_RE.test(b),
+  },
   // ─── Tier 0: safety — a wrong template here is dangerous, not just wrong ──
   {
     intent: "safety_urgent",
@@ -308,17 +350,22 @@ const RULES: Rule[] = [
     priority: 6,
     risk: "deterministic",
     catalogEvent: "hours_location",
+    // A holiday is not in the regular hours the template states (W2 eval: a
+    // holiday question got Mon-Sat hours); it goes to staff.
     test: (b) =>
-      /\b(hours?|open|close[sd]?|closing|opening)\b/i.test(b) ||
+      !/\b(holiday|thanksgiving|christmas|new year'?s?|easter|memorial day|labor day|fourth of july|4th of july)\b/i.test(b) &&
+      (/\b(hours?|open|close[sd]?|closing|opening)\b/i.test(b) ||
       /\bwhat time (do you|are you|does the shop)\b/i.test(b) ||
-      /\b(address|location|where (are|is) (you|the shop)|directions)\b/i.test(b),
+      /\b(address|location|where (are|is) (you|the shop)|directions)\b/i.test(b)),
   },
   {
     intent: "price_oil",
     priority: 6,
     risk: "deterministic",
     catalogEvent: "price_question_oil",
-    test: (b) => /\b(oil change|oil|lube)\b/i.test(b),
+    // An oil LEAK is a symptom, not an oil-change price question (W2 eval: two
+    // valve-cover leaks got the oil-change price).
+    test: (b) => /\b(oil change|oil|lube)\b/i.test(b) && !/\bleak/i.test(b),
   },
   {
     intent: "price_tires",
@@ -337,8 +384,11 @@ const RULES: Rule[] = [
   {
     intent: "price_alignment",
     priority: 6,
-    risk: "deterministic",
-    catalogEvent: "price_question_alignment",
+    // W2 (2026-10-30): the alignment template pitched a steering and suspension
+    // check to customers who asked only for an alignment (3 pushbacks in 90 days).
+    // No auto-sent alignment reply until W3's catalog reply answers the question.
+    risk: "human_assisted",
+    catalogEvent: null,
     test: (b) => /\b(alignment|align)\b/i.test(b),
   },
   {

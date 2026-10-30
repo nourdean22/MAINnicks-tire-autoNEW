@@ -16,6 +16,7 @@
 
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "./logger";
+import { changedSinceLastLog } from "./logOnChange";
 
 const log = createLogger("self-healing");
 
@@ -714,18 +715,21 @@ function detectRequestAnomalies(): void {
 
   const ratio = current.count / avgRate;
 
-  // Spike detection: >3x normal rate
-  if (ratio > 3) {
+  // Spike detection: >3x normal rate. Every spike minute is recorded; the warning logs once
+  // per episode and again on a severity change (37 lines in 23 episodes on 2026-10-30).
+  const spikeSeverity = ratio > 3 ? (ratio > 10 ? "critical" : "warning") : "none";
+  const spikeChanged = changedSinceLastLog("request-spike", spikeSeverity, Date.now(), DROP_REPEAT_MINUTES * 60_000);
+  if (spikeSeverity !== "none") {
     const anomaly: AnomalyEntry = {
       timestamp: Date.now(),
       type: "request_spike",
-      severity: ratio > 10 ? "critical" : "warning",
+      severity: spikeSeverity,
       message: `Request spike detected: ${current.count}/min vs baseline ${Math.round(avgRate)}/min (${ratio.toFixed(1)}x)`,
       value: current.count,
       baseline: avgRate,
     };
     logAnomaly(anomaly);
-    log.warn(anomaly.message, { ratio: ratio.toFixed(1), severity: anomaly.severity });
+    if (spikeChanged) log.warn(anomaly.message, { ratio: ratio.toFixed(1), severity: anomaly.severity });
   }
 
   // Drop detection: >70% below normal, sustained, while the shop is open.

@@ -54,6 +54,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { planDestroys } from "./railway-plan-guard.mjs";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
@@ -604,4 +605,101 @@ test("DRY RUN · an include with no slash matches at any depth, as gitignore doe
 
 test("MUTATION · a negation never counts as coverage", () => {
   assert.deepEqual(missingPatterns(["packages/utils"], ["!packages/utils/**"]), ["packages/utils"]);
+});
+
+// ── LIVE PARITY · variables run in MANAGED mode: an undeclared live variable is DELETED on apply ──
+//
+// 2026-10-30: `railway config plan` on the merged railway.ts (#3384) read "2 to change, 28 to
+// destroy": 28 variables set in the dashboard were never added here, and nickstire's start
+// command had drifted from live. .railway/live-variables.json holds the live NAMES (never
+// values) as verified by a 0-destroy plan; this gate fails when railway.ts stops declaring one.
+// Variables added in the dashboard still need a plan read before apply: run
+// scripts/agent-os/railway-plan-guard.mjs on the plan output.
+
+/** Variable names this service declares in `.railway/railway.ts`, or null on a parse miss. */
+export function iacEnvKeys(serviceName) {
+  const src = readFileSync(join(REPO, ".railway", "railway.ts"), "utf8");
+  const start = src.indexOf("service(" + JSON.stringify(serviceName));
+  if (start === -1) return null;
+  const next = src.indexOf("service(", start + 10);
+  const block = src.slice(start, next === -1 ? undefined : next);
+  const m = block.match(/env:\s*\{([^}]*)\}/);
+  if (!m) return null;
+  return [...m[1].matchAll(/([A-Z0-9_]+):\s*preserve\(\)/g)].map((x) => x[1]);
+}
+
+/** Live names that `declared` omits: each one is a delete in the next apply. */
+export function undeclaredLive(live, declared) {
+  const have = new Set(declared);
+  return live.filter((n) => !have.has(n));
+}
+
+const LIVE_VARIABLES = readJson(join(REPO, ".railway", "live-variables.json")).services;
+
+for (const [service, live] of Object.entries(LIVE_VARIABLES)) {
+  test(`${service}: railway.ts declares every live variable (managed mode deletes the rest)`, () => {
+    const declared = iacEnvKeys(service);
+    assert.ok(declared && declared.length > 0, `could not read ${service} env from .railway/railway.ts`);
+    assert.ok(live.length > 0, `live-variables.json lists no variables for ${service}`);
+    assert.deepEqual(
+      undeclaredLive(live, declared),
+      [],
+      `${service}: railway.ts no longer declares these live variables, so the next apply DELETES them.\n` +
+        `Declare each with preserve() (keeps the value Railway holds; never put a value in the repo).`,
+    );
+  });
+}
+
+test("MUTATION · a live variable dropped from railway.ts is reported as a delete", () => {
+  const declared = iacEnvKeys("MAINnicks-tire-auto");
+  assert.ok(declared.includes("STATENOUR_QUEUE_KEY"), "the planted variable must be declared today");
+  const planted = declared.filter((n) => n !== "STATENOUR_QUEUE_KEY");
+  assert.deepEqual(undeclaredLive(LIVE_VARIABLES["MAINnicks-tire-auto"], planted), ["STATENOUR_QUEUE_KEY"]);
+});
+
+test("MAINnicks-tire-auto keeps its live start command (NODE_ENV=production lives there)", () => {
+  const src = readFileSync(join(REPO, ".railway", "railway.ts"), "utf8");
+  const start = src.indexOf('service("MAINnicks-tire-auto"');
+  const block = src.slice(start, src.indexOf("service(", start + 10));
+  assert.match(block, /startCommand: "cd apps\/nickstire && NODE_ENV=production exec node dist\/index\.js"/);
+  assert.match(block, /preDeployCommand: \[\]/);
+  // A top-level `start:` maps to deploy.startCommand and would replace the live command.
+  assert.doesNotMatch(block, /^\s*start:/m);
+});
+
+const PLAN_2026_10_30_MERGED = [
+  "variables: managed (default)",
+  "",
+  "Plan: 0 to add, 2 to change, 28 to destroy",
+  "  ~ Update statenour-worker build.watchPatterns",
+  "  - Delete variable MAINnicks-tire-auto.CONSENT_LEDGER_MODE",
+  "  - Delete variable statenour-web.CAMOFOX_URL",
+  "  ~ Update MAINnicks-tire-auto deploy.preDeployCommand, deploy.startCommand",
+  "",
+  "! 28 destructive change(s) will remove Railway resources or variables.",
+].join("\n");
+const PLAN_2026_10_30_FIXED = [
+  "variables: managed (default)",
+  "",
+  "Plan: 0 to add, 1 to change, 0 to destroy",
+  "  ~ Update statenour-worker build.watchPatterns",
+].join("\n");
+
+test("PLAN GUARD · the 2026-10-30 plan of the merged railway.ts is refused; the fixed one passes", () => {
+  const bad = planDestroys(PLAN_2026_10_30_MERGED);
+  assert.equal(bad.ok, false);
+  assert.equal(bad.destroyCount, 28);
+  assert.deepEqual(bad.deletes, [
+    "- Delete variable MAINnicks-tire-auto.CONSENT_LEDGER_MODE",
+    "- Delete variable statenour-web.CAMOFOX_URL",
+  ]);
+  assert.deepEqual(planDestroys(PLAN_2026_10_30_FIXED), { ok: true, destroyCount: 0, deletes: [] });
+});
+
+test("PLAN GUARD · a failed evaluation (no Plan: line) is refused, never read as 0 to destroy", () => {
+  const r = planDestroys("node failed to evaluate IaC file.\nError: This version of railway/iac requires Railway CLI 5.42.1 or newer.");
+  assert.equal(r.ok, false);
+  assert.equal(r.destroyCount, null);
+  // A delete line with a 0 summary still refuses: the summary is not trusted over the lines.
+  assert.equal(planDestroys("Plan: 0 to add, 0 to change, 0 to destroy\n  - Delete variable x.Y").ok, false);
 });

@@ -23,7 +23,7 @@ import {
 } from "@/lib/ai/execute-actions";
 import type { NickActionType } from "@/lib/ai/propose-actions";
 
-const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+export const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
 export const NICK_ACTION_TYPES = new Set<string>([
   "nudge_task",

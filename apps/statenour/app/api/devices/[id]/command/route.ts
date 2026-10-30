@@ -25,7 +25,7 @@ export const GET = apiHandler(async (_req, { params }) => {
   });
 
   return { commands, count: commands.length };
-}, { auth: "sync" });
+}, { auth: "device" });
 
 /**
  * POST /api/devices/:id/command — Queue a command for a device
@@ -77,4 +77,4 @@ export const PATCH = apiHandler(async (req, { params }) => {
   } catch {
     throw new ServiceError("Command not found", 404);
   }
-}, { auth: "sync" });
+}, { auth: "device" });
