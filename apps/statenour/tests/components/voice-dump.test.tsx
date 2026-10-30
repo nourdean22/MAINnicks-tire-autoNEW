@@ -57,12 +57,18 @@ beforeEach(() => {
   root = createRoot(host);
 });
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   host.remove();
 });
 
 describe("MissionsCapture voice dump", () => {
   it("rows to review, a two-tap drop, then one Save with what is left", async () => {
+    // Clock pinned to Wed 12:00 ET (16:00 UTC), when ET and the runner's zone share a date.
+    // parseQuickAdd takes the weekday in ET but adds days in local time, so on a UTC runner
+    // between 20:00 and 24:00 ET "by friday" lands on Saturday (CI run 40980314567). On the
+    // phone (ET) the two agree, which is why voice-dump parses there.
+    vi.useFakeTimers({ now: new Date("2026-10-28T16:00:00Z"), toFake: ["Date"] });
     h.split.mockResolvedValue({
       items: [{ title: "Order brake pads by friday" }, { title: "Text the landlord" }],
     });
