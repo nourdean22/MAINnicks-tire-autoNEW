@@ -371,7 +371,7 @@ export default function DecisionDetailPage() {
       parent={{ href: "/journal", label: "journal" }}
       actions={
           <div className="flex items-center gap-2">
-            <FreshnessChip
+            <FreshnessChip className="min-h-11"
               lastFetchedAt={fetchedAt}
               source="api/decisions/[id]"
               onReload={() => void detailQuery.refetch()}

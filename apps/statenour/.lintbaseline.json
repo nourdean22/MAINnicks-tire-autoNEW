@@ -10,8 +10,6 @@
     "apps/statenour/app/(mastery)/system/crons/page.tsx": 1,
     "apps/statenour/app/(mastery)/system/logs/page.tsx": 1,
     "apps/statenour/app/(mastery)/system/page.tsx": 1,
-    "apps/statenour/components/actions/loop-row-item.tsx": 1,
-    "apps/statenour/components/actions/loop-stream.tsx": 1,
     "apps/statenour/components/actions/mode-learn.tsx": 5,
     "apps/statenour/components/brain/beliefs-panel.tsx": 2,
     "apps/statenour/components/brain/contradiction-resolution-panel.tsx": 12,

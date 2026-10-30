@@ -366,7 +366,7 @@ function ActionsPageInner() {
       rhythm="loose"
       actions={
         <div className="flex items-center gap-2">
-          <FreshnessChip
+          <FreshnessChip className="min-h-11"
             lastFetchedAt={feed?.generatedAt}
             source="db · AutonomousAction"
             onReload={load}
