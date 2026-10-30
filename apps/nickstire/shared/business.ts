@@ -229,6 +229,19 @@ export const BUSINESS = {
     // warranty on a used tire.
     warranty: "7-day limited replacement warranty — verified air loss or internal tire failure from a defect present at time of sale ONLY. Does not cover road hazard, punctures, sidewall/impact/bead damage, cosmetic issues, vibration, uneven wear, alignment, or misuse.",
   },
+  // ─── FREE INSPECTION (Nour, 2026-10-30: "deponds on situation") ────
+  // The free 27-point inspection is real, but it is NOT done on every visit or every oil change,
+  // and photos of worn parts depend on the case. Customer copy OFFERS it ("just ask"); it never
+  // promises it. Every page reads these lines, so the wording cannot drift between copies.
+  // Pinned by client/src/__tests__/no-every-visit-inspection.test.ts.
+  freeInspection: {
+    /** Full sentence offer, for body copy and FAQ answers. */
+    offer: "Ask for a free 27-point inspection.",
+    /** Short badge/relief line. */
+    short: "Free 27-point inspection, just ask.",
+    /** Sub-line for the About checklist card. */
+    aboutSub: "27 checkpoints: brakes, fluids, belts, suspension, lights, tires. Free, just ask.",
+  },
 
   oilChange: {
     conventionalPrice: "$49",

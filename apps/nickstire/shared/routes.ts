@@ -368,7 +368,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // the literal search phrase. Rewrite includes "service station"
     // since that's how the high-volume query frames the intent.
     title: "Oil Change Service Station Cleveland · $49 · Walk-In Today | Nick's", // keep in sync with OIL_PRICE
-    description: "Cleveland oil change $49 with code NICKSOIL (full synthetic from $80). New filter + free multi-point check. In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
+    description: "Cleveland oil change $49 with code NICKSOIL (full synthetic from $80). New filter. " + BUSINESS.freeInspection.offer + " In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -1410,6 +1410,7 @@ const EXCLUDED_PAGES: RouteEntry[] = [
 ];
 
 // ─── TIRE SIZE PAGES (31 programmatic SEO pages) ────────────
+import { BUSINESS } from "./business";
 import { TIRE_SIZE_PAGES } from "./tireSizes";
 
 const TIRE_SIZE_ROUTE_PAGES: RouteEntry[] = TIRE_SIZE_PAGES.map(t => ({

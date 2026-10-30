@@ -128,7 +128,7 @@ export const GBP_QA_SEEDS: GbpQa[] = [
     id: "oil-change",
     question: "Do you do oil changes, and do I need an appointment?",
     answer:
-      "Yes, conventional and synthetic, no appointment needed. We include a courtesy inspection so you find out about small issues before they turn into big ones. Walk in any day we're open.",
+      "Yes, conventional and synthetic, no appointment needed. Ask for a free check and we'll point out small issues before they turn into big ones. Walk in any day we're open.",
   },
   {
     category: "what-to-bring",

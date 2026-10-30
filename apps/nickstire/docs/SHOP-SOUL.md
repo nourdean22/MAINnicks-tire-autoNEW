@@ -158,7 +158,7 @@ exhaust, battery, cooling, belts, transmission, AC. (`docs/BUSINESS-LANDSCAPE.md
   the receptionist read them from there.
 - **Used tires have two prices on purpose.** The website shows the low starting price with its fine print
   and the typical band; the phone, text, voice and chat channels quote the typical installed price
-  (`USED_TIRE_QUOTE`). Do not "fix" either one to match the other. (`AGENTS.md` section 5)
+  (`USED_TIRE_QUOTE`). Do not "fix" either one to match the other. (`AGENTS.md` section 5) (Nour, 2026-10-30: "starting at $25")
 - **The new-tire number is a floor for all sizes**, never the price of one size. (Nour, 2026-10-01,
   PR #2868; agent memory `ai-referrals-2026-10-21`)
 - **Diagnostics**: one fee, waived if the customer does the repair with us; the basic code scan stays free.
@@ -300,10 +300,10 @@ Only Nour can answer these. When he does, write the answer into the right sectio
 5. **The tire fast lane.** Is the stay-in-your-car tire service (section 2) still how tires run every day?
 6. **Who closes sales.** Does only the manager close repair estimates? Who is the default on-duty manager?
 7. **Drop-off cutoff.** Two pages say "drop off before 10 AM for same-day". Is 10 AM the rule?
-8. **The free inspection.** The About page says a free 27-point inspection on every visit, with photos of
-   worn parts. Is that what the crew does on every car?
-   Answered in part (Nour, 2026-10-30): the free 27-point inspection is real (section 2). Still open: whether
-   it happens on every visit, and whether photos of worn parts go with every car.
+8. **The free inspection.** ANSWERED (Nour, 2026-10-30: "deponds on situation"). The free 27-point inspection and
+   the free brake, battery, E-Check readiness and alignment pull checks are all real ("all of them"). The inspection
+   is not done on every visit or every oil change, and photos of worn parts depend on the case. Pages offer it ("just
+   ask"), never promise it every visit. Pinned by `client/src/__tests__/no-every-visit-inspection.test.ts`.
 9. **Register payment types.** The April doc listed cash, Visa, SNAP and Afterpay. What does the register
    take today?
 10. **Flat repair price.** Not in `shared/pricing.ts` yet. What should the site and the receptionist quote?

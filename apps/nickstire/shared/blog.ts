@@ -981,7 +981,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How to Check Your Pad Life",
-        content: "Most brake pads start at 10 to 12 millimeters of material. They should be replaced at 3 millimeters. You can see the pad through the wheel spokes on most vehicles — if it looks thin, it probably is. The wear indicator squeal is your built-in warning. And most modern vehicles have an electronic pad wear sensor that triggers a dashboard warning. But the best way is a measurement during a routine service — we check brake pads during every oil change, tire rotation, and inspection at Nick's."
+        content: "Most brake pads start at 10 to 12 millimeters of material. They should be replaced at 3 millimeters. You can see the pad through the wheel spokes on most vehicles — if it looks thin, it probably is. The wear indicator squeal is your built-in warning. And most modern vehicles have an electronic pad wear sensor that triggers a dashboard warning. But the best way is a measurement during a routine service — ask us to check your brake pads during an oil change or tire rotation at Nick's."
       },
       {
         heading: "Save Money: Replace Pads Before They Kill Rotors",
@@ -2296,7 +2296,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What To Do When You Spot Uneven Wear",
-        content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $60, new tires at competitive prices, and alignment at $80 to $100. We are at 17625 Euclid Ave, Cleveland — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/wheel-alignment-cleveland)."
+        content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $25 installed on select 12-inch sizes (most run $40-80), new tires at competitive prices, and alignment at $80 to $100. We are at 17625 Euclid Ave, Cleveland — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/wheel-alignment-cleveland)."
       }
     ],
     relatedServices: ["/tires", "/wheel-alignment-cleveland", "/general-repair"],
@@ -3737,7 +3737,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Modern Oil Change Intervals", content: "Conventional oil: 5,000-7,500 miles. Synthetic blend: 5,000-7,500 miles. Full synthetic: 7,500-10,000 miles. Some vehicles with oil life monitors: up to 15,000 miles. These intervals assume normal driving conditions. Your owner's manual defines what counts as severe service for your vehicle." },
       { heading: "Cleveland Driving = Severe Service", content: "Most Cleveland driving actually qualifies as severe service conditions: frequent short trips (less than 10 miles), stop-and-go traffic, extreme temperatures (both summer heat and winter cold), dusty conditions, towing or heavy loads. If most of your driving fits these descriptions, use the shorter interval in your owner's manual. For example, if the manual says 7,500 miles normal or 5,000 miles severe, Cleveland drivers should use 5,000." },
       { heading: "Oil Type Matters", content: "Full synthetic oil costs more per change but lasts longer and provides better protection — especially in extreme temperatures. For Cleveland's climate swings, synthetic is worth the extra cost. Most modern vehicles require synthetic. If your manual specifies conventional oil, upgrading to synthetic still provides benefits but is not required." },
-      { heading: "Oil Changes at Nick's Tire & Auto", content: "We use quality oil and filters, not the cheapest options available. Every oil change includes a courtesy inspection of fluids, belts, hoses, tires, and brakes. We check your vehicle's specific requirements and use the correct oil weight and specification. Walk-ins welcome, or schedule a drop-off online. Most oil changes take 20-30 minutes." }
+      { heading: "Oil Changes at Nick's Tire & Auto", content: "We use quality oil and filters, not the cheapest options available. Ask for a free check of fluids, belts, hoses, tires, and brakes with any oil change. We check your vehicle's specific requirements and use the correct oil weight and specification. Walk-ins welcome, or schedule a drop-off online. Most oil changes take 20-30 minutes." }
     ],
     relatedServices: ["/oil-change"],
     tags: ["oil change frequency", "how often change oil", "synthetic oil", "oil change Cleveland", "oil change near me", "severe service oil change"]

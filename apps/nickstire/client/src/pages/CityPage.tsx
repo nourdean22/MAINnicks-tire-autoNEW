@@ -513,7 +513,7 @@ export default function CityPage() {
               <FadeIn delay={0.2}>
                 <Link href="/oil-change" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">Oil Changes & Fluid Services</h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">Regular oil changes are the cheapest way to avoid expensive engine damage. We do conventional and synthetic oil changes with a courtesy inspection included — no appointment needed.</p>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Regular oil changes are the cheapest way to avoid expensive engine damage. We do conventional and synthetic oil changes, and a free check if you ask. No appointment needed.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.25}>

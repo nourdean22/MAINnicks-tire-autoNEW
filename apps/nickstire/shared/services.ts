@@ -5,6 +5,7 @@
  * Problem → Explanation → Diagnostic Authority → Solution → Local Trust → CTA structure.
  */
 
+import { BUSINESS } from "./business";
 import { DIAGNOSTIC_PRICE, OIL_COUPON, OIL_PRICE, oilCouponActive } from "./pricing";
 import { OHIO_ECHECK } from "./echeck";
 
@@ -523,12 +524,12 @@ export const SERVICES: ServiceData[] = [
     // clicks with a price + speed promise no Cleveland chain lists in
     // their snippet.
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
-    metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
+    metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter. " + BUSINESS.freeInspection.offer + " In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter, free multi-point inspection. First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.`,
+    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
     turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city — check our reviews.",
-    pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
+    pricingNote: BUSINESS.freeInspection.short + " Correct oil weight per manufacturer spec",
     signs: [
       "Oil change reminder light or maintenance required indicator",
       "Oil looks dark, gritty, or smells burnt on the dipstick",
@@ -566,7 +567,7 @@ export const SERVICES: ServiceData[] = [
       "Conventional and full synthetic options",
       "Correct oil weight per manufacturer spec",
       "Quality filters, not the cheapest option",
-      "Free multi-point inspection with every oil change",
+      BUSINESS.freeInspection.short,
       "Quick service, usually 15-30 minutes",
       "No appointment needed for oil changes",
       "Honest recommendation on change intervals",
@@ -579,7 +580,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: `At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}, and full synthetic starts at $${OIL_PRICE.fullSynthetic}, plus tax. Every oil change includes a new filter and a free multi-point check.${OIL_COUPON_CLAUSE ? " Mention the code when you arrive." : ""} Call (216) 862-0005.`
+        answer: `At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}, and full synthetic starts at $${OIL_PRICE.fullSynthetic}, plus tax. Every oil change includes a new filter. ${BUSINESS.freeInspection.offer}${OIL_COUPON_CLAUSE ? " Mention the code when you arrive." : ""} Call (216) 862-0005.`
       },
       {
         question: "What is the difference between synthetic and conventional oil?",
@@ -591,7 +592,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: `Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $${OIL_PRICE.conventional} conventional/blend${OIL_COUPON_CLAUSE}, $${OIL_PRICE.fullSynthetic} full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005.`
+        answer: `Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $${OIL_PRICE.conventional} conventional/blend${OIL_COUPON_CLAUSE}, $${OIL_PRICE.fullSynthetic} full synthetic, plus tax. ${BUSINESS.freeInspection.offer} Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005.`
       }
     ],
     includedItems: [
@@ -609,7 +610,7 @@ export const SERVICES: ServiceData[] = [
     duration: "15-30 min",
     startingPrice: "From $49",
     priceRange: "",
-    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. We include a free multi-point inspection with every service so small problems get caught early. Walk in any day, no appointment needed, and most are done in 15-30 minutes.",
+    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. " + BUSINESS.freeInspection.offer + " We catch small problems early. Walk in any day, no appointment needed, and most are done in 15-30 minutes.",
     commonSymptoms: [
       "Oil change light on dashboard",
       "Engine oil looks dark and gritty",

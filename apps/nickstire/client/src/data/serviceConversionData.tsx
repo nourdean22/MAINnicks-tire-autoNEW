@@ -79,7 +79,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         { label: "Quick-lube chain (Jiffy / Valvoline)", price: "$89" },
         { label: "Nick's Tire & Auto", price: "From $80", ours: true },
       ],
-      source: "Full synthetic from $80, conventional/blend from $49 (plus tax). Includes new filter + free multi-point check. Walk in or call for a live quote on your vehicle's oil spec.",
+      source: "Full synthetic from $80, conventional/blend from $49 (plus tax). Includes new filter. " + BUSINESS.freeInspection.offer + " Walk in or call for a live quote on your vehicle's oil spec.",
     },
     fearStats: {
       heading: "What skipping oil changes actually does to your engine.",

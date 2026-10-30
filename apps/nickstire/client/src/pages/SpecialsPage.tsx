@@ -60,7 +60,7 @@ const SPECIALS: Special[] = [
     service: "Oil Change",
     headline: `Oil Change — $${OIL_PRICE.conventional} with Coupon`,
     description:
-      `Conventional or synthetic-blend oil change with new filter. Includes a free multi-point check that catches small problems before they become big bills. Mention code ${OIL_COUPON.code}.`,
+      `Conventional or synthetic-blend oil change with new filter. ${BUSINESS.freeInspection.offer} It catches small problems before they become big bills. Mention code ${OIL_COUPON.code}.`,
     salePrice: `$${OIL_PRICE.conventional}`,
     originalPrice: "",
     discountLabel: "COUPON DEAL",
