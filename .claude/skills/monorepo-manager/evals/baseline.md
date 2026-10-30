@@ -1,31 +1,32 @@
-# Baseline: monorepo-manager
+# Baseline: monorepo-manager v4
 
-recorded: 2026-10-22
+recorded: 2026-10-30
 
-Question: what went wrong when the manager ran a full day of parallel sessions with the 2026-10-15 version of this
-skill (15 steps, all about lane subagents), and which of those failures did no step catch? Recorded before the rewrite
-touched `SKILL.md`; `forge.mjs check --existing --git` verifies that order on the branch. Source: the manager session's
-own transcript (session 0900c49a, 2026-10-21 20:00Z to 2026-10-22 12:50Z) and the agent-memory entries Nour's
-corrections produced that day. Counts are one session's, an existence proof per row, not a rate across sessions.
+Question: what went wrong on 2026-10-25 to 2026-10-30 while managers ran the v3 skill (PR 3236, merged 2026-10-22), and
+which of those failures did no v3 line cover? Recorded before this branch touches `SKILL.md`; `forge.mjs check --existing
+--git` verifies that order. The v3 baseline (the 2026-10-22 relay day) is kept unchanged in `baseline-2026-10-22.md`.
+Sources: the agent-memory entries Nour's corrections produced (named per row) and the Shop OS planning manager's takeover
+file `shop-os-planning-manager-2026-10-30.md`. Each row is one witnessed case, an existence proof, not a rate.
 
 ## Tasks run without the skill
 
 | task | what happened | evidence |
 |---|---|---|
-| T1: relay a scout session's finding to Nour (10-22, morning) | The manager passed on the upgrade scout's "0 declines ever captured" as fact. An estimate with no invoice is the decline in this shop's data, so the claim was false. Nour: "where is your context in history why aren't you remembering invoices are closed job". No step of the old skill covered relaying a SESSION's claim; step 6 checks a lane's diff, not a session's words. | memory `feedback-verify-before-relaying.md`, `shop-data-meanings.md`; prompt 11:47:47Z in the transcript |
-| T2: brief new sessions that read shop data (10-22) | The scout's brief carried no shop data meanings, so a fresh context had no way to know invoice = closed job and estimate without invoice = walked. The v3 brief template has no SHOP DATA field and nothing checks a brief's content. | `.agents/core/templates/subagent-brief.md` (no such field); memory `shop-data-meanings.md` |
-| T3: end each reply with a `Skills:` line (10-22, 00:00Z to 12:50Z) | 86 of 98 turns ended with a `Skills:` line. A rough count found 33 of them naming skills with NO Skill call in that turn (e.g. `stranded-branch-rescue, nickstire-ios-pwa-primitives` named while only `monorepo-manager` was called). Nour had caught it at least 5 times. `skills-check.mjs` only blocks a turn with zero Skill calls, so all 33 passed. | scratchpad script over the transcript: `turns=98 withSkillsLine=86 mismatched=33` (the count includes some prose words; the hook built from this baseline counts only real skill names) |
-| T4: act on the SessionStart health line (10-21/22) | The manager's first SessionStart printed `graphify DOWN`, `task NOURCITY-Local-MCP FAILED` and `FIX FIRST: (1) ...local-mcp-servers.ps1 -Start (2) ...register-local-mcp-task.ps1`. Nothing ran either command; a second `FIX FIRST` at 02:30Z was also ignored; the graph came back only when restarted around 11:55Z on 10-22, roughly a day later. The rule existed as memory text only. | transcript line 7 (`hookEvent SessionStart`); memory `feedback-proactive-setup-fixes.md`, `feedback-verify-before-relaying.md` item 3 |
-| T5: an overnight "finish before I wake" order (10-22, 02:58Z) | A deploy-config change (#3223, the bdnick.info build heap fix) turned up at about 06:00Z, after Nour went to sleep. The session correctly held it for his specific go, so everything statenour stayed not live until he woke: "merge 3223 n it looks like u didnt listen n arent finished". The skill had no step that lists protected steps BEFORE an unattended run. | memory `feedback-collect-goes-before-sleep.md`; prompts 02:58:28Z and 10:41:50Z |
-| T6: report status before the proof existed (10-21/22) | Status replies said things were "checked" and PRs were moving while CI had not finished or no read of it happened in that turn; Nour asked "green yet?" and "Literally still nothing?". `answer-first` already says a CI state is the tally read THIS turn, and nothing enforced it. | mined prompts `tx:1bc20c83`, `tx:349902d8`; `answer-first` SKILL.md "A PR's CI state" |
+| T1: start parallel docs sessions for the Shop OS plan (2026-10-30, 14:15Z to 15:25Z) | Sessions were started while sibling managers already ran about 11 others. Free RAM fell to 615 MB at 14:03Z and to 160 MB with 15 sessions; the laptop crashed before 15:25Z and the first launch of this very job never started. v3 limits writer lanes (2) and heavy runs (1) but says nothing about how many sessions may run or what free RAM gates a new one. | memory `shop-os-planning-manager-2026-10-30.md` (QUEUED line, "15:25Z after the laptop CRASH"); `heavy.mjs status` prints free RAM |
+| T2: keep started sessions moving between manager sweeps (2026-10-30, 10:21 EDT) | Sessions waited on a notification or a held prompt and lost work to restarts (brief template v3 history: 40 to 76 minutes of uncommitted edits). Nour: "everything needs to be on a loop too any and all sessions ur working on so they dont get fucked up". Docs 12 and 13 had to be messaged the rule after they started. v3 has no loop or checkpoint line for briefs. | memory `feedback-every-session-on-a-loop.md`; `.agents/core/templates/subagent-brief.md` header |
+| T3: keep parallel sessions of one job in sync (2026-10-30, 10:51 EDT) | Rulings and finished docs reached one session, not the others, so sibling docs went stale or duplicated work. Nour: "keep all sessions up to date with each other so everything gets upgraded euqually". v3's messaging rules cover one question per message, not broadcasting a ruling or a digest. | memory `feedback-sessions-share-findings.md`; v3 `references/sessions-and-plans.md` "Messaging other sessions" |
+| T4: close out finished sessions (2026-10-30, 10:46 EDT) | Finished sessions stayed open, held RAM and cluttered the sidebar (one cause of T1), and Nour had to ask what finished. Nour: "every session needs finished n then archivesd n then just tell me what finished simply". v3 step 16 reports; no step archives a session or writes the takeover memory first. | memory `feedback-finish-archive-report-simply.md` |
+| T5: hold the quality bar on every session (2026-10-30, 10:16 EDT) | Session PRs reached review with gaps an outside reader found: PR 3382 was blocked by 6 Codex P2 threads, PR 3383 drew 19 Codex comments. Nour: "no lazy or sloppy work is done in any all sessions your managing". v3's send-back hook (`subagent-receipt-check.mjs`) fires on lane agents only; sessions get no standard block and no send-back limit. | memory `feedback-manager-max-effort-no-sloppy.md`, `shop-os-planning-manager-2026-10-30.md` (15:03Z line) |
+| T6: keep Nour's deferred decisions (2026-10-30, 10:30 EDT, and earlier) | Nour: "leave these for laster remind me" on six owed decisions (counter lead, PartsTech signup, crew count and roles, QuickBooks, ALG map night). Owed decisions from other jobs sit scattered across memory files ("Nour owes ..." in at least 6 index lines). v3 has no register and no point at which they are shown again. | memory `shop-os-planning-manager-2026-10-30.md` ruling 1; `MEMORY.md` index lines |
+| T7: dispatch work when the lane agents are missing (2026-10-30) | The harness listed the `lane-*` agents as no longer available in the manager session, so the Agent-tool path in v3's Workers table did not exist; sessions via `start_session` were the working path and v3 names them only in one sentence. | the job brief's KNOWN line; v3 SKILL.md Workers section |
 
 ## Failure shape
 
-The old skill was built for one shape of job: the manager dispatches lane subagents, reads their diffs and merges. On
-2026-10-22 the manager mostly ran SESSIONS and talked to Nour, and every failure sat in that relay layer, where no step
-applied: it repeated a session's claim without checking it against the shop's own data meanings (T1), sent briefs that
-lacked those meanings (T2), named skills it had not invoked (T3), ignored a broken-tool line the harness printed at
-session start (T4), found a protected step only after Nour was asleep (T5), and called things checked before the
-receipt existed (T6). The rewrite must add a relay checklist and a pre-clearance step, and make T2, T3, T4 and T6
-mechanical: a brief check at dispatch, a Stop hook that compares the `Skills:` line and CI claims with the turn's
-tool calls, and a first-Stop block on an unhandled `FIX FIRST`.
+v3 was built for a manager that dispatches a few lane agents and relays their claims. On 2026-10-30 the manager ran 4 to
+6 SESSIONS beside another manager's 11, on a 16 GB laptop, for a docs-heavy planning job. Every failure sat in session
+lifecycle, where no v3 step applied: no RAM gate or session cap before a start (T1), no loop or checkpoint rule in the
+brief (T2), no broadcast of rulings and finished docs (T3), no finish, memory, archive, one-line-report order (T4), no
+standard block or send-back limit for sessions (T5), no register for decisions Nour deferred (T6), and no fallback when
+lane agents are missing (T7). v4 must add a session pipeline (brief, start, loop, sweep, digest, check, merge, memory,
+archive, report), a RAM gate with numbers, a parked-decisions register and a job-start step that loads who Nour is, how
+the shop works and the money frame; each new rule needs an eval case that the v3 text answers wrong.
