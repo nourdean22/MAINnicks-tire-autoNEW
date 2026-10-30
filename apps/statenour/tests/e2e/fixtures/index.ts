@@ -28,7 +28,7 @@
 import type { Page } from "@playwright/test";
 
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
-import { HOME_BRIEF, HOME_MAXIM, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
+import { HOME_BRIEF, HOME_GOALS, HOME_MAXIM, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
 import { FIXED_TIME } from "./time";
@@ -85,6 +85,7 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "operator.nickRemembersContext": HOME_REMEMBERS,
   "operator.maxim": HOME_MAXIM,
   "operator.shopToday": HOME_SHOP_TODAY,
+  "operator.goalsSnapshot": HOME_GOALS,
   "operator.personalPulse": SHELL_PULSE,
   "operator.ticker": SHELL_TICKER,
   "task.deck": MISSIONS_DECK,

@@ -173,3 +173,29 @@ export const HOME_SHOP_TODAY: inferRouterOutputs<AppRouter>["operator"]["shopTod
   jobs: 6,
   asOf: NOW_ISO,
 };
+
+/** The Home Goals card (home-pulse W2b): one dated demo goal, so the card shows its next deadline. */
+const demoGoal = {
+  id: "demo-goal-1",
+  title: "Demo goal: finish the demo quote flow",
+  domain: "business",
+  horizon: "WEEK" as const,
+  metric: "steps",
+  targetValue: 5,
+  currentValue: 2,
+  unit: "steps",
+  progress: 40,
+  status: "active",
+  deadline: "2026-11-02T05:00:00.000Z",
+  why: null,
+  pruneCandidate: false,
+  daysSinceActivity: 1,
+  openTaskCount: 2,
+};
+export const HOME_GOALS = {
+  ladder: { DAY: [], WEEK: [demoGoal], MONTH: [], QUARTER: [], YEAR: [], LIFE: [], UNSCOPED: [] },
+  missions: [],
+  axes: [],
+  pruneCandidates: 0,
+  fetchedAt: NOW_ISO,
+} satisfies inferRouterOutputs<AppRouter>["operator"]["goalsSnapshot"];

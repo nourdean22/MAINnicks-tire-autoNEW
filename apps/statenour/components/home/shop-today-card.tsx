@@ -16,7 +16,8 @@ export function ShopTodayCardView({ read }: { read: ShopToday | "loading" | "err
   return (
     <GlassCard as="a" href={SHOP_ADMIN} target="_blank" className="block min-h-11 rounded-card px-4 py-3">
       <div className="flex items-baseline justify-between gap-4" aria-busy={read === "loading"}>
-        <p className="text-[13px] text-fg-secondary">Nick&apos;s Tire today</p>
+        {/* "so far": the bridge sends no sync time yet (a nickstire follow-up adds syncedAt, then "as of HH:MM"). */}
+        <p className="text-[13px] text-fg-secondary">Nick&apos;s Tire · today so far</p>
         {read === "loading" ? (
           <span className="h-5 w-20 animate-pulse rounded-micro bg-raised" aria-hidden />
         ) : unknown ? (
