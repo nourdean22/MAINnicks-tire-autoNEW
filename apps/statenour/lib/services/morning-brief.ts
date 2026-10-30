@@ -742,11 +742,6 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/**
- * Deterministic date → index. Tiny djb2-style hash · enough variety
- * across ~200 wisdom rows · zero deps · same date = same index always.
- */
-
 function prettyWisdomSource(s: string): string {
   // Sources look like "wisdom_buffett_12" or "skill_ingestion" · trim
   // to the persona for inline attribution.

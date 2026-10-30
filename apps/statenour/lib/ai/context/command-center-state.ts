@@ -26,6 +26,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
 import { collectLiveAlerts, getAlertSuppression, NO_ALERT_SUPPRESSION } from "@/lib/brain/alert-suppression";
 import { PINNED_PROMPT_CAP } from "@/lib/ai/prompt/v2/renderer";
+import { MAXIM_KEEP_SOURCE } from "@/lib/wisdom/maxims";
 import { cached } from "@/lib/utils/cache";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
@@ -543,7 +544,14 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     prisma.brainMemory
       .findMany({
         // supersededById: a Correct leaves the old version live but superseded; only the correction is current.
-        where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null, supersededById: null },
+        // A Home maxim Keep is a pin too, but it rides recall, not these slots: six Keeps must never push
+        // Nour's own pins out of the prompt (MAXIM_KEEP_SOURCE, lib/wisdom/maxims.ts).
+        where: {
+          category: BRAIN_CATEGORIES.PINNED_USER,
+          deletedAt: null,
+          supersededById: null,
+          source: { not: MAXIM_KEEP_SOURCE },
+        },
         orderBy: { updatedAt: "desc" },
         take: PINNED_PROMPT_CAP,
         select: {

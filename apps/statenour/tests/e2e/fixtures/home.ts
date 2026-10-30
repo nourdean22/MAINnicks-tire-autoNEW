@@ -155,12 +155,13 @@ export const HOME_REMEMBERS: inferRouterOutputs<AppRouter>["operator"]["nickReme
   followUps: [],
 };
 
-// The real pick (lib/wisdom/maxims.ts over MAXIM_POOL) for HOME_BRIEF's lead line at FIXED_TIME, step 0.
+// A Demo maxim, shaped like operator.maxim's output. Fictional like every fixture string (v3-gate.test.ts);
+// the reason is the one the real pick gives for HOME_BRIEF's lead line ("...supplier quote" -> customers).
 export const HOME_MAXIM: inferRouterOutputs<AppRouter>["operator"]["maxim"] = {
-  id: "naval-maxims:wisdom_naval-ravikant_005",
-  text: "Make a video, post or simple tool once. It can bring in customers for years.",
-  source: "Naval",
+  id: "demo-maxims:1",
+  text: "Demo maxim: call the demo customer back the same day.",
+  source: "Demo Book",
   reason: "for today: customers",
-  position: 93,
-  total: 105,
+  position: 3,
+  total: 40,
 };

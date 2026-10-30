@@ -4,8 +4,8 @@
  *
  * Pure: the pool comes in as data (lib/wisdom/maxim-pool.ts reads data/wisdom/maxims/*.json), so the pick is
  * testable without the files. One plain one-liner at a time:
- *   - it matches today's top line when a tag fits (the Home brief's lead headline, already on the page;
- *     no model call), else it is the plain rotation;
+ *   - it matches today's top line when a tag fits: the client reads tags off the brief's lead headline
+ *     (tagsForText, no model call) and sends only the tags, never the text; else it is the plain rotation;
  *   - the pick is keyed on the ET date-hour, so it holds still while Nour looks at it (never per render);
  *   - Next steps through the same candidate list; a skipped maxim never shows.
  */
@@ -79,10 +79,10 @@ export function etHourKey(at: Date): string {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    hour12: false,
+    hourCycle: "h23", // midnight is "00", never "24"
   }).formatToParts(at);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour").replace("24", "00")}`;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}`;
 }
 
 /** "for today: customers": the maxim's first tag that today's line also carries. A cut headline read badly. */
@@ -103,19 +103,19 @@ export interface MaximPick {
 export function pickMaxim(args: {
   pool: readonly Maxim[];
   skipped: ReadonlySet<string>;
-  /** Today's top line (the brief's lead headline); empty means plain rotation. */
-  context?: string | null;
+  /** Tags read off today's top line on the client (tagsForText); empty means plain rotation. */
+  tags?: readonly MaximTag[];
   at: Date;
   /** How many times Next was tapped this visit. */
   step?: number;
 }): MaximPick | null {
   const open = args.pool.filter((m) => !args.skipped.has(m.id));
   if (open.length === 0) return null;
-  const want = tagsForText((args.context ?? "").trim());
+  const want: ReadonlySet<MaximTag> = new Set(args.tags ?? []);
   const matched = want.size > 0 ? open.filter((m) => m.tags.some((t) => want.has(t as MaximTag))) : [];
   const candidates = matched.length > 0 ? matched : open;
   const base = stableIndex(etHourKey(args.at), candidates.length);
-  const i = (base + Math.max(0, Math.floor(args.step ?? 0))) % candidates.length;
+  const i = (base + Math.max(0, Math.floor(args.step ?? 0))) % candidates.length; // Next wraps past the end
   const maxim = candidates[i]!;
   return {
     maxim,
@@ -124,6 +124,9 @@ export function pickMaxim(args: {
     total: candidates.length,
   };
 }
+
+/** Keep writes a pinned_user row with this source; it rides recall, not the six prompt pin slots. */
+export const MAXIM_KEEP_SOURCE = "home:maxim-keep";
 
 /** The Skip marker: a 30-day expiring BrainMemory row (category below), read by key. */
 export const MAXIM_SKIP_CATEGORY = "maxim_skip";

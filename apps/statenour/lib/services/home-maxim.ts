@@ -4,10 +4,27 @@
  * expiring maxim_skip row, the alert_dismiss pattern; both category exclusion lists in lib/brain/categories.ts
  * name it so the nightly merge never deletes one and recall never reads one as a belief).
  */
+import { z } from "zod";
+
 import { prisma } from "@/lib/prisma";
 import { createPin } from "@/lib/services/pins";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
-import { MAXIM_SKIP_CATEGORY, MAXIM_SKIP_DAYS, pickMaxim, type Maxim, type MaximPick } from "@/lib/wisdom/maxims";
+import {
+  MAXIM_KEEP_SOURCE,
+  MAXIM_SKIP_CATEGORY,
+  MAXIM_SKIP_DAYS,
+  MAXIM_TAGS,
+  pickMaxim,
+  type Maxim,
+  type MaximPick,
+  type MaximTag,
+} from "@/lib/wisdom/maxims";
+
+/** operator.maxim input: tags only, never the headline text. Each tag at most once, so 11 is the ceiling. */
+export const MAXIM_QUERY_INPUT = z.object({
+  step: z.number().int().min(0).max(10_000),
+  tags: z.array(z.enum(MAXIM_TAGS)).max(MAXIM_TAGS.length),
+});
 
 export interface HomeMaximView {
   id: string;
@@ -27,12 +44,12 @@ async function skippedIds(now: Date): Promise<Set<string>> {
   return new Set(rows.map((r) => r.key));
 }
 
-export async function getHomeMaxim(args: { step: number; context?: string | null; now?: Date }): Promise<HomeMaximView | null> {
+export async function getHomeMaxim(args: { step: number; tags?: readonly MaximTag[]; now?: Date }): Promise<HomeMaximView | null> {
   const now = args.now ?? new Date();
   const pick: MaximPick | null = pickMaxim({
     pool: MAXIM_POOL,
     skipped: await skippedIds(now),
-    context: args.context,
+    tags: args.tags,
     at: now,
     step: args.step,
   });
@@ -51,11 +68,15 @@ function findMaxim(id: string): Maxim | null {
   return MAXIM_POOL.find((m) => m.id === id) ?? null;
 }
 
-/** Keep: pin the maxim's text with its source, through the same service the brain's pin button uses. */
+/**
+ * Keep: pin the maxim's text with its source, through the same service the brain's pin button uses. The
+ * MAXIM_KEEP_SOURCE source keeps it out of the six prompt pin slots (command-center-state.ts), so Keeps never
+ * push Nour's own pins out of Nick's prompt; the pin's embedding brings it back through recall.
+ */
 export async function keepHomeMaxim(id: string): Promise<{ ok: boolean }> {
   const maxim = findMaxim(id);
   if (!maxim) return { ok: false };
-  await createPin({ content: `${maxim.text} (${maxim.source})`, source: "home:maxim-keep", label: maxim.source });
+  await createPin({ content: `${maxim.text} (${maxim.source})`, source: MAXIM_KEEP_SOURCE, label: maxim.source });
   return { ok: true };
 }
 

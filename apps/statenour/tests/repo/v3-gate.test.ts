@@ -705,6 +705,7 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       "components/home/change-line.tsx",
       "components/home/horizon-line.tsx",
       "components/home/nick-command-line.tsx",
+      "components/home/maxim-line.tsx",
       "app/(mastery)/missions/page.tsx",
       "app/(mastery)/missions/hooks/use-missions-data.ts",
       "components/ultron/bottom-pulse-ticker.tsx",

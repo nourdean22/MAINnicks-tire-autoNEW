@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: { brainMemory: { findMany: h.findMany, upsert: h.upsert } } }));
 vi.mock("@/lib/services/pins", () => ({ createPin: h.createPin }));
 
-import { getHomeMaxim, keepHomeMaxim, skipHomeMaxim } from "@/lib/services/home-maxim";
+import { MAXIM_QUERY_INPUT, getHomeMaxim, keepHomeMaxim, skipHomeMaxim } from "@/lib/services/home-maxim";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 
 const NOW = new Date("2026-10-29T21:00:00-04:00");
@@ -50,7 +50,7 @@ describe("Keep and Skip", () => {
     expect(await keepHomeMaxim(id)).toEqual({ ok: true });
     expect(h.createPin).toHaveBeenCalledWith({
       content: `${MAXIM_POOL[0]!.text} (${MAXIM_POOL[0]!.source})`,
-      source: "home:maxim-keep",
+      source: "home:maxim-keep", // MAXIM_KEEP_SOURCE: the prompt pin query leaves these out
       label: MAXIM_POOL[0]!.source,
     });
   });
@@ -61,7 +61,10 @@ describe("Keep and Skip", () => {
     const arg = (h.upsert.mock.calls[0] as unknown as [{ where: unknown; create: { expiresAt: Date }; update: unknown }])[0];
     expect(arg.where).toEqual({ category_key: { category: "maxim_skip", key: id } });
     expect(arg.create.expiresAt.getTime() - NOW.getTime()).toBe(30 * 86_400_000);
-    expect(arg.update).toMatchObject({ deletedAt: null });
+    // A second Skip renews the window from now, and revives a soft-deleted marker.
+    const update = arg.update as { expiresAt: Date; deletedAt: null };
+    expect(update.expiresAt.getTime() - NOW.getTime()).toBe(30 * 86_400_000);
+    expect(update.deletedAt).toBeNull();
   });
 
   it("an id that is not in the pool writes nothing", async () => {
@@ -69,5 +72,21 @@ describe("Keep and Skip", () => {
     expect(await skipHomeMaxim("nope:1", NOW)).toEqual({ ok: false });
     expect(h.createPin).not.toHaveBeenCalled();
     expect(h.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("operator.maxim input (MAXIM_QUERY_INPUT)", () => {
+  it("takes known tags only, at most one of each, and a bounded step", () => {
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: ["customers", "money"] }).success).toBe(true);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: ["smith"] }).success).toBe(false);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: Array(12).fill("money") }).success).toBe(false);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: -1, tags: [] }).success).toBe(false);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 10_001, tags: [] }).success).toBe(false);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 1.5, tags: [] }).success).toBe(false);
+  });
+
+  it("drops a headline sent as context: the text never reaches the service", () => {
+    const parsed = MAXIM_QUERY_INPUT.parse({ step: 0, tags: [], context: "Call Mrs Smith about the brake estimate" });
+    expect(parsed).toEqual({ step: 0, tags: [] });
   });
 });
