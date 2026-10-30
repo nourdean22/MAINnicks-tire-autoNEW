@@ -74,6 +74,7 @@ describe("runPeopleIntelligence enrich", () => {
     const data = h.personUpdate.mock.calls[0][0].data.pendingClassification;
     expect(data.basis).toContain("helped move the couch");
     expect(out.profilesUpdated).toBe(1);
+    expect(out.enrich).toBeUndefined(); // a good read carries no failure flag
   });
 
   it("only CONTACT rows are context: a status-flip or synthetic row is never sent", async () => {
