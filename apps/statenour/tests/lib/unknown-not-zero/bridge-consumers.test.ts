@@ -23,7 +23,8 @@ vi.mock("@/lib/nickstire/query", async (orig) => ({
   queryNickBatch: h.queryNickBatch,
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
-vi.mock("@/lib/nickstire/revenue", () => ({ readNickRevenue: vi.fn() }));
+// The real reader (pure): the ticker reads shop revenue through it since home-pulse W2 (2026-10-30); a bare
+// vi.fn() stub returned undefined and turned every measured revenue into "unknown".
 vi.mock("@/lib/brain/memory-manager", () => ({ brainMemory: { remember: h.remember } }));
 vi.mock("@/lib/brain/relational-graph", () => ({ connect: vi.fn() }));
 vi.mock("@/lib/ai/traced-aichat", () => ({ makeTracedAiChat: () => vi.fn() }));
