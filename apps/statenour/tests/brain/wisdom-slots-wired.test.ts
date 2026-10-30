@@ -16,11 +16,19 @@ const h = vi.hoisted(() => ({
   scores: [] as { id: string; score: number }[],
   meta: {} as Record<string, Record<string, unknown>>,
   metaReads: [] as string[],
+  wisdomLane: [] as Record<string, unknown>[],
+  laneSql: [] as string[],
+  laneThrows: false,
 }));
 
 vi.mock("@/lib/prisma", () => {
   const record = (sql: string) => {
     if (sql.includes('DISTINCT ON (ve."sourceId")')) return Promise.resolve(h.scores.map((s) => ({ ...s, json: null })));
+    if (sql.includes("wisdom_lane")) {
+      h.laneSql.push(sql);
+      if (h.laneThrows) return Promise.reject(new Error("canceling statement due to statement timeout"));
+      return Promise.resolve(h.wisdomLane);
+    }
     return Promise.resolve([]);
   };
   const exec = (sql: string, ...params: unknown[]) => {
@@ -105,6 +113,9 @@ beforeEach(() => {
   h.exec.length = 0;
   h.meta = {};
   h.metaReads.length = 0;
+  h.wisdomLane = [];
+  h.laneSql.length = 0;
+  h.laneThrows = false;
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 });
 afterEach(() => logSpy.mockRestore());
@@ -176,5 +187,73 @@ describe("metadata.lastRecalledAt reaches the slot picker", () => {
     await flush();
     expect(bumpIds()).toEqual(expect.arrayContaining(["r1", "r2", "r3"]));
     expect(bumpIds()).not.toContain("recent");
+  });
+});
+
+// Brain backfill W2 (2026-10-30, prod logs 12:00-14:00Z): 11 of 11 turns had wisdomInjected 0, and every
+// wisdom row in the pool was a non-curated one the allowlist refused. Curated rows sit at confidence
+// 0.85-0.98 under 7,977 rows tied at 1.0, so the top-300 pool never holds them, and the global KNN-50
+// rarely does. A dedicated KNN lane over curated wisdom feeds the slot picker; floors and allowlist unchanged.
+const laneRow = (id: string, key: string, content: string) => ({
+  id, category: "wisdom", key, content, confidence: 0.9, created_at: OLD, source: "pack:baltasar-gracian", seen_count: 1,
+  updated_at: OLD, valid_until: null, superseded_by_id: null, expires_at: null, valid_from: null, rank: 0,
+});
+
+describe("the curated wisdom lane", () => {
+  it("a curated row outside the 300 pool reaches its slot through the lane, and is bumped", async () => {
+    h.memories = [row("i1", {}), row("i2", {}), row("i3", {}), row("i4", {})];
+    h.wisdomLane = [laneRow("gw", "wisdom_baltasar-gracian_007", "GRACIAN lane tire supplier invoice")];
+    h.scores = [{ id: "gw", score: 0.6 }, { id: "i1", score: 0.3 }, { id: "i2", score: 0.3 }, { id: "i3", score: 0.3 }, { id: "i4", score: 0.3 }];
+    const block = await run();
+    await flush();
+    expect(block).toContain("GRACIAN lane");
+    expect(bumpIds()).toContain("gw");
+  });
+
+  it("the lane does not bypass the floor: a lane row under 0.35 stays out", async () => {
+    h.memories = [row("i1", {}), row("i2", {}), row("i3", {}), row("i4", {})];
+    h.wisdomLane = [laneRow("gw", "wisdom_baltasar-gracian_007", "GRACIAN under tire supplier invoice")];
+    h.scores = [{ id: "gw", score: 0.3 }, { id: "i1", score: 0.3 }, { id: "i2", score: 0.3 }, { id: "i3", score: 0.3 }, { id: "i4", score: 0.3 }];
+    const block = await run();
+    await flush();
+    expect(h.laneSql.length).toBe(1); // POSITIVE CONTROL: the lane ran
+    expect(block).not.toContain("GRACIAN under");
+    expect(bumpIds()).not.toContain("gw");
+  });
+
+  it("the lane asks for curated wisdom only: category wisdom, a curated origin or a curated key prefix", async () => {
+    h.memories = [row("i1", {})];
+    h.scores = [{ id: "i1", score: 0.3 }];
+    await run();
+    const sql = (h.laneSql[0] ?? "").replace(/\s+/g, " ");
+    expect(sql).toContain("bm.category = 'wisdom'");
+    expect(sql).toContain("metadata->>'origin'");
+    expect(sql).toContain("bm.key LIKE ANY(");
+  });
+
+  it("POSITIVE CONTROL: a non-curated row arriving through the lane is still refused by the allowlist", async () => {
+    h.memories = [row("i1", {}), row("i2", {}), row("i3", {}), row("i4", {})];
+    h.wisdomLane = [{ ...laneRow("leak", "archive_756b_doc.txt_chunk9", "LEAKED archive tire supplier invoice"), source: "manual" }];
+    h.scores = [{ id: "leak", score: 0.9 }, { id: "i1", score: 0.3 }, { id: "i2", score: 0.3 }, { id: "i3", score: 0.3 }, { id: "i4", score: 0.3 }];
+    const block = await run();
+    await flush();
+    expect(h.laneSql.length).toBe(1);
+    expect(block).not.toContain("LEAKED");
+    expect(bumpIds()).not.toContain("leak");
+  });
+
+  it("a failed lane query falls back to today's pool with a warning: the turn still renders, nothing throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      h.laneThrows = true;
+      h.memories = [row("good", { category: "wisdom", key: "wisdom_charlie-munger_001", source: "manual", content: "GOOD curated tire supplier invoice" }), row("i1", {}), row("i2", {})];
+      h.scores = [{ id: "good", score: 0.6 }, { id: "i1", score: 0.3 }, { id: "i2", score: 0.3 }];
+      const block = await run();
+      await flush();
+      expect(block).toContain("GOOD curated");
+      expect(warn.mock.calls.some((c) => String(c[0]).includes("brain-recall"))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

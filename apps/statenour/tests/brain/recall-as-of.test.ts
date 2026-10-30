@@ -87,7 +87,8 @@ describe("every recall lane reads the same window", () => {
   });
   it("the lexical and KNN SQL lanes take asOf, use validitySql, and bind the parameter only in as-of mode", () => {
     expect(src).toMatch(/getLexicalMatches\(topics: string\[\], limit = 50, asOf\?: Date\)/);
-    expect(src).toMatch(/getKnnPoolRows\(queryVec: number\[\], limit = 50, asOf\?: Date\)/);
+    // 2026-10-30 (brain backfill W2): an optional 4th `opts` (the curated wisdom lane) follows asOf.
+    expect(src).toMatch(/getKnnPoolRows\(\s*queryVec: number\[\],\s*limit = 50,\s*asOf\?: Date,?/);
     // Both lanes bind asOf as $3: their $2 is the recall-quarantine category
     // array (`bm.category <> ALL($2::text[])`) -- the KNN lane since 2026-09-22
     // (recall-knn-pool-iterative.test.ts), the lexical lane since 2026-10-10 (05-M13).
@@ -100,6 +101,8 @@ describe("every recall lane reads the same window", () => {
   it("the recall entry point passes opts.asOf to both SQL lanes", () => {
     expect(src).toMatch(/getLexicalMatches\(topics, 50, opts\.asOf\)/);
     expect(src).toMatch(/getKnnPoolRows\(opts\.queryEmbedding!, 50, opts\.asOf\)/);
+    // the curated wisdom lane (W2) reads the same as-of window
+    expect(src).toMatch(/getKnnPoolRows\(opts\.queryEmbedding!, 10, opts\.asOf, \{ curatedWisdomOnly: true \}\)/);
   });
   it("the searchMemories tool accepts asOf and bounds both its FTS SQL and its prisma where by it", () => {
     const b = read("lib/ai/tools/brain.ts");
