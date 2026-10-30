@@ -71,6 +71,18 @@ type Distill = (conversationId: string) => Promise<unknown>;
 interface Deps {
   distill?: Distill;
   pauseMs?: number;
+  now?: () => Date;
+}
+
+/**
+ * The nightly distill-sessions run fires at 03:00Z inside the mega-evening fan-out. The claim check here
+ * and that cron are separate processes with no shared lock, so overlapping them can spend two model calls
+ * on one chat (Codex on PR 3379). Keeping the drain out of 02:45-03:45Z removes the overlap instead of
+ * adding a cross-process lock; a raced row is still excluded from the rollback by the clock check.
+ */
+export function inNightlyWindow(now: Date): boolean {
+  const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return minutes >= 2 * 60 + 45 && minutes < 3 * 60 + 45;
 }
 
 const loadIds = (db: Db) => db.query<Row>(READ_SQL);
@@ -109,6 +121,10 @@ export const spec: HygieneSpec = {
 
   async execute(db, { expect, log }, deps?: unknown) {
     const d = (deps ?? {}) as Deps;
+    if (inNightlyWindow((d.now ?? (() => new Date()))())) {
+      log("ABORT: 02:45-03:45Z is the nightly distill-sessions window; run the drain outside it. Nothing written.");
+      return 1;
+    }
     const rows = await loadIds(db);
     if (rows.length !== expect) {
       log(`ABORT: the candidate set moved since --read (${rows.length} now, --expect=${expect}). Nothing written.`);

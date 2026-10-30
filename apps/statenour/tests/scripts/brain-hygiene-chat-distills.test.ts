@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { READ_SQL, spec } from "@/scripts/brain-hygiene/backfill-chat-distills";
+import { inNightlyWindow, READ_SQL, spec } from "@/scripts/brain-hygiene/backfill-chat-distills";
 import { APP_ROOT, fakeDb, normalize } from "./_lib/brain-hygiene-harness";
 
 const DB_NOW = "2026-10-30 13:00:00";
@@ -38,7 +38,7 @@ function world(opts: { ids?: string[]; claimedLater?: string[]; landed?: (id: st
 }
 
 const run = (w: ReturnType<typeof world>, expect: number, log: string[] = []) =>
-  spec.execute(w.db, { expect, today: "20261030", log: (s) => log.push(s) }, { distill: w.distill, pauseMs: 0 });
+  spec.execute(w.db, { expect, today: "20261030", log: (s) => log.push(s) }, { distill: w.distill, pauseMs: 0, now: () => new Date("2026-10-30T13:00:00Z") });
 
 describe("read", () => {
   it("selects ids and dates only, never message or summary text, and counts every chat with no chat_summary row", async () => {
@@ -135,4 +135,25 @@ describe("the real writer loads under bare tsx (PR 3379 review: server-only thre
     expect(out, out.slice(0, 600)).toContain("DISTILL_TYPE=function");
     expect(r.status).toBe(0);
   }, 150_000);
+});
+
+describe("the drain stays out of the nightly distill window (Codex P2 on PR 3379: no atomic claim across processes)", () => {
+  it.each([
+    ["2026-10-31T02:44:59Z", false],
+    ["2026-10-31T02:45:00Z", true],
+    ["2026-10-31T03:10:00Z", true],
+    ["2026-10-31T03:45:00Z", false],
+    ["2026-10-31T13:00:00Z", false],
+  ])("at %s the window is %s", (iso, inside) => {
+    expect(inNightlyWindow(new Date(iso))).toBe(inside);
+  });
+
+  it("--execute inside the window aborts before any distill", async () => {
+    const w = world();
+    const log: string[] = [];
+    const code = await spec.execute(w.db, { expect: 3, today: "20261031", log: (s) => log.push(s) }, { distill: w.distill, pauseMs: 0, now: () => new Date("2026-10-31T03:05:00Z") });
+    expect(code).toBe(1);
+    expect(w.distill).not.toHaveBeenCalled();
+    expect(log.join("\n")).toContain("nightly");
+  });
 });
