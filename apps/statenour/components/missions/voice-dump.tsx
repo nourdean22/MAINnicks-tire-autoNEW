@@ -125,7 +125,7 @@ export function MissionsCapture({
           const start = Date.now();
           setStartedAt(start);
           setNow(start);
-          return voice.startRecording();
+          return voice.startRecording().then(() => {});
         }}
         voiceActive={voice.isRecording}
       />

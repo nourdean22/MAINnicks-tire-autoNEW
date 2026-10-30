@@ -43,6 +43,8 @@ export const PARKED: Record<string, string> = {
   "components/3d/scene-skeleton.tsx": "3D scene island (audit W-2) · loading skeleton for scene-canvas · dead with its parent",
   // A UI whose backend is fully alive.
   "components/operator/compound-chain.tsx": "audit W-2 · never mounted while lib/services/compound-chain.ts + /api/operator/compound are live · the consumer the service was built for",
+  // 2026-10-30 (U4a): the header mic now drives composer dictation; OPENAI_API_KEY answers 401.
+  "components/chat/realtime-voice-overlay.tsx": "OpenAI Realtime voice · unmounted 2026-10-30 because the prod OpenAI key answers 401 · re-mount if a working key is set, else delete",
   // Ultron HQ island · the route is gone. (ask/omni-capture.tsx, a duplicate
   // of the live components/actions/omni-capture-modal.tsx, was deleted
   // 2026-09-01 rather than parked.)
