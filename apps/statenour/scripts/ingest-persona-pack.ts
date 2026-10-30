@@ -16,7 +16,6 @@
  * Run: pnpm tsx scripts/ingest-persona-pack.ts
  */
 
-import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomSeed {
@@ -223,7 +222,30 @@ const ALL_SEEDS: WisdomSeed[] = [
   ...MUSK_WISDOM,
 ];
 
+/**
+ * 2026-10-29 · the update a re-run applies to an existing row. It clears
+ * deletedAt: the merge grinder soft-deleted most of these rows (fixed in PR
+ * 3359), and an update that left deletedAt set refreshed a dead row.
+ */
+export function seedUpdateData(seed: Pick<WisdomSeed, "key" | "content">) {
+  return {
+    content: seed.content,
+    confidence: 1.0,
+    lastSeen: new Date(),
+    source: "skill_ingestion",
+    createdBy: "user",
+    deletedAt: null,
+  };
+}
+
 async function main() {
+  // --dry-run (2026-10-29): print what would be written and exit BEFORE Prisma is imported.
+  if (process.argv.includes("--dry-run")) {
+    console.log(`[dry-run] would upsert ${ALL_SEEDS.length} rows (revive soft-deleted ones): ${ALL_SEEDS.map((s) => s.key).join(", ")}`);
+    console.log("[dry-run] nothing written; no database connection was opened.");
+    return;
+  }
+  const { prisma } = await import("@/lib/prisma");
   let inserted = 0;
   let updated = 0;
 
@@ -236,13 +258,7 @@ async function main() {
     if (existing) {
       await prisma.brainMemory.update({
         where: { id: existing.id },
-        data: {
-          content: seed.content,
-          confidence: 1.0,
-          lastSeen: new Date(),
-          source: "skill_ingestion",
-          createdBy: "user",
-        },
+        data: seedUpdateData(seed),
       });
       updated++;
     } else {
@@ -273,7 +289,8 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((err) => {
+// Self-runs only when invoked directly: importing it (tests) must not write.
+if (process.argv[1]?.includes("ingest-persona-pack")) main().catch((err) => {
   console.error("❌ Persona pack ingestion failed:", err);
   process.exit(1);
 });

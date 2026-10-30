@@ -15,7 +15,7 @@
  *   }
  *
  * Upserts each entry into BrainMemory(category="wisdom") with:
- *   · key      = `wisdom_${pack}_${index}`
+ *   · key      = `wisdom_${pack}_${index}` (append-only: tests/brain/wisdom-pack-keys-stable.test.ts)
  *   · content  = text
  *   · metadata = { origin: pack, context, tags, topic, version, source_credit }
  *
@@ -46,6 +46,31 @@ interface WisdomPack {
   pack: string;
   source_credit?: string;
   entries: WisdomEntry[];
+}
+
+/**
+ * One entry's upsert, or null when the loader skips it (text under 20 chars or
+ * confidence under 0.5). The update REVIVES a soft-deleted row and restores
+ * source pack:<pack> (2026-10-29: the grinder had deleted most pack rows, and
+ * the 21 survivors carried source "manual").
+ */
+export function packRowData(pack: WisdomPack, entry: WisdomEntry, i: number) {
+  if (typeof entry?.text !== "string" || entry.text.length < 20 || entry.confidence < 0.5) return null;
+  const key = `wisdom_${pack.pack}_${String(i).padStart(3, "0")}`;
+  const metadata = {
+    origin: pack.pack,
+    source_credit: pack.source_credit ?? null,
+    topic: entry.topic,
+    tags: entry.tags ?? [],
+    context: entry.context ?? null,
+    version: "v10.0.524",
+  };
+  const source = `pack:${pack.pack}`;
+  return {
+    key,
+    create: { key, content: entry.text, confidence: entry.confidence, source, metadata },
+    update: { content: entry.text, confidence: entry.confidence, source, metadata, deletedAt: null },
+  };
 }
 
 async function main() {
@@ -85,7 +110,7 @@ async function main() {
     }
 
     if (dryRun) {
-      const keep = pack.entries.filter((e) => typeof e?.text === "string" && e.text.length >= 20 && e.confidence >= 0.5);
+      const keep = pack.entries.filter((e, i) => packRowData(pack, e, i) !== null);
       const last = String(pack.entries.length - 1).padStart(3, "0");
       console.log(
         `[dry-run] ${pack.pack} - would upsert ${keep.length}/${pack.entries.length} (skip ${pack.entries.length - keep.length})` +
@@ -101,51 +126,21 @@ async function main() {
     let ingestedHere = 0;
     let skippedHere = 0;
     for (let i = 0; i < pack.entries.length; i++) {
-      const entry = pack.entries[i];
-      if (typeof entry?.text !== "string" || entry.text.length < 20) {
+      const row = packRowData(pack, pack.entries[i], i);
+      if (!row) {
         skippedHere++;
         continue;
       }
-      if (entry.confidence < 0.5) {
-        skippedHere++;
-        continue;
-      }
-      const key = `wisdom_${pack.pack}_${String(i).padStart(3, "0")}`;
       try {
         await prisma.brainMemory.upsert({
-          where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key } },
-          create: {
-            category: BRAIN_CATEGORIES.WISDOM,
-            key,
-            content: entry.text,
-            confidence: entry.confidence,
-            source: `pack:${pack.pack}`,
-            metadata: {
-              origin: pack.pack,
-              source_credit: pack.source_credit ?? null,
-              topic: entry.topic,
-              tags: entry.tags ?? [],
-              context: entry.context ?? null,
-              version: "v10.0.524",
-            } as unknown as Parameters<typeof prisma.brainMemory.upsert>[0]["create"]["metadata"],
-          },
-          update: {
-            content: entry.text,
-            confidence: entry.confidence,
-            metadata: {
-              origin: pack.pack,
-              source_credit: pack.source_credit ?? null,
-              topic: entry.topic,
-              tags: entry.tags ?? [],
-              context: entry.context ?? null,
-              version: "v10.0.524",
-            } as unknown as Parameters<typeof prisma.brainMemory.upsert>[0]["update"]["metadata"],
-          },
+          where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: row.key } },
+          create: { category: BRAIN_CATEGORIES.WISDOM, ...row.create } as Parameters<typeof prisma.brainMemory.upsert>[0]["create"],
+          update: row.update as Parameters<typeof prisma.brainMemory.upsert>[0]["update"],
         });
         ingestedHere++;
       } catch (err) {
         console.error(
-          `[!] Failed to upsert ${key}: ${err instanceof Error ? err.message : String(err)}`,
+          `[!] Failed to upsert ${row.key}: ${err instanceof Error ? err.message : String(err)}`,
         );
         skippedHere++;
       }
@@ -164,7 +159,8 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
+// Self-runs only when invoked directly: importing it (tests) must not write or exit.
+if (process.argv[1]?.includes("ingest-wisdom-pack")) main().catch((err) => {
   console.error("[!] Fatal:", err);
   process.exit(1);
 });
