@@ -524,7 +524,7 @@ export const SERVICES: ServiceData[] = [
     // clicks with a price + speed promise no Cleveland chain lists in
     // their snippet.
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
-    metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter. " + BUSINESS.freeInspection.offer + " In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
+    metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
     heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
@@ -560,7 +560,7 @@ export const SERVICES: ServiceData[] = [
       { step: "Drain Old Oil", detail: "We drain the old oil completely and remove the used filter." },
       { step: "New Filter", detail: "Install a quality oil filter matched to your engine specifications." },
       { step: "Fill with Fresh Oil", detail: "Add the correct type and amount of oil per your manufacturer's specification." },
-      { step: "Multi-Point Check", detail: "While your vehicle is up, we check tire pressure, fluid levels, belts, and hoses at no extra charge." },
+      { step: "Free Check on Request", detail: "Ask us to check tire pressure, fluid levels, belts, and hoses while your vehicle is up. No extra charge." },
       { step: "Reset Reminder", detail: "Reset your oil life monitor so your dashboard tracks the next change correctly." },
     ],
     whyUs: [
@@ -599,7 +599,6 @@ export const SERVICES: ServiceData[] = [
       "Drain old oil completely",
       "Quality oil filter replacement",
       "Fill with correct weight oil",
-      "Multi-point vehicle inspection",
       "Fluid level check",
       "Oil life monitor reset",
     ],

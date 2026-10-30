@@ -368,7 +368,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // the literal search phrase. Rewrite includes "service station"
     // since that's how the high-volume query frames the intent.
     title: "Oil Change Service Station Cleveland · $49 · Walk-In Today | Nick's", // keep in sync with OIL_PRICE
-    description: "Cleveland oil change $49 with code NICKSOIL (full synthetic from $80). New filter. " + BUSINESS.freeInspection.offer + " In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
+    description: "Cleveland oil change $49 with code NICKSOIL (full synthetic from $80). New filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,

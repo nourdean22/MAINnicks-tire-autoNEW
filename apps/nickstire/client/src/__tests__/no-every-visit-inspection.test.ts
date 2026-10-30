@@ -13,17 +13,25 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { BUSINESS } from "@shared/business";
+import { ALL_ROUTES } from "@shared/routes";
+import { SERVICES } from "@shared/services";
+import { findVoiceViolations } from "@shared/voice";
 
 const APP = path.resolve(import.meta.dirname, "..", "..", "..");
 
-const INSPECTION = /multi-point|27-point|21-point|27 checkpoints?|courtesy inspection|free inspection/i;
+const INSPECTION = /multi-point|\d+-point|\d+ checkpoints?|courtesy inspection|free inspection/i;
 // Wording that makes the inspection part of every visit or of the oil change package.
 const PROMISE =
-  /every (visit|oil change|service)|each (visit|oil change)|with any (oil change|service)|(oil change|service)s? (includes?|comes with)|includ\w+ (a |an )?(new filter|free|complimentary|courtesy|multi)|(new filter|top-off)[^.]{0,40}(free )?(multi-point|\d+-point)|included free|inspection included|check included|while you wait/i;
+  /every (visit|oil change|service)|each (visit|oil change)|with any (oil change|service)|(oil change|service)s? (includes?|comes with)|includ\w+ (a |an )?(new filter|free|complimentary|courtesy|multi)|(new filter|top-off)[^.]{0,40}(free )?(multi-point|\d+-point)|included free|inspection included|check included|while you wait|while your vehicle is up|with (a |the |new )?(oil )?filter[^.]{0,40}(multi-point|\d+-point)|includes? (a )?basic vehicle check/i;
 const OFFER = /\bask\b/i;
+// A bare list item ("Multi-point vehicle inspection",) under an included list is a promise on its own.
+const BARE_ITEM = /^\s*["'`][^"'`]*["'`],?\s*$/;
+// Tire install package lines ("every tire purchase includes ... 20-point") are a separate promise Nour has not
+// ruled on. Reported to the manager; listed here so the exception is visible, not silent.
+const TIRE_INSTALL_FILES = /TireBrandPage|TireFinderLegacy|TireOrderModal|global-faq|gatewayTire|voiceAgent/;
 
 export function promisesInspectionEveryVisit(line: string): boolean {
-  return INSPECTION.test(line) && PROMISE.test(line) && !OFFER.test(line);
+  return INSPECTION.test(line) && (PROMISE.test(line) || (BARE_ITEM.test(line) && !/\btires?\b/i.test(line))) && !OFFER.test(line);
 }
 
 /** Drop block comments and whole-line // comments so a doc comment cannot trip or satisfy the scan. */
@@ -40,7 +48,7 @@ export function scan(file: string, src: string): string[] {
   stripComments(src)
     .split(/\r?\n/)
     .forEach((line, i) => {
-      if (promisesInspectionEveryVisit(line)) hits.push(`${file}:${i + 1}`);
+      if (!TIRE_INSTALL_FILES.test(file) && promisesInspectionEveryVisit(line)) hits.push(`${file}:${i + 1}`);
     });
   return hits;
 }
@@ -73,6 +81,9 @@ describe("free inspection is offered, never promised on every visit", () => {
     expect(promisesInspectionEveryVisit("27 checkpoints. Every visit, free. multi-point")).toBe(true);
     expect(promisesInspectionEveryVisit("Includes new filter + free multi-point check.")).toBe(true);
     expect(promisesInspectionEveryVisit("Free multi-point inspection with every oil change")).toBe(true);
+    // Found in review (PR 3386): a bare inclusion item and a 20-point schema line.
+    expect(promisesInspectionEveryVisit('      "Multi-point vehicle inspection",')).toBe(true);
+    expect(promisesInspectionEveryVisit('description: "With filter, 20-point check, and tire pressure check." },')).toBe(true);
   });
 
   it("negative control: the offer wording passes", () => {
@@ -91,6 +102,23 @@ describe("free inspection is offered, never promised on every visit", () => {
     for (const must of ["client/src/pages/Home.tsx", "client/src/pages/About.tsx", "shared/services.ts", "server/gemini.ts", "server/services/smsOrchestrator.ts"]) {
       expect(rel, must).toContain(must);
     }
+  });
+
+  it("the shared constant passes the brand-voice rules (free check, never free inspection)", () => {
+    for (const line of Object.values(BUSINESS.freeInspection)) {
+      expect(findVoiceViolations(line).filter((v) => v.severity === "block"), line).toEqual([]);
+    }
+  });
+
+  it("the EVALUATED /oil-change descriptions fit 160 characters and promise no wait time", () => {
+    const d = ALL_ROUTES.find((r) => r.path === "/oil-change")?.description ?? "";
+    expect(d.length).toBeGreaterThan(40);
+    expect(d.length).toBeLessThanOrEqual(160);
+    expect(d).not.toMatch(/in and out/i);
+    const meta = SERVICES.find((x) => x.slug === "oil-change")?.metaDescription ?? "";
+    expect(meta.length).toBeGreaterThan(40);
+    expect(meta.length).toBeLessThanOrEqual(160);
+    expect(meta).not.toMatch(/in and out/i);
   });
 
   it("the shared constant itself offers, never promises", () => {

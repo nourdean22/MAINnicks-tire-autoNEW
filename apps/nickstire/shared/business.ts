@@ -236,9 +236,9 @@ export const BUSINESS = {
   // Pinned by client/src/__tests__/no-every-visit-inspection.test.ts.
   freeInspection: {
     /** Full sentence offer, for body copy and FAQ answers. */
-    offer: "Ask for a free 27-point inspection.",
+    offer: "Ask for a free 27-point check.",
     /** Short badge/relief line. */
-    short: "Free 27-point inspection, just ask.",
+    short: "Free 27-point check, just ask.",
     /** Sub-line for the About checklist card. */
     aboutSub: "27 checkpoints: brakes, fluids, belts, suspension, lights, tires. Free, just ask.",
   },

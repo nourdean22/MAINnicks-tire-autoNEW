@@ -288,7 +288,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Oil Changes at Nick's Tire & Auto",
-        content: "We offer both conventional and full synthetic oil changes at fair prices. Every oil change includes a new filter and a basic vehicle check (20-point). We use the correct oil type and viscosity for your specific vehicle — no shortcuts, no generic substitutions. Quick, affordable, done right. Serving Cleveland, Euclid, and Northeast Ohio."
+        content: "We offer both conventional and full synthetic oil changes at fair prices. Every oil change includes a new filter. Ask for a free 27-point check. We use the correct oil type and viscosity for your specific vehicle — no shortcuts, no generic substitutions. Quick, affordable, done right. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
     relatedServices: ["/oil-change"],
@@ -1397,7 +1397,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Oil Change Prices in Cleveland (2026)",
-        content: "Conventional oil change at quick-lube chains: $30 to $50. At dealerships: $50 to $80. Full synthetic at chains: $60 to $90. At dealerships: $80 to $120. At Nick's Tire & Auto: conventional starts at $49, full synthetic starts at $80. Every oil change includes a new filter, a basic vehicle check (20-point), and a tire pressure check. No appointment needed, and we are usually done in 20 to 30 minutes."
+        content: "Conventional oil change at quick-lube chains: $30 to $50. At dealerships: $50 to $80. Full synthetic at chains: $60 to $90. At dealerships: $80 to $120. At Nick's Tire & Auto: conventional starts at $49, full synthetic starts at $80. Every oil change includes a new filter and a tire pressure check. Ask for a free 27-point check. No appointment needed, and we are usually done in 20 to 30 minutes."
       },
       {
         heading: "The Quick-Lube Upsell Problem",
