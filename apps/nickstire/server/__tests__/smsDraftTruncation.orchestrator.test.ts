@@ -168,9 +168,14 @@ vi.mock("../_core/notification", () => ({
 
 import { orchestrateSms } from "../services/smsOrchestrator";
 
-const INBOUND = "hey do you guys do alignments on a pickup truck";
+// A tire-size question: an intent the 2026-10-30 eval proved, so its finished
+// draft may auto-send (W2 holds drafts for unproven intents).
+const INBOUND = "do you have a 225/65R17 for my pickup";
 const DRAFT_FINISHED = "Yes, we do alignments on trucks. Want to bring it by this week?";
 const DRAFT_CUT = "Yes, we do alignments on trucks. We can usually get you in the same day if you";
+// W2: a held draft still gets the holding reply; what must never go out is the DRAFT.
+const HOLDING = "A staff member will get back to you shortly.";
+const expectNoDraftSent = () => expect(mockSendSms.mock.calls.filter((c: any[]) => c[1] !== HOLDING)).toEqual([]);
 
 describe("orchestrateSms · F4a truncated AI drafts never auto-send", () => {
   beforeEach(() => {
@@ -226,7 +231,7 @@ describe("orchestrateSms · F4a truncated AI drafts never auto-send", () => {
     expect(res.shouldAutoSend).toBe(false);
     expect(res.status).toBe("drafted");
     expect(res.reason).toBe("draft_truncated");
-    expect(mockSendSms).not.toHaveBeenCalled();
+    expectNoDraftSent();
   });
 
   it("an unknown stop signal is held too — unknown is not finished", async () => {
@@ -234,7 +239,7 @@ describe("orchestrateSms · F4a truncated AI drafts never auto-send", () => {
     const res = await inbound();
     expect(res.shouldAutoSend).toBe(false);
     expect(res.reason).toBe("draft_completion_unknown");
-    expect(mockSendSms).not.toHaveBeenCalled();
+    expectNoDraftSent();
   });
 
   it("a truncated complaint is held and keeps its complaint reason", async () => {
@@ -243,13 +248,115 @@ describe("orchestrateSms · F4a truncated AI drafts never auto-send", () => {
     const res = await inbound();
     expect(res.shouldAutoSend).toBe(false);
     expect(res.reason).toBe("high_risk_complaint_detected");
-    expect(mockSendSms).not.toHaveBeenCalled();
+    expectNoDraftSent();
+  });
+
+  // 2026-10-30 · a provider can say "stop" on a two-word stub (thinking ate the
+  // budget). A finished-looking stub must still be held, never texted.
+  it("a 'complete' draft that stops mid-sentence is held, not sent", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft("Yes, we do", "complete"));
+    const res = await inbound();
+    expect(res.shouldAutoSend).toBe(false);
+    expect(res.reason).toBe("plan_violation:unfinished_draft");
+    expectNoDraftSent();
+  });
+
+  it("a finished draft under 5 words is held, never auto-sent", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft("Sure, come by.", "complete"));
+    const res = await inbound();
+    expect(res.shouldAutoSend).toBe(false);
+    expect(res.reason).toBe("draft_too_short");
+    expectNoDraftSent();
+  });
+
+  it("records which provider and model wrote the draft on the orchestration row", async () => {
+    mockDraftSmsReply.mockResolvedValue({ ...draft(DRAFT_FINISHED, "complete"), finishReason: "stop" });
+    await inbound();
+    // inbound rows are inserted early and finalised with update().set(payload)
+    const rows = [...mockDb.values.mock.calls, ...mockDb.set.mock.calls]
+      .map((c: any[]) => c[0]).filter((v: any) => v && typeof v.metadataJson === "string");
+    const meta = rows.map((r: any) => JSON.parse(r.metadataJson)).find((m: any) => m.draft);
+    expect(meta?.draft).toEqual({ source: "fallback-claude", model: "m", completion: "complete", finishReason: "stop" });
   });
 
   it("a result with no completion field at all (older contract) is held", async () => {
     mockDraftSmsReply.mockResolvedValue(draft(DRAFT_FINISHED));
     const res = await inbound();
     expect(res.shouldAutoSend).toBe(false);
+    expectNoDraftSent();
+  });
+});
+
+// W2 (2026-10-30) · non-customer texts stay silent, and a real customer whose
+// draft is held for staff hears Nour's holding reply, once per thread per 24 h.
+describe("orchestrateSms · W2 non-customer filter and holding reply", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb._appSecretKvQueryCount = 0;
+    mockRolloutGlobalMode = undefined;
+    mockRolloutEventMode = undefined;
+    mockDbAvailable = true;
+    mockDb.execute.mockResolvedValue([[]]);
+    mockSendSms.mockResolvedValue({ success: true, sid: "SM_test_123" });
+    mockClassifyIntent.mockResolvedValue({ ok: true, topLabel: "asking about tire prices or sizes", topScore: 0.95 });
+    mockIsEnabled.mockResolvedValue(true);
+  });
+  const draft = (text: string, completion: string) => ({ ok: true, draft: text, source: "fallback-claude", modelName: "m", latencyMs: 100, completion });
+  const inbound = (body = INBOUND) => orchestrateSms({ type: "inbound_sms", phone: "2165550077", body, conversationId: 777 });
+
+  it("a bulk marketing text gets no draft, no staff-queue item and no text", async () => {
+    const res = await inbound("Automate HR with our AI payroll software. Reply YES for a demo, STOP to end");
+    expect(mockDraftSmsReply).not.toHaveBeenCalled();
+    expect(res.status).toBe("skipped");
+    expect(res.requiresHumanApproval).toBe(false);
+    expect(mockSendSms).not.toHaveBeenCalled();
+  });
+
+  it("a held draft for a real customer sends the holding reply, and only that", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft(DRAFT_CUT, "truncated"));
+    const res = await inbound();
+    expect(res.status).toBe("drafted");
+    expect(res.holdingReply).toBe(true);
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+    expect(mockSendSms.mock.calls[0][1]).toBe("A staff member will get back to you shortly.");
+  });
+
+  it("no second holding reply in the same thread within 24 hours", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft(DRAFT_CUT, "truncated"));
+    mockDb.execute.mockResolvedValue([[{ n: 1 }]]);
+    try {
+      const res = await inbound();
+      expect(res.holdingReply).toBe(false);
+      expect(mockSendSms).not.toHaveBeenCalled();
+    } finally {
+      mockDb.execute.mockResolvedValue([[]]);
+    }
+  });
+
+  it("positive control: an auto-sent answer gets no holding reply on top", async () => {
+    mockDraftSmsReply.mockResolvedValue(draft(DRAFT_FINISHED, "complete"));
+    const res = await inbound();
+    expect(res.holdingReply).toBe(false);
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+    expect(mockSendSms.mock.calls[0][1]).not.toMatch(/staff member/i);
+  });
+
+  it("a draft for an intent the eval has not proven is held, even at high confidence, and the customer hears the holding reply", async () => {
+    mockClassifyIntent.mockResolvedValue({ ok: true, topLabel: "greeting or hello", topScore: 0.99 });
+    mockDraftSmsReply.mockResolvedValue(draft("Hey, this is Nick's Tire and Auto. What can we help you with today?", "complete"));
+    const res = await inbound("Hello?");
+    expect(res.shouldAutoSend).toBe(false);
+    expect(res.reason).toBe("intent_not_proven:general");
+    expect(res.holdingReply).toBe(true);
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+    expect(mockSendSms.mock.calls[0][1]).toBe("A staff member will get back to you shortly.");
+  });
+
+  it("a thank-you gets no draft, no staff-queue item and no text", async () => {
+    const res = await inbound("thanks I got it fixed");
+    expect(mockDraftSmsReply).not.toHaveBeenCalled();
+    expect(res.status).toBe("skipped");
+    expect(res.requiresHumanApproval).toBe(false);
     expect(mockSendSms).not.toHaveBeenCalled();
   });
 });

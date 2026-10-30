@@ -10,6 +10,9 @@
 
 import { BUSINESS } from "@shared/business";
 
+/** Nour, 2026-10-30, his words: what a customer hears while staff picks up the thread. */
+export const HOLDING_REPLY = "A staff member will get back to you shortly.";
+
 export interface ReplyConfig {
   expectedReplyTypes: string[];
   nextActionOnReply: string;

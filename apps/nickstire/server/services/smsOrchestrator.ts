@@ -33,7 +33,7 @@ import { MISSED_CALL_RECOVERY_VARIANT_KEY } from "../lib/smsQueueReplay";
 import { normalizePhone } from "../lib/phone";
 import { describeDbError } from "../lib/dbErrors";
 import { eq, and, desc, gte, sql, like, or, inArray } from "drizzle-orm";
-import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
+import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS, HOLDING_REPLY } from "./smsMessageCatalog";
 import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
 import type { SmsResult } from "../sms";
 // 2026-10-09 (autoresearch audit, SMS replay isolation): EVERY write or send in
@@ -91,7 +91,19 @@ export interface SmsOrchestratorResult {
    *  often the "system_triggered" default, so the not-sent log reads these. */
   statusReason?: string;
   noSendReason?: string | null;
+  /** W2: the inbound text was held for staff and the customer got HOLDING_REPLY. */
+  holdingReply?: boolean;
 }
+
+/**
+ * W2 (2026-10-30) · the router intents whose AI draft may auto-send: the ones the
+ * replay eval (scripts/sms-reply-eval.ts) showed answered right. Every other
+ * intent's draft goes to staff and the customer gets HOLDING_REPLY, until a W3
+ * catalog reply proves it (the bounded-library pattern: Kenect, Podium).
+ */
+const AUTO_SEND_PROVEN_INTENTS: ReadonlySet<string> = new Set([
+  "arrival_committed", "tire_inventory", "price_tires", "price_brakes", "price_oil", "hours_location", "same_day_visit", "drop_off",
+]);
 
 /**
  * The only link a phone-call recap text carries.
@@ -656,6 +668,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
   let relatedVapiCallId: string | null = null;
   let relatedEstimateId: string | null = null;
   let metadataJson: Record<string, any> = {};
+  let holdingReply = false;
 
   let isControl = false;
   let trafficWeight = 100;
@@ -1366,7 +1379,20 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         metadataJson.router = routerDecision;
         const matchedCatalogEvent: string | null = routerDecision.catalogEvent;
 
-        if (matchedCatalogEvent) {
+        if (routerDecision.primary === "not_a_customer" || routerDecision.primary === "no_reply_needed") {
+          // W2: spam, carrier notices, auto-replies and plain thank-yous get no
+          // draft, no staff-queue item and no text. Opt-out keywords were handled
+          // above and are untouched.
+          body = "";
+          shouldAutoSend = false;
+          requiresHumanApproval = false;
+          status = "skipped";
+          statusReason = routerDecision.primary;
+          noSendReason = routerDecision.primary;
+          reason = routerDecision.primary === "not_a_customer" ? "non_customer_inbound" : "no_reply_needed";
+          riskTier = "low";
+        }
+        else if (matchedCatalogEvent) {
           const autoReplyEnabled = await isEnabled("smart_sms_auto_reply");
           
           const contextPayload: Record<string, any> = {
@@ -1463,6 +1489,13 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
 
           if (draftResult.ok && draftResult.draft) {
             body = humanizeCopy(draftResult.draft);
+            // Provenance for every AI draft; read by scripts/sms-draft-health.mjs.
+            metadataJson.draft = {
+              source: draftResult.source,
+              model: draftResult.modelName,
+              completion: draftResult.completion,
+              finishReason: draftResult.finishReason,
+            };
             variantKey = "nickgpt_v1";
             selectedVariantKey = "nickgpt_v1";
             experimentId = "exp_nickgpt_replies";
@@ -1549,13 +1582,31 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
             // (stock claims, holds, completion times, callbacks, reserved
             // appointments, drive-safe assurances, complaint outcomes) never
             // auto-sends — the operator sees the draft plus what tripped.
-            const violations = planViolations(replyPlan, body);
+            // A draft the provider already flagged as not complete is held below
+            // with that more specific reason; "unfinished" would only overwrite it.
+            const violations = planViolations(replyPlan, body)
+              .filter((v) => !(v === "unfinished_draft" && draftResult.completion !== "complete"));
             if (violations.length > 0) {
               metadataJson.planViolations = violations;
               isLowRisk = false;
               requiresHumanApproval = true;
               humanReviewReason = `plan_violation:${violations[0]}`;
               riskTier = "high";
+            }
+
+            // 2026-10-30 · a provider can report "stop" on a two-word stub when
+            // thinking ate the budget; no AI draft under 5 words texts a customer.
+            if (body.trim().split(/\s+/).filter(Boolean).length < 5) {
+              isLowRisk = false;
+              requiresHumanApproval = true;
+              if (!humanReviewReason) humanReviewReason = "draft_too_short";
+              riskTier = "high";
+            }
+
+            if (!AUTO_SEND_PROVEN_INTENTS.has(routerDecision.primary)) {
+              isLowRisk = false;
+              requiresHumanApproval = true;
+              if (!humanReviewReason) humanReviewReason = `intent_not_proven:${routerDecision.primary}`;
             }
 
             // F4a: a draft the provider cut off at the token cap reads exactly
@@ -1954,6 +2005,47 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
 
     }
 
+    // W2 (2026-10-30, Nour's words): a real customer whose text is held for staff
+    // hears "a staff member will get back to you shortly", at most once per thread
+    // per 24 h, only in live_send, and never parked for after hours (a delayed
+    // "shortly" is false). Non-customers and thank-yous were skipped above, so
+    // they never reach "drafted".
+    if (
+      event.type === "inbound_sms" && event.conversationId && status === "drafted" && requiresHumanApproval &&
+      rolloutMode === "live_send" && db
+    ) {
+      let alreadySent: boolean | null = null;
+      try {
+        const res = await db.execute(sql`
+          SELECT 1 AS n FROM sms_messages
+          WHERE conversationId = ${event.conversationId} AND direction = 'outbound'
+            AND body LIKE ${`%${HOLDING_REPLY}%`} AND createdAt >= NOW() - INTERVAL 24 HOUR
+          LIMIT 1`);
+        const rows = Array.isArray(res) && Array.isArray(res[0]) ? res[0] : res;
+        alreadySent = Array.isArray(rows) && rows.length > 0;
+      } catch (err) {
+        // Unknown is not "not sent": skip rather than risk a second holding text.
+        log.warn("Holding-reply dedupe read failed; not sending", { error: err instanceof Error ? err.message : String(err) });
+      }
+      if (alreadySent === false) {
+        const held = await smsEffect(
+          "sms.sendSms",
+          () => sendSms(normalizedPhone, HOLDING_REPLY, {
+            via: "shop",
+            messageClass: "customer_followup",
+            // No skipShortCooldown: a burst of two texts reads "not sent yet"
+            // twice; the 5-minute cooldown keeps it to one holding text.
+            variantKey: "holding_reply",
+            sendNowOrDrop: true,
+          }),
+          (): SmsResult => ({ success: true, queued: false, sid: REPLAY_FAKE_SEND_SID }),
+          { phase: "holding_reply", phoneSuffix: phone10.slice(-4) },
+        );
+        holdingReply = held.success === true && !("notQueued" in held && held.notQueued);
+        metadataJson.holdingReply = holdingReply;
+      }
+    }
+
   } catch (orchestrateError) {
     log.error("Error executing orchestrator", orchestrateError);
     status = "failed";
@@ -1975,6 +2067,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     status,
     statusReason,
     noSendReason,
+    holdingReply,
   };
 
   if (db) {
