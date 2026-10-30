@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const m = vi.hoisted(() => ({
   task: { findFirst: vi.fn(), findMany: vi.fn() },
-  relationshipLedger: { findFirst: vi.fn() },
+  relationshipLedger: { findMany: vi.fn() },
   createTask: vi.fn(),
   resolveInboxMissionId: vi.fn(async () => "inbox-1"),
   tracedAiChat: vi.fn(),
@@ -27,18 +27,19 @@ describe("recall line", () => {
   it("no person on the task: nothing to show, and no ledger read", async () => {
     m.task.findFirst.mockResolvedValue({ personId: null, person: null });
     await expect(getTaskRecallLine("t1")).resolves.toEqual({ state: "none" });
-    expect(m.relationshipLedger.findFirst).not.toHaveBeenCalled();
+    expect(m.relationshipLedger.findMany).not.toHaveBeenCalled();
   });
 
-  it("shows the newest ledger note for the task's person, with its date and source", async () => {
+  it("shows the newest CONTACT ledger note for the task's person, with its date and source", async () => {
     m.task.findFirst.mockResolvedValue({ personId: "pp1", person: { name: "Fixture Person" } });
-    m.relationshipLedger.findFirst.mockResolvedValue({
-      note: "Asked for the quote by Friday",
-      source: "chat",
-      createdAt: new Date("2026-10-27T15:00:00Z"),
-    });
+    m.relationshipLedger.findMany.mockResolvedValue([
+      // Newer, but not contact: a synthetic mention and a status flip are skipped.
+      { note: "mentioned in chat", source: "chat", createdAt: new Date("2026-10-29T15:00:00Z"), metadata: { synthetic: true } },
+      { note: "status flip", source: "manual", createdAt: new Date("2026-10-28T15:00:00Z"), metadata: { kind: "status_flip" } },
+      { note: "Asked for the quote by Friday", source: "chat", createdAt: new Date("2026-10-27T15:00:00Z"), metadata: null },
+    ]);
     const res = await getTaskRecallLine("t1");
-    expect(m.relationshipLedger.findFirst.mock.calls[0][0]).toMatchObject({
+    expect(m.relationshipLedger.findMany.mock.calls[0][0]).toMatchObject({
       where: { personId: "pp1" },
       orderBy: { createdAt: "desc" },
     });
@@ -53,13 +54,13 @@ describe("recall line", () => {
 
   it("a person with no ledger rows says so instead of inventing a line", async () => {
     m.task.findFirst.mockResolvedValue({ personId: "pp1", person: { name: "Fixture Person" } });
-    m.relationshipLedger.findFirst.mockResolvedValue(null);
+    m.relationshipLedger.findMany.mockResolvedValue([]);
     await expect(getTaskRecallLine("t1")).resolves.toEqual({ state: "empty", personName: "Fixture Person" });
   });
 
   it("a failed read throws (the panel renders it as failed, never as empty)", async () => {
     m.task.findFirst.mockResolvedValue({ personId: "pp1", person: { name: "Fixture Person" } });
-    m.relationshipLedger.findFirst.mockRejectedValue(new Error("db down"));
+    m.relationshipLedger.findMany.mockRejectedValue(new Error("db down"));
     await expect(getTaskRecallLine("t1")).rejects.toThrow("db down");
   });
 });

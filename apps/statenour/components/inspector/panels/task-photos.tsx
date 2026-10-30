@@ -9,9 +9,9 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { trpc } from "@/lib/trpc/client";
 import { resizePhoto } from "@/lib/ui/resize-photo";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 const photoUrl = (taskId: string, id: string, attempt = 0) =>
@@ -80,15 +80,16 @@ function Viewer({ taskId, id, onClose }: { taskId: string; id: string; onClose: 
     const t = setTimeout(() => setArmed(false), 4000);
     return () => clearTimeout(t);
   }, [armed]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // Portal: the inspector sheet is transformed, which would make `fixed` mean "fixed to the sheet".
-  return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Photo" className="fixed inset-0 z-[80] flex flex-col bg-black/95">
+  // The house Dialog (Base UI): portal out of the transformed inspector sheet, focus trap, Escape, scroll lock.
+  return (
+    <Dialog open onOpenChange={(next) => !next && !del.isPending && onClose()}>
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-[80] bg-black/95"
+        className="fixed inset-0 z-[81] flex flex-col outline-none"
+      >
+      <DialogTitle className="sr-only">Task photo</DialogTitle>
       <div className="flex items-center justify-between gap-2 px-3 pt-[max(env(safe-area-inset-top),12px)]">
         <button
           type="button"
@@ -115,8 +116,8 @@ function Viewer({ taskId, id, onClose }: { taskId: string; id: string; onClose: 
         {/* eslint-disable-next-line @next/next/no-img-element -- owner-gated bytes */}
         <img src={photoUrl(taskId, id)} alt="Task photo" className="max-h-full max-w-full object-contain" />
       </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   );
 }
 
