@@ -49,3 +49,44 @@ Doc 15 a4 (which /system events cross the bridge): every new /system table gets 
 
 **Nour decides:** (1) connect Claude read-only now; (2) may customer names and phones show in your Claude chats, or
 masked (first name, last 4 digits)? Chats live in Anthropic's history, outside our database (01 s.9); (3) ChatGPT too.
+
+## B. Every control, option and edit inside /system
+
+Nour, 2026-10-30: "how many ompleyees n all that i should be able to edit and do whatever i want with whenever i want".
+Doc 13 recommends a Settings screen; doc 15 a6 says no route is scheduled. This section says what goes on it.
+
+**What exists (FACT)**
+- `shop_settings` key/value table (`drizzle/schema.ts:1175`): categories pricing, contact, hours, sms, general; keeps
+  only the last `updatedBy`, no history. Read today for `laborRate` (5 call sites), `tireMarkup`, `tirePriceFloors`,
+  `vapi_transfer_presets`. No screen edits it.
+- 75 feature flags (`server/services/featureFlags.ts`), toggled on the Settings flags panel
+  (`client/src/pages/admin/settings/FeatureFlagsPanel.tsx`) with an audit row per flip (`server/routers/featureFlags.ts:52`).
+- Social autonomy policy: versioned, schema-checked, every number bounded (`server/services/autonomyControl.ts:34`).
+- Hard-coded: hours, phone, address, discount programs (`shared/business.ts:72,31,40,304`); tax 0.08 written twice
+  (`server/routers/gatewayTire.ts:745`, `server/services/quoteEngine.ts:75`); text window 8 AM-8 PM (`server/sms.ts:585`).
+- 1,593 `process.env` reads in `server/` (git grep count): changing one needs Railway and a redeploy.
+- Six roles exist (`shared/adminPermissions.ts`); no screen onboards a crew login (09 s.1, P0 task 1).
+
+| Knob | Lives now | Should live |
+|---|---|---|
+| Crew, roles, count, pay type, bays and lifts | nowhere / one-row prod write | staff screen (09 P0 task 1) + settings |
+| Hours, holidays, phone, address | `shared/business.ts` (deploy) | settings, effective date; public pages rebuild on change |
+| Labor rate, tire markup, price floors, tax | `shop_settings` / code twice | settings, one key each, history |
+| Tire packages, canned jobs, discounts | code, ALG | their own tables with a screen (01) |
+| Text templates, caps, send window | code, env, flags | settings inside legal floors |
+| AI provider per lane, payment programs, vendors on/off | env, `shared/financing.ts`, `GATEWAY_ORDERING_ENABLED` | settings from an allowed list |
+| Alert routing (who gets which ping) | env | settings |
+| API keys, passwords, DB URLs | Railway | STAY in Railway: never in a screen or table |
+| Legal floors (marketing calls 8 AM-9 PM local, 47 CFR 64.1200(c)(1), CLAIM; Ohio 10% approval line; consent) | code | NOT settings; a setting may be stricter, never looser |
+
+| Option | Mechanism | Stolen from | Cost | Risk | Kill criterion | Verdict |
+|---|---|---|---|---|---|---|
+| B1 typed settings on `shop_settings` | each key declared once in code (type, bounds, default, who may edit); every save appends a history row (who, old, new, when) with one-tap undo; new values apply forward only | Shopify: "The store activity log records changes made by the store owner, users, apps, and channels." (help.shopify.com/en/manual/shopify-admin/activity-logs); Tekmetric: tax changes do not update existing repair orders (CLAIM, page 403); our own bounded autonomy policy | 3-4 days | a bad value prices a ticket wrong: bounds plus undo | after 30 days you still ask an agent to change a value the screen has | DO, with the /system build |
+| B2 more flags and env | keep adding env vars and flags | status quo | 0 | needs Railway and a deploy; not from a phone | n/a | REJECT |
+| B3 settings of a bought core | if 05's day 13-14 decision buys the ledger, its screens own RO settings; B1 owns the rest | 05-ROADMAP v3 | vendor price | two places to look | n/a | only if the core is bought |
+
+Benchmarked against: Shopify admin roles and activity log (help.shopify.com, 2026-10-30); adopted: a log of who
+changed what, custom roles; rejected: a role builder, because six fixed roles cover a 5-person crew.
+
+**Nour decides:** (1) Settings screen yes (doc 13 recommends yes); (2) who else may edit (proposal: only you; managers
+may change hours); (3) send ALG settings screenshots so the key list matches what you use.
