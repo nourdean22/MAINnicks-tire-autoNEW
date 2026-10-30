@@ -18,7 +18,7 @@ const base: OwnerEscalation = {
   writeBack: "revenueAttribution.resolve",
 };
 
-async function headersOf(e: OwnerEscalation): Promise<Record<string, string>> {
+async function postOf(e: OwnerEscalation): Promise<RequestInit> {
   vi.stubEnv("STATENOUR_SYNC_KEY", "k-canary");
   vi.stubEnv("STATENOUR_SYNC_URL", "https://statenour.example");
   const fetchSpy = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
@@ -26,7 +26,10 @@ async function headersOf(e: OwnerEscalation): Promise<Record<string, string>> {
   await new Promise((r) => setTimeout(r, 0));
   expect(fetchSpy).toHaveBeenCalledTimes(1);
   const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-  return init.headers as Record<string, string>;
+  return init;
+}
+async function headersOf(e: OwnerEscalation): Promise<Record<string, string>> {
+  return (await postOf(e)).headers as Record<string, string>;
 }
 
 describe("owner escalation idempotency key", () => {
@@ -55,6 +58,13 @@ describe("owner escalation idempotency key", () => {
   it("no subject, or a phone-shaped one, sends unkeyed (today's path) and still sends", async () => {
     expect(await headersOf(base)).not.toHaveProperty("Idempotency-Key");
     expect(await headersOf({ ...base, subjectId: "2165550100" })).not.toHaveProperty("Idempotency-Key");
+  });
+
+  it("a standing escalation names its trigger in the payload; an ordinary one does not", async () => {
+    const standing = JSON.parse(String((await postOf({ ...base, subjectId: { opaque: "3,17" }, standing: true })).body));
+    expect(standing.data.standing).toBe("attribution_weak_matches");
+    const plain = JSON.parse(String((await postOf({ ...base, subjectId: "draft-1" })).body));
+    expect(plain.data).not.toHaveProperty("standing");
   });
 
   it("auth header is untouched", async () => {

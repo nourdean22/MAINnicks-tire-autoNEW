@@ -45,6 +45,7 @@ export type WisdomOrigin =
   | "bill-gates"
   | "elon-musk"
   | "greene-laws"
+  | "baltasar-gracian"
   | "distiller"
   | "consolidation"
   | "chat-scrape"
@@ -114,6 +115,13 @@ export const WISDOM_ORIGINS: Record<WisdomOrigin, WisdomOriginMeta> = {
     tradition: "Power + Strategy + Human Nature",
     intro:
       "Promoted from the StrategicLaw library · 189 entries spanning the 48 Laws of Power, 33 Strategies of War, Laws of Human Nature, Mastery, Art of Seduction, and the 50th Law. Each carries the law's essence and an operator-specific application. Wisdom shape: read the room, understand power, anticipate the move that hasn't been made yet.",
+  },
+  "baltasar-gracian": {
+    label: "Baltasar Gracián",
+    badge: "Gracián",
+    tradition: "Prudence + Reputation",
+    intro:
+      "The Oráculo manual (1647), all 300 maxims, distilled from Joseph Jacobs' public-domain translation. Each entry gives what the maxim teaches and how it applies to the shop or NOUR OS; the manipulative ones are turned into their honest use. Wisdom shape: judge timing, guard your reputation, read people, and be good rather than only seem it.",
   },
   distiller: {
     label: "The Distiller",
