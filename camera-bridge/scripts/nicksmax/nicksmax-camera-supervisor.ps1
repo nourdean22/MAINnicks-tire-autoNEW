@@ -70,6 +70,7 @@ $hostScripts = @(
   @{ Name = "shim";    Repo = Join-Path $root "scripts\nicksmax\nicksmax-camera-supervisor-shim.ps1"; Installed = Join-Path $root "data\nicksmax-camera-supervisor.ps1" },
   @{ Name = "edge";    Repo = Join-Path $root "scripts\nicksmax\run-sign-rtsp-production.ps1";       Installed = Join-Path $root "data\run-sign-rtsp-production.ps1" },
   @{ Name = "crop";    Repo = Join-Path $root "scripts\nicksmax\run-sign-crop.ps1";                  Installed = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1" },
+  @{ Name = "mediamtx"; Repo = Join-Path $root "scripts\nicksmax\run-mediamtx-sign.ps1";             Installed = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-mediamtx-sign.ps1" },
   @{ Name = "eufy-bridge"; Repo = Join-Path $root "scripts\nicksmax\start-bridge-nicksmax.ps1";        Installed = "C:\Users\nourd\AppData\Local\StateNour\Eufy\start-bridge-nicksmax.ps1" }
 )
 # What the box-local shim runs when this file is missing or does not parse (its $fallbackTick).
