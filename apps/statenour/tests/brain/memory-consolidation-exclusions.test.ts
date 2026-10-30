@@ -89,6 +89,8 @@ describe("mergeMemories · category exclusions", () => {
         { createdBy: "user" },
         { source: { in: expect.arrayContaining(["manual", "user_save", "operator", "skill_ingestion", "user"]) } },
         { source: { startsWith: "pin:" } },
+        // 2026-10-29 · curated wisdom packs (scripts/ingest-wisdom-pack.ts).
+        { source: { startsWith: "pack:" } },
       ],
     };
     expect(mocks.brainMemory.groupBy.mock.calls[0][0].where).toMatchObject(guard);

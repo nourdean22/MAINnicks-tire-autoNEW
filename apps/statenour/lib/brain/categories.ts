@@ -869,6 +869,9 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // 2026-10-18 · alert control markers read by key, not beliefs: a merge would soft-delete a dismissal.
   "alert_dismiss",
   "alert_mute",
+  // 2026-10-29 · curated Greene seeds (structured metadata: fullText, matchPhrases, chapter).
+  // The grinder took 149 of 153 between 06-08 and 08-17 and stopped only at 3 live rows.
+  BRAIN_CATEGORIES.GREENE_LAW,
 ];
 
 /**
