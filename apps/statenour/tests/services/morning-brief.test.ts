@@ -14,7 +14,7 @@
  *   10. Empty bridge + empty failed crons → no shop section in text
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -65,7 +65,7 @@ const QUIET_LOT = {
 };
 
 // 2026-10-22 · the weekly "What you're not seeing" section: Mondays + NICK_WEEKLY_GAP_NOTE only.
-const weekly = vi.hoisted(() => ({ flagOn: false, weekday: 3, build: vi.fn(), load: vi.fn(async () => {}) }));
+const weekly = vi.hoisted(() => ({ flagOn: false, weekday: 3 as number | null, build: vi.fn(), load: vi.fn(async () => {}) }));
 vi.mock("@/lib/feature-flags", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/feature-flags")>();
   return {
@@ -76,9 +76,14 @@ vi.mock("@/lib/feature-flags", async (importOriginal) => {
 });
 vi.mock("@/lib/utils/datetime", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/utils/datetime")>();
-  return { ...actual, weekdayET: () => weekly.weekday };
+  return { ...actual, weekdayET: (...a: Parameters<typeof actual.weekdayET>) => weekly.weekday ?? actual.weekdayET(...a) };
 });
 vi.mock("@/lib/services/not-seeing-note", () => ({ buildNotSeeingSlice: weekly.build }));
+const maximCtl = vi.hoisted(() => ({ pick: null as null | ((tag: string, seed: string) => unknown) }));
+vi.mock("@/lib/brain/maxims", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/brain/maxims")>();
+  return { ...actual, pickMaxim: (tag: string, seed: string) => (maximCtl.pick ? maximCtl.pick(tag, seed) : actual.pickMaxim(tag, seed)) };
+});
 
 import { buildMorningBrief, readLotBriefLines } from "@/lib/services/morning-brief";
 
@@ -530,80 +535,130 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
       ) as { entries: Maxim[] }).entries,
   );
   const wisdomLine = (text: string) => text.split("\n").find((l) => l.startsWith("Wisdom applied"));
-  const fresh = (payload: Record<string, unknown>) =>
-    mocks.auditEvent.findFirst.mockResolvedValue({ createdAt: new Date(), payload });
-  const DECLINED = { declinedWork: { count: 12, countYesterday: 10 } };
+  const applied = (brief: { payload: Record<string, unknown> }) =>
+    (brief.payload as { shop: { wisdomApplied?: { tag: string; ref: string; metric: string } } }).shop.wisdomApplied;
+  /** Shaped exactly like apps/nickstire/server/cron/jobs/statenourSync.ts output (keys on main, 2026-10-30). */
+  const SYNC = (over: { declinedWork?: Record<string, unknown>; revenue?: Record<string, unknown> } = {}) => ({
+    revenue: {
+      available: true, todayEstimate: 0, yesterdayRevenue: 2400, yesterdayJobs: 6, weekRevenue: 15200,
+      monthRevenue: 41000, avgTicket: 0, jobsToday: 0, monthlyTarget: 60000, ...over.revenue,
+    },
+    declinedWork: {
+      measured: true, source: "work_order_items", sourceNote: "counted", totalRecoverable: 3400,
+      customerCount: 4, safetyItemCount: 1, topItems: [], ...over.declinedWork,
+    },
+    intelligence: { conversionPipeline: null, revenueProjection: null, shopPulse: null },
+  });
+  const fresh = (payload: Record<string, unknown>, createdAt = new Date()) =>
+    mocks.auditEvent.findFirst.mockResolvedValue({ createdAt, payload });
+  const at = (iso: string) => vi.setSystemTime(new Date(iso));
 
   beforeEach(() => {
     resetMocks();
     weekly.flagOn = false;
     weekly.weekday = 1;
+    maximCtl.pick = null;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("Monday, fresh bridge: one line ties the declined-work count to a customers maxim", async () => {
-    fresh(DECLINED);
+  it("real sync payload, declined work measured: the customers maxim is applied to the open count", async () => {
+    fresh(SYNC());
     const brief = await buildMorningBrief();
     const line = wisdomLine(brief.text);
-    expect(line).toBeDefined();
-    expect(line).toContain("declined work (12 open)");
-    const applied = (brief.payload as { shop: { wisdomApplied: { tag: string; ref: string } } }).shop.wisdomApplied;
-    expect(applied.tag).toBe("customers");
-    const maxim = MAXIMS.find((m) => m.ref === applied.ref)!;
+    expect(line).toContain("declined work (4 customers open)");
+    const a = applied(brief)!;
+    expect(a).toEqual({ tag: "customers", ref: a.ref, metric: "declined" });
+    const maxim = MAXIMS.find((m) => m.ref === a.ref)!;
     expect(maxim.tags).toContain("customers");
     expect(line).toContain(maxim.text);
     expect(line).toContain(`(${maxim.source})`);
   });
 
-  it("no declined count: revenue picks a money maxim; only reviews: a reputation maxim", async () => {
-    fresh({ revenue: { yesterday: 2400 } });
-    let brief = await buildMorningBrief();
-    expect(wisdomLine(brief.text)).toContain("revenue ($2.4k yesterday)");
-    expect((brief.payload as { shop: { wisdomApplied: { tag: string } } }).shop.wisdomApplied.tag).toBe("money");
-
-    fresh({ intelligence: { gbp: { new: 2, total: 187 } } });
-    brief = await buildMorningBrief();
-    expect(wisdomLine(brief.text)).toContain("reviews (+2 new)");
-    expect((brief.payload as { shop: { wisdomApplied: { tag: string } } }).shop.wisdomApplied.tag).toBe("reputation");
-  });
-
-  it("the same Monday gives the same maxim (rebuilt briefs agree)", async () => {
-    fresh(DECLINED);
-    const a = wisdomLine((await buildMorningBrief()).text);
-    const b = wisdomLine((await buildMorningBrief()).text);
-    expect(a).toBeDefined();
-    expect(a).toBe(b);
-  });
-
-  it("not Monday: no line", async () => {
-    weekly.weekday = 2;
-    fresh(DECLINED);
+  it("declined work not measured: the week's revenue gets a money maxim", async () => {
+    fresh(SYNC({ declinedWork: { measured: false } }));
     const brief = await buildMorningBrief();
-    expect(brief.text).toContain("Declined work: 12 open"); // POSITIVE CONTROL: the number is there
+    expect(wisdomLine(brief.text)).toContain("revenue ($15.2k, last 7 days)");
+    expect(applied(brief)).toEqual({ tag: "money", ref: applied(brief)!.ref, metric: "revenue" });
+  });
+
+  it("revenue from a context row of another ET day is not applied, even when the row is still fresh", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    at("2026-11-02T13:00:00Z"); // Monday 08:00 ET
+    fresh(SYNC({ declinedWork: { measured: false } }), new Date("2026-11-02T03:00:00Z")); // Sunday 22:00 ET
+    expect(wisdomLine((await buildMorningBrief()).text)).toBeUndefined();
+    fresh(SYNC({ declinedWork: { measured: false } }), new Date("2026-11-02T12:00:00Z")); // CONTROL: Monday 07:00 ET
+    expect(wisdomLine((await buildMorningBrief()).text)).toContain("last 7 days");
+  });
+
+  it("zeros everywhere give no line and no payload", async () => {
+    fresh({ ...SYNC({ declinedWork: { customerCount: 0 }, revenue: { weekRevenue: 0 } }), intelligence: { gbp: { new: 0, total: 0 } } });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("<b>Shop</b>"); // POSITIVE CONTROL: the slice rendered
+    expect(wisdomLine(brief.text)).toBeUndefined();
+    expect(applied(brief)).toBeUndefined();
+  });
+
+  it("not Monday: no line and no payload", async () => {
+    weekly.weekday = 2;
+    fresh(SYNC());
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Rev (today)"); // POSITIVE CONTROL: the same payload renders shop lines
+    expect(wisdomLine(brief.text)).toBeUndefined();
+    expect(applied(brief)).toBeUndefined();
+  });
+
+  it("real clock: Sunday 23:30 ET gives no line, Monday 00:30, 08:00 and 22:00 ET give the same line", async () => {
+    weekly.weekday = null;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const lineAt = async (iso: string) => {
+      at(iso);
+      fresh(SYNC());
+      return wisdomLine((await buildMorningBrief()).text);
+    };
+    expect(await lineAt("2026-11-02T04:30:00Z")).toBeUndefined();
+    const first = await lineAt("2026-11-02T05:30:00Z");
+    expect(first).toBeDefined();
+    expect(await lineAt("2026-11-02T13:00:00Z")).toBe(first);
+    expect(await lineAt("2026-11-03T03:00:00Z")).toBe(first);
+    const { pickMaxim } = await import("@/lib/brain/maxims");
+    expect(first).toContain((pickMaxim("customers", "2026-11-02") as Maxim).text);
+  });
+
+  it("the maxims module failing costs only the wisdom line: the other Shop lines stay", async () => {
+    maximCtl.pick = () => {
+      throw new Error("pack without entries");
+    };
+    fresh({ ...SYNC(), declinedWork: { ...SYNC().declinedWork, count: 12 }, lineOfCars: 8 });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 12 open");
+    expect(brief.text).toContain("Line of cars: 8");
+    expect(brief.text).not.toContain("Shop slice unavailable");
     expect(wisdomLine(brief.text)).toBeUndefined();
   });
 
-  it("stale or failed bridge read: no number, so no line (never a maxim with nothing to apply it to)", async () => {
-    mocks.auditEvent.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 30 * 60 * 60_000), payload: DECLINED });
-    expect(wisdomLine((await buildMorningBrief()).text)).toBeUndefined();
-    mocks.auditEvent.findFirst.mockRejectedValue(new Error("neon down"));
-    expect(wisdomLine((await buildMorningBrief()).text)).toBeUndefined();
+  it("markup in a maxim is escaped, so Telegram never sees a stray tag", async () => {
+    maximCtl.pick = () => ({ text: "Keep <b>score</b> & call back", source: "A<B>", ref: "r1", tags: ["customers"] });
+    fresh(SYNC());
+    const line = wisdomLine((await buildMorningBrief()).text)!;
+    expect(line).toContain("Keep &lt;b&gt;score&lt;/b&gt; &amp; call back");
+    expect(line).toContain("(A&lt;B&gt;)");
+    expect(line).not.toContain("<b>score");
   });
 
-  it("pickMaxim returns only maxims carrying the tag, across 60 dates per tag; an unknown tag gives null", async () => {
+  it("pickMaxim returns only maxims carrying the tag, varies across 60 dates, and an unknown tag gives null", async () => {
     const { pickMaxim } = await import("@/lib/brain/maxims");
     for (const tag of ["customers", "money", "reputation"]) {
+      const refs = new Set<string>();
       for (let d = 1; d <= 60; d++) {
         const seed = `2026-${String(1 + (d % 12)).padStart(2, "0")}-${String(1 + (d % 28)).padStart(2, "0")}`;
-        expect(pickMaxim(tag, seed)?.tags).toContain(tag);
+        const m = pickMaxim(tag, seed) as Maxim;
+        expect(m.tags).toContain(tag);
+        refs.add(m.ref);
       }
+      expect(refs.size).toBeGreaterThanOrEqual(10);
     }
     expect(pickMaxim("no-such-tag", "2026-11-02")).toBeNull();
-  });
-
-  it("fresh bridge with no usable number: no line", async () => {
-    fresh({ lineOfCars: 8 });
-    const brief = await buildMorningBrief();
-    expect(brief.text).toContain("Line of cars: 8"); // POSITIVE CONTROL
-    expect(wisdomLine(brief.text)).toBeUndefined();
   });
 });
