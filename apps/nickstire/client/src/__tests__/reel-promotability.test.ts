@@ -248,7 +248,7 @@ describe("review-found bypasses (#1988)", () => {
       expect(isHomepageDestination(d), d).toBe(true);
     }
     // POSITIVE CONTROL: a real service page with tracking is NOT the homepage.
-    for (const d of ["/brakes", "https://nickstire.org/brakes?utm_source=ig", "/alignment#book"]) {
+    for (const d of ["/brakes", "https://nickstire.org/brakes?utm_source=ig", "/wheel-alignment-cleveland#book"]) {
       expect(isHomepageDestination(d), d).toBe(false);
     }
   });

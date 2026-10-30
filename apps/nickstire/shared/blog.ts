@@ -214,7 +214,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     // wave-178: article body explicitly says "it usually indicates an
     // alignment problem" — adding /alignment to relatedServices
     // distributes authority to a GSC-buried page (pos 31.6).
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland"],
     tags: ["tire replacement", "tire shop Cleveland", "tire tread", "winter tires", "Cleveland tires"]
   },
   {
@@ -256,7 +256,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     // wave-178: spring article body covers "vehicle pulling to one side"
     // — primary alignment symptom. Dropping /general-repair (generic) for
     // /alignment (specific + GSC-buried at pos 31.6).
-    relatedServices: ["/tires", "/brakes", "/oil-change", "/alignment"],
+    relatedServices: ["/tires", "/brakes", "/oil-change", "/wheel-alignment-cleveland"],
     tags: ["spring maintenance", "Cleveland auto repair", "car maintenance checklist", "seasonal maintenance", "spring car care"]
   },
   {
@@ -374,7 +374,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "As mechanics who fix the aftermath of winter accidents every season, our honest recommendation is: if you can afford winter tires, get them. Mount them in November, swap back to all-seasons in April. If you keep them on separate wheels ($50-$75 per wheel), the swap is fast and inexpensive each season. And your all-season tires last longer because they are not wearing down all winter. Come see us at Nick's Tire & Auto — we will help you find the right winter tires for your vehicle and budget, new or used."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland"],
     tags: ["winter tires Cleveland", "snow tires Ohio", "all-season vs winter tires", "Cleveland winter driving", "used winter tires"]
   },
   {
@@ -632,7 +632,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Tire rotation at Nick's Tire & Auto is one of the cheapest maintenance services that exists. If you purchased your tires from us, rotations are included for the life of the tires at no additional charge. For all other customers, tire rotation is a quick service that takes about 20 to 30 minutes. We remove all four wheels, inspect the tires and brakes, rotate to the correct pattern for your vehicle, and set all tire pressures to factory specifications. We also do a visual alignment check during every rotation. No appointment needed — drive in anytime during business hours. We serve Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Cuyahoga County."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland"],
     tags: ["tire rotation", "how often rotate tires", "tire rotation pattern", "tire wear", "tire maintenance Cleveland", "wheel alignment"]
   },
   {
@@ -844,7 +844,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "No appointment needed. Drive into Nick's Tire & Auto any day of the week and we will rotate your tires while you wait. If you purchased tires from us, it is free. If not, it is still the cheapest maintenance you can do for your vehicle. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland"],
     tags: ["tire rotation cost", "tire rotation Cleveland", "tire rotation near me", "how much tire rotation", "tire rotation price 2026"]
   },
   {
@@ -1237,7 +1237,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "We start with a test drive to feel when and how the vibration occurs. Then we put the vehicle on the lift and inspect tires, wheels, suspension, and brakes systematically. Most vibration issues are diagnosed within 30 minutes and fixed the same day. Call (216) 862-0005 or drive in."
       }
     ],
-    relatedServices: ["/tires", "/alignment", "/brakes", "/general-repair"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland", "/brakes", "/general-repair"],
     tags: ["car vibrating at highway speed", "steering wheel vibration", "car shakes at 60 mph", "tire vibration Cleveland", "wheel balance near me"]
   },
   {
@@ -1346,7 +1346,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Hit a bad one? Bring your vehicle to Nick's Tire & Auto for a free pothole damage inspection. We check tires, wheels, alignment indicators, and suspension components. If everything is fine, you leave with peace of mind. If something needs attention, we catch it before it turns into a bigger problem. Walk in any day or call (216) 862-0005."
       }
     ],
-    relatedServices: ["/tires", "/alignment", "/general-repair"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland", "/general-repair"],
     tags: ["Cleveland pothole damage", "pothole tire damage", "bent wheel pothole Cleveland", "pothole alignment damage", "pothole season Cleveland 2026"]
   },
   {
@@ -2229,7 +2229,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "When you check tread depth, pay attention to the pattern of wear. Worn on both edges but good in the center means under-inflation — you have been driving with too little air pressure. Worn in the center but good on edges means over-inflation. Worn on one edge only usually means an alignment problem — camber or toe is off. Scalloped or cupped wear means worn shocks or struts. Each pattern tells a story. If you see uneven wear, bring the car to Nick's Tire and Auto and we will diagnose the cause before you buy new tires. No point putting new rubber on if the underlying problem is going to chew them up again. Free tire inspections every day — walk in or call (216) 862-0005. Check our [tire inventory](/tires) or learn about [wheel alignment](/alignment)."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland"],
     tags: ["tire tread depth check", "penny test tires", "quarter test tires", "tire safety Cleveland", "tire inspection Cleveland"]
   },
   {
@@ -2299,7 +2299,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $60, new tires at competitive prices, and alignment at $80 to $100. We are at 17625 Euclid Ave, Cleveland — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/alignment)."
       }
     ],
-    relatedServices: ["/tires", "/alignment", "/general-repair"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland", "/general-repair"],
     tags: ["uneven tire wear causes", "tire wear patterns", "alignment tire wear Cleveland", "camber tire wear", "cupping tires"]
   },
   {
@@ -2439,7 +2439,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Get an alignment whenever you install new tires — starting a fresh set on a misaligned car is throwing money away. Get one after any significant pothole impact. Get one if you notice any pulling, wandering, off-center steering, or uneven tire wear. And get a check at least annually as preventive maintenance, especially after Cleveland winter. Walk into Nick's Tire and Auto at 17625 Euclid Ave, Cleveland or call (216) 862-0005. Alignment, [tires](/tires), and [brake repair](/brakes) — all under one roof, 7 days a week."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland"],
     tags: ["wheel alignment cost Cleveland", "alignment symptoms", "car pulling to one side", "alignment near me Cleveland", "pothole alignment damage"]
   },
   {
@@ -3603,7 +3603,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Bent Wheel or Tire Damage", content: "Cleveland potholes are notorious for bending wheels. A bent wheel causes vibration that no amount of balancing can fix. Run your hand around the tire sidewall and check for bulges or flat spots — these indicate internal tire damage that also causes vibration. Bent wheels can sometimes be straightened, but severely bent wheels need replacement." },
       { heading: "When to Get It Checked", content: "Any new vibration should be inspected sooner rather than later. What starts as a minor imbalance can become uneven tire wear ($400+ in premature tire replacement) or a worn ball joint ($200-$400 per side). At Nick's Tire & Auto, we inspect the tires, balance, brakes, and suspension components to find the exact cause. Walk-ins welcome." }
     ],
-    relatedServices: ["/tires", "/brakes", "/alignment"],
+    relatedServices: ["/tires", "/brakes", "/wheel-alignment-cleveland"],
     tags: ["steering wheel shaking", "tire balance Cleveland", "warped rotors", "suspension repair", "vibration at highway speed"]
   },
   {
@@ -3680,7 +3680,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "What Alignment Adjusts", content: "Toe — whether the front of the tires point inward or outward (the biggest factor in tire wear). Camber — the tilt of the tire when viewed from the front (affects shoulder wear). Caster — the angle of the steering axis (affects steering feel and stability). Most vehicles only allow toe adjustment on the rear axle, while front wheels are fully adjustable. Four-wheel alignment checks and adjusts all available angles." },
       { heading: "How Often and What It Costs", content: "We recommend checking alignment annually and after any significant pothole hit. A four-wheel alignment at Nick's Tire & Auto typically costs $80-$120 and takes about an hour. Compare that to the $400-$800 cost of prematurely replacing two tires because of alignment wear. The alignment pays for itself many times over. We also recommend alignment any time you install new tires." }
     ],
-    relatedServices: ["/alignment", "/tires"],
+    relatedServices: ["/wheel-alignment-cleveland", "/tires"],
     tags: ["wheel alignment Cleveland", "tire alignment cost", "car pulling to one side", "uneven tire wear", "alignment near me"]
   },
   {
@@ -3719,7 +3719,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Squeaking Over Every Bump", content: "Squeaking with every bump often means worn shock absorbers or struts. When the internal seals wear, the shock loses its damping ability and starts bouncing. Press down firmly on each corner of the car and release — if the vehicle bounces more than once, the shocks are worn. Worn shocks increase stopping distances and cause uneven tire wear." },
       { heading: "What Cleveland Roads Do to Suspension", content: "Potholes, frost heaves, and deteriorating road surfaces put Cleveland suspensions under constant stress. Components that might last 100,000 miles in a southern state may need replacement at 60,000-70,000 here. Annual suspension inspections catch wear before it becomes dangerous. At Nick's Tire & Auto, suspension inspections are always free — just stop by and we will put it on the lift." }
     ],
-    relatedServices: ["/general-repair", "/alignment"],
+    relatedServices: ["/general-repair", "/wheel-alignment-cleveland"],
     tags: ["suspension noise", "clunking over bumps", "suspension repair Cleveland", "ball joint replacement", "strut repair", "CV joint noise"]
   },
   {
@@ -3778,7 +3778,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Why It Matters for Safety", content: "Worn shocks and struts increase stopping distances by up to 20 percent because the tires bounce instead of maintaining contact with the road. They also reduce steering response and increase body roll, making emergency maneuvers less effective. On Cleveland's pothole-filled roads, good damping also prevents secondary impacts from bottoming out." },
       { heading: "Replacement Cost and Timing", content: "Most shocks and struts should be inspected at 50,000 miles and typically need replacement between 60,000-100,000 miles. Cleveland's rough roads tend toward the lower end of that range. Shock replacement: $200-$400 per pair (rear). Strut assembly replacement: $400-$800 per pair (front). We always replace in pairs (both fronts or both rears) for even handling. At Nick's, we also recommend a wheel alignment after strut replacement since it changes the alignment angles." }
     ],
-    relatedServices: ["/general-repair", "/alignment"],
+    relatedServices: ["/general-repair", "/wheel-alignment-cleveland"],
     tags: ["shock replacement Cleveland", "strut replacement cost", "bouncy ride", "suspension repair near me", "worn struts symptoms"]
   },
   {
@@ -3817,7 +3817,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Alignment and Suspension", content: "A hard pothole hit knocks the alignment out of specification. Even a small change in toe or camber causes accelerated tire wear — you might not feel the difference in the steering, but the tires wear unevenly. Suspension components (tie rods, ball joints, control arm bushings, struts) can also be damaged by severe impacts. After any significant pothole hit, we recommend an alignment check at minimum." },
       { heading: "Can You File a Claim?", content: "In Cleveland and Cuyahoga County, you can file a pothole damage claim with the city. Document the pothole with photos (including location), save repair receipts, and file within the specified timeframe. Ohio municipalities have limited liability but claims are sometimes paid, especially for known problem areas. We provide detailed repair invoices that include the diagnosis and the cause of damage." }
     ],
-    relatedServices: ["/tires", "/alignment", "/general-repair"],
+    relatedServices: ["/tires", "/wheel-alignment-cleveland", "/general-repair"],
     tags: ["pothole damage Cleveland", "pothole tire damage", "bent wheel pothole", "alignment after pothole", "Cleveland road damage claim"]
   },
   {
@@ -4003,7 +4003,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $25 installed (select 12-inch; most $40-80), with mount, balance, valve stems, TPMS reset and an alignment check included free. New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
       }
     ],
-    relatedServices: ["/tires", "/used-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
+    relatedServices: ["/tires", "/used-tires-cleveland", "/wheel-alignment-cleveland", "/best-tire-shops-cleveland"],
     tags: ["Cleveland tire guide", "how to buy tires Cleveland", "tire sizing guide", "tire sidewall numbers", "Ohio winter tires", "Cleveland pothole tire damage", "used vs new tires Cleveland", "tire rotation Cleveland", "TPMS sensors", "all-weather tires Ohio"]
   },
   // 2026-05-06 wave-36 · PILLAR ARTICLE #2 — "Cleveland Auto Repair
@@ -4148,7 +4148,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served, walk in any day we're awake. Pothole damage assessments, alignment after impact, brake-line + fuel-line inspections, undercarriage rust evaluation, wheel-bend diagnosis — all under one roof. Annual pre-winter and spring damage inspections free whether or not you buy work from us. Used tires from $25 installed (select 12-inch; most $40-80) when a used tire fits the car. Written estimate before any wrench moves. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
       }
     ],
-    relatedServices: ["/alignment", "/tires", "/brakes", "/general-repair", "/best-tire-shops-cleveland"],
+    relatedServices: ["/wheel-alignment-cleveland", "/tires", "/brakes", "/general-repair", "/best-tire-shops-cleveland"],
     tags: ["Cleveland pothole damage", "Cleveland salt damage cars", "pothole tire damage", "brake line corrosion Cleveland", "undercarriage rust Cleveland", "Cleveland alignment after pothole", "bent rim repair Cleveland", "Cleveland winter car prep", "spring car damage assessment", "Cleveland pothole claim"]
   }
 ];

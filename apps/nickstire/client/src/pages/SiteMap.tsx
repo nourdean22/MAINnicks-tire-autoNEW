@@ -39,7 +39,7 @@ interface BlogSummary { slug: string; title: string; category?: string | null; }
 const FEATURED_SERVICES: LinkItem[] = [
   { label: "Brake Repair", href: "/brakes", note: "From $149 per axle" },
   { label: "Synthetic Oil Change", href: "/synthetic-oil-change", note: "From $80" }, // keep in sync with OIL_PRICE
-  { label: "Wheel Alignment", href: "/alignment" },
+  { label: "Wheel Alignment", href: "/wheel-alignment-cleveland" },
   { label: "Check Engine Light", href: "/diagnostics", note: "Free code scan" },
   { label: "Tires (New & Used)", href: "/tires", note: "Used from $25 (select 12-inch; most $40-80), new from $89" },
   { label: "Auto Repair (All Makes)", href: "/auto-repair-near-me" },

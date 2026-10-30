@@ -188,7 +188,7 @@ export const DISCOUNT_PAGES: DiscountPageContent[] = [
     ],
     related: [
       { href: "/oil-change", label: "Oil change" },
-      { href: "/alignment", label: "Wheel alignment" },
+      { href: "/wheel-alignment-cleveland", label: "Wheel alignment" },
       { href: "/used-tires-cleveland", label: "Used tires" },
     ],
   },

@@ -78,7 +78,12 @@ const REDIRECTS: RedirectRule[] = [
   // Tire-shop queries — all flow into the tire-shop landing page
   { from: "/oil-change-cleveland",            to: "/oil-change",   reason: "duplicate of /oil-change" },
   { from: "/oil-change-service-station",      to: "/oil-change",   reason: "intent variant alias — bundle services framing → canonical /oil-change" },
-  { from: "/wheel-alignment",                 to: "/alignment",    reason: "keyword alias → /alignment (which already ranks for 'wheel alignment cleveland')" },
+  { from: "/wheel-alignment",                 to: "/wheel-alignment-cleveland", reason: "keyword alias → the one alignment page (was /alignment; repointed 2026-10-29 so it is not a 2-hop chain)" },
+  // 2026-10-29 · GSC audit, lifetime 2026-03-16..10-27: /alignment 2 clicks /
+  // 894 impr, linked from 271 prerendered pages; /wheel-alignment-cleveland 27
+  // clicks / 13,565 impr, 433 pages. Both indexed and self-canonical, both at
+  // pos ~23 for "wheel alignment cleveland". The weaker one folds into the stronger.
+  { from: "/alignment",                       to: "/wheel-alignment-cleveland", reason: "duplicate alignment page; 2 vs 27 lifetime clicks (GSC 2026-10-29)" },
   // wave-181.8 · REMOVED /wheel-alignment-cleveland redirect. The
   // 2026-05-02 silo decision routed this geo query into /tires, but
   // the Ahrefs/GSC audit (2026-05-12) showed the city-aware alignment

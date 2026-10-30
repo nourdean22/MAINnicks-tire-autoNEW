@@ -31,7 +31,6 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   { href: "/transmission", label: "Transmission Repair", desc: "Shifting problems, fluid service, scan-tool checks" },
   { href: "/electrical", label: "Electrical Repair", desc: "Wiring, sensors, modules — we tell you what's wrong" },
   { href: "/battery", label: "Battery Service", desc: "Free testing — battery or alternator, we tell you which" },
-  { href: "/alignment", label: "Wheel Alignment Cleveland", desc: "Precision wheel alignment — fix pulling and uneven tire wear" },
   { href: "/exhaust", label: "Muffler Shop Near Me", desc: "Muffler, catalytic converter, exhaust repair" },
   { href: "/cooling", label: "Cooling System", desc: "Radiator, thermostat, water pump service" },
   { href: "/starter-alternator", label: "Starter & Alternator", desc: "Car won't start? We figure it out and fix it" },
@@ -68,7 +67,7 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights Repair", desc: "Cleveland Heights — brakes, tires, diagnostics, 7 days" },
   { href: "/mentor-auto-repair", label: "Mentor Auto Repair", desc: "Mentor's go-to for tires and repair" },
   // wave-181.11 · added 4 new keyword-led SERP-fix pages so the
-  // InternalLinks component (used on /alignment, /financing, every
+  // InternalLinks component (used on /wheel-alignment-cleveland, /financing, every
   // service page, every guide) drives authority into them. Rotation
   // hash means each visitor sees a different subset, but all 4 new
   // pages are now eligible to surface anywhere on the site.

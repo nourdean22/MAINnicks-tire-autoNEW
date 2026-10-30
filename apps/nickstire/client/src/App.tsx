@@ -75,7 +75,6 @@ const Loyalty = lazy(() => import("./pages/Loyalty"));
 const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
-const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage"));
 const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
 // wave-181.5 · keyword-led SERP-fix pages (competitor-analyzer findings)
@@ -239,7 +238,6 @@ function Router() {
             <Route path={"/pre-purchase-inspection"} component={GenericServicePage} />
             <Route path={"/belts-hoses"} component={GenericServicePage} />
             <Route path={"/starter-alternator"} component={GenericServicePage} />
-            <Route path={"/alignment"} component={AlignmentPage} />
             <Route path={"/synthetic-oil-change"} component={SyntheticOilChangePage} />
             <Route path={"/warranties"} component={Warranties} />
             <Route path={"/tire-rebates"} component={TireRebates} />

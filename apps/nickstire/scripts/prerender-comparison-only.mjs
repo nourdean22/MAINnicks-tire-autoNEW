@@ -77,7 +77,6 @@ const ROUTES = [
   "/brakes",
   "/diagnostics",
   "/oil-change",
-  "/alignment",
   "/synthetic-oil-change",
   "/auto-repair-near-me",
   "/tire-shop-near-me",

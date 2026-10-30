@@ -24,7 +24,7 @@ afterEach(() => invokeLLM.mockReset());
 describe("resolveRelatedServiceRoutes — the registry decides URLs, not the model", () => {
   it("keeps canonical routes, maps topic words, drops redirects and inventions", () => {
     const out = resolveRelatedServiceRoutes(["/tires", "/brake-repair-cleveland", "/made-up-service", "brakes", "Alignment", "/tires", "check engine light"]);
-    expect(out).toEqual(["/tires", "/brakes", "/alignment", "/diagnostics"]);
+    expect(out).toEqual(["/tires", "/brakes", "/wheel-alignment-cleveland", "/diagnostics"]);
   });
   it("caps at 4 and tolerates garbage input", () => {
     expect(resolveRelatedServiceRoutes(["tires", "brakes", "alignment", "oil change", "emissions"])).toHaveLength(4);
@@ -67,7 +67,7 @@ describe("generateArticle prompt contract", () => {
     expect(user).not.toMatch(/brake-repair-cleveland/);
     expect(user).toMatch(/do not write URLs/);
 
-    expect(article.relatedServices).toEqual(["/tires", "/alignment"]);
+    expect(article.relatedServices).toEqual(["/tires", "/wheel-alignment-cleveland"]);
   });
 });
 

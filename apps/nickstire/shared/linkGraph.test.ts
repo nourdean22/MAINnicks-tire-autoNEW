@@ -88,7 +88,7 @@ describe("buildLinkCorpus", () => {
   });
 
   it("curatedRelation reads the prior in both service and local directions", () => {
-    expect(curatedRelation(byPath.get("/tires")!, byPath.get("/alignment")!)).toBe("spoke→spoke");
+    expect(curatedRelation(byPath.get("/tires")!, byPath.get("/wheel-alignment-cleveland")!)).toBe("spoke→spoke");
     expect(curatedRelation(byPath.get("/tires")!, byPath.get("/cleveland-auto-repair")!)).toBe("service→local");
     expect(curatedRelation(byPath.get("/cleveland-auto-repair")!, byPath.get("/tires")!)).toBe("local→service");
     expect(curatedRelation(byPath.get("/tires")!, byPath.get("/about")!)).toBe("none");
@@ -105,7 +105,7 @@ describe("path helpers", () => {
   it("servicePathFor / cityPathFor only resolve real routes, and an aliased service resolves to its 301 target", () => {
     expect(servicePathFor("brakes")).toBe("/brakes");
     expect(servicePathFor("general-repair")).toBe("/auto-repair-near-me");
-    expect(servicePathFor("/alignment")).toBe("/alignment");
+    expect(servicePathFor("alignment")).toBe("/wheel-alignment-cleveland");
     expect(servicePathFor("check-engine")).toBeNull();
     expect(cityPathFor("cleveland")).toBe("/cleveland-auto-repair");
     expect(cityPathFor("cuyahoga-county")).toBeNull();

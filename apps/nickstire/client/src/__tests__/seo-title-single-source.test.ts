@@ -32,7 +32,7 @@ const read = (file: string) => readFileSync(resolve(PAGES, file), "utf8");
 
 // Every page here once hard-coded a title that collided with a sibling's.
 const REGISTRY_TITLED_PAGES: Array<{ file: string; path: string }> = [
-  { file: "AlignmentPage.tsx", path: "/alignment" },
+  // AlignmentPage.tsx was deleted 2026-10-29 (/alignment 301s here).
   { file: "WheelAlignmentClevelandPage.tsx", path: "/wheel-alignment-cleveland" },
 ];
 
@@ -49,14 +49,6 @@ describe("SEO titles come from one source", () => {
       expect(src).not.toMatch(/title(?:=|:\s*)["']Wheel Alignment/);
     });
   }
-
-  it("registry titles for the two alignment pages differ from each other", () => {
-    const a = getRouteByPath("/alignment")?.title;
-    const b = getRouteByPath("/wheel-alignment-cleveland")?.title;
-    expect(a).toBeTruthy();
-    expect(b).toBeTruthy();
-    expect(a).not.toBe(b);
-  });
 
   it("no two static blog articles share a title or metaTitle", () => {
     const seen = new Map<string, string[]>();

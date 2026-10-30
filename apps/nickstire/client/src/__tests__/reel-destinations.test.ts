@@ -91,7 +91,7 @@ describe("undeployed paths are rejected — the /tire-sidewall case", () => {
 // above and block the entire backlog, which is the failure mode of a gate that
 // gets switched off a week later.
 describe("real deployed pages PASS", () => {
-  for (const d of ["/brakes", "/alignment", "/tires", "/booking", "/contact", "/car-pulling-to-one-side"]) {
+  for (const d of ["/brakes", "/wheel-alignment-cleveland", "/tires", "/booking", "/contact", "/car-pulling-to-one-side"]) {
     it(`permits ${d}`, () => {
       expect(isDeployedDestination(d), `${d} should be deployed`).toBe(true);
       expect(destinationProblem(d)).toBeNull();

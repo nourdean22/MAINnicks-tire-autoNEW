@@ -104,7 +104,7 @@ describe("scorePair signals (positive controls)", () => {
     const parma = get("/parma-auto-repair");
     const mismatch = scorePair(cle, parma, null, new Set());
     expect(mismatch.why).toContain("geo mismatch");
-    const curated = scorePair(get("/tires"), get("/alignment"), null, new Set());
+    const curated = scorePair(get("/tires"), get("/wheel-alignment-cleveland"), null, new Set());
     expect(curated.why.join(" ")).toContain("curated prior");
     expect(curated.role).toBe("spoke→spoke");
   });
@@ -165,10 +165,10 @@ describe("verifyRenderedLinks (advisory rendered-truth check)", () => {
   it("reads prerendered/<path>/index.html and reports present vs missing; null when no snapshot", () => {
     const root = mkdtempSync(path.join(tmpdir(), "prerender-"));
     mkdirSync(path.join(root, "brakes"), { recursive: true });
-    writeFileSync(path.join(root, "brakes", "index.html"), '<html><body><a class="x" href="/tires#tire-repair">t</a><a href="/alignment">a</a></body></html>');
-    const r = verifyRenderedLinks("/brakes", ["/tires", "/alignment", "/oil-change"], root);
+    writeFileSync(path.join(root, "brakes", "index.html"), '<html><body><a class="x" href="/tires#tire-repair">t</a><a href="/wheel-alignment-cleveland">a</a></body></html>');
+    const r = verifyRenderedLinks("/brakes", ["/tires", "/wheel-alignment-cleveland", "/oil-change"], root);
     expect(r.snapshotFound).toBe(true);
-    expect(r.present).toEqual(["/tires", "/alignment"]);
+    expect(r.present).toEqual(["/tires", "/wheel-alignment-cleveland"]);
     expect(r.missing).toEqual(["/oil-change"]);
     const none = verifyRenderedLinks("/no-snapshot", ["/tires"], root);
     expect(none.snapshotFound).toBeNull();

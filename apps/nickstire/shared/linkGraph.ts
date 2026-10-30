@@ -93,7 +93,7 @@ export interface PageFeatures {
  */
 export const SITEWIDE_COMPONENT_LINKS: readonly string[] = [
   "/tires", "/brakes", "/diagnostics", "/emissions", "/oil-change", "/auto-repair-near-me",
-  "/ac-repair", "/transmission", "/electrical", "/battery", "/alignment", "/exhaust",
+  "/ac-repair", "/transmission", "/electrical", "/battery", "/exhaust",
   "/cooling", "/starter-alternator", "/belts-hoses", "/pre-purchase-inspection",
   "/diagnose", "/pricing", "/services", "/specials", "/reviews", "/blog", "/guides",
   "/guides/how-to-read-tire-size", "/guides/when-to-replace-tires",

@@ -39,6 +39,7 @@ export type ConversionFields = Pick<
   | "pricingOverride"
   | "ctaHeadline"
   | "ctaSub"
+  | "aeoAnswer"
 >;
 
 /**
@@ -147,6 +148,9 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   // EMISSIONS / OHIO E-CHECK — warning tone (compliance + cascade)
   // ════════════════════════════════════════════════════════
   emissions: {
+    // 2026-10-29 · GSC audit: the searcher asks where to get tested, so the
+    // first body answer says that, from OHIO_ECHECK, before the repair pitch.
+    aeoAnswer: `${OHIO_ECHECK.whoTests} ${OHIO_ECHECK.freeTests.display} Before you test, Nick's Tire & Auto at ${BUSINESS.address.street} runs a free readiness check, and if your car failed, we find and fix what failed. Walk in 7 days or call ${BUSINESS.phone.display}.`,
     // Operator call (2026-07-04): NO repair prices on this page — dollar
     // ranges scare customers into price-shopping before we've seen the
     // car. The pricing-tier grid is replaced by a trust/approval block

@@ -74,7 +74,7 @@ describe("neighbors / routesForSymptom", () => {
   it("steering shake fans out to balance, bent wheel, alignment, suspension and brakes", () => {
     const parts = neighbors("symptom:steering_shake", ["part"]).map((n) => n.id);
     expect(parts).toEqual(expect.arrayContaining(["part:tire_balance", "part:bent_wheel", "part:tie_rod", "part:rotors"]));
-    expect(neighbors("symptom:steering_shake", ["service"]).map((n) => n.path)).toContain("/alignment");
+    expect(neighbors("symptom:steering_shake", ["service"]).map((n) => n.path)).toContain("/wheel-alignment-cleveland");
   });
 
   it("neighbors is undirected and filters by kind", () => {
@@ -85,7 +85,7 @@ describe("neighbors / routesForSymptom", () => {
   it("routesForSymptom returns the problem page first, then registry service routes only", () => {
     const routes = routesForSymptom("steering_shake");
     expect(routes[0]).toBe("/steering-wheel-shaking");
-    expect(routes).toEqual(expect.arrayContaining(["/tires", "/alignment", "/brakes"]));
+    expect(routes).toEqual(expect.arrayContaining(["/tires", "/wheel-alignment-cleveland", "/brakes"]));
     for (const r of routes) {
       expect(REGISTRY.has(r)).toBe(true);
       expect(isRedirectedPath(r)).toBe(false);
