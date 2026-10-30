@@ -28,6 +28,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [12-LOCAL-AI-AND-MESH](12-LOCAL-AI-AND-MESH.md) | a local AI model on the shop PC, and a mesh of the three PCs: not yet, and why |
 | [13-TOOLKIT](13-TOOLKIT.md) | every account, key name, API, MCP, plugin, skill and device the build needs: have, missing, Nour's call |
 | [14-STOLEN-MECHANISMS](14-STOLEN-MECHANISMS.md) | per counter screen: ALG baseline, the best public mechanisms, ours, and the slot for Nour's screenshots |
+| [16-AI-CONTROLS-CUSTOMER360](16-AI-CONTROLS-CUSTOMER360.md) | Claude/ChatGPT in the CRM over MCP, every owner setting in /system, what a customer profile may lawfully hold |
 | [17-ALG-LEDGER-STUDY](17-ALG-LEDGER-STUDY.md) | every mirrored ALG ticket and estimate: how, why, what, who, when; ten execution rules; five blind spots (figures private) |
 
 ## Five facts that shape everything
