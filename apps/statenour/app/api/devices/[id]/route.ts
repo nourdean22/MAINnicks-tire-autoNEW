@@ -1,4 +1,6 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { deriveWorkStatus, isEdgeWork, parseEdgeWork } from "@/lib/services/device-work-heartbeat";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
 import { deviceWhere, resolveDevice } from "@/lib/services/devices";
@@ -40,6 +42,26 @@ export const PATCH = apiHandler(async (req, { params }) => {
   const resolved = await resolveDevice(id);
   if (!resolved) {
     throw new ServiceError("Device not found", 404);
+  }
+
+  // The lot edge's work heartbeat: status comes from its counters advancing, and any
+  // status / lastSeenAt the body claims is ignored (lib/services/device-work-heartbeat.ts).
+  if (isEdgeWork(body?.currentState)) {
+    const work = parseEdgeWork(body.currentState);
+    const derived = deriveWorkStatus(resolved.status, resolved.currentState, work, new Date());
+    try {
+      const device = await prisma.smartDevice.update({
+        where: { id: resolved.id },
+        data: {
+          status: derived.status,
+          lastSeenAt: derived.lastSeenAt,
+          currentState: derived.currentState as Prisma.InputJsonObject,
+        },
+      });
+      return { device };
+    } catch {
+      throw new ServiceError("Device not found", 404);
+    }
   }
 
   try {
