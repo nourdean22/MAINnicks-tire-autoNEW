@@ -3040,6 +3040,24 @@ class BlindGateStatsTest(unittest.TestCase):
         bare = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(frames=[FakeFrame(1000.0)]))
         bare.step()   # no `stats` attribute: nothing raised, nothing published
 
+    def test_a_persistent_publish_failure_logs_one_traceback_then_rate_limits(self):
+        """#3394 follow-up: a failure on every frame must not write a traceback per frame."""
+        class Broken:
+            def items(self):
+                raise RuntimeError("stats broke")
+
+        pipeline = make_pipeline()
+        v = self._vision(pipeline)
+        v.stats.path_clears = Broken()
+        n = 40
+        loop = _loop(pipeline, v, FakeSource(frames=[FakeFrame(1000.0 + i) for i in range(n)]))
+        with self.assertLogs("edge", level="INFO") as logs:
+            for _ in range(n):
+                loop.step()
+        failures = [x for x in logs.output if "blind-gate stats publish" in x]
+        self.assertEqual(len(failures), 1, failures)
+        self.assertEqual(pipeline.metrics.get("edge_gate_stats_errors_total"), n)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -98,3 +98,37 @@ def test_a_counting_failure_still_clears_paths_and_never_stops_the_frame_loop():
             assert all(len(t.path) <= 1 for t in pipe.tracks.tracks.values()), "paths were not cleared"
     assert pipe.stats.frames == len(boxes), "the frame loop stopped"
     assert pipe.stats.gate_stats_errors >= 2, pipe.stats.gate_stats_errors
+
+
+def test_a_persistent_counting_failure_logs_a_traceback_once_then_one_line_per_ten_minutes(caplog):
+    """At 4 fps a failure on every blind frame would write ~700 MB of tracebacks a day on a
+    box that had 1.26 GB free (manager, #3394 follow-up). First failure: one traceback. Then
+    at most one summary line per GATE_ERROR_LOG_SECONDS, carrying the running count."""
+    import logging
+    from vision.frame import Frame
+    from vision import pipeline as pl
+
+    pipe = make_pipeline(startup_grace=0.0)
+
+    def boom(_pt):
+        raise RuntimeError("counting broke")
+
+    # A candidate with a path, so every blind frame has something to count.
+    for f, d in zip(frames(12, [[car_box(20.0)]] * 12), [[Detection(car_box(20.0), 0.9, "vehicle", "stub")]] * 12):
+        pipe.step(f, detections=d)
+    base = f.ts
+    pipe.portal.inside_zone.contains = boom      # only the blind frames below use it
+    caplog.set_level(logging.INFO, logger="vision.pipeline")
+    n = int(getattr(pl, "GATE_ERROR_LOG_SECONDS", 600.0) * 2.5)   # 25 minutes of blind frames at 1 fps
+    for i in range(1, n + 1):
+        t = pipe.tracks.tracks
+        for tr in t.values():                       # give each track a path again to count
+            tr.path.append(tr.ground_point)
+        blind = Frame(ts=base + i, seq=0, source="test", image=f.image, meta={"window_verified": False})
+        pipe.step(blind)
+    records = [r for r in caplog.records if r.name == "vision.pipeline"]
+    tracebacks = [r for r in records if r.exc_info]
+    assert len(tracebacks) == 1, [r.getMessage() for r in records]
+    assert 2 <= len(records) <= 3, [r.getMessage() for r in records]
+    assert "still failing" in records[-1].getMessage(), records[-1].getMessage()
+    assert pipe.stats.gate_stats_errors == n, "every failure is still counted"

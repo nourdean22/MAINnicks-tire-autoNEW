@@ -146,6 +146,10 @@ ERASED_WATCH_SECONDS = 30.0
 #: So the watch follows the car to any track born after the clear whose first point is within
 #: this many pixels of where the wiped path ended.
 ERASED_JOIN_PX = 120.0
+#: A counting failure that persists would log a traceback on every blind frame (~700 MB a day
+#: at 4 fps on NicksMax, which had 1.26 GB free). So: one traceback for the first failure, then
+#: at most one line per this many seconds with the running count.
+GATE_ERROR_LOG_SECONDS = 600.0
 
 
 @dataclass(frozen=True)
@@ -222,6 +226,8 @@ class VisionPipeline:
         #: track id -> (gate, path before the clear, when): candidates a blind-frame gate wiped
         #: while they already had outside history, watched for a crossing the clear erased.
         self._erased_watch: dict[int, tuple[str, list, float]] = {}
+        #: When a gate-counting failure was last logged (None: never); see GATE_ERROR_LOG_SECONDS.
+        self._gate_error_logged_at: Optional[float] = None
         self.camera = camera
         self.arrival_zone = arrival_zone
         self.health = frame_health or FrameHealth()
@@ -604,10 +610,23 @@ class VisionPipeline:
                 if outside >= min_out:
                     self._erased_watch[t.track_id] = (gate, list(t.path), now)
         except Exception:  # noqa: BLE001 - a counter must never change the gate it counts
-            self.stats.gate_stats_errors += 1
-            log.exception("blind-gate counting failed; paths are cleared regardless")
+            self._gate_error(now, "blind-gate counting (paths are cleared regardless)")
         finally:
             self.tracks.mark_degraded(now)
+
+    def _gate_error(self, now: float, what: str) -> None:
+        """Count a gate-counting failure; log a traceback the first time, then at most one
+        line per GATE_ERROR_LOG_SECONDS with the running count. Call from an `except` block."""
+        self.stats.gate_stats_errors += 1
+        last = self._gate_error_logged_at
+        if last is None:
+            log.exception("%s failed; first failure, later ones are counted", what)
+        elif now - last >= GATE_ERROR_LOG_SECONDS:
+            log.warning("%s still failing: %d gate-counting failures since start",
+                        what, self.stats.gate_stats_errors)
+        else:
+            return
+        self._gate_error_logged_at = now
 
     def _check_erased(self, now: float) -> None:
         """Count watched crossings a blind-frame clear erased: the wiped path put back in front
@@ -840,9 +859,8 @@ class VisionPipeline:
             try:
                 self._check_erased(now)
             except Exception:  # noqa: BLE001 - record only; never stop the frame
-                self.stats.gate_stats_errors += 1
                 self._erased_watch.clear()
-                log.exception("erased-crossing check failed; watch dropped")
+                self._gate_error(now, "erased-crossing check (watch dropped)")
 
         # 7. Ongoing arrivals -> visitd updates; bay observations ----------------
         for t in self.tracks.tracks.values():
