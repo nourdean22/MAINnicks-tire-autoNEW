@@ -411,7 +411,7 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 data: {
                   actor: "people_intelligence",
                   eventType: "people_intelligence_run",
-                  detail: `Updated ${result.profilesUpdated} profiles, ${result.alerts.length} alerts`,
+                  detail: `Updated ${result.profilesUpdated} profiles, ${result.alerts.length} alerts${result.enrich ? ` (enrich: ${result.enrich})` : ""}`,
                 },
               })
               .catch(() => {});

@@ -34,7 +34,7 @@ export const GET = apiHandler(async (req, { params }) => {
   });
 
   return { events, count: events.length };
-}, { auth: "sync" });
+}, { auth: "device" });
 
 /**
  * POST /api/devices/:id/events — Push events for a device
@@ -118,4 +118,4 @@ export const POST = apiHandler(async (req, { params }) => {
   }
 
   return { synced: syncedCount, deviceId: device.id };
-}, { auth: "sync" });
+}, { auth: "device" });

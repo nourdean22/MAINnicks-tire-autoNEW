@@ -161,7 +161,6 @@ describe("the preserved happy paths still answer deterministically", () => {
     ["how much is an oil change", "price_oil", "price_question_oil"],
     ["how much for used tires", "price_tires", "price_question_tires"],
     ["how much for brakes", "price_brakes", "price_question_brakes"],
-    ["do you do alignment", "price_alignment", "price_question_alignment"],
     ["failed e-check", "diagnostic", "price_question_diagnostic"],
     ["can I come in today", "same_day_visit", "same_day_visit"],
     ["can I drop off my car", "drop_off", "drop_off"],
@@ -174,6 +173,13 @@ describe("the preserved happy paths still answer deterministically", () => {
       expect(d.risk).toBe("deterministic");
     });
   }
+
+  it("W2 (2026-10-30): alignment routes to price_alignment but has no auto-sent template until W3", () => {
+    const d = routeInboundSms("do you do alignment", noCtx);
+    expect(d.primary).toBe("price_alignment");
+    expect(d.catalogEvent).toBeNull();
+    expect(d.risk).toBe("human_assisted");
+  });
 
   it("word boundaries: 'sometimes it squeaks' does not route to hours", () => {
     expect(routeInboundSms("sometimes it squeaks when turning", noCtx).primary).not.toBe("hours_location");

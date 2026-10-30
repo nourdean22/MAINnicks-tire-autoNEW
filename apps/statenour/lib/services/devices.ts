@@ -27,6 +27,27 @@ export async function resolveDevice(idOrPlatformId: string) {
   return prisma.smartDevice.findFirst({ where: deviceWhere(idOrPlatformId) });
 }
 
+/**
+ * 2026-10-30 · Ring/Tuya W0. A Tuya LAN `local_key` is a device credential (it
+ * commands the lock on the home network). The April agent sent it in
+ * `metadata` (local-agent/tuya_agent.py:173); tinytuya's devices.json calls it
+ * `key`. Never stored, never served: every metadata write and bridge-key read
+ * passes through here.
+ */
+const DEVICE_SECRET_KEYS = new Set(["local_key", "localKey", "key"]);
+
+export function stripDeviceSecrets<T>(metadata: T): T {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return metadata;
+  return Object.fromEntries(
+    Object.entries(metadata as Record<string, unknown>).filter(([k]) => !DEVICE_SECRET_KEYS.has(k)),
+  ) as T;
+}
+
+/** A device row with its metadata secrets removed, for any response body. */
+export function redactDevice<T extends { metadata?: unknown }>(device: T): T {
+  return { ...device, metadata: stripDeviceSecrets(device.metadata) };
+}
+
 /** The cuid for a cuid OR a platformDeviceId; null when neither matches. */
 export async function resolveDeviceId(idOrPlatformId: string): Promise<string | null> {
   const device = await resolveDevice(idOrPlatformId);

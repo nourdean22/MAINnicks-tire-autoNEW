@@ -67,7 +67,7 @@ const PROVIDERS: Provider[] = [
 ];
 
 function stubProvider(p: Provider, text: string, reason: string | undefined) {
-  for (const k of ["NICKGPT_OLLAMA_URL", "NICKGPT_MODEL_NAME", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "GEMINI_API_KEY", "OPENAI_API_KEY"]) {
+  for (const k of ["NICKGPT_OLLAMA_URL", "NICKGPT_MODEL_NAME", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "GEMINI_API_KEY", "OPENAI_API_KEY", "AI_FORCE_OLLAMA"]) {
     vi.stubEnv(k, "");
   }
   for (const [k, v] of Object.entries(p.env)) vi.stubEnv(k, v);
@@ -88,7 +88,7 @@ describe("draftSmsReply · F4a provider truncation signals", () => {
       const fetchMock = stubProvider(p, CUT, p.truncated);
       const res = await draftSmsReply({ inboundMessage: "do you do alignments on trucks" });
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(res).toMatchObject({ ok: true, source: p.source, completion: "truncated" });
+      expect(res).toMatchObject({ ok: true, source: p.source, completion: "truncated", finishReason: p.truncated });
     });
 
     it("positive control: the finished signal is complete", async () => {
@@ -102,6 +102,41 @@ describe("draftSmsReply · F4a provider truncation signals", () => {
       const res = await draftSmsReply({ inboundMessage: "do you do alignments on trucks" });
       expect(res).toMatchObject({ ok: true, completion: "unknown" });
     });
+  });
+});
+
+// 2026-10-30 · Gemini 3 cannot turn thinking off, and its thinking tokens count
+// against max_tokens. With the bare 110-token SMS cap, 22 of 23 October drafts
+// came back cut to a few words. The Gemini call must ask for the lowest thinking
+// level and leave room above the SMS budget; length stays enforced downstream
+// (nickgptPreflightGuard: > 320 chars to review, > 480 blocked).
+describe("draftSmsReply · Gemini leaves room for thinking", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  const gemini = PROVIDERS[2];
+  const openai = PROVIDERS[3];
+  const sentBody = (fetchMock: ReturnType<typeof stubProvider>) => {
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    return { url, body: JSON.parse(init.body) };
+  };
+
+  it("asks for minimal thinking and a token cap well above the SMS budget, on the documented endpoint", async () => {
+    const fetchMock = stubProvider(gemini, DONE, "stop");
+    await draftSmsReply({ inboundMessage: "do you do alignments on trucks", maxTokens: 110 });
+    const { url, body } = sentBody(fetchMock);
+    expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+    expect(body.reasoning_effort).toBe("minimal");
+    expect(body.max_tokens).toBeGreaterThanOrEqual(110 + 1024);
+  });
+
+  it("positive control: the OpenAI path keeps the plain SMS cap and sends no reasoning field", async () => {
+    const fetchMock = stubProvider(openai, DONE, "stop");
+    await draftSmsReply({ inboundMessage: "do you do alignments on trucks", maxTokens: 110 });
+    const { body } = sentBody(fetchMock);
+    expect(body.max_tokens).toBe(110);
+    expect(body).not.toHaveProperty("reasoning_effort");
   });
 });
 

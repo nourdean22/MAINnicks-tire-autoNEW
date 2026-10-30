@@ -25,6 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
 import { sendPush } from "@/lib/notifications/push";
 import { logger as rootLogger } from "@/lib/logger";
+import { stripDeviceSecrets } from "@/lib/services/devices";
 
 const log = rootLogger.withSurface("cron/device-heartbeat-sentinel");
 
@@ -34,8 +35,17 @@ export const STALE_AFTER_MS = 20 * 60_000;
 /** Statuses the silence check may flip to OFFLINE. */
 const STALE_ELIGIBLE = ["ONLINE", "ERROR"];
 
+// RING + TUYA (2026-10-30, Ring/Tuya W0): the home agent's lock, heater and
+// remotes are not cameras, so a dead agent left them ONLINE forever.
 const WATCHED = {
-  OR: [{ deviceType: "CAMERA" }, { deviceType: "BRIDGE" }, { platform: "V380" }, { platform: "FRIGATE" }],
+  OR: [
+    { deviceType: "CAMERA" },
+    { deviceType: "BRIDGE" },
+    { platform: "V380" },
+    { platform: "FRIGATE" },
+    { platform: "RING" },
+    { platform: "TUYA" },
+  ],
 };
 
 const ADMIN_LOT_URL = "https://nickstire.org/admin?tab=lot";
@@ -118,7 +128,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   const flipped: Array<{ id: string; platformDeviceId: string; silentMinutes: number; alerted: boolean }> = [];
   for (const d of stale) {
     const silentMinutes = d.lastSeenAt ? Math.round((now.getTime() - d.lastSeenAt.getTime()) / 60_000) : -1;
-    const rest = (d.metadata as Record<string, unknown> | null) ?? {};
+    const rest = stripDeviceSecrets((d.metadata as Record<string, unknown> | null) ?? {});
     const sentinel: SentinelMeta = {
       offlineAt: now.toISOString(),
       lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
@@ -165,7 +175,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   for (const d of online) {
     const flag = readSentinel(d.metadata);
     if (!flag) continue;
-    const rest = { ...((d.metadata as Record<string, unknown> | null) ?? {}) };
+    const rest = { ...stripDeviceSecrets((d.metadata as Record<string, unknown> | null) ?? {}) };
     delete rest.sentinel;
     await prisma.smartDevice.update({ where: { id: d.id }, data: { metadata: rest as Prisma.InputJsonObject } });
     try {
@@ -198,7 +208,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
     const silentMinutes = d.lastSeenAt ? Math.round((now.getTime() - d.lastSeenAt.getTime()) / 60_000) : -1;
     const alerted = await deliverOutageAlert(d, silentMinutes);
     const attempts = flag.alertAttempts + 1;
-    const rest = (d.metadata as Record<string, unknown> | null) ?? {};
+    const rest = stripDeviceSecrets((d.metadata as Record<string, unknown> | null) ?? {});
     await prisma.smartDevice.update({
       where: { id: d.id },
       data: {

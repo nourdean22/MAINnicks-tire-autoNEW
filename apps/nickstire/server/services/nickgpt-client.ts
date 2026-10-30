@@ -35,6 +35,12 @@ const DEFAULT_MAX_TOKENS = 110; // ROS-058: ~320 CHARS. The old value was 320 TO
 // Claude fallback since has failed and fallen through. claude-sonnet-5: retirement
 // not before 2027-06-30. server/retiredClaudeModelGate.test.ts fails if a retired id returns.
 const ANTHROPIC_FALLBACK_MODEL = "claude-sonnet-5";
+// Reasoning models spend thinking tokens out of the same cap. With the bare 110,
+// 22 of 23 October Gemini drafts came back cut to a few words. Length is still
+// enforced after generation (nickgptPreflightGuard: > 320 chars review, > 480 blocked).
+const THINKING_HEADROOM_TOKENS = 1024;
+// Google's documented OpenAI-compatible endpoint (ai.google.dev/gemini-api/docs/openai).
+const GEMINI_CHAT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 interface DraftOpts {
   /** Inbound customer message that needs a reply */
@@ -118,7 +124,9 @@ interface DraftResult {
   draft: string;
   /** Provider stop signal, classified. Auto-send callers MUST require "complete". */
   completion: DraftCompletion;
-  source: "nickgpt-ollama" | "fallback-claude" | "fallback-openai";
+  /** The provider's raw stop signal, kept beside the classified one. */
+  finishReason: string | null;
+  source: "nickgpt-ollama" | "fallback-ollama-cloud" | "fallback-claude" | "fallback-openai";
   modelName: string;
   latencyMs: number;
   intent?: string;
@@ -128,7 +136,7 @@ interface DraftResult {
 interface DraftError {
   ok: false;
   error: string;
-  source: "nickgpt-ollama" | "fallback-claude" | "fallback-openai" | "disabled";
+  source: "nickgpt-ollama" | "fallback-ollama-cloud" | "fallback-claude" | "fallback-openai" | "disabled";
 }
 
 export type DraftResponse = DraftResult | DraftError;
@@ -161,7 +169,7 @@ async function isNickGptEnabled(): Promise<boolean> {
  * success, OR throws. Timeout-wrapped so a hung Ollama doesn't block
  * the caller.
  */
-async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature" | "timeoutMs">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; completion: DraftCompletion }> {
+async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature" | "timeoutMs">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; completion: DraftCompletion; finishReason: string | null }> {
   const url = process.env.NICKGPT_OLLAMA_URL!;
   const model = process.env.NICKGPT_MODEL_NAME!;
 
@@ -205,11 +213,38 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
     const content = json.message?.content?.trim() ?? "";
     if (!content) throw new Error("Ollama returned empty content");
     traceChat({ name: "nickgpt:ollama", site: "services/nickgpt-client.ts", model, messages, response: json, startedAt: t0, ok: true });
-    return { text: content, completion: classifyStopReason(json.done_reason) };
+    return { text: content, completion: classifyStopReason(json.done_reason), finishReason: json.done_reason ?? null };
   } catch (err) {
     traceThrown(err, { name: "nickgpt:ollama", site: "services/nickgpt-client.ts", model, messages, startedAt: t0 });
     throw err;
   }
+}
+
+/**
+ * The funded Ollama Cloud lane, via invokeLLM, when prod forces the estate onto it
+ * (AI_FORCE_OLLAMA + OLLAMA_API_KEY: no NickGPT-specific env needed). Live priority
+ * P0 is the scheduler's highest class; the bounded slot wait and call timeout let a
+ * busy account fall through to the fallback chain instead of holding the reply.
+ */
+async function callOllamaCloud(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature" | "timeoutMs">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; modelName: string; completion: DraftCompletion; finishReason: string | null }> {
+  const { invokeLLM } = await import("../_core/llm");
+  const result = await invokeLLM({
+    messages: [
+      { role: "system", content: opts.systemPrompt },
+      ...(opts.conversationContext ?? []),
+      { role: "user", content: opts.inboundMessage },
+    ],
+    maxTokens: opts.maxTokens + THINKING_HEADROOM_TOKENS,
+    temperature: opts.temperature,
+    priority: 0,
+    slotWaitMs: 8_000,
+    timeoutMs: opts.timeoutMs,
+  });
+  const choice = result.choices?.[0];
+  const content = choice?.message?.content;
+  const text = typeof content === "string" ? content.trim() : "";
+  if (!text) throw new Error("Ollama cloud returned empty content");
+  return { text, modelName: result.model, completion: classifyStopReason(choice?.finish_reason), finishReason: choice?.finish_reason ?? null };
 }
 
 /**
@@ -222,7 +257,7 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
  * client (Venice/Claude) is invoked elsewhere; we only need a thin
  * wrapper for this single use case.
  */
-async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; source: "fallback-claude" | "fallback-openai"; modelName: string; completion: DraftCompletion }> {
+async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; source: "fallback-claude" | "fallback-openai"; modelName: string; completion: DraftCompletion; finishReason: string | null }> {
   // Prefer Anthropic if key present, else fall back to Gemini or OpenAI
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -267,7 +302,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
       const text = json.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
       if (!text) throw new Error("Anthropic returned empty content");
       traceChat({ name: "nickgpt:anthropic-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, response: json, startedAt: t0, ok: true });
-      return { text, source: "fallback-claude", modelName, completion: classifyStopReason(json.stop_reason) };
+      return { text, source: "fallback-claude", modelName, completion: classifyStopReason(json.stop_reason), finishReason: json.stop_reason ?? null };
     } catch (err) {
       traceThrown(err, { name: "nickgpt:anthropic-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, startedAt: t0 });
       log.warn("Anthropic fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
@@ -278,8 +313,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
     const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
     const t0 = Date.now();
     try {
-      const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
-      const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
+      const resp = await fetch(GEMINI_CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -288,7 +322,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
         body: JSON.stringify({
           model: modelName,
           messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
-          max_tokens: opts.maxTokens,
+          // Gemini 3 cannot turn thinking off; "minimal" is its lowest level and
+          // the thinking it still does comes out of max_tokens.
+          reasoning_effort: "minimal",
+          max_tokens: opts.maxTokens + THINKING_HEADROOM_TOKENS,
           temperature: opts.temperature,
         }),
       });
@@ -300,7 +337,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
       const text = json.choices?.[0]?.message?.content?.trim() ?? "";
       if (!text) throw new Error("Gemini returned empty content");
       traceChat({ name: "nickgpt:gemini-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, response: json, startedAt: t0, ok: true });
-      return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason) };
+      return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason), finishReason: json.choices?.[0]?.finish_reason ?? null };
     } catch (err) {
       traceThrown(err, { name: "nickgpt:gemini-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, startedAt: t0 });
       log.warn("Gemini fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
@@ -334,7 +371,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
       const text = json.choices?.[0]?.message?.content?.trim() ?? "";
       if (!text) throw new Error("OpenAI returned empty content");
       traceChat({ name: "nickgpt:openai-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, response: json, startedAt: t0, ok: true });
-      return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason) };
+      return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason), finishReason: json.choices?.[0]?.finish_reason ?? null };
     } catch (err) {
       traceThrown(err, { name: "nickgpt:openai-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, startedAt: t0 });
       log.warn("OpenAI fallback draft generation failed", { error: err instanceof Error ? err.message : String(err) });
@@ -398,7 +435,7 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
   if (enabled) {
     const t0 = Date.now();
     try {
-      const { text: draft, completion } = await callOllama({
+      const { text: draft, completion, finishReason } = await callOllama({
         inboundMessage: opts.inboundMessage,
         conversationContext: opts.conversationContext,
         systemPrompt,
@@ -410,6 +447,7 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
         ok: true,
         draft,
         completion,
+        finishReason,
         source: "nickgpt-ollama",
         modelName: process.env.NICKGPT_MODEL_NAME!,
         latencyMs: Date.now() - t0,
@@ -419,6 +457,33 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
         error: err instanceof Error ? err.message : String(err),
       });
       // Fall through to fallback below
+    }
+  }
+
+  if (process.env.AI_FORCE_OLLAMA === "true" && process.env.OLLAMA_API_KEY) {
+    const t0 = Date.now();
+    try {
+      const result = await callOllamaCloud({
+        inboundMessage: opts.inboundMessage,
+        conversationContext: opts.conversationContext,
+        systemPrompt,
+        maxTokens,
+        temperature,
+        timeoutMs,
+      });
+      return {
+        ok: true,
+        draft: result.text,
+        completion: result.completion,
+        finishReason: result.finishReason,
+        source: "fallback-ollama-cloud",
+        modelName: result.modelName,
+        latencyMs: Date.now() - t0,
+      };
+    } catch (err) {
+      log.warn("Ollama cloud draft failed · falling back", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -435,6 +500,7 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
       ok: true,
       draft: result.text,
       completion: result.completion,
+      finishReason: result.finishReason,
       source: result.source,
       modelName: result.modelName,
       latencyMs: Date.now() - t0,

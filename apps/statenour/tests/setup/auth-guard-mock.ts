@@ -46,6 +46,7 @@ vi.mock("@/lib/auth-guard", () => ({
   requireSyncAuth: vi.fn(),
   requireEvidenceAuth: vi.fn(),
   requireQueueAuth: vi.fn(),
+  requireDeviceAgentAuth: vi.fn(),
   safeEqual,
 }));
 

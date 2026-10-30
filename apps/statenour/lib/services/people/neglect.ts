@@ -48,6 +48,8 @@ export const MIN_LOGGED_CONTACTS = 1;
 export interface NeglectInput {
   interactionCount: number;
   lastInteraction: Date | string | null;
+  /** The cadence he set for this person; when present it replaces the 14-day default. */
+  cadenceDays?: number | null;
 }
 
 /** Whole days since `lastInteraction`, or null when the person was never logged. */
@@ -60,8 +62,8 @@ export function daysSinceContact(row: NeglectInput, now: Date = new Date()): num
 }
 
 /**
- * A relationship the ledger knows about that has gone quiet for
- * `NEGLECT_AFTER_DAYS` or more.
+ * A relationship the ledger knows about that has gone quiet for its own
+ * `cadenceDays` when he set one, else `NEGLECT_AFTER_DAYS`, or more.
  *
  * Never-logged people are NOT neglected: with no contact on record there is
  * no relationship to have neglected, and 13 of the 20 live profiles are in
@@ -70,5 +72,7 @@ export function daysSinceContact(row: NeglectInput, now: Date = new Date()): num
 export function isNeglected(row: NeglectInput, now: Date = new Date()): boolean {
   if (row.interactionCount < MIN_LOGGED_CONTACTS) return false;
   const days = daysSinceContact(row, now);
-  return days !== null && days >= NEGLECT_AFTER_DAYS;
+  // People W0 (2026-10-30): a cadence he chose is the clock for that person.
+  const after = row.cadenceDays && row.cadenceDays > 0 ? row.cadenceDays : NEGLECT_AFTER_DAYS;
+  return days !== null && days >= after;
 }

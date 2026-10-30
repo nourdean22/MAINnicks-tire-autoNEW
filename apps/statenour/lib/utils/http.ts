@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger } from "@/lib/logger";
 import { prisma, resetQueryCount, getQueryCount } from "@/lib/prisma";
-import { requireCronAuth, requireSyncAuth, requireEvidenceAuth, requireQueueAuth, requireSession } from "@/lib/auth-guard";
+import { requireCronAuth, requireSyncAuth, requireEvidenceAuth, requireQueueAuth, requireDeviceAgentAuth, requireSession } from "@/lib/auth-guard";
 import { isQuotaError, markQuotaExhausted, isQuotaExhausted } from "@/lib/db/safe-prisma";
 import { cronJobName } from "@/lib/utils/cron-job-name";
 // Note: cronJobName is NOT re-exported here. New callers should import
@@ -152,7 +152,7 @@ type RouteHandler = (
 ) => Promise<Response | unknown>;
 
 interface ApiHandlerOptions {
-  auth?: "cron" | "sync" | "evidence" | "queue" | "owner" | "none";
+  auth?: "cron" | "sync" | "evidence" | "queue" | "device" | "owner" | "none";
   rateLimit?: "general" | "ai" | "auth" | "sync";
 }
 
@@ -187,6 +187,7 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
       if (options.auth === "sync") requireSyncAuth(req);
       if (options.auth === "evidence") requireEvidenceAuth(req);
       if (options.auth === "queue") requireQueueAuth(req);
+      if (options.auth === "device") requireDeviceAgentAuth(req);
       if (options.auth === "owner") await requireSession(req);
 
       // Rate limiting
@@ -220,9 +221,11 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
             ? "bridge:nickstire"
             : options.auth === "evidence"
               ? "bridge:evidence" // ledger door: the scoped key or the bridge key
-              : options.auth === "owner"
-                ? "user"
-                : resolveActor(req);
+              : options.auth === "device"
+                ? "bridge:device" // home device agent door: DEVICE_AGENT_KEY or the bridge key
+                : options.auth === "owner"
+                  ? "user"
+                  : resolveActor(req);
       const result = await withActor(actor, () =>
         handler(req, { params: routeCtx?.params as Promise<Record<string, string>> | undefined, requestId }),
       );
