@@ -184,16 +184,26 @@ describe("getCompetitorSnapshotCached: the contract", () => {
   });
 
   it("carries no review text or author names, and stores and logs no rating, count or review time", async () => {
-    const { getCompetitorSnapshotCached } = await load();
-    const out = await getCompetitorSnapshotCached();
-    const body = JSON.stringify(out);
-    expect(body).not.toContain("Pat Q");
-    expect(body).not.toContain("Great tire work");
-    // place_ids may be stored (allowed); nothing else.
-    expect(h.inserts.length).toBeGreaterThan(0);
-    for (const row of h.inserts) expect(Object.keys(row).sort()).toEqual(["capturedAt", "competitorName", "placeId", "source"]);
-    const logs = h.logs.join("\n");
-    for (const v of ["4.9", "4.3", "1715", "321", String(T_NEW), String(T_OLD)]) expect(logs).not.toContain(v);
+    // The logs carry the fetch time as an ISO string, so a real clock reading
+    // like 05:12:54.922Z put "4.9" in them and failed this check about once in a
+    // hundred runs (PR 3367 CI, 2026-10-30). Pin Date to a time whose digits hold
+    // none of the forbidden values; the leak check itself stays whole-text.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-02T03:05:06.078Z"));
+    try {
+      const { getCompetitorSnapshotCached } = await load();
+      const out = await getCompetitorSnapshotCached();
+      const body = JSON.stringify(out);
+      expect(body).not.toContain("Pat Q");
+      expect(body).not.toContain("Great tire work");
+      // place_ids may be stored (allowed); nothing else.
+      expect(h.inserts.length).toBeGreaterThan(0);
+      for (const row of h.inserts) expect(Object.keys(row).sort()).toEqual(["capturedAt", "competitorName", "placeId", "source"]);
+      const logs = h.logs.join("\n");
+      for (const v of ["4.9", "4.3", "1715", "321", String(T_NEW), String(T_OLD)]) expect(logs).not.toContain(v);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("falls back to the shared Google place id when GOOGLE_PLACE_ID is unset", async () => {
