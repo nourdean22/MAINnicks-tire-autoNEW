@@ -110,7 +110,7 @@ describe("useVoiceInput browser speech lane", () => {
     await act(async () => { await result.current.startRecording(); });
 
     act(() => { FakeSpeech.last!.onerror?.({ error: "not-allowed" }); });
-    expect(toastError).toHaveBeenCalledWith("Microphone unavailable — check permissions");
+    expect(toastError).toHaveBeenCalledWith("Microphone unavailable. Check permissions");
     act(() => { result.current.stopRecording(); });
     expect(onTranscript).not.toHaveBeenCalled();
   });
@@ -123,7 +123,7 @@ describe("useVoiceInput browser speech lane", () => {
     act(() => { FakeSpeech.last!.onerror?.({ error: "no-speech" }); });
     expect(toastError).not.toHaveBeenCalled();
     act(() => { FakeSpeech.last!.onend?.(); });
-    expect(toastPlain).toHaveBeenCalledWith("Didn't catch anything — try again", { id: "stt-nothing" });
+    expect(toastPlain).toHaveBeenCalledWith("Didn't catch anything. Try again", { id: "stt-nothing" });
   });
 });
 

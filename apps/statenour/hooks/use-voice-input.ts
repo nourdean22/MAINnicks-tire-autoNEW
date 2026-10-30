@@ -129,17 +129,17 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       let heardNothing = false;
       rec.onerror = (e) => {
         if (e.error === "no-speech") heardNothing = true;
-        else if (e.error === "not-allowed") toast.error("Microphone unavailable — check permissions");
+        else if (e.error === "not-allowed") toast.error("Microphone unavailable. Check permissions");
         else if (e.error === "service-not-allowed") toast.error("Speech recognition is turned off in this browser");
         else if (e.error === "network") toast.error("This browser's speech service is unreachable");
-        else if (e.error !== "aborted") toast.error(`Voice typing stopped (${e.error}) — try again`);
+        else if (e.error !== "aborted") toast.error(`Voice typing stopped (${e.error}). Try again`);
       };
       rec.onend = () => {
         speechRef.current = null;
         setIsRecording(false);
         const text = finals.join(" ").trim();
         if (text) onTranscript(text);
-        else if (heardNothing) toast("Didn't catch anything — try again", { id: "stt-nothing" });
+        else if (heardNothing) toast("Didn't catch anything. Try again", { id: "stt-nothing" });
       };
       try {
         rec.start();
