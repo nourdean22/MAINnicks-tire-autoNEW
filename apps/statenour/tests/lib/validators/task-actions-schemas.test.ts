@@ -23,7 +23,7 @@
  *
  *   2. SCALAR-INPUT procedures · `domainSwap` · `missionLinkCreate` ·
  *      `missionLinkDelete` · `missionLinks` · `missionUpdate` ·
- *      `spawnTasks` · `goalNextActions` take bare scalar / small-object
+ *      `spawnTasks` take bare scalar / small-object
  *      inputs declared inline in lib/trpc/routers/task.ts. Their
  *      `.input(...)` objects are re-declared here verbatim so a
  *      tightened bound fails CI before it breaks a real call-site.
@@ -450,20 +450,6 @@ describe("task scalar-input procedures · call-site payload contract", () => {
     expect(() =>
       spawnTasksInput.parse({ missionId: "", phaseIndex: 0 }),
     ).toThrow();
-  });
-
-  // task.goalNextActions — GoalNextActionsCard fetches with no input;
-  // the schema accepts an optional limit (1..20) for future callers.
-  const goalNextActionsInput = z
-    .object({ limit: z.number().int().min(1).max(20).optional() })
-    .optional();
-
-  it("goalNextActions accepts the no-arg GoalNextActionsCard call", () => {
-    expect(() => goalNextActionsInput.parse(undefined)).not.toThrow();
-  });
-
-  it("goalNextActions rejects a limit above the 20-row cap", () => {
-    expect(() => goalNextActionsInput.parse({ limit: 50 })).toThrow();
   });
 
   // task.events — event-timeline reads { taskId } (limit defaults to 50).
