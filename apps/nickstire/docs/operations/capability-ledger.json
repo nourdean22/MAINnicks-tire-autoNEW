@@ -5822,6 +5822,22 @@
       "operationalState": "unit_verified",
       "exposure": "internal",
       "verificationExpiresAt": null
+    },
+    {
+      "capabilityId": "receptionist-sms-hiring-answers",
+      "name": "A caller or texter asking about a job hears the open roles, Monday open interviews (11 AM to 2 PM, walk in with an ID) and how to apply (text JOB-APPLY or nickstire.org/careers), from shared/jobOpenings.ts, instead of reaching staff",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-10-30",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "PR #3387 (branch nickstire/receptionist-hiring-answers), open 2026-10-30. Nour 10:25 EDT: callers asking about jobs were reaching staff. (1) Receptionist prompt: a JOB / HIRING CALLER section (roles, OPEN_INTERVIEWS_SHORT + 'Walk in with an ID', offer to text the apply steps through sendConfirmationSms); Rule 6 no longer transfers a job question unless the caller asks for a person; no pay figure (Critical Rule 1). (2) SMS: a deterministic job_inquiry route and catalog reply with the roles, OPEN_INTERVIEWS_LINE, the exact JOB-APPLY format and nickstire.org/careers. The JOB-APPLY intake (careers-candidate-intake, PR 3367) is unchanged; HIRING_SMS_TOKEN is now exported.",
+        "tests": "server/hiringAnswers.test.ts (19): 8 job phrasings route to job_inquiry with no secondary intent, 5 customer controls do not; the reply is built from the facts files, fits 320 chars, and its example starts with the exact intake token; the prompt section carries the roles, the short interview line, the token and the careers link, states no pay figure, and Rule 6 points job questions at it. Red on the unchanged code: 14 failed, 5 controls passed. Targeted plain vitest (RAM ruling): 13 files, 574 passed, 1 real catch fixed (the full interview line's 'a few minutes' broke vapi.prompt-durations), then 2 files 24 passed; tsc exit 0.",
+        "liveRuns": "NONE. The SMS reply goes live on deploy. The receptionist prompt reaches Vapi only on the next assistant config push (learning-nickstire's push path, after the deploy, sequenced by the manager). EXPOSURE stays 'disabled' until merged and the push is verified; LIVE proof is a production job call or text answered with the interview line."
+      },
+      "blockers": []
     }
   ],
   "axes": {
