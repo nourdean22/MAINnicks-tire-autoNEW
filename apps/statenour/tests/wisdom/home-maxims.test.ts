@@ -92,22 +92,22 @@ describe("the pick", () => {
     expect(pick(1.9).maxim.id).toBe(pick(1).maxim.id);
   });
 
-  it("leans toward today's top line when a tag matches, and names the matched topic", () => {
+  it("leans toward today's top line when a tag matches, and names the matched topic (the tag, worded by each surface)", () => {
     const p = pickMaxim({ pool, skipped: none, tags: tagsOf("Send the Smith estimate follow-up"), at: NINE_PM })!;
     expect(p.maxim.tags).toContain("customers");
     expect(p.total).toBe(1);
-    expect(p.reason).toBe("for today: customers");
+    expect(p.topic).toBe("customers");
   });
 
   it("falls back to the plain rotation, with no reason, when nothing matches", () => {
     const p = pickMaxim({ pool, skipped: none, tags: tagsOf("Water the plants"), at: NINE_PM })!;
     expect(p.total).toBe(4);
-    expect(p.reason).toBeNull();
+    expect(p.topic).toBeNull();
   });
 
   it("the four fixed lead headlines in operator-brief.ts: only the decisions one fits a tag, the rest rotate", () => {
-    const fits = (headline: string) => pickMaxim({ pool: MAXIM_POOL, skipped: none, tags: tagsOf(headline), at: NINE_PM })!.reason;
-    expect(fits("Decisions are blocking the system")).toBe("for today: decisions");
+    const fits = (headline: string) => pickMaxim({ pool: MAXIM_POOL, skipped: none, tags: tagsOf(headline), at: NINE_PM })!.topic;
+    expect(fits("Decisions are blocking the system")).toBe("decisions");
     expect(fits("Finish what's in motion")).toBeNull();
     expect(fits("Resume the open loop")).toBeNull();
     expect(fits("Inbox needs triage")).toBeNull();

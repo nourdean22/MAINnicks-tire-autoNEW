@@ -42,6 +42,7 @@ import { countLiveDecisions } from "@/lib/automation/live-decisions";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 import { approveTone } from "./approve-tone";
 import { toast } from "sonner";
+import { DecisionMaxim } from "@/components/home/maxim-line";
 
 interface RuleRow {
   ruleName: string;
@@ -541,6 +542,8 @@ function ActionsPageInner() {
               Owner privilege is required to approve this critical risk action.
                       </div>
                     )}
+                    {/* One decisions maxim on the top pending approval only, from its reason's tags. */}
+                    {index === 0 && <DecisionMaxim text={req.reason ?? ""} label="for this approval" />}
                   </div>
                 );
               })}

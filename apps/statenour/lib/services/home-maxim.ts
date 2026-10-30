@@ -30,7 +30,7 @@ export interface HomeMaximView {
   id: string;
   text: string;
   source: string;
-  reason: string | null;
+  topic: MaximTag | null;
   position: number;
   total: number;
 }
@@ -58,7 +58,7 @@ export async function getHomeMaxim(args: { step: number; tags?: readonly MaximTa
     id: pick.maxim.id,
     text: pick.maxim.text,
     source: pick.maxim.source,
-    reason: pick.reason,
+    topic: pick.topic,
     position: pick.position,
     total: pick.total,
   };

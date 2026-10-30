@@ -53,10 +53,10 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: h.toastOk, error: h.toastErr } }));
 
-import { MaximLine, maximErrorText } from "@/components/home/maxim-line";
+import { DecisionMaxim, MaximLine, maximErrorText } from "@/components/home/maxim-line";
 
 const ID = "greene-maxims:law_1";
-const MAXIM = { id: ID, text: "Let a big customer feel smart.", source: "Greene · 48 Laws", reason: "for today: customers", position: 3, total: 40 };
+const MAXIM = { id: ID, text: "Let a big customer feel smart.", source: "Greene · 48 Laws", topic: "customers", position: 3, total: 40 };
 const HEADLINE = "Send the Smith estimate follow-up";
 
 let root: Root;
@@ -166,6 +166,30 @@ describe("MaximLine", () => {
       expect(button(name).className).toContain("min-h-[44px]");
       expect(button(name).className).toContain("min-w-[44px]");
     }
+  });
+});
+
+describe("DecisionMaxim (the decision page and the top pending approval)", () => {
+  function mountDecision(text: string, label: string) {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root.render(<DecisionMaxim text={text} label={label} />));
+  }
+
+  it("always asks for decisions maxims, adds the text's own tags, and still sends no text", () => {
+    // No decision word in the text: only the surface can supply "decisions".
+    mountDecision("Refund customer Mrs Smith", "for this approval");
+    expect(h.inputs[0]).toEqual({ step: 0, tags: ["conflict", "customers", "decisions"] });
+    expect(JSON.stringify(h.inputs)).not.toContain("Smith");
+    expect(h.queryOpts[0]!.enabled).toBe(true);
+  });
+
+  it("words the topic for its own surface and sits compact inside the card", () => {
+    mountDecision("Lease the second bay", "for this decision");
+    expect(host.textContent).toContain("Greene · 48 Laws · for this decision: customers");
+    expect(host.querySelector("section")!.className).not.toContain("mt-10");
+    for (const name of ["Next", "Keep", "Skip"]) expect(button(name).className).toContain("min-h-[44px]");
   });
 });
 

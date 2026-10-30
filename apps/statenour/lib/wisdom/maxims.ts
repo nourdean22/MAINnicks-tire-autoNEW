@@ -85,16 +85,14 @@ export function etHourKey(at: Date): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}`;
 }
 
-/** "for today: customers": the maxim's first tag that today's line also carries. A cut headline read badly. */
-function reasonFor(maxim: Maxim, want: ReadonlySet<MaximTag>): string | null {
-  const tag = maxim.tags.find((t) => want.has(t as MaximTag));
-  return tag ? `for today: ${tag}` : null;
-}
 
 export interface MaximPick {
   maxim: Maxim;
-  /** Why this one, in a few words, only when today's line matched a tag. */
-  reason: string | null;
+  /**
+   * Why this one: the maxim's first tag the asked-for tags also carry, or null for the plain rotation. Each
+   * surface words it ("for today: customers" on Home, "for this decision: money" on a decision).
+   */
+  topic: MaximTag | null;
   /** 1-based place in the candidate list and its size, so "Next" has an end it can say. */
   position: number;
   total: number;
@@ -119,7 +117,7 @@ export function pickMaxim(args: {
   const maxim = candidates[i]!;
   return {
     maxim,
-    reason: matched.length > 0 ? reasonFor(maxim, want) : null,
+    topic: (maxim.tags.find((t) => want.has(t as MaximTag)) as MaximTag | undefined) ?? null,
     position: i + 1,
     total: candidates.length,
   };

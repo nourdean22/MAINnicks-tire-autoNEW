@@ -12,10 +12,14 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
-import { tagsForText } from "@/lib/wisdom/maxims";
+import { cn } from "@/lib/utils";
+import { tagsForText, type MaximTag } from "@/lib/wisdom/maxims";
 
 const VERB =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
+
+const NO_TAGS: readonly MaximTag[] = [];
+const DECISION_TAGS: readonly MaximTag[] = ["decisions"];
 
 /** Plain words for the causes the server names; never raw error text, never a bare "failed" for a known cause. */
 export function maximErrorText(err: unknown): string {
@@ -29,12 +33,27 @@ export function maximErrorText(err: unknown): string {
   return "That did not save. Check the connection and try again.";
 }
 
-export function MaximLine({ context, ready }: { context: string | null; ready: boolean }) {
+export function MaximLine({
+  context,
+  ready,
+  extraTags = NO_TAGS,
+  label = "for today",
+  compact = false,
+}: {
+  context: string | null;
+  ready: boolean;
+  /** Tags the surface always asks for on top of the text's own (a decision surface adds "decisions"). */
+  extraTags?: readonly MaximTag[];
+  /** How the matched topic is worded: "for today: customers". */
+  label?: string;
+  /** Inside a card: no top gap, smaller text. */
+  compact?: boolean;
+}) {
   const [step, setStep] = useState(0);
   const [kept, setKept] = useState<string | null>(null);
   // A Skip that succeeded hides its maxim even if the refetch after it fails.
   const [skipped, setSkipped] = useState<string | null>(null);
-  const tags = useMemo(() => [...tagsForText(context ?? "")].sort(), [context]);
+  const tags = useMemo(() => [...new Set([...tagsForText(context ?? ""), ...extraTags])].sort(), [context, extraTags]);
   const utils = trpc.useUtils();
   const maximQ = trpc.operator.maxim.useQuery(
     { step, tags },
@@ -68,7 +87,7 @@ export function MaximLine({ context, ready }: { context: string | null; ready: b
   if (!m) {
     if (!maximQ.isError) return null; // loading, or every maxim skipped
     return (
-      <p role="status" className="mt-10 font-mono text-[11px] text-fg-tertiary">
+      <p role="status" className={cn("font-mono text-[11px] text-fg-tertiary", compact ? "mt-3" : "mt-10")}>
         The maxim could not load. It will try again in a few minutes.
       </p>
     );
@@ -76,11 +95,15 @@ export function MaximLine({ context, ready }: { context: string | null; ready: b
   const stale = maximQ.isPlaceholderData;
 
   return (
-    <section aria-label="Maxim" aria-busy={stale} className="mt-10 border-l-2 border-edge-strong pl-5 sm:pl-6">
-      <p className="max-w-[56ch] text-[17px] leading-snug text-fg">{m.text}</p>
+    <section
+      aria-label="Maxim"
+      aria-busy={stale}
+      className={cn("border-l-2 border-edge-strong", compact ? "mt-3 pl-3" : "mt-10 pl-5 sm:pl-6")}
+    >
+      <p className={cn("max-w-[56ch] leading-snug text-fg", compact ? "text-[14px]" : "text-[17px]")}>{m.text}</p>
       <p className="mt-1.5 font-mono text-[11px] text-fg-tertiary">
         {m.source}
-        {m.reason ? ` · ${m.reason}` : ""}
+        {m.topic ? ` · ${label}: ${m.topic}` : ""}
       </p>
       {maximQ.isError ? (
         <p role="status" className="mt-1 font-mono text-[11px] text-fg-tertiary">
@@ -106,4 +129,13 @@ export function MaximLine({ context, ready }: { context: string | null; ready: b
       </div>
     </section>
   );
+}
+
+/**
+ * One decisions maxim on a decision surface (upgrade 3, 2026-10-30): the /decisions/[id] page and the top pending
+ * approval on /system/actions. It always asks for "decisions" maxims plus the tags in the decision's own words;
+ * as on Home, only the tags leave the page.
+ */
+export function DecisionMaxim({ text, label }: { text: string; label: string }) {
+  return <MaximLine context={text} ready extraTags={DECISION_TAGS} label={label} compact />;
 }
