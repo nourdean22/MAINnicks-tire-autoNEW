@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -28,8 +29,9 @@ SHIM = NICKSMAX / "nicksmax-camera-supervisor-shim.ps1"
 EDGE = NICKSMAX / "run-sign-rtsp-production.ps1"
 CROP = NICKSMAX / "run-sign-crop.ps1"
 EUFY = NICKSMAX / "start-bridge-nicksmax.ps1"
+MEDIAMTX = NICKSMAX / "run-mediamtx-sign.ps1"
 INSTALLER = NICKSMAX / "install-nicksmax-supervisor-host.ps1"
-HOST_SCRIPTS = [LOOP, SHIM, EDGE, CROP, EUFY]
+HOST_SCRIPTS = [LOOP, SHIM, EDGE, CROP, EUFY, MEDIAMTX]
 
 
 def _pwsh() -> str:
@@ -67,7 +69,7 @@ def test_no_host_script_writes_with_the_cmdlets_that_refuse_readers(script: Path
     assert not re.search(r"(?m)(^|[;{(|]\s*|^\s*)(ac|sc|tee)\s+[-$('\"]", code), f"{script.name} uses an ac/sc/tee alias"
 
 
-@pytest.mark.parametrize("script", [LOOP, SHIM, EDGE, CROP], ids=lambda p: p.name)
+@pytest.mark.parametrize("script", [LOOP, SHIM, EDGE, CROP, MEDIAMTX], ids=lambda p: p.name)
 def test_every_copy_of_the_shared_writer_is_the_supervisors(script: Path):
     assert _function(script, "Write-SharedFile") == _function(SUPERVISOR, "Write-SharedFile")
 
@@ -92,7 +94,7 @@ def _host_pairs(text: str, key_from: str, key_to: str) -> dict[str, tuple[str, s
 def test_the_installer_and_the_drift_check_name_the_same_scripts():
     installer = _host_pairs(INSTALLER.read_text(encoding="utf-8"), "From", "To")
     supervisor = _host_pairs(SUPERVISOR.read_text(encoding="utf-8"), "Repo", "Installed")
-    assert set(installer) == set(supervisor) == {"loop", "shim", "edge", "crop", "eufy-bridge"}
+    assert set(installer) == set(supervisor) == {"loop", "shim", "edge", "crop", "mediamtx", "eufy-bridge"}
     for name, (repo_from, _installed) in installer.items():
         repo_file = repo_from.strip('"')
         assert repo_file in supervisor[name][0], (name, repo_file, supervisor[name])
@@ -178,7 +180,7 @@ def _install_root(tmp_path: Path) -> dict[str, Path]:
     root = tmp_path / "camera-bridge"
     src = root / "scripts" / "nicksmax"
     src.mkdir(parents=True)
-    for f in (LOOP, SHIM, EDGE, CROP, EUFY):
+    for f in (LOOP, SHIM, EDGE, CROP, EUFY, MEDIAMTX):
         shutil.copy(f, src / f.name)
     (root / "data").mkdir()
     crop_dir = tmp_path / "relay"
@@ -203,23 +205,24 @@ def test_the_installer_installs_every_host_script_and_keeps_what_it_replaced(tmp
         "nicksmax-camera-supervisor-shim.ps1": shim_target,
         "run-sign-rtsp-production.ps1": paths["root"] / "data" / "run-sign-rtsp-production.ps1",
         "run-sign-crop.ps1": paths["crop"] / "run-sign-crop.ps1",
+        "run-mediamtx-sign.ps1": paths["crop"] / "run-mediamtx-sign.ps1",
         "start-bridge-nicksmax.ps1": paths["eufy"] / "start-bridge-nicksmax.ps1",
     }
     for source, target in targets.items():
         assert _sha(target) == _sha(paths["src"] / source), source
     backups = list((paths["root"] / "data").glob("nicksmax-camera-supervisor.ps1.bak-*"))
     assert len(backups) == 1 and backups[0].read_text(encoding="utf-8") == "# old shim\n"
-    assert r.stdout.count("UPDATED ") == 5 and "5 updated, 0 refused" in r.stdout, r.stdout
+    assert r.stdout.count("UPDATED ") == 6 and "6 updated, 0 refused" in r.stdout, r.stdout
     assert not list(tmp_path.rglob("*.new")), "a staged copy was left behind"
 
     again = _installer(paths)
-    assert again.returncode == 0 and again.stdout.count("UNCHANGED ") == 5, again.stdout
+    assert again.returncode == 0 and again.stdout.count("UNCHANGED ") == 6, again.stdout
 
 
 def test_the_installer_check_changes_nothing(tmp_path: Path):
     paths = _install_root(tmp_path)
     r = _installer(paths, "-Check")
-    assert r.returncode == 0 and r.stdout.count("WOULD UPDATE ") == 5, r.stdout
+    assert r.returncode == 0 and r.stdout.count("WOULD UPDATE ") == 6, r.stdout
     assert (paths["root"] / "data" / "nicksmax-camera-supervisor.ps1").read_text(encoding="utf-8") == "# old shim\n"
     assert not (paths["crop"] / "run-sign-crop.ps1").exists()
 
@@ -231,4 +234,62 @@ def test_the_installer_refuses_a_source_that_does_not_parse(tmp_path: Path):
     assert r.returncode == 1, r.stdout
     assert "REFUSED shim" in r.stdout and "does not parse" in r.stdout
     assert (paths["root"] / "data" / "nicksmax-camera-supervisor.ps1").read_text(encoding="utf-8") == "# old shim\n"
-    assert r.stdout.count("UPDATED ") == 4, r.stdout
+    assert r.stdout.count("UPDATED ") == 5, r.stdout
+
+
+# ---- the MediaMTX launcher, run for real -----------------------------------------------------------
+# A fake MediaMTX (this Python, running a script that prints lines) stands in for the binary; the
+# launcher's job is the log, so the log is what these assert.
+
+
+def _mediamtx(tmp_path: Path, lines: int, cap: int, rc: int = 0) -> subprocess.CompletedProcess:
+    fake = tmp_path / "fake-mediamtx.py"
+    fake.write_text(
+        "import sys\n"
+        f"for i in range({lines}):\n"
+        "    print(f'2026/10/30 10:44:29 INF [RTSP] [conn 127.0.0.1:{i:05d}] opened ' + 'x' * 60, flush=True)\n"
+        f"sys.exit({rc})\n",
+        encoding="utf-8",
+    )
+    return _run(MEDIAMTX, "-Root", str(tmp_path), "-Exe", sys.executable, "-Config", str(fake), "-CapBytes", str(cap))
+
+
+def test_the_mediamtx_log_never_grows_past_its_cap(tmp_path: Path):
+    r = _mediamtx(tmp_path, lines=300, cap=4000)
+    assert r.returncode == 0, r.stdout + r.stderr
+    live = tmp_path / "mediamtx-sign.log"
+    prev = tmp_path / "mediamtx-sign.log.prev"
+    line_max = 120
+    assert live.exists() and prev.exists()
+    assert live.stat().st_size <= 4000 + line_max and prev.stat().st_size <= 4000 + line_max
+    # The newest line is in the live file; nothing older than one cap survives.
+    assert "[conn 127.0.0.1:00299]" in live.read_text(encoding="utf-8")
+    assert "[conn 127.0.0.1:00000]" not in prev.read_text(encoding="utf-8") + live.read_text(encoding="utf-8")
+
+
+def test_the_mediamtx_log_trims_an_oversized_file_at_start_and_keeps_a_small_one(tmp_path: Path):
+    live = tmp_path / "mediamtx-sign.log"
+    live.write_bytes(b"old\n" * 5000)  # 20 KB, past a 4 KB cap
+    r = _mediamtx(tmp_path, lines=1, cap=4000)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (tmp_path / "mediamtx-sign.log.prev").stat().st_size == 20000
+    assert live.read_text(encoding="utf-8").count("\n") == 1
+
+    small = tmp_path / "small"
+    small.mkdir()
+    (small / "mediamtx-sign.log").write_text("kept\n", encoding="utf-8")
+    r = _mediamtx(small, lines=1, cap=4000)
+    assert r.returncode == 0
+    assert (small / "mediamtx-sign.log").read_text(encoding="utf-8").startswith("kept\n")
+    assert not (small / "mediamtx-sign.log.prev").exists()
+
+
+def test_the_mediamtx_launcher_passes_the_exit_code_through(tmp_path: Path):
+    r = _mediamtx(tmp_path, lines=2, cap=4000, rc=3)
+    assert r.returncode == 3, r.stdout + r.stderr
+
+
+def test_the_mediamtx_launcher_fails_when_the_binary_is_missing(tmp_path: Path):
+    r = _run(MEDIAMTX, "-Root", str(tmp_path), "-Exe", str(tmp_path / "no-mediamtx.exe"), "-Config", str(tmp_path / "x.yml"))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "FAIL MediaMTX binary missing" in (tmp_path / "mediamtx-sign.log").read_text(encoding="utf-8")
