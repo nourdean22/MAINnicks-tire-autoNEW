@@ -5,12 +5,16 @@ import { Link } from "wouter";
 import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
+import { jobOpeningBySlug, formatHourlyPayRange, OPEN_INTERVIEWS_SHORT } from "@shared/jobOpenings";
 import BrandMark from "@/components/BrandMark";
 import { trpc } from "@/lib/trpc";
 // attribution-wave 2026-06: footer call/text links appear on EVERY page —
 // they were untracked plain anchors, dropping site-wide conversion signal.
 import { trackPhoneClick, trackEvent } from "@/components/SEO";
 // 2026-05-19 · EmailNewsletterCapture import removed · band killed (see render).
+
+const AUTO_TECH = jobOpeningBySlug("automotive-technician");
+const AUTO_TECH_PAY = AUTO_TECH?.status === "open" ? formatHourlyPayRange(AUTO_TECH) : null;
 
 const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
@@ -93,6 +97,22 @@ export default function SiteFooter() {
           </p>
         </div>
       </div>
+
+      {/* Hiring line (job 2026-10-30-tech-hiring-page): one link on every page,
+          pay read from shared/jobOpenings.ts so it never drifts from the job page. */}
+      {AUTO_TECH_PAY && (
+        <div className="bg-[oklch(0.07_0.004_260)] border-t border-border/20 py-2.5">
+          <div className="container text-center">
+            <Link
+              href="/careers"
+              onClick={() => trackEvent("careers_footer_click", { source: "footer-hiring-line" })}
+              className="inline-flex min-h-[44px] items-center text-sm text-foreground/75 underline underline-offset-4 hover:text-foreground"
+            >
+              Hiring automotive technicians: {AUTO_TECH_PAY}. {OPEN_INTERVIEWS_SHORT}
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* 2026-05-19 · Elon move #3 · EmailNewsletterCapture band removed.
           Low-conversion email capture (no measurable campaign volume) ·

@@ -18,6 +18,7 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { getRouteByPath } from "@shared/routes";
+import OpenInterviewsNote from "@/components/OpenInterviewsNote";
 import {
   buildJobPostingSchema,
   formatHourlyPayRange,
@@ -115,6 +116,7 @@ export default function JobPage() {
               </div>
             </div>
           </div>
+          <OpenInterviewsNote className="mb-6" />
           <p className="text-base text-foreground/70 leading-relaxed">{job.description}</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <a

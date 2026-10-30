@@ -6,6 +6,7 @@
  */
 import { useEffect, useId, useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import OpenInterviewsNote from "@/components/OpenInterviewsNote";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
 import { openJobOpenings, jobOpeningPath, formatHourlyPayRange, hiringSmsHref } from "@shared/jobOpenings";
@@ -746,6 +747,7 @@ export default function Careers() {
             >
               Flat rate vs hourly — run your own numbers
             </Link>
+            <OpenInterviewsNote className="mt-6 max-w-xl" />
           </div>
         </div>
       </section>
