@@ -140,9 +140,10 @@ vault, "website to do" for flats and plugs)
 **Repair.** Brakes, oil changes, suspension, alignment, engine work, diagnostics, emissions and E-Check,
 exhaust, battery, cooling, belts, transmission, AC. (`docs/BUSINESS-LANDSCAPE.md` section 2)
 
+**Price match.** The price-match promises on nickstire.org stay as written. (Nour, 2026-10-29: "leave those price match promises its ok"; replaces the 2026-10-18 no-price-match rule.)
+
 **Things we never do:**
 
-- **No price match**, anywhere on nickstire.org. (Nour, 2026-10-18)
 - **No installer networks** (SimpleTire, Tire Rack installer and the like), even when they pay per tire.
   (Nour, 2026-10-18; settled, do not re-propose)
 - No unsafe tires: the shop declines them. (`shared/business.ts` `newTires` comment)
