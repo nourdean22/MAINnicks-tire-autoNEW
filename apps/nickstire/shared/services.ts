@@ -412,7 +412,7 @@ export const SERVICES: ServiceData[] = [
     // 2026-10-29 · GSC audit: ~2,600 impr/90d of "e check near me" / "where to
     // get an echeck" at pos 8-15, 0 clicks. Searchers ask where to test, so the
     // title and description answer that first. Keep in sync with routes.ts.
-    metaTitle: "E-Check Near Me: Where to Test, Free Readiness Check",
+    metaTitle: "E-Check Near Me Cleveland: Where to Test | Nick's",
     metaDescription: `${OHIO_ECHECK.whoTests} Get a free readiness check here first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.`,
     heroHeadline: "Failed E-Check?\nWe'll find what failed.",
     heroSubline: "The state runs the official E-Check — we run a FREE readiness check that shows whether your car is ready to test, then diagnose and repair the exact emissions problem and help the monitors complete before you retest.",

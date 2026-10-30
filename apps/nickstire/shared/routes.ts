@@ -353,7 +353,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // in 1-2 days," and AGENTS.md's content rule bans "guaranteed" outright.
     // Unified with services.ts:401's metaTitle so the title/meta split-brain
     // (prerender vs. live SPA) can't show two different claims either.
-    title: "E-Check Near Me: Where to Test, Free Readiness Check",
+    title: "E-Check Near Me Cleveland: Where to Test | Nick's",
     description: "Only official E-Check stations run the state test. Get a free readiness check here first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.",
     group: "service",
     sitemap: true,
