@@ -358,6 +358,11 @@ model Task {
   manualPriorityOverride  Int?
   autoPriorityExplanation String?        @db.Text
   finishCondition         String
+  /// 2026-10-29 · task notes. Free-form context the operator writes on a
+  /// task (plain text, light markdown). Not completionNote (written at
+  /// DONE) or proof.notes (completion evidence). Nullable, no backfill.
+  /// Migration 20261029180000_task_notes_attachments.
+  notes                   String?        @db.Text
   /// v7.8 · Apr 29 · Universal audit. Same shape as Mission.
   createdBy               String?        @default("system") @map("created_by") @db.VarChar(64)
   updatedBy               String?        @default("system") @map("updated_by") @db.VarChar(64)
@@ -452,6 +457,7 @@ model Task {
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
   events                  TaskEvent[]
+  attachments             TaskAttachment[]
 
   @@index([missionId, status, dueDate])
   @@index([autoPriority, lastTouchedAt])
@@ -516,6 +522,50 @@ model TaskEvent {
   /// services/goals.ts per-goal-event-timeline query.
   @@index([goalId, createdAt])
   @@map("task_events")
+}
+
+/// 2026-10-29 · photo attachments on a task. The image bytes live in this
+/// row (bytea, TOASTed out of line by Postgres), not in object storage:
+/// statenour has no bucket and a new vendor is spend. The client resizes to
+/// about 1600 px on the long edge and re-encodes to WebP or JPEG (which also
+/// drops EXIF/GPS); the server re-checks mime (magic bytes) and size.
+/// Hard cap 512 KB per image, enforced twice: in the upload service and by
+/// the CHECK constraint task_attachments_byte_size_check in the migration
+/// (Prisma cannot express CHECK, so it lives in SQL only).
+///
+/// READ RULE: `data` is up to 512 KB. List reads must `select` the metadata
+/// fields and never load `data`; only the owner-gated image route reads it.
+///
+/// Idempotent upload: @@unique(taskId, sha256) turns a double-tapped or
+/// retried upload of the same bytes into one row (upsert; a soft-deleted
+/// duplicate is restored). Soft delete via deletedAt, like Task.
+/// Migration 20261029180000_task_notes_attachments.
+model TaskAttachment {
+  id        String    @id @default(cuid())
+  taskId    String    @map("task_id")
+  // Restrict, not Cascade: Task is soft-deleted (same rule as TaskEvent).
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  /// "photo" today. A string, not an enum, so a later kind is no migration.
+  kind      String    @default("photo") @db.VarChar(16)
+  /// "image/webp" | "image/jpeg" (validated server-side from magic bytes).
+  mimeType  String    @map("mime_type") @db.VarChar(32)
+  /// Equals octet_length(data); 1..524288 (CHECK in the migration).
+  byteSize  Int       @map("byte_size")
+  /// Pixel size after the client resize. Null if the client did not say.
+  width     Int?
+  height    Int?
+  /// sha256 hex of `data`. Dedupe key and the image route's ETag.
+  sha256    String    @db.VarChar(64)
+  data      Bytes
+  caption   String?   @db.VarChar(500)
+  createdBy String?   @default("user") @map("created_by") @db.VarChar(64)
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Also the taskId lookup index: it leads with task_id, and one task holds a
+  // handful of photos, so a second (taskId, deletedAt, createdAt) index buys nothing.
+  @@unique([taskId, sha256], map: "task_attachments_task_id_sha256_key")
+  @@map("task_attachments")
 }
 
 /// v8.0 · Apr 29 · Phase 2A — Universal entity-audit trail.

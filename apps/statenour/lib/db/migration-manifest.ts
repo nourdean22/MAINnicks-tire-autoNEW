@@ -82,4 +82,5 @@ export const REPO_MIGRATIONS: readonly string[] = [
   "20261002160000_intelligence_outcome_result_ref_index",
   "20261007120000_device_events_identity_indexes",
   "20261011140000_cron_job_logs_trigger_id",
+  "20261029180000_task_notes_attachments",
 ];

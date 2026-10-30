@@ -36,7 +36,7 @@ import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionFeed } from "@/components/missions/mission-feed";
-import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
+import { MissionsCapture } from "@/components/missions/voice-dump";
 import { DeckNextMove } from "@/components/missions/deck-next-move";
 import { DeckReadinessLine } from "@/components/missions/deck-readiness-line";
 import { DeckDecide } from "@/components/missions/deck-decide";
@@ -460,7 +460,7 @@ function MissionsPageInner() {
                 </div>
               </div>
               <div>
-                <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
+                <MissionsCapture onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
                 <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
                   captures file themselves when Nick is sure; the rest wait in decide
                 </p>

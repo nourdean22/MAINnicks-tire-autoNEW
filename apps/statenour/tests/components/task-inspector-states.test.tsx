@@ -38,12 +38,27 @@ vi.mock("@/lib/state/inspector-store", () => ({ useInspectorStore: store.useInsp
 vi.mock("@/lib/state/workset-store", () => ({
   useWorksetStore: (sel: (s: unknown) => unknown) => sel({ entries: [], add: () => {}, remove: () => {}, has: () => false }),
 }));
-vi.mock("@/lib/trpc/client", () => ({
-  trpc: {
-    task: { byId: { useQuery: () => stubs.query } },
-    useUtils: () => ({ task: { byId: { invalidate: async () => {} } } }),
-  },
-}));
+vi.mock("@/lib/trpc/client", () => {
+  // 2026-10-29 · the detail children (steps, notes, photos, recall line) read their own procedures.
+  const idle = () => ({ data: undefined, isLoading: false, isError: false, error: null, refetch: async () => {} });
+  const mutation = () => ({ mutate: () => {}, mutateAsync: async () => ({}), isPending: false, isError: false, error: null, variables: undefined });
+  const invalidate = { invalidate: async () => {} };
+  return {
+    trpc: {
+      task: {
+        byId: { useQuery: () => stubs.query },
+        subtasks: { useQuery: () => ({ ...idle(), data: [] }) },
+        attachments: { useQuery: () => ({ ...idle(), data: [] }) },
+        recallLine: { useQuery: () => ({ ...idle(), data: { state: "none" } }) },
+        subtaskAdd: { useMutation: mutation },
+        update: { useMutation: mutation },
+        notesSave: { useMutation: mutation },
+        attachmentDelete: { useMutation: mutation },
+      },
+      useUtils: () => ({ task: { byId: invalidate, subtasks: invalidate, attachments: invalidate } }),
+    },
+  };
+});
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {} }),
   usePathname: () => "/missions",
@@ -138,5 +153,22 @@ describe("TaskInspector · page actions", () => {
     const html = render();
     expect(html).toContain('data-inspector-state="not-found"');
     expect(html).not.toContain("data-inspector-page-actions");
+  });
+});
+
+describe("TaskInspector · detail sections (2026-10-29)", () => {
+  it("renders steps, notes with the stored text, and photos for a top-level task", () => {
+    stubs.query = { ...stubs.blank(), data: { ...TASK, notes: "fixture note" } };
+    const html = render();
+    expect(html).toContain('data-task-subtasks="t1"');
+    expect(html).toContain('data-task-notes="t1"');
+    expect(html).toContain("fixture note");
+    expect(html).toContain('data-task-photos="t1"');
+    expect(html).toContain("No photos yet");
+  });
+
+  it("a step (child task) gets no steps of its own", () => {
+    stubs.query = { ...stubs.blank(), data: { ...TASK, parentTaskId: "p1" } };
+    expect(render()).not.toContain("data-task-subtasks");
   });
 });

@@ -27,6 +27,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { powerAtlasProcedures } from "./task/power-atlas";
+import { taskDetailProcedures } from "./task/task-detail";
 import { listTasks, deleteTask, updateTask, getTaskById } from "@/lib/services/tasks";
 import {
   listMissions,
@@ -1525,4 +1526,5 @@ export const taskRouter = router({
   // (2026-06-04 mechanical split) · spread keeps paths FLAT as
   // `trpc.task.<proc>`. See power-atlas.ts.
   ...powerAtlasProcedures,
+  ...taskDetailProcedures,
 });
