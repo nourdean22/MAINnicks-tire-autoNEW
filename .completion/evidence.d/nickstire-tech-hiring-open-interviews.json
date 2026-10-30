@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Hiring reach (job 2026-10-30-tech-hiring-page W2+W3). What a visitor sees: (1) every page's footer gains one dark line under the gold call strip, 'Hiring technicians: $30.00-$37.50/hr hourly. Open interviews Mondays, 11 AM to 2 PM.', linking to /careers (pay read from shared/jobOpenings.ts, line hidden if the auto-tech role closes); (2) the /careers hero and every /careers/<slug> page show a yellow-bordered note: 'Open interviews every Monday, 11 AM to 2 PM. Walk in with an ID and talk with the manager for a few minutes. No appointment needed.' (3) Each JobPosting description gains the same line under 'Interviews:', so Google's markup matches the page. Nothing states schedule, benefits or guaranteed hours. Live screenshots at 390x844 and 1440x900 follow after deploy."
+    }
+  }
+}

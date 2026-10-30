@@ -221,6 +221,16 @@ export const JOB_OPENINGS: JobOpening[] = [
   },
 ];
 
+/**
+ * Owner-set 2026-10-29 (via the manager session): anyone with an ID can walk
+ * in on Mondays, 11 AM to 2 PM, and interview with the manager for a few
+ * minutes. Schedule, benefits and hours are discussed in that interview, so
+ * the pages do not state them. One string feeds /careers, every job page and
+ * every JobPosting description, so the visible page and the markup agree.
+ */
+export const OPEN_INTERVIEWS_LINE =
+  "Open interviews every Monday, 11 AM to 2 PM. Walk in with an ID and talk with the manager for a few minutes. No appointment needed.";
+
 /** Canonical leaf path for an opening. The ONLY URL its JobPosting may claim. */
 export function jobOpeningPath(slug: string): string {
   return `/careers/${slug}`;
@@ -272,6 +282,7 @@ function buildJobDescriptionHtml(job: JobOpening, shopHours: string): string {
     htmlList("Nice to have", job.nice),
     pay ? `<p><strong>Pay:</strong> ${escapeHtml(pay)}, hourly.</p>` : "",
     `<p><strong>Shop hours:</strong> ${escapeHtml(shopHours)}</p>`,
+    `<p><strong>Interviews:</strong> ${escapeHtml(OPEN_INTERVIEWS_LINE)}</p>`,
   ].join("");
 }
 
