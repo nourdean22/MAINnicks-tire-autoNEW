@@ -113,7 +113,10 @@ async function open(page: import("@playwright/test").Page, path: string) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
-  expect(page.url(), `${path} redirected to auth`).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
+  // The sign-in page is itself an auth path; every other page must not have bounced to it.
+  if (!path.startsWith("/auth/")) {
+    expect(page.url(), `${path} redirected to auth`).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
+  }
   await page.waitForTimeout(500);
 }
 
