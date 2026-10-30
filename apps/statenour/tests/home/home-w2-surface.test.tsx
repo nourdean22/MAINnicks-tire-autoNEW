@@ -3,7 +3,6 @@
  * it all pretty, include some cards, some shortcuts". Pinned here, against antislop-ui:
  *  · the NOW sentence reads in sentence case, not an all-caps poster, and is capped at three lines
  *    (his task titles ran seven lines at 390 px);
- *  · the decorative gold notch beside "Now" is gone (it marked no state, by its own comment);
  *  · the Nick's Tire card has three states and never shows $0 for a failed read;
  *  · every shortcut goes somewhere real, at a 44 px target.
  */
@@ -29,10 +28,6 @@ describe("the NOW sentence", () => {
     expect(hero, "the hero did not render").not.toBe("");
     expect(hero).toMatch(/\bnormal-case\b/);
     expect(hero).toMatch(/\bline-clamp-3\b/);
-  });
-
-  it("has no decorative notch", () => {
-    expect(html).not.toMatch(/class="notch/);
   });
 });
 

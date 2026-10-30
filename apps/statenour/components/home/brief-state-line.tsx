@@ -84,10 +84,13 @@ export function BriefStateLine({
 
       {/* UI v3 W2 (2026-10-16): the verdict is the hero. It starts right under the wordmark, runs the
           full column instead of an 18ch measure, and steps up a size at each width, so from six feet
-          Home reads as one sentence with a brief under it. (The gold notch beside NOW marked no
-          state and left in home-pulse W2, 2026-10-30.) */}
+          Home reads as one sentence with a brief under it. The signal notch marks NOW, the one gold
+          mark on the page that is not an action (SYSTEM.md section 12; pinned by tests/repo/ui-v2-grammar). */}
       <div className="mt-5 border-b border-edge-subtle pb-5">
-        <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
+        <div className="flex items-center gap-2">
+          <span className="notch h-3" aria-hidden />
+          <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
+        </div>
 
         {loading ? (
           <div className="mt-3 h-24 w-11/12 animate-pulse rounded-micro bg-raised sm:h-28" aria-hidden />
