@@ -22,7 +22,6 @@ import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { DetailFold } from "@/components/system/detail-fold";
-import { Panel } from "@/components/panel";
 import { ACTIONS_TAB_PARAM, resolveActionsTab } from "./actions-tab";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -384,7 +383,7 @@ function ActionsPageInner() {
     >
       <NeedsReviewGroup />
 
-        <Panel className="border-edge-default">
+        <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
               pending action queue
@@ -647,7 +646,7 @@ function ActionsPageInner() {
               An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
             </p>
           </div>
-        </Panel>
+        </section>
 
       {/* History (wave E1, 2026-10-24): the success rings, the rule leaderboard and the recent feed. Closed by default; ?tab=logs opens it. */}
       <DetailFold label="History" open={activeTab === "logs"} unreadable={actionsQuery.isError && !feed ? 1 : 0}>
@@ -707,7 +706,7 @@ function ActionsPageInner() {
           </div>
 
           {/* Rule leaderboard */}
-          <Panel className="border-edge-default">
+          <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-fg">rule leaderboard</h2>
               <span className="text-xs text-fg-tertiary">click to filter recent feed</span>
@@ -752,10 +751,10 @@ function ActionsPageInner() {
                 ))}
               </div>
             )}
-          </Panel>
+          </section>
 
           {/* Recent feed */}
-          <Panel className="border-edge-default">
+          <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
             <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-fg">recent · last 100</h2>
               <div className="flex items-center gap-2">
@@ -875,7 +874,7 @@ function ActionsPageInner() {
                 })}
               </div>
             )}
-          </Panel>
+          </section>
       </DetailFold>
 
       <p className="pt-2 text-center text-[11px] text-fg-tertiary">

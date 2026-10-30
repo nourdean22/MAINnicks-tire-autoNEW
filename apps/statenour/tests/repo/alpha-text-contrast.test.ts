@@ -141,7 +141,6 @@ const scanTree = () => (scanned ??= count(FILES.flatMap((f) => fadedText(f, read
  * listed because it clears 4.5:1 (4.55 on surface-interactive, a thin margin). R3-07's other files hold none.
  */
 const KNOWN_FADED: Record<string, number> = {
-  "app/(mastery)/decisions/[id]/page.tsx -> text-rose-300/70": 1,
   "app/(mastery)/people/page.tsx -> text-rose-300/70": 1,
   "app/(mastery)/system/actions/page.tsx -> text-rose-400/70": 1,
   "app/(mastery)/system/inbox/page.tsx -> text-amber-400/80": 1,

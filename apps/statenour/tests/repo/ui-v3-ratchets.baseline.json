@@ -8,7 +8,8 @@
     "slowDuration": 5,
     "smallInput": 20,
     "offGrammarHue": 153,
-    "glassCard": 4
+    "glassCard": 4,
+    "panel": 9
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -16,6 +17,9 @@
     },
     "app/(mastery)/system/actions/page.tsx": {
       "smallInput": 1
+    },
+    "app/(mastery)/system/ui-lab/page.tsx": {
+      "panel": 9
     },
     "app/auth/sign-in/page.tsx": {
       "glassCard": 1

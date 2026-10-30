@@ -16,7 +16,6 @@
  */
 
 import { useState, useCallback } from "react";
-import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
 import { Upload, Loader2, AlertCircle, Sparkles, Image as ImageIcon, Wand2 } from "lucide-react";
@@ -143,14 +142,14 @@ export default function PhotoImproverPage() {
   return (
     <StandardPage
       eyebrow="NOUR OS · Imagery"
-      title="photo improver"
+      title="Photo improver"
       description="Drop a phone photo. Get a scorecard, specific fixes, and a Nick's Tire branded re-render."
       width="lg"
       rhythm="comfortable"
     >
 
       {/* Drop zone */}
-      <Panel>
+      <section className="border-l-2 pl-5 sm:pl-6 border-edge-strong">
         <div
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
@@ -201,11 +200,11 @@ export default function PhotoImproverPage() {
             </div>
           )}
         </div>
-      </Panel>
+      </section>
 
       {/* Mode + run */}
       {(imageBase64 || imageUrl) && (
-        <Panel>
+        <section className="border-l-2 pl-5 sm:pl-6 border-edge-strong">
           <div className="space-y-3">
             <div>
               <div className="font-mono text-[11px] text-fg-tertiary mb-1">Mode</div>
@@ -249,22 +248,22 @@ export default function PhotoImproverPage() {
               )}
             </button>
           </div>
-        </Panel>
+        </section>
       )}
 
       {error && (
-        <Panel className="border-rose-500/40 bg-rose-500/10">
-          <div className="flex items-center gap-2 p-3 text-sm text-rose-200">
+        <section className="border-l-2 pl-5 sm:pl-6 border-rose-500/60">
+          <div className="flex items-center gap-2 py-1 text-sm text-rose-200">
             <AlertCircle className="h-4 w-4" />
             <span>{error}</span>
           </div>
-        </Panel>
+        </section>
       )}
 
       {/* Analysis */}
       {data?.analysis && (
         <>
-          <Panel>
+          <section className="border-l-2 pl-5 sm:pl-6 border-edge-strong">
             <div className="space-y-3">
               <div>
                 <div className="font-mono text-[11px] text-fg-tertiary">Subject</div>
@@ -305,11 +304,11 @@ export default function PhotoImproverPage() {
                 </div>
               </div>
             </div>
-          </Panel>
+          </section>
 
           {/* Issues */}
           {data.analysis.issues.length > 0 && (
-            <Panel className="border-amber-500/30 bg-amber-500/[0.03]">
+            <section className="border-l-2 pl-5 sm:pl-6 border-amber-500/60">
               <h2 className="text-sm font-semibold text-amber-300 mb-2">issues</h2>
               <ul className="space-y-1">
                 {data.analysis.issues.map((iss, idx) => (
@@ -319,12 +318,12 @@ export default function PhotoImproverPage() {
                   </li>
                 ))}
               </ul>
-            </Panel>
+            </section>
           )}
 
           {/* Improvements */}
           {data.analysis.improvements.length > 0 && (
-            <Panel>
+            <section className="border-l-2 pl-5 sm:pl-6 border-edge-strong">
               <h2 className="text-sm font-semibold text-fg mb-2">specific improvements</h2>
               <div className="space-y-1.5">
                 {data.analysis.improvements.map((imp, idx) => (
@@ -347,14 +346,14 @@ export default function PhotoImproverPage() {
                   </div>
                 ))}
               </div>
-            </Panel>
+            </section>
           )}
         </>
       )}
 
       {/* Rebranded image */}
       {data?.rebrandedImageUrl && (
-        <Panel className="border-emerald-500/30 bg-emerald-500/[0.04]">
+        <section className="border-l-2 pl-5 sm:pl-6 border-emerald-500/60">
           <h2 className="text-sm font-semibold text-emerald-300 mb-2 flex items-center gap-1">
             <Wand2 className="h-4 w-4" /> Branded variant
           </h2>
@@ -377,7 +376,7 @@ export default function PhotoImproverPage() {
           <div className="mt-2 font-mono text-[11px] text-fg-tertiary tabular-nums">
             {data.rebrandModel} · {data.rebrandDurationMs}ms
           </div>
-        </Panel>
+        </section>
       )}
 
       {data && (

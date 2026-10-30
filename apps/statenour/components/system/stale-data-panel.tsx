@@ -2,7 +2,6 @@
 
 import { AlertTriangle, Archive, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { Panel } from "@/components/panel";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -42,7 +41,7 @@ export function StaleDataPanel() {
 
   return (
     <section id="stale-data" className="scroll-mt-24" aria-label="stale data">
-      <Panel className="border-edge-default p-5">
+      <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-edge-default pb-4">
           <div className="flex min-w-0 items-start gap-3">
               <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-surface border border-edge-default bg-content">
@@ -149,7 +148,7 @@ export function StaleDataPanel() {
             ))}
           </div>
         ) : null}
-      </Panel>
+      </section>
       {dialog}
     </section>
   );

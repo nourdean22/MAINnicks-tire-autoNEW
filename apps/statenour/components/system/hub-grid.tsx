@@ -49,40 +49,14 @@ import {
 // Re-exported: tests import the tiles from the grid (hub-grid-chips, hub-grid-read-failed).
 export { CARDS };
 
-const SEVERITY_PALETTE: Record<
-  Severity,
-  { bg: string; border: string; dot: string; text: string }
-> = {
-  healthy: {
-    bg: "bg-emerald-500/6",
-    border: "border-emerald-500/30",
-    dot: "bg-emerald-400",
-    text: "text-emerald-300",
-  },
-  warning: {
-    bg: "bg-amber-500/6",
-    border: "border-amber-500/30",
-    dot: "bg-amber-400",
-    text: "text-amber-300",
-  },
-  critical: {
-    bg: "bg-rose-500/8",
-    border: "border-rose-500/40",
-    dot: "bg-rose-400",
-    text: "text-rose-300",
-  },
-  info: {
-    bg: "bg-sky-500/5",
-    border: "border-sky-500/25",
-    dot: "bg-sky-400",
-    text: "text-sky-300",
-  },
-  unknown: {
-    bg: "bg-surface-interactive",
-    border: "border-edge-subtle",
-    dot: "bg-fg-tertiary",
-    text: "text-fg-tertiary",
-  },
+// UI v3 W5c (2026-10-29 sync audit, finding 13): a ruled row with a state word, not a tinted tile.
+// Colour lives only on the dot and the word; the status hues are the grammar's five.
+const SEVERITY_PALETTE: Record<Severity, { dot: string; text: string }> = {
+  healthy: { dot: "bg-emerald-400", text: "text-emerald-300" },
+  warning: { dot: "bg-amber-400", text: "text-amber-300" },
+  critical: { dot: "bg-rose-400", text: "text-rose-300" },
+  info: { dot: "bg-sky-400", text: "text-fg-secondary" },
+  unknown: { dot: "bg-fg-tertiary", text: "text-fg-tertiary" },
 };
 
 const SEVERITY_ORDER: Record<Severity, number> = {
@@ -141,40 +115,19 @@ function HubCardLink({
   return (
     <Link
       href={card.href}
-      className={cn(
-        "group relative rounded-surface border p-3 transition-colors hover:bg-surface-hover",
-        pal.bg,
-        pal.border,
-        card.featured && "ring-1 ring-edge-strong",
-      )}
+      className="group flex min-h-[44px] items-center gap-3 border-b border-edge-subtle py-3 transition-colors duration-[var(--motion-state)] hover:bg-surface-hover"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Icon
-            className={cn(
-              "h-4 w-4 shrink-0",
-              pal.text,
-              "group-hover:text-(--text-primary)",
-            )}
-          />
-          <span className="text-sm font-semibold text-(--text-primary)">
-            {card.title}
-          </span>
-        </div>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium tabular-nums",
-            pal.border,
-            pal.text,
-          )}
-        >
-          <span className={cn("h-1.5 w-1.5 rounded-full", pal.dot)} />
-          {chip.label}
+      <Icon className="h-4 w-4 shrink-0 text-fg-tertiary group-hover:text-fg" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className={cn("block truncate text-[15px] text-fg", card.featured ? "font-semibold" : "font-medium")}>
+          {card.title}
         </span>
-      </div>
-      <p className="mt-1.5 text-[11px] leading-snug text-(--text-secondary)">
-        {card.description}
-      </p>
+        <span className="block truncate text-[12px] text-fg-tertiary">{card.description}</span>
+      </span>
+      <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-[12px] tabular-nums", pal.text)}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", pal.dot)} aria-hidden />
+        {chip.label}
+      </span>
     </Link>
   );
 }
@@ -243,7 +196,7 @@ export function SystemHubGrid() {
             count={attention.length}
             tone="alert"
           />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="lg:grid lg:grid-cols-2 lg:gap-x-8">
             {attention.map(({ c, chip }) => (
               <HubCardLink key={c.href} card={c} chip={chip} />
             ))}
@@ -257,7 +210,7 @@ export function SystemHubGrid() {
         return (
           <section key={id}>
             <GroupHeader label={label} count={members.length} />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="lg:grid lg:grid-cols-2 lg:gap-x-8">
               {members.map(({ c, chip }) => (
                 <HubCardLink key={c.href} card={c} chip={chip} />
               ))}
@@ -281,7 +234,7 @@ export function SystemHubGrid() {
             <span className="hidden text-[11px] text-fg-tertiary sm:inline">fixture galleries, no live data</span>
             <span className="ml-auto font-mono text-[11px] text-fg-tertiary">{labOpen ? "open" : "closed"}</span>
           </button>
-          <div id={labId} hidden={!labOpen} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div id={labId} hidden={!labOpen} className="mt-1 lg:grid lg:grid-cols-2 lg:gap-x-8">
             {lab.map(({ c, chip }) => (
               <HubCardLink key={c.href} card={c} chip={chip} />
             ))}
