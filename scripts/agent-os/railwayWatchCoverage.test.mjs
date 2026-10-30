@@ -288,6 +288,51 @@ export function inertNegations(patterns) {
   });
 }
 
+/**
+ * Includes that watch a tree OUTSIDE the app which its build cannot read.
+ *
+ * Measured 2026-10-30 (railway-audit): the worker watched `apps/statenour/lib/**`
+ * while its image is `turbo prune @statenour/worker`, whose closure never reaches
+ * statenour. 19 of its 21 builds from 10-26 to 10-30 came from that path alone,
+ * each one restarting the cron dispatcher. Coverage (above) only pushes toward
+ * deploying more; this is the matching check on the other side: an out-of-app
+ * include must equal or sit INSIDE an allowed root (a workspace package, the
+ * folder holding a patch file, a root manifest). A PARENT of an allowed root is
+ * a stray: `apps/**` or `packages/**` watches far more than the build reads,
+ * and an earlier draft of this check let every such parent through.
+ */
+export function strayWatches(app, patterns, allowedRoots) {
+  return patterns
+    .filter((p) => !String(p).startsWith("!"))
+    .filter((p) => {
+      const prefix = String(p).replace(/\/\*\*(\/\*)?$/, "").replace(/\/$/, "");
+      if (prefix === app || prefix.startsWith(`${app}/`)) return false;
+      return !allowedRoots.some((a) => prefix === a || prefix.startsWith(`${a}/`));
+    });
+}
+
+/** Roots a service may watch outside its app: closure packages, patch folders, root manifests. */
+export function allowedWatchRoots(app) {
+  return [...new Set([...workspaceClosure(app), ...patchInputs().map((p) => dirname(p)), ...ALWAYS_REQUIRED])];
+}
+
+/**
+ * Dry evaluation: would a commit that changed `files` schedule a build?
+ * Rules apply in order, gitignore-style: the last include or negation that
+ * matches a file decides it. Same `covers` / `negationExcludes` as above.
+ */
+export function wouldRebuild(patterns, files) {
+  return files.filter((f) => {
+    let watched = false;
+    for (const p of patterns) {
+      if (String(p).startsWith("!")) {
+        if (negationExcludes(p, f, true)) watched = false;
+      } else if (covers(p, f) || (!String(p).includes("/") && f.split("/").pop() === p)) watched = true;
+    }
+    return watched;
+  });
+}
+
 const isRepoFile = (rel) => {
   try {
     return statSync(join(REPO, rel)).isFile();
@@ -311,8 +356,9 @@ for (const { app, label, service } of SERVICES) {
       }
     }
 
-    // Any tree this service watches OUTSIDE its own app (e.g. the worker's
-    // apps/statenour/lib) is assumed to be an input: nothing proves otherwise.
+    // Any tree this service watches OUTSIDE its own app is assumed to be an
+    // input here: nothing proves otherwise. (strayWatches, below, is the check
+    // that such a tree is one the build can actually read.)
     const watchedElsewhere = patterns
       .filter((p) => !p.startsWith("!"))
       .map((p) => p.replace(/\/\*\*(\/\*)?$/, "").replace(/\/$/, ""))
@@ -335,6 +381,22 @@ for (const { app, label, service } of SERVICES) {
     );
 
     assert.deepEqual(inertNegations(patterns), [], `${label}: negation(s) with no preceding include do nothing`);
+  });
+}
+
+for (const { app, label, service } of SERVICES) {
+  test(`${label}: watches no out-of-app tree its build cannot read`, () => {
+    const patterns = iacWatchPatterns(service);
+    assert.ok(patterns && patterns.length > 0, `could not read ${service} watchPatterns from .railway/railway.ts`);
+    const strays = strayWatches(app, patterns, allowedWatchRoots(app));
+    assert.deepEqual(
+      strays,
+      [],
+      `${label} rebuilds on these paths, but its build reads nothing under them, so every change ` +
+        `there is a wasted redeploy:\n` +
+        strays.map((s) => `    - ${s}`).join("\n") +
+        `\nIf the build really reads it, add the workspace dependency that makes turbo prune ship it.`,
+    );
   });
 }
 
@@ -469,6 +531,75 @@ test("MUTATION · a character class cannot truncate the parsed pattern list", ()
   assert.equal(negationExcludes("!packages/[u]tils/**", "packages/utils"), true);
   assert.equal(negationExcludes("!packages/[!u]tils/**", "packages/utils"), false);
   assert.equal(negationExcludes("!packages/[!x]tils/**", "packages/utils"), true);
+});
+
+// ── STRAY-WATCH FIXTURES · an over-watch check that cannot go red would bless any waste ──
+
+test("MUTATION · the worker's 2026-10-30 statenour/lib watch is a stray", () => {
+  const live = ["apps/worker/**", "packages/reel-engine/**", "apps/nickstire/patches/**", "pnpm-lock.yaml", "package.json"];
+  const allowed = ["packages/reel-engine", "apps/nickstire/patches", "pnpm-lock.yaml", "package.json"];
+  assert.deepEqual(strayWatches("apps/worker", ["apps/statenour/lib/**", ...live], allowed), ["apps/statenour/lib/**"]);
+  assert.deepEqual(strayWatches("apps/worker", live, allowed), []);
+});
+
+test("MUTATION · negations, the app's own tree, and paths inside an allowed root are never strays", () => {
+  const allowed = ["packages/utils", "apps/nickstire/patches"];
+  assert.deepEqual(
+    strayWatches("apps/worker", ["apps/worker/**", "!apps/statenour/**", "packages/utils/**", "packages/utils/src/**", "apps/nickstire/patches/**"], allowed),
+    [],
+  );
+  assert.deepEqual(strayWatches("apps/worker", ["packages/lenses/**"], allowed), ["packages/lenses/**"]);
+});
+
+test("MUTATION · a PARENT of an allowed root is a stray (review finding: apps/**, packages/**, ** passed)", () => {
+  const allowed = ["packages/reel-engine", "apps/nickstire/patches", "package.json"];
+  const parents = ["apps/**", "packages/**", "**", "**/*", "apps/nickstire/**"];
+  assert.deepEqual(strayWatches("apps/worker", parents, allowed), parents);
+});
+
+test("MUTATION · the stray check reads the REAL worker block and catches the path re-added", () => {
+  // Scanner-located-its-subject arm: plant the stray in the live railway.ts text.
+  const src = readFileSync(join(REPO, ".railway", "railway.ts"), "utf8");
+  const anchor = '"packages/reel-engine/**"';
+  assert.equal(src.split(anchor).length - 1, 1, "expected the worker's reel-engine watch exactly once");
+  const planted = src.replace(anchor, `"apps/statenour/lib/**", ${anchor}`);
+  const m = planted.slice(planted.indexOf('service("statenour-worker"')).match(/watchPatterns:\s*\[((?:\s*"[^"]*"\s*,?)*)\s*\]/);
+  const patterns = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+  assert.ok(patterns.length >= 5, "parsed the worker's watch list");
+  assert.deepEqual(strayWatches("apps/worker", patterns, allowedWatchRoots("apps/worker")), ["apps/statenour/lib/**"]);
+});
+
+test("DRY RUN · a real statenour-only merge (#3372, 9ac56ba) built the worker before, and does not now", () => {
+  // The exact changed-file list of that merge (git show --name-only 9ac56bae14).
+  // It triggered worker deploy 233a0df9 on 2026-10-30 07:21Z.
+  const statenourOnly = [
+    "apps/statenour/lib/brain/maxims.ts",
+    "apps/statenour/lib/services/morning-brief.ts",
+    "apps/statenour/lib/wisdom/maxims.ts",
+    "apps/statenour/tests/brain/wisdom-w2-hardening.test.ts",
+    "apps/statenour/tests/services/morning-brief.test.ts",
+  ];
+  const before = [
+    "apps/worker/**", "!apps/worker/AGENTS.md", "!apps/worker/CLAUDE.md", "!apps/worker/DEPLOY.md",
+    "apps/statenour/lib/**", "packages/reel-engine/**", "apps/nickstire/patches/**",
+    "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", "turbo.json",
+  ];
+  const now = iacWatchPatterns("statenour-worker");
+  assert.equal(wouldRebuild(before, statenourOnly).length, 3, "the old patterns must reproduce the wasted build");
+  assert.deepEqual(wouldRebuild(now, statenourOnly), []);
+  // POSITIVE CONTROL: the live patterns still build on the worker's real inputs.
+  assert.deepEqual(
+    wouldRebuild(now, ["apps/worker/src/scheduler.ts", "packages/reel-engine/src/index.ts", "pnpm-lock.yaml", "apps/worker/AGENTS.md"]),
+    ["apps/worker/src/scheduler.ts", "packages/reel-engine/src/index.ts", "pnpm-lock.yaml"],
+  );
+});
+
+test("DRY RUN · an include with no slash matches at any depth, as gitignore does", () => {
+  // So a root manifest pattern like "package.json" also fires on apps/statenour/package.json.
+  assert.deepEqual(wouldRebuild(["package.json"], ["apps/statenour/package.json", "package.json", "apps/statenour/package.jsonx"]), [
+    "apps/statenour/package.json",
+    "package.json",
+  ]);
 });
 
 test("MUTATION · a negation never counts as coverage", () => {

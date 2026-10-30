@@ -104,6 +104,18 @@ Operator steps, in order:
 2. `railway config apply` at a quiet hour. A watch-pattern change can rebuild the service.
 3. `railway config plan` again. It must read *already up to date*.
 
+## 2026-10-30 · worker stops watching `apps/statenour/lib/**` (not live until applied)
+
+The worker image is `turbo prune @statenour/worker` (`apps/worker/Dockerfile`), and its closure never
+reaches statenour: no import in `apps/worker/src` or `packages/reel-engine/src`. Even so, 19 of its 21 builds
+from 2026-10-26 to 10-30 were triggered by that path alone, and each one restarted the cron dispatcher
+(railway-audit). The new gate `strayWatches` in `railwayWatchCoverage.test.mjs` fails any watch outside
+an app that is not a workspace package, a patch file or a root manifest.
+
+Operator steps: run `railway config plan` and expect exactly 1 change (the `statenour-worker` watchPatterns)
+and `0 to destroy`. Then run `railway config apply`, then `railway config plan` again, which must read
+*already up to date*.
+
 ## Notes
 
 - `.railway/package.json` declares `{"type":"module"}`. The monorepo root has no `type` field, so it
