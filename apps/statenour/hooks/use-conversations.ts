@@ -27,6 +27,7 @@ import type { UIMessage } from "ai";
 // cursor-paginated shape this hook owns is preserved.
 import { trpc } from "@/lib/trpc/client";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
+import { purgeConversation } from "@/features/chat-v2/lib/message-queue";
 export interface Convo {
   id: string;
   title: string | null;
@@ -280,6 +281,8 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         return false;
       }
       setConvos((prev) => prev.filter((c) => c.id !== id));
+      // Messages waiting to send in this chat would linger invisible in storage (W2 queue).
+      void purgeConversation(id);
       if (activeId === id) {
         setActiveId(null);
         setMessages([]);
