@@ -180,7 +180,13 @@ export async function runPostPersistVerification(a: {
 
   // Slice 1: Temporal Consistency Telemetry
   const { checkTemporalConsistency } = await import("@/lib/ai/chat/timing");
-  for (const call of capturedToolCalls) {
+  // Keeps the instrument visible while the SDK gives no timings (every call is skipped below).
+  const untimed = capturedToolCalls.filter((c) => !(c.durationMs > 0)).length;
+  if (untimed > 0) log.info("temporal_untimed", { conversationId: convId, untimed, total: capturedToolCalls.length });
+  for (const [i, call] of capturedToolCalls.entries()) {
+    // 0 ms means the SDK reported no timing (ai-sdk-tool-observation durationFrom), not a 0 ms run;
+    // a never-run call has no timing either.
+    if (!(call.durationMs > 0) || call.notRun) continue;
     const temporal = checkTemporalConsistency(call.name, call.durationMs, call.args);
     if (!temporal.consistent) {
       log.warn("temporal_inconsistency_detected", {
@@ -196,7 +202,7 @@ export async function runPostPersistVerification(a: {
         void prisma.brainMemory.create({
           data: {
             category: "telemetry_temporal_warn",
-            key: `temporal-warn-${traceId}-${call.name}`,
+            key: `temporal-warn-${traceId}-${i}-${call.name}`,
             content: temporal.reason || "Temporal inconsistency",
             confidence: 0.9,
             source: "temporal-consistency-checker",

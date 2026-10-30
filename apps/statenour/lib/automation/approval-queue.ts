@@ -31,6 +31,9 @@ import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 
 const log = rootLogger.withSurface("automation/approval-queue");
 
+/** Mirrors TWO_DAYS_MS in lib/ai/nick-action-batch.ts, the cron backstop's window. */
+export const NICK_ACTION_RUN_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+
 export type ApprovalDecision = "approved" | "rejected";
 
 export interface PendingActionRow {
@@ -182,6 +185,20 @@ export async function decidePendingAction(
     );
   }
 
+  // 2026-10-30 · a Nick action approved here only runs if the Nick executor will pick it up:
+  // both its paths skip when NICK_AUTONOMY is off, and the 09:00Z cron backstop reads only the
+  // last 2 days (nick-action-batch.ts TWO_DAYS_MS). Refuse rather than report a dead approval.
+  const isNickAction = existing.ruleName.startsWith("nick_action_");
+  if (decision === "approved" && isNickAction) {
+    const { getFlag } = await import("@/lib/feature-flags");
+    if (!(getFlag("NICK_AUTONOMY")?.isOn ?? false)) {
+      throw new ServiceError("Nick autonomy is off, so this action would never run. Turn NICK_AUTONOMY on or reject it.", 409);
+    }
+    if (Date.now() - existing.createdAt.getTime() > NICK_ACTION_RUN_WINDOW_MS) {
+      throw new ServiceError("This Nick action is older than 2 days, past the window the executor runs. Reject it.", 409);
+    }
+  }
+
   // 2026-10-10 (SN-04) - CLAIM before acting. The check above is a read; two
   // approve clicks both passed it and both replayed the side effect (the lane
   // includes auto_followup_expired_quote, which emails a lead), and a reject
@@ -207,8 +224,11 @@ export async function decidePendingAction(
   // BEFORE the row update so the executionResult merges into the
   // payload alongside the operator's approvalNote. If execution
   // fails, the row goes to needs_review with result "failed" (see below).
+  // 2026-10-30 · Nick Action Queue rows (nick_action_*) are not autonomous-engine RULES:
+  // executeApprovedAction failed every one ("not found in RULES registry"). They take the
+  // Telegram /qa route instead: approved with executedAt null, then the batch core runs them.
   let executionOutcome: { ok: boolean; result?: string; error?: string } | null = null;
-  if (decision === "approved") {
+  if (decision === "approved" && !isNickAction) {
     const { executeApprovedAction } = await import("@/lib/brain/autonomous-engine");
     executionOutcome = await executeApprovedAction(id).catch((err) => ({
       ok: false,
@@ -267,14 +287,25 @@ export async function decidePendingAction(
       // executedAt = either the engine's executeApprovedAction stamp
       // (preserved by reading `refreshed`), the operator's confirm
       // stamp on approve when no side effect was scheduled, or the
-      // pre-existing value on reject.
+      // pre-existing value on reject. A Nick action stays null: the
+      // batch core claims rows by flipping executedAt from null.
       executedAt:
         decision === "approved"
-          ? refreshed.executedAt ?? new Date()
+          ? isNickAction ? null : refreshed.executedAt ?? new Date()
           : refreshed.executedAt,
       payload: nextPayload,
     },
   });
+
+  // Same event Telegram /qa sends; best-effort, the 09:00Z nick-action-execute cron is the backstop.
+  if (decision === "approved" && isNickAction) {
+    try {
+      const { getInngest } = await import("@/lib/inngest/client");
+      await getInngest().send({ name: "nick-action/approved", data: { actionIds: [id], approvedBy: approver } });
+    } catch (err) {
+      log.warn("nick_action_event_failed", { id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
 
   log.warn("approval_decision", {
     id,

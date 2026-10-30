@@ -94,6 +94,17 @@ describe("verifyEnvironmentState · tri-state", () => {
     expect(notDone[0].verified).toBe(false);
   });
 
+  it("completeTask on a recurring task: back to READY with a fresh lastCompletedAt is true, a stale one is false", async () => {
+    // Prod 2026-10-30: two DAILY loops completed, returned to READY, and the reply got the banner.
+    mockFindUnique.mockResolvedValueOnce({ id: "d1", status: "READY", lastCompletedAt: new Date() });
+    mockFindUnique.mockResolvedValueOnce({ id: "d1", status: "READY", lastCompletedAt: new Date(Date.now() - 86_400_000) });
+    mockFindUnique.mockResolvedValueOnce({ id: "d1", status: "READY", lastCompletedAt: null });
+    const call = [{ name: "completeTask", ok: true, args: { taskId: "d1" } }];
+    expect((await verifyEnvironmentState(call))[0].verified).toBe(true);
+    expect((await verifyEnvironmentState(call))[0].verified).toBe(false);
+    expect((await verifyEnvironmentState(call))[0].verified).toBe(false);
+  });
+
   it("addTasksToProject verifies EVERY title — a partial commit is false, not true", async () => {
     mockCount.mockResolvedValueOnce(3);
     mockCount.mockResolvedValueOnce(1);
