@@ -34,7 +34,7 @@ vi.mock("@/hooks/use-min-width", () => ({ useMinWidth: () => h.wide }));
 vi.mock("@/lib/trpc/client", () => ({ trpc: { operator: { brief: { useQuery: () => h.query } } } }));
 vi.mock("@/components/home/brief-state-line", () => ({ BriefStateLine: () => null }));
 vi.mock("@/components/home/brief-rows", () => ({ BriefRows: () => null }));
-vi.mock("@/components/home/maxim-line", () => ({
+vi.mock("@/components/wisdom/maxim-line", () => ({
   MaximLine: (props: { context: string | null; ready: boolean }) => {
     h.maxim = props;
     return null;

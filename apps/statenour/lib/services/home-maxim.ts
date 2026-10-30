@@ -24,6 +24,8 @@ import {
 export const MAXIM_QUERY_INPUT = z.object({
   step: z.number().int().min(0).max(10_000),
   tags: z.array(z.enum(MAXIM_TAGS)).max(MAXIM_TAGS.length),
+  /** A decision surface requires "decisions"; the tags then narrow within it. */
+  require: z.enum(MAXIM_TAGS).optional(),
 });
 
 export interface HomeMaximView {
@@ -44,12 +46,18 @@ async function skippedIds(now: Date): Promise<Set<string>> {
   return new Set(rows.map((r) => r.key));
 }
 
-export async function getHomeMaxim(args: { step: number; tags?: readonly MaximTag[]; now?: Date }): Promise<HomeMaximView | null> {
+export async function getHomeMaxim(args: {
+  step: number;
+  tags?: readonly MaximTag[];
+  require?: MaximTag;
+  now?: Date;
+}): Promise<HomeMaximView | null> {
   const now = args.now ?? new Date();
   const pick: MaximPick | null = pickMaxim({
     pool: MAXIM_POOL,
     skipped: await skippedIds(now),
     tags: args.tags,
+    require: args.require,
     at: now,
     step: args.step,
   });

@@ -42,7 +42,7 @@ import { countLiveDecisions } from "@/lib/automation/live-decisions";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 import { approveTone } from "./approve-tone";
 import { toast } from "sonner";
-import { DecisionMaxim } from "@/components/home/maxim-line";
+import { DecisionMaxim } from "@/components/wisdom/maxim-line";
 
 interface RuleRow {
   ruleName: string;

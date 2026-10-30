@@ -113,6 +113,27 @@ describe("the pick", () => {
     expect(fits("Inbox needs triage")).toBeNull();
   });
 
+  it("a required tag is a filter, not one more option: every pick carries it, and text tags only narrow", () => {
+    for (let step = 0; step < 4; step++) {
+      const p = pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM, step })!;
+      expect(p.maxim.tags).toContain("decisions");
+    }
+    // No decision entry also carries "customers": the whole decisions pool, worded as decisions.
+    expect(pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM })!.topic).toBe("decisions");
+    // A text tag the decision entry also carries narrows to it and names it.
+    const narrowed = pickMaxim({ pool, skipped: none, tags: ["health"], require: "decisions", at: NINE_PM })!;
+    expect(narrowed.maxim.id).toBe("a:2");
+    expect(narrowed.topic).toBe("health");
+  });
+
+  it("the real pool: every decision-surface pick is a decisions maxim, whatever the text says", () => {
+    for (const tags of [["customers"], ["conflict", "customers"], ["money"], []] as MaximTag[][]) {
+      for (let step = 0; step < 6; step++) {
+        expect(pickMaxim({ pool: MAXIM_POOL, skipped: none, tags, require: "decisions", at: NINE_PM, step })!.maxim.tags).toContain("decisions");
+      }
+    }
+  });
+
   it("never shows a skipped maxim, and has nothing to show when all are skipped", () => {
     const skipped = new Set(["a:1"]);
     for (let step = 0; step < 6; step++) {

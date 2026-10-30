@@ -47,7 +47,7 @@ import { HorizonLine } from "./horizon-line";
 import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
 import { ContextRail } from "./context-rail";
-import { MaximLine } from "./maxim-line";
+import { MaximLine } from "@/components/wisdom/maxim-line";
 
 export function HomeConsole() {
   const briefQ = trpc.operator.brief.useQuery(undefined, {

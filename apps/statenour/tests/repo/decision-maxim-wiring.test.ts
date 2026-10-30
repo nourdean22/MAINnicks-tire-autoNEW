@@ -1,6 +1,6 @@
 /**
  * Upgrade 3 of the Home maxim (2026-10-30): the decision page and the top pending approval each show one
- * decisions maxim (DecisionMaxim, behaviour pinned in tests/components/home-maxim-line.test.tsx). Neither page
+ * decisions maxim (DecisionMaxim, behaviour pinned in tests/components/maxim-line.test.tsx). Neither page
  * has a render test, so this pins the wiring: each page renders DecisionMaxim with its own label and the
  * decision's own words, and the actions page renders it once, on the first card, not on every card.
  */

@@ -83,6 +83,8 @@ describe("operator.maxim input (MAXIM_QUERY_INPUT)", () => {
     expect(MAXIM_QUERY_INPUT.safeParse({ step: -1, tags: [] }).success).toBe(false);
     expect(MAXIM_QUERY_INPUT.safeParse({ step: 10_001, tags: [] }).success).toBe(false);
     expect(MAXIM_QUERY_INPUT.safeParse({ step: 1.5, tags: [] }).success).toBe(false);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: [], require: "decisions" }).success).toBe(true);
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: [], require: "smith" }).success).toBe(false);
   });
 
   it("drops a headline sent as context: the text never reaches the service", () => {

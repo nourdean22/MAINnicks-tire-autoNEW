@@ -103,21 +103,26 @@ export function pickMaxim(args: {
   skipped: ReadonlySet<string>;
   /** Tags read off today's top line on the client (tagsForText); empty means plain rotation. */
   tags?: readonly MaximTag[];
+  /** A tag every pick must carry (a decision surface requires "decisions"); `tags` then only narrow within it. */
+  require?: MaximTag;
   at: Date;
   /** How many times Next was tapped this visit. */
   step?: number;
 }): MaximPick | null {
   const open = args.pool.filter((m) => !args.skipped.has(m.id));
   if (open.length === 0) return null;
+  const req = args.require;
+  const allowed = req ? open.filter((m) => m.tags.includes(req)) : open;
+  if (allowed.length === 0) return null;
   const want: ReadonlySet<MaximTag> = new Set(args.tags ?? []);
-  const matched = want.size > 0 ? open.filter((m) => m.tags.some((t) => want.has(t as MaximTag))) : [];
-  const candidates = matched.length > 0 ? matched : open;
+  const matched = want.size > 0 ? allowed.filter((m) => m.tags.some((t) => want.has(t as MaximTag))) : [];
+  const candidates = matched.length > 0 ? matched : allowed;
   const base = stableIndex(etHourKey(args.at), candidates.length);
   const i = (base + Math.max(0, Math.floor(args.step ?? 0))) % candidates.length; // Next wraps past the end
   const maxim = candidates[i]!;
   return {
     maxim,
-    topic: (maxim.tags.find((t) => want.has(t as MaximTag)) as MaximTag | undefined) ?? null,
+    topic: (maxim.tags.find((t) => want.has(t as MaximTag)) as MaximTag | undefined) ?? req ?? null,
     position: i + 1,
     total: candidates.length,
   };

@@ -34,7 +34,7 @@ import { ReadStateNote } from "@/components/ui/read-state-note";
 import { readState } from "@/lib/query-state";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { DecisionMaxim } from "@/components/home/maxim-line";
+import { DecisionMaxim } from "@/components/wisdom/maxim-line";
 import {
   ComparisonMatrix,
   type MatrixCell,

@@ -14,7 +14,7 @@ type MutationOpts = { onSuccess: (res: { ok: boolean }, vars: { id: string }) =>
 
 const h = vi.hoisted(() => ({
   query: {} as { data: unknown; isFetching: boolean; isError: boolean; isPlaceholderData: boolean },
-  inputs: [] as Array<{ step: number; tags: string[] }>,
+  inputs: [] as Array<{ step: number; tags: string[]; require?: string }>,
   queryOpts: [] as Array<{ enabled: boolean }>,
   keep: vi.fn(),
   skip: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: h.toastOk, error: h.toastErr } }));
 
-import { DecisionMaxim, MaximLine, maximErrorText } from "@/components/home/maxim-line";
+import { DecisionMaxim, MaximLine, maximErrorText } from "@/components/wisdom/maxim-line";
 
 const ID = "greene-maxims:law_1";
 const MAXIM = { id: ID, text: "Let a big customer feel smart.", source: "Greene · 48 Laws", topic: "customers", position: 3, total: 40 };
@@ -177,10 +177,10 @@ describe("DecisionMaxim (the decision page and the top pending approval)", () =>
     act(() => root.render(<DecisionMaxim text={text} label={label} />));
   }
 
-  it("always asks for decisions maxims, adds the text's own tags, and still sends no text", () => {
-    // No decision word in the text: only the surface can supply "decisions".
+  it("requires a decisions maxim, narrows by the text's own tags, and still sends no text", () => {
+    // No decision word in the text: only the surface can require "decisions".
     mountDecision("Refund customer Mrs Smith", "for this approval");
-    expect(h.inputs[0]).toEqual({ step: 0, tags: ["conflict", "customers", "decisions"] });
+    expect(h.inputs[0]).toEqual({ step: 0, tags: ["conflict", "customers"], require: "decisions" });
     expect(JSON.stringify(h.inputs)).not.toContain("Smith");
     expect(h.queryOpts[0]!.enabled).toBe(true);
   });

@@ -18,9 +18,6 @@ import { tagsForText, type MaximTag } from "@/lib/wisdom/maxims";
 const VERB =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
 
-const NO_TAGS: readonly MaximTag[] = [];
-const DECISION_TAGS: readonly MaximTag[] = ["decisions"];
-
 /** Plain words for the causes the server names; never raw error text, never a bare "failed" for a known cause. */
 export function maximErrorText(err: unknown): string {
   const e = err as { message?: string; data?: { code?: string } } | null;
@@ -36,14 +33,14 @@ export function maximErrorText(err: unknown): string {
 export function MaximLine({
   context,
   ready,
-  extraTags = NO_TAGS,
+  requireTag,
   label = "for today",
   compact = false,
 }: {
   context: string | null;
   ready: boolean;
-  /** Tags the surface always asks for on top of the text's own (a decision surface adds "decisions"). */
-  extraTags?: readonly MaximTag[];
+  /** A tag every maxim here must carry (a decision surface requires "decisions"); the text's tags narrow within it. */
+  requireTag?: MaximTag;
   /** How the matched topic is worded: "for today: customers". */
   label?: string;
   /** Inside a card: no top gap, smaller text. */
@@ -53,10 +50,10 @@ export function MaximLine({
   const [kept, setKept] = useState<string | null>(null);
   // A Skip that succeeded hides its maxim even if the refetch after it fails.
   const [skipped, setSkipped] = useState<string | null>(null);
-  const tags = useMemo(() => [...new Set([...tagsForText(context ?? ""), ...extraTags])].sort(), [context, extraTags]);
+  const tags = useMemo(() => [...tagsForText(context ?? "")].sort(), [context]);
   const utils = trpc.useUtils();
   const maximQ = trpc.operator.maxim.useQuery(
-    { step, tags },
+    { step, tags, require: requireTag },
     {
       enabled: ready,
       staleTime: 5 * 60_000,
@@ -133,9 +130,9 @@ export function MaximLine({
 
 /**
  * One decisions maxim on a decision surface (upgrade 3, 2026-10-30): the /decisions/[id] page and the top pending
- * approval on /system/actions. It always asks for "decisions" maxims plus the tags in the decision's own words;
- * as on Home, only the tags leave the page.
+ * approval on /system/actions. Every pick is a "decisions" maxim; the tags in the decision's own words only narrow
+ * within those. As on Home, only the tags leave the page.
  */
 export function DecisionMaxim({ text, label }: { text: string; label: string }) {
-  return <MaximLine context={text} ready extraTags={DECISION_TAGS} label={label} compact />;
+  return <MaximLine context={text} ready requireTag="decisions" label={label} compact />;
 }
