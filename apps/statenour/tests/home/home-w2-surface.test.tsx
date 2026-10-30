@@ -7,6 +7,8 @@
  *  · every shortcut goes somewhere real, at a 44 px target.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BriefStateLine } from "@/components/home/brief-state-line";
 import { ShopTodayCardView } from "@/components/home/shop-today-card";
@@ -26,8 +28,25 @@ describe("the NOW sentence", () => {
 
   it("is sentence case and capped at three lines", () => {
     expect(hero, "the hero did not render").not.toBe("");
-    expect(hero).toMatch(/\bnormal-case\b/);
+    expect(hero).toMatch(/\bvt-verdict-sentence\b/);
     expect(hero).toMatch(/\bline-clamp-3\b/);
+  });
+
+  // Codex P1 on #3405: `.vt-verdict` is UNLAYERED in app/styles/base.css, so a layered Tailwind utility
+  // (normal-case, text-*, leading-*) loses to its uppercase and sizes and never renders. The sentence case
+  // must come from an unlayered rule too. Read the stylesheet: the rule exists at layer depth 0 and turns
+  // text-transform off.
+  it("the sentence-case rule is unlayered, so it beats .vt-verdict's uppercase", () => {
+    const css = readFileSync(resolve(__dirname, "../../app/styles/base.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    let depth = 0;
+    let found = "";
+    for (const line of css.split("\n")) {
+      if (depth === 0 && /\.vt-verdict\.vt-verdict-sentence\s*\{/.test(line)) found = line;
+      if (found && depth <= 1 && found !== line && /text-transform:\s*none/.test(line)) found = "ok";
+      depth += (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
+      if (found === "ok") break;
+    }
+    expect(found, "no unlayered .vt-verdict.vt-verdict-sentence rule with text-transform: none").toBe("ok");
   });
 });
 

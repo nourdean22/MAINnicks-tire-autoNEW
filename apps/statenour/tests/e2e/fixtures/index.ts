@@ -28,7 +28,7 @@
 import type { Page } from "@playwright/test";
 
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
-import { HOME_BRIEF, HOME_GOALS, HOME_MAXIM, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
+import { HOME_BRIEF, HOME_GOALS, HOME_MAXIM, HOME_PEOPLE, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
 import { FIXED_TIME } from "./time";
@@ -64,12 +64,13 @@ export const UNSTUBBED_ALLOWLIST: ReadonlyArray<string | RegExp> = [
 
 /**
  * `GET operator.*` / `GET task.*` / `GET chat.*` entries of a FixtureReport that the gate does not allow, and the
- * two system reads the Chat header pill depends on (W3a). The rest of `system.*` is the shell's and stays printed.
+ * two system reads the Chat header pill depends on (W3a), and the REST read Home's People card depends on
+ * (home-pulse W2). The rest of `system.*` is the shell's and stays printed.
  */
 export function disallowedUnstubbed(unstubbed: Iterable<string>): string[] {
   const out: string[] = [];
   for (const entry of unstubbed) {
-    const m = /^GET ((?:(?:operator|task|chat)\.[A-Za-z0-9_.]+)|system\.(?:providerHealth|toolsHealth))$/.exec(entry);
+    const m = /^GET ((?:(?:operator|task|chat)\.[A-Za-z0-9_.]+)|system\.(?:providerHealth|toolsHealth)|\/api\/people)$/.exec(entry);
     if (!m) continue;
     const procedure = m[1];
     const allowed = UNSTUBBED_ALLOWLIST.some((a) => (typeof a === "string" ? a === procedure : a.test(procedure)));
@@ -127,6 +128,15 @@ export const DEMO = {
  */
 export const REST_NO_CONTENT: ReadonlySet<string> = new Set(["GET /api/ai/chat/none/stream"]);
 
+/**
+ * REST reads Home makes, answered with demo data ("METHOD /path", query ignored). The Home People card
+ * (home-pulse W2, 2026-10-30) reads /api/people; unstubbed it took a 404 and the screenshot showed
+ * "People unknown" with the gate green (Codex P2 on #3405), so disallowedUnstubbed refuses it too.
+ */
+export const REST_FIXTURES: Readonly<Record<string, unknown>> = {
+  "GET /api/people": HOME_PEOPLE,
+};
+
 export interface FixtureReport {
   /** "METHOD procedure" or "METHOD /path" for every data call the fixtures refused. */
   unstubbed: Set<string>;
@@ -168,6 +178,9 @@ export function answerApi(
   }
 
   if (REST_NO_CONTENT.has(`${method} ${pathname}`)) return { kind: "fulfill", status: 204, body: undefined };
+  if (Object.hasOwn(REST_FIXTURES, `${method} ${pathname}`)) {
+    return { kind: "fulfill", status: 200, body: REST_FIXTURES[`${method} ${pathname}`] };
+  }
 
   report.unstubbed.add(`${method} ${pathname}`);
   return { kind: "fulfill", status: 404, body: { error: "not stubbed by the v3 fixtures" } };

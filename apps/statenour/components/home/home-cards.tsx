@@ -42,7 +42,20 @@ function Skeleton() {
   return <span className="mt-2 block h-5 w-24 animate-pulse rounded-micro bg-raised" aria-hidden />;
 }
 
-export function PeopleCardView({ read }: { read: { neglected: number; total: number } | "loading" | "error" }) {
+/** The /api/people page size the card reads (the route's own maximum). */
+export const PEOPLE_READ_LIMIT = 200;
+
+type PeopleTotals = { neglected: number; total: number };
+
+/**
+ * /api/people computes its totals over the page it returns (take: limit), so a FULL page cannot prove
+ * "All current": due profiles may sit past the cap (Codex P2 on #3405). A full page reads as capped.
+ */
+export function peopleReadFrom(totals: PeopleTotals, limit: number = PEOPLE_READ_LIMIT): PeopleTotals | "capped" {
+  return totals.total >= limit ? "capped" : totals;
+}
+
+export function PeopleCardView({ read }: { read: PeopleTotals | "capped" | "loading" | "error" }) {
   return (
     <GlassCard as="a" ruled href="/people" className={CARD}>
       <div aria-busy={read === "loading"}>
@@ -51,6 +64,8 @@ export function PeopleCardView({ read }: { read: { neglected: number; total: num
           <Skeleton />
         ) : read === "error" ? (
           <Unknown what="People" />
+        ) : read === "capped" ? (
+          <p className="mt-1 text-[13px] text-fg-secondary">{PEOPLE_READ_LIMIT}+ profiles, open People to see who is due</p>
         ) : read.neglected > 0 ? (
           <p className="mt-1 text-[15px] text-fg">
             <span className="font-semibold tabular-nums">{read.neglected}</span> due a touch
@@ -65,7 +80,8 @@ export function PeopleCardView({ read }: { read: { neglected: number; total: num
 
 export function GoalsCardView({ read }: { read: NextGoal | null | "loading" | "error" }) {
   return (
-    <GlassCard as="a" ruled href="/stats" className={CARD}>
+    // /stats opens on Mastery without a tab, and GoalBoard mounts only on the Goals tab (Codex P2 on #3405).
+    <GlassCard as="a" ruled href="/stats?tab=goals" className={CARD}>
       <div aria-busy={read === "loading"}>
         <p className="text-[13px] text-fg-secondary">Goals</p>
         {read === "loading" ? (
@@ -86,12 +102,12 @@ export function GoalsCardView({ read }: { read: NextGoal | null | "loading" | "e
 }
 
 export function HomeCards() {
-  const people = usePollingFetch<{ totals: { neglected: number; total: number } }>("/api/people?limit=100", {
+  const people = usePollingFetch<{ totals: PeopleTotals }>(`/api/people?limit=${PEOPLE_READ_LIMIT}`, {
     intervalMs: 5 * 60_000,
   });
   const goals = trpc.operator.goalsSnapshot.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
 
-  const peopleRead = people.data ? people.data.totals : people.error ? "error" : "loading";
+  const peopleRead = people.data ? peopleReadFrom(people.data.totals) : people.error ? "error" : "loading";
   const goalsRead = goals.data
     ? nextGoalDue(Object.values(goals.data.ladder).flat())
     : goals.isError

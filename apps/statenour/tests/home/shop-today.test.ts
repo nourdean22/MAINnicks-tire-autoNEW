@@ -8,15 +8,18 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ batch: {} as Record<string, unknown> }));
+const h = vi.hoisted(() => ({ batch: {} as Record<string, unknown>, never: false }));
 vi.mock("@/lib/nickstire/query", async (orig) => ({
   ...(await orig<typeof import("@/lib/nickstire/query")>()),
   queryNickBatch: vi.fn(async () => h.batch),
+  queryNick: vi.fn(() =>
+    h.never ? new Promise(() => {}) : Promise.resolve({ data: { totalDollars: 410, invoiceCount: 2 }, query: "revenue_today", timestamp: "t" }),
+  ),
 }));
 vi.mock("@/lib/utils/cache", () => ({ cached: (_k: string, _t: number, fn: () => unknown) => fn() }));
 vi.mock("@/lib/ultron/timelines", () => ({ computeInputs: vi.fn(), generateTimelines: vi.fn() }));
 
-import { shopTodayFrom } from "@/lib/home/shop-today";
+import { buildShopToday, shopTodayFrom, SHOP_READ_DEADLINE_MS } from "@/lib/home/shop-today";
 import { fetchShopPulse } from "@/lib/services/ultron-ticker";
 
 const ok = (data: unknown) => ({ data, query: "revenue_today", timestamp: "2026-10-30T18:00:00Z" });
@@ -66,5 +69,23 @@ describe("the Pulse ticker reads shop revenue through the same reader", () => {
       attention_needed: ok({ alerts: [] }),
     };
     expect((await fetchShopPulse()).find((i) => i.id === "shop-rev")?.label).toBe("$980 today · 4 jobs");
+  });
+});
+
+// Codex P1 on #3405: Home's first reads share ONE httpBatchLink request, and queryNick retries a timeout three
+// times at 12 s each, so a slow or down shop held the NOW sentence and the brief for about 50 s. The shop read
+// now has a hard deadline and says unknown when it passes.
+describe("buildShopToday has a deadline", () => {
+  it("a shop that never answers is unknown within the deadline, not ~50 s later", async () => {
+    vi.useFakeTimers();
+    h.never = true;
+    const p = buildShopToday();
+    await vi.advanceTimersByTimeAsync(SHOP_READ_DEADLINE_MS);
+    await expect(p).resolves.toMatchObject({ status: "unknown" });
+    h.never = false;
+    vi.useRealTimers();
+  });
+  it("control: a prompt answer is read as before", async () => {
+    await expect(buildShopToday()).resolves.toMatchObject({ status: "ok", dollars: 410, jobs: 2 });
   });
 });

@@ -98,7 +98,7 @@ export function BriefStateLine({
           state && (
             // W2 (2026-10-30): sentence case and three lines at most. In caps his task titles ran seven
             // lines at 390 px and read as an alarm poster (frame a_01).
-            <p className="vt-verdict mt-3 line-clamp-3 max-w-none text-balance text-[1.75rem] normal-case leading-[1.12] tracking-tight sm:text-[2.25rem] xl:text-[2.75rem]">
+            <p className="vt-verdict vt-verdict-sentence mt-3 line-clamp-3 max-w-none text-balance tracking-tight">
               {state.summary}
             </p>
           )

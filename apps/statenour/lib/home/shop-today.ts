@@ -23,10 +23,26 @@ export function shopTodayFrom(res: unknown, now: Date = new Date()): ShopToday {
   return { status: "ok", dollars: rev.todayDollars, jobs: rev.jobs, asOf: now.toISOString() };
 }
 
+/**
+ * Home's first reads share one httpBatchLink request, and queryNick retries a timeout three times at its
+ * own timeout each, so an unbounded shop read held the NOW line and the brief for about 50 s when the shop
+ * was slow (Codex P1 on #3405). Past this deadline the card says unknown and the batch answers.
+ */
+export const SHOP_READ_DEADLINE_MS = 3_000;
+
 export async function buildShopToday(): Promise<ShopToday> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<ShopToday>((resolve) => {
+    timer = setTimeout(
+      () => resolve({ status: "unknown", reason: `the shop did not answer within ${SHOP_READ_DEADLINE_MS / 1000} s` }),
+      SHOP_READ_DEADLINE_MS,
+    );
+  });
   try {
-    return shopTodayFrom(await queryNick("revenue_today"));
+    return await Promise.race([queryNick("revenue_today", {}, SHOP_READ_DEADLINE_MS).then((r) => shopTodayFrom(r)), deadline]);
   } catch (err) {
     return { status: "unknown", reason: err instanceof Error ? err.message.slice(0, 120) : "bridge read failed" };
+  } finally {
+    clearTimeout(timer);
   }
 }

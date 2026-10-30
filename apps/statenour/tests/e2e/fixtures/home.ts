@@ -199,3 +199,12 @@ export const HOME_GOALS = {
   pruneCandidates: 0,
   fetchedAt: NOW_ISO,
 } satisfies inferRouterOutputs<AppRouter>["operator"]["goalsSnapshot"];
+
+/** The Home People card reads GET /api/people (REST). Demo totals only; the card shows counts, not names. */
+export const HOME_PEOPLE = {
+  data: {
+    people: [],
+    totals: { total: 18, neglected: 3, high_trust: 6, sparse: 4 },
+    generatedAt: NOW_ISO,
+  },
+};
