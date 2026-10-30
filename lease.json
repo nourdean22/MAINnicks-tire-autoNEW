@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/sms-w1w2-rebase",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "657030ac-13ff-46a7-954a-d58f2dca84b6",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\dedupe-gracian-678e14\\.worktrees\\w1w2-rebase",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-10-30T16:30:35.421Z",
+  "expiresAt": "2026-10-31T04:30:35.421Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
