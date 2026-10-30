@@ -19,7 +19,7 @@ INFERENCE, UNKNOWN. No ALG login, no customer contact, no prod write.
 5. The mirror lost detail in spring 2026 (split gone from 2026-04): no parts/labor split, almost no job descriptions since then. Line items, hours,
    margin and declined lines are not in our database at all (FACT, section 2).
 
-## 2. The ledger we actually have (read this before any number)
+## 2. The ledger we actually have (read first)
 - Two eras, not one (FACT, by month). 2024-01 to 2026-03: a historical import, date-only (stored at noon UTC), WITH a
   parts / labor / tax split and mostly filled job descriptions. 2026-04 is the switch. 2026-05 onward: the live summary
   mirror, timed close stamps, NO split, descriptions on only a small share of tickets. 04-DATA-MAP s.1 ("all zero over
