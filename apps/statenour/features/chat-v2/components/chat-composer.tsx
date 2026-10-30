@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Image as ImageIcon, Mic } from "lucide-react";
+import { Image as ImageIcon, Mic, X } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import { resolveMentionsWithTimeout } from "../lib/mention-resolution";
@@ -21,6 +21,7 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import { isSubmitEnter } from "../lib/submit-enter";
+import { EMPTY_QUEUE, forConversation, getQueueSnapshot, loadQueue, saveQueue, subscribeQueue } from "../lib/message-queue";
 
 /** 09-F12 · put a draft saved before a reload back, never over text already
  *  in the composer (a deep-link prefill lands first). */
@@ -375,8 +376,89 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     }
   };
 
+  // W2 (2026-10-30) · a message sent while Nick is still replying waits here and goes out, one per
+  // finished reply. Stop ends the reply, so Stop also sends the next one.
+  const activeConversationId = useChatUiStore((s) => s.activeConversationId);
+  const queue = useSyncExternalStore(subscribeQueue, getQueueSnapshot, () => EMPTY_QUEUE);
+  const updateQueue = saveQueue;
+  const visibleQueue = forConversation(queue, activeConversationId);
+
+  const enqueue = (text: string) => {
+    if (imgAttached) {
+      toast("Photos send after Nick finishes this reply.", { id: "composer-busy", duration: 3000 });
+      return;
+    }
+    if (!text) return;
+    updateQueue([...loadQueue(), { id: crypto.randomUUID(), text, conversationId: activeConversationId }]);
+    setDraft("");
+    clearDraft();
+  };
+
+  // A queued send never goes through sendOrQueue: that path clears the draft, takes an attached
+  // photo and replaces an armed edit, none of which belong to the queued text (second reader P1).
+  const sendQueued = async (text: string) => {
+    const tempId = crypto.randomUUID();
+    enqueuePending({ tempId, conversationId: null, text, createdAt: Date.now(), status: text.includes("@") ? "resolving-context" : "sending" });
+    const resolution = await resolveMentionsWithTimeout({ text, resolveAsync: mentions.expandMentionsAsync, resolveSync: mentions.expandMentions });
+    updatePending(tempId, { text: resolution.text, status: "sending" });
+    try {
+      // A failed turn shows in the thread with its own Retry; the text is not lost.
+      await chat.sendText(resolution.text);
+    } finally {
+      resolvePending(tempId);
+    }
+  };
+
+  // Taken out of storage under a cross-tab lock BEFORE the send, so two tabs or a reload can never
+  // send it twice (claim-before-act). The caller has already checked the composer can send.
+  const takeAndSend = async (id?: string) => {
+    const take = async () => {
+      const stored = loadQueue();
+      const item = id
+        ? stored.find((q) => q.id === id)
+        : forConversation(stored, useChatUiStore.getState().activeConversationId)[0];
+      if (!item) return null;
+      updateQueue(stored.filter((q) => q.id !== item.id));
+      return item;
+    };
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    const item = locks ? await locks.request("nick-chat-queue", take) : await take();
+    if (item) await sendQueued(item.text);
+  };
+
+  // Blocked moments hold the queue: a photo or an armed edit in the composer, a chat still opening.
+  const canDrain = !imgAttached && !editingMessageId && !disabledReason;
+  // One message per reply that FINISHES (status back to "ready" with no error; Stop ends that way).
+  // A reply that errors holds the queue, so an outage cannot burn through it. A reload never
+  // auto-sends: the list shows and each item has its own Send.
+  const replyFinishedRef = useRef(false);
+  const prevStatusRef = useRef(chat.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = chat.status;
+    if ((prev === "streaming" || prev === "submitted") && chat.status === "ready" && !chat.error) {
+      replyFinishedRef.current = true;
+    }
+    if (chat.status === "error") replyFinishedRef.current = false;
+    if (replyFinishedRef.current && chat.status === "ready" && canDrain) {
+      replyFinishedRef.current = false;
+      void takeAndSend();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reacts to the reply ending and the composer unblocking
+  }, [chat.status, chat.error, canDrain]);
+
+  // Messages typed in a chat that had no id yet move with it once it gets one.
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const stored = loadQueue();
+    if (stored.some((q) => q.conversationId === null)) {
+      saveQueue(stored.map((q) => (q.conversationId === null ? { ...q, conversationId: activeConversationId } : q)));
+    }
+  }, [activeConversationId]);
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (chat.isStreaming) return enqueue(draft.trim());
     if (!draft.trim() && !imgAttached) return;
     await sendOrQueue(draft.trim());
   };
@@ -443,6 +525,43 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
       {/* A1b: mounted empty so the reason is announced when it arrives; no margin while empty. */}
       <p role="status" aria-live="polite" className={disabledReason ? "px-2 text-[13px] leading-snug text-fg-secondary" : "sr-only"}>{disabledReason ?? ""}</p>
       {voice.transcribing && <p role="status" className="px-2 text-[13px] leading-snug text-fg-secondary">Transcribing your voice</p>}
+      {visibleQueue.length > 0 && (
+        <ul aria-label="Waiting to send" aria-live="polite" className="flex flex-col gap-1">
+          {visibleQueue.map((q, i) => (
+            <li key={q.id} className="flex items-center gap-2 rounded-control border border-edge-default bg-raised pl-3 text-[13px] text-fg-secondary">
+              <span className="shrink-0 text-fg-tertiary">{chat.isStreaming ? (i === 0 ? "Sends next" : `Waiting ${i + 1}`) : "Waiting"}</span>
+              <span className="min-w-0 flex-1 truncate text-fg">{q.text}</span>
+              {/* After a reload or a failed reply nothing auto-sends: the operator sends it. */}
+              {!chat.isStreaming && canDrain && (
+                <button type="button" aria-label={`Send now: ${q.text}`} onClick={() => void takeAndSend(q.id)} className="min-h-11 shrink-0 rounded-control px-3 text-accent hover:bg-accent-soft">
+                  Send
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={`Edit: ${q.text}`}
+                onClick={() => {
+                  updateQueue(loadQueue().filter((x) => x.id !== q.id));
+                  const current = useChatUiStore.getState().draft;
+                  setDraft(current ? `${current} ${q.text}` : q.text);
+                  textareaRef.current?.focus();
+                }}
+                className="min-h-11 shrink-0 rounded-control px-3 hover:bg-surface-interactive"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove from queue: ${q.text}`}
+                onClick={() => updateQueue(loadQueue().filter((x) => x.id !== q.id))}
+                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-control hover:bg-surface-interactive"
+              >
+                <X size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {/* 2026-08-18 · edit-resend banner. Editing is armed by the Edit
           button on a sent message (2026-08-28: promoted out of the
           long-press sheet into the visible per-message action row), or
@@ -616,8 +735,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
               if (isSubmitEnter(event, { coarsePointer })) {
                 event.preventDefault();
                 if (chat.isStreaming) {
-                  // Was swallowed without a word.
-                  toast("Nick is still replying. Stop the reply to send this.", { id: "composer-busy", duration: 3000 });
+                  enqueue(draft.trim());
                 } else if (draft.trim() || imgAttached) {
                   void sendOrQueue(draft.trim());
                 }
@@ -638,9 +756,17 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
         </div>
 
         {chat.isStreaming ? (
-          <button type="button" aria-label="Stop generating" onClick={chat.stopTurn} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-rose-500/90 text-white transition-colors hover:bg-rose-500">
-            <span className="block h-3 w-3 rounded-[3px] bg-current" />
-          </button>
+          <>
+            {draft.trim() && (
+              // On a phone Enter is a newline, so this is the only way to queue there.
+              <button type="submit" aria-label="Queue: sends after this reply" className="flex h-11 shrink-0 items-center justify-center rounded-control px-3 text-[13px] font-medium text-accent transition-colors duration-[var(--motion-state)] hover:bg-accent-soft">
+                Queue
+              </button>
+            )}
+            <button type="button" aria-label="Stop generating" onClick={chat.stopTurn} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-rose-500/90 text-white transition-colors hover:bg-rose-500">
+              <span className="block h-3 w-3 rounded-[3px] bg-current" />
+            </button>
+          </>
         ) : (
           <button type="submit" aria-label="Send message" disabled={Boolean(disabledReason) || (!draft.trim() && !imgAttached)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
