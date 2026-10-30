@@ -736,10 +736,15 @@ function RelationshipsPageInner() {
               loading dossier…
             </div>
           )}
+          {/* Same failed-read state as the list above, with a Retry (2026-10-29 sync audit, finding 9). */}
           {personDetail.error && (
-            <div className="text-sm text-rose-300">
-              {personDetail.error.message}
-            </div>
+            <EmptyState
+              provenance="ERROR"
+              tone="warning"
+              title="This person did not load"
+              why="The read failed, so their dossier is unknown right now. That is not an empty dossier."
+              cta={{ label: "Retry", onClick: () => void personDetail.refetch() }}
+            />
           )}
           {personDetail.data === null && !personDetail.isLoading && (
             <div className="text-sm text-amber-300">

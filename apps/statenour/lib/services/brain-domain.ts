@@ -21,7 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { hourET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
-import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
+import { ALERT_CATEGORIES, ALERTS_DEFAULT_VIEW, alertLane } from "@/lib/brain/alert-lanes";
 import { LEAVE_REASONS, MAX_DWELL_MS, type LeaveReason } from "@/lib/brain/page-dwell";
 import { getAlertSuppression, isAlertSuppressed } from "@/lib/brain/alert-suppression";
 import {
@@ -99,49 +99,69 @@ export async function buildActiveAlerts(args: {
   // A failed suppression read throws: the page shows its error state, never a guess.
   const suppression = await getAlertSuppression();
   const activeCategories = ALERT_CATEGORIES.filter((c) => !suppression.mutedCategories.has(c));
-  const fetched = await prisma.brainMemory.findMany({
-    where: {
-      category: { in: [...activeCategories] },
-      createdAt: { gte: since },
-      deletedAt: null,
-    },
+  // Two reads (Codex P2 on #3354): one light, uncapped read decides what is open and the true count
+  // per category, then the rows to show (newest `limit` per category) are fetched in full. A shared
+  // take across all categories let one noisy category, or a window of dismissed rows, starve another
+  // category to a false zero, and the tower and hub tile count this view.
+  const where = {
+    category: { in: [...activeCategories] },
+    createdAt: { gte: since },
+    deletedAt: null,
+  };
+  const light = await prisma.brainMemory.findMany({
+    where,
     orderBy: { createdAt: "desc" },
-    take: args.limit * ALERT_CATEGORIES.length,
-    select: {
-      id: true,
-      category: true,
-      key: true,
-      content: true,
-      createdAt: true,
-      metadata: true,
-    },
+    select: { id: true, category: true, key: true },
   });
-  // shortcut: dismissed rows are dropped after the take, so a window full of dismissed rows can
-  // show fewer than `limit` per category; move the filter into SQL if that is ever seen.
-  const rows = fetched.filter((r) => !isAlertSuppressed(r, suppression));
+  const counts: Record<string, number> = Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, 0]));
+  const shown = new Set<string>();
+  for (const r of light) {
+    if (!(r.category in counts) || isAlertSuppressed(r, suppression)) continue;
+    counts[r.category] += 1;
+    if (counts[r.category] <= args.limit) shown.add(r.id);
+  }
+  const rows =
+    shown.size === 0
+      ? []
+      : (
+          await prisma.brainMemory.findMany({
+            where: { ...where, id: { in: [...shown] } },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, category: true, key: true, content: true, createdAt: true, metadata: true },
+          })
+        ).filter((r) => shown.has(r.id));
 
   const grouped: Record<string, BrainAlertRow[]> = {};
   for (const cat of ALERT_CATEGORIES) grouped[cat] = [];
   for (const r of rows) {
-    if (grouped[r.category] && grouped[r.category].length < args.limit) {
-      grouped[r.category].push({
-        id: r.id,
-        category: r.category,
-        key: r.key,
-        content: r.content,
-        createdAt: r.createdAt.toISOString(),
-        metadata: r.metadata ?? null,
-      });
-    }
+    grouped[r.category]?.push({
+      id: r.id,
+      category: r.category,
+      key: r.key,
+      content: r.content,
+      createdAt: r.createdAt.toISOString(),
+      metadata: r.metadata ?? null,
+    });
   }
 
-  return {
-    sinceDays: args.sinceDays,
-    counts: Object.fromEntries(
-      ALERT_CATEGORIES.map((c) => [c, grouped[c].length]),
-    ),
-    alerts: grouped,
-  };
+  // counts are every open row in the window; alerts carry at most `limit` of them per category.
+  return { sinceDays: args.sinceDays, counts, alerts: grouped };
+}
+
+/**
+ * The open-alert count /system/alerts shows on open (ALERTS_DEFAULT_VIEW, dismissals and mutes applied),
+ * read by the /system tower (buildSystemHealth) and the hub Alerts tile (buildSystemHub). Throws when the
+ * read fails, so each caller reports unknown, never 0.
+ */
+export async function countOpenAlerts(): Promise<{ open: number; priority: number }> {
+  const view = await buildActiveAlerts(ALERTS_DEFAULT_VIEW);
+  let open = 0;
+  let priority = 0;
+  for (const [category, n] of Object.entries(view.counts)) {
+    open += n;
+    if (alertLane(category) === "priority") priority += n;
+  }
+  return { open, priority };
 }
 
 // ──────────────── brain maturity ────────────────

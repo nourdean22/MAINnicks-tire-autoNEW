@@ -14,11 +14,12 @@ export interface HealthFeed {
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
 /**
- * The unresolved alert count, or null when the alerts MetricResult carries no value (status
+ * The unacked drift-recovery count, or null when the drift MetricResult carries no value (status
  * "unavailable", or "degraded" without a value). Null is not zero: the count is the drift signal.
+ * Read from `drift`, not `alerts`: since 2026-10-29 `alerts` is the /system/alerts count.
  */
-export function healthAlertsUnresolved(feed: HealthFeed | null): number | null {
-  const metric = feed?.alerts;
+export function healthDriftUnresolved(feed: HealthFeed | null): number | null {
+  const metric = feed?.drift;
   if (!isRecord(metric) || !isRecord(metric.value)) return null;
   const n = metric.value.unresolved;
   return typeof n === "number" && Number.isFinite(n) ? n : null;
@@ -26,20 +27,20 @@ export function healthAlertsUnresolved(feed: HealthFeed | null): number | null {
 
 export interface FeedSummary {
   systemStatus: string;
-  /** null when the health feed or its alerts metric did not deliver a count. */
+  /** null when the health feed or its drift metric did not deliver a count. */
   driftAlerts: number | null;
-  /** Feeds that returned nothing, plus one when the alert count is unavailable. 0 means every input was read. */
+  /** Feeds that returned nothing, plus one when the drift count is unavailable. 0 means every input was read. */
   failedFeeds: number;
 }
 
 /** The pure step of NourStateProvider.loadAll: what the four feeds add up to for the state word. */
 export function summarizeFeeds(feeds: { health: HealthFeed | null; habitsData: unknown; streaksData: unknown; cmd: unknown }): FeedSummary {
   const { health, habitsData, streaksData, cmd } = feeds;
-  const driftAlerts = healthAlertsUnresolved(health);
+  const driftAlerts = healthDriftUnresolved(health);
   const missing = [health, habitsData, streaksData, cmd].filter((x) => x === null || x === undefined).length;
-  // A health body without an alert count is a reading with a hole where the drift signal should be.
-  const alertsMissing = health !== null && driftAlerts === null ? 1 : 0;
-  return { systemStatus: health?.status ?? "unknown", driftAlerts, failedFeeds: missing + alertsMissing };
+  // A health body without a drift count is a reading with a hole where the drift signal should be.
+  const driftMissing = health !== null && driftAlerts === null ? 1 : 0;
+  return { systemStatus: health?.status ?? "unknown", driftAlerts, failedFeeds: missing + driftMissing };
 }
 
 export async function readHealthFeed(fetchImpl: typeof fetch = fetch): Promise<HealthFeed | null> {

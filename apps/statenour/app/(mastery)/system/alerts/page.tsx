@@ -34,7 +34,7 @@ import { trpc } from "@/lib/trpc/client";
 // live in the alert inspector, this list had no verbs at all).
 import { Eye } from "lucide-react";
 import { useInspector } from "@/hooks/use-inspector";
-import { alertLane } from "@/lib/brain/alert-lanes";
+import { ALERTS_DEFAULT_VIEW, alertLane } from "@/lib/brain/alert-lanes";
 import { ALERT_MUTE_DAYS, ALERT_RESOLVE_ARM_MS } from "@/components/inspector/panels/alert-inspector";
 import { AlertDismissSheet } from "@/components/alerts/alert-dismiss-sheet";
 import { toast } from "sonner";
@@ -110,7 +110,8 @@ function relTime(iso: string): string {
 }
 
 export default function AlertsInspectorPage() {
-  const [sinceDays, setSinceDays] = useState(30);
+  // Opens on the view the /system tower and hub tile count (ALERTS_DEFAULT_VIEW), so the numbers match.
+  const [sinceDays, setSinceDays] = useState<number>(ALERTS_DEFAULT_VIEW.sinceDays);
   const [activeCategories, setActiveCategories] = useState<Set<string>>(
     new Set(ALL_CATS),
   );
@@ -132,7 +133,7 @@ export default function AlertsInspectorPage() {
   const { openInspector } = useInspector();
   const alertsQuery = trpc.brain.activeAlerts.useQuery({
     sinceDays,
-    limit: 50,
+    limit: ALERTS_DEFAULT_VIEW.limit,
   });
   const payload: AlertsPayload | null =
     (alertsQuery.data as AlertsPayload | undefined) ?? null;

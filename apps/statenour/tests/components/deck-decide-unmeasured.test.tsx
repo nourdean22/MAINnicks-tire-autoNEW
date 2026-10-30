@@ -19,6 +19,7 @@ const base = {
   onSnoozeTask: async () => true,
   onDeleteTask: async () => {},
   onUnblock: () => {},
+  onRetry: () => {},
 };
 
 describe("DeckDecide · unmeasured sources", () => {

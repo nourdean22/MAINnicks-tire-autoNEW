@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   chatFindMany: vi.fn(),
   chatAggregate: vi.fn(),
   approvalCount: vi.fn(),
+  actionFindMany: vi.fn(async () => [] as unknown[]),
   traceFindMany: vi.fn(),
   brainGroupBy: vi.fn(),
   brainFindMany: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
       aggregate: (...a: unknown[]) => state.chatAggregate(...a),
     },
     approvalRequest: { count: (...a: unknown[]) => state.approvalCount(...a) },
+    autonomousAction: { findMany: (...a: unknown[]) => state.actionFindMany(...a) },
     agentTrace: { findMany: (...a: unknown[]) => state.traceFindMany(...a) },
     brainMemory: {
       groupBy: (...a: unknown[]) => state.brainGroupBy(...a),
@@ -155,6 +157,17 @@ beforeEach(() => {
 });
 
 describe("buildCockpitStats", () => {
+  // Codex P2 on #3354: the cockpit counts live decisions like Home, the badge and /system/actions,
+  // so a live deferred autonomous action counts; an expired one does not.
+  it("pending approvals = live requests + live autonomous actions", async () => {
+    state.actionFindMany.mockResolvedValueOnce([
+      { ruleName: "r", actionType: "send_sms", createdAt: new Date() },
+      { ruleName: "r", actionType: "send_sms", createdAt: new Date(Date.now() - 400 * 86_400_000) },
+    ]);
+    const out = await buildCockpitStats();
+    expect(out.kpis.pendingApprovalsCount).toBe(3);
+  });
+
   it("uses real incumbent stores instead of fabricated zero/empty placeholders", async () => {
     const out = await buildCockpitStats();
 
