@@ -20,10 +20,11 @@ param(
   [long]$CapBytes = 20MB
 )
 $ErrorActionPreference = "Stop"
-# String paths, not Join-Path: Join-Path throws on a host with no C: drive (Linux CI).
-if (-not $Config) { $Config = "$Root\mediamtx-sign.yml" }
-$log = "$Root\mediamtx-sign.log"
-$instanceLockPath = "$Root\.mediamtx-sign.lock"
+# [IO.Path]::Combine, not Join-Path or "$Root\x": Join-Path throws on a host with no C: drive and a
+# literal backslash names a file, not a folder, on Linux CI (where the launcher tests run it).
+if (-not $Config) { $Config = [IO.Path]::Combine($Root, "mediamtx-sign.yml") }
+$log = [IO.Path]::Combine($Root, "mediamtx-sign.log")
+$instanceLockPath = [IO.Path]::Combine($Root, ".mediamtx-sign.lock")
 
 # The supervisor's writer, verbatim (a test keeps the copies identical): Windows PowerShell 5.1's
 # Add-Content fails beside any open reader.
