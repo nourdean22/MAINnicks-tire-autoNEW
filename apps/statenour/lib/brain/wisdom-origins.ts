@@ -44,6 +44,9 @@ export type WisdomOrigin =
   | "warren-buffett"
   | "bill-gates"
   | "elon-musk"
+  | "naval-ravikant"
+  | "charlie-munger"
+  | "bezos-letters"
   | "greene-laws"
   | "baltasar-gracian"
   | "distiller"
@@ -108,6 +111,27 @@ export const WISDOM_ORIGINS: Record<WisdomOrigin, WisdomOriginMeta> = {
     tradition: "First principles + deletion",
     intro:
       "SpaceX · Tesla · the deletion-first engineer. Reason from physics + cost not analogy, make requirements less dumb, the best part is no part, idiot index, ship the v0 ugly. Wisdom shape: question the requirement before optimizing the implementation.",
+  },
+  "naval-ravikant": {
+    label: "Naval Ravikant",
+    badge: "Naval",
+    tradition: "Wealth + Judgment",
+    intro:
+      "Investor and AngelList cofounder. Seek wealth, not money or status; specific knowledge, leverage and accountability; play long-term games with long-term people. Wisdom shape: compounding choices about what to own and whom to work with.",
+  },
+  "charlie-munger": {
+    label: "Charlie Munger",
+    badge: "Munger",
+    tradition: "Mental models + Inversion",
+    intro:
+      "Berkshire Hathaway vice chairman. A latticework of mental models, invert always invert, incentives drive behavior, avoid stupidity before seeking brilliance. Wisdom shape: check a decision against the ways it fails.",
+  },
+  "bezos-letters": {
+    label: "Jeff Bezos",
+    badge: "Bezos",
+    tradition: "Customer obsession + Day 1",
+    intro:
+      "Amazon founder, from the shareholder letters. Start from the customer and work backwards, one-way versus two-way doors, decide with about 70% of the information, long-term over quarterly. Wisdom shape: match the speed of a decision to how reversible it is.",
   },
   "greene-laws": {
     label: "Robert Greene",
@@ -176,11 +200,33 @@ export const WISDOM_ORIGIN_KEY_PREFIXES: ReadonlyArray<readonly [string, WisdomO
   ["wisdom_buffett_", "warren-buffett"],
   ["wisdom_gates_", "bill-gates"],
   ["wisdom_musk_", "elon-musk"],
+  ["wisdom_naval-ravikant_", "naval-ravikant"],
+  ["wisdom_charlie-munger_", "charlie-munger"],
+  ["wisdom_bezos-letters_", "bezos-letters"],
+  ["wisdom_baltasar-gracian_", "baltasar-gracian"],
   ["wisdom_greene_", "greene-laws"],
   ["wisdom_distilled_", "distiller"],
   ["wisdom_from_", "consolidation"],
   ["nick_advice_", "chat-scrape"],
 ];
+
+/**
+ * Origins written by a named author (a pack or seed), as opposed to the
+ * machine layers (distiller, consolidation, chat-scrape). The recall line
+ * names these authors, and the cite rule may only use a name it shows.
+ */
+export const CURATED_WISDOM_ORIGINS: ReadonlySet<string> = new Set<WisdomOrigin>([
+  "steve-jobs",
+  "satori",
+  "warren-buffett",
+  "bill-gates",
+  "elon-musk",
+  "naval-ravikant",
+  "charlie-munger",
+  "bezos-letters",
+  "baltasar-gracian",
+  "greene-laws",
+]);
 
 /**
  * Resolve a wisdom row's origin. `metadata.origin` wins when set — it is

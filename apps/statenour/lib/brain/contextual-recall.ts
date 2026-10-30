@@ -58,6 +58,7 @@ import {
   type MemoryEvidenceClass,
   isOperatorSource,
 } from "@/lib/brain/memory-commit-gateway";
+import { CURATED_WISDOM_ORIGINS, resolveWisdomOrigin, wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
 
 /**
  * v-truth · Importance-weighted recall (Generative-Agents R+R+I).
@@ -181,8 +182,13 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
  * appendCrossSourceContext, so the block stays visually consistent.
  */
 export function provenancePrefix(m: RelevantMemory): string {
-  const cls = evidenceClassForSource(m.source ?? "");
   const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
+  // 2026-10-29 · curated wisdom names its author: the cite rule may only use a
+  // name this line shows, and pack rows stored as source "manual" are not
+  // something the operator stated.
+  const author = curatedWisdomAuthor(m);
+  if (author) return `[${m.category} · ${author} · curated${seen}]`;
+  const cls = evidenceClassForSource(m.source ?? "");
   // 05-X7: the ladder files model-made sources under its fallback; say inferred.
   const label =
     classifyTrustTier(m.source || "unclassified", null, m.category) === "AGENT_INFERRED"
@@ -197,7 +203,43 @@ export function provenancePrefix(m: RelevantMemory): string {
  * one helper, so the budget charges exactly what the model is shown.
  */
 export function renderedContent(m: RelevantMemory): string {
+  // Wisdom gets 300: 75 of the 113 pack entries run past 150 chars and were cut mid-principle.
+  if (m.category === "wisdom") return m.content.slice(0, 300);
   return m.content.slice(0, m.relevance === "direct" ? 200 : 150);
+}
+
+/**
+ * Fills `origin` from metadata.origin for the wisdom rows about to render. The
+ * recall pool never selects metadata (it is large on some rows), so this is one
+ * by-id read of a handful of rows. Best-effort: on failure the key prefix decides.
+ */
+export async function attachWisdomOrigins(rows: Array<Pick<RelevantMemory, "id" | "category" | "origin">>): Promise<void> {
+  const wisdom = rows.filter((r) => r.category === "wisdom" && r.id);
+  if (wisdom.length === 0) return;
+  try {
+    const found = await prisma.brainMemory.findMany({
+      where: { id: { in: wisdom.map((r) => r.id!) } },
+      select: { id: true, metadata: true },
+    });
+    const byId = new Map(found.map((f) => [f.id, (f.metadata as { origin?: unknown } | null)?.origin]));
+    for (const r of wisdom) {
+      const origin = byId.get(r.id!);
+      if (typeof origin === "string" && origin) r.origin = origin;
+    }
+  } catch (err) {
+    logError("brain.contextual-recall", err, { fn: "attachWisdomOrigins" }, "warn");
+  }
+}
+
+/** "Naval", "Greene · Law 28", or null for machine-made / unattributed rows. */
+export function curatedWisdomAuthor(m: Pick<RelevantMemory, "category" | "key" | "origin">): string | null {
+  if (m.category === "greene_law") {
+    const law = /^law_(\d+)$/.exec(m.key ?? "");
+    return law ? `Greene · Law ${law[1]}` : null;
+  }
+  if (m.category !== "wisdom" || !m.key) return null;
+  const origin = resolveWisdomOrigin(m.key, m.origin);
+  return CURATED_WISDOM_ORIGINS.has(origin) ? wisdomOriginMeta(origin).badge : null;
 }
 
 /**
@@ -257,6 +299,8 @@ export interface RelevantMemory {
   relevance: "direct" | "supporting" | "background";
   /** Raw BrainMemory.source — mapped to an evidence class at render time. */
   source?: string;
+  /** metadata.origin of a wisdom row; outranks the key prefix (resolveWisdomOrigin). */
+  origin?: string | null;
   /** Re-sighting count. confidence is derived from this, not from evidence. */
   seenCount?: number;
   /** W1 (2026-10-16) · validity columns as fetched (already filtered by validityWhere/notExpiredWhere); the evidence pack reads them. */
@@ -476,9 +520,16 @@ const SOURCE_TRUST_WEIGHT: Record<string, number> = {
   device_analysis: 0.80,           // device-derived
 };
 
-function sourceTrustWeight(source: string | null | undefined): number {
+export function sourceTrustWeight(source: string | null | undefined): number {
   if (!source) return 1.0;
+  // ingest-wisdom-pack.ts writes `pack:<name>`: hand-curated, same tier as skill_ingestion.
+  if (source.startsWith("pack:")) return SOURCE_TRUST_WEIGHT.skill_ingestion;
   return SOURCE_TRUST_WEIGHT[source] ?? 1.0;
+}
+
+/** Curated wisdom is timeless: exempt from the cold-wisdom decay below. */
+export function isCuratedWisdomSource(source: string): boolean {
+  return isOperatorSource(source) || source.startsWith("pack:");
 }
 
 // v10.0.397 · Operator's favorite-persona bias.
@@ -489,8 +540,11 @@ function sourceTrustWeight(source: string | null | undefined): number {
 // when they're a clearer match · just breaks ties in Greene's favor.
 const FAVORITE_PERSONA_BOOST = 1.10;
 
-function favoritePersonaBoost(key: string): number {
-  if (key.startsWith("wisdom_greene_")) return FAVORITE_PERSONA_BOOST;
+export function favoritePersonaBoost(key: string, category: string): number {
+  // Greene's seeds live in category greene_law, key law_<N>; no row has a wisdom_greene_ key.
+  if (key.startsWith("wisdom_greene_") || (category === "greene_law" && key.startsWith("law_"))) {
+    return FAVORITE_PERSONA_BOOST;
+  }
   return 1.0;
 }
 
@@ -1351,7 +1405,7 @@ export async function getContextualMemories(
   const now = Date.now();
   const memScores = candidatePool.map((m) => {
     let freshness = 1.0;
-    if (m.category === "wisdom" && !isOperatorSource(m.source)) {
+    if (m.category === "wisdom" && !isCuratedWisdomSource(m.source)) {
       const ageDays = Math.max(0, (now - new Date(m.createdAt).getTime()) / 86_400_000);
       const seenCount = m.seenCount ?? 0;
       // Cold wisdom > 90d old gets penalized · 0.5% per day past 90d
@@ -1413,7 +1467,7 @@ export async function getContextualMemories(
     // v10.0.396 · wisdom freshness decay · pre-computed in memScores
     const freshness = m.sFreshness ?? 1.0;
     // v10.0.397 · operator's favorite-persona bias (Greene · 1.10x)
-    const favoriteMul = favoritePersonaBoost(m.key);
+    const favoriteMul = favoritePersonaBoost(m.key, m.category);
     // v-truth · R+R+I third axis · 1.0 when NICK_IMPORTANCE_RECALL off.
     const importanceMul = importanceMultiplier(m.content, importanceOn);
     const hybrid = entry.score * trust * recencyMul * kindMul * topicMul * freshness * favoriteMul * importanceMul;
@@ -1703,6 +1757,8 @@ export async function getContextualMemories(
   // (the first `wisdomSlots` entries) are PRESERVED · operator-grade
   // guarantee that the always-on wisdom layer never gets dropped.
   const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdomSlots);
+
+  await attachWisdomOrigins(relevant);
 
   // Format for system prompt
   const mode = useEmbeddings ? "semantic" : "keyword";
@@ -2204,7 +2260,8 @@ async function getFallbackMemories(max: number): Promise<string> {
     // provenance as the main one. Patching only the three main render sites
     // would leave the no-topics path printing bare lines — an inconsistency
     // that reads as a bug.
-    select: { category: true, content: true, confidence: true, source: true, seenCount: true },
+    // 2026-10-29 · key + metadata so curated wisdom names its author here too (Codex on PR 3357).
+    select: { category: true, key: true, content: true, confidence: true, source: true, seenCount: true, metadata: true },
   });
 
   if (memories.length === 0) return "";
@@ -2213,7 +2270,9 @@ async function getFallbackMemories(max: number): Promise<string> {
   for (const m of memories) {
     // relevance "direct" = the same 200-char slice this path always rendered
     // (provenancePrefix ignores relevance); renderMemoryLine adds the trust fence.
-    lines.push(renderMemoryLine({ ...m, relevance: "direct" }));
+    const { metadata, ...row } = m;
+    const origin = (metadata as { origin?: unknown } | null)?.origin;
+    lines.push(renderMemoryLine({ ...row, origin: typeof origin === "string" ? origin : null, relevance: "direct" }));
   }
 
   return fenceRecallBlock(lines);

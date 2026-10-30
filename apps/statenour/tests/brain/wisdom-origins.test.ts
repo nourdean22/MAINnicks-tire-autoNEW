@@ -185,8 +185,8 @@ describe("every resolvable origin is labellable", () => {
   });
 
   it("an unknown origin renders as itself rather than blanking the row", () => {
-    const meta = wisdomOriginMeta("naval-ravikant");
-    expect(meta.label).toBe("naval-ravikant");
-    expect(meta.badge).toBe("naval-ravikant");
+    const meta = wisdomOriginMeta("some-new-pack");
+    expect(meta.label).toBe("some-new-pack");
+    expect(meta.badge).toBe("some-new-pack");
   });
 });
