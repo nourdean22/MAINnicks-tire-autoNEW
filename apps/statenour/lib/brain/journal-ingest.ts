@@ -18,6 +18,7 @@ import { recordError } from "@/lib/errors/record-error";
 // canonical service (was raw prisma.task.create) for audit + cache
 // invalidation + priority sync + sibling goalId inheritance.
 import { createTask } from "@/lib/services/tasks";
+import { withCreatedTaskIds } from "@/lib/brain/journal-task-link";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 // v10.0.64 · AgentTrace coverage · source="journal" (journal pipeline, not brain cycle).
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
@@ -390,6 +391,7 @@ ${rawText}`,
           ? (data.entryType as ThoughtType)
           : "raw");
 
+      let extractedJson: string | null = null;
       // Update brain dump with extracted data. The entryType, domains, and
       // linkedTopics all live inside extractedItems so no schema migration
       // is needed — the /journal page reads them from the JSON blob.
@@ -399,7 +401,7 @@ ${rawText}`,
           summary: data.summary || null,
           moodBefore: data.mood || null,
           patterns: data.patterns || null,
-          extractedItems: JSON.stringify({
+          extractedItems: (extractedJson = JSON.stringify({
             entryType,
             // Capture origin · audit 2026-07-15 · brain_dumps has no
             // source column and origin previously lived only in the
@@ -415,7 +417,7 @@ ${rawText}`,
             commitments: data.commitments || [],
             concerns: data.concerns || [],
             wins: data.wins || [],
-          }),
+          })),
         },
       });
 
@@ -448,6 +450,7 @@ ${rawText}`,
       const priorityFor = (p?: string): "critical" | "high" | "medium" | "low" =>
         p === "critical" ? "critical" : p === "high" ? "high" : p === "low" ? "low" : "medium";
       const criticalItems: string[] = [];
+      const createdTaskIds: string[] = [];
       if (shouldCreateTasks && inboxMissionId && Array.isArray(data.actionItems)) {
         for (const item of data.actionItems.slice(0, 8)) {
           if (typeof item.title === "string" && item.title.length > 3) {
@@ -458,7 +461,7 @@ ${rawText}`,
             const safeTitle = sanitizeForPrompt(item.title, 150);
             const priorityLabel = priorityFor(item.priority);
             const safeExplanation = `from journal/${source} dump ${brainDump.id.slice(0, 8)} · ${dateStr} · ${sanitizeForPrompt(rawText, 90)} · ai-priority=${priorityLabel}`;
-            await createTask({
+            const created = await createTask({
               title: safeTitle,
               missionId: inboxMissionId,
               status: "INBOX",
@@ -472,13 +475,24 @@ ${rawText}`,
               autoPriorityExplanation: safeExplanation,
             }).catch((err) => {
               recordError("brain:journal-ingest", err, { phase: "task-create", brainDumpId: brainDump.id, entryType });
+              return null;
             });
+            if (created && typeof (created as { id?: unknown }).id === "string") createdTaskIds.push((created as { id: string }).id);
             tasksCreated++;
             if (item.priority === "critical" || item.priority === "high") {
               criticalItems.push(item.title);
             }
           }
         }
+      }
+
+      // goals-system W3b · record which tasks this entry made, so when grounding later links
+      // the entry to a goal those tasks get it too (lib/brain/journal-task-link.ts). The task's
+      // autoPriorityExplanation stamp cannot carry this: the priority scorer overwrites it.
+      if (createdTaskIds.length > 0 && extractedJson) {
+        await prisma.brainDump
+          .update({ where: { id: brainDump.id }, data: { extractedItems: withCreatedTaskIds(extractedJson, createdTaskIds) } })
+          .catch((err) => recordError("brain:journal-ingest", err, { phase: "record-task-ids", brainDumpId: brainDump.id }));
       }
 
       // v10.0.232 · Telegram alert dedupe · pre-fix every ingest with

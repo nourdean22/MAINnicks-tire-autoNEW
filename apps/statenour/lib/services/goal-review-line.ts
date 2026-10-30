@@ -13,12 +13,11 @@ import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { goalDue, goalPaceView } from "@/lib/brain/goal-pace";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import { NEXT_STEP_STATUSES } from "@/lib/services/goal-next-step";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/goal-review-line");
 
-/** Open = the same statuses the goals snapshot counts (lib/services/goals-snapshot.ts). */
-const OPEN_TASK_STATUSES = ["INBOX", "READY", "DOING"] as const;
 
 export interface GoalReviewRow {
   id: string;
@@ -108,7 +107,7 @@ export async function readGoalReviewRows(): Promise<GoalReviewRow[] | "error"> {
         targetValue: true,
         currentValue: true,
         unit: true,
-        _count: { select: { tasks: { where: { deletedAt: null, status: { in: [...OPEN_TASK_STATUSES] } } } } },
+        _count: { select: { tasks: { where: { deletedAt: null, status: { in: [...NEXT_STEP_STATUSES] } } } } },
         events: { where: { kind: "horizon_set" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
       },
     });

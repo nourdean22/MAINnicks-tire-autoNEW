@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { emitGoalEventAsync } from "@/lib/brain/goal-events";
+import { NEXT_STEP_STATUSES, pickJournalStep } from "@/lib/services/goal-next-step";
 import { emitGoalTransition } from "@/lib/db/brain-bus-emit";
 import { softDelete, activeOnly } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
@@ -150,6 +151,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     const active = tasks.filter((t) =>
       ["INBOX", "READY", "DOING"].includes(t.status)
     ).length;
+    // goals-system W3 · a waiting-for is still a next step (GTD), unlike the "active" count.
+    const nextSteps = tasks.filter((t) => (NEXT_STEP_STATUSES as readonly string[]).includes(t.status)).length;
     const minutesInvested = tasks.reduce(
       (sum, t) => sum + (t.actualMinutes || 0),
       0
@@ -201,6 +204,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
       linkedTaskCount: total,
       linkedDoneCount: done,
       linkedActiveCount: active,
+      linkedNextStepCount: nextSteps,
       minutesInvested,
       nextMove: nextMoveTask
         ? {
@@ -221,7 +225,50 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     };
   });
 
-  return enrichedGoals;
+  // goals-system W3 · a goal with no open task gets the journal's own suggestion, offered
+  // with one tap on the card (lib/services/goal-next-step.ts). A failed read offers nothing.
+  const needStep = enrichedGoals.filter((g) => g.status === "active" && g.linkedNextStepCount === 0).map((g) => g.id);
+  const steps = await suggestJournalSteps(needStep, byGoal);
+  return enrichedGoals.map((g) => ({ ...g, suggestedStep: steps.get(g.id) ?? null }));
+}
+
+async function suggestJournalSteps(
+  goalIds: string[],
+  tasksByGoal: Map<string, { title: string }[]>,
+): Promise<Map<string, { title: string; dumpId: string }>> {
+  const out = new Map<string, { title: string; dumpId: string }>();
+  if (goalIds.length === 0) return out;
+  try {
+    const entries = await prisma.brainDump.findMany({
+      where: {
+        goalId: { in: goalIds },
+        deletedAt: null,
+        linkStatus: { in: ["auto", "confirmed"] },
+        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, goalId: true, createdAt: true, extractedItems: true },
+    });
+    // journal-ingest already made goal-less Inbox tasks from these same items, with sanitized
+    // titles, so compare (normalized, in pickJournalStep) against every task made since the
+    // oldest entry, soft-deleted ones too: a task Nour threw away is not offered back.
+    const oldest = entries.reduce<Date | null>((m, e) => (!m || e.createdAt < m ? e.createdAt : m), null);
+    const existing = oldest
+      ? await prisma.task.findMany({ where: { createdAt: { gte: oldest } }, select: { title: true }, take: 2000 })
+      : [];
+    for (const id of goalIds) {
+      const own = (tasksByGoal.get(id) ?? []).map((t) => t.title);
+      const step = pickJournalStep(
+        entries.filter((e) => e.goalId === id),
+        [...own, ...existing.map((t) => t.title)],
+      );
+      if (step) out.set(id, step);
+    }
+  } catch (err) {
+    console.warn("[services/goals] journal next-step read failed:", err instanceof Error ? err.message : err);
+  }
+  return out;
 }
 
 export async function createGoal(rawData: z.infer<typeof createGoalSchema>) {

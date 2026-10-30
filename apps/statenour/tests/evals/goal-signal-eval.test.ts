@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { computePace } from "@/lib/brain/goal-pace";
 import { goalPaceView } from "@/lib/brain/goal-pace";
 import { goalReviewLines } from "@/lib/services/goal-review-line";
+import { goalNextStepView } from "@/components/goals/goal-board";
 
 const NOW = Date.parse("2026-10-30T13:00:00.000Z");
 type Shape = { horizon: string | null; createdAt: string; targetValue: number; currentValue: number };
@@ -42,5 +43,11 @@ describe("goal signal eval · 6 live goal shapes", () => {
     const out = goalReviewLines(rows, MONDAY);
     expect(out.lines[0]).toBe("<b>Goals</b> · 6 active · 0 with a next step");
     expect(out.payload).toMatchObject({ active: 6, withNextStep: 0, pastDueIds: ["g5", "g4"] });
+  });
+
+  it("W3: goal cards asking for a next step go 0 -> 6 of 6 (prod 2026-10-30: 0 open linked tasks on all 6)", () => {
+    const before = 0; // no card asked for a next step before W3
+    const after = goals.filter((g) => goalNextStepView({ status: g.status, linkedNextStepCount: 0, suggestedStep: null }).show).length;
+    expect({ before, after }).toEqual({ before: 0, after: 6 });
   });
 });

@@ -44,7 +44,7 @@
  * feeds the page header axes + missions sidebar).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -129,9 +129,13 @@ interface LifeGoal {
   updatedAt: string;
   /** When the current horizon was set (lib/services/goals.ts getGoals); null = since creation. */
   horizonSetAt?: string | null;
+  /** The journal's own action item for a goal with no open task (lib/services/goal-next-step.ts). */
+  suggestedStep?: { title: string; dumpId: string } | null;
   linkedTaskCount?: number;
   linkedDoneCount?: number;
   linkedActiveCount?: number;
+  /** Open linked tasks incl. WAITING (lib/services/goal-next-step.ts NEXT_STEP_STATUSES). */
+  linkedNextStepCount?: number;
   minutesInvested?: number;
   // Apr 27 · GB1 + GB3: server-enriched fields from /api/goals
   nextMove?: { id: string; title: string; status: string } | null;
@@ -210,6 +214,100 @@ export function goalListView(
   if (loading) return "loading";
   if (count > 0) return "list";
   return loadError ? "error" : "empty";
+}
+
+/**
+ * "No next step" (2026-10-30, job goals-system W3): the GTD rule that every active outcome
+ * carries one current action. Shows only on an active goal whose open linked task count is
+ * known to be 0; an older payload without the count shows nothing.
+ */
+export function goalNextStepView(g: {
+  status: string;
+  linkedNextStepCount?: number;
+  suggestedStep?: { title: string; dumpId: string } | null;
+}): { show: boolean; suggestion: { title: string; dumpId: string } | null } {
+  const show = g.status === "active" && g.linkedNextStepCount === 0;
+  return { show, suggestion: show ? (g.suggestedStep ?? null) : null };
+}
+
+/** Inline "add a next step" for one goal: the journal's suggestion in one tap, or a typed step.
+ *  An in-DOM field, never a native prompt (iOS PWA suppresses those). */
+function NextStepPrompt({
+  goalId,
+  suggestion,
+  onAdded,
+}: {
+  goalId: string;
+  suggestion: { title: string; dumpId: string } | null;
+  onAdded: () => void;
+}) {
+  const createTask = trpc.task.create.useMutation();
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
+  // A ref, not isPending: two taps in one render both read the same stale isPending.
+  const inFlight = useRef(false);
+  const add = async (title: string, fromDumpId?: string) => {
+    const t = title.trim();
+    if (!t || inFlight.current || added) return;
+    inFlight.current = true;
+    setError(null);
+    try {
+      await createTask.mutateAsync({
+        title: t,
+        goalId,
+        ...(fromDumpId ? { autoPriorityExplanation: `goal next step from journal entry ${fromDumpId.slice(0, 8)}` } : {}),
+      });
+      setText("");
+      setAdded(true); // hide now; a cached reload may still say 0 for a moment
+      notifyDataChanged("goals", { source: "goal-board", detail: "next-step-added", id: goalId });
+      onAdded();
+    } catch (err) {
+      setError(`Couldn't add the step: ${err instanceof Error && err.message ? err.message.slice(0, 120) : "no reason returned"}`);
+    } finally {
+      inFlight.current = false;
+    }
+  };
+  if (added) return null;
+  return (
+    <div className="mt-1.5 rounded-control border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+      <div className="text-[11px] font-mono text-amber-300">No next step</div>
+      {suggestion && (
+        <button
+          type="button"
+          disabled={createTask.isPending}
+          onClick={() => void add(suggestion.title, suggestion.dumpId)}
+          className="min-h-11 w-full text-left text-[12px] text-fg-secondary rounded-control border border-edge-default bg-surface-interactive px-2 py-1 hover:bg-amber-500/10 disabled:opacity-50"
+        >
+          <span className="text-amber-300/80">From your journal: </span>
+          {suggestion.title}
+          <span className="text-amber-300/80"> · Add</span>
+        </button>
+      )}
+      <div className="flex gap-1.5">
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (isSubmitEnter(e)) void add(text);
+          }}
+          placeholder="The next physical step"
+          aria-label="Next step for this goal"
+          className="min-h-11 h-9 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary"
+        />
+        <Button
+          size="sm"
+          disabled={createTask.isPending || !text.trim()}
+          onClick={() => void add(text)}
+          aria-label="Add next step"
+          className="min-h-11 min-w-11 h-9 p-0 bg-surface-interactive border border-edge-default shrink-0 disabled:opacity-50"
+        >
+          <Plus size={14} />
+        </Button>
+      </div>
+      {error && <div className="text-[11px] text-rose-300">{error}</div>}
+    </div>
+  );
 }
 
 export function GoalBoard() {
@@ -299,6 +397,8 @@ export function GoalBoard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Invalidate first: the 30 s staleTime would otherwise hand back the pre-change list.
+      await utils.task.goals.invalidate();
       const d = await utils.task.goals.fetch(undefined);
       // Cast via unknown · the goals procedure's return is a deeply
       // enriched mapped type · a direct cast to LifeGoal[] trips the
@@ -1624,6 +1724,14 @@ export function GoalBoard() {
                           <ArrowRight size={9} className="text-emerald-400/60 shrink-0 ml-auto" />
                         </Link>
                       )}
+
+                      {/* goals-system W3: an active goal with no open task asks for one. */}
+                      {(() => {
+                        const step = goalNextStepView(g);
+                        return step.show ? (
+                          <NextStepPrompt goalId={g.id} suggestion={step.suggestion} onAdded={() => void load()} />
+                        ) : null;
+                      })()}
 
                       {/* Plan it: break a goal into 3-5 milestones with
                           Nick, then spawn a mission with phases. Renders
