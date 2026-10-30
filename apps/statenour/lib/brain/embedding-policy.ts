@@ -39,6 +39,8 @@ export const TELEMETRY_CATEGORIES = [
   "reply_quality",
   "brain_dump_event",
   "task_completion",
+  // 2026-10-30 (brain backfill W4) · the temporal-consistency checker's warnings: 68 recall-visible rows, 43 exact copies.
+  "telemetry_temporal_warn",
   // 2026-09-22 brain audit (read-only, 42,129 live memories): five machine
   // categories were still recall-visible and embedded. `semantic_edge` is the
   // one that matters — 18,358 live rows (44% of the live brain), text
