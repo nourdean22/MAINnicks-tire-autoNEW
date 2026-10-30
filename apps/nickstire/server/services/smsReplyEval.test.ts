@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { SMS_EVAL_CASES, evalExitCode, installModelOnlyFetch, scoreEvalOutcome, type EvalCase } from "./smsReplyEval";
+import { TEMPLATE_VARIANTS } from "./smsMessageCatalog";
 
 // Codex review of #3393: a run that measured nothing must not exit 0.
 describe("SMS reply eval · exit code", () => {
@@ -47,6 +48,14 @@ describe("SMS reply eval · scoring from the customer's side", () => {
     expect(scoreEvalOutcome(c, sent("Pull up any time and we'll take a look at it for you.")).score).toBe("wrong");
     expect(scoreEvalOutcome(c, held).score).toBe("none");
     expect(scoreEvalOutcome(c, sent("Hey, this Reply STOP to opt out.")).score).toBe("fragment");
+  });
+
+  it("answer: every hours_location template variant counts as telling the customer how to come in", () => {
+    // The third variant says "Stop by anytime"; the eval scored it wrong on rotation (2026-10-30).
+    const c = byId("hours-1");
+    for (const v of TEMPLATE_VARIANTS.hours_location) {
+      expect(scoreEvalOutcome(c, sent(v.replace("{shopPhone}", "(216) 862-0005"))).score).toBe("right");
+    }
   });
 
   it("answer: a reply that repeats what the customer pushed back on is wrong", () => {

@@ -5854,6 +5854,22 @@
         "liveRuns": "NONE yet. Proof after deploy: scripts/sms-draft-health.mjs shows LLM drafts complete and 5+ words (baseline Oct: 1 of 23 complete); sms_orchestrations shows no auto-send for non-proven intents and holding_reply sends per held customer thread; kill read 2026-11-13."
       },
       "blockers": []
+    },
+    {
+      "capabilityId": "sms-catalog-replies-w3",
+      "name": "Texts the bot used to hold for staff get a bounded catalog answer: an alignment answer with no inspection pitch, the shop's name for 'who is this', a follow-up question for a bare menu reply; comebacks and named repairs go to staff instead of the free-check template",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-10-30",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "Branch nickstire/sms-catalog-replies (W3 of job 2026-10-30-calls-texts-review). Router: identity and menu_reply intents (whole-text matches only), wider complaint_or_comeback detection (still a little crooked, you fixed it last week, did you clear the codes, as I drove away), diagnostic template skipped for named repairs and symptom strings, price_alignment back to a deterministic template. Catalog: price_question_alignment rewritten (walk in, hours, price before any work; no steering or suspension pitch), identity and menu_reply variants. Planner: the alignment fact drafts use matches the template. Eval runner prints each case's hold reason.",
+        "tests": "server/smsCatalogReplies.test.ts (30): red first 24 failed / 6 passed on the W2 tree; the planner arm was red with the old fact (2 failed). Retargeted 3 W2 tests that pinned 'alignment held until W3'. Related set on main + W3: 107 files, 1,745 passed; tsc exit 0; knip-orphan-gate 0 new. Replay eval (Ollama + Gemini + HF only, replay scope): customers 44/58 right, 0 wrong, 14 held for staff; noise 13/15; isolation CLEAN; 0 paid-lane attempts (scorer counts 'stop by' as a visit phrase, red-first test on every hours_location variant). W2 baseline on main: customers 31/58 right, 2 wrong; noise 13/15.",
+        "liveRuns": "NONE yet. Proof after deploy: sms_orchestrations shows identity, menu_reply and price_question_alignment catalog sends with no staff hold; no free-check template on a comeback; kill read 2026-11-13 with the W2 health read."
+      },
+      "blockers": []
     }
   ],
   "axes": {

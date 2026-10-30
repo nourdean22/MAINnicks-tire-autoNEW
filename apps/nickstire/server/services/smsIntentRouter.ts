@@ -59,6 +59,8 @@ export type SmsIntent =
   | "job_inquiry"
   | "not_a_customer"
   | "no_reply_needed"
+  | "identity"
+  | "menu_reply"
   | "general";
 
 export type SmsRouteRisk =
@@ -124,6 +126,10 @@ const THANKS_RE = /\b(thanks?|thank you|thx|appreciate it|good so far|ok so far|
 // "Thanks, I also need help with my starter" has no router rule of its own).
 const NOT_JUST_THANKS_RE = /\?|\b(but|still|again|noise|problem|issue|broke|broken|wrong|how much|when|is my|need|needs|want|help|also|please|call me|can you|could you|can i|look at|book|schedule|appointment|quote|price)\b/i;
 
+// W3: a named repair or a string of symptoms is a staff question; the free-check
+// template must not answer it (diagnostic and dashboard_light share it).
+const NAMED_REPAIR_RE = /\b(timing (chain|belt)|rattl\w*|hesitat\w*|knock\w*|misfir\w*|transmission|starter|head gasket)\b/i;
+
 const RULES: Rule[] = [
   {
     intent: "not_a_customer",
@@ -138,6 +144,23 @@ const RULES: Rule[] = [
     risk: "deterministic",
     catalogEvent: null,
     test: (b) => b.trim().split(/\s+/).length <= 12 && THANKS_RE.test(b) && !NOT_JUST_THANKS_RE.test(b),
+  },
+  // W3 (2026-10-30): whole-text matches only, so any real question in the text
+  // routes on that question instead. "who is this" got a staff hold in the eval.
+  {
+    intent: "identity",
+    priority: 8,
+    risk: "deterministic",
+    catalogEvent: "identity",
+    test: (b) => /^\s*(who('?s| is) this|who are you|what is this( number)?|i'?m not familiar|hello|hi|hey|hey nick|hi nick)\s*[?.!]*\s*$/i.test(b),
+  },
+  // A bare answer to our "tires, brakes, check engine, or something else?" question.
+  {
+    intent: "menu_reply",
+    priority: 8,
+    risk: "deterministic",
+    catalogEvent: "menu_reply",
+    test: (b) => /^\s*(something else|other|engine|the engine|something different)\s*[?.!]*\s*$/i.test(b),
   },
   // ─── Tier 0: safety — a wrong template here is dangerous, not just wrong ──
   {
@@ -182,6 +205,14 @@ const RULES: Rule[] = [
       /\b(still (grind|squeak|shak|pull|leak|overheat|making|doing|broken|not))/i.test(b) ||
       /\b(after (you|the) (fix|repair|service|work))/i.test(b) ||
       /\b(came back|come back) (after|since)\b/i.test(b) ||
+      // W3: comebacks the replay eval saw get a free-check template.
+      /\bstill (a little|kind of|kinda|crooked|off|the same)\b/i.test(b) ||
+      /\b(doing the same thing|same (problem|issue|noise) again|again since you)\b/i.test(b) ||
+      /\byou (fixed|did|worked on|replaced|repaired)\b[^.?!]{0,40}\b(last (week|time)|yesterday)\b/i.test(b) ||
+      /\bdid you (clear|reset)\b/i.test(b) ||
+      /\bas I (drove|pulled) (away|off|out)\b/i.test(b) ||
+      // Codex review of #3417: prior work, then a problem, with no date or "still".
+      /\byou (did|fixed|replaced|repaired|aligned|worked on|put on|installed|changed)\b[^.?!]{0,50}\b(and now|now it|now the|since then)\b/i.test(b) ||
       /\b(not (happy|satisfied)|unacceptable|worse than before|you (broke|damaged|messed))\b/i.test(b) ||
       /\b(refund|lawsuit|lawyer|attorney|sue|suing|bbb|better business)\b/i.test(b),
   },
@@ -243,9 +274,11 @@ const RULES: Rule[] = [
     priority: 3,
     risk: "deterministic",
     catalogEvent: "price_question_diagnostic", // the free-check triage copy fits
+    // A named repair goes to staff here too (Codex review of #3417).
     test: (b) =>
-      /\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
-      /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b),
+      !NAMED_REPAIR_RE.test(b) &&
+      (/\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
+        /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b)),
   },
 
   // ─── Tier 3a: the car cannot be driven here ────────────────────────────
@@ -384,11 +417,11 @@ const RULES: Rule[] = [
   {
     intent: "price_alignment",
     priority: 6,
-    // W2 (2026-10-30): the alignment template pitched a steering and suspension
-    // check to customers who asked only for an alignment (3 pushbacks in 90 days).
-    // No auto-sent alignment reply until W3's catalog reply answers the question.
-    risk: "human_assisted",
-    catalogEvent: null,
+    // W3 (2026-10-30): the old template pitched a steering and suspension check
+    // to customers who asked only for an alignment (3 pushbacks in 90 days). The
+    // new one answers the question: yes, walk in, price before any work.
+    risk: "deterministic",
+    catalogEvent: "price_question_alignment",
     test: (b) => /\b(alignment|align)\b/i.test(b),
   },
   {
@@ -396,7 +429,7 @@ const RULES: Rule[] = [
     priority: 6,
     risk: "deterministic",
     catalogEvent: "price_question_diagnostic",
-    test: (b) => /\b(diagnostics?|check engine|scan|code[sp]?|e-?check)\b/i.test(b),
+    test: (b) => /\b(diagnostics?|check engine|scan|code[sp]?|e-?check)\b/i.test(b) && !NAMED_REPAIR_RE.test(b),
   },
   /**
    * Symptoms nobody can price over the phone, and nothing else claims.

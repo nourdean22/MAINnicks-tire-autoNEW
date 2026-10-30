@@ -571,10 +571,12 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   },
   price_alignment: {
     goal: "answer",
-    knownFacts: () => ["Alignment starts with an inspection of steering, suspension and tire wear — price in writing before any work. Never quote an alignment dollar amount."],
+    // W3 (2026-10-30): answer the alignment they asked for; the old fact made
+    // drafts pitch a steering and suspension check (3 pushbacks in 90 days).
+    knownFacts: () => ["Yes, we do alignments: walk in Mon-Sat 8-6 or Sun 9-4, first come, first served, and the price comes before any work. Never quote an alignment dollar amount, and never push a steering or suspension check they did not ask for."],
     missingInformation: () => [],
     requiredQuestion: () => null,
-    nextStep: "Bring it in for the inspection.",
+    nextStep: "Walk in for the alignment.",
     prohibited: [],
     maxChars: 300,
   },

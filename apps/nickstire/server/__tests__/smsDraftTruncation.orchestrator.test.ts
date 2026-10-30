@@ -345,9 +345,9 @@ describe("orchestrateSms · W2 non-customer filter and holding reply", () => {
   });
 
   it("a draft for an intent the eval has not proven is held, even at high confidence, and the customer hears the holding reply", async () => {
-    mockClassifyIntent.mockResolvedValue({ ok: true, topLabel: "greeting or hello", topScore: 0.99 });
-    mockDraftSmsReply.mockResolvedValue(draft("Hey, this is Nick's Tire and Auto. What can we help you with today?", "complete"));
-    const res = await inbound("Hello?");
+    mockClassifyIntent.mockResolvedValue({ ok: true, topLabel: "general question", topScore: 0.99 });
+    mockDraftSmsReply.mockResolvedValue(draft("Sure, what would you like to know about your car? We can help.", "complete"));
+    const res = await inbound("I have a question about my car");
     expect(res.shouldAutoSend).toBe(false);
     expect(res.reason).toBe("intent_not_proven:general");
     expect(res.holdingReply).toBe(true);

@@ -68,10 +68,10 @@ describe("routes that sent the wrong answer in the 2026-10-30 eval", () => {
     expect(routeInboundSms("are you open today for the holiday?", noCtx).primary).not.toBe("hours_location");
     expect(routeInboundSms("what are your hours", noCtx).primary).toBe("hours_location");
   });
-  it("alignment has no auto-sent template until the W3 reply exists", () => {
+  it("alignment gets the W3 answer template, which pitches no steering or suspension check", () => {
     const d = routeInboundSms("the car is fine, I only need the alignment", noCtx);
     expect(d.primary).toBe("price_alignment");
-    expect(d.catalogEvent).toBeNull();
+    expect(d.catalogEvent).toBe("price_question_alignment");
   });
 });
 

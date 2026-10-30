@@ -71,16 +71,16 @@ async function main(): Promise<number> {
   const guard = installModelOnlyFetch(globalThis as { fetch?: unknown }, ["ollama.com", "generativelanguage.googleapis.com", "router.huggingface.co"]);
   const PAID_LANES = ["api.openai.com", "openrouter.ai", "api.anthropic.com"];
   const startedAt = Date.now();
-  const rows: Array<{ id: string; group: string; expect: string; score: EvalScore | "error"; why: string; draftFailed: boolean; ms: number; reply: string }> = [];
+  const rows: Array<{ id: string; group: string; expect: string; score: EvalScore | "error"; why: string; draftFailed: boolean; hold: string; ms: number; reply: string }> = [];
   try {
     for (const { c, phone, conversationId } of cases) {
       const t0 = Date.now();
       try {
         const r = await runInSmsReplayScope(() => orchestrateSms({ type: "inbound_sms", phone, body: c.body, conversationId } as never), recorder);
         const s = scoreEvalOutcome(c, { status: r.status, shouldAutoSend: r.shouldAutoSend, body: r.body ?? "", holdingReply: r.holdingReply });
-        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: s.score, why: s.why, draftFailed: r.statusReason === "nickgpt_failed", ms: Date.now() - t0, reply: r.shouldAutoSend ? truncateForPrint(r.body ?? "", 160) : `(${r.status}) ${truncateForPrint(r.body ?? "", 120)}` });
+        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: s.score, why: s.why, draftFailed: r.statusReason === "nickgpt_failed", hold: [r.statusReason, r.noSendReason, r.reason].filter(Boolean).join(" / "), ms: Date.now() - t0, reply: r.shouldAutoSend ? truncateForPrint(r.body ?? "", 160) : `(${r.status}) ${truncateForPrint(r.body ?? "", 120)}` });
       } catch (err) {
-        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: "error", why: err instanceof Error ? err.message.slice(0, 120) : "error", draftFailed: false, ms: Date.now() - t0, reply: "" });
+        rows.push({ id: c.id, group: c.group, expect: c.expect.kind, score: "error", why: err instanceof Error ? err.message.slice(0, 120) : "error", draftFailed: false, hold: "", ms: Date.now() - t0, reply: "" });
       }
     }
   } finally {
@@ -100,7 +100,7 @@ async function main(): Promise<number> {
     for (const r of rows.filter((x) => x.group === group)) t[r.score]++;
     return t;
   };
-  console.table(rows.map(({ id, expect, score, why, ms, reply }) => ({ id, expect, score, why, ms, reply })));
+  console.table(rows.map(({ id, expect, score, why, hold, ms, reply }) => ({ id, expect, score, why, hold, ms, reply })));
   const customer = tally("customer");
   const customerN = rows.filter((r) => r.group === "customer").length;
   console.log(`CUSTOMER ${customer.right}/${customerN} right · ${customer.wrong} wrong · ${customer.fragment} fragment · ${customer.none} none · ${customer.error} error`);
