@@ -33,36 +33,39 @@ type Row = {
 
 const db = vi.hoisted(() => ({ rows: [] as Row[] }));
 
-function matches(row: Record<string, unknown>, where: Record<string, unknown> | undefined): boolean {
+// SQL three-valued logic: comparing a NULL column is UNKNOWN (null), NOT UNKNOWN
+// stays UNKNOWN, and a WHERE keeps only TRUE. Two-valued JS equality would hide
+// the legacy NULL created_by case (Codex review on PR 3359).
+type Tri = boolean | null;
+const and3 = (xs: Tri[]): Tri => (xs.includes(false) ? false : xs.includes(null) ? null : true);
+const or3 = (xs: Tri[]): Tri => (xs.includes(true) ? true : xs.includes(null) ? null : false);
+function evalWhere(row: Record<string, unknown>, where: Record<string, unknown> | undefined): Tri {
   if (!where) return true;
+  const parts: Tri[] = [];
   for (const [field, cond] of Object.entries(where)) {
     if (field === "NOT") {
       const list = Array.isArray(cond) ? cond : [cond];
-      if (list.some((c) => matches(row, c as Record<string, unknown>))) return false;
+      parts.push(and3(list.map((c) => { const t = evalWhere(row, c as Record<string, unknown>); return t === null ? null : !t; })));
       continue;
     }
-    if (field === "AND") {
-      if (!(cond as Record<string, unknown>[]).every((c) => matches(row, c))) return false;
-      continue;
-    }
+    if (field === "OR") { parts.push(or3((cond as Record<string, unknown>[]).map((c) => evalWhere(row, c)))); continue; }
+    if (field === "AND") { parts.push(and3((cond as Record<string, unknown>[]).map((c) => evalWhere(row, c)))); continue; }
     const v = row[field];
-    if (cond === null) {
-      if (v !== null) return false;
-      continue;
-    }
-    if (typeof cond !== "object" || cond instanceof Date) {
-      if (v !== cond) return false;
-      continue;
-    }
+    if (cond === null) { parts.push(v === null); continue; }
+    if (typeof cond !== "object" || cond instanceof Date) { parts.push(v === null ? null : v === cond); continue; }
     const c = cond as Record<string, unknown>;
-    if ("in" in c && !(c.in as unknown[]).includes(v)) return false;
-    if ("notIn" in c && (c.notIn as unknown[]).includes(v)) return false;
-    if ("not" in c && v === c.not) return false;
-    if ("startsWith" in c && !(typeof v === "string" && v.startsWith(c.startsWith as string))) return false;
-    if ("lt" in c && !(v !== null && (v as number | Date) < (c.lt as number | Date))) return false;
+    const ops: Tri[] = [];
+    if ("not" in c) ops.push(c.not === null ? v !== null : v === null ? null : v !== c.not);
+    if ("in" in c) ops.push(v === null ? null : (c.in as unknown[]).includes(v));
+    if ("notIn" in c) ops.push(v === null ? null : !(c.notIn as unknown[]).includes(v));
+    if ("startsWith" in c) ops.push(v === null ? null : typeof v === "string" && v.startsWith(c.startsWith as string));
+    if ("lt" in c) ops.push(v === null ? null : (v as number | Date) < (c.lt as number | Date));
+    if ("gt" in c) ops.push(v === null ? null : (v as number | Date) > (c.gt as number | Date));
+    parts.push(and3(ops));
   }
-  return true;
+  return and3(parts);
 }
+const matches = (row: Record<string, unknown>, where: Record<string, unknown> | undefined) => evalWhere(row, where) === true;
 
 vi.mock("@/lib/prisma", () => {
   const update = async ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
@@ -91,6 +94,7 @@ vi.mock("@/lib/prisma", () => {
         },
         delete: async () => ({}),
       },
+      memoryEdge: { groupBy: async () => [] },
     },
   };
 });
@@ -104,7 +108,7 @@ vi.mock("@/lib/ai/traced-aichat", () => ({
 vi.mock("@/lib/brain/embedding-utils", () => ({ storeMemoryEmbedding: vi.fn(async () => undefined) }));
 vi.mock("@/lib/errors/record-error", () => ({ recordError: vi.fn() }));
 
-import { mergeMemories, pruneNoise } from "@/lib/brain/memory-consolidation";
+import { mergeMemories, pruneNoise, scoreMemories } from "@/lib/brain/memory-consolidation";
 
 const OLD = new Date("2026-01-01T00:00:00Z");
 function rows(n: number, over: Partial<Row>): Row[] {
@@ -164,6 +168,12 @@ describe("pruneNoise sweeps never take curated rows", () => {
     expect(deleted("insight")).toBe(2);
   });
 
+  it("CONTROL: a legacy machine row with NULL created_by is still swept", async () => {
+    db.rows = rows(1, { id: "legacy", category: "insight", source: "cron:x", createdBy: null, expiresAt: PAST });
+    await pruneNoise();
+    expect(deleted("insight")).toBe(1);
+  });
+
   it.each([
     ["pack:*", { category: "wisdom", source: "pack:charlie-munger" }],
     ["skill_ingestion", { category: "wisdom", source: "skill_ingestion" }],
@@ -176,5 +186,22 @@ describe("pruneNoise sweeps never take curated rows", () => {
     ];
     await pruneNoise();
     expect(db.rows.filter((r) => r.deletedAt !== null)).toHaveLength(0);
+  });
+});
+
+describe("scoreMemories never rescores curated rows", () => {
+  it.each([
+    ["greene_law seed", { category: "greene_law", source: "skill_ingestion", key: "law_28" }],
+    ["pack:* wisdom", { category: "pattern", source: "pack:naval-ravikant" }],
+  ])("%s keeps its confidence", async (_label, over) => {
+    db.rows = rows(1, { ...over, id: "curated", confidence: 1 });
+    await scoreMemories();
+    expect(db.rows[0].confidence).toBe(1);
+  });
+
+  it("CONTROL: an old machine row is rescored", async () => {
+    db.rows = rows(1, { id: "machine", category: "pattern", source: "cron:x", confidence: 1 });
+    await scoreMemories();
+    expect(db.rows[0].confidence).not.toBe(1);
   });
 });

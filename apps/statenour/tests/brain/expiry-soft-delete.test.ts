@@ -72,6 +72,7 @@ describe("pruneNoise · TTL expiry", () => {
       Object.entries(where).every(([field, cond]): boolean => {
         // 2026-10-29 · the curated guard: NOT [...] passes only when no listed clause matches.
         if (field === "NOT") return !(cond as Record<string, unknown>[]).some((c) => matches(row, c));
+        if (field === "OR") return (cond as Record<string, unknown>[]).some((c) => matches(row, c));
         const v = row[field];
         if (cond === null || cond instanceof Date || typeof cond !== "object") return v === cond;
         const c = cond as Record<string, unknown>;

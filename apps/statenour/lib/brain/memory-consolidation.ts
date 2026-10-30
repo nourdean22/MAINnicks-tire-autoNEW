@@ -32,10 +32,13 @@ const log = rootLogger.withSurface("brain/memory-consolidation");
 // Rows no machine pass may rewrite or delete: the operator's own (see the
 // 2026-08-27 note in mergeMemories), and curated wisdom packs (pack:*, written
 // by scripts/ingest-wisdom-pack.ts; added 2026-10-29). Shared by the merge and
-// by both pruneNoise sweeps. Prisma NOT-array is null-safe for legacy rows.
+// by both pruneNoise sweeps and the scoring pass. created_by is nullable and
+// Prisma renders NOT(created_by = 'user'), which is UNKNOWN for NULL and drops the
+// row (checked read-only on prod 2026-10-29), so legacy NULL rows are admitted
+// explicitly. source is NOT NULL, so its clauses stay inside NOT.
 const CURATED_GUARD = {
+  OR: [{ createdBy: null }, { createdBy: { not: "user" } }],
   NOT: [
-    { createdBy: "user" },
     { source: { in: [...OPERATOR_SOURCE_NAMES] } },
     { source: { startsWith: "pin:" } },
     { source: { startsWith: "pack:" } },
@@ -517,7 +520,8 @@ export async function scoreMemories(): Promise<{ scored: number }> {
     // same rationale: manual confidence is an explicit operator signal
     // (the highest-trust value in the system); the recency scorer must
     // not silently erode it.
-    where: { confidence: { gt: 0 }, category: { not: "wisdom" }, source: { not: "manual" } },
+    // 2026-10-29 · curated rows keep their confidence (the guard covers "manual"; greene_law seeds are 1.0 by design).
+    where: { confidence: { gt: 0 }, category: { notIn: ["wisdom", BRAIN_CATEGORIES.GREENE_LAW] }, ...CURATED_GUARD },
     orderBy: { updatedAt: "asc" },
     take: 100,
     select: { id: true, category: true, content: true, confidence: true, seenCount: true, lastSeen: true, createdAt: true },

@@ -63,6 +63,10 @@ describe("NEVER_HARD_DELETE_CATEGORIES · what a TTL sweep may never touch", () 
     }
   });
 
+  it("curated Greene seeds are never hard-deleted (2026-10-29, Codex on PR 3359)", () => {
+    expect(NEVER_HARD_DELETE_CATEGORIES.includes("greene_law")).toBe(true);
+  });
+
   it("enforces config/retention.ts's 'compounds forever' comment, which no code enforced", () => {
     for (const c of ["identity_snapshot", "belief", "contradiction", "decision_pattern", "anti_pattern"]) {
       expect(NEVER_HARD_DELETE_CATEGORIES.includes(c), `${c} is named 'NEVER in this list' in retention.ts`).toBe(true);
