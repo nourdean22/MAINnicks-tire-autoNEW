@@ -34,6 +34,7 @@ The whole point of this module is to feed it an HONEST stream.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from collections import Counter
@@ -116,6 +117,9 @@ class PipelineStats:
     #: within ERASED_WATCH_SECONDS when its pre-clear path is put back in front: an arrival
     #: the clear erased. Counted, never promoted.
     crossings_erased: Counter = field(default_factory=Counter)
+    #: The two counters above failed to count (and were skipped) this many times. The paths are
+    #: cleared and the frame processed regardless: the instrument never changes what it measures.
+    gate_stats_errors: int = 0
 
     def to_dict(self) -> dict:
         d = {k: v for k, v in self.__dict__.items()
@@ -130,6 +134,8 @@ class PipelineStats:
 #: `parse_event=None` (a stub tracker that wants the raw dict). Telling those apart is what
 #: keeps tracker injection from silently disabling the parser.
 _USE_VISITD_PARSER = object()
+
+log = logging.getLogger("vision.pipeline")
 
 #: How long a candidate wiped by a blind-frame gate is watched for the crossing the wipe erased.
 #: A car mid-entry finishes its portal crossing within seconds; 30 s is ByteTrack's default
@@ -586,17 +592,22 @@ class VisionPipeline:
         the portal once that pre-clear path is put back in front of its new one, the clear
         erased an arrival, counted in `crossings_erased`. Nothing here promotes a track.
         """
-        min_out = getattr(self.portal, "min_outside_hits", 2)
-        for t in self.tracks.tracks.values():
-            if t.evidence != "candidate" or len(t.path) < 2:
-                continue
-            self.stats.path_clears[gate] += 1
-            if t.track_id in self._erased_watch:
-                continue
-            outside = sum(1 for pt in t.path if not self.portal.inside_zone.contains(pt))
-            if outside >= min_out:
-                self._erased_watch[t.track_id] = (gate, list(t.path), now)
-        self.tracks.mark_degraded(now)
+        try:
+            min_out = getattr(self.portal, "min_outside_hits", 2)
+            for t in self.tracks.tracks.values():
+                if t.evidence != "candidate" or len(t.path) < 2:
+                    continue
+                self.stats.path_clears[gate] += 1
+                if t.track_id in self._erased_watch:
+                    continue
+                outside = sum(1 for pt in t.path if not self.portal.inside_zone.contains(pt))
+                if outside >= min_out:
+                    self._erased_watch[t.track_id] = (gate, list(t.path), now)
+        except Exception:  # noqa: BLE001 - a counter must never change the gate it counts
+            self.stats.gate_stats_errors += 1
+            log.exception("blind-gate counting failed; paths are cleared regardless")
+        finally:
+            self.tracks.mark_degraded(now)
 
     def _check_erased(self, now: float) -> None:
         """Count watched crossings a blind-frame clear erased: the wiped path put back in front
@@ -826,7 +837,12 @@ class VisionPipeline:
                 ))
 
         if self._erased_watch:
-            self._check_erased(now)
+            try:
+                self._check_erased(now)
+            except Exception:  # noqa: BLE001 - record only; never stop the frame
+                self.stats.gate_stats_errors += 1
+                self._erased_watch.clear()
+                log.exception("erased-crossing check failed; watch dropped")
 
         # 7. Ongoing arrivals -> visitd updates; bay observations ----------------
         for t in self.tracks.tracks.values():
