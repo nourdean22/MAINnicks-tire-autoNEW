@@ -11,7 +11,7 @@
 # its target left alone. -Check reports what would change and changes nothing.
 #
 # When each change takes effect: the shim at the next tick (the loop reads it afresh every ~30 s);
-# the edge, crop and Eufy bridge launchers at their next start; the loop only when its task starts again (next
+# the edge, crop, MediaMTX and Eufy bridge launchers at their next start; the loop only when its task starts again (next
 # boot, or an elevated restart of NicksMaxCameraSupervisorSystem). The fallback copy is not
 # installed here: the supervisor refreshes it from the last version that completed a tick.
 param(
@@ -30,6 +30,7 @@ $targets = @(
   @{ Name = "shim"; From = "nicksmax-camera-supervisor-shim.ps1"; To = (Join-Path $data "nicksmax-camera-supervisor.ps1") },
   @{ Name = "edge"; From = "run-sign-rtsp-production.ps1";        To = (Join-Path $data "run-sign-rtsp-production.ps1") },
   @{ Name = "crop"; From = "run-sign-crop.ps1";                   To = (Join-Path $CropDir "run-sign-crop.ps1") },
+  @{ Name = "mediamtx"; From = "run-mediamtx-sign.ps1";           To = (Join-Path $CropDir "run-mediamtx-sign.ps1") },
   @{ Name = "eufy-bridge"; From = "start-bridge-nicksmax.ps1";     To = (Join-Path $EufyDir "start-bridge-nicksmax.ps1") }
 )
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"

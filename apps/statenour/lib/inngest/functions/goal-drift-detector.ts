@@ -22,6 +22,7 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordCoachEvent, ackCoachEvent, buildCoachEventKey } from "@/lib/services/coach-events";
+import { etDaysBetween, goalDue, type GoalDue } from "@/lib/brain/goal-pace";
 import {
   classifyDrift,
   type DriftVerdict,
@@ -32,7 +33,7 @@ import {
 const log = rootLogger.withSurface("inngest/goal-drift-detector");
 const inngest = getInngest();
 
-interface DriftFlag {
+export interface DriftFlag {
   goalId: string;
   goalTitle: string;
   horizon: string | null;
@@ -40,6 +41,8 @@ interface DriftFlag {
   daysSinceActivity: number;
   progress: number;
   daysToDeadline: number | null;
+  /** "deadline" when Nour set the date, else e.g. "end of week (from horizon)". */
+  dueLabel: string;
 }
 
 async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string[] }> {
@@ -57,38 +60,42 @@ async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string
       title: true,
       horizon: true,
       deadline: true,
+      createdAt: true,
+      targetValue: true,
+      currentValue: true,
       progress: true,
       updatedAt: true,
       events: {
         where: { createdAt: { gte: priorCutoff } },
-        select: { createdAt: true },
+        select: { kind: true, createdAt: true },
       },
     },
   });
+  // When each goal's current horizon was set (any age): a derived due date counts from it.
+  const horizonSets = await prisma.goalEvent.findMany({
+    where: { goalId: { in: goals.map((g) => g.id) }, kind: "horizon_set" },
+    orderBy: { createdAt: "desc" },
+    select: { goalId: true, createdAt: true },
+  });
+  const horizonSetAt = new Map<string, Date>();
+  for (const h of horizonSets) if (!horizonSetAt.has(h.goalId)) horizonSetAt.set(h.goalId, h.createdAt);
 
   const flagged: DriftFlag[] = [];
   const recovered: string[] = [];
 
   for (const g of goals) {
-    let recentEvents = 0;
-    let priorEvents = 0;
-    let lastActivity = new Date(g.updatedAt);
-    for (const e of g.events) {
-      const t = new Date(e.createdAt);
-      if (t >= recentCutoff) recentEvents++;
-      else priorEvents++;
-      if (t > lastActivity) lastActivity = t;
-    }
+    const { recentEvents, priorEvents, lastEvent } = movementCounts(g.events, recentCutoff);
+    const lastActivity = lastEvent && lastEvent > g.updatedAt ? lastEvent : new Date(g.updatedAt);
     const daysSinceActivity = Math.floor((now - lastActivity.getTime()) / 86_400_000);
-    const daysToDeadline = g.deadline
-      ? Math.floor((new Date(g.deadline).getTime() - now) / 86_400_000)
-      : null;
+    const due = goalDue({ ...g, horizonSetAt: horizonSetAt.get(g.id) ?? null });
+    const daysToDeadline = daysToDue(due, g.targetValue, now);
+    const progress = driftProgress(g);
 
     const verdict = classifyDrift({
       recentEvents,
       priorEvents,
       daysSinceActivity,
-      progress: g.progress,
+      progress,
       daysToDeadline,
     });
 
@@ -99,8 +106,9 @@ async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string
         horizon: g.horizon,
         verdict,
         daysSinceActivity,
-        progress: g.progress,
+        progress,
         daysToDeadline,
+        dueLabel: due.label,
       });
     } else {
       // Active + not drifting -> ack any prior drift event for this goal.
@@ -112,16 +120,55 @@ async function scanForDrift(): Promise<{ flagged: DriftFlag[]; recovered: string
   return { flagged, recovered };
 }
 
-function titleFor(f: DriftFlag): string {
+/**
+ * ET calendar days to the goal's due date, the count the goal card shows. A horizon gives a
+ * derived date when Nour set none (goalDue), but only a goal WITH a target can be "behind" on
+ * it: with no target there is no "at N%" to report, so it feeds no risk alert (null).
+ */
+export function daysToDue(due: GoalDue, targetValue: number, now: number): number | null {
+  if (due.at === null) return null;
+  if (due.source === "horizon" && !(targetValue > 0)) return null;
+  const dueMs = Date.parse(due.at);
+  const days = etDaysBetween(now, dueMs);
+  // Passed earlier today is past (the classifier only alerts on >= 0), not "0 days left".
+  return dueMs < now ? Math.min(days, -1) : days;
+}
+
+/** Percent done from the live values; the stored `progress` goes stale when the target is edited. */
+export function driftProgress(g: { currentValue: number; targetValue: number; progress: number }): number {
+  return g.targetValue > 0 ? Math.min(100, Math.round((g.currentValue / g.targetValue) * 100)) : g.progress;
+}
+
+/** Lifecycle events are not movement: a goal's own creation would otherwise hide a quiet week. */
+const NOT_MOVEMENT = new Set(["created", "horizon_set"]);
+
+export function movementCounts(
+  events: { kind: string; createdAt: Date }[],
+  recentCutoff: Date,
+): { recentEvents: number; priorEvents: number; lastEvent: Date | null } {
+  let recentEvents = 0;
+  let priorEvents = 0;
+  let lastEvent: Date | null = null;
+  for (const e of events) {
+    if (NOT_MOVEMENT.has(e.kind)) continue;
+    const t = new Date(e.createdAt);
+    if (t >= recentCutoff) recentEvents++;
+    else priorEvents++;
+    if (!lastEvent || t > lastEvent) lastEvent = t;
+  }
+  return { recentEvents, priorEvents, lastEvent };
+}
+
+export function titleFor(f: DriftFlag): string {
   if (f.verdict.signal === "deadline-risk") {
-    return `Deadline risk · ${f.goalTitle} · ${f.daysToDeadline}d left at ${Math.round(f.progress)}%`;
+    return `${f.dueLabel === "deadline" ? "Deadline risk" : "Time risk"} · ${f.goalTitle} · ${f.daysToDeadline}d to ${f.dueLabel} at ${Math.round(f.progress)}%`;
   }
   return `Drifting · ${f.goalTitle} · quiet ${f.daysSinceActivity}d`;
 }
 
-function bodyFor(f: DriftFlag): string {
+export function bodyFor(f: DriftFlag): string {
   if (f.verdict.signal === "deadline-risk") {
-    return `${f.daysToDeadline} days to the deadline at ${Math.round(f.progress)}% — no movement this week. Re-commit, push, or move the date.`;
+    return `${f.daysToDeadline} days to the ${f.dueLabel} at ${Math.round(f.progress)}% — no movement this week. Re-commit, push, or ${f.dueLabel === "deadline" ? "move the date" : "set a date"}.`;
   }
   return `Was active, then nothing for ${f.daysSinceActivity} days. Re-engage now before it goes fully stale.`;
 }
