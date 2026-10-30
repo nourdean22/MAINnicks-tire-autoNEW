@@ -966,6 +966,23 @@ export async function markCandidateOwnerAlerted(id: number): Promise<void> {
 }
 
 /**
+ * The candidate row already saved for one inbound text (sessionId
+ * "smsjob:<jobId>" / "smsin:<hash>"), so a re-run of the same response job
+ * after a crash or lease reclaim neither saves a second row nor re-alerts.
+ * Throws on a read failure: the caller must not insert blind.
+ */
+export async function findCandidateIdBySessionId(sessionId: string): Promise<number | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select({ id: candidates.id })
+    .from(candidates)
+    .where(eq(candidates.sessionId, sessionId))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+/**
  * Earlier rows with the same normalized phone — the duplicate-applicant check.
  * `available: false` when the lookup could not run, so a caller cannot mistake
  * "couldn't check" for "first time we've seen them" (the fabricated-read gate,

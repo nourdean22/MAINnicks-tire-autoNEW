@@ -110,6 +110,24 @@ function ownerSmsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.CANDIDATE_OWNER_SMS ?? "").trim().toLowerCase() !== "off";
 }
 
+/**
+ * A text-to-apply message arrived but its row could not be saved and there is
+ * no job row to retry from (smsResponseJobs' no-job fallback). One internal
+ * text so the owner knows to read the SMS inbox. Last four digits only: the
+ * store phone's sent box is readable by staff.
+ */
+export async function notifyOwnerTextApplicationNotSaved(phoneLast4: string): Promise<void> {
+  if (!ownerSmsEnabled()) return;
+  const to = ownerAlertPhone();
+  if (!to) return;
+  const res = await sendSms(
+    to,
+    `Job text from a number ending ${phoneLast4} could not be saved as an application. Read it in the SMS inbox.`,
+    { via: "shop", messageClass: "internal" },
+  );
+  if (!res.success) log.warn("[candidate-intake] not-saved owner text failed", { error: res.error });
+}
+
 /** E.164 destination for the owner text; null if the override is unusable. */
 function ownerAlertPhone(env: NodeJS.ProcessEnv = process.env): string | null {
   const override = (env.CANDIDATE_ALERT_PHONE ?? "").trim();

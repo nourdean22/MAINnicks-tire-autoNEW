@@ -26,6 +26,7 @@ import { createLogger } from "../../lib/logger";
 import { trackDetached } from "../../_core/gracefulShutdown";
 import { recordInboundShopSms } from "../../sms";
 import { STORE_PHONE } from "@shared/const";
+import { startsWithHiringToken } from "@shared/jobOpenings";
 // Type-only: erased at compile time, so it cannot create an import cycle with the
 // service this module otherwise reaches through dynamic import.
 import type { ObligationHandle } from "../../services/smsResponseJobs";
@@ -185,8 +186,10 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
       // (image), fire the photo-assess pipeline in parallel with the
       // normal text-handling path. The pipeline runs its own opt-out +
       // sending-hours checks via sendSms.
+      // A text-to-apply message with a photo (a resume, a certificate) is a job
+      // application, not a car photo: the photo pipeline would auto-reply.
       const mmsUrl = (payload.attachments && payload.attachments[0]) || payload.mediaUrl;
-      if (mmsUrl && phone) {
+      if (mmsUrl && phone && !startsWithHiringToken(body)) {
         trackDetached("sms-gateway:mms-photo-assess", (async () => {
           try {
             const { runPhotoAssess } = await import("../../services/photo-assess-pipeline");
