@@ -454,6 +454,20 @@ describe("POST /api/sync/nour-os open_loop · standing obligation (one open task
     expect(store.get(SLOT)).toMatchObject({ resultRef: "task_2" });
   });
 
+  it("a slow open() whose slot was taken over meanwhile does not settle the new owner's slot (Codex P2, PR 3356)", async () => {
+    await post(SET_A, "attribution_weak_matches");
+    createdTasks[0].status = "DONE";
+    const realCreate = createTask.getMockImplementation()!;
+    createTask.mockImplementationOnce(async (d) => {
+      // While this create is in flight past the lease, a racer takes the slot over (fresh lease, still unsettled).
+      const row = store.get(SLOT)!;
+      row.lastSeenAt = new Date(row.lastSeenAt.getTime() + 5 * 60_000);
+      return realCreate(d);
+    });
+    await post(SET_B, "attribution_weak_matches");
+    expect(store.get(SLOT)?.resultRef).toBeNull(); // left for the racer to settle with its own task
+  });
+
   it("a malformed standing value is ignored: the post behaves as an ordinary keyed escalation", async () => {
     await post(SET_A, "Not A Trigger!");
     await post(SET_B, "Not A Trigger!");

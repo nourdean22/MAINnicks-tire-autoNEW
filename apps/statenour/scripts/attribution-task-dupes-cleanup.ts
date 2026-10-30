@@ -22,9 +22,11 @@
  *   2. backup row count must equal keeper + targets;
  *   3. soft delete the targets (deleted_at = now()), re-checking every
  *      condition in the WHERE; the updated count must equal the plan;
- *   4. retitle the keeper; 5. seed the slot (ON CONFLICT DO NOTHING).
+ *   4. retitle the keeper; 5. point the slot at the keeper (insert, or
+ *      overwrite a slot a delivery created after the dry run).
  *
- * Restore: UPDATE "Task" t SET deleted_at = NULL, title = b.title
+ * Restore: UPDATE "Task" t SET deleted_at = b.deleted_at, title = b.title,
+ *            updated_by = b.updated_by, "updatedAt" = b."updatedAt"
  *          FROM _bak_task_dupes_20261029 b WHERE t.id = b.id;
  *          DELETE FROM bridge_receipts WHERE idempotency_key = 'v1:obligation.standing:attribution_weak_matches';
  *
@@ -93,7 +95,8 @@ async function main(): Promise<void> {
         UPDATE "Task" SET deleted_at = now(), updated_by = ${ACTOR}, "updatedAt" = now()
          WHERE id = ANY(${targetIds}::text[]) AND deleted_at IS NULL AND status::text = 'INBOX'
            AND NOT coalesce("lastTouchedAt" - "createdAt" > interval '1 minute', false)
-           AND updated_by = 'system' AND title ~ ${FAMILY}`;
+           AND updated_by = 'system' AND title ~ ${FAMILY}
+           AND NOT EXISTS (SELECT 1 FROM "Task" c WHERE c.parent_task_id = "Task".id AND c.deleted_at IS NULL)`;
       if (deleted !== targetIds.length) throw new Error(`soft-deleted ${deleted}, expected ${targetIds.length}; rolled back`);
 
       const retitled = await tx.$executeRaw`
@@ -104,14 +107,14 @@ async function main(): Promise<void> {
       await tx.$executeRaw`
         INSERT INTO bridge_receipts (idempotency_key, route, result_ref, first_seen_at, last_seen_at, seen_count)
         VALUES (${SLOT_KEY}, ${SLOT_ROUTE}, ${keeper.id}, now(), now(), 1)
-        ON CONFLICT (idempotency_key) DO NOTHING`;
+        ON CONFLICT (idempotency_key) DO UPDATE SET result_ref = EXCLUDED.result_ref, last_seen_at = now()`;
     },
     { timeout: 30_000 },
   );
 
   const [after] = await prisma.$queryRaw<Array<{ alive: number }>>`
     SELECT count(*)::int AS alive FROM "Task" WHERE deleted_at IS NULL AND title ~ ${FAMILY}`;
-  console.log(`\nEXECUTED: backup ${BAK} (${ids.length} rows), soft-deleted ${targetIds.length}, keeper retitled, slot seeded.`);
+  console.log(`\nEXECUTED: backup ${BAK} (${ids.length} rows), soft-deleted ${targetIds.length}, keeper retitled, slot points at the keeper.`);
   console.log(`after: counted-title family alive = ${after.alive} (keeper now has the count-free title)`);
   await prisma.$disconnect();
 }

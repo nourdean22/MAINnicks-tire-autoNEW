@@ -231,9 +231,20 @@ export async function holdStandingSlot(
     );
     throw err;
   }
-  await settleReceipt(db, slotKey, ref).catch((settleErr) =>
-    log.error("bridge_receipt_settle_failed", { route, keyTag: keyTag(slotKey), error: String(settleErr) }),
-  );
+  // Settle only our OWN lease: if open() outlived staleMs, another delivery took
+  // the slot over and is opening its own task; a plain settle would point the
+  // slot at ours and drop theirs. Losing it is said loudly, never as success.
+  const settled = await db.bridgeReceipt
+    .updateMany({
+      where: { idempotencyKey: slotKey, resultRef: null, lastSeenAt: leaseAt },
+      data: { resultRef: ref.slice(0, 120) },
+    })
+    .then((r) => r.count === 1)
+    .catch((settleErr) => {
+      log.error("bridge_receipt_settle_failed", { route, keyTag: keyTag(slotKey), error: String(settleErr) });
+      return false;
+    });
+  if (!settled) log.error("bridge_standing_slot_lost", { route, keyTag: keyTag(slotKey), ref });
   return { ref, reused: false };
 }
 
