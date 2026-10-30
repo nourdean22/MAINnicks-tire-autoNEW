@@ -129,3 +129,43 @@ describe("envFailureClaims · failed call vs failed read-back", () => {
     expect(claim.toolOutcome).toBe("unconfirmed");
   });
 });
+
+/**
+ * 2026-10-30 prod (14:03Z): the reply was bannered for a failed searchMemories read
+ * although the SAME read had succeeded earlier in the SAME turn; the failed copy was a
+ * repeat. A failed read stands down only when an earlier call of the same tool with the
+ * same args succeeded in the turn. Anything else keeps the banner. Synthetic prose only.
+ */
+describe("envFailureClaims · a failed repeat of a read that already succeeded", () => {
+  const isRead = (name: string) => name === "searchMemories";
+  const REPLY = "Your sleep streak is five days.";
+  const okSleep = { name: "searchMemories", ok: true, args: { query: "sleep streak" } };
+  const failedSleep = { name: "searchMemories", ok: false, args: { query: "sleep streak" } };
+  const checks = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      i === n - 1
+        ? { toolName: "searchMemories", verified: false, reason: "Tool execution failed" }
+        : { toolName: "searchMemories", verified: null },
+    );
+
+  it("is quiet when the same tool with the same args succeeded earlier in the turn", () => {
+    expect(envFailureClaims(checks(2), REPLY, { calls: [okSleep, failedSleep], isRead })).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL · a result backed only by a failed read still gets the banner", () => {
+    expect(envFailureClaims(checks(1), REPLY, { calls: [failedSleep], isRead })).toHaveLength(1);
+  });
+
+  it("CONTROL · the same tool with DIFFERENT args succeeding does not cover the failed read", () => {
+    const okOther = { name: "searchMemories", ok: true, args: { query: "gym" } };
+    expect(envFailureClaims(checks(2), REPLY, { calls: [okOther, failedSleep], isRead })).toHaveLength(1);
+  });
+
+  it("CONTROL · a success that came AFTER the failure does not cover it", () => {
+    const checksLateOk = [
+      { toolName: "searchMemories", verified: false, reason: "Tool execution failed" },
+      { toolName: "searchMemories", verified: null },
+    ];
+    expect(envFailureClaims(checksLateOk, REPLY, { calls: [failedSleep, okSleep], isRead })).toHaveLength(1);
+  });
+});

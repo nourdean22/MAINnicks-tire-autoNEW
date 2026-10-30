@@ -25,7 +25,7 @@
  */
 
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
-import { stepCountIs } from "ai";
+import { stepCountIs, type ModelMessage } from "ai";
 import { getFlag } from "@/lib/feature-flags";
 import { isReadSafeTool, stripMutatingTools } from "@/lib/ai/capability-registry";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -735,11 +735,11 @@ export async function runAlternatePaths(args: {
           experimental_telemetry: langfuseTelemetry({ functionId: "chat-evidence-preflush", privateMode }),
           system: finalSystemPrompt,
           temperature: turnSignal.temperature,
-          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+          prepareStep: ({ stepNumber, messages }: { stepNumber: number; messages?: ModelMessage[] }) =>
             stepNumber === 0 && webSearchPinned
               ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
               : stepNumber >= lastStep
-                ? textOnlyStep(provider)
+                ? textOnlyStep(provider, messages)
                 : { toolChoice: "auto" as const },
         } as Parameters<typeof generateText>[0]);
         winner = r.text;
