@@ -892,11 +892,15 @@ function buildTiers(): void {
               contractDetails,
             });
 
+            // Warn when the set of issue classes changes (counts masked), not every 5 min:
+            // 69 identical lines in 5.5 h on 2026-10-30. An empty set is recorded too, so a return logs.
+            const { changedSinceLastLog, issueClassSignature } = await import("../lib/logOnChange");
+            const accuracyChanged = changedSinceLastLog("data-accuracy", issueClassSignature(issues));
             if (issues.length > 0) {
               // Log internally only — no external notifications
               const { createLogger } = await import("../lib/logger");
               const accuracyLog = createLogger("cron:data-accuracy");
-              accuracyLog.warn("Data accuracy issues found", { issues });
+              if (accuracyChanged) accuracyLog.warn("Data accuracy issues found", { issues });
               const { remember } = await import("../services/nickMemory");
               await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, identity: "data_accuracy", source: "accuracy_check", confidence: 0.8 });
             }
