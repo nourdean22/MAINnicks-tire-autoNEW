@@ -23,7 +23,8 @@ export function uploadErrorText(status: number): string {
   if (status === 404) return "This task no longer exists.";
   if (status === 413) return "The photo is too large even after shrinking. Try a smaller one.";
   if (status === 400 || status === 415) return "That file is not a photo this app can read. Use a JPEG or WebP photo.";
-  if (status === 503) return "Photos need the live database; this is demo data.";
+  // 503 is also auth unavailable or the database out of quota, so it names no single cause.
+  if (status === 503) return "Photo storage is not available right now. Try again in a few minutes.";
   return "The photo was not saved. Try again.";
 }
 
@@ -31,7 +32,7 @@ export function uploadErrorText(status: number): string {
 export function deleteErrorText(err: unknown): string {
   const e = err as { message?: string; data?: { code?: string } } | null;
   const code = e?.data?.code;
-  if (code === "NOT_FOUND") return "Already deleted. Close and the list will catch up.";
+  if (code === "NOT_FOUND") return "Already deleted. The list is refreshing.";
   if (code === "UNAUTHORIZED") return "Your session ended. Sign in again, then delete it again.";
   if (code === "FORBIDDEN" && /NICK_MUTATION_LOCK/.test(e?.message ?? "")) return "Changes are locked right now (the mutation lock is on). Not deleted.";
   return "Not deleted. Try again.";
@@ -95,6 +96,10 @@ function Viewer({ taskId, id, onClose }: { taskId: string; id: string; onClose: 
     onSuccess: async () => {
       await utils.task.attachments.invalidate({ taskId });
       onClose();
+    },
+    // Deleted elsewhere: refresh the list so the stale tile goes away.
+    onError: (err) => {
+      if ((err as { data?: { code?: string } }).data?.code === "NOT_FOUND") void utils.task.attachments.invalidate({ taskId });
     },
   });
   useEffect(() => {

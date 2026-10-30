@@ -13,15 +13,22 @@ import { createRoot, type Root } from "react-dom/client";
 
 const h = vi.hoisted(() => ({
   del: { mutate: () => {}, isPending: false, isError: false, error: null as unknown },
+  delOpts: null as unknown as { onError?: (err: unknown) => void },
+  invalidate: vi.fn(async (_: unknown) => {}),
 }));
 
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
     task: {
       attachments: { useQuery: () => ({ data: [{ id: "a1" }], isLoading: false, isError: false, refetch: async () => {} }) },
-      attachmentDelete: { useMutation: () => h.del },
+      attachmentDelete: {
+        useMutation: (opts: { onError?: (err: unknown) => void }) => {
+          h.delOpts = opts;
+          return h.del;
+        },
+      },
     },
-    useUtils: () => ({ task: { attachments: { invalidate: async () => {} } } }),
+    useUtils: () => ({ task: { attachments: { invalidate: h.invalidate } } }),
   },
 }));
 vi.mock("@/lib/ui/resize-photo", () => ({
@@ -34,6 +41,7 @@ let root: Root;
 let host: HTMLDivElement;
 beforeEach(() => {
   h.del = { mutate: () => {}, isPending: false, isError: false, error: null };
+  h.invalidate.mockClear();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -59,7 +67,8 @@ describe("upload errors", () => {
     expect(uploadErrorText(404)).toMatch(/task no longer exists/i);
     expect(uploadErrorText(413)).toMatch(/too large/i);
     expect(uploadErrorText(415)).toMatch(/JPEG or WebP/);
-    expect(uploadErrorText(503)).toMatch(/demo data/i);
+    // 503 also means auth unavailable or the database out of quota, so it never claims demo data.
+    expect(uploadErrorText(503)).toBe("Photo storage is not available right now. Try again in a few minutes.");
     expect(uploadErrorText(500)).toBe("The photo was not saved. Try again.");
   });
 
@@ -85,7 +94,7 @@ describe("upload errors", () => {
 
 describe("delete errors", () => {
   it("names the cause by tRPC code, never the raw message", () => {
-    expect(deleteErrorText({ data: { code: "NOT_FOUND" }, message: "Photo not found." })).toMatch(/already deleted/i);
+    expect(deleteErrorText({ data: { code: "NOT_FOUND" }, message: "Photo not found." })).toBe("Already deleted. The list is refreshing.");
     expect(deleteErrorText({ data: { code: "UNAUTHORIZED" } })).toMatch(/session ended/i);
     expect(deleteErrorText({ data: { code: "FORBIDDEN" }, message: "Mutations are currently locked by NICK_MUTATION_LOCK." })).toMatch(/locked/i);
     const unknown = deleteErrorText({ data: { code: "INTERNAL_SERVER_ERROR" }, message: "PrismaClientKnownRequestError" });
@@ -102,5 +111,24 @@ describe("delete errors", () => {
     });
     expect(document.body.textContent).toContain("Not deleted. Try again.");
     expect(document.body.textContent).not.toContain("Prisma");
+  });
+
+  it("an already-deleted photo refreshes the list, so its stale tile goes away", async () => {
+    act(() => root.render(<TaskPhotos taskId="t1" />));
+    await act(async () => {
+      (host.querySelector('button[aria-label="Open photo"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      h.delOpts.onError?.({ data: { code: "NOT_FOUND" }, message: "Photo not found." });
+      await Promise.resolve();
+    });
+    expect(h.invalidate).toHaveBeenCalledWith({ taskId: "t1" });
+    h.invalidate.mockClear();
+    await act(async () => {
+      h.delOpts.onError?.({ data: { code: "INTERNAL_SERVER_ERROR" }, message: "boom" });
+      await Promise.resolve();
+    });
+    expect(h.invalidate).not.toHaveBeenCalled();
   });
 });
