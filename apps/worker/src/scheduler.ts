@@ -36,6 +36,8 @@ import { renderReelVideo } from "@nour/reel-engine";
 // Forwarding lives in its own module so tests can load it without the render deps.
 import { STATENOUR_WEB_URL, CRON_SECRET, forwardCronToWeb, readApiData } from "./forward.js";
 export { forwardCronToWeb, readForwardBody } from "./forward.js";
+import { createRingPoller, ringPollEnabled, DEFAULT_RING_USER_AGENT, type PollerHealth } from "./ring-poller.js";
+import { createRedisVault } from "./ring-vault.js";
 
 
 // Scheduler liveness + drain state.
@@ -45,6 +47,8 @@ export { forwardCronToWeb, readForwardBody } from "./forward.js";
 // - lastTickAt: newest tick time, exposed to /health so a wedged loop reads
 //   unhealthy instead of the old hard-coded scheduler:"running".
 const scheduledTasks: cron.ScheduledTask[] = [];
+const RING_SCHEDULE = "*/15 * * * *";
+let ringPoller: ReturnType<typeof createRingPoller> | null = null;
 const inFlightForwards = new Set<string>();
 let lastTickAt = 0;
 
@@ -373,6 +377,48 @@ export function startScheduler(): void {
   scheduledTasks.push(renderTask);
   registered++;
 
+  // Ring W1a (2026-10-30): read-only Ring camera status, off unless RING_POLL_ENABLED=1 and its
+  // variables are set. */15 on purpose: it rides the same ticks as the loops above, so its bdnick
+  // writes add no Neon wake time (the 2-min render poll that pinned Neon awake, 2026-08-19).
+  if (ringPollEnabled(process.env)) {
+    try {
+      const e = process.env;
+      const poller = createRingPoller({
+        vault: createRedisVault(e.REDIS_URL!.trim(), e.RING_TOKEN_KEY!.trim()),
+        env: {
+          seed: e.RING_REFRESH_TOKEN_SEED ?? "",
+          userAgent: (e.RING_USER_AGENT ?? "").trim() || DEFAULT_RING_USER_AGENT,
+          webUrl: STATENOUR_WEB_URL,
+          deviceKey: e.DEVICE_AGENT_KEY!.trim(),
+        },
+      });
+      ringPoller = poller;
+      const task = cron.schedule(
+        RING_SCHEDULE,
+        () => {
+          if (inFlightForwards.has("ring-poll")) {
+            console.warn("[scheduler] skip ring-poll · previous poll still in flight");
+            return;
+          }
+          inFlightForwards.add("ring-poll");
+          void poller
+            .pollOnce()
+            .then((o) => {
+              if (o.ok) console.log(`[ring] ${o.patched} camera status(es) written`);
+            })
+            .finally(() => inFlightForwards.delete("ring-poll"));
+        },
+        { timezone: "UTC" },
+      );
+      scheduledTasks.push(task);
+      registered++;
+    } catch (err) {
+      console.error(`[ring] poller not started: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    console.log("[ring] poller off (RING_POLL_ENABLED is not 1, or a required variable is missing)");
+  }
+
   console.log(
     `[scheduler] registered ${registered} jobs · target=${STATENOUR_WEB_URL || "UNSET"} · timezone UTC`,
   );
@@ -398,12 +444,14 @@ export function getSchedulerHealth(): {
   msSinceLastTick: number | null;
   isRendering: boolean;
   inFlightForwards: string[];
+  ring: PollerHealth | null;
 } {
   return {
     lastTickAt,
     msSinceLastTick: lastTickAt === 0 ? null : Date.now() - lastTickAt,
     isRendering,
     inFlightForwards: [...inFlightForwards],
+    ring: ringPoller?.health() ?? null,
   };
 }
 
