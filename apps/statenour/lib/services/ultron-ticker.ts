@@ -26,6 +26,7 @@
 import { cached } from "@/lib/utils/cache";
 import { computeInputs, generateTimelines, type Timeline } from "@/lib/ultron/timelines";
 import { queryNickBatch, readBridge } from "@/lib/nickstire/query";
+import { readNickRevenue } from "@/lib/nickstire/revenue";
 import type { Nudge } from "@/lib/brain/cross-system-nudge";
 import type { IdentityAxis, AxisKey } from "@/lib/brain/identity-snapshot";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -134,17 +135,21 @@ export async function fetchShopPulse(): Promise<TickerItem[]> {
       return undefined;
     };
 
-    const rev = unwrap(results.revenue_today, "revenue");
-    if (rev && typeof rev.totalDollars === "number") {
-      const jobs = typeof rev.invoiceCount === "number" ? rev.invoiceCount : 0;
+    // 2026-10-30: through readNickRevenue, the one reader the Home shop card uses too. A direct
+    // `totalDollars` read dropped every other key shape without a word.
+    const revRaw = unwrap(results.revenue_today, "revenue");
+    const rev = revRaw ? readNickRevenue(revRaw) : null;
+    if (rev?.hasToday) {
       items.push({
         id: "shop-rev",
         category: BRAIN_CATEGORIES.SHOP,
         symbol: "SHOP",
-        label: `$${rev.totalDollars.toLocaleString()} today · ${jobs} jobs`,
-        severity: rev.totalDollars > 0 ? "win" : "info",
+        label: `$${rev.todayDollars.toLocaleString("en-US")} today · ${rev.jobs} jobs`,
+        severity: rev.todayDollars > 0 ? "win" : "info",
         href: "https://nickstire.org/admin",
       });
+    } else if (revRaw) {
+      unknownReads.push("revenue");
     }
 
     const leads = unwrap(results.leads_urgent, "leads");

@@ -38,6 +38,7 @@ import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 import { HOME_SIGNAL_KINDS, recordHomeSignal } from "@/lib/observability/home-decision-metrics";
 import { buildOperatorBrief, buildBriefChanges } from "@/lib/home/operator-brief";
 import { buildWaitingSummary } from "@/lib/home/waiting-summary-data";
+import { buildShopToday } from "@/lib/home/shop-today";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 import { computeCharacterSheet } from "@/lib/mastery/character-sheet";
 import {
@@ -636,6 +637,9 @@ export const operatorRouter = router({
     .input(z.object({ scope: z.enum(["full", "rail"]).optional() }).optional())
     .query(async ({ input }) => buildWaitingSummary(new Date(), { scope: input?.scope ?? "full" })),
   ticker: operatorProcedure.query(async () => buildTickerFeed()),
+
+  /** 2026-10-30 · owner-only · the Home Nick's Tire card: today's shop sales, or unknown (never $0 on a failed read). */
+  shopToday: operatorProcedure.query(async () => buildShopToday()),
 
   /**
    * Phase B.6a · owner-only · the bottom personal-pulse ticker —

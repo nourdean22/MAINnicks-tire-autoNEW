@@ -31,7 +31,17 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/use-min-width", () => ({ useMinWidth: () => h.wide }));
-vi.mock("@/lib/trpc/client", () => ({ trpc: { operator: { brief: { useQuery: () => h.query } } } }));
+vi.mock("@/hooks/use-polling-fetch", () => ({ usePollingFetch: () => ({ data: null, loading: true, error: null }) }));
+// shopToday: the Home shop card (home-pulse W2, 2026-10-30); a pending read renders its skeleton.
+vi.mock("@/lib/trpc/client", () => ({
+  trpc: {
+    operator: {
+      brief: { useQuery: () => h.query },
+      shopToday: { useQuery: () => ({ data: undefined, isError: false }) },
+      goalsSnapshot: { useQuery: () => ({ data: undefined, isError: false }) },
+    },
+  },
+}));
 vi.mock("@/components/home/brief-state-line", () => ({ BriefStateLine: () => null }));
 vi.mock("@/components/home/brief-rows", () => ({ BriefRows: () => null }));
 vi.mock("@/components/wisdom/maxim-line", () => ({

@@ -363,3 +363,13 @@ body {
 }
 @media (min-width: 768px)  { .vt-verdict { font-size: 2.5rem; } }
 @media (min-width: 1280px) { .vt-verdict { font-size: 3rem; } }
+/* Home's NOW line (home-pulse W2, 2026-10-30): the same role in sentence case and a step smaller, because
+   in caps his task titles ran seven lines at 390px. Unlayered like .vt-verdict: a layered utility
+   (normal-case, text-*) loses to it and never renders (Codex P1 on #3405). */
+.vt-verdict.vt-verdict-sentence {
+  font-size: 1.75rem;
+  line-height: 1.12;
+  text-transform: none;
+}
+@media (min-width: 768px)  { .vt-verdict.vt-verdict-sentence { font-size: 2.25rem; } }
+@media (min-width: 1280px) { .vt-verdict.vt-verdict-sentence { font-size: 2.75rem; } }
