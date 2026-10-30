@@ -36,13 +36,20 @@ docs.ollama.com/windows, read 2026-10-30), so the Arc path likely means LM Studi
 
 | Job | Local? | Why |
 |---|---|---|
-| Anything sent to a customer | never automatic | 01-DESIGN 7 and 9: a person taps send; the model only drafts |
-| Prices, labor times, torque, intervals | no AI at all | rules and licensed data decide (01-DESIGN 7) |
-| Office speech-to-text | yes, live now | proven on MECHANICS (section 1) |
-| Copilot pointer wording | maybe later | rules pick the pointer; the model words one line |
-| Follow-up text drafts (from invoices) | maybe later | draft only; staff read it before the tap |
-| Tagging a complaint into a category | good fit | tiny output, fixed label set |
-| Call summaries | stay cloud | the receptionist already runs on Gemini with an Ollama lane (memory receptionist-replay-lane-ollama-only) |
+Our own data, all candidates (Nour 2026-10-30: use our stuff aggressively). Two lines never move: a person taps
+send on anything a customer gets, and prices, labor times, torque and intervals come from rules, not a model.
+
+| Our data | Local job and mechanism | Box | State |
+|---|---|---|---|
+| Office-ears audio | whisper transcribes (live); next, a 3-4B model tags each episode (price asked, declined, came back) as fixed JSON into the existing ingest | MECHANICS | transcribe LIVE; tagging idea |
+| Lot camera | car count runs on the front-desk PC (lot-vision v2); plate read per arrival, plate matched to a customer on our server, never kept on the box | MECHANICS | count designed; plate weights licence UNVERIFIED (UPSTREAMS fast-alpr row) |
+| Receptionist calls | live calls stay on VAPI; after-call replay, scoring and summary drafts run as a batch (the replay lane is already Ollama-only, memory receptionist-replay-lane-ollama-only) | NattyNour when home, or cloud | lane exists; local run idea |
+| SMS and follow-up drafts | an estimate with no invoice (likely a walk-out, INFERENCE) or a closed invoice gets a draft text; staff read it and tap | MECHANICS by day, or cloud | idea |
+| Website tire searches | nightly: sizes people searched that the shop had no price or stock for, as a buy list | any node, night batch | idea; which search fields the site keeps is UNKNOWN |
+| Copilot pointers | rules pick the pointer; the model words one line (01-DESIGN 7) | MECHANICS or cloud | copilot not built |
+
+Night shift is the cheap trick: when the shop is closed, MECHANICS is idle, so batch jobs (tags, tire-search lists,
+call scoring) do not fight the front desk or live whisper for CPU.
 
 ## 3. Three options
 
@@ -68,7 +75,8 @@ Maintainer: Nour, three machines. Kill: any node stores customer data at rest, O
 claimer more than twice a week, OR the tailnet ACL review (docs/agent-os/TAILNET-MCP.md shape) is not done first.
 
 Why A: the copilot is last in the build order (05-ROADMAP v3), so no local job exists to serve yet; B's only proven
-piece (whisper) is already live; C costs money, adds two unreliable nodes and a network path 09-ACCESS does not cover.
+piece (whisper) is already live; C costs money, adds two unreliable nodes and a network path to maintain.
+First local step when a job exists: B as a night-shift batch node (section 2), not a daytime chat model.
 
 ## 4. Local vs API cost at a few closed tickets a day
 
@@ -82,13 +90,13 @@ order of 10^4 tokens a day and 3 x 10^5 a month.
 - Owner time decides it: local wins only if 0.3 x price per 1M > upkeep hours a month x the value of Nour's hour.
   With half an hour of upkeep a month, the API would have to cost more than 1.7 of his hours per 1M tokens.
 
-## 5. PII rules for any local node
-1. No customer data at rest: prompts live in memory only; no copy of tickets, phones or names on the box (01-DESIGN 9).
-2. Bind to 127.0.0.1. Never set OLLAMA_HOST to listen on the shop LAN; the Ollama FAQ describes no built-in auth
-   (FACT, read 2026-10-30), so treat it as open. llama.cpp's server has `--api-key` (FACT, its server README).
-3. Any network exposure needs Nour's explicit go and a threat model like TAILNET-MCP.md; Tailscale Serve only, never Funnel.
+## 5. Customer data on a local box (practical rules)
+1. Our database stays the only home of customer records. A local box gets one job's text at a time and sends the
+   result back; it keeps weights and its queue, not tickets, phones or plates.
+2. Wipe: job text lives in memory; temp audio is deleted after transcription; nothing to wipe but the model folder.
+3. Bind to 127.0.0.1. The Ollama FAQ describes no built-in auth (FACT, read 2026-10-30), so a LAN bind would let any
+   shop device use it; llama.cpp's server has `--api-key` (FACT, its server README). Tailscale Serve, never Funnel.
 4. Weights only from the publisher's own Hugging Face org, licence read first (the MiniMax-M3 row in UPSTREAMS shows why).
-5. A node that sees customer text is in the 09-ACCESS device inventory (FTC Safeguards duties).
 
 ## 6. Paste block: read a PC's specs (no install, no admin)
 Tested 2026-10-30 in Windows PowerShell 5.1 on NattyNour: exit 0, one line per field. Paste the output back; it
