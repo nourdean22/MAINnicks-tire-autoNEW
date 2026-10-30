@@ -84,19 +84,18 @@ export function BriefStateLine({
 
       {/* UI v3 W2 (2026-10-16): the verdict is the hero. It starts right under the wordmark, runs the
           full column instead of an 18ch measure, and steps up a size at each width, so from six feet
-          Home reads as one sentence with a brief under it. The signal notch marks NOW, the one gold
-          mark on the page that is not an action. */}
+          Home reads as one sentence with a brief under it. (The gold notch beside NOW marked no
+          state and left in home-pulse W2, 2026-10-30.) */}
       <div className="mt-5 border-b border-edge-subtle pb-5">
-        <div className="flex items-center gap-2">
-          <span className="notch h-3" aria-hidden />
-          <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
-        </div>
+        <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
 
         {loading ? (
           <div className="mt-3 h-24 w-11/12 animate-pulse rounded-micro bg-raised sm:h-28" aria-hidden />
         ) : (
           state && (
-            <p className="vt-verdict mt-3 max-w-none text-balance text-[2.25rem] leading-[1.04] tracking-tight sm:text-[2.75rem] xl:text-[3.5rem]">
+            // W2 (2026-10-30): sentence case and three lines at most. In caps his task titles ran seven
+            // lines at 390 px and read as an alarm poster (frame a_01).
+            <p className="vt-verdict mt-3 line-clamp-3 max-w-none text-balance text-[1.75rem] normal-case leading-[1.12] tracking-tight sm:text-[2.25rem] xl:text-[2.75rem]">
               {state.summary}
             </p>
           )
