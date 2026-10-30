@@ -483,8 +483,11 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
         const rowIso = new Date(latestContext.createdAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
         const fact = wisdomAppliedFact(ctx, rowIso === todayIso);
         if (fact) {
-          const { pickMaxim } = await import("@/lib/brain/maxims");
-          const maxim = pickMaxim(fact.tag, todayIso);
+          const [{ MAXIM_POOL }, { pickMaximForDay }] = await Promise.all([
+            import("@/lib/wisdom/maxim-pool"),
+            import("@/lib/wisdom/maxims"),
+          ]);
+          const maxim = pickMaximForDay(MAXIM_POOL, fact.tag, todayIso);
           if (maxim) {
             lines.push(
               `Wisdom applied · ${fact.label}: "${escapeHtml(maxim.text)}" (${escapeHtml(maxim.source)})`,
@@ -792,14 +795,37 @@ function extractLineOfCars(ctx: Record<string, unknown>): number | null {
   return null;
 }
 
+/** statenourSync.ts builds declinedWork from getDeclinedWorkLedger(10): its totals cover these many orders. */
+const DECLINED_LEDGER_ORDERS = 10;
+
+/** A count read from the 10-order ledger page: a full page may hide more. */
+function declinedCountText(n: number): string {
+  return n >= DECLINED_LEDGER_ORDERS ? `${DECLINED_LEDGER_ORDERS}+` : String(n);
+}
+
 function extractDeclinedDelta(
   ctx: Record<string, unknown>,
 ): { text: string; payload: Record<string, unknown> } | null {
+  // statenourSync.ts sends declinedWork: null when its ledger read throws: a failed count, not "none".
+  if (ctx.declinedWork === null) {
+    return { text: "Declined work: unknown (the count failed)", payload: { measured: false, source: "unknown" } };
+  }
   const dec = ctx.declinedWork as Record<string, unknown> | undefined;
   if (!dec) return null;
 
-  const todayCount = numericField(dec, ["count", "openCount", "total"]);
+  // statenourSync.ts sends `measured` + `source`: when work_order_items holds no declined rows
+  // ("empty") or could not be counted ("unknown"), its zeros mean nothing. Say which, never a 0.
+  if (dec.measured === false) {
+    const failed = dec.source === "unknown";
+    return {
+      text: failed ? "Declined work: unknown (the count failed)" : "Declined work: not measured yet",
+      payload: { measured: false, source: typeof dec.source === "string" ? dec.source : null },
+    };
+  }
+
+  const todayCount = numericField(dec, ["customerCount", "count", "openCount", "total"]);
   const todayValue = numericField(dec, [
+    "totalRecoverable",
     "value",
     "valueCents",
     "totalValue",
@@ -812,13 +838,23 @@ function extractDeclinedDelta(
 
   if (todayCount == null && todayValue == null) return null;
 
+  // The sync shape (customerCount) is a subtotal: statenourSync.ts reads getDeclinedWorkLedger(10),
+  // the 10 most recently updated work orders, BEFORE filtering to open ones. So a full page may hide
+  // more (10+), and 0 means none in those 10, not none at all. Say so.
+  const bounded = typeof dec.customerCount === "number";
+  if (bounded && todayCount === 0) {
+    return {
+      text: `Declined work: none open in the latest ${DECLINED_LEDGER_ORDERS} orders`,
+      payload: { count: 0, value: todayValue, boundedToOrders: DECLINED_LEDGER_ORDERS },
+    };
+  }
   const parts: string[] = [];
   if (todayCount != null) {
     const deltaStr =
       yesterdayCount != null
         ? ` (${todayCount - yesterdayCount >= 0 ? "+" : ""}${todayCount - yesterdayCount} vs yest)`
         : "";
-    parts.push(`${todayCount} open${deltaStr}`);
+    parts.push(`${bounded ? declinedCountText(todayCount) : todayCount} open${deltaStr}`);
   }
   if (todayValue != null) {
     // Treat field as dollars if name contains "Cents" we divide.
@@ -827,8 +863,8 @@ function extractDeclinedDelta(
   }
 
   return {
-    text: `Declined work: ${parts.join(" · ")}`,
-    payload: { count: todayCount, value: todayValue, yesterdayCount },
+    text: `Declined work${bounded ? ` (latest ${DECLINED_LEDGER_ORDERS} orders)` : ""}: ${parts.join(" · ")}`,
+    payload: { count: todayCount, value: todayValue, yesterdayCount, ...(bounded ? { boundedToOrders: DECLINED_LEDGER_ORDERS } : {}) },
   };
 }
 
@@ -860,11 +896,13 @@ function extractDeclinedTopWithIds(ctx: Record<string, unknown>): DeclinedTopRow
       if (typeof row === "string") return { name: row };
       if (row && typeof row === "object") {
         const r = row as Record<string, unknown>;
-        const name =
-          r.customerName ?? r.name ?? r.title ?? r.label ?? "Unnamed";
+        // /api/sync/business strips customer identity before storing (stripSyncCustomerPii), so a
+        // row without a label is skipped, never rendered as "Unnamed".
+        const name = r.customerName ?? r.name ?? r.title ?? r.label;
+        if (typeof name !== "string" || name.length === 0) return null;
         const id = r.customerId ?? r.id;
         return {
-          name: typeof name === "string" ? name : "Unnamed",
+          name,
           id: typeof id === "string" && id.length > 0 ? id : undefined,
         };
       }
@@ -946,7 +984,7 @@ function wisdomAppliedFact(
   const dec = ctx.declinedWork as Record<string, unknown> | undefined;
   const customers = dec?.measured === true ? numericField(dec, ["customerCount"]) : null;
   if (customers != null && customers > 0) {
-    return { tag: "customers", label: `declined work (${customers} customers open)`, metric: "declined" };
+    return { tag: "customers", label: `declined work (${declinedCountText(customers)} open in the latest ${DECLINED_LEDGER_ORDERS} orders)`, metric: "declined" };
   }
   const rev = ctx.revenue as Record<string, unknown> | undefined;
   if (rev && rowIsToday && rev.available !== false) {

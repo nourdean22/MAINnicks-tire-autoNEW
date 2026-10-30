@@ -129,6 +129,16 @@ export function pickMaxim(args: {
   };
 }
 
+/**
+ * The Monday brief's pick (lib/services/morning-brief.ts): only maxims carrying `tag`, keyed on the ET
+ * date, so a brief rebuilt the same day agrees. Null when no maxim has the tag (no fallback: the brief
+ * line names the number it applies to, so an off-topic maxim would be filler).
+ */
+export function pickMaximForDay(pool: readonly Maxim[], tag: string, dayIso: string): Maxim | null {
+  const tagged = pool.filter((m) => m.tags.includes(tag));
+  return tagged.length > 0 ? tagged[stableIndex(dayIso, tagged.length)]! : null;
+}
+
 /** Keep writes a pinned_user row with this source; it rides recall, not the six prompt pin slots. */
 export const MAXIM_KEEP_SOURCE = "home:maxim-keep";
 
