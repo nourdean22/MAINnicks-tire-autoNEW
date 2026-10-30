@@ -62,7 +62,7 @@ describe("device-heartbeat-sentinel", () => {
     expect(res.flipped[0]).toMatchObject({ platformDeviceId: "v380-shopsign", alerted: true, silentMinutes: 21 });
     expect(db.smartDevice.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "cmn-sign", status: "ONLINE", lastSeenAt: { lt: new Date(NOW.getTime() - STALE_AFTER_MS) } },
+        where: { id: "cmn-sign", status: { in: ["ONLINE", "ERROR"] }, lastSeenAt: { lt: new Date(NOW.getTime() - STALE_AFTER_MS) } },
         data: expect.objectContaining({ status: "OFFLINE", metadata: expect.objectContaining({ sentinel: expect.any(Object) }) }),
       }),
     );
@@ -88,10 +88,12 @@ describe("device-heartbeat-sentinel", () => {
     expect(alertLinkFor("Office")).toBe("https://nickstire.org/admin?tab=lot");
     expect(alertLinkFor(null)).toBe("https://bdnick.info/system");
   });
-  it("never-reported devices cannot be candidates: the stale query requires lastSeenAt < cutoff and status ONLINE", async () => {
+  it("never-reported devices cannot be candidates: the stale query requires lastSeenAt < cutoff and status ONLINE or ERROR", async () => {
     await runHeartbeatSentinel(NOW);
     const staleWhere = db.smartDevice.findMany.mock.calls[0][0].where;
-    expect(staleWhere.status).toBe("ONLINE");
+    // ERROR too (Codex P1 on #3414): the work heartbeat sets ERROR when frames stop and the
+    // edge then exits, so a stalled-then-dead camera must still page as offline.
+    expect(staleWhere.status).toEqual({ in: ["ONLINE", "ERROR"] });
     expect(staleWhere.lastSeenAt).toEqual({ lt: new Date(NOW.getTime() - STALE_AFTER_MS) });
     expect(mockSendTelegram).not.toHaveBeenCalled();
     expect(mockSendPush).not.toHaveBeenCalled();

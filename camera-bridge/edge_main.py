@@ -522,9 +522,22 @@ class EdgeLoop:
         challenger: Any = None,
         relocate_seconds: float = 120.0,
         service_review_seconds: float = 30.0,
+        cloud_device_id: Optional[str] = None,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
+        #: The StateNour device this camera's work heartbeat PATCHes (cameras.<name>.cloudDeviceId).
+        #: None sends nothing: the beat is an addition, never a dependency of watching the lot.
+        self.cloud_device_id = cloud_device_id
+        self.detections_total = 0
+        self.work_heartbeat_seq = 0
+        self._work_prev: Optional[Dict[str, Any]] = None
+        #: The in-flight work-beat sender. One at a time, OFF the frame thread: a slow bdnick
+        #: (8 s timeout) must never cost frames at the portal (Codex P1 on #3414).
+        self._work_thread: Optional[threading.Thread] = None
+        #: Frames whose vision step raised. They were decoded but never reasoned over, so the
+        #: work beat reports them as unusable beside the blind-gate suppressions.
+        self.vision_errors = 0
         self.vision = vision
         self.source = source
         #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
@@ -741,6 +754,7 @@ class EdgeLoop:
                 out = self.vision.step(frame)
             except Exception:
                 self.pipeline.metrics.inc("edge_vision_errors_total")
+                self.vision_errors += 1
                 log.exception("vision step error")
                 out = {"emissions": [], "suppressed": "vision error"}
 
@@ -924,6 +938,12 @@ class EdgeLoop:
             except Exception:
                 self.pipeline.metrics.inc("edge_heartbeat_errors_total")
                 log.exception("heartbeat error")
+            # Separate try: bdnick being down never costs the shop beat, and the reverse.
+            try:
+                self.send_work_heartbeat(now)
+            except Exception:
+                self.pipeline.metrics.inc("edge_work_heartbeat_errors_total")
+                log.warning("work heartbeat error", exc_info=True)
         if self.relocate_seconds > 0 and now >= self.next_relocate:
             self.next_relocate = now + self.relocate_seconds
             revalidate = getattr(self.source, "revalidate", None)
@@ -994,6 +1014,67 @@ class EdgeLoop:
                 except Exception:
                     self.pipeline.metrics.inc("edge_housekeeping_errors_total")
                     log.exception("ledger housekeeping error")
+
+    def send_work_heartbeat(self, now: float) -> bool:
+        """PATCH the StateNour device with the WORK totals; never a status or lastSeenAt.
+
+        bdnick derives the device status from `framesTotal` advancing between beats
+        (apps/statenour/lib/services/device-work-heartbeat.ts). A beat that only proved the
+        process exists would read "online" while the counter is blind, which is the trap
+        this replaces (bdnick read "last seen 10-23" for a week because only visits moved it).
+        """
+        cloud = getattr(self.pipeline, "cloud", None)
+        if not self.cloud_device_id or cloud is None:
+            return False
+        stats = getattr(self.vision, "stats", None)
+        if stats is None:
+            return False
+        suppressed = {
+            "unverified": int(getattr(stats, "suppressed_unverified", 0) or 0),
+            "unhealthy": int(getattr(stats, "suppressed_unhealthy", 0) or 0),
+            "camera_motion": int(getattr(stats, "suppressed_camera_motion", 0) or 0),
+            "vision_error": int(self.vision_errors),
+        }
+        arrivals = int(getattr(stats, "arrivals", 0) or 0)
+        prev = self._work_prev or {}
+        prev_suppressed = prev.get("suppressed", {})
+        self.work_heartbeat_seq += 1
+        body = {"currentState": {
+            "kind": "edge-work-v1",
+            "producerInstanceId": PRODUCER_INSTANCE_ID,
+            "heartbeatSeq": self.work_heartbeat_seq,
+            "sentAt": _iso(now),
+            "framesTotal": int(getattr(stats, "frames", 0) or 0),
+            "detectionsTotal": int(self.detections_total),
+            "arrivalsTotal": arrivals,
+            "crossingsSinceLastBeat": max(0, arrivals - int(prev.get("arrivals", arrivals))),
+            "blindGatesSinceLastBeat": sorted(
+                g for g, n in suppressed.items() if n > int(prev_suppressed.get(g, n))),
+            "suppressedFramesTotal": suppressed,
+            "calibrationVersion": self.calibration_version,
+        }}
+        self._work_prev = {"arrivals": arrivals, "suppressed": suppressed}
+        if self._work_thread is not None and self._work_thread.is_alive():
+            # The previous beat is still waiting on bdnick. Drop this one rather than queue:
+            # the next beat carries running totals, so nothing is lost but freshness.
+            self.pipeline.metrics.inc("edge_work_heartbeat_skipped_total")
+            return False
+        self._work_thread = threading.Thread(
+            target=self._post_work_heartbeat, args=(cloud, self.cloud_device_id, body),
+            name="edge-work-heartbeat", daemon=True)
+        self._work_thread.start()
+        return True
+
+    def _post_work_heartbeat(self, cloud: Any, device_id: str, body: Dict[str, Any]) -> None:
+        """Runs on the sender thread. `CloudClient.heartbeat` returns False on a network, auth
+        or HTTP failure instead of raising, so False counts as a failure too (Codex P2 on #3414)."""
+        try:
+            ok = bool(cloud.heartbeat(device_id, body))
+        except Exception:
+            log.warning("work heartbeat error", exc_info=True)
+            ok = False
+        if not ok:
+            self.pipeline.metrics.inc("edge_work_heartbeat_errors_total")
 
     def send_heartbeat(self, now: Optional[float] = None) -> bool:
         """Compose and post one heartbeat. False when no shop is configured."""
@@ -1195,7 +1276,9 @@ class EdgeLoop:
                 self._inference_ms.append(float(latency))
             # What the detector SAW on this inference. Zero is a real measurement here: the
             # detector ran over the frame and reported no vehicle.
-            self._detection_counts.append((float(frame.ts), len(getattr(council, "detections", None) or [])))
+            seen = len(getattr(council, "detections", None) or [])
+            self._detection_counts.append((float(frame.ts), seen))
+            self.detections_total += seen
             self._prune_windows(float(frame.ts))
         except Exception:  # noqa: BLE001 - health bookkeeping never costs a frame
             self.pipeline.metrics.inc("edge_inference_note_errors_total")
@@ -2430,6 +2513,7 @@ def run_edge(args: argparse.Namespace) -> int:
         hard_cases=recorder, trajectories=trajectories, shadow=shadow, challenger=challenger,
         relocate_seconds=args.relocate_seconds,
         service_review_seconds=args.service_review_seconds,
+        cloud_device_id=getattr(cfg.cameras.get(args.camera), "cloud_device_id", None),
     )
 
     stop = threading.Event()
