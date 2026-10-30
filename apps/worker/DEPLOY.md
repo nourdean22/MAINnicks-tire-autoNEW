@@ -20,7 +20,10 @@
 
 Auto-deploys on push to **`main`** when a watched path changes. The watch list is `.railway/railway.ts:85`, the only
 build/deploy config in the repo: `apps/worker/**` minus this file, `AGENTS.md` and `CLAUDE.md`, plus
-`apps/statenour/lib/**`, `packages/reel-engine/**`, `apps/nickstire/patches/**` and the root workspace files.
+`packages/reel-engine/**`, `apps/nickstire/patches/**` and the root workspace files. It stopped watching
+`apps/statenour/lib/**` on 2026-10-30: the image never ships it, and 19 of 21 builds came from that path alone.
+`strayWatches` in `scripts/agent-os/railwayWatchCoverage.test.mjs` fails any watch the build cannot read
+(`.railway/README.md`, 2026-10-30; live only after the operator's plan -> apply).
 Deploys do not wait for CI (`checkSuites: false`, same line).
 
 ## Pre-deploy validation
