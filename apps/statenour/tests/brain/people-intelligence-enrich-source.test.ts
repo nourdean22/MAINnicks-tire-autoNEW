@@ -96,7 +96,11 @@ describe("runPeopleIntelligence enrich", () => {
     await runPeopleIntelligence();
 
     expect(h.aiChat).not.toHaveBeenCalled();
-    expect(h.personUpdate).not.toHaveBeenCalled();
+    // No enrich suggestion. (Since W2 a cadence PROPOSAL may still be parked; that has its own test.)
+    const enrichWrites = h.personUpdate.mock.calls.filter(
+      (c) => (c[0] as { data: { pendingClassification?: { cadenceDays?: number } } }).data.pendingClassification?.cadenceDays === undefined,
+    );
+    expect(enrichWrites).toHaveLength(0);
   });
 
   it("still runs when more than 10 profiles are sparse (prod has 12), capped at 5 calls", async () => {

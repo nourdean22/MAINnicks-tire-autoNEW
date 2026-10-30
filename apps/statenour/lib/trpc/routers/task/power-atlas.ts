@@ -255,24 +255,11 @@ export const powerAtlasProcedures = {
         },
       });
       if (!person) throw new Error("Person not found");
-      const pc = (person.pendingClassification ?? null) as {
-        role?: string | null;
-        leverageNotes?: string | null;
-        trustAdjustment?: number;
-      } | null;
+      const { acceptClassificationData } = await import("@/lib/services/people/accept-classification");
+      const pc = (person.pendingClassification ?? null) as Parameters<typeof acceptClassificationData>[0];
       if (!pc) return { ok: true, noop: true };
 
-      const { isPersonRole } = await import("@/lib/brain/person-roles");
-      const data: Record<string, unknown> = { pendingClassification: null };
-      if (pc.role && isPersonRole(pc.role)) data.role = pc.role;
-      if (pc.leverageNotes && pc.leverageNotes.trim())
-        data.leverageNotes = pc.leverageNotes.trim().slice(0, 2000);
-      if (Number.isFinite(pc.trustAdjustment) && pc.trustAdjustment !== 0) {
-        data.trustScore = Math.max(
-          0,
-          Math.min(1, person.trustScore + (pc.trustAdjustment as number)),
-        );
-      }
+      const data = acceptClassificationData(pc, person.trustScore);
       await prisma.personProfile.update({ where: { id: input.personId }, data });
       return {
         ok: true,
@@ -280,6 +267,7 @@ export const powerAtlasProcedures = {
           role: (data.role as string | undefined) ?? null,
           leverageNotes: (data.leverageNotes as string | undefined) ?? null,
           trustScore: (data.trustScore as number | undefined) ?? null,
+          cadenceDays: (data.cadenceDays as number | undefined) ?? null,
         },
       };
     }),
