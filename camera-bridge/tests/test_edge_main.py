@@ -3040,6 +3040,39 @@ class BlindGateStatsTest(unittest.TestCase):
         bare = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(frames=[FakeFrame(1000.0)]))
         bare.step()   # no `stats` attribute: nothing raised, nothing published
 
+    def test_a_generation_break_drops_the_erased_crossing_watch(self):
+        """Codex P1 on #3394: a path from the old capture generation must never be joined to
+        one from the new, so the break that clears paths also drops the watch."""
+        pipeline = make_pipeline()
+        v = self._vision(pipeline)
+        v.tracks = SimpleNamespace(mark_degraded=lambda now=None: None)
+        v.census = SimpleNamespace(note_reconnect=lambda ts: None)
+        v.invalidated = 0
+
+        def invalidate():
+            v.invalidated += 1
+
+        v.invalidate_erased_watch = invalidate
+        src = FakeSource(index=0)
+        loop = _loop(pipeline, v, src, persist_seconds=0.0)
+        src._frames.append(FakeFrame(1000.0)); loop.step()
+        self.assertEqual(v.invalidated, 0)
+        src.index = 1
+        src._frames.append(FakeFrame(1001.0)); loop.step()
+        self.assertEqual(loop.generation_breaks, 1)
+        self.assertEqual(v.invalidated, 1)
+
+    def test_shutdown_logs_the_final_counts(self):
+        """Codex P1 on #3394: the 5-minute line alone loses up to 5 minutes of counts on every
+        restart (every 15-120 min on NicksMax), biasing the day low. Shutdown logs them too;
+        run_edge's finally reaches shutdown() on the stall exit(3) and on a stop."""
+        pipeline = make_pipeline()
+        loop = _loop(pipeline, self._vision(pipeline), FakeSource(frames=[FakeFrame(1000.0)]))
+        loop.step()                                   # the periodic line, at the first frame
+        with self.assertLogs("edge", level="INFO") as logs:
+            loop.shutdown()
+        self.assertTrue(any("blind-gate stats" in x and "final" in x for x in logs.output), logs.output)
+
     def test_a_persistent_publish_failure_logs_one_traceback_then_rate_limits(self):
         """#3394 follow-up: a failure on every frame must not write a traceback per frame."""
         class Broken:

@@ -628,9 +628,18 @@ class VisionPipeline:
             return
         self._gate_error_logged_at = now
 
+    def invalidate_erased_watch(self) -> None:
+        """Drop every erased-crossing watch. A capture generation change calls this: a path
+        from the old source must never be joined to one from the new (Codex P1 on #3394)."""
+        self._erased_watch.clear()
+
     def _check_erased(self, now: float) -> None:
         """Count watched crossings a blind-frame clear erased: the wiped path put back in front
-        of the same track's new path, or of a track born after the clear where it ended."""
+        of the same track's new path, or of a track born after the clear where it ended.
+
+        Held to the real arrival's bar (Codex P1s on #3394): a track that BECAME an arrival
+        was counted, so the watch is dropped, not scored; and a track whose detector may not
+        confirm could never have arrived, so it is never scored as an erased arrival."""
         for tid, (gate, before, at) in list(self._erased_watch.items()):
             if now - at > ERASED_WATCH_SECONDS:
                 del self._erased_watch[tid]
@@ -643,6 +652,11 @@ class VisionPipeline:
                     first = t.path[0]
                     if ((first[0] - end[0]) ** 2 + (first[1] - end[1]) ** 2) ** 0.5 > ERASED_JOIN_PX:
                         continue
+                if t.evidence == "arrival":
+                    del self._erased_watch[tid]          # counted after all: not erased
+                    break
+                if not t.confirmable:
+                    continue
                 if self.portal.evaluate(before + list(t.path))["crossed"]:
                     self.stats.crossings_erased[gate] += 1
                     del self._erased_watch[tid]

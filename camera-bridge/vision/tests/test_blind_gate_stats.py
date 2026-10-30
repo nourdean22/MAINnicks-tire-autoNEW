@@ -19,9 +19,12 @@ from test_vision import car_box, frames, make_pipeline  # noqa: E402
 from vision.frame import Detection  # noqa: E402
 
 
-def _drive_in(blind_at=None, enter=True):
-    """A car from outside the lot across the portal and into it; one unverified frame at `blind_at`."""
-    n_empty, n_move, n_park = 10, 7, 20
+def _drive_in(blind_at=None, enter=True, confirm_after_blind=True, invalidate_at=None,
+              speed=30.0, n_move=7):
+    """A car from outside the lot across the portal and into it; one unverified frame at `blind_at`.
+    `confirm_after_blind=False` feeds every later frame from a detector that may not confirm;
+    `invalidate_at` drops the erased-crossing watch there (what a capture generation change does)."""
+    n_empty, n_park = 10, 20
     boxes, dets = [], []
     for _ in range(n_empty):
         boxes.append([])
@@ -31,8 +34,8 @@ def _drive_in(blind_at=None, enter=True):
         b = car_box(x)
         boxes.append([b])
         dets.append([Detection(b, 0.9, "vehicle", "stub")])
-        x += 30.0 if enter else 0.0
-    last = car_box(x - (30.0 if enter else 0.0))
+        x += speed if enter else 0.0
+    last = car_box(x - (speed if enter else 0.0))
     for _ in range(n_park):
         boxes.append([last])
         dets.append([Detection(last, 0.9, "vehicle", "stub")])
@@ -40,7 +43,10 @@ def _drive_in(blind_at=None, enter=True):
     for i, (f, d) in enumerate(zip(frames(len(boxes), boxes), dets)):
         if blind_at is not None and i == blind_at:
             f.meta["window_verified"] = False
-        pipe.step(f, detections=d)
+        if invalidate_at is not None and i == invalidate_at:
+            pipe.invalidate_erased_watch()
+        can_confirm = confirm_after_blind or blind_at is None or i <= blind_at
+        pipe.step(f, detections=d, detections_can_confirm=can_confirm)
     return pipe
 
 
@@ -132,3 +138,30 @@ def test_a_persistent_counting_failure_logs_a_traceback_once_then_one_line_per_t
     assert 2 <= len(records) <= 3, [r.getMessage() for r in records]
     assert "still failing" in records[-1].getMessage(), records[-1].getMessage()
     assert pipe.stats.gate_stats_errors == n, "every failure is still counted"
+
+
+# ---- Codex P1s on #3394: what an "erased crossing" must NOT count ----------------------------------
+
+
+def test_a_car_that_still_arrived_after_the_clear_is_not_an_erased_crossing():
+    # A slow car keeps its track through one blind frame and collects fresh outside samples
+    # afterwards, so it is a real arrival; its saved pre-clear path must not ALSO count.
+    pipe = _drive_in(blind_at=13, speed=10.0, n_move=22)
+    s = pipe.summary()
+    assert s["arrivals"] == 1, "precondition: this car was counted despite the blind frame"
+    assert s["crossingsErased"] == {}, s
+
+
+def test_a_track_that_could_not_confirm_is_not_an_erased_crossing():
+    pipe = _drive_in(blind_at=15, confirm_after_blind=False)
+    s = pipe.summary()
+    assert s["arrivals"] == 0
+    assert s["pathClears"] == {"unverified": 1}, s
+    assert s["crossingsErased"] == {}, s
+
+
+def test_a_capture_generation_change_drops_the_watch():
+    pipe = _drive_in(blind_at=15, invalidate_at=16)
+    s = pipe.summary()
+    assert s["pathClears"] == {"unverified": 1}, s
+    assert s["crossingsErased"] == {}, s

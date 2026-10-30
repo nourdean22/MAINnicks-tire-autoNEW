@@ -715,6 +715,11 @@ class EdgeLoop:
                         log.exception("hard-case trigger failed on a generation break")
                 try:
                     self.vision.tracks.mark_degraded()
+                    # A watch holds old-generation ground points; joining them to new ones would
+                    # count a crossing nobody observed (Codex P1 on #3394). Record only.
+                    invalidate = getattr(self.vision, "invalidate_erased_watch", None)
+                    if invalidate is not None:
+                        invalidate()
                     self.vision.census.note_reconnect(frame.ts)
                     self._stamp_source_generation()
                 except Exception:
@@ -870,7 +875,7 @@ class EdgeLoop:
     #: NicksMax and /metrics dies with it, so the log line is what a one-day read sums.
     GATE_LOG_SECONDS = 300.0
 
-    def _publish_gate_stats(self, now: float) -> None:
+    def _publish_gate_stats(self, now: float, final: bool = False) -> None:
         """Copy the vision pipeline's blind-gate counters to /metrics; log them every
         GATE_LOG_SECONDS (NicksMax 2026-10-30, record only). A vision with no `stats` is skipped."""
         stats = getattr(self.vision, "stats", None)
@@ -889,11 +894,11 @@ class EdgeLoop:
                 m.set("edge_vision_crossings_erased_total", n, {"gate": gate})
             m.set("edge_vision_arrivals_total", stats.arrivals)
             m.set("edge_vision_rejected_no_entry_evidence_total", stats.rejected_no_entry_evidence)
-            if self._next_gate_log is None or now >= self._next_gate_log:
+            if final or self._next_gate_log is None or now >= self._next_gate_log:
                 self._next_gate_log = now + self.GATE_LOG_SECONDS
-                log.info("blind-gate stats since start: suppressed=%s pathClears=%s "
+                log.info("blind-gate stats %s: suppressed=%s pathClears=%s "
                          "crossingsErased=%s arrivals=%d rejectedNoEntryEvidence=%d",
-                         suppressed, dict(sorted(stats.path_clears.items())),
+                         "final, since start" if final else "since start", suppressed, dict(sorted(stats.path_clears.items())),
                          dict(sorted(stats.crossings_erased.items())), stats.arrivals,
                          stats.rejected_no_entry_evidence)
         except Exception:  # noqa: BLE001 - a counter must never stop the frame loop
@@ -1656,6 +1661,9 @@ class EdgeLoop:
         from that age on its own. That derivation is exactly what the read-side liveness
         rules exist for.
         """
+        # The blind-gate counters die with the process; the periodic line alone loses up to
+        # GATE_LOG_SECONDS of them per restart (Codex P1 on #3394). Never raises.
+        self._publish_gate_stats(self.clock(), final=True)
         try:
             self.pipeline.after_step([])
         except Exception:
