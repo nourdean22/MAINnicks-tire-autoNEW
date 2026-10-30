@@ -98,7 +98,8 @@ export async function verifyEnvironmentState(
          const args = call.args as { taskId?: string };
          if (args?.taskId) {
             const task = await prisma.task.findUnique({ where: { id: args.taskId } });
-            if (task && task.status === "DONE") {
+            // A recurring task goes back to READY on completion; its fresh lastCompletedAt is the receipt.
+            if (task && (task.status === "DONE" || (task.lastCompletedAt != null && task.lastCompletedAt >= recentCutoff))) {
                results.push({ toolName: call.name, verified: true });
             } else {
                results.push({ toolName: call.name, verified: false, reason: "Task not marked DONE in database" });
