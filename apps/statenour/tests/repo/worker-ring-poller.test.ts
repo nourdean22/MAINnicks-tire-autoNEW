@@ -251,6 +251,31 @@ describe("pollOnce", () => {
     expect(poller.health().consecutiveFailures).toBe(1);
   });
 
+  it("the session renews every 12 h, not on every hourly token refresh (Codex P2)", async () => {
+    const { vault } = memoryVault(seedFor("rt-1", "hid-A"));
+    const net = fakeNet();
+    const poller = createRingPoller({ vault, env: ENV, fetchImpl: net.fetchImpl, now });
+    for (let i = 0; i < 4; i++) {
+      await poller.pollOnce();
+      clock += 2 * 3600_000; // past the 1 h access token each time
+    }
+    const sessions = () => net.calls.filter((c) => c.url.endsWith("/session")).length;
+    expect(net.tokenCalls()).toHaveLength(4);
+    expect(sessions()).toBe(1);
+    clock += 12 * 3600_000;
+    await poller.pollOnce();
+    expect(sessions()).toBe(2);
+  });
+
+  it("sends its fields as currentStateMerge so other camera state is kept (Codex P2)", async () => {
+    const { vault } = memoryVault(seedFor("rt-1", "hid-A"));
+    const net = fakeNet();
+    await createRingPoller({ vault, env: ENV, fetchImpl: net.fetchImpl, now }).pollOnce();
+    const body = net.calls.find((c) => c.method === "PATCH")!.body as Record<string, unknown>;
+    expect(body.currentState).toBeUndefined();
+    expect(body.currentStateMerge).toMatchObject({ connection: "online" });
+  });
+
   it("no stored token and no seed: nothing is called", async () => {
     const { vault } = memoryVault();
     const net = fakeNet();

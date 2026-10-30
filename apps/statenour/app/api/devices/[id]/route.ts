@@ -50,7 +50,14 @@ export const PATCH = apiHandler(async (req, { params }) => {
         status: body.status || undefined,
         location: body.location || undefined,
         lastSeenAt: body.lastSeenAt ? new Date(body.lastSeenAt) : undefined,
-        currentState: body.currentState || undefined,
+        // currentState replaces (the camera bridge sends its full state); currentStateMerge
+        // merges into the stored state (the Ring poller knows only its own fields).
+        // shortcut: read-modify-write, not atomic; fine for one writer per row, upgrade to a SQL jsonb || if two writers share a row.
+        currentState: body.currentState
+          ? body.currentState
+          : body.currentStateMerge
+            ? { ...((resolved.currentState as Record<string, unknown> | null) ?? {}), ...body.currentStateMerge }
+            : undefined,
         capabilities: body.capabilities || undefined,
         metadata: body.metadata || undefined,
       },

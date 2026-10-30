@@ -147,8 +147,8 @@ export function createRingPoller(opts: {
     if (!(await opts.vault.swap(stored, next))) {
       return { ok: false, outcome: fail("token changed under this poller; rotation not used") };
     }
+    // The session is renewed on its own 12 h clock, not on every hourly token refresh.
     access = { token: body.access_token, expiresAt: now() + (body.expires_in ?? 3600) * 1000, hid };
-    sessionAt = 0;
     return { ok: true };
   }
 
@@ -194,7 +194,8 @@ export function createRingPoller(opts: {
         body: JSON.stringify({
           status: connectionStatus(cam),
           lastSeenAt: seenAt,
-          currentState: {
+          // Merged server-side: other writers own other fields (snapshotUrl).
+          currentStateMerge: {
             connection: typeof cam.alerts?.connection === "string" ? cam.alerts.connection : null,
             battery: cam.battery_life ?? null,
             firmware: cam.firmware_version ?? null,
