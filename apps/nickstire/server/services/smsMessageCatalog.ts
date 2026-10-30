@@ -9,6 +9,14 @@
  */
 
 import { BUSINESS } from "@shared/business";
+import { HIRING_SMS_TOKEN, OPEN_INTERVIEWS_LINE, openJobOpenings } from "@shared/jobOpenings";
+
+/** 2026-10-30 · the job-question reply, built from shared/jobOpenings.ts so a role,
+ *  the interview hours or the apply token can only change in one place. */
+const JOB_INQUIRY_REPLY = (() => {
+  const titles = openJobOpenings().map((j) => j.title);
+  return `Yes, we're hiring: ${titles.join(", ")}. ${OPEN_INTERVIEWS_LINE} Or text "${HIRING_SMS_TOKEN} ${titles[0] ?? "the job"}. My name is ..." to {shopPhone}, or apply at nickstire.org/careers.`;
+})();
 
 export interface ReplyConfig {
   expectedReplyTypes: string[];
@@ -229,7 +237,8 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
     "Dropping it off is perfect. Bring the keys in, tell us what's going on, and we'll call or text you before doing any work.",
     "Drop-off is no problem. We'll inspect it and call you with a quote before doing anything.",
     "You can drop it off anytime we're open. We'll text you when the job is done."
-  ]
+  ],
+  job_inquiry: [JOB_INQUIRY_REPLY],
 };
 
 export function getTemplateVariant(

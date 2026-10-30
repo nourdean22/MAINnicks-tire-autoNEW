@@ -236,9 +236,10 @@ export const OPEN_INTERVIEWS_LINE = `${OPEN_INTERVIEWS_SHORT} Walk in with an ID
  * Text-to-apply. The careers pages' text button prefills a body that STARTS
  * with this exact token; the inbound SMS path (server/services/smsHiringIntake.ts)
  * routes on the token alone, never on a guess about intent, so a customer
- * text that mentions a job or hiring keeps the normal customer flow.
+ * text that mentions a job or hiring keeps the normal customer flow (where a
+ * job question gets the job_inquiry catalog reply, smsMessageCatalog.ts).
  */
-const HIRING_SMS_TOKEN = "JOB-APPLY";
+export const HIRING_SMS_TOKEN = "JOB-APPLY";
 
 /** Prefilled text body, e.g. "JOB-APPLY Automotive Technician. My name is ". */
 function hiringSmsBody(title?: string): string {

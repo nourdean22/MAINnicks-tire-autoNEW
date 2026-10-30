@@ -56,6 +56,7 @@ export type SmsIntent =
   | "drop_off"
   | "financing"
   | "human_requested"
+  | "job_inquiry"
   | "general";
 
 export type SmsRouteRisk =
@@ -154,6 +155,26 @@ const RULES: Rule[] = [
       /\b(is (my|the) (car|truck|van|vehicle) (done|ready|finished))\b/i.test(b) ||
       /\b(status|update) (on|for|about) (my|the)\b/i.test(b) ||
       (ctx.hasActiveBooking && /\bhow('?s| is) (my|the) (car|truck|van|vehicle)\b/i.test(b)),
+  },
+
+  // ─── Tier 2a: a job question (2026-10-30) ──
+  // Nour: people asking about the open jobs were reaching staff. The answer is
+  // fixed (shared/jobOpenings.ts), so a template carries it. A JOB-APPLY text
+  // never gets here: smsHiringIntake routes on that token first. Only role or
+  // hiring words count; "the brake job" or "needs work" stay customer intents.
+  {
+    intent: "job_inquiry",
+    priority: 2,
+    risk: "deterministic",
+    catalogEvent: "job_inquiry",
+    test: (b) =>
+      /\bhiring\b/i.test(b) ||
+      /\binterviews?\b/i.test(b) ||
+      /\b(do|does) (you|y'?all|the shop) need (a |any |another |more )?(mechanics?|techs?|technicians?|workers?|employees?)\b/i.test(b) ||
+      /\b(looking for|need|want) (a |some )?(job|employment)\b(?! (done|on|for my))/i.test(b) ||
+      /\b(apply|application)\b[^.?!]{0,30}\b(job|position|tech|technician|mechanic|advisor)\b/i.test(b) ||
+      /\b(service advisor|technician|tech|mechanic) (position|job|role|opening)\b/i.test(b) ||
+      /\b(positions?|job openings?)\b[^.?!]{0,20}\b(open|available|still|filled)\b/i.test(b),
   },
 
   // ─── Tier 2b: estimate questions (state-aware) ──
@@ -436,6 +457,9 @@ const SUBSUMES: Partial<Record<SmsIntent, SmsIntent[]>> = {
   job_status: ["hours_location"],
   complaint_or_comeback: ["price_brakes", "price_tires", "price_oil", "price_alignment"],
   cancellation_policy_question: [],
+  // "are you hiring tire techs?" / "open interviews" is one question, not a tire
+  // price or the store hours.
+  job_inquiry: ["price_tires", "price_brakes", "price_oil", "price_alignment", "diagnostic", "hours_location", "same_day_visit", "symptom_triage", "tire_inventory"],
 };
 
 /**
