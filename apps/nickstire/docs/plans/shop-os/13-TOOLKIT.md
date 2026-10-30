@@ -36,3 +36,29 @@ screens he wants instead of vendor emails (06 row 2); emails stay ready if the b
 | Staff provisioning, checkout permission, tech clock, MFA gate | MISSING (code) | 09 section 2 P0 tasks 1-4; `isAdminMfaRequired()` is OFF | Agent builds after Nour's day 13-14 go |
 | New vendor key names (Koalafi private key, PartsTech) | MISSING | names TBD; Nour sets values in Railway himself, never in chat | blocked on vendor issue |
 | Bitwarden vault for shop logins | MISSING | memory shop-os-job-2026-10-26, "Owed by Nour"; 0 repo hits | Nour creates it (10 min); agents never type passwords |
+
+## 3. Agent tooling (connected NOW = this session's start lines and tool list, 2026-10-30)
+| Item | Connected now | Receipt | Next, who |
+|---|---|---|---|
+| graphify MCP, vapi-docs MCP (user scope) | yes | start lines "[surface] mcp: user graphify, vapi-docs", "[health] graphify up"; graph is MAIN, not a branch | none |
+| Neon, Prisma Remote, Vercel, context7, Twilio docs, Sentry MCP | tools listed; auth not exercised | session tool list | Reads only; infra writes are denied by name (AGENTS.md `infra-mutation-tool`) |
+| Gmail, Calendar, Drive, Sheets connectors | tools listed; auth not exercised | session tool list | Any send needs Nour's go |
+| Chrome extension, built-in browser, computer-use | tools listed | memory desktop-commander-and-computer-use | computer-use grants are per session |
+| Perplexity research route | BLOCKED | memory feedback-research-via-perplexity-chrome (2026-10-22, Chrome policy on the extension) | Nour lifts the site-access setting (3 min), else read primary pages directly |
+| Desktop Commander plugin | NO, connect timeout | start-up failure list; `config/agent-os/required-plugins.json` | Nour: `/plugin` manage, or fix later |
+| agentic-council, receipts-check plugins | NO, not enabled | "[health] plugins MISSING" start line | Nour: claude.ai Settings > Plugins (2 min) |
+| Prisma-Local, telegram, discord, imessage MCP | NO, closed | `knownConnectFailures` in required-plugins.json | Do not retry; alerts use server-side `TELEGRAM_*` names |
+| QuickBooks plugin | REJECTED | required-plugins.json `reject` (intuit-quickbooks) | If QBO is used, build on its API (UPSTREAMS 2026-09-23) |
+| CLIs | yes | versions run here: gh 2.102.0, railway 5.64.0, pnpm 10.4.1, node 24.19.0, uv 0.13.1, rtk 0.50.0 | repomix not checked |
+
+Skills this build needs (exact names; all in `.claude/skills/` at base 33d02c1a24 unless noted):
+| Skill | Use in this build |
+|---|---|
+| `steal-like-an-artist` | turn each of Nour's screenshots into adopt/adapt/reject with a `Benchmarked against:` line. Machine copy only: absent from repo `.claude/skills/` (its own text says byte-identical repo copy exists; `ls` says no). Manager commits it |
+| `reverse-engineer-anything` | our own captures, bundles and devices only; other vendors' screens are observation |
+| `prior-art-grep` | grep both apps for a table, tool or env name before building it |
+| `plan-gate` | gate pasted plans and the day 13-14 call against UPSTREAMS |
+| `nickstire-ios-pwa-primitives` | every /system confirm: two-tap, 48 px, no `window.confirm` |
+| `nickstire-tidb-ddl` | repair-order, inventory and tech tables (TiDB row-loss traps) |
+| `prod-db-guard` | any script that opens a DB, the ALG import included |
+| `shop-pc-remote-session` | driving the front-desk PC; a denied write means the hand-off block |
