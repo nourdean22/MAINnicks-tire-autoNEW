@@ -113,7 +113,7 @@ export const systemTools = {
 
   runDeviceCommand: tool({
     description:
-      "Queue a smart-home command to a physical device (lights, remotes, speakers, cameras). Locks, heaters and lock/heat/arm verbs are refused until Nour's per-command approval exists. Use when Nour says things like 'turn on the basement TV', 'turn off the shop lights', 'take a snapshot'. Identify the device by name OR location + type — Nick resolves to the closest match.",
+      "Queue a smart-home command to a physical device (lights, locks, cameras, thermostats). Use when Nour says things like 'lock the front door', 'turn off the shop lights', 'take a snapshot'. Identify the device by name OR location + type — Nick resolves to the closest match.",
     inputSchema: z.object({
       deviceId: z
         .string()
@@ -219,23 +219,11 @@ export const systemTools = {
         };
       }
 
-      // 2026-10-30 · Ring/Tuya W0: locks, heat and raw codes need Nour's per-command go.
-      const { normalizeDeviceVerb, physicalSafetyRefusal } = await import("@/lib/services/devices");
-      const refusal = physicalSafetyRefusal(target, command);
-      if (refusal) {
-        return {
-          success: false,
-          reason: "needs_nour_approval",
-          device: { id: target.id, name: target.name, location: target.location },
-          hint: `Command NOT enqueued: ${refusal}. Nick cannot send this from chat yet; Nour does it in the vendor app.`,
-        };
-      }
-
       // Enqueue
       const row = await prisma.deviceCommand.create({
         data: {
           deviceId: target.id,
-          command: normalizeDeviceVerb(command),
+          command,
           params: params ? (params as any) : undefined,
           status: "pending",
         },

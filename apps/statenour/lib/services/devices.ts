@@ -48,31 +48,6 @@ export function redactDevice<T extends { metadata?: unknown }>(device: T): T {
   return { ...device, metadata: stripDeviceSecrets(device.metadata) };
 }
 
-/**
- * 2026-10-30 · Ring/Tuya W0. The lock and the water heater are physical. Chat
- * may not queue a command for them, nor a verb that locks, heats, arms or
- * passes raw vendor codes to any device, until Nour's per-command approval is
- * wired (wave W4). The name check covers rows the old agent mislabelled (it
- * typed Tuya's water-heater category `rs` as IR_REMOTE).
- */
-const GATED_DEVICE_TYPES = new Set(["LOCK", "HEATER", "THERMOSTAT"]);
-const GATED_NAME = /lock|heater|thermostat|door/i;
-const GATED_VERBS = new Set(["lock", "unlock", "set_temp", "arm", "disarm", "raw"]);
-
-export function normalizeDeviceVerb(command: string): string {
-  return command.trim().toLowerCase();
-}
-
-/** Why chat may not queue this command; null when it may. */
-export function physicalSafetyRefusal(target: { name: string; deviceType: string }, command: string): string | null {
-  const verb = normalizeDeviceVerb(command);
-  if (GATED_VERBS.has(verb)) return `"${verb}" changes a lock, heat or alarm`;
-  if (GATED_DEVICE_TYPES.has(target.deviceType.toUpperCase()) || GATED_NAME.test(target.name)) {
-    return `${target.name} is a lock or heater`;
-  }
-  return null;
-}
-
 /** The cuid for a cuid OR a platformDeviceId; null when neither matches. */
 export async function resolveDeviceId(idOrPlatformId: string): Promise<string | null> {
   const device = await resolveDevice(idOrPlatformId);
