@@ -3001,5 +3001,45 @@ class LocateQualityTest(unittest.TestCase):
         self.assertIsNone(_locate_quality(None))
 
 
+class BlindGateStatsTest(unittest.TestCase):
+    """NicksMax 2026-10-30: the vision pipeline's per-gate path clears and erased crossings
+    must reach the edge's local /metrics, and a periodic log line, because the edge restarts
+    every 15-120 min there and in-process counters die with it. Record only."""
+
+    def _vision(self, pipeline):
+        from collections import Counter
+        from vision.pipeline import PipelineStats
+        v = FakeVision(pipeline.tracker)
+        v.stats = PipelineStats(suppressed_unhealthy=7, suppressed_unverified=2, arrivals=1,
+                                rejected_no_entry_evidence=4,
+                                path_clears=Counter({"unhealthy": 3, "unverified": 1}),
+                                crossings_erased=Counter({"unhealthy": 2}))
+        return v
+
+    def test_the_counters_reach_metrics_by_gate(self):
+        pipeline = make_pipeline()
+        loop = _loop(pipeline, self._vision(pipeline), FakeSource(frames=[FakeFrame(1000.0)]))
+        loop.step()
+        m = pipeline.metrics
+        self.assertEqual(m.get("edge_vision_path_clears_total", {"gate": "unhealthy"}), 3)
+        self.assertEqual(m.get("edge_vision_path_clears_total", {"gate": "unverified"}), 1)
+        self.assertEqual(m.get("edge_vision_crossings_erased_total", {"gate": "unhealthy"}), 2)
+        self.assertEqual(m.get("edge_vision_suppressed_frames_total", {"gate": "unhealthy"}), 7)
+        self.assertEqual(m.get("edge_vision_arrivals_total"), 1)
+        self.assertEqual(m.get("edge_vision_rejected_no_entry_evidence_total"), 4)
+
+    def test_a_summary_line_is_logged_and_a_vision_without_stats_is_left_alone(self):
+        pipeline = make_pipeline()
+        loop = _loop(pipeline, self._vision(pipeline), FakeSource(frames=[FakeFrame(1000.0)]))
+        with self.assertLogs("edge", level="INFO") as logs:
+            loop.step()
+        line = next(x for x in logs.output if "blind-gate stats" in x)
+        self.assertIn("pathClears={'unhealthy': 3, 'unverified': 1}", line)
+        self.assertIn("crossingsErased={'unhealthy': 2}", line)
+
+        bare = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(frames=[FakeFrame(1000.0)]))
+        bare.step()   # no `stats` attribute: nothing raised, nothing published
+
+
 if __name__ == "__main__":
     unittest.main()

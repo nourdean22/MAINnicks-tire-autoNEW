@@ -107,10 +107,22 @@ class PipelineStats:
     #: Not arrivals, and deliberately not folded into `arrivals`.
     restart_continuations: int = 0
     visitd_states: Counter = field(default_factory=Counter)
+    #: Candidate paths (more than one ground point) cleared by a blind-frame gate, by gate:
+    #: unverified, unhealthy, camera_motion. RECORD ONLY (NicksMax, 2026-10-30): one blind
+    #: frame between a car's outside hits and its inside run erases the crossing, and which
+    #: gate does it was unmeasured.
+    path_clears: Counter = field(default_factory=Counter)
+    #: Of those, the ones where the same track then went on to complete the portal crossing
+    #: within ERASED_WATCH_SECONDS when its pre-clear path is put back in front: an arrival
+    #: the clear erased. Counted, never promoted.
+    crossings_erased: Counter = field(default_factory=Counter)
 
     def to_dict(self) -> dict:
-        d = {k: v for k, v in self.__dict__.items() if k != "visitd_states"}
+        d = {k: v for k, v in self.__dict__.items()
+             if k not in ("visitd_states", "path_clears", "crossings_erased")}
         d["visitdStates"] = dict(self.visitd_states)
+        d["pathClears"] = dict(self.path_clears)
+        d["crossingsErased"] = dict(self.crossings_erased)
         return d
 
 
@@ -118,6 +130,16 @@ class PipelineStats:
 #: `parse_event=None` (a stub tracker that wants the raw dict). Telling those apart is what
 #: keeps tracker injection from silently disabling the parser.
 _USE_VISITD_PARSER = object()
+
+#: How long a candidate wiped by a blind-frame gate is watched for the crossing the wipe erased.
+#: A car mid-entry finishes its portal crossing within seconds; 30 s is ByteTrack's default
+#: lost-track buffer (30 frames at 30 fps) in time, and generous at the edge's 4 fps.
+ERASED_WATCH_SECONDS = 30.0
+#: A blind frame usually SPLITS the track too: the car reappears far enough away that it is
+#: born again, and the census (re-armed by the recovery) classes the newborn `preexisting`.
+#: So the watch follows the car to any track born after the clear whose first point is within
+#: this many pixels of where the wiped path ended.
+ERASED_JOIN_PX = 120.0
 
 
 @dataclass(frozen=True)
@@ -191,6 +213,9 @@ class VisionPipeline:
         #: satisfying the portal on every later frame, so without this the counter would
         #: measure FRAMES rather than cars.
         self._preexisting_crossed: set[int] = set()
+        #: track id -> (gate, path before the clear, when): candidates a blind-frame gate wiped
+        #: while they already had outside history, watched for a crossing the clear erased.
+        self._erased_watch: dict[int, tuple[str, list, float]] = {}
         self.camera = camera
         self.arrival_zone = arrival_zone
         self.health = frame_health or FrameHealth()
@@ -554,6 +579,45 @@ class VisionPipeline:
             ))
 
     # -------------------------------------------------------------------- main step
+    def _degrade(self, now: float, gate: str) -> None:
+        """`mark_degraded(now)`, counting the candidate paths it is about to clear (RECORD ONLY).
+
+        A candidate that already has outside history is put on a watch: if it goes on to cross
+        the portal once that pre-clear path is put back in front of its new one, the clear
+        erased an arrival, counted in `crossings_erased`. Nothing here promotes a track.
+        """
+        min_out = getattr(self.portal, "min_outside_hits", 2)
+        for t in self.tracks.tracks.values():
+            if t.evidence != "candidate" or len(t.path) < 2:
+                continue
+            self.stats.path_clears[gate] += 1
+            if t.track_id in self._erased_watch:
+                continue
+            outside = sum(1 for pt in t.path if not self.portal.inside_zone.contains(pt))
+            if outside >= min_out:
+                self._erased_watch[t.track_id] = (gate, list(t.path), now)
+        self.tracks.mark_degraded(now)
+
+    def _check_erased(self, now: float) -> None:
+        """Count watched crossings a blind-frame clear erased: the wiped path put back in front
+        of the same track's new path, or of a track born after the clear where it ended."""
+        for tid, (gate, before, at) in list(self._erased_watch.items()):
+            if now - at > ERASED_WATCH_SECONDS:
+                del self._erased_watch[tid]
+                continue
+            end = before[-1]
+            for t in self.tracks.tracks.values():
+                if t.track_id != tid:
+                    if t.born_ts < at or not t.path:
+                        continue
+                    first = t.path[0]
+                    if ((first[0] - end[0]) ** 2 + (first[1] - end[1]) ** 2) ** 0.5 > ERASED_JOIN_PX:
+                        continue
+                if self.portal.evaluate(before + list(t.path))["crossed"]:
+                    self.stats.crossings_erased[gate] += 1
+                    del self._erased_watch[tid]
+                    break
+
     def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None,
              detections_can_confirm: bool = True) -> dict:
         now = frame.ts
@@ -579,7 +643,7 @@ class VisionPipeline:
         if frame.meta.get("window_verified") is not True:
             self.stats.suppressed_unverified += 1
             self._was_unhealthy = True          # recovery re-arms the preexisting census
-            self.tracks.mark_degraded(now)
+            self._degrade(now, "unverified")
             out["suppressed"] = "capture window occluded: frame is not the camera"
             return out
 
@@ -589,7 +653,7 @@ class VisionPipeline:
         if not hs.ok:
             self.stats.suppressed_unhealthy += 1
             self._was_unhealthy = True
-            self.tracks.mark_degraded(now)
+            self._degrade(now, "unhealthy")
             out["suppressed"] = f"capture unhealthy (frozen={hs.frozen}, fps={hs.fps:.2f})"
             out["health"] = hs
             return out
@@ -605,7 +669,7 @@ class VisionPipeline:
         out["scene"] = scene
         if not scene.may_create_visits:
             self.stats.suppressed_camera_motion += 1
-            self.tracks.mark_degraded(now)
+            self._degrade(now, "camera_motion")
             self._in_blind_interval = True
             out["suppressed"] = f"camera motion / untrusted pose (change={scene.change_frac:.2f})"
             return out
@@ -760,6 +824,9 @@ class VisionPipeline:
                                      "confirmable": t.confirmable},
                     pose={"changeFrac": round(scene.change_frac, 4), "poseOk": scene.pose_ok},
                 ))
+
+        if self._erased_watch:
+            self._check_erased(now)
 
         # 7. Ongoing arrivals -> visitd updates; bay observations ----------------
         for t in self.tracks.tracks.values():
