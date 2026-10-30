@@ -29,6 +29,7 @@ The usual cause is not a bug in the PR: it is a build still running, the platfor
    A build that contains the merge is "running", not "working": say whether the behaviour itself was seen.
 4. **Pick ONE cause class per app and label it FACT, STRONG INFERENCE or UNKNOWN.** The default is the first one when nothing else is evidenced:
    - **Still building:** the merge is recent and no failure is evidenced. On 2026-10-22 it took about 50 minutes from merge (10:42Z) to the new process (11:35Z); one observation.
+     2026-10-30: builds 4-7 min, merge to live about 4-8 min (railway-audit, deploymentEvents of the last 15 builds per service).
      Say when to look again. Do not call it stuck before that.
    - **Platform outage:** `https://status.railway.com` shows an open incident and that app's commit and `startedAt` have not moved since it began.
    - **Build died:** `railway deployment list --limit 5 -s <service>` (services `MAINnicks-tire-auto`, `statenour-web`) shows a newest deployment with a status other than SUCCESS.
