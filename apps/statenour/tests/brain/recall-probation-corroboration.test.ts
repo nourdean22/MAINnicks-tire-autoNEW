@@ -117,7 +117,8 @@ const EMBED = [0.9, 0.1, 0.2, 0.3];
 const MEMORIES = Array.from({ length: 8 }, (_, i) => ({
   id: `m${i}`,
   category: i < 2 ? "wisdom" : "insight",
-  key: `k${i}`,
+  // 2026-10-29 (W2) · forced wisdom slots only take curated rows, so the two wisdom rows carry pack keys.
+  key: i < 2 ? `wisdom_naval-ravikant_00${i}` : `k${i}`,
   content: `memory ${i} about the tire supplier invoice and follow up ${i}`,
   confidence: 0.9 - i * 0.05,
   createdAt: new Date("2026-09-01T00:00:00Z"),
