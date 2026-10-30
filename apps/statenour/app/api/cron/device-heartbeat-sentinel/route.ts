@@ -83,7 +83,7 @@ function readSentinel(metadata: unknown): SentinelMeta | null {
   };
 }
 
-type WatchedDevice = { id: string; name: string; platformDeviceId: string; lastSeenAt: Date | null; metadata: unknown; location: string | null };
+type WatchedDevice = { id: string; name: string; platform: string; platformDeviceId: string; lastSeenAt: Date | null; metadata: unknown; location: string | null };
 
 /**
  * Telegram + tagged push. `delivered` is true only when a channel accepted
@@ -113,6 +113,57 @@ async function deliverOutageAlert(d: WatchedDevice, silentMinutes: number): Prom
   return telegramOk || pushSent > 0;
 }
 
+type SilentDevice = { d: WatchedDevice; silentMinutes: number };
+
+/** Where an alert opens, as a short name for the grouped push tag. */
+const destination = (location: string | null) => (alertLinkFor(location) === ADMIN_LOT_URL ? "shop" : "system");
+
+/**
+ * Devices sharing a platform AND an alert destination, in first-seen order. A
+ * shop camera and a home camera on the same platform are fed by different boxes,
+ * so they stay separate faults with their own links.
+ */
+function byPlatform<T extends SilentDevice>(items: T[]): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = `${item.d.platform}@${destination(item.d.location)}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  return [...groups.values()];
+}
+
+/**
+ * Ring W1b (2026-10-30): one page per platform and destination per tick. A poller
+ * or bridge that stops silences every device it feeds at once (5 Ring cameras),
+ * and that is one fault, not five. A lone device keeps the per-device alert above.
+ */
+async function deliverGroupOutageAlert(group: SilentDevice[]): Promise<boolean> {
+  if (group.length === 1) return deliverOutageAlert(group[0].d, group[0].silentMinutes);
+  const platform = group[0].d.platform;
+  const lines = group.map(({ d, silentMinutes }) => `${d.name} (${d.platformDeviceId}) ${silentMinutes} min`).join("; ");
+  const link = alertLinkFor(group[0].d.location);
+  const body =
+    `${group.length} ${platform} devices went silent together, all marked OFFLINE: ${lines}. ` +
+    `One fault is likely (the poller or bridge that feeds them), not ${group.length}. Open: ${link}`;
+  const telegramOk = await sendTelegram(formatTelegramNotification(`${group.length} ${platform} devices silent`, body, "high"));
+  if (!telegramOk) log.error("sentinel_alert_undelivered", { platform, devices: group.length, channel: "telegram" });
+  let pushSent = 0;
+  try {
+    const res = await sendPush({
+      title: `${group.length} ${platform} devices silent`,
+      body: group.map(({ d }) => d.name).join(", "),
+      level: "high",
+      tag: `device-offline:platform:${platform}@${destination(group[0].d.location)}`,
+      url: link,
+      data: { platform, platformDeviceIds: group.map(({ d }) => d.platformDeviceId) },
+    });
+    pushSent = res.sent;
+  } catch (err) {
+    log.warn("sentinel_push_failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+  return telegramOk || pushSent > 0;
+}
+
 export async function runHeartbeatSentinel(now: Date = new Date()) {
   const cutoff = new Date(now.getTime() - STALE_AFTER_MS);
 
@@ -122,10 +173,11 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
     // ERROR too: the lot edge's work heartbeat (#3414) sets ERROR when frames stop, and the
     // edge then exits; without this a stalled-then-dead camera stayed ERROR and never paged.
     where: { status: { in: STALE_ELIGIBLE }, lastSeenAt: { lt: cutoff }, ...WATCHED },
-    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
+    select: { id: true, name: true, platform: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
 
   const flipped: Array<{ id: string; platformDeviceId: string; silentMinutes: number; alerted: boolean }> = [];
+  const transitioned: Array<SilentDevice & { rest: Record<string, unknown>; sentinel: SentinelMeta }> = [];
   for (const d of stale) {
     const silentMinutes = d.lastSeenAt ? Math.round((now.getTime() - d.lastSeenAt.getTime()) / 60_000) : -1;
     const rest = stripDeviceSecrets((d.metadata as Record<string, unknown> | null) ?? {});
@@ -148,28 +200,33 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
       log.info("sentinel_transition_skipped", { device: d.platformDeviceId, reason: "heartbeat_arrived_first" });
       continue;
     }
+    transitioned.push({ d, silentMinutes, rest, sentinel });
+  }
 
-    const alerted = await deliverOutageAlert(d, silentMinutes);
-    // Delivery state is persisted so an alert nobody received is retried
-    // by pass 3 instead of being lost behind the OFFLINE status.
-    await prisma.smartDevice.update({
-      where: { id: d.id },
-      data: {
-        metadata: {
-          ...rest,
-          sentinel: { ...sentinel, alertedAt: alerted ? now.toISOString() : null, alertAttempts: 1 },
-        } as Prisma.InputJsonObject,
-      },
-    });
-    log.warn("device_marked_offline", { device: d.platformDeviceId, silentMinutes, alerted });
-    flipped.push({ id: d.id, platformDeviceId: d.platformDeviceId, silentMinutes, alerted });
+  for (const group of byPlatform(transitioned)) {
+    const alerted = await deliverGroupOutageAlert(group);
+    for (const { d, silentMinutes, rest, sentinel } of group) {
+      // Delivery state is persisted per row so an alert nobody received is
+      // retried by pass 3 instead of being lost behind the OFFLINE status.
+      await prisma.smartDevice.update({
+        where: { id: d.id },
+        data: {
+          metadata: {
+            ...rest,
+            sentinel: { ...sentinel, alertedAt: alerted ? now.toISOString() : null, alertAttempts: 1 },
+          } as Prisma.InputJsonObject,
+        },
+      });
+      log.warn("device_marked_offline", { device: d.platformDeviceId, silentMinutes, alerted });
+      flipped.push({ id: d.id, platformDeviceId: d.platformDeviceId, silentMinutes, alerted });
+    }
   }
 
   // 2. Recoveries: back ONLINE (the bridge PATCH did that) while our flag
   //    is still set — clear it and say so quietly.
   const online = await prisma.smartDevice.findMany({
     where: { status: "ONLINE", lastSeenAt: { gte: cutoff }, ...WATCHED },
-    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
+    select: { id: true, name: true, platform: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
   const recovered: Array<{ id: string; platformDeviceId: string; offlineAt: string }> = [];
   for (const d of online) {
@@ -199,30 +256,36 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   //    bridge unannounced. Retried every tick, capped.
   const offline = await prisma.smartDevice.findMany({
     where: { status: "OFFLINE", ...WATCHED },
-    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
+    select: { id: true, name: true, platform: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
   const retried: Array<{ id: string; platformDeviceId: string; alerted: boolean; attempts: number }> = [];
+  const owed: Array<SilentDevice & { flag: SentinelMeta }> = [];
   for (const d of offline) {
     const flag = readSentinel(d.metadata);
     if (!flag || flag.alertedAt || flag.alertAttempts >= MAX_ALERT_ATTEMPTS) continue;
     const silentMinutes = d.lastSeenAt ? Math.round((now.getTime() - d.lastSeenAt.getTime()) / 60_000) : -1;
-    const alerted = await deliverOutageAlert(d, silentMinutes);
-    const attempts = flag.alertAttempts + 1;
-    const rest = stripDeviceSecrets((d.metadata as Record<string, unknown> | null) ?? {});
-    await prisma.smartDevice.update({
-      where: { id: d.id },
-      data: {
-        metadata: {
-          ...rest,
-          sentinel: { ...flag, alertedAt: alerted ? now.toISOString() : null, alertAttempts: attempts },
-        } as Prisma.InputJsonObject,
-      },
-    });
-    if (!alerted && attempts >= MAX_ALERT_ATTEMPTS) {
-      log.error("sentinel_alert_abandoned", { device: d.platformDeviceId, attempts });
+    owed.push({ d, silentMinutes, flag });
+  }
+  for (const group of byPlatform(owed)) {
+    const alerted = await deliverGroupOutageAlert(group);
+    for (const { d, flag } of group) {
+      const attempts = flag.alertAttempts + 1;
+      const rest = stripDeviceSecrets((d.metadata as Record<string, unknown> | null) ?? {});
+      await prisma.smartDevice.update({
+        where: { id: d.id },
+        data: {
+          metadata: {
+            ...rest,
+            sentinel: { ...flag, alertedAt: alerted ? now.toISOString() : null, alertAttempts: attempts },
+          } as Prisma.InputJsonObject,
+        },
+      });
+      if (!alerted && attempts >= MAX_ALERT_ATTEMPTS) {
+        log.error("sentinel_alert_abandoned", { device: d.platformDeviceId, attempts });
     }
     log.warn("sentinel_alert_retried", { device: d.platformDeviceId, attempts, alerted });
     retried.push({ id: d.id, platformDeviceId: d.platformDeviceId, alerted, attempts });
+    }
   }
 
   const ok = flipped.every((f) => f.alerted) && retried.every((r) => r.alerted);
