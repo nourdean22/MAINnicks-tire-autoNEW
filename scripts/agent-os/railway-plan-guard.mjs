@@ -20,14 +20,25 @@ import { fileURLToPath } from "node:url";
  * A missing "Plan:" summary is NOT a clean plan: a failed evaluation prints an
  * error and no summary, and that must never read as "0 to destroy".
  */
+const UP_TO_DATE_LINE = "\u2713 Your Railway configuration is already up to date.";
+
+function isUpToDateTranscript(lines) {
+  const nonEmpty = lines.map((l) => l.trim()).filter(Boolean);
+  return (
+    nonEmpty[0] === "Railway configuration" &&
+    nonEmpty.includes(UP_TO_DATE_LINE) &&
+    !nonEmpty.some((l) => /\b(error|failed|exception|panic)\b/i.test(l))
+  );
+}
+
 export function planDestroys(text) {
   const lines = String(text).split(/\r?\n/);
   const deletes = lines.filter((l) => /^\s*-\s+(Delete|Destroy|Remove)\b/.test(l)).map((l) => l.trim());
   const summary = lines.map((l) => l.match(/^\s*Plan:\s*\d+ to add,\s*\d+ to change,\s*(\d+) to destroy/)).find(Boolean);
   // The CLI prints no Plan: line when live already matches the file (2026-10-30, after the first apply).
-  if (!summary && deletes.length === 0 && lines.some((l) => /configuration is already up to date/i.test(l))) {
-    return { ok: true, destroyCount: 0, deletes };
-  }
+  // Accept only its complete success transcript: the header first, the exact success line, and no
+  // error line. A failed run that merely MENTIONS the phrase is refused (Codex review, PR 3416).
+  if (!summary && deletes.length === 0 && isUpToDateTranscript(lines)) return { ok: true, destroyCount: 0, deletes };
   if (!summary) return { ok: false, destroyCount: null, deletes, reason: "no Plan: summary line, so this is not a finished plan" };
   const destroyCount = Number(summary[1]);
   return { ok: destroyCount === 0 && deletes.length === 0, destroyCount, deletes };

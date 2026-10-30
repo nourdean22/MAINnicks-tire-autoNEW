@@ -740,4 +740,10 @@ test("PLAN GUARD · an up-to-date plan passes; a failed run that merely mentions
   assert.equal(planDestroys(upToDate + "\n  - Delete variable x.Y").ok, false);
   // A failed evaluation still refuses (no summary, no up-to-date line).
   assert.equal(planDestroys("node failed to evaluate IaC file.").ok, false);
+  // MUTATION (Codex, PR 3416): a failed run whose error text CONTAINS the phrase is refused.
+  assert.equal(planDestroys("node failed to evaluate IaC file.\nError: configuration is already up to date").ok, false);
+  // The exact success line under an error line is refused too.
+  assert.equal(planDestroys(upToDate + "\nError: plan aborted").ok, false);
+  // Without the CLI header the transcript is not the plan command's output.
+  assert.equal(planDestroys("\u2713 Your Railway configuration is already up to date.").ok, false);
 });
