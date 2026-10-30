@@ -5,7 +5,7 @@ protype set up i want because its fast n simple but smart too", so row 1 of ever
 (baseline: keep); other rows say what they add or lose against it. Last row is "ours": shop data ALG cannot
 show ("be fully aggressive in incorperating our stuff").
 
-Rules: public pages only, all read 2026-10-30 (no login, trial or form). No code copied. 13-TOOLKIT is PR 3383, merged; doc 17 (the ALG ticket study) has no PR yet.
+Rules: public pages only, all read 2026-10-30 (no login, trial or form). No code copied. doc 17 = 17-ALG-LEDGER-STUDY (PR 3391); 13-TOOLKIT is PR 3383. Both merged.
 AIP = already in plan (01-DESIGN, 08-IDEAS); those rows extend it. Build hours are INFERENCE. In the buy branch
 (05-ROADMAP days 8-12) each adopted row is also a bake-off check: does the finalist do this?
 
