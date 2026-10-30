@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
+import { redactDevice, stripDeviceSecrets } from "@/lib/services/devices";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,8 @@ export const GET = apiHandler(async (req) => {
     },
   });
 
-  return { devices, count: devices.length };
-}, { auth: "sync" });
+  return { devices: devices.map(redactDevice), count: devices.length };
+}, { auth: "device" });
 
 /**
  * POST /api/devices — Register a new device or bulk upsert
@@ -57,14 +58,14 @@ export const POST = apiHandler(async (req) => {
           lastSeenAt: d.lastSeenAt ? new Date(d.lastSeenAt as string) : null,
           capabilities: (d.capabilities as object) || null,
           currentState: (d.currentState as object) || null,
-          metadata: (d.metadata as object) || null,
+          metadata: (stripDeviceSecrets(d.metadata) as object) || null,
         },
         update: {
           name: d.name as string,
           status: (d.status as string) || undefined,
           lastSeenAt: d.lastSeenAt ? new Date(d.lastSeenAt as string) : undefined,
           currentState: (d.currentState as object) || undefined,
-          metadata: (d.metadata as object) || undefined,
+          metadata: (stripDeviceSecrets(d.metadata) as object) || undefined,
           location: (d.location as string) || undefined,
         },
       }),
@@ -80,5 +81,5 @@ export const POST = apiHandler(async (req) => {
     },
   });
 
-  return { devices: results, count: results.length };
-}, { auth: "sync" });
+  return { devices: results.map(redactDevice), count: results.length };
+}, { auth: "device" });

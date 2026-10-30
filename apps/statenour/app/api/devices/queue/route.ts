@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSyncAuth } from "@/lib/auth-guard";
+import { requireDeviceAgentAuth } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger } from "@/lib/logger";
 
@@ -17,9 +17,8 @@ export const maxDuration = 10;
  * pending DeviceCommand rows across ALL devices instead of the
  * existing per-device /api/devices/[id]/command endpoint.
  *
- * Auth: uses the SAME x-sync-key / SYNC_KEY contract as every
- * other agent-facing endpoint on statenour-os (see requireSyncAuth).
- * No new secret to manage.
+ * Auth: the device agent door (requireDeviceAgentAuth): the scoped
+ * DEVICE_AGENT_KEY or the bridge key, in x-sync-key or Bearer.
  *
  * Query params:
  *   ?platform=TUYA,RING — filter by platform (agent can claim only
@@ -47,7 +46,7 @@ const RECLAIM_MARK = "reclaimed: no ack within 1h of send; re-sent once";
 
 export async function GET(req: NextRequest) {
   try {
-    requireSyncAuth(req);
+    requireDeviceAgentAuth(req);
   } catch (err) {
     if (err instanceof ServiceError) {
       return NextResponse.json(
