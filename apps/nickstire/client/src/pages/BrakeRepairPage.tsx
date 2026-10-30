@@ -176,7 +176,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         consequence: "Warped rotor — same family of problem, often shows up next to worn pads.",
         relief: "Resurface or replace, $0 add-on if we're already in there.",
         ctaLabel: "WHEEL ALIGNMENT",
-        ctaHref: "/alignment",
+        ctaHref: "/wheel-alignment-cleveland",
       },
       {
         tone: "info",

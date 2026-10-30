@@ -122,7 +122,7 @@ export const TOPIC_NODES: readonly TopicNode[] = [
   service("used_tires", "used tires", "/used-tires-cleveland"),
   service("wheels", "wheels", "/wheels"),
   service("brakes", "brakes", "/brakes"),
-  service("alignment", "wheel alignment", "/alignment"),
+  service("alignment", "wheel alignment", "/wheel-alignment-cleveland"),
   service("diagnostics", "diagnostics", "/diagnostics"),
   service("check_engine", "check engine light diagnostic", "/check-engine-light-diagnostic"),
   service("emissions", "E-Check / emissions", "/emissions"),

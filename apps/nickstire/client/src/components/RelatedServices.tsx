@@ -78,8 +78,9 @@ const SERVICE_MAP: Record<string, ServiceInfo> = Object.fromEntries(
   ])
 );
 
-// Bespoke services not in canonical SERVICES. AlignmentPage is the
-// owner of /alignment content; this entry is the cross-link card form.
+// Bespoke services not in canonical SERVICES. WheelAlignmentClevelandPage
+// owns alignment content (canonicalServicePath maps the slug there); this
+// entry is the cross-link card form.
 SERVICE_MAP.alignment = {
   slug: "alignment",
   title: "Wheel Alignment",

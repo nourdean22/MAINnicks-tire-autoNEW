@@ -103,6 +103,8 @@ export const SERVICE_TO_CITIES: Record<string, string[]> = {
  */
 export const SERVICE_PATH_ALIASES: Record<string, string> = {
   "general-repair": "/auto-repair-near-me",
+  // 2026-10-29 · /alignment 301s to the one alignment page (server/_core/redirects.ts).
+  alignment: "/wheel-alignment-cleveland",
 };
 
 /** Canonical route for a service slug or path ("/general-repair" → "/auto-repair-near-me"). */

@@ -13,6 +13,7 @@ import { createLogger } from "../../lib/logger";
 import { trackDetached } from "../../_core/gracefulShutdown";
 import { generateGreetingTwiML, generateResponseTwiML } from "../../services/aiReceptionist";
 import { validateTwilioRequest } from "../../middleware/twilioValidation";
+import { startsWithHiringToken } from "@shared/jobOpenings";
 
 const log = createLogger("twilio-webhooks");
 const router = Router();
@@ -30,7 +31,9 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
     // (don't block the TwiML ack on vision-model latency). The pipeline
     // runs its own opt-out + sending-hours checks via sendSms.
     const numMedia = Number(numMediaRaw ?? 0);
-    if (numMedia >= 1 && mediaUrl0 && from) {
+    // A text-to-apply message with a photo is a job application; skip the
+    // car-photo pipeline, which auto-replies (same guard as smsGateway.ts).
+    if (numMedia >= 1 && mediaUrl0 && from && !startsWithHiringToken(String(body ?? ""))) {
       trackDetached("twilio:mms-photo-assess", (async () => {
         try {
           const { runPhotoAssess } = await import("../../services/photo-assess-pipeline");

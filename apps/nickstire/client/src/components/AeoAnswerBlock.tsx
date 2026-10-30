@@ -11,12 +11,16 @@
  * so it survives prerender and is visible to non-JS crawlers (GPTBot,
  * ClaudeBot, PerplexityBot).
  */
+import { Link } from "wouter";
+
 export default function AeoAnswerBlock({
   answer,
   eyebrow = "The short answer",
+  link,
 }: {
   answer: string;
   eyebrow?: string;
+  link?: { href: string; label: string };
 }) {
   return (
     <section className="bg-card/20 border-y border-border/20 py-8">
@@ -25,6 +29,14 @@ export default function AeoAnswerBlock({
           {eyebrow}
         </p>
         <p className="text-foreground/90 text-lg leading-relaxed body-pretty">{answer}</p>
+        {link && (
+          <Link
+            href={link.href}
+            className="mt-3 inline-flex min-h-[44px] items-center font-semibold text-primary underline underline-offset-4"
+          >
+            {link.label}
+          </Link>
+        )}
       </div>
     </section>
   );

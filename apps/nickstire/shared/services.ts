@@ -409,8 +409,11 @@ export const SERVICES: ServiceData[] = [
     // 1-2 days," never a guarantee) and AGENTS.md bans "guaranteed" outright.
     // Unified with routes.ts:372's title so prerendered HTML and the live SPA
     // can't disagree.
-    metaTitle: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
-    metaDescription: "Failed your Ohio E-Check? Free readiness check, then we fix what failed: O2 sensors, EVAP leaks, catalytic converters. The state runs the test. (216) 862-0005.",
+    // 2026-10-29 · GSC audit: ~2,600 impr/90d of "e check near me" / "where to
+    // get an echeck" at pos 8-15, 0 clicks. Searchers ask where to test, so the
+    // title and description answer that first. Keep in sync with routes.ts.
+    metaTitle: "E-Check Near Me Cleveland: Where to Test | Nick's",
+    metaDescription: `${OHIO_ECHECK.whoTests} Stop in for a free quick check first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.`,
     heroHeadline: "Failed E-Check?\nWe'll find what failed.",
     heroSubline: "The state runs the official E-Check — we run a FREE readiness check that shows whether your car is ready to test, then diagnose and repair the exact emissions problem and help the monitors complete before you retest.",
     heroCTA: "SCHEDULE E-CHECK REPAIR",
@@ -460,6 +463,10 @@ export const SERVICES: ServiceData[] = [
     ],
     keywords: ["Ohio E-Check repair Cleveland", "emissions repair Cleveland", "E-Check failure repair", "catalytic converter Cleveland", "oxygen sensor replacement Cleveland", "EVAP leak repair Cleveland"],
     quickAnswers: [
+      {
+        question: "Where do I get an E-Check near Euclid?",
+        answer: `${OHIO_ECHECK.whoTests} Nick's Tire & Auto does not run the state test. ${OHIO_ECHECK.freeTests.display} Before you go, stop in at 17625 Euclid Ave for a free quick check, and if it failed, we find and fix what failed.`,
+      },
       {
         question: "Why did my car fail the Ohio E-Check?",
         answer: "The most common reasons for Ohio E-Check failure are a faulty oxygen sensor, an EVAP system leak, a failing catalytic converter, or incomplete readiness monitors. The E-Check tests your vehicle's emissions control systems through an OBD-II scan. If any emissions monitor shows 'not ready' or a trouble code is stored, the vehicle will fail."

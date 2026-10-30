@@ -136,6 +136,9 @@ export interface ServicePageConfig {
    *  a sensible default is derived from serviceType + startingPrice + NAP so
    *  every service page ships an extractable answer. */
   aeoAnswer?: string;
+  /** Optional crawlable link shown under the AEO answer (e.g. /emissions → the
+   *  E-Check stations article). Omit → the answer renders alone, as before. */
+  aeoLink?: { href: string; label: string };
   /** Optional hero image URL override */
   heroImage?: string;
   /** Alt text for heroImage. Omit → "<h1> at Nick's Tire & Auto Cleveland". */
@@ -414,7 +417,7 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     // is itself on the written quote before it is charged. Canon restored;
     // any change to this promise is the owner's, made in shared/voice.ts.
     `${config.serviceType} at Nick's Tire & Auto, ${BUSINESS.address.full}: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
-  return <AeoAnswerBlock answer={answer} />;
+  return <AeoAnswerBlock answer={answer} link={config.aeoLink} />;
 }
 
 /** Live open/closed line under the hero CTAs (only rendered when a

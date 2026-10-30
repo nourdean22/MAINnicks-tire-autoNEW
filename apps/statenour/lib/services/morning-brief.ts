@@ -35,6 +35,7 @@
  * filler line — slices that can't compute themselves drop out silently.
  */
 
+import { stableIndex } from "@/lib/utils/stable-index";
 import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { queryNick } from "@/lib/nickstire/query";
@@ -473,6 +474,29 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
       payload.reviewDelta = reviewDelta.payload;
     }
 
+    // 2026-10-29 · wisdom-brain upgrade 5 · Mondays: one plain maxim applied to one number read
+    // above. No number, no line: a maxim with nothing to apply it to is filler. Its own failure
+    // is a warn, never the whole Shop slice's.
+    if (weekdayET() === 1) {
+      try {
+        const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        const rowIso = new Date(latestContext.createdAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        const fact = wisdomAppliedFact(ctx, rowIso === todayIso);
+        if (fact) {
+          const { pickMaxim } = await import("@/lib/brain/maxims");
+          const maxim = pickMaxim(fact.tag, todayIso);
+          if (maxim) {
+            lines.push(
+              `Wisdom applied · ${fact.label}: "${escapeHtml(maxim.text)}" (${escapeHtml(maxim.source)})`,
+            );
+            payload.wisdomApplied = { tag: fact.tag, ref: maxim.ref, metric: fact.metric };
+          }
+        }
+      } catch (err) {
+        log.warn("wisdom_applied_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+      }
+    }
+
     payload.bridgeSyncedAt = new Date(latestContext.createdAt).toISOString();
   } else if (latestContext) {
     // Bridge exists but stale · note it once so operator knows.
@@ -622,7 +646,7 @@ export async function buildWellbeingSlice(
 
   // Wisdom-of-the-day · deterministic by date.
   if (wisdoms.length > 0) {
-    const idx = hashDateToIndex(todayIso, wisdoms.length);
+    const idx = stableIndex(todayIso, wisdoms.length);
     const pick = wisdoms[idx]!;
     const attribution = pick.source
       ? ` — ${escapeHtml(prettyWisdomSource(pick.source))}`
@@ -739,18 +763,6 @@ async function tryFetchCalendarToday(): Promise<unknown[]> {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
- * Deterministic date → index. Tiny djb2-style hash · enough variety
- * across ~200 wisdom rows · zero deps · same date = same index always.
- */
-function hashDateToIndex(iso: string, mod: number): number {
-  let h = 5381;
-  for (let i = 0; i < iso.length; i++) {
-    h = ((h << 5) + h + iso.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h) % Math.max(1, mod);
 }
 
 function prettyWisdomSource(s: string): string {
@@ -918,6 +930,32 @@ function extractRevenueLine(
     text: line,
     payload: { yesterday, target },
   };
+}
+
+/**
+ * The first real number in the nickstire sync payload (statenourSync.ts keys), as a maxim tag
+ * and a short label: open declined work (customers), then the last 7 days of revenue (money).
+ * Declined work counts only when `measured` (the sync says when its source holds no rows), and
+ * revenue only when the context row is from today (ET), so a stale week is never "this week".
+ * Declined work leads because a follow-up on an open estimate is what a maxim can change.
+ */
+function wisdomAppliedFact(
+  ctx: Record<string, unknown>,
+  rowIsToday: boolean,
+): { tag: string; label: string; metric: string } | null {
+  const dec = ctx.declinedWork as Record<string, unknown> | undefined;
+  const customers = dec?.measured === true ? numericField(dec, ["customerCount"]) : null;
+  if (customers != null && customers > 0) {
+    return { tag: "customers", label: `declined work (${customers} customers open)`, metric: "declined" };
+  }
+  const rev = ctx.revenue as Record<string, unknown> | undefined;
+  if (rev && rowIsToday && rev.available !== false) {
+    const week = readNickRevenue(rev).weekDollars;
+    if (week > 0) {
+      return { tag: "money", label: `revenue ($${formatMoney(week)}, last 7 days)`, metric: "revenue" };
+    }
+  }
+  return null;
 }
 
 function numericField(

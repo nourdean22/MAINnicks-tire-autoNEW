@@ -353,8 +353,8 @@ const SERVICE_PAGES: RouteEntry[] = [
     // in 1-2 days," and AGENTS.md's content rule bans "guaranteed" outright.
     // Unified with services.ts:401's metaTitle so the title/meta split-brain
     // (prerender vs. live SPA) can't show two different claims either.
-    title: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
-    description: "Failed Ohio E-Check? Free readiness check tells you what's wrong before you pay. We diagnose and repair — O2 sensors, EVAP, catalytics. Walk in 7 days. (216) 862-0005.",
+    title: "E-Check Near Me Cleveland: Where to Test | Nick's",
+    description: "Only official E-Check stations run the state test. Stop in for a free quick check first; failed? We find and fix what failed. Walk in 7 days. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -389,20 +389,8 @@ const SERVICE_PAGES: RouteEntry[] = [
     // check-prerender.mjs, masking real misses. Same treatment as /estimate.
     prerender: false,
   },
-  {
-    path: "/alignment",
-    priority: 0.8,
-    changefreq: "monthly",
-    // wave-181.6 · CTR-crisis fix from GSC audit. /alignment was ranking
-    // pos 7.5 (page 1) for "wheel alignment near me" with 74 impr/mo
-    // but 0% CTR — title lacked "near me" trigger + lacked a hard price
-    // anchor. Rewrite leads with the literal search phrase.
-    title: "Wheel Alignment Near Me · Cleveland · Same-Day Walk-In | Nick's",
-    description: "Wheel alignment near you in Cleveland — same-day four-wheel laser alignment, walk-in 7 days. ★4.9 · 1,710+ reviews. Free pull-check first. (216) 862-0005",
-    group: "service",
-    sitemap: true,
-    prerender: true,
-  },
+  // 2026-10-29 · /alignment removed: it 301s to /wheel-alignment-cleveland
+  // (server/_core/redirects.ts, GSC lifetime 2 vs 27 clicks).
   {
     path: "/synthetic-oil-change",
     priority: 0.9,
