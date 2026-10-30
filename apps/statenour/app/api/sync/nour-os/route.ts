@@ -8,6 +8,7 @@ import { createTask } from "@/lib/services/tasks";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
+import { stripDeviceSecrets } from "@/lib/services/devices";
 import { holdStandingSlot, parseStandingTrigger, readIdempotencyKey, runOnceByKey } from "@/lib/services/bridge-receipts";
 
 export const dynamic = "force-dynamic";
@@ -290,7 +291,7 @@ export const POST = syncHandler(async (req) => {
             status: d.status || "ONLINE",
             lastSeenAt: new Date(),
             currentState: d.currentState || null,
-            metadata: d.metadata || null,
+            metadata: stripDeviceSecrets(d.metadata) || null,
           },
           update: {
             status: d.status || "ONLINE",
