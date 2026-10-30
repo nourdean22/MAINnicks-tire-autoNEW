@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { safeQuery } from "@/lib/db/safe-prisma";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 import { scanStaleData } from "@/lib/system/stale-data-scanner";
+import { deviceTally } from "@/lib/services/system-pulse";
 
 /** Composite /system hub payload — all keys independent + fault-isolated. */
 export async function buildSystemHub() {
@@ -91,12 +92,12 @@ export async function buildSystemHub() {
 
     safeQuery(
       async () => {
+        // Same age rule as system-pulse (D11): April relics re-alarmed Home as "17 devices offline"
+        // on 2026-10-30 because this count had no age window and kept RETIRED rows.
         const rows = await prisma.smartDevice.findMany({
-          select: { status: true },
+          select: { status: true, lastSeenAt: true, createdAt: true },
         });
-        const online = rows.filter((r) => r.status === "ONLINE").length;
-        const offline = rows.filter((r) => r.status === "OFFLINE").length;
-        return { online, offline, total: rows.length };
+        return deviceTally(rows);
       },
       null,
       { label: "hub.devices" },
@@ -202,6 +203,8 @@ export async function buildSystemHub() {
     devices: {
       online: deviceStats?.online ?? 0,
       offline: deviceStats?.offline ?? 0,
+      offlineLong: deviceStats?.offlineLong ?? 0,
+      retired: deviceStats?.retired ?? 0,
       total: deviceStats?.total ?? 0,
       measured: deviceStats !== null,
     },

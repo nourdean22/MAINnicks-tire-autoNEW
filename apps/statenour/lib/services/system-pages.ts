@@ -49,6 +49,7 @@ import {
 } from "@/lib/automation/envelope";
 import { ServiceError } from "@/lib/utils/service-error";
 import { safeQuery } from "@/lib/db/safe-prisma";
+import { deviceTally } from "@/lib/services/system-pulse";
 import { getBlockedTools } from "@/lib/ai/tool-telemetry";
 import { getCacheStats } from "@/lib/ai/system-prompt-cache";
 import {
@@ -163,9 +164,8 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
           automationRules,
         }),
       ),
-      prisma.smartDevice.groupBy({
-        by: ["status"],
-        _count: { id: true },
+      prisma.smartDevice.findMany({
+        select: { status: true, lastSeenAt: true, createdAt: true },
       }),
       prisma.integration.findMany({
         // Guardian capability receipts share this table (type "capability",
@@ -175,14 +175,7 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       }),
     ]);
 
-  const devices = { online: 0, offline: 0, error: 0, notReporting: 0, total: 0 };
-  for (const g of deviceCounts) {
-    devices.total += g._count.id;
-    if (g.status === "ONLINE") devices.online = g._count.id;
-    else if (g.status === "ERROR") devices.error = g._count.id;
-    else if (g.status === "UNKNOWN") devices.notReporting = g._count.id;
-    else devices.offline += g._count.id;
-  }
+  const devices = deviceTally(deviceCounts);
 
   return {
     db: { connected: db.connected, latency_ms: db.latency_ms },
@@ -265,9 +258,8 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       prisma.commitment.count({
         where: { status: { in: ["active", "in_progress"] }, deletedAt: null },
       }),
-      prisma.smartDevice.groupBy({
-        by: ["status"],
-        _count: { id: true },
+      prisma.smartDevice.findMany({
+        select: { status: true, lastSeenAt: true, createdAt: true },
       }),
     ]);
 
@@ -359,15 +351,7 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       if (key in tasks) tasks[key] = count;
     }
 
-    const devices = { online: 0, offline: 0, error: 0, notReporting: 0, total: 0 };
-    for (const g of deviceCounts) {
-      const count = g._count.id;
-      devices.total += count;
-      if (g.status === "ONLINE") devices.online = count;
-      else if (g.status === "ERROR") devices.error = count;
-      else if (g.status === "UNKNOWN") devices.notReporting = count;
-      else devices.offline += count;
-    }
+    const devices = deviceTally(deviceCounts);
 
     // Honest headline: healthy ONLY when the DB is up AND every measured metric
     // succeeded. A swallowed sub-read can no longer read "healthy" (audit #4).

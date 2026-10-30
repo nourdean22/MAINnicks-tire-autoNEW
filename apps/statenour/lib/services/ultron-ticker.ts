@@ -220,73 +220,26 @@ function interleave(...lists: TickerItem[][]): TickerItem[] {
 }
 
 /**
- * BODY + MONEY ticker items — ZERO stale fallbacks.
+ * MONEY ticker item — ZERO stale fallbacks: emits ONLY when the freshest
+ * FinancialSnapshot is <45 days old.
  *
- * BODY emits ONLY when a workout DAILY task has a live streak
- * (lastCompletedAt within the last 2 days). MONEY emits ONLY when
- * the freshest FinancialSnapshot is <45 days old.
+ * 2026-10-30: the BODY "Nd workout streak" row is gone. It read its own streak beside the
+ * timelines one ("1d" next to "8d" in one list); the streak now has one producer
+ * (lib/stats/workout-streak.ts) and one row, the timelines streak lines.
  */
-async function fetchSelfMetricsTop(): Promise<TickerItem[]> {
+export async function fetchSelfMetricsTop(): Promise<TickerItem[]> {
   try {
     const { prisma } = await import("@/lib/prisma");
 
-    const [workoutStreak, finSnaps] = await Promise.all([
-      prisma.task
-        .findFirst({
-          where: {
-            loopKind: "DAILY",
-            OR: [
-              { title: { contains: "workout", mode: "insensitive" } },
-              { title: { contains: "move", mode: "insensitive" } },
-              { title: { contains: "gym", mode: "insensitive" } },
-              { title: { contains: "exercise", mode: "insensitive" } },
-            ],
-          },
-          orderBy: { streakCount: "desc" },
-          select: { streakCount: true, lastCompletedAt: true, title: true },
-        })
-        .catch(
-          () =>
-            null as {
-              streakCount: number;
-              lastCompletedAt: Date | null;
-              title: string;
-            } | null,
-        ),
-      prisma.financialSnapshot
-        .findMany({
-          orderBy: { date: "desc" },
-          take: 12,
-          select: { netWorthEstimate: true, date: true },
-        })
-        .catch(
-          () => [] as Array<{ netWorthEstimate: number | null; date: string }>,
-        ),
-    ]);
+    const finSnaps = await prisma.financialSnapshot
+      .findMany({
+        orderBy: { date: "desc" },
+        take: 12,
+        select: { netWorthEstimate: true, date: true },
+      })
+      .catch(() => [] as Array<{ netWorthEstimate: number | null; date: string }>);
 
     const items: TickerItem[] = [];
-
-    // ── BODY (live only) ──
-    if (
-      workoutStreak &&
-      workoutStreak.streakCount > 0 &&
-      workoutStreak.lastCompletedAt
-    ) {
-      const daysSince =
-        (Date.now() - workoutStreak.lastCompletedAt.getTime()) / 86400_000;
-      if (daysSince < 2) {
-        items.push({
-          id: "self-body",
-          category: BRAIN_CATEGORIES.TIMELINE,
-          symbol: "BODY",
-          label: `${workoutStreak.streakCount}d workout streak 🔥`,
-          deltaPct: null,
-          severity: "win",
-          domain: "body",
-          href: "/stats?tab=body",
-        });
-      }
-    }
 
     // ── MONEY (fresh only) ──
     if (finSnaps.length >= 2) {

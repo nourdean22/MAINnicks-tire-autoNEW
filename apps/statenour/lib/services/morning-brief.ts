@@ -44,6 +44,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
 import { weekdayET } from "@/lib/utils/datetime";
+import { readWorkoutStreak } from "@/lib/stats/workout-streak";
 
 // v10.0.529.2 M6 fix · surface silent-degrade paths for the 5 parallel
 // personal-slice queries. Each `.catch` previously returned the fallback
@@ -563,7 +564,7 @@ export async function buildWellbeingSlice(
 ): Promise<MorningBriefSlice> {
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60_000);
 
-  const [recentLogs, recentBody, wisdomCandidates] = await Promise.all([
+  const [recentLogs, recentBody, wisdomCandidates, workoutStreak] = await Promise.all([
     prisma.personalDailyLog
       .findMany({
         where: { logDate: { gte: since7d } },
@@ -586,7 +587,10 @@ export async function buildWellbeingSlice(
         orderBy: { confidence: "desc" },
         take: 200,
         select: { id: true, content: true, source: true },
-      })
+      }),
+    // 2026-10-30: the one streak every surface shows (it counted PersonalDailyLog flags here, which
+    // had no rows for weeks while the ticker showed a different number).
+    readWorkoutStreak(),
   ]);
 
   const logs = recentLogs as Array<{
@@ -604,23 +608,20 @@ export async function buildWellbeingSlice(
   const hasLogs = logs.length > 0;
   const hasBody = body.filter((b) => b.weight != null).length >= 2;
 
+  const streak = workoutStreak ?? 0;
+
   // Nothing to say · skip the whole slice (no "no data" line).
-  if (!hasLogs && !hasBody) return emptySlice();
+  if (!hasLogs && !hasBody && streak === 0) return emptySlice();
 
   const lines: string[] = ["<b>Wellbeing</b>"];
   const payload: Record<string, unknown> = {};
 
-  if (hasLogs) {
-    // Workout streak = consecutive most-recent days w/ workoutCompleted.
-    const sortedDesc = [...logs].sort(
-      (a, b) => b.logDate.getTime() - a.logDate.getTime(),
-    );
-    let streak = 0;
-    for (const l of sortedDesc) {
-      if (l.workoutCompleted) streak++;
-      else break;
-    }
+  if (streak > 0) {
+    lines.push(`Workout streak: <b>${streak}d</b>`);
+    payload.workoutStreak = streak;
+  }
 
+  if (hasLogs) {
     const sleepValues = logs
       .map((l) =>
         typeof l.sleepHours === "number"
@@ -633,10 +634,6 @@ export async function buildWellbeingSlice(
         ? sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length
         : null;
 
-    if (streak > 0) {
-      lines.push(`Workout streak: <b>${streak}d</b>`);
-      payload.workoutStreak = streak;
-    }
     if (sleepAvg != null) {
       lines.push(`Sleep 7d avg: ${sleepAvg.toFixed(1)}h`);
       payload.sleepAvg = Number(sleepAvg.toFixed(2));

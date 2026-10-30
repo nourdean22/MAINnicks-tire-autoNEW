@@ -154,6 +154,27 @@ describe("state sentence — measured claims only", () => {
     expect(s.toLowerCase()).toContain("could not be read");
   });
 
+  // 2026-10-30 home-pulse W1: "SYSTEM DEGRADED: 17 DEVICES OFFLINE" led the hero above his own task.
+  // A degraded system is the health chip's job (it links to /system); only a real P1 (broken) may
+  // take the one sentence the page is allowed to shout.
+  it("a degraded system never leads the hero; the task does", () => {
+    const s = composeStateSummary({
+      briefing: nominal, health: { state: "degraded", detail: "1 device offline" },
+      queuesMeasured: true, queuesClear: false, judgmentCount: 0, activeTitle: "Ship the brief",
+    });
+    expect(s.toLowerCase()).not.toContain("degraded");
+    expect(s).not.toContain("device");
+    expect(s).toContain("Ship the brief");
+  });
+
+  it("control: a broken system (real P1) still leads the hero", () => {
+    const s = composeStateSummary({
+      briefing: nominal, health: { state: "broken", detail: "45 errors in 24h, well above baseline" },
+      queuesMeasured: true, queuesClear: false, judgmentCount: 0, activeTitle: "Ship the brief",
+    });
+    expect(s.startsWith("System needs attention")).toBe(true);
+  });
+
   it("an unreadable board overrides everything", () => {
     const err = deriveBriefing({ ...baseInputs, unreadable: true });
     const s = composeStateSummary({

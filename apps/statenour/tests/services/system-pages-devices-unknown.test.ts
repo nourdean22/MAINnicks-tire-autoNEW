@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ deviceGroupBy: vi.fn() }));
+const h = vi.hoisted(() => ({ deviceFindMany: vi.fn() }));
 
 vi.mock("@/lib/services/metrics", () => ({ getKpiSummary: () => Promise.resolve({}) }));
 vi.mock("@/lib/prisma", () => {
@@ -16,7 +16,7 @@ vi.mock("@/lib/prisma", () => {
   const prisma = {
     mission: count,
     task: count,
-    smartDevice: { count: () => Promise.resolve(0), groupBy: (...a: unknown[]) => h.deviceGroupBy(...a) },
+    smartDevice: { count: () => Promise.resolve(0), findMany: (...a: unknown[]) => h.deviceFindMany(...a) },
     deviceEvent: count,
     chatMessage: count,
     aiGeneration: count,
@@ -30,20 +30,25 @@ vi.mock("@/lib/prisma", () => {
 
 import { buildDiagnostics } from "@/lib/services/system-pages";
 
-beforeEach(() => h.deviceGroupBy.mockReset());
+// 2026-10-30: device rollups read rows (deviceTally applies the 7-day age rule), not status buckets.
+// Contact just now, so OFFLINE rows land in the recent bucket these cases are about.
+const rows = (status: string, n: number) =>
+  Array.from({ length: n }, () => ({ status, lastSeenAt: new Date(), createdAt: new Date() }));
+
+beforeEach(() => h.deviceFindMany.mockReset());
 
 describe("buildDiagnostics device rollup", () => {
   it("an UNKNOWN-status device is not reporting, not offline", async () => {
-    h.deviceGroupBy.mockResolvedValue([{ status: "UNKNOWN", _count: { id: 1 } }]);
+    h.deviceFindMany.mockResolvedValue([...rows("UNKNOWN", 1)]);
     const { devices } = await buildDiagnostics();
-    expect(devices).toEqual({ online: 0, offline: 0, error: 0, notReporting: 1, total: 1 });
+    expect(devices).toEqual({ online: 0, offline: 0, offlineLong: 0, error: 0, notReporting: 1, retired: 0, total: 1 });
   });
 
   it("CONTROL: an OFFLINE device still counts offline, and ONLINE/ERROR keep their buckets", async () => {
-    h.deviceGroupBy.mockResolvedValue([
-      { status: "OFFLINE", _count: { id: 2 } },
-      { status: "ONLINE", _count: { id: 3 } },
-      { status: "ERROR", _count: { id: 1 } },
+    h.deviceFindMany.mockResolvedValue([
+      ...rows("OFFLINE", 2),
+      ...rows("ONLINE", 3),
+      ...rows("ERROR", 1),
     ]);
     const { devices } = await buildDiagnostics();
     expect(devices).toMatchObject({ online: 3, offline: 2, error: 1, total: 6 });

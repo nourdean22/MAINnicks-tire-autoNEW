@@ -215,6 +215,9 @@ export function BottomPulseTicker() {
 
   const safeIdx = idx % items.length;
   const current = items[safeIdx];
+  // A capture's text is his private note; the always-on strip shows only that one exists (2026-10-30).
+  // The sheet he opens on purpose still lists it in full.
+  const stripItem = current.kind === "capture" ? { ...current, text: "New capture" } : current;
   // The strip's ONE live indicator: amber + `pulse-live` only while something
   // is actually updating (SYSTEM.md §9 — "working" is the only pulsing state).
   const live = Boolean(pulseFetching || tickerFetching || resolveCommitment.isPending);
@@ -262,7 +265,7 @@ export function BottomPulseTicker() {
               container is what lets min-w-0 + truncate below actually shrink
               the text. Measured at 390px: overlap gone, text ellipsizes. */}
           <span key={current.id} className="pulse-fade flex flex-1 min-w-0">
-            <PulseContent item={current} />
+            <PulseContent item={stripItem} />
           </span>
           {feedsDown.length > 0 && (
             <span className="shrink-0 font-mono text-[11px] text-amber-400">

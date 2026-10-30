@@ -28,7 +28,7 @@ vi.mock("@/lib/prisma", () => {
   const prisma = {
     task: { groupBy: () => Promise.resolve([]) },
     commitment: { count: () => Promise.resolve(0) },
-    smartDevice: { groupBy: () => Promise.resolve([]) },
+    smartDevice: { findMany: () => Promise.resolve([]) },
     // Two unacked drift-recovery coach events: the number the tower used to show.
     brainMemory: {
       findMany: () => Promise.resolve([coachRow, coachRow]),

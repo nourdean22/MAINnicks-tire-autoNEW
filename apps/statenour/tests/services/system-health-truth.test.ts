@@ -26,7 +26,7 @@ vi.mock("@/lib/prisma", () => {
   const prisma = {
     task: { groupBy: empty },
     commitment: { count: () => Promise.resolve(0) },
-    smartDevice: { groupBy: empty },
+    smartDevice: { findMany: empty },
     journalThread: { groupBy: empty },
     brainMemory: {
       findMany: empty,
