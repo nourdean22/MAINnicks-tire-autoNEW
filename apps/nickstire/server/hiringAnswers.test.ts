@@ -9,13 +9,16 @@
 import { describe, expect, it } from "vitest";
 import { BUSINESS } from "@shared/business";
 import {
-  HIRING_SMS_TOKEN, OPEN_INTERVIEWS_LINE, OPEN_INTERVIEWS_SHORT, hiringSmsReply, openJobOpenings, startsWithHiringToken,
+  OPEN_INTERVIEWS_LINE, OPEN_INTERVIEWS_SHORT, hiringCallerSection, hiringSmsReply, openJobOpenings, startsWithHiringToken,
 } from "@shared/jobOpenings";
 import { routeInboundSms, type SmsRouterContext } from "./services/smsIntentRouter";
 import { getTemplateVariant } from "./services/smsMessageCatalog";
 import { buildReplyPlan } from "./services/smsReplyPlanner";
-import { ASSISTANT_SYSTEM_PROMPT, hiringCallerSection } from "./services/vapi";
+import { ASSISTANT_SYSTEM_PROMPT } from "./services/vapi";
 import { sliceBlock } from "./testUtils/sourceBlock";
+
+// The careers-candidate-intake format (PR 3367); a rename here must break this file.
+const INTAKE_TOKEN = "JOB-APPLY";
 
 const noCtx: SmsRouterContext = { hasActiveBooking: false, hasActiveEstimate: false, hasActiveLead: false };
 const titles = openJobOpenings().map((j) => j.title);
@@ -66,14 +69,14 @@ describe("SMS: a job question gets the hiring answer", () => {
     const facts = plan.knownFacts.join(" ");
     expect(facts).toContain(OPEN_INTERVIEWS_SHORT.replace(/\.$/, ""));
     expect(facts).toContain("nickstire.org/careers");
-    expect(facts).toContain(HIRING_SMS_TOKEN);
+    expect(facts).toContain(INTAKE_TOKEN);
   });
 
   it("the reply is built from the facts files and fits one text", () => {
     const { body } = getTemplateVariant("job_inquiry", {}, 0);
     for (const t of titles) expect(body).toContain(t);
     expect(body).toContain(OPEN_INTERVIEWS_SHORT.replace(/\.$/, ""));
-    expect(body).toContain(HIRING_SMS_TOKEN);
+    expect(body).toContain(INTAKE_TOKEN);
     expect(body).toContain(BUSINESS.phone.display);
     expect(body).toContain("nickstire.org/careers");
     expect(body).not.toMatch(/\$\d/);
@@ -84,7 +87,7 @@ describe("SMS: a job question gets the hiring answer", () => {
     const { body } = getTemplateVariant("job_inquiry", {}, 0);
     const example = body.match(/"([^"]+)"/)?.[1] ?? "";
     expect(startsWithHiringToken(example)).toBe(true);
-    expect(example).toBe(HIRING_SMS_TOKEN);
+    expect(example).toBe(INTAKE_TOKEN);
   });
 
   it("Codex P2: with no open roles it says so instead of 'we're hiring'", () => {
@@ -106,7 +109,7 @@ describe("voice: the receptionist answers job questions instead of transferring"
     expect(s).toContain(OPEN_INTERVIEWS_SHORT);
     expect(s).toMatch(/walk in with an ID/i);
     expect(s).not.toContain(OPEN_INTERVIEWS_LINE);
-    expect(s).toContain(HIRING_SMS_TOKEN);
+    expect(s).toContain(INTAKE_TOKEN);
     expect(s).toContain("nickstire.org/careers");
   });
 
@@ -129,7 +132,7 @@ describe("voice: the receptionist answers job questions instead of transferring"
   });
 
   it("Codex P2: with no open roles the section says so instead of 'we're hiring'", () => {
-    const s = hiringCallerSection([]);
+    const s = hiringCallerSection(BUSINESS.phone.display, []);
     expect(s).not.toMatch(/We're hiring:/);
     expect(s).toMatch(/not hiring right now/i);
   });

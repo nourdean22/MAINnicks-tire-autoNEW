@@ -239,7 +239,7 @@ export const OPEN_INTERVIEWS_LINE = `${OPEN_INTERVIEWS_SHORT} Walk in with an ID
  * text that mentions a job or hiring keeps the normal customer flow (where a
  * job question gets the job_inquiry catalog reply, smsMessageCatalog.ts).
  */
-export const HIRING_SMS_TOKEN = "JOB-APPLY";
+const HIRING_SMS_TOKEN = "JOB-APPLY";
 
 /** Prefilled text body, e.g. "JOB-APPLY Automotive Technician. My name is ". */
 function hiringSmsBody(title?: string): string {
@@ -276,6 +276,21 @@ export function openJobOpenings(): JobOpening[] {
 export function hiringSmsReply(phoneDisplay: string, openings: JobOpening[] = openJobOpenings()): string {
   if (openings.length === 0) return "We're not hiring right now. New openings are posted at nickstire.org/careers.";
   return `Yes, we're hiring: ${openings.map((j) => j.title).join(", ")}. ${OPEN_INTERVIEWS_LINE} Or text "${HIRING_SMS_TOKEN}" with the job and your name to ${phoneDisplay}, or apply at nickstire.org/careers.`;
+}
+
+/**
+ * The receptionist's hiring section (2026-10-30), read by the voice prompt in
+ * server/services/vapi.ts. With no open role it says so. A caller who declines
+ * the apply text gets none, overriding Rule 5's recap text; escalate stays
+ * available when Rule 6 applies. No pay figure: Critical Rule 1.
+ */
+export function hiringCallerSection(phoneDisplay: string, openings: JobOpening[] = openJobOpenings()): string {
+  const head = `## JOB / HIRING CALLER (asks about a job, applying, interviews, "are you hiring?")`;
+  const tail = "No bookSlot for a job question; escalate only when Rule 6 applies (they asked for a person and the shop is CLOSED).";
+  if (openings.length === 0) {
+    return `${head}\nThis is NOT a transfer: answer it yourself in one short sentence (Rule 6 still wins if they ask for a person): "We're not hiring right now. New openings go up on nickstire.org/careers." ${tail}`;
+  }
+  return `${head}\nThis is NOT a transfer: answer it yourself in one or two short sentences (Rule 6 still wins if they ask for a person). We're hiring: ${openings.map((j) => j.title).join(", ")}. Say: "${OPEN_INTERVIEWS_SHORT} Walk in with an ID." Then: "Want me to text you how to apply?" Yes → sendConfirmationSms({ summary: "To apply, text ${HIRING_SMS_TOKEN}, the job and your name to ${phoneDisplay}, or go to nickstire.org/careers. ${OPEN_INTERVIEWS_SHORT}" }). No → do NOT call sendConfirmationSms on this call, not even at the end (Rule 5's recap text does not apply to a caller who declined it). Pay, schedule and hours come up in the interview and are on nickstire.org/careers: never say a pay number. ${tail}`;
 }
 
 export function jobOpeningBySlug(slug: string): JobOpening | undefined {
