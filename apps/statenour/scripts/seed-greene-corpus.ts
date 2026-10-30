@@ -131,6 +131,8 @@ export async function seedGreeneCorpus(): Promise<{
           source: "skill_ingestion",
           createdBy: "user",
           metadata: metadata as never,
+          // 2026-10-29 · revive: the merge grinder soft-deleted 150 of 153 seeds (fixed in PR 3359).
+          deletedAt: null,
         },
       });
       updated++;
@@ -165,7 +167,11 @@ export async function seedGreeneCorpus(): Promise<{
 
 /** Standalone entrypoint · only self-runs when invoked directly, so
  *  importing this module for `seedGreeneCorpus` has no side effects. */
-if (process.argv[1]?.includes("seed-greene-corpus")) {
+if (process.argv[1]?.includes("seed-greene-corpus") && process.argv.includes("--dry-run")) {
+  // 2026-10-29 · prints the plan and returns before any query (Prisma connects lazily, on first query).
+  console.log(`[dry-run] would upsert ${ALL_GREENE_ENTRIES.length} greene_law rows (revive soft-deleted ones)`);
+  console.log("[dry-run] nothing written; no database connection was opened.");
+} else if (process.argv[1]?.includes("seed-greene-corpus")) {
   seedGreeneCorpus()
     .then(() => prisma.$disconnect())
     .catch((err) => {
