@@ -101,6 +101,44 @@ export function classifyDevices(
   return h;
 }
 
+export interface DeviceTally {
+  online: number;
+  /** OFFLINE with a contact inside the recent window: the only offline that may alarm. */
+  offline: number;
+  offlineLong: number;
+  error: number;
+  notReporting: number;
+  retired: number;
+  /** Every non-retired device. */
+  total: number;
+}
+
+/**
+ * The status breakdown Home (system-hub) and /system (system-pages) show. Same age rule as
+ * classifyDevices; before 2026-10-30 both counted every OFFLINE row and /system also folded
+ * RETIRED into offline, so April relics read "17 devices offline" on Home and /system.
+ */
+export function deviceTally(
+  rows: ReadonlyArray<{ status: string; lastSeenAt: Date | null; createdAt: Date }>,
+  now: Date = new Date(),
+): DeviceTally {
+  const edge = now.getTime() - DEVICE_RECENT_WINDOW_DAYS * 86_400_000;
+  const t: DeviceTally = { online: 0, offline: 0, offlineLong: 0, error: 0, notReporting: 0, retired: 0, total: 0 };
+  for (const d of rows) {
+    if (d.status === DEVICE_RETIRED_STATUS) {
+      t.retired += 1;
+      continue;
+    }
+    t.total += 1;
+    if (d.status === "ONLINE") t.online += 1;
+    else if (d.status === "ERROR") t.error += 1;
+    else if (d.status === "UNKNOWN") t.notReporting += 1;
+    else if ((d.lastSeenAt ?? d.createdAt).getTime() > edge) t.offline += 1;
+    else t.offlineLong += 1;
+  }
+  return t;
+}
+
 /**
  * Build the system-pulse rollup. Cached 30s. The shape is identical to
  * the legacy GET /api/system/pulse payload so the FloatingHome orb +

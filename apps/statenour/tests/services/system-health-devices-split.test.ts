@@ -7,7 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ deviceGroupBy: vi.fn() }));
+const h = vi.hoisted(() => ({ deviceFindMany: vi.fn() }));
 
 vi.mock("@/lib/utils/cache", () => ({
   cached: (_key: string, _ttl: number, fn: () => Promise<unknown>) => fn(),
@@ -18,7 +18,7 @@ vi.mock("@/lib/prisma", () => {
   const prisma = {
     task: { groupBy: empty },
     commitment: { count: () => Promise.resolve(0) },
-    smartDevice: { groupBy: (...a: unknown[]) => h.deviceGroupBy(...a) },
+    smartDevice: { findMany: (...a: unknown[]) => h.deviceFindMany(...a) },
     journalThread: { groupBy: empty },
     brainMemory: { findMany: empty, count: () => Promise.resolve(0), findUnique: () => Promise.resolve(null) },
     cronJobLog: { findFirst: () => Promise.resolve(null) },
@@ -28,24 +28,29 @@ vi.mock("@/lib/prisma", () => {
 
 import { buildSystemHealth } from "@/lib/services/system-pages";
 
+// 2026-10-30: device rollups read rows (deviceTally applies the 7-day age rule), not status buckets.
+// Contact just now, so OFFLINE rows land in the recent bucket these cases are about.
+const rows = (status: string, n: number) =>
+  Array.from({ length: n }, () => ({ status, lastSeenAt: new Date(), createdAt: new Date() }));
+
 beforeEach(() => {
-  h.deviceGroupBy.mockReset();
+  h.deviceFindMany.mockReset();
 });
 
 describe("buildSystemHealth device rollup", () => {
   it("ERROR and UNKNOWN devices are not counted offline", async () => {
-    h.deviceGroupBy.mockResolvedValue([
-      { status: "ERROR", _count: { id: 1 } },
-      { status: "UNKNOWN", _count: { id: 2 } },
+    h.deviceFindMany.mockResolvedValue([
+      ...rows("ERROR", 1),
+      ...rows("UNKNOWN", 2),
     ]);
     const { devices } = await buildSystemHealth();
-    expect(devices).toEqual({ online: 0, offline: 0, error: 1, notReporting: 2, total: 3 });
+    expect(devices).toEqual({ online: 0, offline: 0, offlineLong: 0, error: 1, notReporting: 2, retired: 0, total: 3 });
   });
 
   it("control: OFFLINE still counts offline and ONLINE stays online", async () => {
-    h.deviceGroupBy.mockResolvedValue([
-      { status: "OFFLINE", _count: { id: 2 } },
-      { status: "ONLINE", _count: { id: 3 } },
+    h.deviceFindMany.mockResolvedValue([
+      ...rows("OFFLINE", 2),
+      ...rows("ONLINE", 3),
     ]);
     const { devices } = await buildSystemHealth();
     expect(devices).toMatchObject({ online: 3, offline: 2, total: 5 });

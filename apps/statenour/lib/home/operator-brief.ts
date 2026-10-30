@@ -748,8 +748,9 @@ function composeStateSummary(i: {
     return "Parts of the board are unreadable — treat this view as incomplete.";
   }
   const parts: string[] = [];
+  // Only a real P1 (broken) takes the hero. "degraded" stays on the health chip under it, which
+  // links to /system (2026-10-30: "System degraded: 17 devices offline" led the page over his task).
   if (i.health.state === "broken") parts.push(`System needs attention — ${i.health.detail}.`);
-  else if (i.health.state === "degraded") parts.push(`System degraded — ${i.health.detail}.`);
 
   if (i.activeTitle) parts.push(`You're mid-execution on “${i.activeTitle}”.`);
   else if (i.judgmentCount > 0)

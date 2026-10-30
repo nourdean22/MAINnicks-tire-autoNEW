@@ -21,6 +21,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
+import { readWorkoutStreak } from "@/lib/stats/workout-streak";
 import { findLawsForPatterns, pickApplication, type LawRef } from "./adviser";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { isAiSentinel } from "@/lib/ai/provider";
@@ -556,7 +557,7 @@ async function computeEngineInputs(): Promise<EngineInputs> {
 
   const [
     habitsToday,
-    workoutWeek,
+    workoutStreakRead,
     tasksToday,
     overdueTasks,
     openDecisions,
@@ -567,7 +568,8 @@ async function computeEngineInputs(): Promise<EngineInputs> {
     reflectionLoggedToday,
   ] = await Promise.all([
     Promise.resolve([] as Array<{ habitKey: string; completed: boolean }>),
-    Promise.resolve([] as Array<{ date: string; completed: boolean }>),
+    // 2026-10-30: the one workout streak (lib/stats/workout-streak.ts); this slot was a hardcoded empty week.
+    readWorkoutStreak(now),
     prisma.task
       .findMany({
         where: {
@@ -636,19 +638,10 @@ async function computeEngineInputs(): Promise<EngineInputs> {
 
   // Derived workout stats
   const workoutDoneToday = habitsToday.find((h) => h.habitKey === "workout")?.completed === true;
-  const workoutSorted = [...workoutWeek].sort((a, b) => (a.date < b.date ? 1 : -1));
-  let workoutStreakDays = 0;
-  let workoutSkippedStreakDays = 0;
-  for (const w of workoutSorted) {
-    if (w.date === todayStr) continue;
-    if (w.completed) {
-      workoutStreakDays++;
-      if (workoutSkippedStreakDays > 0) break;
-    } else {
-      workoutSkippedStreakDays++;
-      if (workoutStreakDays > 0) break;
-    }
-  }
+  const workoutStreakDays = workoutStreakRead ?? 0;
+  // shortcut: no source for skipped workout days since HabitLog retired (the old input was an empty
+  // array, so this was always 0); upgrade when a per-day workout log exists again.
+  const workoutSkippedStreakDays = 0;
 
   // Tasks today breakdown
   const doneTasksToday = tasksToday.filter((t) => t.status === "DONE").length;

@@ -18,6 +18,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
+import { readWorkoutStreak, titleLooksLikeWorkout } from "@/lib/stats/workout-streak";
 
 export interface Timeline {
   id: string;
@@ -43,13 +44,6 @@ interface Inputs {
   hourOfDay: number;
 }
 
-/** Workout-ish task-title fragments — same fuzzy-match family as
- *  ultron-ticker's fetchSelfMetricsTop (workout/move/gym/exercise), extended
- *  with the vocabulary Nour actually uses ("RUN OR 10X10", "run plus 10 x 10"). */
-const WORKOUT_TITLE_FRAGMENTS = [
-  "workout", "gym", "exercise", "lift", "cardio", "run", "10x10", "10 x 10", "planet fitness",
-] as const;
-
 /**
  * How many open loops to ask for today, DERIVED from the backlog rather
  * than asserted. Bounded at 3 so a large backlog never produces a
@@ -62,21 +56,17 @@ export function closeTargetFor(openLoops: number): number {
   return Math.max(1, Math.min(3, Math.floor(openLoops / 3)));
 }
 
-function titleLooksLikeWorkout(title: string): boolean {
-  const t = title.toLowerCase();
-  return WORKOUT_TITLE_FRAGMENTS.some((frag) => t.includes(frag));
-}
-
 export async function computeInputs(): Promise<Inputs> {
   const now = new Date();
   const todayStr = toDateString(now);
   const weekAgo = daysAgo(7);
 
   // v10.0.59 · Wave A part 2 · habits via legacy-shims. habitsToday
-  // filters today's rows from the synthesized habit history; habitsWeek
-  // slices the last 7 days. (Daily-score inputs removed 2026-05-31 — the
+  // filters today's rows from the synthesized habit history. (Daily-score inputs removed 2026-05-31 — the
   // score-derived timeline items were retired in the score→reflection pivot.)
-  const [habitsToday, habitsWeek, drift, sleepRows, doneWorkoutTasks] = await Promise.all([
+  // 2026-10-30: the streak comes from the one producer (lib/stats/workout-streak.ts). It used to count
+  // completed rows across EVERY daily habit here, which read "8d" beside the ticker's true "1d".
+  const [habitsToday, workoutStreakRead, drift, sleepRows, doneWorkoutTasks] = await Promise.all([
     (async () => {
       const { recentDailyHabits } = await import("@/lib/brain/legacy-shims");
       const all = await recentDailyHabits(1);
@@ -84,11 +74,7 @@ export async function computeInputs(): Promise<Inputs> {
         .filter((r) => r.date === todayStr)
         .map((r) => ({ habitKey: r.habitKey, completed: r.completed }));
     })(),
-    (async () => {
-      const { recentDailyHabits } = await import("@/lib/brain/legacy-shims");
-      const all = await recentDailyHabits(7);
-      return all.map((r) => ({ date: r.date, completed: r.completed }));
-    })(),
+    readWorkoutStreak(now),
     prisma.brainMemory
       .findMany({
         where: {
@@ -145,15 +131,8 @@ export async function computeInputs(): Promise<Inputs> {
       }),
   ]);
 
-  // Workout streak = consecutive days with completed=true ending yesterday
-  // (today may not be done yet; streak is *prior* context).
-  let workoutStreak = 0;
-  const sorted = [...habitsWeek].sort((a, b) => (a.date < b.date ? 1 : -1));
-  for (const h of sorted) {
-    if (h.date === todayStr) continue;
-    if (h.completed) workoutStreak++;
-    else break;
-  }
+  // An unreadable streak is no streak claim: the streak lines below need >= 3.
+  const workoutStreak = workoutStreakRead ?? 0;
 
   // Habit-based signal (kept for anyone who DOES run a DAILY habit) — fuzzy
   // title match instead of the old exact `=== "workout"`, which could never
@@ -169,18 +148,6 @@ export async function computeInputs(): Promise<Inputs> {
     (t) => toDateString(t.updatedAt) === todayStr,
   );
   const tracksWorkouts = workoutToday !== undefined || workoutTasks.length > 0;
-
-  // No DAILY habit streak → derive one from completed workout-ish tasks
-  // (consecutive ET days ending yesterday), so streak items work for the
-  // ONCE-task tracking style actually in use.
-  if (workoutStreak === 0 && workoutTasks.length > 0) {
-    const daysWithWorkout = new Set(workoutTasks.map((t) => toDateString(t.updatedAt)));
-    for (let i = 1; i <= 7; i++) {
-      const day = new Date(now.getTime() - i * 86400_000);
-      if (daysWithWorkout.has(toDateString(day))) workoutStreak++;
-      else break;
-    }
-  }
 
   // 2026-05-27 · wired-up. BodyTracking.sleepHours (Float?, one row per
   // date via @unique) feeds the avg. Returns null only when zero rows

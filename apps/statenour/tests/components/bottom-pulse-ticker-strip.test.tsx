@@ -83,6 +83,25 @@ describe("F30 · a failed pulse read says so", () => {
   });
 });
 
+// 2026-10-30 home-pulse W1: the always-on strip printed the raw text of his latest capture above the
+// tab bar, where anyone glancing at the phone reads it. The strip now says only that a capture
+// exists; the sheet he opens on purpose still lists it in full.
+describe("captures stay off the ambient strip", () => {
+  it("a capture shows as 'New capture', never its text", () => {
+    feeds.pulse = {
+      items: [{ id: "cap-1", kind: "capture", glyph: "o", label: "CAPTURE", text: "private words here", tone: "info" }],
+    };
+    const html = renderToStaticMarkup(<BottomPulseTicker />);
+    expect(html).not.toContain("private words here");
+    expect(html).toContain("New capture");
+  });
+
+  it("control: a non-capture item still shows its text on the strip", () => {
+    feeds.pulse = { items: [item("a")] };
+    expect(renderToStaticMarkup(<BottomPulseTicker />)).toContain("item a");
+  });
+});
+
 describe("F21 · the strip's controls are 44px on a phone, so no audit exemption", () => {
   it("renders no data-target-audit opt-out", () => {
     feeds.pulse = { items: [item("a"), item("b")] };

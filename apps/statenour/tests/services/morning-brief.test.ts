@@ -42,6 +42,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+// 2026-10-30: the brief's workout streak reads the one producer every surface reads.
+const streak = vi.hoisted(() => ({ value: 0 as number | null }));
+vi.mock("@/lib/stats/workout-streak", () => ({ readWorkoutStreak: async () => streak.value }));
+
 vi.mock("@/lib/services/calendar-api", () => ({
   listEvents: vi.fn().mockResolvedValue([]),
 }));
@@ -134,6 +138,7 @@ function resetMocks() {
 describe("Morning Brief · v10.0.526 multi-slice composer", () => {
   beforeEach(() => {
     resetMocks();
+    streak.value = 0;
   });
 
   // 1 ─────────────────────────────────────────────────────────────
@@ -306,6 +311,8 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
   // 5 ─────────────────────────────────────────────────────────────
   it("wellbeing slice · emits workout streak + weight delta + wisdom", async () => {
     const today = new Date("2026-05-12");
+    // The daily logs alone would say 3d; the shown number must be the producer's.
+    streak.value = 2;
     mocks.personalDailyLog.findMany.mockResolvedValue([
       { logDate: new Date("2026-05-12"), workoutCompleted: true, sleepHours: 7.5 },
       { logDate: new Date("2026-05-11"), workoutCompleted: true, sleepHours: 8.0 },
@@ -333,7 +340,9 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     const brief = await buildMorningBrief();
 
     expect(brief.text).toContain("<b>Wellbeing</b>");
-    expect(brief.text).toContain("Workout streak: <b>3d</b>");
+    expect(brief.text).toContain("Workout streak: <b>2d</b>");
+    expect(brief.text).not.toContain("Workout streak: <b>3d</b>");
+    streak.value = 0;
     expect(brief.text).toContain("Sleep 7d avg:");
     expect(brief.text).toContain("Weight Δ: -1.5 lb");
     // Wisdom line · contains italic + a curated quote.
