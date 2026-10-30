@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w0": {
+      "ref": "statenour/people-w0 (job 2026-10-30-people-tracker, W0). Five defects from the read-only phase-1 map plus one found while fixing. (1) people-intelligence enrich read payload.peopleMentioned off conversation_digest AuditEvent rows that the digest strips (v10.0.35 PII fix), and a <=10 sparse gate stopped it on prod's 12 sparse profiles; it now reads RelationshipLedger notes and makes no model call for a person with nothing on record. New guard tests/brain/conversation-digest-audit-no-people.test.ts pins the strip; positive control: with payload set back to the full digest the guard went red (1 failed / 1 passed), restored green. (2) isNeglected now honours cadenceDays; route and engine selects carry it. (3) picks, watchlist and the birthday cron share lib/services/people/birthday.ts (America/New_York). (4) getPeopleIntelligence had no caller: deleted; STATENOUR-CONNECTIVITY-MATRIX row corrected. (5) promise tasks link to the exact or case-insensitive named person on the enrich pass (lib/services/people/link-promise.ts, compare-and-set). (6) /api/relationships/watchlist answered 200 items:[] on a failed read; now 500 so the page's error state fires. Red first: 6 assertion failures + 2 missing modules, watchlist 500 and the cron ET day red before their fixes, the lost compare-and-set case red before its fix. After the rebase onto main b477959935: 15 targeted files, 117 tests passed under TZ=UTC and TZ=America/New_York. Local commit hooks: statenour-typecheck, eslint (0 errors), secrets passed. Prod reads only (SELECT, BEGIN READ ONLY, counts and ids); no prod write."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the people tracker. State after this PR: enrich, cadence-aware neglect, ET birthdays and promise linking are BUILT+WIRED, LIVE+UNPROVEN until the post-deploy read (bdnick.info/people neglected count with a cadence set, and the next enrich run's pendingClassification count)."
+    }
+  }
+}

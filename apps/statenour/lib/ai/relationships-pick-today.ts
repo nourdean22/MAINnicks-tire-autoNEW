@@ -31,6 +31,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { daysUntilBirthday } from "@/lib/services/people/birthday";
 
 const log = rootLogger.withSurface("ai/relationships-pick-today");
 
@@ -230,7 +231,7 @@ async function buildCandidatePool(): Promise<Candidate[]> {
   }
 
   const now = Date.now();
-  const todayMD = new Date().toISOString().slice(5, 10); // "MM-DD"
+  const nowDate = new Date(now);
 
   return people.map((p): Candidate => {
     const daysSilent = p.lastInteraction
@@ -241,11 +242,8 @@ async function buildCandidatePool(): Promise<Candidate[]> {
     const ledgerTouches30d = ledgerStats?.touches ?? 0;
     const brokenPromises = brokenByPerson.get(p.id) ?? 0;
 
-    let birthdayInDays: number | null = null;
-    if (p.birthday && /^\d{4}-\d{2}-\d{2}$/.test(p.birthday)) {
-      const bMD = p.birthday.slice(5, 10);
-      birthdayInDays = daysUntilMMDD(todayMD, bMD);
-    }
+    // America/New_York day count (people W0): the UTC month-day ran a day ahead after 20:00 ET.
+    const birthdayInDays = daysUntilBirthday(p.birthday, nowDate);
 
     const signals: string[] = [];
     if (brokenPromises > 0) signals.push(`${brokenPromises} open promise(s)`);
@@ -289,16 +287,6 @@ async function buildCandidatePool(): Promise<Candidate[]> {
       heuristicScore: score,
     };
   });
-}
-
-function daysUntilMMDD(todayMD: string, targetMD: string): number {
-  const year = new Date().getFullYear();
-  const today = new Date(`${year}-${todayMD}`);
-  let target = new Date(`${year}-${targetMD}`);
-  if (target.getTime() < today.getTime()) {
-    target = new Date(`${year + 1}-${targetMD}`);
-  }
-  return Math.round((target.getTime() - today.getTime()) / DAY_MS);
 }
 
 function heuristicRationale(c: Candidate): string {

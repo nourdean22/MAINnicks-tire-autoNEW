@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { daysUntilBirthday } from "@/lib/services/people/birthday";
 
 const log = rootLogger.withSurface("api/relationships/watchlist");
 
@@ -46,7 +47,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     log.error("watchlist_failed", {
       err: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json({ items: [], generatedAt: new Date().toISOString() });
+    // A failed read is an error, never an empty "no one needs you" (people W0).
+    return NextResponse.json({ error: "watchlist_read_failed" }, { status: 500 });
   }
 }
 
@@ -78,11 +80,11 @@ async function buildWatchlist(): Promise<WatchlistItem[]> {
   }
 
   // Birthday in 14d
-  const todayMD = new Date().toISOString().slice(5, 10);
+  // America/New_York day count (people W0): the UTC month-day ran a day ahead after 20:00 ET.
+  const nowDate = new Date(now);
   for (const p of people) {
-    if (!p.birthday || !/^\d{4}-\d{2}-\d{2}$/.test(p.birthday)) continue;
-    const days = daysUntilMMDD(todayMD, p.birthday.slice(5, 10));
-    if (days >= 0 && days <= 14) {
+    const days = daysUntilBirthday(p.birthday, nowDate);
+    if (days !== null && days <= 14) {
       items.push({
         kind: "birthday_2w",
         personId: p.id,
@@ -169,12 +171,3 @@ async function buildWatchlist(): Promise<WatchlistItem[]> {
   return Array.from(byPerson.values()).sort((a, b) => a.rank - b.rank).slice(0, 12);
 }
 
-function daysUntilMMDD(todayMD: string, targetMD: string): number {
-  const year = new Date().getFullYear();
-  const today = new Date(`${year}-${todayMD}`);
-  let target = new Date(`${year}-${targetMD}`);
-  if (target.getTime() < today.getTime()) {
-    target = new Date(`${year + 1}-${targetMD}`);
-  }
-  return Math.round((target.getTime() - today.getTime()) / DAY_MS);
-}
