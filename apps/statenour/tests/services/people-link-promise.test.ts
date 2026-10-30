@@ -13,7 +13,10 @@ const h = vi.hoisted(() => ({
   taskFindUnique: vi.fn(),
   taskUpdateMany: vi.fn(),
   resolve: vi.fn(),
+  logError: vi.fn(),
 }));
+
+vi.mock("@/lib/utils/error-log", () => ({ logError: h.logError }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: { task: { findUnique: h.taskFindUnique, updateMany: h.taskUpdateMany } },
@@ -73,8 +76,9 @@ describe("linkPromiseToPerson", () => {
     expect(h.resolve).not.toHaveBeenCalled();
   });
 
-  it("a failed read is an error outcome, never a throw", async () => {
+  it("a failed read is an error outcome, never a throw, and it is logged", async () => {
     h.taskFindUnique.mockRejectedValue(new Error("db down"));
     expect(await linkPromiseToPerson("t1")).toBe("error");
+    expect(h.logError).toHaveBeenCalledWith("people.link-promise", expect.any(Error), { taskId: "t1" });
   });
 });

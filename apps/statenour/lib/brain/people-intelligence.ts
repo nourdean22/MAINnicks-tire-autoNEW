@@ -47,6 +47,8 @@ function reviewedWithin(
 export async function runPeopleIntelligence(): Promise<{
   profilesUpdated: number;
   alerts: string[];
+  /** Set when the enrich pass could not read its context: 0 updates then means UNKNOWN, not a quiet day. */
+  enrich?: "ledger_read_failed";
 }> {
   const alerts: string[] = [];
 
@@ -109,6 +111,7 @@ export async function runPeopleIntelligence(): Promise<{
   );
 
   let updated = 0;
+  let ledgerReadFailed = false;
   if (sparse.length > 0) {
     // People W0 (2026-10-30): the context is the person's own ledger notes.
     // This used to read payload.peopleMentioned off conversation_digest audit
@@ -127,6 +130,7 @@ export async function runPeopleIntelligence(): Promise<{
       .then(contactRowsOnly)
       .catch((err) => {
         logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.findLedgerNotes" });
+        ledgerReadFailed = true;
         return null;
       });
 
@@ -217,5 +221,7 @@ Return ONLY JSON:
     }
   }
 
-  return { profilesUpdated: updated, alerts };
+  return ledgerReadFailed
+    ? { profilesUpdated: updated, alerts, enrich: "ledger_read_failed" }
+    : { profilesUpdated: updated, alerts };
 }

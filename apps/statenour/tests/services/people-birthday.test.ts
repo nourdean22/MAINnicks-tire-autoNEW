@@ -40,7 +40,7 @@ describe("daysUntilBirthday", () => {
   });
 
   it("missing or malformed dates are null, never a number", () => {
-    for (const b of [null, undefined, "", "March 3", "1985-13-40"]) {
+    for (const b of [null, undefined, "", "March 3", "1985-13-40", "1990-02-30", "1990-04-31"]) {
       expect(daysUntilBirthday(b, new Date("2026-10-30T16:00:00Z"))).toBeNull();
     }
   });

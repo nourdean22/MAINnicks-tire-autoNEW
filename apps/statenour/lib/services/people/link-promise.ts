@@ -9,6 +9,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { resolvePersonByName } from "@/lib/brain/person-profile-fuzzy";
+import { logError } from "@/lib/utils/error-log";
 
 const SELF = /^(me|myself|self|i)$/i;
 
@@ -28,7 +29,9 @@ export async function linkPromiseToPerson(taskId: string): Promise<LinkPromiseOu
 
     const out = await prisma.task.updateMany({ where: { id: task.id, personId: null }, data: { personId: res.person.id } });
     return out.count > 0 ? "linked" : "skipped";
-  } catch {
+  } catch (err) {
+    // The caller ignores the outcome, so this log is the only trace a link failed.
+    logError("people.link-promise", err, { taskId });
     return "error";
   }
 }

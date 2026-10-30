@@ -25,7 +25,8 @@ export function daysUntilBirthday(birthday: string | null | undefined, now: Date
   if (!b) return null;
   const bm = Number(b[2]);
   const bd = Number(b[3]);
-  if (bm < 1 || bm > 12 || bd < 1 || bd > 31) return null;
+  // A real calendar day: 2000 is a leap year, so Feb 29 passes and Feb 30 / Apr 31 do not.
+  if (bm < 1 || bm > 12 || new Date(Date.UTC(2000, bm - 1, bd)).getUTCDate() !== bd) return null;
   const [ty, tm, td] = toDateString(now).split("-").map(Number);
   const today = Date.UTC(ty, tm - 1, td);
   let next = Date.UTC(ty, bm - 1, bd);

@@ -112,8 +112,10 @@ describe("runPeopleIntelligence enrich", () => {
     h.peopleFindMany.mockResolvedValue([person("a")]);
     h.ledgerFindMany.mockRejectedValue(new Error("db down"));
 
-    await runPeopleIntelligence();
+    const out = await runPeopleIntelligence();
 
     expect(h.aiChat).not.toHaveBeenCalled();
+    // A dead ledger read must not look like a quiet day to the cron.
+    expect(out.enrich).toBe("ledger_read_failed");
   });
 });
