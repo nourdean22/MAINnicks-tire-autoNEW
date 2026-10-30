@@ -24,10 +24,13 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [04-DATA-MAP](04-DATA-MAP.md) | production numbers today and how ALG's data moves over |
 | [07-COMPLIANCE](07-COMPLIANCE.md) | Ohio estimate, invoice, tax, tire and used-tire rules as screen behaviour |
 | [09-ACCESS-AND-SECURITY](09-ACCESS-AND-SECURITY.md) | crew logins and roles, MFA, audit log, FTC and Ohio data duties |
-| [12-LOCAL-AI-AND-MESH](12-LOCAL-AI-AND-MESH.md) | a local AI model on the shop PC, and a mesh of the three PCs: not yet, and why |
 | [02-RESEARCH](02-RESEARCH.md) | the 16 research runs with sources and labels |
+| [12-LOCAL-AI-AND-MESH](12-LOCAL-AI-AND-MESH.md) | a local AI model on the shop PC, and a mesh of the three PCs: not yet, and why |
 | [13-TOOLKIT](13-TOOLKIT.md) | every account, key name, API, MCP, plugin, skill and device the build needs: have, missing, Nour's call |
+| [14-STOLEN-MECHANISMS](14-STOLEN-MECHANISMS.md) | per counter screen: ALG baseline, the best public mechanisms, ours, and the slot for Nour's screenshots |
 | [15-GAPS](15-GAPS.md) | 27 gaps no plan file covers (his words, the shop's day, data, integrations, operations), top 10 by cost, 5 unrun research queries |
+| [16-AI-CONTROLS-CUSTOMER360](16-AI-CONTROLS-CUSTOMER360.md) | Claude/ChatGPT in the CRM over MCP, every owner setting in /system, what a customer profile may lawfully hold |
+| [17-ALG-LEDGER-STUDY](17-ALG-LEDGER-STUDY.md) | every mirrored ALG ticket and estimate: how, why, what, who, when; ten execution rules; five blind spots (figures private) |
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).

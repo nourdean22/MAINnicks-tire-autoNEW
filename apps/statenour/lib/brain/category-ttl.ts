@@ -14,7 +14,7 @@
  *     meta_pattern (durable but reviewable)
  *   · Medium (90d): industry_intel, customer_stories, content_
  *     performance (operational reference)
- *   · Short (30d): chat_summary, conversation_summary, emotional_
+ *   · Short (30d): conversation_summary, emotional_
  *     state, daily_synthesis, learning_velocity (rolls over)
  *   · Telemetric (7d): system_alert, system_health_
  *     digest history beyond keep window, tool_embedding (rotate
@@ -91,7 +91,9 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   meeting_transcript: { days: 90, notes: "Fireflies pulls" },
 
   // ── SHORT (30d) ──────────────────────────────────────────────
-  chat_summary: { days: 30, notes: "session distillation" },
+  // 2026-10-30 (brain backfill W1): one durable distill per conversation, like conversation_summary.
+  // Prod 13:02Z: 120 of 126 live rows already carried no expiry; the 30-day policy was never what the rows did.
+  chat_summary: { days: null, notes: "session distillation · one row per conversation" },
   emotional_state: { days: 30, notes: "rolls over" },
   emotional_arc: { days: 30, notes: "per-week mood arc" },
   daily_synthesis: { days: 30, notes: "daily roll-up" },

@@ -106,16 +106,27 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
   // brief often runs in a cold process, where getFlag alone reads env only and would miss
   // a Settings-panel switch.
   let weeklyGapNote = false;
-  if (weekdayET() === 1) {
+  const isMonday = weekdayET() === 1;
+  if (isMonday) {
     await loadFeatureFlagOverrides().catch(() => {});
     weeklyGapNote = getFlag("NICK_WEEKLY_GAP_NOTE")?.isOn === true;
   }
 
-  const [personal, shop, wellbeing, anticipated, notSeeing] = await Promise.all([
+  const [personal, shop, wellbeing, anticipated, goals, notSeeing] = await Promise.all([
     buildPersonalSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Personal")),
     buildShopSlice().catch((): MorningBriefSlice => failedSlice("Shop")),
     buildWellbeingSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Wellbeing")),
     buildAnticipatedSlice().catch((): MorningBriefSlice => failedSlice("Anticipated")),
+    // 2026-10-30 · goals-system W2: Mondays, the GTD weekly review's "every goal has a next step".
+    isMonday
+      ? import("@/lib/services/goal-review-line")
+          .then((m) => m.buildGoalsSlice())
+          .catch((err): MorningBriefSlice => {
+            // The read logs its own failure; this catches a throw in the slice itself.
+            log.warn("goals_slice_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+            return failedSlice("Goals");
+          })
+      : Promise.resolve(emptySlice()),
     weeklyGapNote
       ? import("@/lib/services/not-seeing-note")
           .then((m) => m.buildNotSeeingSlice(todayIso))
@@ -132,6 +143,8 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
   if (shop.lines.length > 0) sections.push(shop.lines);
   if (wellbeing.lines.length > 0) sections.push(wellbeing.lines);
   if (anticipated.lines.length > 0) sections.push(anticipated.lines);
+  // After the other sections, so a goal title stays out of the 200-character push preview.
+  if (goals.lines.length > 0) sections.push(goals.lines);
   // Last on purpose: the push preview is the first 200 characters (pushBodyFromBrief),
   // and these gap lines are private enough to keep off a lock screen.
   if (notSeeing.lines.length > 0) sections.push(notSeeing.lines);
@@ -157,6 +170,7 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
       shop: shop.payload,
       wellbeing: wellbeing.payload,
       anticipated: anticipated.payload,
+      ...(isMonday ? { goals: goals.payload } : {}),
       ...(weeklyGapNote ? { notSeeing: notSeeing.payload } : {}),
       builtAt: new Date().toISOString(),
     },

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   personalDailyLog: { findMany: vi.fn() },
   bodyTracking: { findMany: vi.fn() },
   brainMemory: { findMany: vi.fn(), update: vi.fn() },
+  lifeGoal: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -37,6 +38,7 @@ vi.mock("@/lib/prisma", () => ({
     personalDailyLog: mocks.personalDailyLog,
     bodyTracking: mocks.bodyTracking,
     brainMemory: mocks.brainMemory,
+    lifeGoal: mocks.lifeGoal,
   },
 }));
 
@@ -110,6 +112,7 @@ function resetMocks() {
   mocks.personalDailyLog.findMany.mockResolvedValue([]);
   mocks.bodyTracking.findMany.mockResolvedValue([]);
   mocks.brainMemory.update.mockResolvedValue({});
+  mocks.lifeGoal.findMany.mockResolvedValue([]);
   lotBridge.queryNick.mockResolvedValue(QUIET_LOT);
 
   mocks.brainMemory.findMany.mockImplementation(async (args: any) => {
@@ -761,5 +764,65 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
     // golden picks on the shared pool order (greene, gracian, naval, munger, bezos): a reorder changes them
     expect(pickMaxim("customers", "2026-11-02")!.ref).toBe("wisdom_baltasar-gracian_045");
     expect(pickMaxim("money", "2026-11-02")!.ref).toBe("wisdom_naval-ravikant_004");
+  });
+});
+
+// 2026-10-30 · job goals-system W2: the GTD weekly review's "Get Current" step on Mondays. The brief
+// never read goals before. A failed read is "unknown", no goals is "not measured yet", never a 0.
+describe("Morning Brief · Monday 'Goals' line (2026-10-30)", () => {
+  const goal = (id: string, openTasks: number) => ({
+    id,
+    title: `Goal ${id}`,
+    horizon: null,
+    deadline: null,
+    createdAt: new Date("2026-10-28T16:00:00Z"),
+    targetValue: 0,
+    currentValue: 0,
+    _count: { tasks: openTasks },
+    events: [],
+  });
+
+  beforeEach(() => {
+    resetMocks();
+    weekly.flagOn = false;
+    weekly.weekday = 1;
+  });
+
+  it("Monday: active goals and how many have a next step, from real rows", async () => {
+    mocks.lifeGoal.findMany.mockResolvedValue([goal("a", 2), goal("b", 0)]);
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("<b>Goals</b> · 2 active · 1 with a next step");
+    expect(brief.payload.goals).toMatchObject({ state: "measured", active: 2, withNextStep: 1, noNextStepIds: ["b"] });
+  });
+
+  it("Monday, a failed goals read: 'unknown', never 0", async () => {
+    mocks.lifeGoal.findMany.mockRejectedValue(new Error("neon down"));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("<b>Goals</b> · unknown (the goals read failed)");
+    expect(brief.text).not.toMatch(/Goals<\/b> · 0 active/);
+  });
+
+  it("Monday, no active goals: 'not measured yet'", async () => {
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("<b>Goals</b> · not measured yet: no active goals");
+  });
+
+  it("reads the latest horizon_set with the goals, so a re-paced goal counts from then", async () => {
+    mocks.lifeGoal.findMany.mockResolvedValue([goal("a", 1)]);
+    await buildMorningBrief();
+    expect(mocks.lifeGoal.findMany.mock.calls[0][0].select.events).toMatchObject({ where: { kind: "horizon_set" }, take: 1 });
+  });
+
+  it("not Monday: no Goals section and no goals read", async () => {
+    weekly.weekday = 3;
+    const brief = await buildMorningBrief();
+    expect(brief.text).not.toContain("<b>Goals</b>");
+    expect(mocks.lifeGoal.findMany).not.toHaveBeenCalled();
+  });
+
+  it("the section sits after Personal, so a goal title stays out of the push preview's first line", async () => {
+    mocks.lifeGoal.findMany.mockResolvedValue([goal("a", 1)]);
+    const brief = await buildMorningBrief();
+    expect(brief.text.indexOf("<b>Goals</b>")).toBeGreaterThan(brief.text.indexOf("Drift:"));
   });
 });

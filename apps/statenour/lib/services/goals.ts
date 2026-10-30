@@ -85,6 +85,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
         select: { id: true, title: true, progress: true, status: true, horizon: true },
         orderBy: [{ status: "asc" }, { progress: "desc" }],
       },
+      // goals-system W1 · when the current horizon was set: the derived due date counts from it.
+      events: { where: { kind: "horizon_set" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
     },
   });
 
@@ -187,13 +189,14 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     // (declared GoalStat rows, else domain-inferred) for the card chips.
     // statLinks is pulled out of the spread so the raw relation doesn't
     // ride along in the payload — only the resolved `stats` does.
-    const { statLinks, parent, children, ...goalRest } = g;
+    const { statLinks, parent, children, events, ...goalRest } = g;
     const stats = effectiveGoalStats(statLinks ?? [], g.domain);
     // Defensive: a goal fetched without the ladder include (or a test mock)
     // has no `children` relation — never assume it's an array.
     const childList = Array.isArray(children) ? children : [];
     return {
       ...goalRest,
+      horizonSetAt: Array.isArray(events) && events[0] ? events[0].createdAt.toISOString() : null,
       progress: computedProgress,
       linkedTaskCount: total,
       linkedDoneCount: done,
@@ -397,6 +400,15 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
         after: nextCurrent,
         target: goal.targetValue,
       },
+    });
+  }
+  // The edit form re-sends the horizon on every save, so only a real change is a horizon_set.
+  if (rawData.horizon !== undefined && rawData.horizon !== before.horizon) {
+    emitGoalEventAsync({
+      goalId: id,
+      kind: "horizon_set",
+      source: "api:goals.PATCH",
+      payload: { from: before.horizon ?? null, to: rawData.horizon ?? null },
     });
   }
   if (data.status === "achieved" && before.status !== "achieved") {

@@ -421,7 +421,7 @@ export default function About() {
               {
                 icon: <FileCheck className="w-6 h-6" />,
                 title: "Multi-point inspection",
-                sub: "27 checkpoints — brakes, fluids, belts, suspension, lights, tires. Every visit, free.",
+                sub: BUSINESS.freeInspection.aboutSub,
                 anchor: "Most shops: $59–$99",
               },
               {

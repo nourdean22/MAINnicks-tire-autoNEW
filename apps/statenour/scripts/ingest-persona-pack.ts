@@ -248,6 +248,7 @@ async function main() {
   const { prisma } = await import("@/lib/prisma");
   let inserted = 0;
   let updated = 0;
+  const written: string[] = [];
 
   for (const seed of ALL_SEEDS) {
     const existing = await prisma.brainMemory.findFirst({
@@ -260,9 +261,10 @@ async function main() {
         where: { id: existing.id },
         data: seedUpdateData(seed),
       });
+      written.push(existing.id);
       updated++;
     } else {
-      await prisma.brainMemory.create({
+      const created = await prisma.brainMemory.create({
         data: {
           category: BRAIN_CATEGORIES.WISDOM,
           key: seed.key,
@@ -277,6 +279,7 @@ async function main() {
           },
         },
       });
+      written.push(created.id);
       inserted++;
     }
   }
@@ -285,6 +288,9 @@ async function main() {
   console.log(`   Inserted: ${inserted}`);
   console.log(`   Updated: ${updated}`);
   console.log(`   Total: ${ALL_SEEDS.length} (10 Buffett + 10 Gates + 10 Musk)`);
+
+  const { embedLoadedRows, embedSummary } = await import("./_lib/embed-loaded-rows");
+  console.log(`   ${embedSummary(await embedLoadedRows(written))}`);
 
   await prisma.$disconnect();
 }

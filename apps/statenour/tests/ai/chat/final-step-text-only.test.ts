@@ -135,8 +135,46 @@ describe("the last allowed step is text-only even when the provider ignores tool
       // No toolChoice on purpose: ai@6.0.314+ throws ToolChoiceViolationError when a
       // model calls a tool on a "none" step, and these providers do. activeTools: []
       // is the strip; the belt step and the execute-count tests below pin the behaviour.
-      expect(cfg.prepareStep({ stepNumber: 2 })).toEqual({ activeTools: [] });
+      const step = cfg.prepareStep({ stepNumber: 2 }) as { activeTools?: string[]; toolChoice?: unknown };
+      expect(step.activeTools).toEqual([]);
+      expect(step.toolChoice).toBeUndefined();
     }
+  });
+
+  // 2026-10-30 prod: with no tools on the request, minimax-m3 still wrote tool calls on the
+  // last step in 4 of 13 turns (NoSuchToolError, "Available tools: ."), and 3 of those turns
+  // ended with no prose. The empty tool list stays; the step also says, in words, that the
+  // tools are done and the answer is due. Pinned apart from the not-run recording
+  // (text-only-stray-calls.test.ts), so removing either layer fails its own test.
+  // Second reader P2: the not-run marking must hold for what the REAL SDK emits, not a hand-built part.
+  it("a call made on the stripped step comes out of the real SDK marked notRun; calls that ran do not", async () => {
+    const { normalizeAiSdkToolObservations } = await import("@/lib/ai/chat/ai-sdk-tool-observation");
+    const { model } = fakeModel((i) => (i < 3 ? toolCallParts(i) : textParts("Closing reply.")));
+    const config = buildConfig(model);
+    const result = streamText({ ...config, maxRetries: 0 } as never);
+    await result.consumeStream();
+    const obs = normalizeAiSdkToolObservations({ steps: await result.steps });
+
+    expect(obs.map((o) => [o.toolName, o.notRun === true])).toEqual([
+      ["getTasks", false],
+      ["getTasks", false],
+      ["getTasks", true],
+    ]);
+  });
+
+  it("the stripped step tells the model the tools are done and to answer now, and an earlier step does not", async () => {
+    const prompts: string[] = [];
+    const model = new MockLanguageModelV3({
+      doStream: async (opts: { prompt: Array<{ role: string; content: unknown }> }) => {
+        prompts.push(JSON.stringify(opts.prompt.slice(-1)));
+        return { stream: streamOf(prompts.length < 3 ? toolCallParts(prompts.length) : textParts("Closing reply.")) } as never;
+      },
+    });
+    const out = await run(model);
+
+    expect(out.text).toBe("Closing reply.");
+    expect(prompts[0]).not.toMatch(/No tools are available/);
+    expect(prompts[2]).toMatch(/No tools are available/);
   });
 
   // Codex P1 on PR 3296 (vercel/ai#13448: activeTools once filtered only what the

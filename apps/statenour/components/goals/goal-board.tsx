@@ -79,7 +79,7 @@ import {
   X as XIcon,
   Check,
 } from "lucide-react";
-import { computePace, paceLabel, formatRate, type PaceVerdict } from "@/lib/brain/goal-pace";
+import { formatRate, goalPaceView } from "@/lib/brain/goal-pace";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import {
   effectiveHorizon,
@@ -127,6 +127,8 @@ interface LifeGoal {
   deadline: string | null;
   createdAt: string;
   updatedAt: string;
+  /** When the current horizon was set (lib/services/goals.ts getGoals); null = since creation. */
+  horizonSetAt?: string | null;
   linkedTaskCount?: number;
   linkedDoneCount?: number;
   linkedActiveCount?: number;
@@ -1515,20 +1517,27 @@ export function GoalBoard() {
 
                       {/* Apr 26 · G1: pace projection chip. Computes
                           required-vs-actual rate from currentValue,
-                          targetValue, deadline + createdAt. Hidden
-                          when goal has no deadline OR no targetValue.
+                          targetValue, the due date + createdAt (W1
+                          2026-10-30: goalPaceView; a horizon gives a
+                          derived date, a goal with no date says why).
                           When pace says "needs N/day" or "behind", the
                           chip becomes a Link into /tasks?goalId= so the
                           operator can spin up an increment task there. */}
                       {(() => {
-                        const v: PaceVerdict = computePace({
-                          currentValue: g.currentValue,
-                          targetValue: g.targetValue,
-                          deadline: g.deadline,
-                          createdAt: g.createdAt,
-                        });
-                        if (v.kind === "unscored") return null;
-                        const label = paceLabel(v, g.unit);
+                        const view = goalPaceView(g);
+                        if (!view) return null;
+                        if (view.kind === "note") {
+                          return <div className="mt-1.5 text-[11px] font-mono text-fg-tertiary">{view.text}</div>;
+                        }
+                        if (view.kind === "time") {
+                          return (
+                            <div className="mt-1.5 inline-flex items-center gap-1 rounded-control border border-edge-default bg-surface-interactive px-1.5 py-0.5 text-[11px] font-mono text-fg-secondary">
+                              <Activity size={9} />
+                              <span>{view.label}</span>
+                            </div>
+                          );
+                        }
+                        const { verdict: v, label } = view;
                         const tone =
                           v.kind === "ahead"
                             ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"

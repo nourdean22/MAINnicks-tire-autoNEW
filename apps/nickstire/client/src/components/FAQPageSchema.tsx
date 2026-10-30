@@ -31,6 +31,7 @@
  *   - All Q&A on the page should be present in the JSON-LD
  *   - Don't put advertising in mainEntity
  */
+import { BUSINESS } from "@shared/business";
 import React from "react";
 import { BRAKE_PRICE } from "@shared/pricing";
 import {
@@ -144,7 +145,7 @@ export const OIL_CHANGE_FAQ: FAQItem[] = [
   {
     q: "How much is an oil change in Cleveland?",
     // keep in sync with OIL_PRICE
-    a: "Conventional oil change starts at $49 · synthetic oil change starts at $80. Includes new filter, top-off of all fluids, and a free 21-point inspection.",
+    a: "Conventional oil change starts at $49 · synthetic oil change starts at $80. Includes new filter and top-off of all fluids. " + BUSINESS.freeInspection.offer + "",
   },
   {
     q: "Do you offer synthetic oil changes?",
@@ -156,7 +157,7 @@ export const OIL_CHANGE_FAQ: FAQItem[] = [
   },
   {
     q: "Do you check other things during the oil change?",
-    a: "Yes · free 21-point inspection comes with every oil change. We check tire wear, brakes, fluids, lights, belts, hoses, and battery. We'll tell you what needs attention · you decide what to do.",
+    a: "Yes, if you ask. The free 27-point inspection covers tire wear, brakes, fluids, lights, belts, hoses, and battery. We'll tell you what needs attention · you decide what to do.",
   },
 ];
 

@@ -129,7 +129,7 @@ const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: 
   Brakes: { slug: "brakes", label: "Brake Service", pitch: `Free brake check. Pads from $${BRAKE_PRICE.padsStarting}/axle. Pictures of worn parts before any replacement.` },
   Tires: { slug: "tires", label: "Tires & Wheels", pitch: `Free mount + balance + valve stems. Used tires ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Walk-ins welcome.` },
   Diagnostics: { slug: "diagnostics", label: "Check Engine Light", pitch: "Free OBD-II code scan. $49 full diagnostic, waived if you do the repair with us. We test before we replace." },
-  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: `Conventional oil change ${BUSINESS.oilChange.conventionalPrice}. Free multi-point check every visit.` },
+  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: `Conventional oil change ${BUSINESS.oilChange.conventionalPrice}. ${BUSINESS.freeInspection.offer}` },
   Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free readiness check before you go back to the state test. We catch the actual cause, not just the code." },
   Electrical: { slug: "diagnostics", label: "Electrical Check", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
   Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full check before any major work — we tell you if a rebuild beats a repair." },

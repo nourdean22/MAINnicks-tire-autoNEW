@@ -16,14 +16,18 @@ import { describe, it, expect, vi } from "vitest";
 const mockGetTasks = vi.fn();
 
 vi.mock("@/lib/ai/tools/brain", () => ({ brainTools: {} }));
-vi.mock("@/lib/ai/tools/tasks", () => ({
-  tasksTools: {
-    getTasks: {
-      description: "Get tasks",
-      execute: (...args: unknown[]) => mockGetTasks(...args),
+vi.mock("@/lib/ai/tools/tasks", async () => {
+  const { z } = await import("zod");
+  return {
+    tasksTools: {
+      getTasks: {
+        description: "Get tasks",
+        inputSchema: z.object({ limit: z.number().optional(), includeDone: z.boolean().optional(), tag: z.union([z.string(), z.number()]).optional() }),
+        execute: (...args: unknown[]) => mockGetTasks(...args),
+      },
     },
-  },
-}));
+  };
+});
 vi.mock("@/lib/ai/tools/business", () => ({ businessTools: {} }));
 vi.mock("@/lib/ai/tools/content", () => ({ contentTools: {} }));
 vi.mock("@/lib/ai/tools/social", () => ({ socialTools: {} }));
@@ -76,5 +80,31 @@ describe("invokeTool · fail-closed gates (BDN-201)", () => {
     const res = (await asAny.invokeTool.execute({ name: "createTask", args: {} })) as Record<string, unknown>;
     expect(String(res.error)).toMatch(/not read-safe|unknown tool/);
     expect(res.result).toBeUndefined();
+  });
+
+  // 2026-10-30 prod: minimax-m3 sent daysBack:"30" and limit:"5" through invokeTool and every
+  // one failed the target's schema (3 calls that morning, one led to a fabrication banner).
+  it("runs a read whose numbers and booleans arrived as strings, converted to the schema's types", async () => {
+    mockGetTasks.mockResolvedValueOnce([{ id: 1 }]);
+    const res = (await asAny.invokeTool.execute({ name: "getTasks", args: { limit: "5", includeDone: "false" } })) as Record<string, unknown>;
+    expect(res.error).toBeUndefined();
+    expect(mockGetTasks).toHaveBeenLastCalledWith({ limit: 5, includeDone: false }, undefined);
+  });
+
+  // Second reader P3: only the fields the schema rejected are converted; a string-or-number field
+  // that passed ("00123") must reach the tool unchanged.
+  it("converts only the rejected fields, never one that already passed", async () => {
+    mockGetTasks.mockResolvedValueOnce([{ id: 1 }]);
+    const res = (await asAny.invokeTool.execute({ name: "getTasks", args: { limit: "5", tag: "00123" } })) as Record<string, unknown>;
+    expect(res.error).toBeUndefined();
+    expect(mockGetTasks).toHaveBeenLastCalledWith({ limit: 5, tag: "00123" }, undefined);
+  });
+  it("CONTROL: a string that is not a clean number or boolean still fails the schema and never runs", async () => {
+    for (const args of [{ limit: "30 days" }, { limit: "five" }, { limit: "" }, { includeDone: "yes" }]) {
+      mockGetTasks.mockClear();
+      const res = (await asAny.invokeTool.execute({ name: "getTasks", args })) as Record<string, unknown>;
+      expect(String(res.error)).toMatch(/arguments failed getTasks's schema/);
+      expect(mockGetTasks).not.toHaveBeenCalled();
+    }
   });
 });
