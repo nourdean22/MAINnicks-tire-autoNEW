@@ -303,7 +303,7 @@ Only Nour can answer these. When he does, write the answer into the right sectio
 8. **The free inspection.** The About page says a free 27-point inspection on every visit, with photos of
    worn parts. Is that what the crew does on every car?
    Answered in part (Nour, 2026-10-30): the free 27-point inspection is real (section 2). Still open: whether
-   photos of worn parts go with every car.
+   it happens on every visit, and whether photos of worn parts go with every car.
 9. **Register payment types.** The April doc listed cash, Visa, SNAP and Afterpay. What does the register
    take today?
 10. **Flat repair price.** Not in `shared/pricing.ts` yet. What should the site and the receptionist quote?
