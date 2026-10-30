@@ -321,5 +321,19 @@
       "VIDEO_DB_API_KEY",
       "XAI_API_KEY"
     ]
+  },
+  "_noteDeclaredAhead": "Names declared in railway.ts BEFORE they exist live, so an apply after Nour sets them by hand cannot delete them. Read-only plan 2026-10-30: preserve() on a variable the service does not hold is a no-op (no add, no change). Nour adds REDIS_URL on the worker himself (a reference to the Redis service) in his Ring step; preserve() keeps it. Ring poller, PR 3413.",
+  "declaredAhead": {
+    "statenour-worker": [
+      "DEVICE_AGENT_KEY",
+      "REDIS_URL",
+      "RING_POLL_ENABLED",
+      "RING_REFRESH_TOKEN_SEED",
+      "RING_TOKEN_KEY",
+      "RING_USER_AGENT"
+    ],
+    "statenour-web": [
+      "DEVICE_AGENT_KEY"
+    ]
   }
 }
