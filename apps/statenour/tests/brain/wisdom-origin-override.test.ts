@@ -61,7 +61,8 @@ describe("metadata.origin wins over the key prefix", () => {
     const { prisma } = await import("@/lib/prisma");
     vi.mocked(prisma.brainMemory.findMany).mockRejectedValueOnce(new Error("db down"));
     const rows = [mem({ id: "w1", key: "wisdom_naval-ravikant_001" })];
-    await expect(attachWisdomOrigins(rows)).resolves.toBeUndefined();
+    // no throw; false tells the per-turn log the read failed (W2 hardening)
+    await expect(attachWisdomOrigins(rows)).resolves.toBe(false);
     expect(provenancePrefix(rows[0])).toContain("Naval");
   });
 });

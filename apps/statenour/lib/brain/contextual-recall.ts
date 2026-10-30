@@ -214,13 +214,14 @@ export function renderedContent(m: RelevantMemory): string {
  * metadata (it is large on some rows), so this is one by-id read of the wisdom
  * rows. It runs BEFORE slot selection, so the curated check and the exposure
  * decay see authoritative values. Best-effort: on failure the key prefix decides
- * and no row is penalized.
+ * and no row is penalized. Returns false only when the read failed, so the per-turn
+ * log can say so (an empty list is not a failure).
  */
 export async function attachWisdomOrigins(
   rows: Array<{ id?: string; category: string; origin?: string | null; lastRecalledAt?: string | null }>,
-): Promise<void> {
+): Promise<boolean> {
   const wisdom = rows.filter((r) => r.category === "wisdom" && r.id);
-  if (wisdom.length === 0) return;
+  if (wisdom.length === 0) return true;
   try {
     const found = await prisma.brainMemory.findMany({
       where: { id: { in: wisdom.map((r) => r.id!) } },
@@ -232,8 +233,10 @@ export async function attachWisdomOrigins(
       if (typeof meta?.origin === "string" && meta.origin) r.origin = meta.origin;
       if (typeof meta?.lastRecalledAt === "string") r.lastRecalledAt = meta.lastRecalledAt;
     }
+    return true;
   } catch (err) {
     logError("brain.contextual-recall", err, { fn: "attachWisdomOrigins" }, "warn");
+    return false;
   }
 }
 
@@ -628,7 +631,7 @@ export function favoritePersonaBoost(key: string, category: string): number {
 // Keyword fallback scoring (from v1, used when embeddings unavailable)
 // ---------------------------------------------------------------------------
 
-function keywordScore(
+export function keywordScore(
   memory: { category: string; content: string; key: string },
   topics: string[]
 ): number {
@@ -1680,11 +1683,15 @@ export async function getContextualMemories(
   // Only rows over the floor can win a slot, so only they need metadata: the pool is the
   // 300 highest-confidence rows and curated wisdom can be most of it.
   const wisdomFloor = wisdomSlotFloor(useEmbeddings);
-  await attachWisdomOrigins(scored.filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= wisdomFloor));
+  const wisdomMetaOk = await attachWisdomOrigins(scored.filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= wisdomFloor));
   const wisdoms = selectWisdomSlots(scored, wisdomSlots, { useEmbeddings, now: new Date(now) });
+  // Pool sizes ride along so an empty pool (a failed lane) is not read as "nothing relevant".
   console.log("[brain-recall] wisdom_slots", {
     ...wisdomSlotCounts(scored, { useEmbeddings, scoredIds: semanticScores ? new Set(semanticScores.scores.keys()) : undefined }),
     wisdomInjected: wisdoms.length,
+    wisdomMetaOk,
+    candidatePool: candidatePool.length,
+    knnRows: knnRows.length,
   });
   // A slot no wisdom earned goes back to the direct memories.
   const directSlots = maxMemories - wisdoms.length;
