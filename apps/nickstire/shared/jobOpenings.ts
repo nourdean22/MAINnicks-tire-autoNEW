@@ -222,7 +222,6 @@ export const JOB_OPENINGS: JobOpening[] = [
 ];
 
 /**
-<<<<<<< HEAD
  * Owner-set 2026-10-29 (via the manager session): anyone with an ID can walk
  * in on Mondays, 11 AM to 2 PM, and interview with the manager for a few
  * minutes. Schedule, benefits and hours are discussed in that interview, so
@@ -232,7 +231,8 @@ export const JOB_OPENINGS: JobOpening[] = [
  */
 export const OPEN_INTERVIEWS_SHORT = "Open interviews Mondays, 11 AM to 2 PM.";
 export const OPEN_INTERVIEWS_LINE = `${OPEN_INTERVIEWS_SHORT} Walk in with an ID and talk with the manager for a few minutes.`;
-=======
+
+/**
  * Text-to-apply. The careers pages' text button prefills a body that STARTS
  * with this exact token; the inbound SMS path (server/services/smsHiringIntake.ts)
  * routes on the token alone, never on a guess about intent, so a customer
@@ -254,7 +254,6 @@ export function hiringSmsHref(phoneRaw: string, title?: string): string {
 export function startsWithHiringToken(body: string): boolean {
   return new RegExp(`^\\s*${HIRING_SMS_TOKEN}(?![\\w-])`, "i").test(body);
 }
->>>>>>> up/main
 
 /** Canonical leaf path for an opening. The ONLY URL its JobPosting may claim. */
 export function jobOpeningPath(slug: string): string {
