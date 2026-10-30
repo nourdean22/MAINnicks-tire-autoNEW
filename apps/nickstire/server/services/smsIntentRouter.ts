@@ -174,7 +174,9 @@ const RULES: Rule[] = [
       /\b(looking for|need|want) (a |some )?(job|employment)\b(?! (done|on|for my))/i.test(b) ||
       /\b(apply|application)\b[^.?!]{0,30}\b(job|position|tech|technician|mechanic|advisor)\b/i.test(b) ||
       /\b(service advisor|technician|tech|mechanic) (position|job|role|opening)\b/i.test(b) ||
-      /\b(positions?|job openings?)\b[^.?!]{0,20}\b(open|available|still|filled)\b/i.test(b),
+      /\b(positions?|job openings?)\b[^.?!]{0,20}\b(open|available|still|filled)\b/i.test(b) ||
+      /\b(job openings?|open positions?)\b/i.test(b) ||
+      /\b(do|does) (you|y'?all|the shop) hire\b/i.test(b),
   },
 
   // ─── Tier 2b: estimate questions (state-aware) ──
@@ -457,10 +459,17 @@ const SUBSUMES: Partial<Record<SmsIntent, SmsIntent[]>> = {
   job_status: ["hours_location"],
   complaint_or_comeback: ["price_brakes", "price_tires", "price_oil", "price_alignment"],
   cancellation_policy_question: [],
-  // "are you hiring tire techs?" / "open interviews" is one question, not a tire
-  // price or the store hours.
-  job_inquiry: ["price_tires", "price_brakes", "price_oil", "price_alignment", "diagnostic", "hours_location", "same_day_visit", "symptom_triage", "tire_inventory"],
 };
+
+/**
+ * Words that belong to a hiring question itself: "tire techs", "open interviews",
+ * "position still open". Another intent matched only through these words is
+ * the same question ("are you hiring tire techs?" is not a tire-price ask), so
+ * for job_inquiry a secondary intent survives only if it still matches with
+ * them removed ("are you hiring, and how much are brakes?" keeps price_brakes).
+ */
+const JOB_PHRASE_RE =
+  /\b(tire( \/ hybrid)? tech(nician)?s?|hybrid tech(nician)?s?|service advisors?|mechanics?|technicians?|techs?|open interviews?|interviews?|job openings?|open positions?|positions?( (is|are))?( still)?( (open|available|filled))?|still open|hiring|hire)\b/gi;
 
 /**
  * True when the message asks ABOUT cancellation rather than instructing one.
@@ -486,14 +495,18 @@ export function routeInboundSms(body: string, ctx: SmsRouterContext): SmsIntentD
   const sorted = [...matches].sort((a, b) => a.priority - b.priority);
   const primaryRule = sorted[0]!;
   const subsumed = new Set(SUBSUMES[primaryRule.intent] ?? []);
-  const secondary = sorted
+  const withoutJobWords = primaryRule.intent === "job_inquiry" ? body.replace(JOB_PHRASE_RE, " ") : null;
+  const kept = sorted
     .slice(1)
-    .map((r) => r.intent)
-    .filter((i) => i !== primaryRule.intent && !subsumed.has(i));
+    .filter((r) => r.intent !== primaryRule.intent && !subsumed.has(r.intent))
+    .filter((r) => withoutJobWords === null || r.test(withoutJobWords, ctx));
+  const secondary = kept.map((r) => r.intent);
 
   // Risk = the STRICTEST tier among every matched intent: a message that is
   // half price-question, half complaint is a complaint.
-  const risk = sorted.reduce<SmsRouteRisk>(
+  // For a job question, an intent absorbed above is not a second question, so it
+  // does not raise the risk tier either.
+  const risk = (withoutJobWords === null ? sorted : [primaryRule, ...kept]).reduce<SmsRouteRisk>(
     (acc, r) => (RISK_ORDER[r.risk] < RISK_ORDER[acc] ? r.risk : acc),
     primaryRule.risk,
   );

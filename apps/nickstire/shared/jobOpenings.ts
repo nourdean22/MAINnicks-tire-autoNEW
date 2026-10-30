@@ -266,6 +266,18 @@ export function openJobOpenings(): JobOpening[] {
   return JOB_OPENINGS.filter((j) => j.status === "open");
 }
 
+/**
+ * The fixed SMS answer to a job question (2026-10-30), read by the SMS catalog
+ * reply and the multi-intent reply planner. With no open role it says so: a
+ * closed role must not keep a "we're hiring" text alive. The apply example is
+ * the bare token so it never names a role the sender did not ask about (the
+ * intake files the candidate under whatever role follows the token).
+ */
+export function hiringSmsReply(phoneDisplay: string, openings: JobOpening[] = openJobOpenings()): string {
+  if (openings.length === 0) return "We're not hiring right now. New openings are posted at nickstire.org/careers.";
+  return `Yes, we're hiring: ${openings.map((j) => j.title).join(", ")}. ${OPEN_INTERVIEWS_LINE} Or text "${HIRING_SMS_TOKEN}" with the job and your name to ${phoneDisplay}, or apply at nickstire.org/careers.`;
+}
+
 export function jobOpeningBySlug(slug: string): JobOpening | undefined {
   return JOB_OPENINGS.find((j) => j.slug === slug);
 }

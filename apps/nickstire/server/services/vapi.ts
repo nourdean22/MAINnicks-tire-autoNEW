@@ -248,6 +248,22 @@ export const SHOP_LANDLINE_E164 = "+12168620005";
 // Voice-compliance: zero kill-list violations.
 // Neutral-first intent discovery; tire handling stays first-class once the caller signals tires.
 
+/**
+ * 2026-10-30 · the receptionist's hiring section, from shared/jobOpenings.ts.
+ * With no open role it says so (a closed role must not keep "we're hiring"
+ * alive). A caller who declines the apply text gets none, overriding Rule 5's
+ * recap text; escalate stays available when Rule 6 applies (closed hours, a
+ * caller who asks for a person). No pay figure: Critical Rule 1.
+ */
+function hiringCallerSection(openings: ReturnType<typeof openJobOpenings>): string {
+  const head = `## JOB / HIRING CALLER (asks about a job, applying, interviews, "are you hiring?")`;
+  const tail = "No bookSlot for a job question; escalate only when Rule 6 applies (they asked for a person and the shop is CLOSED).";
+  if (openings.length === 0) {
+    return `${head}\nThis is NOT a transfer: answer it yourself in one short sentence (Rule 6 still wins if they ask for a person): "We're not hiring right now. New openings go up on nickstire.org/careers." ${tail}`;
+  }
+  return `${head}\nThis is NOT a transfer: answer it yourself in one or two short sentences (Rule 6 still wins if they ask for a person). We're hiring: ${openings.map((j) => j.title).join(", ")}. Say: "${OPEN_INTERVIEWS_SHORT} Walk in with an ID." Then: "Want me to text you how to apply?" Yes → sendConfirmationSms({ summary: "To apply, text ${HIRING_SMS_TOKEN}, the job and your name to ${BUSINESS.phone.display}, or go to nickstire.org/careers. ${OPEN_INTERVIEWS_SHORT}" }). No → do NOT call sendConfirmationSms on this call, not even at the end (Rule 5's recap text does not apply to a caller who declined it). Pay, schedule and hours come up in the interview and are on nickstire.org/careers: never say a pay number. ${tail}`;
+}
+
 const ASSISTANT_SYSTEM_PROMPT = `# IDENTITY
 You're the AI receptionist for Nick's Tire & Auto — a Cleveland auto + tire shop on Euclid Ave, family-run since 2018, open 7 days a week.
 
@@ -375,8 +391,7 @@ Clarify once: "This is Nick's Tire and Auto on Euclid. Tires, brakes, repair?" W
 ## PARTS-ONLY CALLER (wants to buy or special-order a part, no install)
 Whether we sell or order a bare part is the counter's call, NOT yours — never assert that we do or don't, EVEN IF PUSHED for a yes/no ("that's the counter's call, and I'll get you right to them" is the whole answer). Say: "That's one for the counter. Let me get you to them." → Critical Rule #6 (OPEN → transferCall / CLOSED → escalate with the exact part). NEVER send a caller to a named competitor or another store — offer our counter instead. (If they need it INSTALLED, that's a normal repair flow: we get the part and put it in.)
 
-## JOB / HIRING CALLER (asks about a job, applying, interviews, "are you hiring?")
-This is NOT a transfer: answer it yourself in one or two short sentences (Rule 6 still wins if they ask for a person). We're hiring: ${openJobOpenings().map((j) => j.title).join(", ")}. Say: "${OPEN_INTERVIEWS_SHORT} Walk in with an ID." Then: "Want me to text you how to apply?" Yes → sendConfirmationSms({ summary: "To apply, text ${HIRING_SMS_TOKEN}, the job and your name to ${BUSINESS.phone.display}, or go to nickstire.org/careers. ${OPEN_INTERVIEWS_SHORT}" }). Pay, schedule and hours come up in the interview and are on nickstire.org/careers: never say a pay number. No bookSlot or escalate for a job question.
+${hiringCallerSection(openJobOpenings())}
 
 ## VEHICLE ALREADY AT SHOP
 OPEN → "I'll get you to the shop to check on it" → transferCall right away, no questions (Rule 6). CLOSED → escalate({ reason: "status check: <vehicle, if they said>" }).
@@ -2286,7 +2301,7 @@ export async function getRecentCalls(limit = 20, opts: { signal?: AbortSignal } 
   }
 }
 
-export { ASSISTANT_SYSTEM_PROMPT, FIRST_MESSAGE, VAPI_TOOLS, buildAssistantConfig };
+export { ASSISTANT_SYSTEM_PROMPT, FIRST_MESSAGE, VAPI_TOOLS, buildAssistantConfig, hiringCallerSection };
 /**
  * The follow-up caller's prompt and opener words for ONE customer (Q-45). The
  * cadence and the admin button used to lean on the live assistant's base

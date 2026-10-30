@@ -4,14 +4,17 @@
  * question themselves, from shared/jobOpenings.ts: the open roles, Monday open
  * interviews, and the text-to-apply token (the JOB-APPLY intake path from
  * PR 3367 is unchanged). No pay figures in voice: Critical Rule 1 allows only
- * the three anchor prices.
+ * the three anchor prices. Codex review round 1 (7 findings) is pinned below.
  */
 import { describe, expect, it } from "vitest";
 import { BUSINESS } from "@shared/business";
-import { HIRING_SMS_TOKEN, OPEN_INTERVIEWS_LINE, OPEN_INTERVIEWS_SHORT, openJobOpenings, startsWithHiringToken } from "@shared/jobOpenings";
+import {
+  HIRING_SMS_TOKEN, OPEN_INTERVIEWS_LINE, OPEN_INTERVIEWS_SHORT, hiringSmsReply, openJobOpenings, startsWithHiringToken,
+} from "@shared/jobOpenings";
 import { routeInboundSms, type SmsRouterContext } from "./services/smsIntentRouter";
 import { getTemplateVariant } from "./services/smsMessageCatalog";
-import { ASSISTANT_SYSTEM_PROMPT } from "./services/vapi";
+import { buildReplyPlan } from "./services/smsReplyPlanner";
+import { ASSISTANT_SYSTEM_PROMPT, hiringCallerSection } from "./services/vapi";
 import { sliceBlock } from "./testUtils/sourceBlock";
 
 const noCtx: SmsRouterContext = { hasActiveBooking: false, hasActiveEstimate: false, hasActiveLead: false };
@@ -27,6 +30,10 @@ describe("SMS: a job question gets the hiring answer", () => {
     "when are the open interviews",
     "are you hiring tire techs?",
     "is the service advisor position still open?",
+    // Codex P2: ordinary phrasings.
+    "Do you have any job openings?",
+    "Do you hire mechanics?",
+    "Do you have open positions?",
   ])("%s", (body) => {
     const d = routeInboundSms(body, noCtx);
     expect(d.primary).toBe("job_inquiry");
@@ -44,6 +51,24 @@ describe("SMS: a job question gets the hiring answer", () => {
     expect(routeInboundSms(body, noCtx).primary).not.toBe("job_inquiry");
   });
 
+  it("Codex P2: a real second question survives (only words inside the hiring phrase are absorbed)", () => {
+    const d = routeInboundSms("Are you hiring, and how much are brakes?", noCtx);
+    expect(d.primary).toBe("job_inquiry");
+    expect(d.secondary).toContain("price_brakes");
+    expect(d.catalogEvent).toBeNull();
+  });
+
+  it("Codex P2: the multi-intent planner carries the hiring facts", () => {
+    const body = "Are you hiring, and do you offer payment programs?";
+    const plan = buildReplyPlan(routeInboundSms(body, noCtx), {
+      customerFirstName: null, customerVehicle: null, activeBooking: null, activeEstimate: null, lastVapiSummary: null,
+    }, body);
+    const facts = plan.knownFacts.join(" ");
+    expect(facts).toContain(OPEN_INTERVIEWS_SHORT.replace(/\.$/, ""));
+    expect(facts).toContain("nickstire.org/careers");
+    expect(facts).toContain(HIRING_SMS_TOKEN);
+  });
+
   it("the reply is built from the facts files and fits one text", () => {
     const { body } = getTemplateVariant("job_inquiry", {}, 0);
     for (const t of titles) expect(body).toContain(t);
@@ -55,10 +80,18 @@ describe("SMS: a job question gets the hiring answer", () => {
     expect(body.length).toBeLessThanOrEqual(320);
   });
 
-  it("the example it gives starts with the exact token the intake routes on", () => {
+  it("Codex P1: the example is the bare token, never a role the sender did not ask about", () => {
     const { body } = getTemplateVariant("job_inquiry", {}, 0);
     const example = body.match(/"([^"]+)"/)?.[1] ?? "";
     expect(startsWithHiringToken(example)).toBe(true);
+    expect(example).toBe(HIRING_SMS_TOKEN);
+  });
+
+  it("Codex P2: with no open roles it says so instead of 'we're hiring'", () => {
+    const reply = hiringSmsReply(BUSINESS.phone.display, []);
+    expect(reply).not.toMatch(/we'?re hiring:/i);
+    expect(reply).toMatch(/not hiring right now/i);
+    expect(reply).toContain("nickstire.org/careers");
   });
 });
 
@@ -83,6 +116,22 @@ describe("voice: the receptionist answers job questions instead of transferring"
     expect(s).toContain("sendConfirmationSms");
     expect(s).toMatch(/not a transfer/i);
     expect(s).toMatch(/Rule 6/);
+  });
+
+  it("Codex P1: a caller who says no to the text gets no text (Rule 5 does not apply then)", () => {
+    expect(section()).toMatch(/No → do NOT call sendConfirmationSms/);
+  });
+
+  it("Codex P1: escalate stays available when Rule 6 applies (closed hours, asked for a person)", () => {
+    const s = section();
+    expect(s).not.toMatch(/No bookSlot or escalate for a job question/);
+    expect(s).toMatch(/escalate only when Rule 6 applies/i);
+  });
+
+  it("Codex P2: with no open roles the section says so instead of 'we're hiring'", () => {
+    const s = hiringCallerSection([]);
+    expect(s).not.toMatch(/We're hiring:/);
+    expect(s).toMatch(/not hiring right now/i);
   });
 
   it("states no pay figure (Critical Rule 1: only the three anchor prices)", () => {

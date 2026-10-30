@@ -19,6 +19,7 @@
  */
 import { BUSINESS } from "@shared/business";
 import { findVoiceViolations } from "@shared/voice";
+import { hiringSmsReply } from "@shared/jobOpenings";
 import type { SmsIntent, SmsIntentDecision } from "./smsIntentRouter";
 // The website's do-not-drive authority. The router already consults it to DECIDE
 // safety_urgent; the planner now consults it to say the RIGHT thing.
@@ -479,6 +480,18 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   // Deterministic-tier intents still get playbooks: a MULTI-intent message
   // ("225/50R17 and can I come today?") arrives at the drafter carrying them
   // as secondary, and their approved facts must travel with the plan.
+  // 2026-10-30 · a job question riding with a second question ("are you hiring,
+  // and do you take payment programs?") reaches the drafter; it gets the same
+  // facts the job_inquiry template carries.
+  job_inquiry: {
+    goal: "answer",
+    knownFacts: () => [hiringSmsReply(BUSINESS.phone.display)],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: null,
+    prohibited: [],
+    maxChars: 320,
+  },
   hours_location: {
     goal: "answer",
     knownFacts: () => [`Open Mon-Sat 8-6, Sun 9-4. ${SHOP_FACT}`, FCFS_FACT],
