@@ -103,7 +103,7 @@ const GUIDE: GuideEntry[] = [
     links: [
       { href: "/car-shaking-while-driving", label: "Car shaking while driving" },
       { href: "/steering-wheel-shaking", label: "Steering wheel shaking" },
-      { href: "/alignment", label: "Alignment & balance" },
+      { href: "/wheel-alignment-cleveland", label: "Alignment & balance" },
     ],
   },
   {

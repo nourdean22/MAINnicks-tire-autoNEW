@@ -33,7 +33,7 @@ const SERVICES = [
   { id: 2, name: "Tires", icon: "🛞", href: "/tires" },
   { id: 3, name: "Oil Change", icon: "🛢️", href: "/synthetic-oil-change" },
   { id: 4, name: "Check Engine", icon: "🔧", href: "/diagnostics" },
-  { id: 5, name: "Alignment", icon: "⚖️", href: "/alignment" },
+  { id: 5, name: "Alignment", icon: "⚖️", href: "/wheel-alignment-cleveland" },
   { id: 6, name: "General Repair", icon: "🔩", href: "/general-repair" },
 ];
 

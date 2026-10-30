@@ -428,6 +428,16 @@ function UsedTiresCallout() {
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg body-pretty">
                 Every used tire passes a 4-point exam — tread depth, sidewall, bead, age date. Free mount, balance, and valve stems. Rolling before your coffee gets cold.
               </p>
+              {/* 2026-10-29 GSC audit: "used tires near me" lands on this page
+                  (pos 6.7) and the homepage had no link to the used-tire page. */}
+              <Link
+                href="/used-tires-cleveland"
+                onClick={() => trackEvent("used_tires_page_click", { source: "used-tires-callout" })}
+                className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-black font-bold underline underline-offset-4 hover:text-black/70"
+              >
+                Used tires in Cleveland, from $25 installed (select 12-inch; most $40-80)
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </FadeIn>
           </div>
           <FadeIn delay={0.15}>
@@ -1079,7 +1089,7 @@ export default function Home() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
             <a href="/brakes" className="text-foreground/70 hover:text-primary transition-colors">Brake Repair</a>
-            <a href="/alignment" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
+            <a href="/wheel-alignment-cleveland" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
             <a href="/oil-change" className="text-foreground/70 hover:text-primary transition-colors">Oil Change</a>
             <a href="/diagnostics" className="text-foreground/70 hover:text-primary transition-colors">Check Engine Light Diagnostics</a>
             <a href="/tires" className="text-foreground/70 hover:text-primary transition-colors">Tire Finder</a>

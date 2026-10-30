@@ -66,8 +66,8 @@ export const PACK_DESTINATIONS: Readonly<Record<string, string>> = {
 
   // ── Alignment / steering ──────────────────────────────────────────────
   "why-car-pulls": "/car-pulling-to-one-side",
-  "steering-wheel-crooked-after-tires": "/alignment",
-  "balance-vs-alignment": "/alignment",
+  "steering-wheel-crooked-after-tires": "/wheel-alignment-cleveland",
+  "balance-vs-alignment": "/wheel-alignment-cleveland",
   "steering-vibration-highway-speed": "/steering-wheel-shaking",
   "tie-rod-steering-wobble-test": "/steering-wheel-shaking",
 

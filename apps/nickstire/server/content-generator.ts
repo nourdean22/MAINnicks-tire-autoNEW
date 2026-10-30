@@ -183,7 +183,7 @@ for (const r of ALL_ROUTES) {
 const TOPIC_ALIASES: Record<string, string> = {
   tire: "/tires", tires: "/tires", "used tires": "/tires", "new tires": "/tires",
   brake: "/brakes", brakes: "/brakes", "brake repair": "/brakes", rotors: "/brakes", pads: "/brakes",
-  alignment: "/alignment", "wheel alignment": "/alignment",
+  alignment: "/wheel-alignment-cleveland", "wheel alignment": "/wheel-alignment-cleveland",
   diagnostic: "/diagnostics", diagnostics: "/diagnostics", "check engine": "/diagnostics", "check engine light": "/diagnostics",
   emissions: "/emissions", "e-check": "/emissions", echeck: "/emissions",
   oil: "/oil-change", "oil change": "/oil-change",

@@ -5,6 +5,7 @@ import { Phone, ChevronRight, ShieldCheck, Clock, Package, Search } from "lucide
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { getTireSizeBySlug, TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
 import { getBuyingGuide } from "@shared/tireSizeContent";
+import { canonicalServicePath } from "@shared/internalLinks";
 import { BUSINESS } from "@shared/business";
 import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
 import InternalLinks from "@/components/InternalLinks";
@@ -334,7 +335,7 @@ export default function TireSizePage() {
               {buyingGuide.relatedServices.map(s => (
                 <Link
                   key={s.slug}
-                  href={`/${s.slug}`}
+                  href={canonicalServicePath(s.slug)}
                   className="group p-4 bg-background rounded-sm border border-border/30 hover:border-primary/40 transition-colors"
                 >
                   <div className="font-semibold text-foreground group-hover:text-primary transition-colors">{s.label}</div>

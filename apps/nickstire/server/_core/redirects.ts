@@ -78,7 +78,12 @@ const REDIRECTS: RedirectRule[] = [
   // Tire-shop queries — all flow into the tire-shop landing page
   { from: "/oil-change-cleveland",            to: "/oil-change",   reason: "duplicate of /oil-change" },
   { from: "/oil-change-service-station",      to: "/oil-change",   reason: "intent variant alias — bundle services framing → canonical /oil-change" },
-  { from: "/wheel-alignment",                 to: "/alignment",    reason: "keyword alias → /alignment (which already ranks for 'wheel alignment cleveland')" },
+  { from: "/wheel-alignment",                 to: "/wheel-alignment-cleveland", reason: "keyword alias → the one alignment page (was /alignment; repointed 2026-10-29 so it is not a 2-hop chain)" },
+  // 2026-10-29 · GSC audit, lifetime 2026-03-16..10-27: /alignment 2 clicks /
+  // 894 impr, linked from 271 prerendered pages; /wheel-alignment-cleveland 27
+  // clicks / 13,565 impr, 433 pages. Both indexed and self-canonical, both at
+  // pos ~23 for "wheel alignment cleveland". The weaker one folds into the stronger.
+  { from: "/alignment",                       to: "/wheel-alignment-cleveland", reason: "duplicate alignment page; 2 vs 27 lifetime clicks (GSC 2026-10-29)" },
   // wave-181.8 · REMOVED /wheel-alignment-cleveland redirect. The
   // 2026-05-02 silo decision routed this geo query into /tires, but
   // the Ahrefs/GSC audit (2026-05-12) showed the city-aware alignment
@@ -210,11 +215,22 @@ const REDIRECTS: RedirectRule[] = [
   { from: "/tire-shop-open-sunday-cleveland", to: "/tires#open-sundays", reason: "§11 tire-silo consolidation; 0 impressions in the 28-day post-rewrite window" },
 ];
 
+// Carry the request's query string onto the target, before any #fragment, so
+// ?utm_ links in reels, GBP and texts keep their attribution through the 301
+// (2026-10-29: the old handler dropped it).
+function withQuery(target: string, originalUrl: string | undefined): string {
+  const q = originalUrl?.indexOf("?") ?? -1;
+  if (q < 0) return target;
+  const query = originalUrl!.slice(q).split("#")[0];
+  const hash = target.indexOf("#");
+  return hash < 0 ? target + query : target.slice(0, hash) + query + target.slice(hash);
+}
+
 // Returns a 301 redirect if the path matches, otherwise falls through.
 export function installRedirects(app: Express): void {
   for (const rule of REDIRECTS) {
-    app.get(rule.from, (_req: Request, res: Response) => {
-      res.redirect(301, rule.to);
+    app.get(rule.from, (req: Request, res: Response) => {
+      res.redirect(301, withQuery(rule.to, req.originalUrl));
     });
   }
 

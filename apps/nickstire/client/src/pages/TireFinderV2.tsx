@@ -570,6 +570,9 @@ export default function TireFinderV2() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">Used tire replacement</p>
                 <p className="mt-1 text-2xl font-black">From $25 installed</p>
                 <p className="mt-1 text-sm text-muted-foreground">Select 12-inch rims; most sizes $40-80 installed. When the damage isn't repairable — mounted from our in-stock inventory the same visit.</p>
+                <Link href="/used-tires-cleveland" className="mt-2 inline-flex min-h-[44px] items-center text-sm font-semibold text-primary underline underline-offset-4">
+                  Used tires in Cleveland: how we check them
+                </Link>
               </div>
             </div>
           </div>

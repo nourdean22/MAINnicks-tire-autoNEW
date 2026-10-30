@@ -1349,7 +1349,7 @@ export default function HomeLegacy() {
                 Diagnostics" so the highest-PageRank inbound link to
                 /diagnostics carries keyword weight. */}
             <a href="/brakes" className="text-foreground/70 hover:text-primary transition-colors">Brake Repair</a>
-            <a href="/alignment" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
+            <a href="/wheel-alignment-cleveland" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
             <a href="/oil-change" className="text-foreground/70 hover:text-primary transition-colors">Oil Change</a>
             <a href="/diagnostics" className="text-foreground/70 hover:text-primary transition-colors">Check Engine Light Diagnostics</a>
             <a href="/tires" className="text-foreground/70 hover:text-primary transition-colors">Tire Finder</a>

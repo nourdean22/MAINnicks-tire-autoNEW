@@ -40,7 +40,7 @@ export function buildLlmsTxt(opts: { siteUrl: string; reviewRating: number | str
 - [Oil change](${b}/oil-change): Conventional from $${OIL_PRICE.conventional}, full synthetic from $${OIL_PRICE.fullSynthetic}. Free multi-point check included.
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Free readiness check before the state test.
-- [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
+- [Wheel alignment](${b}/wheel-alignment-cleveland): Stops uneven tire wear and pulling. Most vehicles same-day.
 - [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
 - [Payment programs](${b}/financing): five providers compared side by side; each provider decides approval.
 

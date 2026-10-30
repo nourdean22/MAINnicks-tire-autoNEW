@@ -38,6 +38,7 @@ import {
 } from "@/components/SEO";
 import ServicesDifferentiators from "@/components/ServicesDifferentiators";
 import { BUSINESS } from "@shared/business";
+import { canonicalServicePath } from "@shared/internalLinks";
 import { trpc } from "@/lib/trpc";
 import { SERVICES, type ServiceData } from "@shared/services";
 
@@ -67,7 +68,7 @@ const QUICK_PATHS = [
   { href: "/oil-change", title: "OIL CHANGES", detail: "Walk in" },
   { href: "/emissions", title: "E-CHECK", detail: "Failure repair" },
   { href: "/auto-repair-near-me", title: "SUSPENSION", detail: "Struts & shocks" },
-  { href: "/alignment", title: "STEERING", detail: "Alignment" },
+  { href: "/wheel-alignment-cleveland", title: "STEERING", detail: "Alignment" },
   {
     href: "/financing",
     title: "PAYMENT OPTIONS",
@@ -300,12 +301,12 @@ export default function ServicesOverview() {
             {SERVICES_LIST.map((service) => (
               <Link
                 key={service.slug}
-                href={`/${service.slug}`}
+                href={canonicalServicePath(service.slug)}
                 onClick={() =>
                   trackServicesAction(
                     "service_board",
                     "open_service",
-                    `/${service.slug}`,
+                    canonicalServicePath(service.slug),
                     service.title,
                   )
                 }
