@@ -378,6 +378,20 @@ describe("orchestrateSms · W2 non-customer filter and holding reply", () => {
     expect(res.requiresHumanApproval).toBe(false);
   });
 
+  it.each([
+    "Open enrollment is here! Self-employed? Want a health quote? Reply YES for pricing, END to stop",
+    "Would you be open to letting local shoppers pick up packages at your store? No cost to join",
+  ])("spam that says 'open' is still skipped: %s", async (body) => {
+    const res = await inbound(body);
+    expect(res.status).toBe("skipped");
+    expect(mockDraftSmsReply).not.toHaveBeenCalled();
+  });
+
+  it("a noise marker plus a price question reaches staff", async () => {
+    const res = await inbound("here is the tracking number, also how much for brakes");
+    expect(res.status).not.toBe("skipped");
+  });
+
   it("a noise marker never hides a safety text: it reaches staff", async () => {
     const res = await inbound("here is the tracking number, but my brakes failed");
     expect(res.status).not.toBe("skipped");

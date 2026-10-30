@@ -1403,9 +1403,12 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
 
         if (
           (routerDecision.primary === "not_a_customer" || routerDecision.primary === "no_reply_needed") &&
-          // A noise marker never hides a real ask: any other matched intent or a
-          // human_only risk (safety) goes on to staff (Codex review of #3393).
-          routerDecision.secondary.length === 0 && routerDecision.risk !== "human_only"
+          // A noise marker never hides a real ask: a human_only risk (safety) or any
+          // other matched intent goes on to staff (Codex review of #3393). Hours
+          // alone is not an ask: "Open enrollment" and "open to letting shoppers
+          // pick up packages" match it on the word "open" (eval noise 13 -> 11).
+          routerDecision.risk !== "human_only" &&
+          routerDecision.secondary.every((i) => i === "hours_location")
         ) {
           // W2: spam, carrier notices, auto-replies and plain thank-yous get no
           // draft, no staff-queue item and no text. Opt-out keywords were handled
