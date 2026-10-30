@@ -19,6 +19,7 @@ const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { isNeglected } from "@/lib/services/people/neglect";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
 
@@ -120,8 +121,10 @@ export async function runPeopleIntelligence(): Promise<{
         where: { personId: { in: sparse.map((p) => p.id) } },
         orderBy: { createdAt: "desc" },
         take: 200,
-        select: { personId: true, note: true },
+        select: { personId: true, note: true, metadata: true },
       })
+      // Only real contacts are context: a status-flip or synthetic row is not an interaction.
+      .then(contactRowsOnly)
       .catch((err) => {
         logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.findLedgerNotes" });
         return null;

@@ -76,6 +76,18 @@ describe("runPeopleIntelligence enrich", () => {
     expect(out.profilesUpdated).toBe(1);
   });
 
+  it("only CONTACT rows are context: a status-flip or synthetic row is never sent", async () => {
+    h.peopleFindMany.mockResolvedValue([person("a")]);
+    h.ledgerFindMany.mockResolvedValue([
+      { personId: "a", note: "status set to cooling", metadata: { kind: "status_flip" } },
+      { personId: "a", note: "mentioned in chat", metadata: { synthetic: true } },
+    ]);
+
+    await runPeopleIntelligence();
+
+    expect(h.aiChat).not.toHaveBeenCalled();
+  });
+
   it("makes no model call for a sparse person with nothing on record", async () => {
     h.peopleFindMany.mockResolvedValue([person("b", { interactionCount: 0, lastInteraction: null })]);
     h.ledgerFindMany.mockResolvedValue([]);
