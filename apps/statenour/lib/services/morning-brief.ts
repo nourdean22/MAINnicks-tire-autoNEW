@@ -473,6 +473,23 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
       payload.reviewDelta = reviewDelta.payload;
     }
 
+    // 2026-10-29 · wisdom-brain upgrade 5 · Mondays: one plain maxim applied to one number read
+    // above. No number, no line: a maxim with nothing to apply it to is filler.
+    if (weekdayET() === 1) {
+      const fact = wisdomAppliedFact(declinedDelta, ctx, reviewDelta);
+      if (fact) {
+        const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        const { pickMaxim } = await import("@/lib/brain/maxims");
+        const maxim = pickMaxim(fact.tag, todayIso);
+        if (maxim) {
+          lines.push(
+            `Wisdom applied · ${fact.label}: "${escapeHtml(maxim.text)}" (${escapeHtml(maxim.source)})`,
+          );
+          payload.wisdomApplied = { tag: fact.tag, ref: maxim.ref, metric: fact.metric };
+        }
+      }
+    }
+
     payload.bridgeSyncedAt = new Date(latestContext.createdAt).toISOString();
   } else if (latestContext) {
     // Bridge exists but stale · note it once so operator knows.
@@ -918,6 +935,43 @@ function extractRevenueLine(
     text: line,
     payload: { yesterday, target },
   };
+}
+
+/**
+ * The first real number the shop slice read, as a maxim tag and a short label: declined work
+ * (customers), then revenue (money), then reviews (reputation). Declined work leads because a
+ * follow-up on an open estimate is the one a maxim can change this week.
+ */
+function wisdomAppliedFact(
+  declined: { payload: Record<string, unknown> } | null,
+  ctx: Record<string, unknown>,
+  reviews: { payload: Record<string, unknown> } | null,
+): { tag: string; label: string; metric: string } | null {
+  const count = declined?.payload.count;
+  if (typeof count === "number" && count > 0) {
+    return { tag: "customers", label: `declined work (${count} open)`, metric: "declined" };
+  }
+  const rev = ctx.revenue as Record<string, unknown> | undefined;
+  if (rev) {
+    const nick = readNickRevenue(rev);
+    if (nick.hasToday && nick.todayDollars > 0) {
+      return { tag: "money", label: `revenue ($${formatMoney(nick.todayDollars)} today)`, metric: "revenue" };
+    }
+    const yesterday = numericField(rev, ["yesterday", "yesterdayValue", "lastDay"]);
+    if (yesterday != null && yesterday > 0) {
+      const dollars = guessIsCents(rev) ? yesterday / 100 : yesterday;
+      return { tag: "money", label: `revenue ($${formatMoney(dollars)} yesterday)`, metric: "revenue" };
+    }
+  }
+  const added = reviews?.payload.new;
+  const total = reviews?.payload.total;
+  if (typeof added === "number" && added > 0) {
+    return { tag: "reputation", label: `reviews (+${added} new)`, metric: "reviews" };
+  }
+  if (typeof total === "number" && total > 0) {
+    return { tag: "reputation", label: `reviews (${total} total)`, metric: "reviews" };
+  }
+  return null;
 }
 
 function numericField(

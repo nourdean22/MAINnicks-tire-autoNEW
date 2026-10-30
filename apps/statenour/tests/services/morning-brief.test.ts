@@ -15,6 +15,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const mocks = vi.hoisted(() => ({
   task: { findMany: vi.fn(), count: vi.fn() },
@@ -514,5 +516,94 @@ describe("Morning Brief · weekly 'What you're not seeing' (2026-10-22)", () => 
     weekly.build.mockRejectedValue(new Error("boom"));
     const brief = await buildMorningBrief();
     expect(brief.text).toContain("What you're not seeing slice unavailable");
+  });
+});
+
+// 2026-10-29 · wisdom-brain upgrade 5: on Mondays one plain maxim, matched by tag to one real
+// shop number the brief already read. Nothing new is sent; it is one line in the same brief.
+describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
+  type Maxim = { text: string; source: string; ref: string; tags: string[] };
+  const MAXIMS: Maxim[] = ["bezos", "gracian", "greene", "munger", "naval"].flatMap(
+    (p) =>
+      (JSON.parse(
+        readFileSync(resolve(__dirname, `../../data/wisdom/maxims/${p}-maxims.json`), "utf8"),
+      ) as { entries: Maxim[] }).entries,
+  );
+  const wisdomLine = (text: string) => text.split("\n").find((l) => l.startsWith("Wisdom applied"));
+  const fresh = (payload: Record<string, unknown>) =>
+    mocks.auditEvent.findFirst.mockResolvedValue({ createdAt: new Date(), payload });
+  const DECLINED = { declinedWork: { count: 12, countYesterday: 10 } };
+
+  beforeEach(() => {
+    resetMocks();
+    weekly.flagOn = false;
+    weekly.weekday = 1;
+  });
+
+  it("Monday, fresh bridge: one line ties the declined-work count to a customers maxim", async () => {
+    fresh(DECLINED);
+    const brief = await buildMorningBrief();
+    const line = wisdomLine(brief.text);
+    expect(line).toBeDefined();
+    expect(line).toContain("declined work (12 open)");
+    const applied = (brief.payload as { shop: { wisdomApplied: { tag: string; ref: string } } }).shop.wisdomApplied;
+    expect(applied.tag).toBe("customers");
+    const maxim = MAXIMS.find((m) => m.ref === applied.ref)!;
+    expect(maxim.tags).toContain("customers");
+    expect(line).toContain(maxim.text);
+    expect(line).toContain(`(${maxim.source})`);
+  });
+
+  it("no declined count: revenue picks a money maxim; only reviews: a reputation maxim", async () => {
+    fresh({ revenue: { yesterday: 2400 } });
+    let brief = await buildMorningBrief();
+    expect(wisdomLine(brief.text)).toContain("revenue ($2.4k yesterday)");
+    expect((brief.payload as { shop: { wisdomApplied: { tag: string } } }).shop.wisdomApplied.tag).toBe("money");
+
+    fresh({ intelligence: { gbp: { new: 2, total: 187 } } });
+    brief = await buildMorningBrief();
+    expect(wisdomLine(brief.text)).toContain("reviews (+2 new)");
+    expect((brief.payload as { shop: { wisdomApplied: { tag: string } } }).shop.wisdomApplied.tag).toBe("reputation");
+  });
+
+  it("the same Monday gives the same maxim (rebuilt briefs agree)", async () => {
+    fresh(DECLINED);
+    const a = wisdomLine((await buildMorningBrief()).text);
+    const b = wisdomLine((await buildMorningBrief()).text);
+    expect(a).toBeDefined();
+    expect(a).toBe(b);
+  });
+
+  it("not Monday: no line", async () => {
+    weekly.weekday = 2;
+    fresh(DECLINED);
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 12 open"); // POSITIVE CONTROL: the number is there
+    expect(wisdomLine(brief.text)).toBeUndefined();
+  });
+
+  it("stale or failed bridge read: no number, so no line (never a maxim with nothing to apply it to)", async () => {
+    mocks.auditEvent.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 30 * 60 * 60_000), payload: DECLINED });
+    expect(wisdomLine((await buildMorningBrief()).text)).toBeUndefined();
+    mocks.auditEvent.findFirst.mockRejectedValue(new Error("neon down"));
+    expect(wisdomLine((await buildMorningBrief()).text)).toBeUndefined();
+  });
+
+  it("pickMaxim returns only maxims carrying the tag, across 60 dates per tag; an unknown tag gives null", async () => {
+    const { pickMaxim } = await import("@/lib/brain/maxims");
+    for (const tag of ["customers", "money", "reputation"]) {
+      for (let d = 1; d <= 60; d++) {
+        const seed = `2026-${String(1 + (d % 12)).padStart(2, "0")}-${String(1 + (d % 28)).padStart(2, "0")}`;
+        expect(pickMaxim(tag, seed)?.tags).toContain(tag);
+      }
+    }
+    expect(pickMaxim("no-such-tag", "2026-11-02")).toBeNull();
+  });
+
+  it("fresh bridge with no usable number: no line", async () => {
+    fresh({ lineOfCars: 8 });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Line of cars: 8"); // POSITIVE CONTROL
+    expect(wisdomLine(brief.text)).toBeUndefined();
   });
 });
