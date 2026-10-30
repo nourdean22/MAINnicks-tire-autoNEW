@@ -225,11 +225,12 @@ export const JOB_OPENINGS: JobOpening[] = [
  * Owner-set 2026-10-29 (via the manager session): anyone with an ID can walk
  * in on Mondays, 11 AM to 2 PM, and interview with the manager for a few
  * minutes. Schedule, benefits and hours are discussed in that interview, so
- * the pages do not state them. One string feeds /careers, every job page and
- * every JobPosting description, so the visible page and the markup agree.
+ * the pages do not state them. The short form (site footer) and the full line
+ * (/careers, every job page, every JobPosting description) share one string,
+ * so the visible page and the markup agree and a change lands everywhere.
  */
-export const OPEN_INTERVIEWS_LINE =
-  "Open interviews every Monday, 11 AM to 2 PM. Walk in with an ID and talk with the manager for a few minutes. No appointment needed.";
+export const OPEN_INTERVIEWS_SHORT = "Open interviews Mondays, 11 AM to 2 PM.";
+export const OPEN_INTERVIEWS_LINE = `${OPEN_INTERVIEWS_SHORT} Walk in with an ID and talk with the manager for a few minutes.`;
 
 /** Canonical leaf path for an opening. The ONLY URL its JobPosting may claim. */
 export function jobOpeningPath(slug: string): string {

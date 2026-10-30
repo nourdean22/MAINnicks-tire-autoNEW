@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
-import { jobOpeningBySlug, formatHourlyPayRange } from "@shared/jobOpenings";
+import { jobOpeningBySlug, formatHourlyPayRange, OPEN_INTERVIEWS_SHORT } from "@shared/jobOpenings";
 import BrandMark from "@/components/BrandMark";
 import { trpc } from "@/lib/trpc";
 // attribution-wave 2026-06: footer call/text links appear on EVERY page —
@@ -16,7 +16,7 @@ import { trackPhoneClick, trackEvent } from "@/components/SEO";
 const AUTO_TECH = jobOpeningBySlug("automotive-technician");
 const AUTO_TECH_PAY = AUTO_TECH?.status === "open" ? formatHourlyPayRange(AUTO_TECH) : null;
 
-const LINK_CLASS ="block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
+const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
 
 export default function SiteFooter() {
@@ -108,7 +108,7 @@ export default function SiteFooter() {
               onClick={() => trackEvent("careers_footer_click", { source: "footer-hiring-line" })}
               className="inline-flex min-h-[44px] items-center text-sm text-foreground/75 underline underline-offset-4 hover:text-foreground"
             >
-              Hiring technicians: {AUTO_TECH_PAY} hourly. Open interviews Mondays, 11 AM to 2 PM.
+              Hiring automotive technicians: {AUTO_TECH_PAY}. {OPEN_INTERVIEWS_SHORT}
             </Link>
           </div>
         </div>
