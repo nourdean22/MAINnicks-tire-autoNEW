@@ -32,6 +32,7 @@ import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { daysUntilBirthday } from "@/lib/services/people/birthday";
+import { toDateString } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("ai/relationships-pick-today");
 
@@ -63,8 +64,17 @@ interface Candidate {
   heuristicScore: number;
 }
 
+/**
+ * The picks cache key: the New York date (people W2b, 2026-10-30). It was the
+ * UTC date, so from 20:00 ET the evening read a fresh "tomorrow" row. Every
+ * reader of the cache (log-outreach, home-moves, propose-actions) uses this.
+ */
+export function picksDayKey(now: Date = new Date()): string {
+  return toDateString(now);
+}
+
 export async function pickRelationshipsForToday(): Promise<PicksResult> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = picksDayKey();
 
   // ── Cache check ──
   try {

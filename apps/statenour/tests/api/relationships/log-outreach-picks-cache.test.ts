@@ -62,6 +62,17 @@ describe("log-outreach keeps the rest of today's picks", () => {
     expect(arg.data.metadata.candidateCount).toBe(9);
   });
 
+  it("people W2b: an evening outreach in New York edits TODAY's ET picks row, not tomorrow's UTC one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T01:30:00Z")); // Oct 30, 21:30 ET
+    try {
+      await post("p1");
+    } finally {
+      vi.useRealTimers();
+    }
+    expect((h.findFirst.mock.calls[0][0] as { where: { key: string } }).where.key).toBe("2026-10-30");
+  });
+
   it("the last pick logged deletes the row", async () => {
     h.findFirst.mockResolvedValue({ id: "picks_row", metadata: { picks: [PICKS[0]] } });
     await post("p1");

@@ -123,10 +123,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── Slot 2: top relationship pick ──
   try {
+    // The picks writer's key (New York date), not this route's own `today` (people W2b).
+    const { picksDayKey } = await import("@/lib/ai/relationships-pick-today");
     const cachedPicks = await prisma.brainMemory.findFirst({
       where: {
         category: BRAIN_CATEGORIES.RELATIONSHIPS_PICKS_TODAY,
-        key: today,
+        key: picksDayKey(),
       },
       select: { metadata: true },
     });
