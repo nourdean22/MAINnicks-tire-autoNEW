@@ -17,21 +17,43 @@ import { cn } from "@/lib/utils";
 const photoUrl = (taskId: string, id: string, attempt = 0) =>
   `/api/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(id)}${attempt ? `?r=${attempt}` : ""}`;
 
+/** Plain words for a failed upload, by HTTP status: never the server's raw error text. */
+export function uploadErrorText(status: number): string {
+  if (status === 401 || status === 403) return "Your session ended. Sign in again, then add the photo again.";
+  if (status === 404) return "This task no longer exists.";
+  if (status === 413) return "The photo is too large even after shrinking. Try a smaller one.";
+  if (status === 400 || status === 415) return "That file is not a photo this app can read. Use a JPEG or WebP photo.";
+  if (status === 503) return "Photos need the live database; this is demo data.";
+  return "The photo was not saved. Try again.";
+}
+
+/** Plain words for a failed delete, by tRPC code: never the raw message. */
+export function deleteErrorText(err: unknown): string {
+  const e = err as { message?: string; data?: { code?: string } } | null;
+  const code = e?.data?.code;
+  if (code === "NOT_FOUND") return "Already deleted. Close and the list will catch up.";
+  if (code === "UNAUTHORIZED") return "Your session ended. Sign in again, then delete it again.";
+  if (code === "FORBIDDEN" && /NICK_MUTATION_LOCK/.test(e?.message ?? "")) return "Changes are locked right now (the mutation lock is on). Not deleted.";
+  return "Not deleted. Try again.";
+}
+
 async function uploadPhoto(taskId: string, file: File): Promise<void> {
   const { blob, width, height } = await resizePhoto(file);
   const form = new FormData();
   form.append("photo", blob, blob.type === "image/webp" ? "photo.webp" : "photo.jpg");
   form.append("width", String(width));
   form.append("height", String(height));
-  const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/attachments`, {
-    method: "POST",
-    body: form,
-    credentials: "include",
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || `upload failed (${res.status})`);
+  let res: Response;
+  try {
+    res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/attachments`, {
+      method: "POST",
+      body: form,
+      credentials: "include",
+    });
+  } catch {
+    throw new Error("No connection. The photo was not added.");
   }
+  if (!res.ok) throw new Error(uploadErrorText(res.status));
 }
 
 function Thumb({ taskId, id, onOpen }: { taskId: string; id: string; onOpen: () => void }) {
@@ -111,7 +133,7 @@ function Viewer({ taskId, id, onClose }: { taskId: string; id: string; onClose: 
           {del.isPending ? "Deleting" : armed ? "Tap again to delete" : "Delete"}
         </button>
       </div>
-      {del.isError ? <p className="px-4 font-mono text-[12px] text-amber-300">Not deleted: {del.error.message}</p> : null}
+      {del.isError ? <p className="px-4 font-mono text-[12px] text-amber-300">{deleteErrorText(del.error)}</p> : null}
       <div className="flex min-h-0 flex-1 items-center justify-center p-2 pb-[max(env(safe-area-inset-bottom),8px)]">
         {/* eslint-disable-next-line @next/next/no-img-element -- owner-gated bytes */}
         <img src={photoUrl(taskId, id)} alt="Task photo" className="max-h-full max-w-full object-contain" />
@@ -139,7 +161,7 @@ export function TaskPhotos({ taskId }: { taskId: string }) {
         await uploadPhoto(taskId, picked[i]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "upload failed");
+      setError(err instanceof Error ? err.message : "The photo was not saved. Try again."); // every thrown message here is ours (resizePhoto, uploadPhoto)
     } finally {
       setBusy(null);
       if (input.current) input.current.value = "";
@@ -166,7 +188,7 @@ export function TaskPhotos({ taskId }: { taskId: string }) {
           />
         </label>
       </div>
-      {error ? <p className="mb-2 font-mono text-[12px] text-amber-300">Not added: {error}</p> : null}
+      {error ? <p className="mb-2 font-mono text-[12px] text-amber-300">{error}</p> : null}
       {list.isLoading ? (
         <p className="font-mono text-[11px] text-fg-tertiary">loading photos</p>
       ) : list.isError ? (
