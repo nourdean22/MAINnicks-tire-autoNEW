@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   exec: [] as { sql: string; params: unknown[] }[],
   memories: [] as Record<string, unknown>[],
   scores: [] as { id: string; score: number }[],
+  meta: {} as Record<string, Record<string, unknown>>,
+  metaReads: [] as string[],
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -28,7 +30,12 @@ vi.mock("@/lib/prisma", () => {
   };
   const tx = { $queryRawUnsafe: (sql: string) => record(sql), $executeRawUnsafe: exec };
   const brainMemory = {
-    findMany: vi.fn((args: { take?: number }) => Promise.resolve(args?.take === 300 ? h.memories : [])),
+    findMany: vi.fn((args: { take?: number; where?: { id?: { in: string[] } } }) => {
+      if (args?.take === 300) return Promise.resolve(h.memories);
+      const ids = args?.where?.id?.in;
+      if (ids) h.metaReads.push(...ids);
+      return Promise.resolve(ids ? ids.filter((id) => h.meta[id]).map((id) => ({ id, metadata: h.meta[id] })) : []);
+    }),
     updateMany: vi.fn(() => Promise.resolve({ count: 0 })),
     create: vi.fn(() => Promise.resolve({})),
     update: vi.fn(() => Promise.resolve({})),
@@ -97,6 +104,8 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 let logSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   h.exec.length = 0;
+  h.meta = {};
+  h.metaReads.length = 0;
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 });
 afterEach(() => logSpy.mockRestore());
@@ -120,6 +129,9 @@ describe("refused wisdom stays out of the block", () => {
     expect(bumpIds()).not.toEqual(expect.arrayContaining(["arch"]));
     expect(bumpIds()).not.toEqual(expect.arrayContaining(["cron"]));
     expect(bumpIds()).not.toEqual(expect.arrayContaining(["under"]));
+    // only rows over the floor can win a slot, so only they cost a metadata read
+    expect(h.metaReads).toEqual(expect.arrayContaining(["arch", "cron"]));
+    expect(h.metaReads).not.toContain("under");
   });
 
   it("CONTROL: a curated row above the floor is forced in and bumped", async () => {
@@ -132,14 +144,29 @@ describe("refused wisdom stays out of the block", () => {
     await flush();
     expect(block).toContain("GOOD curated");
     expect(bumpIds()).toContain("good");
+    // the bump stamps the exposure time the 24h decay reads
+    expect(h.exec.find((e) => /recallCount/.test(e.sql))?.sql).toContain("lastRecalledAt");
+  });
+
+  it("metadata.origin outranks a curated-looking key: a distiller row keyed like a pack is refused", async () => {
+    h.memories = [
+      row("fake", { category: "wisdom", key: "wisdom_naval-ravikant_009", source: "manual", content: "FAKE pack-looking tire supplier invoice" }),
+      row("i1", {}), row("i2", {}), row("i3", {}), row("i4", {}),
+    ];
+    h.meta = { fake: { origin: "distiller" } };
+    h.scores = [{ id: "fake", score: 0.7 }, { id: "i1", score: 0.3 }, { id: "i2", score: 0.3 }, { id: "i3", score: 0.3 }, { id: "i4", score: 0.3 }];
+    const block = await run();
+    await flush();
+    expect(block).not.toContain("FAKE");
+    expect(bumpIds()).not.toContain("fake");
   });
 });
 
-describe("lastSeen reaches the slot picker", () => {
+describe("metadata.lastRecalledAt reaches the slot picker", () => {
   it("a row recalled an hour ago loses its slot to rested peers", async () => {
-    const recent = new Date(Date.now() - 3_600_000);
+    h.meta = { recent: { lastRecalledAt: new Date(Date.now() - 3_600_000).toISOString() } };
     h.memories = [
-      row("recent", { category: "wisdom", key: "wisdom_naval-ravikant_002", source: "manual", lastSeen: recent, content: "RECENT curated tire supplier invoice" }),
+      row("recent", { category: "wisdom", key: "wisdom_naval-ravikant_002", source: "manual", content: "RECENT curated tire supplier invoice" }),
       row("r1", { category: "wisdom", key: "wisdom_naval-ravikant_003", source: "manual", content: "REST1 curated tire supplier invoice" }),
       row("r2", { category: "wisdom", key: "wisdom_naval-ravikant_004", source: "manual", content: "REST2 curated tire supplier invoice" }),
       row("r3", { category: "wisdom", key: "wisdom_naval-ravikant_005", source: "manual", content: "REST3 curated tire supplier invoice" }),

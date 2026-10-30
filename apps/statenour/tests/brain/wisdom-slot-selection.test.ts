@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-import { selectWisdomSlots, WISDOM_SLOT_MIN_SIMILARITY, isNonWisdomPayload } from "@/lib/brain/contextual-recall";
+import { selectWisdomSlots, WISDOM_SLOT_MIN_SIMILARITY, WISDOM_SLOT_MIN_KEYWORD, wisdomSlotCounts } from "@/lib/brain/contextual-recall";
 
 const NOW = new Date("2026-10-29T23:00:00Z");
 const DAY = 86_400_000;
@@ -26,7 +26,7 @@ const row = (over: Record<string, unknown>) => ({
   source: "manual",
   hybrid: 0.5,
   semantic: 0.5,
-  lastSeen: new Date(NOW.getTime() - 10 * DAY),
+  lastRecalledAt: null as string | null,
   ...over,
 });
 
@@ -62,7 +62,7 @@ describe("selectWisdomSlots", () => {
 
   it("a row shown in the last 24h yields to an equally relevant peer", () => {
     const pool = [
-      row({ id: "recent", key: "wisdom_naval-ravikant_001", hybrid: 0.6, lastSeen: new Date(NOW.getTime() - 3_600_000) }),
+      row({ id: "recent", key: "wisdom_naval-ravikant_001", hybrid: 0.6, lastRecalledAt: new Date(NOW.getTime() - 3_600_000).toISOString() }),
       row({ id: "rested", key: "wisdom_charlie-munger_002", hybrid: 0.5 }),
     ];
     expect(selectWisdomSlots(pool, 1, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["rested"]);
@@ -75,12 +75,15 @@ describe("selectWisdomSlots", () => {
     expect(selectWisdomSlots(pool, 3, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["w4", "w3", "w2"]);
   });
 
-  it("keyword fallback (no embeddings) still needs some topical overlap", () => {
+  it("keyword mode: one or two topic hits stay out, three get in", () => {
+    // keywordScore gives 3 per topic found in the content (measured floor: 3 hits).
     const pool = [
-      row({ id: "none", key: "wisdom_naval-ravikant_001", semantic: 0 }),
-      row({ id: "some", key: "wisdom_charlie-munger_002", semantic: 0.2 }),
+      // keywordScore is raw/12: 1 hit 0.25, 2 hits 0.5, 3 hits 0.75
+      row({ id: "one", key: "wisdom_naval-ravikant_001", semantic: 3 / 12 }),
+      row({ id: "two", key: "wisdom_charlie-munger_002", semantic: 6 / 12 }),
+      row({ id: "three", key: "wisdom_bezos-letters_003", semantic: WISDOM_SLOT_MIN_KEYWORD }),
     ];
-    expect(selectWisdomSlots(pool, 3, { useEmbeddings: false, now: NOW }).map((r) => r.id)).toEqual(["some"]);
+    expect(selectWisdomSlots(pool, 3, { useEmbeddings: false, now: NOW }).map((r) => r.id)).toEqual(["three"]);
   });
 
   it.each([
@@ -93,7 +96,7 @@ describe("selectWisdomSlots", () => {
 
   it("with 2 slots a recent and a rested row both come back, rested first", () => {
     const pool = [
-      row({ id: "recent", key: "wisdom_naval-ravikant_001", hybrid: 0.6, lastSeen: new Date(NOW.getTime() - 3_600_000) }),
+      row({ id: "recent", key: "wisdom_naval-ravikant_001", hybrid: 0.6, lastRecalledAt: new Date(NOW.getTime() - 3_600_000).toISOString() }),
       row({ id: "rested", key: "wisdom_charlie-munger_002", hybrid: 0.5 }),
     ];
     expect(selectWisdomSlots(pool, 2, { useEmbeddings: true, now: NOW }).map((r) => r.id)).toEqual(["rested", "recent"]);
@@ -112,13 +115,19 @@ describe("selectWisdomSlots", () => {
   });
 });
 
-describe("isNonWisdomPayload", () => {
-  it("flags archive chunks and cron outputs filed as wisdom", () => {
-    expect(isNonWisdomPayload({ category: "wisdom", key: "archive_756b_doc.txt_chunk71", source: "manual" })).toBe(true);
-    expect(isNonWisdomPayload({ category: "wisdom", key: "move_2026-05-24_2", source: "cron:revenue-decision" })).toBe(true);
-  });
-  it("CONTROL: leaves curated wisdom and other categories alone", () => {
-    expect(isNonWisdomPayload({ category: "wisdom", key: "wisdom_naval-ravikant_001", source: "manual" })).toBe(false);
-    expect(isNonWisdomPayload({ category: "insight", key: "archive_x", source: "cron:x" })).toBe(false);
+describe("wisdomSlotCounts", () => {
+  it("counts the pool, the unscored, the floor and the allowlist rejects (counts only)", () => {
+    const pool = [
+      { id: "a", category: "wisdom", key: "wisdom_naval-ravikant_001", source: "manual", hybrid: 0.5, semantic: 0.5 },
+      { id: "b", category: "wisdom", key: "archive_x", source: "manual", hybrid: 0.5, semantic: 0.9 },
+      { id: "c", category: "wisdom", key: "wisdom_charlie-munger_002", source: "manual", hybrid: 0.5, semantic: 0 },
+      { id: "d", category: "insight", key: "k", source: "cron:x", hybrid: 0.5, semantic: 0.9 },
+    ];
+    expect(wisdomSlotCounts(pool, { useEmbeddings: true, scoredIds: new Set(["a", "b", "d"]) })).toEqual({
+      wisdomPool: 3,
+      wisdomUnscored: 1,
+      wisdomPassedFloor: 2,
+      wisdomAllowlistRejected: 1,
+    });
   });
 });

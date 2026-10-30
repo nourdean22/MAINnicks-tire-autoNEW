@@ -209,11 +209,16 @@ export function renderedContent(m: RelevantMemory): string {
 }
 
 /**
- * Fills `origin` from metadata.origin for the wisdom rows about to render. The
- * recall pool never selects metadata (it is large on some rows), so this is one
- * by-id read of a handful of rows. Best-effort: on failure the key prefix decides.
+ * Fills `origin` (metadata.origin) and `lastRecalledAt` (metadata.lastRecalledAt,
+ * written by the recall bump) on the wisdom rows. The recall pool never selects
+ * metadata (it is large on some rows), so this is one by-id read of the wisdom
+ * rows. It runs BEFORE slot selection, so the curated check and the exposure
+ * decay see authoritative values. Best-effort: on failure the key prefix decides
+ * and no row is penalized.
  */
-export async function attachWisdomOrigins(rows: Array<Pick<RelevantMemory, "id" | "category" | "origin">>): Promise<void> {
+export async function attachWisdomOrigins(
+  rows: Array<{ id?: string; category: string; origin?: string | null; lastRecalledAt?: string | null }>,
+): Promise<void> {
   const wisdom = rows.filter((r) => r.category === "wisdom" && r.id);
   if (wisdom.length === 0) return;
   try {
@@ -221,10 +226,11 @@ export async function attachWisdomOrigins(rows: Array<Pick<RelevantMemory, "id" 
       where: { id: { in: wisdom.map((r) => r.id!) } },
       select: { id: true, metadata: true },
     });
-    const byId = new Map(found.map((f) => [f.id, (f.metadata as { origin?: unknown } | null)?.origin]));
+    const byId = new Map(found.map((f) => [f.id, (f.metadata ?? null) as { origin?: unknown; lastRecalledAt?: unknown } | null]));
     for (const r of wisdom) {
-      const origin = byId.get(r.id!);
-      if (typeof origin === "string" && origin) r.origin = origin;
+      const meta = byId.get(r.id!);
+      if (typeof meta?.origin === "string" && meta.origin) r.origin = meta.origin;
+      if (typeof meta?.lastRecalledAt === "string") r.lastRecalledAt = meta.lastRecalledAt;
     }
   } catch (err) {
     logError("brain.contextual-recall", err, { fn: "attachWisdomOrigins" }, "warn");
@@ -239,10 +245,20 @@ export async function attachWisdomOrigins(rows: Array<Pick<RelevantMemory, "id" 
  * "wisdom" rows were an archived document chunk and a cron output.
  */
 export const WISDOM_SLOT_MIN_SIMILARITY = 0.35;
+/**
+ * Keyword mode (no usable embeddings): keywordScore gives 3 per topic found in the
+ * content. Measured read-only 2026-10-29, 150 brain dumps vs the 413 pack texts:
+ * best match >= 6 (2 hits) on 90% of dumps, >= 9 (3 hits) on 39%, >= 12 on 3%.
+ * One common word must not admit wisdom; 3 hits is the closest to the semantic floor.
+ * keywordScore returns raw/12 (capped at 1), so 3 hits is 0.75.
+ */
+export const WISDOM_SLOT_MIN_KEYWORD = 9 / 12;
+export const wisdomSlotFloor = (useEmbeddings: boolean) =>
+  useEmbeddings ? WISDOM_SLOT_MIN_SIMILARITY : WISDOM_SLOT_MIN_KEYWORD;
 /** Machine writers whose wisdom rows are distilled principles, not stray payloads. */
 const WISDOM_SLOT_PRINCIPLE_SOURCES = new Set(["consolidation", "output_critic", "skill_graduation", "wisdom-distiller", "distillation"]);
 const WISDOM_RECENT_MS = 24 * 3_600_000;
-/** Readwise frequency tuning: a wisdom recalled in the last 24h yields to its peers (same 0.55 as the pill). */
+/** Readwise frequency tuning: a wisdom RECALLED (metadata.lastRecalledAt) in the last 24h yields to its peers (0.55, as the pill). */
 const WISDOM_RECENT_PENALTY = 0.55;
 
 interface WisdomSlotCandidate {
@@ -251,12 +267,9 @@ interface WisdomSlotCandidate {
   source: string | null;
   hybrid: number;
   semantic: number;
-  lastSeen?: Date | null;
-}
-
-/** Archive chunks and cron outputs filed under category wisdom (prod, 2026-10-29: the two most-injected "wisdom" rows). */
-export function isNonWisdomPayload(m: { category: string; key: string; source: string | null }): boolean {
-  return m.category === "wisdom" && (m.key.startsWith("archive_") || (m.source ?? "").startsWith("cron:"));
+  origin?: string | null;
+  /** metadata.lastRecalledAt, set only by the recall bump. lastSeen is not used: insert, reinforce and seed touch it too. */
+  lastRecalledAt?: string | null;
 }
 
 export function selectWisdomSlots<T extends WisdomSlotCandidate>(
@@ -264,20 +277,34 @@ export function selectWisdomSlots<T extends WisdomSlotCandidate>(
   slots: number,
   opts: { useEmbeddings: boolean; now: Date },
 ): T[] {
-  const floor = opts.useEmbeddings ? WISDOM_SLOT_MIN_SIMILARITY : Number.MIN_VALUE;
+  const floor = wisdomSlotFloor(opts.useEmbeddings);
   const rank = (m: T) =>
-    m.lastSeen && opts.now.getTime() - new Date(m.lastSeen).getTime() < WISDOM_RECENT_MS
+    m.lastRecalledAt && opts.now.getTime() - new Date(m.lastRecalledAt).getTime() < WISDOM_RECENT_MS
       ? m.hybrid * WISDOM_RECENT_PENALTY
       : m.hybrid;
   return scored
-    .filter(
-      (m) =>
-        m.category === "wisdom" &&
-        (m.semantic ?? 0) >= floor &&
-        (curatedWisdomAuthor(m) !== null || WISDOM_SLOT_PRINCIPLE_SOURCES.has(m.source ?? "")),
-    )
+    .filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= floor && wisdomSlotEligible(m))
     .sort((a, b) => rank(b) - rank(a))
     .slice(0, slots);
+}
+
+const wisdomSlotEligible = (m: WisdomSlotCandidate) =>
+  curatedWisdomAuthor(m) !== null || WISDOM_SLOT_PRINCIPLE_SOURCES.has(m.source ?? "");
+
+/** Per-turn wisdom-slot counts (PR 3365 review B/E), so "admitted on ~15% of turns" is checkable in prod. Counts only. */
+export function wisdomSlotCounts(
+  scored: Array<WisdomSlotCandidate & { id?: string }>,
+  opts: { useEmbeddings: boolean; scoredIds?: ReadonlySet<string> },
+) {
+  const pool = scored.filter((m) => m.category === "wisdom");
+  const floor = wisdomSlotFloor(opts.useEmbeddings);
+  return {
+    wisdomPool: pool.length,
+    // A wisdom row with no vector scores 0 and drops silently; this is that count (null in keyword mode).
+    wisdomUnscored: opts.useEmbeddings && opts.scoredIds ? pool.filter((m) => !opts.scoredIds!.has(m.id ?? "")).length : null,
+    wisdomPassedFloor: pool.filter((m) => (m.semantic ?? 0) >= floor).length,
+    wisdomAllowlistRejected: pool.filter((m) => !wisdomSlotEligible(m)).length,
+  };
 }
 
 /** "Naval", "Greene · Law 28", or null for machine-made / unattributed rows. */
@@ -661,7 +688,6 @@ interface LexicalRow {
   source: string | null;
   seen_count: number | null;
   updated_at: Date;
-  last_seen: Date | null;
   rank: number;
   /** W1 (2026-10-16) · validity columns, carried so the evidence pack can measure its filter (the SQL still filters). */
   valid_until: Date | null;
@@ -873,7 +899,6 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
-              bm.last_seen         AS last_seen,
               bm.valid_until       AS valid_until,
               bm.superseded_by_id  AS superseded_by_id,
               bm.expires_at        AS expires_at,
@@ -968,7 +993,6 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
-              bm.last_seen         AS last_seen,
               bm.valid_until       AS valid_until,
               bm.superseded_by_id  AS superseded_by_id,
               bm.expires_at        AS expires_at,
@@ -1347,7 +1371,7 @@ export async function getContextualMemories(
         take: 300,
         // v10.0.354 · pull `source` so we can weight by ingestion pipeline
         // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
-        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, lastSeen: true, validUntil: true, supersededById: true, expiresAt: true, validFrom: true },
+        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, validUntil: true, supersededById: true, expiresAt: true, validFrom: true },
       }),
     ),
     // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
@@ -1411,7 +1435,6 @@ export async function getContextualMemories(
     source: r.source ?? "system",
     seenCount: r.seen_count ?? 1,
     updatedAt: r.updated_at,
-    lastSeen: r.last_seen ?? null,
     validUntil: r.valid_until,
     supersededById: r.superseded_by_id,
     expiresAt: r.expires_at,
@@ -1542,7 +1565,9 @@ export async function getContextualMemories(
       validFrom: m.validFrom,
       hybrid,
       semantic: m.sSemantic,
-      lastSeen: m.lastSeen ?? null,
+      // Filled from metadata by attachWisdomOrigins, for wisdom rows over the floor only.
+      origin: null as string | null,
+      lastRecalledAt: null as string | null,
     };
   });
 
@@ -1652,7 +1677,15 @@ export async function getContextualMemories(
 
   // Up to `wisdomSlots` wisdom rows, and only ones that fit this turn.
   // 2026-10-29 (W2) · relevance floor + principle-source allowlist + exposure decay; see selectWisdomSlots.
+  // Only rows over the floor can win a slot, so only they need metadata: the pool is the
+  // 300 highest-confidence rows and curated wisdom can be most of it.
+  const wisdomFloor = wisdomSlotFloor(useEmbeddings);
+  await attachWisdomOrigins(scored.filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= wisdomFloor));
   const wisdoms = selectWisdomSlots(scored, wisdomSlots, { useEmbeddings, now: new Date(now) });
+  console.log("[brain-recall] wisdom_slots", {
+    ...wisdomSlotCounts(scored, { useEmbeddings, scoredIds: semanticScores ? new Set(semanticScores.scores.keys()) : undefined }),
+    wisdomInjected: wisdoms.length,
+  });
   // A slot no wisdom earned goes back to the direct memories.
   const directSlots = maxMemories - wisdoms.length;
   for (const w of wisdoms) {
@@ -1664,6 +1697,7 @@ export async function getContextualMemories(
       confidence: w.confidence,
       relevance: "background",
       source: w.source,
+      origin: w.origin ?? null,
       seenCount: w.seenCount,
       validUntil: w.validUntil,
       supersededById: w.supersededById,
@@ -1701,14 +1735,16 @@ export async function getContextualMemories(
             SET last_seen = NOW(),
                 metadata = CASE
                   WHEN metadata IS NULL OR jsonb_typeof(metadata) = 'object' THEN
-                    jsonb_set(COALESCE(metadata, '{}'::jsonb), '{recallCount}',
+                    jsonb_set(jsonb_set(COALESCE(metadata, '{}'::jsonb), '{recallCount}',
                       to_jsonb(CASE WHEN jsonb_typeof(metadata->'recallCount') = 'number'
-                                    THEN (metadata->>'recallCount')::int ELSE 0 END + 1))
+                                    THEN (metadata->>'recallCount')::int ELSE 0 END + 1)),
+                      '{lastRecalledAt}', to_jsonb(NOW()))
                   ELSE metadata END
           WHERE id = ANY($1::text[])`,
         wisdomIds,
       )
-      .catch(() => undefined);
+      // The 24h exposure decay reads what this writes, so a failure is worth seeing.
+      .catch((err) => logError("brain.contextual-recall", err, { fn: "wisdomRecallBump", ids: wisdomIds.length }, "warn"));
   }
 
   // Fill with highest-hybrid-score memories (skip wisdom already added)
@@ -1718,11 +1754,11 @@ export async function getContextualMemories(
   // of the 0.15 threshold. This ensures contextual recall never comes
   // back empty just because the semantic scores are all weak — the top
   // of the scored list always represents the BEST available match.
-  // 2026-10-29 (W2 review) · a wisdom row selectWisdomSlots refused may come back
-  // only on the 0.15 threshold below, never through this guarantee or the pad
-  // (both skip the threshold), and a non-wisdom payload filed as wisdom enters no lane.
-  const topCandidates = scored.filter((m) => !addedIds.has(m.id) && !isNonWisdomPayload(m));
-  const guaranteedTop3 = topCandidates.filter((m) => m.category !== "wisdom").slice(0, 3);
+  // 2026-10-29 (W2 review) · wisdom enters ONLY through selectWisdomSlots above. A row it
+  // refused (archive chunk, cron output, under the floor, or yielding to a peer it was just
+  // shown beside) must not come back through the guarantee, the threshold or the pad.
+  const topCandidates = scored.filter((m) => !addedIds.has(m.id) && m.category !== "wisdom");
+  const guaranteedTop3 = topCandidates.slice(0, 3);
   for (const m of guaranteedTop3) {
     relevant.push({
       id: m.id,
@@ -1810,8 +1846,6 @@ export async function getContextualMemories(
   // (the first `wisdomSlots` entries) are PRESERVED · operator-grade
   // guarantee that the always-on wisdom layer never gets dropped.
   const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdoms.length);
-
-  await attachWisdomOrigins(relevant);
 
   // Format for system prompt
   const mode = useEmbeddings ? "semantic" : "keyword";
@@ -2118,7 +2152,11 @@ async function getSemanticScores(
   const queryVec = precomputedEmbedding && precomputedEmbedding.length > 0
     ? precomputedEmbedding
     : await getEmbedding(queryText);
-  if (queryVec.length === 0) return null; // No embedding provider available
+  if (queryVec.length === 0) {
+    // No embedding provider: recall drops to keyword mode (and the keyword wisdom floor).
+    console.warn("[brain-recall] semantic_lane_off", { reason: "no-query-embedding" });
+    return null;
+  }
 
   // 2026-09-30 · Q-17 · scored in Postgres. This used to findMany every
   // candidate's JSON embedding (~4 MB a turn) and run cosine in Node; the
@@ -2137,7 +2175,10 @@ async function getSemanticScores(
   }
 
   // Need at least 5 embedded memories for semantic mode to be useful
-  if (semantic.rowsFound < 5) return null;
+  if (semantic.rowsFound < 5) {
+    console.warn("[brain-recall] semantic_lane_off", { reason: "too-few-vectors", rowsFound: semantic.rowsFound });
+    return null;
+  }
 
   if (semantic.corrupted > 0) {
     // Aggregated — recall runs every chat turn over up to 300 rows, so
