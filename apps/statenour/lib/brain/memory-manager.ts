@@ -54,6 +54,9 @@ const ONE_SHOT_RECORD_CATEGORIES: ReadonlySet<string> = new Set([
   // pruneNoise soft-delete each card about when it came due. category-ttl
   // gives it no TTL (permanent until Nour clears it).
   "spaced_review",
+  // 2026-10-30 (brain backfill W1) · one distill per conversation, written once and never re-sighted:
+  // the probation hid it from recall a day later. category-ttl gives it no TTL.
+  "chat_summary",
 ]);
 
 /**

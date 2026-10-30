@@ -169,6 +169,17 @@ describe("BrainMemoryManager.remember", () => {
     expect(data).toHaveProperty("expiresAt", null);
   });
 
+  it("chat_summary (one distill per conversation) gets NO TTL: a one-time distill of an old chat must not expire in 24h", async () => {
+    // Brain backfill W1 (2026-10-30): a distill is written once per chat and never re-sighted, so the
+    // probation hid it from recall a day later (prod 13:02Z: 3 of the 6 newest live rows already past expiry).
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-cs" });
+    await mm.remember("chat_summary", "conv123", '{"summary":"s"}', "session_distiller");
+    const data = realCreateCalls()[0][0].data;
+    expect(data.category).toBe("chat_summary");
+    expect(data).toHaveProperty("expiresAt", null);
+  });
+
   it("rewrites a deprecated category to its canonical form before write", async () => {
     mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m2" });
