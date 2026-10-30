@@ -4,10 +4,9 @@
  * selectWisdomSlots refusing a row is not enough: the GUARANTEE TOP-3 and the
  * pad below it skip the 0.15 threshold and read straight from `scored`, so a
  * refused wisdom row (an archive chunk, a cron output, an under-floor row) came
- * back through them, with wisdom's category-lane lift behind it. Rows the slot
- * picker refused may only re-enter on the normal threshold, and known
- * non-wisdom payloads filed as wisdom (archive_* keys, cron:* sources) enter no
- * lane at all.
+ * back through them, with wisdom's category-lane lift behind it. Wisdom now
+ * enters a turn ONLY through the slot picker: the threshold lane, the guarantee
+ * and the pad all skip category=wisdom, so a refused row cannot re-enter at all.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
