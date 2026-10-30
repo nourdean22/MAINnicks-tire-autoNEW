@@ -231,6 +231,50 @@ export async function attachWisdomOrigins(rows: Array<Pick<RelevantMemory, "id" 
   }
 }
 
+/**
+ * 2026-10-29 (W2) · the forced wisdom slots. Measured read-only on prod: 150 of
+ * Nour's brain dumps vs the live curated wisdom vectors gave best-match cosine
+ * p10 0.21 · median 0.27 · p90 0.37, so 0.35 admits wisdom on roughly the top
+ * 15% of turns instead of every turn. Before this the two most-injected
+ * "wisdom" rows were an archived document chunk and a cron output.
+ */
+export const WISDOM_SLOT_MIN_SIMILARITY = 0.35;
+/** Machine writers whose wisdom rows are distilled principles, not stray payloads. */
+const WISDOM_SLOT_PRINCIPLE_SOURCES = new Set(["consolidation", "output_critic", "skill_graduation", "wisdom-distiller", "distillation"]);
+const WISDOM_RECENT_MS = 24 * 3_600_000;
+/** Readwise frequency tuning: a wisdom recalled in the last 24h yields to its peers (same 0.55 as the pill). */
+const WISDOM_RECENT_PENALTY = 0.55;
+
+interface WisdomSlotCandidate {
+  category: string;
+  key: string;
+  source: string | null;
+  hybrid: number;
+  semantic: number;
+  lastSeen?: Date | null;
+}
+
+export function selectWisdomSlots<T extends WisdomSlotCandidate>(
+  scored: T[],
+  slots: number,
+  opts: { useEmbeddings: boolean; now: Date },
+): T[] {
+  const floor = opts.useEmbeddings ? WISDOM_SLOT_MIN_SIMILARITY : Number.MIN_VALUE;
+  const rank = (m: T) =>
+    m.lastSeen && opts.now.getTime() - new Date(m.lastSeen).getTime() < WISDOM_RECENT_MS
+      ? m.hybrid * WISDOM_RECENT_PENALTY
+      : m.hybrid;
+  return scored
+    .filter(
+      (m) =>
+        m.category === "wisdom" &&
+        (m.semantic ?? 0) >= floor &&
+        (curatedWisdomAuthor(m) !== null || WISDOM_SLOT_PRINCIPLE_SOURCES.has(m.source ?? "")),
+    )
+    .sort((a, b) => rank(b) - rank(a))
+    .slice(0, slots);
+}
+
 /** "Naval", "Greene · Law 28", or null for machine-made / unattributed rows. */
 export function curatedWisdomAuthor(m: Pick<RelevantMemory, "category" | "key" | "origin">): string | null {
   if (m.category === "greene_law") {
@@ -612,6 +656,7 @@ interface LexicalRow {
   source: string | null;
   seen_count: number | null;
   updated_at: Date;
+  last_seen: Date | null;
   rank: number;
   /** W1 (2026-10-16) · validity columns, carried so the evidence pack can measure its filter (the SQL still filters). */
   valid_until: Date | null;
@@ -823,6 +868,7 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
+              bm.last_seen         AS last_seen,
               bm.valid_until       AS valid_until,
               bm.superseded_by_id  AS superseded_by_id,
               bm.expires_at        AS expires_at,
@@ -917,6 +963,7 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
+              bm.last_seen         AS last_seen,
               bm.valid_until       AS valid_until,
               bm.superseded_by_id  AS superseded_by_id,
               bm.expires_at        AS expires_at,
@@ -1295,7 +1342,7 @@ export async function getContextualMemories(
         take: 300,
         // v10.0.354 · pull `source` so we can weight by ingestion pipeline
         // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
-        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, validUntil: true, supersededById: true, expiresAt: true, validFrom: true },
+        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, lastSeen: true, validUntil: true, supersededById: true, expiresAt: true, validFrom: true },
       }),
     ),
     // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
@@ -1359,6 +1406,7 @@ export async function getContextualMemories(
     source: r.source ?? "system",
     seenCount: r.seen_count ?? 1,
     updatedAt: r.updated_at,
+    lastSeen: r.last_seen ?? null,
     validUntil: r.valid_until,
     supersededById: r.superseded_by_id,
     expiresAt: r.expires_at,
@@ -1489,6 +1537,7 @@ export async function getContextualMemories(
       validFrom: m.validFrom,
       hybrid,
       semantic: m.sSemantic,
+      lastSeen: m.lastSeen ?? null,
     };
   });
 
@@ -1595,16 +1644,12 @@ export async function getContextualMemories(
   // (byte-identical to today).
   const episodicSplitOn = getFlag("NICK_EPISODIC_SPLIT")?.isOn ?? false;
   const wisdomSlots = episodicSplitOn && queryKind === "episodic" ? 1 : 3;
-  const directSlots = maxMemories - wisdomSlots;
 
-  // Always include top wisdom memories.
-  // v10.0.354 · the source-trust multiplier already biases this list,
-  // but we re-sort explicitly here so the wisdom-slot selection is
-  // deterministic even when the broader candidate pool is large.
-  const wisdoms = scored
-    .filter((m) => m.category === "wisdom")
-    .sort((a, b) => b.hybrid - a.hybrid)
-    .slice(0, wisdomSlots);
+  // Up to `wisdomSlots` wisdom rows, and only ones that fit this turn.
+  // 2026-10-29 (W2) · relevance floor + principle-source allowlist + exposure decay; see selectWisdomSlots.
+  const wisdoms = selectWisdomSlots(scored, wisdomSlots, { useEmbeddings, now: new Date(now) });
+  // A slot no wisdom earned goes back to the direct memories.
+  const directSlots = maxMemories - wisdoms.length;
   for (const w of wisdoms) {
     relevant.push({
       id: w.id,
@@ -1756,7 +1801,7 @@ export async function getContextualMemories(
   // until the total content size fits within the budget. Wisdom slots
   // (the first `wisdomSlots` entries) are PRESERVED · operator-grade
   // guarantee that the always-on wisdom layer never gets dropped.
-  const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdomSlots);
+  const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdoms.length);
 
   await attachWisdomOrigins(relevant);
 
