@@ -775,5 +775,20 @@ export function planViolations(plan: SmsReplyPlan, draft: string): string[] {
   for (const v of findVoiceViolations(draft, { surface: "sms" })) {
     if (v.ruleId.startsWith("claim.") && !labels.includes(v.ruleId)) labels.push(v.ruleId);
   }
+  // 2026-10-30 · ten drafts that stopped mid-sentence ("Hey, this") were sent in
+  // September, and drafts echoing this prompt's own headers were held for weeks.
+  if (isUnfinished(draft)) labels.push("unfinished_draft");
+  if (PROMPT_LEAK_RE.test(draft)) labels.push("prompt_leak");
   return labels;
+}
+
+/** The plan block's own headers (renderPlanPrompt) and markdown never belong in a text. */
+const PROMPT_LEAK_RE = /REPLY PLAN|USE ONLY THESE FACTS|ASK EXACTLY ONE QUESTION|NEXT STEP TO OFFER|\bGOAL:|\bconstraints?:|\*\*|\[Customer memory/i;
+
+/** A finished text ends a sentence, a parenthesis/quote, a number, or a link. */
+function isUnfinished(draft: string): boolean {
+  const t = draft.trim();
+  if (/[.!?)"'’”\d]$/.test(t)) return false;
+  const last = t.split(/\s+/).pop() ?? "";
+  return !/\w\.\w|\//.test(last);
 }

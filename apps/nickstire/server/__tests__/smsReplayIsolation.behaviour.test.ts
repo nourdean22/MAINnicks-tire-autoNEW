@@ -154,6 +154,7 @@ import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { SQL } from "drizzle-orm";
 import { orchestrateSms, type SmsOrchestratorEvent, type SmsOrchestratorResult } from "../services/smsOrchestrator";
 import { createSmsEffectRecorder, replayOutcomeBucket, runInSmsReplayScope } from "../services/smsReplayScope";
+import { SMS_EVAL_CASES } from "../services/smsReplyEval";
 
 const dialect = new MySqlDialect();
 h.state.renderSql = (q: unknown) => (q instanceof SQL ? dialect.sqlToQuery(q).sql : String(q));
@@ -239,7 +240,8 @@ const CASES: ReplayCase[] = [
     label: "inbound START",
     event: { type: "inbound_sms", phone: "2165550102", body: "START", conversationId: 502 },
     // START is not a parser intent, so after the opt-in it falls through to
-    // the drafter (mocked here as a low-risk, auto-sendable reply).
+    // the drafter. W2 (2026-10-30): a "general" draft is held for staff and the
+    // skipped sms.sendSms below is the holding reply, not the draft.
     replayEffects: [
       "sms_orchestrations.insert",
       "sms.markPhoneOptedIn",
@@ -251,8 +253,9 @@ const CASES: ReplayCase[] = [
     ],
     liveSignature: ["sms.markPhoneOptedIn"],
     decision: (r) => {
-      expect(r.status).toBe("sent");
-      expect(r.shouldAutoSend).toBe(true);
+      expect(r.status).toBe("drafted");
+      expect(r.shouldAutoSend).toBe(false);
+      expect(r.holdingReply).toBe(true);
     },
   },
   {
@@ -347,9 +350,12 @@ const CASES: ReplayCase[] = [
     event: { type: "inbound_sms", phone: "2165550108", body: "My car makes a clicking noise when I turn left, any idea what that is?", conversationId: 508 },
     replayEffects: ["sms_orchestrations.insert", "nickgpt_drafts.insert", "sms.sendSms", "sms_orchestrations.insert"],
     liveSignature: ["nickgpt_drafts.insert"],
+    // W2: a symptom question is not yet a proven auto-send intent, so the draft
+    // is held and the skipped sms.sendSms is the holding reply.
     decision: (r) => {
       expect(r.body.length).toBeGreaterThan(0);
-      expect(r.status).toBe("sent");
+      expect(r.status).toBe("drafted");
+      expect(r.holdingReply).toBe(true);
     },
   },
   {
@@ -532,5 +538,30 @@ describe("the legacy REPLAY_DRY_RUN flag", () => {
     h.state.tables.bookings = [BOOKING];
     await orchestrateSms({ type: "inbound_sms", phone: "2165550177", body: "cancel", conversationId: 510 });
     expect(h.state.hits).toContain("bookings.update");
+  });
+});
+
+// 2026-10-30 · scripts/sms-reply-eval.ts runs every SMS_EVAL_CASES case through
+// orchestrateSms against the production env. Planted positive: with every write
+// and send mocked to THROW, no case may reach one inside the replay scope, and
+// each still produces a decision; outside the scope the same input does hit them.
+describe("SMS reply eval runner · nothing can write or send", () => {
+  it.each(SMS_EVAL_CASES.map((c) => [c.id, c.body] as const))(
+    "%s: every write and send stays unreached inside the replay scope",
+    async (_id, body) => {
+      const recorder = createSmsEffectRecorder();
+      const r = await runInSmsReplayScope(
+        () => orchestrateSms({ type: "inbound_sms", phone: "2165557000", body, conversationId: 990000 }),
+        recorder,
+      );
+      expect(h.state.hits).toEqual([]);
+      expect(typeof r.status).toBe("string");
+      expect(Object.values(recorder.counts()).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+    },
+  );
+
+  it("positive control: an eval case outside the scope hits the throwing mocks", async () => {
+    await orchestrateSms({ type: "inbound_sms", phone: "2165557000", body: SMS_EVAL_CASES[0].body, conversationId: 990000 }).catch(() => undefined);
+    expect(h.state.hits.length).toBeGreaterThan(0);
   });
 });
