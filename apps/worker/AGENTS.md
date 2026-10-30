@@ -23,7 +23,7 @@ Cross-cutting repo rules (branching, worktrees, Windows, verify gates): root
 An Express 5 + node-cron process on Railway's internal network (nickstire's server stays on Express 4 until its own job;
 `app.listen`'s callback now receives bind errors, so `src/listen.ts` exits 1 on one instead of logging "listening").
 **Source files** (`ls src`): `src/index.ts`, `src/listen.ts`, `src/scheduler.ts`, `src/forward.ts`, `src/storage.ts`,
-`src/renderPlan.ts`. It does two things:
+`src/renderPlan.ts`, `src/ring-poller.ts`, `src/ring-vault.ts`. It does two things, plus an optional third:
 
 1. **Forwards the worker-owned cron ticks** (`HIGH_FREQ_JOBS`, `scheduler.ts:122-170`) to statenour-web. It holds no business logic for
    those jobs: each tick is an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a
@@ -49,6 +49,12 @@ An Express 5 + node-cron process on Railway's internal network (nickstire's serv
    > **Cadence changed 2026-08-19 (#1696, `d8675b42b`)** from `*/2` to `*/15` — *"stop the 2-min
    > render poll pinning Neon awake."* A queued reel now waits up to ~13 minutes longer to start.
 
+3. **Optional Ring camera status poll every 15 minutes** (Ring W1a, 2026-10-30; `ring-poller.ts`, registered in
+   `startScheduler` only when `ringPollEnabled(process.env)`). Read-only: it PATCHes `/api/devices/ring-<id>` with each
+   camera's connection state and never creates a row. Its rotating Ring token sits AES-GCM sealed in the existing
+   Railway Redis (`ring-vault.ts`, raw Redis protocol, no npm client). That Redis holds only this credential record,
+   never business data, so the no-DB-client rule below still holds. Poller health rides in `/health/scheduler`'s body.
+
 **It has NO database client.** Dependencies are exactly `@aws-sdk/client-s3`,
 `@aws-sdk/s3-request-presigner`, `@nour/reel-engine`, `express`, `node-cron` — no `pg`, `mysql2`,
 `prisma`, or `drizzle-orm`, directly or transitively. Every read and write goes over authenticated
@@ -58,7 +64,9 @@ statenour's guards. If a job needs data, it belongs behind a statenour-web route
 ## Env vars the code actually reads
 
 `PORT` · `CRON_SECRET` · `SERVICE_ROLE` · `STATENOUR_WEB_URL` · `STATENOUR_SYNC_KEY` · `AWS_REGION` ·
-`S3_BUCKET` · `SITE_URL` · `CLOUDFRONT_DOMAIN`.
+`S3_BUCKET` · `SITE_URL` · `CLOUDFRONT_DOMAIN`. Ring poller only (all optional, off unless every one is set,
+see `DEPLOY.md`): `RING_POLL_ENABLED` · `REDIS_URL` · `RING_TOKEN_KEY` · `DEVICE_AGENT_KEY` ·
+`RING_REFRESH_TOKEN_SEED` · `RING_USER_AGENT`.
 
 `DATABASE_URL`, `DIRECT_URL`, `GITHUB_TOKEN`, and `NICKSTIRE_DATABASE_URL` are **not read
 anywhere in `src/`**. Q-36 pins that absence in

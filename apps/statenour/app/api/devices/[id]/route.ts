@@ -1,4 +1,6 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { deriveWorkStatus, isEdgeWork, parseEdgeWork } from "@/lib/services/device-work-heartbeat";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
 import { deviceWhere, redactDevice, resolveDevice, stripDeviceSecrets } from "@/lib/services/devices";
@@ -42,6 +44,26 @@ export const PATCH = apiHandler(async (req, { params }) => {
     throw new ServiceError("Device not found", 404);
   }
 
+  // The lot edge's work heartbeat: status comes from its counters advancing, and any
+  // status / lastSeenAt the body claims is ignored (lib/services/device-work-heartbeat.ts).
+  if (isEdgeWork(body?.currentState)) {
+    const work = parseEdgeWork(body.currentState);
+    const derived = deriveWorkStatus(resolved.status, resolved.currentState, work, new Date());
+    try {
+      const device = await prisma.smartDevice.update({
+        where: { id: resolved.id },
+        data: {
+          status: derived.status,
+          lastSeenAt: derived.lastSeenAt,
+          currentState: derived.currentState as Prisma.InputJsonObject,
+        },
+      });
+      return { device };
+    } catch {
+      throw new ServiceError("Device not found", 404);
+    }
+  }
+
   try {
     const device = await prisma.smartDevice.update({
       where: { id: resolved.id },
@@ -50,7 +72,14 @@ export const PATCH = apiHandler(async (req, { params }) => {
         status: body.status || undefined,
         location: body.location || undefined,
         lastSeenAt: body.lastSeenAt ? new Date(body.lastSeenAt) : undefined,
-        currentState: body.currentState || undefined,
+        // currentState replaces (the camera bridge sends its full state); currentStateMerge
+        // merges into the stored state (the Ring poller knows only its own fields).
+        // shortcut: read-modify-write, not atomic; fine for one writer per row, upgrade to a SQL jsonb || if two writers share a row.
+        currentState: body.currentState
+          ? body.currentState
+          : body.currentStateMerge
+            ? { ...((resolved.currentState as Record<string, unknown> | null) ?? {}), ...body.currentStateMerge }
+            : undefined,
         capabilities: body.capabilities || undefined,
         metadata: stripDeviceSecrets(body.metadata) || undefined,
       },

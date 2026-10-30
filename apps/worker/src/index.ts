@@ -130,6 +130,7 @@ app.get("/health/scheduler", (_req, res) => {
     staleWindowMs: SCHEDULER_STALE_MS,
     inFlightForwards: h.inFlightForwards,
     isRendering: h.isRendering,
+    ring: h.ring, // diagnostic only: Ring poller health never changes this status
   });
 });
 

@@ -19,6 +19,7 @@ spend, a production write or a credential), REJECTED. Update the status here in 
 | 10 | Plate reading on arrivals | car counter | Plates | PARKED | a camera with plate detail on the entry, likely a purchase (price first) | Plates on 50% of daytime arrivals |
 | 11 | Bay camera feed | bay | Live view | PARKED (memory: the bay V380 has no RTSP; a second relay on the lot PC needs Nour's device password typed by him) | his password | A bay visit row per billed job |
 | 12 | Counter mic as a second ears source | counter mic | Speech gate | PARKED (no source configured; `counter-mic` has never posted) | hardware choice and a paste | Intelligible words at counter distance |
+| 13 | bdnick's sign-camera device status from the edge's work counters (usable frames advancing), not from a visit post or a bare heartbeat | car counter, bdnick | Progress watchdog | OPEN (this PR, 2026-10-30) | the lot PC pull (Nour's go) | bdnick never reads ONLINE while the edge's usable frames stood still 5+ min, read 2026-11-07 |
 | - | Frigate as the whole stack on a dedicated Linux box | all | all rows | PARKED as the 10x option: one documented system for zones, tracking, LPR, review, go2rtc, audio events | a mini PC (spend) and Nour's go; UPSTREAMS pins 0.17.2 | Beats our counter's billed-job match within 2 weeks or is removed |
 | - | Scrypted NVR, ZoneMinder, Viseron, CodeProject.AI, Agent DVR | - | - | REJECTED in `docs/UPSTREAMS.md` (2026-09-08) | - | - |
 | - | Live diarization in the capture path | office ears | Diarization | REJECTED here: runs after capture only | - | - |

@@ -73,6 +73,14 @@ describe("sentinel pages once per platform per tick", () => {
     expect(res.flipped.every((f) => f.alerted)).toBe(true);
   });
 
+  it("an ERROR row (#3414 work heartbeat) and an ONLINE row of one platform still page once", async () => {
+    db.smartDevice.findMany.mockResolvedValueOnce([ring(1), { ...ring(2), status: "ERROR" }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    await runHeartbeatSentinel(NOW);
+    expect(db.smartDevice.findMany.mock.calls[0][0].where.status).toEqual({ in: ["ONLINE", "ERROR"] });
+    expect(db.smartDevice.updateMany).toHaveBeenCalledTimes(2);
+    expect(mockSendTelegram).toHaveBeenCalledTimes(1);
+  });
+
   it("two platforms silent in one tick: one page each", async () => {
     db.smartDevice.findMany.mockResolvedValueOnce([ring(1), ring(2), v380]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     await runHeartbeatSentinel(NOW);

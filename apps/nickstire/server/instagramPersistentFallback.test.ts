@@ -76,11 +76,18 @@ describe("public Instagram feed survives a fresh Railway container", () => {
 });
 
 describe("homepage social-proof renderer", () => {
-  it("renders durable Reel MP4s as video rather than img", () => {
-    const src = readFileSync(resolve(process.cwd(), "client/src/pages/Home.tsx"), "utf8");
-    expect(src).toContain('const video = post.type === "VIDEO" ? post.mediaUrl : undefined;');
-    expect(src).toContain("<video");
-    expect(src).toContain('preload="metadata"');
-    expect(src).toContain("poster={post.thumbnailUrl}");
+  // Intent kept: a durable Reel MP4 is never put in an <img> (a broken tile). Since 2026-10-30 the
+  // strip renders a facade (thumbnail or placeholder plus a play badge), not a <video>: three
+  // un-postered MP4s cost about 44 MB per homepage view (railway-audit). Behaviour is pinned in
+  // client/src/__tests__/instagram-tile-facade.test.tsx; this guards the wiring from the server side.
+  it("renders durable Reel MP4s through the facade, never as img or video", () => {
+    // Comments stripped: a doc comment that says "never a <video>" must not satisfy or fail this.
+    const code = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const home = code("client/src/pages/Home.tsx");
+    expect(home).toContain("<InstagramTileMedia post={post} />");
+    expect(home).not.toMatch(/<video\b/);
+    const tile = code("client/src/components/InstagramTileMedia.tsx");
+    expect(tile).toMatch(/VIDEO_FILE\.test\(post\.mediaUrl/);
+    expect(tile).not.toMatch(/<video\b/);
   });
 });

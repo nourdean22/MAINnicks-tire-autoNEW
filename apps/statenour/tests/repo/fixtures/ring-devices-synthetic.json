@@ -1,0 +1,14 @@
+{
+  "_fixture": "SYNTHETIC, written 2026-10-30, not captured. Shape per dgreif/ring ring-camera.ts (alerts.connection, battery_life) and the 2021 ring_devices payload cited in the manager's Perplexity run (scratchpad ring-perplexity-2026-10-30.md section 3). CLAIM until the first real call replaces it with a capture.",
+  "doorbots": [
+    { "id": 1001, "description": "Front", "alerts": { "connection": "online" }, "battery_life": "87", "firmware_version": "Up to Date" }
+  ],
+  "stickup_cams": [
+    { "id": 2001, "description": "Kitchen", "alerts": { "connection": "online" }, "battery_life": null, "firmware_version": "Up to Date" },
+    { "id": 2002, "description": "Garage/back", "alerts": { "connection": "offline" }, "battery_life": "12" },
+    { "id": 2003, "description": "Side", "alerts": {} },
+    { "id": 2004, "description": "Downstairs", "alerts": { "connection": "online" }, "battery_life": "100" }
+  ],
+  "chimes": [],
+  "other": []
+}

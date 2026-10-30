@@ -44,6 +44,41 @@ function extForMime(mime: string): string {
   return "webm";
 }
 
+interface BrowserSpeech {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+/**
+ * 2026-10-30 · browser speech typing: free, no server key. Every server STT lane was down in prod
+ * (OpenAI 401, HF 402, no GROQ_API_KEY), so desktop/Android dictation goes here first. Off on iOS:
+ * a home-screen web app detects webkitSpeechRecognition but it never returns text.
+ */
+function browserSpeech(): (new () => BrowserSpeech) | null {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return null;
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1)) return null;
+  const w = window as unknown as { SpeechRecognition?: new () => BrowserSpeech; webkitSpeechRecognition?: new () => BrowserSpeech };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+/** 502 = every configured server STT lane failed (app/api/ai/transcribe). */
+function toastTranscribeFailure(status: number) {
+  toast.error(
+    status === 502
+      ? "Voice typing is down: no speech service answered. A free Groq key (GROQ_API_KEY) fixes it."
+      : "Voice transcription failed — try again",
+    { id: "stt-failed" },
+  );
+}
+
 /**
  * useVoiceInput — single recording + continuous voice mode.
  * Single: tap to record, tap to stop, transcribes via Whisper.
@@ -69,19 +104,70 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
   // loop running (it re-sees continuousRef=true) and a second loop is
   // started → two RAF loops compounding on every toggle.
   const silenceRafRef = useRef<number | null>(null);
+  const speechRef = useRef<BrowserSpeech | null>(null);
+  // A start waiting on the iOS mic prompt: a second tap must not open a second recorder, and a stop
+  // during the wait must cancel it (second reader, 2026-10-30).
+  const startingRef = useRef(false);
+  const cancelStartRef = useRef(false);
 
-  // ── Single recording ──
-  const startRecording = useCallback(async () => {
+  // ── Single recording ── resolves true when something is recording
+  const startRecording = useCallback(async (): Promise<boolean> => {
+    if (startingRef.current || speechRef.current || mediaRecorderRef.current?.state === "recording") return false;
+    cancelStartRef.current = false;
+    const Speech = browserSpeech();
+    if (Speech) {
+      const rec = new Speech();
+      rec.lang = navigator.language || "en-US";
+      rec.interimResults = false;
+      rec.continuous = true;
+      const finals: string[] = [];
+      rec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) finals.push(e.results[i][0].transcript);
+        }
+      };
+      let heardNothing = false;
+      rec.onerror = (e) => {
+        if (e.error === "no-speech") heardNothing = true;
+        else if (e.error === "not-allowed") toast.error("Microphone unavailable. Check permissions");
+        else if (e.error === "service-not-allowed") toast.error("Speech recognition is turned off in this browser");
+        else if (e.error === "network") toast.error("This browser's speech service is unreachable");
+        else if (e.error !== "aborted") toast.error(`Voice typing stopped (${e.error}). Try again`);
+      };
+      rec.onend = () => {
+        speechRef.current = null;
+        setIsRecording(false);
+        const text = finals.join(" ").trim();
+        if (text) onTranscript(text);
+        else if (heardNothing) toast("Didn't catch anything. Try again", { id: "stt-nothing" });
+      };
+      try {
+        rec.start();
+        speechRef.current = rec;
+        setIsRecording(true);
+        return true;
+      } catch (err) {
+        // Falls through to the recorder + server lane below.
+        console.warn("[voice-input] browser speech start failed:", err);
+      }
+    }
     // 2026-07-12 · getUserMedia in its OWN try so ONLY a real permission /
     // secure-context rejection shows "Microphone unavailable". A codec/
     // MediaRecorder failure below is a different error and must not be
     // misreported as a permission problem.
     let stream: MediaStream;
+    startingRef.current = true;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       toast.error("Microphone unavailable — check permissions");
-      return;
+      return false;
+    } finally {
+      startingRef.current = false;
+    }
+    if (cancelStartRef.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return false;
     }
     try {
       // Apr 27 · also wire the analyser for single recordings so the
@@ -139,7 +225,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
             // forensic-audit MEDIUM · surface via toast, not just console —
             // there is no console on the standalone iOS PWA, so the utterance
             // used to vanish with zero feedback and the mic looked dead.
-            toast.error("Voice transcription failed — try again");
+            toastTranscribeFailure(res.status);
             return;
           }
           // 2026-08-27 · engine honesty (same contract as TTS): the route
@@ -169,6 +255,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
+      return true;
     } catch (err) {
       // getUserMedia already succeeded above, so this is a recorder/codec
       // failure, NOT a permission problem — don't misreport it as one. Release
@@ -180,10 +267,16 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       setAudioLevel(0);
       console.warn("[voice-input] recorder init failed:", err);
       toast.error("Couldn't start recording on this device — try again");
+      return false;
     }
   }, [onTranscript]);
 
   const stopRecording = useCallback(() => {
+    if (startingRef.current) cancelStartRef.current = true;
+    if (speechRef.current) {
+      speechRef.current.stop(); // onend delivers the text and clears isRecording
+      return;
+    }
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
@@ -205,11 +298,14 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      // 2026-10-30 · was hardcoded webm, which iOS cannot record (same fix as startRecording).
+      const mime = pickAudioMime();
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      const recMime = recorder.mimeType || mime || "audio/webm";
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(audioChunksRef.current, { type: recMime });
         if (blob.size < 1000) {
           if (continuousRef.current) { audioChunksRef.current = []; recorder.start(); }
           return;
@@ -217,10 +313,11 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
         setTranscribing(true);
         try {
           const form = new FormData();
-          form.append("audio", blob, "voice.webm");
+          form.append("audio", blob, `voice.${extForMime(recMime)}`);
           const res = await fetch("/api/ai/transcribe", { method: "POST", body: form, credentials: "include" });
           if (!res.ok) {
             console.warn(`[voice-input · continuous] transcribe HTTP ${res.status}`);
+            toastTranscribeFailure(res.status);
           } else {
             const data = await res.json();
             if (data.text) onAutoSend(data.text);
@@ -293,6 +390,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       if (silenceRafRef.current) cancelAnimationFrame(silenceRafRef.current);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       try { mediaRecorderRef.current?.stop(); } catch {}
+      try { speechRef.current?.abort(); } catch {}
       audioCtxRef.current?.close().catch(() => {});
     };
   }, []);

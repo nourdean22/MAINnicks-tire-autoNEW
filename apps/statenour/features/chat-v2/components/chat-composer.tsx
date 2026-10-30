@@ -383,13 +383,36 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
 
   const voice = useVoiceInput(
     (text: string) => {
-      setDraft(draft ? `${draft} ${text}` : text);
+      // Read the draft now: browser dictation delivers its text after the tap that started it.
+      const current = useChatUiStore.getState().draft;
+      setDraft(current ? `${current} ${text}` : text);
       textareaRef.current?.focus();
     },
     (text: string) => {
       void sendOrQueue(text);
     },
   );
+
+  // 2026-10-30 · the header mic drives this dictation. It used to open OpenAI Realtime, whose key is
+  // revoked (401), so it failed every time. The second effect releases the header mic when
+  // dictation ends on its own (composer mic tap, browser end).
+  const isVoiceDocked = useChatUiStore((s) => s.isVoiceDocked);
+  const toggleVoiceDock = useChatUiStore((s) => s.toggleVoiceDock);
+  const releaseVoiceDock = useCallback(() => {
+    if (useChatUiStore.getState().isVoiceDocked) toggleVoiceDock();
+  }, [toggleVoiceDock]);
+  useEffect(() => {
+    // A start that fails (mic denied, recorder error, start cancelled) releases the header mic.
+    if (isVoiceDocked && !voice.isRecording) void voice.startRecording().then((ok) => { if (!ok) releaseVoiceDock(); });
+    // Also cancels a start still waiting on the iOS mic prompt.
+    if (!isVoiceDocked) voice.stopRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reacts to the header toggle only
+  }, [isVoiceDocked]);
+  useEffect(() => {
+    if (!voice.isRecording) releaseVoiceDock();
+  }, [voice.isRecording, releaseVoiceDock]);
+  // Leaving the chat mid-dictation must not leave the flag on to auto-start the next mount.
+  useEffect(() => releaseVoiceDock, [releaseVoiceDock]);
 
   return (
     <form
@@ -419,6 +442,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     >
       {/* A1b: mounted empty so the reason is announced when it arrives; no margin while empty. */}
       <p role="status" aria-live="polite" className={disabledReason ? "px-2 text-[13px] leading-snug text-fg-secondary" : "sr-only"}>{disabledReason ?? ""}</p>
+      {voice.transcribing && <p role="status" className="px-2 text-[13px] leading-snug text-fg-secondary">Transcribing your voice</p>}
       {/* 2026-08-18 · edit-resend banner. Editing is armed by the Edit
           button on a sent message (2026-08-28: promoted out of the
           long-press sheet into the visible per-message action row), or
