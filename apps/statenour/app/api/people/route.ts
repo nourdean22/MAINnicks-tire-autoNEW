@@ -69,6 +69,7 @@ export const GET = apiHandler(
         leverageNotes: true,
         lastInteraction: true,
         interactionCount: true,
+        cadenceDays: true,
       },
     });
 
