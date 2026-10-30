@@ -8,18 +8,20 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ rows: [] as unknown[], findMany: vi.fn() }));
+const h = vi.hoisted(() => ({ rows: [] as unknown[], findMany: vi.fn(), devicesFail: false }));
 
 vi.mock("@/lib/system/cron-diagnostics", () => ({ scanCronHealth: vi.fn(async () => null) }));
 vi.mock("@/lib/system/stale-data-scanner", () => ({ scanStaleData: vi.fn(async () => null) }));
 vi.mock("@/lib/prisma", () => ({ prisma: { smartDevice: { findMany: h.findMany } } }));
 // Only the devices sub-rollup runs its real body; every other section falls back.
+// devicesFail: the device read itself fails (safeQuery hands back its fallback, as on a quota error).
 vi.mock("@/lib/db/safe-prisma", () => ({
   safeQuery: async (fn: () => Promise<unknown>, fallback: unknown, opts?: { label?: string }) =>
-    opts?.label === "hub.devices" ? fn() : fallback,
+    opts?.label === "hub.devices" && !h.devicesFail ? fn() : fallback,
 }));
 
 import { buildSystemHub } from "@/lib/services/system-hub";
+import { homeHealthState } from "@/lib/home/health-state";
 
 const NOW = new Date("2026-10-30T17:40:00Z");
 const day = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
@@ -37,6 +39,36 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+  h.devicesFail = false;
+});
+
+// Three states for the chip the hub feeds (empty-vs-error): measured trouble, measured clear, unknown.
+const MEASURED_REST = {
+  crons: { declared: 10, silent: 0, measured: true },
+  errors: { count24h: 1, fatal24h: 0, measured: true },
+};
+describe("the Home health chip reads the device rollup in three states", () => {
+  it("a failed device read is unknown: never healthy, never '0 offline'", async () => {
+    h.devicesFail = true;
+    const hub = await buildSystemHub();
+    expect(hub.devices.measured).toBe(false);
+    const chip = homeHealthState({ ...MEASURED_REST, devices: hub.devices });
+    expect(chip.state).toBe("unknown");
+    expect(chip.detail).not.toMatch(/0 devices? offline/);
+  });
+
+  it("control: a measured all-clear read is healthy", async () => {
+    h.rows = [dev("ONLINE", 0), dev("OFFLINE", 200)];
+    const hub = await buildSystemHub();
+    expect(homeHealthState({ ...MEASURED_REST, devices: hub.devices }).state).toBe("healthy");
+  });
+
+  it("control: a recent outage is degraded and named", async () => {
+    h.rows = [dev("OFFLINE", 1)];
+    const chip = homeHealthState({ ...MEASURED_REST, devices: (await buildSystemHub()).devices });
+    expect(chip.state).toBe("degraded");
+    expect(chip.detail).toMatch(/1 device offline/);
+  });
 });
 
 describe("buildSystemHub devices: offline means recently offline", () => {

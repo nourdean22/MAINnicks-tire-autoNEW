@@ -30,7 +30,7 @@ interface PulsePayload {
     score: number;
     delta: number;
     spark: number[];
-    workoutStreak: number;
+    workoutStreak: number | null; // null = the streak read failed (unknown, not 0)
     weightTrend: number | null; // delta over 30d, null if <2 entries
   };
   mind: {
@@ -82,7 +82,7 @@ export const GET = apiHandler(async () => {
       const [
         physicalPulse,
         mentalPulse,
-        workoutEntries,
+        workoutStreakRead,
         weightPoints,
         driftAlertsOpen,
         financialSnapshots,
@@ -91,14 +91,9 @@ export const GET = apiHandler(async () => {
       ] = await Promise.all([
         domainPulse("physical", fourteen),
         domainPulse("mental", fourteen),
-        // v10.0.60 · Wave A part 3 · habits via legacy-shim (HabitLog
-        // retired; DAILY-task streak synthesis provides the same
-        // per-day completion shape).
-        (async () => {
-          const { recentDailyHabits } = await import("@/lib/brain/legacy-shims");
-          const all = await recentDailyHabits(14);
-          return all.map((r) => ({ date: r.date, completed: r.completed }));
-        })(),
+        // 2026-10-30: the one workout streak (lib/stats/workout-streak.ts). This walked synthesized rows
+        // of EVERY daily habit keyed by date, so any habit's day counted as a workout day.
+        import("@/lib/stats/workout-streak").then((m) => m.readWorkoutStreak()),
         prisma.bodyTracking.findMany({
           where: { date: { gte: toDateString(thirty) } },
           select: { date: true, weight: true },
@@ -137,29 +132,7 @@ export const GET = apiHandler(async () => {
       ]);
 
       // ── BODY
-      const workoutStreak = (() => {
-        // How many consecutive days ending today have workoutDone=true?
-        let streak = 0;
-        const todayStr = toDateString(new Date());
-        // Apr 18: masteryHabit is now a retired-model shim returning any[];
-        // cast the mapped tuples explicitly so Map's iterable constructor is happy.
-        const map = new Map(
-          (workoutEntries as Array<{ date: string; completed: boolean }>)
-            .map((w) => [w.date, w.completed] as [string, boolean]),
-        );
-        const cursor = new Date();
-        // Walk back from today, stop at first miss
-        for (let i = 0; i < 30; i++) {
-          const ds = toDateString(cursor);
-          if (i === 0 && !map.has(ds)) break; // today not yet entered → streak is yesterday-backward
-          if (map.get(ds)) streak++;
-          else if (i > 0) break;
-          cursor.setDate(cursor.getDate() - 1);
-          if (ds < toDateString(daysAgo(30))) break;
-          void todayStr;
-        }
-        return streak;
-      })();
+      const workoutStreak = workoutStreakRead;
 
       const weightTrend: number | null = (() => {
         const ws = weightPoints
