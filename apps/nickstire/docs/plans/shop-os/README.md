@@ -24,6 +24,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [04-DATA-MAP](04-DATA-MAP.md) | production numbers today and how ALG's data moves over |
 | [07-COMPLIANCE](07-COMPLIANCE.md) | Ohio estimate, invoice, tax, tire and used-tire rules as screen behaviour |
 | [09-ACCESS-AND-SECURITY](09-ACCESS-AND-SECURITY.md) | crew logins and roles, MFA, audit log, FTC and Ohio data duties |
+| [12-LOCAL-AI-AND-MESH](12-LOCAL-AI-AND-MESH.md) | a local AI model on the shop PC, and a mesh of the three PCs: not yet, and why |
 | [02-RESEARCH](02-RESEARCH.md) | the 16 research runs with sources and labels |
 | [13-TOOLKIT](13-TOOLKIT.md) | every account, key name, API, MCP, plugin, skill and device the build needs: have, missing, Nour's call |
 | [17-ALG-LEDGER-STUDY](17-ALG-LEDGER-STUDY.md) | every mirrored ALG ticket and estimate: how, why, what, who, when; ten execution rules; five blind spots (figures private) |
