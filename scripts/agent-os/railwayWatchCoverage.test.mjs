@@ -731,3 +731,13 @@ test("PLAN GUARD · a plan that deletes any Ring poller variable is refused", ()
     assert.deepEqual(r.deletes, [`- Delete variable statenour-worker.${name}`]);
   }
 });
+
+test("PLAN GUARD · an up-to-date plan passes; a failed run that merely mentions it does not", () => {
+  // Captured 2026-10-30 after the first apply: no Plan: line at all.
+  const upToDate = "Railway configuration\nProject natural-appreciation\nEnvironment production\n\u2713 Your Railway configuration is already up to date.";
+  assert.deepEqual(planDestroys(upToDate), { ok: true, destroyCount: 0, deletes: [] });
+  // A delete line next to the message still refuses: the message is not trusted over the lines.
+  assert.equal(planDestroys(upToDate + "\n  - Delete variable x.Y").ok, false);
+  // A failed evaluation still refuses (no summary, no up-to-date line).
+  assert.equal(planDestroys("node failed to evaluate IaC file.").ok, false);
+});

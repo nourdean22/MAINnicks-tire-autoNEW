@@ -24,6 +24,10 @@ export function planDestroys(text) {
   const lines = String(text).split(/\r?\n/);
   const deletes = lines.filter((l) => /^\s*-\s+(Delete|Destroy|Remove)\b/.test(l)).map((l) => l.trim());
   const summary = lines.map((l) => l.match(/^\s*Plan:\s*\d+ to add,\s*\d+ to change,\s*(\d+) to destroy/)).find(Boolean);
+  // The CLI prints no Plan: line when live already matches the file (2026-10-30, after the first apply).
+  if (!summary && deletes.length === 0 && lines.some((l) => /configuration is already up to date/i.test(l))) {
+    return { ok: true, destroyCount: 0, deletes };
+  }
   if (!summary) return { ok: false, destroyCount: null, deletes, reason: "no Plan: summary line, so this is not a finished plan" };
   const destroyCount = Number(summary[1]);
   return { ok: destroyCount === 0 && deletes.length === 0, destroyCount, deletes };
