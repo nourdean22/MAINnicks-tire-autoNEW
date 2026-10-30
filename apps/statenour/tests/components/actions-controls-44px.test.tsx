@@ -25,6 +25,8 @@ import type { ReactNode } from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// The decisions maxim has its own tests (maxim-line, decision-maxim-pages); this page test reads the page's own controls.
+vi.mock("@/components/wisdom/maxim-line", () => ({ DecisionMaxim: () => null }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("tab=logs"),
   usePathname: () => "/system/actions",

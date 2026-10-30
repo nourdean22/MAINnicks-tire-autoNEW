@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   actions: { data: undefined as unknown, isError: false },
 }));
 
+// The decisions maxim has its own tests (maxim-line, decision-maxim-pages); this page test reads the page's own controls.
+vi.mock("@/components/wisdom/maxim-line", () => ({ DecisionMaxim: () => null }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(h.search),
   usePathname: () => "/system/actions",
