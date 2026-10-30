@@ -372,7 +372,7 @@ export default function CronsPage() {
       rhythm="loose"
       actions={
         <div className="flex items-center gap-2">
-          <FreshnessChip
+          <FreshnessChip className="min-h-11"
             lastFetchedAt={feed?.generatedAt}
             source="config + db · CronJobLog"
             onReload={load}
@@ -380,7 +380,7 @@ export default function CronsPage() {
           <button
             onClick={load}
             disabled={loading}
-            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-control border border-edge-strong bg-content px-4 text-[13px] font-medium text-fg-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
@@ -442,14 +442,18 @@ export default function CronsPage() {
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2 text-xs text-fg-secondary">
-          <input
-            id="show-folded"
-            type="checkbox"
-            checked={showFolded}
-            onChange={(e) => setShowFolded(e.target.checked)}
-            className="h-3.5 w-3.5 rounded-micro"
-          />
-          <label htmlFor="show-folded" className="cursor-pointer select-none">show folded + retired</label>
+          {/* A 44 px toggle, the same shape as the category filters (was a 14 px checkbox). */}
+          <button
+            type="button"
+            aria-pressed={showFolded}
+            onClick={() => setShowFolded((v) => !v)}
+            className={cn(
+              "inline-flex min-h-[44px] items-center rounded-full px-4 text-[13px] transition-colors focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+              showFolded ? "bg-surface-interactive text-fg" : "bg-content text-fg-secondary hover:bg-surface-hover",
+            )}
+          >
+            Show folded and retired
+          </button>
           {/* v10.0.437 · sort dropdown · 6 modes within each category */}
           <SortDropdown<CronSort>
             value={sortKey}

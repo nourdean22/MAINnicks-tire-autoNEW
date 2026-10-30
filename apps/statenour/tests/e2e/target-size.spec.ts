@@ -25,11 +25,13 @@ import { test, expect } from "@playwright/test";
 // tab at a time (?tab= read by lib/stats/resolve-tab.ts), so Goals and Body and learning are audited by URL.
 // Wave F (2026-10-25): /brain and /people join (census 3A.5: no tap-size check); their controls were floored
 // first and are pinned at the source by tests/components/wave-f-target-floor.test.ts.
-// 2026-10-29 sync audit (gates wave): the six page routes no phone spec visited join, after W5c floored the
-// System detail pages' controls at 44 px (crons, inbox, alerts pills, ConfirmHold).
+// 2026-10-29 sync audit (gates wave): five of the six page routes no phone spec visited join, after W5c and
+// this wave floored their controls at 44 px (crons, inbox, alerts pills, ConfirmHold, the reloadable freshness
+// chips, the parent back link). /auth/sign-in is not here: under the CI's AUTH_FORCE_MOCK it renders only
+// text (no control to measure; r.visible would be 0), and its Google button is min-h-[44px] at the source.
 const PAGES = [
   "/", "/missions", "/chat", "/journal", "/system", "/stats", "/stats?tab=goals", "/stats?tab=body", "/settings", "/brain", "/people",
-  "/system/actions", "/system/alerts", "/system/crons", "/system/inbox", "/decisions/1", "/auth/sign-in",
+  "/system/actions", "/system/alerts", "/system/crons", "/system/inbox", "/decisions/1",
 ] as const;
 // The hermetic CI database renders these three pages short at 390x844 (nothing below the
 // fold), so the focus probe also walks pages whose length does not depend on data.
@@ -113,10 +115,7 @@ async function open(page: import("@playwright/test").Page, path: string) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
-  // The sign-in page is itself an auth path; every other page must not have bounced to it.
-  if (!path.startsWith("/auth/")) {
-    expect(page.url(), `${path} redirected to auth`).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
-  }
+  expect(page.url(), `${path} redirected to auth`).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
   await page.waitForTimeout(500);
 }
 

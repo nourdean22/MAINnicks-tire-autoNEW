@@ -330,7 +330,7 @@ export default function AlertsInspectorPage() {
             </div>
           </div>
           )}
-          <FreshnessChip
+          <FreshnessChip className="min-h-11"
             lastFetchedAt={lastFetchedAt}
             source="api/brain/active-alerts"
             onReload={() => void load()}
@@ -348,7 +348,7 @@ export default function AlertsInspectorPage() {
               type="button"
               onClick={() => setSinceDays(opt.v)}
               className={
-                "inline-flex min-h-[44px] items-center rounded-full border px-3 text-[12px] font-mono transition-colors " +
+                "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border px-3 text-[12px] font-mono transition-colors " +
                 (sinceDays === opt.v
                   ? "border-edge-strong bg-surface-interactive text-fg"
                   : "border-edge-subtle bg-canvas text-fg-tertiary hover:text-fg")

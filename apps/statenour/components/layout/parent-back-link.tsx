@@ -35,7 +35,9 @@ export function ParentBackLink({ href, label, sub }: ParentBackLinkProps) {
     <Link
       href={href}
       aria-label={`back to ${label}`}
-      className="inline-flex items-center gap-1.5 text-[11px] font-mono lowercase tracking-[0.12em] text-[var(--text-tertiary)] hover:text-fg focus-visible:text-fg focus-visible:outline-none transition-colors -my-1"
+      // A 44 px tap box (iOS floor, tests/e2e/target-size.spec.ts) around 11 px text; -my-[18px] keeps the header
+      // where the old -my-1 put it.
+      className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1.5 text-[11px] font-mono lowercase tracking-[0.12em] text-[var(--text-tertiary)] hover:text-fg focus-visible:text-fg focus-visible:outline-none transition-colors -my-[18px]"
     >
       <ArrowLeft size={11} strokeWidth={1.75} />
       <span>{label}</span>

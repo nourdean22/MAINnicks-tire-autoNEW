@@ -165,7 +165,7 @@ export default function MemoryInboxPage() {
       rhythm="loose"
       actions={
         <div className="flex items-center gap-2">
-          <FreshnessChip
+          <FreshnessChip className="min-h-11"
             // 2026-09-10 · render time is not evidence freshness. See
             // system/tools/page.tsx for the same fix.
             lastFetchedAt={

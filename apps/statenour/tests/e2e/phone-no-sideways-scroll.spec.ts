@@ -31,8 +31,11 @@ test.describe("phone · no sideways document scroll", () => {
   for (const path of PAGES) {
     test(`${path} is not wider than the viewport`, async ({ page }) => {
       await page.goto(path, { waitUntil: "domcontentloaded" });
-      // /auth/sign-in sits outside the (mastery) shell: it has a <main> but no #main-content.
-      await page.waitForSelector("#main-content, main");
+      // /auth/sign-in sits outside the (mastery) shell: it has a <main> but no #main-content. Every other path
+      // must render its own shell, never a redirect to sign-in measured in its place (Codex P2 on #3362).
+      const isAuthPage = path.startsWith("/auth/");
+      await page.waitForSelector(isAuthPage ? "main" : "#main-content");
+      if (!isAuthPage) expect(page.url(), `${path} redirected to auth`).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
       // A fixed settle, not networkidle: /chat keeps a poll open, so networkidle
       // stalls, and a page-enter transform still in flight adds scroll width.
       await page.waitForTimeout(2500);
