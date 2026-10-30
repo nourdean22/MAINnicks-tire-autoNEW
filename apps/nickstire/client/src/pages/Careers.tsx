@@ -724,7 +724,7 @@ export default function Careers() {
               <a
                 href={hiringSmsHref(BUSINESS.phone.raw)}
                 onClick={() => trackEvent("careers_text_apply_click", { position: "any", surface: "hero" })}
-                className="inline-flex items-center gap-2 stagger-in border border-border/40 text-foreground/80 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:border-primary/40 transition-colors"
+                className="inline-flex min-h-[44px] items-center gap-2 stagger-in border border-border/40 text-foreground/80 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:border-primary/40 transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />
                 Text Us to Apply

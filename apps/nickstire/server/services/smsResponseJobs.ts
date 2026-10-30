@@ -244,16 +244,27 @@ export async function ensureResponseObligation(input: EnqueueInput): Promise<Obl
  */
 export async function answerResponseObligation(handle: ObligationHandle, input: EnqueueInput): Promise<void> {
   if (!handle.durable || handle.jobId === null) {
-    const { isHiringSms, recordHiringSms } = await import("./smsHiringIntake");
-    if (isHiringSms(input.body)) {
-      // No job row to retry from: a failed save is logged, and the text itself
-      // is already in the conversation thread for the admin inbox.
-      await recordHiringSms({ phone: input.phone, body: input.body }).catch((err) =>
-        log.error("text application not saved (no job to retry)", {
+    const { classifyHiringSms } = await import("./smsHiringIntake");
+    const hiring = classifyHiringSms(input.body);
+    if (hiring) {
+      // No job row to retry from: a failure is logged and the owner gets one
+      // internal text; the message itself is already in the conversation thread.
+      const key = responseIdempotencyKey(input);
+      await handleHiringSms(hiring, input.phone, input.body, {
+        dedupeKey: `smsin:${createHash("sha1").update(key).digest("hex").slice(0, 24)}`,
+        evidenceRef: `sms:${key}`,
+      }).catch(async (err) => {
+        log.error("text application not handled (no job to retry)", {
           error: err instanceof Error ? err.message : String(err),
           errorId: "SMS_HIRING_SAVE_FAILED",
-        }),
-      );
+        });
+        if (hiring === "hiring") {
+          const { notifyOwnerTextApplicationNotSaved } = await import("./candidateIntake");
+          await notifyOwnerTextApplicationNotSaved(input.phone.replace(/\D/g, "").slice(-4)).catch((e) =>
+            log.warn("not-saved owner text failed", { error: e instanceof Error ? e.message : String(e) }),
+          );
+        }
+      });
       return;
     }
     const { orchestrateSms } = await import("./smsOrchestrator");
@@ -348,13 +359,29 @@ async function setJobStatus(
  * (orchestration never produced a decision) is the only retryable outcome —
  * re-queue with backoff until maxAttempts, then `dead`.
  */
+/** Text-to-apply branch: save the application, or record the opt-out; never reply. */
+async function handleHiringSms(
+  kind: "hiring" | "opt_out",
+  phone: string,
+  body: string,
+  keys: { dedupeKey: string; evidenceRef: string },
+): Promise<void> {
+  const { recordHiringSms, recordHiringOptOut } = await import("./smsHiringIntake");
+  if (kind === "opt_out") await recordHiringOptOut({ phone, body, evidenceRef: keys.evidenceRef });
+  else await recordHiringSms({ phone, body, dedupeKey: keys.dedupeKey });
+}
+
 export async function runResponseJob(job: ResponseJob): Promise<void> {
   try {
     // Text-to-apply token: save the application, alert the owner, send no
     // reply. A failed save throws into the retry below (smsHiringIntake.ts).
-    const { isHiringSms, recordHiringSms } = await import("./smsHiringIntake");
-    if (isHiringSms(job.body)) {
-      await recordHiringSms({ phone: job.customerPhone, body: job.body });
+    const { classifyHiringSms } = await import("./smsHiringIntake");
+    const hiring = classifyHiringSms(job.body);
+    if (hiring) {
+      await handleHiringSms(hiring, job.customerPhone, job.body, {
+        dedupeKey: `smsjob:${job.id}`,
+        evidenceRef: `sms:sms_response_job:${job.id}`,
+      });
       await setJobStatus(job.id, "suppressed");
       return;
     }
