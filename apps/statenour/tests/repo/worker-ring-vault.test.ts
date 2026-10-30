@@ -21,10 +21,23 @@ describe("sealToken / openToken", () => {
   it("a wrong key throws", () => {
     expect(() => openToken(sealToken("x", "k1"), "k2")).toThrow();
   });
-  it("a tampered value throws", () => {
+  // Tamper the DECODED bytes at fixed positions: IV (0), auth tag (12), ciphertext body (28).
+  // The old test flipped a random base64 character; about 1 run in 16 that character only held
+  // base64 padding bits, the decoded bytes were identical, and the test failed with no tamper
+  // (PR 3420 node run, 2026-10-30; reproduced 23 of 400 locally, every one byte-identical).
+  const flipByte = (sealed: string, at: number) => {
+    const raw = Buffer.from(sealed.slice(3), "base64");
+    raw[at] ^= 0x01;
+    return "v1:" + raw.toString("base64");
+  };
+  it.each([["IV", 0], ["auth tag", 12], ["ciphertext body", 28]])("a tampered %s byte throws", (_part, at) => {
     const s = sealToken("x", "k");
-    const flipped = s.slice(0, -2) + (s.at(-2) === "A" ? "B" : "A") + s.at(-1);
-    expect(() => openToken(flipped, "k")).toThrow();
+    expect(() => openToken(flipByte(s, at as number), "k")).toThrow();
+  });
+  it("positive control: the same helper with no flip opens", () => {
+    const s = sealToken("x", "k");
+    const raw = Buffer.from(s.slice(3), "base64");
+    expect(openToken("v1:" + raw.toString("base64"), "k")).toBe("x");
   });
   it("an empty key refuses to seal", () => {
     expect(() => sealToken("x", "")).toThrow();
