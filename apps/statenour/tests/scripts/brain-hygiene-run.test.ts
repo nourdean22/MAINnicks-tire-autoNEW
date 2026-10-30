@@ -15,6 +15,7 @@ const SCRIPTS = [
   "scripts/brain-hygiene/dedupe-blind-spots.ts",
   "scripts/brain-hygiene/close-overdue-replays.ts",
   "scripts/brain-hygiene/apply-decay.ts",
+  "scripts/brain-hygiene/dedupe-exact.ts",
   "scripts/brain-hygiene/backfill-trust-tier.ts",
 ];
 /** Additive backfills have no backup table, so they skip the backup-shaped scan; their own tests scan for removals. */
