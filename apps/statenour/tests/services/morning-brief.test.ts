@@ -535,7 +535,8 @@ describe("Morning Brief · Declined work line on the real sync payload (2026-10-
   const DEC = (over: Record<string, unknown> = {}) => ({
     declinedWork: {
       measured: true, source: "populated", sourceNote: "counted", totalRecoverable: 3400, customerCount: 4,
-      safetyItemCount: 1, topItems: [{ workOrderId: "wo1", orderNumber: "1001", customer: "Pat Doe", value: 900 }],
+      // what statenourOutbound.ts actually sends per item: no customer name (redacted on purpose)
+      safetyItemCount: 1, topItems: [{ workOrderId: "wo1", orderNumber: "1001", vehicle: "2015 Civic", value: 900, hasSafety: false, lines: [] }],
       ...over,
     },
   });
@@ -547,11 +548,18 @@ describe("Morning Brief · Declined work line on the real sync payload (2026-10-
     weekly.weekday = 3;
   });
 
-  it("measured: the count and dollars render, and the follow-up names come from topItems", async () => {
+  it("measured: the count and dollars render, labelled as the latest-10-orders subtotal they are", async () => {
     fresh(DEC());
     const brief = await buildMorningBrief();
-    expect(brief.text).toContain("Declined work: 4 open · $3.4k");
-    expect(brief.text).toContain("Follow-ups: Pat Doe");
+    expect(brief.text).toContain("Declined work (latest 10 orders): 4 open · $3.4k");
+  });
+
+  it("redacted topItems (no names) never become an 'Unnamed' follow-up line", async () => {
+    fresh(DEC());
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work (latest 10 orders)"); // POSITIVE CONTROL
+    expect(brief.text).not.toContain("Follow-ups:");
+    expect(brief.text).not.toContain("Unnamed");
   });
 
   it("source empty: one honest line, never a zero", async () => {
@@ -567,6 +575,43 @@ describe("Morning Brief · Declined work line on the real sync payload (2026-10-
     const brief = await buildMorningBrief();
     expect(brief.text).toContain("Declined work: unknown (the count failed)");
     expect(brief.text).not.toContain("not measured yet");
+    expect(brief.text).not.toContain("Declined work: 0");
+    expect((brief.payload as { shop: { declined: unknown } }).shop.declined).toEqual({ measured: false, source: "unknown" });
+  });
+
+  it("declinedWork null (the sender's ledger read threw): the count failed, never a vanished line", async () => {
+    fresh({ declinedWork: null });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: unknown (the count failed)");
+    expect((brief.payload as { shop: { declined: unknown } }).shop.declined).toEqual({ measured: false, source: "unknown" });
+  });
+
+  it("a measured 0 is 'none open in the latest 10 orders', never a bare 0", async () => {
+    fresh(DEC({ customerCount: 0, totalRecoverable: 0, topItems: [] }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: none open in the latest 10 orders");
+    expect(brief.text).not.toContain("Declined work: 0");
+    expect(brief.text).not.toContain("0 open");
+  });
+
+  it("a full 10-order page is '10+', since more may sit past it", async () => {
+    fresh(DEC({ customerCount: 10, totalRecoverable: 9100 }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work (latest 10 orders): 10+ open · $9.1k");
+  });
+
+  it("unmeasured with items present: no Follow-ups line", async () => {
+    fresh(DEC({ measured: false, source: "empty" }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: not measured yet"); // POSITIVE CONTROL
+    expect(brief.text).not.toContain("Follow-ups:");
+  });
+
+  it("stripped legacy rows (no customerName after stripSyncCustomerPii) are skipped, never 'Unnamed'", async () => {
+    fresh({ declinedWork: { count: 3, topByScore: [{ customerId: "c1" }, { id: "c2" }, { customerName: "Kept Label" }] } });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Follow-ups: Kept Label");
+    expect(brief.text).not.toContain("Unnamed");
   });
 
   it("CONTROL: the legacy count/value shape still renders as before", async () => {
@@ -596,7 +641,7 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
       monthRevenue: 41000, avgTicket: 0, jobsToday: 0, monthlyTarget: 60000, ...over.revenue,
     },
     declinedWork: {
-      measured: true, source: "work_order_items", sourceNote: "counted", totalRecoverable: 3400,
+      measured: true, source: "populated", sourceNote: "counted", totalRecoverable: 3400,
       customerCount: 4, safetyItemCount: 1, topItems: [], ...over.declinedWork,
     },
     intelligence: { conversionPipeline: null, revenueProjection: null, shopPulse: null },
@@ -619,7 +664,7 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
     fresh(SYNC());
     const brief = await buildMorningBrief();
     const line = wisdomLine(brief.text);
-    expect(line).toContain("declined work (4 customers open)");
+    expect(line).toContain("declined work (4 open in the latest 10 orders)");
     const a = applied(brief)!;
     expect(a).toEqual({ tag: "customers", ref: a.ref, metric: "declined" });
     const maxim = MAXIMS.find((m) => m.ref === a.ref)!;
@@ -684,7 +729,7 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
     };
     fresh({ ...SYNC(), lineOfCars: 8 });
     const brief = await buildMorningBrief();
-    expect(brief.text).toContain("Declined work: 4 open");
+    expect(brief.text).toContain("Declined work (latest 10 orders): 4 open");
     expect(brief.text).toContain("Line of cars: 8");
     expect(brief.text).not.toContain("Shop slice unavailable");
     expect(wisdomLine(brief.text)).toBeUndefined();
@@ -713,5 +758,8 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
       expect(refs.size).toBeGreaterThanOrEqual(10);
     }
     expect(pickMaxim("no-such-tag", "2026-11-02")).toBeNull();
+    // golden picks on the shared pool order (greene, gracian, naval, munger, bezos): a reorder changes them
+    expect(pickMaxim("customers", "2026-11-02")!.ref).toBe("wisdom_baltasar-gracian_045");
+    expect(pickMaxim("money", "2026-11-02")!.ref).toBe("wisdom_naval-ravikant_004");
   });
 });

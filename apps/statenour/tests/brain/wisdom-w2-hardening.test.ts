@@ -180,14 +180,14 @@ describe("a failed by-id metadata read", () => {
     expect(slotLog()?.wisdomMetaOk).toBe(false);
   });
 
-  // Documents the contrast with the success path (wisdom-slots-wired: the same row loses its slot when
-  // its stamp IS read). Prove-fix calls it THEATER: a failed read can only penalize uniformly, and a
-  // uniform 0.55 keeps the slot order, so no mutation of the failure path can turn this red.
+  // The decoy: "recent" also has lastSeen an hour ago. Only metadata.lastRecalledAt may drive the decay
+  // (3365's first cut used lastSeen, which insert, reinforce and seed all touch); a lastSeen fallback
+  // would penalize "recent" here and turn this red.
   it("no penalty after a failed read: a row recalled an hour ago keeps its slot, since its stamp was never read", async () => {
     h.metaFail = true;
     h.meta = { recent: { lastRecalledAt: new Date(Date.now() - 3_600_000).toISOString() } };
     h.memories = [
-      row("recent", { category: "wisdom", key: "wisdom_naval-ravikant_002", source: "manual", content: "RECENT curated tire supplier invoice" }),
+      row("recent", { category: "wisdom", key: "wisdom_naval-ravikant_002", source: "manual", content: "RECENT curated tire supplier invoice", lastSeen: new Date(Date.now() - 3_600_000) }),
       row("r1", { category: "wisdom", key: "wisdom_naval-ravikant_003", source: "manual", content: "REST1 curated tire supplier invoice" }),
       row("r2", { category: "wisdom", key: "wisdom_naval-ravikant_004", source: "manual", content: "REST2 curated tire supplier invoice" }),
       row("r3", { category: "wisdom", key: "wisdom_naval-ravikant_005", source: "manual", content: "REST3 curated tire supplier invoice" }),
@@ -293,8 +293,9 @@ describe("decay against stored timestamp text", () => {
   it("one millisecond inside 24 hours is penalized", () => {
     expect(winner("2026-10-28T23:00:00.001+00:00")).toBe("rested");
   });
-  it("a -04:00 offset is read as the same instant (18:00-04:00 is 22:00Z, an hour ago)", () => {
-    expect(winner("2026-10-29T18:00:00.000-04:00")).toBe("rested");
+  it("a -04:00 offset is read as the instant it names: 23 h old is honoured, 27 h old is ignored", () => {
+    expect(winner("2026-10-28T20:00:00.000-04:00")).toBe("rested"); // 2026-10-29T00:00Z, 23 h before now
+    expect(winner("2026-10-28T16:00:00.000-04:00")).toBe("recent"); // 2026-10-28T20:00Z, 27 h before now
   });
   it("a future stamp (clock skew) counts as just shown, so it yields", () => {
     expect(winner("2026-10-30T02:00:00.000+00:00")).toBe("rested");
