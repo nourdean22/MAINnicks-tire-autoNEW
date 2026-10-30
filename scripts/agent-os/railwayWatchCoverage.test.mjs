@@ -625,7 +625,7 @@ export function iacEnvKeys(serviceName) {
   const block = src.slice(start, next === -1 ? undefined : next);
   const m = block.match(/env:\s*\{([^}]*)\}/);
   if (!m) return null;
-  return [...m[1].matchAll(/([A-Z0-9_]+):\s*preserve\(\)/g)].map((x) => x[1]);
+  return [...m[1].matchAll(/([A-Z0-9_]+):\s*(?:preserve\(\)|[A-Za-z][A-Za-z0-9_]*\.env\.[A-Z0-9_]+)/g)].map((x) => x[1]);
 }
 
 /** Live names that `declared` omits: each one is a delete in the next apply. */
@@ -634,7 +634,9 @@ export function undeclaredLive(live, declared) {
   return live.filter((n) => !have.has(n));
 }
 
-const LIVE_VARIABLES = readJson(join(REPO, ".railway", "live-variables.json")).services;
+const LIVE_DOC = readJson(join(REPO, ".railway", "live-variables.json"));
+const LIVE_VARIABLES = LIVE_DOC.services;
+const DECLARED_AHEAD = LIVE_DOC.declaredAhead ?? {};
 
 for (const [service, live] of Object.entries(LIVE_VARIABLES)) {
   test(`${service}: railway.ts declares every live variable (managed mode deletes the rest)`, () => {
@@ -702,4 +704,30 @@ test("PLAN GUARD · a failed evaluation (no Plan: line) is refused, never read a
   assert.equal(r.destroyCount, null);
   // A delete line with a 0 summary still refuses: the summary is not trusted over the lines.
   assert.equal(planDestroys("Plan: 0 to add, 0 to change, 0 to destroy\n  - Delete variable x.Y").ok, false);
+});
+
+for (const [service, ahead] of Object.entries(DECLARED_AHEAD)) {
+  test(`${service}: railway.ts keeps the variables declared ahead of being set (Ring poller, PR 3413)`, () => {
+    const declared = iacEnvKeys(service);
+    assert.ok(declared && declared.length > 0, `could not read ${service} env from .railway/railway.ts`);
+    assert.deepEqual(
+      undeclaredLive(ahead, declared),
+      [],
+      `${service}: these are declared ahead so an apply after Nour sets them cannot delete them; keep them in railway.ts.`,
+    );
+  });
+}
+
+test("MUTATION · a declared-ahead name dropped from railway.ts is reported", () => {
+  const declared = iacEnvKeys("statenour-worker");
+  assert.ok(declared.includes("REDIS_URL"), "the worker's REDIS_URL must be read as declared");
+  assert.deepEqual(undeclaredLive(DECLARED_AHEAD["statenour-worker"], declared.filter((n) => n !== "RING_TOKEN_KEY")), ["RING_TOKEN_KEY"]);
+});
+
+test("PLAN GUARD · a plan that deletes any Ring poller variable is refused", () => {
+  for (const name of ["REDIS_URL", "RING_POLL_ENABLED", "RING_TOKEN_KEY", "RING_REFRESH_TOKEN_SEED", "RING_USER_AGENT", "DEVICE_AGENT_KEY"]) {
+    const r = planDestroys(`Plan: 0 to add, 0 to change, 1 to destroy\n  - Delete variable statenour-worker.${name}`);
+    assert.equal(r.ok, false, name);
+    assert.deepEqual(r.deletes, [`- Delete variable statenour-worker.${name}`]);
+  }
 });
