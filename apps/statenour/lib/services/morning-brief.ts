@@ -35,6 +35,7 @@
  * filler line — slices that can't compute themselves drop out silently.
  */
 
+import { stableIndex } from "@/lib/utils/stable-index";
 import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { queryNick } from "@/lib/nickstire/query";
@@ -645,7 +646,7 @@ export async function buildWellbeingSlice(
 
   // Wisdom-of-the-day · deterministic by date.
   if (wisdoms.length > 0) {
-    const idx = hashDateToIndex(todayIso, wisdoms.length);
+    const idx = stableIndex(todayIso, wisdoms.length);
     const pick = wisdoms[idx]!;
     const attribution = pick.source
       ? ` — ${escapeHtml(prettyWisdomSource(pick.source))}`
@@ -762,18 +763,6 @@ async function tryFetchCalendarToday(): Promise<unknown[]> {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
- * Deterministic date → index. Tiny djb2-style hash · enough variety
- * across ~200 wisdom rows · zero deps · same date = same index always.
- */
-function hashDateToIndex(iso: string, mod: number): number {
-  let h = 5381;
-  for (let i = 0; i < iso.length; i++) {
-    h = ((h << 5) + h + iso.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h) % Math.max(1, mod);
 }
 
 function prettyWisdomSource(s: string): string {

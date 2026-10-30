@@ -47,6 +47,7 @@ import { HorizonLine } from "./horizon-line";
 import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
 import { ContextRail } from "./context-rail";
+import { MaximLine } from "./maxim-line";
 
 export function HomeConsole() {
   const briefQ = trpc.operator.brief.useQuery(undefined, {
@@ -103,6 +104,9 @@ export function HomeConsole() {
           // at most seven ruled rows, Keep / Less per row (device-local), approvals in place.
           <BriefRows brief={brief} loading={briefQ.isLoading} />
         )}
+
+        {/* 2026-10-29 · one plain maxim from every book pack, leaning toward the brief's lead line. */}
+        <MaximLine context={brief?.lead?.headline ?? null} ready={!!brief || unreadable} />
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail

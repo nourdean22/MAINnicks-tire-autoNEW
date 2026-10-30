@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
   waiting: true,
   change: true,
   late: false,
+  maxim: null as { context: string | null; ready: boolean } | null,
   query: { data: {} as unknown, isLoading: false, isError: false, refetch: () => Promise.resolve() },
 }));
 
@@ -33,6 +34,12 @@ vi.mock("@/hooks/use-min-width", () => ({ useMinWidth: () => h.wide }));
 vi.mock("@/lib/trpc/client", () => ({ trpc: { operator: { brief: { useQuery: () => h.query } } } }));
 vi.mock("@/components/home/brief-state-line", () => ({ BriefStateLine: () => null }));
 vi.mock("@/components/home/brief-rows", () => ({ BriefRows: () => null }));
+vi.mock("@/components/home/maxim-line", () => ({
+  MaximLine: (props: { context: string | null; ready: boolean }) => {
+    h.maxim = props;
+    return null;
+  },
+}));
 vi.mock("@/components/home/nick-command-line", () => ({ NickCommandLine: () => null }));
 vi.mock("@/components/home/horizon-line", () => ({
   HorizonLine: () => (h.horizon ? <section aria-label="horizon">Horizon</section> : null),
@@ -159,5 +166,18 @@ describe("Home sentences are body type", () => {
     const line = Array.from(host.querySelectorAll("p")).find((p) => p.textContent?.includes("Refresh failed"));
     expect(line, "the line renders when a background refetch fails").toBeDefined();
     expect(line!.className).not.toMatch(/\bfont-mono\b/);
+  });
+});
+
+describe("the Home maxim gets today's top line", () => {
+  it("passes the brief's lead headline as context once the brief is in, and null when there is no lead", async () => {
+    h.query = { ...h.query, data: { lead: { headline: "Decisions are blocking the system" } } };
+    await mount();
+    expect(h.maxim).toEqual({ context: "Decisions are blocking the system", ready: true });
+    act(() => root.unmount());
+    host.remove();
+    h.query = { ...h.query, data: {} };
+    await mount();
+    expect(h.maxim).toEqual({ context: null, ready: true });
   });
 });

@@ -97,6 +97,7 @@
     "lib/services/commitment-conditions.ts",
     "lib/services/cron-control.ts",
     "lib/services/decision-replay-coach.ts",
+    "lib/services/home-maxim.ts",
     "lib/services/journal-threads.ts",
     "lib/services/location-rank.ts",
     "lib/services/mit.ts",

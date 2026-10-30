@@ -4,7 +4,7 @@
  * builders' own exported contracts, so a contract change breaks `tsc` here
  * (a failing type is a fixture bug, not something to cast away).
  *
- * Home's three reads: operator.brief, operator.waitingSummary,
+ * Home's four reads: operator.brief, operator.waitingSummary, operator.maxim,
  * operator.nickRemembersContext. operator.briefChanges is not stubbed: it is
  * only requested once a last-visit cursor exists, and a fresh browser has none.
  */
@@ -153,4 +153,15 @@ export const HOME_WAITING: WaitingSummary = {
 export const HOME_REMEMBERS: inferRouterOutputs<AppRouter>["operator"]["nickRemembersContext"] = {
   anticipatedQuestions: [],
   followUps: [],
+};
+
+// A Demo maxim, shaped like operator.maxim's output. Fictional like every fixture string (v3-gate.test.ts);
+// the reason is the one the real pick gives for HOME_BRIEF's lead line ("...supplier quote" -> customers).
+export const HOME_MAXIM: inferRouterOutputs<AppRouter>["operator"]["maxim"] = {
+  id: "demo-maxims:1",
+  text: "Demo maxim: call the demo customer back the same day.",
+  source: "Demo Book",
+  reason: "for today: customers",
+  position: 3,
+  total: 40,
 };

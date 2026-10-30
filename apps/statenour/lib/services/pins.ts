@@ -25,6 +25,7 @@ import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { softDelete } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { MAXIM_KEEP_SOURCE } from "@/lib/wisdom/maxims";
 import {
   PINNED_PROMPT_CAP,
   renderPinnedLine,
@@ -123,7 +124,8 @@ export async function listPins(args: { withStats?: boolean } = {}): Promise<Reco
     // fabricated token cost on a second surface. Both now come from the
     // injector itself, and the cost is measured by rendering the actual
     // prompt line rather than by guessing at a preview width.
-    const injected = pins.slice(0, PINNED_PROMPT_CAP);
+    // Same filter as the prompt query (command-center-state.ts): maxim Keeps never take a prompt slot.
+    const injected = pins.filter((p) => p.source !== MAXIM_KEEP_SOURCE).slice(0, PINNED_PROMPT_CAP);
     const injectedChars = injected.reduce(
       (sum, p) => sum + renderPinnedLine(p).length,
       0,
@@ -172,6 +174,10 @@ export async function createPin(args: {
           content: content.slice(0, 1200),
           confidence: 1.0,
           expiresAt: null,
+          // A re-pin of a deleted or superseded pin makes it live again; without this the caller says "pinned"
+          // while listPins and the prompt both skip the row.
+          deletedAt: null,
+          supersededById: null,
           seenCount: existing.seenCount + 1,
           metadata: metadata as never,
         },

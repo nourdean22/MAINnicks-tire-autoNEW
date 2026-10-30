@@ -242,6 +242,22 @@ describe("pinned injection · the cap lives in the injector", () => {
     expect(m?.[1]).toBe("PINNED_PROMPT_CAP");
   });
 
+  it("Home maxim Keeps never take a prompt slot: the capped query leaves their source out", () => {
+    // 2026-10-30 · six Keeps on Home would otherwise push Nour's own pins out of the six slots.
+    const src = readSource("lib/ai/context/command-center-state.ts");
+    const where = /category:\s*BRAIN_CATEGORIES\.PINNED_USER[\s\S]{0,400}?take:/.exec(src)?.[0] ?? "";
+    expect(where).toMatch(/source:\s*\{\s*not:\s*MAXIM_KEEP_SOURCE\s*\}/);
+  });
+
+  it("listPins counts maxim Keeps as pins but never as injected", async () => {
+    const keeps = Array.from({ length: 6 }, (_, i) => ({ ...pin(i + 1), id: `keep-${i}`, source: "home:maxim-keep" }));
+    const own = [pin(7), pin(8)];
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([...keeps, ...own] as unknown as never);
+    const payload = (await listPins({ withStats: true })) as { count: number; stats: { injectedCount: number } };
+    expect(payload.count).toBe(8);
+    expect(payload.stats.injectedCount).toBe(2);
+  });
+
   it("listPins reports the injector's cap and the injector's token cost", async () => {
     // MUTATION RUN: restore `injectedCount: Math.min(pins.length, 5)` and
     // `top5Chars` (5 pins x 260-char preview) and both assertions go red.

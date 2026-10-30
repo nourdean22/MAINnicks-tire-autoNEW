@@ -22,6 +22,7 @@
 import { z } from "zod";
 import { router, operatorProcedure } from "../trpc";
 import { prisma } from "@/lib/prisma";
+import { MAXIM_QUERY_INPUT, getHomeMaxim, keepHomeMaxim, skipHomeMaxim } from "@/lib/services/home-maxim";
 import { DOMAINS } from "@/lib/mastery/config";
 import { xpEventTotalsSince } from "@/lib/mastery/credit";
 import { toDateString } from "@/lib/utils/datetime";
@@ -1221,6 +1222,21 @@ export const operatorRouter = router({
    * back for its whole window.
    */
   brief: operatorProcedure.query(async () => buildOperatorBrief()),
+
+  /**
+   * Home maxim (2026-10-29, lib/services/home-maxim.ts): one plain line from every book pack. `tags` are
+   * read off the brief's lead headline on the client, so the headline (a task title, maybe a customer name)
+   * never rides a GET query string; `step` is the Next count. Keep pins it for chat; Skip hides it for 30 days.
+   */
+  maxim: operatorProcedure
+    .input(MAXIM_QUERY_INPUT)
+    .query(async ({ input }) => getHomeMaxim(input)),
+  maximKeep: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(200) }))
+    .mutation(async ({ input }) => keepHomeMaxim(input.id)),
+  maximSkip: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(200) }))
+    .mutation(async ({ input }) => skipHomeMaxim(input.id)),
 
   /**
    * Command Surface · the "since last visit" semantic diff. `since` is the
