@@ -82,7 +82,7 @@ export default defineRailway(() => {
   const nickstireMedia = bucket("nickstire-media", { region: "sjc" });
   const statenourWorker = service("statenour-worker", {
     source: github("nourdean22/MAINnicks-tire-autoNEW", { rootDirectory: "/" }),
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/worker/Dockerfile", watchPatterns: ["apps/worker/**", "!apps/worker/AGENTS.md", "!apps/worker/CLAUDE.md", "!apps/worker/DEPLOY.md", "apps/statenour/lib/**", "packages/reel-engine/**", "apps/nickstire/patches/**", "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", "turbo.json"] },
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/worker/Dockerfile", watchPatterns: ["apps/worker/**", "!apps/worker/AGENTS.md", "!apps/worker/CLAUDE.md", "!apps/worker/DEPLOY.md", "packages/reel-engine/**", "apps/nickstire/patches/**", "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", "turbo.json"] },
     healthcheck: "/health",
     healthcheckTimeout: 30,
     replicas: { "us-east4-eqdc4a": 1 },
