@@ -89,8 +89,9 @@ export function etHourKey(at: Date): string {
 export interface MaximPick {
   maxim: Maxim;
   /**
-   * Why this one: the maxim's first tag the asked-for tags also carry, or null for the plain rotation. Each
-   * surface words it ("for today: customers" on Home, "for this decision: money" on a decision).
+   * Why this one: the maxim's first tag the asked-for tags also carry, never the required tag (a decision page
+   * saying "for this decision: decisions" says nothing), or null. Each surface words it: "for today: customers"
+   * on Home, "for this approval: money" on an approval whose reason mentions an invoice.
    */
   topic: MaximTag | null;
   /** 1-based place in the candidate list and its size, so "Next" has an end it can say. */
@@ -122,7 +123,7 @@ export function pickMaxim(args: {
   const maxim = candidates[i]!;
   return {
     maxim,
-    topic: (maxim.tags.find((t) => want.has(t as MaximTag)) as MaximTag | undefined) ?? req ?? null,
+    topic: (maxim.tags.find((t) => t !== req && want.has(t as MaximTag)) as MaximTag | undefined) ?? null,
     position: i + 1,
     total: candidates.length,
   };

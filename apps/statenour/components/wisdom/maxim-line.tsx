@@ -66,7 +66,7 @@ export function MaximLine({
     onSuccess: (res, vars) => {
       if (!res.ok) return void toast.error("That maxim is no longer in the list. Tap Next.");
       setKept(vars.id);
-      toast.success("Kept. Nick can use it in chat.");
+      toast.success("Maxim kept. Nick can use it in chat.");
     },
     onError: (err) => toast.error(maximErrorText(err)),
   });
@@ -74,7 +74,7 @@ export function MaximLine({
     onSuccess: (res, vars) => {
       if (!res.ok) return void toast.error("That maxim is no longer in the list. Tap Next.");
       setSkipped(vars.id);
-      toast.success("Skipped for 30 days");
+      toast.success("Maxim skipped for 30 days");
       void utils.operator.maxim.invalidate();
     },
     onError: (err) => toast.error(maximErrorText(err)),
@@ -90,6 +90,8 @@ export function MaximLine({
     );
   }
   const stale = maximQ.isPlaceholderData;
+  // Beside Approve and Reject, a bare "Skip" or "Keep" reads as acting on the approval.
+  const noun = compact ? " maxim" : "";
 
   return (
     <section
@@ -109,7 +111,7 @@ export function MaximLine({
       ) : null}
       <div className="mt-1 -ml-2 flex items-center gap-1">
         <button type="button" className={VERB} onClick={() => setStep((s) => s + 1)} disabled={maximQ.isFetching}>
-          Next
+          Next{noun}
         </button>
         <button
           type="button"
@@ -118,10 +120,10 @@ export function MaximLine({
           onClick={() => keep.mutate({ id: m.id })}
           disabled={stale || keep.isPending || kept === m.id}
         >
-          {kept === m.id ? "Kept" : "Keep"}
+          {kept === m.id ? (compact ? "Maxim kept" : "Kept") : `Keep${noun}`}
         </button>
         <button type="button" className={VERB} onClick={() => skip.mutate({ id: m.id })} disabled={stale || skip.isPending}>
-          Skip
+          Skip{noun}
         </button>
       </div>
     </section>

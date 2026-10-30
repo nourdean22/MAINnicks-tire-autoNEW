@@ -401,9 +401,6 @@ export default function DecisionDetailPage() {
         }
     >
 
-      {/* One decisions maxim, from the tags in this decision's own words (only the tags leave the page). */}
-      <DecisionMaxim text={[d.title, d.context].filter(Boolean).join(" ")} label="for this decision" />
-
       {/* ── Timeline TrendCounter row ───────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <TrendCounter
@@ -681,6 +678,8 @@ export default function DecisionDetailPage() {
           )}
         </div>
       </section>
+      {/* One decisions maxim, last so loading it pushes nothing down; tags from this decision's own words only. */}
+      <DecisionMaxim text={[d.title, d.context].filter(Boolean).join(" ")} label="for this decision" />
     </StandardPage>
   );
 }

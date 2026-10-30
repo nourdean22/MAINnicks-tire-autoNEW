@@ -135,7 +135,12 @@ export type ApiAnswer =
   | { kind: "fulfill"; status: number; body: unknown };
 
 /** What the fixtures say to one request. Pure, so tests/repo/v3-gate.test.ts can drive it with no browser. */
-export function answerApi(method: string, url: URL, report: FixtureReport): ApiAnswer {
+export function answerApi(
+  method: string,
+  url: URL,
+  report: FixtureReport,
+  table: Readonly<Record<string, unknown>> = TRPC_FIXTURES,
+): ApiAnswer {
   const pathname = url.pathname;
   if (pathname.startsWith("/api/auth/")) return { kind: "passthrough" };
 
@@ -143,8 +148,8 @@ export function answerApi(method: string, url: URL, report: FixtureReport): ApiA
   if (pathname.startsWith(trpcPrefix)) {
     const procedures = decodeURIComponent(pathname.slice(trpcPrefix.length)).split(",");
     const results = procedures.map((procedure) => {
-      if (method === "GET" && Object.hasOwn(TRPC_FIXTURES, procedure)) {
-        return { result: { data: TRPC_FIXTURES[procedure] } };
+      if (method === "GET" && Object.hasOwn(table, procedure)) {
+        return { result: { data: table[procedure] } };
       }
       report.unstubbed.add(`${method} ${procedure}`);
       return {
@@ -172,14 +177,16 @@ export function answerApi(method: string, url: URL, report: FixtureReport): ApiA
  * running, so polling, debounces and the settle wait behave normally while
  * "2h ago" stays put.
  */
-export async function installFixtures(page: Page): Promise<FixtureReport> {
+export async function installFixtures(page: Page, extra: Readonly<Record<string, unknown>> = {}): Promise<FixtureReport> {
   const report: FixtureReport = { unstubbed: new Set() };
+  // A spec may answer reads beyond Home and Missions (e2e/decision-maxim.spec.ts: an approval, a decision).
+  const table = { ...TRPC_FIXTURES, ...extra };
   await page.clock.setFixedTime(new Date(FIXED_TIME));
   await page.route(
     (url) => url.pathname.startsWith("/api/"),
     async (route) => {
       const request = route.request();
-      const answer = answerApi(request.method(), new URL(request.url()), report);
+      const answer = answerApi(request.method(), new URL(request.url()), report, table);
       if (answer.kind === "passthrough") {
         await route.fallback();
         return;

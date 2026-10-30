@@ -542,11 +542,11 @@ function ActionsPageInner() {
               Owner privilege is required to approve this critical risk action.
                       </div>
                     )}
-                    {/* One decisions maxim on the top pending approval only, from its reason's tags. */}
-                    {index === 0 && <DecisionMaxim text={req.reason ?? ""} label="for this approval" />}
                   </div>
                 );
               })}
+              {/* One decisions maxim after the cards, so loading it moves no Approve or Reject; tags from the top approval's reason. */}
+              <DecisionMaxim text={approvals[0]?.reason ?? ""} label="for this approval" />
             </div>
           )}
 

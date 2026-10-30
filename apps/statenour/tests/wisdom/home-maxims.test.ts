@@ -118,8 +118,12 @@ describe("the pick", () => {
       const p = pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM, step })!;
       expect(p.maxim.tags).toContain("decisions");
     }
-    // No decision entry also carries "customers": the whole decisions pool, worded as decisions.
-    expect(pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM })!.topic).toBe("decisions");
+    // No decision entry also carries "customers": the whole decisions pool, and no topic to name (the page
+    // already says it is a decision; "for this decision: decisions" says nothing).
+    expect(pickMaxim({ pool, skipped: none, tags: ["customers"], require: "decisions", at: NINE_PM })!.topic).toBeNull();
+    // Text that itself says "approve" asks for decisions too; the topic still never repeats the required tag.
+    expect(pickMaxim({ pool, skipped: none, tags: ["decisions", "health"], require: "decisions", at: NINE_PM })!.topic).toBe("health");
+    expect(pickMaxim({ pool, skipped: none, tags: ["decisions"], require: "decisions", at: NINE_PM })!.topic).toBeNull();
     // A text tag the decision entry also carries narrows to it and names it.
     const narrowed = pickMaxim({ pool, skipped: none, tags: ["health"], require: "decisions", at: NINE_PM })!;
     expect(narrowed.maxim.id).toBe("a:2");

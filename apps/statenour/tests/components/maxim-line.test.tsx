@@ -109,7 +109,7 @@ describe("MaximLine", () => {
     const kept = button("Kept");
     expect(kept.getAttribute("aria-pressed")).toBe("true");
     expect(kept.disabled).toBe(true);
-    expect(h.toastOk).toHaveBeenCalledWith("Kept. Nick can use it in chat.");
+    expect(h.toastOk).toHaveBeenCalledWith("Maxim kept. Nick can use it in chat.");
   });
 
   it("a failed Keep leaves the button on Keep and says why in plain words", () => {
@@ -185,11 +185,15 @@ describe("DecisionMaxim (the decision page and the top pending approval)", () =>
     expect(h.queryOpts[0]!.enabled).toBe(true);
   });
 
-  it("words the topic for its own surface and sits compact inside the card", () => {
+  it("words the topic for its own surface, sits compact, and its verbs name the maxim", () => {
     mountDecision("Lease the second bay", "for this decision");
     expect(host.textContent).toContain("Greene · 48 Laws · for this decision: customers");
     expect(host.querySelector("section")!.className).not.toContain("mt-10");
-    for (const name of ["Next", "Keep", "Skip"]) expect(button(name).className).toContain("min-h-[44px]");
+    for (const name of ["Next maxim", "Keep maxim", "Skip maxim"]) expect(button(name).className).toContain("min-h-[44px]");
+    act(() => h.keepOpts.onSuccess({ ok: true }, { id: ID }));
+    expect(button("Maxim kept").getAttribute("aria-pressed")).toBe("true");
+    act(() => h.skipOpts.onSuccess({ ok: true }, { id: ID }));
+    expect(h.toastOk).toHaveBeenLastCalledWith("Maxim skipped for 30 days");
   });
 });
 
