@@ -1,0 +1,772 @@
+{
+  "pack": "greene-maxims",
+  "source_credit": "Robert Greene: The 48 Laws of Power (1998), The 33 Strategies of War (2006), The Art of Seduction (2001), The Laws of Human Nature (2018), Mastery (2012), The 50th Law (2009, with 50 Cent). One-line maxims in our own words for the Home rotation; only the law and strategy titles are Greene's. No passages are reproduced.",
+  "version": "2026-10-29",
+  "entries": [
+    {
+      "text": "Law 1, Never outshine the master: let the people above you feel smarter for having you around.",
+      "book": "48LP",
+      "ref": "law_1"
+    },
+    {
+      "text": "Law 2: a friend expects favors and resents debts, a former rival has something to prove. Hire for that.",
+      "book": "48LP",
+      "ref": "law_2"
+    },
+    {
+      "text": "Law 3, Conceal your intentions: announce the plan after it is too late to block it.",
+      "book": "48LP",
+      "ref": "law_3"
+    },
+    {
+      "text": "Law 4, Always say less than necessary: the more you talk, the more you give away.",
+      "book": "48LP",
+      "ref": "law_4"
+    },
+    {
+      "text": "Law 5: your reputation walks into every room before you do. Protect it like cash.",
+      "book": "48LP",
+      "ref": "law_5"
+    },
+    {
+      "text": "Law 6, Court attention: a good shop nobody hears about loses to a loud one.",
+      "book": "48LP",
+      "ref": "law_6"
+    },
+    {
+      "text": "Law 7: build systems so other people's effort compounds under your name, and pay them well for it.",
+      "book": "48LP",
+      "ref": "law_7"
+    },
+    {
+      "text": "Law 8, Make other people come to you: whoever travels to the meeting has already conceded ground.",
+      "book": "48LP",
+      "ref": "law_8"
+    },
+    {
+      "text": "Law 9, Win through your actions: a finished job ends the argument a speech would only start.",
+      "book": "48LP",
+      "ref": "law_9"
+    },
+    {
+      "text": "Law 10: misery spreads. Keep the chronic complainers away from your crew and your calendar.",
+      "book": "48LP",
+      "ref": "law_10"
+    },
+    {
+      "text": "Law 11: be the one thing the operation cannot run without, then make that thing hard to copy.",
+      "book": "48LP",
+      "ref": "law_11"
+    },
+    {
+      "text": "Law 12: one honest admission early buys you trust for the next ten moves.",
+      "book": "48LP",
+      "ref": "law_12"
+    },
+    {
+      "text": "Law 13: when you ask for help, show the other side what they gain, not what you need.",
+      "book": "48LP",
+      "ref": "law_13"
+    },
+    {
+      "text": "Law 14: friendly questions over coffee teach you more than any report.",
+      "book": "48LP",
+      "ref": "law_14"
+    },
+    {
+      "text": "Law 15, Crush your enemy totally: a half-finished fight comes back stronger. Finish it or skip it.",
+      "book": "48LP",
+      "ref": "law_15"
+    },
+    {
+      "text": "Law 16, Use absence: step back once in a while and people notice what you carried.",
+      "book": "48LP",
+      "ref": "law_16"
+    },
+    {
+      "text": "Law 17: a little unpredictability keeps people from planning around you.",
+      "book": "48LP",
+      "ref": "law_17"
+    },
+    {
+      "text": "Law 18, Do not build fortresses: isolation cuts you off from the news you most need.",
+      "book": "48LP",
+      "ref": "law_18"
+    },
+    {
+      "text": "Law 19, Know who you are dealing with: the wrong person slighted costs more than the deal was worth.",
+      "book": "48LP",
+      "ref": "law_19"
+    },
+    {
+      "text": "Law 20, Do not commit to anyone: stay courted by every side and owned by none.",
+      "book": "48LP",
+      "ref": "law_20"
+    },
+    {
+      "text": "Law 21: let the other side feel clever. People lower their guard for someone they think is slower.",
+      "book": "48LP",
+      "ref": "law_21"
+    },
+    {
+      "text": "Law 22, Use the surrender tactic: yielding when you are weak buys the time to get strong.",
+      "book": "48LP",
+      "ref": "law_22"
+    },
+    {
+      "text": "Law 23, Concentrate your forces: one market done deeply beats five done thinly.",
+      "book": "48LP",
+      "ref": "law_23"
+    },
+    {
+      "text": "Law 24, Play the perfect courtier: read the room before you speak in it.",
+      "book": "48LP",
+      "ref": "law_24"
+    },
+    {
+      "text": "Law 25, Re-create yourself: decide who you are before the market decides for you.",
+      "book": "48LP",
+      "ref": "law_25"
+    },
+    {
+      "text": "Law 26, Keep your hands clean: let systems and rules deliver the bad news, not your temper.",
+      "book": "48LP",
+      "ref": "law_26"
+    },
+    {
+      "text": "Law 27: people want something to believe in. Give your customers a cause, not just a receipt.",
+      "book": "48LP",
+      "ref": "law_27"
+    },
+    {
+      "text": "Law 28, Enter action with boldness: a timid move invites resistance; a committed one clears the road.",
+      "book": "48LP",
+      "ref": "law_28"
+    },
+    {
+      "text": "Law 29, Plan all the way to the end: know the exit before you open the door.",
+      "book": "48LP",
+      "ref": "law_29"
+    },
+    {
+      "text": "Law 30, Make your accomplishments seem effortless: show the result, keep the sweat backstage.",
+      "book": "48LP",
+      "ref": "law_30"
+    },
+    {
+      "text": "Law 31, Control the options: offer three choices you can live with and let them pick.",
+      "book": "48LP",
+      "ref": "law_31"
+    },
+    {
+      "text": "Law 32, Play to people's fantasies: sell the drive home, not the part number.",
+      "book": "48LP",
+      "ref": "law_32"
+    },
+    {
+      "text": "Law 33: find what each person truly wants or fears, and you know what moves them.",
+      "book": "48LP",
+      "ref": "law_33"
+    },
+    {
+      "text": "Law 34, Be royal in your own fashion: carry yourself at the price you want to be paid.",
+      "book": "48LP",
+      "ref": "law_34"
+    },
+    {
+      "text": "Law 35, Master the art of timing: the right offer a week early is the wrong offer.",
+      "book": "48LP",
+      "ref": "law_35"
+    },
+    {
+      "text": "Law 36: what you cannot have, ignore. Chasing it hands it power over you.",
+      "book": "48LP",
+      "ref": "law_36"
+    },
+    {
+      "text": "Law 37, Create compelling spectacles: one striking image outlasts a page of facts.",
+      "book": "48LP",
+      "ref": "law_37"
+    },
+    {
+      "text": "Law 38, Think as you like but behave like others: pick the few fights where standing out pays.",
+      "book": "48LP",
+      "ref": "law_38"
+    },
+    {
+      "text": "Law 39: an angry opponent makes mistakes. Stay calm while they lose theirs.",
+      "book": "48LP",
+      "ref": "law_39"
+    },
+    {
+      "text": "Law 40, Despise the free lunch: anything free usually bills you later in obligation.",
+      "book": "48LP",
+      "ref": "law_40"
+    },
+    {
+      "text": "Law 41: do not walk in a giant's shadow. Build a name of your own instead of inheriting one.",
+      "book": "48LP",
+      "ref": "law_41"
+    },
+    {
+      "text": "Law 42: trouble in a group usually has one source. Deal with that person, not the whole crew.",
+      "book": "48LP",
+      "ref": "law_42"
+    },
+    {
+      "text": "Law 43, Work on the hearts and minds of others: people defend what they feel part of.",
+      "book": "48LP",
+      "ref": "law_43"
+    },
+    {
+      "text": "Law 44, the mirror effect: give people their own behavior back and they finally see it.",
+      "book": "48LP",
+      "ref": "law_44"
+    },
+    {
+      "text": "Law 45: change things one step at a time, and dress the new in familiar clothes.",
+      "book": "48LP",
+      "ref": "law_45"
+    },
+    {
+      "text": "Law 46, Never appear too perfect: a small visible flaw makes the strength easier to forgive.",
+      "book": "48LP",
+      "ref": "law_46"
+    },
+    {
+      "text": "Law 47, In victory, learn when to stop: the win you overplay becomes the loss you remember.",
+      "book": "48LP",
+      "ref": "law_47"
+    },
+    {
+      "text": "Law 48, Assume formlessness: stay flexible enough that no one can pin you to one shape.",
+      "book": "48LP",
+      "ref": "law_48"
+    },
+    {
+      "text": "Polarity: name what you are fighting against and your energy finally has a direction.",
+      "book": "33SW",
+      "ref": "strategy_polarity"
+    },
+    {
+      "text": "Do not fight the last war: the plan that won last year is what the market already expects.",
+      "book": "33SW",
+      "ref": "strategy_guerrilla_mind"
+    },
+    {
+      "text": "Presence of mind: when everything breaks at once, slow your breathing before you choose.",
+      "book": "33SW",
+      "ref": "strategy_present_mind"
+    },
+    {
+      "text": "Death-ground: remove the easy way back and you find out what you are capable of.",
+      "book": "33SW",
+      "ref": "strategy_urgency"
+    },
+    {
+      "text": "Command and control: one clear voice beats a committee in a crisis.",
+      "book": "33SW",
+      "ref": "strategy_command"
+    },
+    {
+      "text": "Controlled chaos: give small teams the goal and the room to reach it their way.",
+      "book": "33SW",
+      "ref": "strategy_segment"
+    },
+    {
+      "text": "Morale: people fight harder for a cause than for a paycheck.",
+      "book": "33SW",
+      "ref": "strategy_morale"
+    },
+    {
+      "text": "Pick your battles: spend effort where you are strong and the payoff is real.",
+      "book": "33SW",
+      "ref": "strategy_perfect_economy"
+    },
+    {
+      "text": "Counterattack: let the other side commit first, then answer where they left themselves open.",
+      "book": "33SW",
+      "ref": "strategy_counterattack"
+    },
+    {
+      "text": "Deterrence: a reputation for hitting back prevents most fights from starting.",
+      "book": "33SW",
+      "ref": "strategy_deterrence"
+    },
+    {
+      "text": "Trade space for time: give up ground you do not need to keep the strength you do.",
+      "book": "33SW",
+      "ref": "strategy_exchange"
+    },
+    {
+      "text": "Grand strategy: lose a battle on purpose if it wins the war.",
+      "book": "33SW",
+      "ref": "strategy_grand_strategy"
+    },
+    {
+      "text": "Know your enemy: study how a rival thinks, not just what they did.",
+      "book": "33SW",
+      "ref": "strategy_intelligence"
+    },
+    {
+      "text": "Speed: move faster than the other side can decide and they react instead of plan.",
+      "book": "33SW",
+      "ref": "strategy_lightning"
+    },
+    {
+      "text": "Control the dynamic: set the tempo of the talk and the other side plays your game.",
+      "book": "33SW",
+      "ref": "strategy_control_dynamic"
+    },
+    {
+      "text": "Center of gravity: find what holds the other side together and press there.",
+      "book": "33SW",
+      "ref": "strategy_center_of_gravity"
+    },
+    {
+      "text": "Divide and conquer: a big problem split in pieces gets solved one piece at a time.",
+      "book": "33SW",
+      "ref": "strategy_divide_conquer"
+    },
+    {
+      "text": "Envelopment: the open flank is where a strong opponent stopped looking.",
+      "book": "33SW",
+      "ref": "strategy_envelopment"
+    },
+    {
+      "text": "Maneuver: put the other side in a position where every option is a bad one.",
+      "book": "33SW",
+      "ref": "strategy_annihilation"
+    },
+    {
+      "text": "Win through their minds: change how they see the fight and the fight changes.",
+      "book": "33SW",
+      "ref": "strategy_unhinge"
+    },
+    {
+      "text": "Inner front: watch for the damage that starts inside your own camp.",
+      "book": "33SW",
+      "ref": "strategy_inner_front"
+    },
+    {
+      "text": "Seeming to submit: the person who agrees and stalls can still control the outcome.",
+      "book": "33SW",
+      "ref": "strategy_passive_aggression"
+    },
+    {
+      "text": "Chain reaction: one well-placed doubt can spread faster than any argument.",
+      "book": "33SW",
+      "ref": "strategy_chain_reaction"
+    },
+    {
+      "text": "Negotiate while advancing: talk from a position you are still improving.",
+      "book": "33SW",
+      "ref": "strategy_alliance_realpolitik"
+    },
+    {
+      "text": "The exit: how a fight ends decides what people remember about it.",
+      "book": "33SW",
+      "ref": "strategy_polarity_two"
+    },
+    {
+      "text": "The moral strategy: the side that looks fair gathers the allies.",
+      "book": "33SW",
+      "ref": "strategy_holiness"
+    },
+    {
+      "text": "Escalation: a small win made visible can change how big the whole thing feels.",
+      "book": "33SW",
+      "ref": "strategy_void"
+    },
+    {
+      "text": "Take small bites: each step too small to fight, the total too big to undo.",
+      "book": "33SW",
+      "ref": "strategy_fait_accompli"
+    },
+    {
+      "text": "Penetrate their minds: speak in the other side's terms and they hear you.",
+      "book": "33SW",
+      "ref": "strategy_diplomatic_war"
+    },
+    {
+      "text": "Destroy from within: an organization that fights itself does your work for you, so do not become one.",
+      "book": "33SW",
+      "ref": "strategy_attack_self_destructive"
+    },
+    {
+      "text": "Strike the spirit: morale breaks before the numbers do. Guard your crew's.",
+      "book": "33SW",
+      "ref": "strategy_disinformation"
+    },
+    {
+      "text": "All or nothing: commit fully to the battles you choose, and decline the rest.",
+      "book": "33SW",
+      "ref": "strategy_panic"
+    },
+    {
+      "text": "Sow doubt: certainty is a resource. Protect your own and test the other side's.",
+      "book": "33SW",
+      "ref": "strategy_uncertainty"
+    },
+    {
+      "text": "Engage: when the timing is right, go in fully. Half an attack teaches the other side your plan.",
+      "book": "33SW",
+      "ref": "strategy_engage"
+    },
+    {
+      "text": "Defend: hold what matters most and let the rest bend.",
+      "book": "33SW",
+      "ref": "strategy_defend"
+    },
+    {
+      "text": "Withdraw: pulling back on purpose is a move, not a defeat.",
+      "book": "33SW",
+      "ref": "strategy_withdraw"
+    },
+    {
+      "text": "Counter-attack: the strongest answer comes right after their strongest push.",
+      "book": "33SW",
+      "ref": "strategy_counter"
+    },
+    {
+      "text": "Wait: some problems solve themselves if you do not feed them.",
+      "book": "33SW",
+      "ref": "strategy_wait"
+    },
+    {
+      "text": "Alliance: borrow strength you do not have, and know what it costs.",
+      "book": "33SW",
+      "ref": "strategy_alliance"
+    },
+    {
+      "text": "Reconnaissance: look before you leap, and look again before you land.",
+      "book": "33SW",
+      "ref": "strategy_recon"
+    },
+    {
+      "text": "Severance: cut the tie that drains you, cleanly and once.",
+      "book": "33SW",
+      "ref": "strategy_severance"
+    },
+    {
+      "text": "See things for what they are: the numbers you avoid are the ones running the business.",
+      "book": "50L",
+      "ref": "fearless_1"
+    },
+    {
+      "text": "Make everything your own: depend on no one for the parts you cannot afford to lose.",
+      "book": "50L",
+      "ref": "fearless_2"
+    },
+    {
+      "text": "Turn bad into good: every setback carries a lesson or a lever. Find it before you complain.",
+      "book": "50L",
+      "ref": "fearless_3"
+    },
+    {
+      "text": "Keep moving: momentum is easier to steer than a standing start.",
+      "book": "50L",
+      "ref": "fearless_4"
+    },
+    {
+      "text": "Know when to be bad: kindness without a spine gets taken advantage of.",
+      "book": "50L",
+      "ref": "fearless_5"
+    },
+    {
+      "text": "Lead from the front: the crew works the way they see you work.",
+      "book": "50L",
+      "ref": "fearless_6"
+    },
+    {
+      "text": "Know your environment from the inside out: learn the street before you try to own it.",
+      "book": "50L",
+      "ref": "fearless_7"
+    },
+    {
+      "text": "Respect the process: skill comes from hours nobody claps for.",
+      "book": "50L",
+      "ref": "fearless_8"
+    },
+    {
+      "text": "Push beyond your limits: the ceiling you feel is usually a habit, not a wall.",
+      "book": "50L",
+      "ref": "fearless_9"
+    },
+    {
+      "text": "Confront your mortality: time is the one budget you cannot refill. Spend it on purpose.",
+      "book": "50L",
+      "ref": "fearless_10"
+    },
+    {
+      "text": "Apprenticeship: in the early years, aim to learn, not to earn. The money follows the skill.",
+      "book": "Mastery",
+      "ref": "mastery_apprenticeship"
+    },
+    {
+      "text": "Creative-active: once you know the rules, start bending them on purpose.",
+      "book": "Mastery",
+      "ref": "mastery_creative"
+    },
+    {
+      "text": "Mastery: after thousands of hours, intuition is just experience moving faster than words.",
+      "book": "Mastery",
+      "ref": "mastery_invisible"
+    },
+    {
+      "text": "The true mentor: find someone who has done it and will tell you the truth about your work.",
+      "book": "Mastery",
+      "ref": "mentor_true"
+    },
+    {
+      "text": "The peer mentor: someone at your level who sees what you cannot about yourself.",
+      "book": "Mastery",
+      "ref": "mentor_peer"
+    },
+    {
+      "text": "The anti-mentor: watch the person whose path you refuse to repeat, and learn the warning.",
+      "book": "Mastery",
+      "ref": "mentor_anti"
+    },
+    {
+      "text": "The apprentice: teaching someone else shows you exactly what you do not yet understand.",
+      "book": "Mastery",
+      "ref": "mentor_apprentice"
+    },
+    {
+      "text": "No mentor: if nobody fits, study the best through their work and teach yourself.",
+      "book": "Mastery",
+      "ref": "mentor_none"
+    },
+    {
+      "text": "The authentic voice: learn the craft completely before you try to sound original.",
+      "book": "Mastery",
+      "ref": "mastery_authentic_voice"
+    },
+    {
+      "text": "Great yield: chase the small odd fact that does not fit; it often opens the big door.",
+      "book": "Mastery",
+      "ref": "mastery_great_yield"
+    },
+    {
+      "text": "Mechanical intelligence: understand the machine with your hands, not just from the manual.",
+      "book": "Mastery",
+      "ref": "mastery_mechanical_intelligence"
+    },
+    {
+      "text": "Natural powers: patience with a hard problem lets the answer show itself.",
+      "book": "Mastery",
+      "ref": "mastery_natural_powers"
+    },
+    {
+      "text": "The open field: find the gap nobody serves well and make it yours.",
+      "book": "Mastery",
+      "ref": "mastery_open_field"
+    },
+    {
+      "text": "The high end: aim at the hardest version of the problem and the easy versions get solved on the way.",
+      "book": "Mastery",
+      "ref": "mastery_high_end"
+    },
+    {
+      "text": "Evolutionary hijack: stay open to the accident that points somewhere better than the plan.",
+      "book": "Mastery",
+      "ref": "mastery_evolutionary_hijack"
+    },
+    {
+      "text": "Dimensional thinking: look at the whole system, not the one part that broke.",
+      "book": "Mastery",
+      "ref": "mastery_dimensional_thinking"
+    },
+    {
+      "text": "Alchemical creativity: hold two opposite ideas at once and let the tension make something new.",
+      "book": "Mastery",
+      "ref": "mastery_alchemical"
+    },
+    {
+      "text": "The Siren: presence is a performance. Show up fully and people remember the room.",
+      "book": "Seduction",
+      "ref": "seducer_siren"
+    },
+    {
+      "text": "The Rake: undivided attention is rare enough to feel like a gift.",
+      "book": "Seduction",
+      "ref": "seducer_rake"
+    },
+    {
+      "text": "The Ideal Lover: notice what someone wishes they were, and reflect it back.",
+      "book": "Seduction",
+      "ref": "seducer_ideal_lover"
+    },
+    {
+      "text": "The Dandy: a little difference from the crowd makes you worth a second look.",
+      "book": "Seduction",
+      "ref": "seducer_dandy"
+    },
+    {
+      "text": "The Natural: honest curiosity disarms people faster than polish.",
+      "book": "Seduction",
+      "ref": "seducer_natural"
+    },
+    {
+      "text": "The Coquette: what is always available is easy to take for granted.",
+      "book": "Seduction",
+      "ref": "seducer_coquette"
+    },
+    {
+      "text": "The Charmer: make the conversation about them and they leave liking you.",
+      "book": "Seduction",
+      "ref": "seducer_charmer"
+    },
+    {
+      "text": "The Charismatic: certainty about where you are going pulls people along.",
+      "book": "Seduction",
+      "ref": "seducer_charismatic"
+    },
+    {
+      "text": "The Star: a little mystery invites people to fill in the rest themselves.",
+      "book": "Seduction",
+      "ref": "seducer_star"
+    },
+    {
+      "text": "The Reformed Rake: someone who left a past behind still feels its pull. Respect both.",
+      "book": "Seduction",
+      "ref": "victim_reformed_rake"
+    },
+    {
+      "text": "The Disappointed Dreamer: people who expected more from life respond to a little romance in the everyday.",
+      "book": "Seduction",
+      "ref": "victim_disappointed_dreamer"
+    },
+    {
+      "text": "The Pampered Royal: some people need variety and a sense of being special before they commit.",
+      "book": "Seduction",
+      "ref": "victim_pampered_royal"
+    },
+    {
+      "text": "The New Prude: behind strict rules there is often a wish to be given permission.",
+      "book": "Seduction",
+      "ref": "victim_new_prude"
+    },
+    {
+      "text": "The Aging Baby: some people want to be looked after more than impressed.",
+      "book": "Seduction",
+      "ref": "victim_aging_baby"
+    },
+    {
+      "text": "The Rescuer: some people come alive when they get to help. Let them.",
+      "book": "Seduction",
+      "ref": "victim_rescuer"
+    },
+    {
+      "text": "The Roue: the worldly have seen every trick. Only sincerity is new to them.",
+      "book": "Seduction",
+      "ref": "victim_roue"
+    },
+    {
+      "text": "The Idol Worshipper: people looking for something to believe in follow whoever offers meaning.",
+      "book": "Seduction",
+      "ref": "victim_idol_worshipper"
+    },
+    {
+      "text": "The Lonely Leader: the person at the top often wants one honest voice more than another yes.",
+      "book": "Seduction",
+      "ref": "victim_lonely_leader"
+    },
+    {
+      "text": "The deep narcissist: someone who only talks about themselves will treat you as an audience, not a partner.",
+      "book": "HN",
+      "ref": "dark_narcissist"
+    },
+    {
+      "text": "Envy: watch for the friend who praises too much and helps too little.",
+      "book": "HN",
+      "ref": "dark_envious"
+    },
+    {
+      "text": "Grandiosity: success makes people overrate their own judgment. Keep checking yours.",
+      "book": "HN",
+      "ref": "dark_grandiose"
+    },
+    {
+      "text": "Defensiveness: if every note becomes an argument, the real issue is fear, not the note.",
+      "book": "HN",
+      "ref": "dark_defensive"
+    },
+    {
+      "text": "The manipulator: when someone works on your feelings, slow down and look at the facts.",
+      "book": "HN",
+      "ref": "dark_manipulator"
+    },
+    {
+      "text": "Passive aggression: lateness, forgetting and small digs are messages. Read them.",
+      "book": "HN",
+      "ref": "dark_passive_aggressive"
+    },
+    {
+      "text": "The drainer: some people leave every room with less energy than they found. Limit the dose.",
+      "book": "HN",
+      "ref": "dark_drainer"
+    },
+    {
+      "text": "The false saint: loud virtue sometimes covers quiet self-interest. Judge by actions.",
+      "book": "HN",
+      "ref": "dark_saint"
+    },
+    {
+      "text": "Status hunger: people chasing rank will trade the mission for the title.",
+      "book": "HN",
+      "ref": "dark_status_obsessed"
+    },
+    {
+      "text": "The fault-finder: someone who blames everyone else is telling you how they will talk about you.",
+      "book": "HN",
+      "ref": "dark_fault_finder"
+    },
+    {
+      "text": "The drama seeker: crisis feels like importance to some people. Do not feed it.",
+      "book": "HN",
+      "ref": "dark_drama"
+    },
+    {
+      "text": "The chronic victim: when nothing is ever their doing, nothing will ever change.",
+      "book": "HN",
+      "ref": "dark_chronic_victim"
+    },
+    {
+      "text": "Short-sightedness: most bad decisions trade next year for this week.",
+      "book": "HN",
+      "ref": "dark_short_sighted"
+    },
+    {
+      "text": "Master your emotional self: notice the feeling first, then decide if it gets a vote.",
+      "book": "HN",
+      "ref": "principle_irrationality_law"
+    },
+    {
+      "text": "See through masks: everyone plays a role at work. Watch what people do when the role slips.",
+      "book": "HN",
+      "ref": "principle_role_playing"
+    },
+    {
+      "text": "Confront your dark side: the trait you deny in yourself is the one that trips you up.",
+      "book": "HN",
+      "ref": "principle_repressed_self"
+    },
+    {
+      "text": "Reconnect to the whole self: strength and softness both belong to a complete person.",
+      "book": "HN",
+      "ref": "principle_grandiosity_law"
+    },
+    {
+      "text": "Advance with a sense of purpose: a clear direction turns scattered effort into progress.",
+      "book": "HN",
+      "ref": "principle_aimlessness"
+    },
+    {
+      "text": "Resist the group's pull: crowds think less than the people in them. Keep your own judgment.",
+      "book": "HN",
+      "ref": "principle_group_pull"
+    }
+  ]
+}
