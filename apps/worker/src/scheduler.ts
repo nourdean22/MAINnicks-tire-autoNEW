@@ -406,6 +406,7 @@ export function startScheduler(): void {
             .then((o) => {
               if (o.ok) console.log(`[ring] ${o.patched} camera status(es) written`);
             })
+            .catch((err) => console.error(`[ring] poll threw: ${err instanceof Error ? err.message : String(err)}`))
             .finally(() => inFlightForwards.delete("ring-poll"));
         },
         { timezone: "UTC" },

@@ -218,13 +218,16 @@ export function createRingPoller(opts: {
     async pollOnce(): Promise<PollOutcome> {
       if (now() < health.backoffUntil) return { ok: false, skipped: "backoff", patched: 0, unknown: [] };
       const owner = randomUUID(); // lease owner; opts.newId is reserved for the hardware id
-      if (!(await opts.vault.lock(owner, LOCK_TTL_MS))) return { ok: false, skipped: "locked", patched: 0, unknown: [] };
+      let locked = false;
       try {
+        // Inside the try: Redis down must resolve as a failure, never reject into the worker.
+        locked = await opts.vault.lock(owner, LOCK_TTL_MS);
+        if (!locked) return { ok: false, skipped: "locked", patched: 0, unknown: [] };
         return await tick();
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       } finally {
-        await opts.vault.unlock(owner).catch(() => undefined);
+        if (locked) await opts.vault.unlock(owner).catch(() => undefined);
       }
     },
     health(): PollerHealth {

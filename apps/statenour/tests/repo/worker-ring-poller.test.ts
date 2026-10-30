@@ -239,6 +239,18 @@ describe("pollOnce", () => {
     expect(net.calls.some((c) => c.method === "POST" && c.url.includes("web.internal"))).toBe(false);
   });
 
+  it("Redis down (the lease call throws): pollOnce resolves a failure, never rejects into the worker", async () => {
+    const { vault } = memoryVault(seedFor("rt-1", "hid-A"));
+    const net = fakeNet();
+    const down: TokenVault = { ...vault, lock: async () => { throw new Error("connect ECONNREFUSED"); } };
+    const poller = createRingPoller({ vault: down, env: ENV, fetchImpl: net.fetchImpl, now });
+    const out = await poller.pollOnce();
+    expect(out.ok).toBe(false);
+    expect(out.error).toMatch(/ECONNREFUSED/);
+    expect(net.calls).toHaveLength(0);
+    expect(poller.health().consecutiveFailures).toBe(1);
+  });
+
   it("no stored token and no seed: nothing is called", async () => {
     const { vault } = memoryVault();
     const net = fakeNet();
