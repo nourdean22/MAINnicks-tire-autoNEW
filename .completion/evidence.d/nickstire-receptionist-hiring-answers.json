@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "Job 2026-10-30-calls-texts-review P0, PR #3387. Ledger row receptionist-sms-hiring-answers added in docs/operations/capability-ledger.json (in_progress, unit_verified, exposure disabled) and REALITY-LEDGER.md re-rendered: a job question by text gets a deterministic job_inquiry reply (roles, Monday open interviews, the JOB-APPLY token, nickstire.org/careers) built in shared/jobOpenings.ts, and the receptionist prompt gets a JOB / HIRING CALLER section from the same file. Matcher: every job_inquiry arm needs an employment word; 7 customer controls from the manager review (apply the coupon to my brake job, I need a job quoted for 4 tires, do you need a tech to look at my car, and 4 more) were red on 683998500c (7 failed, 28 passed) and are green now, with all 11 hiring positives green. Receipts: hiringAnswers + smsIntentRouter 66 passed; vapi prompt tests 5 files 58 passed; tsc exit 0; knip-orphan-gate 0 new; dod-compiler --enforce exit 0. Live proof owed: the SMS reply on deploy; the voice section only after Admin > Settings > Vapi > Push Latest Config (no startup sync)."
+    }
+  }
+}

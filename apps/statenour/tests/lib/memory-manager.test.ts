@@ -158,6 +158,21 @@ describe("BrainMemoryManager.remember", () => {
     expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
   });
 
+  // Brain backfill W3 (2026-10-30): 8,663 live rows had trust_tier NULL, all created after the one-shot
+  // 2026-09-03 backfill, because only admitMemory stamped the column. remember() now stamps the tier every
+  // reader would resolve for the row anyway (resolveTrustTier), so the stored value never loosens trust.
+  it.each([
+    ["cleantechnica", undefined, "EXTERNAL_CONTENT"],
+    ["manual", undefined, "OPERATOR"],
+    ["journal_brain", undefined, "SYSTEM_DERIVED"],
+    ["session_distiller", { admission: { memoryKind: "derived", extractionMethod: "llm_extract" } }, "AGENT_INFERRED"],
+  ])("a new row from source %s is stamped with the resolved trust tier", async (source, metadata, tier) => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-tier" });
+    await mm.remember("insight", `k_${source}`, "some content", source, metadata as Record<string, unknown> | undefined);
+    expect(realCreateCalls()[0][0].data).toHaveProperty("trustTier", tier);
+  });
+
   it("spaced_review (a review schedule, FSRS) gets NO TTL: the Learn tab's write through remember() must outlive the nightly sweep", async () => {
     // Scout 4 round 3 (2026-10-17): Learn writes its card via recordMemory -> remember(); the
     // 24h probation made pruneNoise soft-delete each card about when it came due.
@@ -166,6 +181,17 @@ describe("BrainMemoryManager.remember", () => {
     await mm.remember("spaced_review", "review_Opportunity_cost", '{"topic":"t"}', "learn_mode");
     const data = realCreateCalls()[0][0].data;
     expect(data.category).toBe("spaced_review");
+    expect(data).toHaveProperty("expiresAt", null);
+  });
+
+  it("chat_summary (one distill per conversation) gets NO TTL: a one-time distill of an old chat must not expire in 24h", async () => {
+    // Brain backfill W1 (2026-10-30): a distill is written once per chat and never re-sighted, so the
+    // probation hid it from recall a day later (prod 13:02Z: 3 of the 6 newest live rows already past expiry).
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-cs" });
+    await mm.remember("chat_summary", "conv123", '{"summary":"s"}', "session_distiller");
+    const data = realCreateCalls()[0][0].data;
+    expect(data.category).toBe("chat_summary");
     expect(data).toHaveProperty("expiresAt", null);
   });
 

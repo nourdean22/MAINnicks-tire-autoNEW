@@ -969,7 +969,7 @@ function TriageGrid() {
             icon={<Wrench className="w-5 h-5" />}
             symptom="Just need the basics?"
             consequence="Routine oil + filter prevents engine sludge that destroys engines after 60K miles."
-            relief="Free 27-point check on every oil change. Walk-ins welcome 7 days."
+            relief={`${BUSINESS.freeInspection.short} Walk-ins welcome 7 days.`}
             ctaLabel="SCHEDULE DROP-OFF"
             ctaHref="/oil-change"
           />
@@ -1023,7 +1023,7 @@ function PriceCompareSection() {
                 { label: "Chain shop", price: "$89" },
                 { label: "Nick's", price: "Free quote", ours: true },
               ]}
-              source="Free 27-point inspection included on every oil change. Call or walk in for your live quote."
+              source={`${BUSINESS.freeInspection.offer} Call or walk in for your live quote.`}
             />
           </FadeIn>
           <FadeIn delay={0.15}>

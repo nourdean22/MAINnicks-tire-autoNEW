@@ -7,7 +7,8 @@
 import { describe, expect, it } from "vitest";
 
 import { computePace } from "@/lib/brain/goal-pace";
-import { goalPaceView } from "@/components/goals/goal-board";
+import { goalPaceView } from "@/lib/brain/goal-pace";
+import { goalReviewLines } from "@/lib/services/goal-review-line";
 
 const NOW = Date.parse("2026-10-30T13:00:00.000Z");
 type Shape = { horizon: string | null; createdAt: string; targetValue: number; currentValue: number };
@@ -33,5 +34,13 @@ describe("goal signal eval · 6 live goal shapes", () => {
     const after = views.filter((v) => v?.kind === "chip" || v?.kind === "time").length;
     const explained = views.filter((v) => v !== null).length;
     expect({ before, after, explained }).toEqual({ before: 0, after: 3, explained: 6 });
+  });
+
+  it("W2: the Monday brief carried no goal line; now it names the active count and the next-step gap", () => {
+    const MONDAY = Date.parse("2026-11-02T11:00:00.000Z");
+    const rows = LIVE_2026_10_30.map((g, i) => ({ ...g, id: `g${i}`, title: `goal ${i}`, deadline: null, openTasks: 0 }));
+    const out = goalReviewLines(rows, MONDAY);
+    expect(out.lines[0]).toBe("<b>Goals</b> · 6 active · 0 with a next step");
+    expect(out.payload).toMatchObject({ active: 6, withNextStep: 0, pastDueIds: ["g5", "g4"] });
   });
 });

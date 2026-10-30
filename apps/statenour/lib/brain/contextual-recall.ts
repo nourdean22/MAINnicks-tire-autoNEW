@@ -58,7 +58,7 @@ import {
   type MemoryEvidenceClass,
   isOperatorSource,
 } from "@/lib/brain/memory-commit-gateway";
-import { CURATED_WISDOM_ORIGINS, resolveWisdomOrigin, wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
+import { CURATED_WISDOM_ORIGINS, resolveWisdomOrigin, WISDOM_ORIGIN_KEY_PREFIXES, wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
 
 /**
  * v-truth · Importance-weighted recall (Generative-Agents R+R+I).
@@ -285,9 +285,19 @@ export function selectWisdomSlots<T extends WisdomSlotCandidate>(
     m.lastRecalledAt && opts.now.getTime() - new Date(m.lastRecalledAt).getTime() < WISDOM_RECENT_MS
       ? m.hybrid * WISDOM_RECENT_PENALTY
       : m.hybrid;
+  // One slot per curated author (brain backfill W2, 2026-10-30): Gracian alone is 300 of 413 pack rows, and
+  // Readwise weights a source by its share. Principle rows have no author and are not capped.
+  const authors = new Set<string>();
   return scored
     .filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= floor && wisdomSlotEligible(m))
     .sort((a, b) => rank(b) - rank(a))
+    .filter((m) => {
+      const author = curatedWisdomAuthor(m);
+      if (!author) return true;
+      if (authors.has(author)) return false;
+      authors.add(author);
+      return true;
+    })
     .slice(0, slots);
 }
 
@@ -977,7 +987,21 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
 // cannot hang a turn (the lane is best-effort: any failure returns []).
 const KNN_POOL_TIMEOUT_MS = 10_000;
 
-async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
+/**
+ * Curated wisdom only (brain backfill W2, 2026-10-30): a pack or seed origin in metadata, or, for rows that
+ * predate metadata.origin, a curated key prefix. Same rule as resolveWisdomOrigin: metadata wins.
+ */
+const CURATED_ORIGIN_LIST: string[] = [...CURATED_WISDOM_ORIGINS];
+const CURATED_KEY_LIKE: string[] = WISDOM_ORIGIN_KEY_PREFIXES.filter(([, o]) => CURATED_WISDOM_ORIGINS.has(o)).map(
+  ([p]) => `${p.replace(/_/g, "\\_")}%`,
+);
+
+async function getKnnPoolRows(
+  queryVec: number[],
+  limit = 50,
+  asOf?: Date,
+  opts: { curatedWisdomOnly?: boolean } = {},
+): Promise<LexicalRow[]> {
   try {
     const padded = padToVectorDim(queryVec, VECTOR_DIM_1536);
     const lit = vectorLiteral(padded);
@@ -987,6 +1011,12 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
     // lanes cannot drift; the unavailable-source skip mirrors the writer's own
     // KNN in semantic-link.ts.
     const excluded: string[] = [...RECALL_EXCLUDE_CATEGORIES];
+    const n = asOf ? 4 : 3;
+    const curatedSql = opts.curatedWisdomOnly
+      ? `AND bm.category = 'wisdom'
+         AND (bm.metadata->>'origin' = ANY($${n}::text[])
+              OR (bm.metadata->>'origin' IS NULL AND bm.key LIKE ANY($${n + 1}::text[]))) /* wisdom_lane */`
+      : "";
     const sql = `SELECT bm.id::text          AS id,
               bm.content           AS content,
               bm.category::text    AS category,
@@ -1013,9 +1043,15 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
          AND bm.category <> ALL($2::text[])
          AND ${NOT_EXPIRED_SQL}
          AND ${validitySql("bm", asOf ? "$3" : null)}
+         ${curatedSql}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
        LIMIT ${limit}`;
-    const params: unknown[] = [lit, excluded, ...(asOf ? [asOf] : [])];
+    const params: unknown[] = [
+      lit,
+      excluded,
+      ...(asOf ? [asOf] : []),
+      ...(opts.curatedWisdomOnly ? [CURATED_ORIGIN_LIST, CURATED_KEY_LIKE] : []),
+    ];
     try {
       return await prisma.$transaction(
         async (tx) => {
@@ -1350,7 +1386,7 @@ export async function getContextualMemories(
   // timings now overlap, so they no longer sum to `ms` in [brain-recall].
   // Test: tests/brain/recall-stage-concurrency.test.ts.
   const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
-  const [allMemories, lexicalAll, knnAll] = await Promise.all([
+  const [allMemories, lexicalAll, knnAll, wisdomLaneAll] = await Promise.all([
     // Load all viable memories from DB
     // v10.0.46 — added `deletedAt: null` filter. Pre-fix soft-deleted
     // memories (retracted wisdom, superseded snapshots, deleted chat
@@ -1389,6 +1425,14 @@ export async function getContextualMemories(
     // embedding (the chat hot path) — other callers keep today's pool shape.
     opts.queryEmbedding && opts.queryEmbedding.length > 0
       ? timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))
+      : Promise.resolve([] as LexicalRow[]),
+    // Brain backfill W2 (2026-10-30) · the curated wisdom lane. Prod logs 12:00-14:00Z: 11 of 11 turns
+    // injected no wisdom, because every wisdom row in the pool was a non-curated one the allowlist refuses:
+    // curated rows (confidence 0.85-0.98) never make the top-300 pool, where 7,977 rows tie at 1.0, and
+    // rarely the global KNN-50. Ten nearest curated rows feed selectWisdomSlots; its floor and allowlist
+    // still decide. Same best-effort contract as the KNN lane: any failure is [].
+    opts.queryEmbedding && opts.queryEmbedding.length > 0
+      ? timed("wisdomPool", () => getKnnPoolRows(opts.queryEmbedding!, 10, opts.asOf, { curatedWisdomOnly: true }))
       : Promise.resolve([] as LexicalRow[]),
   ]);
 
@@ -1444,7 +1488,8 @@ export async function getContextualMemories(
     validFrom: r.valid_from,
   });
   const unioned: ReturnType<typeof toPoolRow>[] = [];
-  for (const r of [...lexicalRows, ...knnRows]) {
+  const wisdomLaneRows = wisdomLaneAll.filter((r) => !excludeSet.has(r.category));
+  for (const r of [...lexicalRows, ...knnRows, ...wisdomLaneRows]) {
     if (existingIds.has(r.id)) continue;
     existingIds.add(r.id);
     unioned.push(toPoolRow(r));
@@ -1692,6 +1737,7 @@ export async function getContextualMemories(
     wisdomMetaOk,
     candidatePool: candidatePool.length,
     knnRows: knnRows.length,
+    wisdomLaneRows: wisdomLaneRows.length,
   });
   // A slot no wisdom earned goes back to the direct memories.
   const directSlots = maxMemories - wisdoms.length;

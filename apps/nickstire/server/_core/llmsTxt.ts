@@ -37,7 +37,7 @@ export function buildLlmsTxt(opts: { siteUrl: string; reviewRating: number | str
 ## Services
 - [Brake repair](${b}/brakes): Pads from $${BRAKE_PRICE.padsStarting}/axle; pads + rotors from $${BRAKE_PRICE.padsAndRotorsStarting}/axle, depending on vehicle. Free check and a written quote first.
 - [Tires - new & used](${b}/tires): Used ${used.priceDisplay} (select 12-inch; ${used.typicalBand}), new ${newTires.priceDisplay}; the new-tire price depends on size and brand, so call or text ${phone} with your size for an exact quote. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
-- [Oil change](${b}/oil-change): Conventional from $${OIL_PRICE.conventional}, full synthetic from $${OIL_PRICE.fullSynthetic}. Free multi-point check included.
+- [Oil change](${b}/oil-change): Conventional from $${OIL_PRICE.conventional}, full synthetic from $${OIL_PRICE.fullSynthetic}. ${BUSINESS.freeInspection.short}
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Free readiness check before the state test.
 - [Wheel alignment](${b}/wheel-alignment-cleveland): Stops uneven tire wear and pulling. Most vehicles same-day.

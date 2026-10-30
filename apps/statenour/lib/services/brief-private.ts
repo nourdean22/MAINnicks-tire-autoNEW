@@ -8,3 +8,6 @@
  * the section's database reads.
  */
 export const NOT_SEEING_HEADER = "<b>What you're not seeing</b>";
+
+/** The Monday Goals section (lib/services/goal-review-line.ts) names a goal; same rule (2026-10-30). */
+export const GOALS_HEADER = "<b>Goals</b>";

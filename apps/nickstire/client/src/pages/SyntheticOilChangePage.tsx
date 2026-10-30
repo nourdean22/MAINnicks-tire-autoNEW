@@ -147,7 +147,6 @@ function IncludedSection() {
     "Complete drain and refill",
     "Top-off all fluids (washer, power steering, coolant)",
     "Tire pressure check and adjustment",
-    "20-point safety check — brakes, belts, lights, battery",
     "Courtesy reset of oil life monitor",
     "Printed service record + sticker reminder",
   ];
