@@ -16,6 +16,8 @@ const SCRIPTS = [
   "scripts/brain-hygiene/close-overdue-replays.ts",
   "scripts/brain-hygiene/apply-decay.ts",
 ];
+/** Additive backfills have no backup table, so they skip the backup-shaped scan; their own tests scan for removals. */
+const SPAWNED = [...SCRIPTS, "scripts/brain-hygiene/backfill-chat-distills.ts"];
 
 function harness(count = 7) {
   const connect = vi.fn(async (): Promise<Connection> => ({ db: { query: async () => [], exec: async () => 0 }, close: vi.fn(async () => {}) }));
@@ -177,7 +179,7 @@ describe("the real scripts, spawned with a bogus DATABASE_URL and a network trap
     expect(`${r.stderr}`).toContain("NETWORK_ATTEMPT");
   });
 
-  describe.each(SCRIPTS)("%s", (rel) => {
+  describe.each(SPAWNED)("%s", (rel) => {
     it("no flag: exit 0, host printed, plan only, no network attempt", () => {
       const r = spawnScript(rel, []);
       expect(r.out).not.toContain("NETWORK_ATTEMPT");
