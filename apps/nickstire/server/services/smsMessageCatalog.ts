@@ -9,6 +9,7 @@
  */
 
 import { BUSINESS } from "@shared/business";
+import { hiringSmsReply } from "@shared/jobOpenings";
 
 export interface ReplyConfig {
   expectedReplyTypes: string[];
@@ -229,7 +230,9 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
     "Dropping it off is perfect. Bring the keys in, tell us what's going on, and we'll call or text you before doing any work.",
     "Drop-off is no problem. We'll inspect it and call you with a quote before doing anything.",
     "You can drop it off anytime we're open. We'll text you when the job is done."
-  ]
+  ],
+  // 2026-10-30 · built from shared/jobOpenings.ts; {shopPhone} is filled below.
+  job_inquiry: [hiringSmsReply("{shopPhone}")],
 };
 
 export function getTemplateVariant(
