@@ -210,6 +210,13 @@ export async function runGate(req: Request): Promise<GateResult> {
     };
   }
 
+  // 3b. U5 · the newest message's inline attachments: at most 10 files and ~18 MB (413).
+  const { attachmentCapProblem } = await import("@/lib/ai/chat/attachment-cap");
+  const capProblem = attachmentCapProblem(messages[messages.length - 1]);
+  if (capProblem) {
+    return { kind: "block", response: Response.json({ error: capProblem }, { status: 413 }) };
+  }
+
   // 4. Override extraction
   const conversationId = body.conversationId as string | undefined;
   const modeOverride = body.modeOverride as ChatMode | undefined;

@@ -85,6 +85,14 @@ const nextConfig: NextConfig = {
   // ── Hide Next.js dev indicator (the little N circle in dev mode) ─────
   devIndicators: false,
 
+  // U5 (2026-10-30) · proxy.ts buffers every matched request body and, past this size, passes on only
+  // the first bytes: a chat POST carrying several photos was cut at the 10 MB default and reached
+  // the route as "Invalid JSON". 32 MB covers lib/ai/chat/attachment-cap.ts MAX_INLINE_CHARS (24 M)
+  // plus the text history; the route's 413 is the real limit.
+  experimental: {
+    proxyClientMaxBodySize: "32mb",
+  },
+
   // ── Image optimization ───────────────────────────────────────────────
   images: {
     formats: ["image/avif", "image/webp"],

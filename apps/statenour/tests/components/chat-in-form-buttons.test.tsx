@@ -83,7 +83,7 @@ describe("composer in-form buttons", () => {
     const file = new File(["x"], "invoice.pdf", { type: "application/pdf" });
     const tree = AttachmentPreview({ file, preview: "", onClear: clear });
 
-    const remove = buttons(tree).find((b) => b.props["aria-label"] === "Remove attachment");
+    const remove = buttons(tree).find((b) => String(b.props["aria-label"]).startsWith("Remove "));
     expect(remove).toBeDefined();
     clickInsideForm(remove!, submit);
 
@@ -95,7 +95,7 @@ describe("composer in-form buttons", () => {
     const file = new File(["x"], "photo.png", { type: "image/png" });
     const tree = AttachmentPreview({ file, preview: "blob:x", onClear: () => {} });
 
-    const remove = buttons(tree).find((b) => b.props["aria-label"] === "Remove attachment")!;
+    const remove = buttons(tree).find((b) => String(b.props["aria-label"]).startsWith("Remove "))!;
     const classes = (remove.props.className ?? "").split(/\s+/);
     expect(classes).toContain("min-h-11");
     expect(classes).toContain("min-w-11");

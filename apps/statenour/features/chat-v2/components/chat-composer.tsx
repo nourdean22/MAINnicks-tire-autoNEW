@@ -7,7 +7,8 @@ import { Image as ImageIcon, Mic, X } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import { resolveMentionsWithTimeout } from "../lib/mention-resolution";
-import { useImageAttachment } from "@/hooks/use-image-attachment";
+import { MAX_ATTACHMENTS, useImageAttachment } from "@/hooks/use-image-attachment";
+import { attachmentCapProblem } from "@/lib/ai/chat/attachment-cap";
 import { useAudioTranscribe } from "@/hooks/chat/use-audio-transcribe";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useSlashCommands } from "@/hooks/use-slash-commands";
@@ -194,8 +195,11 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     cameraInputRef: imgCameraInputRef,
     handleFileChange: handleImgFileChange,
     clear: clearImg,
+    discard: discardImgs,
+    remove: removeImg,
+    preparing: imgPreparing,
     openGallery: openImgGallery,
-    readAsBase64: readImgAsBase64,
+    prepareAll: prepareImgs,
     attachFromPaste: attachImgFromPaste,
     attachFromDrop: attachImgFromDrop,
   } = useImageAttachment({ onAudio });
@@ -206,7 +210,21 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
   const slash = useSlashCommands();
   const mentions = useMentionSuggestions();
 
+  // U5 · photo prep and mention lookup are awaited before the send, so a second tap on Send in
+  // that window saw the same attachments and sent them twice.
+  const photoSendRef = useRef(false);
   const sendOrQueue = async (textToSend: string) => {
+    if (!imgAttached) return sendNow(textToSend);
+    if (photoSendRef.current) return;
+    photoSendRef.current = true;
+    try {
+      await sendNow(textToSend);
+    } finally {
+      photoSendRef.current = false;
+    }
+  };
+
+  const sendNow = async (textToSend: string) => {
     if (disabledReason) return; // the status line above the field already says why (voice and slash sends land here too)
     if (!textToSend.trim() && !imgAttached) return;
 
@@ -245,7 +263,8 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     }
 
     const tempId = crypto.randomUUID();
-    const isImageAttached = Boolean(imgAttached);
+    const sendingImgs = imgAttached ?? [];
+    const isImageAttached = sendingImgs.length > 0;
     const hasMentions = textToSend.includes("@");
 
     // The operator sees the send immediately. Context resolution is bounded
@@ -279,30 +298,41 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
       // VideoDB retirement — decideAttachment refuses video at attach
       // time now, so no send-time branch is needed.
       if (isImageAttached) {
-        const result = await readImgAsBase64();
-        if (result) {
+        // U5 · every attachment becomes one file part, photos shrunk first.
+        const prepared = await prepareImgs();
+        if (prepared.length > 0) {
           const parts: Array<
             | { type: "text"; text: string }
             | { type: "file"; mediaType: string; url: string; filename: string }
           > = [];
           if (resolvedText) parts.push({ type: "text", text: resolvedText });
-          parts.push({
-            type: "file",
-            mediaType: result.mimeType,
-            url: `data:${result.mimeType};base64,${result.base64}`,
-            filename: imgAttached!.file.name,
-          });
+          for (const p of prepared) {
+            parts.push({ type: "file", mediaType: p.mimeType, url: `data:${p.mimeType};base64,${p.base64}`, filename: p.filename });
+          }
+          // The route answers 413 past this, after the upload; say it now and keep the photos.
+          const tooBig = attachmentCapProblem({ parts });
+          if (tooBig) {
+            toast.error(tooBig, { duration: 5000 });
+            resolvePending(tempId);
+            setDraft(textToSend);
+            return;
+          }
           sendPromise = chat.append({
             id: tempId,
             role: "user",
             content: resolvedText,
             parts,
           });
-          clearImg();
+          discardImgs(sendingImgs);
+        } else if (!resolvedText.trim()) {
+          // Nothing readable and no words: an empty message would go out.
+          toast.error("Couldn't read the attachment. Remove it or pick another file.", { duration: 4000 });
+          resolvePending(tempId);
+          return;
         } else {
           toast.error("Couldn't read the attachment. Sending text only.", { duration: 3000 });
           sendPromise = chat.sendText(resolvedText);
-          clearImg();
+          discardImgs(sendingImgs);
         }
       } else {
         sendPromise = chat.sendText(resolvedText);
@@ -684,8 +714,23 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
 
       {imgAttached && (
         <div className="mb-1 overflow-hidden rounded-float border border-edge-subtle bg-surface">
-          <AttachmentPreview file={imgAttached.file} preview={imgAttached.preview} onClear={clearImg} />
+          {imgAttached.map((a, i) => (
+            <AttachmentPreview key={a.preview} file={a.file} preview={a.preview} onClear={() => removeImg(i)} />
+          ))}
+          {imgAttached.length > 1 && (
+            <div className="flex items-center justify-between px-3 text-[12px] text-fg-tertiary">
+              <span>{imgAttached.length} of {MAX_ATTACHMENTS} files</span>
+              <button type="button" onClick={clearImg} className="min-h-11 rounded-control px-3 hover:bg-surface-interactive hover:text-fg">
+                Remove all
+              </button>
+            </div>
+          )}
         </div>
+      )}
+      {imgPreparing && (
+        <p role="status" className="px-2 text-[13px] leading-snug text-fg-secondary">
+          Preparing {imgPreparing.photos ? "photo" : "file"} {Math.min(imgPreparing.done + 1, imgPreparing.total)} of {imgPreparing.total}
+        </p>
       )}
 
       {/* UI v2 (2026-10-01): the composer is control chrome, so it gets the translucent material
@@ -711,7 +756,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
           </button>
         </div>
 
-        <input type="file" ref={imgFileInputRef} onChange={handleImgFileChange} className="hidden" accept={ACCEPT_ATTRIBUTE} title="Attach an image, audio file or PDF" />
+        <input type="file" ref={imgFileInputRef} onChange={handleImgFileChange} className="hidden" accept={ACCEPT_ATTRIBUTE} multiple title="Attach images, audio files or PDFs" />
         <input type="file" ref={imgCameraInputRef} onChange={handleImgFileChange} className="hidden" accept="image/*" capture="environment" title="Capture image from camera" />
 
         <div className="relative flex-1">
@@ -774,7 +819,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
             </button>
           </>
         ) : (
-          <button type="submit" aria-label="Send message" disabled={Boolean(disabledReason) || (!draft.trim() && !imgAttached)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
+          <button type="submit" aria-label="Send message" disabled={Boolean(disabledReason) || Boolean(imgPreparing) || (!draft.trim() && !imgAttached)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
             </svg>
