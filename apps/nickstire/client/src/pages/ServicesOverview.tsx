@@ -188,7 +188,7 @@ export default function ServicesOverview() {
               <span className="text-primary">WITHOUT THE RUNAROUND</span>
             </h1>
             <p className="body-pretty mt-6 max-w-2xl text-lg leading-relaxed text-foreground/70">
-              Oil change to head gasket — the process stays simple. We check the car, show you what we found, write the number down, and wait for your answer before the work starts.
+              Oil change or head gasket, the process stays the same. We check the car, show you what we found, write the number down, and wait for your answer before the work starts.
             </p>
             <p className="body-pretty mt-4 max-w-2xl text-lg leading-relaxed text-foreground/80">
               Free check. Written quote.{" "}
@@ -341,7 +341,7 @@ export default function ServicesOverview() {
             COMMON QUESTIONS
           </span>
           <h2 className="mb-8 mt-3 font-heading text-3xl font-black uppercase tracking-tight text-foreground lg:text-4xl">
-            Cleveland auto repair — straight answers
+            Cleveland auto repair, straight answers
           </h2>
           <div className="space-y-3">
             {SERVICES_PAGE_FAQ.map((item) => (
@@ -398,7 +398,7 @@ export default function ServicesOverview() {
             </a>
           </div>
           <p className="mt-6 text-sm text-foreground/50">
-            {BUSINESS.address.full} — {BUSINESS.hours.display}
+            {BUSINESS.address.full}, {BUSINESS.hours.display}
           </p>
         </div>
       </section>

@@ -28,6 +28,7 @@ import { SEOHead } from "@/components/SEO";
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { getConversionDataForSlug } from "@/data/serviceConversionData";
+import { BUSINESS } from "@shared/business";
 
 // ─── SERVICE DATA → PAGE CONFIG ADAPTER ─────────────────────
 function serviceDataToConfig(service: ServiceData): ServicePageConfig {
@@ -94,17 +95,17 @@ function serviceDataToConfig(service: ServiceData): ServicePageConfig {
     // The "free written estimate before any work" promise stays in
     // pricingSub so the trust commitment is preserved.
     startingPrice: service.startingPrice || "Free written estimate",
-    pricingTitle: `${service.title.toUpperCase()} — TRANSPARENT PRICING`,
-    pricingSub: "Concrete starting prices below. Free written estimate before any wrench moves — you see what's needed before you commit.",
+    pricingTitle: `${service.title.toUpperCase()} PRICING`,
+    pricingSub: "Concrete starting prices below. Free written estimate before any wrench moves. You see what's needed before you commit.",
     tiers,
     includedTitle: "WHAT'S INCLUDED",
-    includedSub: service.whyChooseUs || `Every ${service.title.toLowerCase()} at Nick's comes with this — no games.`,
+    includedSub: service.whyChooseUs || `Every ${service.title.toLowerCase()} at Nick's comes with this.`,
     included,
     faqs,
     bookingService: service.slug,
     serviceType: service.title,
     ctaHeadline: `BOOK YOUR ${service.title.toUpperCase()}`,
-    ctaSub: service.turnaround || "Walk-ins welcome 7 days a week — 17625 Euclid Ave, Cleveland OH.",
+    ctaSub: service.turnaround || `Walk-ins welcome 7 days a week at ${BUSINESS.address.full}.`,
   };
 }
 
@@ -117,7 +118,7 @@ export default function GenericServicePage() {
     return (
       <PageLayout showChat={false}>
         <SEOHead
-          title="Service Not Found — Nick's Tire & Auto"
+          title="Service Not Found | Nick's Tire & Auto"
           description="The service you're looking for doesn't exist. Browse all services at Nick's Tire & Auto, Cleveland."
           canonicalPath="/services"
           robots="noindex, nofollow"

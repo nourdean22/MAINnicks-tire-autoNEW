@@ -416,7 +416,7 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     // that a paid diagnostic contradicts it; it does not — the diagnostic
     // is itself on the written quote before it is charged. Canon restored;
     // any change to this promise is the owner's, made in shared/voice.ts.
-    `${config.serviceType} at Nick's Tire & Auto, ${BUSINESS.address.full}: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
+    `${config.serviceType} at Nick's Tire & Auto, ${BUSINESS.address.full}: ${priceClause}. Walk in 7 days a week. No appointment needed, and you don't pay until you say yes. Call ${BUSINESS.phone.display}.`;
   return <AeoAnswerBlock answer={answer} link={config.aeoLink} />;
 }
 
@@ -434,10 +434,10 @@ function HeroOpenStatusHint() {
   return (
     <p className="mt-3 text-[13px] font-semibold">
       {status.isOpen ? (
-        <span className="text-emerald-400">Open now &mdash; pull up, no appointment.</span>
+        <span className="text-emerald-400">Open now. Pull up, no appointment.</span>
       ) : (
         <span className="text-foreground/60">
-          Closed right now &mdash; {status.label.toLowerCase()}. Pull up early and you&apos;re first in line.
+          Closed right now, {status.label.toLowerCase()}. Pull up early and you&apos;re first in line.
         </span>
       )}
     </p>
@@ -540,7 +540,7 @@ function EstimateTicket({ config }: { config: ServicePageConfig }) {
           </div>
           <div className="bg-[#141414] text-[#F5F5F5]/80 px-5 py-3 text-[12px] font-sans leading-snug">
             Ohio&apos;s motor-vehicle repair rule gives you the right to an estimate and to approve the work first.
-            Nick&apos;s puts it in writing every time — pull up, or{" "}
+            Nick&apos;s puts it in writing every time. Pull up, or{" "}
             <a href={BUSINESS.phone.href} className="text-[#FDB913] underline underline-offset-2 whitespace-nowrap">
               call {BUSINESS.phone.display}
             </a>
@@ -627,7 +627,7 @@ function BookingSection({ config }: { config: ServicePageConfig }) {
             {config.ctaHeadline || "PULL UP OR DROP OFF"}
           </h2>
           <p className="text-foreground/60 mt-2">
-            {config.ctaSub || "Call, text, or just walk in — first come, first served, 7 days a week."}
+            {config.ctaSub || "Call, text, or just walk in. First come, first served, 7 days a week."}
           </p>
           {config.arrivalSlot && <div className="mt-6 max-w-xl">{config.arrivalSlot}</div>}
         </FadeIn>

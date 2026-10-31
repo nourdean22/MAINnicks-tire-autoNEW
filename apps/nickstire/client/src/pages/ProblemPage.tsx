@@ -189,7 +189,7 @@ export default function ProblemPage() {
                 HOW WE FIX THIS AT NICK'S
               </h2>
               <p className="text-foreground/70 leading-relaxed text-lg mb-8">
-                Every repair at Nick's Tire & Auto starts with understanding the actual problem — not guessing. Here's what happens from the moment you pull into our shop on Euclid Ave to the moment you drive away with a fix that lasts.
+                Every repair at Nick's Tire & Auto starts with finding the actual problem. Here's what happens from the moment you pull into our shop on Euclid Ave to the moment you drive away with a fix that lasts.
               </p>
             </FadeIn>
 
@@ -201,7 +201,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Drop Off or Wait</h3>
-                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome — no appointment needed. Tell our front desk what you're experiencing and we'll get your car into the bay. Most checks start within 30 minutes of arrival.</p>
+                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome. No appointment needed. Tell our front desk what you're experiencing and we'll get your car into the bay. Most checks start within 30 minutes of arrival.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -212,7 +212,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Full Diagnostic Inspection</h3>
-                    <p className="text-foreground/70 leading-relaxed">We use OBD-II scan tools, live data, visual check, and road testing when needed. We don't just read a code and guess — we trace the problem to its root cause so we fix it right the first time.</p>
+                    <p className="text-foreground/70 leading-relaxed">We use OBD-II scan tools, live data, visual check, and road testing when needed. We don't just read a code and guess. We trace the problem to its root cause so we fix it right the first time.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -223,7 +223,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Honest Quote, Your Decision</h3>
-                    <p className="text-foreground/70 leading-relaxed">We'll call you with exactly what we found, what needs to be fixed, and what it costs. No pressure, no upsells. If you want a second opinion, no hard feelings. We give you the information and you make the call.</p>
+                    <p className="text-foreground/70 leading-relaxed">We'll call you with exactly what we found, what needs to be fixed, and what it costs. You decide what gets done. If you want a second opinion, no hard feelings. We give you the information and you make the call.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -307,7 +307,7 @@ export default function ProblemPage() {
             </div>
             <FadeIn delay={0.25}>
               <p className="mt-8 text-center text-foreground/60 max-w-2xl mx-auto leading-relaxed">
-                Located at {BUSINESS.address.full}, Nick's Tire & Auto has been serving Cleveland and Northeast Ohio since 2018. We fix the problem, explain the cost, and get you back on the road — that's it. No games. Read what our customers say on our <Link href="/reviews" className="text-nick-blue-light hover:underline">reviews page</Link>.
+                Located at {BUSINESS.address.full}, Nick's Tire & Auto has been serving Cleveland and Northeast Ohio since 2018. We fix the problem, explain the cost, and get you back on the road. Read what our customers say on our <Link href="/reviews" className="text-nick-blue-light hover:underline">reviews page</Link>.
               </p>
             </FadeIn>
           </div>
@@ -366,7 +366,7 @@ export default function ProblemPage() {
                 LET US DIAGNOSE THE PROBLEM
               </h2>
               <p className="mt-4 text-primary-foreground/80 text-lg max-w-xl mx-auto">
-                We will find the exact cause, explain your options, and give you an honest quote. No guesswork. No unnecessary repairs.
+                We will find the exact cause, explain your options, and give you a written quote before any work.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-background text-foreground px-8 py-4 font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">

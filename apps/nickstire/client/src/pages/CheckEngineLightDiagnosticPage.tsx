@@ -18,6 +18,7 @@ import FocusedServicePage, { type ServicePageConfig } from "@/components/Focused
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { OHIO_ECHECK } from "@shared/echeck";
 import { Search, AlertTriangle, ShieldCheck } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
@@ -30,13 +31,13 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   description: `Cleveland shop that tests instead of swapping parts. Free scan, written quote before any wrench moves. You don't pay until you say yes. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "WE TEST · WE DON'T GUESS",
   h1: "WE'LL TELL YOU WHAT'S WRONG.\nNO PARTS-SWAP ROULETTE.",
-  sub: "If you've been to a shop that 'tried a sensor, then another, then another' — you've been parts-swapped. We don't guess. We test. Live data, freeze-frame review, component isolation. You leave knowing what's actually wrong and what it'll cost — free check, written quote, you don't pay until you say yes.",
+  sub: "If a shop 'tried a sensor, then another, then another', you've been parts-swapped. We don't guess. We test. Live data, freeze-frame review, component isolation. You leave knowing what's actually wrong and what it'll cost, free check, written quote, you don't pay until you say yes.",
   startingPrice: "Free code scan",
   pricingTitle: "DIAGNOSTIC LEVELS",
-  pricingSub: "Free start. Deeper testing gets a written estimate before we touch anything — and credits toward the repair.",
+  pricingSub: "Free start. Deeper testing gets a written estimate before we touch anything, and credits toward the repair.",
   tiers: [
     { name: "OBD-II Code Scan", price: "FREE", sub: "stored + pending codes + freeze-frame", use: "You want to know what triggered the light right now" },
-    { name: "Full Diagnostic", price: "Free estimate", sub: "live data + component isolation, credited to repair", use: "Persistent or intermittent issue — we find the actual failed component, not a list of suspects", featured: true },
+    { name: "Full Diagnostic", price: "Free estimate", sub: "live data + component isolation, credited to repair", use: "Persistent or intermittent issue. We find the actual failed component, not a list of suspects", featured: true },
     { name: "Electrical / CAN Bus", price: "Free estimate", sub: "harness, modules, parasitic draw", use: "Modern car electronics where parts-swap shops give up" },
   ],
   includedTitle: "WHY 'WE TEST · WE DON'T GUESS' MEANS SOMETHING",
@@ -44,34 +45,34 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   included: [
     "OBD-II code pull with all stored, pending, AND permanent codes",
     "Freeze-frame data review (the conditions when the code triggered)",
-    "Live data analysis — we watch the sensor while the engine runs",
+    "Live data analysis. We watch the sensor while the engine runs",
     "Component isolation testing before any part is replaced",
     "Visual under-hood + under-car check (cracks, leaks, rodent damage)",
     "Manufacturer-specific scan tools for European, Asian, and domestic vehicles",
-    "Written report — exact part, exact reason, exact cost",
-    "30+ years of pattern recognition — we've seen this code on this car before",
+    "Written report, exact part, exact reason, exact cost",
+    "30+ years of pattern recognition. We've seen this code on this car before",
   ],
   faqs: [
-    { q: "What does 'parts swapping' mean and why is it bad?", a: "It's when a shop replaces components in sequence hoping one of them fixes the issue. You pay for every part they try plus the labor to install it. We've had customers come in $1,200 deep on a misfire chase that turned out to be a $40 ignition coil — they paid for plugs, plug wires, fuel injector cleaning, and a coil-pack swap (wrong cylinder) before someone actually tested the cylinder pressure. Real diagnostics finds the failed component on the first test." },
-    { q: "How is your diagnostic different from a parts-store free code reader?", a: "Parts stores read the code and stop there. The code says 'P0420 — catalyst efficiency below threshold.' That's the SYMPTOM. The cause could be: failed catalytic converter, failed O2 sensor, exhaust leak, engine-side issue dumping unburned fuel. Replacing the cat without identifying which one = $1,500 down the drain if it's actually the upstream sensor. We isolate before we recommend." },
-    { q: "Is the code scan really free?", a: "Yes — pull up, we read codes in 5 minutes, give you our honest read. No charge. If the issue requires deeper testing (intermittent faults, electrical, sensor failures needing live data), the deeper diagnostic gets a written estimate before we start, AND we apply that fee toward the repair if you have us do the work." },
-    { q: "Why has my CEL kept coming back after multiple repairs?", a: "Two reasons usually: (1) the underlying root cause was never identified — a downstream symptom got fixed but the upstream cause kept failing the new part; (2) the readiness monitors weren't allowed to complete after the battery disconnect. Bring it in — we'll re-pull codes, review your repair history (bring receipts if you have them), and run live data to find what's actually broken." },
-    { q: "Can I drive with the check engine light on?", a: "Solid light: usually safe to drive to the shop. Flashing light: STOP. Flashing means active misfire — driving for even 30 minutes with a flashing CEL can destroy the catalytic converter ($1,500+ part) AND damage the engine. Pull over, call (216) 862-0005, we'll talk you through whether to drive in or get towed." },
-    { q: "Do you do the actual repair, or only the check?", a: "Both — and the check fee credits toward the repair when you say yes. We're a full repair shop with a 12-month parts / 90-day labor warranty. You're not just paying for an answer you have to take elsewhere." },
-    { q: "What about European cars (BMW, Mercedes, Audi)?", a: "Yes — we have the manufacturer-specific scan tools (not just OBD-II). European cars use proprietary diagnostic protocols and module communication; generic scanners miss most of it. We're often half the dealership price with the same depth of diagnosis." },
+    { q: "What does 'parts swapping' mean and why is it bad?", a: "It's when a shop replaces components in sequence hoping one of them fixes the issue. You pay for every part they try plus the labor to install it. We've had customers come in $1,200 deep on a misfire chase that turned out to be a $40 ignition coil. They paid for plugs, plug wires, fuel injector cleaning, and a coil-pack swap (wrong cylinder) before someone actually tested the cylinder pressure. Real diagnostics finds the failed component on the first test." },
+    { q: "How is your diagnostic different from a parts-store free code reader?", a: "Parts stores read the code and stop there. The code says 'P0420, catalyst efficiency below threshold.' That's the SYMPTOM. The cause could be: failed catalytic converter, failed O2 sensor, exhaust leak, engine-side issue dumping unburned fuel. Replacing the cat without identifying which one = $1,500 down the drain if it's actually the upstream sensor. We isolate before we recommend." },
+    { q: "Is the code scan really free?", a: "Yes. Pull up, we read codes in 5 minutes, give you our honest read. No charge. If the issue requires deeper testing (intermittent faults, electrical, sensor failures needing live data), the deeper diagnostic gets a written estimate before we start, AND we apply that fee toward the repair if you have us do the work." },
+    { q: "Why has my CEL kept coming back after multiple repairs?", a: "Two reasons usually: (1) the underlying root cause was never identified. A downstream symptom got fixed but the upstream cause kept failing the new part; (2) the readiness monitors weren't allowed to complete after the battery disconnect. Bring it in. We'll re-pull codes, review your repair history (bring receipts if you have them), and run live data to find what's actually broken." },
+    { q: "Can I drive with the check engine light on?", a: "Solid light: usually safe to drive to the shop. Flashing light: STOP. Flashing means active misfire. Driving for even 30 minutes with a flashing CEL can destroy the catalytic converter ($1,500+ part) AND damage the engine. Pull over, call (216) 862-0005, we'll talk you through whether to drive in or get towed." },
+    { q: "Do you do the actual repair, or only the check?", a: "Both, and the check fee credits toward the repair when you say yes. We're a full repair shop with a 12-month parts / 90-day labor warranty. You're not just paying for an answer you have to take elsewhere." },
+    { q: "What about European cars (BMW, Mercedes, Audi)?", a: "Yes. We have the manufacturer-specific scan tools (not just OBD-II). European cars use proprietary diagnostic protocols and module communication; generic scanners miss most of it. We're often half the dealership price with the same depth of diagnosis." },
   ],
   bookingService: "diagnostics",
   serviceType: "Diagnostic Service",
   ctaHeadline: "BRING IT IN · WE'LL TELL YOU WHAT'S WRONG",
-  ctaSub: "Free code scan, written quote before any work, you don't pay until you say yes. Walk-ins welcome — 17625 Euclid Ave, Cleveland OH.",
+  ctaSub: `Free code scan, written quote before any work, you don't pay until you say yes. Walk-ins welcome at ${BUSINESS.address.full}.`,
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {
-    serviceName: "Diagnostic + first-attempt fix — Cleveland market",
+    serviceName: "Diagnostic + first-attempt fix, Cleveland market",
     rows: [
       { label: "Cleveland dealer (parts-swap risk high)", price: "$185 + parts" },
       { label: "Chain shop (often parts-swappers)", price: "$120 + retried parts" },
-      { label: "Nick's Tire & Auto — root-cause first time", price: "Free scan + estimate", ours: true },
+      { label: "Nick's Tire & Auto, root-cause first time", price: "Free scan + estimate", ours: true },
     ],
     source: "Representative quote benchmarks. Real bills come from a free written estimate after diagnosis. The savings come from NOT paying for replaced parts that didn't fix anything.",
   },
@@ -80,12 +81,12 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     stats: [
       {
         value: "$1,200",
-        consequence: "Average bill we see when a customer arrives mid-misfire-chase. Plugs, wires, coils, injector cleaning, sometimes a wrong-cylinder coil-pack — all replaced before anyone tested cylinder compression. The actual fix usually costs under $200.",
+        consequence: "Average bill we see when a customer arrives mid-misfire-chase. Plugs, wires, coils, injector cleaning, sometimes a wrong-cylinder coil-pack, all replaced before anyone tested cylinder compression. The actual fix usually costs under $200.",
         source: "Customer intake data, Nick's Tire & Auto repair history, 2024-2026.",
       },
       {
         value: "$4,000",
-        consequence: "Catalytic converter replacement on a sedan when an unaddressed upstream O2 sensor or misfire ran into the cat. The cat fails downstream of an unfixed root cause — replacing the cat without fixing the upstream issue means the new cat fails too.",
+        consequence: "Catalytic converter replacement on a sedan when an unaddressed upstream O2 sensor or misfire ran into the cat. The cat fails downstream of an unfixed root cause. Replacing the cat without fixing the upstream issue means the new cat fails too.",
         source: "AAA + EPA repair-cost benchmarks.",
       },
       {

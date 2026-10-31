@@ -40,7 +40,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   h1: "CLEVELAND BRAKE REPAIR\nTHAT HANDS YOU THE FLASHLIGHT.",
   sub: (
     <>
-      Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto is your Euclid Ave destination for <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link> and Cleveland. Need to troubleshoot first? Try our <Link href="/diagnose" className="underline text-primary hover:text-primary-foreground">vehicle diagnostics symptom checker</Link>, or browse our complete <Link href="/services" className="underline text-primary hover:text-primary-foreground">services page</Link>. We lift the car, hand you the flashlight, and walk you under it so you see what's worn. Free check, written quote, and you don't pay until you say yes. Check out our <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing options for repairs</Link>, find <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire repair and replacement services</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> to drop off today. Rather wait with the car? Come in and grab a seat — most pad jobs are done in about an hour.
+      Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto is your Euclid Ave destination for <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link> and Cleveland. Need to troubleshoot first? Try our <Link href="/diagnose" className="underline text-primary hover:text-primary-foreground">vehicle diagnostics symptom checker</Link>, or browse our complete <Link href="/services" className="underline text-primary hover:text-primary-foreground">services page</Link>. We lift the car, hand you the flashlight, and walk you under it so you see what's worn. Free check, written quote, and you don't pay until you say yes. Check out our <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing options for repairs</Link>, find <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire repair and replacement services</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> to drop off today. Rather wait with the car? Come in and grab a seat. Most pad jobs are done in about an hour.
     </>
   ),
   // "Come in and wait" is a real option (FCFS, ~60-min pad jobs per the FAQ),
@@ -55,7 +55,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     { name: "Full Brake Job", price: "Free check", sub: "per axle · includes calipers if needed", use: "Calipers seized, lines leaking, full system refresh. The once-a-decade reset that buys you another 60K miles. Written quote before any work." },
   ],
   includedTitle: "WHAT'S INCLUDED",
-  includedSub: "Every brake service at Nick's comes with this — we tell you the cost before we touch anything.",
+  includedSub: "Every brake service at Nick's comes with this. We tell you the cost before we touch anything.",
   included: [
     "Free brake check (no obligation)",
     "Measurement of pad thickness and rotor wear",
@@ -80,7 +80,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     ]
   },
   diagnosticAuthority: {
-    heading: "CLEVELAND BRAKE REPAIR — REAL VALUE",
+    heading: "CLEVELAND BRAKE REPAIR, REAL VALUE",
     content: [
       <>
         At Nick's Tire & Auto, we don't believe in mystery pricing or surprise fees. When you bring your vehicle in for a brake concern, our ASE-trained crew performs a full visual check of the pads, rotors, calipers, and hydraulic system.
@@ -89,7 +89,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         We use micrometers and digital calipers to measure exact pad wear and rotor thickness against manufacturer minimum specifications. We'll walk you under the lift, show you the measurements, and explain exactly what needs replacement.
       </>,
       <>
-        Whether you need a simple pad swap, new rotors, or caliper replacement, we source OE-spec parts and back them with our 12-month parts / 90-day labor warranty. If your brakes are squealing or grinding, <Link href="/contact" className="underline text-[#FDB913] hover:text-primary">contact Nick's Tire & Auto</Link> for a free check today.
+        Pad swap, new rotors or a caliper, we source OE-spec parts and back them with our 12-month parts / 90-day labor warranty. If your brakes are squealing or grinding, <Link href="/contact" className="underline text-[#FDB913] hover:text-primary">contact Nick's Tire & Auto</Link> for a free check today.
       </>
     ]
   },
@@ -99,12 +99,12 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     { q: "What are the common signs of worn brake pads?", a: "Classic signs include squeaking or squealing when you brake (wear indicators), grinding (metal-on-metal, pads fully worn), soft or spongy pedal (air in lines or low fluid), pulsation through the pedal (warped rotors), or the dashboard brake light stays on." },
     { q: "Do I always have to replace my rotors when changing brake pads?", a: "Not always. If the rotors are still above the minimum safe thickness and have no deep scoring or warping, we can reuse or resurface them. However, if they are scored, thin, or warped, we must replace them along with the pads to ensure proper stopping power and warranty coverage." },
     { q: "Why do my brakes make noise, and is it dangerous?", a: "Squeaking can be a warning sign that pads are thin, or from surface rust. Grinding, however, is extremely dangerous as it means metal is rubbing against metal, which significantly increases stopping distances and ruins the rotors. Grinding brakes should be inspected immediately." },
-    { q: "My brake warning light is on — can I drive?", a: "If it's the ABS light only, you can drive cautiously to the shop. If it's the brake warning light (red), that means low brake fluid or a hydraulic problem — pull over and call us. Driving on a failing brake system is how accidents happen." },
+    { q: "My brake warning light is on, can I drive?", a: "If it's the ABS light only, you can drive cautiously to the shop. If it's the brake warning light (red), that means low brake fluid or a hydraulic problem. Pull over and call us. Driving on a failing brake system is how accidents happen." },
     { q: "How do I schedule a brake inspection at Nick's?", a: "No appointment is needed! Nick's Tire & Auto runs on a first-come, first-served basis. You can walk in 7 days a week (Mon-Sat 8-6, Sun 9-4) at 17625 Euclid Ave, Cleveland. You can also schedule a vehicle drop-off online or call us ahead at (216) 862-0005." },
-    { q: "How much does a brake job cost in Cleveland?", a: "It depends on what's worn — pads only is the cheapest fix; pads + rotors is the most common; full brake jobs (calipers, lines) run highest. The free check tells us exactly what's needed. We give you a written quote before any work and explain why each part is being replaced. No upsells, no boilerplate quotes — you don't pay until you say yes." },
-    { q: "How long does brake repair take?", a: "Most pad replacements average about 60 minutes per axle — check out our reviews, we're the fastest in the city. Pads + rotors usually 90 minutes. If you drop off before 10 AM, it's done same day. Walk-ins welcome but calling ahead at (216) 862-0005 lets us have the right parts ready." },
-    { q: "Do you replace brakes on European cars?", a: "Yes — we service BMW, Mercedes, Audi, Volkswagen, Volvo, Porsche, and most European brands. These typically use specific pads and sensors; we stock or source OE-spec parts and reset the wear indicator on your dashboard after service." },
-    { q: "Do you offer a warranty on brake work?", a: "Every brake job includes our 12-month parts / 90-day labor warranty. If a pad is defective or fails early, we replace it free. Real warranty — not the 'comes with a sticker but good luck claiming it' kind." },
+    { q: "How much does a brake job cost in Cleveland?", a: "It depends on what's worn. Pads only is the cheapest fix; pads + rotors is the most common; full brake jobs (calipers, lines) run highest. The free check tells us exactly what's needed. We give you a written quote before any work and explain why each part is being replaced. You don't pay until you say yes." },
+    { q: "How long does brake repair take?", a: "Most pad replacements average about 60 minutes per axle. Check out our reviews. We're the fastest in the city. Pads + rotors usually 90 minutes. If you drop off before 10 AM, it's done same day. Walk-ins welcome but calling ahead at (216) 862-0005 lets us have the right parts ready." },
+    { q: "Do you replace brakes on European cars?", a: "Yes. We service BMW, Mercedes, Audi, Volkswagen, Volvo, Porsche, and most European brands. These typically use specific pads and sensors; we stock or source OE-spec parts and reset the wear indicator on your dashboard after service." },
+    { q: "Do you offer a warranty on brake work?", a: "Every brake job includes our 12-month parts / 90-day labor warranty. If a pad is defective or fails early, we replace it free. Real warranty, not the 'comes with a sticker but good luck claiming it' kind." },
   ],
   bookingService: "brakes",
   serviceType: "Brake Repair",
@@ -115,14 +115,14 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   // and pulls into the fear stats (which substantiate the cascade cost).
   curiosityArc: {
     heroHook: "Pads, rotors or the full job? Which brakes does your car need?",
-    stakesHook: "Wondering if it can wait? Worn pads draw a line — and every week pushes you past it.",
+    stakesHook: "Wondering if it can wait? Worn pads draw a line, and every week pushes you past it.",
   },
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
-  ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland, OH 44112.",
+  ctaSub: `Free check, written quote, you don't pay until you say yes. Walk in or drop off at ${BUSINESS.address.full}.`,
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {
-    serviceName: "Brake repair, per axle — Cleveland market quotes",
+    serviceName: "Brake repair, per axle, Cleveland market quotes",
     rows: [
       { label: "Cleveland-area dealer (avg quote)", price: "$800" },
       { label: "National chain (Firestone / Midas tier)", price: "$600" },
@@ -131,7 +131,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     source: "Source: representative dealer + chain quotes for pad replacement, Cleveland metro 2026. Final price varies by vehicle.",
   },
   fearStats: {
-    heading: "What worn brakes actually do — the math you don't want to learn at 60 mph.",
+    heading: "What worn brakes actually do. The math you don't want to learn at 60 mph.",
     stats: [
       {
         value: "287",
@@ -141,11 +141,11 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
       },
       {
         value: "400°F",
-        consequence: "Boiling point of fresh DOT-3 brake fluid. Old (1-year+) fluid drops to ~280°F — heavy braking on Cleveland hills boils it, you get a pedal that goes to the floor with zero stopping power.",
+        consequence: "Boiling point of fresh DOT-3 brake fluid. Old (1-year+) fluid drops to ~280°F. Heavy braking on Cleveland hills boils it, and you get a pedal that goes to the floor with zero stopping power.",
       },
       {
         value: "$3,800",
-        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. A pad job caught early is a fraction of that — the longer metal grinds on metal, the more parts get dragged into the repair.",
+        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. A pad job caught early is a fraction of that. The longer metal grinds on metal, the more parts get dragged into the repair.",
       },
     ],
   },
@@ -154,7 +154,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
       amount: 8.5,
       unit: "per day",
       label: "in compounding rotor damage",
-      reason: "Once the pad backing meets the rotor, every stop scores the metal deeper. Wait two weeks and a pads-only job typically becomes a pads + rotors job — a real jump on the final invoice. A free check tells you exactly which side of that line you're on, before it costs more.",
+      reason: "Once the pad backing meets the rotor, every stop scores the metal deeper. Wait two weeks and a pads-only job typically becomes a pads + rotors job, a real jump on the final invoice. A free check tells you exactly which side of that line you're on, before it costs more.",
       ctaHref: "#booking",
       ctaLabel: "STOP THE DAMAGE TODAY",
     },
@@ -164,16 +164,16 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     eyebrow: "Brake bays · Pads on the bench · Real lift-ups",
     headingLine1: "We do this every day,",
     headingLine2: "and it's not theatre.",
-    subhead: "Real lifts, real measurements, real customers — no stock photos, no fake \"shop tour\" video.",
+    subhead: "Real lifts, real measurements, real customers.",
   },
   crossSell: {
-    heading: "While you're here — what else might your car need?",
+    heading: "While you're here, what else might your car need?",
     items: [
       {
         tone: "warning",
         icon: <Wrench className="w-5 h-5" />,
         symptom: "Steering wheel shaking when you brake?",
-        consequence: "Warped rotor — same family of problem, often shows up next to worn pads.",
+        consequence: "Warped rotor. Same family of problem, often shows up next to worn pads.",
         relief: "Resurface or replace, $0 add-on if we're already in there.",
         ctaLabel: "WHEEL ALIGNMENT",
         ctaHref: "/wheel-alignment-cleveland",
@@ -182,7 +182,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         tone: "info",
         icon: <Activity className="w-5 h-5" />,
         symptom: "Check-engine light on at the same time?",
-        consequence: "ABS module faults can trigger both — worth scanning together.",
+        consequence: "ABS module faults can trigger both. Worth scanning together.",
         relief: "Free 5-min code scan. Rolled into the brake-job visit.",
         ctaLabel: "RUN DIAGNOSTICS",
         ctaHref: "/diagnostics",
