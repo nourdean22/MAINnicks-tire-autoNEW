@@ -21,7 +21,8 @@ export type ApplyArgs =
   /** withModel: the opt-in digest step (each call writes one AgentTrace row; Codex on 3419). */
   | { mode: "dry"; limit: number; withModel: boolean }
   /** resume: a progress file from an earlier --plan run; its done conversations are skipped. */
-  | { mode: "plan"; limit: number; out: string; resume: string | null }
+  /** acceptPartial: write the plan and token for the digested set when some conversations never digest. */
+  | { mode: "plan"; limit: number; out: string; resume: string | null; acceptPartial: boolean }
   | { mode: "execute"; planFile: string; token: string };
 
 /** The value after `flag`, or null when the flag is missing or followed by another flag. */
@@ -34,6 +35,10 @@ function valueOf(argv: readonly string[], flag: string): string | null {
 export function parseApplyArgs(argv: readonly string[]): ApplyArgs {
   if (argv.includes("--apply")) throw new Error("--apply is retired: use --plan --out <file>, then --execute --plan-file <file> --token <t>");
   const limit = Math.max(1, Number(valueOf(argv, "--limit")) || 20);
+  const acceptPartial = argv.includes("--accept-partial");
+  if (acceptPartial && (!argv.includes("--plan") || argv.includes("--execute"))) {
+    throw new Error("--accept-partial is a --plan flag: it writes the plan for the conversations already digested");
+  }
   if (argv.includes("--execute")) {
     const planFile = valueOf(argv, "--plan-file");
     if (!planFile) throw new Error("--execute needs --plan-file <the file the --plan run wrote>");
@@ -46,7 +51,7 @@ export function parseApplyArgs(argv: readonly string[]): ApplyArgs {
     if (!out) throw new Error("--plan needs --out <a local file path>");
     const resume = valueOf(argv, "--resume");
     if (argv.includes("--resume") && !resume) throw new Error("--resume needs <the progress file an earlier --plan run saved>");
-    return { mode: "plan", limit, out, resume };
+    return { mode: "plan", limit, out, resume, acceptPartial };
   }
   return { mode: "dry", limit, withModel: argv.includes("--with-model") };
 }
@@ -159,21 +164,50 @@ export async function backupInOneSnapshot(
   }
 }
 
-export function serializePlan(rows: readonly PlannedChatRow[]): string {
-  return JSON.stringify(
-    rows.map((r) => ({
-      personId: r.personId,
-      conversationId: r.conversationId,
-      start: r.start.toISOString(),
-      at: r.at.toISOString(),
-      interactionKind: r.interactionKind,
-      backfillKey: r.backfillKey,
-    })),
-  );
+/** A partial plan's header (--accept-partial): how much was digested, and which conversations never were. Ids only. */
+export interface PartialHeader {
+  done: number;
+  total: number;
+  undigested: string[];
+}
+
+/** A complete plan is a list of rows; a partial one is { partial, rows }. The token covers both. */
+export function serializePlan(rows: readonly PlannedChatRow[], partial?: PartialHeader): string {
+  const list = rows.map((r) => ({
+    personId: r.personId,
+    conversationId: r.conversationId,
+    start: r.start.toISOString(),
+    at: r.at.toISOString(),
+    interactionKind: r.interactionKind,
+    backfillKey: r.backfillKey,
+  }));
+  return JSON.stringify(partial ? { partial, rows: list } : list);
+}
+
+/** The partial header, or null for a complete plan (a plain list). */
+export function planHeader(json: string): PartialHeader | null {
+  const raw: unknown = JSON.parse(json);
+  if (Array.isArray(raw)) return null;
+  const p = (raw as { partial?: unknown } | null)?.partial as Record<string, unknown> | undefined;
+  if (
+    !p ||
+    typeof p.done !== "number" ||
+    typeof p.total !== "number" ||
+    !Array.isArray(p.undigested) ||
+    !p.undigested.every((id) => typeof id === "string")
+  ) {
+    throw new Error("plan file header is malformed");
+  }
+  return { done: p.done, total: p.total, undigested: p.undigested as string[] };
 }
 
 export function deserializePlan(json: string): PlannedChatRow[] {
-  const raw: unknown = JSON.parse(json);
+  const parsed: unknown = JSON.parse(json);
+  let raw: unknown = parsed;
+  if (!Array.isArray(parsed)) {
+    planHeader(json); // validates the header
+    raw = (parsed as { rows?: unknown }).rows;
+  }
   if (!Array.isArray(raw)) throw new Error("plan file is not a list");
   return raw.map((r, i) => {
     const o = r as Record<string, unknown>;

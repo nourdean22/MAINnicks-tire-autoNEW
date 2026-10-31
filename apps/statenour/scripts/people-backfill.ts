@@ -14,7 +14,10 @@
  *   connection opens. --plan and --execute are the manager's to run; --execute only after
  *   Nour's yes on the --plan counts and token.
  *
- *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model] [--plan --out <file> [--resume <file>.progress.json]]
+ *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model] [--plan --out <file> [--resume <file>.progress.json] [--accept-partial]]
+ *
+ *   --accept-partial (with --plan): when some conversations never digest, write the plan and
+ *   token for the digested set anyway; the plan header lists the left-out conversation ids.
  *
  *   --plan saves progress to <out>.progress.json after every conversation (ids, kind and times
  *   only). A run that stops early (a crash, 3 provider failures in a row, a failed digest) prints
@@ -118,7 +121,7 @@ async function main() {
     rows: [],
     skipped: { mentionOnly: 0, unmatched: 0, alreadyLogged: 0, duplicate: 0 },
   };
-  let partial: { reason: string; done: number; total: number; progressPath: string | null } | null = null;
+  let partial: { reason: string; done: number; total: number; progressPath: string | null; undigested: string[] } | null = null;
   if (!NO_MODEL) {
     const { digestConversation } = await import("@/lib/brain/conversation-memory");
     const run = await import("@/lib/services/people/backfill-plan-run");
@@ -188,7 +191,16 @@ async function main() {
     const n = result.progress.done.length;
     console.log(`lane B digested: ${n} of ${result.total} (digest failures, retried on resume: ${result.progress.digestFailed})`);
     console.log(`lane B rows planned: ${laneB.rows.length}; skipped ${JSON.stringify(laneB.skipped)}`);
-    if (result.status === "partial") partial = { reason: result.reason ?? "stopped", done: n, total: result.total, progressPath };
+    if (result.status === "partial") {
+      const doneIds = new Set(result.progress.done);
+      partial = {
+        reason: result.reason ?? "stopped",
+        done: n,
+        total: result.total,
+        progressPath,
+        undigested: slice.map((c) => c.conversationId).filter((id) => !doneIds.has(id)),
+      };
+    }
   }
 
   const perPerson = new Map<string, { chat: number; tasks: number }>();
@@ -197,12 +209,28 @@ async function main() {
   for (const [id, n] of perPerson) console.log(`  person ...${suffix(id)}: chat ${n.chat}, tasks ${n.tasks}`);
 
   // Lane A is reported, never applied by this script; the plan file holds chat rows only.
-  if (partial) {
+  if (partial && parsed.mode === "plan" && parsed.acceptPartial) {
+    // Some conversations never digest (manager, 2026-10-31: 3 fail on every pass). The plan
+    // is written for the digested set; its header lists the rest by id, and the token covers it.
+    const header = { done: partial.done, total: partial.total, undigested: partial.undigested };
+    console.log(`partial accepted: ${partial.done} of ${partial.total} conversations (${partial.reason})`);
+    console.log(`undigested (ids, left out of this plan): ${partial.undigested.join(", ") || "none"}`);
+    if (laneB.rows.length === 0) {
+      console.log("plan: nothing to write (0 chat rows)");
+    } else {
+      const contents = apply.serializePlan(laneB.rows, header);
+      writeFileSync(parsed.out, contents, "utf8");
+      const token = apply.fileToken(contents);
+      console.log(`plan written: ${laneB.rows.length} rows to ${parsed.out}; token ${token}`);
+      console.log(`apply after Nour's yes: --execute --plan-file ${parsed.out} --token ${token}`);
+    }
+  } else if (partial) {
     // No plan file and no token for an incomplete run: the token must cover the whole reviewed set.
     console.log(`partial plan saved: ${partial.done} of ${partial.total} conversations (${partial.reason})`);
     if (parsed.mode === "plan" && partial.progressPath) {
       console.log(`progress file: ${partial.progressPath}`);
       console.log(`rerun to finish: --plan --limit ${LIMIT} --out ${parsed.out} --resume ${partial.progressPath}`);
+      console.log(`or write the plan for the digested set: the same line plus --accept-partial`);
     }
     process.exitCode = 1;
   } else if (parsed.mode === "plan") {
@@ -228,6 +256,10 @@ async function execute(prisma: Prisma, contents: string, token: string, apply: A
   const { Prisma: P } = await import("@prisma/client");
   const { recordInteraction } = await import("@/lib/services/people/record-interaction");
   const { contactRowsOnly } = await import("@/lib/services/people/contact-rows");
+  const header = apply.planHeader(contents);
+  if (header) {
+    console.log(`partial plan: ${header.done} of ${header.total} conversations digested; ${header.undigested.length} left out (ids in the plan header)`);
+  }
 
   const result = await apply.runApply({
     planFile: contents,
