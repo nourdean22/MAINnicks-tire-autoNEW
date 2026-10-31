@@ -172,6 +172,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 
 ## Loop log
 
+- Tick 17, 2026-10-31 18:28Z: no new asks. PR 3463 (self-learning W0) is GREEN on new head `c6b1e0c6ff` (0 red, 0 pending), ready for the gate. PR 3471 (calendar W2b, head `1de4b1cda6`) is RED on node. Live builds unchanged.
+
 - Tick 16, 2026-10-31 18:12Z: no new asks. 3470 (tick 15) merged `5fbe581059`. Row 34: calendar W2b is PR 3471 (open). Manager rulings 17:10Z (CLAIM): `b0d2694502` is in no branch head, only GitHub's `refs/pull/3466/head`; closed. The three pushed lane branches are crash backups, not ready for PRs. Order: W5b PR when its lane returns; self-learning W1 after 3463 merges; sharpener finish lane queued for a writer slot. Live builds unchanged.
 
 - Tick 15, 2026-10-31 17:16Z: new ask 16:23Z "WHY U MOVING SO SLOW?" (pace, to the manager; no new row). Humanizer PR I 3468 merged `53a3009b6f` and LIVE (nickstire.org runs it). 3469 (ticks 8-14) merged. Now on GitHub with no PR yet: `chore/prompt-sharpener` `f04dfb1602`, `nickstire/self-learning-w1-daily` `71b4ae24e1`, `nickstire/transfer-callback-w5` `a8d68d5784`. PR 3463 is still red.
