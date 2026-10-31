@@ -1,12 +1,20 @@
 /**
- * People W1 backfill, DRY RUN ONLY (2026-10-30).
+ * People W1 backfill (2026-10-30). Gate order in lib/services/people/backfill-apply.ts.
  *
- * Reads production and prints what a backfill would add to the people tracker:
- * counts and person-id suffixes, never names or notes. By default it writes
- * nothing. The apply is a production write and lands in its own change after
- * Nour's yes; until then `--apply` is refused before any connection opens.
+ *   (default) dry run: reads prod, prints counts and person-id suffixes, never names or
+ *              notes, and writes nothing.
+ *   --plan --out <file>: the same WITH the model step (see Lane B: one AgentTrace row per
+ *              call), then writes the planned chat rows (ids, kind, times only) to that LOCAL
+ *              file and prints its token, a short sha256 of the file.
+ *   --execute --plan-file <file> --token <t>: re-hashes the file and refuses unless it is <t>,
+ *              copies relationship_ledger to _bak_relationship_ledger_people_w1_20261030 and
+ *              compares counts, then writes exactly the file's rows, each only when no contact
+ *              row already sits inside its [start, end] window (insertWithinWindow).
+ *   A missing --out, --plan-file or --token, or the retired --apply, exits 2 before any
+ *   connection opens. --plan and --execute are the manager's to run; --execute only after
+ *   Nour's yes on the --plan counts and token.
  *
- *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model]
+ *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model] [--plan --out <file>]
  *
  * Lane A (tasks): promise tasks whose promiseTo names a live person exactly.
  * Lane B (chat): conversations where his own messages name a tracked person who
@@ -18,6 +26,7 @@
  */
 import { loadEnvConfig } from "@next/env";
 import Module from "node:module";
+import { readFileSync, writeFileSync } from "node:fs";
 
 loadEnvConfig(process.cwd());
 
@@ -32,22 +41,30 @@ loadEnvConfig(process.cwd());
   };
 }
 
-const args = process.argv.slice(2);
-if (args.includes("--apply")) {
-  console.error("refused: the apply is not built yet; it needs Nour's yes on these dry-run counts first");
-  process.exit(2);
-}
-const limitArg = args.indexOf("--limit");
-const LIMIT = limitArg >= 0 ? Math.max(1, Number(args[limitArg + 1]) || 20) : 20;
-// The model step is opt-in: each digest call goes through tracedAiChat, which
-// writes one AgentTrace row to production. The default run writes nothing
-// (Codex on 3419); --with-model is for a run that write was approved for.
-const NO_MODEL = !args.includes("--with-model");
+const BACKUP_TABLE = "_bak_relationship_ledger_people_w1_20261030";
 
 const suffix = (id: string) => id.slice(-6);
 
 async function main() {
+  // Parse BEFORE the Prisma import: a refused command never opens a connection.
+  const apply = await import("@/lib/services/people/backfill-apply");
+  let parsed: ReturnType<typeof apply.parseApplyArgs>;
+  try {
+    parsed = apply.parseApplyArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(`refused: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(2);
+  }
   const { prisma } = await import("@/lib/prisma");
+  if (parsed.mode === "execute") {
+    await execute(prisma, parsed.planFile, parsed.token, apply);
+    await prisma.$disconnect();
+    return;
+  }
+  const LIMIT = parsed.limit;
+  // The model step is opt-in: each digest call goes through tracedAiChat, which writes one
+  // AgentTrace row to production (Codex on 3419). --plan implies it; a dry run needs --with-model.
+  const NO_MODEL = parsed.mode === "dry" && !parsed.withModel;
   const plan = await import("@/lib/services/people/backfill-plan");
 
   const people = await prisma.personProfile.findMany({
@@ -136,11 +153,76 @@ async function main() {
   for (const r of laneA.rows) (perPerson.get(r.personId) ?? perPerson.set(r.personId, { chat: 0, tasks: 0 }).get(r.personId)!).tasks++;
   for (const [id, n] of perPerson) console.log(`  person ...${suffix(id)}: chat ${n.chat}, tasks ${n.tasks}`);
 
-  console.log(`confirm token: ${plan.planToken({ chat: laneB.rows, tasks: laneA.rows })}${NO_MODEL ? " (no model run: lane A only)" : ""}`);
+  // Lane A is reported, never applied by this script; the plan file holds chat rows only.
+  if (parsed.mode === "plan") {
+    if (laneB.rows.length === 0) {
+      console.log("plan: nothing to write (0 chat rows)");
+    } else {
+      const contents = apply.serializePlan(laneB.rows);
+      writeFileSync(parsed.out, contents, "utf8");
+      const token = apply.fileToken(contents);
+      console.log(`plan written: ${laneB.rows.length} rows to ${parsed.out}; token ${token}`);
+      console.log(`apply after Nour's yes: --execute --plan-file ${parsed.out} --token ${token}`);
+    }
+  } else {
+    console.log("dry run: nothing written (use --plan --out <file> to write a plan file)");
+  }
   await prisma.$disconnect();
 }
 
+type Prisma = (typeof import("@/lib/prisma"))["prisma"];
+type ApplyModule = typeof import("@/lib/services/people/backfill-apply");
+
+async function execute(prisma: Prisma, planFile: string, token: string, apply: ApplyModule) {
+  const contents = readFileSync(planFile, "utf8");
+  const { recordInteraction } = await import("@/lib/services/people/record-interaction");
+  const { contactRowsOnly } = await import("@/lib/services/people/contact-rows");
+  const count = async (table: string) =>
+    Number(((await prisma.$queryRawUnsafe(`SELECT count(*)::int AS n FROM ${table}`)) as Array<{ n: number }>)[0].n);
+
+  const result = await apply.runApply({
+    planFile: contents,
+    token,
+    deps: {
+      // CREATE TABLE fails if the backup already exists: a second run never overwrites the first backup.
+      backup: async () => {
+        await prisma.$executeRawUnsafe(`CREATE TABLE "${BACKUP_TABLE}" AS SELECT * FROM relationship_ledger`);
+        return { source: await count("relationship_ledger"), backup: await count(`"${BACKUP_TABLE}"`) };
+      },
+      insert: (r) =>
+        apply.insertWithinWindow(r, {
+          contactsBetween: async (personId, start, end) =>
+            contactRowsOnly(
+              await prisma.relationshipLedger.findMany({
+                where: { personId, createdAt: { gte: start, lte: end } },
+                select: { metadata: true },
+              }),
+            ).length,
+          write: async (row) => {
+            await recordInteraction({
+              personId: row.personId,
+              amount: 1,
+              note: `interaction reported in chat (${row.interactionKind ?? "other"})`,
+              source: "chat",
+              at: row.at,
+              creditXp: false,
+              metadata: {
+                auto: true,
+                via: "backfill:conversation_digest",
+                conversationId: row.conversationId,
+                interactionKind: row.interactionKind ?? "other",
+                backfillKey: row.backfillKey,
+              },
+            });
+          },
+        }),
+    },
+  });
+  console.log(`execute: ${JSON.stringify(result)}`);
+  if (result.status !== "applied" || result.failed > 0) process.exitCode = 1;
+}
+
 main().catch((err) => {
-  console.error("dry run failed:", err instanceof Error ? err.message : String(err));
+  console.error("people-backfill failed:", err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

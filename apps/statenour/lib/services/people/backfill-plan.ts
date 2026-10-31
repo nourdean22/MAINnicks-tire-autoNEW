@@ -54,6 +54,8 @@ export interface DigestedConversation {
 export interface PlannedChatRow {
   personId: string;
   conversationId: string;
+  /** Conversation start: with `at` (its end), the window the apply re-checks before it writes. */
+  start: Date;
   at: Date;
   interactionKind: string | null;
   backfillKey: string;
@@ -142,7 +144,7 @@ export function planChatInteractions(
         continue;
       }
       seen.add(backfillKey);
-      rows.push({ personId: p.id, conversationId: c.conversationId, at: c.end, interactionKind: m.interactionKind, backfillKey });
+      rows.push({ personId: p.id, conversationId: c.conversationId, start: c.start, at: c.end, interactionKind: m.interactionKind, backfillKey });
     }
   }
   return { rows, skipped };
