@@ -51,6 +51,7 @@ vi.mock("@/components/wisdom/maxim-line", () => ({
   },
 }));
 vi.mock("@/components/home/nick-command-line", () => ({ NickCommandLine: () => null }));
+vi.mock("@/components/relationships/love-map-line", () => ({ LoveMapLine: () => null }));
 vi.mock("@/components/home/horizon-line", () => ({
   HorizonLine: () => (h.horizon ? <section aria-label="horizon">Horizon</section> : null),
 }));
