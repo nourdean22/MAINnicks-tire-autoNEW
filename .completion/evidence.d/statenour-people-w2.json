@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w2": {
+      "ref": "statenour/people-w2 (job 2026-10-30-people-tracker, W2). 0 of 20 profiles had a cadence (prod read 2026-10-30), so W0's cadence-aware neglect fell back to 14 days for everyone. runPeopleIntelligence now parks a cadence PROPOSAL in pendingClassification for people with none: his own rhythm (median gap of 3+ contact rows via contactRowsOnly) or a role band (family/romantic 7, close friend 14, friend/mentor/mentee 30, acquaintance/network-only 90; work, adversarial and unknown roles none). It never writes cadenceDays, never over a set cadence or a waiting suggestion, never again within 30 days (metadata.cadenceProposedAt). Accept applies it (lib/services/people/accept-classification.ts, the rules moved out of power-atlas.ts acceptClassification); components/power-atlas/PersonInsights.tsx shows 'cadence -> every N days' (it hid any suggestion without role, notes or trust). A failed ledger read proposes nothing and returns cadence: ledger_read_failed. Red first: 2 missing modules, 4 engine cases, the banner rendering nothing. 11 files, 53 tests under TZ=UTC and America/New_York; commit hooks typecheck, eslint (0 errors), secrets passed. No prod write in this change."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the people tracker. After merge: proposals appear on the next intelligence run; live check = count of pendingClassification rows carrying cadenceDays, read once after the run."
+    }
+  }
+}

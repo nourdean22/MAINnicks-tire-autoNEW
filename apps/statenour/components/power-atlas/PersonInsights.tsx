@@ -34,6 +34,8 @@ interface PendingClassification {
   role?: string | null;
   leverageNotes?: string | null;
   trustAdjustment?: number;
+  /** People W2: a proposed cadence in days. */
+  cadenceDays?: number;
   basis?: string;
   suggestedAt?: string;
 }
@@ -62,7 +64,7 @@ export function PendingClassificationBanner({
   });
 
   const pc = (pending ?? null) as PendingClassification | null;
-  if (!pc || (!pc.role && !pc.leverageNotes && !pc.trustAdjustment)) return null;
+  if (!pc || (!pc.role && !pc.leverageNotes && !pc.trustAdjustment && !pc.cadenceDays)) return null;
 
   const busy = accept.isPending || dismiss.isPending;
   const roleLabel =
@@ -120,6 +122,11 @@ export function PendingClassificationBanner({
         {trustPct !== 0 && (
           <div>
             trust → <span className="font-mono tabular-nums">{trustPct > 0 ? "+" : ""}{trustPct}%</span>
+          </div>
+        )}
+        {typeof pc.cadenceDays === "number" && pc.cadenceDays > 0 && (
+          <div>
+            cadence → <span className="text-fg font-medium">every {pc.cadenceDays} days</span>
           </div>
         )}
         {pc.basis && (

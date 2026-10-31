@@ -49,6 +49,10 @@ export async function runPeopleIntelligence(): Promise<{
   alerts: string[];
   /** Set when the enrich pass could not read its context: 0 updates then means UNKNOWN, not a quiet day. */
   enrich?: "ledger_read_failed";
+  /** People W2: cadence proposals parked for his accept this run. */
+  cadenceProposed?: number;
+  /** Set when the cadence pass could not read the ledger: no proposal was guessed. */
+  cadence?: "ledger_read_failed";
 }> {
   const alerts: string[] = [];
 
@@ -112,6 +116,7 @@ export async function runPeopleIntelligence(): Promise<{
 
   let updated = 0;
   let ledgerReadFailed = false;
+  const suggestedNow = new Set<string>();
   if (sparse.length > 0) {
     // People W0 (2026-10-30): the context is the person's own ledger notes.
     // This used to read payload.peopleMentioned off conversation_digest audit
@@ -209,6 +214,7 @@ Return ONLY JSON:
               },
             });
             updated++;
+            suggestedNow.add(person.id);
           }
         } catch {
           enrichFailCount++;
@@ -221,7 +227,71 @@ Return ONLY JSON:
     }
   }
 
-  return ledgerReadFailed
-    ? { profilesUpdated: updated, alerts, enrich: "ledger_read_failed" }
-    : { profilesUpdated: updated, alerts };
+  const cadence = await proposeCadences(
+    people.filter((p) => !p.cadenceDays && !p.pendingClassification && !suggestedNow.has(p.id)),
+  );
+
+  return {
+    profilesUpdated: updated,
+    alerts,
+    ...(ledgerReadFailed ? { enrich: "ledger_read_failed" as const } : {}),
+    cadenceProposed: cadence.proposed,
+    ...(cadence.readFailed ? { cadence: "ledger_read_failed" as const } : {}),
+  };
+}
+
+const CADENCE_REPROPOSE_DAYS = 30;
+
+/**
+ * People W2 (2026-10-30): park a cadence PROPOSAL for people with none, for his
+ * accept or dismiss on /people. Never writes cadenceDays. A dismissed proposal
+ * stays away for 30 days (metadata.cadenceProposedAt), so it does not nag.
+ */
+async function proposeCadences(
+  candidates: ReadonlyArray<{ id: string; role: string; metadata: unknown }>,
+): Promise<{ proposed: number; readFailed: boolean }> {
+  const cutoff = Date.now() - CADENCE_REPROPOSE_DAYS * 86_400_000;
+  const due = candidates.filter((p) => {
+    const at = (p.metadata as { cadenceProposedAt?: unknown } | null)?.cadenceProposedAt;
+    const ms = typeof at === "string" ? Date.parse(at) : NaN;
+    return !(Number.isFinite(ms) && ms > cutoff);
+  });
+  if (due.length === 0) return { proposed: 0, readFailed: false };
+
+  const rows = await prisma.relationshipLedger
+    .findMany({
+      where: { personId: { in: due.map((p) => p.id) } },
+      select: { personId: true, createdAt: true, metadata: true },
+    })
+    // Only real contacts set his rhythm: a status flip or a synthetic row is not one.
+    .then(contactRowsOnly)
+    .catch((err) => {
+      logError("brain.people-intelligence", err, { fn: "proposeCadences.findLedger" });
+      return null;
+    });
+  if (!rows) return { proposed: 0, readFailed: true };
+
+  const contactsBy = new Map<string, Date[]>();
+  for (const r of rows) (contactsBy.get(r.personId) ?? contactsBy.set(r.personId, []).get(r.personId)!).push(r.createdAt);
+
+  const { suggestCadence } = await import("@/lib/services/people/cadence-suggest");
+  let proposed = 0;
+  for (const p of due) {
+    const s = suggestCadence({ role: p.role, contacts: contactsBy.get(p.id) ?? [] });
+    if (!s) continue;
+    const meta = p.metadata && typeof p.metadata === "object" && !Array.isArray(p.metadata) ? (p.metadata as Record<string, unknown>) : {};
+    try {
+      await prisma.personProfile.update({
+        where: { id: p.id },
+        data: {
+          pendingClassification: { cadenceDays: s.days, basis: s.basis, suggestedAt: today() } as object,
+          metadata: { ...meta, cadenceProposedAt: new Date().toISOString() } as object,
+        },
+      });
+      proposed++;
+    } catch (err) {
+      logError("brain.people-intelligence", err, { fn: "proposeCadences.update" });
+    }
+  }
+  return { proposed, readFailed: false };
 }
