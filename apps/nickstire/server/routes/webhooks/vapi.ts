@@ -430,7 +430,7 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
 
       // ─── escalations + confirmations ─────────────────────
       case "escalate":
-        output = await caller.escalate(args as { name: string; phone: string; reason: string; urgency?: "low" | "medium" | "high"; callId?: string });
+        output = await caller.escalate(args as { name: string; phone: string; reason: string; urgency?: "low" | "medium" | "high"; callId?: string; bestTime?: string });
         break;
       case "sendConfirmationSms":
         output = await caller.sendConfirmationSms(args as { phone: string; summary: string; mapLink?: string; callId?: string });
@@ -1131,6 +1131,17 @@ async function processCallEndReport(
   }
 }
 
+// ─── Warm-transfer hold audio ───────────────────────────
+// transferPlan.holdAudioUrl points here: Vapi fetches it to play to a caller
+// while the counter is dialled. Ringback, not music. Public by design: Vapi
+// sends no secret on a media fetch, and the file is a generated tone.
+router.get("/vapi/ringback.wav", async (_req: Request, res: Response) => {
+  const { ringbackWav } = await import("../../lib/ringbackTone");
+  const wav = ringbackWav();
+  res.set({ "Content-Type": "audio/wav", "Content-Length": String(wav.length), "Cache-Control": "public, max-age=86400" });
+  res.end(wav);
+});
+
 // ─── Main webhook endpoint ─────────────────────────────
 
 router.post("/vapi", async (req: Request, res: Response) => {
@@ -1271,6 +1282,26 @@ router.post("/vapi", async (req: Request, res: Response) => {
                 metadata: { eventType: event.type, status },
               })
             ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        // 2026-10-31 · Vapi's assistant-based warm transfer sends NO transfer-update;
+        // status forwarding is its only real-time sign that a transfer started.
+        // Record it as the same transfer_attempted witness (destination kind only).
+        if (status === "forwarding") {
+          const callId = event.call?.id;
+          if (callId) {
+            const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+            void Promise.all([
+              import("../../services/voice-call-state"),
+              import("../../lib/transferArtifact"),
+            ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "transfer_attempted",
+                metadata: transferUpdateMetadata(event, "status-update"),
+              }),
+            ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
           }
         }
         res.json({ ack: true });

@@ -156,14 +156,18 @@ export function sawTransferUpdate(
 }
 
 /**
- * What a `transfer-update` may store. The destination's KIND only ("number",
+ * What a `transfer-update` (or a status-update `forwarding`, the only witness an
+ * assistant-based warm transfer sends) may store. The destination's KIND only ("number",
  * "sip", "assistant"), never the number itself: a destination is a phone
  * number, and phone numbers stay out of telemetry rows.
  */
-export function transferUpdateMetadata(event: unknown): { eventType: "transfer-update"; destinationType: string | null } {
+export function transferUpdateMetadata<E extends "transfer-update" | "status-update" = "transfer-update">(
+  event: unknown,
+  eventType: E = "transfer-update" as E,
+): { eventType: E; destinationType: string | null } {
   const dest = (event as { destination?: unknown } | null)?.destination;
   const kind = dest && typeof dest === "object" ? asString((dest as { type?: unknown }).type) : null;
-  return { eventType: "transfer-update", destinationType: kind };
+  return { eventType, destinationType: kind };
 }
 
 export function readTransferArtifact(artifact: unknown): TransferArtifactRead {

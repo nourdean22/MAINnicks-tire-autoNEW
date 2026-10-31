@@ -28,7 +28,7 @@ export function stateFingerprint(parts: string[]): string {
  * True when this caller won the claim for (alertKey, today in ET) and should send.
  * `now` is injectable for the day-boundary tests.
  */
-async function claimAlertOnce(alertKey: string, now: Date = new Date(), firedFor: string = getBusinessDateKey(now)): Promise<boolean> {
+export async function claimAlertOnce(alertKey: string, now: Date = new Date(), firedFor: string = getBusinessDateKey(now)): Promise<boolean> {
   try {
     const { getDb } = await import("../db");
     const db = await getDb();
@@ -45,7 +45,7 @@ async function claimAlertOnce(alertKey: string, now: Date = new Date(), firedFor
 }
 
 /** Hands a claim back (the day's slot for this state) so a later tick may try again. */
-async function releaseAlertClaim(alertKey: string, now: Date = new Date(), firedFor: string = getBusinessDateKey(now)): Promise<void> {
+export async function releaseAlertClaim(alertKey: string, now: Date = new Date(), firedFor: string = getBusinessDateKey(now)): Promise<void> {
   try {
     const { getDb } = await import("../db");
     const db = await getDb();

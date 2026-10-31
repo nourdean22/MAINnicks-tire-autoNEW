@@ -16,7 +16,7 @@
  */
 
 import "dotenv/config";
-import { buildAssistantConfig } from "../server/services/vapi";
+import { buildAssistantConfig, preserveLiveTransferDestinations } from "../server/services/vapi";
 
 const ASSISTANT_ID = "150fe622-0b9f-4b03-b8c7-3063812717ae";
 const SERVER_URL = "https://nickstire.org/api/webhooks/vapi";
@@ -50,38 +50,18 @@ async function main(): Promise<void> {
 
   const config = buildAssistantConfig(SERVER_URL);
 
-  // Merge: replace code's transferCall destinations with whatever the
-  // dashboard has set (preserves Nour's number choice). If dashboard
-  // has no transferCall yet (first deploy), code default ships through.
+  // Merge: the SAME preserve the admin "Push Latest Config" runs
+  // (preserveLiveTransferDestinations): the live number, mode, plan message,
+  // sipVerb and dialTimeout stay; on a live experimental plan the code-owned
+  // transferAssistant / holdAudioUrl / fallbackPlan are laid over it (2026-10-31).
+  // This script used to carry its own copy of the merge, which kept the live plan
+  // whole and the live spoken message. No live transferCall: code default ships.
   if (liveDestinations && liveDestinations.length > 0) {
-    const codeTransferIdx = config.model.tools.findIndex((t) => t.type === "transferCall");
-    if (codeTransferIdx >= 0) {
-      const codeTool = config.model.tools[codeTransferIdx];
-      if (codeTool.type === "transferCall") {
-        codeTool.destinations = liveDestinations.map((d) => {
-          // Preserve a dashboard-set transferPlan (e.g. the warm-transfer
-          // config) so a code re-push does not silently revert transfers
-          // to a blind transfer — which does not connect from a Vapi
-          // number. Fall back to the code default's transferPlan.
-          const rawPlan =
-            (d.transferPlan as { mode: string; message?: string; sipVerb?: string } | undefined) ??
-            codeTool.destinations[0]?.transferPlan;
-          const transferPlan = rawPlan
-            ? { ...rawPlan, sipVerb: "dial" as const }
-            : undefined;
-          return {
-            type: (d.type as "number") || "number",
-            number: d.number as string,
-            message: (d.message as string) ?? codeTool.destinations[0]?.message,
-            description: (d.description as string) ?? codeTool.destinations[0]?.description,
-            ...(transferPlan ? { transferPlan } : {}),
-          };
-        });
-        console.log(`✅ Preserved dashboard-set transfer destinations: ${codeTool.destinations.map((d) => d.number).join(", ")}`);
-      }
-    }
+    preserveLiveTransferDestinations(config, preLiveTools);
+    const kept = config.model.tools.find((t) => t.type === "transferCall");
+    if (kept && kept.type === "transferCall") console.log(`✅ Preserved dashboard-set transfer destinations: ${kept.destinations.length}`);
   } else {
-    console.log(`⚠️  No live transferCall destinations found — using code default (${config.model.tools.find((t) => t.type === "transferCall" && t.destinations)?.destinations?.[0]?.number ?? "none"})`);
+    console.log("⚠️  No live transferCall destinations found — using the code default destination");
   }
 
   console.log("");
