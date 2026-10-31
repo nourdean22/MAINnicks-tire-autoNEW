@@ -32,4 +32,20 @@ describe("getRelationshipPicks reachability", () => {
   it("CONTROL: an unrelated message does not pull it in", async () => {
     expect(await offered("what's the weather tomorrow")).not.toContain("getRelationshipPicks");
   });
+
+  // Second read on #3440 (bdnick-chat-v2): the people family fires on shop words and matched
+  // /relation/, so a customer or staff question carried Nour's personal picks as a candidate.
+  it.each([
+    "call the customer about the estimate",
+    "reach out to the customer about his tires",
+    "check in with the tech on the brake job",
+    "who on the team is behind on jobs",
+    "pull the invoice and revenue numbers for that customer",
+  ])("shop wording never pulls in personal picks: %s", async (prompt) => {
+    expect(await offered(prompt)).not.toContain("getRelationshipPicks");
+  });
+
+  it("a personal word in the people family still pulls it in", async () => {
+    expect(await offered("how is my family doing, who have I been neglecting")).toContain("getRelationshipPicks");
+  });
 });

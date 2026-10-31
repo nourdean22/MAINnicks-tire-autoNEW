@@ -471,7 +471,10 @@ export async function pruneTools(
 
   // People / customers / relationships
   if (/\b(dania|wife|family|kid|child|friend|customer|employee|tech|staff|manager|team)\b/.test(text)) {
-    addMatching(/customer|people|relation|person|profile/i);
+    // relation(?!shipPicks): this family also fires on shop words, and Nour's personal picks must
+    // never ride a customer/staff question (second read on #3440). Personal words add them below.
+    addMatching(/customer|people|relation(?!shipPicks)|person|profile/i);
+    if (/\b(dania|wife|family|kid|child|friend)\b/.test(text)) addMatching(/^getRelationshipPicks$/);
   }
 
   // v10.0.509 · SEO / search / traffic / rankings · ADR-0011 root-cause fix
@@ -749,8 +752,12 @@ export async function pruneTools(
   }
 
   // People W4 S2 (2026-10-30) · "who should I call / check in on / gone quiet" → today's
-  // relationship picks, the same list as /people.
-  if (/\b(who (should|do) i (call|text|reach out to|check (in )?on|see|talk to)|reach out to|check in (on|with)|gone quiet|(not|n'?t) (talked|spoken|heard from) .{0,20}(while|lately|weeks?|months?)|relationship picks?|who needs me)\b/.test(text)) {
+  // relationship picks, the same list as /people. Never on shop wording: "reach out to the customer"
+  // is a shop job, not a personal pick (second read on #3440).
+  if (
+    /\b(who (should|do) i (call|text|reach out to|check (in )?on|see|talk to)|reach out to|check in (on|with)|gone quiet|(not|n'?t) (talked|spoken|heard from) .{0,20}(while|lately|weeks?|months?)|relationship picks?|who needs me)\b/.test(text) &&
+    !/\b(customers?|clients?|estimates?|invoices?|quotes?|jobs?|cars?|vehicles?|tires?|brakes?|shop|techs?|staff|employees?|team|leads?)\b/.test(text)
+  ) {
     addMatching(/^getRelationshipPicks$/);
   }
 

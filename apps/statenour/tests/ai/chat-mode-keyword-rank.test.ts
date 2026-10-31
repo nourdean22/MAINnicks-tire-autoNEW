@@ -83,9 +83,6 @@ const BASE_BUSINESS_SCORES: Record<string, number> = {
   getEstimateLeaks: 0.02,
   getHabitRevenueCorrelation: 0.01,
   getRevenueStats: 0.01,
-  // 2026-10-30 · people W4 S2: "customer" also fires the people family (/relation/), which
-  // now pulls getRelationshipPicks in as a candidate. Irrelevant to an invoice question, so low.
-  getRelationshipPicks: 0.005,
 };
 
 // 2026-10-18 · the alphabetically-first family member is DERIVED, not named: the tool
