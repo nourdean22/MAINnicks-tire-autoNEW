@@ -8,6 +8,7 @@ const mockCreate = vi.fn();
 const mockDeleteMany = vi.fn();
 const mockBodyTrackingFindUnique = vi.fn().mockResolvedValue(null);
 const mockApprovalRequestCount = vi.fn().mockResolvedValue(0);
+const mockAutonomousActionCount = vi.fn().mockResolvedValue(0);
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -22,6 +23,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     approvalRequest: {
       count: () => mockApprovalRequestCount(),
+    },
+    autonomousAction: {
+      count: () => mockAutonomousActionCount(),
     },
   },
 }));
@@ -64,6 +68,7 @@ import {
   fireAfternoonPush,
   fireEveningPush,
   fireSlotForCurrentHour,
+  checkAndNudgeApprovals,
 } from "@/lib/brain/proactive-pushes";
 
 beforeEach(() => {
@@ -75,6 +80,7 @@ beforeEach(() => {
   mockBodyTrackingFindUnique.mockReset().mockResolvedValue(null);
   mockSendTelegram.mockReset();
   mockApprovalRequestCount.mockReset().mockResolvedValue(0);
+  mockAutonomousActionCount.mockReset().mockResolvedValue(0);
   mockAnticipatedQuestions = [{ question: "What is Nour's target today?" }];
   mockCurrentConcerns = {
     threads: [{ text: "Resolve memory leak check", sourceLastAt: new Date().toISOString(), kind: "question" }],
@@ -360,5 +366,35 @@ describe("live push: claim before send", () => {
     mockFindUnique.mockResolvedValue(null);
     await fireMorningPush({ dryRun: true, now: MORNING });
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+});
+
+// home-pulse W3b (2026-10-31): one approvals message per tick. The hourly cron runs the morning slot and
+// checkAndNudgeApprovals in the SAME tick, both from 06:00 ET, and both told him the approval count: two
+// Telegrams for one fact. The governance nudge is the dedicated, fuller message (autonomous + tool
+// approvals), so it owns the count; the morning push carries only Nick's pick.
+describe("W3b · approvals reach him once per tick", () => {
+  const SIX_AM = new Date("2026-06-10T06:00:00-04:00");
+
+  it("the morning push no longer repeats the approval count", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockSendTelegram.mockResolvedValue(true);
+    mockApprovalRequestCount.mockResolvedValue(3);
+    await fireMorningPush({ now: SIX_AM });
+    expect(mockSendTelegram).toHaveBeenCalledTimes(1);
+    expect(String(mockSendTelegram.mock.calls[0][0])).not.toMatch(/approval/i);
+  });
+
+  it("with only approvals waiting, the morning push stays silent and the nudge carries the count", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockSendTelegram.mockResolvedValue(true);
+    mockAnticipatedQuestions = [];
+    mockApprovalRequestCount.mockResolvedValue(3);
+    const morning = await fireMorningPush({ now: SIX_AM });
+    expect(morning).toMatchObject({ fired: false, reason: "no_anticipated_set" });
+    await checkAndNudgeApprovals({ now: SIX_AM });
+    const texts = mockSendTelegram.mock.calls.map((c) => String(c[0]));
+    expect(texts.filter((t) => /approval/i.test(t))).toHaveLength(1);
+    expect(texts[0]).toContain("<b>3</b> tool execution(s) pending approval");
   });
 });
