@@ -103,7 +103,7 @@ export default function PrivacyPolicy() {
                 information only in the following limited circumstances:
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li><strong className="text-foreground">Service providers:</strong> We use vetted third-party services (such as Twilio for SMS messaging, Google for analytics and maps, and Meta — Facebook and Instagram — for advertising measurement) that process data on our behalf under their published terms</li>
+                <li><strong className="text-foreground">Service providers:</strong> We use vetted third-party services (such as Twilio for SMS messaging, Google for analytics and maps, and Meta's Facebook and Instagram for advertising measurement) that process data on our behalf under their published terms</li>
                 <li><strong className="text-foreground">Legal requirements:</strong> We may disclose information when required by law, court order, or government regulation</li>
                 <li><strong className="text-foreground">Business protection:</strong> We may share information to protect the rights, property, or safety of Nick's Tire & Auto, our customers, or others</li>
               </ul>
@@ -141,7 +141,7 @@ export default function PrivacyPolicy() {
                 </li>
                 <li>
                   <strong className="text-foreground">Meta Pixel and Conversions API</strong> (Facebook and Instagram) collect
-                  information about your visit — such as pages viewed and actions taken, like tapping to call — so we can
+                  information about your visit (such as pages viewed and actions taken, like tapping to call) so we can
                   measure and improve our advertising. Meta may also use this information for ad targeting under its own
                   data policy. You can opt out of Meta&apos;s use of this data at{" "}
                   <a href="https://www.facebook.com/ads/preferences" target="_blank" rel="noopener noreferrer" className="text-primary underline">facebook.com/ads/preferences</a>{" "}

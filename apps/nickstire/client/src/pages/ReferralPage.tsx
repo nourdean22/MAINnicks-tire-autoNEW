@@ -79,7 +79,7 @@ export default function ReferralPage() {
                 <span className="text-primary">BOTH SAVE $25</span>
               </h1>
               <p className="mt-6 text-foreground/70 text-lg max-w-2xl leading-relaxed">
-                Know someone who needs honest auto repair? Send them our way and you both get $25 off your next service. No gimmicks — just real rewards for real trust.
+                Know someone who needs honest auto repair? Send them our way and you both get $25 off your next service.
               </p>
             </FadeIn>
           </div>

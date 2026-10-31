@@ -66,7 +66,7 @@ const FAQ_ITEMS = [
   {
     question: "Why do repair costs vary so much?",
     answer:
-      "Labor rates differ by shop, vehicle complexity, and what we find when we get under the hood. Our rate is the Cleveland-market rate — same every car.",
+      "Labor rates differ by shop, vehicle complexity, and what we find when we get under the hood. Our rate is the Cleveland-market rate. Same every car.",
   },
   {
     question: "What's included in the estimate?",
@@ -86,12 +86,12 @@ const FAQ_ITEMS = [
   {
     question: "Do you offer payment plans?",
     answer:
-      "Yes — Kafene, Acima, Snap Finance, Koalafi, and American First Finance. Some don't require established credit, and each provider decides approval. Lease-to-own and installment options are available. Apply at the counter or online.",
+      "Yes: Kafene, Acima, Snap Finance, Koalafi, and American First Finance. Some don't require established credit, and each provider decides approval. Lease-to-own and installment options are available. Apply at the counter or online.",
   },
   {
     question: "What if I need emergency service?",
     answer:
-      "Pull up — we'll tell you the wait when you arrive. (216) 862-0005 if you want to call ahead and we'll tell you what the line looks like.",
+      "Pull up. We'll tell you the wait when you arrive. (216) 862-0005 if you want to call ahead and we'll tell you what the line looks like.",
   },
   {
     question: "Can you estimate without the exact year?",
@@ -101,7 +101,7 @@ const FAQ_ITEMS = [
   {
     question: "Do you work on imports?",
     answer:
-      "Yes — most brands including BMW, Audi, Lexus, Subaru, Honda.",
+      "Yes: most brands including BMW, Audi, Lexus, Subaru, Honda.",
   },
 ];
 
@@ -473,7 +473,7 @@ export default function CostEstimator() {
                       href="/booking"
                       className="block w-full py-4 rounded-lg bg-primary text-black text-center font-bold hover:bg-primary/90 transition-all"
                     >
-                      Drop It Off — See the Final Number
+                      Drop It Off. See the Final Number
                     </Link>
 
                     <a
@@ -491,7 +491,7 @@ export default function CostEstimator() {
                   {!leadSubmitted ? (
                     <div className="mt-6 bg-white/5 border border-white/10 rounded-lg p-5">
                       <h4 className="font-bold text-white text-sm mb-1">Want us to set up your file?</h4>
-                      <p className="text-white/50 text-xs mb-4">Drop your name and number — we'll have your info ready when you walk in. No appointment needed.</p>
+                      <p className="text-white/50 text-xs mb-4">Drop your name and number. We'll have your info ready when you walk in. No appointment needed.</p>
                       <div className="space-y-2">
                         <input
                           type="text"
@@ -529,7 +529,7 @@ export default function CostEstimator() {
                               // used to say "handled by tRPC" described code
                               // that didn't exist, so a failed save looked
                               // identical to success minus the confirmation.
-                              toast.error(`Couldn't save your info — call ${BUSINESS.phone.display} and we'll take it down.`);
+                              toast.error(`Couldn't save your info. Call ${BUSINESS.phone.display} and we'll take it down.`);
                             }
                             setLeadSaving(false);
                           }}
@@ -544,7 +544,7 @@ export default function CostEstimator() {
                     <div className="mt-6 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-5 text-center">
                       <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
                       <p className="font-bold text-emerald-400 text-sm">You're all set!</p>
-                      <p className="text-white/50 text-xs mt-1">We'll have your file ready. Just walk in — we'll re-check at the shop and confirm the number then.</p>
+                      <p className="text-white/50 text-xs mt-1">We'll have your file ready. Just walk in. We'll re-check at the shop and confirm the number then.</p>
                     </div>
                   )}
 

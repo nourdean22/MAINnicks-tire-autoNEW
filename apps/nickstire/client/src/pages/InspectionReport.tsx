@@ -51,7 +51,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 const OVERALL_CONFIG = {
   good: { label: "Good Condition", color: "text-nick-teal", bg: "bg-nick-teal/10", border: "border-nick-teal/30" },
-  fair: { label: "Fair — Some Items Need Attention", color: "text-primary", bg: "bg-primary/10", border: "border-primary/30" },
+  fair: { label: "Fair: Some Items Need Attention", color: "text-primary", bg: "bg-primary/10", border: "border-primary/30" },
   "needs-attention": { label: "Needs Attention", color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30" },
 };
 
@@ -331,7 +331,7 @@ export default function InspectionReport() {
                         )}
                         {item.decision === "question" && (
                           <span className="inline-flex items-center gap-1 text-primary font-bold">
-                            <AlertTriangle className="w-4 h-4" /> Question sent — we'll go over it with you
+                            <AlertTriangle className="w-4 h-4" /> Question sent. We'll go over it with you
                           </span>
                         )}
                         <button
@@ -393,7 +393,7 @@ export default function InspectionReport() {
                             work authorization (no price lock, no signature,
                             decisions stay changeable until the shop confirms). */}
                         <p className="basis-full text-[11px] text-foreground/40 mt-1">
-                          Approving here tells the shop to move forward — we'll confirm details and final pricing with you before any work starts.
+                          Approving here tells the shop to move forward. We'll confirm details and final pricing with you before any work starts.
                         </p>
                       </div>
                     )}
@@ -451,7 +451,7 @@ export default function InspectionReport() {
           </div>
 
           <p className="text-center text-foreground/40 text-[12px] mt-6">
-            {`${BUSINESS.name} — ${BUSINESS.address.full} — ${BUSINESS.phone.display}`}
+            {`${BUSINESS.name} · ${BUSINESS.address.full} · ${BUSINESS.phone.display}`}
           </p>
         </div>
       </section>

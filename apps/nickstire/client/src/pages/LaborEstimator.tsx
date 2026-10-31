@@ -305,7 +305,7 @@ export default function LaborEstimator() {
                 {estimateMutation.isError && (
                   <div className="bg-red-500/10 border border-red-500/30 rounded-md p-4 text-center">
                     <p className="text-red-400 text-sm">
-                      Estimate generation failed. The service may be temporarily unavailable — try again in a moment.
+                      Estimate generation failed. The service may be temporarily unavailable: try again in a moment.
                     </p>
                     <a
                       href={BUSINESS.phone.href}
@@ -390,7 +390,7 @@ export default function LaborEstimator() {
                             <div>
                               <span className="text-foreground/40 text-xs block">Labor</span>
                               <span className="text-foreground/80 text-sm">
-                                {item.laborHours}h — ${item.laborCost > 0 ? `$${item.laborCost.toLocaleString()}` : 'Included'}
+                                {item.laborHours}h: ${item.laborCost > 0 ? `$${item.laborCost.toLocaleString()}` : 'Included'}
                               </span>
                             </div>
                             <div>

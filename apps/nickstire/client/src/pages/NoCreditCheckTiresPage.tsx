@@ -127,7 +127,7 @@ const CONFIG: ServicePageConfig = {
         symptom: "Brakes also squealing on the way over?",
         consequence: "Applying once for the full job beats a second application later.",
         relief: "We run the free brake check while we're looking at your tires, then write one estimate for both.",
-        ctaLabel: "Brake check — free",
+        ctaLabel: "Brake check: free",
         ctaHref: "/brakes",
         icon: <Disc className="w-5 h-5" />,
       },

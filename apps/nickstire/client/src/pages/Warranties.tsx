@@ -49,7 +49,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Do used tires have a warranty?",
-      a: "Used tires carry a 7-day limited replacement warranty covering verified air loss or internal tire failure from a defect present at time of sale only — it does not cover road hazard, punctures, or impact damage. Every used tire is also checked for " + BUSINESS.usedTires.checkSummary + " before installation.",
+      a: "Used tires carry a 7-day limited replacement warranty covering verified air loss or internal tire failure from a defect present at time of sale only. It does not cover road hazard, punctures, or impact damage. Every used tire is also checked for " + BUSINESS.usedTires.checkSummary + " before installation.",
     },
     {
       q: "Is the warranty nationwide?",

@@ -141,7 +141,7 @@ export default function SeasonalPage() {
         <section className="relative min-h-[55vh] lg:min-h-[65vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             {/* LCP fix · above-the-fold hero */}
-            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${page.season} car care Cleveland — Nick's Tire & Auto open ${page.season === "Winter" ? "all winter" : "all summer"}`} className="w-full h-full object-cover" objectPosition="center 45%" />
+            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${page.season} car care Cleveland, Nick's Tire & Auto open ${page.season === "Winter" ? "all winter" : "all summer"}`} className="w-full h-full object-cover" objectPosition="center 45%" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 
@@ -268,7 +268,7 @@ export default function SeasonalPage() {
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
                 {page.season === "Winter"
-                  ? "Northeast Ohio winters punish vehicles. Salt, freezing temperatures, and black ice put extra stress on every system in your car. Our mechanics see the same preventable breakdowns every year — here's how to avoid them."
+                  ? "Northeast Ohio winters punish vehicles. Salt, freezing temperatures, and black ice put extra stress on every system in your car. Our mechanics see the same preventable breakdowns every year. Here's how to avoid them."
                   : "Ohio summers bring heat, humidity, and road trips. Your car's cooling system, tires, and AC work harder than any other time of year. A few simple checks now prevent expensive breakdowns later."}
               </p>
             </FadeIn>
@@ -280,7 +280,7 @@ export default function SeasonalPage() {
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Check Your Battery Before the First Freeze</h3>
-                        <p className="text-foreground/70 leading-relaxed">Cold weather cuts battery capacity by up to 50%. If your battery is over three years old or your engine cranks slowly, get it tested before temperatures drop. A dead battery on a 10-degree morning is preventable. We test batteries for free — just stop by the shop.</p>
+                        <p className="text-foreground/70 leading-relaxed">Cold weather cuts battery capacity by up to 50%. If your battery is over three years old or your engine cranks slowly, get it tested before temperatures drop. A dead battery on a 10-degree morning is preventable. We test batteries for free. Just stop by the shop.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -297,7 +297,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-bold text-foreground text-lg mb-2">Flush Your Coolant — Antifreeze Degrades</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Flush Your Coolant: Antifreeze Degrades</h3>
                         <p className="text-foreground/70 leading-relaxed">Antifreeze protects your engine down to -34 degrees, but only if it's fresh. Old coolant loses its freeze protection and can cause a cracked block or blown head gasket. If it's been more than two years or 30,000 miles, get a <Link href="/cooling" className="text-nick-blue-light hover:underline">coolant flush</Link> before winter hits.</p>
                       </div>
                     </div>
@@ -316,7 +316,7 @@ export default function SeasonalPage() {
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Top Off Washer Fluid & Check Wipers</h3>
-                        <p className="text-foreground/70 leading-relaxed">Salt spray from highway driving burns through washer fluid fast. Use winter-rated fluid that won't freeze in the reservoir. Replace wiper blades if they streak — visibility is everything when the sun sets at 5 PM and the roads are wet.</p>
+                        <p className="text-foreground/70 leading-relaxed">Salt spray from highway driving burns through washer fluid fast. Use winter-rated fluid that won't freeze in the reservoir. Replace wiper blades if they streak: visibility is everything when the sun sets at 5 PM and the roads are wet.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -337,7 +337,7 @@ export default function SeasonalPage() {
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Check Tire Pressure as Temperatures Rise</h3>
-                        <p className="text-foreground/70 leading-relaxed">Tire pressure increases about 1 PSI for every 10-degree rise in temperature. Over-inflated tires wear unevenly and reduce grip. Check your pressure when tires are cold and adjust to the number on your door jamb — not the tire sidewall. Need new <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link>? We carry all major brands.</p>
+                        <p className="text-foreground/70 leading-relaxed">Tire pressure increases about 1 PSI for every 10-degree rise in temperature. Over-inflated tires wear unevenly and reduce grip. Check your pressure when tires are cold and adjust to the number on your door jamb, not the tire sidewall. Need new <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link>? We carry all major brands.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -346,7 +346,7 @@ export default function SeasonalPage() {
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Inspect Your Cooling System</h3>
-                        <p className="text-foreground/70 leading-relaxed">Summer heat is the number one engine killer. Check your coolant level, look for leaks around hoses and the radiator, and make sure your fans are working. If your temperature gauge creeps past the midpoint, bring it in immediately — overheating causes thousands of dollars in damage.</p>
+                        <p className="text-foreground/70 leading-relaxed">Summer heat is the number one engine killer. Check your coolant level, look for leaks around hoses and the radiator, and make sure your fans are working. If your temperature gauge creeps past the midpoint, bring it in immediately: overheating causes thousands of dollars in damage.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -355,7 +355,7 @@ export default function SeasonalPage() {
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Replace Worn Wiper Blades from Winter</h3>
-                        <p className="text-foreground/70 leading-relaxed">Ice and salt destroy wiper blades over the winter. Summer thunderstorms hit fast in Ohio, and streaky wipers are a visibility hazard. Good blades cost under $30 and take five minutes to install — we'll swap them while you wait.</p>
+                        <p className="text-foreground/70 leading-relaxed">Ice and salt destroy wiper blades over the winter. Summer thunderstorms hit fast in Ohio, and streaky wipers are a visibility hazard. Good blades cost under $30 and take five minutes to install. We'll swap them while you wait.</p>
                       </div>
                     </div>
                   </FadeIn>

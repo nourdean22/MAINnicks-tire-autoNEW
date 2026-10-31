@@ -132,7 +132,7 @@ const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: 
   Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: `Conventional oil change ${BUSINESS.oilChange.conventionalPrice}. ${BUSINESS.freeInspection.offer}` },
   Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free readiness check before you go back to the state test. We catch the actual cause, not just the code." },
   Electrical: { slug: "diagnostics", label: "Electrical Check", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
-  Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full check before any major work — we tell you if a rebuild beats a repair." },
+  Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full check before any major work. We tell you if a rebuild beats a repair." },
 };
 
 /* ─── PILLAR CALLOUT — hub-and-spoke topology activator ─────────
@@ -151,7 +151,7 @@ const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle
   "Tires": {
     slug: "complete-cleveland-tire-guide",
     title: "The Complete Cleveland Tire Guide",
-    subtitle: "Sidewall numbers, used vs new math, free-services traps, and the Cleveland pothole reality — the full 2,500-word pillar.",
+    subtitle: "Sidewall numbers, used vs new math, free-services traps, and the Cleveland pothole reality, the full 2,500-word pillar.",
   },
   "Brake Repair": {
     slug: "cleveland-auto-repair-owners-manual",
@@ -161,12 +161,12 @@ const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle
   "Diagnostics": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "Check engine light, transmission fluid vs gearbox, battery vs alternator — the check-vs-parts-cannon distinction.",
+    subtitle: "Check engine light, transmission fluid vs gearbox, battery vs alternator. The check-vs-parts-cannon distinction.",
   },
   "Engine Repair": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "From oil-change math to electrical diagnosis to the recommended-services trap — the full 3,000-word pillar.",
+    subtitle: "From oil-change math to electrical diagnosis to the recommended-services trap, the full 3,000-word pillar.",
   },
   "Emissions": {
     slug: "cleveland-auto-repair-owners-manual",
@@ -176,22 +176,22 @@ const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle
   "Transmission": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "Why 8 of 10 'transmission problems' are actually fluid or sensor issues — plus the full repair pillar.",
+    subtitle: "Why 8 of 10 'transmission problems' are actually fluid or sensor issues, plus the full repair pillar.",
   },
   "Auto Repair": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "The full 3,000-word repair pillar — brakes, oil, suspension, electrical, and the honest sequence of what to fix when.",
+    subtitle: "The full 3,000-word repair pillar: brakes, oil, suspension, electrical, and the honest sequence of what to fix when.",
   },
   "Cleveland-Specific": {
     slug: "cleveland-pothole-salt-damage-guide",
     title: "The Cleveland Pothole + Salt Damage Guide",
-    subtitle: "What 30,000 tons of road salt + freeze-thaw + lake-effect actually do to cars — the visual diagnose-it-yourself guide.",
+    subtitle: "What 30,000 tons of road salt + freeze-thaw + lake-effect actually do to cars, the visual diagnose-it-yourself guide.",
   },
   "Fleet Services": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "The full repair pillar — useful for any fleet manager assessing service vendors and recommended-services lists.",
+    subtitle: "The full repair pillar: useful for any fleet manager assessing service vendors and recommended-services lists.",
   },
 };
 
@@ -313,7 +313,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-rose-500/40 bg-rose-500/5 text-rose-300 text-[10px] font-bold tracking-widest uppercase mb-3">
             <AlertTriangle className="w-3 h-3" />
-            Don't postpone — it gets bigger
+            Don't postpone. It gets bigger
           </div>
           <h3 className="font-heading text-2xl lg:text-3xl font-bold text-foreground tracking-tight uppercase leading-tight mb-2">
             Bring it in. We'll show you the problem before we fix it.
@@ -639,7 +639,7 @@ export default function BlogPost() {
       <section className="relative min-h-[50vh] lg:min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
           {/* LCP fix · article hero */}
-          <img loading="eager" fetchPriority="high" decoding="async" width="1600" height="900" src={article.heroImage} alt={`${article.title} — auto repair guide from Nick's Tire & Auto Cleveland`} className="w-full h-full object-cover" />
+          <img loading="eager" fetchPriority="high" decoding="async" width="1600" height="900" src={article.heroImage} alt={`${article.title}: auto repair guide from Nick's Tire & Auto Cleveland`} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
         </div>
 

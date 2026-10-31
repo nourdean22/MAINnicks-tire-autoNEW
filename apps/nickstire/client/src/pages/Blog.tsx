@@ -136,7 +136,7 @@ export default function Blog() {
                   <div className="aspect-[16/10] md:aspect-auto overflow-hidden">
                     <img
                       src={(featured as any).heroImage || (featured as any).image}
-                      alt={`${featured.title} — Nick's Tire & Auto Cleveland blog`}
+                      alt={`${featured.title}: Nick's Tire & Auto Cleveland blog`}
                       className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
                       loading="eager"
                       fetchPriority="high"
@@ -180,7 +180,7 @@ export default function Blog() {
                   <div className="aspect-[16/9] overflow-hidden">
                     <img
                       src={article.heroImage}
-                      alt={`${article.title} — Nick's Tire & Auto Cleveland blog post`}
+                      alt={`${article.title}: Nick's Tire & Auto Cleveland blog post`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       loading="lazy"
                       decoding="async"

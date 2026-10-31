@@ -81,21 +81,21 @@ const SYMPTOMS: Symptom[] = [
     id: "noise",
     label: "Strange noise",
     zone: null,
-    placeholder: "What does it sound like — grinding, squealing, clicking, knocking, humming? When do you hear it?",
+    placeholder: "What does it sound like: grinding, squealing, clicking, knocking, humming? When do you hear it?",
     seed: "The car is making a strange noise.",
   },
   {
     id: "shaking",
     label: "Shaking or vibration",
     zone: "underneath",
-    placeholder: "When does it shake — braking, accelerating, or at a certain speed? Where do you feel it?",
+    placeholder: "When does it shake: braking, accelerating, or at a certain speed? Where do you feel it?",
     seed: "The car shakes or vibrates while driving.",
   },
   {
     id: "brakes",
     label: "Brakes",
     zone: "front-wheels",
-    placeholder: "What happens when you brake — noise, pulling, a soft pedal, or taking longer to stop?",
+    placeholder: "What happens when you brake: noise, pulling, a soft pedal, or taking longer to stop?",
     seed: "Something is wrong with the brakes.",
   },
   {
@@ -144,7 +144,7 @@ const SYMPTOMS: Symptom[] = [
     id: "other",
     label: "Something else",
     zone: null,
-    placeholder: "Tell us what's happening in your own words — when it started, when it happens, and whether it's getting worse.",
+    placeholder: "Tell us what's happening in your own words: when it started, when it happens, and whether it's getting worse.",
     seed: "",
   },
 ];
@@ -468,7 +468,7 @@ function getSeverityStyle(urgency: string) {
         bg: "bg-warning/8",
         badge: "bg-warning/20 text-warning",
         badgeText: "GET IT CHECKED SOON",
-        verdict: "Fine to drive for now — get it looked at in the next week or two before it grows.",
+        verdict: "Fine to drive for now: get it looked at in the next week or two before it grows.",
         icon: "text-warning",
         dot: "var(--color-warning)",
       };
@@ -478,7 +478,7 @@ function getSeverityStyle(urgency: string) {
         bg: "bg-warning/10",
         badge: "bg-warning/20 text-warning",
         badgeText: "GET IT CHECKED TODAY",
-        verdict: "Don't sit on this one. Drive it straight here if it feels normal — call us if it doesn't.",
+        verdict: "Don't sit on this one. Drive it straight here if it feels normal. Call us if it doesn't.",
         icon: "text-warning",
         dot: "var(--color-warning)",
       };
@@ -488,7 +488,7 @@ function getSeverityStyle(urgency: string) {
         bg: "bg-danger/8",
         badge: "bg-danger/20 text-danger",
         badgeText: "STOP DRIVING IT",
-        verdict: "This is a safety issue. Don't drive it — call us and we'll tell you what to do next.",
+        verdict: "This is a safety issue. Don't drive it. Call us and we'll tell you what to do next.",
         icon: "text-danger",
         dot: "var(--color-danger)",
       };
@@ -523,7 +523,7 @@ function DiagnoseOpenStatusLine() {
         <span className="text-emerald-400">Bays are open right now.</span>
       ) : (
         <span className="text-foreground/50">
-          Closed right now &mdash; {status.label.toLowerCase()}. Pull up early, be first in line.
+          Closed right now: {status.label.toLowerCase()}. Pull up early, be first in line.
         </span>
       )}
     </p>
@@ -541,7 +541,7 @@ function describeCheckError(error: unknown): string {
     return "You've run a few checks in a row, so we've paused for a minute. Call us and we'll just look at it.";
   }
   if (/Failed to fetch|NetworkError|offline/i.test(message)) {
-    return "We couldn't reach the shop's system — check your connection, or call us.";
+    return "We couldn't reach the shop's system. Check your connection, or call us.";
   }
   return "Something went wrong on our end, so we didn't check your symptoms.";
 }
@@ -682,7 +682,7 @@ export default function DiagnosePage() {
           promise the page could not keep the moment a visitor arrived. */}
       <SEOHead
         title="What's Wrong With My Car? Free Symptom Checker · Nick's Tire & Auto"
-        description="Not sure what's wrong with your car? Describe the symptom and get likely causes, how urgent it is, and the safest next step — free. Then bring it to Nick's in Euclid."
+        description="Not sure what's wrong with your car? Describe the symptom and get likely causes, how urgent it is, and the safest next step, free. Then bring it to Nick's in Euclid."
         canonicalPath="/diagnose"
       />
 
@@ -693,7 +693,7 @@ export default function DiagnosePage() {
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div className="absolute inset-0">
             {/* LCP fix · hero image (rendered at 20% opacity as bg, but still LCP candidate) */}
-            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Auto diagnostics at Nick's Tire & Auto Cleveland — check engine light + warning light testing" className="w-full h-full object-cover opacity-20" objectPosition="center 45%" />
+            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Auto diagnostics at Nick's Tire & Auto Cleveland. Check engine light + warning light testing" className="w-full h-full object-cover opacity-20" objectPosition="center 45%" />
             <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/95 to-background" />
           </div>
 
@@ -710,11 +710,11 @@ export default function DiagnosePage() {
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebApplication",
-              "name": "What's Wrong With My Car? — Free Symptom Checker",
+              "name": "What's Wrong With My Car? Free Symptom Checker",
               "applicationCategory": "UtilitiesApplication",
               "operatingSystem": "All",
               "browserRequirements": "Requires JavaScript",
-              "description": "Describe what your car is doing and get possible causes, how urgent it is, and the safest next step. Preliminary only — not an OBD-II scan.",
+              "description": "Describe what your car is doing and get possible causes, how urgent it is, and the safest next step. Preliminary only, not an OBD-II scan.",
               "url": `${BUSINESS.urls.website}/diagnose`,
               "offers": {
                 "@type": "Offer",
@@ -756,7 +756,7 @@ export default function DiagnosePage() {
                     they get, then what it costs them (nothing). */}
                 <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
                   Describe what&apos;s happening and we&apos;ll walk you through the likely causes, how
-                  urgent it is, and the safest next step &mdash; in about a minute. It&apos;s free, and
+                  urgent it is, and the safest next step: in about a minute. It&apos;s free, and
                   the real check happens when you pull in. Squealing or grinding? See our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. Shaking or vibration? Check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link> or <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing for repairs</Link>.
                 </p>
                 <p className="mt-4 text-foreground/45 text-sm">
@@ -775,11 +775,11 @@ export default function DiagnosePage() {
                     <span className="text-primary">Get down here.</span>
                   </h2>
                   <p className="mt-3 text-foreground/65 text-sm leading-relaxed">
-                    Googling a noise at midnight doesn&apos;t fix it &mdash; and
+                    Googling a noise at midnight doesn&apos;t fix it, and
                     small problems get expensive while you sit on them. Bring
                     us the worry instead: we read the codes, show you
                     what&apos;s actually going on, and answer every question
-                    you&apos;ve got. We love this work &mdash; it&apos;s why the
+                    you&apos;ve got. We love this work. It&apos;s why the
                     bays are open 7 days a week.
                   </p>
                   <DiagnoseOpenStatusLine />
@@ -817,7 +817,7 @@ export default function DiagnosePage() {
                   WHAT&apos;S IT <span className="text-primary">DOING</span>?
                 </h2>
                 <p className="text-foreground/50 text-sm">
-                  Pick the closest one &mdash; you can add the details next. Not sure? Skip straight to describing it.
+                  Pick the closest one. You can add the details next. Not sure? Skip straight to describing it.
                 </p>
               </div>
 
@@ -922,7 +922,7 @@ export default function DiagnosePage() {
                       // Aim the question instead of pre-filling their box. The
                       // old flow dumped ~180 chars of boilerplate in here and
                       // told them to edit around it.
-                      ? "In your own words — the more you tell us, the better we can narrow it down."
+                      ? "In your own words. The more you tell us, the better we can narrow it down."
                       : "What's happening with your car? Be as specific as possible."}
                   </p>
                   <textarea
@@ -973,7 +973,7 @@ export default function DiagnosePage() {
                 {/* Say what this is before they use it, not after. Nothing here
                     touches the car — calling it a "scan" was borrowed authority. */}
                 <p className="text-center text-foreground/35 text-xs leading-relaxed">
-                  This is a preliminary symptom check &mdash; not an OBD-II scan or a confirmed
+                  This is a preliminary symptom check, not an OBD-II scan or a confirmed
                   diagnosis. It reads what you typed. The scan happens at the shop, and it&apos;s free.
                 </p>
               </div>
@@ -1017,7 +1017,7 @@ export default function DiagnosePage() {
                     <div className="flex items-center gap-2 mb-3">
                       <OctagonAlert className="w-5 h-5 text-danger shrink-0" />
                       <span className="font-heading text-danger text-sm tracking-wider">
-                        STOP — READ THIS FIRST
+                        STOP. READ THIS FIRST
                       </span>
                     </div>
                     <ul className="space-y-3">
@@ -1034,7 +1034,7 @@ export default function DiagnosePage() {
                       className="mt-4 inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-full bg-danger text-white text-[13px] font-black uppercase tracking-wide active:scale-95 transition-transform"
                     >
                       <Phone className="w-4 h-4" />
-                      Call us now — {BUSINESS.phone.display}
+                      Call us now: {BUSINESS.phone.display}
                     </a>
                   </div>
                 )}
@@ -1053,7 +1053,7 @@ export default function DiagnosePage() {
                       {errorMessage ?? "Our symptom checker didn't come back with an answer, so we're not going to guess at one."}
                     </p>
                     <p className="text-foreground/60 text-sm leading-relaxed mt-2">
-                      That&apos;s on us, not you &mdash; and it costs you nothing to just bring it in.
+                      That&apos;s on us, not you, and it costs you nothing to just bring it in.
                       Quick checks are free and you see a written quote before anyone touches a wrench.
                     </p>
                   </div>
@@ -1101,7 +1101,7 @@ export default function DiagnosePage() {
                     <p className="text-xs text-foreground/40">
                       <Car className="w-3.5 h-3.5 inline mr-1" />
                       Analysis for: {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
-                      {vehicle.mileage ? ` — ${vehicle.mileage} miles` : ""}
+                      {vehicle.mileage ? `, ${vehicle.mileage} miles` : ""}
                     </p>
                   )}
                   <p className="text-foreground/70 text-sm mt-3 leading-relaxed">{analyzed.summary}</p>
@@ -1169,7 +1169,7 @@ export default function DiagnosePage() {
                       <span className="text-xs text-foreground/50 tracking-wide">What it costs to find out</span>
                     </div>
                     <p className="font-heading text-foreground tracking-wider">{analyzed.costNote}</p>
-                    <p className="text-[10px] text-foreground/30 mt-1">Repair price comes from the inspection — you approve it before any work.</p>
+                    <p className="text-[10px] text-foreground/30 mt-1">Repair price comes from the inspection. You approve it before any work.</p>
                   </div>
                 </div>
 
@@ -1192,7 +1192,7 @@ export default function DiagnosePage() {
                 <div className="bg-card/50 border border-border rounded-xl p-4">
                   <p className="text-xs text-foreground/40 leading-relaxed">
                     <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
-                    This is a preliminary read of what you typed &mdash; not an OBD-II scan and not a
+                    This is a preliminary read of what you typed, not an OBD-II scan and not a
                     confirmed diagnosis. For the real answer we want the car in front of us:
                     ASE-certified hands, OBD-II tools, written quote before anyone touches a wrench.
                   </p>
@@ -1242,7 +1242,7 @@ export default function DiagnosePage() {
                 {!diagLeadSubmitted ? (
                   <div className="bg-foreground/5 border border-foreground/10 rounded-xl p-5">
                     <h4 className="font-heading text-foreground text-sm tracking-wider mb-1">WANT US TO LOOK AT IT?</h4>
-                    <p className="text-foreground/50 text-xs mb-4">Leave your number — we'll check it out when you come in. Quick checks are free.</p>
+                    <p className="text-foreground/50 text-xs mb-4">Leave your number. We'll check it out when you come in. Quick checks are free.</p>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input type="text" placeholder="Your name" value={diagLeadName} onChange={e => setDiagLeadName(e.target.value)}
                         className="flex-1 bg-foreground/5 border border-foreground/10 rounded px-3 py-2.5 text-foreground text-sm placeholder:text-foreground/30 focus:outline-none focus:border-primary/50" />
@@ -1263,7 +1263,7 @@ export default function DiagnosePage() {
                               // gone: source="diagnose" carries the origin now.
                               problem: [
                                 redFlags.length ? `RED FLAG: ${redFlags.map((f) => f.label).join(", ")}.` : "",
-                                analyzed ? `Checker said: ${analyzed.recommendedService} — ${analyzed.urgency} urgency.` : "Checker did not return a result.",
+                                analyzed ? `Checker said: ${analyzed.recommendedService}, ${analyzed.urgency} urgency.` : "Checker did not return a result.",
                                 symptomText.slice(0, 1200),
                               ].filter(Boolean).join(" "),
                               // Canonical origin — enum member appended by
@@ -1287,7 +1287,7 @@ export default function DiagnosePage() {
                             // network blip → button keeps reverting to "Send"
                             // with no feedback → they walk away thinking it
                             // went through. Route them to the phone.
-                            toast.error("Couldn't reach the shop — call (216) 862-0005.");
+                            toast.error("Couldn't reach the shop. Call (216) 862-0005.");
                           } finally {
                             setDiagLeadSaving(false);
                           }
@@ -1301,7 +1301,7 @@ export default function DiagnosePage() {
                 ) : (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5 text-center">
                     <p className="font-bold text-emerald-400 text-sm">We'll have a look when you come in!</p>
-                    <p className="text-foreground/50 text-xs mt-1">Quick checks are free — just walk in.</p>
+                    <p className="text-foreground/50 text-xs mt-1">Quick checks are free. Just walk in.</p>
                   </div>
                 )}
 
@@ -1340,7 +1340,7 @@ export default function DiagnosePage() {
                 <li>
                   <strong className="text-foreground/70">Safety checks run in plain code, not the AI.</strong> Things
                   like &ldquo;won&apos;t stop&rdquo;, a flashing check-engine light or an oil-pressure warning are
-                  matched directly from what you typed &mdash; so the warning still shows even if the rest of the
+                  matched directly from what you typed, so the warning still shows even if the rest of the
                   check fails.
                 </li>
                 <li>
@@ -1350,7 +1350,7 @@ export default function DiagnosePage() {
                 </li>
                 <li>
                   <strong className="text-foreground/70">It can be wrong.</strong> It&apos;s a starting point built
-                  from common causes &mdash; the real answer comes from an ASE-certified tech with the car on the lift.
+                  from common causes. The real answer comes from an ASE-certified tech with the car on the lift.
                   If it says stop driving, take that seriously.
                 </li>
                 <li>

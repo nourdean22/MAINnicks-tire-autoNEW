@@ -36,7 +36,7 @@ export default function BookingPage() {
             </h1>
             <p className="mt-4 text-[16px] sm:text-[17px] text-foreground/70 leading-relaxed max-w-2xl mx-auto">
               We&apos;ve always been first come first served. If you can wait,
-              we&apos;ll get to your car in line. If you can&apos;t, drop it off — we
+              we&apos;ll get to your car in line. If you can&apos;t, drop it off. We
               text you the second it&apos;s ready.
             </p>
             <p className="mt-4 text-[15px] text-foreground/80 leading-relaxed max-w-2xl mx-auto">
@@ -60,7 +60,7 @@ export default function BookingPage() {
             </h2>
             <p className="mt-2 text-[14px] text-foreground/70 leading-relaxed">
               $7.99/mo on one registered vehicle: flat repairs, valve stems,
-              rotation, rim cleans, and air-ups &mdash; $0 at the counter,
+              rotation, rim cleans, and air-ups: $0 at the counter,
               every visit. Nick+ at $9.99/mo adds 15% off any repair, parts
               and labor.
             </p>
@@ -96,7 +96,7 @@ export default function BookingPage() {
                 &ldquo;Can I come right now?&rdquo;
               </h2>
               <p className="text-[14px] text-foreground/65 leading-relaxed">
-                Yes. We don&apos;t schedule — the bays are open during shop hours
+                Yes. We don&apos;t schedule. The bays are open during shop hours
                 and we work the cars in the order they pull up. Earlier in the
                 day means less wait.
               </p>

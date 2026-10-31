@@ -61,7 +61,7 @@ export default function PriceEstimator() {
     <PageLayout activeHref="/pricing" showChat={true}>
       <SEOHead
         title="Cleveland Auto Repair Pricing · No Hidden Fees | Nick's"
-        description="Cleveland auto repair pricing made plain. Free check, written quote, you don't pay until you say yes. Brakes, tires, oil — see typical ranges, walk in any day."
+        description="Cleveland auto repair pricing made plain. Free check, written quote, you don't pay until you say yes. Brakes, tires, oil. See typical ranges, walk in any day."
         canonicalPath="/pricing"
       />
       <Breadcrumbs items={[{ label: "Pricing" }]} />

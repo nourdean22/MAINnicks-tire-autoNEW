@@ -58,7 +58,7 @@ const SPECIALS: Special[] = [
     id: 1,
     icon: <Droplets className="w-6 h-6" />,
     service: "Oil Change",
-    headline: `Oil Change — $${OIL_PRICE.conventional} with Coupon`,
+    headline: `Oil Change: $${OIL_PRICE.conventional} with Coupon`,
     description:
       `Conventional or synthetic-blend oil change with new filter. ${BUSINESS.freeInspection.offer} It catches small problems before they become big bills. Mention code ${OIL_COUPON.code}.`,
     salePrice: `$${OIL_PRICE.conventional}`,
@@ -67,7 +67,7 @@ const SPECIALS: Special[] = [
     validThrough: OIL_COUPON.validThroughDisplay,
     terms: `Conventional or synthetic-blend oil. Up to 5 quarts. Full synthetic $${OIL_PRICE.fullSynthetic}. Most vehicles. Mention code ${OIL_COUPON.code} at checkout.`,
     limited: false,
-    reasonWhy: "We treat oil changes as the front door of the relationship. Fair entry point, real check, no upsell pressure.",
+    reasonWhy: "We treat oil changes as the front door of the relationship. Fair entry point and a real check.",
     anchors: { dealer: "$79", chain: "$59–$69", nicks: "$49" },
     serviceSlug: "oil-change",
     code: OIL_COUPON.code,
@@ -77,15 +77,15 @@ const SPECIALS: Special[] = [
     id: 2,
     icon: <Disc3 className="w-6 h-6" />,
     service: "Brake Service",
-    headline: "Summer Special — Brakes",
+    headline: "Summer Special: Brakes",
     description:
-      "Summer Special brake pricing — up to 30% off. Pads, rotors, calipers — depends on what your car needs. Free check, written quote, you don't pay until you say yes. Drive in today.",
+      "Summer Special brake pricing: up to 30% off. Pads, rotors, calipers, depending on what your car needs. Free check, written quote, you don't pay until you say yes. Drive in today.",
     salePrice: "Up to 30% OFF",
     originalPrice: "",
     discountLabel: "SUMMER SPECIAL",
     validThrough: "September 30, 2026",
     terms: "Per axle. Discount varies by vehicle and service needed. Free brake check determines exact pricing. Come in for your written quote.",
-    reasonWhy: "Brake pads on metal is one of the cheapest repairs to catch early — and one of the most expensive to ignore.",
+    reasonWhy: "Brake pads on metal is one of the cheapest repairs to catch early, and one of the most expensive to ignore.",
     anchors: { dealer: "$350+", chain: "$229+", nicks: "Summer Special" },
     serviceSlug: "brakes",
     waitingCost: "Wait 30 days = scored rotors (+$120/axle); 60 days = warped caliper (+$300+).",
@@ -97,7 +97,7 @@ const SPECIALS: Special[] = [
     service: "Diagnostic Scan",
     headline: "Free Diagnostic Scan",
     description:
-      "Check-engine light on? Free OBD-II code scan with any repair over $200. See exactly what's wrong before you spend a dollar — no commitment to fix.",
+      "Check-engine light on? Free OBD-II code scan with any repair over $200. See exactly what's wrong before you spend a dollar. No commitment to fix.",
     salePrice: "FREE",
     originalPrice: "$89.99",
     discountLabel: "FREE",
@@ -121,7 +121,7 @@ const SPECIALS: Special[] = [
     discountLabel: "50% OFF",
     validThrough: "April 30, 2026",
     terms: "Standard 4-tire rotation. Tire balancing +$10/tire if needed. TPMS reset included.",
-    reasonWhy: "Rotations should be the cheapest line item in your maintenance budget — we keep it that way to remove the excuse to skip it.",
+    reasonWhy: "Rotations should be the cheapest line item in your maintenance budget. We keep it that way to remove the excuse to skip it.",
     anchors: { dealer: "$45", chain: "$25–$30", nicks: "$19.99" },
     serviceSlug: "tires",
     code: "ROTATE2099",
@@ -137,7 +137,7 @@ const SPECIALS: Special[] = [
     originalPrice: "$89.99",
     discountLabel: "$40 OFF",
     validThrough: "May 31, 2026",
-    terms: "Check only — refrigerant recharge ($90+) and component repairs additional. R-1234yf vehicles quoted separately.",
+    terms: "Check only: refrigerant recharge ($90+) and component repairs additional. R-1234yf vehicles quoted separately.",
     limited: true,
     reasonWhy: "AC issues caught in spring are 60% cheaper than the same issue caught in July. Easy seasonal incentive.",
     anchors: { dealer: "$130", chain: "$89", nicks: "$49.99" },
@@ -466,7 +466,7 @@ export default function SpecialsPage() {
               <span className="text-primary">Coupons</span>
             </h1>
             <p className="mt-6 text-foreground/70 text-lg max-w-2xl leading-relaxed">
-              Honest auto repair at fair prices — plus these current specials. Mention any offer when
+              Honest auto repair at fair prices, plus these current specials. Mention any offer when
               you call or show it on your phone at the shop.
             </p>
           </FadeIn>
