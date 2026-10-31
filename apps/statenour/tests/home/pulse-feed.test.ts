@@ -42,12 +42,17 @@ describe("pulseFeedFrom", () => {
   it("every coach kind maps to a known source, so nothing lands in an unnamed group", () => {
     const kinds: CoachEvent["kind"][] = [
       "prune-candidate", "drift-recovery", "idle-nudge", "goal-pace-shift",
-      "mission-deadline-check", "proactive-nick", "anomaly", "system-alert",
+      "mission-deadline-check", "proactive-nick", "anomaly", "system-alert", "held-notification",
     ];
     for (const kind of kinds) {
       const [group] = pulseFeedFrom([ev({ kind })]).groups;
       expect(PULSE_SOURCE_ORDER).toContain(group.source);
     }
+  });
+
+  it("a push held by quiet hours groups under 'held', apart from real system alerts (W4)", () => {
+    const feed = pulseFeedFrom([ev({ kind: "held-notification", subjectId: "estimate-aging", title: "Estimate aging 48h" })]);
+    expect(feed.groups.map((g) => g.source)).toEqual(["held"]);
   });
 
   it("an empty read is an empty feed (all clear), distinct from a failed read, which throws upstream", () => {

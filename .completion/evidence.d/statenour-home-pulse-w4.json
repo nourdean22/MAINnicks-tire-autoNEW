@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "home-pulse-w4": {
+      "ref": "statenour/home-pulse-w4 (job 2026-10-30-home-pulse, W4 quiet hours defer). sendPush returned { sent: 0, failed: 0 } for a low/medium push between 21:00 and 07:00 ET (and a low one 08:00-11:00), the same answer as 'no device', with no row anywhere: the notice was lost. It now parks the push as a coach event (kind held-notification, P2 so it never pushes itself, surface 'pulse' only so no page banner shows it, expires in 24 h, subject = tag or title so repeats are one row), writes a push_deferred audit row, and answers deferred: 1; if parking fails it answers failed: 1, never a silent zero. The Pulse sheet groups these under 'Held for later'. Critical and high pushes are unchanged (the morning brief is high). Every direct coach_event reader scopes by key prefix coach:drift-recovery:, so held items do not reach the brief, narrator or health counts. Red first: tests/services/push-quiet-hours-defer.test.ts 3 failed / 3 passed on the unfixed tree. Mutations: quiet branch back to { sent: 0 } -> 3 red; held mapping removed from pulse-feed -> 1 red (after pinning it; the first version survived, falling back to 'system'). After: 133 files / 1,489 passed (tests/repo, tests/home, every test importing push, coach-events, pulse-feed, pulse-signals or the ticker); tsc --noEmit exit 0 (0 errors); eslint on the 3 changed source files exit 0. Local full suite skipped under the manager RAM ruling; CI node job is the full gate."
+    }
+  }
+}
