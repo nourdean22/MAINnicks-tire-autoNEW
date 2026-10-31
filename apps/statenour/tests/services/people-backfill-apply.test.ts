@@ -14,7 +14,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { backupInOneSnapshot, deserializePlan, fileToken, insertWithinWindow, parseApplyArgs, runApply, serializePlan } from "@/lib/services/people/backfill-apply";
+import { backupInOneSnapshot, deserializePlan, fileToken, insertWithinWindow, parseApplyArgs, planHeader, runApply, serializePlan } from "@/lib/services/people/backfill-apply";
 
 const rows = [
   { personId: "p1", conversationId: "c1", start: new Date("2026-06-01T10:00:00Z"), at: new Date("2026-06-01T11:00:00Z"), interactionKind: "call", backfillKey: "bf:chat:c1:p1" },
@@ -232,5 +232,47 @@ describe("plan serialization", () => {
   it("a malformed plan is refused", () => {
     expect(() => deserializePlan("{}")).toThrow();
     expect(() => deserializePlan(JSON.stringify([{ personId: "p1" }]))).toThrow();
+  });
+});
+
+describe("--accept-partial (manager, 2026-10-31: 3 conversations fail the digest on every pass)", () => {
+  const header = { done: 89, total: 92, undigested: ["c-x", "c-y", "c-z"] };
+
+  it("--accept-partial is a --plan flag, off by default", () => {
+    expect(parseApplyArgs(["--plan", "--out", "p.json"])).toMatchObject({ acceptPartial: false });
+    expect(parseApplyArgs(["--plan", "--out", "p.json", "--resume", "p.json.progress.json", "--accept-partial"])).toMatchObject({
+      mode: "plan",
+      acceptPartial: true,
+    });
+    expect(() => parseApplyArgs(["--accept-partial"])).toThrow(/--accept-partial/);
+    expect(() => parseApplyArgs(["--execute", "--plan-file", "p.json", "--token", "0000-test-token", "--accept-partial"])).toThrow(
+      /--accept-partial/,
+    );
+  });
+
+  it("a partial plan carries its header (ids only) and the token covers it", () => {
+    const partial = serializePlan(rows, header);
+    expect(planHeader(partial)).toEqual(header);
+    expect(planHeader(planFile)).toBeNull();
+    expect(deserializePlan(partial)).toEqual(rows);
+    expect(fileToken(partial)).not.toBe(fileToken(serializePlan(rows, { ...header, undigested: ["c-x"] })));
+    expect(partial).not.toMatch(/note|name/i);
+  });
+
+  it("--execute applies a partial plan's rows (the consumer end)", async () => {
+    const partial = serializePlan(rows, header);
+    const insert = vi.fn(async () => "inserted" as const);
+    const out = await runApply({
+      planFile: partial,
+      token: fileToken(partial),
+      deps: { backup: async () => ({ source: 42, backup: 42 }), insert },
+    });
+    expect(out).toMatchObject({ status: "applied", inserted: rows.length });
+    expect(insert).toHaveBeenCalledTimes(rows.length);
+  });
+
+  it("a malformed header is refused", () => {
+    expect(() => deserializePlan(JSON.stringify({ partial: { done: 1, total: 2, undigested: [3] }, rows: [] }))).toThrow(/header/);
+    expect(() => deserializePlan(JSON.stringify({ partial: header }))).toThrow();
   });
 });
