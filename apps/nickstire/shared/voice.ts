@@ -58,6 +58,8 @@ export type VoiceSource =
   | "igAutopost.generator"
   | "igAutopost.critic"
   | "voice-compliance"
+  // humanizer skill (blader/humanizer, installed 2026-10-30) + antislop-copywriting
+  | "humanizer"
   // Claim rules cite the document that makes the claim unsupportable, not a style guide.
   | "AGENTS.md" // apps/nickstire/AGENTS.md "Content and claim safety"
   | "shared/financing.ts" // provider-language rules, truth-reviewed against provider disclosures
@@ -997,6 +999,67 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
   },
 ]);
 
+// ─── Structure rules (humanizer pass, 2026-10-30) ───────────────────────────
+/**
+ * KILL_RULES bans words. These ban the sentence SHAPES that make copy read
+ * machine-written. They are a separate list on purpose: KILL_RULES also feeds the
+ * IG prompts, the runtime SMS/social checks and the voice-compliance baseline, and a
+ * dash rule there would change other lanes' live behaviour. Only
+ * scripts/lint-brand-voice.ts passes `rules: STRUCTURE_RULES`, and every rule here
+ * exempts the sms, voice, social and admin surfaces. Pinned by
+ * shared/voiceStructureRules.test.ts and server/brandVoiceStructureCanary.test.ts.
+ */
+const STRUCTURE_EXEMPT: VoiceSurface[] = ["sms", "voice", "social", "admin"];
+
+export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
+  {
+    id: "structure.dash",
+    pattern: /[—–]|&(?:mdash|ndash|#8212|#8211);|\s--\s/,
+    label: "em or en dash as a connector",
+    why: "The dash lets a sentence skip deciding how two clauses relate; it is the most common machine tell in shop copy",
+    fix: "Use a comma, a period or a new sentence. Never a semicolon. Ranges (hours, prices) come from BUSINESS",
+    reason: "llm-tell",
+    severity: "block",
+    // A string that is only a dash is an empty-value placeholder in UI code, not prose.
+    allow: ['"—"', "'—'", '"–"', "'–'"],
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.negation-tail",
+    pattern: /\bno [a-z'-]+,\s+no [a-z'-]+\b|[,.]\s+no (?:guessing|guesswork|games|gimmicks|surprises|pressure|upsells?)\b/i,
+    label: "stacked 'no X, no Y' tail",
+    why: "Denies things nobody claimed to sound emphatic; adds no fact",
+    fix: "Say what the shop does instead ('written quote first'), or cut the tail",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.closer",
+    pattern: /\b(?:neither do we|doesn'?t lie|let that sink in|read that again)\b/i,
+    label: "one-line dramatic closer",
+    why: "A closer asks the reader to pause on a claim instead of adding one",
+    fix: "Cut it. End on the last concrete fact",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.honest-doubled",
+    pattern: /\bhonest [a-z]+,\s+honest [a-z]+/i,
+    label: "'Honest X, honest Y' doubling",
+    why: "Self-claimed honesty, twice; the 2026-05 COPY_AUDIT already names 'Honest pricing' as the line to replace",
+    fix: "Name the practice instead: 'written quote before any work'",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+]);
+
 // ─── The positive half — previously enforced NOWHERE ────────────────────────
 
 export interface VoicePattern {
@@ -1116,6 +1179,8 @@ export interface FindOptions {
   includeWarnings?: boolean;
   /** Rule ids to skip (for a reviewed, documented exception). */
   skipRuleIds?: readonly string[];
+  /** Rule list to scan with. Default KILL_RULES; the brand-voice linter also passes STRUCTURE_RULES. */
+  rules?: readonly KillRule[];
 }
 
 /**
@@ -1126,14 +1191,14 @@ export interface FindOptions {
  * lets "Grounded & Reliable" survive while "reliable braking" does not.
  */
 export function findVoiceViolations(text: string, opts: FindOptions = {}): VoiceViolation[] {
-  const { surface, includeWarnings = true, skipRuleIds = [] } = opts;
+  const { surface, includeWarnings = true, skipRuleIds = [], rules = KILL_RULES } = opts;
   const out: VoiceViolation[] = [];
   // Curly quotes fold to straight ones for allow matching only. Each swap is one
   // character for one, so match indexes still line up with `text`. The test
   // corpus normalizes quotes before scanning; live SMS and ad copy do not.
   const lower = text.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"');
 
-  for (const rule of KILL_RULES) {
+  for (const rule of rules) {
     if (skipRuleIds.includes(rule.id)) continue;
     if (!includeWarnings && rule.severity === "warn") continue;
     if (surface && rule.exempt?.includes(surface)) continue;

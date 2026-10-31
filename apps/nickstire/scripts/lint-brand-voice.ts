@@ -60,9 +60,20 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { findVoiceViolations, KILL_RULES, type VoiceSurface } from "../shared/voice";
+import { findVoiceViolations, KILL_RULES, STRUCTURE_RULES, type VoiceSurface } from "../shared/voice";
 import { blankClassNames, keepOnlyStringLiterals } from "./lib/scanText";
-import { scopeOf, stripWorkspacePrefix } from "./lib/brandVoiceScope";
+import { effectiveSeverity, scopeOf, stripWorkspacePrefix } from "./lib/brandVoiceScope";
+
+/**
+ * Word rules (KILL_RULES) plus sentence-shape rules (STRUCTURE_RULES). The shape rules
+ * exempt sms, voice, social and admin, so only web and meta copy is held to them.
+ */
+function scanCopy(text: string, surface: VoiceSurface) {
+  return [
+    ...findVoiceViolations(text, { surface }),
+    ...findVoiceViolations(text, { surface, rules: STRUCTURE_RULES }),
+  ];
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const APP_ROOT = resolve(dirname(__filename), "..");
@@ -243,7 +254,7 @@ function scanDiff(rangeRef?: string): ScanResult {
     const scannable = currentFile.endsWith(".tsx")
       ? blankClassNames(block)
       : keepOnlyStringLiterals(block);
-    for (const v of findVoiceViolations(scannable, { surface: currentSurface })) {
+    for (const v of scanCopy(scannable, currentSurface)) {
       // findVoiceViolations reports a 1-based line WITHIN the block, and both
       // blankers preserve newlines, so the index maps straight back.
       const src = pending[v.line - 1] ?? pending[pending.length - 1];
@@ -254,7 +265,7 @@ function scanDiff(rangeRef?: string): ScanResult {
         context: src.text.trim().slice(0, 120),
         why: v.why,
         fix: v.fix,
-        severity: v.severity,
+        severity: effectiveSeverity(currentFile, v.ruleId, v.severity),
         ruleId: v.ruleId,
       });
     }
@@ -330,14 +341,14 @@ function scanAllFiles(): ScanResult {
     const scannable = f.endsWith(".tsx")
       ? blankClassNames(stripped)
       : keepOnlyStringLiterals(stripped);
-    for (const v of findVoiceViolations(scannable, { surface })) {
+    for (const v of scanCopy(scannable, surface)) {
       findings.push({
         file: f,
         line: v.line,
         match: v.match,
         why: v.why,
         fix: v.fix,
-        severity: v.severity,
+        severity: effectiveSeverity(f, v.ruleId, v.severity),
         ruleId: v.ruleId,
       });
     }

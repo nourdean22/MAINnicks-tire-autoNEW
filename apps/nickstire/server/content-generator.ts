@@ -14,6 +14,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { getReviewCopy, type ReviewCopy } from "./lib/reviewCopy";
 import { ALL_ROUTES } from "@shared/routes";
+import { BUSINESS } from "@shared/business";
 import { isRedirectedPath } from "./_core/redirects";
 import { compileBrandTruth, renderBrandTruthBlock } from "./services/brandTruth";
 
@@ -128,7 +129,7 @@ Every article you write must apply at least 2 of these 5. Lead with the one that
 4. ANTI-PATTERN NAMING
    Specifically call out the chains' / dealers' bait. Don't lecture — name and move on.
    Bad: "Honest pricing"
-   Good: "The chain advertises a tire price. They don't advertise the $266 they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal."
+   Good: "The chain advertises a tire price. They don't advertise the $${BUSINESS.installPackage.valueDollars} they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal."
 
 5. INSIDER VOCABULARY
    Use mechanic-shop slang that signals you're a peer not a marketer.
