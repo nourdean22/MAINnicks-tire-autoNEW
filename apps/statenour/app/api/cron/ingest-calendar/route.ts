@@ -1,5 +1,6 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { forgetMemoryById } from "@/lib/services/brain-memories";
 import { intakeExternalMemory } from "@/lib/brain/external-memory-intake";
 import { readCalendarWindow, type CalendarRead, type DayEvent } from "@/lib/calendar/day-events";
 import { CALENDAR_ACCOUNT_KEY, listConfiguredAccounts } from "@/lib/services/google-oauth";
@@ -107,7 +108,7 @@ export const GET = cronHandler(async () => {
     else pastStored++;
   }
 
-  const removed = await removeGoneEvents(read, windowFrom, windowTo);
+  const { removed, removalSkipped } = await removeGoneEvents(read, windowFrom, windowTo);
 
   const durationMs = Date.now() - t0;
   const { accounts, calendars } = read.sources;
@@ -127,7 +128,7 @@ export const GET = cronHandler(async () => {
         detail:
           warning ??
           `Ingested ${pastStored} past + ${upcomingStored} upcoming calendar events · ${quarantined} quarantined for review`,
-        payload: { pastStored, upcomingStored, quarantined, skipped, removed, durationMs, accounts, calendars, emptyWindow },
+        payload: { pastStored, upcomingStored, quarantined, skipped, removed, removalSkipped, durationMs, accounts, calendars, emptyWindow },
       },
     })
     .catch(() => {});
@@ -138,6 +139,7 @@ export const GET = cronHandler(async () => {
     quarantined,
     skipped,
     removed,
+    ...(removalSkipped ? { removalSkipped } : {}),
     accounts,
     calendars,
     failedAccounts: read.failedAccounts,
@@ -158,8 +160,8 @@ async function removeGoneEvents(
   read: Extract<CalendarRead, { state: "ok" }>,
   windowFrom: number,
   windowTo: number,
-): Promise<number> {
-  if (read.failedAccounts.length > 0) return 0;
+): Promise<{ removed: number; removalSkipped?: "empty_read" }> {
+  if (read.failedAccounts.length > 0) return { removed: 0 };
   const present = new Set(read.events.map((e) => `calendar_${e.id}`));
   const stored = await prisma.brainMemory.findMany({
     where: { category: { in: ["calendar_upcoming", "calendar_past"] }, key: { startsWith: "calendar_" }, deletedAt: null },
@@ -170,16 +172,29 @@ async function removeGoneEvents(
       const m = (r.metadata ?? {}) as { accountKey?: unknown; start?: unknown };
       if (m.accountKey !== CALENDAR_ACCOUNT_KEY) return false;
       const startMs = typeof m.start === "string" ? new Date(m.start).getTime() : NaN;
-      if (!Number.isFinite(startMs) || startMs < windowFrom || startMs > windowTo) return false;
+      // Google's timeMax is exclusive: an event starting exactly at windowTo was never in the read.
+      if (!Number.isFinite(startMs) || startMs < windowFrom || startMs >= windowTo) return false;
       return !present.has(r.key);
     })
     .map((r) => r.id);
-  if (gone.length === 0) return 0;
-  const res = await prisma.brainMemory.updateMany({
-    where: { id: { in: gone }, deletedAt: null },
-    data: { deletedAt: new Date() },
-  });
-  return res.count;
+  if (gone.length === 0) return { removed: 0 };
+  // A 200 with no items is the empty-vs-error shape: one empty read never wipes the brain copy.
+  // Only a second empty read in a row (this run and the last) may (manager reader on #3471).
+  if (present.size === 0) {
+    const last = await prisma.auditEvent.findFirst({
+      where: { eventType: "calendar_events_ingested" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    if ((last?.payload as { emptyWindow?: unknown } | null)?.emptyWindow !== true) {
+      console.info(`[ingest-calendar] empty read, removal of ${gone.length} skipped until a second empty read`);
+      return { removed: 0, removalSkipped: "empty_read" };
+    }
+  }
+  // The sanctioned forget: tombstone plus the vector_embeddings copy (it carries the event text too).
+  let removed = 0;
+  for (const id of gone) if ((await forgetMemoryById(id)).deleted) removed++;
+  return { removed };
 }
 
 function shouldIngest(e: DayEvent): boolean {

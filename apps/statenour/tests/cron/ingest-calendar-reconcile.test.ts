@@ -12,13 +12,16 @@ const h = vi.hoisted(() => ({
   accounts: vi.fn(async () => [{ accountKey: "personal", integrationName: "google_oauth_personal", email: "owner@example.com" as string | null }]),
   audit: vi.fn(async (..._a: unknown[]) => ({})),
   stored: vi.fn(async (..._a: unknown[]) => [] as Array<{ id: string; key: string; metadata: unknown }>),
-  softDelete: vi.fn(async (..._a: unknown[]) => ({ count: 0 })),
+  forget: vi.fn(async (..._a: unknown[]) => ({ deleted: true })),
+  lastRun: vi.fn(async (..._a: unknown[]) => null as { payload: unknown } | null),
 }));
 
 vi.mock("@/lib/utils/http", () => ({ cronHandler: (fn: (req: Request, ctx: unknown) => Promise<unknown>) => fn }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { auditEvent: { create: h.audit }, brainMemory: { findMany: h.stored, updateMany: h.softDelete } },
+  prisma: { auditEvent: { create: h.audit, findFirst: h.lastRun }, brainMemory: { findMany: h.stored } },
 }));
+// The sanctioned forget (tombstone + search copy), never a direct brainMemory write (memory-admission ratchet).
+vi.mock("@/lib/services/brain-memories", () => ({ forgetMemoryById: h.forget }));
 vi.mock("@/lib/brain/external-memory-intake", () => ({ intakeExternalMemory: h.intake }));
 vi.mock("@/lib/services/google-oauth", () => ({ CALENDAR_ACCOUNT_KEY: "personal", listConfiguredAccounts: h.accounts }));
 vi.mock("@/lib/calendar/day-events", () => ({ readCalendarWindow: h.read }));
@@ -32,14 +35,15 @@ const row = (eventId: string, over: Record<string, unknown> = {}) => ({
   id: `m-${eventId}`, key: `calendar_${eventId}`, metadata: { eventId, start: inDays(2), accountKey: "personal", ...over },
 });
 const run = () => GET(new Request("http://x/api/cron/ingest-calendar"), {} as never) as Promise<Record<string, unknown>>;
-const deletedIds = () => h.softDelete.mock.calls.flatMap((c) => ((c[0] as { where: { id: { in: string[] } } }).where.id.in));
+const deletedIds = () => h.forget.mock.calls.map((c) => c[0] as string);
 
 beforeEach(() => {
   vi.clearAllMocks();
   // mockReset drains a Once queue a test left unconsumed (clearAllMocks does not).
   h.read.mockReset();
   h.stored.mockReset().mockResolvedValue([]);
-  h.softDelete.mockImplementation(async (a: unknown) => ({ count: (a as { where: { id: { in: string[] } } }).where.id.in.length }));
+  h.lastRun.mockReset().mockResolvedValue(null);
+  h.forget.mockReset().mockResolvedValue({ deleted: true });
 });
 
 describe("ingest-calendar · keeps the stored copy in step with Google", () => {
@@ -49,9 +53,15 @@ describe("ingest-calendar · keeps the stored copy in step with Google", () => {
     const out = await run();
     expect(deletedIds()).toEqual(["m-gone"]);
     expect(out.removed).toBe(1);
-    // The soft delete only touches rows that are still live.
-    expect((h.softDelete.mock.calls[0][0] as { where: { deletedAt: unknown } }).where.deletedAt).toBeNull();
-    expect((h.softDelete.mock.calls[0][0] as { data: { deletedAt: unknown } }).data.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it("removed counts only rows the forget actually deleted (an already-forgotten row is not counted)", async () => {
+    h.stored.mockResolvedValueOnce([row("a"), row("b")]);
+    h.read.mockResolvedValueOnce(ok([ev("other")]));
+    h.forget.mockResolvedValueOnce({ deleted: true }).mockResolvedValueOnce({ deleted: false });
+    const out = await run();
+    expect(deletedIds().sort()).toEqual(["m-a", "m-b"]);
+    expect(out.removed).toBe(1);
   });
 
   it("an event edited in Google is re-filed under the same key with its new title", async () => {
@@ -67,7 +77,7 @@ describe("ingest-calendar · keeps the stored copy in step with Google", () => {
     h.stored.mockResolvedValueOnce([row("gone")]);
     h.read.mockResolvedValueOnce(ok([], ["personal"]));
     const out = await run();
-    expect(h.softDelete).not.toHaveBeenCalled();
+    expect(h.forget).not.toHaveBeenCalled();
     expect(out.removed).toBe(0);
   });
 
@@ -80,14 +90,49 @@ describe("ingest-calendar · keeps the stored copy in step with Google", () => {
     ]);
     h.read.mockResolvedValueOnce(ok([ev("other")]));
     await run();
-    expect(h.softDelete).not.toHaveBeenCalled();
+    expect(h.forget).not.toHaveBeenCalled();
   });
 
   it("an event still in Google but now skipped by the ingest filter keeps its stored copy", async () => {
     h.stored.mockResolvedValueOnce([row("l")]);
     h.read.mockResolvedValueOnce(ok([ev("l", "Lunch")]));
     await run();
-    expect(h.softDelete).not.toHaveBeenCalled();
+    expect(h.forget).not.toHaveBeenCalled();
+  });
+
+  // Manager's reader on #3471 (P2): a 200 with an empty item list is the empty-vs-error shape. One
+  // empty read never wipes the brain copy; two in a row (this run and the last one) may.
+  it("an ok read with NO events while copies exist in the window removes nothing and says why", async () => {
+    h.stored.mockResolvedValueOnce([row("a"), row("b")]);
+    h.read.mockResolvedValueOnce(ok([]));
+    h.lastRun.mockResolvedValueOnce({ payload: { emptyWindow: false } });
+    const out = await run();
+    expect(h.forget).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ removed: 0, removalSkipped: "empty_read" });
+  });
+
+  it("the second empty read in a row may remove them (the calendar really was cleared)", async () => {
+    h.stored.mockResolvedValueOnce([row("a"), row("b")]);
+    h.read.mockResolvedValueOnce(ok([]));
+    h.lastRun.mockResolvedValueOnce({ payload: { emptyWindow: true } });
+    const out = await run();
+    expect(deletedIds().sort()).toEqual(["m-a", "m-b"]);
+    expect(out.removed).toBe(2);
+  });
+
+  // P3: Google's timeMax is exclusive, so an event starting exactly at the window's end was never
+  // in the read; its stored copy is not "gone".
+  it("a stored event starting exactly at the window's end is never read as gone", async () => {
+    const now = Date.parse("2026-11-02T12:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"] }).setSystemTime(now);
+    try {
+      h.stored.mockResolvedValueOnce([row("edge", { start: new Date(now + 14 * 86_400_000).toISOString() })]);
+      h.read.mockResolvedValueOnce(ok([ev("other")]));
+      await run();
+      expect(h.forget).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a failed read of the stored copies is a failed run, not a silent skip of the cleanup", async () => {
