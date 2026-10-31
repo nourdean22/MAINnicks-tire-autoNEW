@@ -31,6 +31,13 @@ export const proactivePushCron = inngest.createFunction(
 
     log.info("proactive_push_cron_done", { push: pushResult, nudge: nudgeResult, reminders: reminderResult });
 
+    // Both approval counts unreadable = the database is failing, and the nudge step returned (so the
+    // reminders step above still ran) instead of throwing. Fail the run HERE so onInngestFailure and the
+    // cron log carry it; a green run would hide a day-long outage behind log.info.
+    if ("reason" in nudgeResult && nudgeResult.reason === "approval_count_unreadable") {
+      throw new Error("approvals nudge could not read either approval count (approval_count_unreadable)");
+    }
+
     return {
       push: pushResult,
       nudge: nudgeResult,

@@ -105,7 +105,7 @@ import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/proactive-pushes");
 
-export type PushSlot = "morning" | "afternoon" | "evening" | "approvals_nudge" | "tutor";
+export type PushSlot = "morning" | "afternoon" | "evening" | "approvals_nudge" | "approvals_nudge_partial" | "tutor";
 
 export interface PushSource {
   id?: string;
@@ -121,7 +121,7 @@ export interface PushSource {
     | "unknown";
   title: string;
   summary: string;
-  confidence: "high" | "medium" | "low";
+  confidence: "high" | "medium" | "low" | "unknown";
   reason: string;
   href?: string;
 }
@@ -717,7 +717,14 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
     return { kind: "skip", skipped: true, reason: unreadable ? "approval_count_unreadable" : "no_pending_actions" };
   }
 
-  const isDup = await alreadyPushed("approvals_nudge", dateKey);
+  // A partial read (one count unreadable) claims its OWN slot, so it cannot spend the day's one full nudge:
+  // the next clean tick still states the whole count once. A partial tick is a duplicate once either the
+  // partial or the full nudge has gone out today.
+  const partial = pendingCount === null || pendingSystemCount === null;
+  const slot: PushSlot = partial ? "approvals_nudge_partial" : "approvals_nudge";
+  const confidence = partial ? "unknown" : "high";
+  const isDup =
+    (await alreadyPushed("approvals_nudge", dateKey)) || (partial && (await alreadyPushed("approvals_nudge_partial", dateKey)));
 
   let text = `⚖️ <b>Governance · Pending Actions</b>\n\n`;
   if (actions > 0) {
@@ -734,7 +741,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
     if (options?.dryRun) {
       return {
         kind: "preview",
-        slot: "approvals_nudge",
+        slot,
         nowIso: now.toISOString(),
         timezone: "America/New_York",
         dryRun: true,
@@ -751,7 +758,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
           category: "system_context",
           title: "Pending Approvals Queue",
           summary: `${pendingCount ?? "unknown"} actions, ${pendingSystemCount ?? "unknown"} tool requests pending`,
-          confidence: "high",
+          confidence,
           reason: "Active count of actions waiting for operator approval.",
         }],
       } as unknown as PushPreview;
@@ -762,7 +769,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
   if (options?.dryRun) {
     return {
       kind: "preview",
-      slot: "approvals_nudge",
+      slot,
       nowIso: now.toISOString(),
       timezone: "America/New_York",
       dryRun: true,
@@ -771,7 +778,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
       reason: isDup ? "already_nudged_today" : "eligible",
       messageText: text,
       messagePreviewSafe: text,
-      dedupKey: `approvals_nudge_${dateKey}`,
+      dedupKey: `${slot}_${dateKey}`,
       dedupBlocked: isDup,
       quietHoursBlocked: false,
       rateLimitBlocked: false,
@@ -782,17 +789,17 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
         category: "system_context",
         title: "Pending Approvals Queue",
         summary: `${pendingCount ?? "unknown"} actions, ${pendingSystemCount ?? "unknown"} tool requests pending`,
-        confidence: "high",
+        confidence,
         reason: "Active count of actions waiting for operator approval.",
       }],
     } as unknown as PushPreview;
   }
 
   if (isDup) {
-    return { kind: "live", slot: "approvals_nudge", fired: false, reason: "already_nudged_today" };
+    return { kind: "live", slot, fired: false, reason: "already_nudged_today" };
   }
 
-  const { fired, reason } = await sendClaimed("approvals_nudge", dateKey, () =>
+  const { fired, reason } = await sendClaimed(slot, dateKey, () =>
     sendTelegram(text).catch((err) => {
       logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.sendTelegram" });
       return false;
@@ -800,7 +807,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
   );
   return {
     kind: "live",
-    slot: "approvals_nudge",
+    slot,
     fired,
     reason,
     text: fired ? text : undefined,
