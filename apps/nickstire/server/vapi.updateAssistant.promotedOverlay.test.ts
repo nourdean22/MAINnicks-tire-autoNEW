@@ -82,12 +82,20 @@ describe("updateAssistant and the promoted overlay", () => {
   });
 
   it("an edit that no longer fits the code: code wins, and the push says so", async () => {
-    mocks.overlay = { find: "text that is not in the prompt", replace: "x", versionId: "v-2" };
+    mocks.overlay = { find: "## A SECTION THE CODE NO LONGER HAS\nold line", replace: "## A SECTION THE CODE NO LONGER HAS\nlearned line", versionId: "v-2" };
     const patches = stubVapi();
     const res = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
     expect(res.success).toBe(true);
     expect(patches[0].model.messages[0].content).toBe(ASSISTANT_SYSTEM_PROMPT);
     expect(res.warning).toMatch(/auto-promoted edit v-2 no longer fits/);
+  });
+
+  it("an edit already copied into the code is not reported as stale, and is not applied twice", async () => {
+    mocks.overlay = { find: "text that is not in the prompt", replace: LINES[AT], versionId: "v-3" };
+    const patches = stubVapi();
+    const res = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
+    expect(patches[0].model.messages[0].content).toBe(ASSISTANT_SYSTEM_PROMPT);
+    expect(res.warning ?? "").not.toMatch(/auto-promoted/);
   });
 
   it("an unreadable overlay never blocks the push; it says the edit may be dropped", async () => {

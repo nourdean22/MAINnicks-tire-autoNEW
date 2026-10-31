@@ -50,7 +50,7 @@ const log = createLogger("auto-promote");
 /** W3 flips this, together with the canary, rollback and undo. */
 const AUTO_PROMOTE_ARMED = false;
 
-/** Kill switch (shop_settings kv). "true" = paused; a missing row = running; an unreadable row = paused. */
+/** Kill switch (shop_settings kv). true/1/yes/on/paused = paused; a missing row or anything else = running; an unreadable row = paused. */
 const KILL_SWITCH_KEY = "auto_promote_paused";
 /** The prompt callers heard before the latest promotion: { versionId, promptHash, prompt }. */
 const STABLE_KEY = "autopromote_receptionist_prompt_stable";
@@ -157,7 +157,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   let paused: boolean | null;
   try {
     const raw = await deps.kvGet(KILL_SWITCH_KEY);
-    paused = raw !== null && raw.trim().toLowerCase() === "true";
+    paused = raw !== null && /^(?:true|1|yes|on|paused)$/i.test(raw.trim());
   } catch {
     paused = null;
   }
@@ -209,7 +209,17 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   await deps.kvSet(STABLE_KEY, JSON.stringify({ versionId, promptHash: input.baseline.promptHash, prompt: livePrompt, at: deps.now().toISOString() }));
 
   // 4 · Push the system prompt only.
-  const metadata = { ...(live.metadata ?? {}), nickPromptHash: sha24(candidate), nickPromptVersion: versionId };
+  // The webhook copies metadata.nickBehaviorHash into every call's evidence, so
+  // it must change with the prompt: derived from the hash updateAssistant
+  // stamped (kept as nickBehaviorHashBase) and the new prompt text's hash.
+  const baseBehavior = typeof live.metadata?.nickBehaviorHash === "string" ? live.metadata.nickBehaviorHash : "none";
+  const metadata = {
+    ...(live.metadata ?? {}),
+    nickBehaviorHash: sha24(`${baseBehavior}|prompt:${sha24(candidate)}`),
+    nickBehaviorHashBase: baseBehavior,
+    nickPromptHash: sha24(candidate),
+    nickPromptVersion: versionId,
+  };
   let pushed: Response | null = null;
   try {
     pushed = await deps.patchAssistant(assistantId, { model: withSystemPrompt(live, candidate), metadata });
@@ -277,6 +287,8 @@ export async function applyPromotedOverlay(codePrompt: string): Promise<{ prompt
     return { prompt: codePrompt, warning: "The auto-promoted edit could not be read; this push serves the code prompt without it." };
   }
   if (!overlay) return { prompt: codePrompt };
+  // Nour copied the edit into the code (the propose-only path): nothing to add, nothing stale.
+  if (overlay.replace && codePrompt.replace(/\r\n/g, "\n").includes(overlay.replace)) return { prompt: codePrompt };
   const applied = applyOverlay(codePrompt, overlay);
   if (applied === null) {
     log.warn("[auto-promote] overlay stale; manual push serves the code prompt", { versionId: overlay.versionId });

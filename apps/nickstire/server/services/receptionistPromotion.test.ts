@@ -100,7 +100,10 @@ describe("promoteReceptionistCandidate", () => {
     const body = h.patches[0];
     const live = liveAssistant(LIVE);
     expect(body.model).toEqual({ ...live.model, messages: [{ role: "system", content: GOOD }] });
-    expect(body.metadata).toMatchObject({ other: "kept", nickPromptHash: hash(GOOD) });
+    expect(body.metadata).toMatchObject({ other: "kept", nickPromptHash: hash(GOOD), nickBehaviorHashBase: "old" });
+    // Call evidence must not keep attributing calls to the behaviour that no longer serves.
+    expect(body.metadata.nickBehaviorHash).toMatch(/^[0-9a-f]{24}$/);
+    expect(body.metadata.nickBehaviorHash).not.toBe("old");
     expect(Object.keys(body).sort()).toEqual(["metadata", "model"]);
     expect(h.served()).toBe(GOOD);
     // The stable snapshot holds the prompt callers heard before, for undo.
@@ -140,6 +143,16 @@ describe("promoteReceptionistCandidate", () => {
     expect(h1.patches.length + h2.patches.length).toBe(0);
   });
 
+  it.each(["TRUE", "1", "yes", "on", "paused"])("the kill switch reads %s as paused", async (v) => {
+    const h = harness({ kv: { [KILL_SWITCH_KEY]: v } });
+    expect(await promoteReceptionistCandidate(accepted(GOOD), h.deps)).toMatchObject({ status: "held", reason: "kill_switch" });
+  });
+
+  it.each(["false", "0", "", "off"])("the kill switch reads %j as running", async (v) => {
+    const h = harness({ kv: { [KILL_SWITCH_KEY]: v } });
+    expect((await promoteReceptionistCandidate(accepted(GOOD), h.deps)).status).toBe("promoted");
+  });
+
   it("the live prompt changed after the run measured it: refused, nothing pushed", async () => {
     const h = harness({ live: LIVE.replace("rims", "rims and lugs") });
     const r = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
@@ -153,6 +166,7 @@ describe("promoteReceptionistCandidate", () => {
     expect(r.status).toBe("readback_restored");
     expect(h.patches).toHaveLength(2);
     expect(h.patches[1].model.messages[0].content).toBe(LIVE);
+    expect(h.patches[1].metadata).toEqual(liveAssistant(LIVE).metadata);
     expect(h.served()).toBe(LIVE);
     expect(h.kv.has(OVERLAY_KEY)).toBe(false);
     expect(history(h.kv)[0]).toMatchObject({ status: "readback_restored" });
