@@ -88,7 +88,7 @@ export function LoveMapLine() {
           onChange={(e) => setAnswer(e.target.value)}
           maxLength={1000}
           placeholder="A few words is enough"
-          className="min-h-[44px] min-w-0 flex-1 rounded-control border border-edge-default bg-transparent px-3 text-[15px] text-fg placeholder:text-fg-tertiary focus:border-edge-strong focus:outline-none"
+          className="min-h-[44px] min-w-0 flex-1 rounded-control border border-edge-default bg-transparent px-3 text-[16px] text-fg placeholder:text-fg-tertiary focus:border-edge-strong focus:outline-none"
         />
         <button type="submit" className={VERB} disabled={save.isPending || !answer.trim()}>
           Save
