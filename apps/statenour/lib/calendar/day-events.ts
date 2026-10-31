@@ -259,13 +259,23 @@ const googleDeps: CalendarDeps = {
       orderBy: "startTime",
       maxResults: "250",
     });
-    const body = await gget<{ items?: RawEvent[] }>(
-      accountKey,
-      `${GCAL}/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
-    );
-    return body.items ?? [];
+    // W2: page to the end. A cut-short list would read as deleted events to the ingest's cleanup,
+    // so a calendar still paging after the cap throws (that account reads as failed, never ok).
+    const items: RawEvent[] = [];
+    for (let page = 0; page < MAX_EVENT_PAGES; page++) {
+      const body = await gget<{ items?: RawEvent[]; nextPageToken?: string }>(
+        accountKey,
+        `${GCAL}/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
+      );
+      items.push(...(body.items ?? []));
+      if (!body.nextPageToken) return items;
+      params.set("pageToken", body.nextPageToken);
+    }
+    throw new Error(`Google Calendar still paging after ${MAX_EVENT_PAGES} pages`);
   },
 };
+
+const MAX_EVENT_PAGES = 10;
 
 async function gget<T>(accountKey: string, url: string): Promise<T> {
   const token = await getAccessToken(accountKey);
