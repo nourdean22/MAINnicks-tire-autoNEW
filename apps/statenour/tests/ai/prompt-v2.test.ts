@@ -290,6 +290,17 @@ beforeEach(() => {
 });
 
 describe("v9.0-beta · prompt-v2 renderer", () => {
+  it("puts today's live calendar block inside the TODAY section, right under the date", () => {
+    const block = ["### CALENDAR TODAY (live, 1 event)", "- 2:00 PM-3:00 PM Dentist"].join("\n");
+    const { temporal } = renderPromptV2({ ...FIXTURE, calendarToday: block });
+    expect(temporal.split("\n").slice(0, 4).join("\n")).toContain("### CALENDAR TODAY (live, 1 event)");
+    expect(temporal.indexOf("CALENDAR TODAY")).toBeLessThan(temporal.indexOf("TIME-AWARE GUIDANCE"));
+  });
+
+  it("renders no calendar block when the context has none (older builds, tests)", () => {
+    expect(renderPromptV2(FIXTURE).temporal).not.toContain("CALENDAR");
+  });
+
   it("renders a health-read failure as unavailable, never an all-clear", () => {
     const sections = renderPromptV2({
       ...FIXTURE,

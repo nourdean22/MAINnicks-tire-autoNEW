@@ -207,6 +207,36 @@ describe("horizon — one pointer per scope, deduped against the lead", () => {
     expect(today?.source).toBe("MIT");
   });
 
+  // Calendar r2 W1: a calendar that could not be read is named in TODAY, never an empty day.
+  const noMit = { lead: emptyLead, mitText: null, weekGoals: [], laterGoals: [], calendarUpcoming: [], startOfToday: start, endOfToday: end, measured: true };
+
+  it("a failed calendar read with nothing else today says calendar unknown", () => {
+    const h = buildHorizon({ ...noMit, dueTasks: [], calendarGap: "read_failed" });
+    expect(h.slots.find((s) => s.scope === "today")).toMatchObject({ label: "Calendar unknown", source: "calendar" });
+  });
+
+  it("a failed calendar read beside a due task keeps the task and says the calendar is unknown", () => {
+    const h = buildHorizon({
+      ...noMit,
+      dueTasks: [{ id: "d1", title: "Call vendor", dueDate: new Date(start.getTime() + 3600_000) }],
+      calendarGap: "read_failed",
+    });
+    expect(h.slots.find((s) => s.scope === "today")).toMatchObject({ label: "Call vendor", source: "due today · calendar unknown" });
+  });
+
+  it("an unconnected calendar points TODAY at connecting his account", () => {
+    const h = buildHorizon({ ...noMit, dueTasks: [], calendarGap: "not_connected" });
+    expect(h.slots.find((s) => s.scope === "today")).toMatchObject({
+      label: "Calendar not connected",
+      href: "/api/oauth/google-data/start?account=personal",
+    });
+  });
+
+  it("a measured calendar adds no gap slot", () => {
+    const h = buildHorizon({ ...noMit, dueTasks: [], calendarGap: null });
+    expect(h.slots.find((s) => s.scope === "today")).toBeUndefined();
+  });
+
   it("a task already claimed by TODAY never repeats in WEEK; LATER falls to the furthest goal", () => {
     const h = buildHorizon({
       lead: emptyLead,

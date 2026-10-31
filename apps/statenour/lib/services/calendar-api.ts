@@ -1,6 +1,8 @@
 /**
- * Google Calendar API Client — headless read via the stored refresh
- * token (see lib/services/google-oauth.ts).
+ * Google Calendar API Client — event create via the stored refresh token
+ * (see lib/services/google-oauth.ts). Reads live in lib/calendar/day-events
+ * (his account, every selected calendar); listEvents below is the old list
+ * shape over that reader.
  */
 
 import { getAccessToken } from "@/lib/services/google-oauth";
@@ -20,7 +22,7 @@ export interface CalEvent {
 }
 
 /**
- * Typed error thrown by listEvents so the cron handler can branch
+ * Typed error thrown by createEvent so a caller can branch
  * on 403 (Calendar API not enabled OR scope not granted) without
  * regex-matching error.message. Tags are stable across error msg
  * tweaks.
@@ -44,76 +46,29 @@ export class CalendarApiError extends Error {
 }
 
 /**
- * List events on the primary calendar within a time window.
- * Defaults to next 14 days. Pass negative days for past events.
+ * The old list shape, kept for the people reader (lib/ai/relationships-pick-today, PR 3432). Reads
+ * through lib/calendar/day-events (his account only) and throws on any non-ok state, so that
+ * caller says "calendar unknown" instead of "nobody coming up".
  */
-export async function listEvents(options: {
-  daysAhead?: number;
-  daysBack?: number;
-  maxResults?: number;
-} = {}): Promise<CalEvent[]> {
-  const token = await getAccessToken();
+export async function listEvents(options: { daysAhead?: number; daysBack?: number } = {}): Promise<CalEvent[]> {
+  const { readCalendarWindow } = await import("@/lib/calendar/day-events");
   const now = Date.now();
-  const daysAhead = options.daysAhead ?? 14;
-  const daysBack = options.daysBack ?? 0;
-  const timeMin = new Date(now - daysBack * 86400000).toISOString();
-  const timeMax = new Date(now + daysAhead * 86400000).toISOString();
-
-  const params = new URLSearchParams({
-    timeMin,
-    timeMax,
-    singleEvents: "true",
-    orderBy: "startTime",
-    maxResults: String(options.maxResults ?? 100),
-  });
-
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(15_000), // wave-181.92
-    }
+  const read = await readCalendarWindow(
+    new Date(now - (options.daysBack ?? 0) * 86_400_000),
+    new Date(now + (options.daysAhead ?? 14) * 86_400_000),
   );
-
-  if (!res.ok) {
-    // 403 = Calendar API disabled OR calendar.readonly scope was
-    // dropped during a re-consent. Throw the typed error so the cron
-    // can branch + write a brain insight + mark the integration
-    // partial-config instead of dumping a stack trace into errors-24h.
-    throw new CalendarApiError(
-      res.status,
-      `Calendar list failed: ${res.status}`,
-    );
-  }
-
-  const data = (await res.json()) as {
-    items?: Array<{
-      id: string;
-      summary?: string;
-      description?: string;
-      start?: { dateTime?: string; date?: string };
-      end?: { dateTime?: string; date?: string };
-      attendees?: Array<{ email?: string }>;
-      location?: string;
-      organizer?: { email?: string };
-      status?: string;
-      recurringEventId?: string;
-      htmlLink?: string;
-    }>;
-  };
-
-  return (data.items || []).map((e) => ({
+  if (read.state !== "ok") throw new Error(`calendar ${read.state}`);
+  return read.events.map((e) => ({
     id: e.id,
-    summary: e.summary,
+    summary: e.title,
     description: e.description,
-    start: e.start?.dateTime || e.start?.date,
-    end: e.end?.dateTime || e.end?.date,
-    attendees: (e.attendees || []).map((a) => a.email || "").filter(Boolean),
+    start: e.start,
+    end: e.end ?? undefined,
+    attendees: e.attendees,
     location: e.location,
-    organizer: e.organizer?.email,
-    status: e.status,
-    recurring: !!e.recurringEventId,
-    htmlLink: e.htmlLink,
+    organizer: e.organizer,
+    recurring: e.recurring,
+    htmlLink: e.link,
   }));
 }
 

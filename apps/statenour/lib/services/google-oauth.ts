@@ -55,6 +55,14 @@ export const GOOGLE_DATA_SCOPES = [
  */
 export const GOOGLE_INTEGRATION_NAME = "google_oauth";
 
+/**
+ * The slot that holds Nour's own Google account, the calendar of record (2026-10-31). The legacy
+ * primary slot holds the shop's account and is never read or written as his calendar. Checked by
+ * SELECT that day: both slots held the shop account, because the June grant into this one picked
+ * the wrong Google account in the picker.
+ */
+export const CALENDAR_ACCOUNT_KEY = "personal";
+
 /** Resolve the integration row name for a given account key.
  *  "primary" → legacy "google_oauth" (preserves existing moeseuclid row).
  *  anything else → "google_oauth_<key>". */
@@ -67,8 +75,13 @@ export function integrationNameFor(accountKey: string = "primary"): string {
 /** Return all configured google_oauth* integration rows. The ingest
  *  cron iterates this so adding a new account just means clicking
  *  /api/oauth/google-data/start?account=<key> once.
- *  Throws on a DB error: `[]` means "no account configured", never "could not ask". */
-export async function listConfiguredAccounts(): Promise<
+ *  Throws on a DB error: `[]` means "no account configured", never "could not ask".
+ *
+ *  2026-10-31 · a FAILED non-primary row holding the same Google account as the primary (the
+ *  shop's) is left out: it is a dead copy, and the daily Gmail ingest retried it twice a run
+ *  (63 refresh failures since 06-29). `includeDeadShopCopies` keeps it, so the calendar reader
+ *  can say his slot holds the shop's account. */
+export async function listConfiguredAccounts(opts: { includeDeadShopCopies?: boolean } = {}): Promise<
   Array<{ accountKey: string; integrationName: string; email: string | null }>
 > {
   const rows = await prisma.integration.findMany({
@@ -79,10 +92,17 @@ export async function listConfiguredAccounts(): Promise<
       ],
     },
   });
+  const emailOf = (r: (typeof rows)[number]) =>
+    (r.config as unknown as StoredToken | null)?.email?.trim().toLowerCase() || null;
+  const primary = rows.find((r) => r.name === GOOGLE_INTEGRATION_NAME);
+  const shopEmail = primary ? emailOf(primary) : null;
   return rows
     .filter((r) => {
       const cfg = r.config as unknown as StoredToken | null;
-      return cfg?.refreshToken;
+      if (!cfg?.refreshToken) return false;
+      const deadShopCopy =
+        r.name !== GOOGLE_INTEGRATION_NAME && r.status === "failed" && shopEmail !== null && emailOf(r) === shopEmail;
+      return !deadShopCopy || opts.includeDeadShopCopies === true;
     })
     .map((r) => {
       const cfg = r.config as unknown as StoredToken;
@@ -228,6 +248,18 @@ export async function exchangeCodeForToken(
       // Synthetic error on purpose — a raw SyntaxError would embed JWT
       // payload fragments into ErrorLog.message (phase-1 rule 2).
       logError("services.google-oauth", new Error("id_token decode failed (malformed JWT payload)"), { stage: "id-token-email" }, "warn");
+    }
+  }
+
+  // His calendar slot granted with the shop's account looks connected and reads the shop's
+  // calendar (what the June grant did). Refuse before overwriting the slot.
+  if (accountKey === CALENDAR_ACCOUNT_KEY && email) {
+    const shop = await prisma.integration.findUnique({ where: { name: GOOGLE_INTEGRATION_NAME } });
+    const shopEmail = (shop?.config as unknown as StoredToken | null)?.email?.trim().toLowerCase();
+    if (shopEmail && shopEmail === email.trim().toLowerCase()) {
+      throw new Error(
+        "That is the shop's Google account, which is not your calendar. Start again and pick nourdean22 in Google's account picker.",
+      );
     }
   }
 

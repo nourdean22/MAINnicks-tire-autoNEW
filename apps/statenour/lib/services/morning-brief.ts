@@ -35,6 +35,8 @@
  * filler line — slices that can't compute themselves drop out silently.
  */
 
+import { briefCalendarLine } from "@/lib/calendar/day-lines";
+import { readCalendarDay, readCalendarWindow, type CalendarRead } from "@/lib/calendar/day-events";
 import { stableIndex } from "@/lib/utils/stable-index";
 import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
@@ -329,24 +331,16 @@ export async function buildPersonalSlice(
           logQueryFail("commitments", err);
           return null;
         }),
-      tryFetchCalendarToday().catch((err): null => {
-        logQueryFail("calendar", err);
-        return null;
-      }),
+      readBriefCalendar(new Date(todayStart.getTime() + 12 * 60 * 60_000)),
     ]);
 
   const driftLabel = latestDrift === "read_failed"
     ? "UNAVAILABLE (read failed)"
     : (latestDrift?.severity ?? "LOW").toUpperCase();
 
-  // Calendar conflicts = events overlapping today.
-  const calendarConflicts = calendarEvents === null ? null : (
-    calendarEvents as Array<{ start?: string; end?: string }>
-  ).filter((e) => {
-    if (!e.start) return false;
-    const s = new Date(e.start);
-    return s >= todayStart && s < todayEnd;
-  }).length;
+  // Calendar: every connected account and calendar (lib/calendar/day-events). A null count
+  // means the read did not produce one (failed, expired or not connected); the line says which.
+  const calendarConflicts = calendarEvents.today.state === "ok" ? calendarEvents.today.events.length : null;
 
   const topTask = topTasks[0] as
     | { nextPhysicalAction?: string; title?: string }
@@ -359,12 +353,7 @@ export async function buildPersonalSlice(
   }
   if (taskCount === null) lines.push("Open tasks: unknown (read failed)");
   else if (taskCount > 0) lines.push(`Open tasks: ${taskCount}`);
-  if (calendarConflicts === null) lines.push("Calendar: unknown (read failed)");
-  else if (calendarConflicts > 0) {
-    lines.push(
-      `Calendar: ${calendarConflicts} event${calendarConflicts === 1 ? "" : "s"}`,
-    );
-  }
+  lines.push(escapeHtml(briefCalendarLine(calendarEvents.today, calendarEvents.wide)));
   if (activeCommitments === null) lines.push("Aging commits: unknown (read failed)");
   else if (activeCommitments.length > 0) {
     const oldest = activeCommitments[0] as { description: string };
@@ -384,6 +373,7 @@ export async function buildPersonalSlice(
       topTask: topTaskText,
       taskCount,
       calendarConflicts,
+      calendarState: calendarEvents.today.state,
       unkeptCommitments: activeCommitments?.length ?? null,
     },
   };
@@ -768,11 +758,20 @@ function failedSlice(name: string): MorningBriefSlice {
   };
 }
 
-// Throws on failure: the caller renders "Calendar: unknown". Swallowing it here
-// made a dead calendar read as "no events today".
-async function tryFetchCalendarToday(): Promise<unknown[]> {
-  const { listEvents } = await import("@/lib/services/calendar-api");
-  return await listEvents({ daysAhead: 1, maxResults: 20 });
+// Never throws: readCalendarWindow returns a state, and briefCalendarLine says "unknown" for a
+// failed read. The wide read (last 7 / next 14 days) runs only when today is empty, so a
+// connected calendar that holds nothing is named instead of reading as a calm day.
+async function readBriefCalendar(day: Date): Promise<{ today: CalendarRead; wide: CalendarRead | null }> {
+  const today = await readCalendarDay(day).catch(
+    (err): CalendarRead => ({ state: "read_failed", reason: (err as Error).message }),
+  );
+  if (today.state === "read_failed") logQueryFail("calendar", new Error(today.reason));
+  if (today.state !== "ok" || today.events.length > 0) return { today, wide: null };
+  const wide = await readCalendarWindow(
+    new Date(day.getTime() - 7 * 86_400_000),
+    new Date(day.getTime() + 14 * 86_400_000),
+  ).catch((): null => null);
+  return { today, wide };
 }
 
 function escapeHtml(s: string): string {

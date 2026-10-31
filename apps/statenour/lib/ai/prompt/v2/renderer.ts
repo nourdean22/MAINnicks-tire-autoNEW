@@ -302,6 +302,8 @@ function renderTemporal(ctx: NickPrimeContext): string {
   lines.push(
     `## TODAY: ${t.dayNameLong}, ${t.todayISO} — ${bucket.toUpperCase()} (${t.currentHour}:00 ET)`,
   );
+  // 2026-10-30 · his real day first: the guidance below is generic, the calendar is not.
+  if (ctx.calendarToday) lines.push("", ctx.calendarToday);
 
   // ── Time-aware guidance ──
   // v9.1.12 · every (bucket × isWeekend) combination has a branch so

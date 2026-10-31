@@ -40,7 +40,7 @@ vi.mock("@/lib/prisma", () => {
   };
 });
 
-import { getAccessToken, getGoogleOauthAccountsStatus } from "@/lib/services/google-oauth";
+import { getAccessToken, getGoogleOauthAccountsStatus, listConfiguredAccounts } from "@/lib/services/google-oauth";
 import { googleOauthHighlight } from "@/lib/system/health-digest";
 
 const HOUR = 3_600_000;
@@ -65,6 +65,36 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+});
+
+// Calendar r2 W1 (2026-10-31 SELECT): google_oauth_personal held the SHOP's account, status failed,
+// 63 refresh failures, and the daily Gmail ingest retried it twice per run. A failed row that is a
+// copy of the shop's account is not a configured account; the grant card replaces it.
+describe("listConfiguredAccounts · dead copy of the shop account", () => {
+  it("leaves out a failed non-primary row that holds the shop's account", async () => {
+    seed("google_oauth", { config: { refreshToken: "r", scopes: [], email: "shop@example.com", grantedAt: "x" } });
+    seed("google_oauth_personal", { status: "failed", config: { refreshToken: "r", scopes: [], email: "Shop@example.com", grantedAt: "x" } });
+    expect((await listConfiguredAccounts()).map((a) => a.accountKey)).toEqual(["primary"]);
+  });
+
+  it("still lists it when asked, so the calendar can name the wrong account", async () => {
+    seed("google_oauth", { config: { refreshToken: "r", scopes: [], email: "shop@example.com", grantedAt: "x" } });
+    seed("google_oauth_personal", { status: "failed", config: { refreshToken: "r", scopes: [], email: "shop@example.com", grantedAt: "x" } });
+    const all = await listConfiguredAccounts({ includeDeadShopCopies: true });
+    expect(all.map((a) => a.accountKey).sort()).toEqual(["personal", "primary"]);
+  });
+
+  it("CONTROL: a failed row on a DIFFERENT account stays listed (a real expired grant is not hidden)", async () => {
+    seed("google_oauth", { config: { refreshToken: "r", scopes: [], email: "shop@example.com", grantedAt: "x" } });
+    seed("google_oauth_personal", { status: "failed", config: { refreshToken: "r", scopes: [], email: "owner@example.com", grantedAt: "x" } });
+    expect((await listConfiguredAccounts()).map((a) => a.accountKey).sort()).toEqual(["personal", "primary"]);
+  });
+
+  it("CONTROL: a healthy copy is not hidden by this rule (only a failed one is)", async () => {
+    seed("google_oauth", { config: { refreshToken: "r", scopes: [], email: "shop@example.com", grantedAt: "x" } });
+    seed("google_oauth_personal", { config: { refreshToken: "r", scopes: [], email: "shop@example.com", grantedAt: "x" } });
+    expect((await listConfiguredAccounts()).map((a) => a.accountKey).sort()).toEqual(["personal", "primary"]);
+  });
 });
 
 describe("getGoogleOauthAccountsStatus", () => {

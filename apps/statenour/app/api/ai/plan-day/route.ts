@@ -6,7 +6,7 @@
  * plan with cards the UI renders as one-click actions:
  *
  *   1. Active tasks (from Task table) — what's open + priority
- *   2. Today's calendar (from CalendarEvent) — meetings/blocks
+ *   2. The day's real calendar (lib/calendar/day-events: every connected account and calendar)
  *   3. Recent brain memory (high-importance) — what's top of mind
  *   4. Current weather (existing weather integration) — outdoor work fit
  *   5. Recent commitments (DailyScore + Commitment) — what was promised
@@ -21,6 +21,8 @@
  * UI: /plan page (BATCH 6) renders + action-buttons each block.
  */
 
+import { readCalendarWindow, type CalendarRead } from "@/lib/calendar/day-events";
+import { etTime } from "@/lib/calendar/day-lines";
 import { NextResponse } from "next/server";
 import { weekdayET } from "@/lib/utils/datetime";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
@@ -73,17 +75,9 @@ export async function POST(req: Request) {
         select: { id: true, title: true, autoPriority: true, status: true, dueDate: true },
       })
       .catch(() => [] as Array<{ id: string; title: string; autoPriority: number | null; status: string; dueDate: Date | null }>),
-    prisma.auditEvent
-      .findMany({
-        where: {
-          eventType: "calendar_event",
-          createdAt: { gte: startBoundary, lte: endBoundary },
-        },
-        orderBy: { createdAt: "asc" },
-        take: 20,
-        select: { id: true, detail: true, createdAt: true, payload: true },
-      })
-      .catch(() => [] as Array<{ id: string; detail: string | null; createdAt: Date; payload: unknown }>),
+    // 2026-10-30 · was an auditEvent "calendar_event" read that nothing ever wrote, so the plan
+    // always saw 0 events. Never throws: a failed read comes back as a state the prompt names.
+    readCalendarWindow(startBoundary, endBoundary),
     prisma.brainMemory
       .findMany({
         where: {
@@ -117,11 +111,7 @@ export async function POST(req: Request) {
         `  · ${(t.autoPriority ?? 0) > 70 ? "🔴" : (t.autoPriority ?? 0) > 40 ? "🟡" : "⚪"} ${t.title}${t.dueDate ? ` (due ${t.dueDate.toISOString().split("T")[0]})` : ""}`,
     ),
     "",
-    `Calendar for ${dayName} (${calendarEvents.length}):`,
-    ...calendarEvents.map(
-      (e: { detail: string | null; createdAt: Date }) =>
-        `  · ${e.createdAt.toISOString().split("T")[1].slice(0, 5)} — ${e.detail ?? "(unnamed)"}`,
-    ),
+    ...calendarPromptLines(calendarEvents, dayName),
     "",
     `High-priority brain context (${brainItems.length}):`,
     ...brainItems.slice(0, 8).map((b: { category: string; content: string }) => `  · [${b.category}] ${b.content.slice(0, 200)}`),
@@ -245,7 +235,8 @@ export async function POST(req: Request) {
     plan,
     inputs: {
       taskCount: tasks.length,
-      eventCount: calendarEvents.length,
+      eventCount: calendarEvents.state === "ok" ? calendarEvents.events.length : null,
+      calendarState: calendarEvents.state,
       brainCount: brainItems.length,
       },
     meta: {
@@ -255,6 +246,21 @@ export async function POST(req: Request) {
       dayLabel,
     },
   });
+}
+
+/** The plan's calendar lines: real events as fixed blocks, or the reason there are none. */
+function calendarPromptLines(read: CalendarRead, dayName: string): string[] {
+  if (read.state !== "ok") {
+    const why = read.state === "not_connected" ? "no calendar connected" : read.state === "expired" ? "Google grant expired" : "calendar read failed";
+    return [`Calendar for ${dayName}: UNKNOWN (${why}). Do not assume the day is free; keep blocks movable.`];
+  }
+  if (read.events.length === 0) return [`Calendar for ${dayName}: no events booked.`];
+  return [
+    `Calendar for ${dayName} (${read.events.length}) — fixed; plan around these, never over them:`,
+    ...read.events.map((e) =>
+      e.allDay ? `  · all day — ${e.title}` : `  · ${etTime(e.start)}${e.end ? `-${etTime(e.end)}` : ""} — ${e.title}`,
+    ),
+  ];
 }
 
 function dayBoundaryLabel(dayLabel: string): string {
