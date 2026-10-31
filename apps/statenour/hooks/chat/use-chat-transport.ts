@@ -36,6 +36,7 @@ import type { UIMessage, UIDataTypes, UITools } from "ai";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import type { Personality } from "@/lib/chat/types";
 import { decodeCockpitSseResponse } from "@/lib/chat/decode-cockpit-sse";
+import { withoutOlderInlineFiles } from "@/lib/ai/chat/attachment-cap";
 
 export type ChatUIMessage = UIMessage<unknown, UIDataTypes, UITools>;
 
@@ -229,7 +230,14 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
         prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => {
           const historyOffset = Math.max(0, messages.length - SEND_WINDOW);
           return {
-            body: { ...body, id, messages: messages.slice(historyOffset), trigger, messageId, historyOffset },
+            body: {
+              ...body,
+              id,
+              messages: withoutOlderInlineFiles(messages.slice(historyOffset)),
+              trigger,
+              messageId,
+              historyOffset,
+            },
           };
         },
         // WP-A (2026-07-29): useChat's id is the STATIC "chat-v2", so the
