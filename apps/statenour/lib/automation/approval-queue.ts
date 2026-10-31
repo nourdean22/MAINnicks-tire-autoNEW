@@ -310,6 +310,7 @@ export async function decidePendingAction(
   // Same event Telegram /qa sends. If it cannot be sent, run the row here through the same batch
   // core: the 09:00Z backstop reads only rows under 2 days old, so a 1.9-day row would never run.
   // The core claims by executedAt null, so a late event cannot run it twice.
+  let returned = updated;
   if (decision === "approved" && isNickAction) {
     try {
       const { getInngest } = await import("@/lib/inngest/client");
@@ -319,8 +320,20 @@ export async function decidePendingAction(
       try {
         const { runNickActionBatch } = await import("@/lib/ai/nick-action-batch");
         await runNickActionBatch({ ids: [id], source: "approval-queue-fallback" });
+        // Answer with the row as the run left it (executedAt set once it ran), not the pre-run copy.
+        returned = (await prisma.autonomousAction.findUnique({ where: { id } })) ?? updated;
       } catch (runErr) {
-        log.warn("nick_action_inline_run_failed", { id, error: runErr instanceof Error ? runErr.message : String(runErr) });
+        log.error("nick_action_inline_run_failed", { id, rule: existing.ruleName, error: runErr instanceof Error ? runErr.message : String(runErr) });
+        // Still unclaimed (the core threw before its swap): nothing ran, and nothing will before
+        // the 2-day window closes on an old row. Put it back in the queue, by swap, and say so.
+        // Claimed already: it ran or is running, so it stays as it is.
+        const back = await prisma.autonomousAction.updateMany({
+          where: { id, approval: "approved", executedAt: null },
+          data: { approval: "pending", approvedBy: null },
+        });
+        if (back.count === 1) {
+          throw new ServiceError("Couldn't start this action just now, so it is back in the queue. Approve it again in a minute.", 503);
+        }
       }
     }
   }
@@ -347,7 +360,7 @@ export async function decidePendingAction(
     void logPolicyFire(policyId, fireResult);
   });
 
-  return shapeRow(updated);
+  return shapeRow(returned);
 }
 
 /** A decision claim older than this is not in flight any more (rule.action is bounded by its fetch timeouts). */
