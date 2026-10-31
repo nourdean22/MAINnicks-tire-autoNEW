@@ -10,8 +10,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ overlay: null as null | { find: string; replace: string; versionId: string }, overlayFails: false }));
 vi.mock("./services/nickMemory", () => ({ getPromptLessons: async () => "" }));
+/** shop_settings as the overlay reader sees it: one row, keyed autopromote_receptionist_overlay. */
+const OVERLAY_KEY = "autopromote_receptionist_overlay";
+const keyOf = (cond: { queryChunks?: unknown[] }): string => {
+  const param = (cond?.queryChunks ?? []).find((c) => !!c && typeof (c as { value?: unknown }).value === "string") as { value: string } | undefined;
+  return param ? param.value : "";
+};
+vi.mock("./db", () => ({
+  getDb: async () => ({
+    select: () => ({
+      from: () => ({
+        where: (cond: { queryChunks?: unknown[] }) => ({
+          limit: async () => {
+            if (keyOf(cond) !== OVERLAY_KEY) return [];
+            if (mocks.overlayFails) throw new Error("db down");
+            return mocks.overlay ? [{ key: OVERLAY_KEY, value: JSON.stringify(mocks.overlay) }] : [];
+          },
+        }),
+      }),
+    }),
+  }),
+}));
 
-import { OVERLAY_KEY, promotionKv } from "./services/receptionistPromotion";
 import { ASSISTANT_SYSTEM_PROMPT, updateAssistant } from "./services/vapi";
 
 function stubVapi() {
@@ -38,15 +58,8 @@ const REPLACE = [LINES[AT - 1], `${LINES[AT]} (learned)`, LINES[AT + 1]].join("\
 beforeEach(() => {
   mocks.overlay = null;
   mocks.overlayFails = false;
-  // The kv row is the seam: the real reader and applier run on top of it.
-  vi.spyOn(promotionKv, "get").mockImplementation(async (key: string) => {
-    if (key !== OVERLAY_KEY) return null;
-    if (mocks.overlayFails) throw new Error("db down");
-    return mocks.overlay ? JSON.stringify(mocks.overlay) : null;
-  });
 });
 afterEach(() => {
-  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });

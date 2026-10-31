@@ -11,9 +11,7 @@ import {
   appendPromotionHistory,
   applyOverlay,
   buildOverlay,
-  changedRegion,
   decideReceptionistPromotion,
-  floorHit,
   type ReceptionistPromotionInput,
 } from "./autoPromote";
 
@@ -97,14 +95,7 @@ describe("decideReceptionistPromotion", () => {
   it("a shop fact from BUSINESS is a floor (the name, here)", async () => {
     const { BUSINESS } = await import("@shared/business");
     const bad = edit("Be brief and kind.", `Be brief and kind. Say ${BUSINESS.name} twice.`);
-    expect(floorHit(LIVE, bad)).toBe("business_fact");
-  });
-});
-
-describe("changedRegion", () => {
-  it("is the full changed lines between common head and tail, uncapped", () => {
-    expect(changedRegion(LIVE, GOOD)).toEqual({ removed: ["Be brief and kind."], added: ["Be brief and kind. Answer the question asked before offering anything else."] });
-    expect(changedRegion(LIVE, LIVE)).toBeNull();
+    expect(decideReceptionistPromotion(input({ candidatePrompt: bad }))).toEqual({ verdict: "hold", reason: "floor_business_fact" });
   });
 });
 

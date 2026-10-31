@@ -25,7 +25,7 @@ export const RECEPTIONIST_LOOP = "receptionist_prompt";
 /** The optimizer's own caps (promptEvolution.ts EDIT_FIND_MAX_CHARS + EDIT_GROWTH_MAX_CHARS): one bounded section. */
 const MAX_CHANGED_CHARS = 6000 + 2500;
 
-export interface FloorRule {
+interface FloorRule {
   name: string;
   rx: RegExp;
 }
@@ -33,7 +33,7 @@ export interface FloorRule {
 const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Checked in order; the first hit names the refusal. */
-export const RECEPTIONIST_FLOORS: readonly FloorRule[] = [
+const RECEPTIONIST_FLOORS: readonly FloorRule[] = [
   { name: "price", rx: /\$\s?\d|\b\d+(?:\.\d+)?\s?(?:dollars?|bucks)\b/i },
   { name: "opt_out", rx: /\b(?:stop|opt[- ]?out|unsubscribe|do not call|don'?t call|not to be called)\b/i },
   {
@@ -67,7 +67,7 @@ function commonEnds(a: string[], b: string[]): { pre: number; suf: number } {
 }
 
 /** The changed lines between the common leading and trailing lines, in full (no caps). null = identical. */
-export function changedRegion(base: string, candidate: string): { removed: string[]; added: string[] } | null {
+function changedRegion(base: string, candidate: string): { removed: string[]; added: string[] } | null {
   const a = lines(base);
   const b = lines(candidate);
   const { pre, suf } = commonEnds(a, b);
@@ -77,7 +77,7 @@ export function changedRegion(base: string, candidate: string): { removed: strin
 }
 
 /** The first floor the edit touches (in a removed or an added line), or null. */
-export function floorHit(base: string, candidate: string, rules: readonly FloorRule[] = RECEPTIONIST_FLOORS): string | null {
+function floorHit(base: string, candidate: string, rules: readonly FloorRule[] = RECEPTIONIST_FLOORS): string | null {
   const region = changedRegion(base, candidate);
   if (!region) return null;
   const changed = [...region.removed, ...region.added];

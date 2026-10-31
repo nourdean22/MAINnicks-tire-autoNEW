@@ -9,14 +9,12 @@
  */
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import {
-  AUTO_PROMOTE_ARMED,
-  KILL_SWITCH_KEY,
-  OVERLAY_KEY,
-  STABLE_KEY,
-  promoteReceptionistCandidate,
-  type PromotionDeps,
-} from "./receptionistPromotion";
+import { promoteReceptionistCandidate, type PromotionDeps } from "./receptionistPromotion";
+
+// The kv rows, as Nour's admin and W3's undo will read them.
+const KILL_SWITCH_KEY = "auto_promote_paused";
+const STABLE_KEY = "autopromote_receptionist_prompt_stable";
+const OVERLAY_KEY = "autopromote_receptionist_overlay";
 import { promotionHistoryKey, RECEPTIONIST_LOOP } from "./autoPromote";
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 24);
@@ -80,8 +78,9 @@ const accepted = (prompt: string, over: Record<string, unknown> = {}) => ({
 const history = (kv: Map<string, string>) => JSON.parse(kv.get(HISTORY) ?? "[]");
 
 describe("promoteReceptionistCandidate", () => {
-  it("ships disarmed: the constant W3 flips is false", () => {
-    expect(AUTO_PROMOTE_ARMED).toBe(false);
+  it("ships disarmed: the production deps W3 arms say armed false", async () => {
+    const { productionPromotionDeps } = await import("./receptionistPromotion");
+    expect((await productionPromotionDeps()).armed).toBe(false);
   });
 
   it("disarmed: a gated winner is recorded as would_promote and nothing is pushed", async () => {

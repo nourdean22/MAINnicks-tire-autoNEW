@@ -48,14 +48,14 @@ import {
 const log = createLogger("auto-promote");
 
 /** W3 flips this, together with the canary, rollback and undo. */
-export const AUTO_PROMOTE_ARMED = false;
+const AUTO_PROMOTE_ARMED = false;
 
 /** Kill switch (shop_settings kv). "true" = paused; a missing row = running; an unreadable row = paused. */
-export const KILL_SWITCH_KEY = "auto_promote_paused";
+const KILL_SWITCH_KEY = "auto_promote_paused";
 /** The prompt callers heard before the latest promotion: { versionId, promptHash, prompt }. */
-export const STABLE_KEY = "autopromote_receptionist_prompt_stable";
+const STABLE_KEY = "autopromote_receptionist_prompt_stable";
 /** The promoted edit as find/replace for updateAssistant: { versionId, candidateHash, baseHash, find, replace }. */
-export const OVERLAY_KEY = "autopromote_receptionist_overlay";
+const OVERLAY_KEY = "autopromote_receptionist_overlay";
 
 const HISTORY_KEY = promotionHistoryKey(RECEPTIONIST_LOOP);
 
@@ -252,7 +252,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
  * The promoted edit, as the nightly push wrote it. null = none. Throws when the
  * row cannot be read, so the caller can say the edit may be dropped.
  */
-export async function readPromotedOverlay(): Promise<{ find: string; replace: string; versionId: string } | null> {
+async function readPromotedOverlay(): Promise<{ find: string; replace: string; versionId: string } | null> {
   const raw = await promotionKv.get(OVERLAY_KEY);
   if (raw === null) return null;
   const parsed = JSON.parse(raw) as { find?: unknown; replace?: unknown; versionId?: unknown };
@@ -286,7 +286,7 @@ export async function applyPromotedOverlay(codePrompt: string): Promise<{ prompt
 }
 
 /** shop_settings kv with a real compare-and-swap (UPDATE ... WHERE value = expected; INSERT when expected is null). */
-export const promotionKv = {
+const promotionKv = {
   async get(key: string): Promise<string | null> {
     const { getDb } = await import("../db");
     const { eq } = await import("drizzle-orm");
