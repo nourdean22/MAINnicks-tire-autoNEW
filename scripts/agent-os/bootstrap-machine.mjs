@@ -12,7 +12,8 @@
  * Items, all under <home>/.claude and nothing else:
  *   hooks/always-on-skills.mjs, hooks/find-skills-turn.mjs   byte copies of scripts/agent-os/<same name>
  *   settings.json hooks   SessionStart startup|resume|clear|compact -> the always-on hook; UserPromptSubmit -> the
- *                         find-skills hook and this checkout's skill-recall.mjs --scope global. An entry is found by its
+ *                         find-skills hook and this checkout's skill-recall.mjs and prompt-sharpen.mjs, each with
+ *                         --scope global. An entry is found by its
  *                         script name; only its command string is replaced; every other key is kept.
  *   skills/<name>         byte copies of the always-on skills that have a repo copy in .claude/skills (whole folder)
  *   CLAUDE.md             the block between the nourcity-always-on markers, from config/agent-os/global-claude-md-block.md
@@ -117,6 +118,7 @@ export function plan(home) {
     { event: "SessionStart", matcher: "startup|resume|clear|compact", sources: ["startup", "resume", "clear", "compact"], key: "always-on-skills.mjs", command: `node "${fwd(join(claude, "hooks", "always-on-skills.mjs"))}"` },
     { event: "UserPromptSubmit", matcher: "", key: "find-skills-turn.mjs", command: `node "${fwd(join(claude, "hooks", "find-skills-turn.mjs"))}"`, timeout: 5 },
     { event: "UserPromptSubmit", matcher: "", key: "skill-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "skill-recall.mjs"))}" --scope global` },
+    { event: "UserPromptSubmit", matcher: "", key: "prompt-sharpen.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "prompt-sharpen.mjs"))}" --scope global`, timeout: 5 },
   ];
   let settings;
   let settingsErr = null;
