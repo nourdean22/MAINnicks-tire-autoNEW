@@ -195,6 +195,8 @@ export interface GradeWithJudgeOptions {
    * queue a customer-facing P0 call behind them.
    */
   judgePriority?: 0 | 1 | 2 | 3 | 4;
+  /** Never fall back to Gemini for the judge call (InvokeParams.ollamaOnly). The prompt experiment passes true. */
+  ollamaOnly?: boolean;
 }
 
 /**
@@ -252,6 +254,7 @@ export async function gradeRepliesWithJudge(
     timeoutMs: judgeTimeoutMs,
     ...(opts.budget ? { slotWaitMs: budgetedTimeout(opts.budget, Number.POSITIVE_INFINITY) } : {}),
     ...(opts.judgePriority !== undefined ? { priority: opts.judgePriority } : {}),
+    ...(opts.ollamaOnly ? { ollamaOnly: true } : {}),
   });
 
   // Needed and unreachable: the regex verdict stands, loudly. Checked before
@@ -320,16 +323,41 @@ export function violatedInvariants(candidatePrompt: string, baseline?: string): 
 }
 
 /**
+ * Waits before each retry of a rate-limited (429) replay call. The nightly run
+ * shares one Ollama account with both apps: a 429 is the lane saying "later",
+ * not a lane failure, and two short waits clear it before scorePrompt's
+ * lane-failure cap would end the run.
+ */
+const RATE_LIMIT_BACKOFF_MS = [15_000, 45_000] as const;
+
+async function withRateLimitBackoff<T>(call: () => Promise<T>, budget: ReplayBudget | undefined): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call();
+    } catch (err) {
+      const wait = RATE_LIMIT_BACKOFF_MS[attempt];
+      const rateLimited = /\b429\b/.test(err instanceof Error ? err.message : String(err));
+      // Never sleep past the run's deadline: that wait would end as a budget overrun anyway.
+      if (!rateLimited || wait === undefined || (budget && budget.remainingMs() <= wait)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+}
+
+/**
  * Replay one real call against a candidate prompt: for each real caller turn,
  * the candidate answers with the dialogue so far. Returns the candidate's
- * replies (grading is the caller's job so scoring stays pure).
+ * replies (grading is the caller's job so scoring stays pure). Every call is
+ * Ollama-only and backs off on a 429 (RATE_LIMIT_BACKOFF_MS).
  */
 export async function ghostReplay(
   candidatePrompt: string,
   callerTurns: string[],
   opts: { model?: string; maxTokens?: number; priority?: 0 | 1 | 2 | 3 | 4; budget?: ReplayBudget } = {},
 ): Promise<string[]> {
-  const { invokeLLM } = await loadLlm();
+  const llm = await loadLlm();
+  const invokeLLM = (params: Parameters<typeof llm.invokeLLM>[0]) =>
+    withRateLimitBackoff(() => llm.invokeLLM({ ...params, ollamaOnly: true }), opts.budget);
   const replies: string[] = [];
   for (let i = 0; i < callerTurns.length; i++) {
     const dialogue: string[] = [];

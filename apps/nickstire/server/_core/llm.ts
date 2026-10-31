@@ -94,6 +94,12 @@ export type InvokeParams = {
    * seed cannot start after its run's deadline.
    */
   slotWaitMs?: number;
+  /**
+   * Never fall back to Gemini on an Ollama quota refusal: the 403 throws. For
+   * evaluation lanes (the receptionist replays, judge and optimizer), where a
+   * fallback is a second model bill and a different model mid-measurement.
+   */
+  ollamaOnly?: boolean;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -656,6 +662,7 @@ async function invokeLLMUnrecorded(params: InvokeParams): Promise<InvokeResult> 
       // throws exactly the original error.
       const quotaRefusal =
         !visionRerouted && // a rerouted call already IS on Gemini — never bounce it back
+        !params.ollamaOnly &&
         response.status === 403 && /subscription/i.test(errorText) && isOllamaModel(model);
       const alreadyGemini = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
       const geminiKey = process.env.GEMINI_API_KEY;
