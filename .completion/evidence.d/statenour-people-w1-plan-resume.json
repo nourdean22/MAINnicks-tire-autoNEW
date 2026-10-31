@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w1-plan-resume": {
+      "ref": "statenour/people-w1-plan-resume (job 2026-10-30-people-tracker; manager order after the failed --plan run). The manager's --plan run (00:58Z on 570633c25b) digested 24 conversations, then a per-conversation chatMessage read between model calls hit the 10 s connect timeout ('Connection terminated due to connection timeout', lib/prisma.ts connectionTimeoutMillis) and the script exited 1 with no plan file. recordTrace catches its own write errors, so the fatal call was the script's read. Fix: scripts/people-backfill.ts reads every candidate's messages in one query before the first model call; lib/services/people/backfill-plan-run.ts (new, pure) runs the loop, saves progress (ids, kind, times only) to <out>.progress.json after every conversation, skips done conversations on --resume <file>, keeps a failed digest out of done so a resume retries it, and returns partial on a throw, a 3-failure streak or any failed digest; the script then prints 'partial plan saved: N of M', exits 1 and writes no plan file or token. parseApplyArgs gains --resume (missing value exits 2 before any connection, run locally). Red first: missing module, then the --resume parse. 3 files, 36 tests; app tsc and the scoped script tsc exit 0."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the backfill script. Live check: the manager's next --plan run either completes with a token or stops with 'partial plan saved: N of M' and a progress file that --resume finishes."
+    }
+  }
+}

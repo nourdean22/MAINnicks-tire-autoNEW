@@ -20,7 +20,8 @@ import type { PlannedChatRow } from "./backfill-plan";
 export type ApplyArgs =
   /** withModel: the opt-in digest step (each call writes one AgentTrace row; Codex on 3419). */
   | { mode: "dry"; limit: number; withModel: boolean }
-  | { mode: "plan"; limit: number; out: string }
+  /** resume: a progress file from an earlier --plan run; its done conversations are skipped. */
+  | { mode: "plan"; limit: number; out: string; resume: string | null }
   | { mode: "execute"; planFile: string; token: string };
 
 /** The value after `flag`, or null when the flag is missing or followed by another flag. */
@@ -43,7 +44,9 @@ export function parseApplyArgs(argv: readonly string[]): ApplyArgs {
   if (argv.includes("--plan")) {
     const out = valueOf(argv, "--out");
     if (!out) throw new Error("--plan needs --out <a local file path>");
-    return { mode: "plan", limit, out };
+    const resume = valueOf(argv, "--resume");
+    if (argv.includes("--resume") && !resume) throw new Error("--resume needs <the progress file an earlier --plan run saved>");
+    return { mode: "plan", limit, out, resume };
   }
   return { mode: "dry", limit, withModel: argv.includes("--with-model") };
 }

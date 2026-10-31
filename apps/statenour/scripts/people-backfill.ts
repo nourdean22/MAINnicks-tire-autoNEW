@@ -14,7 +14,14 @@
  *   connection opens. --plan and --execute are the manager's to run; --execute only after
  *   Nour's yes on the --plan counts and token.
  *
- *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model] [--plan --out <file>]
+ *   railway run -s statenour-web -- pnpm exec tsx scripts/people-backfill.ts [--limit 20] [--with-model] [--plan --out <file> [--resume <file>.progress.json]]
+ *
+ *   --plan saves progress to <out>.progress.json after every conversation (ids, kind and times
+ *   only). A run that stops early (a crash, 3 provider failures in a row, a failed digest) prints
+ *   "partial plan saved: N of M", exits 1 and writes NO plan file or token; rerun with
+ *   --resume <out>.progress.json to finish. Only a complete run writes <out> and its token.
+ *   Every chat read happens before the first model call (a read between model calls hit the
+ *   10 s connect timeout on 2026-10-30 and lost 24 digests).
  *
  * Lane A (tasks): promise tasks whose promiseTo names a live person exactly.
  * Lane B (chat): conversations where his own messages name a tracked person who
@@ -103,49 +110,73 @@ async function main() {
     rows: [],
     skipped: { mentionOnly: 0, unmatched: 0, alreadyLogged: 0, duplicate: 0 },
   };
-  let digestFailed = 0;
+  let partial: { reason: string; done: number; total: number; progressPath: string | null } | null = null;
   if (!NO_MODEL) {
     const { digestConversation } = await import("@/lib/brain/conversation-memory");
-    const convs: Parameters<typeof plan.planChatInteractions>[0][number][] = [];
-    // Shared Ollama, no cross-app scheduler (board rule): one call at a time,
-    // paced, and stop after 3 failures in a row instead of hammering a 429.
-    let failStreak = 0;
-    for (const { conversationId, firstMatchAt } of candidates.slice(0, LIMIT)) {
-      if (failStreak >= 3) {
-        console.log("lane B stopped early: 3 digest failures in a row (provider busy or down)");
-        break;
-      }
-      if (convs.length + digestFailed > 0) await new Promise((r) => setTimeout(r, 3000));
-      const all = await prisma.chatMessage.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: "asc" },
-        select: { role: true, content: true, createdAt: true },
-      });
-      // The digest keeps the last 30 messages only, so hand it the window around the
-      // turn that made this a candidate. shortcut: a message over 500 chars is still
-      // cut by the digest, so a name past char 500 can undercount (never a wrong write).
-      const messages = plan.digestWindow(all, firstMatchAt);
-      const digest = await digestConversation(conversationId, messages).catch(() => null);
-      if (!digest || messages.length === 0) {
-        digestFailed++;
-        if (messages.length >= 3) failStreak++; // too-short conversations are not provider failures
-        continue;
-      }
-      failStreak = 0;
-      convs.push({
-        conversationId,
-        start: messages[0].createdAt,
-        end: messages[messages.length - 1].createdAt,
-        mentioned: digest.peopleMentioned.map((p) => ({
-          name: p.name,
-          interacted: Boolean(p.interacted),
-          interactionKind: p.interactionKind ?? null,
-        })),
-      });
+    const run = await import("@/lib/services/people/backfill-plan-run");
+    const slice = candidates.slice(0, LIMIT);
+    const progressPath = parsed.mode === "plan" ? (parsed.resume ?? `${parsed.out}.progress.json`) : null;
+    let progress = run.emptyProgress();
+    if (parsed.mode === "plan" && parsed.resume) {
+      progress = run.parseProgress(readFileSync(parsed.resume, "utf8"));
+      console.log(`resuming: ${progress.done.length} conversations already done`);
     }
-    laneB = plan.planChatInteractions(convs, people, ledger);
-    console.log(`lane B digested: ${convs.length} of ${Math.min(LIMIT, candidates.length)} (failed or too short: ${digestFailed})`);
+    // Every read happens HERE, before the first model call: the 2026-10-30 run lost 24 digests
+    // when a per-conversation read between model calls hit the 10 s connect timeout.
+    const done = new Set(progress.done);
+    const ids = slice.filter((c) => !done.has(c.conversationId)).map((c) => c.conversationId);
+    const msgs = ids.length
+      ? await prisma.chatMessage.findMany({
+          where: { conversationId: { in: ids } },
+          orderBy: { createdAt: "asc" },
+          select: { conversationId: true, role: true, content: true, createdAt: true },
+        })
+      : [];
+    const byConv = new Map<string, Array<{ role: string; content: string; createdAt: Date }>>();
+    for (const { conversationId, ...m } of msgs) (byConv.get(conversationId) ?? byConv.set(conversationId, []).get(conversationId)!).push(m);
+
+    // Shared Ollama, no cross-app scheduler (board rule): one call at a time, paced,
+    // and stop after 3 failures in a row instead of hammering a 429.
+    const result = await run.runPlanLoop({
+      candidates: slice,
+      progress,
+      digestOne: async ({ conversationId, firstMatchAt }) => {
+        // The digest keeps the last 30 messages only, so hand it the window around the
+        // turn that made this a candidate. shortcut: a message over 500 chars is still
+        // cut by the digest, so a name past char 500 can undercount (never a wrong write).
+        const messages = plan.digestWindow(byConv.get(conversationId) ?? [], firstMatchAt);
+        if (messages.length === 0) return "too_short";
+        const digest = await digestConversation(conversationId, messages).catch(() => null);
+        // too-short conversations are not provider failures
+        if (!digest) return messages.length >= 3 ? "failed" : "too_short";
+        const planned = plan.planChatInteractions(
+          [
+            {
+              conversationId,
+              start: messages[0].createdAt,
+              end: messages[messages.length - 1].createdAt,
+              mentioned: digest.peopleMentioned.map((p) => ({
+                name: p.name,
+                interacted: Boolean(p.interacted),
+                interactionKind: p.interactionKind ?? null,
+              })),
+            },
+          ],
+          people,
+          ledger,
+        );
+        return { rows: planned.rows, skipped: planned.skipped };
+      },
+      save: (p) => {
+        if (progressPath) writeFileSync(progressPath, run.serializeProgress(p), "utf8");
+      },
+      pause: () => new Promise((r) => setTimeout(r, 3000)),
+    });
+    laneB = { rows: result.progress.rows, skipped: result.progress.skipped };
+    const n = result.progress.done.length;
+    console.log(`lane B digested: ${n} of ${result.total} (digest failures, retried on resume: ${result.progress.digestFailed})`);
     console.log(`lane B rows planned: ${laneB.rows.length}; skipped ${JSON.stringify(laneB.skipped)}`);
+    if (result.status === "partial") partial = { reason: result.reason ?? "stopped", done: n, total: result.total, progressPath };
   }
 
   const perPerson = new Map<string, { chat: number; tasks: number }>();
@@ -154,7 +185,15 @@ async function main() {
   for (const [id, n] of perPerson) console.log(`  person ...${suffix(id)}: chat ${n.chat}, tasks ${n.tasks}`);
 
   // Lane A is reported, never applied by this script; the plan file holds chat rows only.
-  if (parsed.mode === "plan") {
+  if (partial) {
+    // No plan file and no token for an incomplete run: the token must cover the whole reviewed set.
+    console.log(`partial plan saved: ${partial.done} of ${partial.total} conversations (${partial.reason})`);
+    if (parsed.mode === "plan" && partial.progressPath) {
+      console.log(`progress file: ${partial.progressPath}`);
+      console.log(`rerun to finish: --plan --limit ${LIMIT} --out ${parsed.out} --resume ${partial.progressPath}`);
+    }
+    process.exitCode = 1;
+  } else if (parsed.mode === "plan") {
     if (laneB.rows.length === 0) {
       console.log("plan: nothing to write (0 chat rows)");
     } else {
