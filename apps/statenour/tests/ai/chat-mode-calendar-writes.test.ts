@@ -36,6 +36,11 @@ describe("calendar write tools · never on shop wording", () => {
     "move the tire appointment for the customer to 3",
     "cancel the estimate appointment for the silver civic",
     "book the techs for the alignment job at 10",
+    // guard-red-team probe 2026-10-31: these four reached the write tools before the service words.
+    "move the oil change appointment to 3",
+    "cancel the alignment at 2pm",
+    "reschedule the inspection for the silverado to friday",
+    "cancel the 2pm repair",
   ])("%s reaches no personal calendar write", async (prompt) => {
     const got = await offered(prompt);
     for (const w of WRITES) expect(got.has(w), `${w} offered for: ${prompt}`).toBe(false);

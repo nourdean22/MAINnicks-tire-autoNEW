@@ -630,7 +630,8 @@ export async function pruneTools(
   // Calendar r2 W3 (2026-10-31) · the write tools (create / move / delete on HIS calendar) never
   // attach on shop wording: "schedule the customer's brake job" is a shop job, not his event (same
   // exclusion as the people family, #3440). Reads stay reachable either way.
-  const shopWording = /\b(customers?|clients?|estimates?|invoices?|quotes?|jobs?|cars?|vehicles?|tires?|brakes?|shop|techs?|staff|employees?|team|leads?)\b/.test(text);
+  // The service words came from a guard-red-team probe (oil change, alignment, inspection, repair reached the writes).
+  const shopWording = /\b(customers?|clients?|estimates?|invoices?|quotes?|jobs?|cars?|trucks?|vehicles?|tires?|tyres?|brakes?|shop|techs?|staff|employees?|team|leads?|oil changes?|alignments?|inspections?|rotations?|repairs?|diagnostics?|mufflers?|exhausts?|e-?checks?|emissions)\b/.test(text);
   if (/\b(calendar|schedule|meetings?|appointments?|appts?|events?|free time|am i free|plan my day|busy|available|book (me |a |some )?(time|slot|focus|block)|when (am|are|is) (i|we|my|the)|focus block|deep work block|reminder)\b/.test(text)) {
     addMatching(shopWording ? /^(?!(?:propose|move|delete)CalendarEvent$).*(Calendar|Schedule|Event)/ : /Calendar|Schedule|Event/);
   }
