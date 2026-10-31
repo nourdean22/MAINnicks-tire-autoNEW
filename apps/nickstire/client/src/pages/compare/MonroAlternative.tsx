@@ -17,19 +17,19 @@ export default function MonroAlternative() {
       extraFaqs={[
         {
           question: "Why does Monro / Mr. Tire quality vary so much store-to-store?",
-          answer: "Multi-brand chains run on franchise / store-manager autonomy. Same Monro sign, different manager, different culture. Reviews of two Mr. Tire stores in the same county can read like two different companies. That's not a slight against Monro — it's structural. Single-location independents like Nick's have one standard because there's one bay where the work happens.",
+          answer: "Multi-brand chains run on franchise / store-manager autonomy. Same Monro sign, different manager, different culture. Reviews of two Mr. Tire stores in the same county can read like two different companies. That's not a slight against Monro. It's structural. Single-location independents like Nick's have one standard because there's one bay where the work happens.",
         },
         {
           question: "Are Monro coupons actually a deal?",
-          answer: "Sometimes. The coupon price is real if you only need exactly the work the coupon covers. The complaint pattern in Yelp reviews is that the coupon brings you in, then the recommended-services list inflates the final bill past what you'd pay at a non-coupon shop. Nick's doesn't run coupon-bait pricing — the estimate is the estimate, in writing, before the wrench moves.",
+          answer: "Sometimes. The coupon price is real if you only need exactly the work the coupon covers. The complaint pattern in Yelp reviews is that the coupon brings you in, then the recommended-services list inflates the final bill past what you'd pay at a non-coupon shop. Nick's doesn't run coupon-bait pricing. The estimate is the estimate, in writing, before the wrench moves.",
         },
         {
           question: "Does Nick's offer the same services as Monro / Mr. Tire?",
-          answer: "Tires, brakes, oil change, alignment, exhaust, suspension, mechanical repair — yes, all of it. Plus used tires from $25 (select 12-inch; most $40-80), which Monro doesn't sell. Plus Sunday hours (Monro is closed). Plus written estimate before any wrench moves (Monro reviews suggest otherwise). Same service list, different way of running the shop.",
+          answer: "Tires, brakes, oil change, alignment, exhaust, suspension, mechanical repair. Yes, all of it. Plus used tires from $25 (select 12-inch; most $40-80), which Monro doesn't sell. Plus Sunday hours (Monro is closed). Plus written estimate before any wrench moves (Monro reviews suggest otherwise). Same service list, different way of running the shop.",
         },
         {
           question: "Why does Nick's not offer email-blast coupons like Monro?",
-          answer: "Because the price already includes what coupon-pricing leaves out. Nick's used-tire price (from $25 on select 12-inch rims; most sizes $40-80) is the installed total — no coupon needed, no \"oh by the way\" at checkout. Email-blast coupon culture trains customers to wait for the deal that brings the real price down to fair. We just charge fair from the start.",
+          answer: "Because the price already includes what coupon-pricing leaves out. Nick's used-tire price (from $25 on select 12-inch rims; most sizes $40-80) is the installed total. No coupon needed, no \"oh by the way\" at checkout. Email-blast coupon culture trains customers to wait for the deal that brings the real price down to fair. We just charge fair from the start.",
         },
         {
           question: "Is Nick's open Sundays when Monro is closed?",

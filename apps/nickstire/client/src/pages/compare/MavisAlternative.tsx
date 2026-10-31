@@ -26,15 +26,15 @@ export default function MavisAlternative() {
       extraFaqs={[
         {
           question: "Why does Mavis Tire have so many surprise charges at checkout?",
-          answer: "Because the advertised tire-only price doesn't include mount, balance, valve stems, TPMS service, or disposal — and those line items add up. It's not technically dishonest. It's just confusing. Nick's quotes it all in writing before any wrench moves: a used tire installed (from $25 on select 12-inch rims, most sizes $40-80) includes mount, balance, valve stems, TPMS reset, and an alignment check. No \"oh by the way\" at checkout.",
+          answer: "Because the advertised tire-only price doesn't include mount, balance, valve stems, TPMS service, or disposal, and those line items add up. It's not technically dishonest. It's just confusing. Nick's quotes it all in writing before any wrench moves: a used tire installed (from $25 on select 12-inch rims, most sizes $40-80) includes mount, balance, valve stems, TPMS reset, and an alignment check. No \"oh by the way\" at checkout.",
         },
         {
-          question: "Mavis acquired NTB — is the service quality the same now?",
-          answer: "Mavis bought NTB in 2021 and has been converting NTB stores to the Mavis banner. The service quality varies dramatically store-to-store either way. Your good visit at one Mavis location doesn't predict your next one. Nick's is one location at 17625 Euclid Ave — same crew, same shop, same standard every visit. Single-location is a feature, not a bug.",
+          question: "Mavis acquired NTB. Is the service the same now?",
+          answer: "Mavis bought NTB in 2021 and has been converting NTB stores to the Mavis banner. The service varies dramatically store-to-store either way. Your good visit at one Mavis location doesn't predict your next one. Nick's is one location at 17625 Euclid Ave. Same crew, same shop, same standard every visit.",
         },
         {
           question: "Does Nick's Tire & Auto match Mavis advertised tire prices?",
-          answer: "On new tires, we're competitive market-rate — sometimes a few dollars over Mavis's advertised price, sometimes under. The honest comparison is total out-the-door cost, not the headline tire price. Nick's quotes the total in writing before installation. On used tires, Mavis doesn't sell them at all — Nick's starts at $25 installed on select 12-inch rims (most sizes $40-80).",
+          answer: "On new tires, we're competitive market-rate, sometimes a few dollars over Mavis's advertised price, sometimes under. The honest comparison is total out-the-door cost, not the headline tire price. Nick's quotes the total in writing before installation. On used tires, Mavis doesn't sell them at all, Nick's starts at $25 installed on select 12-inch rims (most sizes $40-80).",
         },
         {
           question: "Mavis is closed Sunday. What about Nick's?",
@@ -42,12 +42,12 @@ export default function MavisAlternative() {
         },
         {
           question: "Can I walk into Nick's without an appointment like I tried at Mavis?",
-          answer: "Yes — first-come-first-served. No appointment system. Pull up, hand us the keys, get in line. Mavis routinely turns walk-ins away in favor of confirmed appointments — Nick's takes you in line order, period. If you want to drop the car and go, we'll Uber you back to work and call when it's ready.",
+          answer: "Yes. First-come-first-served. No appointment system. Pull up, hand us the keys, get in line. Mavis routinely turns walk-ins away in favor of confirmed appointments. Nick's takes you in line order, period. If you want to drop the car and go, we'll Uber you back to work and call when it's ready.",
         },
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
           question: "Why does Mavis Pearl Rd show different star ratings on different sites?",
-          answer: `Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but ${formatRating(mavis.rating ?? 0)} stars on third-party aggregators (${mavis.count} reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: ${reviewRatingDisplay} stars consistently across Google, Yelp, and BBB on ${reviewCountDisplay} reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.`,
+          answer: `Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but ${formatRating(mavis.rating ?? 0)} stars on third-party aggregators (${mavis.count} reviews). Same store, different math. The in-house number is curated. The third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: ${reviewRatingDisplay} stars consistently across Google, Yelp, and BBB on ${reviewCountDisplay} reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.`,
         },
       ]}
     />

@@ -32,29 +32,29 @@ interface ComparisonLink {
 }
 
 const NICKS_VS: ComparisonLink[] = [
-  { path: "/nicks-tire-vs-mavis-cleveland", label: "Nick's vs Mavis Tire", hook: "Advertised price vs total ticket — which math actually wins" },
-  { path: "/nicks-tire-vs-conrads-cleveland", label: "Nick's vs Conrad's Tire", hook: "Local family shop vs Cleveland chain — Sunday hours, walk-in policy" },
+  { path: "/nicks-tire-vs-mavis-cleveland", label: "Nick's vs Mavis Tire", hook: "Advertised price vs total ticket: which math actually wins" },
+  { path: "/nicks-tire-vs-conrads-cleveland", label: "Nick's vs Conrad's Tire", hook: "Local family shop vs Cleveland chain: Sunday hours, walk-in policy" },
   { path: "/nicks-tire-vs-firestone-cleveland", label: "Nick's vs Firestone Complete Auto Care", hook: "Independent honesty vs national warranty paperwork" },
 ];
 
 const HEAD_TO_HEAD: ComparisonLink[] = [
-  { path: "/conrads-vs-mavis-tire-cleveland", label: "Conrad's vs Mavis Tire", hook: "Two chains compared — and the third option you should consider" },
-  { path: "/firestone-vs-discount-tire-cleveland", label: "Firestone vs Discount Tire", hook: "Auto care chain vs tire-only specialist — head to head" },
+  { path: "/conrads-vs-mavis-tire-cleveland", label: "Conrad's vs Mavis Tire", hook: "Two chains compared, and the third option you should consider" },
+  { path: "/firestone-vs-discount-tire-cleveland", label: "Firestone vs Discount Tire", hook: "Auto care chain vs tire-only specialist, head to head" },
 ];
 
 const ALTERNATIVES: ComparisonLink[] = [
   { path: "/mavis-tire-alternative-cleveland", label: "Mavis Tire alternative", hook: "Tired of Mavis surprise fees at checkout? Walk into Nick's instead." },
-  { path: "/conrads-tire-alternative-cleveland", label: "Conrad's Tire alternative", hook: "Open Sundays + walk-ins welcome — what Conrad's used to do." },
+  { path: "/conrads-tire-alternative-cleveland", label: "Conrad's Tire alternative", hook: "Open Sundays + walk-ins welcome: what Conrad's used to do." },
   { path: "/discount-tire-alternative-cleveland", label: "Discount Tire alternative", hook: "Discount Tire only does tires. Nick's does the whole car." },
   { path: "/firestone-alternative-cleveland", label: "Firestone alternative", hook: "Independent honesty without the chain markup or appointment-only policy." },
   { path: "/monro-mr-tire-alternative-cleveland", label: "Monro / Mr. Tire alternative", hook: "The diagnostic-fee trap, undone. Free estimate, every visit." },
-  { path: "/big-o-tires-alternative-cleveland", label: "Big O Tires alternative", hook: "Cleveland-rooted vs national franchise — and the math on used tires." },
+  { path: "/big-o-tires-alternative-cleveland", label: "Big O Tires alternative", hook: "Cleveland-rooted vs national franchise, and the math on used tires." },
   { path: "/ntb-alternative-cleveland", label: "NTB alternative", hook: "NTB-now-Mavis switched the sign. The pricing playbook stays the same." },
 ];
 
 const ROUNDUPS: ComparisonLink[] = [
   { path: "/best-tire-shops-cleveland", label: "Best tire shops in Cleveland", hook: "The honest 7-shop ranking. Sunday hours, walk-in policy, written estimates." },
-  { path: "/best-conrads-tire-alternatives-cleveland", label: "Best Conrad's Tire alternatives", hook: "If Conrad's isn't working — six other shops compared honestly." },
+  { path: "/best-conrads-tire-alternatives-cleveland", label: "Best Conrad's Tire alternatives", hook: "If Conrad's isn't working, six other shops compared honestly." },
 ];
 
 export default function CompareHub() {
@@ -62,7 +62,7 @@ export default function CompareHub() {
     <PageLayout activeHref="/compare" showChat={true}>
       <SEOHead
         title="Tire Shop Comparisons Cleveland · Honest Side-by-Side"
-        description="Honest, in-writing comparisons of every major Cleveland tire shop. Mavis, Conrad's, Firestone, Discount Tire, NTB, Monro, Big O — vs Nick's Tire & Auto."
+        description="Honest, in-writing comparisons of every major Cleveland tire shop. Mavis, Conrad's, Firestone, Discount Tire, NTB, Monro, Big O, vs Nick's Tire & Auto."
         canonicalPath="/compare"
       />
       <LocalBusinessSchema pageName="Cleveland Tire Shop Comparisons - Nick's Tire & Auto" />
@@ -77,7 +77,7 @@ export default function CompareHub() {
             </h1>
             <p className="mt-5 text-lg sm:text-xl text-foreground/75 max-w-2xl font-light leading-relaxed">
               We did the homework so you don't have to. Mavis, Conrad's, Firestone,
-              Discount Tire, Monro, Big O, NTB — side-by-side with Nick's Tire & Auto.
+              Discount Tire, Monro, Big O, NTB, side-by-side with Nick's Tire & Auto.
               Honest about where the chains win. Honest about where we win.
               You decide. Walk in any day to compare for yourself.
             </p>
@@ -125,7 +125,7 @@ export default function CompareHub() {
             <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground tracking-tight uppercase mb-2">
               Switching from a chain
             </h2>
-            <p className="text-foreground/65 mb-6">Each page validates the specific frustration that brings drivers from that chain to Nick's — and explains the math honestly.</p>
+            <p className="text-foreground/65 mb-6">Each page validates the specific frustration that brings drivers from that chain to Nick's, and explains the math honestly.</p>
             <div className="grid sm:grid-cols-2 gap-3">
               {ALTERNATIVES.map((c) => (
                 <Link key={c.path} href={c.path} className="group block p-4 bg-card border border-border/30 rounded-md hover:border-primary/40 transition-colors">
@@ -173,7 +173,7 @@ export default function CompareHub() {
             <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground tracking-tight uppercase mb-2">
               Roundups
             </h2>
-            <p className="text-foreground/65 mb-6">Broader "best of" comparisons — useful when you're early-research and want the full picture.</p>
+            <p className="text-foreground/65 mb-6">Broader "best of" comparisons, useful when you're early-research and want the full picture.</p>
             <div className="grid sm:grid-cols-2 gap-3">
               {ROUNDUPS.map((c) => (
                 <Link key={c.path} href={c.path} className="group block p-4 bg-card border border-border/30 rounded-md hover:border-primary/40 transition-colors">

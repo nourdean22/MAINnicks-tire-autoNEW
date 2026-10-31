@@ -101,7 +101,7 @@ export default function Contact() {
                 <span className="text-primary">CLEVELAND</span> SHOP
               </h1>
               <p className="mt-6 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
-                Call us, text us, or just pull up — walk in 7 days a week, no appointment needed. We are on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio. {reviewRating}★ from {reviewCountDisplay} reviews.
+                Call us, text us, or just pull up. Walk in 7 days a week, no appointment needed. We are on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio. {reviewRating}★ from {reviewCountDisplay} reviews.
               </p>
               {/* wave-181.48 · Repair Haiku trust line — same phrase as the
                   VAPI prompt, /services hero, /about tile. Cross-touchpoint
@@ -138,7 +138,7 @@ export default function Contact() {
                     <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("contact-info")} className="font-mono text-2xl text-foreground hover:text-primary transition-colors">
                       {BUSINESS.phone.display}
                     </a>
-                    <p className="text-foreground/50 text-sm mt-2">Answered by an actual person at the shop — no phone tree, no call-center. Open hours: under 30 seconds typical. After hours: leave a message, called back first thing next morning.</p>
+                    <p className="text-foreground/50 text-sm mt-2">Answered by an actual person at the shop. Open hours: under 30 seconds typical. After hours: leave a message, called back first thing next morning.</p>
                   </div>
 
                   {/* Address */}
@@ -193,12 +193,12 @@ export default function Contact() {
                     </div>
                     <div className="font-mono text-foreground/80 space-y-1">
                       <div className="flex justify-between">
-                        <span>Monday – Saturday</span>
-                        <span className="text-primary">8:00 AM – 6:00 PM</span>
+                        <span>Monday to Saturday</span>
+                        <span className="text-primary">8:00 AM to 6:00 PM</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Sunday</span>
-                        <span className="text-primary">9:00 AM – 4:00 PM</span>
+                        <span className="text-primary">9:00 AM to 4:00 PM</span>
                       </div>
                     </div>
                   </div>
