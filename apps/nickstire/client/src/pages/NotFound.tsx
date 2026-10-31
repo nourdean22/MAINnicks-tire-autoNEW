@@ -17,7 +17,7 @@ export default function NotFound() {
           land here flows back to the homepage. */}
       <SEOHead
         title="Page Not Found | Nick's Tire & Auto Cleveland"
-        description="Page not found. Pull up to the homepage. Nick's Tire & Auto — Cleveland auto repair on Euclid Ave."
+        description="Page not found. Pull up to the homepage. Nick's Tire & Auto, Cleveland auto repair on Euclid Ave."
         canonicalPath="/"
         robots="noindex, nofollow"
       />
@@ -41,7 +41,7 @@ export default function NotFound() {
             </h2>
 
             <p className="text-white/50 text-lg mt-4 max-w-md mx-auto leading-relaxed">
-              We can't find this URL. We can probably find what's wrong with your car, though. Pull up to the homepage — or describe your symptom and we'll match it to a likely fix.
+              We can't find this URL. We can probably find what's wrong with your car, though. Pull up to the homepage, or describe your symptom and we'll match it to a likely fix.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">

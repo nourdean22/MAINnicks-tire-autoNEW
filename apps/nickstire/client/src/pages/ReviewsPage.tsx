@@ -335,7 +335,7 @@ export default function ReviewsPage() {
                 <Star key={i} className="w-8 h-8 fill-yellow-500 text-yellow-500" />
               ))}
             </div>
-            <p className="text-2xl font-bold text-gray-900 mb-1">{`${avgRating} Stars — ${totalCount.toLocaleString("en-US")}+ Reviews`}</p>
+            <p className="text-2xl font-bold text-gray-900 mb-1">{`${avgRating} Stars: ${totalCount.toLocaleString("en-US")}+ Reviews`}</p>
           </div>
           <div className="border-2 border-gray-300 rounded-lg p-6 mb-6 inline-block">
             <QRCodeSVG
@@ -378,7 +378,7 @@ export default function ReviewsPage() {
         {/* ─── HERO ─── */}
         <section className="relative min-h-[50vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img src={HERO_IMG} alt={`${totalCount.toLocaleString("en-US")}+ Cleveland drivers reviewed Nick's Tire & Auto on Google — ${avgRating}★ average`} className="w-full h-full object-cover" loading="eager" fetchPriority="high" style={{ objectPosition: "center 42%" }} />
+            <img src={HERO_IMG} alt={`${totalCount.toLocaleString("en-US")}+ Cleveland drivers reviewed Nick's Tire & Auto on Google, ${avgRating}★ average`} className="w-full h-full object-cover" loading="eager" fetchPriority="high" style={{ objectPosition: "center 42%" }} />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
           </div>
 
@@ -431,7 +431,7 @@ export default function ReviewsPage() {
                     <span className="text-[#FDB913]">In 30 Seconds</span>
                   </h2>
                   <p className="text-foreground/60 leading-relaxed mt-4">
-                    Scan the QR with your phone camera and go straight to the Google review form — no app, no login screen, no typing the address.
+                    Scan the QR with your phone camera and go straight to the Google review form, without an app, a login screen or typing the address.
                   </p>
                   <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
                     <a
@@ -467,7 +467,7 @@ export default function ReviewsPage() {
                       fgColor="#1a1a1a"
                     />
                     <p className="text-gray-900 font-bold text-base mt-4">SCAN TO REVIEW</p>
-                    <p className="text-gray-500 text-xs mt-1">Nick's Tire &amp; Auto — Cleveland, OH</p>
+                    <p className="text-gray-500 text-xs mt-1">Nick's Tire &amp; Auto, Cleveland, OH</p>
                   </div>
                 </div>
               </FadeIn>
@@ -499,7 +499,7 @@ export default function ReviewsPage() {
                   ))}
                 </div>
                 <p className="text-center text-foreground/35 text-[11px] mt-4 italic max-w-xl mx-auto">
-                  Counts derived from actual Google review text — out of {trustKeywordCounts.total} most recent reviews shown below. Not curated. Not edited.
+                  Counts derived from actual Google review text in the {trustKeywordCounts.total} most recent reviews shown below. Not curated. Not edited.
                 </p>
               </FadeIn>
             </div>
@@ -726,7 +726,7 @@ export default function ReviewsPage() {
                 Ready to <span className="text-[#FDB913]">Experience It</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
-                Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Pull up any day we're open — first-come, first-served. Free check, written quote, you don't pay until you say yes.
+                Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Pull up any day we're open: first-come, first-served. Free check, written quote, you don't pay until you say yes.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
                 <Link
@@ -770,7 +770,7 @@ export default function ReviewsPage() {
             <FadeIn>
               <img
                 src="/brand-swag.webp"
-                alt="Nick's Tire & Auto branded air fresheners — Cleveland Tough on one side, 17625 Euclid Ave skyline on the other"
+                alt="Nick's Tire & Auto branded air fresheners: Cleveland Tough on one side, 17625 Euclid Ave skyline on the other"
                 className="w-full h-auto rounded-lg shadow-2xl"
                 loading="lazy"
               />
@@ -784,7 +784,7 @@ export default function ReviewsPage() {
                   We made <span className="text-[#FDB913]">air fresheners.</span>
                 </h3>
                 <p className="mt-4 text-foreground/55 text-base lg:text-lg leading-relaxed">
-                  Most shops can't be bothered. We hand one to every customer with a fresh repair — Cleveland Tough on one side, the Cleveland skyline on the other. It's a small thing. The kind of small thing that tells you we're going to be here next year too.
+                  Most shops can't be bothered. We hand one to every customer with a fresh repair: Cleveland Tough on one side, the Cleveland skyline on the other. It's a small thing. The kind of small thing that tells you we're going to be here next year too.
                 </p>
                 <p className="mt-3 text-foreground/40 text-sm">
                   Stop in for a service, walk out with one. They smell suspiciously like fresh leather.

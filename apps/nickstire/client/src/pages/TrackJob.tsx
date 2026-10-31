@@ -89,14 +89,14 @@ export default function TrackJob() {
             no feedback at all. */}
         {searched && fetchStatus === "paused" && (
           <QueryError
-            message="You appear to be offline — we couldn't check your order. Reconnect and try again."
+            message="You appear to be offline. We couldn't check your order. Reconnect and try again."
             onRetry={() => refetch()}
             className="py-8"
           />
         )}
         {searched && isError && (
           <QueryError
-            message="We couldn't check your order right now — that's a connection problem on our end, not a wrong order number."
+            message="We couldn't check your order right now. That's a connection problem on our end, not a wrong order number."
             onRetry={() => refetch()}
             className="py-8"
           />

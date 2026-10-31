@@ -227,7 +227,7 @@ export default function SiteMap() {
             <Section
               icon={<Wrench className="w-5 h-5" />}
               title="Services"
-              description="Everything we work on. Walk-ins welcome 7 days — most services done same day."
+              description="Everything we work on. Walk-ins welcome 7 days. Most services done same day."
               items={FEATURED_SERVICES}
             />
 
@@ -241,7 +241,7 @@ export default function SiteMap() {
             <Section
               icon={<MapPin className="w-5 h-5" />}
               title="Cleveland-Area Cities"
-              description="City-specific auto repair information. We serve the whole Cleveland metro — from Euclid to Parma, Lakewood to Mentor."
+              description="City-specific auto repair information. We serve the whole Cleveland metro, from Euclid to Parma, Lakewood to Mentor."
               items={cityLinks}
             />
 
@@ -249,7 +249,7 @@ export default function SiteMap() {
               <Section
                 icon={<MapPin className="w-5 h-5" />}
                 title="Neighborhoods"
-                description="Hyperlocal pages for specific Cleveland neighborhoods. (Top 20 shown — see Areas Served for the full list.)"
+                description="Hyperlocal pages for specific Cleveland neighborhoods. (Top 20 shown. See Areas Served for the full list.)"
                 items={neighborhoodLinks}
               />
             )}
@@ -280,7 +280,7 @@ export default function SiteMap() {
             <Section
               icon={<PhoneCall className="w-5 h-5" />}
               title="Customer Tools"
-              description="Booking, estimating, symptom-check tools — everything you can do without picking up the phone."
+              description="Booking, estimating, symptom-check tools: everything you can do without picking up the phone."
               items={CUSTOMER_TOOLS}
             />
 

@@ -87,7 +87,7 @@ function NumberField({
         />
         {suffix && <span className="text-xs text-foreground/45 shrink-0">{suffix}</span>}
       </div>
-      {over && <span className="mt-1 block text-[11px] text-amber-400">Counted as {max} — the calculator's maximum.</span>}
+      {over && <span className="mt-1 block text-[11px] text-amber-400">Counted as {max}, the calculator's maximum.</span>}
     </label>
   );
 }
@@ -129,7 +129,7 @@ export default function MechanicPayCalculator() {
             Flat Rate vs Hourly: <span className="text-nick-yellow">What Would You Actually Earn?</span>
           </h1>
           <p className="mt-4 text-foreground/65 leading-relaxed">
-            A $40 flag rate sounds better than $30 an hour — until a slow week. Put in your real numbers: what
+            A $40 flag rate sounds better than $30 an hour, until a slow week. Put in your real numbers: what
             you flag in a normal week, what you flag in a slow one, and whether there's a guarantee.
           </p>
         </div>
@@ -172,7 +172,7 @@ export default function MechanicPayCalculator() {
                   ? `Hourly pays ${usd(diff)} more this week.`
                   : `Flat rate pays ${usd(-diff)} more this week.`}{" "}
               {breakEven != null &&
-                `To match the hourly check you'd need to flag ${breakEven} hours at ${usdRate(flagRateUsed)} — every week, slow weeks included.`}
+                `To match the hourly check you'd need to flag ${breakEven} hours at ${usdRate(flagRateUsed)}. Every week, slow weeks included.`}
             </p>
             <p className="mt-2 text-xs text-foreground/45">Gross pay, before taxes and deductions.</p>
             <div className="mt-4 max-w-[220px]">
@@ -187,7 +187,7 @@ export default function MechanicPayCalculator() {
               two is the risk flat rate puts on you instead of the shop.
             </p>
             <p>
-              What this leaves out: flat-rate overtime (shops calculate it differently — ask how yours does it),
+              What this leaves out: flat-rate overtime (shops calculate it differently, so ask how yours does it),
               benefits, PTO, tool costs and bonuses. It's a comparison, not a paycheck and not an offer.
             </p>
             <p>Questions worth asking any shop before you move:</p>
@@ -204,7 +204,7 @@ export default function MechanicPayCalculator() {
             <div className="mt-10 rounded-2xl border border-border/25 p-6">
               <p className="text-sm text-foreground/70">
                 Nick's Tire &amp; Auto pays automotive technicians <span className="font-bold text-foreground">{TECH_PAY}</span>,
-                hourly — not flat rate. Euclid Ave, Cleveland.
+                hourly, not flat rate. Euclid Ave, Cleveland.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link

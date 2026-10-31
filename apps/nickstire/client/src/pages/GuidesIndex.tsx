@@ -102,7 +102,7 @@ export default function GuidesIndex() {
               AUTO REPAIR GUIDES
             </h1>
             <p className="mt-6 text-lg text-foreground/70 max-w-2xl leading-relaxed">
-              Mechanic-grade guides written from the bay floor on Euclid Ave. Everything you need to know about tires, maintenance, costs, and car care — with the actual prices and the actual reasons behind them.
+              Mechanic-grade guides written from the bay floor on Euclid Ave. Everything you need to know about tires, maintenance, costs, and car care, with the actual prices and the actual reasons behind them.
             </p>
           </FadeIn>
 

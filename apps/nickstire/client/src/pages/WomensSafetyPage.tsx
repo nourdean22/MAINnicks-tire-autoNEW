@@ -22,13 +22,13 @@ const OLD_WAY = [
 ];
 
 const PIT_STOP_WAY = [
-  "Sit in your car while we do your tire — the crew works outside",
-  "Drop off and go — Uber code provided on request",
-  "Every repair explained before work begins, no pressure",
+  "Sit in your car while we do your tire. The crew works outside",
+  "Drop off and go: Uber code provided on request",
+  "Every repair explained before work begins",
   "Photo and video updates sent directly to your phone",
   "We text you the moment your car is ready",
   "Clean, well-lit shop with staff introductions",
-  "You're never trapped — leave any time, no questions asked",
+  "You're never trapped: leave any time, no questions asked",
 ];
 
 /* ─── COMPARISON GRID ──────────────────────────────────── */
@@ -77,7 +77,7 @@ export default function WomensSafetyPage() {
     <PageLayout>
       <SEOHead
         title="Women's Safety at Nick's Tire & Auto · Cleveland | Stay In Your Car"
-        description="Stay in your car or drop off and Uber out. Nick's Cleveland — no pressure, no pushy mechanics. Free check. Written quote. You don't pay until you say yes. Walk-ins 7 days."
+        description="Stay in your car or drop off and Uber out. Nick's Cleveland. Free check. Written quote. You don't pay until you say yes. Walk-ins 7 days."
         canonicalPath="/womens-safety"
       />
       {/* v1.7 SEO · BreadcrumbList */}
@@ -103,7 +103,7 @@ export default function WomensSafetyPage() {
 
           <p className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-xl mx-auto">
             You should never feel uncomfortable getting your car serviced. At Nick's,
-            you're in control — stay in your car, drop off and Uber out, or wait in
+            you're in control: stay in your car, drop off and Uber out, or wait in
             a clean, welcoming space. Your call, every time.
           </p>
           <p className="text-foreground/80 text-base sm:text-lg leading-relaxed max-w-xl mx-auto mt-6">
@@ -137,7 +137,7 @@ export default function WomensSafetyPage() {
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-muted-foreground text-sm leading-relaxed">
             Nick's Tire & Auto has served Cleveland since 2018. We're a
-            family-run shop that believes every customer — regardless of gender —
+            family-run shop that believes every customer, regardless of gender, 
             deserves honest, transparent, pressure-free service. If you ever feel
             uncomfortable, tell us. We'll make it right.
           </p>

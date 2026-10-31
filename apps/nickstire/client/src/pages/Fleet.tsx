@@ -24,12 +24,12 @@ const BENEFITS = [
   {
     icon: <Headset className="w-7 h-7" />,
     title: "Dedicated Account Manager",
-    desc: "One point of contact who knows your fleet inside and out. No runaround, no repeating yourself.",
+    desc: "One point of contact who knows your fleet inside and out.",
   },
   {
     icon: <CreditCard className="w-7 h-7" />,
     title: "Net-30 Terms",
-    desc: "Approved accounts pay on invoice — no payment at time of service. Simplified billing for your accounting team.",
+    desc: "Approved accounts pay on invoice. No payment at time of service. Simplified billing for your accounting team.",
   },
   {
     icon: <BarChart3 className="w-7 h-7" />,
@@ -249,7 +249,7 @@ export default function Fleet() {
             <h2 className="font-heading font-bold text-2xl lg:text-3xl text-white uppercase tracking-tight">
               All Vehicle Types Serviced
             </h2>
-            <p className="text-foreground/60 mt-3">From compact sedans to box trucks — we handle it all.</p>
+            <p className="text-foreground/60 mt-3">From compact sedans to box trucks. We handle it all.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 stagger-in">
             {VEHICLE_TYPES.map((v) => (

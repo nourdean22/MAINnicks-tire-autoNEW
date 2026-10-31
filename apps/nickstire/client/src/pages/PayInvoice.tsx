@@ -178,7 +178,7 @@ export default function PayInvoice() {
                       className="w-full bg-primary text-primary-foreground btn-premium py-3.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 stagger-in"
                     >
                       <PhoneCall className="w-4 h-4" />
-                      Call to Pay — {BUSINESS.phone.display}
+                      Call to Pay: {BUSINESS.phone.display}
                     </a>
 
                     <p className="text-[11px] text-muted-foreground text-center">

@@ -21,9 +21,9 @@ const CONFIG: ServicePageConfig = {
   title: "Tire Prices Cleveland — Live Installed Pricing | Nick's",
   description:
     "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.",
-  eyebrow: "TIRE PRICES — CLEVELAND, OHIO",
+  eyebrow: "TIRE PRICES: CLEVELAND, OHIO",
   h1: "TIRE PRICES IN CLEVELAND.\nREAL NUMBERS, UPDATED DAILY.",
-  sub: "Most tire shops make you call for every price. This page shows what tires actually cost at our shop: inspected used tires from $25 installed (select 12-inch; most $40-80), new tires from $89 installed, and live per-size pricing pulled straight from our distributor feed. If a number is on this page, we honor it — and if your size isn't listed, one call gets you the exact quote.",
+  sub: "Most tire shops make you call for every price. This page shows what tires actually cost at our shop: inspected used tires from $25 installed (select 12-inch; most $40-80), new tires from $89 installed, and live per-size pricing pulled straight from our distributor feed. If a number is on this page, we honor it, and if your size isn't listed, one call gets you the exact quote.",
   aeoAnswer:
     "At Nick's Tire & Auto in Cleveland, inspected used tires run from $25 installed (12-inch rims; most sizes $40-80 installed) and new tires from $89 installed, with live per-size distributor pricing published on this page. Walk-ins 7 days at 17625 Euclid Ave, Cleveland. (216) 862-0005.",
   startingPrice:
@@ -35,20 +35,20 @@ const CONFIG: ServicePageConfig = {
   includedTitle: "EVERY TIRE INSTALL INCLUDES",
   includedSub: "The price you see covers the work that gets you back on the road.",
   included: [
-    "Mount and balance on every tire — not a line-item surprise",
+    "Mount and balance on every tire, not a line-item surprise",
     "New valve stems and disposal of your old tires",
     "Used tires: tread depth measured with a gauge and shown to you at install",
     `Used tires: checked for ${BUSINESS.usedTires.checkSummary} before they go on your car`,
-    "Free alignment check on every install — Cleveland potholes kill fresh tires without it",
+    "Free alignment check on every install: Cleveland potholes kill fresh tires without it",
   ],
   faqs: [
     {
       q: "How much do tires cost in Cleveland?",
-      a: `At our shop: inspected used tires start at $25 installed (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). New tires start at $89 installed. The table on this page shows live starting prices per tire for the most popular sizes, refreshed from our distributor feed — call (216) 862-0005 to confirm your exact size and brand.`,
+      a: `At our shop: inspected used tires start at $25 installed (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). New tires start at $89 installed. The table on this page shows live starting prices per tire for the most popular sizes, refreshed from our distributor feed. Call (216) 862-0005 to confirm your exact size and brand.`,
     },
     {
       q: "Do these prices include installation?",
-      a: "Yes. Per-tire prices on this page include installation through our package — mount, balance, valve stems, and disposal. Used-tire prices are all-in the same way. There are no mystery shop-supply fees added at the counter.",
+      a: "Yes. Per-tire prices on this page include installation through our package: mount, balance, valve stems, and disposal. Used-tire prices are all-in the same way. There are no mystery shop-supply fees added at the counter.",
     },
     {
       q: "How current is the pricing on this page?",
@@ -56,15 +56,15 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "What's the cheapest safe way to get rolling today?",
-      a: `An inspected used tire — from $25 installed (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Every used tire is checked for ${BUSINESS.usedTires.checkSummary} before it goes on your car, and typical turnaround is ${BUSINESS.usedTires.turnaround.toLowerCase()}. Walk in 7 days a week.`,
+      a: `An inspected used tire, from $25 installed (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Every used tire is checked for ${BUSINESS.usedTires.checkSummary} before it goes on your car, and typical turnaround is ${BUSINESS.usedTires.turnaround.toLowerCase()}. Walk in 7 days a week.`,
     },
     {
       q: "Can I pay over time instead of all at once?",
-      a: "Yes — payment programs through Kafene, Acima, Snap Finance, Koalafi, and American First Finance. Approval doesn't require perfect credit, but each provider decides. Ask at the counter or start from our payment programs page before you come in.",
+      a: "Yes: payment programs through Kafene, Acima, Snap Finance, Koalafi, and American First Finance. Approval doesn't require perfect credit, but each provider decides. Ask at the counter or start from our payment programs page before you come in.",
     },
     {
       q: "Is there a warranty on these tires?",
-      a: "Used tires carry a 7-day limited replacement warranty: verified air loss or internal tire failure from a defect present at the time of sale. Road-hazard damage — punctures, sidewall impacts, bead damage — isn't covered, the same as a new tire without a separate road-hazard plan. Warranty terms are in writing on your invoice.",
+      a: "Used tires carry a 7-day limited replacement warranty: verified air loss or internal tire failure from a defect present at the time of sale. Road-hazard damage (punctures, sidewall impacts, bead damage) isn't covered, the same as a new tire without a separate road-hazard plan. Warranty terms are in writing on your invoice.",
     },
   ],
   bookingService: "tires",

@@ -157,7 +157,7 @@ export default function StatusTracker() {
                 <AlertTriangle className="w-12 h-12 text-primary/60 mx-auto mb-4" />
                 <h3 className="font-bold text-xl text-foreground mb-2">Nothing under that {searchType === "phone" ? "number" : "code"}.</h3>
                 <p className="text-foreground/60 max-w-md mx-auto">
-                  Either the booking hasn't synced yet (give it a few minutes), the {searchType === "phone" ? "number" : "code"} got typed wrong, or you haven't actually booked yet — all fixable. Easiest path:{" "}
+                  Either the booking hasn't synced yet (give it a few minutes), the {searchType === "phone" ? "number" : "code"} got typed wrong, or you haven't actually booked yet. All fixable. Easiest path:{" "}
                   <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a>.
                 </p>
               </div>

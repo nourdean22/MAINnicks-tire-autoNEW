@@ -27,15 +27,15 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   canonicalPath: "/nonstop-nick",
   title: "Nonstop Nick — $7.99/mo Tire Membership | Nick's Tire & Auto",
   description:
-    "Pull up, we got it. $7.99/mo covers the little tire stuff on one registered vehicle — flat repairs, valve stems, rotation, air-ups. No appointment. (216) 862-0005",
+    "Pull up, we got it. $7.99/mo covers the little tire stuff on one registered vehicle: flat repairs, valve stems, rotation, air-ups. No appointment. (216) 862-0005",
   eyebrow: "NONSTOP NICK · $7.99/MO",
   h1: "PULL UP.\nWE GOT IT.",
-  sub: `Flat on the way to work? Slow leak that's been bugging you for weeks? With Nonstop Nick, you pull into Nick's on Euclid Ave, hand us the keys, and we handle it. No appointment. If it's in the plan, it's covered — and if something's outside the plan, we tell you before any work moves forward. $7.99 a month and the little tire stuff stops being your problem. ${reviewRating}★ from ${reviewCountDisplay} Cleveland drivers.`,
+  sub: `Flat on the way to work? Slow leak that's been bugging you for weeks? With Nonstop Nick, you pull into Nick's on Euclid Ave, hand us the keys, and we handle it. No appointment. If it's in the plan, it's covered, and if something's outside the plan, we tell you before any work moves forward. $7.99 a month and the little tire stuff stops being your problem. ${reviewRating}★ from ${reviewCountDisplay} Cleveland drivers.`,
   // Non-dollar startingPrice → shows as a draw chip (not a price-at-the-door).
   startingPrice: "Members: pull up anytime",
 
   pricingTitle: "WHAT \"WE GOT IT\" ACTUALLY MEANS",
-  pricingSub: "One membership, one vehicle, no appointment — pull up 7 days a week and we handle it. $7.99/month, cancel any time you want.",
+  pricingSub: "One membership, one vehicle, no appointment. Pull up 7 days a week and we handle it. $7.99/month, cancel any time you want.",
   tiers: [
     {
       name: "The Stuff That Ruins Your Morning",
@@ -54,12 +54,12 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
       name: "The Little Extras",
       price: "Covered",
       sub: "rim cleans · wiper & bulb swaps",
-      use: "Clean wheels because they just feel better. Wiper blade or bulb gone? Bring the part, we'll put it on. We're already taking care of you — might as well.",
+      use: "Clean wheels because they just feel better. Wiper blade or bulb gone? Bring the part, we'll put it on. We're already taking care of you. Might as well.",
     },
   ],
 
   includedTitle: "THE FINE PRINT, IN PLAIN ENGLISH",
-  includedSub: "We tell you what's in and what's out, up front — so you always know before you pull in. One registered vehicle, rims up to 19\".",
+  includedSub: "We tell you what's in and what's out, up front, so you always know before you pull in. One registered vehicle, rims up to 19\".",
   included: [
     "Tread-area flat repairs (plug + patch)",
     "Rubber valve stem replacement",
@@ -68,13 +68,13 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     "Air top-off + tread check, pull up anytime",
     "Wiper blade & bulb swaps (you bring the part)",
     "One registered vehicle, rims up to 19\"",
-    "Cancel any time — no contract, no cancellation fee",
+    "Cancel any time. No contract or cancellation fee",
   ],
 
   faqs: [
     {
       q: "What does Nonstop Nick cost?",
-      a: "$7.99 a month, billed automatically. Cancel any time you want — no contract, no cancellation fee.",
+      a: "$7.99 a month, billed automatically. Cancel any time you want. No contract or cancellation fee.",
     },
     {
       q: "Do I need an appointment?",
@@ -82,15 +82,15 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     },
     {
       q: "What's actually covered?",
-      a: "Tread-area flat repairs, rubber valve stems, tire rotation, rim cleans, and air-ups with a tread check — on one registered vehicle — plus wiper and bulb swaps if you bring the part.",
+      a: "Tread-area flat repairs, rubber valve stems, tire rotation, rim cleans, and air-ups with a tread check, on one registered vehicle, plus wiper and bulb swaps if you bring the part.",
     },
     {
       q: "What's not covered?",
-      a: "Towing, sidewall damage (a sidewall puncture means a new tire, not a repair), TPMS sensors and TPMS valve stems, rims over 19 inches, and the wiper/bulb part itself. Members get our fair price on anything that's not included — we'll always tell you up front.",
+      a: "Towing, sidewall damage (a sidewall puncture means a new tire, not a repair), TPMS sensors and TPMS valve stems, rims over 19 inches, and the wiper/bulb part itself. Members get our fair price on anything that's not included. We'll always tell you up front.",
     },
     {
       q: "Can I cancel?",
-      a: "Any time, in seconds. No contract and no cancellation fee — we'd rather you stay because it's easy than because you're stuck.",
+      a: "Any time, in seconds. No contract and no cancellation fee. We'd rather you stay because it's easy than because you're stuck.",
     },
     {
       q: "Does it work on any car?",
@@ -98,18 +98,18 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     },
     {
       q: "What's the $9.99 plan?",
-      a: "Nonstop Nick+ is $9.99 a month: everything in the $7.99 plan — flat repairs, valve stems, rotation, rim cleans, air-ups — plus 15% off any repair, parts and labor. One brake or suspension job and it more than pays for itself. Pick it when you join, or upgrade at the counter.",
+      a: "Nonstop Nick+ is $9.99 a month: everything in the $7.99 plan (flat repairs, valve stems, rotation, rim cleans, air-ups) plus 15% off any repair, parts and labor. One brake or suspension job and it more than pays for itself. Pick it when you join, or upgrade at the counter.",
     },
     {
       q: "How do I sign up?",
-      a: "Join online in about a minute, or just ask at the counter next time you're in — 17625 Euclid Ave, or call (216) 862-0005. You pick the vehicle the first time you use it.",
+      a: "Join online in about a minute, or just ask at the counter next time you're in: 17625 Euclid Ave, or call (216) 862-0005. You pick the vehicle the first time you use it.",
     },
   ],
 
   bookingService: "tires",
   serviceType: "Nonstop Nick Tire Membership",
-  ctaHeadline: "JOIN NONSTOP NICK — $7.99/MO",
-  ctaSub: "Pull up anytime, we got you. Sign up online in about a minute, or ask at the counter — 17625 Euclid Ave, Cleveland OH. Call or text (216) 862-0005.",
+  ctaHeadline: "JOIN NONSTOP NICK: $7.99/MO",
+  ctaSub: "Pull up anytime, we got you. Sign up online in about a minute, or ask at the counter: 17625 Euclid Ave, Cleveland OH. Call or text (216) 862-0005.",
 });
 
 export default function NonstopNickPage() {

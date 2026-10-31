@@ -40,8 +40,8 @@ interface LandingVariant {
 
 const VARIANTS: Record<string, LandingVariant> = {
   brakes: {
-    headline: "BRAKE REPAIR — SAME DAY SERVICE",
-    subline: "Pads, rotors, calipers — free check before anything moves",
+    headline: "BRAKE REPAIR. SAME DAY SERVICE",
+    subline: "Pads, rotors, calipers: free check before anything moves",
     offer: "FREE Brake Check",
     price: "Honest Pricing",
     offerBadgeColor: "bg-red-500",
@@ -71,7 +71,7 @@ const VARIANTS: Record<string, LandingVariant> = {
     urgencyMessage: "Same-Day Service • Walk-Ins Welcome",
   },
   tires: {
-    headline: "NEW TIRES — INSTALLED TODAY",
+    headline: "NEW TIRES: INSTALLED TODAY",
     subline: "Tires for Cleveland potholes and lake-effect snow",
     offer: "FREE Tire Price Match",
     price: "Great Prices on Tires",
@@ -109,7 +109,7 @@ const VARIANTS: Record<string, LandingVariant> = {
     offerBadgeColor: "bg-yellow-500",
     trustBullets: [
       "Computer code scan identifies the exact issue",
-      "We translate what it means in plain English — no acronym soup",
+      "We translate what it means in plain English. No acronym soup",
       "Honest recommendation for repair",
       "Check fee credited toward service if you say yes to the repair",
     ],
