@@ -161,12 +161,26 @@ describe("processPromptEvolutionWeekly", () => {
     mocks.postToEvidenceLedger.mockResolvedValue(true);
   });
 
-  it("non-Monday emits the whole-run-skip vocabulary the shape observer excludes", async () => {
-    const r = await processPromptEvolutionWeekly(new Date("2026-08-05T15:00:00Z")); // a Wednesday
-    expect(r.recordsProcessed).toBe(0);
-    expect(looksSkipped(r.details)).toBe(true);
-    expect(mocks.runPromptEvolution).not.toHaveBeenCalled();
-    expect(mocks.resolveLiveReceptionistBaseline).not.toHaveBeenCalled();
+  // 2026-10-31 (self-learning W1): Nour, 2026-10-30: "it should me autonomys self
+  // learning getting smarter and smarter ... every day". The scheduled run is
+  // nightly (the learning wall-clock slot), so no weekday is skipped any more.
+  it("a SCHEDULED run on a Tuesday runs the full cycle: no weekday gate", async () => {
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    const r = await processPromptEvolutionWeekly(new Date("2026-08-04T04:45:00Z")); // Tuesday 00:45 ET
+    expect(r.recordsProcessed).toBe(1);
+    expect(looksSkipped(r.details)).toBe(false);
+    expect(mocks.resolveLiveReceptionistBaseline).toHaveBeenCalledTimes(1);
+    expect(mocks.runPromptEvolution).toHaveBeenCalledTimes(1);
+    expect(telegramText()).toContain("PROMPT EVOLUTION (nightly · propose-only)");
+  });
+
+  it("every day of the week runs when scheduled, the option object passed explicitly or not", async () => {
+    mocks.runPromptEvolution.mockResolvedValue(rejected({ outcome: "rejected-holdout" }));
+    for (let d = 2; d <= 8; d++) {
+      const day = new Date(`2026-08-0${d}T05:00:00Z`);
+      await processPromptEvolutionWeekly(day, d % 2 ? { trigger: "scheduled" } : undefined);
+    }
+    expect(mocks.runPromptEvolution).toHaveBeenCalledTimes(7);
   });
 
   it("a MANUAL run on a Wednesday runs the full cycle; Telegram, the latest row and cron_log all say manual", async () => {
@@ -197,11 +211,24 @@ describe("processPromptEvolutionWeekly", () => {
     expect(telegramText()).toMatch(/success cohort \d+ won calls/);
   });
 
-  it("a SCHEDULED run on a non-Monday still skips, even when the option object is passed explicitly", async () => {
-    const r = await processPromptEvolutionWeekly(new Date("2026-08-05T15:00:00Z"), { trigger: "scheduled" });
-    expect(r.recordsProcessed).toBe(0);
-    expect(looksSkipped(r.details)).toBe(true);
-    expect(mocks.runPromptEvolution).not.toHaveBeenCalled();
+  it("an accepted candidate is also kept under prompt_evolution_last_accepted; a later rejected night overwrites latest, never it", async () => {
+    // Nightly runs overwrite the latest pointer every night: without this key an
+    // accepted proposal would be gone the next night, before anyone applied it.
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    await processPromptEvolutionWeekly(MONDAY);
+    const kept = JSON.parse(mocks.kv.get("prompt_evolution_last_accepted")!);
+    expect(kept.accepted.promptHash).toBe(CAND_HASH);
+    expect(kept.accepted.prompt).toBe(CAND_PROMPT);
+    mocks.runPromptEvolution.mockResolvedValue(rejected({ outcome: "rejected-holdout" }));
+    await processPromptEvolutionWeekly(new Date(MONDAY.getTime() + 86_400_000));
+    expect(latest().outcome).toBe("rejected-holdout");
+    expect(JSON.parse(mocks.kv.get("prompt_evolution_last_accepted")!).accepted.promptHash).toBe(CAND_HASH);
+  });
+
+  it("a rejected run never writes prompt_evolution_last_accepted", async () => {
+    mocks.runPromptEvolution.mockResolvedValue(rejected({ outcome: "rejected-holdout" }));
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(mocks.kv.has("prompt_evolution_last_accepted")).toBe(false);
   });
 
   it("Monday + accepted → kv persisted, Telegram sent, recordsProcessed 1", async () => {
@@ -215,7 +242,7 @@ describe("processPromptEvolutionWeekly", () => {
     expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("OFFLINE CANDIDATE"), "digest");
     expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("NOT a production/business winner"), "digest");
     expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("Offline evidence only (H2); not served to customers."), "digest");
-    expect(telegramText()).toContain("PROMPT EVOLUTION (weekly · propose-only)");
+    expect(telegramText()).toContain("PROMPT EVOLUTION (nightly · propose-only)");
     expect(JSON.parse(mocks.kv.get("prompt_evolution_latest")!).trigger).toBe("scheduled");
   });
 

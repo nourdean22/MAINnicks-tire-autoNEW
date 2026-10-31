@@ -86,6 +86,13 @@ const WALL_CLOCK_SLOTS: Readonly<Record<string, readonly WallClockSlot[]>> = {
   // before its next, when writes are fewest. Opens after 03:00, clear of both DST hours.
   // retryAfterMs = the job's 30-minute budget: a pass older than that has ended or timed out.
   nightly: [{ key: "nightly", startMin: 3 * 60 + 30, endMin: 6 * 60, retryAfterMs: 30 * 60_000 }],
+  // learning · the receptionist prompt experiment, every night (self-learning W1,
+  // 2026-10-31). 00:45 ET is 04:45Z (EDT) or 05:45Z (EST): measured 2026-10-30,
+  // statenour made zero LLM calls 04:00-08:59Z over 14 days, so the shared Ollama
+  // account is quiet for the run's 45-minute budget. The window closes at 01:00,
+  // before the repeated fall-back hour. No retryAfterMs: a run spends sealed
+  // confirmation seeds and writes the latest pointer, so it must never repeat in a night.
+  learning: [{ key: "learning", startMin: 45, endMin: 60 }],
   briefings: [
     { key: "briefings-am", startMin: 7 * 60, endMin: 12 * 60 },
     { key: "briefings-pm", startMin: 19 * 60, endMin: 22 * 60 },

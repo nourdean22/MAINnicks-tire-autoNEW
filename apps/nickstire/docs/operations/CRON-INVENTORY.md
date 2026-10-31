@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-10-21 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-31 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -18,9 +18,10 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 23 / 0 |
 | hourly | every 2h | 33 / 1 |
-| daily | every 1d | 47 / 0 |
+| daily | every 1d | 46 / 0 |
 | briefings | every 12h | 5 / 0 |
 | nightly | every 1d | 1 / 0 |
+| learning | every 1d | 1 / 0 |
 
 **Total: 116 tiered jobs (113 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
@@ -136,7 +137,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `pipelines-auto-run` | no | no | yes | — |
 | `plate-retention-scrub` | no | no | yes | Nulls plate text on `vehicle_visits` rows past the 30-day ADR-0017 window, sparing EXACT customer matches. Reads nothing until a plate recogniser is wired. |
 | `prediction-outcomes-resolve` | no | no | yes | — |
-| `prompt-evolution-weekly` | no | no | yes | — |
 | `psycho-profile-refresh` | no | no | yes | — |
 | `qc-comeback-detection` | no | no | yes | — |
 | `retention-all` | no | no | yes | — |
@@ -169,6 +169,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | Job | Business hours only | Once per shop day | Scheduled | Purpose |
 |---|---|---|---|---|
 | `tidb-backup` | no | no | yes | Independent TiDB backup to the private bucket (backups/tidb/<date>/), flag TIDB_BACKUP_ENABLED; runbook docs/runbooks/tidb-backup-restore.md |
+
+## learning (every 1d)
+
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `prompt-evolution-weekly` | no | no | yes | Receptionist prompt experiment, every night at 00:45 ET (self-learning W1): ghost-replays the live prompt on real failed calls, gates a bounded edit on holdout + sealed confirmation; propose-only (kv + Telegram). |
 
 ## HTTP-only registry jobs (`server/cron/index.ts`)
 
