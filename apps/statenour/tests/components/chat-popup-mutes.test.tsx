@@ -86,8 +86,11 @@ describe("chat confirmations read the mute list", () => {
     expect(files(root).filter((p) => code(p).includes("doneToast(")).length).toBeGreaterThanOrEqual(4);
   });
 
-  it("no chat file calls toast.success directly", () => {
-    const direct = files(root).filter((p) => !p.endsWith("popup-mutes.ts") && /\btoast\.success\(/.test(code(p)));
+  it("no chat file calls toast.success directly, except Depth applied", () => {
+    // Depth applied names the lane model that answered, shown nowhere else on screen, and
+    // tests/ai/escalation-visibility.test.ts pins it visible: it stays unmuteable on purpose.
+    const unmuteable = (s: string) => s.replace(/toast\.success\(`Depth applied/g, "");
+    const direct = files(root).filter((p) => !p.endsWith("popup-mutes.ts") && /\btoast\.success\(/.test(unmuteable(code(p))));
     expect(direct).toEqual([]);
   });
 
