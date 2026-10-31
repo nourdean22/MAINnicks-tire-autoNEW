@@ -7,6 +7,7 @@ import { Image as ImageIcon, Mic, X } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import { resolveMentionsWithTimeout } from "../lib/mention-resolution";
+import { composerCap } from "../lib/composer-cap";
 import { useImageAttachment } from "@/hooks/use-image-attachment";
 import { useAudioTranscribe } from "@/hooks/chat/use-audio-transcribe";
 import { useVoiceInput } from "@/hooks/use-voice-input";
@@ -150,7 +151,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     // list a few pixels tall: nothing could be read or scrolled.
     const resize = () => {
       const visible = window.visualViewport?.height ?? window.innerHeight;
-      const cap = Math.max(44, Math.min(200, Math.floor(visible * 0.25)));
+      const cap = composerCap(visible);
       el.style.height = "auto";
       el.style.height = `${Math.min(el.scrollHeight, cap)}px`;
     };
@@ -755,7 +756,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
             }}
             placeholder="Ask, analyze, create, or tell Nick to act…"
             enterKeyHint={coarsePointer ? "enter" : "send"}
-            className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-tertiary"
+            className="max-h-[400px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-tertiary"
             rows={1}
             disabled={Boolean(disabledReason)}
           />

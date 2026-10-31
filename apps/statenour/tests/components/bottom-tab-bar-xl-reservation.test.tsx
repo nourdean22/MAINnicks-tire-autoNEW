@@ -17,9 +17,9 @@ import { join } from "node:path";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const h = vi.hoisted(() => ({ height: 20 }));
+const h = vi.hoisted(() => ({ height: 20, path: "/chat" }));
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/chat" }));
+vi.mock("next/navigation", () => ({ usePathname: () => h.path }));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode } & Record<string, unknown>) => (
     <a href={href} {...rest}>
@@ -59,6 +59,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  h.path = "/chat";
   HTMLElement.prototype.getBoundingClientRect = originalRect;
   vi.unstubAllGlobals();
 });
@@ -71,6 +72,7 @@ describe("the bottom reservation at xl", () => {
   });
 
   it("the tab row is hidden at xl and the ticker is the measured element's only other child, so the xl reservation is the ticker", () => {
+    h.path = "/journal";
     act(() => root.render(<BottomTabBar />));
     const nav = container.querySelector('nav[aria-label="Primary"]') as HTMLElement;
     expect(nav.className.split(/\s+/)).toContain("xl:hidden");
@@ -78,6 +80,13 @@ describe("the bottom reservation at xl", () => {
     expect(measured.className.split(/\s+/)).toContain("fixed");
     const others = [...measured.children].filter((c) => c !== nav);
     expect(others.map((c) => c.hasAttribute("data-ticker"))).toEqual([true]);
+  });
+
+  // U1 (2026-10-30): /chat drops the ticker, so at xl its reservation is the safe area alone.
+  it("on /chat the measured element holds only the (xl-hidden) tab row: no ticker strip under the composer", () => {
+    act(() => root.render(<BottomTabBar />));
+    const nav = container.querySelector('nav[aria-label="Primary"]') as HTMLElement;
+    expect([...(nav.parentElement as HTMLElement).children].filter((c) => c !== nav)).toEqual([]);
   });
 
   // Round 3 (A4): the island root and the composer wrapper are read too, not only the page root; a
