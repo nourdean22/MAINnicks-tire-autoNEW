@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w4-s2": {
+      "ref": "statenour/people-w4-s2 (job 2026-10-30-people-tracker, W4 slice 2; tool contract approved by the manager 2026-10-30 after #3422). Nick's read-only chat tool getRelationshipPicks (lib/ai/tools/tasks.ts): input { limit 1-5, default 3 }, execute = pickRelationshipsForToday, output { picks: [{ personId, name, why, daysQuiet, openPromises, seeingOn, maxim }], source, calendar }; calendar defaults to 'unknown' for an older cached row; a failed picks read throws. Registered in lib/ai/tools/catalog.ts (personal_read, battle, free), lib/ai/tool-families.ts (personal-read), lib/ai/tools/read-only-tools.ts, and a chat-mode keyword trigger for people phrasings (lib/ai/chat-mode.ts). NOT on the agent-bridge surface: tests/security/mcp-surface.test.ts unchanged after pnpm snapshot:mcp-surface. lib/ai/relationships-pick-today.ts attaches daysQuiet and openPromises from the same candidate. tests/ai/tool-schemas.snapshot.json updated deliberately: one ADDED entry, matching the approved contract. Second read (bdnick-chat-v2): the people family fires on shop words, so it now matches relation(?!shipPicks) and adds the tool only on a personal word, and the new trigger never fires with a shop word present; 5 shop-worded prompts exclude the tool (mutation: dropping the exclusion turns them red); the keyword-rank fixture is back to main. Red first: the missing tool and registrations, the 5 phrasings, the attach (mutation: removing it turns the test red)."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers Nick's people tool. Live check 2026-11-01: ask Nick 'who should I call today' on bdnick.info, the reply names today's /people picks and an AgentTrace/tool-selection row shows getRelationshipPicks. Kill read 2026-11-14: fewer than 3 real calls in the 14 days after merge -> remove the tool."
+    }
+  }
+}

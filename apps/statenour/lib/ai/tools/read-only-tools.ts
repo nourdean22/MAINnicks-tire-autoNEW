@@ -66,7 +66,7 @@ export const ACCEPTED_EXCEPTIONS: Readonly<Record<string, string>> = {
 export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   // personal_read
   "getBodyData", "getHealthToday", "getSleepTrend", "getCameraIntelligence", "getCommitments",
-  "getAgendaItems", "getDriftAlerts",
+  "getAgendaItems", "getDriftAlerts", "getRelationshipPicks",
   "getFinancialSnapshot", "getHabitStreaks", "getMasteryScores", "getMissions",
   "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail",
   "getTasks", "getTaskDetails", "getTodaySchedule",

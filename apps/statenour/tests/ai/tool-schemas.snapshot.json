@@ -1463,6 +1463,21 @@
     }
   },
   {
+    "name": "getRelationshipPicks",
+    "description": "Who Nour should reach out to today and why: today's relationship picks (same list as /people), each with days since last contact, open promises to that person, and an upcoming calendar event that names them. Read-only. Use when he asks who to call, text or check on, or about a person's status.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
     "name": "getRepoMap",
     "description": "Get the key file paths and architecture of a repo. Use when you need to understand where things are before making changes. Returns the project structure map.",
     "inputSchema": {
