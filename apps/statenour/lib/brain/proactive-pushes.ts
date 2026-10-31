@@ -263,36 +263,22 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     return null;
   });
   const top = set?.questions?.[0];
-  
-  const pendingApprovalsCount = await prisma.approvalRequest.count({
-    // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
-    where: liveApprovalRequestWhere(now),
-  }).catch((err) => {
-    logError("brain.proactive-pushes", err, { fn: "fireMorningPush.countApprovals" });
-    return 0;
-  });
 
-  const hasContent = !!top || pendingApprovalsCount > 0;
-  
-  const skipReason = isDup 
-    ? "already_pushed_today" 
+  // home-pulse W3b (2026-10-31): the approval count is NOT repeated here. The same hourly tick runs
+  // checkAndNudgeApprovals from 06:00 ET, which owns that count (autonomous + tool approvals), so the
+  // morning push carried it a second time: two Telegrams for one fact.
+  const hasContent = !!top;
+
+  const skipReason = isDup
+    ? "already_pushed_today"
     : (!hasContent ? "no_morning_content" : "");
 
-  let text = top
+  const text = top
     ? `☀️ <b>Morning · Nick's pick</b>\n\n` +
       `Today you'll likely want to know:\n` +
       `<i>"${top.question}"</i>\n\n` +
       `Tap to ask Nick · already warmed.`
     : "";
-
-  if (pendingApprovalsCount > 0) {
-    if (text) {
-      text += `\n\n⚠️ You have ${pendingApprovalsCount} action(s) waiting in your System Approval Queue.`;
-    } else {
-      text = `☀️ <b>Morning Update</b>\n\n` +
-        `⚠️ You have ${pendingApprovalsCount} action(s) waiting in your System Approval Queue.`;
-    }
-  }
 
   if (options?.dryRun) {
     const etHour = parseInt(
