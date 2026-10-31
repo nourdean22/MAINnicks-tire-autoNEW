@@ -107,7 +107,7 @@ read-only to us).
 | 34 | 10-30 13:26, 14:19, 14:39 | Calendar in all of StateNour, two-way | NOT STARTED | See top gap 2 | M; one grant step N |
 | 35 | 10-30 13:26, 13:28, 13:55 | Chat errors, up to date, queue messages | DONE+LIVE | FACT: 3397, 3404, 3415, 3422 live | none |
 | 36 | 10-30 13:34, 13:37 | Daily autonomous self-learning, both apps | NOT STARTED | See top gap 1 | M |
-| 37 | 10-30 13:36, 14:02, 14:03 | Antislop + humanizer on all StateNour and nickstire.org pages | PARTIAL | FACT: nickstire A 3433, F 3442, B 3447, C 3448, D 3453, E 3454 live; facts 3456 and G 3457 open | StateNour pages: "statenour wave dropped" was a manager ruling (board line 233), not his; only chat audit-002 (3455) is in flight. M |
+| 37 | 10-30 13:36, 14:02, 14:03 | Antislop + humanizer on all StateNour and nickstire.org pages | PARTIAL | FACT: nickstire A 3433, F 3442, B 3447, C 3448, D 3453, E 3454, facts 3456, G 3457 all live (tick 2) | StateNour pages: "statenour wave dropped" was a manager ruling (board line 233), not his; only chat audit-002 (3455) is in flight. M |
 | 38 | 10-30 13:39 | NicksMax: cam data + clean the box | DONE+LIVE | FACT: 3388, 3394, 3414 merged; installed on his go 16:02 EDT; Shop Sign ONLINE 02:07Z (board line 230) | Stats read due 16:00 ET today. M |
 | 39 | 10-30 14:19 | Embed the Gracian maxims now | DONE+LIVE | Manager log: 532 rows embedded, 6 permanent fails (board line 95) | none |
 | 40 | 10-30 14:24 | Receptionist answers job callers | DONE+LIVE | FACT: 3387 `9e8a38925b` live | none |
@@ -115,7 +115,7 @@ read-only to us).
 | 42 | 10-30 14:39 | "why cap it ... other books" | DONE+LIVE | Same embed run covered all books (board line 95) | none |
 | 43 | 10-30 15:59 | "u run railway config apply ... for me" | DONE+LIVE | Applied 22:09Z (board line 35) | none |
 | 44 | 10-30 16:09 | Keep the 20-point install inspection | DONE+LIVE | Board line 89; 3433 rendered check 04:35Z | none |
-| 45 | 10-30 16:43 | People tracker backfill + best plan | PARTIAL | FACT: 3400, 3419, 3425-3430, 3432, 3434, 3435, 3440, 3444 live; apply 11:15Z: 36 inserted, 0 failed (board line 284) | 1 ledger row has no embedding; fix `15bc7f84cc` local only, branch `statenour/people-ledger-embed-retry`. people-tracker |
+| 45 | 10-30 16:43 | People tracker backfill + best plan | PARTIAL | FACT: 3400, 3419, 3425-3430, 3432, 3434, 3435, 3440, 3444 live; apply 11:15Z: 36 inserted, 0 failed (board line 284) | 1 ledger row has no embedding; fix `15bc7f84cc` is PR 3459 (open, tick 2). people-tracker |
 | 46 | 10-30 16:55 | Chat UI: space, video, evidence, voice, multi-photo, search, archive, pop-ups | PARTIAL | FACT: U1 3439, U2 3436, U3 3451, U4a 3409, U5 3431, U6a-c 3449-3452 live | 3455 (his "Fix all five") open; free iPhone voice needs the GROQ key. bdnick-chat-v2, N |
 | 47 | 10-30 17:30 | Pulse + notifications rebuild, Home cleanup, cards | DONE+LIVE | FACT: 3401, 3405, 3438, 3445, 3446 live | 390 px check owed (N); 5 P2 follow-ups dispatched 11:48Z, branch `statenour/held-push-followup` 0 commits so far |
 | 48 | 10-30 17:53 | Delete duplicates; Nick's Tire sales card | PARTIAL | 909 duplicates soft-deleted 19:52Z; card in 3405 | Card has no "as of" time: `revenue_today` needs `syncedAt`, unowned (board line 117). M |
@@ -172,6 +172,14 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 
 ## Loop log
 
+- Tick 2, 2026-10-31 12:35Z: one new ask (11:49Z, the order that started this audit; no new row). PR 3458 merged
+  `05064bf238`. Row 37: the nickstire half is now complete. Facts PR 3456 `e33066c757` and PR G 3457 `eedb20e6da`
+  are LIVE: nickstire.org runs `eedb20e6da`, merge-base exit 0 for both. The StateNour pages gap stands.
+  Row 45: the embed-retry fix is PR 3459 (open). Row 46: 3455 still open. Held-push lane (row 47): no remote branch yet.
+  bdnick.info still runs `9a593d7783`. Board 12:20Z (CLAIM): rows 61 (W5 callback) and 29 (FB/IG post + test text) are
+  dispatched as lane agents, because the app refused session starts while Nour is on Remote Control. Both stay
+  NOT STARTED until a branch or PR exists. Held-push lane (row 47): branch `statenour/held-push-followup` head
+  `cac7ba491c`, pushes on the next QUEUE DRAINED.
 - Tick 1, 2026-10-31 12:30Z: manager accepted the first pass and asked for three briefs (gaps 1, 2, 5: sent as
   messages). Rows 49 and 53 -> ANSWERED, row 65 -> PARTIAL (front-desk block, not the camera installs), top gap 3
   attribution -> manager. Rescue patches checked on `41c3892da2`: learning applies clean; calendar fails at
