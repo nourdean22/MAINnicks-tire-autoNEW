@@ -172,6 +172,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 
 ## Loop log
 
+- Tick 21, 2026-10-31 19:37Z: no new asks. PR 3472 (W5) is now red on node too (2 jobs). PR 3463 is green on `7a7533d558`, not merged. 3471 still red (node). Live builds unchanged.
+
 - Tick 20, 2026-10-31 19:20Z: no new asks. Row 61: W5 transfer callback is PR 3472 (head `c3f9f4c52a`), RED on the agent-policy job. Same cause 3463 had: the DoD compiler marks `capability-ledger-updated` evidence STALE, with ledger key `today-owed-texts` (run 41233428180). PR 3463 is on new head `7a7533d558`, 1 check pending. 3471 still red (node).
 
 - Tick 17, 2026-10-31 18:28Z: no new asks. PR 3463 (self-learning W0) is GREEN on new head `c6b1e0c6ff` (0 red, 0 pending), ready for the gate. PR 3471 (calendar W2b, head `1de4b1cda6`) is RED on node. Live builds unchanged.
