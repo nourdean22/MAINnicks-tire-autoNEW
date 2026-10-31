@@ -25,7 +25,7 @@ export default function EmailNewsletterCapture() {
       setError(null);
     },
     onError: () => {
-      setError("Couldn't sign you up — try again or skip.");
+      setError("Couldn't sign you up. Try again or skip.");
     },
   });
 
@@ -34,7 +34,7 @@ export default function EmailNewsletterCapture() {
       e.preventDefault();
       const trimmedEmail = email.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-        setError("Email doesn't look right — double-check?");
+        setError("Email doesn't look right. Double-check it?");
         return;
       }
       mutation.mutate({
@@ -77,7 +77,7 @@ export default function EmailNewsletterCapture() {
         One car-care tip a week. Cleveland-specific. No spam.
       </h3>
       <p className="text-foreground/55 text-[13px] leading-relaxed mb-4">
-        Pothole season, salt damage, winter prep, summer AC — the things that strand drivers on the East Side. Sign up and we'll email you the tip sheet right away.
+        Pothole season, salt damage, winter prep, summer AC: the things that strand drivers on the East Side. Sign up and we'll email you the tip sheet right away.
       </p>
       <form onSubmit={handleSubmit} className="space-y-2.5">
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px] gap-2">

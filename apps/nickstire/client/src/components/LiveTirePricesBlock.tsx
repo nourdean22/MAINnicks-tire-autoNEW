@@ -41,7 +41,7 @@ export default function LiveTirePricesBlock() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="rounded-lg border border-border/30 bg-foreground/[0.03] p-6">
           <div className="text-[11px] font-bold tracking-widest text-foreground/40 uppercase mb-2">
-            Used tires — inspected
+            Used tires, inspected
           </div>
           <div className="text-3xl font-bold text-primary font-mono">
             {BUSINESS.usedTires.priceDisplay}
@@ -53,7 +53,7 @@ export default function LiveTirePricesBlock() {
         </div>
         <div className="rounded-lg border border-border/30 bg-foreground/[0.03] p-6">
           <div className="text-[11px] font-bold tracking-widest text-foreground/40 uppercase mb-2">
-            New tires — any brand
+            New tires, any brand
           </div>
           <div className="text-3xl font-bold text-primary font-mono">
             {BUSINESS.newTires.priceDisplay}
@@ -68,7 +68,7 @@ export default function LiveTirePricesBlock() {
       {floors.length > 0 && (
         <div>
           <div className="text-[11px] font-bold tracking-widest text-foreground/40 uppercase mb-3">
-            New-tire pricing by size — from our live distributor feed
+            New-tire pricing by size, from our live distributor feed
             {updated ? ` · updated ${updated}` : ""}
           </div>
           <div className="overflow-x-auto rounded-lg border border-border/30">
@@ -88,7 +88,7 @@ export default function LiveTirePricesBlock() {
                     <td className="px-4 py-3 font-mono text-primary font-bold">from ${f.fromPrice}</td>
                     <td className="px-4 py-3 text-foreground/60">{f.optionCount} priced</td>
                     <td className="px-4 py-3 text-foreground/60">
-                      {f.inStockCount > 0 ? "In stock — same day" : "1-2 business days"}
+                      {f.inStockCount > 0 ? "In stock, same day" : "1-2 business days"}
                     </td>
                   </tr>
                 ))}
@@ -98,7 +98,7 @@ export default function LiveTirePricesBlock() {
           <p className="mt-2 text-[11px] text-foreground/40">
             Per-tire price with installation included in the Nick&apos;s package (mount,
             balance, valve stems, disposal). Final quote depends on brand and
-            availability in your exact size — confirm by phone before driving over.
+            availability in your exact size. Confirm by phone before driving over.
           </p>
         </div>
       )}
@@ -107,7 +107,7 @@ export default function LiveTirePricesBlock() {
       {stats && stats.ordersThisWeek > 0 && (
         <p className="text-sm text-foreground/60">
           {stats.ordersThisWeek} tire orders came through the shop in the last 7 days
-          {stats.popularSize ? ` — most-requested size: ${stats.popularSize}` : ""}.
+          {stats.popularSize ? `, most-requested size: ${stats.popularSize}` : ""}.
         </p>
       )}
 

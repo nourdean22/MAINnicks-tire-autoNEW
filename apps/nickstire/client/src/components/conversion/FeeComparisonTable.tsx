@@ -30,7 +30,7 @@ export default function FeeComparisonTable() {
     <section aria-label="Fee comparison: Nick's vs corporate chains" className="my-2">
       <div className="text-center mb-6">
         <span className="text-[10px] font-semibold text-primary tracking-[0.15em] uppercase bg-primary/10 px-2.5 py-0.5 rounded-full">
-          Read the fine print — theirs, not ours
+          Read the fine print: theirs, not ours
         </span>
         <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-3">
           The sticker price is a lie at most tire counters.

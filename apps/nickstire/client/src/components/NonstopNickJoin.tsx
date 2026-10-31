@@ -42,11 +42,11 @@ export default function NonstopNickJoin({ source = "membership_page" }: { source
         window.location.href = res.url;
       } else {
         // Honest fallback — Stripe not wired yet, or a validation message.
-        setMsg(res.error || "Membership signup isn't online yet — call or text (216) 862-0005, or ask at the counter.");
+        setMsg(res.error || "Membership signup isn't online yet. Call or text (216) 862-0005, or ask at the counter.");
       }
     },
     onError: () =>
-      setMsg("Couldn't start signup right now — call or text (216) 862-0005, or ask at the counter."),
+      setMsg("Couldn't start signup right now. Call or text (216) 862-0005, or ask at the counter."),
   });
 
   const submit = (e: React.FormEvent) => {
@@ -75,13 +75,13 @@ export default function NonstopNickJoin({ source = "membership_page" }: { source
             You're in. Pull up when you need us.
           </h2>
           <p className="text-foreground/70 text-sm mb-1">
-            We'll look you up by phone at the counter — nothing to print, nothing to carry.
+            We'll look you up by phone at the counter, so there's nothing to print or carry.
           </p>
           <p className="text-foreground/70 text-sm">
             First visit, we'll register your covered vehicle. Takes a second.
           </p>
           <p className="text-foreground/40 text-[12px] mt-4">
-            Questions? Call or text (216) 862-0005 — 17625 Euclid Ave, Cleveland.
+            Questions? Call or text (216) 862-0005. 17625 Euclid Ave, Cleveland.
           </p>
         </div>
       </section>
@@ -98,7 +98,7 @@ export default function NonstopNickJoin({ source = "membership_page" }: { source
           Pull up anytime. Pick your plan.
         </h2>
         <p className="text-foreground/60 text-sm mb-5">
-          Drop your number and you're in — about a minute. Cancel any time you want.
+          Drop your number and you're in. It takes about a minute. Cancel any time you want.
         </p>
 
         {/* Two tiers — base peace-of-mind vs the fuller plan with repair savings. */}
@@ -110,7 +110,7 @@ export default function NonstopNickJoin({ source = "membership_page" }: { source
             aria-pressed={plan === "nonstop-nick"}
           >
             <p className="font-black text-foreground">$7.99<span className="text-foreground/50 text-sm font-normal">/mo</span></p>
-            <p className="text-[12px] text-foreground/60 mt-1">Flats, valve stems, rotation, rim cleans, air-ups — pull up anytime.</p>
+            <p className="text-[12px] text-foreground/60 mt-1">Flats, valve stems, rotation, rim cleans, air-ups. Pull up anytime.</p>
           </button>
           <button
             type="button"
@@ -142,7 +142,7 @@ export default function NonstopNickJoin({ source = "membership_page" }: { source
           >
             {start.isPending
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</>
-              : <>Join — {price}/mo <ChevronRight className="w-4 h-4" /></>}
+              : <>Join for {price}/mo <ChevronRight className="w-4 h-4" /></>}
           </button>
         </form>
 

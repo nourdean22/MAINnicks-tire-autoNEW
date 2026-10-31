@@ -52,8 +52,8 @@ interface BookingWizardProps {
 // days." oil-change has no such split (every oil change is the same quick
 // job), so it keeps the original wait-only framing unchanged.
 const NO_DROP_OFF_COPY: Record<string, string> = {
-  "oil-change": "No appointments to chase, no drop-off needed — pull up, we work it while you wait.",
-  "emissions": "No appointments to chase, no drop-off needed for the free readiness scan — pull up. If a repair turns up, most are done in 1-2 days.",
+  "oil-change": "No appointment needed. Pull up and we work on it while you wait.",
+  "emissions": "No appointment needed for the free readiness scan. Pull up. If a repair turns up, most are done in 1-2 days.",
 };
 
 export default function BookingWizard(props: BookingWizardProps = {}) {
@@ -99,7 +99,7 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
             ) : null}
             {noDropOffCopy
               ? noDropOffCopy
-              : <>No appointments to chase. Drop your car off if you can&apos;t wait — we&apos;ll text you the second it&apos;s ready.</>}
+              : <>No appointments to chase. Drop your car off if you can&apos;t wait. We&apos;ll text you the second it&apos;s ready.</>}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] text-foreground/60">
@@ -165,7 +165,7 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
 
           <p className="mt-6 text-[12px] text-foreground/60 leading-relaxed">
             5 payment programs · we text when your car is
-            ready. No appointment needed — never has been.
+            ready. No appointment needed.
           </p>
         </div>
       </div>

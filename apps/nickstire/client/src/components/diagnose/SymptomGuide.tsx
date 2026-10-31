@@ -40,7 +40,7 @@ const GUIDE: GuideEntry[] = [
     id: "check-engine-light",
     question: "What does the check engine light mean?",
     answer:
-      "It means the computer stored a fault code — not that your engine is about to die. The important part is whether the light is steady or flashing, and almost nobody tells you that.",
+      "It means the computer stored a fault code, not that your engine is about to die. The important part is whether the light is steady or flashing, and almost nobody tells you that.",
     points: [
       "Steady light: the car logged a fault. Common causes run from a loose gas cap to an oxygen sensor to a misfire. It's a \"get it read soon\" job, not an emergency.",
       "Flashing light: that's a misfire actively dumping raw fuel into the exhaust. It can cook the catalytic converter in minutes, and that turns a small repair into a big one.",
@@ -61,7 +61,7 @@ const GUIDE: GuideEntry[] = [
     points: [
       "Cranks but won't fire: it's turning over, so the battery is probably fine. You're missing fuel, spark, or compression.",
       "Single click, or rapid clicking: usually not enough current. That's a weak battery, corroded terminals, or a starter drawing too much.",
-      "Nothing at all — no lights, no click: think battery, connections, or ignition switch before anything expensive.",
+      "Nothing at all, with no lights or click: think battery, connections, or ignition switch before anything expensive.",
       "Starts fine, then dies in traffic and won't restart hot: that pattern points somewhere different than a no-start-cold. Tell us which one it is.",
     ],
     links: [
@@ -76,12 +76,12 @@ const GUIDE: GuideEntry[] = [
     answer:
       "Squealing and grinding are two different stages of the same story, and the gap between them is money.",
     points: [
-      "Squeal: many pads have a small metal wear tab that's designed to squeal when the pad gets thin. That's the car asking for pads — the cheap stage.",
+      "Squeal: many pads have a small metal wear tab that's designed to squeal when the pad gets thin. That's the car asking for pads, at the cheap stage.",
       "Grinding, metal-on-metal: the pad material is gone and the backing plate is cutting the rotor. Now you're buying rotors too.",
       "A light squeak on a cold, damp morning that goes away after a few stops is usually just surface rust burning off. That one's normal.",
       "Pulling to one side while braking, or a pedal that sinks toward the floor, is not a pad-wear noise. That's a different problem.",
     ],
-    urgent: "A pedal that goes to the floor, or a car that won't stop the way it should, gets towed — not driven in.",
+    urgent: "A pedal that goes to the floor, or a car that won't stop the way it should, gets towed, not driven in.",
     links: [
       { href: "/brakes-grinding", label: "Brakes grinding" },
       { href: "/grinding-noise-when-braking", label: "Grinding noise when braking" },
@@ -94,7 +94,7 @@ const GUIDE: GuideEntry[] = [
     answer:
       "When it shakes tells you more than how hard it shakes. Pay attention to what you're doing when it starts.",
     points: [
-      "Only while braking: think rotors or a sticking caliper — the shake follows the brake pedal.",
+      "Only while braking: think rotors or a sticking caliper. The shake follows the brake pedal.",
       "At one specific speed, usually somewhere around highway pace, and smooth again above and below: that's the classic wheel-balance signature.",
       "At idle, sitting still in gear: that's an engine-running-rough problem, not a wheel problem.",
       "In the steering wheel means it's usually front. Felt in the seat or the floor means it's usually rear.",
@@ -114,7 +114,7 @@ const GUIDE: GuideEntry[] = [
     points: [
       "Clear and watery, under the passenger side on a hot day: that's almost always AC condensation. Not a leak. Nothing to fix.",
       "Light brown to black, slick: engine oil. Where it sits under the car matters more than how much there is.",
-      "Green, orange, or pink and slightly sweet-smelling: coolant. Worth taking seriously — this is the thing that turns into an overheat.",
+      "Green, orange, or pink and slightly sweet-smelling: coolant. Worth taking seriously. This is the thing that turns into an overheat.",
       "Reddish and thin: transmission or power steering fluid.",
       "A drop or two after it sits is a different conversation than a spreading puddle you can see forming.",
     ],
@@ -130,12 +130,12 @@ const GUIDE: GuideEntry[] = [
     answer:
       "Overheating is the one where the repair bill depends almost entirely on what you do in the next ten minutes.",
     points: [
-      "Heat gauge climbing in stop-and-go traffic but fine on the highway often points at airflow — think cooling fan.",
+      "Heat gauge climbing in stop-and-go traffic but fine on the highway often points at airflow. Think cooling fan.",
       "Climbing on the highway but fine in town points more at flow or coolant level.",
       "Heater blowing cold while the engine runs hot is a classic low-coolant tell.",
       "Never open a hot radiator cap. It's pressurised and it will burn you badly.",
     ],
-    urgent: "Pull over and let it cool. Driving an overheating engine warps heads and blows head gaskets — that's the difference between a small bill and a huge one.",
+    urgent: "Pull over and let it cool. Driving an overheating engine warps heads and blows head gaskets. That's the difference between a small bill and a huge one.",
     links: [
       { href: "/car-overheating", label: "Car overheating" },
       { href: "/cooling", label: "Cooling system service" },
@@ -164,7 +164,7 @@ const GUIDE: GuideEntry[] = [
     id: "ac",
     question: "Why is my AC blowing warm?",
     answer:
-      "AC is a sealed system. If it's low, it's low because it leaked — refrigerant doesn't get used up.",
+      "AC is a sealed system. If it's low, it's low because it leaked. Refrigerant doesn't get used up.",
     points: [
       "Cold at highway speed, warm at idle: often a cooling-fan or airflow issue rather than the AC itself.",
       "Warm all the time: usually low refrigerant, which means there's a leak somewhere to find.",
@@ -187,7 +187,7 @@ export default function SymptomGuide() {
         </h2>
         <p className="text-foreground/50 text-sm mb-8 max-w-2xl">
           Straight answers to what people ask us most, written the way we&apos;d explain it standing at your car.
-          No login, no form &mdash; just read it.
+          No login needed. Just read it.
         </p>
 
         <div className="space-y-8">

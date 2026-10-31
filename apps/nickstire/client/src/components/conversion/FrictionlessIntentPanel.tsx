@@ -71,14 +71,14 @@ export default function FrictionlessIntentPanel() {
       <div className="flex items-center gap-2 mb-1">
         <Zap className="w-4 h-4 text-primary" />
         <span className="text-[10px] font-semibold text-primary tracking-[0.15em] uppercase">
-          Skip the menus — quote in under 5 minutes
+          Skip the menus. Quote in under 5 minutes
         </span>
       </div>
       <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-1">
         Don't know your tire size? You don't need to.
       </h2>
       <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">
-        A real person at the shop pulls your exact fitment and texts you a straight quote —
+        A real person at the shop pulls your exact fitment and texts you a straight quote:
         tire, install, taxes, everything. Two ways in:
       </p>
 
@@ -98,7 +98,7 @@ export default function FrictionlessIntentPanel() {
               Text “TIRE” to {BUSINESS.phone.display}
             </p>
             <p className="text-xs mt-1.5 opacity-80 leading-relaxed">
-              Tap to open your messages pre-filled. A human — not a bot queue — replies with a
+              Tap to open your messages pre-filled. A human (not a bot queue) replies with a
               live quote, usually in under 5 minutes during shop hours.
             </p>
           </div>
@@ -121,7 +121,7 @@ export default function FrictionlessIntentPanel() {
             <>
               <p className="text-sm font-semibold text-foreground">Or: plate lookup</p>
               <p className="text-[11px] text-muted-foreground mt-0.5 mb-3">
-                Your plate tells us the exact factory tire size — no door-jamb sticker hunting.
+                Your plate tells us the exact factory tire size, so no hunting for the door-jamb sticker.
               </p>
               <div className="space-y-2.5">
                 <div>
@@ -174,8 +174,8 @@ export default function FrictionlessIntentPanel() {
                   )}
                 </button>
                 <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                  We only use your plate to decode the factory tire size. One quote text — no spam,
-                  no list.
+                  We only use your plate to decode the factory tire size. One quote text, and we won't add
+                  you to a list.
                 </p>
               </div>
             </>

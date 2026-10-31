@@ -45,7 +45,7 @@ export default function SiteFooter() {
             overlays cover the vertical letterbox elegantly. */}
         <img
           src="/brand-sign.webp"
-          alt="Nick's Tire & Auto signage on Euclid Ave Cleveland — Mechanic on duty, tires, brakes, auto repair, (216) 862-0005"
+          alt="Nick's Tire & Auto signage on Euclid Ave Cleveland: Mechanic on duty, tires, brakes, auto repair, (216) 862-0005"
           className="absolute inset-0 w-full h-full object-contain"
           style={{ objectPosition: "center center" }}
           loading="lazy"

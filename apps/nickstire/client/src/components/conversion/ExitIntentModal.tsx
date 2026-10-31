@@ -137,9 +137,9 @@ export default function ExitIntentModal() {
             </h2>
 
             <p className="text-sm text-foreground/70 mb-5 leading-relaxed">
-              Drop your number — we'll text you a written estimate within
+              Drop your number and we'll text you a written estimate within
               15 minutes during open hours. First-come, first-served.
-              No appointment, no reservation needed.
+              No appointment needed.
             </p>
 
             {!submitted ? (

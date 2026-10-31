@@ -32,7 +32,7 @@ export default function BrandMark({
   variant = "full",
   background = "#0a1628",
   className = "",
-  title = "Nick's Tire & Auto — Cleveland Tough",
+  title = "Nick's Tire & Auto: Cleveland Tough",
 }: BrandMarkProps) {
   // Base viewBox matches the hangtag aspect
   const vb = variant === "full" ? "0 0 120 140" : "0 0 120 120";

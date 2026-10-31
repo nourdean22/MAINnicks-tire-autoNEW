@@ -73,13 +73,13 @@ describe("NonstopNickJoin", () => {
     const plus = q.getByRole("button", { name: /15% off any repair/i });
     expect(base.getAttribute("aria-pressed")).toBe("true");
     expect(plus.getAttribute("aria-pressed")).toBe("false");
-    expect(q.getByRole("button", { name: /Join — \$7\.99\/mo/ })).toBeTruthy();
+    expect(q.getByRole("button", { name: /Join for \$7\.99\/mo/ })).toBeTruthy();
   });
 
   it("rejects a short phone client-side and never calls the mutation", () => {
     const q = setup();
     fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "555-0123" } });
-    fireEvent.click(q.getByRole("button", { name: /Join — / }));
+    fireEvent.click(q.getByRole("button", { name: /Join for / }));
     expect(q.getByText(/valid 10-digit phone number/i)).toBeTruthy();
     expect(h.mutate).not.toHaveBeenCalled();
   });
@@ -87,23 +87,23 @@ describe("NonstopNickJoin", () => {
   it("submits digits-only phone with the selected base plan (default membership_page source)", () => {
     const q = setup();
     fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "(216) 555-0123" } });
-    fireEvent.click(q.getByRole("button", { name: /Join — / }));
+    fireEvent.click(q.getByRole("button", { name: /Join for / }));
     expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick", source: "membership_page" });
   });
 
   it("carries the mount site's source into the mutation (per-surface attribution)", () => {
     const q = setup({ source: "tires_page" });
     fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "2165550123" } });
-    fireEvent.click(q.getByRole("button", { name: /Join — / }));
+    fireEvent.click(q.getByRole("button", { name: /Join for / }));
     expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick", source: "tires_page" });
   });
 
   it("carries the plus plan when selected (CTA price follows)", () => {
     const q = setup();
     fireEvent.click(q.getByRole("button", { name: /15% off any repair/i }));
-    expect(q.getByRole("button", { name: /Join — \$9\.99\/mo/ })).toBeTruthy();
+    expect(q.getByRole("button", { name: /Join for \$9\.99\/mo/ })).toBeTruthy();
     fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "2165550123" } });
-    fireEvent.click(q.getByRole("button", { name: /Join — / }));
+    fireEvent.click(q.getByRole("button", { name: /Join for / }));
     expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick-plus", source: "membership_page" });
   });
 

@@ -97,7 +97,7 @@ export default function TextMeQuote({
       return (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-center gap-2 text-sm text-emerald-300">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
-          Got it — we'll text you in the next few minutes.
+          Got it. We'll text you in the next few minutes.
         </div>
       );
     }
@@ -146,7 +146,7 @@ export default function TextMeQuote({
               A master tech will text {phone} with a quote and the next-available drop-off times. Reply STOP to opt out at any time.
             </p>
             <p className="text-foreground/45 text-xs mt-3">
-              Need it now? Call <a href={BUSINESS.phone.href} className="text-primary font-semibold hover:underline">{BUSINESS.phone.display}</a> — we answer 7 days.
+              Need it now? Call <a href={BUSINESS.phone.href} className="text-primary font-semibold hover:underline">{BUSINESS.phone.display}</a>. We answer 7 days.
             </p>
           </div>
         </div>

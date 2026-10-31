@@ -315,7 +315,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                           {checkoutMutation.isPending ? (
                             <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting secure checkout…</>
                           ) : (
-                            <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
+                            <>Pay Now: ${(bd.total / 100).toFixed(2)}</>
                           )}
                         </button>
                         <p className="text-[9px] text-muted-foreground text-center">
@@ -373,8 +373,8 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                   {deliveryMethod === "ship"
                     ? "We'll confirm availability and contact you with shipping cost. Payment required before shipping."
                     : deliveryMethod.startsWith("drop-off")
-                    ? "We'll confirm availability and contact you. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
-                    : "We'll confirm availability and contact you. Walk in anytime we're open — first come first serve!"}
+                    ? "We'll confirm availability and contact you. Drop off your vehicle and we'll get it done. Drop-offs are worked first come, first served."
+                    : "We'll confirm availability and contact you. Walk in anytime we're open. First come, first served."}
                 </p>
               </div>
             </div>
@@ -682,7 +682,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
               return;
             }
             if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-              toast.error("That email doesn't look right — fix it or leave it blank.");
+              toast.error("That email doesn't look right. Fix it or leave it blank.");
               return;
             }
             const deliveryNote = deliveryMethod === "ship"
@@ -709,7 +709,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
           {orderMutation.isPending ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Requesting Tires...</>
           ) : (tire && tire.shopPrice > 0) ? (
-            <>Request These Tires — ${(bd.total / 100).toFixed(2)}</>
+            <>Request These Tires: ${(bd.total / 100).toFixed(2)}</>
           ) : (
             <>Request Price Confirmation</>
           )}
@@ -718,7 +718,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         {/* Merge: #41's 3-line structure + this wave's pay-at-the-shop
             option clarity. */}
         <div className="text-xs text-muted-foreground text-center mt-4 space-y-1">
-          <p>No card required to request — paying online afterward is optional, or pay at the shop.</p>
+          <p>No card required to request. Paying online afterward is optional, or pay at the shop.</p>
           <p>Staff will confirm availability and fitment before final shop hand-off.</p>
           <p className="text-amber-500/80">Gateway/D&K availability can change until staff confirms.</p>
         </div>
