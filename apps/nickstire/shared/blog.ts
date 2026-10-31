@@ -1,4 +1,5 @@
 import { OHIO_ECHECK } from "./echeck";
+import { BUSINESS } from "./business";
 /**
  * Blog/Tips content for Nick's Tire & Auto
  * SEO-optimized maintenance articles following the brand's content structure:
@@ -3964,7 +3965,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The used-tire math the chains don't show you",
-        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a typical used tire at $60 installed (most sizes $40-80; select 12-inch from $25) × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $25 installed (select 12-inch; most $40-80) at Nick's, and every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
+        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a typical used tire at $60 installed (most sizes $40-80; select 12-inch from $25) × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $25 installed (select 12-inch; most $40-80) at Nick's, and every used tire is checked for " + BUSINESS.usedTires.checkSummary + ", stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
       },
       {
         heading: "Winter, all-season, all-weather — the Ohio reality",

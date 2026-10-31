@@ -38,7 +38,7 @@ const CONFIG: ServicePageConfig = {
     "Mount and balance on every tire — not a line-item surprise",
     "New valve stems and disposal of your old tires",
     "Used tires: tread depth measured with a gauge and shown to you at install",
-    "Used tires: 4-point check — tread, sidewall, DOT date, plug history — before it goes on your car",
+    `Used tires: checked for ${BUSINESS.usedTires.checkSummary} before they go on your car`,
     "Free alignment check on every install — Cleveland potholes kill fresh tires without it",
   ],
   faqs: [
@@ -56,7 +56,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "What's the cheapest safe way to get rolling today?",
-      a: `An inspected used tire — from $25 installed (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Every used tire passes a 4-point check (tread, sidewall, DOT date, plug history) before it goes on your car, and typical turnaround is ${BUSINESS.usedTires.turnaround.toLowerCase()}. Walk in 7 days a week.`,
+      a: `An inspected used tire — from $25 installed (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Every used tire is checked for ${BUSINESS.usedTires.checkSummary} before it goes on your car, and typical turnaround is ${BUSINESS.usedTires.turnaround.toLowerCase()}. Walk in 7 days a week.`,
     },
     {
       q: "Can I pay over time instead of all at once?",

@@ -420,7 +420,7 @@ export function Customer360Panel({ customer }: {
                     <span className="text-[10px] font-bold text-blue-400 block mb-0.5">Tire Replacements Objection:</span>
                     <p className="text-[11px] text-foreground/60 leading-normal">
                       {selectedProfile === "broke_brenda" && "“Cleveland winter weather makes bald tires highly dangerous. We have budget brands starting at $65 and instant financing approvals.”"}
-                      {selectedProfile === "skeptical_pat" && "“Our tire quotes include free lifetime rotations, flat repairs, and alignment checks. There are no hidden fees or surprise costs.”"}
+                      {selectedProfile === "skeptical_pat" && "“Our tire quotes include free flat repairs and alignment checks. There are no hidden fees or surprise costs.”"}
                       {selectedProfile === "busy_tim" && "“We can mount, balance, and align all four tires in under 35 minutes if you take our first morning slot. You won't miss a meeting.”"}
                     </p>
                   </div>

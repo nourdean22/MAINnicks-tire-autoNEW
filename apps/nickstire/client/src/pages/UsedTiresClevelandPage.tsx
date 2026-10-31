@@ -14,6 +14,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { BUSINESS } from "@shared/business";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { DollarSign, ShieldCheck, Gauge } from "lucide-react";
 
@@ -33,7 +34,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   description: `Cleveland used tires from $25 (select 12-inch; most sizes $40-80 installed). Every tire passes a 4-point check — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "USED TIRES — CLEVELAND'S BEST-KEPT SECRET",
   h1: "USED TIRES CLEVELAND.\n4-POINT CHECK. NO TIME BOMBS.",
-  sub: "Need a tire today, not a payment plan? We carry checked used tires in most popular sizes — fully installed, free mount, free balance. Every tire passes a 4-point check before it earns a spot on your car: tread depth measured (not eyeballed), sidewall walked for cracks, DOT date verified (no time bombs), plug history reviewed. Call your size before you drive over — we'll tell you what's on the rack and what we'd put on our own family's car.",
+  sub: "Need a tire today, not a payment plan? We carry checked used tires in most popular sizes, fully installed, free mount, free balance. Every tire is checked for " + BUSINESS.usedTires.checkSummary + " before it earns a spot on your car, and tread depth is measured, not eyeballed. Call your size before you drive over. We'll tell you what's on the rack and what we'd put on our own family's car.",
   startingPrice: "From $25 installed (12-inch rims, subject to availability) · walk-in 7 days · most under 90 min",
   pricingTitle: "USED TIRE PRICING — TRANSPARENT BY DEFAULT",
   pricingSub: "Concrete starting prices below — your exact quote depends on size, but you know the floor before driving over. Mount, balance, valve stems, and disposal included on every install. No mystery 'shop supply' fees. We don't believe in those.",
@@ -55,7 +56,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     "Free alignment check on every install — Cleveland potholes kill new tires fast without it",
   ],
   faqs: [
-    { q: "Are used tires actually safe?", a: "Used tires that pass our 4-point inspection are as safe as new tires for the remaining life of the rubber. The risk with used tires comes from shops that buy auction lots and slap them on cars without inspecting. We check every tire before it leaves on a customer's car. If it has a sidewall crack, internal belt separation, or is over 6 years old, it doesn't go up for sale — it goes in the disposal pile." },
+    { q: "Are used tires actually safe?", a: "Used tires that pass our check are as safe as new tires for the remaining life of the rubber. The risk with used tires comes from shops that buy auction lots and slap them on cars without inspecting. We check every tire before it leaves on a customer's car. If it has a sidewall crack, internal belt separation, or is over 6 years old, it doesn't go up for sale — it goes in the disposal pile." },
     { q: "How long will a used tire last?", a: "Depends on tread depth at install. Tires are legally bald at 2/32\" tread; new tires start around 10-11/32\". A used tire with 6/32\" tread typically has 15,000-25,000 miles left depending on driving conditions, alignment, and rotation discipline. We tell you the exact tread reading at install so you can budget replacement timing." },
     { q: "Why so much cheaper than new tires?", a: "New tires cost $120-$300 each (plus $30-50 install per tire = $30-50 mount/balance/disposal). Used tires let drivers stay safe and legal when budget is the constraint. We price them to move — $40-80 typical for installed quality used tires in popular sizes." },
     { q: "Will my car pass inspection on used tires?", a: "Yes — Ohio has no minimum tread inspection unless required by E-Check (which is emissions, not tires). Federal law requires 2/32\" minimum tread depth across the tire. Our used tires start at 4/32\" or above unless explicitly disclosed and discounted to the customer." },

@@ -55,8 +55,8 @@ function extractBrandSlug(): string | null {
 
 function BrandHero({ brand }: { brand: TireBrand }) {
   const canonicalPath = `/${brand.slug}-tires-cleveland`;
-  const title = `${brand.name} Tires Cleveland | Free $266 Install Package | Nick's`;
-  const description = `${brand.name} tires in Cleveland — full lineup stocked or special-ordered in 24 hours. FREE install package on every set: mount, balance, valve stems, TPMS, alignment check. ${BUSINESS.phone.display}`;
+  const title = `${brand.name} Tires Cleveland | Free $${BUSINESS.installPackage.valueDollars} Install Package | Nick's`;
+  const description = `${brand.name} tires in Cleveland. Full lineup stocked or special-ordered in 24 hours. FREE install package on every set: mount, balance, valve stems, TPMS, alignment check. ${BUSINESS.phone.display}`;
 
   return (
     <PageLayout activeHref="/tires" showChat={true}>
@@ -94,8 +94,8 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             </FadeIn>
             <FadeIn delay={0.15}>
               <p className="mt-5 text-lg sm:text-xl text-foreground/75 max-w-2xl leading-relaxed">
-                {brand.tagline} Stocked or special-ordered in 24 hours. Every set installs with our free $266 package
-                — mount, balance, valve stems, TPMS reset, alignment check, and 20-point check.
+                {brand.tagline} Stocked or special-ordered in 24 hours. Every set installs with our free ${BUSINESS.installPackage.valueDollars} package.
+                It covers mount, balance, valve stems, TPMS reset, alignment check, and 20-point check.
               </p>
             </FadeIn>
             <FadeIn delay={0.2}>
@@ -125,7 +125,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             <FadeIn>
               <p className="text-xs font-mono text-primary tracking-[0.2em] mb-2">WHY {brand.name.toUpperCase()}</p>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-6">
-                What {brand.name} does well — and what it doesn't.
+                What {brand.name} does well, and what it doesn't.
               </h2>
             </FadeIn>
             <div className="grid gap-6 lg:grid-cols-2">
@@ -163,7 +163,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             <FadeIn>
               <p className="text-xs font-mono text-primary tracking-[0.2em] mb-2">MODELS WE INSTALL MOST</p>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-6">
-                Popular {brand.name} lines — and which driver they fit.
+                Popular {brand.name} lines and which driver they fit.
               </h2>
             </FadeIn>
             <div className="grid gap-4 md:grid-cols-2">
@@ -192,21 +192,21 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             <FadeIn>
               <p className="text-xs font-mono text-primary tracking-[0.2em] mb-2">FREE WITH EVERY SET</p>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-3">
-                What chains charge $266 for, included free at Nick's.
+                What chains charge ${BUSINESS.installPackage.valueDollars} for, included free at Nick's.
               </h2>
               <p className="text-foreground/65 mb-8 max-w-2xl">
-                Every set of {brand.name} tires installs with our standard package — no asterisk pricing,
-                no nickel-and-dime add-ons at checkout.
+                Every set of {brand.name} tires installs with our standard package
+                at no extra charge.
               </p>
             </FadeIn>
             <div className="grid gap-3 md:grid-cols-2">
               {[
-                "Tire mount on each wheel — calibrated torque, not impact gun",
+                "Tire mount on each wheel, calibrated torque, not impact gun",
                 "Computerized wheel balance",
                 "New valve stems",
                 "TPMS sensor reset (where equipped)",
                 "Alignment check (full alignment is separate if needed)",
-                "20-point safety check — brakes, suspension, fluids, lights",
+                "20-point safety check of brakes, suspension, fluids, lights",
                 "Disposal of old tires",
                 "Wheel cleaning before re-mount",
                 "12-month parts / 90-day labor warranty",

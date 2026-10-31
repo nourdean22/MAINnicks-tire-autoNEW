@@ -89,7 +89,7 @@ export default function FeeComparisonTable() {
       <p className="mt-3 text-[10px] text-foreground/35 italic">
         Chain figures: typical published Cleveland-area service-menu add-ons, shown as ranges.
         Nick's sticker price includes mounting, computer balancing, new valve stems, TPMS reset,
-        eco-disposal — plus free flat repairs and lifetime rotations on tires we install.
+        eco-disposal, plus free flat repairs on tires we install.
       </p>
     </section>
   );

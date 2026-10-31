@@ -1,6 +1,7 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
 import { COMPETITORS, buildNicksTire } from "@/data/competitors";
 import { useReviewStats } from "@/hooks/useReviewStats";
+import { BUSINESS } from "@shared/business";
 
 /**
  * /best-tire-shops-cleveland
@@ -38,7 +39,7 @@ export default function BestTireShopsCleveland() {
         },
         {
           question: "Where can I find used tires in Cleveland?",
-          answer: "Most chains don't sell used tires — corporate policy. Nick's Tire & Auto sells used tires from $25 installed (select 12-inch; most $40-80). Every used tire gets a 4-point check (tread depth, sidewall integrity, bead seat, age date). If a used tire is wrong for your car, we say so and put new ones on instead. Honesty is the floor.",
+          answer: "Most chains don't sell used tires — corporate policy. Nick's Tire & Auto sells used tires from $25 installed (select 12-inch; most $40-80). Every used tire is checked for " + BUSINESS.usedTires.checkSummary + ". If a used tire is wrong for your car, we say so and put new ones on instead. Honesty is the floor.",
         },
         {
           question: "Which tire shop in Cleveland writes the estimate before starting work?",

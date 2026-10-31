@@ -192,7 +192,7 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
   },
   {
     q: "Are used tires safe to buy?",
-    a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $25 installed (12-inch rims; most sizes $40-80).",
+    a: "The ones we sell are. Every used tire is checked for " + BUSINESS.usedTires.checkSummary + " before it goes on a car. We don't sell a tire we wouldn't put on our own family's car. From $25 installed (12-inch rims; most sizes $40-80).",
   },
   {
     // 2026-09-16 · §11 tire-silo consolidation. Sunday hours had no FAQ

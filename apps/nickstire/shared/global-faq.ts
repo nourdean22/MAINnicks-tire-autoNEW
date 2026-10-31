@@ -4,13 +4,15 @@
  * but Google requires exactly ONE FAQPage schema per page. Now they get merged
  * into each page's FAQPage schema instead.
  */
+import { BUSINESS } from "./business";
+
 export const GLOBAL_FAQ_QUESTIONS = [
   {
     "@type": "Question" as const,
     name: "Can I buy tires online from Nick's Tire & Auto?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free install package ($266+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety check.",
+      text: `Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free install package (${BUSINESS.installPackage.valueDisplay} value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety check.`,
     },
   },
   {
@@ -26,7 +28,7 @@ export const GLOBAL_FAQ_QUESTIONS = [
     name: "Do you sell used tires?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. We carry a large selection of checked used tires from $25 installed (select 12-inch; most $40-80). Every used tire passes a 4-point check — tread depth, sidewall, DOT date, plug history — before it goes on your car. Used tires include the same install package. Walk-ins welcome — inventory changes daily.",
+      text: "Yes. We carry a large selection of checked used tires from $25 installed (select 12-inch; most $40-80). Every used tire is checked for " + BUSINESS.usedTires.checkSummary + " before it goes on your car. Used tires include the same install package. Walk-ins welcome — inventory changes daily.",
     },
   },
   {

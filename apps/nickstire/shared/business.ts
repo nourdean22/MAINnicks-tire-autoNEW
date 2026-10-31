@@ -19,6 +19,14 @@ export const SITE_URL =
   "https://nickstire.org";
 
 const NEW_TIRE_FLOOR_DOLLARS = 89;
+/** Free install package value per set (Nour 2026-10-30: true). See BUSINESS.installPackage. */
+const INSTALL_PACKAGE_VALUE_DOLLARS = 266;
+/**
+ * What the used-tire check covers (Nour 2026-10-30 22:52 EDT: "all and more for used tires
+ * check"): every point any page listed, and more. Copy renders usedTires.checkSummary and
+ * never states a fixed count ("4-point" is retired).
+ */
+const USED_TIRE_CHECK_POINTS = ["tread depth", "sidewall", "bead", "DOT date (age)", "plug and repair history"] as const;
 
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
@@ -223,6 +231,9 @@ export const BUSINESS = {
     // exists to prevent. $60 stays as the typical midpoint.
     explanation: "Used tires start at $25 for 12-inch; most standard passenger sizes run $40-80 installed (typically around $60)",
     turnaround: "Under 20 minutes",
+    checkPoints: USED_TIRE_CHECK_POINTS,
+    /** "tread depth, sidewall, bead, DOT date (age), plug and repair history, and more" */
+    checkSummary: `${USED_TIRE_CHECK_POINTS.join(", ")}, and more`,
     dailyVolume: "50+ per day",
     // Invoice legal text (source of truth, owner-supplied 2026-07-21): used tires
     // carry a SEPARATE, shorter warranty than repairs. Never quote the repair
@@ -262,6 +273,18 @@ export const BUSINESS = {
     startingDollars: NEW_TIRE_FLOOR_DOLLARS,
     priceDisplay: `from $${NEW_TIRE_FLOOR_DOLLARS} installed`,
     positioning: "Any tire, any brand. Nick never says no.",
+  },
+
+  // ─── TIRE INSTALL PACKAGE VALUE (Nour 2026-10-30 22:26 EDT: "true") ──
+  // The free install package's comparative retail value per set: one figure for every
+  // page. It must equal the itemized sum the live gatewayTire endpoint serves
+  // (server/routers/gatewayTire.ts, PACKAGE_VALUE_PER_SET); canonical-business-truth.test.ts
+  // pins both. It is an estimate: body copy shows valueDisplay ("$266+"); the brand-page
+  // titles keep their "Free $266 Install Package" wording. The package does NOT include
+  // lifetime rotations (Nour, same ruling: "cut").
+  installPackage: {
+    valueDollars: INSTALL_PACKAGE_VALUE_DOLLARS,
+    valueDisplay: `$${INSTALL_PACKAGE_VALUE_DOLLARS}+`,
   },
 
   seasonalStorage: {

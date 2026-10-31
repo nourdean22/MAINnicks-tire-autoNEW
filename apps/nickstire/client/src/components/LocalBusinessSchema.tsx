@@ -182,7 +182,7 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Used Tires", description: "Checked used tires from $25 installed (12-inch rims; most sizes $40-80). 4-point check: tread, sidewall, DOT date, plug history." },
+          itemOffered: { "@type": "Service", name: "Used Tires", description: "Checked used tires from $25 installed (12-inch rims; most sizes $40-80). Checked for " + BUSINESS.usedTires.checkSummary + "." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "25", description: "From $25 installed on 12-inch rims; most sizes $40-80 installed" },
         },
         {
