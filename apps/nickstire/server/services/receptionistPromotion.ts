@@ -34,11 +34,13 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { createLogger } from "../lib/logger";
+import { CANARY, evaluateCanary, type CallCounts } from "./receptionistCanary";
 import {
   appendPromotionHistory,
   applyOverlay,
   buildOverlay,
   decideReceptionistPromotion,
+  openPromotion,
   promotionHistoryKey,
   RECEPTIONIST_LOOP,
   type PromotionRecord,
@@ -47,8 +49,8 @@ import {
 
 const log = createLogger("auto-promote");
 
-/** W3 flips this, together with the canary, rollback and undo. */
-const AUTO_PROMOTE_ARMED = false;
+/** Armed in W3 (2026-10-31), with the canary, automatic rollback and Nour's undo in place. */
+const AUTO_PROMOTE_ARMED = true;
 
 /** Kill switch (shop_settings kv). true/1/yes/on/paused = paused; a missing row or anything else = running; an unreadable row = paused. */
 const KILL_SWITCH_KEY = "auto_promote_paused";
@@ -70,6 +72,8 @@ export interface PromotionDeps {
   kvCompareAndSet: (key: string, expected: string | null, next: string) => Promise<boolean>;
   getAssistant: (assistantId: string) => Promise<Response>;
   patchAssistant: (assistantId: string, body: { model: Record<string, unknown>; metadata: Record<string, unknown> }) => Promise<Response>;
+  /** W3 canary reads: evaluated calls that heard the promoted prompt, and the assistant's calls before it. null = the read failed. */
+  canaryCounts: (q: { assistantId: string; promptHash: string; promotedAt: string; baselineDays: number }) => Promise<{ before: CallCounts | null; after: CallCounts | null }>;
 }
 
 /** The slice of a nightly run this needs (EvolutionResult + the full live baseline). */
@@ -171,6 +175,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
     basePrompt: input.baseline.prompt,
     candidatePrompt: input.accepted?.prompt ?? null,
     codePrompt: deps.codePrompt,
+    canaryOpen: historyRaw !== null && openPromotion(JSON.parse(historyRaw) as PromotionRecord[]) !== null,
   });
 
   if (decision.verdict === "hold") {
@@ -206,7 +211,10 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   }
 
   // 3 · Snapshot for undo.
-  await deps.kvSet(STABLE_KEY, JSON.stringify({ versionId, promptHash: input.baseline.promptHash, prompt: livePrompt, at: deps.now().toISOString() }));
+  await deps.kvSet(
+    STABLE_KEY,
+    JSON.stringify({ versionId, assistantId, promptHash: input.baseline.promptHash, candidateHash: sha24(candidate), prompt: livePrompt, at: deps.now().toISOString() }),
+  );
 
   // 4 · Push the system prompt only.
   // The webhook copies metadata.nickBehaviorHash into every call's evidence, so
@@ -264,7 +272,8 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
  */
 async function readPromotedOverlay(): Promise<{ find: string; replace: string; versionId: string } | null> {
   const raw = await promotionKv.get(OVERLAY_KEY);
-  if (raw === null) return null;
+  // A rollback writes "null": the edit is gone, nothing to carry.
+  if (raw === null || raw.trim() === "" || raw.trim() === "null") return null;
   const parsed = JSON.parse(raw) as { find?: unknown; replace?: unknown; versionId?: unknown };
   if (typeof parsed.find !== "string" || typeof parsed.replace !== "string" || typeof parsed.versionId !== "string") {
     throw new Error("overlay row does not parse");
@@ -356,5 +365,218 @@ export async function productionPromotionDeps(): Promise<PromotionDeps> {
     kvCompareAndSet: promotionKv.compareAndSet,
     getAssistant: vapi.fetchAssistantById,
     patchAssistant: vapi.patchAssistantPromptOnly,
+    canaryCounts: readCanaryCounts,
   };
+}
+
+/** The won-call outcomes, as the offline success cohort reads them (promptEvolution.ts). */
+const SUCCESS_OUTCOMES = ["hard_conversion", "walk_in_directed", "resolved_info"] as const;
+
+/**
+ * Evaluated calls on the assistant: AFTER = calls whose evidence names the
+ * promoted prompt; BEFORE = the baseline window before the promotion. Ages are
+ * computed in SQL (TiDB DATETIME comes back shifted on ET). A failed read is
+ * null, never a zero.
+ */
+async function readCanaryCounts(q: { assistantId: string; promptHash: string; promotedAt: string; baselineDays: number }): Promise<{ before: CallCounts | null; after: CallCounts | null }> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const d = await getDb();
+  if (!d) return { before: null, after: null };
+  const sinceSec = Math.max(0, Math.floor((Date.now() - new Date(q.promotedAt).getTime()) / 1000));
+  const untilSec = sinceSec + q.baselineDays * 86_400;
+  const success = sql.join(SUCCESS_OUTCOMES.map((o) => sql`${o}`), sql`, `);
+  const read = async (where: ReturnType<typeof sql>): Promise<CallCounts | null> => {
+    try {
+      const [rows] = (await d.execute(sql`
+        SELECT COUNT(*) AS evaluated,
+               COALESCE(SUM(CASE WHEN eval_outcome IN (${success}) THEN 1 ELSE 0 END), 0) AS success
+        FROM vapi_call_logs
+        WHERE eval_outcome IS NOT NULL
+          AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.behavior.assistantId')) = ${q.assistantId}
+          AND ${where}
+      `)) as unknown as [Array<{ evaluated: unknown; success: unknown }>];
+      const row = rows?.[0];
+      if (!row) return null;
+      return { evaluated: Number(row.evaluated), success: Number(row.success) };
+    } catch (err) {
+      log.warn("[auto-promote] canary read failed", { error: err instanceof Error ? err.message : String(err) });
+      return null;
+    }
+  };
+  return {
+    after: await read(sql`JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.behavior.promptHash')) = ${q.promptHash}`),
+    before: await read(sql`TIMESTAMPDIFF(SECOND, createdAt, NOW()) > ${sinceSec} AND TIMESTAMPDIFF(SECOND, createdAt, NOW()) <= ${untilSec}`),
+  };
+}
+
+// ── W3: the canary, automatic rollback and Nour's undo ─────────────────────
+
+export interface CanaryCheckResult {
+  status: "watching" | "unknown" | "canary_passed" | "rolled_back" | "rollback_failed" | "duplicate" | "held";
+  reason: string | null;
+  /** One plain line for the run's Telegram summary. */
+  line: string;
+}
+
+export interface UndoResult {
+  status: "undone" | "rollback_failed" | "duplicate" | "nothing_to_undo" | "held";
+  reason: string | null;
+  line: string;
+}
+
+/** The stable snapshot the promotion wrote: the prompt callers heard before it. */
+interface StableSnapshot {
+  versionId: string;
+  assistantId: string;
+  promptHash: string;
+  prompt: string;
+}
+
+function parseStable(raw: string | null): StableSnapshot | null {
+  if (raw === null) return null;
+  try {
+    const s = JSON.parse(raw) as Partial<StableSnapshot>;
+    return typeof s.versionId === "string" && typeof s.assistantId === "string" && typeof s.promptHash === "string" && typeof s.prompt === "string"
+      ? (s as StableSnapshot)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseHistory(raw: string | null): PromotionRecord[] | null {
+  if (raw === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PromotionRecord[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Take the open promotion back: claim (compare-and-swap a rolling_back row; a
+ * loser acts on nothing), restore the stable snapshot when the live prompt is
+ * still the promoted one, else reverse the edit on whatever is live (a manual
+ * push happened since, and the rest of that push stays), read back, clear the
+ * overlay so the next manual push does not bring the edit back.
+ */
+async function rollBack(deps: PromotionDeps, status: "rolled_back" | "undone", reason: string): Promise<{ status: "rolled_back" | "undone" | "rollback_failed" | "duplicate" | "nothing_to_undo" | "held"; reason: string | null; line: string }> {
+  const raw = await deps.kvGet(HISTORY_KEY);
+  const rows = parseHistory(raw);
+  if (rows === null) return { status: "held", reason: "history_unreadable", line: "Auto-promote: the history row does not parse; nothing rolled back (check kv)." };
+  const open = openPromotion(rows);
+  if (!open) return { status: "nothing_to_undo", reason: null, line: "Auto-promote: nothing is promoted right now." };
+  const row = (s: PromotionStatus, why: string | null): PromotionRecord => ({ ...open, at: deps.now().toISOString(), status: s, reason: why });
+
+  const claimNext = appendPromotionHistory(raw, row("rolling_back", reason));
+  if (claimNext === null || !(await deps.kvCompareAndSet(HISTORY_KEY, raw, claimNext))) {
+    return { status: "duplicate", reason: "claimed_by_another_run", line: "Auto-promote: another rollback holds this promotion." };
+  }
+  const finish = async (s: PromotionStatus, why: string | null): Promise<void> => {
+    const list = JSON.parse(claimNext) as PromotionRecord[];
+    list[0] = row(s, why);
+    if (!(await deps.kvCompareAndSet(HISTORY_KEY, claimNext, JSON.stringify(list)))) {
+      log.warn("[auto-promote] history moved under a claimed rollback; final status not recorded", { versionId: open.versionId, status: s });
+    }
+  };
+  const failed = async (why: string, line: string) => {
+    await finish("rollback_failed", why);
+    // The next manual push must not bring the edit back.
+    await deps.kvSet(OVERLAY_KEY, "null");
+    log.warn("[auto-promote] rollback failed", { versionId: open.versionId, why });
+    return { status: "rollback_failed" as const, reason: why, line: `Auto-promote: ROLLBACK FAILED (${why}). ${line} Check the receptionist now.` };
+  };
+
+  const stable = parseStable(await deps.kvGet(STABLE_KEY));
+  if (!stable || stable.versionId !== open.versionId) return failed("snapshot_missing", "The stable snapshot does not match the promotion.");
+  const live = await readLive(deps, stable.assistantId);
+  const livePrompt = live ? systemPromptOf(live) : null;
+  if (!live || livePrompt === null) return failed("live_unreadable", "The live assistant could not be read.");
+
+  let target: string | null;
+  if (sha24(livePrompt) === open.candidateHash) {
+    target = stable.prompt;
+  } else {
+    // A manual push since: take only the learned edit back out of the live text.
+    let overlay: { find: string; replace: string } | null = null;
+    try {
+      overlay = await readOverlayVia(deps);
+    } catch {
+      overlay = null;
+    }
+    target = overlay ? applyOverlay(livePrompt, { find: overlay.replace, replace: overlay.find }) : null;
+    if (target === null) return failed("edit_not_found_live", "The live prompt changed and the learned edit could not be found in it.");
+  }
+
+  const meta: Record<string, unknown> = { ...(live.metadata ?? {}) };
+  const base = typeof meta.nickBehaviorHashBase === "string" ? meta.nickBehaviorHashBase : null;
+  delete meta.nickPromptHash;
+  delete meta.nickPromptVersion;
+  delete meta.nickBehaviorHashBase;
+  if (base && target === stable.prompt && sha24(livePrompt) === open.candidateHash) meta.nickBehaviorHash = base;
+  else if (typeof meta.nickBehaviorHash === "string") meta.nickBehaviorHash = sha24(`${meta.nickBehaviorHash}|prompt:${sha24(target)}`);
+
+  const ok = await deps
+    .patchAssistant(stable.assistantId, { model: withSystemPrompt(live, target), metadata: meta })
+    .then((r) => r.ok)
+    .catch(() => false);
+  if (!ok) return failed("push_refused", "Vapi refused the rollback push.");
+  const after = await readLive(deps, stable.assistantId);
+  const afterPrompt = after ? systemPromptOf(after) : null;
+  if (afterPrompt === null || sha24(afterPrompt) !== sha24(target)) return failed("readback_mismatch", "The rollback did not read back.");
+
+  await deps.kvSet(OVERLAY_KEY, "null");
+  await finish(status, reason);
+  log.info("[auto-promote] rolled back", { versionId: open.versionId, status, reason, restoredHash: sha24(target) });
+  const verb = status === "undone" ? "UNDONE by Nour" : `ROLLED BACK (${reason})`;
+  return { status, reason, line: `Auto-promote: ${verb}: ${short(open.candidateHash)} is off the live receptionist, ${short(sha24(target))} serves again, read-back verified.` };
+}
+
+/** The overlay row through the injected kv (rollback runs on the same deps as the push). */
+async function readOverlayVia(deps: PromotionDeps): Promise<{ find: string; replace: string } | null> {
+  const raw = await deps.kvGet(OVERLAY_KEY);
+  if (raw === null || raw.trim() === "" || raw.trim() === "null") return null;
+  const o = JSON.parse(raw) as { find?: unknown; replace?: unknown };
+  return typeof o.find === "string" && typeof o.replace === "string" ? { find: o.find, replace: o.replace } : null;
+}
+
+/**
+ * Nightly, before the experiment: read the open promotion's canary and act on
+ * it. null = nothing promoted. A failed read keeps the canary open (UNKNOWN).
+ */
+export async function checkReceptionistCanary(deps: PromotionDeps): Promise<CanaryCheckResult | null> {
+  const raw = await deps.kvGet(HISTORY_KEY);
+  const rows = parseHistory(raw);
+  if (rows === null) return { status: "held", reason: "history_unreadable", line: "Canary: the history row does not parse (check kv)." };
+  const open = openPromotion(rows);
+  if (!open || !open.candidateHash) return null;
+  const stable = parseStable(await deps.kvGet(STABLE_KEY));
+  let counts: { before: CallCounts | null; after: CallCounts | null } = { before: null, after: null };
+  if (stable) {
+    try {
+      counts = await deps.canaryCounts({ assistantId: stable.assistantId, promptHash: open.candidateHash, promotedAt: open.at, baselineDays: CANARY.baselineDays });
+    } catch {
+      counts = { before: null, after: null };
+    }
+  }
+  const v = evaluateCanary({ now: deps.now(), promotedAt: new Date(open.at), before: counts.before, after: counts.after });
+  const tally = counts.after ? `${counts.after.success}/${counts.after.evaluated} won since` : "unread";
+  const baseTally = counts.before ? `${counts.before.success}/${counts.before.evaluated} before` : "unread";
+  if (v.verdict === "unknown") return { status: "unknown", reason: v.reason, line: `Canary: ${short(open.candidateHash)} could not be measured tonight (read failed); it stays live and open.` };
+  if (v.verdict === "watching") return { status: "watching", reason: null, line: `Canary: ${short(open.candidateHash)} watching, ${tally} vs ${baseTally} (needs ${CANARY.minCalls}).` };
+  if (v.verdict === "passed") {
+    const next = appendPromotionHistory(raw, { ...open, at: deps.now().toISOString(), status: "canary_passed", reason: `z=${v.z.toFixed(2)}` });
+    if (next === null || !(await deps.kvCompareAndSet(HISTORY_KEY, raw, next))) return { status: "duplicate", reason: "claimed_by_another_run", line: "Canary: another run is acting on this promotion." };
+    return { status: "canary_passed", reason: null, line: `Canary: ${short(open.candidateHash)} PASSED, ${tally} vs ${baseTally}; it stays.` };
+  }
+  const r = await rollBack(deps, "rolled_back", `canary_${v.reason}`);
+  return { status: r.status === "nothing_to_undo" ? "held" : r.status === "undone" ? "rolled_back" : r.status, reason: r.reason, line: `${r.line} (${tally} vs ${baseTally})` };
+}
+
+/** Nour's one-tap undo: the same rollback, recorded as his. */
+export async function undoReceptionistPromotion(deps: PromotionDeps): Promise<UndoResult> {
+  const r = await rollBack(deps, "undone", "operator");
+  return { status: r.status === "rolled_back" ? "undone" : r.status, reason: r.reason, line: r.line };
 }

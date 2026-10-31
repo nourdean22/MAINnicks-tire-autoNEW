@@ -12,6 +12,7 @@ import {
   applyOverlay,
   buildOverlay,
   decideReceptionistPromotion,
+  openPromotion,
   type ReceptionistPromotionInput,
 } from "./autoPromote";
 
@@ -120,12 +121,25 @@ describe("overlay: a promoted edit survives the next manual Push Latest Config",
 
 describe("history", () => {
   const rec = (n: number) => ({ versionId: `v${n}`, at: `2026-11-0${n}T05:00:00Z`, loop: "receptionist_prompt", status: "promoted" as const, reason: null, baseHash: "b", candidateHash: `c${n}` });
-  it("is newest first and capped at 10", () => {
+  it("is newest first and capped at 40, longer than a 14-day canary of nightly rows", () => {
     let raw: string | null = null;
-    for (let i = 1; i <= 12; i++) raw = appendPromotionHistory(raw, rec(i % 10));
+    for (let i = 1; i <= 45; i++) raw = appendPromotionHistory(raw, rec(i));
     const list = JSON.parse(raw!);
-    expect(list).toHaveLength(10);
-    expect(list[0].versionId).toBe("v2");
+    expect(list).toHaveLength(40);
+    expect(list[0].versionId).toBe("v45");
+    expect(list[39].versionId).toBe("v6");
+  });
+
+  it("openPromotion: the newest promoted row with no ending row after it", () => {
+    const row = (versionId: string, status: string) => ({ ...rec(1), versionId, status }) as never;
+    expect(openPromotion([row("a", "held"), row("a", "promoted")])).toMatchObject({ versionId: "a" });
+    expect(openPromotion([row("a", "canary_passed"), row("a", "promoted")])).toBeNull();
+    expect(openPromotion([row("b", "push_failed"), row("a", "rolled_back"), row("a", "promoted")])).toBeNull();
+    expect(openPromotion([row("x", "would_promote")])).toBeNull();
+  });
+
+  it("a canary that is open holds the next promotion", () => {
+    expect(decideReceptionistPromotion(input({ canaryOpen: true }))).toEqual({ verdict: "hold", reason: "canary_open" });
   });
   it("refuses to overwrite a stored row that is not a list (null = do not write)", () => {
     expect(appendPromotionHistory("{}", rec(1))).toBeNull();

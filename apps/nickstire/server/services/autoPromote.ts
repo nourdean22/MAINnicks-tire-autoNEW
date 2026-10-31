@@ -102,6 +102,8 @@ export interface ReceptionistPromotionInput {
   candidatePrompt: string | null;
   /** ASSISTANT_SYSTEM_PROMPT: the edit must apply to it once, or a manual push would silently drop it. */
   codePrompt: string;
+  /** A promotion whose canary has not ended (W3): one live change is measured at a time. */
+  canaryOpen?: boolean;
 }
 
 /** One nightly receptionist decision. Order matters: the first refusal is the reason. */
@@ -109,6 +111,7 @@ export function decideReceptionistPromotion(input: ReceptionistPromotionInput): 
   const hold = (reason: string): PromotionDecision => ({ verdict: "hold", reason });
   if (input.paused === null) return hold("kill_switch_unreadable");
   if (input.paused) return hold("kill_switch");
+  if (input.canaryOpen) return hold("canary_open");
   if (input.outcome !== "accepted") return hold(`offline_${input.outcome}`);
   if (!input.confirmed) return hold("offline_unconfirmed");
   if (input.parity === "diverged") return hold("live_prompt_diverged");
@@ -156,7 +159,35 @@ export function applyOverlay(codePrompt: string, overlay: PromptOverlay): string
   return text.slice(0, at) + overlay.replace + text.slice(at + overlay.find.length);
 }
 
-export type PromotionStatus = "would_promote" | "held" | "promoting" | "promoted" | "push_failed" | "readback_restored" | "undone";
+export type PromotionStatus =
+  | "would_promote"
+  | "held"
+  | "promoting"
+  | "promoted"
+  | "push_failed"
+  | "readback_restored"
+  // W3: the canary's end states and the rollback's.
+  | "canary_passed"
+  | "rolling_back"
+  | "rolled_back"
+  | "undone"
+  | "rollback_failed";
+
+/** Statuses that end a promotion's canary. */
+const CANARY_ENDED: ReadonlySet<PromotionStatus> = new Set(["canary_passed", "rolling_back", "rolled_back", "undone", "rollback_failed"]);
+
+/**
+ * The promotion whose canary is still open: the newest "promoted" row with no
+ * ending row after it. null = none (every later row is a hold, a would-promote or
+ * a failed push, which change nothing live).
+ */
+export function openPromotion(rows: readonly PromotionRecord[]): PromotionRecord | null {
+  for (const row of rows) {
+    if (CANARY_ENDED.has(row.status)) return null;
+    if (row.status === "promoted") return row;
+  }
+  return null;
+}
 
 export interface PromotionRecord {
   versionId: string;
@@ -168,7 +199,8 @@ export interface PromotionRecord {
   candidateHash: string | null;
 }
 
-const HISTORY_CAP = 10;
+/** Longer than a 14-day canary of nightly rows, so an open promotion never scrolls out. */
+const HISTORY_CAP = 40;
 
 /**
  * The new history row, newest first, capped. null = the stored row exists and is not a list:

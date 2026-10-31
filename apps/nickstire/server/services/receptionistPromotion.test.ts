@@ -9,7 +9,7 @@
  */
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { promoteReceptionistCandidate, type PromotionDeps } from "./receptionistPromotion";
+import { checkReceptionistCanary, promoteReceptionistCandidate, undoReceptionistPromotion, type PromotionDeps } from "./receptionistPromotion";
 
 // The kv rows, as Nour's admin and W3's undo will read them.
 const KILL_SWITCH_KEY = "auto_promote_paused";
@@ -32,15 +32,23 @@ const liveAssistant = (system: string) => ({
 });
 
 /** In-memory kv with a real compare-and-swap, and a scripted Vapi. */
-function harness(opts: { live?: string; kv?: Record<string, string>; armed?: boolean; patchStatus?: number; readbackSystem?: string | null; killReadFails?: boolean } = {}) {
+type Counts = { evaluated: number; success: number } | null;
+function harness(opts: { live?: string; kv?: Record<string, string>; armed?: boolean; patchStatus?: number; readbackSystem?: string | null; killReadFails?: boolean; now?: Date } = {}) {
   const kv = new Map<string, string>(Object.entries(opts.kv ?? {}));
   let served = opts.live ?? LIVE;
+  let servedMeta: Record<string, unknown> = liveAssistant(LIVE).metadata;
   const patches: Array<Record<string, any>> = [];
   let readbackOverride = opts.readbackSystem;
+  const canary: { before: Counts; after: Counts; asked: Array<Record<string, unknown>> } = { before: { evaluated: 400, success: 200 }, after: { evaluated: 0, success: 0 }, asked: [] };
+  const clock = { now: opts.now ?? new Date("2026-11-03T05:30:00Z") };
   const deps: PromotionDeps = {
+    canaryCounts: async (q) => {
+      canary.asked.push(q);
+      return { before: canary.before, after: canary.after };
+    },
     armed: opts.armed ?? true,
     codePrompt: CODE,
-    now: () => new Date("2026-11-03T05:30:00Z"),
+    now: () => clock.now,
     kvGet: async (k) => {
       if (k === KILL_SWITCH_KEY && opts.killReadFails) throw new Error("db down");
       return kv.get(k) ?? null;
@@ -56,16 +64,27 @@ function harness(opts: { live?: string; kv?: Record<string, string>; armed?: boo
         patches.push(JSON.parse(JSON.stringify(body)));
         if ((opts.patchStatus ?? 200) !== 200) return new Response("bad", { status: opts.patchStatus });
         served = (body.model as { messages: Array<{ content: string }> }).messages[0].content;
+        servedMeta = body.metadata;
         return new Response("{}", { status: 200 });
       }
     },
     getAssistant: async () => {
       const sys = readbackOverride !== undefined && patches.length === 1 ? readbackOverride : served;
       if (patches.length === 1 && readbackOverride !== undefined) readbackOverride = undefined;
-      return new Response(JSON.stringify(liveAssistant(sys ?? served)), { status: 200 });
+      return new Response(JSON.stringify({ ...liveAssistant(sys ?? served), metadata: servedMeta }), { status: 200 });
     },
   };
-  return { kv, deps, patches, served: () => served };
+  return {
+    kv,
+    deps,
+    patches,
+    canary,
+    clock,
+    served: () => served,
+    meta: () => servedMeta,
+    /** A manual Push Latest Config happened: the live text changed under the promotion. */
+    setServed: (s: string) => void (served = s),
+  };
 }
 
 const accepted = (prompt: string, over: Record<string, unknown> = {}) => ({
@@ -78,9 +97,9 @@ const accepted = (prompt: string, over: Record<string, unknown> = {}) => ({
 const history = (kv: Map<string, string>) => JSON.parse(kv.get(HISTORY) ?? "[]");
 
 describe("promoteReceptionistCandidate", () => {
-  it("ships disarmed: the production deps W3 arms say armed false", async () => {
+  it("W3 arms it: the production deps say armed true (the canary, rollback and undo exist)", async () => {
     const { productionPromotionDeps } = await import("./receptionistPromotion");
-    expect((await productionPromotionDeps()).armed).toBe(false);
+    expect((await productionPromotionDeps()).armed).toBe(true);
   });
 
   it("disarmed: a gated winner is recorded as would_promote and nothing is pushed", async () => {
@@ -186,5 +205,122 @@ describe("promoteReceptionistCandidate", () => {
     expect(r).toMatchObject({ status: "held", reason: "history_unreadable" });
     expect(h.kv.get(HISTORY)).toBe("{oops");
     expect(h.patches).toHaveLength(0);
+  });
+});
+
+// ── Self-learning W3: the canary, automatic rollback and Nour's undo ──────────
+/** The next night's winner, measured against the promoted prompt. */
+const OTHER = GOOD.replace("Ask where the car is.", "Ask where the car is, then whether it is safe to drive.");
+const H = 3_600_000;
+
+/** Promote GOOD and move the clock forward by `hours`. */
+async function promoted(h: ReturnType<typeof harness>, hours = 48) {
+  const r = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
+  expect(r.status).toBe("promoted");
+  h.clock.now = new Date(h.clock.now.getTime() + hours * H);
+  return r;
+}
+
+describe("W3 · canary, rollback, undo", () => {
+  it("while a canary is open, the next night's winner is held", async () => {
+    const h = harness();
+    await promoted(h);
+    const next = await promoteReceptionistCandidate({ ...accepted(OTHER), baseline: { assistantId: "asst-1", prompt: GOOD, promptHash: hash(GOOD), parity: "code_plus_lessons" } }, h.deps);
+    expect(next).toMatchObject({ status: "held", reason: "canary_open" });
+    expect(h.patches).toHaveLength(1);
+  });
+
+  it("nothing promoted: the canary check has nothing to say", async () => {
+    const h = harness();
+    expect(await checkReceptionistCanary(h.deps)).toBeNull();
+  });
+
+  it("the canary asks for exactly the promoted prompt's calls and the assistant's 14 days before", async () => {
+    const h = harness();
+    await promoted(h);
+    await checkReceptionistCanary(h.deps);
+    expect(h.canary.asked[0]).toMatchObject({ assistantId: "asst-1", promptHash: hash(GOOD), promotedAt: "2026-11-03T05:30:00.000Z", baselineDays: 14 });
+  });
+
+  it("too few calls yet: watching, nothing changes", async () => {
+    const h = harness();
+    await promoted(h);
+    h.canary.after = { evaluated: 20, success: 10 };
+    const r = await checkReceptionistCanary(h.deps);
+    expect(r).toMatchObject({ status: "watching" });
+    expect(h.served()).toBe(GOOD);
+  });
+
+  it("enough calls and no harm: the canary passes, and a new winner may promote again", async () => {
+    const h = harness();
+    await promoted(h);
+    h.canary.after = { evaluated: 60, success: 31 };
+    expect(await checkReceptionistCanary(h.deps)).toMatchObject({ status: "canary_passed" });
+    expect(history(h.kv)[0]).toMatchObject({ status: "canary_passed", candidateHash: hash(GOOD) });
+    const next = await promoteReceptionistCandidate({ ...accepted(OTHER), baseline: { assistantId: "asst-1", prompt: GOOD, promptHash: hash(GOOD), parity: "code_plus_lessons" } }, h.deps);
+    expect(next.status).toBe("promoted");
+  });
+
+  it("harm rolls back automatically: the prior prompt hash is restored, read back, the overlay cleared", async () => {
+    const h = harness();
+    await promoted(h);
+    h.canary.after = { evaluated: 60, success: 18 };
+    const r = await checkReceptionistCanary(h.deps);
+    expect(r).toMatchObject({ status: "rolled_back", reason: "canary_harm" });
+    expect(hash(h.served())).toBe(hash(LIVE));
+    expect(h.meta()).toMatchObject({ nickBehaviorHash: "old", other: "kept" });
+    expect(h.meta()).not.toHaveProperty("nickPromptHash");
+    expect(h.kv.get(OVERLAY_KEY)).toBe("null");
+    expect(history(h.kv)[0]).toMatchObject({ status: "rolled_back", reason: "canary_harm", candidateHash: hash(GOOD) });
+  });
+
+  it("a canary read that failed keeps the canary open: never passed, never rolled back", async () => {
+    const h = harness();
+    await promoted(h);
+    h.canary.before = null;
+    expect(await checkReceptionistCanary(h.deps)).toMatchObject({ status: "unknown" });
+    expect(h.served()).toBe(GOOD);
+    expect(history(h.kv)[0].status).toBe("promoted");
+  });
+
+  it("Nour's undo restores the prior prompt hash with one call", async () => {
+    const h = harness();
+    await promoted(h, 1);
+    const r = await undoReceptionistPromotion(h.deps);
+    expect(r).toMatchObject({ status: "undone", reason: "operator" });
+    expect(hash(h.served())).toBe(hash(LIVE));
+    expect(history(h.kv)[0]).toMatchObject({ status: "undone" });
+  });
+
+  it("undo with nothing promoted changes nothing", async () => {
+    const h = harness();
+    expect(await undoReceptionistPromotion(h.deps)).toMatchObject({ status: "nothing_to_undo" });
+    expect(h.patches).toHaveLength(0);
+  });
+
+  it("an undo and a canary rollback racing act once", async () => {
+    const h = harness();
+    await promoted(h);
+    h.canary.after = { evaluated: 60, success: 18 };
+    const [a, b] = await Promise.all([undoReceptionistPromotion(h.deps), checkReceptionistCanary(h.deps)]);
+    expect([a?.status, b?.status].filter((s) => s === "undone" || s === "rolled_back")).toHaveLength(1);
+    expect(h.patches).toHaveLength(2);
+  });
+
+  it("two undo taps reading the same history act once: the second loses the swap", async () => {
+    const h = harness();
+    await promoted(h, 1);
+    const [a, b] = await Promise.all([undoReceptionistPromotion(h.deps), undoReceptionistPromotion(h.deps)]);
+    expect([a.status, b.status].sort()).toEqual(["duplicate", "undone"]);
+    expect(h.patches).toHaveLength(2);
+  });
+
+  it("a manual push since the promotion: the edit is reversed on the live text, the rest of the push kept", async () => {
+    const h = harness();
+    await promoted(h, 1);
+    h.setServed(`${GOOD}\n- a lesson the manual push added`);
+    const r = await undoReceptionistPromotion(h.deps);
+    expect(r).toMatchObject({ status: "undone" });
+    expect(h.served()).toBe(`${LIVE}\n- a lesson the manual push added`);
   });
 });
