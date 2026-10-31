@@ -1,8 +1,28 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Brain, Sparkles, AlertTriangle, ShieldCheck, X } from "lucide-react";
 import type { QualityPayload } from "@/components/chat/quality-bar";
+import { WEAK_MATCH_BELOW, splitWeakTail } from "@/lib/chat/recall-display";
+import { useInspector } from "@/hooks/use-inspector";
+
+/** U2 · the source of a recalled memory: the universal memory inspector (?inspect=memory:<id>). */
+function OpenMemoryButton({ id, category, onOpened }: { id: string; category: string; onOpened?: () => void }) {
+  const { openInspector } = useInspector();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        openInspector({ kind: "memory", id });
+        onOpened?.();
+      }}
+      aria-label={`Open this ${category} memory`}
+      className="-my-3 -mr-2 flex min-h-11 items-center rounded-control px-2 text-fg-secondary hover:bg-surface hover:text-fg"
+    >
+      Open
+    </button>
+  );
+}
 
 export interface MemoryHit {
   id: string;
@@ -43,6 +63,13 @@ export interface MemoryInspectorSidebarProps {
    * stays the fixed overlay it was.
    */
   docked?: boolean;
+  /**
+   * U2 (2026-10-30) · where `hits` came from. "turn" = the stream's memory.recalled event: what
+   * recall returned for this turn (the prompt may use part of it: with NICK_RECALL_ARBITER on, an
+   * arbitrated pack is built from these and other sources). "preview" = recall re-run on the last
+   * message after the fact (a reload, an old thread). Undefined = unknown.
+   */
+  recallSource?: "turn" | "preview";
 }
 
 export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
@@ -54,8 +81,15 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   recallProvenance,
   recallProvenanceReason,
   docked = false,
+  recallSource,
 }) => {
+  // Open for THIS list only: a new turn's list starts folded again.
+  const [weakOpenFor, setWeakOpenFor] = useState<MemoryHit[] | null>(null);
   if (!open) return null;
+  const showWeak = weakOpenFor === hits;
+  // A degraded read is lexical-only: its scores are not cosine, so nothing folds.
+  const { strong, weak } = recallProvenance === "OK" ? splitWeakTail(hits) : { strong: hits, weak: [] };
+  const shown = showWeak ? hits : strong;
   // Absolute time, not "Ns ago": render stays pure (no Date.now() during
   // render — react-compiler purity rule) and an absolute stamp is the more
   // honest receipt anyway.
@@ -199,9 +233,20 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           <div className="flex items-center space-x-1 text-fg-tertiary mb-3">
             <Sparkles className="w-3.5 h-3.5" />
             <span className="font-mono text-[11px] font-medium">
-              Remembered: what Nick believes ({hits.length})
+              {recallSource === "turn"
+                ? `Recalled for this turn (${hits.length})`
+                : recallSource === "preview"
+                  ? `Recall preview for your last message (${hits.length})`
+                  : `Remembered: what Nick believes (${hits.length})`}
             </span>
           </div>
+          {recallSource && hits.length > 0 ? (
+            <p className="text-[11px] text-fg-tertiary mb-3">
+              {recallSource === "turn"
+                ? "What memory recall returned for this message. Nick's prompt may use part of it."
+                : "Run again just now. The reply may have used different memories."}
+            </p>
+          ) : null}
           {/*
             2026-09-10 (review) · a DEGRADED read that still returned
             hits must not render as a clean one.
@@ -265,15 +310,34 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             )
           ) : (
             <div className="space-y-3">
-              {hits.map((hit) => (
+              {shown.map((hit) => (
                 <div key={hit.id} className="bg-surface/50 border border-edge-subtle p-3 rounded-surface">
-                  <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-1">
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-fg-tertiary mb-1">
                     <span>{hit.category}</span>
-                    <span>{(hit.similarity * 100).toFixed(0)}% Match</span>
+                    <span className="ml-auto">{(hit.similarity * 100).toFixed(0)}% match</span>
+                    {/* hit-N ids are the preview's placeholders for rows with no id: nothing to open. */}
+                    {/^hit-\d+$/.test(hit.id) ? null : <OpenMemoryButton
+                        id={hit.id}
+                        category={hit.category}
+                        // Undocked this panel is a z-50 overlay; the inspector's side panel sits at z-45 under it.
+                        onOpened={docked ? undefined : onClose}
+                      />}
                   </div>
                   <p className="text-[11px] text-fg-secondary whitespace-pre-wrap">{hit.content}</p>
                 </div>
               ))}
+              {weak.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setWeakOpenFor(showWeak ? null : hits)}
+                  aria-expanded={showWeak}
+                  className="flex min-h-11 w-full items-center rounded-control px-2 text-left text-[11px] text-fg-tertiary hover:bg-surface hover:text-fg"
+                >
+                  {showWeak
+                    ? `Hide ${weak.length} weak ${weak.length === 1 ? "match" : "matches"}`
+                    : `${weak.length} weak ${weak.length === 1 ? "match" : "matches"} hidden (under ${Math.round(WEAK_MATCH_BELOW * 100)}%). Show`}
+                </button>
+              ) : null}
             </div>
           )}
         </div>
