@@ -172,6 +172,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 
 ## Loop log
 
+- Tick 20, 2026-10-31 19:20Z: no new asks. Row 61: W5 transfer callback is PR 3472 (head `c3f9f4c52a`), RED on the agent-policy job. Same cause 3463 had: the DoD compiler marks `capability-ledger-updated` evidence STALE, with ledger key `today-owed-texts` (run 41233428180). PR 3463 is on new head `7a7533d558`, 1 check pending. 3471 still red (node).
+
 - Tick 17, 2026-10-31 18:28Z: no new asks. PR 3463 (self-learning W0) is GREEN on new head `c6b1e0c6ff` (0 red, 0 pending), ready for the gate. PR 3471 (calendar W2b, head `1de4b1cda6`) is RED on node. Live builds unchanged.
 
 - Tick 16, 2026-10-31 18:12Z: no new asks. 3470 (tick 15) merged `5fbe581059`. Row 34: calendar W2b is PR 3471 (open). Manager rulings 17:10Z (CLAIM): `b0d2694502` is in no branch head, only GitHub's `refs/pull/3466/head`; closed. The three pushed lane branches are crash backups, not ready for PRs. Order: W5b PR when its lane returns; self-learning W1 after 3463 merges; sharpener finish lane queued for a writer slot. Live builds unchanged.
