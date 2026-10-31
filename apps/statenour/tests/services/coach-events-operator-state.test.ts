@@ -101,6 +101,16 @@ describe("coach events · operator state on the server row", () => {
     expect(events[0].doneAt).toBeUndefined();
   });
 
+  it("done also sets ackedAt, kept across a re-fire, so the ~18 surfaces that read rows directly (`!meta.ackedAt`) hide it too", async () => {
+    await fire();
+    await markCoachEventDone(KEY);
+    const rowMeta = () => h.rows.get(`coach_event|${KEY}`)!.metadata as Record<string, unknown>;
+    expect(typeof rowMeta().ackedAt).toBe("string");
+    await fire();
+    expect(typeof rowMeta().ackedAt).toBe("string");
+    expect(typeof rowMeta().doneAt).toBe("string");
+  });
+
   it("acting on a missing event reports false, never a silent success", async () => {
     expect(await markCoachEventDone("coach:system-alert:nope")).toBe(false);
     expect(await snoozeCoachEvent("coach:system-alert:nope", 1)).toBe(false);

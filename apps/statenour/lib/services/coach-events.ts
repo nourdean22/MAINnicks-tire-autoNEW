@@ -315,9 +315,9 @@ export async function getActiveCoachEvents(
 }
 
 /**
- * Mark a coach event as acked (operator dismissed it). Idempotent ·
- * setting ackedAt on an already-acked row is a no-op effectively
- * (timestamp shifts but filter behavior stays the same).
+ * Mark a coach event as acked: the WRITER saw the condition clear (operator dismissals go through
+ * markCoachEventDone). It ends the occurrence, so it also drops any done or snooze: the next fire is a
+ * new occurrence and shows. Idempotent · re-acking shifts the timestamp, filter behavior is the same.
  */
 export async function ackCoachEvent(eventKey: string): Promise<boolean> {
   try {
@@ -328,7 +328,7 @@ export async function ackCoachEvent(eventKey: string): Promise<boolean> {
       select: { metadata: true },
     });
     if (!existing) return false;
-    const meta = (existing.metadata ?? {}) as Record<string, unknown>;
+    const { doneAt: _done, snoozeUntil: _snooze, ...meta } = (existing.metadata ?? {}) as Record<string, unknown>;
     const next = { ...meta, ackedAt: new Date().toISOString() };
     await prisma.brainMemory.update({
       where: {
@@ -350,9 +350,13 @@ export async function ackCoachEvent(eventKey: string): Promise<boolean> {
  * Operator actions (Pulse sheet, banner dismiss). They write the server row, so every device agrees.
  * Distinct from ackCoachEvent, which WRITERS call when the condition clears: an ack ends the
  * occurrence, and the next fire is a new one. Done and snooze survive re-fires of the same one.
+ * Done also sets ackedAt: about 18 surfaces read coach rows directly and treat `!meta.ackedAt` as open
+ * (the morning brief, narrator, Nick's context), and drift-engine reads it to stop re-nagging for 7 days.
+ * Snooze is the Pulse sheet's own "not now" and does not touch them.
  */
 export async function markCoachEventDone(eventKey: string): Promise<boolean> {
-  return patchOperatorState(eventKey, { doneAt: new Date().toISOString() });
+  const nowIso = new Date().toISOString();
+  return patchOperatorState(eventKey, { doneAt: nowIso, ackedAt: nowIso });
 }
 
 export async function snoozeCoachEvent(eventKey: string, hours: number): Promise<boolean> {
@@ -382,14 +386,19 @@ async function patchOperatorState(eventKey: string, patch: Record<string, string
 const DONE_HOLD_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The operator state a re-fire keeps. A writer ack ends the occurrence (nothing is carried); otherwise
- * done holds for DONE_HOLD_MS and a snooze holds until it passes.
+ * The operator state a re-fire keeps. A live done (under DONE_HOLD_MS) is kept with the ackedAt it set;
+ * otherwise an ackedAt means the occurrence ended (writer ack, or a done past its hold) and nothing is
+ * carried. A snooze holds until it passes.
  */
-function carryOperatorState(prevMeta: unknown, now: number): { doneAt?: string; snoozeUntil?: string } {
+function carryOperatorState(prevMeta: unknown, now: number): { doneAt?: string; ackedAt?: string; snoozeUntil?: string } {
   const meta = (prevMeta ?? {}) as Record<string, unknown>;
-  if (typeof meta.ackedAt === "string") return {};
-  const out: { doneAt?: string; snoozeUntil?: string } = {};
-  if (typeof meta.doneAt === "string" && now - Date.parse(meta.doneAt) < DONE_HOLD_MS) out.doneAt = meta.doneAt;
+  const out: { doneAt?: string; ackedAt?: string; snoozeUntil?: string } = {};
+  if (typeof meta.doneAt === "string" && now - Date.parse(meta.doneAt) < DONE_HOLD_MS) {
+    out.doneAt = meta.doneAt;
+    if (typeof meta.ackedAt === "string") out.ackedAt = meta.ackedAt;
+  } else if (typeof meta.ackedAt === "string") {
+    return {};
+  }
   if (typeof meta.snoozeUntil === "string" && Date.parse(meta.snoozeUntil) > now) out.snoozeUntil = meta.snoozeUntil;
   return out;
 }

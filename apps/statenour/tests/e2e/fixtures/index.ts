@@ -30,7 +30,7 @@ import type { Page } from "@playwright/test";
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_GOALS, HOME_LOVE_MAP, HOME_MAXIM, HOME_PEOPLE, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
-import { SHELL_PULSE, SHELL_TICKER } from "./shell";
+import { SHELL_PULSE, SHELL_SIGNALS, SHELL_TICKER } from "./shell";
 import { FIXED_TIME } from "./time";
 
 export { FIXED_TIME, NOW_ISO, NOW_MS } from "./time";
@@ -90,6 +90,7 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "task.loveMapQuestion": HOME_LOVE_MAP,
   "operator.personalPulse": SHELL_PULSE,
   "operator.ticker": SHELL_TICKER,
+  "operator.pulseFeed": SHELL_SIGNALS,
   "task.deck": MISSIONS_DECK,
   "task.list": MISSION_TASKS,
   "task.missions": MISSIONS,
