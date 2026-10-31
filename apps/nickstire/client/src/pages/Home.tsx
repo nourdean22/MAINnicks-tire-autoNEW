@@ -970,7 +970,7 @@ export default function Home() {
             "@type": "Service",
             name: "Tire Install Package (Free with Every Set)",
             description:
-              "Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. $266+ value.",
+              `Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. ${BUSINESS.installPackage.valueDisplay} value.`,
             provider: {
               "@type": "AutoRepair",
               name: BUSINESS.name,
@@ -991,7 +991,7 @@ export default function Home() {
               "@type": "Offer",
               price: "0",
               priceCurrency: "USD",
-              description: "Free with tire purchase, value $266+",
+              description: `Free with tire purchase, value ${BUSINESS.installPackage.valueDisplay}`,
             },
           }),
         }}

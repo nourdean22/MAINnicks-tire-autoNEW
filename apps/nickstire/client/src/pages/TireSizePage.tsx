@@ -142,7 +142,7 @@ export default function TireSizePage() {
             "@context": "https://schema.org",
             "@type": "Service",
             name: `${page.size} Tire Sales & Installation`,
-            description: `${page.size} tires in Cleveland, new and used, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
+            description: `${page.size} tires in Cleveland, new and used, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check. Walk in 7 days.`,
             serviceType: "Tire Installation",
             image: "https://nickstire.org/photos/rugged-tire-tread-closeup.webp",
             provider: {
@@ -177,7 +177,7 @@ export default function TireSizePage() {
           <FadeIn delay={0.1}>
             <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
               New and used {page.size} tires. Fits {vehicleList}. Every set gets free
-              mounting, balancing, alignment check, and lifetime rotations.
+              mounting, balancing, and an alignment check.
             </p>
           </FadeIn>
           <FadeIn delay={0.15}>
@@ -231,7 +231,7 @@ export default function TireSizePage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground mb-1">Free Installation Package</h3>
-                  <p className="text-sm text-foreground/60">Mount, balance, alignment check, TPMS reset, lifetime rotations. $266+ value included free.</p>
+                  <p className="text-sm text-foreground/60">Mount, balance, alignment check, TPMS reset. {BUSINESS.installPackage.valueDisplay} value included free.</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">

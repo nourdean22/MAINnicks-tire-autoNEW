@@ -37,6 +37,7 @@ import { BUSINESS, DISCOUNT_PROGRAMS } from "@shared/business";
 import { BRAKE_PRICE, DIAGNOSTIC_PRICE, OIL_COUPON, OIL_PRICE } from "@shared/pricing";
 import { OHIO_ECHECK } from "@shared/echeck";
 import { findVoiceViolations, KILL_RULES } from "@shared/voice";
+import { TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const SCAN_DIRS = [join(ROOT, "client", "src"), join(ROOT, "shared")];
@@ -1501,5 +1502,73 @@ describe("discount terms come from DISCOUNT_PROGRAMS in shared/business.ts", () 
     expect(OFFER_FIGURE.test("$20 off any brake job")).toBe(true);
     expect(OFFER_FIGURE.test("Used tires from $25 installed")).toBe(false);
     expect(OFFER_FIGURE.test("Conventional oil change is $49")).toBe(false);
+  });
+});
+
+// ─── Install package value + the retired lifetime-rotation promise ─────────
+// Nour, 2026-10-30 22:26 EDT: "$266+ value" is TRUE (one named constant in
+// BUSINESS, read everywhere), and the "lifetime rotations" promise is CUT
+// everywhere. The value must also equal the itemized package the live
+// gatewayTire endpoint serves, or two numbers reach customers again.
+const INSTALL_VALUE_TYPED = /\$266\b|\?\?\s*266\b/;
+const LIFETIME_ROTATION = /\blifetime rotations?\b/i;
+// Lines that describe a COMPETITOR's rotation deal are comparison facts, not our promise.
+const COMPETITOR_CONTEXT = /Costco|Sam's Club|Discount Tire/i;
+
+describe("install package value has one source; lifetime rotations are not promised", () => {
+  it("matchers see their own defects and pass clean copy", () => {
+    expect(INSTALL_VALUE_TYPED.test("Free $266 install package")).toBe(true);
+    expect(INSTALL_VALUE_TYPED.test("const v = pkg ?? 266;")).toBe(true);
+    expect(INSTALL_VALUE_TYPED.test("Free ${BUSINESS.installPackage.valueDisplay} install package")).toBe(false);
+    expect(LIFETIME_ROTATION.test("alignment check + lifetime rotations.")).toBe(true);
+    expect(LIFETIME_ROTATION.test("We don't promise lifetime free rotations")).toBe(false);
+  });
+
+  it("BUSINESS.installPackage is the $266+ figure and equals the itemized server package", () => {
+    expect(BUSINESS.installPackage.valueDisplay).toBe(`$${BUSINESS.installPackage.valueDollars}+`);
+    const src = readFileSync(join(ROOT, "server", "routers", "gatewayTire.ts"), "utf8");
+    const start = src.indexOf("services: [");
+    const block = src.slice(start, src.indexOf("],", start));
+    const items = [...block.matchAll(/value:\s*(\d+)/g)].map((m) => Number(m[1]));
+    expect(items.length).toBeGreaterThan(5);
+    expect(items.reduce((s, v) => s + v, 0)).toBe(BUSINESS.installPackage.valueDollars);
+  });
+
+  // The brand-page titles in shared/routes.ts must stay plain string literals: the
+  // route-registry validator parses them and fails closed on a template literal. So they
+  // are the one typed copy, and this pins their number to the constant instead.
+  const ROUTE_TITLE = /title: "[^"]*\| Free \$(\d+) Install Package \|/;
+
+  it("no client or shared copy types the figure (route titles are pinned below)", () => {
+    const typed = LINES.filter(
+      (l) => INSTALL_VALUE_TYPED.test(l.text) && !(l.file === "shared/routes.ts" && ROUTE_TITLE.test(l.text)),
+    );
+    expect(typed.map((l) => `${l.file}:${l.line}`)).toEqual([]);
+  });
+
+  it("the five brand-page titles carry the same figure as BUSINESS.installPackage", () => {
+    const titles = LINES.filter((l) => l.file === "shared/routes.ts" && ROUTE_TITLE.test(l.text));
+    expect(titles).toHaveLength(5);
+    for (const t of titles) expect(Number(ROUTE_TITLE.exec(t.text)![1])).toBe(BUSINESS.installPackage.valueDollars);
+  });
+
+  it("no copy promises lifetime rotations from Nick's", () => {
+    const hits = LINES.filter((l) => LIFETIME_ROTATION.test(l.text) && !COMPETITOR_CONTEXT.test(l.text));
+    expect(hits.map((l) => `${l.file}:${l.line}`)).toEqual([]);
+  });
+
+  it("tire-size meta reads used and new prices from BUSINESS, with no typed 'Used from $40'", () => {
+    const metas = TIRE_SIZE_PAGES.map(buildTireSizeMetaDescription);
+    expect(metas.filter((m) => /Used from \$40/.test(m))).toEqual([]);
+    const passenger = TIRE_SIZE_PAGES.filter((p) => p.category === "Sedan" || p.category === "SUV/Crossover");
+    expect(passenger.length).toBeGreaterThan(0);
+    // A size page is not a 12-inch page: it quotes the typical used band from BUSINESS, not the $25 floor.
+    const band = BUSINESS.usedTires.typicalBand.match(/\$\d+-\d+/)?.[0];
+    expect(band).toBeTruthy();
+    for (const p of passenger) {
+      const m = buildTireSizeMetaDescription(p);
+      expect(m).toContain(`Used ${band} (most sizes)`);
+      expect(m).toContain(BUSINESS.newTires.priceDisplay);
+    }
   });
 });

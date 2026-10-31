@@ -19,6 +19,8 @@ export const SITE_URL =
   "https://nickstire.org";
 
 const NEW_TIRE_FLOOR_DOLLARS = 89;
+/** Free install package value per set (Nour 2026-10-30: true). See BUSINESS.installPackage. */
+const INSTALL_PACKAGE_VALUE_DOLLARS = 266;
 
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
@@ -262,6 +264,18 @@ export const BUSINESS = {
     startingDollars: NEW_TIRE_FLOOR_DOLLARS,
     priceDisplay: `from $${NEW_TIRE_FLOOR_DOLLARS} installed`,
     positioning: "Any tire, any brand. Nick never says no.",
+  },
+
+  // ─── TIRE INSTALL PACKAGE VALUE (Nour 2026-10-30 22:26 EDT: "true") ──
+  // The free install package's comparative retail value per set: one figure for every
+  // page. It must equal the itemized sum the live gatewayTire endpoint serves
+  // (server/routers/gatewayTire.ts, PACKAGE_VALUE_PER_SET); canonical-business-truth.test.ts
+  // pins both. It is an estimate: body copy shows valueDisplay ("$266+"); the brand-page
+  // titles keep their "Free $266 Install Package" wording. The package does NOT include
+  // lifetime rotations (Nour, same ruling: "cut").
+  installPackage: {
+    valueDollars: INSTALL_PACKAGE_VALUE_DOLLARS,
+    valueDisplay: `$${INSTALL_PACKAGE_VALUE_DOLLARS}+`,
   },
 
   seasonalStorage: {

@@ -4,13 +4,15 @@
  * but Google requires exactly ONE FAQPage schema per page. Now they get merged
  * into each page's FAQPage schema instead.
  */
+import { BUSINESS } from "./business";
+
 export const GLOBAL_FAQ_QUESTIONS = [
   {
     "@type": "Question" as const,
     name: "Can I buy tires online from Nick's Tire & Auto?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free install package ($266+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety check.",
+      text: `Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free install package (${BUSINESS.installPackage.valueDisplay} value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety check.`,
     },
   },
   {

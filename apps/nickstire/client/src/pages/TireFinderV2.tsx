@@ -148,7 +148,7 @@ export default function TireFinderV2() {
   // Free-installation package value — mirrors the legacy funnel so the order
   // modal shows the real "$X+ value, yours free" figure instead of $0.
   const pkg = trpc.gatewayTire.getPackage.useQuery();
-  const packageValue = pkg.data?.packageValuePerSet ?? 266;
+  const packageValue = pkg.data?.packageValuePerSet ?? BUSINESS.installPackage.valueDollars;
 
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
   const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
@@ -508,7 +508,7 @@ export default function TireFinderV2() {
             <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">New tires come with the install package free</h2>
             <p className="mt-2 max-w-2xl text-muted-foreground">
               Chains advertise a tire price, then add mount, balance, valve stems, TPMS reset and an alignment check at the register,
-              often ~$266 on a set of four. At Nick's that package is already in the price on every new tire.
+              often ~${BUSINESS.installPackage.valueDollars} on a set of four. At Nick's that package is already in the price on every new tire.
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-border/50 bg-card p-5">
