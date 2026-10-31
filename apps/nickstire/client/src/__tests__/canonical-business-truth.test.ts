@@ -38,6 +38,7 @@ import { BRAKE_PRICE, DIAGNOSTIC_PRICE, OIL_COUPON, OIL_PRICE } from "@shared/pr
 import { OHIO_ECHECK } from "@shared/echeck";
 import { findVoiceViolations, KILL_RULES } from "@shared/voice";
 import { TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
+import { sliceBlock } from "../../../server/testUtils/sourceBlock";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const SCAN_DIRS = [join(ROOT, "client", "src"), join(ROOT, "shared")];
@@ -1527,8 +1528,7 @@ describe("install package value has one source; lifetime rotations are not promi
   it("BUSINESS.installPackage is the $266+ figure and equals the itemized server package", () => {
     expect(BUSINESS.installPackage.valueDisplay).toBe(`$${BUSINESS.installPackage.valueDollars}+`);
     const src = readFileSync(join(ROOT, "server", "routers", "gatewayTire.ts"), "utf8");
-    const start = src.indexOf("services: [");
-    const block = src.slice(start, src.indexOf("],", start));
+    const block = sliceBlock(src, "services: [", "],", { label: "gatewayTire.ts" });
     const items = [...block.matchAll(/value:\s*(\d+)/g)].map((m) => Number(m[1]));
     expect(items.length).toBeGreaterThan(5);
     expect(items.reduce((s, v) => s + v, 0)).toBe(BUSINESS.installPackage.valueDollars);
@@ -1578,10 +1578,14 @@ describe("install package value has one source; lifetime rotations are not promi
 // every point any page listed (tread depth, sidewall, bead, DOT date, plug and repair
 // history) and more, so copy renders BUSINESS.usedTires.checkSummary and never a count.
 const FIXED_COUNT = /\b(?:4|four)[- ]point\b/i;
-// GSC wave 1 (PR 3368) measures /used-tires-cleveland until the 2026-12-10 read; its title,
-// H1 and meta keep "4-Point" until then. The exemption fails the suite once the date passes.
+// GSC wave 1 (PR 3368) measures /used-tires-cleveland until the 2026-12-10 read. Manager
+// ruling 2026-10-30: the page NAME (title, H1, meta) keeps "4-Point" until then; every body
+// claim on that page renders the list like everywhere else. Each exemption is one named line
+// and fails the suite once its date passes.
 const COUNT_EXEMPT = [
-  { file: "client/src/pages/UsedTiresClevelandPage.tsx", line: null as string | null, until: "2026-12-10" },
+  { file: "client/src/pages/UsedTiresClevelandPage.tsx", line: 'title: "Used Tires Cleveland · 4-Point Check', until: "2026-12-10" },
+  { file: "client/src/pages/UsedTiresClevelandPage.tsx", line: 'h1: "USED TIRES CLEVELAND.', until: "2026-12-10" },
+  { file: "client/src/pages/UsedTiresClevelandPage.tsx", line: "description: `Cleveland used tires from $25", until: "2026-12-10" },
   { file: "shared/routes.ts", line: "Used tires in Cleveland from $25 installed", until: "2026-12-10" },
 ];
 
@@ -1601,7 +1605,11 @@ describe("used-tire check reads one list and never states a fixed count", () => 
 
   it("Home and /tire-prices-cleveland both render the list from BUSINESS", () => {
     // Code lines only: a comment that names the constant must not satisfy this.
-    for (const rel of ["client/src/pages/Home.tsx", "client/src/pages/TirePricesClevelandPage.tsx"]) {
+    for (const rel of [
+      "client/src/pages/Home.tsx",
+      "client/src/pages/TirePricesClevelandPage.tsx",
+      "client/src/pages/UsedTiresClevelandPage.tsx",
+    ]) {
       expect(LINES.some((l) => l.file === rel && l.text.includes("BUSINESS.usedTires.checkSummary"))).toBe(true);
     }
   });
@@ -1612,7 +1620,8 @@ describe("used-tire check reads one list and never states a fixed count", () => 
     expect(LINES.filter((l) => FIXED_COUNT.test(l.text) && !exempt(l)).map((l) => `${l.file}:${l.line}`)).toEqual([]);
   });
 
-  it.each(COUNT_EXEMPT)("the $file exemption has not expired ($until)", (e) => {
+  it.each(COUNT_EXEMPT)("the $file exemption '$line' still matches a line and has not expired ($until)", (e) => {
+    expect(LINES.some((l) => l.file === e.file && l.text.includes(e.line))).toBe(true);
     expect(Date.now()).toBeLessThan(Date.parse(`${e.until}T23:59:59-05:00`));
   });
 });
