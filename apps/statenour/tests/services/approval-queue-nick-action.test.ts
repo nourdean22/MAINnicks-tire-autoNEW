@@ -41,7 +41,9 @@ const h = vi.hoisted(() => {
   const executeApprovedAction = vi.fn(async (_id: string) => ({ ok: true, result: "sent" }));
   const send = vi.fn(async (_e: unknown) => ({ ids: ["evt"] }));
   const flag = { isOn: true };
-  return { rows, autonomousAction, executeApprovedAction, send, flag };
+  const killed = vi.fn(async (_job: string) => false);
+  const runBatch = vi.fn(async (_o: unknown) => ({ executed: 1, failed: 0, skipped: 0, results: [], telegramOk: true, total: 1 }));
+  return { rows, autonomousAction, executeApprovedAction, send, flag, killed, runBatch };
 });
 
 vi.mock("@/lib/prisma", () => ({
@@ -57,6 +59,7 @@ vi.mock("@/lib/brain/autonomous-engine", () => ({ executeApprovedAction: h.execu
 vi.mock("@/lib/automation/policy", () => ({ getPolicy: vi.fn(async () => null), logPolicyFire: vi.fn() }));
 vi.mock("@/lib/inngest/client", () => ({ getInngest: () => ({ send: h.send }) }));
 vi.mock("@/lib/feature-flags", () => ({ getFlag: (key: string) => (key === "NICK_AUTONOMY" ? { isOn: h.flag.isOn } : null) }));
+vi.mock("@/lib/inngest/cron-lifecycle", () => ({ isCronKilled: h.killed }));
 
 import { decidePendingAction, NICK_ACTION_RUN_WINDOW_MS } from "@/lib/automation/approval-queue";
 
@@ -83,6 +86,9 @@ beforeEach(() => {
   h.rows.clear();
   h.executeApprovedAction.mockClear();
   h.send.mockClear();
+  h.killed.mockReset();
+  h.killed.mockResolvedValue(false);
+  h.runBatch.mockClear();
 });
 
 describe("approving a Nick Action Queue row in the app", () => {
@@ -120,6 +126,27 @@ describe("approving a Nick Action Queue row in the app", () => {
     seed("n5", "nick_action_nudge_task", "nudge_task", new Date(Date.now() - NICK_ACTION_RUN_WINDOW_MS - 60_000));
     await expect(decidePendingAction("n5", "approved", "nour")).rejects.toThrow(/older than 2 days/);
     expect(h.rows.get("n5")?.approval).toBe("pending");
+    expect(h.send).not.toHaveBeenCalled();
+  });
+
+  // 3404 follow-up (b): the 09:00Z backstop reads only rows under 2 days old, so a 1.9-day row whose
+  // event failed would never run. The approval runs it in place instead, through the same batch core.
+  it("when the event cannot be sent, the approved row runs in place through the batch core", async () => {
+    vi.doMock("@/lib/ai/nick-action-batch", () => ({ runNickActionBatch: h.runBatch }));
+    seed("n6", "nick_action_nudge_task", "nudge_task", new Date(Date.now() - NICK_ACTION_RUN_WINDOW_MS + 60 * 60_000));
+    h.send.mockRejectedValueOnce(new Error("inngest down"));
+    await decidePendingAction("n6", "approved", "nour");
+    vi.doUnmock("@/lib/ai/nick-action-batch");
+    expect(h.runBatch).toHaveBeenCalledWith(expect.objectContaining({ ids: ["n6"] }));
+  });
+
+  // 3404 follow-up (c): with the nick-action-approved runner switched off, the event is dropped
+  // (KILLABLE_EVENT_FUNCTIONS), so Approve would say ok while nothing runs. Refuse with the reason.
+  it("refuses while the nick-action-approved runner is switched off: row stays pending, nothing sent", async () => {
+    seed("n7", "nick_action_nudge_task", "nudge_task");
+    h.killed.mockImplementation(async (job: string) => job === "nick-action-approved");
+    await expect(decidePendingAction("n7", "approved", "nour")).rejects.toThrow(/switched off/);
+    expect(h.rows.get("n7")?.approval).toBe("pending");
     expect(h.send).not.toHaveBeenCalled();
   });
 

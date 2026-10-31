@@ -31,8 +31,9 @@ import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 
 const log = rootLogger.withSurface("automation/approval-queue");
 
-/** Mirrors TWO_DAYS_MS in lib/ai/nick-action-batch.ts, the cron backstop's window. */
-export const NICK_ACTION_RUN_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+/** The executor's window (lib/ai/nick-action-window.ts), shared with the 09:00Z cron backstop. */
+import { TWO_DAYS_MS as NICK_ACTION_RUN_WINDOW_MS } from "@/lib/ai/nick-action-window";
+export { NICK_ACTION_RUN_WINDOW_MS };
 
 export type ApprovalDecision = "approved" | "rejected";
 
@@ -197,6 +198,15 @@ export async function decidePendingAction(
     if (Date.now() - existing.createdAt.getTime() > NICK_ACTION_RUN_WINDOW_MS) {
       throw new ServiceError("This Nick action is older than 2 days, past the window the executor runs. Reject it.", 409);
     }
+    // A killed nick-action-approved run drops its event (cron-lifecycle KILLABLE_EVENT_FUNCTIONS),
+    // so an approval now would report ok and run nothing until the next 09:00Z backstop, if ever.
+    const { isCronKilled } = await import("@/lib/inngest/cron-lifecycle");
+    if (await isCronKilled("nick-action-approved")) {
+      throw new ServiceError(
+        "The nick-action-approved runner is switched off in System > Crons, so this action would not run now. Turn it on or reject the action.",
+        409,
+      );
+    }
   }
 
   // 2026-10-10 (SN-04) - CLAIM before acting. The check above is a read; two
@@ -297,13 +307,21 @@ export async function decidePendingAction(
     },
   });
 
-  // Same event Telegram /qa sends; best-effort, the 09:00Z nick-action-execute cron is the backstop.
+  // Same event Telegram /qa sends. If it cannot be sent, run the row here through the same batch
+  // core: the 09:00Z backstop reads only rows under 2 days old, so a 1.9-day row would never run.
+  // The core claims by executedAt null, so a late event cannot run it twice.
   if (decision === "approved" && isNickAction) {
     try {
       const { getInngest } = await import("@/lib/inngest/client");
       await getInngest().send({ name: "nick-action/approved", data: { actionIds: [id], approvedBy: approver } });
     } catch (err) {
       log.warn("nick_action_event_failed", { id, error: err instanceof Error ? err.message : String(err) });
+      try {
+        const { runNickActionBatch } = await import("@/lib/ai/nick-action-batch");
+        await runNickActionBatch({ ids: [id], source: "approval-queue-fallback" });
+      } catch (runErr) {
+        log.warn("nick_action_inline_run_failed", { id, error: runErr instanceof Error ? runErr.message : String(runErr) });
+      }
     }
   }
 
