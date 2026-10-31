@@ -1,8 +1,8 @@
 # Missed-asks register, 2026-10-29 to 2026-10-31
 
-**Answer first.** 76 asks since 2026-10-29T00:00Z. 43 are DONE+LIVE with a receipt. 6 are not started or were lost,
+**Answer first.** 76 asks since 2026-10-29T00:00Z. 45 are DONE+LIVE with a receipt. 4 are not started or were lost,
 and Nour notices those first: daily self-learning, two-way calendar sync, the transfer callback he approved at 11:24Z,
-the hiring post he said yes to, and the vague-ask detector. 15 are partial and 5 are his call. All 38 merges checked
+the hiring post he said yes to, and the vague-ask detector. 16 are partial, 2 are his call, 2 were answered (tick 4). All 38 merges checked
 (3346 to 3454) are in the running build of their app (git merge-base, read 11:55Z).
 
 - Job: 2026-10-31-missed-asks-audit (research lane, manager local_c047ccb2). First pass 11:54Z-12:40Z, 2026-10-31.
@@ -20,11 +20,12 @@ the hiring post he said yes to, and the vague-ask detector. 15 are partial and 5
 
 | Status | Count | Meaning |
 |---|---|---|
-| DONE+LIVE | 43 | Shipped, and the receipt is held: merge-base on the live build, a rendered check, a prod count logged by the manager, or a merged docs PR |
+| DONE+LIVE | 45 | Shipped, and the receipt is held: merge-base on the live build, a rendered check, a prod count logged by the manager, or a merged docs PR |
 | DONE+UNVERIFIED | 4 | Reported done (machine cleanups, hygiene), no artifact I could re-read |
-| PARTIAL | 15 | Some landed; the gap column says what did not |
-| NOT STARTED / LOST | 6 | No branch commit and no PR, or the work was lost on archive |
-| NOUR'S CALL | 5 | Only he can do it (credential, phone step, install, data check) |
+| PARTIAL | 16 | Some landed; the gap column says what did not |
+| NOT STARTED / LOST | 4 | No branch commit and no PR, or the work was lost on archive |
+| NOUR'S CALL | 2 | Only he can do it (credential, phone step, install, data check) |
+| ANSWERED | 2 | A question he asked, answered in chat (manager CLAIM); any action left is his |
 | DROPPED BY HIS RULING | 3 | His own words dropped it |
 
 ## Top 5 gaps (ranked by what Nour notices first)
@@ -43,7 +44,8 @@ the hiring post he said yes to, and the vague-ask detector. 15 are partial and 5
    write on a fixture now; put the one grant step to Nour as a single card.
 3. **Transfer callback he approved, lost on archive.** His word "Yes, add it" (calls-texts, 11:24Z 10-31), after "no
    hold music" (11:08Z). FACT: the calls-texts transcript shows "Nour approved; building the PR that adds the transfer
-   assistant", two files written, then an interrupted worktree move; Nour archived the session about 11:36Z. The w5
+   assistant", two files written, then an interrupted worktree move; the manager stopped and archived the session at
+   11:37Z (board line 294), a manager miss. The w5
    worktree is clean at `9a593d7783` with 0 commits; no `warmTransferPlan*` file under the calls-texts worktree or
    `%TEMP%\claude`; no remote branch (only a lease ref). The manager memory (manager-sweep line 331) still lists it
    as "his call". Brief: rebuild the W5 PR from his yes (paid VAPI leg approved); the live apply stays his Vapi Push.
@@ -57,7 +59,7 @@ the hiring post he said yes to, and the vague-ask detector. 15 are partial and 5
    things i say and automaticly drq them like bdnick does". FACT: prompt-sharpener is "Queued (not started)" (board
    line 12); no branch, no PR. Brief: one research-then-build lane; prior art first (bdnick chat clarifier, prompt-gallery skill).
 
-Next after these: antislop on StateNour pages (row 36), the MECHANICS/NicksMax paste block he told us to run (row 65),
+Next after these: antislop on StateNour pages (row 37), the front-desk local-AI block he told us to run (row 65),
 and the quality audit he wanted running "untill i say stop" (row 24).
 
 ## Register
@@ -69,10 +71,10 @@ read-only to us).
 
 | # | When | Ask (short) | Status | Evidence | Gap / owner |
 |---|---|---|---|---|---|
-| 1 | 10-29 17:42 | Ship camera relay-hold r2 | NOUR'S CALL | FACT: 3347 `8d9f1ad4e3`, 3349 `46e3a093c2` merged | Front-desk PC install needs his go (manager-sweep line 38). N |
+| 1 | 10-29 17:42 | Ship camera relay-hold r2 | PARTIAL | FACT: 3347 `8d9f1ad4e3`, 3349 `46e3a093c2` merged | He said YES 10-31 12:37Z. One install with row 4's lot-vision item: install-frontdesk-sign.ps1 on MECHANICS (manifest pinned by 3349). Manager drives CRD; he types the V380 password. M + N |
 | 2 | 10-29 17:42 | Repo hygiene: worktrees, stashes, branches | DONE+UNVERIFIED | 5 CSVs in the shared notes folder (deleted branches 41 KB); session archived 18:47Z | Stash `0c988b17` drop is his call (manager-sweep line 38). N |
 | 3 | 10-29 17:42 | Verify 3346 live | DONE+LIVE | FACT: `7421a4530f` in both live builds | none |
-| 4 | 10-29 17:42 | Surface 0151/0152 Run Migrations, lot-vision install, Reset-to-shop script, Turn-down taps, office-ears read | NOUR'S CALL | CLAIM: surfaced 10-29 | STRONG INFERENCE: none of the five is in the 10-31 parked list (manager-sweep lines 324, 331). Re-list them. M |
+| 4 | 10-29 17:42 | Surface 0151/0152 Run Migrations, lot-vision install, Reset-to-shop script, Turn-down taps, office-ears read | PARTIAL | CLAIM: surfaced 10-29 | He said YES ON ALL 10-31 12:37Z. Owed: lot-vision install (= row 1); Reset to shop is a card code fix (FollowUpTransferCard.tsx:147), not a script; reject pending booking proposals (count UNKNOWN); office-ears SELECT; Run Migrations applies nothing new (0 drizzle files added since 10-28). M, lane |
 | 5 | 10-29 17:44 | Debug inflated estimate totals | DONE+LIVE | FACT: 3348 `f75d21d9fe` live (his "Merge 3348") | #1864 needs his ShopDriver check before any repair. N |
 | 6 | 10-29 17:48, 17:59 | Discount pages, "20 percent off ... up to 250" | PARTIAL | FACT: 3352 `9d9797ba13` live | Crew note on the terms owed since 10-29 21:18Z (quality-audit P1 #1, board line 131). M drafts, N hands to crew |
 | 7 | 10-29 18:05 | Chat: 7-day ingest check, copy text, tap-to-edit | DONE+LIVE | FACT: 3351 `31f6cb897c` live | Real-iPhone check owed (bdnick-chat-audit memory). N |
@@ -102,26 +104,26 @@ read-only to us).
 | 31 | 10-30 12:41 | Railway server audit | DONE+LIVE | FACT: 3384, 3406, 3408, 3410, 3411, 3416 live; config applied 22:09Z (1 change, 0 destroy) | Behaviour reads due about 21:00Z today (railway-audit memory line 22). M |
 | 32 | 10-30 13:01 | Goals, planning, wisdom as one system | DONE+LIVE | FACT: 3381, 3395, 3402, 3420, 3421 live | Reads owed 11-02, 11-13, 11-23 |
 | 33 | 10-30 17:01 | "use chrome n go check" the goal label | DONE+LIVE | Manager read in his Chrome 17:05Z: WEEK "2d left" (manager-sweep line 196) | none |
-| 34 | 10-30 13:26, 14:19, 14:39 | Calendar in all of StateNour, two-way | NOT STARTED | See top gap 2 | M; one grant step N |
+| 34 | 10-30 13:26, 14:19, 14:39 | Calendar in all of StateNour, two-way | NOT STARTED | See top gap 2; his YES again 10-31 12:37Z, brief calendar-everywhere-r2 written | M; one grant step N |
 | 35 | 10-30 13:26, 13:28, 13:55 | Chat errors, up to date, queue messages | DONE+LIVE | FACT: 3397, 3404, 3415, 3422 live | none |
-| 36 | 10-30 13:34, 13:37 | Daily autonomous self-learning, both apps | NOT STARTED | See top gap 1 | M |
-| 37 | 10-30 13:36, 14:02, 14:03 | Antislop + humanizer on all StateNour and nickstire.org pages | PARTIAL | FACT: nickstire A 3433, F 3442, B 3447, C 3448, D 3453, E 3454 live; facts 3456 and G 3457 open | StateNour pages: "statenour wave dropped" was a manager ruling (board line 233), not his; only chat audit-002 (3455) is in flight. M |
+| 36 | 10-30 13:34, 13:37 | Daily autonomous self-learning, both apps | PARTIAL | Session learning-nickstire-r2 (local_79e4d271) working since about 12:40Z 10-31; statenour half queued (brief learning-statenour-r2) | His YES again 10-31 12:37Z. M |
+| 37 | 10-30 13:36, 14:02, 14:03 | Antislop + humanizer on all StateNour and nickstire.org pages | PARTIAL | FACT: nickstire A 3433, F 3442, B 3447, C 3448, D 3453, E 3454, facts 3456, G 3457 all live (tick 2) | StateNour pages: "statenour wave dropped" was a manager ruling (board line 233), not his; only chat audit-002 (3455) is in flight. M |
 | 38 | 10-30 13:39 | NicksMax: cam data + clean the box | DONE+LIVE | FACT: 3388, 3394, 3414 merged; installed on his go 16:02 EDT; Shop Sign ONLINE 02:07Z (board line 230) | Stats read due 16:00 ET today. M |
 | 39 | 10-30 14:19 | Embed the Gracian maxims now | DONE+LIVE | Manager log: 532 rows embedded, 6 permanent fails (board line 95) | none |
 | 40 | 10-30 14:24 | Receptionist answers job callers | DONE+LIVE | FACT: 3387 `9e8a38925b` live | none |
-| 41 | 10-30 14:24 | Detect vague asks and draft them | NOT STARTED | See top gap 5 | M |
+| 41 | 10-30 14:24 | Detect vague asks and draft them | NOT STARTED | See top gap 5; his YES 10-31 12:37Z, brief prompt-sharpener-r2 written | M |
 | 42 | 10-30 14:39 | "why cap it ... other books" | DONE+LIVE | Same embed run covered all books (board line 95) | none |
 | 43 | 10-30 15:59 | "u run railway config apply ... for me" | DONE+LIVE | Applied 22:09Z (board line 35) | none |
 | 44 | 10-30 16:09 | Keep the 20-point install inspection | DONE+LIVE | Board line 89; 3433 rendered check 04:35Z | none |
-| 45 | 10-30 16:43 | People tracker backfill + best plan | PARTIAL | FACT: 3400, 3419, 3425-3430, 3432, 3434, 3435, 3440, 3444 live; apply 11:15Z: 36 inserted, 0 failed (board line 284) | 1 ledger row has no embedding; fix `15bc7f84cc` local only, branch `statenour/people-ledger-embed-retry`. people-tracker |
-| 46 | 10-30 16:55 | Chat UI: space, video, evidence, voice, multi-photo, search, archive, pop-ups | PARTIAL | FACT: U1 3439, U2 3436, U3 3451, U4a 3409, U5 3431, U6a-c 3449-3452 live | 3455 (his "Fix all five") open; free iPhone voice needs the GROQ key. bdnick-chat-v2, N |
-| 47 | 10-30 17:30 | Pulse + notifications rebuild, Home cleanup, cards | DONE+LIVE | FACT: 3401, 3405, 3438, 3445, 3446 live | 390 px check owed (N); 5 P2 follow-ups dispatched 11:48Z, branch `statenour/held-push-followup` 0 commits so far |
+| 45 | 10-30 16:43 | People tracker backfill + best plan | DONE+LIVE | FACT: 3400, 3419, 3425-3430, 3432, 3434, 3435, 3440, 3444 live; apply 11:15Z: 36 inserted, 0 failed (board line 284) | 1 ledger row has no embedding; embed retry PR 3459 merged `be27ea7201`, LIVE on bdnick (tick 4, merge-base 0); the one row's embedding on the next cron is owed. people-tracker |
+| 46 | 10-30 16:55 | Chat UI: space, video, evidence, voice, multi-photo, search, archive, pop-ups | PARTIAL | FACT: U1 3439, U2 3436, U3 3451, U4a 3409, U5 3431, U6a-c 3449-3452 live | 3455 merged `629b6ac0ff`, LIVE (tick 4). Left: free iPhone voice needs the GROQ key; real-iPhone checks. N |
+| 47 | 10-30 17:30 | Pulse + notifications rebuild, Home cleanup, cards | DONE+LIVE | FACT: 3401, 3405, 3438, 3445, 3446 live | 390 px check owed (N); 5 P2 follow-ups = PR 3460 (head `cac7ba491c`, open, tick 4) |
 | 48 | 10-30 17:53 | Delete duplicates; Nick's Tire sales card | PARTIAL | 909 duplicates soft-deleted 19:52Z; card in 3405 | Card has no "as of" time: `revenue_today` needs `syncedAt`, unowned (board line 117). M |
-| 49 | 10-30 18:16, 20:09 | Ring + Tuya yes; Ring mounted; retire dead rows | PARTIAL | FACT: 3407, 3413, 3416, 3418, 3423 live; 12 rows retired 20:14Z | Poller off until his 5-minute step. He asked "how?" (10-31 01:20Z): a plain answer to him not found in board or manager memory (manager transcript not read). M answers, N runs |
+| 49 | 10-30 18:16, 20:09 | Ring + Tuya yes; Ring mounted; retire dead rows | ANSWERED | FACT: 3407, 3413, 3416, 3418, 3423 live; 12 rows retired 20:14Z; his "how?" (01:20Z) answered in chat about 01:25Z (manager CLAIM, tick 1) | Poller off until his 5-minute step (ring-auth-cli, worker variables). N |
 | 50 | 10-30 19:53 | Railway work, install on NicksMax, discard worktree | DONE+LIVE | Board lines 35, 64, 65 | Vapi push: row 26 |
 | 51 | 10-30 22:49; 10-31 11:12 | "Yes, write them" (people backfill) | DONE+LIVE | Applied 11:15Z with backup (board line 284) | none |
 | 52 | 10-31 01:20 | "i think i answered it can u check?" (chat prompt) | DONE+LIVE | 3422 merged after his answer (board line 227) | none |
-| 53 | 10-31 01:20 | "groq free?" | NOUR'S CALL | No answer to him found in board or manager memory (transcript not read) | M answers in one line; key is his |
+| 53 | 10-31 01:20 | "groq free?" | ANSWERED | Manager chat reply about 01:25Z: free tier, rate-limited (manager CLAIM, its STRONG INFERENCE) | Setting the key is his. N |
 | 54 | 10-31 02:26, 02:52 | Cut "lifetime rotations"; "$266+" true; used-tire check "all and more" | DONE+LIVE | Rendered check on 5 pages 04:35Z (board line 19) | none |
 | 55 | 10-31 01:24-02:26, 11:17 | "u still missing stuff" | PARTIAL | Manager 125-ask audit 01:45Z (board line 227); this register | Gaps above. M |
 | 56 | 10-31 02:54 | Keep the loop on, archive finished sessions | PARTIAL | Manager idle 06:06Z-11:00Z, owned on board line 281 | V2. M |
@@ -135,16 +137,16 @@ read-only to us).
 | 59 | 10-30 12:42 (calls-texts) | Carrier block does not stop texts; holding reply; live test text "anytime" | PARTIAL | CLAIM: rules in 3393/3417 | Live test text never sent (calls-texts memory line 18). M |
 | 60 | 10-31 11:08 (calls-texts) | "no hold music" | DROPPED BY HIS RULING | His words | none |
 | 61 | 10-31 11:24 (calls-texts) | "Yes, add it" (callback when a transfer goes unanswered) | LOST | See top gap 3 | M |
-| 62 | 10-31 11:03 (bdnick-chat-v2) | "Fix all five" | PARTIAL | PR 3455 open, four sections present | Gate merges. M |
+| 62 | 10-31 11:03 (bdnick-chat-v2) | "Fix all five" | DONE+LIVE | PR 3455 merged `629b6ac0ff`; bdnick.info runs `be27ea7201`, merge-base 0 (tick 4) | none |
 | 63 | 10-29 18:11 (bdnick-chat) | Use his screenshots for the chat issues | DONE+LIVE | 3351 live | none |
 | 64 | 10-30 14:17, 20:02 (nicksmax) | Clean npm cache + logs + ChatGPT; "go" | DONE+UNVERIFIED | CLAIM in the manager transcript | none |
-| 65 | 10-30 14:50 (doc 12 lane) | Run the paste block on MECHANICS and NicksMax: "u do that"; installs yes; no spend | NOT STARTED | FACT: memory says the block was "SENT to Nour 16:22Z ... he pastes it himself" (shop-os-planning-manager line 72) | He said we run it. Run on NicksMax now; MECHANICS through shop-pc-remote-session. CRM/M |
+| 65 | 10-30 14:50 (doc 12 lane) | Run the front-desk local-AI block (specs, Ollama, gemma3:4b) on MECHANICS and NicksMax: "u do that"; installs yes; no spend | PARTIAL | FACT: block file exists (2,645 B, CRM notes folder); handed to him 16:22Z because Chrome Remote Desktop's host list would not load (the block's own header). NicksMax: local model ruled out by its specs (7.9 GB RAM, CPU 100% from the camera stack; shop-os-planning-manager lines 55-58). The camera installs 3388/3394/3414 are separate and done | MECHANICS run UNKNOWN, receipts owed (same memory line 144c): retry the CRD route once, run step 1 (read-only); if it still fails, one card for step 1 only. CRM/M |
 | 66 | 10-31 01:23, 11:25 (quality-audit) | "report to the manager everything u missed" | PARTIAL | Session idle since 11:38Z; its hand-over file `sweep-quality-audit.md` is not in the shared notes folder (5 CSVs only) | M |
 | 67 | 10-30 13:53 (CRM manager) | Find the plan, rewrite his prompt, lead the build | DONE+LIVE | FACT: 3382, 3383, 3385, 3389, 3390, 3391, 3392, 3412 merged | No code before the day 13-14 call by plan |
 | 68 | 10-30 14:14 | Screenshots instead of vendor emails | DONE+LIVE | Memory shop-os-intake | Waits on his screenshots. N |
 | 69 | 10-30 14:30 | "leave these for laster remind me" | PARTIAL | Memory only (shop-os-planning-manager line 119) | No dated reminder on any schedule found in memory. CRM |
 | 70 | 10-30 14:30 | Is the ALG scrape daily? | DONE+LIVE | cron_log read 18:15 EDT: 2 runs a day, about 150 records each (memory line 146) | Flat 150 may be a list cap: ALG API map night. CRM |
-| 71 | 10-30 14:30 | Google Drive/Sheets on the shop account, CEO can see | NOUR'S CALL | Plan (memory lines 128-130) | Folder share is on his list. N |
+| 71 | 10-30 14:30 | Google Drive/Sheets on the shop account, CEO can see | NOUR'S CALL | Plan (memory lines 128-130); 13-TOOLKIT.md:45 | 10-31 12:37Z he asked 'GO AHEAD?'. The Drive connector is the CEO account (13-TOOLKIT.md:43), so making a moeseuclid-owned folder is his 3-minute tap, unless the manager rules otherwise. N |
 | 72 | 10-30 14:36 | A session for gaps and missed research | DONE+LIVE | 3390 `f823756cd8` | none |
 | 73 | 10-30 14:43 | Claude/ChatGPT in the CRM, full controls, customer profile searcher | DONE+LIVE | 3392 `8549462738` (plan) | Build after day 13-14 |
 | 74 | 10-30 14:53 | Study every ALG invoice and estimate | DONE+LIVE | 3391 `e19f953838` | none |
@@ -166,9 +168,30 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 | V6 | Finished sessions get archived | people-tracker idle with one unpushed fix | Session list 11:43Z; branch 1 commit ahead, not on origin |
 | V7 | Memory written for every session | pc-cleanup has no memory note | MEMORY.md index has no 10-30 cleanup entry |
 | V8 | Model and effort set on every start | No violation in a sample of 3 (pc-cleanup sonnet/medium, loop-overseer sonnet/high, quality-audit fable/high) | `get_session` |
-| V9 | Ask him only for spend, sends, prod writes, credentials | The paste block went back to him after he said "u do that" | Row 65 |
+| V9 | Ask him only for spend, sends, prod writes, credentials | The front-desk block went back to him after he said "u do that"; a route blocker (CRD) was named, so this is a soft violation | Row 65 |
 
 ## Loop log
 
-- Tick 0, 2026-10-31 12:40Z: first pass written. Next tick re-reads the 12 asks files and re-checks every PARTIAL,
+- Tick 4, 2026-10-31 12:55Z: no new asks (12:38Z is the 08:37 EDT reply already in tick 3). 3455 `629b6ac0ff` and 3459 `be27ea7201` merged and LIVE on bdnick.info (runs `be27ea7201`, merge-base 0 for both). Rows 45 and 62 -> DONE+LIVE. Held-push = PR 3460 open. nickstire.org runs `d57f14d04d` (prerender refresh, contains facts + G).
+
+- Tick 3, 2026-10-31 12:50Z: Nour 08:37 EDT (relayed by the manager, verbatim on its board): YES on all of row 4, on rows 34/36/41, and the front-desk cam install; migrations "I HIT YESTERDAY"; Drive "GO AHEAD?". Rows 1, 4 and 36 -> PARTIAL. Seven-action table sent to the manager. Premise fix: the lot-vision install runs on MECHANICS, not NicksMax.
+
+- Tick 2b, 2026-10-31 12:34Z (manager message, CLAIM): briefs for gaps 1, 2 and 5 are written to the manager scratchpad
+  (learning-nickstire-r2, learning-statenour-r2, calendar-everywhere-r2, prompt-sharpener-r2). Dispatch waits on one
+  desktop-typed message from Nour, because sessions cannot start while he is on Remote Control. That is a new
+  Nour step: one typed message at the desk unblocks four sessions. The CRD retry for row 65 is the manager's, later today.
+- Tick 2, 2026-10-31 12:35Z: one new ask (11:49Z, the order that started this audit; no new row). PR 3458 merged
+  `05064bf238`. Row 37: the nickstire half is now complete. Facts PR 3456 `e33066c757` and PR G 3457 `eedb20e6da`
+  are LIVE: nickstire.org runs `eedb20e6da`, merge-base exit 0 for both. The StateNour pages gap stands.
+  Row 45: the embed-retry fix is PR 3459 (open). Row 46: 3455 still open. Held-push lane (row 47): no remote branch yet.
+  bdnick.info still runs `9a593d7783`. Board 12:20Z (CLAIM): rows 61 (W5 callback) and 29 (FB/IG post + test text) are
+  dispatched as lane agents, because the app refused session starts while Nour is on Remote Control. Both stay
+  NOT STARTED until a branch or PR exists. Held-push lane (row 47): branch `statenour/held-push-followup` head
+  `cac7ba491c`, pushes on the next QUEUE DRAINED.
+- Tick 1, 2026-10-31 12:30Z: manager accepted the first pass and asked for three briefs (gaps 1, 2, 5: sent as
+  messages). Rows 49 and 53 -> ANSWERED, row 65 -> PARTIAL (front-desk block, not the camera installs), top gap 3
+  attribution -> manager. Rescue patches checked on `41c3892da2`: learning applies clean; calendar fails at
+  `tests/services/morning-brief.test.ts:40` (hand rebase). Calendar write scope already in
+  `apps/statenour/lib/services/google-oauth.ts:34`.
+- Tick 0, 2026-10-31 12:05Z: first pass written (PR 3458). Next tick re-reads the 12 asks files and re-checks every PARTIAL,
   DONE+UNVERIFIED and NOT STARTED row.
