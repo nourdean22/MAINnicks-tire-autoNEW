@@ -111,7 +111,7 @@ read-only to us).
 | 38 | 10-30 13:39 | NicksMax: cam data + clean the box | DONE+LIVE | FACT: 3388, 3394, 3414 merged; installed on his go 16:02 EDT; Shop Sign ONLINE 02:07Z (board line 230) | Stats read due 16:00 ET today. M |
 | 39 | 10-30 14:19 | Embed the Gracian maxims now | DONE+LIVE | Manager log: 532 rows embedded, 6 permanent fails (board line 95) | none |
 | 40 | 10-30 14:24 | Receptionist answers job callers | DONE+LIVE | FACT: 3387 `9e8a38925b` live | none |
-| 41 | 10-30 14:24 | Detect vague asks and draft them | PARTIAL | See top gap 5; his YES 10-31 12:37Z, brief prompt-sharpener-r2 written; tick 5: branch `chore/prompt-sharpener` exists, 0 commits past main | M |
+| 41 | 10-30 14:24 | Detect vague asks and draft them | PARTIAL | See top gap 5; his YES 10-31 12:37Z, brief prompt-sharpener-r2 written; tick 12 (manager CLAIM 14:55Z): W1 committed `f04dfb1602` on `chore/prompt-sharpener`, eval precision 1.00 recall 0.93 on 30, 63 tests, fail-open proven; NOT pushed (pre-commit could not run in the agent worktree; docs and PR body unwritten) | M |
 | 42 | 10-30 14:39 | "why cap it ... other books" | DONE+LIVE | Same embed run covered all books (board line 95) | none |
 | 43 | 10-30 15:59 | "u run railway config apply ... for me" | DONE+LIVE | Applied 22:09Z (board line 35) | none |
 | 44 | 10-30 16:09 | Keep the 20-point install inspection | DONE+LIVE | Board line 89; 3433 rendered check 04:35Z | none |
@@ -171,6 +171,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 | V9 | Ask him only for spend, sends, prod writes, credentials | The front-desk block went back to him after he said "u do that"; a route blocker (CRD) was named, so this is a soft violation | Row 65 |
 
 ## Loop log
+
+- Tick 12, 2026-10-31 15:05Z: RAM emergency on the board (458 MB free); loop moved to 45 min, reads and gh only. Row 41: prompt-sharpener W1 committed, not pushed (manager CLAIM). Calendar W1 LIVE confirmed by the manager too.
 
 - Tick 11, 2026-10-31 14:45Z: no new asks. Calendar W1 PR 3465 merged `dcfc0eebeb`; bdnick.info runs it (merge-base 0). PR 3463 is still red on `0724ccd988`, about 70 minutes with no fix push. W5b still has no branch and no PR.
 
