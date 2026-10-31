@@ -271,11 +271,18 @@ export function ChatIsland() {
   const [recallProvenanceReason, setRecallProvenanceReason] = useState<string | undefined>(
     undefined,
   );
+  // U2 · the stream's memory.recalled event is what the reply was given; the preview re-run below
+  // only fills in when no event arrived for the current last message, and never overwrites one.
+  const [recallSource, setRecallSource] = useState<"turn" | "preview" | undefined>(undefined);
+  const streamedForRef = useRef<string | null>(null);
+  const lastUserTextRef = useRef("");
 
   useEffect(() => {
     const onCockpitEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
+        streamedForRef.current = lastUserTextRef.current;
+        setRecallSource("turn");
         setMemoryData(detail.payload?.hits || []);
         setMemoryFetchedAt(new Date());
         // 2026-09-10 · carry WHY the hit list is the length it is, so an
@@ -310,7 +317,12 @@ export function ChatIsland() {
   }, [chat.messages]);
 
   useEffect(() => {
+    lastUserTextRef.current = lastUserText;
+  }, [lastUserText]);
+
+  useEffect(() => {
     if (!inspectorOpen || !lastUserText) return;
+    if (streamedForRef.current === lastUserText) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -319,6 +331,8 @@ export function ChatIsland() {
         // memories and blanked the provenance on every open, and it bumped
         // lastSeen on what it showed. A failed read now lands in the catch.
         const report = await fetchInspectorRecall(lastUserText, controller.signal);
+        if (streamedForRef.current === lastUserText) return;
+        setRecallSource("preview");
         setMemoryData(report.hits);
         setMemoryFetchedAt(new Date());
         setRecallProvenance(report.provenance);
@@ -328,7 +342,7 @@ export function ChatIsland() {
         // keep the last known view untouched. A real failure is not
         // ordinary -- say the read failed rather than leaving a stale
         // list looking freshly confirmed.
-        if ((err as { name?: string })?.name !== "AbortError") {
+        if ((err as { name?: string })?.name !== "AbortError" && streamedForRef.current !== lastUserText) {
           setRecallProvenance("ERROR");
           setRecallProvenanceReason("could not refresh memory for this turn -- showing the last known view");
         }
@@ -503,7 +517,7 @@ export function ChatIsland() {
 
       {/* W3b (B1): docked at xl (the evidence beside the answer, on its own raised surface, closable
           from the header's Context button); the opt-in overlay below xl, as before. */}
-      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
+      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} recallSource={recallSource} />
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays rather than re-laying-out the chat column.
