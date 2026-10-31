@@ -935,7 +935,18 @@ export async function pruneTools(
    * Attribution is not a union.
    */
   const keep = (name: string, tier: number) => {
-    if (!allTools[name] || offeredOnce.has(name)) return;
+    if (!allTools[name]) return;
+    if (offeredOnce.has(name)) {
+      // 2026-10-30 (W3) · an intent tier (here the playbook, tier 7, which runs after tier 4) takes
+      // a tool OUT of the contested pool: "tasks" now fires the task family, and the first-tier-wins
+      // rule left the execute playbook's getTasks contested and cut by the budget.
+      const i = contested.findIndex((c) => c.name === name);
+      if (i >= 0) {
+        contested.splice(i, 1);
+        guaranteed.push({ name, tier });
+      }
+      return;
+    }
     offeredOnce.add(name);
     guaranteed.push({ name, tier });
   };
