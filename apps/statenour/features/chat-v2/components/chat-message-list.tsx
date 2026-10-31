@@ -29,6 +29,7 @@ function noCardToolLine(state: unknown, output: unknown): string {
   return isEmptyToolOutput(output) ? "returned no results" : "returned data";
 }
 import { toast } from "sonner";
+import { doneToast } from "../lib/popup-mutes";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
 import { postFeedback } from "@/hooks/chat/use-nick-message-actions";
 import { trpc } from "@/lib/trpc/client";
@@ -74,7 +75,7 @@ function isVerifyTail(parts: readonly ListPart[]): boolean {
 async function copyToClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard", { duration: 1500 });
+    doneToast("Copied to clipboard", { duration: 1500 });
   } catch {
     toast.error("Clipboard blocked by browser");
   }
@@ -425,7 +426,7 @@ export function ChatMessageList({
         source: "chat:save-as-belief",
       });
       haptic.success();
-      toast.success("Saved as belief");
+      doneToast("Saved as belief");
     } catch {
       haptic.error();
       toast.error("Couldn't save as belief. Try again.");
@@ -443,7 +444,7 @@ export function ChatMessageList({
         source: "chat:save-as-decision",
       });
       haptic.success();
-      toast.success("Saved as decision");
+      doneToast("Saved as decision");
     } catch {
       haptic.error();
       toast.error("Couldn't save as decision. Try again.");
@@ -467,7 +468,7 @@ export function ChatMessageList({
       });
       if (ok) {
         haptic.success();
-        toast.success("Feedback saved", { duration: 1500 });
+        doneToast("Feedback saved", { duration: 1500 });
       } else {
         haptic.error();
         toast.error("Couldn't save your feedback. Try again.");
