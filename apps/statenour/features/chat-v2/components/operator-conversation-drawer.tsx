@@ -28,6 +28,7 @@ export function OperatorConversationDrawer({
   onTogglePin,
   onArchive,
   archivedConvos,
+  archivedState = archivedConvos === null ? "idle" : "ok",
   onLoadArchived,
   onUnarchive,
   onSearchMessages,
@@ -52,6 +53,8 @@ export function OperatorConversationDrawer({
   onArchive: (id: string) => void;
   /** U6 · archived rows, read on demand when the Archived tab opens (null = not read, or failed). */
   archivedConvos: Convo[] | null;
+  /** audit 002 #2: the archived read (hooks/use-conversations.ts); a failed read is never shown as empty. */
+  archivedState?: "idle" | "loading" | "error" | "ok";
   onLoadArchived: () => void;
   onUnarchive: (id: string) => void;
   /** U6b · server full-text search over every message (chat.search); absent = titles only. */
@@ -145,7 +148,12 @@ export function OperatorConversationDrawer({
           )}
         </div>
         {mode === "archived" && archivedConvos === null && (
-          <p className="p-5 text-center text-xs text-fg-tertiary">Archived conversations not loaded.</p>
+          <div role="status" aria-live="polite" className="flex min-h-11 flex-wrap items-center justify-center gap-2 p-5 text-center text-[13px] text-fg-secondary">
+            {archivedState === "error" ? "Archived list could not be read." : "Loading archived conversations…"}
+            {archivedState === "error" && (
+              <button type="button" onClick={onLoadArchived} className="min-h-11 rounded-control px-2 font-medium text-fg underline">Retry</button>
+            )}
+          </div>
         )}
         {(mode === "archived" ? archivedConvos !== null : listState === "ok") && visible.length === 0 && (
           <p className="p-5 text-center text-xs text-fg-tertiary">{mode === "archived" ? "Nothing archived." : "No conversations in this view."}</p>

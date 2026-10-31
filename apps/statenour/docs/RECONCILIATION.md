@@ -1,5 +1,33 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-31 · bdnick chat v2: errors fixed, queue, reach, then the UI waves U1-U6 and audit 002 (job bdnick-chat-v2) · 15 ships + audit fixes
+>
+> Nour, 2026-10-30: fix the errors he hit in the chat that morning, keep Nick up to date and more useful, queue messages while Nick replies, then a better chat UI (more space, videos, a stronger evidence panel, free voice, multi-photo, search, archive, full controls), no spend. Shipped in waves, each red-first with the four-section PR body; Codex was out of quota for most of the run, so the second reads were self-review plus the manager and the quality-audit session.
+>
+> - **#3397 W0 (c9023c034c).** Tool calls that never ran stop counting as failures; numbers read honestly.
+> - **#3404 W1 (a22256c50c).** Approve on nick_action rows runs them the /qa way; daily loops verify; untimed calls stop logging 0 ms.
+> - **#3409 U4a (dc5bd11699).** Free voice typing: browser speech on desktop and Android, the header mic off the dead Realtime lane.
+> - **#3415 W2 (90e2b47ca4).** Queue the next message while Nick replies; one clientMessageId per queued send.
+> - **#3422 W3 (df1e518a1b).** Nick stops volunteering shop facts it has no data for; task tools read notes, photos and subtasks.
+> - **#3431 U5 (fd17bc72e1).** Up to 10 photos per message, shrunk first; only the newest message carries inline files; 32 MB proxy body cap.
+> - **#3436 U2 (9ae4c211ce).** Context & Evidence: recall's top 3 kept in rank order, weak matches under 35% folded, each memory opens in the inspector.
+> - **#3437 (beaf5a873b), #3443 (000d1d37b9).** Approve follow-ups: a failed event runs the row in place, the kill switch refuses with 409, a pre-claim failure goes back to pending.
+> - **#3439 U1 (bb0c856b33).** The docked panel remembers being closed at xl; the composer grows to 40% on tall screens; no ticker on /chat.
+> - **#3441 recall floor (d99e9cf2f9).** A memory found only by a dense lane needs 35% similarity to reach the prompt; text-lane hits always stay.
+> - **#3449 U6a (8b38b3c446).** Pins on the server, an Archived tab with Unarchive, Undo after archive.
+> - **#3450 U6b (073759bfab).** The history search also finds conversations by what was said in them (chat.search).
+> - **#3451 U3 (0ec588ccd4).** YouTube and Vimeo play in place after a tap (youtube-nocookie, player.vimeo; CSP frame-src for those two only); Instagram and TikTok get a link card.
+> - **#3452 U6c (9a593d7783).** A pop-ups mute list in More, per browser: 10 of 55 chat toasts can be muted; errors, Undo, Depth applied and "that did not happen" notes never.
+> - **Audit 002 fixes (this PR).** All five findings of anti-slop/audit-002-2026-10-31.md: 8 em-dash toasts, the Archived tab's loading/error/Retry, no Sparkles or Brain glyph in Context & Evidence, decision citations on GitBranch, the mono label voice written down in tokens.css.
+>
+> Live: bdnick.info ran 9a593d7783 from 09:09:14Z (merge-base check exit 0).
+>
+> **Flagged · NOT fixed**
+> - No real-iPhone receipts for any U-wave yet; the kill reads are 2026-11-02 (U1, U2, U3, U6), 2026-11-03 (U5, 3437, 3443) and 2026-11-08 (recall floor, zero-spend telemetry).
+> - The 35 nick_action rows stuck in needs_review since 2026-10-21 were left alone on purpose (old, some customer-facing): Nour decides.
+> - Server speech-to-text stays dead until Nour sets a free Groq key (OpenAI 401, HF credits gone); browser speech covers desktop and Android, not the iOS PWA.
+> - U3's CSP frame-src change has no manager second read.
+
 > ## 2026-10-29 · bdnick sync waves: every page agrees, UI v3 W5c, cleanup, phone gates (job 2026-10-29-bdnick-sync) · 4 ships
 >
 > Nour: "everything should be in sync on the same page and functioning and pretty ui too". A read-only audit of all 17 page routes (`docs/design/ui-v3/2026-10-29-sync-audit.md`, 24 findings) found three numbers that disagreed across pages; four waves closed them and the rest of the UI v3 pass. bdnick.info ran each merge (ancestry check against `/api/version`).
@@ -4834,7 +4862,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-29 (bdnick sync waves, PRs 3354, 3358, 3361, 3362; earlier: 2026-10-19 bdnick prune wave 2V on branch statenour/prune-bdnick-w2v; earlier the same day: bdnick prune wave 3 on branch statenour/prune-bdnick-w3 and bdnick prune wave 1 on branch statenour/prune-bdnick-w1; prior stamp 2026-10-18, UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
+**Last verified:** 2026-10-31 (bdnick sync waves, PRs 3354, 3358, 3361, 3362; earlier: 2026-10-19 bdnick prune wave 2V on branch statenour/prune-bdnick-w2v; earlier the same day: bdnick prune wave 3 on branch statenour/prune-bdnick-w3 and bdnick prune wave 1 on branch statenour/prune-bdnick-w1; prior stamp 2026-10-18, UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

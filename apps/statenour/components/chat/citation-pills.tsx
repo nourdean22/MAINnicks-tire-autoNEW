@@ -23,7 +23,7 @@ import {
   AlertTriangle,
   ListTodo,
   Scale,
-  Sparkles,
+  GitBranch,
 } from "lucide-react";
 
 interface Citation {
@@ -53,7 +53,8 @@ const CATEGORY_META: Record<
   tasks: { icon: ListTodo, label: "task", color: "text-fg-secondary", href: "/missions" },
   task: { icon: ListTodo, label: "task", color: "text-fg-secondary", href: "/missions" },
   law: { icon: Scale, label: "Greene law", color: "text-fg-secondary", href: "/brain#wisdom" },
-  decision: { icon: Sparkles, label: "decision", color: "text-fg-secondary", href: "/journal" },
+  // audit 002 #4 (R-04): a fork in the road reads as a decision; Sparkles said "AI".
+  decision: { icon: GitBranch, label: "decision", color: "text-fg-secondary", href: "/journal" },
   promise: { icon: AlertTriangle, label: "promise", color: "text-rose-400", href: "/missions" },
   unknown: { icon: Brain, label: "citation", color: "text-[var(--text-tertiary)]", href: "/brain" },
 };

@@ -136,7 +136,7 @@ export function useNickMessageActions({
       } catch (err) {
         log.error("action.createTask.failed", { error: err instanceof Error ? err.message : String(err) });
         haptic.error();
-        setError("Couldn't create task — try again");
+        setError("Couldn't create task. Try again");
         setTimeout(() => setError(null), 3500);
       }
     },
@@ -161,7 +161,7 @@ export function useNickMessageActions({
       } catch (err) {
         log.error("action.saveToBrain.failed", { error: err instanceof Error ? err.message : String(err) });
         haptic.error();
-        setError("Couldn't save to brain — try again");
+        setError("Couldn't save to brain. Try again");
         setTimeout(() => setError(null), 3500);
       }
     },

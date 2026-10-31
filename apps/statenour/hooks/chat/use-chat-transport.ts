@@ -395,7 +395,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
               isResume,
               resumeInto,
               onMessagePersisted,
-              onDecodeError: () => toast.error("Stream decode error — response may be incomplete", { duration: 4000 }),
+              onDecodeError: () => toast.error("Stream decode error: the response may be incomplete", { duration: 4000 }),
             });
           }
 

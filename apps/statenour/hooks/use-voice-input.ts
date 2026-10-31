@@ -74,7 +74,7 @@ function toastTranscribeFailure(status: number) {
   toast.error(
     status === 502
       ? "Voice typing is down: no speech service answered. A free Groq key (GROQ_API_KEY) fixes it."
-      : "Voice transcription failed — try again",
+      : "Voice transcription failed. Try again",
     { id: "stt-failed" },
   );
 }
@@ -160,7 +160,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      toast.error("Microphone unavailable — check permissions");
+      toast.error("Microphone unavailable. Check permissions");
       return false;
     } finally {
       startingRef.current = false;
@@ -243,11 +243,11 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
             onTranscript(data.text);
           } else if (data.error) {
             console.warn(`[voice-input] transcribe error: ${data.error}`);
-            toast.error("Voice transcription failed — try again");
+            toast.error("Voice transcription failed. Try again");
           }
         } catch (err) {
           console.warn(`[voice-input] transcribe request failed:`, err);
-          toast.error("Voice transcription failed — check your connection");
+          toast.error("Voice transcription failed. Check your connection");
         } finally {
           setTranscribing(false);
         }
@@ -266,7 +266,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       analyserRef.current = null;
       setAudioLevel(0);
       console.warn("[voice-input] recorder init failed:", err);
-      toast.error("Couldn't start recording on this device — try again");
+      toast.error("Couldn't start recording on this device. Try again");
       return false;
     }
   }, [onTranscript]);

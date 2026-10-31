@@ -36,7 +36,8 @@ describe("history drawer · Archived tab (U6)", () => {
     const p = render({});
     act(() => tab("archived").click());
     expect(p.onLoadArchived).toHaveBeenCalledTimes(1);
-    expect(host.textContent).toContain("Archived conversations not loaded.");
+    // audit 002 #2: before the read lands the tab says it is loading (it used to say "not loaded").
+    expect(host.textContent).toContain("Loading archived conversations…");
   });
 
   it("archived rows show with Unarchive, which hands back the id", () => {
