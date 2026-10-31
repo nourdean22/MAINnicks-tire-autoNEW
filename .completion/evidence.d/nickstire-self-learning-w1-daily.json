@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Self-learning W1 (2026-10-31) moves prompt-evolution-weekly into the new learning wall-clock tier (00:45-01:00 ET, no re-claim) and removes its Monday gate. Fail-closed is unchanged and still pinned: server/cron/jobs/promptEvolutionWeekly.test.ts 'an infrastructure failure (no DB, dead LLM lane) fails the cron run — no kv row, no Telegram, never a quiet zero' and 'a refusal fails the run before any replay, kv write or Telegram'; server/cron/wallClockTiers.test.ts pins the learning slot (closed at 00:44:59 and 01:00, one run per night across the fall-back weekend) and that the job lives only in the learning tier; server/__tests__/cronNoSwallowedFailure.test.ts + server/cron/jobs/cronRethrow2026.test.ts 2 files 22 passed on this tree."
+    }
+  }
+}
