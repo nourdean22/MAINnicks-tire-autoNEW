@@ -54,6 +54,8 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [activeIdx, setActiveIdx] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  // People W2b: a failed read is UNKNOWN, never "no picks today" (skill empty-vs-error).
+  const [readFailed, setReadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,9 +67,15 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        if (!cancelled) setPicks(data.picks ?? []);
+        if (!cancelled) {
+          setPicks(data.picks ?? []);
+          setReadFailed(false);
+        }
       } catch {
-        if (!cancelled) setPicks([]);
+        if (!cancelled) {
+          setPicks([]);
+          setReadFailed(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -87,6 +95,13 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
   }, [visible.length, activeIdx]);
 
   if (loading) return null; // Silent · don't reserve space while picking
+  if (readFailed) {
+    return (
+      <section aria-label="today's outreach picks" className="rounded-surface border border-edge-subtle bg-content px-3 py-2">
+        <p className="text-[11px] text-fg-tertiary">Couldn&apos;t read today&apos;s picks. Who needs you is unknown right now, not empty.</p>
+      </section>
+    );
+  }
   if (visible.length === 0 || !active) return null;
 
   return (

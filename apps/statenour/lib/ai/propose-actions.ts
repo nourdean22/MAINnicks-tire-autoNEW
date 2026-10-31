@@ -79,14 +79,16 @@ const DAY_MS = 1000 * 60 * 60 * 24;
  * "pending") row.
  */
 export async function proposeNickActions(
-  today: string = new Date().toISOString().slice(0, 10),
+  // Kept for the callers' signature; the only day-keyed read (today's picks) now keys on
+  // picksDayKey(), the picks writer's New York date (people W2b).
+  _today: string = new Date().toISOString().slice(0, 10),
 ): Promise<NickActionDraft[]> {
   // Each source is best-effort · one bad source must not blank the queue.
   const [nudges, journalCommits, outreach, reassigns] =
     await Promise.all([
       nudgeTaskCandidates().catch(() => []),
       commitJournalCandidates().catch(() => []),
-      outreachCandidate(today).catch(() => []),
+      outreachCandidate().catch(() => []),
       reassignTaskCandidates().catch(() => []),
     ]);
 
@@ -214,11 +216,13 @@ async function commitJournalCandidates(): Promise<NickActionDraft[]> {
 // outreach as a one-tap · the executor drafts the SMS body + queues
 // via the shop SMS bridge (out-of-process · nickstire).
 
-async function outreachCandidate(today: string): Promise<NickActionDraft[]> {
+async function outreachCandidate(): Promise<NickActionDraft[]> {
+  // The picks writer's key (New York date), not the queue's UTC `today` (people W2b).
+  const { picksDayKey } = await import("@/lib/ai/relationships-pick-today");
   const cached = await prisma.brainMemory.findFirst({
     where: {
       category: BRAIN_CATEGORIES.RELATIONSHIPS_PICKS_TODAY,
-      key: today,
+      key: picksDayKey(),
     },
     select: { metadata: true },
   });

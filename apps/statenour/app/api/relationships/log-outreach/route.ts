@@ -114,8 +114,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // person: deleting the whole row forced a paid AI re-rank on the next
     // /people visit (audit 02-F4a). The row goes only when no pick is left.
     try {
-      // shortcut: the UTC day key the writer (lib/ai/relationships-pick-today.ts) uses; move both to today() together.
-      const today = now.toISOString().slice(0, 10);
+      // The writer's own key (New York date), so this edits the row the page showed (people W2b).
+      const { picksDayKey } = await import("@/lib/ai/relationships-pick-today");
+      const today = picksDayKey(now);
       const where = { category: BRAIN_CATEGORIES.RELATIONSHIPS_PICKS_TODAY, key: today };
       const cached = await prisma.brainMemory.findFirst({ where, select: { id: true, metadata: true } });
       const meta = (cached?.metadata as Record<string, unknown> | null) ?? {};
