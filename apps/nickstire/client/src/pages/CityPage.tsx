@@ -238,7 +238,7 @@ export default function CityPage() {
         <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             {/* LCP fix · above-the-fold hero */}
-            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`Nick's Tire & Auto Cleveland — auto repair near ${city.name} Ohio`} className="w-full h-full object-cover" objectPosition="center 42%" />
+            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`Nick's Tire & Auto Cleveland, auto repair near ${city.name} Ohio`} className="w-full h-full object-cover" objectPosition="center 42%" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 
@@ -259,7 +259,7 @@ export default function CityPage() {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                   ))}
                 </div>
-                <span className="text-[13px] text-primary tracking-wider">{reviewRating} STARS — {reviewCountDisplay} REVIEWS</span>
+                <span className="text-[13px] text-primary tracking-wider">{reviewRating} STARS, {reviewCountDisplay} REVIEWS</span>
               </div>
               <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {city.heroHeadline}
@@ -289,7 +289,7 @@ export default function CityPage() {
               <div className="mt-8 flex flex-wrap gap-6 stagger-in text-sm text-foreground/60">
                 <div className="flex items-center gap-2 stagger-in">
                   <Navigation className="w-4 h-4 text-nick-blue-light" />
-                  <span className="font-mono">{city.distance} from {city.name} — {city.driveTime} drive</span>
+                  <span className="font-mono">{city.distance} from {city.name}, {city.driveTime} drive</span>
                 </div>
                 <div className="flex items-center gap-2 stagger-in">
                   <MapPin className="w-4 h-4 text-primary" />
@@ -430,7 +430,7 @@ export default function CityPage() {
                 WHY {city.name.toUpperCase()} DRIVERS TRUST NICK'S
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                Finding an honest mechanic shouldn't feel like a gamble. At Nick's Tire & Auto on Euclid Ave in Cleveland, we've built our reputation one car at a time — and {reviewCountDisplay} Google reviews at {reviewRating} stars prove it. Here's what {city.name} drivers can count on every visit.
+                Finding an honest mechanic shouldn't feel like a gamble. At Nick's Tire & Auto on Euclid Ave in Cleveland, we've built our reputation one car at a time, and {reviewCountDisplay} Google reviews at {reviewRating} stars prove it. Here's what {city.name} drivers can count on every visit.
               </p>
             </FadeIn>
             <div className="mt-10 space-y-6">
@@ -439,7 +439,7 @@ export default function CityPage() {
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Transparent Pricing · Written Quote First</h3>
-                    <p className="text-foreground/70 leading-relaxed">We quote you a price before we start any work. If something changes during the repair, we call you first. No hidden fees, no upsells, no pressure. What we quote is what you pay.</p>
+                    <p className="text-foreground/70 leading-relaxed">We quote you a price before we start any work. If something changes during the repair, we call you first. No hidden fees. What we quote is what you pay.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -448,7 +448,7 @@ export default function CityPage() {
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Walk-Ins Welcome, First Come First Served</h3>
-                    <p className="text-foreground/70 leading-relaxed">No appointment needed for most services. Drive in from {city.name} and we'll get you taken care of. We operate on a first-come, first-served basis — the earlier you arrive, the sooner you're back on the road. Our shop is open {BUSINESS.hours.display}, including Sundays from 9 to 4.</p>
+                    <p className="text-foreground/70 leading-relaxed">No appointment needed for most services. Drive in from {city.name} and we'll get you taken care of. We operate on a first-come, first-served basis. The earlier you arrive, the sooner you're back on the road. Our shop is open {BUSINESS.hours.display}, including Sundays from 9 to 4.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -466,7 +466,7 @@ export default function CityPage() {
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
-                    <p className="text-foreground/70 leading-relaxed">We work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/diagnostics" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we figure out the actual problem — not just the most expensive one.</p>
+                    <p className="text-foreground/70 leading-relaxed">We work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/diagnostics" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we figure out the actual problem, not just the most expensive one.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -490,7 +490,7 @@ export default function CityPage() {
               <FadeIn delay={0.05}>
                 <Link href="/tires" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">Tire Replacement & Repair</h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">Potholes on {city.name} roads cause flats, sidewall damage, and uneven wear. We carry new and used tires from all major brands — mounted and balanced while you wait.</p>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Potholes on {city.name} roads cause flats, sidewall damage, and uneven wear. We carry new and used tires from all major brands, mounted and balanced while you wait.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.1}>
@@ -545,13 +545,13 @@ export default function CityPage() {
               <FadeIn delay={0.05}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
                   <h3 className="font-bold text-lg text-foreground mb-3">Do I need an appointment, or can I just walk in?</h3>
-                  <p className="text-foreground/70 leading-relaxed">No appointments — Nick's is first-come, first-served, 7 days a week. Pull up any time during open hours and we'll get you in line. If you want to skip the wait, <Link href="/booking" className="text-nick-blue-light hover:underline">schedule a drop-off online</Link> or call {BUSINESS.phone.display}. We're open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
+                  <p className="text-foreground/70 leading-relaxed">No appointments. Nick's is first come, first served, 7 days a week. Pull up any time during open hours and we'll get you in line. If you want to skip the wait, <Link href="/booking" className="text-nick-blue-light hover:underline">schedule a drop-off online</Link> or call {BUSINESS.phone.display}. We're open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
                 </div>
               </FadeIn>
               <FadeIn delay={0.1}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
                   <h3 className="font-bold text-lg text-foreground mb-3">How far is Nick's from {city.name}?</h3>
-                  <p className="text-foreground/70 leading-relaxed">Our shop at {BUSINESS.address.full} is about {city.distance} from {city.name} — roughly a {city.driveTime} drive. We're right on Euclid Ave with easy access from I-90 and Route 2. Plenty of {city.name} residents already make the drive because of our honest pricing and fast turnaround.</p>
+                  <p className="text-foreground/70 leading-relaxed">Our shop at {BUSINESS.address.full} is about {city.distance} from {city.name}, roughly a {city.driveTime} drive. We're right on Euclid Ave with easy access from I-90 and Route 2. Plenty of {city.name} residents already make the drive because of our honest pricing and fast turnaround.</p>
                 </div>
               </FadeIn>
               <FadeIn delay={0.15}>
@@ -595,7 +595,7 @@ export default function CityPage() {
                   SCHEDULE YOUR DROP-OFF
                 </h2>
                 <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
-                  {city.name} residents — schedule your service online or call us directly at {BUSINESS.phone.display}.
+                  {city.name} residents, schedule your service online or call us directly at {BUSINESS.phone.display}.
                 </p>
               </div>
             </FadeIn>

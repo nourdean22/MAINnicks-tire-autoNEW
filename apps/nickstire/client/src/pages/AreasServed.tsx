@@ -34,7 +34,7 @@ export default function AreasServed() {
           matches reality and Google's quality-content signals stay aligned. */}
       <SEOHead
         title="Areas We Serve · Cleveland & Northeast Ohio | Nick's Tire & Auto"
-        description="Nick's Tire & Auto serves the cities and neighborhoods across Cleveland, Euclid, Parma, Parma Heights, Lakewood, Mentor, and the whole northeast Ohio. We've also been known to help drivers from as far as Erie — find your area and we'll tell you what street to take."
+        description="Nick's Tire & Auto serves the cities and neighborhoods across Cleveland, Euclid, Parma, Parma Heights, Lakewood, Mentor, and the whole northeast Ohio. We've also been known to help drivers from as far as Erie. Find your area and we'll tell you what street to take."
         canonicalPath="/areas-served"
       />
 
@@ -49,7 +49,7 @@ export default function AreasServed() {
             <p className="text-foreground/60 mt-4 text-base leading-relaxed">
               Nick's Tire & Auto at {BUSINESS.address.street}, Cleveland, OH {BUSINESS.address.zip} serves
               drivers from cities and neighborhoods across Northeast Ohio. Whether
-              you're in Euclid, Parma, Lakewood, Mentor, or anywhere in between — we're the corner of
+              you're in Euclid, Parma, Lakewood, Mentor, or anywhere in between. We're the corner of
               Euclid Ave that fixes it. Find your area below.
             </p>
           </div>
