@@ -688,30 +688,46 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
   );
   const quietHoursBlocked = etHour >= 0 && etHour <= 5;
 
-  const pendingCount = await prisma.autonomousAction.count({
-    where: { approval: "pending" },
-  });
-  const pendingSystemCount = await prisma.approvalRequest.count({
-    // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
-    where: liveApprovalRequestWhere(now),
-  }).catch((err) => {
-    logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.countApprovals" });
-    return 0;
-  });
+  // A failed count read is UNKNOWN, never zero: null means "could not read". One throw used to fail this
+  // whole cron step (twice, with retries) so the hour's approval count never reached him, and a failed
+  // tool-approval read counted as 0 and skipped the nudge as "no pending actions" with no signal.
+  const readCount = async (fn: string, read: () => Promise<number>): Promise<number | null> => {
+    try {
+      return await read();
+    } catch (err) {
+      log.warn("approvals_nudge_count_unreadable", { fn, err: err instanceof Error ? err.message : String(err) });
+      logError("brain.proactive-pushes", err, { fn });
+      return null;
+    }
+  };
+  const pendingCount = await readCount("checkAndNudgeApprovals.countActions", () =>
+    prisma.autonomousAction.count({ where: { approval: "pending" } }),
+  );
+  const pendingSystemCount = await readCount("checkAndNudgeApprovals.countApprovals", () =>
+    prisma.approvalRequest.count({
+      // Live only (lib/automation/live-decisions.ts): an expired request is not waiting on the operator.
+      where: liveApprovalRequestWhere(now),
+    }),
+  );
+  const actions = pendingCount ?? 0;
+  const tools = pendingSystemCount ?? 0;
 
-  if (pendingCount === 0 && pendingSystemCount === 0) {
-    return { kind: "skip", skipped: true, reason: "no_pending_actions" };
+  if (actions === 0 && tools === 0) {
+    const unreadable = pendingCount === null || pendingSystemCount === null;
+    return { kind: "skip", skipped: true, reason: unreadable ? "approval_count_unreadable" : "no_pending_actions" };
   }
 
   const isDup = await alreadyPushed("approvals_nudge", dateKey);
-  
+
   let text = `⚖️ <b>Governance · Pending Actions</b>\n\n`;
-  if (pendingCount > 0) {
-    text += `There are <b>${pendingCount}</b> autonomous action(s) pending approval.\n`;
+  if (actions > 0) {
+    text += `There are <b>${actions}</b> autonomous action(s) pending approval.\n`;
   }
-  if (pendingSystemCount > 0) {
-    text += `There are <b>${pendingSystemCount}</b> tool execution(s) pending approval.\n`;
+  if (tools > 0) {
+    text += `There are <b>${tools}</b> tool execution(s) pending approval.\n`;
   }
+  if (pendingCount === null) text += `Could not read the autonomous action count just now, so some may be waiting too.\n`;
+  if (pendingSystemCount === null) text += `Could not read the tool approval count just now, so some may be waiting too.\n`;
   text += `\nTap to review & resolve.`;
 
   if (quietHoursBlocked) {
@@ -734,7 +750,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
         sources: [{
           category: "system_context",
           title: "Pending Approvals Queue",
-          summary: `${pendingCount} actions, ${pendingSystemCount} tool requests pending`,
+          summary: `${pendingCount ?? "unknown"} actions, ${pendingSystemCount ?? "unknown"} tool requests pending`,
           confidence: "high",
           reason: "Active count of actions waiting for operator approval.",
         }],
@@ -765,7 +781,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
       sources: [{
         category: "system_context",
         title: "Pending Approvals Queue",
-        summary: `${pendingCount} actions, ${pendingSystemCount} tool requests pending`,
+        summary: `${pendingCount ?? "unknown"} actions, ${pendingSystemCount ?? "unknown"} tool requests pending`,
         confidence: "high",
         reason: "Active count of actions waiting for operator approval.",
       }],
