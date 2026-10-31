@@ -2,11 +2,11 @@
 /**
  * U2 (2026-10-30) · the chat's Context & Evidence panel shows what the reply used, strong first.
  *
- * Before: every recalled memory was listed in recall's own order with its raw %, so a 60% match
- * could sit under a 23% one and eight 23% "matches" filled the panel; the list did not say whether
- * it was what the reply used or a re-run, and no memory could be opened. Now: matches under 35%
- * fold behind "N weak matches hidden", the rest sort by %, the heading names the source, and each
- * memory opens in the universal memory inspector.
+ * Before: eight 23% "matches" filled the panel, the list did not say whether it came from this
+ * turn or a re-run, and no memory could be opened. Now: below recall's top 3 (kept in recall's own
+ * rank order: dense and lexical scores are not comparable), a hit under 35% folds behind
+ * "N weak matches hidden"; a degraded (lexical-only) read folds nothing; the heading names the
+ * source; each memory opens in the universal memory inspector.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React, { act } from "react";
@@ -21,14 +21,16 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { MemoryInspectorSidebar, type MemoryHit } from "@/components/chat/memory-inspector-sidebar";
-import { WEAK_MATCH_BELOW } from "@/lib/chat/recall-display";
+import { KEEP_TOP_HITS, WEAK_MATCH_BELOW } from "@/lib/chat/recall-display";
+import { readInspect } from "@/lib/ui/inspect-url";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
 let host: HTMLDivElement;
 
 const hit = (id: string, similarity: number): MemoryHit => ({ id, content: `memory ${id}`, category: "preference", similarity });
-const hits = [hit("m23", 0.23), hit("m60", 0.6), hit("m40", 0.4), hit("m24", 0.24)];
+// Recall's order: a lexical top hit with a low score first, then a strong tail and a weak tail.
+const hits = [hit("m23", 0.23), hit("m60", 0.6), hit("m40", 0.4), hit("m24", 0.24), hit("m50", 0.5), hit("m21", 0.21)];
 
 function render(props: Partial<React.ComponentProps<typeof MemoryInspectorSidebar>> = {}) {
   act(() => root!.render(<MemoryInspectorSidebar open onClose={() => {}} hits={hits} recallProvenance="OK" {...props} />));
@@ -47,31 +49,41 @@ afterEach(() => {
 });
 
 describe("Context & Evidence · recalled memories (U2)", () => {
-  it("strong matches show best first; weak ones fold behind a count", () => {
+  it("recall's top 3 always show, in recall order; below them a hit under 35% folds", () => {
+    expect(KEEP_TOP_HITS).toBe(3);
     render();
-    expect(shownIds()).toEqual(["memory m60", "memory m40"]);
+    expect(shownIds()).toEqual(["memory m23", "memory m60", "memory m40", "memory m50"]);
     expect(host.textContent).toContain("2 weak matches hidden (under 35%)");
   });
 
-  it("Show reveals the weak matches after the strong ones", () => {
+  it("Show reveals the full list in recall order", () => {
     render();
     const toggle = Array.from(host.querySelectorAll("button")).find((b) => b.textContent?.includes("weak matches hidden"))!;
     act(() => toggle.click());
-    expect(shownIds()).toEqual(["memory m60", "memory m40", "memory m24", "memory m23"]);
+    expect(shownIds()).toEqual(["memory m23", "memory m60", "memory m40", "memory m24", "memory m50", "memory m21"]);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("all weak: says so instead of an empty list", () => {
-    render({ hits: [hit("a", 0.2), hit("b", 0.3)] });
-    expect(host.textContent).toContain("No strong matches");
+  it("a new turn's list starts folded again", () => {
+    render();
+    act(() => Array.from(host.querySelectorAll("button")).find((b) => b.textContent?.includes("weak matches hidden"))!.click());
+    render({ hits: [...hits] });
     expect(host.textContent).toContain("2 weak matches hidden");
   });
 
-  it("the heading names the source: used in this reply, or a preview re-run", () => {
+  it("a degraded (lexical-only) read folds nothing: its scores are not cosine", () => {
+    render({ recallProvenance: "ERROR" });
+    expect(shownIds()).toHaveLength(6);
+    expect(host.textContent).not.toContain("weak match");
+  });
+
+  it("the heading names the source and never claims the reply used the list", () => {
     render({ recallSource: "turn" });
-    expect(host.textContent).toContain("Used in this reply (4)");
+    expect(host.textContent).toContain("Recalled for this turn (6)");
+    expect(host.textContent).toContain("Nick's prompt may use part of it.");
+    expect(host.textContent).not.toContain("Used in this reply");
     render({ recallSource: "preview" });
-    expect(host.textContent).toContain("Recall preview for your last message (4)");
+    expect(host.textContent).toContain("Recall preview for your last message (6)");
     expect(host.textContent).toContain("The reply may have used different memories.");
   });
 
@@ -81,7 +93,9 @@ describe("Context & Evidence · recalled memories (U2)", () => {
     expect(opens).toHaveLength(1);
     act(() => opens[0].click());
     expect(push).toHaveBeenCalledTimes(1);
-    expect(decodeURIComponent(String(push.mock.calls[0][0]))).toContain("memory:cm123");
+    // The consumer end: the URL the button pushed is one InspectorHost reads back as this memory.
+    const search = new URL(String(push.mock.calls[0][0]), "http://x").search;
+    expect(readInspect(search)).toEqual({ kind: "memory", id: "cm123" });
   });
 
   it("Open closes the overlay panel (it would cover the inspector) but not the docked column", () => {

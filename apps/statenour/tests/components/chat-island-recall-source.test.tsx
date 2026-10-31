@@ -16,11 +16,12 @@ import { createRoot, type Root } from "react-dom/client";
 const h = vi.hoisted(() => ({
   last: null as null | { hits: string[]; source?: string },
   resolvePreview: (_v: unknown) => {},
+  messages: [] as Array<{ id: string; role: string; parts: Array<{ type: string; text: string }> }>,
 }));
 
 vi.mock("@/features/chat-v2/hooks/use-chat-stream", () => ({
   useChatStream: () => ({
-    messages: [{ id: "u1", role: "user", parts: [{ type: "text", text: "what do I like" }] }],
+    messages: h.messages,
     status: "ready",
     error: undefined,
     isStreaming: false,
@@ -68,8 +69,11 @@ let container: HTMLDivElement;
 let root: Root;
 const preview = { hits: [{ id: "p1", content: "x", category: "c", similarity: 0.5 }], provenance: "OK" };
 
+const userMsg = (id: string) => ({ id, role: "user", parts: [{ type: "text", text: "what do I like" }] });
+
 beforeEach(() => {
   h.last = null;
+  h.messages = [userMsg("u1")];
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("1280"), media: query, addEventListener: () => {}, removeEventListener: () => {} }));
   useChatUiStore.setState({ memoryInspectorOpen: true, historyDrawerOpen: false, privateMode: false });
   container = document.createElement("div");
@@ -97,5 +101,14 @@ describe("ChatIsland · recall source (U2)", () => {
     act(() => root.render(<ChatIsland />));
     await act(async () => { h.resolvePreview(preview); await Promise.resolve(); });
     expect(h.last).toEqual({ hits: ["p1"], source: "preview" });
+  });
+
+  it("the same words as another message are another turn: its list is not shown as this turn's", async () => {
+    act(() => root.render(<ChatIsland />));
+    act(() => streamEvent());
+    expect(h.last).toEqual({ hits: ["t1"], source: "turn" });
+    h.messages = [userMsg("u2")];
+    act(() => root.render(<ChatIsland />));
+    expect(h.last).toEqual({ hits: [], source: undefined });
   });
 });

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Brain, Sparkles, AlertTriangle, ShieldCheck, X } from "lucide-react";
 import type { QualityPayload } from "@/components/chat/quality-bar";
-import { WEAK_MATCH_BELOW, splitBySimilarity } from "@/lib/chat/recall-display";
+import { WEAK_MATCH_BELOW, splitWeakTail } from "@/lib/chat/recall-display";
 import { useInspector } from "@/hooks/use-inspector";
 
 /** U2 · the source of a recalled memory: the universal memory inspector (?inspect=memory:<id>). */
@@ -64,9 +64,10 @@ export interface MemoryInspectorSidebarProps {
    */
   docked?: boolean;
   /**
-   * U2 (2026-10-30) · where `hits` came from. "turn" = the stream's memory.recalled event, what
-   * this reply was actually given. "preview" = recall re-run on the last message after the fact
-   * (a reload, an old thread), which can differ from what the reply used. Undefined = unknown.
+   * U2 (2026-10-30) · where `hits` came from. "turn" = the stream's memory.recalled event: what
+   * recall returned for this turn (the prompt may use part of it: with NICK_RECALL_ARBITER on, an
+   * arbitrated pack is built from these and other sources). "preview" = recall re-run on the last
+   * message after the fact (a reload, an old thread). Undefined = unknown.
    */
   recallSource?: "turn" | "preview";
 }
@@ -82,10 +83,13 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   docked = false,
   recallSource,
 }) => {
-  const [showWeak, setShowWeak] = useState(false);
+  // Open for THIS list only: a new turn's list starts folded again.
+  const [weakOpenFor, setWeakOpenFor] = useState<MemoryHit[] | null>(null);
   if (!open) return null;
-  const { strong, weak } = splitBySimilarity(hits);
-  const shown = showWeak ? [...strong, ...weak] : strong;
+  const showWeak = weakOpenFor === hits;
+  // A degraded read is lexical-only: its scores are not cosine, so nothing folds.
+  const { strong, weak } = recallProvenance === "OK" ? splitWeakTail(hits) : { strong: hits, weak: [] };
+  const shown = showWeak ? hits : strong;
   // Absolute time, not "Ns ago": render stays pure (no Date.now() during
   // render — react-compiler purity rule) and an absolute stamp is the more
   // honest receipt anyway.
@@ -230,15 +234,17 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
             <span className="font-mono text-[11px] font-medium">
               {recallSource === "turn"
-                ? `Used in this reply (${hits.length})`
+                ? `Recalled for this turn (${hits.length})`
                 : recallSource === "preview"
                   ? `Recall preview for your last message (${hits.length})`
                   : `Remembered: what Nick believes (${hits.length})`}
             </span>
           </div>
-          {recallSource === "preview" && hits.length > 0 ? (
+          {recallSource && hits.length > 0 ? (
             <p className="text-[11px] text-fg-tertiary mb-3">
-              Run again just now. The reply may have used different memories.
+              {recallSource === "turn"
+                ? "What memory recall returned for this message. Nick's prompt may use part of it."
+                : "Run again just now. The reply may have used different memories."}
             </p>
           ) : null}
           {/*
@@ -304,11 +310,6 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             )
           ) : (
             <div className="space-y-3">
-              {shown.length === 0 ? (
-                <p className="text-[11px] text-fg-tertiary italic">
-                  No strong matches: every memory recalled matched under {Math.round(WEAK_MATCH_BELOW * 100)}%.
-                </p>
-              ) : null}
               {shown.map((hit) => (
                 <div key={hit.id} className="bg-surface/50 border border-edge-subtle p-3 rounded-surface">
                   <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-fg-tertiary mb-1">
@@ -328,7 +329,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               {weak.length > 0 ? (
                 <button
                   type="button"
-                  onClick={() => setShowWeak((v) => !v)}
+                  onClick={() => setWeakOpenFor(showWeak ? null : hits)}
                   aria-expanded={showWeak}
                   className="flex min-h-11 w-full items-center rounded-control px-2 text-left text-[11px] text-fg-tertiary hover:bg-surface hover:text-fg"
                 >

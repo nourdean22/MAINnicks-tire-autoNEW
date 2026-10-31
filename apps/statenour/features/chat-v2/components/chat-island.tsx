@@ -29,6 +29,8 @@ import { toast } from "sonner";
 // A1b: the composer's line while a conversation opens (use-conversations isLoadingConvo).
 export const COMPOSER_OPENING_REASON = "Opening that conversation. Send once it is on screen.";
 const XL_QUERY = "(min-width: 1280px)";
+// One stable empty list, so the sidebar sees the same reference while no recall belongs to this turn.
+const NO_HITS: never[] = [];
 function subscribeXl(onChange: () => void): () => void {
   const query = window.matchMedia?.(XL_QUERY);
   query?.addEventListener?.("change", onChange);
@@ -271,17 +273,21 @@ export function ChatIsland() {
   const [recallProvenanceReason, setRecallProvenanceReason] = useState<string | undefined>(
     undefined,
   );
-  // U2 · the stream's memory.recalled event is what the reply was given; the preview re-run below
-  // only fills in when no event arrived for the current last message, and never overwrites one.
+  // U2 · the stream's memory.recalled event is what recall returned for the turn; the preview re-run
+  // below only fills in when no event arrived for the current last message, and never overwrites
+  // one. Both are keyed to the last user MESSAGE (its id), not its text: the same words in another
+  // conversation are another turn. `recallFor` is the message the shown list belongs to.
   const [recallSource, setRecallSource] = useState<"turn" | "preview" | undefined>(undefined);
+  const [recallFor, setRecallFor] = useState<string | null>(null);
   const streamedForRef = useRef<string | null>(null);
-  const lastUserTextRef = useRef("");
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const onCockpitEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
-        streamedForRef.current = lastUserTextRef.current;
+        streamedForRef.current = lastUserIdRef.current;
+        setRecallFor(lastUserIdRef.current);
         setRecallSource("turn");
         setMemoryData(detail.payload?.hits || []);
         setMemoryFetchedAt(new Date());
@@ -296,14 +302,18 @@ export function ChatIsland() {
     return () => window.removeEventListener("cockpit-event", onCockpitEvent);
   }, [setMemoryData]);
 
+  const lastUser = useMemo(
+    () => [...chat.messages].reverse().find((message) => message.role === "user"),
+    [chat.messages],
+  );
+  const lastUserId = lastUser?.id ?? null;
   const lastUserText = useMemo(() => {
-    const lastUser = [...chat.messages].reverse().find((message) => message.role === "user");
     return (lastUser?.parts ?? [])
       .filter((part): part is { type: "text"; text: string } => part.type === "text")
       .map((part) => part.text)
       .join(" ")
       .trim();
-  }, [chat.messages]);
+  }, [lastUser]);
 
   // WP-11 (2026-07-29): the latest assistant turn's persisted quality
   // verdicts (gate · critic · factCheck · truth · receipt) for the
@@ -317,12 +327,12 @@ export function ChatIsland() {
   }, [chat.messages]);
 
   useEffect(() => {
-    lastUserTextRef.current = lastUserText;
-  }, [lastUserText]);
+    lastUserIdRef.current = lastUserId;
+  }, [lastUserId]);
 
   useEffect(() => {
-    if (!inspectorOpen || !lastUserText) return;
-    if (streamedForRef.current === lastUserText) return;
+    if (!inspectorOpen || !lastUserText || !lastUserId) return;
+    if (streamedForRef.current === lastUserId) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -331,7 +341,8 @@ export function ChatIsland() {
         // memories and blanked the provenance on every open, and it bumped
         // lastSeen on what it showed. A failed read now lands in the catch.
         const report = await fetchInspectorRecall(lastUserText, controller.signal);
-        if (streamedForRef.current === lastUserText) return;
+        if (streamedForRef.current === lastUserId) return;
+        setRecallFor(lastUserId);
         setRecallSource("preview");
         setMemoryData(report.hits);
         setMemoryFetchedAt(new Date());
@@ -342,14 +353,18 @@ export function ChatIsland() {
         // keep the last known view untouched. A real failure is not
         // ordinary -- say the read failed rather than leaving a stale
         // list looking freshly confirmed.
-        if ((err as { name?: string })?.name !== "AbortError" && streamedForRef.current !== lastUserText) {
+        if ((err as { name?: string })?.name !== "AbortError" && streamedForRef.current !== lastUserId) {
           setRecallProvenance("ERROR");
           setRecallProvenanceReason("could not refresh memory for this turn -- showing the last known view");
         }
       }
     })();
     return () => controller.abort();
-  }, [lastUserText, inspectorOpen, setMemoryData]);
+  }, [lastUserText, lastUserId, inspectorOpen, setMemoryData]);
+
+  // The list belongs to another message (another conversation, or before its recall landed): show
+  // nothing rather than label someone else's recall as this turn's.
+  const recallCurrent = recallFor !== null && recallFor === lastUserId;
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
@@ -517,7 +532,7 @@ export function ChatIsland() {
 
       {/* W3b (B1): docked at xl (the evidence beside the answer, on its own raised surface, closable
           from the header's Context button); the opt-in overlay below xl, as before. */}
-      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} recallSource={recallSource} />
+      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recallCurrent ? recalledHits : NO_HITS} fetchedAt={recallCurrent ? memoryFetchedAt : null} reply={replyQuality} recallProvenance={recallCurrent ? recallProvenance : undefined} recallProvenanceReason={recallCurrent ? recallProvenanceReason : undefined} recallSource={recallCurrent ? recallSource : undefined} />
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays rather than re-laying-out the chat column.
