@@ -138,6 +138,19 @@ describe("enqueueLedgerEmbed · deleted-while-embedding", () => {
     await enqueueLedgerEmbed("L1", NOTE);
     expect(m.transaction).not.toHaveBeenCalled();
   });
+
+  // The embed-backfill ledger lane counts a retry as done only when this says a vector was written.
+  it("returns true only when it wrote the vector", async () => {
+    m.txLedgerFindUnique.mockResolvedValue({ id: "L1" });
+    expect(await enqueueLedgerEmbed("L1", NOTE)).toBe(true);
+    expect(await enqueueLedgerEmbed("L1", "too short")).toBe(false);
+    m.txLedgerFindUnique.mockResolvedValue(null);
+    expect(await enqueueLedgerEmbed("L1", NOTE)).toBe(false);
+    m.getEmbedding.mockResolvedValue([]);
+    expect(await enqueueLedgerEmbed("L1", NOTE)).toBe(false);
+    m.getEmbedding.mockRejectedValue(new Error("Response from the Engine was empty"));
+    expect(await enqueueLedgerEmbed("L1", NOTE)).toBe(false);
+  });
 });
 
 describe("enqueuePersonEmbed · the SAME race, one function above", () => {
@@ -165,5 +178,18 @@ describe("enqueuePersonEmbed · the SAME race, one function above", () => {
         data: expect.objectContaining({ sourceType: "person_profile", sourceId: "p1" }),
       }),
     );
+  });
+
+  // The embed-backfill person_profile lane counts a retry as done only when a vector exists afterwards.
+  it("returns true only when the person has a vector afterwards", async () => {
+    m.txPersonFindUnique.mockResolvedValue({ id: "p1" });
+    expect(await enqueuePersonEmbed("p1")).toBe(true);
+    m.txPersonFindUnique.mockResolvedValue(null);
+    expect(await enqueuePersonEmbed("p1")).toBe(false);
+    m.txPersonFindUnique.mockResolvedValue({ id: "p1" });
+    m.getEmbedding.mockResolvedValue([]);
+    expect(await enqueuePersonEmbed("p1")).toBe(false);
+    m.getEmbedding.mockRejectedValue(new Error("Response from the Engine was empty"));
+    expect(await enqueuePersonEmbed("p1")).toBe(false);
   });
 });
