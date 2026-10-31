@@ -74,7 +74,7 @@ export default function About() {
           {/* LCP fix · hero is above-the-fold, must load eagerly with high priority.
               ResponsivePhoto serves /storefront-day-mobile.webp (98KB) under
               768px instead of the 469KB desktop variant. */}
-          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Nick's Tire & Auto shop sign on Euclid Avenue in Cleveland, Ohio — yellow Nick's Tire & Auto branded sign with phone number 216-862-0005 and tire stacks on the sidewalk" className="w-full h-full object-cover" objectPosition="center 42%" />
+          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Nick's Tire & Auto shop sign on Euclid Avenue in Cleveland, Ohio, yellow Nick's Tire & Auto branded sign with phone number 216-862-0005 and tire stacks on the sidewalk" className="w-full h-full object-cover" objectPosition="center 42%" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
         <div className="relative container pb-16 pt-32">
@@ -98,13 +98,13 @@ export default function About() {
             <div>
               <h2 className="text-3xl font-bold text-foreground mb-6">Built from the ground up on Euclid Ave.</h2>
               <p className="text-foreground/70 mb-4">
-                Nick's Tire & Auto has served East Side Cleveland from the same Euclid Ave corner since 2018 — many neighbors first knew the shop as Moe's Tire & Auto. Same owner, same corner: we simply changed the name to Nick's. The mission never changed — give East Side drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest answers, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
+                Nick's Tire & Auto has served East Side Cleveland from the same Euclid Ave corner since 2018. Many neighbors first knew the shop as Moe's Tire & Auto. Same owner, same corner: we simply changed the name to Nick's. The mission never changed: give East Side drivers a shop they can trust, with honest answers, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
               </p>
               <p className="text-foreground/70 mb-4">
-                What started as a small independent shop has grown into Cleveland's {rating.toFixed(1)}★, {totalReviews.toLocaleString()}-review East Side shop — real customers, real reviews, no marketing budget.
+                What started as a small independent shop has grown into Cleveland's {rating.toFixed(1)}★, {totalReviews.toLocaleString()}-review East Side shop. Real customers, real reviews.
               </p>
               <p className="text-foreground/70">
-                We're not a chain. We're not a dealership. We're your neighbors — and we treat your car like it belongs to one.
+                We're not a chain. We're not a dealership. We're your neighbors, and we treat your car like it belongs to one.
               </p>
               <figure className="mt-8">
                 <div className="grid grid-cols-2 gap-3">
@@ -165,8 +165,8 @@ export default function About() {
             {[
               { stat: "30+", label: "Years combined tech experience", sub: "Master + journeyman techs across the floor" },
               { stat: "4 bays", label: "Operating capacity", sub: "Two lifts, two flat-bay drive-ons; ~32 jobs/day max" },
-              { stat: "OBD-II + live data", label: "Scan tools, manufacturer-grade", sub: "Snap-on / Autel — same tools the dealer uses" },
-              { stat: "12-mo", label: "Parts + labor warranty", sub: "12-month parts / 90-day labor — in writing" },
+              { stat: "OBD-II + live data", label: "Scan tools, manufacturer-grade", sub: "Snap-on / Autel. Same tools the dealer uses" },
+              { stat: "12-mo", label: "Parts + labor warranty", sub: "12-month parts / 90-day labor, in writing" },
             ].map((item, i) => (
               <FadeIn key={item.label} delay={i * 0.08}>
                 <div className="text-center">
@@ -186,7 +186,7 @@ export default function About() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <FadeIn>
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-                <img loading="lazy" width={1122} height={1402} src={DIAG_IMG} alt="Auto diagnostics in progress at Nick's Tire & Auto Cleveland — engine bay testing" className="w-full h-full object-cover" style={{ objectPosition: "center 50%" }} />
+                <img loading="lazy" width={1122} height={1402} src={DIAG_IMG} alt="Auto diagnostics in progress at Nick's Tire & Auto Cleveland, engine bay testing" className="w-full h-full object-cover" style={{ objectPosition: "center 50%" }} />
                 <div className="absolute bottom-4 right-4 bg-primary px-4 py-3 rounded-xl">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-2xl text-primary-foreground">{rating.toFixed(1)}</span>
@@ -204,13 +204,13 @@ export default function About() {
                   We show you the problem <span className="text-primary">before we fix it.</span>
                 </h2>
                 <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
-                  Most shops hand you a bill and hope you don't ask questions. We walk you under the car, show you the worn parts, explain your options, and let you decide. No pressure. No upselling.
+                  Most shops hand you a bill and hope you don't ask questions. We walk you under the car, show you the worn parts, explain your options, and let you decide.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
                   The price we quote is the price you pay. That approach has earned us a {rating.toFixed(1)}-star rating across {totalReviews.toLocaleString()}+ Google reviews from Cleveland drivers who keep coming back.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
-                  We even built a free Diagnose tool — describe your car's symptoms before you come in, no pressure, no obligation.
+                  We even built a free Diagnose tool, so you can describe your car's symptoms before you come in.
                 </p>
               </div>
             </FadeIn>
@@ -345,9 +345,9 @@ export default function About() {
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
-              { title: "Honest Answers", text: "OBD-II scanners and live data on every car. We test before we replace — so you never pay for parts you don't need." },
+              { title: "Honest Answers", text: "OBD-II scanners and live data on every car. We test before we replace, so you never pay for parts you don't need." },
               { title: "Fair Pricing", text: "The price we quote is the price you pay. Every line item explained. We tell you the cost before we touch anything." },
-              { title: "Full-Service Shop", text: "Tires, brakes, check-engine light, emissions, oil changes, suspension, steering, exhaust — one shop for everything." },
+              { title: "Full-Service Shop", text: "Tires, brakes, check-engine light, emissions, oil changes, suspension, steering, exhaust. One shop for everything." },
               { title: "Since 2018", text: `${new Date().getFullYear() - 2018} years of serving Cleveland's East Side with zero corporate pressure. We answer to our customers, not shareholders.` },
             ].map((item, i) => (
               <FadeIn key={item.title} delay={i * 0.1}>
@@ -450,7 +450,7 @@ export default function About() {
                 // you say yes") — same phrase Brian uses on every VAPI
                 // repair call. Cross-touchpoint consistency per
                 // brand-perception step 5.
-                sub: "Every repair over $100 — full written estimate, line-by-line. You don't pay until you say yes.",
+                sub: "Every repair over $100 gets a full written estimate, line by line. You don't pay until you say yes.",
                 anchor: "Industry standard: verbal-only, sometimes",
               },
               {
@@ -540,22 +540,22 @@ export default function About() {
               {
                 num: "01",
                 title: "12-month parts / 90-day labor warranty",
-                sub: "Failed part or improper repair? Bring it back, no charge — full re-do, including labor.",
+                sub: "Failed part or improper repair? Bring it back, no charge, full re-do, including labor.",
               },
               {
                 num: "02",
                 title: "Quoted price = paid price",
-                sub: "If the written estimate is $440, the bill is $440. If we find something extra, we stop and call you with the new number — no surprise add-ons at pickup.",
+                sub: "If the written estimate is $440, the bill is $440. If we find something extra, we stop and call you with the new number. No surprise add-ons at pickup.",
               },
               {
                 num: "03",
                 title: "We don't replace what isn't broken",
-                sub: "We test before we replace. If the part on your car still works, we say so — even when replacing it would make us money.",
+                sub: "We test before we replace. If the part on your car still works, we say so, even when replacing it would make us money.",
               },
               {
                 num: "04",
                 title: "If we can't fix it, you don't pay",
-                sub: "If we mis-diagnose and the issue isn't resolved, the diagnostic and repair are free. We eat the cost — it's our problem, not yours.",
+                sub: "If we mis-diagnose and the issue isn't resolved, the diagnostic and repair are free. We eat the cost. It's our problem, not yours.",
               },
             ].map((item) => (
               <FadeIn key={item.num}>
@@ -571,7 +571,7 @@ export default function About() {
           </div>
           <FadeIn delay={0.3}>
             <p className="text-center text-foreground/40 text-xs mt-8 italic max-w-xl mx-auto">
-              Every receipt has these printed on the back. Not because the law makes us — because we want you holding us to them.
+              Every receipt has these printed on the back. We want you holding us to them.
             </p>
           </FadeIn>
         </div>
@@ -609,7 +609,7 @@ export default function About() {
         <div className="container text-center">
           <FadeIn>
             <h2 className="text-3xl lg:text-5xl font-bold text-foreground tracking-tight">Ready to get started?</h2>
-            <p className="mt-4 text-foreground/40 text-lg max-w-md mx-auto">Call us, drop off online, or just pull up. Walk-ins welcome — first-come, first-served.</p>
+            <p className="mt-4 text-foreground/40 text-lg max-w-md mx-auto">Call us, drop off online, or just pull up. Walk-ins welcome, first-come, first-served.</p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("about-cta")} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium hover:bg-foreground/90 transition-colors">
                 <Phone className="w-4 h-4" />

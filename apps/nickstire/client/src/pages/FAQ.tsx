@@ -31,12 +31,12 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "General",
     question: "What are your hours of operation?",
-    answer: "We are open Monday through Saturday from 8:00 AM to 6:00 PM, and Sunday from 9:00 AM to 4:00 PM. No appointment needed — first come, first served, 7 days a week."
+    answer: "We are open Monday through Saturday from 8:00 AM to 6:00 PM, and Sunday from 9:00 AM to 4:00 PM. No appointment needed, first come, first served, 7 days a week."
   },
   {
     category: "General",
     question: "Do I need an appointment?",
-    answer: `No appointments needed — Nick's is first-come, first-served, 7 days a week. Walk in any time during open hours. If you want to skip the wait, you can schedule a drop-off online through our website or call us at ${BUSINESS.phone.display} so we have the right parts ready.`
+    answer: `No appointments needed. Nick's is first come, first served, 7 days a week. Walk in any time during open hours. If you want to skip the wait, you can schedule a drop-off online through our website or call us at ${BUSINESS.phone.display} so we have the right parts ready.`
   },
   {
     category: "General",
@@ -47,12 +47,12 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Diagnostics",
     question: "My check engine light is on. What should I do?",
-    answer: "A check engine light can indicate anything from a loose gas cap to a serious engine problem. Walk in and we'll plug in the scanner to read the trouble codes — same code reader the dealer uses. Free scan, written quote if it needs deeper checking. You don't pay until you say yes."
+    answer: "A check engine light can indicate anything from a loose gas cap to a serious engine problem. Walk in and we'll plug in the scanner to read the trouble codes. Same code reader the dealer uses. Free scan, written quote if it needs deeper checking. You don't pay until you say yes."
   },
   {
     category: "Diagnostics",
     question: "How much does a diagnostic scan cost?",
-    answer: `Code scan is free on every visit. If it needs deeper checking — live data, component testing — we write you a quote first. Free check. Written quote. You don't pay until you say yes. Call ${BUSINESS.phone.display} if you want details before you walk in.`
+    answer: `Code scan is free on every visit. If it needs deeper checking (live data, component testing), we write you a quote first. Free check. Written quote. You don't pay until you say yes. Call ${BUSINESS.phone.display} if you want details before you walk in.`
   },
   // Emissions
   {
@@ -69,7 +69,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Brakes",
     question: "How do I know if my brakes need to be replaced?",
-    answer: "Common signs include squealing or grinding noises when braking, a soft or spongy brake pedal, the vehicle pulling to one side during braking, or a vibrating steering wheel. If you notice any of these — come in and we'll check the brakes. Sooner the better, squealing turns to metal-on-metal fast."
+    answer: "Common signs include squealing or grinding noises when braking, a soft or spongy brake pedal, the vehicle pulling to one side during braking, or a vibrating steering wheel. If you notice any of these, come in and we'll check the brakes. Sooner the better, squealing turns to metal-on-metal fast."
   },
   {
     category: "Brakes",
@@ -80,7 +80,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Tires",
     question: "Do you sell new and used tires?",
-    answer: "Yes. New tires from major brands — Goodyear, Cooper, Michelin, Bridgestone — and used tires from $25 installed on select 12-inch sizes (most run $40-80 installed). Mount, balance, valve stems, alignment check included with every set."
+    answer: "Yes. New tires from major brands (Goodyear, Cooper, Michelin, Bridgestone) and used tires from $25 installed on select 12-inch sizes (most run $40-80 installed). Mount, balance, valve stems, alignment check included with every set."
   },
   {
     category: "Tires",
@@ -97,7 +97,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Pricing & Warranty",
     question: "Do you provide written estimates before starting work?",
-    answer: "Yes. Written estimate before any wrench moves. If we find something else while we're in there, we stop and call you — you say yes or no on the new number. Free check. Written quote. You don't pay until you say yes."
+    answer: "Yes. Written estimate before any wrench moves. If we find something else while we're in there, we stop and call you. You say yes or no on the new number. Free check. Written quote. You don't pay until you say yes."
   },
   {
     category: "Pricing & Warranty",
@@ -108,13 +108,13 @@ const FAQ_DATA: FAQItem[] = [
     // lower confidence level than visitors who saw About. Now
     // consistent across pages.
     question: "Do you offer any warranty on repairs?",
-    answer: "Yes — parts are covered for 12 months and labor for 90 days. The warranty is in writing on every receipt. Some specialty parts (custom-order or tire-specific) follow the manufacturer's separate warranty; we'll flag those upfront on the estimate. Ask your service advisor if you want the specifics for your repair."
+    answer: "Yes. Parts are covered for 12 months and labor for 90 days. The warranty is in writing on every receipt. Some specialty parts (custom-order or tire-specific) follow the manufacturer's separate warranty; we'll flag those upfront on the estimate. Ask your service advisor if you want the specifics for your repair."
   },
   // Problem-specific questions
   {
     category: "Common Problems",
     question: "My car is shaking while driving. What could be wrong?",
-    answer: "Car shaking can be caused by unbalanced tires, worn brake rotors, bad wheel bearings, worn CV joints, or engine misfires. The cause depends on when the shaking occurs — at highway speeds, during braking, or at idle. We diagnose the exact cause so you only pay for what needs to be fixed. Visit our car shaking while driving page for more details."
+    answer: "Car shaking can be caused by unbalanced tires, worn brake rotors, bad wheel bearings, worn CV joints, or engine misfires. The cause depends on when the shaking occurs: at highway speeds, during braking, or at idle. We diagnose the exact cause so you only pay for what needs to be fixed. Visit our car shaking while driving page for more details."
   },
   {
     category: "Common Problems",
@@ -156,7 +156,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Pricing & Warranty",
     question: "What is Acima lease-to-own?",
-    answer: "Acima is a rental purchase agreement — not a loan, credit, or financing. At Nick's Tire & Auto, you can lease the tires and parts you need. Acima says no credit history is required, though it obtains information from consumer reporting agencies. A $10 start is available only in select circumstances and does not include taxes or other charges. Early purchase options can lower the total cost; your lease shows them. Not available in MN, NJ, WI, or WY."
+    answer: "Acima is a rental purchase agreement, not a loan, credit, or financing. At Nick's Tire & Auto, you can lease the tires and parts you need. Acima says no credit history is required, though it obtains information from consumer reporting agencies. A $10 start is available only in select circumstances and does not include taxes or other charges. Early purchase options can lower the total cost; your lease shows them. Not available in MN, NJ, WI, or WY."
   },
   {
     category: "Pricing & Warranty",

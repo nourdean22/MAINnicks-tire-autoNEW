@@ -228,7 +228,7 @@ function SideBySide({ a, b, aName, bName }: { a: CompetitorProfile; b: Competito
                 />
                 <Row
                   label="Drop-off + Uber/Lyft"
-                  nicks={<YesNo value={a.dropoffWithRideshare} yesLabel="Yes — leave the car, grab a ride" noLabel="No" />}
+                  nicks={<YesNo value={a.dropoffWithRideshare} yesLabel="Yes: leave the car, grab a ride" noLabel="No" />}
                   comp={<YesNo value={b.dropoffWithRideshare} yesLabel="Yes" noLabel="No" />}
                   highlight={a.dropoffWithRideshare && !b.dropoffWithRideshare ? "nicks" : undefined}
                 />
@@ -437,33 +437,33 @@ function buildDefaultFaqs(format: ComparisonFormat, primary: CompetitorProfile, 
   if (format === "alternative" || format === "vs") {
     base.push({
       question: `What's the best ${primary.shortName} alternative in Cleveland?`,
-      answer: `Nick's Tire & Auto on Euclid Ave. ${primary.shortName} is fine if ${primary.bestFor[0].toLowerCase()} — we're not pretending otherwise. But ${primary.weaknesses[0].toLowerCase()} The Cleveland drivers who walk into Nick's say the same three things: open 7 days, no appointment needed, written estimate before any wrench moves. Used tires from $25 (select 12-inch; most $40-80) if a used tire solves it. The yellow sign on Euclid Ave you've probably driven past.`,
+      answer: `Nick's Tire & Auto on Euclid Ave. ${primary.shortName} is fine if ${primary.bestFor[0].toLowerCase()}. We're not pretending otherwise. But ${primary.weaknesses[0].toLowerCase()} The Cleveland drivers who walk into Nick's say the same three things: open 7 days, no appointment needed, written estimate before any wrench moves. Used tires from $25 (select 12-inch; most $40-80) if a used tire solves it. The yellow sign on Euclid Ave you've probably driven past.`,
     });
     base.push({
       question: `Is Nick's Tire & Auto really cheaper than ${primary.shortName}?`,
-      answer: `Used tires? Yes — from $25 installed on select 12-inch rims, most sizes $40-80, with mount, balance, valve stems, TPMS reset and an alignment check included. ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech. The metal doesn't lie. Neither do we.`,
+      answer: `Used tires? Yes. From $25 installed on select 12-inch rims, most sizes $40-80, with mount, balance, valve stems, TPMS reset and an alignment check included. ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech. The metal doesn't lie. Neither do we.`,
     });
   }
 
   base.push({
     question: `Is Nick's Tire & Auto really open Sundays?`,
-    answer: `Yes. 9am to 4pm. Every Sunday. The chains close. We don't. Most of our customers found us on a Sunday afternoon when their regular shop was locked up — Browns Sunday, salt-on-the-roads Sunday, whatever Sunday it was.`,
+    answer: `Yes. 9am to 4pm. Every Sunday. The chains close. We don't. Most of our customers found us on a Sunday afternoon when their regular shop was locked up, Browns Sunday, salt-on-the-roads Sunday, whatever Sunday it was.`,
   });
 
   base.push({
     question: `Do I need an appointment at Nick's Tire & Auto?`,
-    answer: `Nope. First-come-first-served, every day we're awake. Pull up, hand us the keys, we get you in line. If you can't sit around, drop the car off — we'll Uber you back to work and call when it's ready.`,
+    answer: `Nope. First-come-first-served, every day we're awake. Pull up, hand us the keys, we get you in line. If you can't sit around, drop the car off. We'll Uber you back to work and call when it's ready.`,
   });
 
   base.push({
     question: `Where is Nick's Tire & Auto located?`,
-    answer: `17625 Euclid Ave, Cleveland, OH 44112. The yellow sign you've driven past a hundred times. Phone (216) 862-0005. Mon–Sat 8a–6p · Sun 9a–4p. The chains close. We don't.`,
+    answer: `17625 Euclid Ave, Cleveland, OH 44112. The yellow sign you've driven past a hundred times. Phone (216) 862-0005. Mon to Sat 8a-6p · Sun 9a-4p. The chains close. We don't.`,
   });
 
   if (format === "third-party" && secondary) {
     base.push({
-      question: `${primary.shortName} or ${secondary.shortName} — which one wins?`,
-      answer: `Pick ${primary.shortName} if ${primary.bestFor[0].toLowerCase()} Pick ${secondary.shortName} if ${secondary.bestFor[0].toLowerCase()} Pick neither if you need Sunday service, walk-in availability, used tires under $80, or a written estimate before any wrench moves — that's Nick's Tire & Auto on Euclid Ave. We're the third option neither chain wants you to know about.`,
+      question: `${primary.shortName} or ${secondary.shortName}, which one wins?`,
+      answer: `Pick ${primary.shortName} if ${primary.bestFor[0].toLowerCase()} Pick ${secondary.shortName} if ${secondary.bestFor[0].toLowerCase()} Pick neither if you need Sunday service, walk-in availability, used tires under $80, or a written estimate before any wrench moves. That's Nick's Tire & Auto on Euclid Ave. We're the third option neither chain wants you to know about.`,
     });
   }
 
@@ -497,7 +497,7 @@ export default function ComparisonPage({
       case "vs":
         return `Nick's Tire & Auto vs ${primary.shortName}`;
       case "third-party":
-        return `${primary.shortName} vs ${secondary?.shortName ?? ""} — Cleveland`;
+        return `${primary.shortName} vs ${secondary?.shortName ?? ""} in Cleveland`;
       case "roundup":
         return `Best ${primary.shortName} alternatives in Cleveland`;
     }
@@ -519,13 +519,13 @@ export default function ComparisonPage({
   const defaultTldr = (() => {
     switch (format) {
       case "alternative":
-        return `${primary.shortName} is fine for what they do. Closed Sunday. Want an appointment. New tires only. Nick's Tire & Auto is the Cleveland alternative on Euclid Ave — open 7 days including Sundays, walk in any time, used tires from $25 installed (select 12-inch; most $40-80), written estimate before any wrench moves. The yellow sign you've probably driven past.`;
+        return `${primary.shortName} is fine for what they do. Closed Sunday. Want an appointment. New tires only. Nick's Tire & Auto is the Cleveland alternative on Euclid Ave, open 7 days including Sundays, walk in any time, used tires from $25 installed (select 12-inch; most $40-80), written estimate before any wrench moves. The yellow sign you've probably driven past.`;
       case "vs":
-        return `${primary.shortName} is ${primary.tier.replace(/-/g, " ")} — chain pricing, chain hours, chain upsell pressure. Nick's is mechanic-owned, single-location, first-come-first-served, open 7 days including Sunday. Pick ${primary.shortName} if you want a chain lobby. Pick Nick's if you want a written estimate before any wrench moves.`;
+        return `${primary.shortName} is ${primary.tier.replace(/-/g, " ")}, with chain pricing, chain hours and chain upsell pressure. Nick's is mechanic-owned, single-location, first-come-first-served, open 7 days including Sunday. Pick ${primary.shortName} if you want a chain lobby. Pick Nick's if you want a written estimate before any wrench moves.`;
       case "third-party":
-        return `${primary.shortName} has ${primary.clevelandLocations} Cleveland locations. ${secondary?.shortName} has ${secondary?.clevelandLocations}. Both close Sunday. Both want an appointment. Both write the estimate after the work starts. The third option neither chain wants you to know about: Nick's Tire & Auto on Euclid Ave — walk in 7 days, used tires from $25 (select 12-inch; most $40-80), the estimate in writing before the wrench moves.`;
+        return `${primary.shortName} has ${primary.clevelandLocations} Cleveland locations. ${secondary?.shortName} has ${secondary?.clevelandLocations}. Both close Sunday. Both want an appointment. Both write the estimate after the work starts. The third option neither chain wants you to know about: Nick's Tire & Auto on Euclid Ave. Walk in 7 days, used tires from $25 (select 12-inch; most $40-80), the estimate in writing before the wrench moves.`;
       case "roundup":
-        return `Cleveland's got plenty of options if you're done with ${primary.shortName}. The chains. The tire-only specialists. The independents. Below — the honest ranking. Nick's leads on Sunday hours + walk-in + used tire pricing. The chains lead on location count and brand familiarity. You decide which matters.`;
+        return `Cleveland's got plenty of options if you're done with ${primary.shortName}. The chains. The tire-only specialists. The independents. Below is the honest ranking. Nick's leads on Sunday hours + walk-in + used tire pricing. The chains lead on location count and brand familiarity. You decide which matters.`;
     }
   })();
 
@@ -580,7 +580,7 @@ export default function ComparisonPage({
                 What each shop is good at. Where each falls apart.
               </h2>
               <p className="text-foreground/65 text-base sm:text-lg max-w-3xl mb-12 body-pretty">
-                Pretending {primary.shortName} has no strengths would be a lie and you'd catch it in 30 seconds on Yelp. Here's the real read — both sides, no spin.
+                Pretending {primary.shortName} has no strengths would be a lie and you'd catch it in 30 seconds on Yelp. Here's the real read on both sides.
               </p>
             </FadeIn>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -625,7 +625,7 @@ export default function ComparisonPage({
             <FadeIn>
               <Eyebrow dropShadow={false}>The honest ranking</Eyebrow>
               <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-extrabold uppercase text-foreground tracking-tight leading-[0.95] headline-balance mb-3">
-                Cleveland's tire shops — ranked for real life
+                Cleveland's tire shops, ranked for real life
               </h2>
               <p className="text-foreground/65 text-base sm:text-lg max-w-3xl mb-12 body-pretty">
                 Ranked by what actually matters: walk-in policy, Sunday hours, written estimate up front, used tire access. Chains stay competitive on location count and warranty paperwork. You decide which matters more.

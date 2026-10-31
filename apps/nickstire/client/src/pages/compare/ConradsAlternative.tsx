@@ -29,23 +29,23 @@ export default function ConradsAlternative() {
       extraFaqs={[
         {
           question: "Why do Cleveland drivers switch from Conrad's to Nick's?",
-          answer: "Three reasons every time. One: Conrad's closes Sunday — when your tire blows after the Browns game, the lights are off. Nick's stays open. Two: Conrad's wants an appointment — Nick's is first-come-first-served, walk in any time. Three: Conrad's invoice often shows up bigger than the verbal quote — Nick's hands you the estimate in writing before we touch a wrench. The metal doesn't lie. Neither do we.",
+          answer: "Three reasons every time. One: Conrad's closes Sunday. When your tire blows after the Browns game, the lights are off. Nick's stays open. Two: Conrad's wants an appointment. Nick's is first come, first served, walk in any time. Three: Conrad's invoice often shows up bigger than the verbal quote. Nick's hands you the estimate in writing before we touch a wrench. The metal doesn't lie. Neither do we.",
         },
         {
           question: "How does Nick's tire pricing compare to Conrad's?",
-          answer: "On new tires, similar competitive market rates. The difference is what's NOT on Nick's invoice: no shop fee surprise, no TPMS service line item that should've been in the quote, no disposal fee math gymnastics. On used tires, there's no comparison — Conrad's won't sell you one. Nick's starts at $25 installed (select 12-inch; most $40-80), with mount, balance, valve stems, TPMS reset and an alignment check included free. When a used tire solves it, we don't push a $200 new one.",
+          answer: "On new tires, similar competitive market rates. The difference is what's NOT on Nick's invoice: no shop fee surprise, no TPMS service line item that should've been in the quote, no disposal fee math gymnastics. On used tires, there's no comparison. Conrad's won't sell you one. Nick's starts at $25 installed (select 12-inch; most $40-80), with mount, balance, valve stems, TPMS reset and an alignment check included free. When a used tire solves it, we don't push a $200 new one.",
         },
         {
           question: "Is Nick's Tire & Auto closer than Conrad's for East Side drivers?",
-          answer: "Depends on your block — Conrad's has 37 locations spread across Greater Cleveland. Nick's has one location at 17625 Euclid Ave (Cleveland's East Side, between East 174th and Lakeshore Blvd). If you're commuting on Euclid Ave or live anywhere from Glenville to Collinwood to East Cleveland to Cleveland Heights, we're closer than the Conrad's drive most of the time. If you're in Brunswick, Conrad's wins on geography alone.",
+          answer: "Depends on your block. Conrad's has 37 locations spread across Greater Cleveland. Nick's has one location at 17625 Euclid Ave (Cleveland's East Side, between East 174th and Lakeshore Blvd). If you're commuting on Euclid Ave or live anywhere from Glenville to Collinwood to East Cleveland to Cleveland Heights, we're closer than the Conrad's drive most of the time. If you're in Brunswick, Conrad's wins on geography alone.",
         },
         {
           question: "Does Conrad's still sell used tires? What about Nick's?",
-          answer: "Conrad's sells new tires only — that's been the chain's policy for years. Nick's sells used tires from $25 installed (select 12-inch; most $40-80), every used tire is checked for " + BUSINESS.usedTires.checkSummary + ", stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead. Honesty is the floor.",
+          answer: "Conrad's sells new tires only. That's been the chain's policy for years. Nick's sells used tires from $25 installed (select 12-inch; most $40-80), and every used tire is checked for " + BUSINESS.usedTires.checkSummary + ", stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead. Honesty is the floor.",
         },
         {
           question: "How long is the wait at Nick's vs Conrad's?",
-          answer: "First-come-first-served means the wait is whatever the line is when you pull up. On a slow Tuesday morning you'll be rolling in 30 minutes. On a Saturday afternoon snow-warning weekend, every shop in Cleveland is slammed — including us. The difference: we tell you the honest wait when you arrive, set you up with Uber/Lyft if you want to drop the car, and call when it's done. Conrad's appointment system means the appointment-time and the actually-rolling-out time often don't match.",
+          answer: "First-come-first-served means the wait is whatever the line is when you pull up. On a slow Tuesday morning you'll be rolling in 30 minutes. On a Saturday afternoon snow-warning weekend, every shop in Cleveland is slammed, including us. The difference: we tell you the honest wait when you arrive, set you up with Uber/Lyft if you want to drop the car, and call when it's done. Conrad's appointment system means the appointment-time and the actually-rolling-out time often don't match.",
         },
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
