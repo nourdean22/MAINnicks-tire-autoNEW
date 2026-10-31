@@ -7,6 +7,7 @@ import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { MediaTimestampBar } from "./media-timestamp-bar";
+import { VideoLinks } from "@/components/chat/video-link-facade";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
 import { toolReceiptLabel } from "@/components/chat/tool-result-registry";
@@ -632,7 +633,13 @@ export function ChatMessageList({
                     // editingMessageId) instead of bare prefill — sending
                     // used to APPEND a duplicate while the original stayed.
                     // The composer shows a visible editing banner w/ cancel.
-                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => editMessage(part.text, message.id)} />;
+                    return (
+                      <div key={`${message.id}-${index}`}>
+                        <UserMessageBubble text={part.text} onClick={() => editMessage(part.text, message.id)} />
+                        {/* U3 · a video he pasted plays here, after a tap. */}
+                        <VideoLinks text={part.text} />
+                      </div>
+                    );
                   }
                   // An empty step draws nothing; the part still streaming keeps its shell (the caret).
                   if (!part.text.trim() && !(streamingHere && index === (message.parts?.length ?? 0) - 1)) return null;
@@ -653,6 +660,8 @@ export function ChatMessageList({
                             "4:1" parses as nothing and a half-written
                             "4:12" would flicker a control that then moves. */}
                         {!(isLoading && isLatestAssistant) && <MediaTimestampBar text={part.text} />}
+                        {/* U3 · video links play in place after a tap; not mid-stream (a half URL). */}
+                        {!(isLoading && isLatestAssistant) && <VideoLinks text={part.text} />}
                       </AssistantMessageShell>
                       {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Response cut off. Regenerate</button>}
                       {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Model refused. A retry may route differently</button>}

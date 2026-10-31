@@ -78,9 +78,9 @@ describe.each(BUILDS)("CSP form-action (%s build)", (_label, isDev) => {
 });
 
 describe("CSP form-action test instruments", () => {
-  it("the parser located the directive set (10 directives, form-action among them)", () => {
+  it("the parser located the directive set (11 directives since U3 frame-src, form-action among them)", () => {
     const directives = parseCsp(buildCsp("test-nonce", false));
-    expect(directives.size).toBe(10);
+    expect(directives.size).toBe(11);
     expect(directives.has("form-action")).toBe(true);
     expect(directives.has("connect-src")).toBe(true);
   });

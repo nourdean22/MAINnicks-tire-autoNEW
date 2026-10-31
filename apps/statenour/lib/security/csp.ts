@@ -50,6 +50,10 @@ export function buildCsp(nonce: string, isDev: boolean): string {
     // object-src 'none' (audit-2026-06-21) — block <object>/<embed>/<applet>
     // plugin execution outright; nothing in the app uses them.
     "object-src 'none'",
+    // U3 (2026-10-31): the chat plays a YouTube or Vimeo link in place, after a tap
+    // (components/chat/video-link-facade.tsx). Only these two players may be framed; every
+    // other frame still falls back to default-src 'self'.
+    "frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     // 2026-10-25: Chromium checks form-action against every redirect of a form POST.
