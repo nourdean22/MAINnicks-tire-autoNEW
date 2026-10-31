@@ -2,8 +2,8 @@
  * Prompt evolution - the manual door (2026-10-09).
  *
  * THE GAP IT CLOSES. The receptionist experiment lives in ONE place, the
- * `prompt-evolution-weekly` tier job (cron/scheduler.ts), and that job gates
- * itself to shop-TZ Mondays. Every manual path fell short of the full
+ * `prompt-evolution-weekly` tier job (cron/scheduler.ts), which gated itself to
+ * shop-TZ Mondays until 2026-10-31 (it runs nightly now). Every manual path fell short of the full
  * experiment: scripts/prompt-evolve.ts cannot run the sealed confirmation
  * stage or post the /proof receipt, /api/admin/run-staged-cron fires only
  * MANUAL_TRIGGER_STAGED jobs (this one is live on the tier, not staged), and
@@ -14,7 +14,7 @@
  * lock the scheduler takes (`acquireCronLock("prompt-evolution-weekly")`, TTL
  * twice the job's budget), honours the job's env requirement and the drain
  * flag, runs the SAME cycle (processPromptEvolutionWeekly with
- * `trigger: "manual"`, which is the only thing that bypasses the Monday gate),
+ * `trigger: "manual"`, so the row and Telegram say manual),
  * races it against the SAME 50-minute budget, and writes the SAME cron_log row
  * the tier runner writes. The served prompt is never touched: the cycle is
  * propose-only, and applying a proposal stays an operator edit + Push Config.

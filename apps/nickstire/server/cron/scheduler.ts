@@ -12,7 +12,8 @@
  * TIER 4 (daily, 09:30 ET): Daily — segmentation, retention, reports, cleanup
  * TIER 5 (07:00 + 19:00 ET): Briefings — morning brief, daily report
  * TIER 6 (nightly, 03:30 ET): Nightly — independent TiDB backup (flag-gated)
- *   (tiers 4-6 run on the ET wall clock, claimed per slot per day — wallClockTiers.ts)
+ * TIER 7 (learning, 00:45 ET): Learning — the receptionist prompt experiment
+ *   (tiers 4-7 run on the ET wall clock, claimed per slot per day — wallClockTiers.ts)
  *
  * Each tier runs its jobs SEQUENTIALLY within the tier to avoid
  * DB connection stampedes. Jobs still have individual timeout + skip
@@ -2253,32 +2254,6 @@ function buildTiers(): void {
           return processClosedLoopMeasure();
         },
       },
-      // 2026-08-06 · the R&D gated-edit loop, self-sustaining: every Monday,
-      // ghost-replay the served VAPI prompt against fresh Ossuary failures,
-      // let the optimizer propose bounded edits, accept only when the paired
-      // permutation test on repeated holdout replays clears alpha with no
-      // reliably-handled call broken (services/promptEvolutionGate.ts), and
-      // PROPOSE the winner (kv + Telegram). The
-      // served prompt is never written — Push Config stays the serving gate.
-      {
-        name: "prompt-evolution-weekly",
-        requiresEnv: "OLLAMA_API_KEY",
-        // Production 2026-09-28: this job hit the scheduler's 4-minute default
-        // and was marked failed while its Promise continued in the background.
-        // A full cycle serially ghost-replays train + holdout, generates bounded
-        // challengers, then scores the winner on holdout. Give that measured
-        // workload its own budget; the daily tier interval is 24h, so 50m stays
-        // comfortably below the tier cadence while still bounding a hung lane.
-        // 2026-10-09: 30m could not hold a cycle whose candidate passed the
-        // policy guard (~170 replays at ~20 s each on the Ollama lane); the
-        // runner now stops itself at 45m (promptEvolutionWeekly RUN_BUDGET_MS)
-        // and the manual door mirrors this figure (promptEvolutionManualRun).
-        timeoutMs: 50 * 60 * 1000,
-        handler: async () => {
-          const { processPromptEvolutionWeekly } = await import("./jobs/promptEvolutionWeekly");
-          return processPromptEvolutionWeekly();
-        },
-      },
       // 2026-08-05 · the missing RESOLVER for the content experiment registry
       // (0108): assignment was wired at enqueue but startExperiment /
       // attachPublishedMedia / recordVerdict had ZERO callers, so no experiment
@@ -3117,6 +3092,47 @@ function buildTiers(): void {
         handler: async () => {
           const { runTidbBackupJob } = await import("../services/tidbBackupJob");
           return runTidbBackupJob();
+        },
+      },
+    ],
+    running: false,
+    lastRun: null,
+  });
+
+  // ═══ TIER 7: LEARNING (00:45 ET slot, claimed per ET night — wallClockTiers.ts) ═══
+  // Self-learning W1 (2026-10-31): the receptionist prompt experiment runs every
+  // night in its own slot, so its 45-minute budget never delays the daily tier's
+  // customer lanes and its Ollama replays land in the hours statenour is quiet.
+  // intervalMs is the nominal cadence consumers read (getJobCadences); no timer uses it.
+  tiers.push({
+    name: "learning",
+    intervalMs: 24 * 60 * 60 * 1000,
+    jobs: [
+      // 2026-08-06 · the R&D gated-edit loop, self-sustaining: every night
+      // (every Monday until 2026-10-31, self-learning W1), ghost-replay the
+      // served VAPI prompt against fresh Ossuary failures,
+      // let the optimizer propose bounded edits, accept only when the paired
+      // permutation test on repeated holdout replays clears alpha with no
+      // reliably-handled call broken (services/promptEvolutionGate.ts), and
+      // PROPOSE the winner (kv + Telegram). The
+      // served prompt is never written — Push Config stays the serving gate.
+      {
+        name: "prompt-evolution-weekly",
+        requiresEnv: "OLLAMA_API_KEY",
+        // Production 2026-09-28: this job hit the scheduler's 4-minute default
+        // and was marked failed while its Promise continued in the background.
+        // A full cycle serially ghost-replays train + holdout, generates bounded
+        // challengers, then scores the winner on holdout. Give that measured
+        // workload its own budget; the tier interval is 24h, so 50m stays
+        // comfortably below the tier cadence while still bounding a hung lane.
+        // 2026-10-09: 30m could not hold a cycle whose candidate passed the
+        // policy guard (~170 replays at ~20 s each on the Ollama lane); the
+        // runner now stops itself at 45m (promptEvolutionWeekly RUN_BUDGET_MS)
+        // and the manual door mirrors this figure (promptEvolutionManualRun).
+        timeoutMs: 50 * 60 * 1000,
+        handler: async () => {
+          const { processPromptEvolutionWeekly } = await import("./jobs/promptEvolutionWeekly");
+          return processPromptEvolutionWeekly();
         },
       },
     ],
