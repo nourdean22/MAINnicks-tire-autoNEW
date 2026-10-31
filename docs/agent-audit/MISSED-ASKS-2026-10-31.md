@@ -1,8 +1,8 @@
 # Missed-asks register, 2026-10-29 to 2026-10-31
 
-**Answer first.** 76 asks since 2026-10-29T00:00Z. 43 are DONE+LIVE with a receipt. 4 are not started or were lost,
+**Answer first.** 76 asks since 2026-10-29T00:00Z. 45 are DONE+LIVE with a receipt. 4 are not started or were lost,
 and Nour notices those first: daily self-learning, two-way calendar sync, the transfer callback he approved at 11:24Z,
-the hiring post he said yes to, and the vague-ask detector. 18 are partial, 2 are his call, 2 were answered (tick 3). All 38 merges checked
+the hiring post he said yes to, and the vague-ask detector. 16 are partial, 2 are his call, 2 were answered (tick 4). All 38 merges checked
 (3346 to 3454) are in the running build of their app (git merge-base, read 11:55Z).
 
 - Job: 2026-10-31-missed-asks-audit (research lane, manager local_c047ccb2). First pass 11:54Z-12:40Z, 2026-10-31.
@@ -20,9 +20,9 @@ the hiring post he said yes to, and the vague-ask detector. 18 are partial, 2 ar
 
 | Status | Count | Meaning |
 |---|---|---|
-| DONE+LIVE | 43 | Shipped, and the receipt is held: merge-base on the live build, a rendered check, a prod count logged by the manager, or a merged docs PR |
+| DONE+LIVE | 45 | Shipped, and the receipt is held: merge-base on the live build, a rendered check, a prod count logged by the manager, or a merged docs PR |
 | DONE+UNVERIFIED | 4 | Reported done (machine cleanups, hygiene), no artifact I could re-read |
-| PARTIAL | 18 | Some landed; the gap column says what did not |
+| PARTIAL | 16 | Some landed; the gap column says what did not |
 | NOT STARTED / LOST | 4 | No branch commit and no PR, or the work was lost on archive |
 | NOUR'S CALL | 2 | Only he can do it (credential, phone step, install, data check) |
 | ANSWERED | 2 | A question he asked, answered in chat (manager CLAIM); any action left is his |
@@ -115,9 +115,9 @@ read-only to us).
 | 42 | 10-30 14:39 | "why cap it ... other books" | DONE+LIVE | Same embed run covered all books (board line 95) | none |
 | 43 | 10-30 15:59 | "u run railway config apply ... for me" | DONE+LIVE | Applied 22:09Z (board line 35) | none |
 | 44 | 10-30 16:09 | Keep the 20-point install inspection | DONE+LIVE | Board line 89; 3433 rendered check 04:35Z | none |
-| 45 | 10-30 16:43 | People tracker backfill + best plan | PARTIAL | FACT: 3400, 3419, 3425-3430, 3432, 3434, 3435, 3440, 3444 live; apply 11:15Z: 36 inserted, 0 failed (board line 284) | 1 ledger row has no embedding; fix `15bc7f84cc` is PR 3459 (open, tick 2). people-tracker |
-| 46 | 10-30 16:55 | Chat UI: space, video, evidence, voice, multi-photo, search, archive, pop-ups | PARTIAL | FACT: U1 3439, U2 3436, U3 3451, U4a 3409, U5 3431, U6a-c 3449-3452 live | 3455 (his "Fix all five") open; free iPhone voice needs the GROQ key. bdnick-chat-v2, N |
-| 47 | 10-30 17:30 | Pulse + notifications rebuild, Home cleanup, cards | DONE+LIVE | FACT: 3401, 3405, 3438, 3445, 3446 live | 390 px check owed (N); 5 P2 follow-ups dispatched 11:48Z, branch `statenour/held-push-followup` 0 commits so far |
+| 45 | 10-30 16:43 | People tracker backfill + best plan | DONE+LIVE | FACT: 3400, 3419, 3425-3430, 3432, 3434, 3435, 3440, 3444 live; apply 11:15Z: 36 inserted, 0 failed (board line 284) | 1 ledger row has no embedding; embed retry PR 3459 merged `be27ea7201`, LIVE on bdnick (tick 4, merge-base 0); the one row's embedding on the next cron is owed. people-tracker |
+| 46 | 10-30 16:55 | Chat UI: space, video, evidence, voice, multi-photo, search, archive, pop-ups | PARTIAL | FACT: U1 3439, U2 3436, U3 3451, U4a 3409, U5 3431, U6a-c 3449-3452 live | 3455 merged `629b6ac0ff`, LIVE (tick 4). Left: free iPhone voice needs the GROQ key; real-iPhone checks. N |
+| 47 | 10-30 17:30 | Pulse + notifications rebuild, Home cleanup, cards | DONE+LIVE | FACT: 3401, 3405, 3438, 3445, 3446 live | 390 px check owed (N); 5 P2 follow-ups = PR 3460 (head `cac7ba491c`, open, tick 4) |
 | 48 | 10-30 17:53 | Delete duplicates; Nick's Tire sales card | PARTIAL | 909 duplicates soft-deleted 19:52Z; card in 3405 | Card has no "as of" time: `revenue_today` needs `syncedAt`, unowned (board line 117). M |
 | 49 | 10-30 18:16, 20:09 | Ring + Tuya yes; Ring mounted; retire dead rows | ANSWERED | FACT: 3407, 3413, 3416, 3418, 3423 live; 12 rows retired 20:14Z; his "how?" (01:20Z) answered in chat about 01:25Z (manager CLAIM, tick 1) | Poller off until his 5-minute step (ring-auth-cli, worker variables). N |
 | 50 | 10-30 19:53 | Railway work, install on NicksMax, discard worktree | DONE+LIVE | Board lines 35, 64, 65 | Vapi push: row 26 |
@@ -137,7 +137,7 @@ read-only to us).
 | 59 | 10-30 12:42 (calls-texts) | Carrier block does not stop texts; holding reply; live test text "anytime" | PARTIAL | CLAIM: rules in 3393/3417 | Live test text never sent (calls-texts memory line 18). M |
 | 60 | 10-31 11:08 (calls-texts) | "no hold music" | DROPPED BY HIS RULING | His words | none |
 | 61 | 10-31 11:24 (calls-texts) | "Yes, add it" (callback when a transfer goes unanswered) | LOST | See top gap 3 | M |
-| 62 | 10-31 11:03 (bdnick-chat-v2) | "Fix all five" | PARTIAL | PR 3455 open, four sections present | Gate merges. M |
+| 62 | 10-31 11:03 (bdnick-chat-v2) | "Fix all five" | DONE+LIVE | PR 3455 merged `629b6ac0ff`; bdnick.info runs `be27ea7201`, merge-base 0 (tick 4) | none |
 | 63 | 10-29 18:11 (bdnick-chat) | Use his screenshots for the chat issues | DONE+LIVE | 3351 live | none |
 | 64 | 10-30 14:17, 20:02 (nicksmax) | Clean npm cache + logs + ChatGPT; "go" | DONE+UNVERIFIED | CLAIM in the manager transcript | none |
 | 65 | 10-30 14:50 (doc 12 lane) | Run the front-desk local-AI block (specs, Ollama, gemma3:4b) on MECHANICS and NicksMax: "u do that"; installs yes; no spend | PARTIAL | FACT: block file exists (2,645 B, CRM notes folder); handed to him 16:22Z because Chrome Remote Desktop's host list would not load (the block's own header). NicksMax: local model ruled out by its specs (7.9 GB RAM, CPU 100% from the camera stack; shop-os-planning-manager lines 55-58). The camera installs 3388/3394/3414 are separate and done | MECHANICS run UNKNOWN, receipts owed (same memory line 144c): retry the CRD route once, run step 1 (read-only); if it still fails, one card for step 1 only. CRM/M |
@@ -171,6 +171,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 | V9 | Ask him only for spend, sends, prod writes, credentials | The front-desk block went back to him after he said "u do that"; a route blocker (CRD) was named, so this is a soft violation | Row 65 |
 
 ## Loop log
+
+- Tick 4, 2026-10-31 12:55Z: no new asks (12:38Z is the 08:37 EDT reply already in tick 3). 3455 `629b6ac0ff` and 3459 `be27ea7201` merged and LIVE on bdnick.info (runs `be27ea7201`, merge-base 0 for both). Rows 45 and 62 -> DONE+LIVE. Held-push = PR 3460 open. nickstire.org runs `d57f14d04d` (prerender refresh, contains facts + G).
 
 - Tick 3, 2026-10-31 12:50Z: Nour 08:37 EDT (relayed by the manager, verbatim on its board): YES on all of row 4, on rows 34/36/41, and the front-desk cam install; migrations "I HIT YESTERDAY"; Drive "GO AHEAD?". Rows 1, 4 and 36 -> PARTIAL. Seven-action table sent to the manager. Premise fix: the lot-vision install runs on MECHANICS, not NicksMax.
 
