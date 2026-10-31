@@ -261,7 +261,7 @@ export default function NeighborhoodPage() {
       <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
           {/* LCP fix · above-the-fold hero */}
-          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${BUSINESS.name} on Euclid Ave — auto repair near ${neighborhood.name}`} className="w-full h-full object-cover" objectPosition="center 48%" />
+          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${BUSINESS.name} on Euclid Ave, auto repair near ${neighborhood.name}`} className="w-full h-full object-cover" objectPosition="center 48%" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
         </div>
 
@@ -277,7 +277,7 @@ export default function NeighborhoodPage() {
                   <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                 ))}
               </div>
-              <span className="text-[13px] text-primary tracking-wider">{reviewRating} STARS — {reviewCountDisplay} REVIEWS</span>
+              <span className="text-[13px] text-primary tracking-wider">{reviewRating} STARS, {reviewCountDisplay} REVIEWS</span>
             </div>
             <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
               {neighborhood.headline}
@@ -436,7 +436,7 @@ export default function NeighborhoodPage() {
                       &ldquo;{review.text}&rdquo;
                     </blockquote>
                     <p className="font-bold text-foreground text-sm">
-                      — {review.author_name || review.author || "Verified Google Review"}
+, {review.author_name || review.author || "Verified Google Review"}
                     </p>
                   </div>
                 </FadeIn>
@@ -456,7 +456,7 @@ export default function NeighborhoodPage() {
         <div className="container max-w-3xl">
           <FadeIn>
             <h2 id="neighborhood-faq-heading" className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
-              {neighborhood.name} — Common Questions
+              {neighborhood.name} questions
             </h2>
             <div className="mt-8 space-y-2">
               {buildNeighborhoodFaqItems(neighborhood).map((faq, i) => (
@@ -483,7 +483,7 @@ export default function NeighborhoodPage() {
                 SCHEDULE YOUR DROP-OFF
               </h2>
               <p className="mt-4 text-foreground/60 text-lg">
-                {neighborhood.name} residents are just {neighborhood.driveTime} away. Pull up first-come, first-served — or call ahead.
+                {neighborhood.name} residents are just {neighborhood.driveTime} away. Pull up first-come, first-served, or call ahead.
               </p>
             </div>
 
