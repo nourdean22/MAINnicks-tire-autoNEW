@@ -14,7 +14,7 @@ const mockLogWarn = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     brainMemory: {
-      findUnique: () => mockFindUnique(),
+      findUnique: (a: unknown) => mockFindUnique(a),
       upsert: () => mockUpsert(),
       create: (a: unknown) => mockCreate(a),
       deleteMany: (a: unknown) => mockDeleteMany(a),
@@ -471,6 +471,72 @@ describe("approvals nudge · an unreadable count is unknown, never zero", () => 
     const r = await checkAndNudgeApprovals({ now: SIX_AM, dryRun: true });
     expect(r).toMatchObject({ kind: "preview", wouldSend: true });
     expect(mockSendTelegram).not.toHaveBeenCalled();
+  });
+
+  // A partial read must not spend the day's one full nudge: it claims its own slot, so the next clean tick
+  // still states the full count once. A tiny in-memory claim store stands in for the unique index.
+  describe("a partial read claims its own slot", () => {
+    const DAY = "2026-06-10";
+    let claimed: Set<string>;
+    beforeEach(() => {
+      claimed = new Set();
+      mockCreate.mockImplementation(async ({ data }: { data: { key: string } }) => {
+        if (claimed.has(data.key)) throw Object.assign(new Error("unique"), { code: "P2002" });
+        claimed.add(data.key);
+        return { id: data.key };
+      });
+      mockFindUnique.mockImplementation(async (a: { where: { category_key: { key: string } } }) =>
+        claimed.has(a.where.category_key.key) ? { id: a.where.category_key.key } : null,
+      );
+    });
+    const partialTick = () => {
+      mockAutonomousActionCount.mockReset().mockRejectedValue(new Error("down"));
+      mockApprovalRequestCount.mockReset().mockResolvedValue(3);
+      return checkAndNudgeApprovals({ now: SIX_AM });
+    };
+    const cleanTick = () => {
+      mockAutonomousActionCount.mockReset().mockResolvedValue(2);
+      mockApprovalRequestCount.mockReset().mockResolvedValue(3);
+      return checkAndNudgeApprovals({ now: SIX_AM });
+    };
+
+    it("a partial tick then a clean tick: the full count is sent once, and a second clean tick is a duplicate", async () => {
+      expect(await partialTick()).toMatchObject({ kind: "live", fired: true, reason: "sent" });
+      expect(claimed).toEqual(new Set([`approvals_nudge_partial_${DAY}`]));
+      expect(await cleanTick()).toMatchObject({ kind: "live", fired: true, reason: "sent" });
+      expect(sent()).toHaveLength(2);
+      expect(sent()[1]).toContain("<b>2</b> autonomous action(s) pending approval");
+      expect(sent()[1]).not.toMatch(unreadable);
+      expect(claimed).toEqual(new Set([`approvals_nudge_partial_${DAY}`, `approvals_nudge_${DAY}`]));
+      expect(await cleanTick()).toMatchObject({ kind: "live", fired: false, reason: "already_nudged_today" });
+      expect(sent()).toHaveLength(2);
+    });
+
+    it("two partial ticks in one day send once", async () => {
+      await partialTick();
+      expect(await partialTick()).toMatchObject({ kind: "live", fired: false, reason: "already_nudged_today" });
+      expect(sent()).toHaveLength(1);
+    });
+
+    it("a partial tick after the full count already went out is a duplicate, not a degraded second message", async () => {
+      await cleanTick();
+      expect(await partialTick()).toMatchObject({ kind: "live", fired: false, reason: "already_nudged_today" });
+      expect(sent()).toHaveLength(1);
+    });
+  });
+
+  it("a count that could not be read is not labelled high confidence in either preview", async () => {
+    mockAutonomousActionCount.mockRejectedValue(new Error("down"));
+    mockApprovalRequestCount.mockResolvedValue(3);
+    const eligible = (await checkAndNudgeApprovals({ now: SIX_AM, dryRun: true })) as unknown as { sources: Array<{ confidence: string }> };
+    expect(eligible.sources[0].confidence).toBe("unknown");
+    const quiet = (await checkAndNudgeApprovals({ now: new Date("2026-06-10T03:00:00-04:00"), dryRun: true })) as unknown as {
+      sources: Array<{ confidence: string }>;
+    };
+    expect(quiet.sources[0].confidence).toBe("unknown");
+    mockAutonomousActionCount.mockReset().mockResolvedValue(2);
+    const clean = (await checkAndNudgeApprovals({ now: SIX_AM, dryRun: true })) as unknown as { sources: Array<{ confidence: string }> };
+    expect(clean.sources[0].confidence).toBe("high");
   });
 
   it("CONTROL: both reads succeed with zero: skips as no_pending_actions and logs no warn", async () => {
