@@ -119,8 +119,10 @@ export async function runNickActionBatch(opts: {
     // journal commits, SMS-outreach drafts). Atomically flip executedAt first;
     // only the run that wins the claim executes. On failure the row stays
     // claimed (at-most-once) — an AI action must not auto-retry side effects.
+    // Compare-and-swap on every field the selection read: still unexecuted AND still approved (a
+    // row rejected between the read and this claim must not run). count === 1 is the only way on.
     const claim = await prisma.autonomousAction.updateMany({
-      where: { id: r.id, executedAt: null },
+      where: { id: r.id, executedAt: null, approval: "approved" },
       data: { executedAt: new Date() },
     });
     if (claim.count === 0) {
