@@ -44,7 +44,7 @@ function Hero() {
           loading="eager"
           fetchPriority="high"
           src={HERO_IMAGE}
-          alt="Full synthetic oil change Cleveland — Nick's Tire & Auto Euclid Ave"
+          alt="Full synthetic oil change Cleveland, Nick's Tire & Auto Euclid Ave"
           className="w-full h-full object-cover"
           style={{ objectPosition: "center 45%" }}
         />
@@ -61,7 +61,7 @@ function Hero() {
         </FadeIn>
         <FadeIn delay={0.2}>
           <p className="mt-5 text-lg text-foreground/80 max-w-2xl font-light leading-relaxed">
-            Full synthetic oil change from <span className="font-semibold text-foreground">$80</span>. Better engine protection, longer intervals (7,500–10,000 mi), cleaner burn. Same-day at Nick&apos;s Tire &amp; Auto in Euclid — walk-ins welcome 7 days a week.
+            Full synthetic oil change from <span className="font-semibold text-foreground">$80</span>. Better engine protection, longer intervals (7,500–10,000 mi), cleaner burn. Same-day at Nick&apos;s Tire &amp; Auto in Euclid. Walk-ins welcome 7 days a week.
           </p>
         </FadeIn>
         <FadeIn delay={0.3}>
@@ -115,7 +115,7 @@ function PricingSection() {
       <div className="container max-w-5xl">
         <FadeIn>
           <h2 className="font-bold text-3xl sm:text-4xl text-foreground tracking-tight">OIL CHANGE PRICING</h2>
-          <p className="text-foreground/60 mt-2">Up-front pricing. No upsell games. Full synthetic highly recommended for 2012+ engines.</p>
+          <p className="text-foreground/60 mt-2">Up-front pricing. Full synthetic highly recommended for 2012+ engines.</p>
         </FadeIn>
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           {tiers.map((tier) => (
@@ -155,7 +155,7 @@ function IncludedSection() {
       <div className="container max-w-4xl">
         <FadeIn>
           <h2 className="font-bold text-3xl text-foreground tracking-tight">WHAT&apos;S INCLUDED</h2>
-          <p className="text-foreground/60 mt-2">Every synthetic oil change at Nick&apos;s comes with this full package — we tell you the cost before we touch anything.</p>
+          <p className="text-foreground/60 mt-2">Every synthetic oil change at Nick&apos;s comes with this full package. We tell you the cost before we touch anything.</p>
         </FadeIn>
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
           {items.map((item, i) => (
@@ -174,12 +174,12 @@ function IncludedSection() {
 
 // ─── FAQ ───────────────────────────────────────────────
 const FAQS = [
-  { q: "How often should I get a synthetic oil change?", a: "Most modern cars with full synthetic oil can go 7,500–10,000 miles between changes. Check your owner's manual — some high-performance or turbo engines call for 5,000 mi intervals. If in doubt, we'll check your factory spec and let you know." },
-  { q: "Is full synthetic really worth the extra $30?", a: "For 2012+ engines, yes. Synthetic oil resists breakdown at high temps, keeps engines cleaner, and protects better in Cleveland's cold winters. Over a year, you'll do fewer changes — so the cost-per-mile is often LOWER than conventional." },
-  { q: "Do I need an appointment?", a: "No — walk-ins welcome 7 days a week. Most oil changes done in 30 minutes. Call ahead at (216) 862-0005 if you want to skip the short wait." },
-  { q: "What synthetic oil brands do you use?", a: "Mobil 1, Pennzoil Platinum, and Valvoline Full Synthetic — all top-tier API-certified brands meeting manufacturer specs for your vehicle." },
+  { q: "How often should I get a synthetic oil change?", a: "Most modern cars with full synthetic oil can go 7,500–10,000 miles between changes. Check your owner's manual. Some high-performance or turbo engines call for 5,000 mi intervals. If in doubt, we'll check your factory spec and let you know." },
+  { q: "Is full synthetic really worth the extra $30?", a: "For 2012+ engines, yes. Synthetic oil resists breakdown at high temps, keeps engines cleaner, and protects better in Cleveland's cold winters. Over a year, you'll do fewer changes, so the cost-per-mile is often LOWER than conventional." },
+  { q: "Do I need an appointment?", a: "No. Walk-ins welcome 7 days a week. Most oil changes done in 30 minutes. Call ahead at " + BUSINESS.phone.display + " if you want to skip the short wait." },
+  { q: "What synthetic oil brands do you use?", a: "Mobil 1, Pennzoil Platinum, and Valvoline Full Synthetic, all top-tier API-certified brands meeting manufacturer specs for your vehicle." },
   { q: "Can you reset my oil life monitor?", a: "Yes, included free with every oil change. We reset the dash indicator so your car knows a fresh change was done." },
-  { q: "Do you offer diesel oil changes?", a: "Yes — we service diesel engines (Duramax, Cummins, Power Stroke). Diesel oil changes are priced per-quart given larger capacity. Call for exact quote." },
+  { q: "Do you offer diesel oil changes?", a: "Yes. We service diesel engines (Duramax, Cummins, Power Stroke). Diesel oil changes are priced per-quart given larger capacity. Call for exact quote." },
   { q: "How long does a synthetic oil change take?", a: "About 30 minutes for most vehicles. If you drop off, we'll text when it's ready. Dropping off is often fastest during morning rush (7–10 AM) or weekends." },
 ];
 
@@ -232,8 +232,8 @@ function BookingSection() {
     <section id="booking" className="py-16 bg-card/20 border-t border-border/20">
       <div className="container max-w-4xl">
         <FadeIn>
-          <h2 className="font-bold text-3xl text-foreground tracking-tight">CAN I COME NOW? YES — PULL UP.</h2>
-          <p className="text-foreground/60 mt-2">Oil changes are first-come, first-served. No appointment, no drop-off — pull up, have a seat, and most are done in about 15 minutes. 17625 Euclid Ave, Cleveland OH. Or send your info below and we&apos;ll text you back.</p>
+          <h2 className="font-bold text-3xl text-foreground tracking-tight">CAN I COME NOW? YES. PULL UP.</h2>
+          <p className="text-foreground/60 mt-2">Oil changes are first come, first served. Pull up without an appointment, have a seat, and most are done in about 15 minutes. {BUSINESS.address.full}. Or send your info below and we&apos;ll text you back.</p>
         </FadeIn>
         <FadeIn delay={0.1}>
           <div className="mt-6 bg-card border border-border/30 rounded-lg p-6">

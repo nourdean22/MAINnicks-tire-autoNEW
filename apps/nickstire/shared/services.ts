@@ -94,11 +94,11 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Tire Shop Cleveland · Walk-In 7 Days · From $40 | Nick's",
     metaDescription: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
-    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25 (select 12-inch; most $40-80), new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
+    heroSubline: "Pull up, stay in your car. We come out to you. Used tires from $25 (select 12-inch; most $40-80), new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
-    turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome — just pull up.",
+    turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome. Just pull up.",
     pricingNote: "Stay in your car · We come to you · Used tires from $25 (select 12-inch; most $40-80) · All major brands",
-    urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
+    urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear. Don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
       "Visible cracks, bulges, or blisters on the sidewall",
@@ -118,7 +118,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Need tires but on a budget?",
-        answer: "We carry quality used tires with verified tread depth alongside new tires from major brands. Our technicians help you find the right tire for your vehicle and driving conditions at a price that works for your budget. No pressure, no upselling.",
+        answer: "We carry quality used tires with verified tread depth alongside new tires from major brands. Our technicians help you find the right tire for your vehicle and driving conditions at a price that works for your budget.",
       },
       {
         question: "Vibration at highway speed?",
@@ -127,7 +127,7 @@ export const SERVICES: ServiceData[] = [
     ],
     process: [
       { step: "Inspection", detail: "We measure tread depth across all tires, check for uneven wear patterns, sidewall damage, and proper inflation." },
-      { step: "Recommendation", detail: "Based on your vehicle, driving habits, and budget, we recommend the right tires. No pressure to buy the most expensive option." },
+      { step: "Recommendation", detail: "Based on your vehicle, driving habits, and budget, we recommend the right tires, not the most expensive ones." },
       { step: "Mounting & Balancing", detail: "Professional mounting on our tire machine with computer spin-balancing to eliminate vibration." },
       { step: "TPMS Reset", detail: "We reset your Tire Pressure Monitoring System sensors so your dashboard reads correctly." },
       { step: "Final Check", detail: "Torque all lug nuts to manufacturer spec and verify tire pressure matches your vehicle's requirements." },
@@ -181,7 +181,7 @@ export const SERVICES: ServiceData[] = [
     duration: "30-60 min",
     startingPrice: "See tire prices",
     priceRange: "",
-    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 12-month warranty backed by 4.9 stars and 1,710+ reviews. Walk in any day of the week -- no appointment needed.",
+    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 12-month warranty backed by 4.9 stars and 1,710+ reviews. Walk in any day of the week, no appointment needed.",
     commonSymptoms: [
       "Car shaking at highway speed",
       "Tire keeps losing air overnight",
@@ -199,7 +199,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Brake Repair Cleveland · We Hand You The Flashlight | Nick's",
     metaDescription: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free check, written estimate first, same-day repair. (216) 862-0005.",
     heroHeadline: "We show you the worn pads\nbefore we touch a thing.",
-    heroSubline: "Cleveland's brake shop on Euclid Ave. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. No guesswork, we tell you the cost before we touch anything.",
+    heroSubline: "Cleveland's brake shop on Euclid Ave. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. We tell you the cost before we touch anything.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
     turnaround: "Most brake jobs completed same day. Drop off in the morning, drive home by afternoon.",
     pricingNote: "Free brake check · We show you the problem before quoting · No surprise charges",
@@ -215,11 +215,11 @@ export const SERVICES: ServiceData[] = [
     problems: [
       {
         question: "Brakes squealing?",
-        answer: "Squealing usually means your brake pads have worn down to the built-in wear indicator — a small metal tab designed to make noise when the pads are thin. This is your warning to replace them before metal contacts the rotor. Replacing pads early costs significantly less than replacing pads and rotors together.",
+        answer: "Squealing usually means your brake pads have worn down to the built-in wear indicator, a small metal tab designed to make noise when the pads are thin. This is your warning to replace them before metal contacts the rotor. Replacing pads early costs significantly less than replacing pads and rotors together.",
       },
       {
         question: "Brakes grinding?",
-        answer: "Grinding means the brake pad material is completely gone and metal is contacting the rotor directly. This damages the rotor surface and can compromise braking performance. Do not wait — grinding brakes get more expensive every mile you drive. We inspect the full system and replace what is needed.",
+        answer: "Grinding means the brake pad material is completely gone and metal is contacting the rotor directly. This damages the rotor surface and can compromise braking performance. Do not wait. Grinding brakes get more expensive every mile you drive. We inspect the full system and replace what is needed.",
       },
       {
         question: "Brake pedal feels soft or spongy?",
@@ -242,7 +242,7 @@ export const SERVICES: ServiceData[] = [
       "Brake pads, rotors, calipers, and lines",
       "ABS diagnostics and wheel speed sensor replacement",
       "Brake fluid flush and bleeding",
-      "No surprise charges — the quote is the price",
+      "No surprise charges. The quote is the price",
       "Experienced technicians who specialize in brake systems",
     ],
     keywords: ["brake repair Cleveland", "brakes Cleveland", "brake repair near me", "brakes near me", "brake pads Cleveland", "rotor replacement Cleveland OH", "ABS diagnostics", "brake service Cleveland", "squealing brakes repair"],
@@ -286,7 +286,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1-3 hours",
     startingPrice: "FREE check",
     priceRange: "",
-    whyChooseUs: "Every brake job at Nick's starts with a free check -- we show you the worn parts before quoting a penny. Our 12-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,710+ reviews.",
+    whyChooseUs: "Every brake job at Nick's starts with a free check. We show you the worn parts before quoting a penny. Our 12-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,710+ reviews.",
     commonSymptoms: [
       "Car making grinding noise when braking",
       "Brake pedal goes to the floor",
@@ -303,8 +303,8 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Check engine light, OBD-II code reading, advanced computer diagnostics. We pinpoint the exact cause so you only pay for what you need.",
     metaTitle: "Check Engine Light Cleveland · Free Code Pull | Nick's",
     metaDescription: "Cleveland diagnostic shop where the code pull is free and the explanation is in real English. Same-day repair on most codes. Walk-ins 7 days. (216) 862-0005.",
-    heroHeadline: "The light's on.\nWe find out *why* — not guess.",
-    heroSubline: "Searching for check engine light service near me in Cleveland? We use advanced OBD-II scanners to find the exact cause — not guess at it. Free code scan with repair, same-day service, walk-ins welcome.",
+    heroHeadline: "The light's on.\nWe find out *why*, not guess.",
+    heroSubline: "Searching for check engine light service near me in Cleveland? We use advanced OBD-II scanners to find the exact cause, not guess at it. Free code scan with repair, same-day service, walk-ins welcome.",
     heroCTA: "SCHEDULE DIAGNOSTICS",
     turnaround: "Most diagnostic scans completed within the hour. Complex issues may require extended testing.",
     pricingNote: "Diagnostic fee applies toward repair · No charge for code reading · Written estimate before any work",
@@ -344,7 +344,7 @@ export const SERVICES: ServiceData[] = [
     ],
     whyUs: [
       "Advanced OBD-II diagnostic scanners",
-      "We test before we replace — no parts guessing",
+      "We test before we replace. No parts guessing",
       "Full system scan, not just engine codes",
       "Live data analysis to catch intermittent problems",
       "Clear explanation of what is wrong and what it costs to fix",
@@ -358,7 +358,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does a check engine light diagnosis cost in Cleveland?",
-        answer: "A basic OBD-II code read is often free at parts stores, but a full diagnostic evaluation at a repair shop typically costs $80 to $150 in Cleveland. At Nick's Tire & Auto, our technicians go beyond reading codes — we use live data analysis to pinpoint the actual failed component so you only pay for the repair you need."
+        answer: "A basic OBD-II code read is often free at parts stores, but a full diagnostic evaluation at a repair shop typically costs $80 to $150 in Cleveland. At Nick's Tire & Auto, our technicians go beyond reading codes. We use live data analysis to pinpoint the actual failed component so you only pay for the repair you need."
       },
       {
         question: "Can I drive with the check engine light on?",
@@ -389,7 +389,7 @@ export const SERVICES: ServiceData[] = [
     duration: "30-60 min",
     startingPrice: `$${DIAGNOSTIC_PRICE.fee} (${DIAGNOSTIC_PRICE.waiver})`,
     priceRange: "",
-    whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 12-month warranty.",
+    whyChooseUs: "We test before we replace. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 12-month warranty.",
     commonSymptoms: [
       "Check engine light on and off",
       "Check engine light near me",
@@ -524,11 +524,11 @@ export const SERVICES: ServiceData[] = [
     // clicks with a price + speed promise no Cleveland chain lists in
     // their snippet.
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
-    metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. (216) 862-0005",
+    metaDescription: "Cleveland oil change from $49 (full synthetic from $80), new filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.`,
+    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First come, first served. Pull up without an appointment, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
-    turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city — check our reviews.",
+    turnaround: "Most oil changes done in 15 minutes. No appointment needed.",
     pricingNote: BUSINESS.freeInspection.short + " Correct oil weight per manufacturer spec",
     signs: [
       "Oil change reminder light or maintenance required indicator",
@@ -541,7 +541,7 @@ export const SERVICES: ServiceData[] = [
     problems: [
       {
         question: "When should I change my oil?",
-        answer: "Most modern vehicles using synthetic oil can go 5,000 to 7,500 miles between changes. Vehicles using conventional oil should be changed every 3,000 to 5,000 miles. Severe driving conditions — short trips, stop-and-go traffic, extreme temperatures — may require more frequent changes. We check your manufacturer recommendations and driving conditions to give you an honest interval.",
+        answer: "Most modern vehicles using synthetic oil can go 5,000 to 7,500 miles between changes. Vehicles using conventional oil should be changed every 3,000 to 5,000 miles. Severe driving conditions, short trips, stop-and-go traffic, extreme temperatures, may require more frequent changes. We check your manufacturer recommendations and driving conditions to give you an honest interval.",
       },
       {
         question: "Conventional or synthetic?",
@@ -549,11 +549,11 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Oil light on the dashboard?",
-        answer: "An oil pressure warning light means your engine is not getting adequate lubrication. This is serious — continued driving can cause engine damage. Pull over safely and call us. Low oil level, a failing oil pump, or a clogged oil filter are common causes. We diagnose the issue and get you back on the road safely.",
+        answer: "An oil pressure warning light means your engine is not getting adequate lubrication. This is serious. Continued driving can cause engine damage. Pull over safely and call us. Low oil level, a failing oil pump, or a clogged oil filter are common causes. We diagnose the issue and get you back on the road safely.",
       },
       {
         question: "Oil looks dark or dirty?",
-        answer: "Oil darkens as it collects contaminants from the engine — this is normal and means it is doing its job. However, oil that looks gritty, smells burnt, or has a milky appearance may indicate a problem. We check oil condition during every service and let you know if anything looks concerning.",
+        answer: "Oil darkens as it collects contaminants from the engine. This is normal and means it is doing its job. However, oil that looks gritty, smells burnt, or has a milky appearance may indicate a problem. We check oil condition during every service and let you know if anything looks concerning.",
       },
     ],
     process: [
@@ -609,7 +609,7 @@ export const SERVICES: ServiceData[] = [
     duration: "15-30 min",
     startingPrice: "From $49",
     priceRange: "",
-    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. " + BUSINESS.freeInspection.offer + " We catch small problems early. Walk in any day, no appointment needed, and most are done in 15-30 minutes.",
+    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec, not the cheapest option. " + BUSINESS.freeInspection.offer + " We catch small problems early. Walk in any day, no appointment needed, and most are done in 15-30 minutes.",
     commonSymptoms: [
       "Oil change light on dashboard",
       "Engine oil looks dark and gritty",
@@ -650,7 +650,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Engine overheating?",
-        answer: "Overheating can be caused by a coolant leak, failed thermostat, bad water pump, clogged radiator, or a blown head gasket. Do not continue driving an overheating engine — serious damage happens quickly. We pressure-test the cooling system to find leaks and diagnose the root cause.",
+        answer: "Overheating can be caused by a coolant leak, failed thermostat, bad water pump, clogged radiator, or a blown head gasket. Do not continue driving an overheating engine. Serious damage happens quickly. We pressure-test the cooling system to find leaks and diagnose the root cause.",
       },
       {
         question: "Exhaust louder than normal?",
@@ -693,7 +693,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find auto repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,710+ Google reviews. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + " is a full-service auto repair shop open 7 days a week. Brake repair, oil changes, engine diagnostics or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,710+ Google reviews. Call (216) 862-0005."
       },
       {
         question: "How do I find a good mechanic near me?",
@@ -712,7 +712,7 @@ export const SERVICES: ServiceData[] = [
       { label: "Diagnostic inspection", range: "FREE with repair" },
       { label: "Repair costs", range: "Varies by service" },
     ],
-    duration: "Varies — we'll call with estimate",
+    duration: "Varies. We'll call with estimate",
     startingPrice: "FREE estimates",
     priceRange: "",
     whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no checkout-math charges, and a 12-month warranty. Open 7 days with same-day service for most repairs.",
@@ -732,13 +732,13 @@ export const SERVICES: ServiceData[] = [
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
     metaTitle: "AC Repair Cleveland · Open 7 Days · Written Quote | Nick's",
-    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.",
-    heroHeadline: "Cold air, fast —\nor we keep working.",
-    heroSubline: "Everything you need to know about your car's air conditioning system — common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
+    metaDescription: "Cleveland car AC repair, leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.",
+    heroHeadline: "Cold air, fast, \nor we keep working.",
+    heroSubline: "Everything you need to know about your car's air conditioning system, common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",
     turnaround: "Most AC repairs completed same day. Recharges done in 30-60 minutes.",
     pricingNote: "AC inspection with repair · No charge for leak check with service",
-    urgencyNote: "Don't wait until July — Cleveland summers are brutal. AC systems that sit all winter often develop leaks from dried-out seals. Get your AC checked in spring before the first heat wave hits and every shop in town is backed up.",
+    urgencyNote: "Don't wait until July. Cleveland summers are brutal. AC systems that sit all winter often develop leaks from dried-out seals. Get your AC checked in spring before the first heat wave hits and every shop in town is backed up.",
     signs: [
       "AC blowing warm or hot air",
       "Weak airflow from vents",
@@ -754,50 +754,50 @@ export const SERVICES: ServiceData[] = [
     problems: [
       {
         question: "AC blows warm air?",
-        answer: "This is the number one AC complaint we hear. The most common cause is low refrigerant from a slow leak — often from deteriorated O-rings, a pinhole in the condenser, or a leaking evaporator core. We perform a comprehensive leak test using UV dye injection and an electronic refrigerant sniffer. If the system is simply low, a recharge brings it back to cold. But if there is a leak — and there usually is if your system lost refrigerant — we locate and repair the source before recharging. Other causes include compressor failure (the pump that pressurizes refrigerant), a blocked condenser (the radiator-like component in front of your car), or a failed expansion valve. We test each component systematically so you only pay for what is actually broken.",
+        answer: "This is the number one AC complaint we hear. The most common cause is low refrigerant from a slow leak, often from deteriorated O-rings, a pinhole in the condenser, or a leaking evaporator core. We perform a comprehensive leak test using UV dye injection and an electronic refrigerant sniffer. If the system is simply low, a recharge brings it back to cold. But if there is a leak, and there usually is if your system lost refrigerant. We locate and repair the source before recharging. Other causes include compressor failure (the pump that pressurizes refrigerant), a blocked condenser (the radiator-like component in front of your car), or a failed expansion valve. We test each component systematically so you only pay for what is actually broken.",
       },
       {
-        question: "AC works intermittently — cold sometimes, warm others?",
-        answer: "Intermittent AC is one of the trickier problems because it works fine when you bring it to the shop. Common causes include a cycling compressor clutch (the electromagnetic clutch engages and disengages the compressor — when it starts to fail, it cuts in and out), an electrical issue like a bad relay or pressure switch, or a failing blend door actuator. The blend door controls whether air flows through the heater core or evaporator. When the actuator motor fails, the door can get stuck in a halfway position, mixing hot and cold air unpredictably. We test the compressor clutch engagement, check the electrical circuits, and verify blend door operation to find the intermittent cause.",
+        question: "AC works intermittently, cold sometimes, warm others?",
+        answer: "Intermittent AC is one of the trickier problems because it works fine when you bring it to the shop. Common causes include a cycling compressor clutch (the electromagnetic clutch engages and disengages the compressor. When it starts to fail, it cuts in and out), an electrical issue like a bad relay or pressure switch, or a failing blend door actuator. The blend door controls whether air flows through the heater core or evaporator. When the actuator motor fails, the door can get stuck in a halfway position, mixing hot and cold air unpredictably. We test the compressor clutch engagement, check the electrical circuits, and verify blend door operation to find the intermittent cause.",
       },
       {
         question: "Strange noise when AC is on?",
-        answer: "Noises that only happen when the AC is running point to specific components. A squealing or screeching sound usually means the serpentine belt is slipping — the AC compressor adds load to the belt, and a worn or loose belt cannot handle it. A grinding or growling noise indicates a failing compressor bearing — the internal bearings are wearing out and the compressor needs replacement before it seizes and sends metal debris through your entire AC system. A rattling sound can be debris caught in the blower fan or a loose condenser mounting bracket. We identify the noise source and fix it before it causes collateral damage.",
+        answer: "Noises that only happen when the AC is running point to specific components. A squealing or screeching sound usually means the serpentine belt is slipping. The AC compressor adds load to the belt, and a worn or loose belt cannot handle it. A grinding or growling noise indicates a failing compressor bearing. The internal bearings are wearing out and the compressor needs replacement before it seizes and sends metal debris through your entire AC system. A rattling sound can be debris caught in the blower fan or a loose condenser mounting bracket. We identify the noise source and fix it before it causes collateral damage.",
       },
       {
         question: "Musty smell from the vents?",
-        answer: "That musty, gym-locker smell coming from your vents is mold and bacteria growing on the evaporator core. The evaporator sits behind your dashboard and gets wet every time the AC runs — condensation forms on its cold surface. Normally this moisture drains out through a tube under the car. But if the drain gets clogged or the evaporator stays damp, mold colonizes the surface and every time you turn on the fan, you breathe it in. The first fix is replacing the cabin air filter — a dirty filter traps moisture and feeds mold. If that does not solve it, we treat the evaporator with an antimicrobial spray and clear the condensate drain. Regular cabin filter changes prevent this from coming back.",
+        answer: "That musty, gym-locker smell coming from your vents is mold and bacteria growing on the evaporator core. The evaporator sits behind your dashboard and gets wet every time the AC runs, condensation forms on its cold surface. Normally this moisture drains out through a tube under the car. But if the drain gets clogged or the evaporator stays damp, mold colonizes the surface and every time you turn on the fan, you breathe it in. The first fix is replacing the cabin air filter. A dirty filter traps moisture and feeds mold. If that does not solve it, we treat the evaporator with an antimicrobial spray and clear the condensate drain. Regular cabin filter changes prevent this from coming back.",
       },
       {
         question: "AC doesn't turn on at all?",
-        answer: "When you press the AC button and nothing happens — no click from the compressor, no change in engine sound — the issue is usually electrical. We start with the simple stuff: a blown AC fuse or a failed AC relay. These are cheap fixes. If the fuse and relay are good, we check the AC pressure switch (the system will not engage the compressor if refrigerant is too low or too high — a safety feature). Next we test the compressor clutch coil itself and verify power and ground signals. On newer vehicles, the AC system is controlled by the body control module, so we also check for diagnostic codes that might disable the system.",
+        answer: "When you press the AC button and nothing happens (no click from the compressor, no change in engine sound), the issue is usually electrical. We start with the simple stuff: a blown AC fuse or a failed AC relay. These are cheap fixes. If the fuse and relay are good, we check the AC pressure switch (the system will not engage the compressor if refrigerant is too low or too high. A safety feature). Next we test the compressor clutch coil itself and verify power and ground signals. On newer vehicles, the AC system is controlled by the body control module, so we also check for diagnostic codes that might disable the system.",
       },
       {
         question: "Weak airflow from vents?",
-        answer: "Weak airflow usually points to a clogged cabin air filter, a failing blower motor, or a stuck blend door actuator. We start with the cabin filter since it is cheap and common — a severely clogged filter can reduce airflow by 50% or more. Then we test the blower motor and check the actuators if the filter is not the issue. A blower motor resistor failure can also cause the fan to only work on certain speeds.",
+        answer: "Weak airflow usually points to a clogged cabin air filter, a failing blower motor, or a stuck blend door actuator. We start with the cabin filter since it is cheap and common. A severely clogged filter can reduce airflow by 50% or more. Then we test the blower motor and check the actuators if the filter is not the issue. A blower motor resistor failure can also cause the fan to only work on certain speeds.",
       },
     ],
     process: [
       { step: "Test & Inspect", detail: "Check refrigerant pressure on both high and low sides, test compressor engagement, measure vent temperatures at every vent, inspect belts, hoses, and all visible AC components." },
       { step: "Leak Detection", detail: "UV dye injection and electronic refrigerant sniffer to find any leaks in the system. We check the compressor shaft seal, condenser, evaporator, hose connections, and service ports." },
-      { step: "Diagnose", detail: "Identify the exact failed component — compressor, condenser, evaporator, expansion valve, blend door actuator, or blower motor. We explain what failed and why." },
+      { step: "Diagnose", detail: "Identify which part failed (compressor, condenser, evaporator, expansion valve, blend door actuator or blower motor). We explain what failed and why." },
       { step: "Written Estimate", detail: "You get a written estimate with the exact cost before we touch anything. We tell you the cost before we touch anything." },
       { step: "Repair & Recharge", detail: "Replace the failed part, evacuate the system, pull a vacuum to remove moisture, recharge with the exact manufacturer-specified refrigerant amount, and verify cold air output at every vent." },
     ],
     whyUs: [
-      "Full AC system diagnostics — not just a recharge and hope for the best",
+      "Full AC system diagnostics, not just a recharge and hope for the best",
       "Compressor, condenser, evaporator, and expansion valve replacement",
       "AC recharge with proper leak detection first",
       "Heater core and blower motor service",
       "Cabin air filter replacement and evaporator cleaning",
       "Climate control and blend door actuator diagnostics",
-      "Written estimates before any work — we tell you the cost before we touch anything",
+      "Written estimates before any work. We tell you the cost before we touch anything",
       "Same-day service for most AC repairs",
     ],
     keywords: ["AC repair Cleveland", "auto AC recharge Cleveland", "car heater repair", "AC not blowing cold Cleveland", "auto climate control repair", "car AC cost Cleveland", "AC compressor replacement Cleveland", "auto AC leak repair"],
     quickAnswers: [
       { question: "How much does car AC repair cost in Cleveland?", answer: "AC repair costs in Cleveland depend on the problem. A refrigerant recharge runs $149 to $199. Compressor replacement costs $499 to $899. Condenser replacement is $399 to $699. Evaporator replacement ranges from $599 to $999. AC hose repair runs $149 to $299. At Nick's Tire & Auto we diagnose the issue first and give you a written estimate before any work begins." },
-      { question: "Why is my car AC blowing warm air?", answer: "The most common reason is low refrigerant from a leak. Other causes include a failed compressor, clogged condenser, bad expansion valve, or electrical issue. A proper diagnosis requires checking refrigerant pressure on both high and low sides and testing each component in the system. Do not just add refrigerant — find out why it is low first." },
+      { question: "Why is my car AC blowing warm air?", answer: "The most common reason is low refrigerant from a leak. Other causes include a failed compressor, clogged condenser, bad expansion valve, or electrical issue. A proper diagnosis requires checking refrigerant pressure on both high and low sides and testing each component in the system. Do not just add refrigerant, find out why it is low first." },
     ],
     includedItems: ["AC system pressure test (high and low side)", "Vent temperature measurement at every vent", "UV dye leak detection", "Electronic refrigerant sniffer test", "Written estimate before work", "Refrigerant recharge included with repair", "Post-repair verification of cold air output"],
     pricingTiers: [
@@ -810,7 +810,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Recharge: 30-60 min. Component repair: 2-4 hours. Evaporator: 4-8 hours.",
     startingPrice: "From $149",
     priceRange: "",
-    whyChooseUs: "We diagnose before we recharge -- too many shops just dump refrigerant in and call it fixed. Nick's finds the actual leak, gives you a written estimate, and backs every repair with a 12-month warranty. Same-day service for most AC jobs, walk-ins welcome 7 days a week.",
+    whyChooseUs: "We diagnose before we recharge. Too many shops just dump refrigerant in and call it fixed. Nick's finds the actual leak, gives you a written estimate, and backs every repair with a 12-month warranty. Same-day service for most AC jobs, walk-ins welcome 7 days a week.",
     commonSymptoms: [
       "Car AC blowing warm air",
       "Musty smell from car vents",
@@ -820,20 +820,20 @@ export const SERVICES: ServiceData[] = [
     ],
 
     // ─── PILLAR PAGE CONTENT ───────────────────────────────
-    pillarIntro: "Your car's air conditioning system is more complex than most drivers realize. It is a sealed loop of high-pressure refrigerant that cycles between liquid and gas states to absorb heat from your cabin and release it outside. The system includes a compressor (the pump), a condenser (releases heat outside), an evaporator (absorbs heat inside the cabin), an expansion valve (controls refrigerant flow), and a network of hoses, O-rings, and sensors. When any one of these components fails, the whole system stops working. Cleveland's climate is especially hard on AC systems — freezing winters cause O-ring seals to dry out and crack, and humid summers push the system to its limits. This guide covers every common AC problem, what causes it, what it costs to fix, and how to tell if your shop is giving you an honest diagnosis.",
+    pillarIntro: "Your car's air conditioning system is more complex than most drivers realize. It is a sealed loop of high-pressure refrigerant that cycles between liquid and gas states to absorb heat from your cabin and release it outside. The system includes a compressor (the pump), a condenser (releases heat outside), an evaporator (absorbs heat inside the cabin), an expansion valve (controls refrigerant flow), and a network of hoses, O-rings, and sensors. When any one of these components fails, the whole system stops working. Cleveland's climate is especially hard on AC systems, freezing winters cause O-ring seals to dry out and crack, and humid summers push the system to its limits. This guide covers every common AC problem, what causes it, what it costs to fix, and how to tell if your shop is giving you an honest diagnosis.",
 
-    seasonalCTA: "Don't wait until July — Cleveland summers are brutal. The first 90-degree day, every AC shop in Northeast Ohio is booked solid. Get your system checked in spring while we can get you in same-day. AC seals dry out over winter and small leaks become big problems once you start using the system daily.",
+    seasonalCTA: "Don't wait until July. Cleveland summers are brutal. The first 90-degree day, every AC shop in Northeast Ohio is booked solid. Get your system checked in spring while we can get you in same-day. AC seals dry out over winter and small leaks become big problems once you start using the system daily.",
 
     costBreakdown: [
       {
         service: "Refrigerant Recharge",
         range: "$149–$199",
-        description: "Includes leak test, system evacuation, and recharge with R-134a or R-1234yf refrigerant to manufacturer spec. If we find a leak, we quote the repair separately. A recharge without a leak test is a waste of money — the refrigerant will just leak out again.",
+        description: "Includes leak test, system evacuation, and recharge with R-134a or R-1234yf refrigerant to manufacturer spec. If we find a leak, we quote the repair separately. A recharge without a leak test is a waste of money. The refrigerant will just leak out again.",
       },
       {
         service: "Compressor Replacement",
         range: "$499–$899",
-        description: "The compressor is the heart of the AC system. Replacement includes the compressor, new refrigerant oil, system flush to remove debris, new receiver/drier, evacuation, and recharge. Price varies by vehicle — some compressors are easy to access, others require removing other components.",
+        description: "The compressor is the heart of the AC system. Replacement includes the compressor, new refrigerant oil, system flush to remove debris, new receiver/drier, evacuation, and recharge. Price varies by vehicle, some compressors are easy to access, others require removing other components.",
       },
       {
         service: "Condenser Replacement",
@@ -855,7 +855,7 @@ export const SERVICES: ServiceData[] = [
     faq: [
       {
         question: "How often should I service my car's AC system?",
-        answer: "Unlike oil changes, AC systems do not need regular scheduled service. A properly sealed AC system can go the entire life of the vehicle without needing refrigerant. If your AC is blowing cold, leave it alone. If it starts blowing warm, that means refrigerant has leaked out and you need a diagnosis — not just a top-off. The one maintenance item is your cabin air filter, which should be replaced every 15,000 to 20,000 miles or once a year.",
+        answer: "Unlike oil changes, AC systems do not need regular scheduled service. A properly sealed AC system can go the entire life of the vehicle without needing refrigerant. If your AC is blowing cold, leave it alone. If it starts blowing warm, that means refrigerant has leaked out and you need a diagnosis, not just a top-off. The one maintenance item is your cabin air filter, which should be replaced every 15,000 to 20,000 miles or once a year.",
       },
       {
         question: "Is it worth repairing AC on an older car?",
@@ -863,7 +863,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Can I just add refrigerant myself with a can from the auto parts store?",
-        answer: "Those DIY recharge kits can actually cause more harm than good. They do not measure how much refrigerant is already in the system, so you can easily overcharge it — which damages the compressor. They also contain stop-leak sealant that can clog your expansion valve and contaminate the system. If your AC is low on refrigerant, there is a leak, and adding more just delays the real repair while the leak gets worse.",
+        answer: "Those DIY recharge kits can actually cause more harm than good. They do not measure how much refrigerant is already in the system, so you can easily overcharge it, which damages the compressor. They also contain stop-leak sealant that can clog your expansion valve and contaminate the system. If your AC is low on refrigerant, there is a leak, and adding more just delays the real repair while the leak gets worse.",
       },
       {
         question: "Why does my AC smell bad when I first turn it on?",
@@ -871,7 +871,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "What is the difference between R-134a and R-1234yf refrigerant?",
-        answer: "R-134a has been the standard automotive refrigerant for decades. Starting around 2015, manufacturers began switching to R-1234yf because it has a much lower environmental impact. The two are not interchangeable — your vehicle uses one or the other. R-1234yf is more expensive per pound, which is one reason newer vehicle AC repairs cost a bit more. We stock both and use whatever your vehicle requires.",
+        answer: "R-134a has been the standard automotive refrigerant for decades. Starting around 2015, manufacturers began switching to R-1234yf because it has a much lower environmental impact. The two are not interchangeable. Your vehicle uses one or the other. R-1234yf is more expensive per pound, which is one reason newer vehicle AC repairs cost a bit more. We stock both and use whatever your vehicle requires.",
       },
       {
         question: "How long does an AC repair take?",
@@ -887,7 +887,7 @@ export const SERVICES: ServiceData[] = [
       {
         href: "/car-ac-not-blowing-cold",
         label: "Car AC Not Blowing Cold Air?",
-        description: "Detailed symptom guide covering every reason your AC might not be cooling — from low refrigerant to compressor failure. Includes diagnostic steps you can check yourself before bringing it in.",
+        description: "Detailed symptom guide covering every reason your AC might not be cooling, from low refrigerant to compressor failure. Includes diagnostic steps you can check yourself before bringing it in.",
       },
       {
         href: "/diagnostics",
@@ -904,7 +904,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Transmission Repair Cleveland · We Try Fluid First | Nick's",
     metaDescription: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.",
     heroHeadline: "Slipping, jerking, leaking.\nWe tell you which.",
-    heroSubline: "Transmission problems get expensive fast if ignored. Our technicians diagnose transmission issues accurately and give you honest repair options — from a simple fluid service to a full rebuild.",
+    heroSubline: "Transmission problems get expensive fast if ignored. Our technicians diagnose transmission issues accurately and give you honest repair options, from a simple fluid service to a full rebuild.",
     heroCTA: "DIAGNOSE MY TRANSMISSION",
     turnaround: "Fluid service same day. Repairs 1-3 days. Rebuilds quoted individually.",
     pricingNote: "Free diagnostic scan · Written estimate before any work",
@@ -919,14 +919,14 @@ export const SERVICES: ServiceData[] = [
     ],
     problems: [
       { question: "Transmission slipping?", answer: "Slipping means the transmission momentarily loses power between gear changes. Common causes include low fluid, worn clutch packs, or a failing torque converter. We start with a fluid level and condition check, then scan for transmission codes. Early intervention can often prevent a full rebuild." },
-      { question: "Hard or delayed shifting?", answer: "Hard shifts can indicate low or dirty transmission fluid, a failing shift solenoid, or internal wear. We check fluid condition first — dark or burnt-smelling fluid often means internal damage. A fluid and filter change fixes many shift quality issues when caught early." },
+      { question: "Hard or delayed shifting?", answer: "Hard shifts can indicate low or dirty transmission fluid, a failing shift solenoid, or internal wear. We check fluid condition first. Dark or burnt-smelling fluid often means internal damage. A fluid and filter change fixes many shift quality issues when caught early." },
       { question: "Transmission fluid leak?", answer: "Transmission fluid is typically red or dark brown. Leaks commonly come from the pan gasket, cooler lines, axle seals, or the front pump seal. We identify the leak source, repair it, and top off the fluid to the correct level." },
-      { question: "Check engine light with transmission codes?", answer: "Modern transmissions are computer-controlled. A check engine light with transmission-related codes (P0700, P0730, P0750 series) tells us exactly where to look. We read and interpret the codes, then test the specific components — solenoids, sensors, wiring, or internal parts." },
+      { question: "Check engine light with transmission codes?", answer: "Modern transmissions are computer-controlled. A check engine light with transmission-related codes (P0700, P0730, P0750 series) tells us exactly where to look. We read and interpret the codes, then test the specific components, solenoids, sensors, wiring, or internal parts." },
     ],
     process: [
       { step: "Scan & Test", detail: "Read transmission codes, check fluid level and condition, road test for shift quality." },
       { step: "Diagnose", detail: "Test solenoids, pressure, and converter operation. Identify the specific failed component." },
-      { step: "Recommend", detail: "Explain findings and provide options — fluid service, component repair, or rebuild with written estimate." },
+      { step: "Recommend", detail: "Explain findings and provide options (fluid service, component repair or rebuild) with a written estimate." },
       { step: "Repair", detail: "Perform the agreed repair. Verify proper operation with road test." },
     ],
     whyUs: [
@@ -940,7 +940,7 @@ export const SERVICES: ServiceData[] = [
     keywords: ["transmission repair Cleveland", "transmission service Cleveland OH", "transmission slipping fix", "transmission fluid change Cleveland"],
     quickAnswers: [
       { question: "How much does transmission repair cost in Cleveland?", answer: "Transmission repair costs range widely. Fluid service runs $150 to $300. Solenoid replacement costs $200 to $600. A full transmission rebuild ranges from $1,500 to $3,500 depending on the vehicle. Nick's Tire & Auto provides a written estimate after diagnosis so you know the exact cost." },
-      { question: "How do I know if my transmission is going bad?", answer: "Warning signs include slipping between gears, delayed or hard shifting, grinding or shaking during shifts, a burning smell, transmission fluid leaks (red fluid), or a dashboard warning light. Early diagnosis is critical — small transmission issues become expensive rebuilds quickly." },
+      { question: "How do I know if my transmission is going bad?", answer: "Warning signs include slipping between gears, delayed or hard shifting, grinding or shaking during shifts, a burning smell, transmission fluid leaks (red fluid), or a dashboard warning light. Early diagnosis is critical, small transmission issues become expensive rebuilds quickly." },
     ],
     includedItems: ["Computer code scan", "Fluid level and condition check", "Road test", "Written estimate", "Post-repair verification"],
     pricingTiers: [
@@ -951,7 +951,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Fluid service: 1 hour. Repairs: 1-3 days.",
     startingPrice: "From $150",
     priceRange: "",
-    whyChooseUs: "Transmission work requires precision -- Nick's diagnoses shifting problems with proper scan tools and road testing, not guesswork. You get an honest assessment, a written estimate before any work, and a 12-month warranty. We tell you if a fluid service will fix it before recommending a rebuild.",
+    whyChooseUs: "Transmission work requires precision. Nick's diagnoses shifting problems with proper scan tools and road testing, not guesswork. You get an honest assessment, a written estimate before any work, and a 12-month warranty. We tell you if a fluid service will fix it before recommending a rebuild.",
     commonSymptoms: [
       "Car jerking when shifting gears",
       "Transmission slipping out of gear",
@@ -968,7 +968,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Auto Electrical Cleveland · Trace, Don't Swap | Nick's",
     metaDescription: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.",
     heroHeadline: "3,000 circuits in modern cars.\nWe find the broken one.",
-    heroSubline: "Modern vehicles have thousands of circuits. When electrical problems strike, our technicians use advanced diagnostic tools to trace the issue to the exact component — no guesswork.",
+    heroSubline: "Modern vehicles have thousands of circuits. When electrical problems strike, our technicians use advanced diagnostic tools to trace the issue to the exact component.",
     heroCTA: "DIAGNOSE ELECTRICAL ISSUE",
     turnaround: "Battery and alternator: same day. Wiring issues: 1-2 days.",
     pricingNote: "Free battery test · Charging system check included",
@@ -982,7 +982,7 @@ export const SERVICES: ServiceData[] = [
     ],
     problems: [
       { question: "Car won't start?", answer: "A no-start condition can be the battery, starter motor, ignition switch, or a wiring issue. We test the battery and charging system first. If the battery is good, we test starter draw and ignition circuits to find the exact cause." },
-      { question: "Battery keeps dying?", answer: "A battery that dies overnight typically has a parasitic drain — something is drawing power when the car is off. We perform a current draw test to measure the drain, then systematically isolate circuits to find the component causing it. Common culprits include aftermarket stereos, faulty door switches, and trunk lights." },
+      { question: "Battery keeps dying?", answer: "A battery that dies overnight typically has a parasitic drain, meaning something is drawing power when the car is off. We perform a current draw test to measure the drain, then systematically isolate circuits to find the component causing it. Common culprits include aftermarket stereos, faulty door switches, and trunk lights." },
       { question: "Alternator failing?", answer: "Signs of alternator failure include dimming lights, a dead battery, a whining noise from the engine, and a battery or charging system warning light. We load-test the alternator to measure its output. A failing alternator will eventually leave you stranded." },
       { question: "Electrical gremlins?", answer: "Intermittent electrical problems like flickering lights, random warning lights, or components that work sometimes are often caused by corroded grounds, loose connections, or damaged wiring. Cleveland road salt accelerates corrosion. We trace circuits with a multimeter and wiring diagrams to find the fault." },
     ],
@@ -1014,7 +1014,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Battery/alternator: 1-2 hours. Wiring: varies.",
     startingPrice: "FREE battery test",
     priceRange: "",
-    whyChooseUs: "Electrical problems stump most shops. Nick's uses wiring diagrams, multimeters, and systematic circuit testing to find the actual fault -- no parts-swapping guesswork. Free battery and charging system test, same-day service, and a 12-month warranty on all repairs.",
+    whyChooseUs: "Electrical problems stump most shops. Nick's uses wiring diagrams, multimeters, and systematic circuit testing to find the actual fault. Free battery and charging system test, same-day service, and a 12-month warranty on all repairs.",
     commonSymptoms: [
       "Car won't start clicking sound",
       "Battery dies every morning",
@@ -1044,9 +1044,9 @@ export const SERVICES: ServiceData[] = [
       "Needed a jump start recently",
     ],
     problems: [
-      { question: "How long do car batteries last?", answer: "Most car batteries last 3 to 5 years. Cleveland's extreme temperatures — freezing winters and hot summers — shorten battery life. If your battery is over 3 years old, get it tested before winter. We test batteries for free and can tell you exactly how much life is left." },
+      { question: "How long do car batteries last?", answer: "Most car batteries last 3 to 5 years. Cleveland's extreme temperatures, freezing winters and hot summers, shorten battery life. If your battery is over 3 years old, get it tested before winter. We test batteries for free and can tell you exactly how much life is left." },
       { question: "Car clicking but won't start?", answer: "A rapid clicking sound means the battery has enough voltage to engage the starter solenoid but not enough power to turn the engine. This is usually a dead or weak battery. We test it on the spot and can replace it immediately." },
-      { question: "Do I need a battery or alternator?", answer: "A dead battery can be caused by the battery itself being bad OR by an alternator that isn't charging. We test both — the battery under load and the alternator output — to determine which one actually failed. Replacing the wrong one wastes your money." },
+      { question: "Do I need a battery or alternator?", answer: "A dead battery can be caused by the battery itself being bad OR by an alternator that isn't charging. We test both. The battery under load and the alternator output, to determine which one actually failed. Replacing the wrong one wastes your money." },
     ],
     process: [
       { step: "Free Test", detail: "Load test your battery and measure cold cranking amps vs. the manufacturer spec." },
@@ -1055,7 +1055,7 @@ export const SERVICES: ServiceData[] = [
       { step: "Verify", detail: "Confirm the new battery holds charge and the charging system is working properly." },
     ],
     whyUs: [
-      "Free battery testing — walk in anytime",
+      "Free battery testing. Walk in anytime",
       "Correct battery for your vehicle in stock",
       "Terminal cleaning and anti-corrosion treatment",
       "Charging system verification included",
@@ -1071,7 +1071,7 @@ export const SERVICES: ServiceData[] = [
     duration: "15–30 minutes",
     startingPrice: "FREE test",
     priceRange: "",
-    whyChooseUs: "Nick's tests your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a 12-month warranty -- most replacements done in 30 minutes. Walk in any day, no appointment needed.",
+    whyChooseUs: "Nick's tests your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a 12-month warranty, and most replacements are done in 30 minutes. Walk in any day, no appointment needed.",
     commonSymptoms: [
       "Car won't start in cold weather",
       "Slow engine crank in the morning",
@@ -1088,7 +1088,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's",
     metaDescription: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. (216) 862-0005.",
     heroHeadline: "Exhaust never breaks Tuesday.\nWe're open Sunday.",
-    heroSubline: "Searching for muffler shops near me in Cleveland? Nick's handles the entire exhaust system from manifold to tailpipe — muffler replacement, catalytic converters, exhaust pipes, and emissions repair. Same-day service starting at $149.",
+    heroSubline: "Searching for muffler shops near me in Cleveland? Nick's handles the entire exhaust system from manifold to tailpipe, including muffler replacement, catalytic converters, exhaust pipes and emissions repair. Same-day service starting at $149.",
     heroCTA: "FIX MY EXHAUST",
     turnaround: "Most exhaust repairs completed same day.",
     pricingNote: "Free exhaust inspection · Emissions-related repairs can help you pass E-Check",
@@ -1175,7 +1175,7 @@ export const SERVICES: ServiceData[] = [
       { question: "Need a coolant flush?", answer: "Coolant breaks down over time and loses its ability to protect against corrosion and freezing. We recommend a coolant flush every 30,000 miles or 3 years. We drain the old coolant, flush the system, and refill with the correct coolant type for your vehicle." },
     ],
     process: [
-      { step: "Pressure Test", detail: "Pressurize the cooling system to find any leaks — radiator, hoses, water pump, heater core." },
+      { step: "Pressure Test", detail: "Pressurize the cooling system to find leaks in the radiator, hoses, water pump or heater core." },
       { step: "Diagnose", detail: "Check thermostat operation, water pump flow, radiator condition, and head gasket integrity." },
       { step: "Quote", detail: "Written estimate for repair. Explain what failed and why." },
       { step: "Repair", detail: "Replace failed components, flush system if needed, refill with correct coolant, verify operating temperature." },
@@ -1215,9 +1215,9 @@ export const SERVICES: ServiceData[] = [
     title: "PRE-PURCHASE INSPECTION",
     shortDesc: "Buying a used car? We inspect it bumper-to-bumper before you hand over your money. Don't buy someone else's problems.",
     metaTitle: "Used Car Inspection Cleveland · Before You Sign | Nick's",
-    metaDescription: "Cleveland pre-purchase inspection — the 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.",
+    metaDescription: "Cleveland pre-purchase inspection. The 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.",
     heroHeadline: "Don't buy that used car blind.",
-    heroSubline: "Buying a used car is a gamble — unless you get it inspected first. Our technicians check everything from engine health to frame condition so you know exactly what you are buying.",
+    heroSubline: "Buying a used car is a gamble, unless you get it inspected first. Our technicians check everything from engine health to frame condition so you know exactly what you are buying.",
     heroCTA: "SCHEDULE INSPECTION",
     turnaround: "Inspections completed in 1-2 hours. Walk-ins welcome.",
     pricingNote: "Comprehensive inspection · Written report with photos",
@@ -1237,13 +1237,13 @@ export const SERVICES: ServiceData[] = [
     process: [
       { step: "Drop Off", detail: "Bring the vehicle to our shop or have the seller bring it. Takes 1-2 hours." },
       { step: "Full Inspection", detail: "Bumper-to-bumper check: engine, transmission, brakes, suspension, tires, electrical, body, frame." },
-      { step: "Written Report", detail: "Detailed report of everything found — good, bad, and ugly. Includes photos." },
+      { step: "Written Report", detail: "Detailed report of everything found, good, bad, and ugly. Includes photos." },
       { step: "Consultation", detail: "We go through the findings with you and tell you whether the car is worth buying at the asking price." },
     ],
     whyUs: [
       "150+ point inspection",
       "Written report with photos",
-      "Honest assessment — we tell you the truth",
+      "Honest assessment. We tell you the truth",
       "All makes and models",
       "Typically completed in 1-2 hours",
       "Can save you thousands on a bad purchase",
@@ -1256,7 +1256,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1–2 hours",
     startingPrice: "From $100",
     priceRange: "",
-    whyChooseUs: "A $100 inspection at Nick's can save you thousands on a bad used car purchase. Our 150+ point bumper-to-bumper inspection covers engine, transmission, brakes, suspension, electrical, body, and frame -- with a written report and photos. Same-day results, honest assessment.",
+    whyChooseUs: "A $100 inspection at Nick's can save you thousands on a bad used car purchase. Our 150+ point bumper-to-bumper inspection covers engine, transmission, brakes, suspension, electrical, body, and frame, with a written report and photos. Same-day results, honest assessment.",
     commonSymptoms: [
       "Buying a used car from private seller",
       "Used car making weird noise on test drive",
@@ -1273,7 +1273,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Belt & Hose Cleveland · Catch It Before The Tow | Nick's",
     metaDescription: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. (216) 862-0005.",
     heroHeadline: "A $50 belt prevents\na $500 tow.",
-    heroSubline: "Belts and hoses are rubber — they crack, dry out, and fail with age and heat. A $50 belt replacement prevents a $500 tow and a ruined day.",
+    heroSubline: "Belts and hoses are rubber. They crack, dry out, and fail with age and heat. A $50 belt replacement prevents a $500 tow and a ruined day.",
     heroCTA: "CHECK MY BELTS",
     turnaround: "Serpentine belt: under 1 hour. Timing belt: 4-8 hours.",
     pricingNote: "Belt inspection included with any service · No appointment needed",
@@ -1311,10 +1311,10 @@ export const SERVICES: ServiceData[] = [
       { label: "Timing belt + water pump", range: "$500–$1,200" },
       { label: "Radiator/heater hose", range: "$80–$250" },
     ],
-    duration: "Belt: 30 min–1 hr. Timing belt: 4–8 hrs.",
+    duration: "Belt: 30 min to 1 hr. Timing belt: 4–8 hrs.",
     startingPrice: "From $80",
     priceRange: "",
-    whyChooseUs: "Belts and hoses fail without warning -- a $50 belt replacement prevents a $500 tow. Nick's inspects belts and hoses during every service visit and recommends replacement before they leave you stranded. Same-day service, fair prices, and a 12-month warranty.",
+    whyChooseUs: "Belts and hoses fail without warning. A $50 belt replacement prevents a $500 tow. Nick's inspects belts and hoses during every service visit and recommends replacement before they leave you stranded. Same-day service, fair prices, and a 12-month warranty.",
     commonSymptoms: [
       "Squealing noise from engine on startup",
       "Cracks visible on serpentine belt",
@@ -1336,7 +1336,7 @@ export const SERVICES: ServiceData[] = [
     turnaround: "Most starter and alternator replacements completed same day.",
     pricingNote: "Free charging system test · Only replace what's actually failed",
     signs: [
-      "Car won't start — clicking or grinding sound",
+      "Car won't start, clicking or grinding sound",
       "Battery keeps dying even after replacement",
       "Dimming headlights and dashboard lights",
       "Battery warning light on dashboard",
@@ -1344,7 +1344,7 @@ export const SERVICES: ServiceData[] = [
       "Electrical accessories acting erratically",
     ],
     problems: [
-      { question: "Starter or battery?", answer: "A clicking sound when turning the key can be either. We load-test the battery first — if it passes, the starter is likely failed. If the battery is dead, we test the alternator to make sure it was actually charging. This prevents you from replacing the wrong part." },
+      { question: "Starter or battery?", answer: "A clicking sound when turning the key can be either. We load-test the battery first. If it passes, the starter is likely failed. If the battery is dead, we test the alternator to make sure it was actually charging. This prevents you from replacing the wrong part." },
       { question: "Alternator or battery?", answer: "A failing alternator won't keep the battery charged, so it mimics a bad battery. We test alternator output under load. A healthy alternator produces 13.5 to 14.5 volts. Below that, the alternator needs replacement." },
       { question: "How long do starters and alternators last?", answer: "Starters typically last 100,000 to 150,000 miles. Alternators last 80,000 to 150,000 miles. Cleveland's temperature extremes and stop-and-go driving reduce these lifespans. If your vehicle has high mileage and shows any symptoms, get tested proactively." },
     ],
@@ -1358,7 +1358,7 @@ export const SERVICES: ServiceData[] = [
       "Free charging system test",
       "Battery, starter, AND alternator testing",
       "Same-day replacement",
-      "We test first — only replace what failed",
+      "We test first and only replace what failed",
       "All makes and models",
       "Quality replacement parts with warranty",
     ],
@@ -1372,7 +1372,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1–3 hours",
     startingPrice: "FREE test",
     priceRange: "",
-    whyChooseUs: "When your car won't start, Nick's tests the battery, starter, and alternator to find the actual cause -- no parts-swapping guesswork. Free charging system test, same-day replacement for most vehicles, and a 12-month warranty on parts and labor.",
+    whyChooseUs: "When your car won't start, Nick's tests the battery, starter, and alternator to find the actual cause. Free charging system test, same-day replacement for most vehicles, and a 12-month warranty on parts and labor.",
     commonSymptoms: [
       "Car won't start just clicks",
       "Battery keeps dying after replacement",

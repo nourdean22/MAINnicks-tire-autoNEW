@@ -62,18 +62,18 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
     // SCHEDULE DROP-OFF hero CTA was wrong here; "CAN I COME NOW?" jumps
     // to the #booking section, whose headline answers the question.
     heroSecondaryCta: { label: "CAN I COME NOW?", href: "#booking" },
-    ctaHeadline: "CAN I COME NOW? YES — PULL UP.",
+    ctaHeadline: "CAN I COME NOW? YES. PULL UP.",
     ctaSub:
-      "Oil changes are first-come, first-served. No appointment, no drop-off — pull up, have a seat, and most are done in about 15 minutes. Or send your info below and we'll text you back.",
+      "Oil changes are first come, first served. Pull up without an appointment, have a seat, and most are done in about 15 minutes. Or send your info below and we'll text you back.",
     // Curiosity arc (2026-05-30) — oil change is the "cheaper than you think"
     // service; hero hook plays the pleasant-surprise gap (no $), stakes hook =
     // honest compounding cost the fear stats back up.
     curiosityArc: {
       heroHook: "Less than you'd guess.",
-      stakesHook: "Skip it twice and the number changes — here's what old oil actually costs.",
+      stakesHook: "Skip it twice and the number changes.",
     },
     anchorTable: {
-      serviceName: "Synthetic oil change — Cleveland market quotes",
+      serviceName: "Synthetic oil change, Cleveland market quotes",
       rows: [
         { label: "Cleveland-area dealer", price: "$110" },
         { label: "Quick-lube chain (Jiffy / Valvoline)", price: "$89" },
@@ -92,12 +92,12 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         {
           value: "12%",
           unit: "MPG loss",
-          consequence: "Old oil thickens and adds friction inside the engine. A 30-MPG car drops to ~26 MPG. On 1,000 miles/month, that's roughly $25 wasted at the pump every month — quietly.",
+          consequence: "Old oil thickens and adds friction inside the engine. A 30-MPG car drops to ~26 MPG. On 1,000 miles/month, that's roughly $25 wasted at the pump every month, quietly.",
         },
         {
           value: "60K",
           unit: "miles",
-          consequence: "Engines that get oil changes on schedule routinely outlast 200K miles. Engines that skip 2-3 cycles often need major work by 60K. Same engine, different ending — purely based on when the oil was changed.",
+          consequence: "Engines that get oil changes on schedule routinely outlast 200K miles. Engines that skip 2-3 cycles often need major work by 60K. Same engine, different ending, purely based on when the oil was changed.",
         },
       ],
     },
@@ -106,19 +106,19 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         amount: 25,
         unit: "per month",
         label: "in extra fuel from old oil",
-        reason: "Thick, contaminated oil increases internal friction. The engine fights itself — fuel economy quietly drops 8-12% before you notice. Fresh oil pays for itself in about 3 months at current Cleveland gas prices.",
+        reason: "Thick, contaminated oil increases internal friction. The engine fights itself, and fuel economy quietly drops 8-12% before you notice. Fresh oil pays for itself in about 3 months at current Cleveland gas prices.",
         ctaHref: "#booking",
         ctaLabel: "COME IN TODAY",
       },
     ],
     crossSell: {
-      heading: "While the car's on the lift — what else needs eyes on it?",
+      heading: "While the car's on the lift, what else needs eyes on it?",
       items: [
         {
           tone: "warning",
           icon: <Activity className="w-5 h-5" />,
           symptom: "Check engine light flickered recently?",
-          consequence: "Oil-change visit is the cheapest time to scan — we read the codes for free.",
+          consequence: "Oil-change visit is the cheapest time to scan. We read the codes for free.",
           relief: "Free OBD-II scan, full diagnostic only if needed.",
           ctaLabel: "SCAN MY CAR",
           ctaHref: "/diagnostics",
@@ -127,7 +127,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "info",
           icon: <Disc className="w-5 h-5" />,
           symptom: "Tires looking worn or uneven?",
-          consequence: "Tread depth check is included — we'll tell you if you have miles or weeks.",
+          consequence: "Tread depth check is included. We'll tell you if you have miles or weeks.",
           relief: "New & used tires installed during the oil change. Walk in or call for a live quote on your size.",
           ctaLabel: "CHECK TIRES",
           ctaHref: "/tires",
@@ -136,7 +136,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "info",
           icon: <Wrench className="w-5 h-5" />,
           symptom: "Brakes squealing on cold mornings?",
-          consequence: "We'll measure pad thickness with the wheels off — takes 5 extra minutes.",
+          consequence: "We'll measure pad thickness with the wheels off. It takes 5 extra minutes.",
           relief: "Free brake inspection. Written estimate before any work.",
           ctaLabel: "BRAKE CHECK",
           ctaHref: "/brakes",
@@ -269,7 +269,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   // ════════════════════════════════════════════════════════
   "ac-repair": {
     anchorTable: {
-      serviceName: "AC system service — Cleveland market quotes",
+      serviceName: "AC system service, Cleveland market quotes",
       rows: [
         { label: "Dealer AC diagnostic + recharge", price: "$295" },
         { label: "Chain shop AC service", price: "$195" },
@@ -283,7 +283,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         {
           value: "0.5–1 lb",
           unit: "leak per year",
-          consequence: "Even a tiny refrigerant leak grows. By the second summer, the system runs starved — compressor cycles too fast, overheats, eats its own bearings.",
+          consequence: "Even a tiny refrigerant leak grows. By the second summer the system runs starved. The compressor cycles too fast, overheats and eats its own bearings.",
         },
         {
           value: "$1,400",
@@ -293,7 +293,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         {
           value: "90°F+",
           unit: "Cleveland summer day",
-          consequence: "Cleveland hits 90°F+ regularly June–August. AC fails in heat. Repair waits average 3-5 days mid-summer at chain shops — at Nick's, walk-in same day if you book by 11 AM.",
+          consequence: "Cleveland hits 90°F+ regularly June through August. AC fails in heat. Repair waits average 3-5 days mid-summer at chain shops. At Nick's, walk-in same day if you book by 11 AM.",
         },
       ],
     },
@@ -302,7 +302,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         amount: 1.5,
         unit: "per day in summer",
         label: "of compressor wear from running on low refrigerant",
-        reason: "When refrigerant is low, the compressor short-cycles — it works harder for less cooling. Bearings wear out 3-5x faster than when fully charged. The longer you run it weak, the bigger the eventual bill.",
+        reason: "When refrigerant is low, the compressor short-cycles. It works harder for less cooling. Bearings wear out 3-5x faster than when fully charged. The longer you run it weak, the bigger the eventual bill.",
         ctaHref: "#booking",
         ctaLabel: "RECHARGE BEFORE IT FAILS",
       },
@@ -314,7 +314,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "warning",
           icon: <Thermometer className="w-5 h-5" />,
           symptom: "Coolant temp running hot too?",
-          consequence: "AC condenser blocks airflow when clogged — engine cooling suffers next.",
+          consequence: "AC condenser blocks airflow when clogged, and engine cooling suffers next.",
           relief: "Free cooling-system inspection with AC service.",
           ctaLabel: "COOLING SYSTEM",
           ctaHref: "/cooling",
@@ -323,7 +323,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "info",
           icon: <Battery className="w-5 h-5" />,
           symptom: "Battery weak when AC is on?",
-          consequence: "AC compressor pulls hard amperage — exposes a marginal battery first.",
+          consequence: "AC compressor pulls hard amperage and exposes a marginal battery first.",
           relief: "Free battery + alternator test. Free written estimate before any replacement.",
           ctaLabel: "BATTERY TEST",
           ctaHref: "/battery",
@@ -332,7 +332,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "info",
           icon: <Wrench className="w-5 h-5" />,
           symptom: "Belt squeal when AC engages?",
-          consequence: "Worn serpentine belt — AC clutch acts as the canary.",
+          consequence: "Worn serpentine belt. The AC clutch acts as the canary.",
           relief: "Belt replacement with full accessory inspection. Free written estimate first.",
           ctaLabel: "BELT INSPECTION",
           ctaHref: "/belts-hoses",
@@ -346,13 +346,13 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   // ════════════════════════════════════════════════════════
   transmission: {
     anchorTable: {
-      serviceName: "Transmission service — Cleveland market quotes",
+      serviceName: "Transmission service, Cleveland market quotes",
       rows: [
         { label: "Dealer fluid + filter service", price: "$320" },
         { label: "Chain shop fluid flush", price: "$185" },
         { label: "Nick's (full fluid + filter)", price: "Free estimate", ours: true },
       ],
-      source: "Major repairs (rebuild / replacement) priced after diagnostic. Most failed-shift complaints fix with fluid + filter or solenoid replacement, NOT a full rebuild — unless someone else delayed too long.",
+      source: "Major repairs (rebuild / replacement) priced after diagnostic. Most failed-shift complaints fix with fluid + filter or solenoid replacement, NOT a full rebuild, unless someone else delayed too long.",
     },
     fearStats: {
       heading: "Slipping transmission isn't a \"deal with it later\" problem.",
@@ -365,7 +365,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         {
           value: "30–60",
           unit: "miles",
-          consequence: "Of slipping under load before the clutch packs glaze permanently. Once they glaze, you can't recover with fluid — even a flush won't bring it back. The window from \"caught early\" to \"needs rebuild\" is shorter than people think.",
+          consequence: "Of slipping under load before the clutch packs glaze permanently. Once they glaze, you can't recover with fluid. Even a flush won't bring it back. The window from \"caught early\" to \"needs rebuild\" is shorter than people think.",
         },
         {
           value: "40×",
@@ -391,7 +391,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "warning",
           icon: <Activity className="w-5 h-5" />,
           symptom: "Check engine light came on with the slip?",
-          consequence: "Transmission control module (TCM) faults trigger CEL — diagnostic narrows it fast.",
+          consequence: "Transmission control module (TCM) faults trigger the CEL, and a diagnostic narrows it fast.",
           relief: "Free 5-min scan. Deeper diagnostic gets a written estimate, credited if we fix it.",
           ctaLabel: "DIAGNOSE",
           ctaHref: "/diagnostics",
@@ -400,8 +400,8 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "info",
           icon: <Thermometer className="w-5 h-5" />,
           symptom: "Coolant temp also high?",
-          consequence: "Auto transmissions share a cooler with the radiator — radiator failure can mix coolant into trans fluid.",
-          relief: "Coolant + trans fluid inspection — checks for cross-contamination.",
+          consequence: "Auto transmissions share a cooler with the radiator, so radiator failure can mix coolant into trans fluid.",
+          relief: "Coolant + trans fluid inspection checks for cross-contamination.",
           ctaLabel: "CHECK COOLING",
           ctaHref: "/cooling",
         },
@@ -409,7 +409,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           tone: "info",
           icon: <Wrench className="w-5 h-5" />,
           symptom: "Hard shifts only when cold?",
-          consequence: "Often a sticky shift solenoid — much cheaper than a slip under load.",
+          consequence: "Often a sticky shift solenoid, much cheaper than a slip under load.",
           relief: "Solenoid + valve-body inspection during fluid service.",
           ctaLabel: "BOOK SERVICE",
           ctaHref: "#booking",
