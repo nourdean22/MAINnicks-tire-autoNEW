@@ -144,6 +144,8 @@ export class ConversationNotFoundError extends Error {
 export async function listConversations(args: {
   take?: number;
   cursor?: string;
+  /** U6 (2026-10-31) · true = the archived conversations only (the drawer's Archived tab). */
+  archived?: boolean;
 }): Promise<ConversationListResult> {
   const requestedTake = args.take ?? 75;
   const take = Number.isFinite(requestedTake)
@@ -152,7 +154,7 @@ export async function listConversations(args: {
   const cursor = args.cursor || undefined;
 
   const fetched = await prisma.chatConversation.findMany({
-    where: { archivedAt: null },
+    where: { archivedAt: args.archived ? { not: null } : null },
     orderBy: { updatedAt: "desc" },
     take: take + 1, // peek for hasMore
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

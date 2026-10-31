@@ -578,7 +578,17 @@ export function ChatIsland() {
             }}
             onRename={conversations.renameConvo}
             onTogglePin={conversations.togglePin}
-            onArchive={(id) => conversations.patchConvoFlag(id, "archived", true)}
+            onArchive={(id) => {
+              conversations.patchConvoFlag(id, "archived", true);
+              // U6 · archive is one tap, so it gets an Undo (in-DOM toast, never a native dialog).
+              toast("Conversation archived", {
+                duration: 5000,
+                action: { label: "Undo", onClick: () => void conversations.unarchive(id) },
+              });
+            }}
+            archivedConvos={conversations.archivedConvos}
+            onLoadArchived={() => void conversations.loadArchived()}
+            onUnarchive={(id) => void conversations.unarchive(id)}
             onNew={() => {
               moveToConversation(null);
               conversations.newChat();
