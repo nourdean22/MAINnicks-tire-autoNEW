@@ -50,6 +50,7 @@ import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
 import { ContextRail } from "./context-rail";
 import { MaximLine } from "@/components/wisdom/maxim-line";
+import { LoveMapLine } from "@/components/relationships/love-map-line";
 import { HomeShortcuts } from "./home-shortcuts";
 import { ShopTodayCard } from "./shop-today-card";
 import { HomeCards } from "./home-cards";
@@ -119,6 +120,9 @@ export function HomeConsole() {
 
         {/* 2026-10-29 · one plain maxim from every book pack, leaning toward the brief's lead line. */}
         <MaximLine context={brief?.lead?.headline ?? null} ready={!!brief || unreadable} />
+
+        {/* People W2c (2026-10-30): one question a day about someone with no notes; renders nothing when no one is left. */}
+        <LoveMapLine />
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail

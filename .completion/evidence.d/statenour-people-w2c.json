@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w2c": {
+      "ref": "statenour/people-w2c (job 2026-10-30-people-tracker, W2c; manager ruling: its own small PR after 3426). Home shows one love-map question a day about a person with no notes. lib/services/people/love-map.ts (pure: candidates are live people with empty leverageNotes, sorted by id; the pick rotates by New York day; six fixed question strings, no model call; appendLoveMapAnswer appends a line, never overwrites, refuses an empty answer or a result past 2000 characters). tRPC task.loveMapQuestion (operatorProcedure, deletedAt null, toDateString ET day) and task.answerLoveMap (operatorProcedure, append-only, returns not_found / too_long without writing, refreshes the person embed like updatePerson). components/relationships/love-map-line.tsx on Home under the maxim: a failed read says so, no candidate renders nothing, Save and Skip today end it for the day on this device. Red first: 2 missing modules. Mutation checks: removing the failed-read branch and keying on the UTC date each turn a test red. 4 files, 18 tests under TZ=UTC and America/New_York, plus home-context-fold (9) with the new child stubbed. No schema change, no prod write by an agent."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the people question. Live check after merge: Home shows a question naming a person whose notes are empty; after Save, that person's notes on /people end with the question and answer, and the needs-info count drops by one unless that person's role is also unknown (role stays with the existing classification banner). Kill criterion: the needs-info count has not dropped by 3 within 14 days of merge -> remove the line."
+    }
+  }
+}

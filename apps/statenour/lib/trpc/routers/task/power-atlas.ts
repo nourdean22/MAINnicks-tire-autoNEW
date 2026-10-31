@@ -18,6 +18,8 @@ import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
 import { PersonNotFoundError, recordInteraction } from "@/lib/services/people/record-interaction";
 import { LedgerRowNotFoundError, deleteLedgerRow } from "@/lib/services/people/delete-ledger-row";
 import { writableLedgerMetadata } from "@/lib/services/people/contact-rows";
+import { appendLoveMapAnswer, pickLoveMapQuestion } from "@/lib/services/people/love-map";
+import { toDateString } from "@/lib/utils/datetime";
 
 export const powerAtlasProcedures = {
   /**
@@ -459,6 +461,42 @@ export const powerAtlasProcedures = {
       const { enqueuePersonEmbed } = await import("@/lib/brain/people-embed-hook");
       void enqueuePersonEmbed(input.personId);
       return { ok: true };
+    }),
+
+  /**
+   * People W2c (2026-10-30): today's love-map question for Home, about one
+   * person with no notes (lib/services/people/love-map.ts). null = no one left
+   * to ask about; a failed read throws, so the client can say so.
+   */
+  loveMapQuestion: operatorProcedure.query(async () => {
+    const people = await prisma.personProfile.findMany({
+      where: { deletedAt: null },
+      select: { id: true, name: true, leverageNotes: true },
+    });
+    return pickLoveMapQuestion(people, toDateString(new Date()));
+  }),
+
+  /** The answer is appended to the person's notes, never written over them. */
+  answerLoveMap: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        question: z.string().min(1).max(300),
+        answer: z.string().min(1).max(1000),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const person = await prisma.personProfile.findFirst({
+        where: { id: input.personId, deletedAt: null },
+        select: { leverageNotes: true },
+      });
+      if (!person) return { ok: false as const, reason: "not_found" as const };
+      const next = appendLoveMapAnswer(person.leverageNotes, input.question, input.answer);
+      if (next === null) return { ok: false as const, reason: "too_long" as const };
+      await prisma.personProfile.update({ where: { id: input.personId }, data: { leverageNotes: next } });
+      const { enqueuePersonEmbed } = await import("@/lib/brain/people-embed-hook");
+      void enqueuePersonEmbed(input.personId);
+      return { ok: true as const };
     }),
 
   /**
