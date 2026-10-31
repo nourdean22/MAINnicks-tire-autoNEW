@@ -57,7 +57,10 @@ async function shrink(file: File): Promise<Blob | null> {
   }
 }
 
-/** One file ready for a `file` message part. Never throws on a photo it cannot shrink: it sends the original. */
+/**
+ * One file ready for a `file` message part. A photo it cannot shrink goes as the original; one it
+ * must convert (HEIC) and cannot throws, so the caller names it instead of sending unreadable bytes.
+ */
 export async function prepareForSend(file: File): Promise<PreparedFile> {
   const isStill = file.type.startsWith("image/") && file.type !== "image/gif";
   const mustConvert = isStill && !MODEL_READABLE.has(file.type);
@@ -68,8 +71,10 @@ export async function prepareForSend(file: File): Promise<PreparedFile> {
         return { mimeType: "image/jpeg", base64: await readAsBase64(small), filename: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
       }
     } catch {
-      // A format the browser cannot decode: the original goes, the server cap still bounds it.
+      // A browser that cannot decode it: an optional shrink falls back to the original below.
     }
+    // The model cannot read the original either, so it is a preparation failure, not a send.
+    if (mustConvert) throw new Error(`cannot convert ${file.type}`);
   }
   return { mimeType: file.type || "application/octet-stream", base64: await readAsBase64(file), filename: file.name };
 }

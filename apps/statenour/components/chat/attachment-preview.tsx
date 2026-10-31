@@ -22,10 +22,13 @@ export function AttachmentPreview({
   file,
   preview,
   onClear,
+  disabled = false,
 }: {
   file: File;
   preview: string;
   onClear: () => void;
+  /** U5 · true while a send holds this file: removing it then would not take it out of the send. */
+  disabled?: boolean;
 }) {
   const isImage = file.type.startsWith("image/");
   const isAudio = file.type.startsWith("audio/");
@@ -54,7 +57,8 @@ export function AttachmentPreview({
       <button
         type="button"
         onClick={onClear}
-        className="flex min-h-11 min-w-11 items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 transition-colors"
+        disabled={disabled}
+        className="flex min-h-11 min-w-11 items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 transition-colors disabled:opacity-40"
         aria-label={`Remove ${file.name}`}
         title={`Remove ${file.name}`}
       >

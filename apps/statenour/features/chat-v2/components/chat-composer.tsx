@@ -211,22 +211,51 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
   const mentions = useMentionSuggestions();
 
   // U5 · photo prep and mention lookup are awaited before the send, so a second tap on Send in
-  // that window saw the same attachments and sent them twice.
+  // that window saw the same attachments and sent them twice. The state half locks Send and the
+  // Remove buttons for that window: a photo removed mid-send was still in the prepared snapshot.
   const photoSendRef = useRef(false);
+  const [photoSending, setPhotoSending] = useState(false);
   const sendOrQueue = async (textToSend: string) => {
     if (!imgAttached) return sendNow(textToSend);
     if (photoSendRef.current) return;
     photoSendRef.current = true;
+    setPhotoSending(true);
     try {
       await sendNow(textToSend);
     } finally {
       photoSendRef.current = false;
+      setPhotoSending(false);
     }
   };
 
   const sendNow = async (textToSend: string) => {
     if (disabledReason) return; // the status line above the field already says why (voice and slash sends land here too)
     if (!textToSend.trim() && !imgAttached) return;
+
+    // U5 · attachments are prepared and checked BEFORE an edit deletes the turn it replaces: a
+    // refusal here must leave the conversation as it was.
+    const sendingImgs = imgAttached ?? [];
+    const isImageAttached = sendingImgs.length > 0;
+    let fileParts: Array<{ type: "file"; mediaType: string; url: string; filename: string }> = [];
+    if (isImageAttached) {
+      fileParts = (await prepareImgs()).map((p) => ({
+        type: "file" as const,
+        mediaType: p.mimeType,
+        url: `data:${p.mimeType};base64,${p.base64}`,
+        filename: p.filename,
+      }));
+      // The route answers 413 past this, after the upload; say it now and keep the photos.
+      const tooBig = attachmentCapProblem({ parts: fileParts });
+      if (tooBig) {
+        toast.error(tooBig, { duration: 5000 });
+        return;
+      }
+      if (fileParts.length === 0 && !textToSend.trim()) {
+        // Nothing readable and no words: an empty message would go out.
+        toast.error("Couldn't read the attachment. Remove it or pick another file.", { duration: 4000 });
+        return;
+      }
+    }
 
     // 2026-08-18 · edit-resend. When the draft came from tapping an
     // existing user message, sending REPLACES that turn: truncate the
@@ -263,8 +292,6 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     }
 
     const tempId = crypto.randomUUID();
-    const sendingImgs = imgAttached ?? [];
-    const isImageAttached = sendingImgs.length > 0;
     const hasMentions = textToSend.includes("@");
 
     // The operator sees the send immediately. Context resolution is bounded
@@ -298,25 +325,14 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
       // VideoDB retirement — decideAttachment refuses video at attach
       // time now, so no send-time branch is needed.
       if (isImageAttached) {
-        // U5 · every attachment becomes one file part, photos shrunk first.
-        const prepared = await prepareImgs();
-        if (prepared.length > 0) {
+        // U5 · every attachment is one file part (prepared above), after the text.
+        if (fileParts.length > 0) {
           const parts: Array<
             | { type: "text"; text: string }
             | { type: "file"; mediaType: string; url: string; filename: string }
           > = [];
           if (resolvedText) parts.push({ type: "text", text: resolvedText });
-          for (const p of prepared) {
-            parts.push({ type: "file", mediaType: p.mimeType, url: `data:${p.mimeType};base64,${p.base64}`, filename: p.filename });
-          }
-          // The route answers 413 past this, after the upload; say it now and keep the photos.
-          const tooBig = attachmentCapProblem({ parts });
-          if (tooBig) {
-            toast.error(tooBig, { duration: 5000 });
-            resolvePending(tempId);
-            setDraft(textToSend);
-            return;
-          }
+          parts.push(...fileParts);
           sendPromise = chat.append({
             id: tempId,
             role: "user",
@@ -324,11 +340,6 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
             parts,
           });
           discardImgs(sendingImgs);
-        } else if (!resolvedText.trim()) {
-          // Nothing readable and no words: an empty message would go out.
-          toast.error("Couldn't read the attachment. Remove it or pick another file.", { duration: 4000 });
-          resolvePending(tempId);
-          return;
         } else {
           toast.error("Couldn't read the attachment. Sending text only.", { duration: 3000 });
           sendPromise = chat.sendText(resolvedText);
@@ -715,12 +726,12 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
       {imgAttached && (
         <div className="mb-1 overflow-hidden rounded-float border border-edge-subtle bg-surface">
           {imgAttached.map((a, i) => (
-            <AttachmentPreview key={a.preview} file={a.file} preview={a.preview} onClear={() => removeImg(i)} />
+            <AttachmentPreview key={a.preview} file={a.file} preview={a.preview} onClear={() => removeImg(i)} disabled={photoSending} />
           ))}
           {imgAttached.length > 1 && (
             <div className="flex items-center justify-between px-3 text-[12px] text-fg-tertiary">
               <span>{imgAttached.length} of {MAX_ATTACHMENTS} files</span>
-              <button type="button" onClick={clearImg} className="min-h-11 rounded-control px-3 hover:bg-surface-interactive hover:text-fg">
+              <button type="button" onClick={clearImg} disabled={photoSending} className="min-h-11 rounded-control px-3 hover:bg-surface-interactive hover:text-fg disabled:opacity-40">
                 Remove all
               </button>
             </div>
@@ -819,7 +830,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
             </button>
           </>
         ) : (
-          <button type="submit" aria-label="Send message" disabled={Boolean(disabledReason) || Boolean(imgPreparing) || (!draft.trim() && !imgAttached)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
+          <button type="submit" aria-label="Send message" disabled={Boolean(disabledReason) || photoSending || (!draft.trim() && !imgAttached)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
             </svg>

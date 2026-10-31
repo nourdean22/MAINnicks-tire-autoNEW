@@ -54,4 +54,15 @@ describe("attachment cap", () => {
     const out = await runGate(post([old, { id: "a0", role: "assistant", parts: [{ type: "text", text: "ok" }] }, { id: "m2", role: "user", parts: [{ type: "text", text: "next" }] }]));
     expect(out.kind).toBe("pass");
   });
+
+  it("older turns lose their inline bytes at the gate, whatever the client sent", async () => {
+    const old = { ...userMsg([photo()]), id: "m0" };
+    const out = await runGate(post([old, { id: "m2", role: "user", parts: [{ type: "text", text: "next" }] }]));
+    expect(out.kind).toBe("pass");
+    if (out.kind === "pass") {
+      expect(JSON.stringify(out.messages)).not.toContain("data:");
+      expect((out.messages[0].parts as Array<{ type: string }>)[1].type).toBe("text");
+    }
+  });
+
 });

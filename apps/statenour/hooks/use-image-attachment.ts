@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { decideAttachment } from "@/lib/media/attachment-policy";
 import { prepareForSend, type PreparedFile } from "@/lib/media/compress-image";
-import { MAX_FILES_PER_MESSAGE } from "@/lib/ai/chat/attachment-cap";
+import { MAX_FILES_PER_MESSAGE, MAX_INLINE_CHARS } from "@/lib/ai/chat/attachment-cap";
 
 /** Per message. The chat gate enforces the same number server-side (lib/ai/chat/attachment-cap.ts). */
 export const MAX_ATTACHMENTS = MAX_FILES_PER_MESSAGE;
@@ -57,6 +57,7 @@ export function useImageAttachment({
   /** Attaches every acceptable file up to the cap; true when at least one was attached. */
   const acceptFiles = useCallback((files: File[]): boolean => {
     const accepted: File[] = [];
+    let audioTaken = false;
     for (const file of files) {
       const decision = decideAttachment({ name: file.name, type: file.type, size: file.size });
       if (!decision.accepted) {
@@ -66,6 +67,12 @@ export function useImageAttachment({
       // 04-X1: inline audio bytes reach the model as nothing it can hear, so
       // audio is handed to transcription and never attached.
       if (decision.kind === "audio" && onAudio) {
+        // One per pick: parallel transcriptions shared one progress flag and landed out of order.
+        if (audioTaken) {
+          toast(`Transcribing one audio file at a time. Skipped ${file.name}.`, { duration: 4000 });
+          continue;
+        }
+        audioTaken = true;
         onAudio(file);
         continue;
       }
@@ -169,12 +176,18 @@ export function useImageAttachment({
   const prepareAll = useCallback(async (): Promise<PreparedFile[]> => {
     if (list.length === 0) return [];
     const out: PreparedFile[] = [];
+    let chars = 0;
     const photos = list.every((a) => a.file.type.startsWith("image/"));
     setPreparing({ done: 0, total: list.length, photos });
     try {
       for (const [i, a] of list.entries()) {
         try {
-          out.push(await prepareForSend(a.file));
+          const p = await prepareForSend(a.file);
+          out.push(p);
+          // Past the cap the message cannot go; stop encoding (ten big PDFs would hold 100+ MB of
+          // base64 in an iPhone tab). The caller's cap check refuses what came back.
+          chars += p.base64.length;
+          if (chars > MAX_INLINE_CHARS) break;
         } catch {
           toast.error(`Couldn't read ${a.file.name}.`, { duration: 4000 });
         }

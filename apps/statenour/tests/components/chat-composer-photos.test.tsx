@@ -13,11 +13,13 @@ import { createRoot, type Root } from "react-dom/client";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }) }));
+const deleteMessage = vi.hoisted(() => vi.fn(async () => ({})));
+const slow = vi.hoisted(() => ({ release: () => {} }));
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
     useUtils: () => ({}),
     brain: { createPin: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) } },
-    chat: { deleteMessage: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) } },
+    chat: { deleteMessage: { useMutation: () => ({ mutateAsync: deleteMessage, isPending: false }) } },
   },
 }));
 vi.mock("@/hooks/use-draft-autosave", () => ({ useDraftAutosave: () => ({ clearDraft: () => {}, restore: () => null }) }));
@@ -25,6 +27,7 @@ vi.mock("@/lib/media/compress-image", async (orig) => ({
   ...(await orig<typeof import("@/lib/media/compress-image")>()),
   prepareForSend: async (f: File) => {
     if (f.name.startsWith("bad")) throw new Error("unreadable");
+    if (f.name.startsWith("slow")) await new Promise<void>((r) => { slow.release = r; });
     // Past MAX_INLINE_CHARS (24 M) once wrapped as a data: URL.
     if (f.name.startsWith("huge")) return { mimeType: "image/jpeg", base64: "Q".repeat(24_000_000), filename: f.name };
     return { mimeType: "image/jpeg", base64: "QQ==", filename: f.name };
@@ -43,6 +46,9 @@ let host: HTMLDivElement;
 beforeEach(() => {
   append.mockClear();
   sendText.mockClear();
+  deleteMessage.mockClear();
+  chat.setMessages.mockClear();
+  chat.messages = [];
   vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn((f: File) => `blob:${f.name}`), revokeObjectURL: vi.fn() }));
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -52,7 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root?.unmount());
   host.remove();
-  useChatUiStore.setState({ draft: "" });
+  useChatUiStore.setState({ draft: "", editingMessageId: null });
 });
 
 const galleryInput = () => host.querySelector('input[type="file"]:not([capture])') as HTMLInputElement;
@@ -116,5 +122,27 @@ describe("composer photos (U5)", () => {
     await submit();
     expect(append).not.toHaveBeenCalled();
     expect(host.querySelectorAll('button[aria-label^="Remove "]')).toHaveLength(1);
+  });
+
+  it("an edit whose photos are past the cap leaves the old turn in place", async () => {
+    chat.messages = [{ id: "old-1", role: "user", parts: [{ type: "text", text: "before" }] }];
+    await pickPhotos(["huge.jpg"]);
+    act(() => useChatUiStore.setState({ draft: "after", editingMessageId: "old-1" }));
+    await submit();
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(chat.setMessages).not.toHaveBeenCalled();
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it("Remove is locked while a photo send is preparing", async () => {
+    await pickPhotos(["slow.jpg", "b.jpg"]);
+    act(() => useChatUiStore.setState({ draft: "x" }));
+    const form = host.querySelector("form") as HTMLFormElement;
+    await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    const removes = Array.from(host.querySelectorAll<HTMLButtonElement>('button[aria-label^="Remove "]'));
+    expect(removes.length).toBe(2);
+    expect(removes.every((b) => b.disabled)).toBe(true);
+    await act(async () => { slow.release(); await new Promise((r) => setTimeout(r, 0)); });
+    expect(append).toHaveBeenCalledTimes(1);
   });
 });

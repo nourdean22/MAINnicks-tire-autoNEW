@@ -41,4 +41,10 @@ describe("prepareForSend · format conversion", () => {
     expect(out.filename).toBe("a.jpg");
     expect(createImageBitmap).not.toHaveBeenCalled();
   });
+
+  it("a HEIC the browser cannot decode fails preparation instead of going out raw", async () => {
+    vi.stubGlobal("createImageBitmap", vi.fn(async () => { throw new Error("decode"); }));
+    const heic = new File([new Uint8Array(1000)], "IMG_2.HEIC", { type: "image/heic" });
+    await expect(prepareForSend(heic)).rejects.toThrow(/cannot convert/);
+  });
 });

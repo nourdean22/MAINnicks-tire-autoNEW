@@ -82,4 +82,21 @@ describe("photo resize target", () => {
     expect(scaledSize(3024, 4032)).toEqual({ w: 1536, h: 2048 });
     expect(scaledSize(1200, 900)).toEqual({ w: 1200, h: 900 });
   });
+
+  it("stops encoding once the batch is past the inline cap", async () => {
+    prepare.mockImplementationOnce(async (f: File) => ({ mimeType: "application/pdf", base64: "Q".repeat(24_000_001), filename: f.name }));
+    const { result } = renderHook(() => useImageAttachment());
+    act(() => result.current.handleFileChange(pick([jpeg("big.pdf"), jpeg("b.jpg"), jpeg("c.jpg")])));
+    await act(async () => { await result.current.prepareAll(); });
+    expect(prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("two audio files in one pick: only the first is transcribed", () => {
+    const onAudio = vi.fn();
+    const { result } = renderHook(() => useImageAttachment({ onAudio }));
+    const audio = (n: string) => new File([new Uint8Array(1000)], n, { type: "audio/mp4" });
+    act(() => result.current.handleFileChange(pick([audio("a.m4a"), audio("b.m4a")])));
+    expect(onAudio).toHaveBeenCalledTimes(1);
+    expect(onAudio.mock.calls[0][0].name).toBe("a.m4a");
+  });
 });
