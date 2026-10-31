@@ -1572,3 +1572,46 @@ describe("install package value has one source; lifetime rotations are not promi
     }
   });
 });
+
+// ─── Used-tire check: one list, no fixed count ──────────────────────────────
+// Nour, 2026-10-30 22:52 EDT: "all and more for used tires check". The check covers
+// every point any page listed (tread depth, sidewall, bead, DOT date, plug and repair
+// history) and more, so copy renders BUSINESS.usedTires.checkSummary and never a count.
+const FIXED_COUNT = /\b(?:4|four)[- ]point\b/i;
+// GSC wave 1 (PR 3368) measures /used-tires-cleveland until the 2026-12-10 read; its title,
+// H1 and meta keep "4-Point" until then. The exemption fails the suite once the date passes.
+const COUNT_EXEMPT = [
+  { file: "client/src/pages/UsedTiresClevelandPage.tsx", line: null as string | null, until: "2026-12-10" },
+  { file: "shared/routes.ts", line: "Used tires in Cleveland from $25 installed", until: "2026-12-10" },
+];
+
+describe("used-tire check reads one list and never states a fixed count", () => {
+  it("the count matcher sees its defect and passes the list wording", () => {
+    expect(FIXED_COUNT.test("Every used tire passes a 4-point check")).toBe(true);
+    expect(FIXED_COUNT.test("USED TIRES THAT PASS A 4-POINT CHECK")).toBe(true);
+    expect(FIXED_COUNT.test("checked for tread depth, sidewall, bead, and more")).toBe(false);
+  });
+
+  it("BUSINESS.usedTires.checkSummary lists every point either page named, and more", () => {
+    for (const p of ["tread depth", "sidewall", "bead", "DOT date", "plug and repair history"]) {
+      expect(BUSINESS.usedTires.checkSummary).toContain(p);
+    }
+    expect(BUSINESS.usedTires.checkSummary).toMatch(/and more$/);
+  });
+
+  it("Home and /tire-prices-cleveland both render the list from BUSINESS", () => {
+    for (const rel of ["client/src/pages/Home.tsx", "client/src/pages/TirePricesClevelandPage.tsx"]) {
+      expect(readFileSync(join(ROOT, rel), "utf8")).toContain("BUSINESS.usedTires.checkSummary");
+    }
+  });
+
+  it("no page types a fixed point count (dated GSC exemptions aside)", () => {
+    const exempt = (l: { file: string; text: string }) =>
+      COUNT_EXEMPT.some((e) => e.file === l.file && (e.line === null || l.text.includes(e.line)));
+    expect(LINES.filter((l) => FIXED_COUNT.test(l.text) && !exempt(l)).map((l) => `${l.file}:${l.line}`)).toEqual([]);
+  });
+
+  it.each(COUNT_EXEMPT)("the $file exemption has not expired ($until)", (e) => {
+    expect(Date.now()).toBeLessThan(Date.parse(`${e.until}T23:59:59-05:00`));
+  });
+});

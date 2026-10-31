@@ -426,10 +426,10 @@ function UsedTiresCallout() {
           <div className="text-center lg:text-left">
             <FadeIn>
               <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight headline-balance">
-                USED TIRES THAT PASS A 4-POINT CHECK
+                USED TIRES, CHECKED BEFORE THEY GO ON
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg body-pretty">
-                We check tread depth, sidewall, bead and age date on every one. Free mount, balance and valve stems. Usually on in {BUSINESS.usedTires.turnaround.toLowerCase()}.
+                We check every one for {BUSINESS.usedTires.checkSummary}. Free mount, balance and valve stems. Usually on in {BUSINESS.usedTires.turnaround.toLowerCase()}.
               </p>
               {/* 2026-10-29 GSC audit: "used tires near me" lands on this page
                   (pos 6.7) and the homepage had no link to the used-tire page. */}

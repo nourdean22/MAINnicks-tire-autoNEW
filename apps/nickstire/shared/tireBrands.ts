@@ -66,7 +66,7 @@ export const TIRE_BRANDS: TireBrand[] = [
       { model: "Wrangler All-Terrain Adventure", use: "Truck / SUV mixed pavement and light off-road" },
       { model: "WinterCommand", use: "Dedicated winter, Cleveland snow specialist" },
     ],
-    bestFor: "The driver who wants a recognizable brand with options across price tiers, a known quantity that's been on millions of cars.",
+    bestFor: "The driver who wants a recognizable brand with options across price tiers. Goodyear is a known quantity that's been on millions of cars.",
     tradeoff: "Goodyear's mid-tier (Assurance) is excellent. Their lower-tier (Reliant) is just-okay. If you're going Goodyear, spend up to the Assurance line.",
     logoUrl: `${CDN}/goodyear_03e6b30e.png`,
   },

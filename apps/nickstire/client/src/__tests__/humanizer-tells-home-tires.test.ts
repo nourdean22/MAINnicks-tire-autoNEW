@@ -116,9 +116,11 @@ describe.each(FILES)("%s", (rel) => {
     expect(proseDashes(code)).toEqual([]);
   });
 
-  it.each(exempt)("exempt line still exists until $until ($why)", (e) => {
-    // When the exempt copy changes or goes, this fails, so the exemption cannot outlive its line.
+  it.each(exempt)("exempt line still exists and has not expired ($until, $why)", (e) => {
+    // The exemption cannot outlive its line, or its date: after `until` the suite fails until
+    // someone rewrites the line or renews the exemption with a new reason.
     expect(raw.includes(e.quote)).toBe(true);
+    expect(Date.now()).toBeLessThan(Date.parse(`${e.until}T23:59:59-05:00`));
   });
 
   it("has no stacked 'no X, no Y' tails", () => {
@@ -145,8 +147,19 @@ describe("facts are read from BUSINESS, not typed", () => {
     expect(BUSINESS.usedTires.priceDisplay).toMatch(/\$\d+/);
   });
 
-  it("the Sunday heading on /tires reads its hours from BUSINESS", () => {
-    const tires = scannable("client/src/pages/TireFinderV2.tsx").code;
-    expect(tires).not.toMatch(/9am to 4pm/i);
+  it("the Sunday lines on /tires and Home read their hours from BUSINESS, and type no clock time", () => {
+    for (const rel of ["client/src/pages/TireFinderV2.tsx", "client/src/pages/Home.tsx"]) {
+      const code = scannable(rel).code;
+      expect(code).toContain("BUSINESS.hours.sunday");
+      // "9am", "9 AM", "4pm", "9:00 AM" in any casing. A clock time typed anywhere in copy fails.
+      expect(code.match(/\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/gi) ?? []).toEqual([]);
+    }
+  });
+
+  it("the clock-time matcher sees its defects", () => {
+    for (const s of ["Open Sundays, 9am to 4pm", "Sunday 9 AM", "9:00 AM-4:00 PM"]) {
+      expect(/\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/i.test(s)).toBe(true);
+    }
+    expect(/\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/i.test("BUSINESS.hours.sunday")).toBe(false);
   });
 });

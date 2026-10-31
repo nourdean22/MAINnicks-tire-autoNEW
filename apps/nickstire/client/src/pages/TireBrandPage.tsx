@@ -195,8 +195,8 @@ function BrandHero({ brand }: { brand: TireBrand }) {
                 What chains charge ${BUSINESS.installPackage.valueDollars} for, included free at Nick's.
               </h2>
               <p className="text-foreground/65 mb-8 max-w-2xl">
-                Every set of {brand.name} tires installs with our standard package,
-                with nothing added at checkout.
+                Every set of {brand.name} tires installs with our standard package
+                at no extra charge.
               </p>
             </FadeIn>
             <div className="grid gap-3 md:grid-cols-2">

@@ -21,6 +21,12 @@ export const SITE_URL =
 const NEW_TIRE_FLOOR_DOLLARS = 89;
 /** Free install package value per set (Nour 2026-10-30: true). See BUSINESS.installPackage. */
 const INSTALL_PACKAGE_VALUE_DOLLARS = 266;
+/**
+ * What the used-tire check covers (Nour 2026-10-30 22:52 EDT: "all and more for used tires
+ * check"): every point any page listed, and more. Copy renders usedTires.checkSummary and
+ * never states a fixed count ("4-point" is retired).
+ */
+const USED_TIRE_CHECK_POINTS = ["tread depth", "sidewall", "bead", "DOT date (age)", "plug and repair history"] as const;
 
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
@@ -225,6 +231,9 @@ export const BUSINESS = {
     // exists to prevent. $60 stays as the typical midpoint.
     explanation: "Used tires start at $25 for 12-inch; most standard passenger sizes run $40-80 installed (typically around $60)",
     turnaround: "Under 20 minutes",
+    checkPoints: USED_TIRE_CHECK_POINTS,
+    /** "tread depth, sidewall, bead, DOT date (age), plug and repair history, and more" */
+    checkSummary: `${USED_TIRE_CHECK_POINTS.join(", ")}, and more`,
     dailyVolume: "50+ per day",
     // Invoice legal text (source of truth, owner-supplied 2026-07-21): used tires
     // carry a SEPARATE, shorter warranty than repairs. Never quote the repair
