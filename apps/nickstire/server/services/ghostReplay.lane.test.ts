@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({ invokeLLM: vi.fn(), judgeResolution: vi.fn() }
 vi.mock("../_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
 vi.mock("./resolutionJudge", () => ({ judgeResolution: mocks.judgeResolution }));
 
-import { ghostReplay, gradeRepliesWithJudge, RATE_LIMIT_BACKOFF_MS } from "./ghostReplay";
+import { ghostReplay, gradeRepliesWithJudge } from "./ghostReplay";
+
+/** The behaviour pinned here: two waits, 15 s then 45 s (ghostReplay.ts RATE_LIMIT_BACKOFF_MS, module-private). */
+const BACKOFF_MS = [15_000, 45_000];
 
 const reply = (text: string) => ({ choices: [{ message: { content: text } }] });
 const rateLimited = () => new Error("LLM invoke failed: 429 Too Many Requests – slow down");
@@ -36,7 +39,7 @@ describe("ghostReplay lane", () => {
     vi.useFakeTimers();
     mocks.invokeLLM.mockRejectedValueOnce(rateLimited()).mockResolvedValueOnce(reply("Come on in."));
     const p = ghostReplay("prompt", ["Are you open?"]);
-    await vi.advanceTimersByTimeAsync(RATE_LIMIT_BACKOFF_MS[0]);
+    await vi.advanceTimersByTimeAsync(BACKOFF_MS[0]);
     await expect(p).resolves.toEqual(["Come on in."]);
     expect(mocks.invokeLLM).toHaveBeenCalledTimes(2);
   });
@@ -46,9 +49,9 @@ describe("ghostReplay lane", () => {
     mocks.invokeLLM.mockRejectedValue(rateLimited());
     const p = ghostReplay("prompt", ["Are you open?"]);
     const settled = expect(p).rejects.toThrow(/429/);
-    for (const ms of RATE_LIMIT_BACKOFF_MS) await vi.advanceTimersByTimeAsync(ms);
+    for (const ms of BACKOFF_MS) await vi.advanceTimersByTimeAsync(ms);
     await settled;
-    expect(mocks.invokeLLM).toHaveBeenCalledTimes(RATE_LIMIT_BACKOFF_MS.length + 1);
+    expect(mocks.invokeLLM).toHaveBeenCalledTimes(BACKOFF_MS.length + 1);
   });
 
   it("any other error is not retried", async () => {
@@ -59,7 +62,7 @@ describe("ghostReplay lane", () => {
 
   it("does not wait past the run's budget: a 429 with too little time left rethrows at once", async () => {
     mocks.invokeLLM.mockRejectedValue(rateLimited());
-    const budget = { remainingMs: () => RATE_LIMIT_BACKOFF_MS[0] - 1 };
+    const budget = { remainingMs: () => BACKOFF_MS[0] - 1 };
     await expect(ghostReplay("prompt", ["hi"], { budget })).rejects.toThrow(/429/);
     expect(mocks.invokeLLM).toHaveBeenCalledTimes(1);
   });

@@ -328,7 +328,7 @@ export function violatedInvariants(candidatePrompt: string, baseline?: string): 
  * not a lane failure, and two short waits clear it before scorePrompt's
  * lane-failure cap would end the run.
  */
-export const RATE_LIMIT_BACKOFF_MS = [15_000, 45_000] as const;
+const RATE_LIMIT_BACKOFF_MS = [15_000, 45_000] as const;
 
 async function withRateLimitBackoff<T>(call: () => Promise<T>, budget: ReplayBudget | undefined): Promise<T> {
   for (let attempt = 0; ; attempt++) {
