@@ -6,6 +6,7 @@ import { softDelete, activeOnly } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { validateParentLink, rollUpChildren } from "@/lib/mastery/goal-ladder";
+import { peopleOnGoal } from "@/lib/services/people/people-on-goal";
 import { z } from "zod";
 
 export const HORIZON_VALUES = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as const;
@@ -107,6 +108,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           autoPriority: true,
           manualPriorityOverride: true,
           dueDate: true,
+          // People W4 S3: who is on this goal (the card lists them, linking to /people).
+          person: { select: { id: true, name: true, deletedAt: true } },
         },
       })
     : [];
@@ -214,6 +217,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           }
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
+      people: peopleOnGoal(tasks),
       stats,
       // Ambition Engine P3 · ladder position for the card — parent breadcrumb
       // + children with a rolled-up summary ("3 sub-goals · 2 done · 64% avg").

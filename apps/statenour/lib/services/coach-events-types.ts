@@ -45,6 +45,10 @@ export interface CoachEvent {
   surfaces: CoachEventSurface[];
   expiresAt?: string;
   ackedAt?: string;
+  /** Operator said done (Pulse sheet or banner dismiss). Survives a writer re-fire. */
+  doneAt?: string;
+  /** Operator snoozed it until this time. Survives a writer re-fire. */
+  snoozeUntil?: string;
   dismissable: boolean;
   extra: Record<string, unknown>;
   createdAt: string;

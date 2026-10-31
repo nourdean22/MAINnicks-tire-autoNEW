@@ -43,12 +43,16 @@ export interface RelationshipPick {
   draft?: string;
   /** People W3: one maxim from his books fitted to this pick's situation. */
   maxim?: { text: string; source: string };
+  /** People W4 S1: "today", "tomorrow" or a weekday when an event in the next 3 days names them. */
+  seeingOn?: string;
 }
 
 export interface PicksResult {
   picks: RelationshipPick[];
   generatedAt: string;
   source: "cache" | "fresh" | "heuristic_fallback";
+  /** People W4 S1: "unknown" when the calendar read failed, so "nobody coming up" is not claimed. */
+  calendar?: "ok" | "unknown";
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
@@ -64,6 +68,7 @@ interface Candidate {
   birthdayInDays: number | null;
   signals: string[];
   heuristicScore: number;
+  seeingOn: string | null;
 }
 
 /**
@@ -95,6 +100,7 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
           picks,
           generatedAt: cached.createdAt.toISOString(),
           source: "cache",
+          ...(meta.calendar === "ok" || meta.calendar === "unknown" ? { calendar: meta.calendar } : {}),
         };
       }
     }
@@ -106,8 +112,9 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
 
   // ── Gather candidates ──
   let candidates: Candidate[];
+  let calendar: "ok" | "unknown" = "unknown";
   try {
-    candidates = await buildCandidatePool();
+    ({ candidates, calendar } = await buildCandidatePool());
   } catch (err) {
     log.error("candidate_pool_failed", {
       err: err instanceof Error ? err.message : String(err),
@@ -151,7 +158,8 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
     picks = picks.map((p) => {
       const c = byId.get(p.personId);
       const m = c ? maximForPick(c, day) : null;
-      return m ? { ...p, maxim: { text: m.text, source: m.source } } : p;
+      const withMaxim = m ? { ...p, maxim: { text: m.text, source: m.source } } : p;
+      return c?.seeingOn ? { ...withMaxim, seeingOn: c.seeingOn } : withMaxim;
     });
   }
 
@@ -172,6 +180,7 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
       metadata: {
         picks,
         candidateCount: candidates.length,
+        calendar,
         generatedAt: new Date().toISOString(),
       } as never,
     };
@@ -199,10 +208,11 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
     picks,
     generatedAt: new Date().toISOString(),
     source: "fresh",
+    calendar,
   };
 }
 
-async function buildCandidatePool(): Promise<Candidate[]> {
+async function buildCandidatePool(): Promise<{ candidates: Candidate[]; calendar: "ok" | "unknown" }> {
   const people = await prisma.personProfile.findMany({
     where: {
       deletedAt: null,
@@ -218,7 +228,7 @@ async function buildCandidatePool(): Promise<Candidate[]> {
     take: 200,
   });
 
-  if (people.length === 0) return [];
+  if (people.length === 0) return { candidates: [], calendar: "ok" };
 
   // Pull last-30d ledger movement per person.
   const since30d = new Date(Date.now() - 30 * DAY_MS);
@@ -257,7 +267,21 @@ async function buildCandidatePool(): Promise<Candidate[]> {
   const now = Date.now();
   const nowDate = new Date(now);
 
-  return people.map((p): Candidate => {
+  // People W4 S1: who he is about to see (read-only; never creates events). A failed read
+  // changes no pick and says "unknown", so a dead calendar never reads as "nobody coming up".
+  let seeing = new Map<string, Date>();
+  let calendar: "ok" | "unknown" = "ok";
+  try {
+    const { listEvents } = await import("@/lib/services/calendar-api");
+    const { nextEventByPerson } = await import("@/lib/services/people/calendar-mentions");
+    seeing = nextEventByPerson(await listEvents({ daysAhead: 3 }), people, nowDate);
+  } catch (err) {
+    calendar = "unknown";
+    log.warn("calendar_read_failed", { err: err instanceof Error ? err.message : String(err) });
+  }
+  const { seeingLabel } = await import("@/lib/services/people/calendar-mentions");
+
+  const candidates = people.map((p): Candidate => {
     const daysSilent = p.lastInteraction
       ? Math.floor((now - p.lastInteraction.getTime()) / DAY_MS)
       : null;
@@ -269,21 +293,29 @@ async function buildCandidatePool(): Promise<Candidate[]> {
     // America/New_York day count (people W0): the UTC month-day ran a day ahead after 20:00 ET.
     const birthdayInDays = daysUntilBirthday(p.birthday, nowDate);
 
+    const seeingAt = seeing.get(p.id);
+    const seeingOn = seeingAt ? seeingLabel(seeingAt, nowDate) : null;
+
     const signals: string[] = [];
+    if (seeingOn) signals.push(`seeing them ${seeingOn} (calendar)`);
     if (brokenPromises > 0) signals.push(`${brokenPromises} open promise(s)`);
     if (birthdayInDays !== null && birthdayInDays <= 14)
       signals.push(`birthday in ${birthdayInDays}d`);
-    if (daysSilent !== null && daysSilent >= 90) signals.push(`90d+ silent`);
-    else if (daysSilent !== null && daysSilent >= 30) signals.push(`${daysSilent}d silent`);
+    // Someone he is about to see has not gone quiet, so no silence signal either (Codex on 3432).
+    if (!seeingOn) {
+      if (daysSilent !== null && daysSilent >= 90) signals.push(`90d+ silent`);
+      else if (daysSilent !== null && daysSilent >= 30) signals.push(`${daysSilent}d silent`);
+    }
     if (ledgerDelta30d <= -2) signals.push(`ledger -${Math.abs(ledgerDelta30d)} last 30d`);
-    if (ledgerTouches30d === 0 && (daysSilent ?? 999) < 60)
+    if (!seeingOn && ledgerTouches30d === 0 && (daysSilent ?? 999) < 60)
       signals.push("no recent touchpoints");
 
     // Heuristic score (higher = more urgent · roughly calibrated).
     let score = 0;
     score += brokenPromises * 30;
     if (birthdayInDays !== null && birthdayInDays <= 14) score += 25 - birthdayInDays;
-    if (daysSilent !== null) {
+    // Someone he is about to see has not gone quiet: their silence stops counting (W4 S1).
+    if (daysSilent !== null && !seeingOn) {
       if (daysSilent >= 90) score += 20;
       else if (daysSilent >= 60) score += 12;
       else if (daysSilent >= 30) score += 6;
@@ -309,8 +341,10 @@ async function buildCandidatePool(): Promise<Candidate[]> {
       birthdayInDays,
       signals,
       heuristicScore: score,
+      seeingOn,
     };
   });
+  return { candidates, calendar };
 }
 
 function heuristicRationale(c: Candidate): string {

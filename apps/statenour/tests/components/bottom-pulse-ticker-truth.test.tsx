@@ -31,7 +31,10 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
+    useUtils: () => ({ operator: { pulseFeed: { invalidate: vi.fn() } } }),
     operator: {
+      pulseFeed: { useQuery: () => ({ data: { total: 0, groups: [] }, isError: false }) },
+      pulseAct: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       personalPulse: { useQuery: () => ({ data: h.pulse ?? undefined, isError: h.pulseError, refetch: vi.fn() }) },
       ticker: { useQuery: () => ({ data: h.ticker ?? undefined, isError: h.tickerError }) },
       resolveCommitment: {

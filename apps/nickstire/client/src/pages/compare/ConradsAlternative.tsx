@@ -1,6 +1,7 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
 import { COMPETITORS, COMPETITOR_REVIEWS, formatMultiple } from "@/data/competitors";
 import { useReviewStats } from "@/hooks/useReviewStats";
+import { BUSINESS } from "@shared/business";
 
 /**
  * /conrads-tire-alternative-cleveland
@@ -40,7 +41,7 @@ export default function ConradsAlternative() {
         },
         {
           question: "Does Conrad's still sell used tires? What about Nick's?",
-          answer: "Conrad's sells new tires only — that's been the chain's policy for years. Nick's sells used tires from $25 installed (select 12-inch; most $40-80), every used tire gets a 4-point check (tread depth, sidewall, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead. Honesty is the floor.",
+          answer: "Conrad's sells new tires only — that's been the chain's policy for years. Nick's sells used tires from $25 installed (select 12-inch; most $40-80), every used tire is checked for " + BUSINESS.usedTires.checkSummary + ", stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead. Honesty is the floor.",
         },
         {
           question: "How long is the wait at Nick's vs Conrad's?",

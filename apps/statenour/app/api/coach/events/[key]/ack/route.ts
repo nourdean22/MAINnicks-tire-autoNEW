@@ -1,8 +1,8 @@
 /**
  * POST /api/coach/events/[key]/ack
  *
- * Mastery Layer Stage A · ack a coach event so it stops surfacing in
- * the active feed. Sets metadata.ackedAt · preserves the row for
+ * Mastery Layer Stage A · dismiss a coach event so it stops surfacing in
+ * the active feed. Sets metadata.doneAt (operator done) · preserves the row for
  * history. Idempotent: re-acking just bumps the timestamp.
  *
  * Path param: the event's compound key (e.g. "coach:prune-candidate:abc")
@@ -17,7 +17,7 @@
  */
 
 import { apiHandler } from "@/lib/utils/http";
-import { ackCoachEvent } from "@/lib/services/coach-events";
+import { markCoachEventDone } from "@/lib/services/coach-events";
 import { ServiceError } from "@/lib/utils/service-error";
 
 interface RouteContext {
@@ -38,7 +38,9 @@ export const POST = apiHandler(
         return key;
       }
     })();
-    const ok = await ackCoachEvent(decoded);
+    // The operator dismissing is "done", which survives the writer re-firing; ackCoachEvent is the
+    // writer's "condition cleared" signal and made the banner come back (home-pulse W3).
+    const ok = await markCoachEventDone(decoded);
     if (!ok) return { ok: false, reason: "event not found or ack failed" };
     return { ok: true, key: decoded };
   },

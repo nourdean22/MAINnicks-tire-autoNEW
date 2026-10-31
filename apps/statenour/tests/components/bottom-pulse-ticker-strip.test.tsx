@@ -17,12 +17,16 @@ const feeds = vi.hoisted(() => ({
   pulse: null as null | { items: unknown[] },
   ticker: null as null | { items: unknown[]; softError?: string },
   pulseError: false,
+  signals: { total: 0, groups: [] } as { total: number; groups: unknown[] },
   tickerError: false,
 }));
 
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
+    useUtils: () => ({ operator: { pulseFeed: { invalidate: vi.fn() } } }),
     operator: {
+      pulseFeed: { useQuery: () => ({ data: feeds.signals, isError: false }) },
+      pulseAct: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       personalPulse: { useQuery: () => ({ data: feeds.pulse, isError: feeds.pulseError, refetch: vi.fn() }) },
       ticker: { useQuery: () => ({ data: feeds.ticker, isError: feeds.tickerError }) },
       resolveCommitment: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
@@ -44,6 +48,7 @@ afterEach(() => {
   feeds.pulse = null;
   feeds.ticker = null;
   feeds.pulseError = false;
+  feeds.signals = { total: 0, groups: [] };
   feeds.tickerError = false;
 });
 
@@ -127,5 +132,25 @@ describe("F21 · the strip's controls are 44px on a phone, so no audit exemption
     const snooze = renderToStaticMarkup(<BottomPulseTicker />).match(/<button[^>]*aria-label="Snooze item for a day"[^>]*>/)?.[0] ?? "";
     expect(snooze).not.toBe("");
     expect(snooze).not.toMatch(/(^|\s)opacity-0(\s|")/);
+  });
+});
+
+describe("home-pulse W3 · coach signals reach the strip", () => {
+  const SIGNAL = { key: "coach:system-alert:cost", title: "Spend over budget", whyNow: null, href: null, level: "P0", updatedAt: "2026-10-31T10:00:00Z" };
+
+  it("with no strip items, waiting signals still render the strip with a count, so the sheet stays reachable", () => {
+    feeds.pulse = { items: [] };
+    feeds.ticker = { items: [] };
+    feeds.signals = { total: 1, groups: [{ source: "system", items: [SIGNAL] }] };
+    const html = renderToStaticMarkup(<BottomPulseTicker />);
+    expect(html).toContain("1 to look at");
+    expect(html).toContain("Open pulse feed");
+    expect(html).not.toContain("Pulse unavailable");
+  });
+
+  it("control: no signals and empty feeds still render nothing", () => {
+    feeds.pulse = { items: [] };
+    feeds.ticker = { items: [] };
+    expect(renderToStaticMarkup(<BottomPulseTicker />)).toBe("");
   });
 });

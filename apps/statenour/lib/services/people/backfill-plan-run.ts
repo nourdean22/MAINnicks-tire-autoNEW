@@ -36,7 +36,8 @@ export const emptyProgress = (): PlanProgress => ({
   skipped: { mentionOnly: 0, unmatched: 0, alreadyLogged: 0, duplicate: 0 },
 });
 
-export type DigestOutcome = "too_short" | "failed" | { rows: PlannedChatRow[]; skipped: Skipped };
+/** `failed` carries the reason (an error message, never a name), so a stop can say why. */
+export type DigestOutcome = "too_short" | { failed: string } | { rows: PlannedChatRow[]; skipped: Skipped };
 
 export interface PlanLoopResult {
   status: "complete" | "partial";
@@ -65,12 +66,19 @@ export async function runPlanLoop(args: {
   const total = args.candidates.length;
   let failStreak = 0;
   let failedThisRun = 0;
+  let firstFailure: string | null = null;
   let calls = 0;
+  const streakStop = () => ({
+    status: "partial" as const,
+    reason: `stopped: ${FAIL_STREAK_MAX} digest failures in a row (provider busy or down; first: ${firstFailure})`,
+    progress: p,
+    total,
+  });
+  // Written before the first model call: a bad --out path fails here, before any spend.
+  args.save(p);
   for (const c of args.candidates) {
     if (done.has(c.conversationId)) continue;
-    if (failStreak >= FAIL_STREAK_MAX) {
-      return { status: "partial", reason: `stopped: ${FAIL_STREAK_MAX} digest failures in a row (provider busy or down)`, progress: p, total };
-    }
+    if (failStreak >= FAIL_STREAK_MAX) return streakStop();
     if (calls++ > 0) await args.pause();
     let outcome: DigestOutcome;
     try {
@@ -79,10 +87,11 @@ export async function runPlanLoop(args: {
       // Progress was saved after the last conversation that finished, so nothing is lost here.
       return { status: "partial", reason: err instanceof Error ? err.message : String(err), progress: p, total };
     }
-    if (outcome === "failed") {
+    if (outcome !== "too_short" && "failed" in outcome) {
       p.digestFailed++;
       failedThisRun++;
       failStreak++;
+      firstFailure ??= outcome.failed;
       continue;
     }
     failStreak = 0;
@@ -94,12 +103,10 @@ export async function runPlanLoop(args: {
     done.add(c.conversationId);
     args.save(p);
   }
-  if (failStreak >= FAIL_STREAK_MAX) {
-    return { status: "partial", reason: `stopped: ${FAIL_STREAK_MAX} digest failures in a row (provider busy or down)`, progress: p, total };
-  }
+  if (failStreak >= FAIL_STREAK_MAX) return streakStop();
   if (failedThisRun > 0) {
     const s = failedThisRun === 1 ? "" : "s";
-    return { status: "partial", reason: `${failedThisRun} conversation${s} could not be digested`, progress: p, total };
+    return { status: "partial", reason: `${failedThisRun} conversation${s} could not be digested (first: ${firstFailure})`, progress: p, total };
   }
   return { status: "complete", progress: p, total };
 }

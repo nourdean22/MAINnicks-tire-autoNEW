@@ -40,7 +40,11 @@ let tickerData: ReturnType<typeof defaultTicker> | null = defaultTicker();
 
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
+    useUtils: () => ({ operator: { pulseFeed: { invalidate: vi.fn() } } }),
     operator: {
+      // home-pulse W3: the strip also reads the coach signals; empty here so the strip's own checks hold.
+      pulseFeed: { useQuery: () => ({ data: { total: 0, groups: [] }, isError: false }) },
+      pulseAct: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       personalPulse: { useQuery: () => ({ data: pulseData, refetch: vi.fn() }) },
       ticker: { useQuery: () => ({ data: tickerData }) },
       resolveCommitment: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },

@@ -495,7 +495,7 @@ function UsedTiresCallout() {
                 USED TIRES — CLEVELAND'S BEST-KEPT SECRET
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg body-pretty">
-                Every used tire passes a 4-point exam — tread depth, sidewall, bead, age date. Free mount, balance, and valve stems. Rolling before your coffee gets cold.
+                We check every one for {BUSINESS.usedTires.checkSummary}. Free mount, balance, and valve stems. Rolling before your coffee gets cold.
               </p>
             </FadeIn>
           </div>

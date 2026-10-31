@@ -23,7 +23,8 @@ import {
 } from "@/lib/ai/execute-actions";
 import type { NickActionType } from "@/lib/ai/propose-actions";
 
-export const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+import { TWO_DAYS_MS } from "@/lib/ai/nick-action-window";
+export { TWO_DAYS_MS };
 
 export const NICK_ACTION_TYPES = new Set<string>([
   "nudge_task",
@@ -118,8 +119,10 @@ export async function runNickActionBatch(opts: {
     // journal commits, SMS-outreach drafts). Atomically flip executedAt first;
     // only the run that wins the claim executes. On failure the row stays
     // claimed (at-most-once) — an AI action must not auto-retry side effects.
+    // Compare-and-swap on every field the selection read: still unexecuted AND still approved (a
+    // row rejected between the read and this claim must not run). count === 1 is the only way on.
     const claim = await prisma.autonomousAction.updateMany({
-      where: { id: r.id, executedAt: null },
+      where: { id: r.id, executedAt: null, approval: "approved" },
       data: { executedAt: new Date() },
     });
     if (claim.count === 0) {

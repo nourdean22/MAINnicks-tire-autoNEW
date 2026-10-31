@@ -32,7 +32,7 @@ const PROTOCOL = [
 
 export default function UsedTireTrustProtocol() {
   return (
-    <div aria-label="Used tire 4-point inspection protocol">
+    <div aria-label="Used tire inspection protocol">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {PROTOCOL.map((p) => (
           <div key={p.title} className="bg-background/50 border border-border/20 rounded-lg p-4">

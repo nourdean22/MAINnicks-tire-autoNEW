@@ -71,6 +71,8 @@ const HERO_IMG_MEDIUM = "/photos/nicks-tire-auto-euclid-ave-storefront-owner-med
 const TIRES_IMG = "/photos/new-tires-stacked-outside-nicks-tire.webp";
 const DIAG_IMG = "/photos/interior-service-bay-car-lift.webp";
 const BRAKES_IMG = "/photos/worn-brake-rotor-and-pads.webp";
+// The hero highlights only the dollar figure, so it is cut out of the canonical "from $25 installed".
+const USED_TIRE_FLOOR = BUSINESS.usedTires.priceDisplay.match(/\$\d+/)?.[0] ?? BUSINESS.usedTires.priceDisplay;
 
 const PROOF_PHOTOS = [
   {
@@ -181,7 +183,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
           <Wrench className="w-5 h-5 text-nick-yellow shrink-0" />
           <span>
             <span className="block font-bold text-sm text-[#F5F5F5]">Need tires too?</span>
-            <span className="block text-xs text-[#A0A0A0]">Search your size — installed prices online</span>
+            <span className="block text-xs text-[#A0A0A0]">Search your size, see installed prices</span>
           </span>
         </Link>
       ) : (
@@ -194,7 +196,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
           <Activity className="w-5 h-5 text-nick-yellow shrink-0" />
           <span>
             <span className="block font-bold text-sm text-[#F5F5F5]">Something's wrong</span>
-            <span className="block text-xs text-[#A0A0A0]">Describe it — free check, written quote first</span>
+            <span className="block text-xs text-[#A0A0A0]">Describe it. Free check, written quote first</span>
           </span>
         </Link>
       )}
@@ -211,7 +213,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
         <KeyRound className="w-5 h-5 text-nick-yellow shrink-0" />
         <span>
           <span className="block font-bold text-sm text-[#F5F5F5]">Dropping off</span>
-          <span className="block text-xs text-[#A0A0A0]">Keys in, Uber out — we text when it's done</span>
+          <span className="block text-xs text-[#A0A0A0]">Keys in, Uber out. We text when it's done</span>
         </span>
       </a>
       {/* Talk to someone */}
@@ -227,13 +229,13 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
         <MessageCircle className="w-5 h-5 text-nick-yellow shrink-0" />
         <span className="flex-1">
           <span className="block font-bold text-sm text-[#F5F5F5]">Talk to a human</span>
-          <span className="block text-xs text-[#A0A0A0]">Real person, real answer — {BUSINESS.phone.display}</span>
+          <span className="block text-xs text-[#A0A0A0]">Real person, real answer. {BUSINESS.phone.display}</span>
         </span>
         <Phone className="w-4 h-4 text-nick-yellow shrink-0" />
       </a>
       {personalization.showProximityNote && (
         <p className="sm:col-span-2 text-xs text-[#A0A0A0]" data-testid="proximity-note">
-          Coming from Maps? You're close — pull up anytime, 7 days a week. First come, first served.
+          Coming from Maps? You're close. Pull up anytime, 7 days a week. First come, first served.
         </p>
       )}
     </div>
@@ -341,7 +343,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
                 "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
             }}
           >
-            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> (select 12-inch) — most sizes $40-80 installed. Written estimate before any wrench moves.
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">{USED_TIRE_FLOOR}</span> (select 12-inch), {BUSINESS.usedTires.typicalBand}. Written estimate before any wrench moves.
           </p>
 
           <IntentRouter personalization={personalization} />
@@ -358,7 +360,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
             <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
-            <span className="text-[#A0A0A0]">&bull; Used tires from $25 (select 12-inch) &middot; most sizes $40-80</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from {USED_TIRE_FLOOR} (select 12-inch) &middot; {BUSINESS.usedTires.typicalBand.replace(/ installed$/, "")}</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
           <div className="mt-3 motion-safe:animate-[fadeIn_0.5s_ease-out_1.1s_both]">
@@ -424,10 +426,10 @@ function UsedTiresCallout() {
           <div className="text-center lg:text-left">
             <FadeIn>
               <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight headline-balance">
-                USED TIRES — CLEVELAND'S BEST-KEPT SECRET
+                USED TIRES, CHECKED BEFORE THEY GO ON
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg body-pretty">
-                Every used tire passes a 4-point exam — tread depth, sidewall, bead, age date. Free mount, balance, and valve stems. Rolling before your coffee gets cold.
+                We check every one for {BUSINESS.usedTires.checkSummary}. Free mount, balance and valve stems. Usually on in {BUSINESS.usedTires.turnaround.toLowerCase()}.
               </p>
               {/* 2026-10-29 GSC audit: "used tires near me" lands on this page
                   (pos 6.7) and the homepage had no link to the used-tire page. */}
@@ -472,7 +474,7 @@ const HERO_SERVICES = [
   {
     title: "Tires",
     slug: "/tires",
-    desc: "Every tire we install — new or used — gets a free mount, balance, valve stems, TPMS reset, and an alignment check. The kind of welcome you wish a hotel gave you.",
+    desc: "Every tire we install, new or used, gets a free mount, balance, valve stems, TPMS reset, and an alignment check.",
     img: TIRES_IMG,
     alt: "New tires stacked outside the service bays at Nick's Tire & Auto",
     imgPos: "center 50%",
@@ -481,7 +483,7 @@ const HERO_SERVICES = [
   {
     title: "Brakes",
     slug: "/brakes",
-    desc: "Pads, rotors, calipers, lines, ABS. We hand you a flashlight and walk you under your own car so you can see the worn part. The metal doesn't lie. Neither do we.",
+    desc: "Pads, rotors, calipers, lines, ABS. We hand you a flashlight and walk you under your own car so you can see the worn part.",
     img: BRAKES_IMG,
     alt: "A worn brake rotor and pads taken off a car at Nick's Tire & Auto",
     imgPos: "center 45%",
@@ -490,7 +492,7 @@ const HERO_SERVICES = [
   {
     title: "Diagnostics",
     slug: "/diagnostics",
-    desc: "If your car is making a noise even Spotify can't identify, drive it over. Free OBD-II scan, written estimate before a wrench moves, and a real explanation in real English.",
+    desc: "Strange noise or a warning light? Drive it over. Free OBD-II scan, a written estimate before a wrench moves, and a plain explanation.",
     img: DIAG_IMG,
     alt: "Diagnostics service at Nick's Tire and Auto",
     imgPos: "center 35%",
@@ -594,7 +596,7 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
             <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
               {totalReviews.toLocaleString()}+ Google reviews.<sup className="text-primary text-xl">*</sup>
             </h2>
-            <p className="mt-4 text-foreground/60 text-lg">Posted on Google. Written by real Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. No bots, no buyouts, no fake reviews.</p>
+            <p className="mt-4 text-foreground/60 text-lg">Posted on Google. Written by real Cleveland drivers. Bus drivers, nurses, Browns fans, and the lady whose Civic survived 287,000 miles.</p>
             <p className="mt-3 text-foreground/50 text-sm italic">* Yes, all real. Google catches fakes faster than we do.</p>
           </div>
         </FadeIn>
@@ -729,7 +731,7 @@ function Contact() {
               <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
                 Pull up anytime.
               </h2>
-              <p className="mt-4 text-foreground/60 text-lg">No appointment needed. Walk in 7 days a week, drop the keys, hail an Uber from our lot — we'll text the moment your car is ready. Some customers leave for a haircut and come back to a finished alignment.</p>
+              <p className="mt-4 text-foreground/60 text-lg">No appointment needed. Walk in 7 days a week, drop the keys, hail an Uber from our lot. We'll text the moment your car is ready. Some customers leave for a haircut and come back to a finished alignment.</p>
 
               <div className="mt-10 space-y-8">
                 <div>
@@ -748,8 +750,9 @@ function Contact() {
                   <div className="flex items-start gap-3">
                     <Clock className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="text-foreground/70">
-                      <p>Monday – Saturday: 8 AM – 6 PM</p>
-                      <p>Sunday: 9 AM – 4 PM</p>
+                      {BUSINESS.hours.fullDisplay.split(" | ").map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -826,7 +829,7 @@ function WeatherBanner() {
           )}
           <div className="text-sm">
             <span className="font-bold">{cta.message}</span>
-            <span className="opacity-80"> — {cta.sub}</span>
+            <span className="opacity-80"> {cta.sub}</span>
           </div>
         </div>
         <Link
@@ -857,10 +860,10 @@ function TriageGrid() {
               What's your car telling you?
             </div>
             <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-black text-foreground uppercase tracking-tight">
-              Pick your symptom — we'll fix it today.
+              Pick your symptom. We'll fix it today.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
-              Honest answer before any work. Free check in under an hour. Most fixes done today — first-come, first-served.
+              Honest answer before any work. Free check in under an hour. Most fixes done today, first come, first served.
             </p>
           </div>
         </FadeIn>
@@ -870,8 +873,8 @@ function TriageGrid() {
             tone="danger"
             icon={<Disc className="w-5 h-5" />}
             symptom="Grinding or squealing brakes?"
-            consequence="Worn pads eat rotors with every stop. Wait too long, a pads-only job becomes pads + rotors + caliper — multiplying the bill."
-            relief="Free brake check. Written quote — you don't pay until you say yes."
+            consequence="Worn pads eat rotors with every stop. Wait too long and a pads-only job becomes pads + rotors + caliper."
+            relief="Free brake check. Written quote first. You don't pay until you say yes."
             ctaLabel="STOP THE DAMAGE"
             ctaHref="/brakes"
           />
@@ -898,7 +901,7 @@ function TriageGrid() {
             icon={<Zap className="w-5 h-5" />}
             symptom="AC weak or not cold?"
             consequence="Caught early it's often a simple recharge; run it dry and compressor damage makes the job much bigger."
-            relief="Free AC check. Written quote — you don't pay until you say yes."
+            relief="Free AC check. Written quote first. You don't pay until you say yes."
             ctaLabel="FIX AC NOW"
             ctaHref="/ac-repair"
           />
@@ -915,7 +918,7 @@ function TriageGrid() {
             tone="info"
             icon={<Wrench className="w-5 h-5" />}
             symptom="Just need the basics?"
-            consequence="Routine oil + filter is the cheapest engine insurance there is — sludge is what kills engines early."
+            consequence="Routine oil + filter is the cheapest engine insurance there is. Sludge is what kills engines early."
             relief={`${BUSINESS.freeInspection.short} Walk-ins welcome 7 days.`}
             ctaLabel="SCHEDULE DROP-OFF"
             ctaHref="/oil-change"
@@ -946,7 +949,7 @@ export default function Home() {
           the site's real approval-gate wording. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
-        description="Used tires from $25 installed (select 12-inch; most $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
+        description={`Used tires ${BUSINESS.usedTires.priceDisplay} (select 12-inch; ${BUSINESS.usedTires.typicalBand.replace(/ installed$/, "")}), brakes & repairs, Euclid Ave. Open ${BUSINESS.hours.sunday}, walk in 7 days, written quote first. ${BUSINESS.phone.display}`}
         canonicalPath="/"
       />
       <LocalBusinessSchema includeReviews />
@@ -967,7 +970,7 @@ export default function Home() {
             "@type": "Service",
             name: "Tire Install Package (Free with Every Set)",
             description:
-              "Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. $266+ value.",
+              `Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. ${BUSINESS.installPackage.valueDisplay} value.`,
             provider: {
               "@type": "AutoRepair",
               name: BUSINESS.name,
@@ -988,7 +991,7 @@ export default function Home() {
               "@type": "Offer",
               price: "0",
               priceCurrency: "USD",
-              description: "Free with tire purchase — value $266+",
+              description: `Free with tire purchase, value ${BUSINESS.installPackage.valueDisplay}`,
             },
           }),
         }}
@@ -1014,13 +1017,13 @@ export default function Home() {
             Sunday flat? We&apos;re open.
           </div>
           <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">
-            Chains close Sunday. Nick&apos;s runs 9 to 4.
+            Chains close Sunday. Nick&apos;s runs {BUSINESS.hours.sunday.replace(/^Sun /, "")}.
           </h2>
           <p className="text-foreground/60 text-sm mt-3 max-w-xl mx-auto leading-relaxed">
-            Most tire chains in Cleveland go dark on Sunday &mdash; we&apos;re on
-            Euclid Ave working the line 9 AM to 4 PM. Nonstop Nick members
+            Most tire chains in Cleveland go dark on Sunday. We&apos;re on
+            Euclid Ave working the line. Nonstop Nick members
             pull up and get flat repairs, valve stems, rotation, and air-ups
-            for $0 on their registered vehicle &mdash; $7.99/mo.
+            for $0 on their registered vehicle, for $7.99/mo.
           </p>
           <Link
             href="/nonstop-nick"

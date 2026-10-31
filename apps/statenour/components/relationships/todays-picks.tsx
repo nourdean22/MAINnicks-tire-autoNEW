@@ -36,6 +36,8 @@ interface Pick {
   draftAngle?: string;
   /** People W3: one maxim from his books fitted to this pick. */
   maxim?: { text: string; source: string };
+  /** People W4 S1: "today", "tomorrow" or a weekday when an event in the next 3 days names them. */
+  seeingOn?: string;
 }
 
 interface PicksResponse {
@@ -152,6 +154,9 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
       {/* Expanded editor */}
       {expanded && (
         <div className="border-t border-edge-subtle">
+          {active.seeingOn && (
+            <p className="px-3 pt-2 text-[12px] text-fg-secondary">On your calendar {active.seeingOn}.</p>
+          )}
           {active.maxim && (
             <p className="px-3 pt-2 text-[12px] italic text-fg-secondary">
               {active.maxim.text} <span className="not-italic text-fg-tertiary">({active.maxim.source})</span>

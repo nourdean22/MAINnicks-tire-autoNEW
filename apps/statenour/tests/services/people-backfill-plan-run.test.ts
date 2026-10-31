@@ -38,7 +38,7 @@ describe("runPlanLoop", () => {
     expect(out.status).toBe("complete");
     expect(out.progress.done).toEqual(["c1", "c2", "c3"]);
     expect(out.progress.rows.map((r) => r.conversationId)).toEqual(["c1", "c2", "c3"]);
-    expect(save).toHaveBeenCalledTimes(3);
+    expect(save).toHaveBeenCalledTimes(4); // once before the first model call, then after each conversation
   });
 
   it("a thrown error mid-run keeps everything digested before it", async () => {
@@ -73,7 +73,7 @@ describe("runPlanLoop", () => {
     const out = await runPlanLoop({
       candidates: ["s", "f1", "f2", "f3", "c9"].map(cand),
       progress: emptyProgress(),
-      digestOne: async (c) => (c.conversationId === "s" ? "too_short" : "failed"),
+      digestOne: async (c) => (c.conversationId === "s" ? "too_short" : { failed: "provider timeout" }),
       save: vi.fn(),
       pause: noPause,
     });
@@ -87,13 +87,30 @@ describe("runPlanLoop", () => {
     const out = await runPlanLoop({
       candidates: [cand("f1"), cand("c2")],
       progress: emptyProgress(),
-      digestOne: async (c) => (c.conversationId === "f1" ? "failed" : { rows: [], skipped: skipped0 }),
+      digestOne: async (c) => (c.conversationId === "f1" ? { failed: "provider timeout" } : { rows: [], skipped: skipped0 }),
       save: vi.fn(),
       pause: noPause,
     });
     expect(out.status).toBe("partial");
     expect(out.reason).toMatch(/1 conversation could not be digested/);
+    // Second reader on #3427: the first failure's reason is kept, not swallowed.
+    expect(out.reason).toMatch(/provider timeout/);
     expect(out.progress.done).toEqual(["c2"]);
+  });
+
+  it("the progress file is written before the first model call, so a bad path fails before any spend", async () => {
+    const order: string[] = [];
+    await runPlanLoop({
+      candidates: [cand("c1")],
+      progress: emptyProgress(),
+      digestOne: async () => {
+        order.push("digest");
+        return { rows: [], skipped: skipped0 };
+      },
+      save: () => order.push("save"),
+      pause: noPause,
+    });
+    expect(order[0]).toBe("save");
   });
 });
 

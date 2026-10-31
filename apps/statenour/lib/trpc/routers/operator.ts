@@ -642,6 +642,32 @@ export const operatorRouter = router({
   shopToday: operatorProcedure.query(async () => buildShopToday()),
 
   /**
+   * 2026-10-31 · home-pulse W3 · owner-only · the Pulse sheet: every active coach event, grouped by
+   * source. A failed read throws (the sheet says unknown), never an empty "all clear".
+   */
+  pulseFeed: operatorProcedure.query(async () => {
+    const { getActiveCoachEvents } = await import("@/lib/services/coach-events");
+    const { pulseFeedFrom } = await import("@/lib/home/pulse-feed");
+    return pulseFeedFrom(await getActiveCoachEvents({ limit: 30 }));
+  }),
+
+  /** Done or snooze one Pulse item on the server row, so every device agrees. */
+  pulseAct: operatorProcedure
+    .input(
+      z.object({
+        key: z.string().startsWith("coach:").max(300),
+        action: z.enum(["done", "snooze"]),
+        hours: z.union([z.literal(1), z.literal(24)]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { markCoachEventDone, snoozeCoachEvent } = await import("@/lib/services/coach-events");
+      const ok =
+        input.action === "done" ? await markCoachEventDone(input.key) : await snoozeCoachEvent(input.key, input.hours ?? 1);
+      return { ok };
+    }),
+
+  /**
    * Phase B.6a · owner-only · the bottom personal-pulse ticker —
    * rotates PERSONAL state (capture · MIT · tomorrow note · narrator ·
    * commitments · reflection · wins · contradictions · mind · life ·

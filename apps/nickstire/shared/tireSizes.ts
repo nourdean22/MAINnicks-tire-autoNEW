@@ -4,6 +4,7 @@
  * 31 pages targeting the most searched tire sizes in the US (205/60R16 added
  * 2026-10-21 on local demand).
  */
+import { BUSINESS } from "./business";
 
 export interface TireSizePage {
   size: string;       // "225/65R17"
@@ -290,15 +291,19 @@ export function getAllTireSizeSlugs(): string[] {
  */
 export function buildTireSizeMetaDescription(page: TireSizePage): string {
   const vehicles = page.commonVehicles.slice(0, 3).join(", ");
+  const phone = BUSINESS.phone.display;
+  // A size page is not a 12-inch page, so it quotes the typical used band, not the $25 floor.
+  const usedBand = BUSINESS.usedTires.typicalBand.match(/\$\d+-\d+/)?.[0] ?? BUSINESS.usedTires.typicalBand;
+  const prices = `Used ${usedBand} (most sizes), new ${BUSINESS.newTires.priceDisplay}.`;
   switch (page.category) {
     case "Truck":
-      return `Heavy-duty ${page.size} for ${vehicles}. Used from $50, new LT from $120. Free mount + balance + alignment check. Call (216) 862-0005.`;
+      return `Heavy-duty ${page.size} for ${vehicles}. Used from $50, new LT from $120. Free mount + balance + alignment check. Call ${phone}.`;
     case "Performance":
-      return `Performance ${page.size} for ${vehicles}. New and used options. Free $266 install package. Call (216) 862-0005.`;
+      return `Performance ${page.size} for ${vehicles}. New and used options. Free ${BUSINESS.installPackage.valueDisplay} install package. Call ${phone}.`;
     case "Sedan":
-      return `Daily-driver ${page.size} fits ${vehicles}. Used from $40, new from $89. Free $266 install + lifetime rotations. Call (216) 862-0005.`;
+      return `Daily-driver ${page.size} fits ${vehicles}. ${prices} Free ${BUSINESS.installPackage.valueDisplay} install. ${phone}.`;
     case "SUV/Crossover":
     default:
-      return `${page.size} fits ${vehicles}. Used from $40, new from $89. Free mount, balance, alignment check + lifetime rotations. (216) 862-0005.`;
+      return `${page.size} fits ${vehicles}. ${prices} Free mount, balance, alignment check. ${phone}.`;
   }
 }
