@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Humanizer PR A (2026-10-30): what the operator sees. Copy only, no layout change. (1) Homepage: the brakes tile drops 'The metal doesn't lie. Neither do we.', the tires tile drops the hotel line, the diagnostics tile drops the Spotify joke, the reviews line drops 'No bots, no buyouts, no fake reviews.', the used-tire band reads 'USED TIRES THAT PASS A 4-POINT CHECK'. Hours, the used-tire floor and band, Sunday hours and the phone in the meta description now render from shared/business.ts instead of typed text. (2) /tires, /tires/:size and the brand pages: every prose dash replaced with a comma or a period, typed phone numbers read BUSINESS.phone, the Sunday heading reads BUSINESS.hours. Not touched: the GSC wave-1 used-tire card and anchor text (dated exemptions, revisit 2026-12-10), the $266 and lifetime-rotation claims (waiting on Nour), price-match and the 20-point install inspection. client/src/__tests__/humanizer-tells-home-tires.test.ts fences it."
+    }
+  }
+}

@@ -25,7 +25,7 @@ export default function TireSizePage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="font-semibold text-4xl text-foreground mb-4">That size isn't on the wall.</h1>
-          <p className="text-foreground/60 mb-6">Doesn't mean we can't get it — call (216) 862-0005 with the size off your sidewall and we'll source it. Or browse what we stock.</p>
+          <p className="text-foreground/60 mb-6">We can still get it. Call {BUSINESS.phone.display} with the size off your sidewall and we'll source it. Or browse what we stock.</p>
           <Link href="/tires" className="text-primary hover:underline">Browse what's in stock</Link>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function TireSizePage() {
             "@context": "https://schema.org",
             "@type": "Service",
             name: `${page.size} Tire Sales & Installation`,
-            description: `${page.size} tires in Cleveland — new and used, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
+            description: `${page.size} tires in Cleveland, new and used, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
             serviceType: "Tire Installation",
             image: "https://nickstire.org/photos/rugged-tire-tread-closeup.webp",
             provider: {
@@ -176,8 +176,8 @@ export default function TireSizePage() {
           </FadeIn>
           <FadeIn delay={0.1}>
             <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
-              New and used {page.size} tires. Fits {vehicleList}. Free install package
-              included with every set — mounting, balancing, alignment check, and lifetime rotations.
+              New and used {page.size} tires. Fits {vehicleList}. Every set gets free
+              mounting, balancing, alignment check, and lifetime rotations.
             </p>
           </FadeIn>
           <FadeIn delay={0.15}>
@@ -273,13 +273,13 @@ export default function TireSizePage() {
                       The tire size <strong className="text-foreground">{page.size}</strong> breaks down into three measurements:
                     </p>
                     <ul className="space-y-2">
-                      <li><strong className="text-foreground">{width}</strong> — Width of the tire in millimeters from sidewall to sidewall</li>
-                      <li><strong className="text-foreground">{aspect}</strong> — Aspect ratio (sidewall height is {aspect}% of the width)</li>
-                      <li><strong className="text-foreground">R{rim}</strong> — Fits a {rim}-inch wheel (R means radial construction)</li>
+                      <li><strong className="text-foreground">{width}</strong> is the width of the tire in millimeters from sidewall to sidewall</li>
+                      <li><strong className="text-foreground">{aspect}</strong> is the aspect ratio (sidewall height is {aspect}% of the width)</li>
+                      <li><strong className="text-foreground">R{rim}</strong> fits a {rim}-inch wheel (R means radial construction)</li>
                     </ul>
                     <p>
                       This size is commonly found on {page.category.toLowerCase() === "truck" ? "trucks" : page.category.toLowerCase() === "sedan" ? "sedans" : page.category.toLowerCase() === "performance" ? "performance vehicles" : "SUVs and crossovers"} including {vehicleList}.
-                      At Nick's Tire & Auto, we fit {page.size} in both new and inspected used options. Stock moves daily — call before you drive over.
+                      At Nick's Tire & Auto, we fit {page.size} in both new and inspected used options. Stock moves daily. Call before you drive over.
                     </p>
                   </div>
                 );
