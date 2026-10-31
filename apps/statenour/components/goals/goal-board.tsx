@@ -46,6 +46,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { GoalPeopleLine } from "./goal-people-line";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -122,6 +123,8 @@ interface LifeGoal {
   status: string;
   horizon: string | null;
   why: string | null;
+  /** People W4 S3: the live people on this goal's tasks (lib/services/goals.ts getGoals). */
+  people?: Array<{ id: string; name: string }>;
   estimatedHours: number | null;
   coachLog: CoachEntry[] | null;
   deadline: string | null;
@@ -1388,6 +1391,8 @@ export function GoalBoard() {
                           {g.why}
                         </p>
                       )}
+                      {/* People W4 S3: who is on this goal, from its tasks. */}
+                      {editingId !== g.id && g.people && <GoalPeopleLine people={g.people} />}
                       {/* Ambition Engine P3 · ladder position: parent
                           breadcrumb + children roll-up. Tap to scroll to
                           the linked goal's card. */}
