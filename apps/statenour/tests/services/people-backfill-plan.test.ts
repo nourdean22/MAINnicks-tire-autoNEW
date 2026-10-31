@@ -80,6 +80,7 @@ describe("planChatInteractions", () => {
       {
         personId: "p1",
         conversationId: "c1",
+        start: new Date("2026-06-01T10:00:00Z"),
         at: new Date("2026-06-01T11:00:00Z"),
         interactionKind: "call",
         backfillKey: "bf:chat:c1:p1",
