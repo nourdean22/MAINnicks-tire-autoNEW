@@ -42,6 +42,7 @@ import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DismissButton } from "@/components/ui/dismiss-button";
 import { useNourState } from "@/lib/state/nour-state";
+import { PulseSignalsView, signalChip, type PulseSignalsRead } from "@/components/ultron/pulse-signals";
 
 // v10.0.104 audit fix · keep this union in sync with the server's PulseItem.kind
 // in app/api/ultron/personal-pulse/route.ts.
@@ -86,6 +87,7 @@ const TONE_RANK: Record<PulseItem["tone"], number> = { warn: 0, win: 1, info: 2,
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 const RESOLVE_FAILED = "Could not update that promise. Try again.";
+const SIGNAL_ACT_FAILED = "Could not update that signal. Try again.";
 
 export function BottomPulseTicker() {
   const { data, refetch: refetchPulse, isFetching: pulseFetching, isError: pulseError } = trpc.operator.personalPulse.useQuery(undefined, {
@@ -96,6 +98,19 @@ export function BottomPulseTicker() {
     refetchInterval: 300_000,
     retry: false,
   });
+  // home-pulse W3 (2026-10-31): the coach channel's active events, shown at the top of the sheet.
+  const signals = trpc.operator.pulseFeed.useQuery(undefined, { refetchInterval: 300_000, retry: false });
+  const utils = trpc.useUtils();
+  const [signalError, setSignalError] = useState<string | null>(null);
+  const pulseAct = trpc.operator.pulseAct.useMutation({
+    onSuccess: (res) => {
+      setSignalError(res.ok ? null : SIGNAL_ACT_FAILED);
+      void utils.operator.pulseFeed.invalidate();
+    },
+    onError: () => setSignalError(SIGNAL_ACT_FAILED),
+  });
+  const signalsRead: PulseSignalsRead = signals.data ?? (signals.isError ? "error" : "loading");
+  const chip = signalChip(signalsRead);
   const { dismissed, dismiss } = useDismissedTicker();
   const s = useNourState();
   // 2026-08-12 · resolve an overdue commitment (Done/Drop) directly from
@@ -197,7 +212,8 @@ export function BottomPulseTicker() {
     pulseError ? `Personal pulse could not ${data ? "refresh" : "load"}.` : null,
     tickerFailed ? `Market ticker could not ${topData && !topData.softError ? "refresh" : "load"}.` : null,
   ].filter((note): note is string => note !== null);
-  if ((!data && !topData) || items.length === 0) {
+  // With no strip items but waiting signals, the strip still shows (chip only) so the sheet stays reachable.
+  if (((!data && !topData) || items.length === 0) && !(chip && signalsRead !== "error")) {
     // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
     if (!pulseError && !tickerFailed) return null;
     // The blur stays until a Missions phone composition change buys margin on visible-transformation.spec.ts
@@ -213,14 +229,14 @@ export function BottomPulseTicker() {
     );
   }
 
-  const safeIdx = idx % items.length;
-  const current = items[safeIdx];
+  const safeIdx = items.length ? idx % items.length : 0;
+  const current: PulseItem | null = items[safeIdx] ?? null;
   // A capture's text is his private note; the always-on strip shows only that one exists (2026-10-30).
   // The sheet he opens on purpose still lists it in full.
-  const stripItem = current.kind === "capture" ? { ...current, text: "New capture" } : current;
+  const stripItem = current?.kind === "capture" ? { ...current, text: "New capture" } : current;
   // The strip's ONE live indicator: amber + `pulse-live` only while something
   // is actually updating (SYSTEM.md §9 — "working" is the only pulsing state).
-  const live = Boolean(pulseFetching || tickerFetching || resolveCommitment.isPending);
+  const live = Boolean(pulseFetching || tickerFetching || resolveCommitment.isPending || pulseAct.isPending);
 
   // Hit areas (2026-10-10, audit 09-F21): on a phone the open-feed button, pause and snooze are
   // each a real 44px box, so the strip is in tests/e2e/target-size.spec.ts with no exemption.
@@ -244,6 +260,7 @@ export function BottomPulseTicker() {
           type="button"
           onClick={() => {
             setResolveError(null); // a rejected Done / Drop from an earlier open must not greet the next one
+            setSignalError(null);
             setOpen((o) => !o);
           }}
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control text-left sm:-my-0.5 sm:min-h-6"
@@ -264,9 +281,18 @@ export function BottomPulseTicker() {
               collision the operator screenshotted. Making this a flex
               container is what lets min-w-0 + truncate below actually shrink
               the text. Measured at 390px: overlap gone, text ellipsizes. */}
-          <span key={current.id} className="pulse-fade flex flex-1 min-w-0">
-            <PulseContent item={stripItem} />
-          </span>
+          {current && stripItem ? (
+            <span key={current.id} className="pulse-fade flex flex-1 min-w-0">
+              <PulseContent item={stripItem} />
+            </span>
+          ) : (
+            <span className="flex-1" />
+          )}
+          {chip && (
+            <span className={cn("shrink-0 font-mono text-[11px]", chip.urgent ? "text-amber-400" : "text-fg-tertiary")}>
+              {chip.text}
+            </span>
+          )}
           {feedsDown.length > 0 && (
             <span className="shrink-0 font-mono text-[11px] text-amber-400">
               {feedsDown.length} {feedsDown.length === 1 ? "feed" : "feeds"} down
@@ -295,16 +321,18 @@ export function BottomPulseTicker() {
 
         {/* Visible, touch-friendly snooze for the current item. alwaysVisible: the default
             hover gate (group/cell) has no group here, so the glyph sat at opacity 0 on touch. */}
-        <DismissButton
-          onClick={(e) => {
-            e.stopPropagation();
-            dismiss(current.id, { kind: current.kind, source: "bottom", ttlMs: SNOOZE_MS });
-          }}
-          label="Snooze item for a day"
-          size="sm"
-          alwaysVisible
-          className="shrink-0 p-4 -m-4 hover:text-rose-400 sm:p-3 sm:-m-3"
-        />
+        {current && (
+          <DismissButton
+            onClick={(e) => {
+              e.stopPropagation();
+              dismiss(current.id, { kind: current.kind, source: "bottom", ttlMs: SNOOZE_MS });
+            }}
+            label="Snooze item for a day"
+            size="sm"
+            alwaysVisible
+            className="shrink-0 p-4 -m-4 hover:text-rose-400 sm:p-3 sm:-m-3"
+          />
+        )}
       </div>
 
       <PulseFeedSheet
@@ -320,6 +348,17 @@ export function BottomPulseTicker() {
         }}
         feedNotes={feedNotes}
         resolveError={resolveError}
+        signals={
+          <PulseSignalsView
+            read={signalsRead}
+            onAct={(key, action) => {
+              setSignalError(null);
+              pulseAct.mutate(action === "done" ? { key, action } : { key, action, hours: 1 });
+            }}
+            busyKey={pulseAct.isPending ? (pulseAct.variables?.key ?? null) : null}
+            actError={signalError}
+          />
+        }
         resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
         onPick={(i) => {
           setIdx(i);
@@ -387,6 +426,7 @@ export function PulseFeedSheet({
   returnFocusRef,
   feedNotes = [],
   resolveError = null,
+  signals = null,
 }: {
   open: boolean;
   items: PulseItem[];
@@ -404,6 +444,8 @@ export function PulseFeedSheet({
   feedNotes?: string[];
   /** A rejected Done / Drop, shown where the tap happened. */
   resolveError?: string | null;
+  /** home-pulse W3: the coach channel's signals, above the strip's own items. */
+  signals?: React.ReactNode;
 }) {
   return (
     <Dialog
@@ -441,6 +483,7 @@ export function PulseFeedSheet({
             {resolveError}
           </p>
         )}
+        {signals}
         <ul>
           {items.map((it, i) => (
             <li

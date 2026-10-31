@@ -138,7 +138,23 @@ export async function recordCoachEvent(input: CoachEventInput): Promise<CoachEve
       // window. Browser-safe (no Node crypto): tiny deterministic hash.
       simpleHash(`${key}:${input.priority}:${input.title.slice(0, 40)}`);
 
+    // The upsert replaces metadata, so read the operator's state first and carry it (home-pulse W3):
+    // without this a re-fire erased a dismissal and the item came back on every device.
+    // A failed read carries nothing and the write still runs: the alert matters more than the dismissal.
+    const prev = await Promise.resolve()
+      .then(() =>
+        prisma.brainMemory.findUnique({
+          where: { category_key: { category: BRAIN_CATEGORIES.COACH_EVENT, key } },
+          select: { metadata: true },
+        }),
+      )
+      .catch((err: unknown) => {
+        log.warn("coach_event_prior_state_read_failed", { key, err: err instanceof Error ? err.message : String(err) });
+        return null;
+      });
+
     const metadata = {
+      ...carryOperatorState(prev?.metadata, Date.now()),
       eventId,
       kind: input.kind,
       subjectId: input.subjectId,
@@ -261,8 +277,9 @@ export async function getActiveCoachEvents(
       const event = rowToCoachEvent(row, row.key);
       if (!event) continue;
 
-      // Filter · acked
-      if (!includeAcked && event.ackedAt) continue;
+      // Filter · acked (writer resolved it), done or snoozed (operator)
+      if (!includeAcked && (event.ackedAt || event.doneAt)) continue;
+      if (event.snoozeUntil && Date.parse(event.snoozeUntil) > now) continue;
 
       // Filter · expired
       if (event.expiresAt) {
@@ -298,9 +315,9 @@ export async function getActiveCoachEvents(
 }
 
 /**
- * Mark a coach event as acked (operator dismissed it). Idempotent ·
- * setting ackedAt on an already-acked row is a no-op effectively
- * (timestamp shifts but filter behavior stays the same).
+ * Mark a coach event as acked: the WRITER saw the condition clear (operator dismissals go through
+ * markCoachEventDone). It ends the occurrence, so it also drops any done or snooze: the next fire is a
+ * new occurrence and shows. Idempotent · re-acking shifts the timestamp, filter behavior is the same.
  */
 export async function ackCoachEvent(eventKey: string): Promise<boolean> {
   try {
@@ -311,7 +328,7 @@ export async function ackCoachEvent(eventKey: string): Promise<boolean> {
       select: { metadata: true },
     });
     if (!existing) return false;
-    const meta = (existing.metadata ?? {}) as Record<string, unknown>;
+    const { doneAt: _done, snoozeUntil: _snooze, ...meta } = (existing.metadata ?? {}) as Record<string, unknown>;
     const next = { ...meta, ackedAt: new Date().toISOString() };
     await prisma.brainMemory.update({
       where: {
@@ -329,7 +346,62 @@ export async function ackCoachEvent(eventKey: string): Promise<boolean> {
   }
 }
 
+/**
+ * Operator actions (Pulse sheet, banner dismiss). They write the server row, so every device agrees.
+ * Distinct from ackCoachEvent, which WRITERS call when the condition clears: an ack ends the
+ * occurrence, and the next fire is a new one. Done and snooze survive re-fires of the same one.
+ * Done also sets ackedAt: about 18 surfaces read coach rows directly and treat `!meta.ackedAt` as open
+ * (the morning brief, narrator, Nick's context), and drift-engine reads it to stop re-nagging for 7 days.
+ * Snooze is the Pulse sheet's own "not now" and does not touch them.
+ */
+export async function markCoachEventDone(eventKey: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  return patchOperatorState(eventKey, { doneAt: nowIso, ackedAt: nowIso });
+}
+
+export async function snoozeCoachEvent(eventKey: string, hours: number): Promise<boolean> {
+  return patchOperatorState(eventKey, { snoozeUntil: new Date(Date.now() + hours * 3_600_000).toISOString() });
+}
+
+async function patchOperatorState(eventKey: string, patch: Record<string, string>): Promise<boolean> {
+  try {
+    const where = { category_key: { category: BRAIN_CATEGORIES.COACH_EVENT, key: eventKey } };
+    const existing = await prisma.brainMemory.findUnique({ where, select: { metadata: true } });
+    if (!existing) return false;
+    const meta = (existing.metadata ?? {}) as Record<string, unknown>;
+    await prisma.brainMemory.update({ where, data: { metadata: { ...meta, ...patch } as object } });
+    return true;
+  } catch (err) {
+    log.warn("coach_event_operator_state_failed", {
+      key: eventKey,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
 /* ─── Internals ─────────────────────────────────────────────── */
+
+/** How long "done" holds against a writer that keeps firing and never resolves the event. */
+const DONE_HOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The operator state a re-fire keeps. A live done (under DONE_HOLD_MS) is kept with the ackedAt it set;
+ * otherwise an ackedAt means the occurrence ended (writer ack, or a done past its hold) and nothing is
+ * carried. A snooze holds until it passes.
+ */
+function carryOperatorState(prevMeta: unknown, now: number): { doneAt?: string; ackedAt?: string; snoozeUntil?: string } {
+  const meta = (prevMeta ?? {}) as Record<string, unknown>;
+  const out: { doneAt?: string; ackedAt?: string; snoozeUntil?: string } = {};
+  if (typeof meta.doneAt === "string" && now - Date.parse(meta.doneAt) < DONE_HOLD_MS) {
+    out.doneAt = meta.doneAt;
+    if (typeof meta.ackedAt === "string") out.ackedAt = meta.ackedAt;
+  } else if (typeof meta.ackedAt === "string") {
+    return {};
+  }
+  if (typeof meta.snoozeUntil === "string" && Date.parse(meta.snoozeUntil) > now) out.snoozeUntil = meta.snoozeUntil;
+  return out;
+}
 
 interface RawRow {
   id: string;
@@ -367,6 +439,8 @@ function rowToCoachEvent(row: RawRow, key: string): CoachEvent | null {
     surfaces,
     expiresAt: typeof meta.expiresAt === "string" ? meta.expiresAt : undefined,
     ackedAt: typeof meta.ackedAt === "string" ? meta.ackedAt : undefined,
+    doneAt: typeof meta.doneAt === "string" ? meta.doneAt : undefined,
+    snoozeUntil: typeof meta.snoozeUntil === "string" ? meta.snoozeUntil : undefined,
     dismissable,
     extra: typeof meta.extra === "object" && meta.extra !== null ? (meta.extra as Record<string, unknown>) : {},
     createdAt: row.createdAt.toISOString(),
