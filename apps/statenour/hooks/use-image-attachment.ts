@@ -83,6 +83,8 @@ export function useImageAttachment({
     if (accepted.length > roomNow) {
       toast(`${MAX_ATTACHMENTS} files per message. Kept the first ${Math.max(roomNow, 0)}.`, { id: "attach-cap", duration: 4000 });
     }
+    // Full already: nothing is added, so a paste must not be swallowed as "attached".
+    if (roomNow <= 0) return false;
     setList((prev) => {
       const room = MAX_ATTACHMENTS - prev.length;
       const added = accepted.slice(0, Math.max(room, 0)).map((file) => ({ file, preview: URL.createObjectURL(file) }));

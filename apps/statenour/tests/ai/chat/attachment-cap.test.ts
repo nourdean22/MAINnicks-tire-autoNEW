@@ -75,4 +75,17 @@ describe("attachment cap", () => {
     expect(out.kind).toBe("pass");
     if (out.kind === "pass") expect(JSON.stringify(out.messages)).not.toMatch(/QUJD|AAAA/);
   });
+
+  it("a regenerate-shaped request (assistant last) still caps the newest user message", async () => {
+    const out = await runGate(post([userMsg(Array.from({ length: 11 }, () => photo())), { id: "a1", role: "assistant", parts: [{ type: "text", text: "ok" }] }]));
+    expect(out.kind).toBe("block");
+    if (out.kind === "block") expect(out.response.status).toBe(413);
+  });
+
+  it("a relative hosted image (/api/images/...) in an older turn is kept, not stripped", async () => {
+    const hosted = { type: "file", mediaType: "image/png", url: "/api/images/abc.png" };
+    const out = await runGate(post([{ ...userMsg([hosted]), id: "m0" }, { id: "m2", role: "user", parts: [{ type: "text", text: "make it blue" }] }]));
+    expect(out.kind).toBe("pass");
+    if (out.kind === "pass") expect(JSON.stringify(out.messages)).toContain("/api/images/abc.png");
+  });
 });

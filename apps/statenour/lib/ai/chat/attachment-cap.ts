@@ -19,8 +19,11 @@ type AttachmentPart = { type?: unknown; url?: unknown; data?: unknown; image?: u
  */
 function inlinePayload(p: AttachmentPart | null | undefined): string | null | undefined {
   if (p?.type !== "file" && p?.type !== "image") return undefined;
-  const v = p.type === "image" ? p.image : typeof p.url === "string" ? p.url : p.data;
-  return typeof v === "string" && !/^https?:\/\//i.test(v) ? v : null;
+  // A url is inline only as a data: URL: a hosted one (https, or a relative /api/images/... from
+  // lib/ai/chat/handlers/image.ts) carries no bytes and stays in history.
+  if (p.type === "file" && typeof p.url === "string") return p.url.startsWith("data:") ? p.url : null;
+  const v = p.type === "image" ? p.image : p.data;
+  return typeof v === "string" && !/^(https?:\/\/|\/)/i.test(v) ? v : null;
 }
 
 export function attachmentCapProblem(message: unknown): string | null {
@@ -47,14 +50,14 @@ type WireMessage = { role?: unknown; parts?: unknown };
  * user message, so nothing stored changes; without this, each photo was resent with every later
  * turn, and three turns of photos passed the proxy's body limit.
  */
+/** Index of the newest user message (a regenerate ends with an assistant one), or -1. */
+export function newestUserIndex(messages: readonly WireMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) if (messages[i]?.role === "user") return i;
+  return -1;
+}
+
 export function withoutOlderInlineFiles<T extends WireMessage>(messages: T[]): T[] {
-  let newestUser = -1;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === "user") {
-      newestUser = i;
-      break;
-    }
-  }
+  const newestUser = newestUserIndex(messages);
   return messages.map((m, i) => {
     if (i === newestUser || !Array.isArray(m?.parts)) return m;
     const parts = m.parts as AttachmentPart[];

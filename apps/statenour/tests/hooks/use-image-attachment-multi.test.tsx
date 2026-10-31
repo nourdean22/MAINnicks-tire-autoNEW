@@ -99,4 +99,13 @@ describe("photo resize target", () => {
     expect(onAudio).toHaveBeenCalledTimes(1);
     expect(onAudio.mock.calls[0][0].name).toBe("a.m4a");
   });
+
+  it("a paste into a full composer reports nothing attached", () => {
+    const { result } = renderHook(() => useImageAttachment());
+    act(() => result.current.handleFileChange(pick(Array.from({ length: 10 }, (_, i) => jpeg(`p${i}.jpg`)))));
+    let attached = true;
+    act(() => { attached = result.current.attachFromDrop({ dataTransfer: { files: [jpeg("extra.jpg")] } } as unknown as React.DragEvent<HTMLElement>); });
+    expect(attached).toBe(false);
+    expect(result.current.attached).toHaveLength(10);
+  });
 });

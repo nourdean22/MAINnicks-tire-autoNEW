@@ -213,10 +213,11 @@ export async function runGate(req: Request): Promise<GateResult> {
   // 3b. U5 · inline (data:) files count only on the newest user message: older turns lose their
   // bytes here as well as in the client transport, which a modified client skips. Then the newest
   // message is capped at 10 files and ~18 MB (413).
-  const { attachmentCapProblem, withoutOlderInlineFiles } = await import("@/lib/ai/chat/attachment-cap");
+  const { attachmentCapProblem, newestUserIndex, withoutOlderInlineFiles } = await import("@/lib/ai/chat/attachment-cap");
   messages = withoutOlderInlineFiles(messages);
   body.messages = messages;
-  const capProblem = attachmentCapProblem(messages[messages.length - 1]);
+  // The newest USER message keeps its bytes, so it is the one capped (a regenerate ends on an assistant).
+  const capProblem = attachmentCapProblem(messages[newestUserIndex(messages)]);
   if (capProblem) {
     return { kind: "block", response: Response.json({ error: capProblem }, { status: 413 }) };
   }
