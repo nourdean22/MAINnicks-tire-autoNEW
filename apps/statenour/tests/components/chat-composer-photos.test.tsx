@@ -145,4 +145,26 @@ describe("composer photos (U5)", () => {
     await act(async () => { slow.release(); await new Promise((r) => setTimeout(r, 0)); });
     expect(append).toHaveBeenCalledTimes(1);
   });
+
+  it("an edit cancelled while photos prepare deletes nothing and sends nothing", async () => {
+    chat.messages = [{ id: "old-2", role: "user", parts: [{ type: "text", text: "before" }] }];
+    await pickPhotos(["slow.jpg"]);
+    act(() => useChatUiStore.setState({ draft: "after", editingMessageId: "old-2" }));
+    const form = host.querySelector("form") as HTMLFormElement;
+    await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    act(() => useChatUiStore.setState({ editingMessageId: null }));
+    await act(async () => { slow.release(); await new Promise((r) => setTimeout(r, 0)); });
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it("the text field is read-only while a photo send prepares", async () => {
+    await pickPhotos(["slow.jpg"]);
+    act(() => useChatUiStore.setState({ draft: "x" }));
+    const form = host.querySelector("form") as HTMLFormElement;
+    await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect((host.querySelector("textarea") as HTMLTextAreaElement).readOnly).toBe(true);
+    await act(async () => { slow.release(); await new Promise((r) => setTimeout(r, 0)); });
+    expect((host.querySelector("textarea") as HTMLTextAreaElement).readOnly).toBe(false);
+  });
 });

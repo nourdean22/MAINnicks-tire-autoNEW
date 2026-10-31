@@ -255,6 +255,8 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
         toast.error("Couldn't read the attachment. Remove it or pick another file.", { duration: 4000 });
         return;
       }
+      // An edit cancelled while the files prepared must not delete the turn it named.
+      if (editingMessageId && useChatUiStore.getState().editingMessageId !== editingMessageId) return;
     }
 
     // 2026-08-18 · edit-resend. When the draft came from tapping an
@@ -777,6 +779,8 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
             // chat-message-list.tsx focuses this inside the edit tap (iOS keyboard).
             data-chat-composer-input=""
             value={draft}
+            // U5 · the send already holds this text; words typed during photo prep were lost.
+            readOnly={photoSending}
             onChange={(event) => {
               const value = event.target.value;
               setDraft(value);

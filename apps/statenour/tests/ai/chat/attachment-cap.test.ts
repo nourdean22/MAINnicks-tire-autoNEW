@@ -65,4 +65,14 @@ describe("attachment cap", () => {
     }
   });
 
+
+  it("legacy shapes count too: { file, data } bytes and { image } parts", async () => {
+    const legacyImage = { type: "image", image: "data:image/png;base64,QUJD" };
+    expect(attachmentCapProblem(userMsg(Array.from({ length: 11 }, () => legacyImage)))).toMatch(/At most 10 files/);
+    const legacyFile = { type: "file", mediaType: "application/pdf", data: "A".repeat(MAX_INLINE_CHARS + 1) };
+    expect(attachmentCapProblem(userMsg([legacyFile]))).toMatch(/too large/);
+    const out = await runGate(post([{ ...userMsg([legacyImage, legacyFile]), id: "m0" }, { id: "m2", role: "user", parts: [{ type: "text", text: "next" }] }]));
+    expect(out.kind).toBe("pass");
+    if (out.kind === "pass") expect(JSON.stringify(out.messages)).not.toMatch(/QUJD|AAAA/);
+  });
 });
