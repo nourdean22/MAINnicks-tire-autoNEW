@@ -45,6 +45,9 @@ export interface RelationshipPick {
   maxim?: { text: string; source: string };
   /** People W4 S1: "today", "tomorrow" or a weekday when an event in the next 3 days names them. */
   seeingOn?: string;
+  /** People W4 S2: days since the last contact (null = never logged), and open promises to them. */
+  daysQuiet?: number | null;
+  openPromises?: number;
 }
 
 export interface PicksResult {
@@ -159,7 +162,9 @@ export async function pickRelationshipsForToday(): Promise<PicksResult> {
       const c = byId.get(p.personId);
       const m = c ? maximForPick(c, day) : null;
       const withMaxim = m ? { ...p, maxim: { text: m.text, source: m.source } } : p;
-      return c?.seeingOn ? { ...withMaxim, seeingOn: c.seeingOn } : withMaxim;
+      const withSeeing = c?.seeingOn ? { ...withMaxim, seeingOn: c.seeingOn } : withMaxim;
+      // People W4 S2: the facts Nick's getRelationshipPicks returns, from the same candidate.
+      return c ? { ...withSeeing, daysQuiet: c.daysSilent, openPromises: c.brokenPromises } : withSeeing;
     });
   }
 

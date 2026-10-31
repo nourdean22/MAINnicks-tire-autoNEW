@@ -80,6 +80,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getSleepTrend",                category: "personal_read",  battle: true,  cost: "free" },
   { name: "getCameraIntelligence",        category: "personal_read",  battle: true,  cost: "free" },
   { name: "getCommitments",               category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getRelationshipPicks",         category: "personal_read",  battle: true,  cost: "free" },
   // 2026-08-12 · retrieval-side JIT complement (agendaItem rows; the
   // prompt gate drops the inline agenda on casual/social-content turns).
   { name: "getAgendaItems",               category: "personal_read",  battle: false, cost: "free" },

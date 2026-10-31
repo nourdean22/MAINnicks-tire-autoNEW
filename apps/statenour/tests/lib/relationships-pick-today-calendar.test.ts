@@ -58,6 +58,9 @@ describe("pickRelationshipsForToday calendar signal", () => {
     // rationale reads "seeing them tomorrow · 90d+ silent".
     expect(s?.rationale).toContain("seeing them tomorrow");
     expect(s?.rationale).not.toMatch(/silent|no recent touchpoints/);
+    // People W4 S2: the facts Nick's tool returns ride on the pick (S silent since 2026-07-02).
+    expect(s?.daysQuiet).toBe(120);
+    expect(s?.openPromises).toBe(0);
     expect(out.calendar).toBe("ok");
     expect(h.listEvents).toHaveBeenCalledWith(expect.objectContaining({ daysAhead: 3 }));
   });

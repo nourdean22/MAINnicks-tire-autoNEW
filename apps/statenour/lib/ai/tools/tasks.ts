@@ -89,6 +89,33 @@ const tasksCoreTools = {
     },
   }),
 
+  // People W4 S2 (2026-10-30, manager-approved contract). The execute IS the /people picks
+  // engine, so chat and /people never disagree. Read-only; names stay inside NOUR OS (not on
+  // the agent-bridge surface). A failed read throws, so Nick says it could not read them.
+  getRelationshipPicks: tool({
+    description:
+      "Who Nour should reach out to today and why: today's relationship picks (same list as /people), each with days since last contact, open promises to that person, and an upcoming calendar event that names them. Read-only. Use when he asks who to call, text or check on, or about a person's status.",
+    inputSchema: z.object({ limit: z.number().int().min(1).max(5).optional() }),
+    execute: async ({ limit }) => {
+      const { pickRelationshipsForToday } = await import("@/lib/ai/relationships-pick-today");
+      const r = await pickRelationshipsForToday();
+      return {
+        picks: r.picks.slice(0, limit ?? 3).map((p) => ({
+          personId: p.personId,
+          name: p.personName,
+          why: p.rationale,
+          daysQuiet: p.daysQuiet ?? null,
+          openPromises: p.openPromises ?? null,
+          seeingOn: p.seeingOn ?? null,
+          maxim: p.maxim ?? null,
+        })),
+        source: r.source,
+        // A cached row from before the calendar signal has no field: unknown, never "ok".
+        calendar: r.calendar ?? "unknown",
+      };
+    },
+  }),
+
   getCommitments: tool({
     description: "Get active commitments",
     inputSchema: z.object({}),

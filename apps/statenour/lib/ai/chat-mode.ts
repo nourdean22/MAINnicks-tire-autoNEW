@@ -748,6 +748,12 @@ export async function pruneTools(
     addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws/i);
   }
 
+  // People W4 S2 (2026-10-30) · "who should I call / check in on / gone quiet" → today's
+  // relationship picks, the same list as /people.
+  if (/\b(who (should|do) i (call|text|reach out to|check (in )?on|see|talk to)|reach out to|check in (on|with)|gone quiet|(not|n'?t) (talked|spoken|heard from) .{0,20}(while|lately|weeks?|months?)|relationship picks?|who needs me)\b/.test(text)) {
+    addMatching(/^getRelationshipPicks$/);
+  }
+
   // #8 · Recent-sentiment research + short-video generation. last30days
   // (Reddit/HN/GitHub/YouTube) and moneyprinter (video gen) had no trigger.
   // 2026-07-15 · social/web-trends phrasing gap (live incident): "current
