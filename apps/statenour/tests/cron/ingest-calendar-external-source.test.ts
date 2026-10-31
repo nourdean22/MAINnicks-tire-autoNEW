@@ -22,10 +22,11 @@ vi.mock("@/lib/utils/http", () => ({
   cronHandler: (fn: (req: Request, ctx: unknown) => Promise<unknown>) => fn,
 }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { auditEvent: { create: h.audit } },
+  // W2: the run also reads its stored copies to remove events gone from Google (none here).
+  prisma: { auditEvent: { create: h.audit }, brainMemory: { findMany: async () => [], updateMany: async () => ({ count: 0 }) } },
 }));
 vi.mock("@/lib/brain/external-memory-intake", () => ({ intakeExternalMemory: h.intake }));
-vi.mock("@/lib/services/google-oauth", () => ({ listConfiguredAccounts: h.accounts }));
+vi.mock("@/lib/services/google-oauth", () => ({ CALENDAR_ACCOUNT_KEY: "personal", listConfiguredAccounts: h.accounts }));
 vi.mock("@/lib/calendar/day-events", () => ({ readCalendarWindow: h.read }));
 
 import { GET } from "@/app/api/cron/ingest-calendar/route";

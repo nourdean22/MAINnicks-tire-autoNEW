@@ -1,5 +1,18 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-31 · calendar r2: his real calendar everywhere he plans, read side (job 2026-10-31-calendar-everywhere-r2) · 2 ships
+>
+> Nour, 2026-10-30: "whata bout fitting my calander into all of statenour?" and "controlls work both ways"; 10-31 08:37 EDT: "two-way calendar -> YES". A read-only SELECT that morning found no token for his own Google account: both stored Google rows held the SHOP's account, and his slot had failed 63 refreshes since 06-29 (the June grant picked the wrong account). So the read side shipped first and says so honestly until he connects nourdean22.
+>
+> - **#3465 W1 (dcfc0eebeb).** One reader (`lib/calendar/day-events.ts`) for the brief, Home TODAY, Nick's TODAY block, his schedule tool, Telegram /schedule and the ingest cron, reading only his calendar slot (`CALENDAR_ACCOUNT_KEY`), never the shop's; a failed read says "calendar unknown", never a free day. His slot refuses the shop's Google account at grant time; a failed dead copy of the shop account is no longer listed, so the daily Gmail run stops retrying it. The people reader (#3432) kept through a `listEvents` adapter.
+> - **W2 (this PR).** The daily ingest forgets a stored event gone from a complete read of the window through `forgetMemoryById` (tombstone plus search copy; the memory-admission ratchet caught a first draft that wrote `brainMemory` directly); his account only; nothing on a partial read, and an empty read removes nothing unless the previous run was empty too; edits re-file by key; the reader pages to the end and fails the account past 10 pages. Kept daily per Nour's 2026-05-30 "i only need one a day on google"; the live surfaces already read Google fresh.
+>
+> **Flagged · NOT fixed**
+> - `createEvent` / `proposeCalendarEvent` still write with the shop slot's token and no confirm step: W3 (writes through his slot only, read-back, first-week approval).
+> - `/api/ai/plan-day` has no UI caller: deletion candidate.
+> - `tests/repo/v3-gate.test.ts` e2e tsc takes about 140 s on the NattyNour machine against its 120 s test timeout (tsc exits 0).
+> - `check:soft-delete` red on main at `lib/services/contradictions.ts:135,162` (not this job).
+
 > ## 2026-10-31 · bdnick chat v2: errors fixed, queue, reach, then the UI waves U1-U6 and audit 002 (job bdnick-chat-v2) · 15 ships + audit fixes
 >
 > Nour, 2026-10-30: fix the errors he hit in the chat that morning, keep Nick up to date and more useful, queue messages while Nick replies, then a better chat UI (more space, videos, a stronger evidence panel, free voice, multi-photo, search, archive, full controls), no spend. Shipped in waves, each red-first with the four-section PR body; Codex was out of quota for most of the run, so the second reads were self-review plus the manager and the quality-audit session.

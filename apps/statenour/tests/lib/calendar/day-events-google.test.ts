@@ -108,6 +108,34 @@ describe("readCalendarWindow · live Google wiring", () => {
     expect(r.state).toBe("read_failed");
   });
 
+  it("W2: follows nextPageToken until the last page, so a long day is never cut short", async () => {
+    h.status.mockResolvedValue(both);
+    h.configured.mockResolvedValue([{ accountKey: "personal", integrationName: "google_oauth_personal", email: "owner@example.com" }]);
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(url);
+      if (url.includes("/calendarList")) return new Response(JSON.stringify({ items: [{ id: "primary" }] }), { status: 200 });
+      const page = new URL(url).searchParams.get("pageToken");
+      const item = (id: string) => ({ id, status: "confirmed", summary: id, start: { dateTime: "2026-10-30T14:00:00Z" }, end: { dateTime: "2026-10-30T15:00:00Z" } });
+      const body = page === null ? { items: [item("p1")], nextPageToken: "t2" } : { items: [item("p2")] };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }));
+    const r = await readCalendarWindow(new Date("2026-10-30T04:00:00Z"), new Date("2026-10-31T04:00:00Z"));
+    expect(r.state === "ok" && r.events.map((e) => e.id)).toEqual(["p1", "p2"]);
+    expect(urls.filter((u) => u.includes("pageToken=t2"))).toHaveLength(1);
+  });
+
+  it("W2: a calendar that never stops paging is read_failed, never a silently truncated ok", async () => {
+    h.status.mockResolvedValue(both);
+    h.configured.mockResolvedValue([{ accountKey: "personal", integrationName: "google_oauth_personal", email: "owner@example.com" }]);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("/calendarList")) return new Response(JSON.stringify({ items: [{ id: "primary" }] }), { status: 200 });
+      return new Response(JSON.stringify({ items: [], nextPageToken: "again" }), { status: 200 });
+    }));
+    const r = await readCalendarWindow(new Date(), new Date(Date.now() + 86_400_000));
+    expect(r.state).toBe("read_failed");
+  });
+
   it("an unreadable integration table is read_failed, not not_connected", async () => {
     h.status.mockResolvedValue({ probeFailed: true, reason: "db down", accounts: [] });
     h.configured.mockResolvedValue([]);
