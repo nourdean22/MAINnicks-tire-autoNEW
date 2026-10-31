@@ -1,11 +1,7 @@
 /**
- * Google Calendar API Client — event create via the stored refresh token
- * (see lib/services/google-oauth.ts). Reads live in lib/calendar/day-events
- * (his account, every selected calendar); listEvents below is the old list
- * shape over that reader.
+ * Google Calendar API Client — the old call shapes over the calendar r2 modules: reads live in
+ * lib/calendar/day-events, writes in lib/calendar/write (his account only, both).
  */
-
-import { getAccessToken } from "@/lib/services/google-oauth";
 
 export interface CalEvent {
   id: string;
@@ -72,38 +68,13 @@ export async function listEvents(options: { daysAhead?: number; daysBack?: numbe
   }));
 }
 
-// forensic-audit HIGH · the operator's calendar zone. Timezone-less ISO
-// strings (the proposeCalendarEvent schema tells the model to OMIT the zone
-// and assume operator-local) were parsed by `new Date()` in the server's
-// zone (UTC on Railway), so "block 2pm" landed at 10am ET with no timeZone
-// on the Google event. parseOperatorDate interprets offset-less input as ET;
-// the timeZone field below anchors the display.
-const OPERATOR_TZ = "America/New_York";
-
-function operatorTzOffsetMinutes(instant: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: OPERATOR_TZ, hour12: false,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  }).formatToParts(instant);
-  const m: Record<string, string> = {};
-  for (const p of parts) m[p.type] = p.value;
-  const asUTC = Date.UTC(+m.year, +m.month - 1, +m.day, +m.hour === 24 ? 0 : +m.hour, +m.minute, +m.second);
-  return (asUTC - instant.getTime()) / 60000;
-}
-
-function parseOperatorDate(iso: string): Date {
-  const s = iso.trim();
-  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(s);
-  if (hasZone) return new Date(s); // explicit offset → unambiguous instant
-  const asUtc = new Date(s.endsWith("Z") ? s : s + "Z"); // naive components as UTC
-  if (isNaN(asUtc.getTime())) return asUtc;
-  const offMin = operatorTzOffsetMinutes(asUtc);
-  return new Date(asUtc.getTime() - offMin * 60000);
-}
 
 /**
- * Create a new event on the primary calendar.
+ * Create an event on HIS calendar (calendar r2 W3). Delegates to lib/calendar/write: his slot
+ * only (refuses the shop's account, an expired grant or none), no attendees and no invites, and
+ * the event is read back before this returns. Throws CalendarApiError when it did not land, so
+ * both callers (Nick's proposeCalendarEvent, the agent's google.proposeEvent) keep their shape.
+ * `attendees` is accepted and ignored: an invite is a send.
  */
 export async function createEvent(args: {
   title: string;
@@ -113,71 +84,17 @@ export async function createEvent(args: {
   description?: string;
   attendees?: string[];
 }): Promise<CalEvent> {
-  const token = await getAccessToken();
+  const { writeCalendarEvent, parseOperatorDate } = await import("@/lib/calendar/write");
   const start = parseOperatorDate(args.startISO);
-  if (isNaN(start.getTime())) {
-    throw new Error("Invalid startISO");
-  }
-  const end = args.endISO ? parseOperatorDate(args.endISO) : new Date(start.getTime() + 60 * 60_000);
-  if (isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
-    throw new Error("Invalid endISO (must be after startISO)");
-  }
-
-  const body = {
-    summary: args.title,
+  const end = args.endISO ? args.endISO : new Date(start.getTime() + 60 * 60_000).toISOString();
+  const r = await writeCalendarEvent({
+    kind: "create",
+    title: args.title,
+    start: args.startISO,
+    end,
     location: args.location,
     description: args.description,
-    start: { dateTime: start.toISOString(), timeZone: OPERATOR_TZ },
-    end: { dateTime: end.toISOString(), timeZone: OPERATOR_TZ },
-    attendees: args.attendees?.map((email) => ({ email })),
-  };
-
-  const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
-    }
-  );
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new CalendarApiError(
-      res.status,
-      `Calendar create failed: ${res.status} ${text}`,
-    );
-  }
-
-  const e = (await res.json()) as {
-    id: string;
-    summary?: string;
-    description?: string;
-    start?: { dateTime?: string; date?: string };
-    end?: { dateTime?: string; date?: string };
-    attendees?: Array<{ email?: string }>;
-    location?: string;
-    organizer?: { email?: string };
-    status?: string;
-    recurringEventId?: string;
-    htmlLink?: string;
-  };
-
-  return {
-    id: e.id,
-    summary: e.summary,
-    description: e.description,
-    start: e.start?.dateTime || e.start?.date,
-    end: e.end?.dateTime || e.end?.date,
-    attendees: (e.attendees || []).map((a) => a.email || "").filter(Boolean),
-    location: e.location,
-    organizer: e.organizer?.email,
-    status: e.status,
-    recurring: !!e.recurringEventId,
-    htmlLink: e.htmlLink,
-  };
+  });
+  if (!r.ok) throw new CalendarApiError(r.reason === "write_failed" ? 502 : 409, `Calendar create refused: ${r.reason}`);
+  return { id: r.eventId, summary: args.title, start: start.toISOString(), end, htmlLink: r.link };
 }

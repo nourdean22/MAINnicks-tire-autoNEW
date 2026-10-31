@@ -265,7 +265,9 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // second registry, so /system/tools kept under-reporting the family's
   // mutating count to the operator. tests/ai/tool-mutation-single-source.test.ts
   // pins the deletion of that second source, so the halves cannot drift again.
-  proposeCalendarEvent: { family: "personal-write", description: "Create or propose a new Google Calendar event. Writes directly to the calendar when Google OAuth is configured; otherwise returns a prefilled compose URL." },
+  proposeCalendarEvent: { family: "personal-write", description: "Create an event on Nour's own Google Calendar, read back before it is claimed; when his calendar is not connected, returns a prefilled compose URL instead." },
+  moveCalendarEvent: { family: "personal-write", description: "Move an event on Nour's own Google Calendar to a new time, read back before it is claimed." },
+  deleteCalendarEvent: { family: "personal-write", description: "Delete an event from Nour's own Google Calendar, proven gone by a read-back." },
 
   // ── backfill 2026-07-11 · personal-write ──
   archiveGoal: { family: "personal-write", description: "Archive a LifeGoal (soft-delete - preserves CoachLog + GoalEvent history - recoverable). Use when Nour says..." },

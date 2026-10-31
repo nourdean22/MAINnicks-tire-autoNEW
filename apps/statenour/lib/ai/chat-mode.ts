@@ -627,8 +627,21 @@ export async function pruneTools(
   // generic "no events" reply with tools=0 in the trace · Nick was
   // bluffing because getTodaySchedule was pruned out. This family
   // surfaces it on schedule-shaped questions.
+  // Calendar r2 W3 (2026-10-31) · the write tools (create / move / delete on HIS calendar) never
+  // attach on shop wording: "schedule the customer's brake job" is a shop job, not his event (same
+  // exclusion as the people family, #3440). Reads stay reachable either way.
+  const shopWording = /\b(customers?|clients?|estimates?|invoices?|quotes?|jobs?|cars?|vehicles?|tires?|brakes?|shop|techs?|staff|employees?|team|leads?)\b/.test(text);
   if (/\b(calendar|schedule|meetings?|appointments?|appts?|events?|free time|am i free|plan my day|busy|available|book (me |a |some )?(time|slot|focus|block)|when (am|are|is) (i|we|my|the)|focus block|deep work block|reminder)\b/.test(text)) {
-    addMatching(/Calendar|Schedule|Event/);
+    addMatching(shopWording ? /^(?!(?:propose|move|delete)CalendarEvent$).*(Calendar|Schedule|Event)/ : /Calendar|Schedule|Event/);
+  }
+  // "push my call back an hour" / "cancel my 2pm": a move or cancel of one of his own events,
+  // named by a person, a block or a time instead of the word "meeting".
+  if (
+    !shopWording &&
+    /\b(reschedule|move (my|the)|push (my|the) .{0,40}\bback|cancel (my|the)|delete (my|the)|remove (my|the))\b/.test(text) &&
+    /\b(meetings?|calls?|appointments?|appts?|events?|blocks?|dentist|doctor|gym|lunch|dinner|calendar|\d{1,2}(:\d{2})? ?(am|pm)|tomorrow|today|tonight|(mon|tues|wednes|thurs|fri|satur|sun)day)\b/.test(text)
+  ) {
+    addMatching(/^(getTodaySchedule|moveCalendarEvent|deleteCalendarEvent)$/);
   }
 
   // v10.0.517 · Documents / files / uploaded artifacts

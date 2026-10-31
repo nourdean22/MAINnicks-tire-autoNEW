@@ -59,6 +59,24 @@ export async function readSchedule(daysAhead: number) {
   };
 }
 
+/** What Nick says when a calendar write did not happen; never a success. */
+function writeRefusalText(reason: string): string {
+  switch (reason) {
+    case "not_connected":
+      return "His calendar is not connected, so nothing changed. Connect nourdean22 via /api/oauth/google-data/start?account=personal.";
+    case "shop_account":
+      return "The linked Google account is the shop's, not his calendar, so nothing changed. Connect nourdean22.";
+    case "expired":
+      return "The Google grant for his calendar expired, so nothing changed. Re-grant via /api/oauth/google-data/start?account=personal.";
+    case "read_back_mismatch":
+      return "Google answered but the event reads back different. Check it in Google Calendar; do not say it changed as asked.";
+    case "invalid_time":
+      return "The end time must be after the start time. Nothing changed.";
+    default:
+      return "Google refused the change. Nothing changed.";
+  }
+}
+
 export const calendarTools = {
   getTodaySchedule: tool({
     description:
@@ -108,46 +126,51 @@ export const calendarTools = {
     }),
     execute: async ({ title, startISO, endISO, location, description, attendees }) => {
       try {
-        const start = new Date(startISO);
+        const { parseOperatorDate } = await import("@/lib/calendar/write");
+        const start = parseOperatorDate(startISO);
         if (isNaN(start.getTime())) {
           return { ok: false, error: "Invalid startISO" };
         }
-        const end = endISO ? new Date(endISO) : new Date(start.getTime() + 60 * 60_000);
+        const end = endISO ? parseOperatorDate(endISO) : new Date(start.getTime() + 60 * 60_000);
         if (isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
           return { ok: false, error: "Invalid endISO (must be after startISO)" };
         }
 
-        const { isGoogleOauthConfigured } = await import(
-          "@/lib/services/google-oauth"
-        );
-        const { createEvent } = await import(
-          "@/lib/services/calendar-api"
-        );
-        const configured = await isGoogleOauthConfigured();
-
-        if (configured) {
-          try {
-            const created = await createEvent({
-              title,
-              startISO,
-              endISO,
-              location,
-              description,
-              attendees,
-            });
-            return {
-              ok: true,
-              created: true,
-              eventId: created.id,
-              composeUrl: created.htmlLink,
-              summary: title,
-              start: start.toISOString(),
-              end: end.toISOString(),
-              instructions: "Render the composeUrl (event link) in the reply as 'View Event in Google Calendar →'.",
-            };
-          } catch (err) {
-            void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.calendar", err, { fn: "proposeCalendarEvent.createEvent" }, "warn"));
-          }
+        // Calendar r2 W3: his calendar only, read back before "created" is claimed. Attendees are
+        // never invited (an invite is a send); a refused slot falls back to the compose link.
+        void attendees;
+        const { writeCalendarEvent } = await import("@/lib/calendar/write");
+        const written = await writeCalendarEvent({
+          kind: "create",
+          title,
+          start: startISO,
+          end: endISO ?? end.toISOString(),
+          location,
+          description,
+        });
+        if (written.ok) {
+          return {
+            ok: true,
+            created: true,
+            eventId: written.eventId,
+            readBack: written.readBack,
+            composeUrl: written.link,
+            summary: title,
+            start: start.toISOString(),
+            end: end.toISOString(),
+            instructions: "Render the composeUrl (event link) in the reply as 'View Event in Google Calendar →'.",
+          };
+        }
+        if (written.reason === "write_failed" || written.reason === "read_back_mismatch") {
+          return {
+            ok: false,
+            created: false,
+            eventId: written.eventId ?? null,
+            error:
+              written.reason === "read_back_mismatch"
+                ? "Google took the event but it read back different. Check it in Google Calendar; do not say it was added as asked."
+                : `Google refused the event (${written.detail ?? "write failed"}). It was NOT added.`,
+          };
         }
 
         // Google Calendar event-compose URL format fallback. dates= uses
@@ -167,6 +190,8 @@ export const calendarTools = {
         return {
           ok: true,
           created: false,
+          // Why it was not written: his calendar is not connected, holds the shop's account, or expired.
+          notWrittenBecause: written.reason,
           composeUrl,
           summary: title,
           start: start.toISOString(),
@@ -183,6 +208,41 @@ export const calendarTools = {
           error: err instanceof Error ? err.message : String(err),
         };
       }
+    },
+  }),
+
+  // Calendar r2 W3 · move and delete an event on HIS calendar (never the shop's), each read back
+  // from Google before it is claimed. The eventId comes from getTodaySchedule. In the first week
+  // both wait for his approval in System > Actions (lib/tools/two-key.ts).
+  moveCalendarEvent: tool({
+    description:
+      "Move an existing event on Nour's own Google Calendar to a new start and end time. Use the eventId from getTodaySchedule. Use when he asks to move, reschedule or push back one of his events. Never for shop jobs or customer appointments.",
+    inputSchema: z.object({
+      eventId: z.string().min(1).describe("The event id from getTodaySchedule."),
+      startISO: z.string().describe("New start in ISO 8601. If the zone is omitted, his Eastern time is assumed."),
+      endISO: z.string().describe("New end in ISO 8601. If the zone is omitted, his Eastern time is assumed."),
+    }),
+    execute: async ({ eventId, startISO, endISO }) => {
+      const { writeCalendarEvent } = await import("@/lib/calendar/write");
+      const r = await writeCalendarEvent({ kind: "move", eventId, start: startISO, end: endISO });
+      return r.ok
+        ? { ok: true, moved: true, eventId: r.eventId, readBack: r.readBack, link: r.link ?? null }
+        : { ok: false, moved: false, reason: r.reason, error: writeRefusalText(r.reason) };
+    },
+  }),
+
+  deleteCalendarEvent: tool({
+    description:
+      "Delete an event from Nour's own Google Calendar. Use the eventId from getTodaySchedule. Use when he asks to cancel, delete or remove one of his events. Never for shop jobs or customer appointments.",
+    inputSchema: z.object({
+      eventId: z.string().min(1).describe("The event id from getTodaySchedule."),
+    }),
+    execute: async ({ eventId }) => {
+      const { writeCalendarEvent } = await import("@/lib/calendar/write");
+      const r = await writeCalendarEvent({ kind: "delete", eventId });
+      return r.ok
+        ? { ok: true, deleted: true, eventId: r.eventId, readBack: r.readBack }
+        : { ok: false, deleted: false, reason: r.reason, error: writeRefusalText(r.reason) };
     },
   }),
 

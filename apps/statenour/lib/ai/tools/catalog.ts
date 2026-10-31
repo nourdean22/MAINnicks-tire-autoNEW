@@ -118,6 +118,9 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // `battle: true` additionally offered it in the fast "read-only" mode.
   // The name was the only thing claiming this was a proposal.
   { name: "proposeCalendarEvent",         category: "personal_write", sideEffecting: true, cost: "free" },
+  // Calendar r2 W3 · move / delete on HIS calendar, read back; first week held for approval (two-key.ts).
+  { name: "moveCalendarEvent",            category: "personal_write", sideEffecting: true, cost: "free" },
+  { name: "deleteCalendarEvent",          category: "personal_write", sideEffecting: true, cost: "free" },
   // v10.0.515 · #10 Document Q&A · cheap (one embedding call + DB knn)
   { name: "searchDocuments",              category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
   // 2026-09-17 · REFLAGGED. Its own implementation (tools/system.ts:292-299)
