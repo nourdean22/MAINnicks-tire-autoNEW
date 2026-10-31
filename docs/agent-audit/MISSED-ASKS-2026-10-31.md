@@ -172,6 +172,10 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 
 ## Loop log
 
+- Tick 2b, 2026-10-31 12:34Z (manager message, CLAIM): briefs for gaps 1, 2 and 5 are written to the manager scratchpad
+  (learning-nickstire-r2, learning-statenour-r2, calendar-everywhere-r2, prompt-sharpener-r2). Dispatch waits on one
+  desktop-typed message from Nour, because sessions cannot start while he is on Remote Control. That is a new
+  Nour step: one typed message at the desk unblocks four sessions. The CRD retry for row 65 is the manager's, later today.
 - Tick 2, 2026-10-31 12:35Z: one new ask (11:49Z, the order that started this audit; no new row). PR 3458 merged
   `05064bf238`. Row 37: the nickstire half is now complete. Facts PR 3456 `e33066c757` and PR G 3457 `eedb20e6da`
   are LIVE: nickstire.org runs `eedb20e6da`, merge-base exit 0 for both. The StateNour pages gap stands.
