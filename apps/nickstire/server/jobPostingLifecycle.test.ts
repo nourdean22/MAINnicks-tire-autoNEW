@@ -35,7 +35,7 @@ const CTX = {
   siteUrl: "https://nickstire.org",
   orgName: "Nick's Tire & Auto",
   logoUrl: "https://nickstire.org/icon-512x512.png",
-  shopHours: "7 days — Mon–Sat 8AM–6PM, Sun 9AM–4PM",
+  shopHours: "7 days · Mon–Sat 8AM–6PM, Sun 9AM–4PM",
   address: { street: "17625 Euclid Ave", city: "Cleveland", state: "OH", zip: "44112" },
 };
 

@@ -62,7 +62,7 @@ describe("generateArticle prompt contract", () => {
     expect(all).toMatch(/never invent a cost range, time, or mileage/);
     expect(system).toContain("CLAIM RESTRICTIONS");
     expect(system).toContain("90-day labor");
-    expect(system).toContain("7 days — Mon–Sat 8AM–6PM, Sun 9AM–4PM");
+    expect(system).toContain("7 days · Mon–Sat 8AM–6PM, Sun 9AM–4PM");
     expect(system).not.toMatch(/Mon-Sat 8AM-6PM, Sunday 9AM-4PM/);
     expect(user).not.toMatch(/brake-repair-cleveland/);
     expect(user).toMatch(/do not write URLs/);

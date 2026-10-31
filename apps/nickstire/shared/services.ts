@@ -92,7 +92,7 @@ export const SERVICES: ServiceData[] = [
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
     metaTitle: "Tire Shop Cleveland · Walk-In 7 Days · From $40 | Nick's",
-    metaDescription: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
+    metaDescription: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call " + BUSINESS.phone.display + ".",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
     heroSubline: "Pull up, stay in your car. We come out to you. Used tires from $25 (select 12-inch; most $40-80), new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
@@ -145,7 +145,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How much does it cost to replace tires in Cleveland?",
-        answer: "Tire replacement cost in Cleveland ranges from $80 to $250 per tire depending on size, brand, and type. At Nick's Tire & Auto, we carry new and quality used tires to fit every budget. Installation includes mounting, balancing, and a new valve stem. Call (216) 862-0005 for a quote specific to your vehicle."
+        answer: "Tire replacement cost in Cleveland ranges from $80 to $250 per tire depending on size, brand, and type. At Nick's Tire & Auto, we carry new and quality used tires to fit every budget. Installation includes mounting, balancing, and a new valve stem. Call " + BUSINESS.phone.display + " for a quote specific to your vehicle."
       },
       {
         question: "How often should I rotate my tires?",
@@ -161,7 +161,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where is the best tire shop near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated tire shop with 4.9 stars from 1,710+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call (216) 862-0005 for a free tire quote."
+        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + " is Cleveland's top-rated tire shop with 4.9 stars from 1,710+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call " + BUSINESS.phone.display + " for a free tire quote."
       }
     ],
     includedItems: [
@@ -197,7 +197,7 @@ export const SERVICES: ServiceData[] = [
     title: "BRAKES",
     shortDesc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Every time.",
     metaTitle: "Brake Repair Cleveland · We Hand You The Flashlight | Nick's",
-    metaDescription: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free check, written estimate first, same-day repair. (216) 862-0005.",
+    metaDescription: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free check, written estimate first, same-day repair. " + BUSINESS.phone.display + ".",
     heroHeadline: "We show you the worn pads\nbefore we touch a thing.",
     heroSubline: "Cleveland's brake shop on Euclid Ave. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. We tell you the cost before we touch anything.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
@@ -249,7 +249,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How much does brake repair cost in Cleveland?",
-        answer: "Brake pad replacement in Cleveland typically costs between $150 and $350 per axle. If rotors need resurfacing or replacement, the total can range from $300 to $600 per axle. At Nick's Tire & Auto, we provide a free brake check and written estimate before any work begins. Call (216) 862-0005."
+        answer: "Brake pad replacement in Cleveland typically costs between $150 and $350 per axle. If rotors need resurfacing or replacement, the total can range from $300 to $600 per axle. At Nick's Tire & Auto, we provide a free brake check and written estimate before any work begins. Call " + BUSINESS.phone.display + "."
       },
       {
         question: "How do I know if my brakes need replacing?",
@@ -265,7 +265,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find brake repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for brake repair. We offer free brake checks, same-day brake service starting at $129/axle, and a 12-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + ", Cleveland is open 7 days a week for brake repair. We offer free brake checks, same-day brake service starting at $129/axle, and a 12-month warranty on all brake work. Walk-ins welcome. Call " + BUSINESS.phone.display + "."
       }
     ],
     includedItems: [
@@ -302,7 +302,7 @@ export const SERVICES: ServiceData[] = [
     title: "DIAGNOSTICS",
     shortDesc: "Check engine light, OBD-II code reading, advanced computer diagnostics. We pinpoint the exact cause so you only pay for what you need.",
     metaTitle: "Check Engine Light Cleveland · Free Code Pull | Nick's",
-    metaDescription: "Cleveland diagnostic shop where the code pull is free and the explanation is in real English. Same-day repair on most codes. Walk-ins 7 days. (216) 862-0005.",
+    metaDescription: "Cleveland diagnostic shop where the code pull is free and the explanation is in real English. Same-day repair on most codes. Walk-ins 7 days. " + BUSINESS.phone.display + ".",
     heroHeadline: "The light's on.\nWe find out *why*, not guess.",
     heroSubline: "Searching for check engine light service near me in Cleveland? We use advanced OBD-II scanners to find the exact cause, not guess at it. Free code scan with repair, same-day service, walk-ins welcome.",
     heroCTA: "SCHEDULE DIAGNOSTICS",
@@ -370,7 +370,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find check engine light service near me?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for check engine light diagnostics. We offer a free code scan with repair, advanced OBD-II testing, and same-day service for most check engine light issues. No appointment needed. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + ", Cleveland is open 7 days a week for check engine light diagnostics. We offer a free code scan with repair, advanced OBD-II testing, and same-day service for most check engine light issues. No appointment needed. Call " + BUSINESS.phone.display + "."
       }
     ],
     includedItems: [
@@ -524,7 +524,7 @@ export const SERVICES: ServiceData[] = [
     // clicks with a price + speed promise no Cleveland chain lists in
     // their snippet.
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
-    metaDescription: "Cleveland oil change from $49 (full synthetic from $80), new filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. (216) 862-0005",
+    metaDescription: "Cleveland oil change from $49 (full synthetic from $80), new filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. " + BUSINESS.phone.display,
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
     heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First come, first served. Pull up without an appointment, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
@@ -580,7 +580,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: `At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}, and full synthetic starts at $${OIL_PRICE.fullSynthetic}, plus tax. Every oil change includes a new filter. ${BUSINESS.freeInspection.offer}${OIL_COUPON_CLAUSE ? " Mention the code when you arrive." : ""} Call (216) 862-0005.`
+        answer: `At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}, and full synthetic starts at $${OIL_PRICE.fullSynthetic}, plus tax. Every oil change includes a new filter. ${BUSINESS.freeInspection.offer}${OIL_COUPON_CLAUSE ? " Mention the code when you arrive." : ""} Call ${BUSINESS.phone.display}.`
       },
       {
         question: "What is the difference between synthetic and conventional oil?",
@@ -592,7 +592,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: `Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $${OIL_PRICE.conventional} conventional/blend${OIL_COUPON_CLAUSE}, $${OIL_PRICE.fullSynthetic} full synthetic, plus tax. ${BUSINESS.freeInspection.offer} Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005.`
+        answer: `Nick's Tire & Auto at ${BUSINESS.address.full} offers oil changes: $${OIL_PRICE.conventional} conventional/blend${OIL_COUPON_CLAUSE}, $${OIL_PRICE.fullSynthetic} full synthetic, plus tax. ${BUSINESS.freeInspection.offer} Walk-ins welcome 7 days a week, most done in 15 minutes. Call ${BUSINESS.phone.display}.`
       }
     ],
     includedItems: [
@@ -625,7 +625,7 @@ export const SERVICES: ServiceData[] = [
     title: "GENERAL REPAIR",
     shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we fix it.",
     metaTitle: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
-    metaDescription: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, suspension, steering, exhaust. Walk-ins 7 days. (216) 862-0005.",
+    metaDescription: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, suspension, steering, exhaust. Walk-ins 7 days. " + BUSINESS.phone.display + ".",
     heroHeadline: "AUTO REPAIR NEAR ME\nIN CLEVELAND",
     heroSubline: "Searching for auto repair near me or a mechanic near me in Cleveland? Nick's Tire & Auto is your full-service auto shop for suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we diagnose it and fix it right.",
     heroCTA: "DESCRIBE YOUR PROBLEM",
@@ -693,7 +693,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find auto repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + " is a full-service auto repair shop open 7 days a week. Brake repair, oil changes, engine diagnostics or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,710+ Google reviews. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + " is a full-service auto repair shop open 7 days a week. Brake repair, oil changes, engine diagnostics or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,710+ Google reviews. Call " + BUSINESS.phone.display + "."
       },
       {
         question: "How do I find a good mechanic near me?",
@@ -732,7 +732,7 @@ export const SERVICES: ServiceData[] = [
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
     metaTitle: "AC Repair Cleveland · Open 7 Days · Written Quote | Nick's",
-    metaDescription: "Cleveland car AC repair, leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.",
+    metaDescription: "Cleveland car AC repair, leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. " + BUSINESS.phone.display + ".",
     heroHeadline: "Cold air, fast, \nor we keep working.",
     heroSubline: "Everything you need to know about your car's air conditioning system, common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",
@@ -902,7 +902,7 @@ export const SERVICES: ServiceData[] = [
     title: "TRANSMISSION",
     shortDesc: "Transmission fluid service, diagnostics, repair, and rebuilds. We handle both automatic and manual transmissions.",
     metaTitle: "Transmission Repair Cleveland · We Try Fluid First | Nick's",
-    metaDescription: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.",
+    metaDescription: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. " + BUSINESS.phone.display + ".",
     heroHeadline: "Slipping, jerking, leaking.\nWe tell you which.",
     heroSubline: "Transmission problems get expensive fast if ignored. Our technicians diagnose transmission issues accurately and give you honest repair options, from a simple fluid service to a full rebuild.",
     heroCTA: "DIAGNOSE MY TRANSMISSION",
@@ -966,7 +966,7 @@ export const SERVICES: ServiceData[] = [
     title: "ELECTRICAL",
     shortDesc: "Battery, alternator, starter, wiring, fuses, power windows, and complete electrical diagnostics.",
     metaTitle: "Auto Electrical Cleveland · Trace, Don't Swap | Nick's",
-    metaDescription: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.",
+    metaDescription: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. " + BUSINESS.phone.display + ".",
     heroHeadline: "3,000 circuits in modern cars.\nWe find the broken one.",
     heroSubline: "Modern vehicles have thousands of circuits. When electrical problems strike, our technicians use advanced diagnostic tools to trace the issue to the exact component.",
     heroCTA: "DIAGNOSE ELECTRICAL ISSUE",
@@ -1029,7 +1029,7 @@ export const SERVICES: ServiceData[] = [
     title: "BATTERY SERVICE",
     shortDesc: "Battery testing, replacement, terminal cleaning, and charging system diagnostics. Don't get stranded.",
     metaTitle: "Car Battery Cleveland · Free Test, 5-Minute Install | Nick's",
-    metaDescription: "Cleveland battery replacement in 5 minutes. Free load test + alternator test before we sell you anything. Walk-ins 7 days. Open Sunday. (216) 862-0005.",
+    metaDescription: "Cleveland battery replacement in 5 minutes. Free load test + alternator test before we sell you anything. Walk-ins 7 days. Open Sunday. " + BUSINESS.phone.display + ".",
     heroHeadline: "Cleveland winters kill batteries.\nWe test free.",
     heroSubline: "Cleveland winters kill batteries. Don't wait until you're stranded. We test your battery for free and replace it on the spot if needed.",
     heroCTA: "TEST MY BATTERY FREE",
@@ -1086,7 +1086,7 @@ export const SERVICES: ServiceData[] = [
     title: "EXHAUST & MUFFLER",
     shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator repair. Quiet your ride and pass emissions.",
     metaTitle: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's",
-    metaDescription: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. (216) 862-0005.",
+    metaDescription: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. " + BUSINESS.phone.display + ".",
     heroHeadline: "Exhaust never breaks Tuesday.\nWe're open Sunday.",
     heroSubline: "Searching for muffler shops near me in Cleveland? Nick's handles the entire exhaust system from manifold to tailpipe, including muffler replacement, catalytic converters, exhaust pipes and emissions repair. Same-day service starting at $149.",
     heroCTA: "FIX MY EXHAUST",
@@ -1123,11 +1123,11 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How much does muffler repair cost in Cleveland?",
-        answer: "Muffler replacement in Cleveland typically costs $150 to $400 depending on vehicle make and model. Exhaust pipe section repair runs $100 to $300. Catalytic converter replacement ranges from $500 to $2,000. At Nick's Tire & Auto, every exhaust repair starts with a free check and written estimate. Call (216) 862-0005."
+        answer: "Muffler replacement in Cleveland typically costs $150 to $400 depending on vehicle make and model. Exhaust pipe section repair runs $100 to $300. Catalytic converter replacement ranges from $500 to $2,000. At Nick's Tire & Auto, every exhaust repair starts with a free check and written estimate. Call " + BUSINESS.phone.display + "."
       },
       {
         question: "Where can I find muffler shops near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service muffler and exhaust shop. We handle muffler replacement, exhaust pipe repair, catalytic converters, and emissions-related exhaust work. Walk-ins welcome 7 days a week with same-day service on most exhaust repairs. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at " + BUSINESS.address.full + ", Cleveland is a full-service muffler and exhaust shop. We handle muffler replacement, exhaust pipe repair, catalytic converters, and emissions-related exhaust work. Walk-ins welcome 7 days a week with same-day service on most exhaust repairs. Call " + BUSINESS.phone.display + "."
       }
     ],
     includedItems: ["Full exhaust inspection", "Code reading", "Written estimate", "Post-repair leak check"],
@@ -1154,7 +1154,7 @@ export const SERVICES: ServiceData[] = [
     title: "COOLING SYSTEM",
     shortDesc: "Radiator, water pump, thermostat, coolant flush, hoses, and overheating diagnostics. Don't blow a head gasket.",
     metaTitle: "Radiator Repair Cleveland · Stop The Steam Cloud | Nick's",
-    metaDescription: "Cleveland radiator shop where overheat diagnosis happens before the parts cannon. Water pump, thermostat, coolant flush, pressure test. (216) 862-0005.",
+    metaDescription: "Cleveland radiator shop where overheat diagnosis happens before the parts cannon. Water pump, thermostat, coolant flush, pressure test. " + BUSINESS.phone.display + ".",
     heroHeadline: "Overheating engines self-destruct\nin minutes. Then come here.",
     heroSubline: "An overheating engine can destroy itself in minutes. We diagnose cooling system problems fast and get your engine running at the right temperature.",
     heroCTA: "FIX OVERHEATING",
@@ -1215,7 +1215,7 @@ export const SERVICES: ServiceData[] = [
     title: "PRE-PURCHASE INSPECTION",
     shortDesc: "Buying a used car? We inspect it bumper-to-bumper before you hand over your money. Don't buy someone else's problems.",
     metaTitle: "Used Car Inspection Cleveland · Before You Sign | Nick's",
-    metaDescription: "Cleveland pre-purchase inspection. The 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.",
+    metaDescription: "Cleveland pre-purchase inspection. The 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. " + BUSINESS.phone.display + ".",
     heroHeadline: "Don't buy that used car blind.",
     heroSubline: "Buying a used car is a gamble, unless you get it inspected first. Our technicians check everything from engine health to frame condition so you know exactly what you are buying.",
     heroCTA: "SCHEDULE INSPECTION",
@@ -1271,7 +1271,7 @@ export const SERVICES: ServiceData[] = [
     title: "BELTS & HOSES",
     shortDesc: "Serpentine belt, timing belt, radiator hoses, heater hoses. Prevent breakdowns with preventive replacement.",
     metaTitle: "Belt & Hose Cleveland · Catch It Before The Tow | Nick's",
-    metaDescription: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. (216) 862-0005.",
+    metaDescription: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. " + BUSINESS.phone.display + ".",
     heroHeadline: "A $50 belt prevents\na $500 tow.",
     heroSubline: "Belts and hoses are rubber. They crack, dry out, and fail with age and heat. A $50 belt replacement prevents a $500 tow and a ruined day.",
     heroCTA: "CHECK MY BELTS",
@@ -1329,7 +1329,7 @@ export const SERVICES: ServiceData[] = [
     title: "STARTER & ALTERNATOR",
     shortDesc: "Starter motor, alternator, and charging system diagnostics and replacement. Get back on the road fast.",
     metaTitle: "Starter Alternator Cleveland · Free Charge Test | Nick's",
-    metaDescription: "Cleveland starter + alternator shop where the charging system gets tested before parts get sold. Free voltage drop + load test. (216) 862-0005.",
+    metaDescription: "Cleveland starter + alternator shop where the charging system gets tested before parts get sold. Free voltage drop + load test. " + BUSINESS.phone.display + ".",
     heroHeadline: "Won't start?\nWe test before we replace.",
     heroSubline: "If your car won't start or your battery keeps dying, the starter or alternator is likely the culprit. We test both and replace only what actually failed.",
     heroCTA: "DIAGNOSE NO-START",

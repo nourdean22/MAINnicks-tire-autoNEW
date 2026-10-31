@@ -78,7 +78,7 @@ export const BUSINESS = {
 
   // ─── HOURS ───────────────────────────────────────────
   hours: {
-    display: "7 days — Mon–Sat 8AM–6PM, Sun 9AM–4PM",
+    display: "7 days · Mon–Sat 8AM–6PM, Sun 9AM–4PM",
     shortDisplay: "7 days · 8AM start",
     fullDisplay: "Monday–Saturday: 8:00 AM–6:00 PM | Sunday: 9:00 AM–4:00 PM",
     sunday: "Sun 9AM–4PM",
