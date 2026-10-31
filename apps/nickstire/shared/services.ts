@@ -528,7 +528,7 @@ export const SERVICES: ServiceData[] = [
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
     heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First come, first served. Pull up without an appointment, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
-    turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city. Check our reviews.",
+    turnaround: "Most oil changes done in 15 minutes. No appointment needed.",
     pricingNote: BUSINESS.freeInspection.short + " Correct oil weight per manufacturer spec",
     signs: [
       "Oil change reminder light or maintenance required indicator",

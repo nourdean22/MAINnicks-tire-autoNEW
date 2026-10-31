@@ -70,6 +70,10 @@ const RETIRED = [
   "Whether you need a simple pad swap",
   "Whether you need brake repair",
   "no parts-swapping guesswork",
+  // Manager ruling 2026-10-31: an unsupported superlative (USER.md: no hype), cut in both places.
+  "fastest in the city",
+  // Typed hours drift from BUSINESS.hours; the brake FAQ renders them instead.
+  "Mon-Sat 8-6",
 ];
 
 const read = (rel: string) => fs.readFileSync(path.join(APP, rel), "utf8");
