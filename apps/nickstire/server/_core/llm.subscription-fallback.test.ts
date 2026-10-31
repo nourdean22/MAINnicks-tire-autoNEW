@@ -129,4 +129,18 @@ describe("ollama quota refusal → gemini fallback", () => {
     expect(calls).toHaveLength(2);
     expect(calls[1].url).toContain("generativelanguage.googleapis.com");
   });
+
+  // 2026-10-30 (self-learning W1a): the receptionist evaluation must stay on the
+  // Ollama lane. A Gemini fallback there is a second model bill AND a different
+  // replay or judge model mid-run, so the measurement would compare two lanes.
+  it("ollamaOnly: a subscription refusal throws instead of falling back to Gemini", async () => {
+    armEnv();
+    const calls = stubFetch([
+      { status: 403, body: SUBSCRIPTION_403 },
+      { status: 200, body: JSON.stringify(OK_RESULT) },
+    ]);
+    await expect(invokeLLM({ messages: [{ role: "user", content: "hi" }], ollamaOnly: true })).rejects.toThrow(/403/);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toContain("ollama.com");
+  });
 });
