@@ -1552,6 +1552,13 @@ describe("install package value has one source; lifetime rotations are not promi
     for (const t of titles) expect(Number(ROUTE_TITLE.exec(t.text)![1])).toBe(BUSINESS.installPackage.valueDollars);
   });
 
+  it("the blog generator prompt example quotes the figure from BUSINESS, with its dollar sign", () => {
+    // Manager ruling 2026-10-30: a one-line cross-lane read in server/content-generator.ts.
+    const src = readFileSync(join(ROOT, "server", "content-generator.ts"), "utf8");
+    expect(src).toContain("advertise the $${BUSINESS.installPackage.valueDollars} they tack on");
+    expect(src).not.toMatch(/advertise the \$266\b/);
+  });
+
   it("no copy promises lifetime rotations from Nick's", () => {
     const hits = LINES.filter((l) => LIFETIME_ROTATION.test(l.text) && !COMPETITOR_CONTEXT.test(l.text));
     expect(hits.map((l) => `${l.file}:${l.line}`)).toEqual([]);
