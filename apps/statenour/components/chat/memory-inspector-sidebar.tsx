@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Brain, Sparkles, AlertTriangle, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, ShieldCheck, X } from "lucide-react";
 import type { QualityPayload } from "@/components/chat/quality-bar";
 import { WEAK_MATCH_BELOW, splitWeakTail } from "@/lib/chat/recall-display";
 import { useInspector } from "@/hooks/use-inspector";
@@ -106,8 +106,8 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
       }
     >
       <div className="flex justify-between items-center py-1 pl-4 pr-1 border-b border-edge-subtle">
+        {/* audit 002 #3 (R-04): no Brain or Sparkles glyph; the words name the panel and the list. */}
         <div className="flex items-center space-x-2">
-          <Brain className="w-4 h-4 text-fg-tertiary" />
           <span className="text-[13px] font-semibold text-fg">
             Context &amp; Evidence
           </span>
@@ -231,7 +231,6 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         {/* Memory Hits Section */}
         <div>
           <div className="flex items-center space-x-1 text-fg-tertiary mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
             <span className="font-mono text-[11px] font-medium">
               {recallSource === "turn"
                 ? `Recalled for this turn (${hits.length})`

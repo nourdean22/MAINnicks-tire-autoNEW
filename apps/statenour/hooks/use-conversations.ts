@@ -419,12 +419,17 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
 
   // ── Archived ── U6: the Archived tab reads archived rows on demand; Unarchive puts one back.
   const [archivedConvos, setArchivedConvos] = useState<Convo[] | null>(null);
+  // audit 002 #2: the tab tells "reading" from "the read failed" (both were null with one line).
+  const [archivedState, setArchivedState] = useState<"idle" | "loading" | "error" | "ok">("idle");
   const loadArchived = useCallback(async () => {
+    setArchivedState("loading");
     try {
       const d = await utils.chat.list.fetch({ archived: true, take: 200 });
       setArchivedConvos(d.conversations ?? []);
+      setArchivedState("ok");
     } catch {
       setArchivedConvos(null);
+      setArchivedState("error");
       onError?.("Couldn't load archived conversations.");
     }
   }, [utils, onError]);
@@ -494,6 +499,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     togglePin,
     archivedConvos,
     loadArchived,
+    archivedState,
     unarchive,
     searchMessages,
     /** Exposed so the chat page can refresh the sidebar after a new

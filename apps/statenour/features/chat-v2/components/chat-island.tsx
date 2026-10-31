@@ -637,6 +637,7 @@ export function ChatIsland() {
               });
             }}
             archivedConvos={conversations.archivedConvos}
+            archivedState={conversations.archivedState}
             onLoadArchived={() => void conversations.loadArchived()}
             onUnarchive={(id) => void conversations.unarchive(id)}
             onSearchMessages={conversations.searchMessages}

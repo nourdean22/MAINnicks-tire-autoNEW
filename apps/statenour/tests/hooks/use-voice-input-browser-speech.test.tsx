@@ -100,7 +100,7 @@ describe("useVoiceInput browser speech lane", () => {
     await act(async () => { await result.current.startRecording(); });
     expect(FakeSpeech.last).toBeNull();
     expect(getUserMedia).toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledWith("Microphone unavailable — check permissions");
+    expect(toastError).toHaveBeenCalledWith("Microphone unavailable. Check permissions");
   });
 
   it("a denied browser mic says so", async () => {

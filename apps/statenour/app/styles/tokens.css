@@ -172,6 +172,9 @@
      while next/font preloads Geist for nothing. Pinned by __tests__/theme-font-utilities.test.ts. */
   --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* LABEL VOICE is font-mono at 11px (antislop R-06, audit 002 #5, 2026-10-31): small labels, counts
+     and timestamps use it app-wide (about 159 files), so metadata reads apart from prose set in sans.
+     It is a system choice, not a "terminal" costume; changing it is an app-wide call, never one page. */
 
   /* semantic roles (v2) */
   --color-canvas: var(--canvas);
