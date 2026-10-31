@@ -25,13 +25,16 @@ export type CoachEventKind =
   | "mission-deadline-check"
   | "proactive-nick"
   | "anomaly"
-  | "system-alert";
+  | "system-alert"
+  /** A low/medium push held by quiet hours (home-pulse W4): shown in the Pulse sheet instead of dropped. */
+  | "held-notification";
 
 /** Priority tiers · sorted top-of-feed. */
 export type CoachEventPriority = "P0" | "P1" | "P2";
 
-/** Surfaces that read coach events. Closed set · matches the 5 daily-driver pages. */
-export type CoachEventSurface = "tasks" | "goals" | "journal" | "brain" | "scoreboard" | "home";
+/** Surfaces that read coach events. Closed set · matches the 5 daily-driver pages, plus "pulse"
+ *  (home-pulse W4): the Pulse sheet only, which no page banner reads. */
+export type CoachEventSurface = "tasks" | "goals" | "journal" | "brain" | "scoreboard" | "home" | "pulse";
 
 /** Reader output shape · what each surface gets back. */
 export interface CoachEvent {

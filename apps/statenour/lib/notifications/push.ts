@@ -170,25 +170,53 @@ async function getSubscriptions(): Promise<Array<{ endpoint: string; keys: { p25
 }
 
 /**
+ * A push held by quiet hours: parked as a Pulse-only coach event (P2, so it never pushes itself) that
+ * expires after a day, plus a push_deferred audit row. The tag (or the title) is the subject, so a
+ * repeat updates one row. If parking fails the answer says failed: 1, never a silent zero.
+ */
+async function deferPush(payload: PushPayload): Promise<{ sent: number; failed: number; deferred: number }> {
+  const { recordCoachEvent } = await import("@/lib/services/coach-events");
+  const parked = await recordCoachEvent({
+    kind: "held-notification",
+    subjectId: payload.tag ?? `title:${payload.title.slice(0, 80)}`,
+    priority: "P2",
+    title: payload.title,
+    body: payload.body,
+    deepLink: payload.url,
+    surfaces: ["pulse"],
+    expiresAt: new Date(Date.now() + 24 * 3600_000).toISOString(),
+  });
+  await prisma.auditEvent
+    .create({
+      data: {
+        actor: "push-notification",
+        eventType: "push_deferred",
+        detail: `${payload.level}: ${payload.title} — held by quiet hours${parked ? " in the Pulse sheet" : ", and parking it failed"}`,
+        payload: { title: payload.title, level: payload.level, tag: payload.tag ?? null, parked: Boolean(parked) } as any,
+      },
+    })
+    .catch((err) => recordError("notifications:audit", err, { level: payload.level, deferred: true }));
+  return parked ? { sent: 0, failed: 0, deferred: 1 } : { sent: 0, failed: 1, deferred: 0 };
+}
+
+/**
  * Send a push notification to all subscribed devices.
  * Uses Web Push protocol via fetch (no npm dependency needed).
  */
-export async function sendPush(payload: PushPayload): Promise<{ sent: number; failed: number }> {
+export async function sendPush(payload: PushPayload): Promise<{ sent: number; failed: number; deferred?: number }> {
   // Context-aware filtering
   const hour = parseInt(
     new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
     10
   );
 
-  // Don't send LOW/MEDIUM notifications during shutdown hours (9pm-7am)
-  if ((hour >= 21 || hour < 7) && (payload.level === "low" || payload.level === "medium")) {
-    return { sent: 0, failed: 0 };
-  }
-
-  // Don't send LOW notifications during peak block (8am-11am) unless critical
-  if (hour >= 8 && hour < 11 && payload.level === "low") {
-    return { sent: 0, failed: 0 };
-  }
+  // Don't BUZZ LOW/MEDIUM notifications during shutdown hours (9pm-7am), or LOW ones in the peak
+  // block (8am-11am). They are held in the Pulse sheet instead (home-pulse W4, 2026-10-31): before,
+  // this returned the same { sent: 0 } as "no device" and the notice was simply gone.
+  const quiet =
+    ((hour >= 21 || hour < 7) && (payload.level === "low" || payload.level === "medium")) ||
+    (hour >= 8 && hour < 11 && payload.level === "low");
+  if (quiet) return deferPush(payload);
 
   // Per-tag flood control (see PUSH_COOLDOWN_BY_LEVEL). Best-effort: the
   // audit row lands after delivery, so two truly concurrent sends can both

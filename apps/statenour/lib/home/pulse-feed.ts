@@ -7,16 +7,17 @@
  */
 import { buildCoachEventKey, type CoachEvent, type CoachEventKind, type CoachEventPriority } from "@/lib/services/coach-events-types";
 
-export type PulseSource = "system" | "goals" | "habits" | "nick";
+export type PulseSource = "system" | "goals" | "habits" | "nick" | "held";
 
 /** Tie-break order for groups whose most urgent items are equally urgent. */
-export const PULSE_SOURCE_ORDER: readonly PulseSource[] = ["system", "goals", "habits", "nick"];
+export const PULSE_SOURCE_ORDER: readonly PulseSource[] = ["system", "goals", "habits", "nick", "held"];
 
 export const PULSE_SOURCE_LABEL: Record<PulseSource, string> = {
   system: "System",
   goals: "Goals",
   habits: "Habits",
   nick: "Nick",
+  held: "Held for later",
 };
 
 const SOURCE_OF: Record<CoachEventKind, PulseSource> = {
@@ -28,6 +29,7 @@ const SOURCE_OF: Record<CoachEventKind, PulseSource> = {
   "drift-recovery": "habits",
   "idle-nudge": "habits",
   "proactive-nick": "nick",
+  "held-notification": "held",
 };
 
 const RANK: Record<CoachEventPriority, number> = { P0: 0, P1: 1, P2: 2 };
