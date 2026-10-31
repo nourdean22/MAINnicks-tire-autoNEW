@@ -33,8 +33,9 @@ const log = rootLogger.withSurface("brain/people-embed-hook");
  * people procedures + any cron that mutates the dossier. Idempotent ·
  * skips the embedding-provider call when content is byte-identical to
  * the existing row (same gate storeGenericEmbedding uses).
+ * Returns true only when the person has a current vector afterwards: the embed-backfill person lane retries the rest.
  */
-export async function enqueuePersonEmbed(personId: string): Promise<void> {
+export async function enqueuePersonEmbed(personId: string): Promise<boolean> {
   try {
     // Wave AM · 2026-05-28 · soft-delete safety · don't enqueue embeds
     // for deleted people · they shouldn't bleed into semantic search.
@@ -48,7 +49,7 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
         leverageNotes: true,
       },
     });
-    if (!person) return;
+    if (!person) return false;
 
     // Compose the document the search route ranks against. Mirrors
     // the BM25 to_tsvector columns in app/api/people/search/route.ts.
@@ -63,7 +64,7 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
       .join("\n")
       .slice(0, 8000);
 
-    if (content.length < 10) return;
+    if (content.length < 10) return false;
 
     // Power Atlas fix 2026-06-02: mirror the dossier into brain_memories so
     // Nick's CHAT recall (searchMemories FTS + getContextualMemories) can
@@ -102,10 +103,10 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
       select: { id: true, content: true },
     });
 
-    if (existing && existing.content === content) return;
+    if (existing && existing.content === content) return true;
 
     const vec = await getEmbedding(content);
-    if (vec.length === 0) return; // provider unavailable · degrade silently
+    if (vec.length === 0) return false; // provider unavailable · degrade silently
 
     // ⚠ SAME RACE AS enqueueLedgerEmbed BELOW — and I fixed that one first and
     // missed this one, which is the identical "fixed one sibling, not the other"
@@ -117,12 +118,12 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
     //
     // `existing` above was read BEFORE the provider call and is stale by now, so
     // it is re-read here rather than reused.
-    await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
       const live = await tx.personProfile.findUnique({
         where: { id: personId },
         select: { id: true },
       });
-      if (!live) return; // deleted while we were embedding — write nothing
+      if (!live) return false; // deleted while we were embedding — write nothing
 
       const current = await tx.vectorEmbedding.findFirst({
         where: { sourceType: "person_profile", sourceId: personId },
@@ -144,23 +145,26 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
           },
         });
       }
+      return true;
     });
   } catch (err) {
     log.warn("person_embed_failed", {
       personId,
       err: err instanceof Error ? err.message : String(err),
     });
+    return false;
   }
 }
 
 /**
  * Same for ledger entries. Skips short notes (<20 chars · no signal).
+ * Returns true only when a vector was written: the embed-backfill ledger lane retries the rest.
  */
-export async function enqueueLedgerEmbed(ledgerId: string, note: string): Promise<void> {
-  if (note.length < 20) return;
+export async function enqueueLedgerEmbed(ledgerId: string, note: string): Promise<boolean> {
+  if (note.length < 20) return false;
   try {
     const vec = await getEmbedding(note);
-    if (vec.length === 0) return;
+    if (vec.length === 0) return false;
 
     // ⚠ RE-CHECK THE LEDGER ROW AFTER THE EMBEDDING CALL, NOT BEFORE IT.
     //
@@ -181,12 +185,12 @@ export async function enqueueLedgerEmbed(ledgerId: string, note: string): Promis
     // sub-millisecond race is marked `row_absent` by the nightly
     // lib/db/embedding-shadow sweep and stops surfacing in recall. Stating the
     // limit rather than claiming the race is gone.
-    await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
       const live = await tx.relationshipLedger.findUnique({
         where: { id: ledgerId },
         select: { id: true },
       });
-      if (!live) return; // deleted while we were embedding — write nothing
+      if (!live) return false; // deleted while we were embedding — write nothing
 
       const existing = await tx.vectorEmbedding.findFirst({
         where: { sourceType: "relationship_ledger", sourceId: ledgerId },
@@ -208,11 +212,13 @@ export async function enqueueLedgerEmbed(ledgerId: string, note: string): Promis
           },
         });
       }
+      return true;
     });
   } catch (err) {
     log.warn("ledger_embed_failed", {
       ledgerId,
       err: err instanceof Error ? err.message : String(err),
     });
+    return false;
   }
 }

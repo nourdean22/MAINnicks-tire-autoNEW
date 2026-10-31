@@ -14,11 +14,14 @@
  *   • strategic_law    — the Greene laws (static, backfills once)
  *   • chat_message     — assistant replies ≥ 60 chars (recall surface
  *                        for cross-source recall in contextual-recall)
+ *   • relationship_ledger — /people notes whose one-shot hook embed failed
+ *   • person_profile   — /people profiles with no vector (same one-shot hook)
  */
 
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
+import { enqueueLedgerEmbed, enqueuePersonEmbed } from "@/lib/brain/people-embed-hook";
 import { TELEMETRY_CATEGORY_LIST } from "@/lib/brain/embedding-policy";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -387,6 +390,54 @@ export const GET = cronHandler(async () => {
       }
     }
     report.chat_message = { processed: batch.length, success, remaining: missing.length - batch.length };
+    totalProcessed += batch.length;
+    totalSuccess += success;
+  }
+
+  // ── relationship_ledger (/people notes) ──
+  // enqueueLedgerEmbed runs once, fire-and-forget, and only logs a failed provider call, so before 2026-10-31 a
+  // note whose first embed failed stayed out of /people search for good. Same anti-join as brain_memory: a row
+  // drops out once it has a vector. Notes under 20 chars and deleted people are skipped, as the hook does.
+  {
+    const missing = await prisma.$queryRaw<{ id: string; note: string }[]>`
+      SELECT rl.id, rl.note
+      FROM relationship_ledger rl
+      JOIN person_profiles p ON p.id = rl.person_id AND p.deleted_at IS NULL
+      WHERE length(rl.note) >= 20
+        AND NOT EXISTS (
+          SELECT 1 FROM vector_embeddings v
+          WHERE v."sourceType" = 'relationship_ledger' AND v."sourceId" = rl.id
+        )
+      ORDER BY rl.created_at DESC, rl.id
+      LIMIT 200
+    `;
+    const batch = missing.slice(0, BATCH_PER_TYPE);
+    let success = 0;
+    for (const r of batch) if (await enqueueLedgerEmbed(r.id, r.note)) success++;
+    report.relationship_ledger = { processed: batch.length, success, remaining: missing.length - batch.length };
+    totalProcessed += batch.length;
+    totalSuccess += success;
+  }
+
+  // ── person_profile (/people search) ──
+  // Same one-shot hook, same hole: 12 of 20 live people had no vector on 2026-10-31 (read-only prod read), so the
+  // /people search bar could not rank them by meaning. enqueuePersonEmbed builds the document and re-checks the row.
+  {
+    const missing = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT p.id
+      FROM person_profiles p
+      WHERE p.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM vector_embeddings v
+          WHERE v."sourceType" = 'person_profile' AND v."sourceId" = p.id
+        )
+      ORDER BY p.created_at DESC, p.id
+      LIMIT 200
+    `;
+    const batch = missing.slice(0, BATCH_PER_TYPE);
+    let success = 0;
+    for (const p of batch) if (await enqueuePersonEmbed(p.id)) success++;
+    report.person_profile = { processed: batch.length, success, remaining: missing.length - batch.length };
     totalProcessed += batch.length;
     totalSuccess += success;
   }
