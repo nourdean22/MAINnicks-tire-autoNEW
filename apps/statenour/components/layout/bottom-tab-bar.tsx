@@ -104,8 +104,9 @@ export function BottomTabBar() {
       className="fixed bottom-0 left-0 right-0 z-[55]"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      {/* Ambient brain-signal ticker rides above the tab row. */}
-      <BottomPulseTicker />
+      {/* Ambient brain-signal ticker rides above the tab row. U1 (2026-10-30): not on /chat, where
+          every vertical pixel belongs to the conversation (it rotated every 10 s under the composer). */}
+      {isActiveHref(pathname, "/chat") ? null : <BottomPulseTicker />}
       <nav
         aria-label="Primary"
         className="ui-material flex items-stretch border-t border-edge-subtle xl:hidden"

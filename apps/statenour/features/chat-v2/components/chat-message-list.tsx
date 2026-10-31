@@ -547,7 +547,7 @@ export function ChatMessageList({
       aria-busy={isLoading}
       // W3b (B1): the log grows up from the composer (min-h-full + justify-end), so a short
       // conversation sits next to the input instead of leaving the viewport's lower half empty.
-      className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-end gap-7 px-4 py-5 pb-12 sm:px-6"
+      className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-end gap-5 px-4 py-5 pb-12 sm:px-6"
     >
       {diagnosticReport && (
         <section className="rounded-surface border border-edge-subtle bg-content p-4">

@@ -29,6 +29,23 @@ import { toast } from "sonner";
 // A1b: the composer's line while a conversation opens (use-conversations isLoadingConvo).
 export const COMPOSER_OPENING_REASON = "Opening that conversation. Send once it is on screen.";
 const XL_QUERY = "(min-width: 1280px)";
+const DOCKED_KEY = "chat:inspectorDocked";
+/** The saved docked choice, or null when none (or storage is blocked: private mode, Lockdown). */
+function readSavedDocked(): boolean | null {
+  try {
+    const v = typeof window === "undefined" ? null : window.localStorage.getItem(DOCKED_KEY);
+    return v === "1" ? true : v === "0" ? false : null;
+  } catch {
+    return null;
+  }
+}
+function saveDocked(open: boolean): void {
+  try {
+    window.localStorage.setItem(DOCKED_KEY, open ? "1" : "0");
+  } catch {
+    // storage blocked: the choice lasts for this page only
+  }
+}
 // One stable empty list, so the sidebar sees the same reference while no recall belongs to this turn.
 const NO_HITS: never[] = [];
 function subscribeXl(onChange: () => void): () => void {
@@ -141,8 +158,18 @@ export function ChatIsland() {
   const memoryInspectorOpen = useChatUiStore((state) => state.memoryInspectorOpen);
   const setMemoryInspectorOpen = useChatUiStore((state) => state.setMemoryInspectorOpen);
   // W3b (B1): docked open by default at xl until the operator chooses; an explicit choice wins at any width.
+  // U1 (2026-10-30): the docked (xl) choice is remembered across reloads, so closing the panel to
+  // give the conversation the full width sticks. Below xl it is an overlay and always starts closed.
   const xl = useXl();
-  const inspectorOpen = memoryInspectorOpen ?? xl;
+  const [savedDocked] = useState(readSavedDocked);
+  const inspectorOpen = memoryInspectorOpen ?? (xl ? savedDocked ?? true : false);
+  const chooseInspector = useCallback(
+    (open: boolean) => {
+      setMemoryInspectorOpen(open);
+      if (xl) saveDocked(open);
+    },
+    [setMemoryInspectorOpen, xl],
+  );
   const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
   const privateMode = useChatUiStore((state) => state.privateMode);
   const activeConversationId = useChatUiStore((state) => state.activeConversationId);
@@ -396,7 +423,7 @@ export function ChatIsland() {
             </button>
           )}
           {/* A word, not the Brain glyph (antislop R-04): the glyph said "AI", the word says what opens. */}
-          <button onClick={() => setMemoryInspectorOpen(!inspectorOpen)} aria-label="Context and memory" aria-pressed={inspectorOpen} className={`flex h-11 min-w-11 items-center justify-center rounded-control px-2.5 text-[13px] font-medium max-md:hidden transition-colors duration-[var(--motion-state)] ${inspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={() => chooseInspector(!inspectorOpen)} aria-label="Context and memory" aria-pressed={inspectorOpen} className={`flex h-11 min-w-11 items-center justify-center rounded-control px-2.5 text-[13px] font-medium max-md:hidden transition-colors duration-[var(--motion-state)] ${inspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             Context
           </button>
           <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
@@ -429,7 +456,7 @@ export function ChatIsland() {
               <span className="ml-auto text-[13px] text-fg-tertiary">{tts.enabled ? "On" : "Off"}</span>
             </button>
           )}
-          <button type="button" aria-pressed={inspectorOpen} onClick={() => { setMemoryInspectorOpen(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+          <button type="button" aria-pressed={inspectorOpen} onClick={() => { chooseInspector(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
             <PanelRight size={16} />
             Context and memory
           </button>
@@ -532,7 +559,7 @@ export function ChatIsland() {
 
       {/* W3b (B1): docked at xl (the evidence beside the answer, on its own raised surface, closable
           from the header's Context button); the opt-in overlay below xl, as before. */}
-      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recallCurrent ? recalledHits : NO_HITS} fetchedAt={recallCurrent ? memoryFetchedAt : null} reply={replyQuality} recallProvenance={recallCurrent ? recallProvenance : undefined} recallProvenanceReason={recallCurrent ? recallProvenanceReason : undefined} recallSource={recallCurrent ? recallSource : undefined} />
+      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => chooseInspector(false)} hits={recallCurrent ? recalledHits : NO_HITS} fetchedAt={recallCurrent ? memoryFetchedAt : null} reply={replyQuality} recallProvenance={recallCurrent ? recallProvenance : undefined} recallProvenanceReason={recallCurrent ? recallProvenanceReason : undefined} recallSource={recallCurrent ? recallSource : undefined} />
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays rather than re-laying-out the chat column.
