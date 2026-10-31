@@ -54,3 +54,45 @@ describe("typed shop facts in shared/services.ts", () => {
     expect(Date.now()).toBeLessThan(Date.parse(`${GSC_BLOCK.until}T23:59:59-05:00`));
   });
 });
+
+/**
+ * shared/routes.ts descriptions must stay plain string literals (scripts/validate-route-registry.mjs
+ * parses them as text and fails closed otherwise), so they cannot read BUSINESS. Manager ruling
+ * 2026-10-31 (option a): keep the literals and fail the build the day one drifts from BUSINESS.
+ */
+const PHONE_SHAPE = /\(\d{3}\) \d{3}-\d{4}|\b\d{3}-\d{3}-\d{4}\b/g;
+const EUCLID_ADDRESS = /\b\d{3,6} Euclid Ave(?:nue)?\b/g;
+
+/** Every phone- or Euclid-address-shaped string in the text that does not match BUSINESS. */
+export function driftedFacts(text: string): string[] {
+  const phones = (text.match(PHONE_SHAPE) ?? []).filter((p) => p !== BUSINESS.phone.display && p !== BUSINESS.phone.dashed);
+  const streets = (text.match(EUCLID_ADDRESS) ?? []).filter((a) => a !== BUSINESS.address.street);
+  return [...phones, ...streets];
+}
+
+describe("typed shop facts in shared/routes.ts stay equal to BUSINESS", () => {
+  const src = fs.readFileSync(path.join(APP, "shared/routes.ts"), "utf8");
+
+  it("positive control: a drifted phone or street is caught, the real ones pass", () => {
+    expect(driftedFacts("Call (216) 862-0006 or 216-862-0005. 17625 Euclid Ave, 17626 Euclid Avenue.")).toEqual([
+      "(216) 862-0006",
+      "17626 Euclid Avenue",
+    ]);
+    expect(driftedFacts(`Call ${BUSINESS.phone.display}. ${BUSINESS.address.street}.`)).toEqual([]);
+  });
+
+  it("the scan finds the typed phone numbers it guards (the scanner saw its subject)", () => {
+    expect((src.match(PHONE_SHAPE) ?? []).length).toBeGreaterThanOrEqual(50);
+  });
+
+  it("no phone or Euclid address in routes.ts differs from BUSINESS", () => {
+    expect(driftedFacts(src)).toEqual([]);
+  });
+});
+
+describe("BUSINESS.hours.display", () => {
+  it("separates the days from the hours without an em dash (number ranges keep their en dash)", () => {
+    expect(BUSINESS.hours.display).not.toMatch(/—/);
+    expect(BUSINESS.hours.display).toMatch(/Mon–Sat 8AM–6PM/);
+  });
+});
