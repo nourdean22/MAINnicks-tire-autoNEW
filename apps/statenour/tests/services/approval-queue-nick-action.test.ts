@@ -150,6 +150,46 @@ describe("approving a Nick Action Queue row in the app", () => {
     expect(h.send).not.toHaveBeenCalled();
   });
 
+  // Second reader on #3437 (P2): an inline run that throws BEFORE its swap left the row approved and
+  // unexecuted behind a 200, so an old row died silently past the 2-day window.
+  it("an inline run that throws before claiming puts the row back in the queue and says so", async () => {
+    vi.doMock("@/lib/ai/nick-action-batch", () => ({ runNickActionBatch: vi.fn(async () => { throw new Error("db read failed"); }) }));
+    seed("n8", "nick_action_nudge_task", "nudge_task");
+    h.send.mockRejectedValueOnce(new Error("inngest down"));
+    await expect(decidePendingAction("n8", "approved", "nour")).rejects.toThrow(/back in the queue/);
+    vi.doUnmock("@/lib/ai/nick-action-batch");
+    expect(h.rows.get("n8")).toEqual(expect.objectContaining({ approval: "pending", executedAt: null }));
+  });
+
+  it("an inline run that throws after claiming leaves the claimed row alone (it ran or is running)", async () => {
+    vi.doMock("@/lib/ai/nick-action-batch", () => ({
+      runNickActionBatch: vi.fn(async () => {
+        h.rows.get("n9")!.executedAt = new Date();
+        throw new Error("digest failed");
+      }),
+    }));
+    seed("n9", "nick_action_nudge_task", "nudge_task");
+    h.send.mockRejectedValueOnce(new Error("inngest down"));
+    await decidePendingAction("n9", "approved", "nour");
+    vi.doUnmock("@/lib/ai/nick-action-batch");
+    expect(h.rows.get("n9")?.approval).toBe("approved");
+    expect(h.rows.get("n9")?.executedAt).not.toBeNull();
+  });
+
+  it("after a successful inline run the answer is the row as the run left it", async () => {
+    vi.doMock("@/lib/ai/nick-action-batch", () => ({
+      runNickActionBatch: vi.fn(async () => {
+        h.rows.get("n10")!.executedAt = new Date();
+        return { executed: 1, failed: 0, skipped: 0, results: [], telegramOk: true, total: 1 };
+      }),
+    }));
+    seed("n10", "nick_action_nudge_task", "nudge_task");
+    h.send.mockRejectedValueOnce(new Error("inngest down"));
+    const out = await decidePendingAction("n10", "approved", "nour");
+    vi.doUnmock("@/lib/ai/nick-action-batch");
+    expect(out.executedAt).not.toBeNull();
+  });
+
   it("CONTROL: rejecting a Nick action sends nothing", async () => {
     seed("n3", "nick_action_outreach_top_pick", "send_sms_outreach");
     await decidePendingAction("n3", "rejected", "nour");
