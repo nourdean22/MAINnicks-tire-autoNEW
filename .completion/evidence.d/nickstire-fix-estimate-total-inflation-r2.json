@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "ref": "No capability state moves: opportunityQueue.ts collectUnapprovedEstimates now applies its existing amountSane quote guard to expectedRevenueCents, urgency and recommendedAction (out-of-band estimate amounts store null value, this_week, a check-the-amount call line). server/opportunityEstimateQuoteGuard.test.ts drives the real collector: red on the unfixed collector, identical at 7421a4530f and 8d9f1ad4e (stored 3347410 cents reached the INSERT), green with the fix; reverting the value line turns it red again."
-    }
-  }
-}

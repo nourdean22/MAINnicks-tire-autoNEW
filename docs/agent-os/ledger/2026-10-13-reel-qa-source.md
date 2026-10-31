@@ -1,3 +1,0 @@
-| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
-|---|---|---|---|---|---|---|---|
-| 2026-10-13-reel-qa-source | 2026-10-13 | Reel QA fixes at the source: refuse unrenderable briefs before spend, judge continuity only with an anchor | nickstire-server | MERGED | #3005 (squash c865142d, merged 2026-10-13 11:56Z) | live proof owed: the next reel built on a brief that passes the refusals; the deploy cannot be checked from the sandbox (nickstire.org is blocked by the egress proxy) | the QA gate was right about most blocks; the fix belongs in the brief and the anchor, not the critic thresholds |

@@ -1,3 +1,0 @@
-interface:
-  display_name: "Shop Retention Report"
-  short_description: "Audit repeat customers, visit cadence, declined work, revenue mix, and retention leakage."

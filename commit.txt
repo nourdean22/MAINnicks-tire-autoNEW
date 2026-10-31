@@ -1,3 +1,0 @@
-feat: AIE delivery integration and Perplexica MCP sidecar
-
-Co-Authored-By: antigravity <noreply@anthropic.com>

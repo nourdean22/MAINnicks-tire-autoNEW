@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "2026-10-20 /ask copy, Codex #3185 thread 4329657189. Visitor on /ask sees: intro 'Got a car question? Ask the shop. Leave your email and we'll reply.' (was 'We answer it publicly so every driver gets the same straight answer', a promise no product path can keep since qa.answer and qa.all were removed); email field labelled 'Email (so we can reply)', still optional; after submit 'The shop has your question. If you left an email, we'll reply there. Without one we can't reply.' (was 'Check back soon'); SEO description no longer says 'Browse answered questions'. Old published answers still list under the form. Staff see one Telegram per question that now ends 'Reply to: <email>' or 'No email left, so there is no way to reply.' Evidence: client/src/__tests__/ask-mechanic-reply-copy.test.tsx (3 tests, mounts the real page, red 3f before the copy change) and server/publicSubmitStaffNotify.test.ts (8 tests, 2 red before the server change). Production count (manager SELECT-only): mechanic_qa 5 rows ever, 0 answered, so no live answer flow is lost."
-    }
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "home-pulse-w1": {
-      "ref": "statenour/home-pulse-w1 (job 2026-10-30-home-pulse, W1 truth). Four fixes. (1) Device counts: system-hub, buildDiagnostics and buildSystemHealth all read one new deviceTally (lib/services/system-pulse.ts), which applies the D11 7-day age rule and keeps RETIRED out; prod 2026-10-30 had 17 OFFLINE rows, 15 last seen April 2026, so Home said 17 where the rule says 1. (2) The NOW hero sentence carries system state only when health is broken (a real P1); degraded stays on the health chip. (3) One workout-streak producer, lib/stats/workout-streak.ts, read by timelines, the morning brief wellbeing slice, and no longer duplicated by a ticker BODY row; timelines had counted completed rows across every daily habit (5 or 8 instead of 1). (4) The ambient Pulse strip shows 'New capture' instead of the capture's private text. Red first on the unfixed tree: 6 failed / 37 passed across 4 files (hub 'expected 17 to be 1', timelines 'expected 5 to be 1', hero contained 'degraded', strip leaked the capture text, ticker BODY row present), morning-brief 1 failed / 40 passed. After: 18 files / 162 passed, then 20 files / 197 passed on neighbours (tests/home, control tower, observability). tsc -p tsconfig.typecheck.json exit 0 with --listFilesOnly showing the changed files; eslint on the 9 changed source files exit 0. Local full suite skipped: machine RAM 2.6-3.1 GB free under the manager RAM ruling; CI node job is the full gate."
-    }
-  }
-}

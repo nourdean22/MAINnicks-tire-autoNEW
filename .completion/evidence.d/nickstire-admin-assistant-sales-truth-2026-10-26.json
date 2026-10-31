@@ -1,5 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": { "ref": "Ask's sales answer now comes from controlCenter.shopSales, the Money page's own read: on 2026-10-26 14:52Z the live sheet said 27 jobs / $15,848 for the last 7 days on the Money page that showed 25 / $14,363, because v1 summed invoices.list and counted open tickets. server/routers/nick/assistant.test.ts 14 passed, 4 / 4 new mutants caught. After deploy: the same question on the Money page reads the page's number." }
-  }
-}

@@ -1,3 +1,0 @@
-| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
-|---|---|---|---|---|---|---|---|
-| 2026-10-14-reel-hook-mechanism | 2026-10-14 | reel-hook-mechanism skill compiled from the awesome-opus5-5-videos list (pinned 92aee2f) | platform | MERGED | #3035 (893e6fbcf, merged 2026-10-15 02:14Z) | none: invocation by exact name proven (the Skill tool loaded it from the primary checkout) | the compiler wrote to .claude/skills/generated/<slug>/ but Claude Code loads only .claude/skills/<name>/SKILL.md, while fire_audit.py walks recursively and would count a nested skill the harness never loads: the package now sits at .claude/skills/reel-hook-mechanism/ and #3041 fixed the compiler |

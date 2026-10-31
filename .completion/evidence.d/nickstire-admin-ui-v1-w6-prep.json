@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "Admin UI v1 W6 prerequisite, what the crew sees on an iPhone after this merges. On Today, every queue row's '...' (More) button, now on work-order and text rows too, holds two more 48 px choices: Keep and Less. Tapping one closes the menu, records the verdict (the row stays where it is and nothing about the job changes), toasts 'Marked Keep' or 'Marked Less', and shows 'Kept' or 'Less' at the start of the row's detail line for the rest of the visit; a failed write toasts the failure and marks nothing. Every role that sees Today can mark rows. Only the owner sees, inside the Checks rail, 'Keep/Less: N marked since <date>' ('none yet' when nothing has been marked, 'not measured' whenever the count could not be read); the count never adds to the rail's open checks. Verdicts are stored in the existing audit log, so no database change ships. Purpose: W6, the Stream, ranks Today by two weeks of these marks. Tests: client/src/__tests__/admin-w6prep-keep-less.test.tsx (14) and server/__tests__/queueFeedbackSummary.test.ts (15); 148 client files / 2,121 tests and 18 server files / 243 tests green on the combined tree. Not device-tested: Nour's own look on his phone is owed after the deploy."
-    }
-  }
-}

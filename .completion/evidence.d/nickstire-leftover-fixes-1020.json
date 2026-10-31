@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "deferred": "nickstire-leftover-fixes-1020 (job 2026-10-20-leftover-backlog): the only server change is one GROUP BY in apps/nickstire/server/services/customerIntelligence.ts analyzeCustomers (booking day/hour buckets now group by ordinal 1, 2). No capability changes state: the read already had an honest-unavailable path (bookingPatternsUnavailable), which fired on every run since 2026-10-09 because prod TiDB rejected the old shape with error 1055 under ONLY_FULL_GROUP_BY (manager prod SELECT-only probe 2026-10-20 22:40Z); GROUP BY 1, 2 was proven on prod read-only (11 buckets, 13 bookings in 90 days). Test: server/services/customerIntelligenceGroupBy.test.ts drives the real Drizzle MySQL builder over a recording fake mysql2 client; red first 1f/3p on unfixed code; mutants 2/2 killed (expression GROUP BY restored here, qualified GROUP BY restored in customerEvents.ts). Live receipt owed after deploy: the 'Failed to query booking patterns' warn stops in Railway logs."
-    }
-  }
-}

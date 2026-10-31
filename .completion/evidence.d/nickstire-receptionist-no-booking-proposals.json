@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "deferred": "No capability state moves. The call-end extraction (vapi_action_proposals) stays live and draft-only; this PR only narrows the kinds it may draft to create_callback, so the shop no longer sees booking requests in Admin > Approvals (Nour, 2026-10-28). No ledger row names the booking kind."
-    }
-  }
-}

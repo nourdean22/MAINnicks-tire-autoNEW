@@ -1,5 +1,0 @@
-.env
-.ring_token
-agent.log
-__pycache__/
-*.pyc

@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "WHAT THE OPERATOR SEES after this diff (nickstire/kafene-portal-deep-link, 2026-10-18). /admin > Tire Orders, each order card, Kafene lease section: a new 48 px button 'Open Kafene portal (copies phone)' under the heading. Tapping it copies the customer's phone as 10 digits to the clipboard, shows a toast 'Phone copied: 2165550100. Paste it into Kafene's lookup.' and opens https://merchant.kafene.com/ in a new tab (noopener). If the clipboard is refused the toast shows the number instead and the portal still opens. The button is there for money.view with or without a lease and before migration 0148 (next to the 'not installed' line); Activate and Cancel are unchanged. Nothing else on the card changes. Tests: client/src/__tests__/kafene-lease-panel.test.tsx (26: three new for the button, two 'no buttons' assertions scoped to action buttons), red first on the unchanged panel; mutations (no clipboard write, button only with a lease) each fail one test."
-    }
-  }
-}

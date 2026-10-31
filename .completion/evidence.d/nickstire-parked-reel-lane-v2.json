@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "cron-fail-closed": {
-      "ref": "apps/nickstire/server/cron/jobs/dailyReelPost.ts: a paid-repair boundary refusal parks the reel with nothing queued, and a job already repaired on the ET day parks instead of buying a second repair. Covered by apps/nickstire/server/reelPublishRejectGuard.test.ts, cases '(c) the paid-repair boundary refuses the repair (daily budget)' and '(d) a job already repaired today parks'. The unreadable-payload branch has no test yet; the PR body lists it as a follow-up."
-    }
-  }
-}

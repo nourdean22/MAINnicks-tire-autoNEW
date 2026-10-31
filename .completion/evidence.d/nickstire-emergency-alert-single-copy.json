@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "deferred": "no capability state changes (2026-10-17, nickstire/emergency-alert-single-copy, job 2026-10-17-emergency-alert-single-copy): the diff removes nickstire's two duplicate Telegram copies of an emergency request (routers/emergency.ts direct send, services/eventBus.ts telegram destination branch). apps/nickstire/docs/operations/capability-ledger.json has no capability for Telegram or alert routing (grep for emergency, telegram and alert ids returns none), and the emergency-intake behaviour it could describe is unchanged: the row is persisted, the bridge emit carries the row id, the owner, customer and manager-on-duty SMS still send, and statenour's bridge copy (with its retry) is the single Telegram alert. Receipt: server/telegramSingleSender.test.ts, red 3f/8p on the old code, green after; 3 of 3 mutations killed."
-    }
-  }
-}

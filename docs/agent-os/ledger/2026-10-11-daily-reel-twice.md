@@ -1,3 +1,0 @@
-| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
-|---|---|---|---|---|---|---|---|
-| 2026-10-11-daily-reel-twice | 2026-10-11 | Daily reel: skip an already-queued pack, post twice a day (06:00 + 18:00 ET) | nickstire-server (direct, one lane) | MERGED | #2994 (0c5d14e78) ; follow-up fix #2996 (5950c8758) | first 18:00 ET pulse ran 2026-10-11 22:06Z: evening job 2070007 created, parked on needs_paid_repair (6 BLOCK findings, beats 1-5); nothing posted. Job 2070007's status is in row 2026-10-12-parked-reel-lane. | source-text tests pinned the old briefId and failed main's node job; a review caught that the readout regex excluded the -pm evening id. Pin producer and consumer together. |

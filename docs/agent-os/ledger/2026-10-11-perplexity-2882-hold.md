@@ -1,3 +1,0 @@
-| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
-|---|---|---|---|---|---|---|---|
-| 2026-10-11-perplexity-2882-hold | 2026-10-11 | Hold draft #2882: activate Perplexity current APIs (statenour) | statenour | CANCELLED | #2882 CLOSED 2026-10-17 19:03Z, branch statenour/perplexity-20261002 deleted | Erased on Nour's directive 2026-10-17: research runs through Perplexity Pro driven in Chrome, never an in-app Perplexity API; no rebuild. Memory feedback-research-via-perplexity-chrome carries the directive | code is green (16 checks, 0 failing); the blocker is a credential class, not code. Left as draft by Nour's choice 2026-10-11. |

@@ -1,3 +1,0 @@
-| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
-|---|---|---|---|---|---|---|---|
-| 2026-10-14-skills-first-reminder | 2026-10-14 | UserPromptSubmit hook injects a skills-first reminder on every prompt | platform | MERGED | #3024 (50bb2169) | live injection not proven: check the reminder on the next prompt (/hooks). Operator decides the commit-trailer rule (model-name Co-Authored-By, or Claude-Session only). Not fixed: the SessionStart graphify entry uses powershell with a backslash path, which does not resolve on Linux | a canary that runs the hook command verbatim proves its output, not that the model received it |

@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "cron-fail-closed": {
-      "ref": "PR 3234 (reminder texts approved, no daily limit): the only cron change is one receipt field removed from crudAutomation.processReminders' details string (\"over daily cap\", since the cap is gone). The job still awaits processReminderQueue with no catch that swallows, and processReminderQueue still throws when the database is unavailable. cronRethrow2026.test.ts 15/15 (including 'processReminders REJECTS when the reminder queue throws') and cronNoSwallowedFailure.test.ts 7/7 green on 665568c89."
-    }
-  }
-}

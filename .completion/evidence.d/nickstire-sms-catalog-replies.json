@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "ref": "Job 2026-10-30-calls-texts-review W3. Ledger row sms-catalog-replies-w3 added in docs/operations/capability-ledger.json (in_progress, unit_verified, exposure disabled) and REALITY-LEDGER.md re-rendered. Router: identity and menu_reply intents (whole-text matches), wider comeback detection, the diagnostic template skips named repairs, price_alignment back to a deterministic template; catalog: alignment answer with no inspection pitch, identity and menu_reply variants; planner: the alignment fact matches the template; eval runner prints hold reasons and counts 'stop by' as a visit phrase. Tests: smsCatalogReplies.test.ts red first 24 failed / 6 passed, planner arm red with the old fact (2 failed), scorer arm red on the 'Stop by anytime' hours variant (1 failed / 16 passed). Related set on main + W3: 107 files, 1,745 passed; tsc exit 0; knip-orphan-gate 0 new. Replay eval (Ollama + Gemini + HF only, replay scope): customers 44/58 right, 0 wrong; noise 13/15; isolation CLEAN; 0 paid-lane attempts (main: 31/58 right, 2 wrong; noise 13/15)."
-    }
-  }
-}

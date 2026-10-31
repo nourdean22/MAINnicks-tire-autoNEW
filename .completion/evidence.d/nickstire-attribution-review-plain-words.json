@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "apps/nickstire/client/src/__tests__/admin-attribution-review-card.test.tsx (9 tests, red 9 of 9 on the old card): on the Voice Receptionist tab the Attribution review card is one 44 px line, 'N matches to review', until tapped; it renders nothing when the queue is empty and 'could not load' with Retry on a failed read; opened, each row reads first name (or Unknown caller), 'asked about <service>', 'Called Oct 21, 2:10 PM', 'Sale Oct 23 $412 (service)', and the why line in words; the two explanatory paragraphs sit behind a Why button; Confirm/Unsure/Reject keep their endpoints, go through confirmDialog, never window.confirm. Live phone-width check owed after deploy (recorded in the job ledger 2026-10-25-attribution-plain-words)."
-    }
-  }
-}

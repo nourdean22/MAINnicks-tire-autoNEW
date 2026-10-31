@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "GSC wave 1 (2026-10-29/30): what the operator sees. (1) nickstire.org/alignment answers 301 to /wheel-alignment-cleveland and keeps any ?utm_ query; the Wheel Alignment card on /services, the tire-size 'worth checking' cards, llms.txt and two blog bodies now link the survivor directly instead of a removed client route (client/src/__tests__/gsc-wave1-seo.test.ts checks code, llms.txt and every blog body). (2) Homepage yellow used-tire callout gains one underlined link 'Used tires in Cleveland, from $25 installed (select 12-inch; most $40-80)' to /used-tires-cleveland; the /tires used-tire replacement card gains 'Used tires in Cleveland: how we check them'. (3) /emissions title reads 'E-Check Near Me Cleveland: Where to Test | Nick's'; the first body answer and first FAQ open with 'Only official E-Check stations run the state test.' from shared/echeck.ts, and a link 'E-Check stations closest to Euclid' under that answer opens the existing blog article. No new prices, hours or claims."
-    }
-  }
-}

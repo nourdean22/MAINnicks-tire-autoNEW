@@ -1,1 +1,0 @@
-ALTER TABLE `alg_estimates` ADD `recovery_profile_score` int DEFAULT 0 NOT NULL;

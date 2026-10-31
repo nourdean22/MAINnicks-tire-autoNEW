@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "2026-10-17, C5.5 client half. Admin > Instagram > Pipeline health now ends with a Send switches card under the comment responder card: one row per send lane (Outbound calls, Order confirmations, Declined-work follow-ups, Weather texts, Missed-call texts), each with a state chip (Live, Paused, or Unknown in words when the switch could not be read), an env line (env armed, env off, env unknown) and one 48 px button, Pause or Resume. Pause is one tap and sets send_pause_<lane> true; Resume opens the house confirm dialog with the flagPolicy copy and sets it false only on confirm; a failed toggle shows its error under the row and leaves the chip. An Unknown row says whether a failed read holds that lane or lets it keep sending, and still offers Pause. Rendered by client/src/__tests__/send-switches-card.test.tsx through Pipeline (fixture MIXED: live, paused, unknown, env off, env unknown). Three mutants each fail named assertions: unknown rendered as Live (6 failed), Resume without confirm (6 failed), wrong flag key for weather_sms (3 failed). Not walked through live: this machine has no DATABASE_URL, so the admin PWA was not opened at 390 px; the render test asserts the stacking and 48 px classes instead."
-    }
-  }
-}

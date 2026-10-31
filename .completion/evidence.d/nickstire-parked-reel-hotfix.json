@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "cron-fail-closed": {
-      "ref": "apps/nickstire/server/cron/jobs/dailyReelPost.ts: a repair refusal parks the reel and the pass moves on; only a BUDGET_DAILY_EXCEEDED refusal holds, and a held pass posts nothing until the budget resets. Fail-closed where spend is undecided: an unreadable policy holds, and a non-list queue or an undated queue entry counts as today's repair. Covered by apps/nickstire/server/reelPublishRejectGuard.test.ts: (i) budget hold then retry, (ii) REPAIR_CAP denial parks, (iii) in-flight refusal parks, then asks again on the 18:00 ET slot, (iv) unreadable policy holds, six parked reels ahead of a clean one, undated entry blocks today's repair. Canary: forcing every refusal to hold fails (ii) and (iii), 2 failed and 33 passed of 35; file restored byte-identical; typecheck exit 0."
-    }
-  }
-}

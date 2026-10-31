@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "ref": "docs/operations/capability-ledger.json: new entry reel-deep-scout-v2 (unit_verified, merged, internal) for the reelVoice.ts word timepoints, the audioQa.ts/reelAssembly.ts two-pass loudnorm and the clipVerify.ts flag-gated contrastive check (REEL_CLIP_VERIFY_CONTRAST default off), with a P2 live-proof blocker; REALITY-LEDGER.md re-rendered (168 capabilities)"
-    }
-  }
-}

@@ -1,3 +1,0 @@
-interface:
-  display_name: "Vapi Call Ops Report"
-  short_description: "Audit Vapi calls for conversion, quality, failures, latency, cost, and missed revenue."

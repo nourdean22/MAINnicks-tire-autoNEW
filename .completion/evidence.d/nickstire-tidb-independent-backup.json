@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "cron-fail-closed": {
-      "ref": "nickstire/tidb-independent-backup (8e9da43bf + d1065cfde): the new cron job tidb-backup (tier nightly, flag TIDB_BACKUP_ENABLED) fails closed. runTidbBackup throws, so the tier runner writes cron_log status failed with the reason, when any table still fails after 2 retries (named, no manifest written), when 3 tables in a row fail (connection dead: the run stops), when the bucket listing does not confirm a file at its recorded size, or when the manifest is not confirmed. Only a verified set returns completed; a retention delete error after that is reported as a WARNING in details, because the night's backup is safe. Tests: apps/nickstire/server/services/tidbBackup.test.ts ('a table that keeps failing marks the run FAILED ...', 'a dead connection stops the run after 3 tables ...', 'an upload the bucket listing does not confirm fails the run ...', 'control: a real table failure still fails the run ...'); missed or failed nights reach the owner through apps/nickstire/server/services/safetyMonitorTidbBackup.test.ts (CRITICAL after 27h without a completed run, UNKNOWN on a failed read). The nightly slot's re-claim is tested in apps/nickstire/server/cron/nightlyTier.test.ts, with the control that daily and briefings stay stamp-at-start. Red on unfixed code 10f/3p (round 0) and 16f/30p (round 1); green 22 files 276 passed and 14 files 214 passed; mutants 2/2 and 4/4 killed."
-    }
-  }
-}

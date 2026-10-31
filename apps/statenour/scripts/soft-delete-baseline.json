@@ -1,6 +1,0 @@
-{
-  "$comment": "Known-unfiltered aggregate reads on soft-delete models. DEBT REGISTER — should only ever shrink. Regenerate with: pnpm check:soft-delete --update-baseline. Do NOT add entries to silence a new violation; fix the query instead.",
-  "generated": "2026-07-16",
-  "count": 0,
-  "sites": []
-}

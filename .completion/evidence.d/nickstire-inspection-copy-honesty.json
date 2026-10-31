@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "deferred": "Copy-only change (2026-10-30 inspection wording, one BUSINESS.freeInspection constant, blog used-tire price). No capability changes state: no cron, route behaviour, SMS/voice logic, flag or exposure was touched, so no ledger entry moves."
-    }
-  }
-}

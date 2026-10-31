@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "operator-walkthrough": {
-      "ref": "apps/nickstire/client/src/components/LocalBusinessSchema.tsx, 2026-10-21 Gemini and Perplexity extension: no visible page changes. A crawler reading the shop-wide LocalBusiness JSON-LD now sees the Brake Repair Offer with minPrice 149 (BRAKE_PRICE.padsStarting) and a description 'Brake pads from $149 per axle, depending on vehicle', and the Engine Diagnostics Offer description 'Code scan is free. Full diagnostic $49, waived if you do the repair with us.' with no minPrice (the code scan is free). Both numbers match what /brakes and /diagnostics already show. The committed prerendered tree picks this up on the next weekly prerender refresh. Proof: client/src/__tests__/local-business-brake-diagnostic-price.test.tsx (red 4f/0p before the edit, 4 mutations killed)."
-    }
-  }
-}

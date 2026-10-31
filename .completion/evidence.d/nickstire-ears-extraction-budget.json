@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "capability-ledger-updated": {
-      "ref": "No capability state changes (PR ears-extraction-budget, 2026-10-22): a bug fix inside the existing office conversation extraction and digest. conversationFacts.ts asks for an output budget of 16384 tokens (one empty-reply retry at 32768, both inside a 105 s deadline; after Codex review each attempt caps its Ollama slot wait at 15 s and the route passes what is left of a 110 s budget) and officeDigest.ts for 16384, after a live probe showed deepseek-v4-pro returning finish_reason=length with 0 content at the 4096 default. Proof: conversationFactsV2.test.ts red-first 3 failed / 27 passed on main, 138 passed across 5 files on the branch, 8/8 mutations caught. Live proof owed after deploy: the next office episode over 60 s reads DONE with an account; the ledger state is left as is until that is observed."
-    }
-  }
-}

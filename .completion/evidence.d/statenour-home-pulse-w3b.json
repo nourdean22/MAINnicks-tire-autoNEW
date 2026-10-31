@@ -1,7 +1,0 @@
-{
-  "evidence": {
-    "home-pulse-w3b": {
-      "ref": "statenour/home-pulse-w3b (job 2026-10-30-home-pulse, W3b dedupe). The hourly proactive-push cron runs the morning slot and checkAndNudgeApprovals in the SAME tick from 06:00 ET; both told Nour the approval count, so one fact arrived as two Telegrams. The morning push no longer carries the count (and no longer sends a bare 'Morning Update' for approvals alone); the governance nudge, which counts autonomous + tool approvals, owns it. The five push+Telegram pairs in the phase-1 map were re-read on main af2df6746e: cron-heartbeat (daily 12:00 UTC), cost-slo-check (nightly 03:00 UTC), os-snapshot drift (daily), cron-healer heal-failed (folded into mega-evening, one claimed heal per failed run): each sends a P0 push and a Telegram ONCE per event, the deliberate critical dual-channel, so they are kept. Red first: tests/brain/proactive-pushes.test.ts new W3b block 2 failed / 21 passed on the unfixed tree; with origin/main's proactive-pushes.ts swapped back in, 2 red again. After: 6 files / 138 passed (every test importing proactive-pushes), tsc --noEmit exit 0, eslint exit 0 on lib/brain/proactive-pushes.ts."
-    }
-  }
-}
