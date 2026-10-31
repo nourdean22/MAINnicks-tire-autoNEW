@@ -31,7 +31,7 @@ function buildRows(reviewCountDisplay: string): Row[] {
     { feature: "Done before your Uber driver gets bored",          nicks: "yes", dealership: "no",   chain: "warn" },
     { feature: "Works on whatever you drive",                       nicks: "yes", dealership: "no",   chain: "yes"  },
     { feature: "Payment programs from 5 providers",                 nicks: "yes", dealership: "warn", chain: "no"   },
-    { feature: "Open Sunday — exhaust never breaks Tuesday",       nicks: "yes", dealership: "no",   chain: "warn" },
+    { feature: "Open Sunday: exhaust never breaks Tuesday",       nicks: "yes", dealership: "no",   chain: "warn" },
     { feature: `${reviewCountDisplay} Cleveland drivers think so`, nicks: "yes", dealership: "warn", chain: "no" },
     { feature: "Won't sell you what you don't need",               nicks: "yes", dealership: "no",   chain: "no"   },
     { feature: "Mechanics actually trained on this stuff",         nicks: "yes", dealership: "yes",  chain: "warn" },
@@ -180,7 +180,7 @@ export default function ComparisonTable() {
             <Link href="/nicks-tire-vs-firestone-cleveland" className="text-[#FDB913] underline-offset-2 hover:underline">
               Firestone
             </Link>
-            , NTB, Discount Tire, Monro, and Big O — head-to-head, no spin.
+            , NTB, Discount Tire, Monro, and Big O, compared head to head.
           </p>
           <Link
             href="/compare"

@@ -211,7 +211,7 @@ export default function LeadPopup() {
                     Tell us what's going on.
                   </h3>
                   <p className="text-foreground/70 text-[13px] mt-2 leading-relaxed">
-                    Describe your vehicle problem and we'll call you with an honest assessment. No obligation.
+                    Describe your vehicle problem and we'll call you with an honest assessment.
                   </p>
                   <p className="text-[11px] text-emerald-400/70 mt-1">
                     Lease-to-own and payment programs. Some don't require established credit.

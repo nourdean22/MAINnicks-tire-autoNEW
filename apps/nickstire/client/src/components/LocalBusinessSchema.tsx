@@ -148,7 +148,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs from five providers.`,
+      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package: mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs from five providers.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",
@@ -197,12 +197,12 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter and tire pressure check." },
+          itemOffered: { "@type": "Service", name: "Conventional Oil Change", description: "With filter and tire pressure check." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "49", description: "Conventional oil change from $49" },
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Oil Change — Full Synthetic", description: "Mobil 1, Pennzoil Platinum, or equivalent." },
+          itemOffered: { "@type": "Service", name: "Full Synthetic Oil Change", description: "Mobil 1, Pennzoil Platinum, or equivalent." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "80", description: "Full synthetic oil change from $80" },
         },
         {

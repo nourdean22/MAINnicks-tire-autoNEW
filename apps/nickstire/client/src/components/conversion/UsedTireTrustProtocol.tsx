@@ -11,22 +11,22 @@ const PROTOCOL = [
   {
     icon: Ruler,
     title: "1 · Deep Tread",
-    body: "Absolute minimum of 5/32″ to 7/32″ verified depth — measured with a gauge, not eyeballed. New tires start at 10/32″; Ohio's legal bald limit is 2/32″. Our floor sits far above it.",
+    body: "Absolute minimum of 5/32″ to 7/32″ verified depth, measured with a gauge, not eyeballed. New tires start at 10/32″; Ohio's legal bald limit is 2/32″. Our floor sits far above it.",
   },
   {
     icon: ScanLine,
     title: "2 · Sidewall Scan",
-    body: "Manual and ultrasonic inspection of both sidewalls for bubbles, dry rot, and tire-bead tearing. A sidewall defect can't be repaired — one flaw and the tire is scrapped.",
+    body: "Manual and ultrasonic inspection of both sidewalls for bubbles, dry rot, and tire-bead tearing. A sidewall defect can't be repaired. One flaw and the tire is scrapped.",
   },
   {
     icon: CalendarX2,
     title: "3 · DOT Production Gate",
-    body: "We read the DOT date code on every casing. Zero tires accepted if the code is older than 5 years — rubber oxidizes from the inside out no matter how much tread is left.",
+    body: "We read the DOT date code on every casing. Zero tires accepted if the code is older than 5 years. Rubber oxidizes from the inside out no matter how much tread is left.",
   },
   {
     icon: ShieldCheck,
     title: "4 · Internal Plug Integrity",
-    body: "We dismount and inspect the inner liner directly. Prior punctures must be proper plug-patch repairs in the tread zone. No sidewall patches, ever — those tires don't get sold.",
+    body: "We dismount and inspect the inner liner directly. Prior punctures must be proper plug-patch repairs in the tread zone. No sidewall patches, ever. Those tires don't get sold.",
   },
 ] as const;
 
@@ -46,7 +46,7 @@ export default function UsedTireTrustProtocol() {
       </div>
       <p className="mt-3 text-[11px] text-foreground/55 leading-relaxed">
         Fail any one point and the tire never touches your car. Ask the counter to show you the
-        tread gauge reading and DOT code on your set before we mount it — we'll walk you through it.
+        tread gauge reading and DOT code on your set before we mount it. We'll walk you through it.
       </p>
     </div>
   );

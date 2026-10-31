@@ -54,9 +54,9 @@ export default function DropOffRequestCard() {
     return (
       <div className="mx-auto mt-8 max-w-xl rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center" role="status">
         <Check className="mx-auto h-7 w-7 text-emerald-400" />
-        <h3 className="mt-2 text-lg font-bold text-foreground">Got it — the desk knows you're coming.</h3>
+        <h3 className="mt-2 text-lg font-bold text-foreground">Got it. The desk knows you're coming.</h3>
         <p className="mt-1 text-sm text-foreground/60">
-          We'll text you back to confirm. Pull up whenever — the line is first come, first served.
+          We'll text you back to confirm. Pull up whenever. The line is first come, first served.
         </p>
       </div>
     );
@@ -71,8 +71,8 @@ export default function DropOffRequestCard() {
         </h3>
       </div>
       <p className="mt-2 text-sm text-foreground/60">
-        We'll text you back so you know we got it. This isn't a reservation — there are no
-        appointment slots, just the line — but the desk will know to expect you.
+        We'll text you back so you know we got it. This isn't a reservation (there are no
+        appointment slots, just the line), but the desk will know to expect you.
       </p>
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
         <input
@@ -96,7 +96,7 @@ export default function DropOffRequestCard() {
           aria-label="Car and what it needs (optional)"
           value={carAndNeed}
           onChange={(e) => setCarAndNeed(e.target.value)}
-          placeholder="Car + what it needs (optional) — e.g. 2014 Civic, brakes"
+          placeholder="Car + what it needs (optional), e.g. 2014 Civic, brakes"
           disabled={submit.isPending}
           className="sm:col-span-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
         />

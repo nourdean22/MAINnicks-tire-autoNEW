@@ -94,7 +94,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "urg-1",
     strategy: "urgency",
-    text: "Free brake check on the spot — walk in any time before close",
+    text: "Free brake check on the spot. Walk in any time before close",
     cta: "Get In Today",
     ctaHref: BUSINESS.phone.href,
     icon: Clock,
@@ -104,7 +104,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "urg-2",
     strategy: "urgency",
-    text: "Check engine light on? Do not wait — small problems become expensive ones fast",
+    text: "Check engine light on? Do not wait. Small problems become expensive ones fast",
     cta: "Read My Codes",
     ctaHref: BUSINESS.phone.href,
     icon: AlertTriangle,
@@ -112,7 +112,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "urg-3",
     strategy: "urgency",
-    text: "Saturday gets slammed — pull up early or call ahead",
+    text: "Saturday gets slammed. Pull up early or call ahead",
     cta: "Call Nick's",
     ctaHref: BUSINESS.phone.href,
     icon: Clock,
@@ -123,13 +123,13 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "sp-1",
     strategy: "social_proof",
-    text: `${reviewRating} stars from ${reviewCountDisplay} Google reviews — Euclid Ave, open 7 days`,
+    text: `${reviewRating} stars from ${reviewCountDisplay} Google reviews. Euclid Ave, open 7 days`,
     icon: Star,
   },
   {
     id: "sp-2",
     strategy: "social_proof",
-    text: "\"First shop I felt I could trust\" — real Google review from a Cleveland driver",
+    text: "\"First shop I felt I could trust\": a Cleveland driver's Google review",
     icon: Star,
   },
 
@@ -137,7 +137,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "sea-spring-1",
     strategy: "seasonal",
-    text: "Spring is here — potholes, salt damage, and worn tires from winter need attention now",
+    text: "Spring is here. Potholes, salt damage, and worn tires from winter need attention now",
     cta: "Schedule Inspection",
     ctaHref: BUSINESS.phone.href,
     icon: AlertTriangle,
@@ -146,7 +146,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "sea-summer-1",
     strategy: "seasonal",
-    text: "Hot pavement destroys underinflated tires — free tire pressure check, no appointment needed",
+    text: "Hot pavement destroys underinflated tires. Free tire pressure check, no appointment needed",
     cta: "Stop By",
     ctaHref: "#contact",
     icon: AlertTriangle,
@@ -155,7 +155,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "sea-fall-1",
     strategy: "seasonal",
-    text: "Winter is coming — get your tires, brakes, and battery checked before the first freeze",
+    text: "Winter is coming. Get your tires, brakes, and battery checked before the first freeze",
     cta: "Schedule Now",
     ctaHref: BUSINESS.phone.href,
     icon: Shield,
@@ -164,7 +164,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "sea-winter-1",
     strategy: "seasonal",
-    text: "Cleveland winter driving is brutal — make sure your tires have enough tread to stop safely",
+    text: "Cleveland winter driving is brutal. Make sure your tires have enough tread to stop safely",
     cta: "Free Check",
     ctaHref: BUSINESS.phone.href,
     icon: AlertTriangle,
@@ -175,13 +175,13 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "auth-1",
     strategy: "authority",
-    text: "OBD-II + live data — we tell you exactly what's wrong before you pay for anything",
+    text: "OBD-II + live data. We tell you exactly what's wrong before you pay for anything",
     icon: Shield,
   },
   {
     id: "auth-2",
     strategy: "authority",
-    text: "Ohio E-Check failures repaired — oxygen sensors, EVAP leaks, catalytic converters",
+    text: "Ohio E-Check failures repaired: oxygen sensors, EVAP leaks, catalytic converters",
     cta: "Learn More",
     ctaHref: "/emissions",
     icon: Zap,
@@ -199,7 +199,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "la-2",
     strategy: "loss_aversion",
-    text: "Worn brake pads cost $150 to replace — worn rotors cost $500+. Do not wait.",
+    text: "Worn brake pads cost $150 to replace. Worn rotors cost $500+. Do not wait.",
     cta: "Beat the Math",
     ctaHref: BUSINESS.phone.href,
     icon: AlertTriangle,

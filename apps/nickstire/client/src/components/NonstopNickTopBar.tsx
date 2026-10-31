@@ -48,7 +48,7 @@ export default function NonstopNickTopBar({
         onClick={() => trackEvent("nonstop_topbar_click", { from: location })}
       >
         <span className="text-black text-[11px] sm:text-[12px] font-black uppercase tracking-wide leading-tight">
-          Stuck in the Euclid Ave line? Nonstop Nick members pull up anytime —
+          Stuck in the Euclid Ave line? Nonstop Nick members pull up anytime:
           flats fixed for $0 · $7.99/mo
         </span>
         <span aria-hidden="true" className="text-black font-black text-[12px]">

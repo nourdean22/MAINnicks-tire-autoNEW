@@ -98,7 +98,7 @@ export default function CallbackModal() {
                   Expect a call from {BUSINESS.phone.display} shortly.
                 </p>
                 <p className="text-[11px] text-emerald-400/60 mt-2">
-                  Lease-to-own and other payment programs — the provider decides approval
+                  Lease-to-own and other payment programs. The provider decides approval
                 </p>
                 <p className="text-[10px] text-foreground/30 mt-1 leading-tight">{ACIMA_COMPACT_DISCLOSURE}</p>
               </div>
@@ -106,7 +106,7 @@ export default function CallbackModal() {
               <>
                 <h3 id="callback-modal-title" className="text-lg font-semibold text-foreground mb-1">Request a Callback</h3>
                 <p className="text-foreground/70 text-sm mb-5">
-                  Leave your name and number. We'll call you back — usually within 30 minutes during business hours.
+                  Leave your name and number. We'll call you back, usually within 30 minutes during business hours.
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-3">

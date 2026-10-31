@@ -77,7 +77,7 @@ export function EmergencyMode() {
     // emergency form (after-hours stuck customer · most stakes). Now
     // routes the customer to the phone line if the submit fails.
     onError: () => {
-      toast.error("Couldn't submit emergency request — call (216) 862-0005 right now.");
+      toast.error("Couldn't submit emergency request. Call (216) 862-0005 right now.");
     },
   });
 
@@ -168,7 +168,7 @@ export function EmergencyMode() {
                       Promising an appointment here misstates the service
                       contract the rest of the site is built around. */}
                   <p className="text-foreground/60 text-sm">
-                    We'll contact you when the shop opens at {nextOpenTime} to confirm next steps — no appointment needed, we're first-come, first-served.
+                    We'll contact you when the shop opens at {nextOpenTime} to confirm next steps. No appointment needed: we're first come, first served.
                   </p>
                   <p className="text-foreground/60 text-sm mt-3">
                     Need help right now?{" "}
@@ -256,7 +256,7 @@ export function EmergencyMode() {
                           className="w-4 h-4"
                         />
                         <span className="flex-1">
-                          <span className="font-semibold text-foreground text-sm">🔴 Emergency — need help ASAP</span>
+                          <span className="font-semibold text-foreground text-sm">🔴 Emergency: need help ASAP</span>
                           <p className="text-foreground/70 text-xs">Critical issue, vehicle not drivable</p>
                         </span>
                       </label>

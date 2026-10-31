@@ -86,7 +86,7 @@ export default function FAQPageSchema({ qa }: FAQPageSchemaProps) {
 export const BRAKE_REPAIR_FAQ: FAQItem[] = [
   {
     q: "How long do brake pads typically last?",
-    a: "Most pads last 30,000-70,000 miles depending on how you drive — city stop-and-go burns them faster than highway. We can check yours for free during any visit · no appointment needed.",
+    a: "Most pads last 30,000-70,000 miles depending on how you drive. City stop-and-go burns them faster than highway. We can check yours for free during any visit · no appointment needed.",
   },
   {
     q: "Do I need to make an appointment for brake service?",
@@ -104,7 +104,7 @@ export const BRAKE_REPAIR_FAQ: FAQItem[] = [
   },
   {
     q: "Do you offer brake service same-day?",
-    a: "Yes — about 90% of brake jobs we finish same day. Drop off in the morning · we'll text you with the written estimate · text back yes and we wrench. Most are out before 6 PM.",
+    a: "Yes. About 90% of brake jobs we finish same day. Drop off in the morning · we'll text you with the written estimate · text back yes and we wrench. Most are out before 6 PM.",
   },
   {
     q: "Are your brake pads warrantied?",
@@ -170,7 +170,7 @@ export const OIL_CHANGE_FAQ: FAQItem[] = [
 export const TIRE_BUYING_FAQ: FAQItem[] = [
   {
     q: "How much do tires cost in Cleveland?",
-    a: "Used tires from $25 installed (12-inch rims; most sizes $40-80) · new tires from $89 installed. Installation is free with every tire — mount, balance, valve stems, and disposal of your old tire all included. We quote your exact size live · no surprise add-ons at the counter.",
+    a: "Used tires from $25 installed (12-inch rims; most sizes $40-80) · new tires from $89 installed. Installation is free with every tire: mount, balance, valve stems, and disposal of your old tire all included. We quote your exact size live · no surprise add-ons at the counter.",
   },
   {
     q: "What's included when I buy tires at Nick's?",
@@ -198,7 +198,7 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
     // 2026-09-16 · §11 tire-silo consolidation. Sunday hours had no FAQ
     // anywhere in this file; the retiring TireShopOpenSundayPage covered it.
     q: "Are you open Sundays?",
-    a: "Yes — every Sunday, 9am-4pm, same crew and pricing as the rest of the week. Walk in, no appointment needed. Most Cleveland chains are closed or run shorter Sunday hours.",
+    a: "Yes, every Sunday, 9am-4pm, same crew and pricing as the rest of the week. Walk in, no appointment needed. Most Cleveland chains are closed or run shorter Sunday hours.",
   },
 ];
 
@@ -218,7 +218,7 @@ export const SERVICES_OVERVIEW_FAQ: FAQItem[] = [
   },
   {
     q: "What kinds of cars do you work on?",
-    a: "All makes and models — domestic, import, and European (BMW, Mercedes, Audi, VW, Volvo, and more). Cars, trucks, SUVs, and fleet vehicles. We stock or source OE-spec parts and reset your dashboard sensors after service.",
+    a: "All makes and models: domestic, import, and European (BMW, Mercedes, Audi, VW, Volvo, and more). Cars, trucks, SUVs, and fleet vehicles. We stock or source OE-spec parts and reset your dashboard sensors after service.",
   },
   {
     q: "Do you offer financing for repairs?",
@@ -226,7 +226,7 @@ export const SERVICES_OVERVIEW_FAQ: FAQItem[] = [
   },
   {
     q: "What areas do you serve?",
-    a: "We're on Euclid Ave and serve all of Northeast Ohio — Cleveland, Euclid, Parma, Lakewood, Cleveland Heights, East Cleveland, Lyndhurst, Shaker Heights, and the neighborhoods between. 17625 Euclid Ave, Cleveland OH 44112.",
+    a: "We're on Euclid Ave and serve all of Northeast Ohio: Cleveland, Euclid, Parma, Lakewood, Cleveland Heights, East Cleveland, Lyndhurst, Shaker Heights, and the neighborhoods between. 17625 Euclid Ave, Cleveland OH 44112.",
   },
   {
     q: "How fast can you fix my car?",

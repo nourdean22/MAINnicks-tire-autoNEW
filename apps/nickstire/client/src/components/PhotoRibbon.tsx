@@ -179,7 +179,7 @@ export const BRAKES_PHOTOS: RibbonPhoto[] = [
 export const DIAGNOSTICS_PHOTOS: RibbonPhoto[] = [
   {
     src: "/photos/interior-service-bay-car-lift.webp",
-    alt: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with tire inventory and shop equipment visible — Cleveland diagnostic bay",
+    alt: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with tire inventory and shop equipment visible, Cleveland diagnostic bay",
     caption: "On the lift. On the scanner. On the spot.",
     widthClass: "w-[80vw] sm:w-[480px] md:w-[560px]",
     objectPosition: "center 45%",

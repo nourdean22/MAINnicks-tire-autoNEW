@@ -110,7 +110,7 @@ export default function ChatWidget() {
     // lead (user already engaged 4+ turns); a network blip should not
     // leave them thinking the front desk has their number.
     onError: () => {
-      toast.error("Couldn't reach the front desk — call (216) 862-0005.");
+      toast.error("Couldn't reach the front desk. Call (216) 862-0005.");
     },
   });
 
@@ -233,7 +233,7 @@ export default function ChatWidget() {
                     <div className="w-12 h-12 rounded-full bg-foreground/[0.04] flex items-center justify-center mx-auto mb-3">
                       <Wrench className="w-5 h-5 text-foreground/15" />
                     </div>
-                    <p className="text-foreground/70 text-[13px] font-medium">Hey — I'm Nick's AI mechanic.</p>
+                    <p className="text-foreground/70 text-[13px] font-medium">Hey, I'm Nick's AI mechanic.</p>
                     <p className="text-foreground/70 text-[12px] leading-relaxed max-w-[280px] mx-auto mt-1">
                       I can help with:
                     </p>

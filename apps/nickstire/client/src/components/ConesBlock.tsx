@@ -55,7 +55,7 @@ export function ConesBlock() {
               <span className="text-[#FDB913] text-gradient-yellow">No appointment games.</span>
             </h2>
             <p className="mt-4 text-foreground/65 text-base sm:text-lg max-w-md body-pretty leading-relaxed">
-              Pull up. The cones guide the line. The tire crew works outside. You stay in your car. Bigger repair? Drop it off — we'll call with a written estimate before any wrench moves.
+              Pull up. The cones guide the line. The tire crew works outside. You stay in your car. Bigger repair? Drop it off. We'll call with a written estimate before any wrench moves.
             </p>
 
             {/* 3-icon stack — Stay In The Car / Drop It Off / We'll Handle It */}

@@ -158,7 +158,7 @@ export default function UrgencyWidget() {
               >
                 <Clock className="w-4 h-4" />
                 <span className="text-xs font-bold tracking-wide">
-                  {slots > 0 ? "The line is moving now" : "Today is full — call us"}
+                  {slots > 0 ? "The line is moving now" : "Today is full. Call us"}
                 </span>
               </button>
             ) : (
@@ -182,9 +182,9 @@ export default function UrgencyWidget() {
 
                 <div className="text-sm font-bold text-foreground mb-1">
                   {slots > 0 ? (
-                    <>The line is <span className="text-primary">moving</span> — first come, first served</>
+                    <>The line is <span className="text-primary">moving</span>, first come, first served</>
                   ) : (
-                    <>Today is full — first-come tomorrow</>
+                    <>Today is full. First-come tomorrow</>
                   )}
                 </div>
 
