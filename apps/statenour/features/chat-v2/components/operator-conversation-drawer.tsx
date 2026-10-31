@@ -1,9 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Archive, History, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialog";
 import type { Convo } from "@/hooks/use-conversations";
+
+const MIN_SEARCH_CHARS = 3;
+type SearchGroup = {
+  conversationId: string;
+  conversationTitle: string;
+  totalMatches: number;
+  snippets: Array<{ snippet: string }>;
+};
 
 export function OperatorConversationDrawer({
   convos,
@@ -22,6 +30,7 @@ export function OperatorConversationDrawer({
   archivedConvos,
   onLoadArchived,
   onUnarchive,
+  onSearchMessages,
   onNew,
   onShowActions,
   actionsDisabled = false,
@@ -45,6 +54,8 @@ export function OperatorConversationDrawer({
   archivedConvos: Convo[] | null;
   onLoadArchived: () => void;
   onUnarchive: (id: string) => void;
+  /** U6b · server full-text search over every message (chat.search); absent = titles only. */
+  onSearchMessages?: (q: string) => Promise<{ results: SearchGroup[] }>;
   onNew: () => void;
   onShowActions: () => void;
   /** PR #3090: true while a conversation opens; "/receipts" would land in a thread not yet on screen. */
@@ -53,6 +64,22 @@ export function OperatorConversationDrawer({
 }) {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"active" | "pinned" | "archived">("active");
+  // U6b · message hits for the query, debounced 300 ms; tagged with their query so a slow
+  // answer for an older query never shows under a newer one.
+  const [hits, setHits] = useState<{ q: string; state: "loading" | "ok" | "error"; groups: SearchGroup[] } | null>(null);
+  const searchQ = query.trim();
+  useEffect(() => {
+    if (searchQ.length < MIN_SEARCH_CHARS || !onSearchMessages) return;
+    const timer = setTimeout(() => {
+      setHits({ q: searchQ, state: "loading", groups: [] });
+      onSearchMessages(searchQ).then(
+        (r) => setHits((cur) => (cur?.q === searchQ ? { q: searchQ, state: "ok", groups: r.results ?? [] } : cur)),
+        () => setHits((cur) => (cur?.q === searchQ ? { q: searchQ, state: "error", groups: [] } : cur)),
+      );
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQ, onSearchMessages]);
+  const messageHits = hits && hits.q === searchQ && searchQ.length >= MIN_SEARCH_CHARS ? hits : null;
   // window.prompt is silently suppressed in iOS standalone PWAs — the
   // Rename tap would no-op on the phone. usePromptDialog is the app
   // standard (same pattern as todo-desk / brain-maturity-header).
@@ -177,6 +204,32 @@ export function OperatorConversationDrawer({
             )}
           </div>
         ))}
+        {messageHits && (
+          <section aria-label="Messages that match" className="mt-3 border-t border-edge pt-2">
+            <p role="status" className="px-2 pb-1 text-[11px] font-medium text-fg-tertiary">
+              {messageHits.state === "loading"
+                ? "Searching messages…"
+                : messageHits.state === "error"
+                  ? "Message search failed. Titles above are still filtered."
+                  : messageHits.groups.length === 0
+                    ? "No messages match."
+                    : `In messages (${messageHits.groups.length})`}
+            </p>
+            {messageHits.groups.map((g) => (
+              <button
+                key={g.conversationId}
+                onClick={() => onSelect(g.conversationId)}
+                className="mb-1 block min-h-11 w-full rounded-control border border-transparent p-2 text-left hover:border-edge-default hover:bg-raised"
+              >
+                <p className="truncate text-xs font-medium text-fg">{g.conversationTitle || "Untitled conversation"}</p>
+                {g.snippets[0] ? <p className="mt-1 line-clamp-2 text-[11px] text-fg-secondary">{g.snippets[0].snippet}</p> : null}
+                <p className="mt-1 text-[11px] text-fg-tertiary">
+                  {g.totalMatches} {g.totalMatches === 1 ? "match" : "matches"}
+                </p>
+              </button>
+            ))}
+          </section>
+        )}
         {hasMore && mode !== "archived" && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-11 w-full rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
       </div>
       {renameDialog}

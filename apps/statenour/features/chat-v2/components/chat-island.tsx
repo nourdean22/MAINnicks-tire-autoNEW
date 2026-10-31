@@ -616,6 +616,7 @@ export function ChatIsland() {
             archivedConvos={conversations.archivedConvos}
             onLoadArchived={() => void conversations.loadArchived()}
             onUnarchive={(id) => void conversations.unarchive(id)}
+            onSearchMessages={conversations.searchMessages}
             onNew={() => {
               moveToConversation(null);
               conversations.newChat();
