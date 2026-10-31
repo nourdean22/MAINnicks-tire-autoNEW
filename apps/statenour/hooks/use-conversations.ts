@@ -449,6 +449,11 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     [updateConversationMutation, reloadConvos, onError],
   );
 
+  // U6b (2026-10-31) · server message search for the drawer: full-text over every message, so a
+  // thread is found by what was said in it, not only by its title. A failed read throws to the
+  // caller, which says so (never "no matches").
+  const searchMessages = useCallback((q: string) => utils.chat.search.fetch({ q, limit: 20 }), [utils]);
+
   // Clean up any pending debounce timer when the hook unmounts to
   // prevent state updates on an unmounted component.
   useEffect(() => {
@@ -490,6 +495,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     archivedConvos,
     loadArchived,
     unarchive,
+    searchMessages,
     /** Exposed so the chat page can refresh the sidebar after a new
      *  conversation is created server-side (when X-Conversation-Id
      *  comes back on the first message). Without this, Nour would

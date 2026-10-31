@@ -803,6 +803,7 @@ describe("chat fixtures (W3a)", () => {
       "brain.mediaMoments": "media-saved-moments.tsx renders only inside the focus panel, which renders null unless the operator opts in",
       "systemAutomation.getPendingApprovals": "the PWA badge (app-badge.tsx); renders nothing, and the Badge API is absent in CI chromium",
       "systemAutomation.approvals": "the PWA badge (app-badge.tsx); same",
+      "chat.search": "fetched only after the operator types 3+ characters into the history drawer's search box (use-conversations.ts searchMessages, U6b)",
     };
     const files = [
       "features/chat-v2/components/chat-capability-indicator.tsx",
