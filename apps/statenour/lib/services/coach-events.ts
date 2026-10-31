@@ -153,8 +153,11 @@ export async function recordCoachEvent(input: CoachEventInput): Promise<CoachEve
         return null;
       });
 
+    // A held push repeating after Done or Snooze is a NEW notice (deferPush told the caller "in the Pulse
+    // sheet"), so it carries nothing: the old Done would hide it for 24 h while the audit row claimed it showed.
+    const carried = input.kind === "held-notification" ? {} : carryOperatorState(prev?.metadata, Date.now());
     const metadata = {
-      ...carryOperatorState(prev?.metadata, Date.now()),
+      ...carried,
       eventId,
       kind: input.kind,
       subjectId: input.subjectId,

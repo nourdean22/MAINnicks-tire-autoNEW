@@ -116,3 +116,55 @@ describe("coach events · operator state on the server row", () => {
     expect(await snoozeCoachEvent("coach:system-alert:nope", 1)).toBe(false);
   });
 });
+
+// A held push (quiet hours) parks as a "held-notification" row keyed by the push tag, P2, Pulse sheet only.
+// deferPush then tells the caller deferred: 1 and writes an audit row saying "in the Pulse sheet". A repeat
+// of the same tag after Nour tapped Done used to inherit that Done and vanish while still reporting
+// "in the Pulse sheet". A repeat of a held push is a NEW notice (the device that went quiet at 23:00 and
+// came back at 22:00 the next night), so the operator's old Done or Snooze does not apply to it.
+describe("coach events · a repeated held push is a new notice", () => {
+  const hold = () =>
+    recordCoachEvent({
+      kind: "held-notification",
+      subjectId: "device-online:abc",
+      priority: "P2",
+      title: "A device went quiet",
+      body: "It has not checked in",
+      surfaces: ["pulse"],
+      expiresAt: new Date(Date.now() + 24 * 3600_000).toISOString(),
+    });
+  const HELD_KEY = buildCoachEventKey("held-notification", "device-online:abc");
+  const rowMeta = () => h.rows.get(`coach_event|${HELD_KEY}`)!.metadata as Record<string, unknown>;
+  // The Pulse sheet's own read (lib/trpc/routers/operator.ts: getActiveCoachEvents({ limit: 30 })).
+  const pulseSheet = async () => (await getActiveCoachEvents({ limit: 30 })).map((e) => e.title);
+
+  it("a held push that repeats after Done is visible in the Pulse sheet again", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-31T03:00:00Z"), toFake: ["Date"] });
+    await hold();
+    expect(await markCoachEventDone(HELD_KEY)).toBe(true);
+    expect(await pulseSheet()).toEqual([]); // CONTROL: Done still hides the one he dismissed
+    vi.setSystemTime(new Date("2026-10-31T14:00:00Z")); // 11 hours later, inside the 24 h done hold
+    await hold();
+    expect(await pulseSheet()).toEqual(["A device went quiet"]);
+    expect(rowMeta().doneAt).toBeUndefined();
+    expect(rowMeta().ackedAt).toBeUndefined();
+  });
+
+  it("a held push that repeats during a Snooze is visible again too", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-31T03:00:00Z"), toFake: ["Date"] });
+    await hold();
+    expect(await snoozeCoachEvent(HELD_KEY, 12)).toBe(true);
+    expect(await pulseSheet()).toEqual([]); // CONTROL: the snooze hides the row it was set on
+    vi.setSystemTime(new Date("2026-10-31T05:00:00Z"));
+    await hold();
+    expect(await pulseSheet()).toEqual(["A device went quiet"]);
+    expect(rowMeta().snoozeUntil).toBeUndefined();
+  });
+
+  it("CONTROL: a non-held kind still inherits Done on a re-fire (the carry stays for writers that never resolve)", async () => {
+    await fire();
+    await markCoachEventDone(KEY);
+    await fire();
+    expect(await getActiveCoachEvents({ limit: 30 })).toEqual([]);
+  });
+});

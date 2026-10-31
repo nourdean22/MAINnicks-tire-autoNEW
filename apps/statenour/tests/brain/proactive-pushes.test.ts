@@ -9,6 +9,7 @@ const mockDeleteMany = vi.fn();
 const mockBodyTrackingFindUnique = vi.fn().mockResolvedValue(null);
 const mockApprovalRequestCount = vi.fn().mockResolvedValue(0);
 const mockAutonomousActionCount = vi.fn().mockResolvedValue(0);
+const mockLogWarn = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -57,7 +58,7 @@ vi.mock("@/lib/logger", () => ({
   logger: {
     withSurface: () => ({
       info: () => {},
-      warn: () => {},
+      warn: (...a: unknown[]) => mockLogWarn(...a),
       error: () => {},
     }),
   },
@@ -396,5 +397,96 @@ describe("W3b · approvals reach him once per tick", () => {
     const texts = mockSendTelegram.mock.calls.map((c) => String(c[0]));
     expect(texts.filter((t) => /approval/i.test(t))).toHaveLength(1);
     expect(texts[0]).toContain("<b>3</b> tool execution(s) pending approval");
+  });
+});
+
+// A failed count read is UNKNOWN, never zero (empty-vs-error). Before: autonomousAction.count had no catch,
+// so one throw failed the hourly check-nudges step twice and that hour's approval count never reached him;
+// approvalRequest.count mapped a failure to 0, so the nudge skipped as "no_pending_actions" with no signal.
+describe("approvals nudge · an unreadable count is unknown, never zero", () => {
+  const SIX_AM = new Date("2026-06-10T06:00:00-04:00");
+  const unreadable = /could not read the (autonomous action|tool approval) count/i;
+  const sent = () => mockSendTelegram.mock.calls.map((c) => String(c[0]));
+
+  beforeEach(() => {
+    mockFindUnique.mockResolvedValue(null);
+    mockSendTelegram.mockResolvedValue(true);
+  });
+
+  it("autonomousAction.count rejects: the tool-approval half is still sent, the gap is said, and a warn is logged", async () => {
+    mockAutonomousActionCount.mockRejectedValue(new Error("connection reset"));
+    mockApprovalRequestCount.mockResolvedValue(3);
+    const r = await checkAndNudgeApprovals({ now: SIX_AM });
+    expect(r).toMatchObject({ kind: "live", fired: true, reason: "sent" });
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain("<b>3</b> tool execution(s) pending approval");
+    expect(sent()[0]).toMatch(/could not read the autonomous action count/i);
+    expect(sent()[0]).not.toMatch(/\bautonomous action\(s\) pending/);
+    expect(mockLogWarn).toHaveBeenCalledTimes(1);
+  });
+
+  it("autonomousAction.count throwing synchronously is handled the same way", async () => {
+    mockAutonomousActionCount.mockImplementation(() => {
+      throw new Error("client not ready");
+    });
+    mockApprovalRequestCount.mockResolvedValue(3);
+    const r = await checkAndNudgeApprovals({ now: SIX_AM });
+    expect(r).toMatchObject({ kind: "live", fired: true });
+    expect(sent()[0]).toContain("<b>3</b> tool execution(s) pending approval");
+    expect(mockLogWarn).toHaveBeenCalledTimes(1);
+  });
+
+  it("approvalRequest.count rejects while actions wait: the action count is sent and the tool-approval gap is said", async () => {
+    mockAutonomousActionCount.mockResolvedValue(2);
+    mockApprovalRequestCount.mockRejectedValue(new Error("connection reset"));
+    const r = await checkAndNudgeApprovals({ now: SIX_AM });
+    expect(r).toMatchObject({ kind: "live", fired: true });
+    expect(sent()[0]).toContain("<b>2</b> autonomous action(s) pending approval");
+    expect(sent()[0]).toMatch(/could not read the tool approval count/i);
+    expect(mockLogWarn).toHaveBeenCalledTimes(1);
+  });
+
+  it("both reads fail: skips as approval_count_unreadable (not no_pending_actions), sends nothing, warns twice", async () => {
+    mockAutonomousActionCount.mockRejectedValue(new Error("down"));
+    mockApprovalRequestCount.mockRejectedValue(new Error("down"));
+    const r = await checkAndNudgeApprovals({ now: SIX_AM });
+    expect(r).toMatchObject({ kind: "skip", reason: "approval_count_unreadable" });
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+    expect(mockLogWarn).toHaveBeenCalledTimes(2);
+  });
+
+  it("one read fails and the other reads zero: still unreadable, not 'no pending actions'", async () => {
+    mockAutonomousActionCount.mockResolvedValue(0);
+    mockApprovalRequestCount.mockRejectedValue(new Error("down"));
+    expect(await checkAndNudgeApprovals({ now: SIX_AM })).toMatchObject({ kind: "skip", reason: "approval_count_unreadable" });
+    mockAutonomousActionCount.mockReset().mockRejectedValue(new Error("down"));
+    mockApprovalRequestCount.mockReset().mockResolvedValue(0);
+    expect(await checkAndNudgeApprovals({ now: SIX_AM })).toMatchObject({ kind: "skip", reason: "approval_count_unreadable" });
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("a dry run with an unreadable count previews instead of throwing", async () => {
+    mockAutonomousActionCount.mockRejectedValue(new Error("down"));
+    mockApprovalRequestCount.mockResolvedValue(3);
+    const r = await checkAndNudgeApprovals({ now: SIX_AM, dryRun: true });
+    expect(r).toMatchObject({ kind: "preview", wouldSend: true });
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: both reads succeed with zero: skips as no_pending_actions and logs no warn", async () => {
+    const r = await checkAndNudgeApprovals({ now: SIX_AM });
+    expect(r).toMatchObject({ kind: "skip", reason: "no_pending_actions" });
+    expect(mockLogWarn).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: both reads succeed: both counts are sent, no gap line, no warn", async () => {
+    mockAutonomousActionCount.mockResolvedValue(2);
+    mockApprovalRequestCount.mockResolvedValue(3);
+    await checkAndNudgeApprovals({ now: SIX_AM });
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain("<b>2</b> autonomous action(s) pending approval");
+    expect(sent()[0]).toContain("<b>3</b> tool execution(s) pending approval");
+    expect(sent()[0]).not.toMatch(unreadable);
+    expect(mockLogWarn).not.toHaveBeenCalled();
   });
 });
