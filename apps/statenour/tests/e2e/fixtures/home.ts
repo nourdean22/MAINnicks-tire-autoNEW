@@ -200,6 +200,13 @@ export const HOME_GOALS = {
   fetchedAt: NOW_ISO,
 } satisfies inferRouterOutputs<AppRouter>["operator"]["goalsSnapshot"];
 
+/**
+ * The Home people question (people W2c): null, the real "no one left to ask about" answer, so the line
+ * renders nothing and Home's visual baselines do not move. Its rendered states are unit-tested
+ * (tests/components/love-map-line.test.tsx).
+ */
+export const HOME_LOVE_MAP: inferRouterOutputs<AppRouter>["task"]["loveMapQuestion"] = null;
+
 /** The Home People card reads GET /api/people (REST). Demo totals only; the card shows counts, not names. */
 export const HOME_PEOPLE = {
   data: {
