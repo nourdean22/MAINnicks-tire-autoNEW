@@ -15,6 +15,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildAssistantConfig, preserveLiveTransferDestinations } from "./services/vapi";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const SERVER = "https://nickstire.org/api/webhooks/vapi";
 
@@ -107,7 +108,7 @@ describe("the code default plan (first deploy, or a live destination with no pla
 
 describe("CALLBACK CAPTURE takes a best time and records nothing on a decline", () => {
   const prompt = (buildAssistantConfig(SERVER).model.messages[0] as { content: string }).content;
-  const capture = prompt.slice(prompt.indexOf("## CALLBACK CAPTURE"), prompt.indexOf("\n\n", prompt.indexOf("## CALLBACK CAPTURE")));
+  const capture = sliceBlock(prompt, "## CALLBACK CAPTURE", "\n\n", { label: "receptionist prompt" });
 
   it("(4) asks when is good and passes it to escalate as bestTime", () => {
     expect(capture).toMatch(/bestTime/);

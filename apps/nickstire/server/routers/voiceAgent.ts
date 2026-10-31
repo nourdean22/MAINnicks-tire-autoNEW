@@ -717,7 +717,7 @@ export const voiceAgentRouter = router({
             const { desc, like } = await import("drizzle-orm");
             const [winner] = await d.select({ id: callbackRequests.id }).from(callbackRequests)
               .where(like(callbackRequests.context, `%callId=${input.callId} %`))
-              .orderBy(desc(callbackRequests.id)).limit(1);
+              .orderBy(desc(callbackRequests.createdAt), desc(callbackRequests.id)).limit(1);
             log.info("escalate → callback already claimed for this call", { callId: input.callId, rowFound: Boolean(winner) });
             if (!winner) {
               return { success: false, pending: true, message: "This callback is still being saved. Call escalate once more; do not promise a callback until it returns success:true." };
