@@ -42,6 +42,10 @@
  *  4. WRITES, integrity first: any spent seed the hook did not record, then
  *     the Reality Ledger receipt (best-effort, never fails the run), then
  *     prompt_evolution_latest, then Telegram.
+ *  5. AUTO-PROMOTE (self-learning W2, 2026-10-31): the result and the live
+ *     baseline go to services/receptionistPromotion.ts, which decides through
+ *     the gate and (once W3 arms it) pushes the live system prompt only. Its one
+ *     line rides the Telegram; it can never fail the run.
  * prompt_evolution_latest is a POINTER to the latest run, overwritten nightly:
  * the result (hashes, gates, the proposal and its line diff, for the operator
  * to apply) plus the receipt's experimentId. The receipt is the durable,
@@ -440,7 +444,25 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
   // lives here until the next accepted one, so a quiet night never erases it.
   if (result.accepted) await setKv(LAST_ACCEPTED_KEY, row, "Prompt evolution — last accepted candidate (propose-only)");
 
-  const summary = telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger });
+  // 5 · The auto-promote gate (self-learning W2, services/receptionistPromotion.ts).
+  // It decides from this run's result and the live baseline it measured; it can
+  // never fail the run, whose measurement is already written.
+  let promotionLine: string;
+  try {
+    const { promoteReceptionistCandidate, productionPromotionDeps } = await import("../../services/receptionistPromotion");
+    const promotion = await promoteReceptionistCandidate(
+      { outcome: result.outcome, accepted: result.accepted, candidateDiff: result.candidateDiff, baseline },
+      await productionPromotionDeps(),
+    );
+    promotionLine = promotion.line;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("[evolve] auto-promote gate failed; nothing pushed", { error: msg });
+    promotionLine = `Auto-promote: error, nothing pushed (${clip(msg, 120)}).`;
+  }
+
+  const summary = `${telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger })}
+${promotionLine}`;
   const { sendTelegram } = await import("../../services/telegram");
   await sendTelegram(summary, "digest").catch(() => undefined);
 

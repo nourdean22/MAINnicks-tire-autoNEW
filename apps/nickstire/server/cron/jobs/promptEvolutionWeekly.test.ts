@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
   logs: [] as Array<{ level: string; message: string; meta: unknown[] }>,
+  promote: vi.fn(),
 }));
 
 /** shop_settings.value is TEXT: a longer value is rejected, never truncated. */
@@ -62,6 +63,10 @@ vi.mock("../../services/promptEvolution", () => ({
 vi.mock("../../services/receptionistBaseline", () => ({ resolveLiveReceptionistBaseline: mocks.resolveLiveReceptionistBaseline }));
 vi.mock("../../services/telegram", () => ({ sendTelegram: mocks.sendTelegram }));
 vi.mock("../../services/evidenceLedger", () => ({ postToEvidenceLedger: mocks.postToEvidenceLedger }));
+vi.mock("../../services/receptionistPromotion", () => ({
+  promoteReceptionistCandidate: mocks.promote,
+  productionPromotionDeps: async () => ({ fake: "deps" }),
+}));
 
 /** eq(shopSettings.key, k) carries k as its one Param chunk. */
 const keyOf = (cond: { queryChunks?: unknown[] }): string => {
@@ -159,6 +164,37 @@ describe("processPromptEvolutionWeekly", () => {
     mocks.failReadOnce.clear();
     mocks.resolveLiveReceptionistBaseline.mockResolvedValue({ promptHash: LIVE_HASH });
     mocks.postToEvidenceLedger.mockResolvedValue(true);
+    mocks.promote.mockResolvedValue({ status: "held", reason: "offline_rejected-holdout", versionId: "v", line: "Auto-promote: held (offline_rejected-holdout). The live prompt is unchanged." });
+  });
+
+  // Self-learning W2: every completed run hands its result and the full live
+  // baseline to the auto-promote gate, and the gate's one line rides the Telegram.
+  it("a completed run hands the result and the live baseline (prompt text included) to the gate; its line rides the Telegram", async () => {
+    const live = { promptHash: LIVE_HASH, prompt: "LIVE PROMPT TEXT", assistantId: "asst-1", parity: "code_plus_lessons" };
+    mocks.resolveLiveReceptionistBaseline.mockResolvedValue(live);
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    mocks.promote.mockResolvedValue({ status: "would_promote", reason: null, versionId: "v", line: "Auto-promote: would promote abcd1234 (passed every gate; auto-promote is not armed yet, nothing pushed)." });
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(mocks.promote).toHaveBeenCalledTimes(1);
+    const [input, deps] = mocks.promote.mock.calls[0];
+    expect(input).toMatchObject({ outcome: "accepted", accepted: { promptHash: CAND_HASH, confirmed: true }, candidateDiff: { codeEdit: true }, baseline: live });
+    expect(deps).toEqual({ fake: "deps" });
+    expect(telegramText()).toContain("Auto-promote: would promote abcd1234");
+  });
+
+  it("a gate that throws never fails the run: the measurement is kept and Telegram says nothing was pushed", async () => {
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    mocks.promote.mockRejectedValue(new Error("database unavailable"));
+    const r = await processPromptEvolutionWeekly(MONDAY);
+    expect(r.recordsProcessed).toBe(1);
+    expect(mocks.kv.has("prompt_evolution_latest")).toBe(true);
+    expect(telegramText()).toContain("Auto-promote: error, nothing pushed (database unavailable)");
+  });
+
+  it("a run that fails never reaches the gate", async () => {
+    mocks.runPromptEvolution.mockRejectedValue(new Error("only 2 usable seeds — need >= 4"));
+    await expect(processPromptEvolutionWeekly(MONDAY)).rejects.toThrow();
+    expect(mocks.promote).not.toHaveBeenCalled();
   });
 
   // 2026-10-31 (self-learning W1): Nour, 2026-10-30: "it should me autonomys self
