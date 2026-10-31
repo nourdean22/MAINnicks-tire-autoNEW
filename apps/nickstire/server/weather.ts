@@ -153,7 +153,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "danger",
-      message: `Heavy snow in Cleveland right now (${temp}\u00B0F). Roads are dangerous \u2014 if you must drive, make sure your tires have tread.`,
+      message: `Heavy snow in Cleveland right now (${temp}\u00B0F). Roads are dangerous. If you must drive, make sure your tires have tread.`,
       cta: "Check Tires",
       ctaHref: "tel:2168620005",
       icon: "snowflake",
@@ -165,7 +165,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "danger",
-      message: `Severe thunderstorm with hail in Cleveland. Stay safe \u2014 check your vehicle for damage after the storm passes.`,
+      message: `Severe thunderstorm with hail in Cleveland. Stay safe, and check your vehicle for damage after the storm passes.`,
       cta: "Call Us",
       ctaHref: "tel:2168620005",
       icon: "cloud_lightning",
@@ -177,7 +177,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "danger",
-      message: `Freezing rain in Cleveland (${temp}\u00B0F). Black ice is likely \u2014 drive slow and check your tires and brakes.`,
+      message: `Freezing rain in Cleveland (${temp}\u00B0F). Black ice is likely. Drive slow and check your tires and brakes.`,
       cta: "Brake Check",
       ctaHref: "tel:2168620005",
       icon: "alert_triangle",
@@ -189,7 +189,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "danger",
-      message: `Extreme cold in Cleveland: ${temp}\u00B0F. Low temps drop tire pressure \u2014 check your TPMS and battery today.`,
+      message: `Extreme cold in Cleveland: ${temp}\u00B0F. Low temps drop tire pressure. Check your TPMS and battery today.`,
       cta: "Free Check",
       ctaHref: "tel:2168620005",
       icon: "thermometer",
@@ -226,7 +226,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "warning",
-      message: `Heavy rain in Cleveland. Worn tires hydroplane \u2014 if your tread is low, do not wait to replace them.`,
+      message: `Heavy rain in Cleveland. Worn tires hydroplane. If your tread is low, do not wait to replace them.`,
       cta: "Check Tires",
       ctaHref: "tel:2168620005",
       icon: "cloud_rain",
@@ -250,7 +250,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "warning",
-      message: `${temp}\u00B0F with precipitation in Cleveland \u2014 icy roads likely. Check your tires and brakes.`,
+      message: `${temp}\u00B0F with precipitation in Cleveland. Icy roads are likely. Check your tires and brakes.`,
       cta: "Call Now",
       ctaHref: "tel:2168620005",
       icon: "alert_triangle",
@@ -299,7 +299,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "warning",
-      message: `${temp}\u00B0F in Cleveland. Extreme heat destroys underinflated tires \u2014 check your tire pressure today.`,
+      message: `${temp}\u00B0F in Cleveland. Extreme heat destroys underinflated tires. Check your tire pressure today.`,
       cta: "Free Check",
       ctaHref: "tel:2168620005",
       icon: "thermometer",
@@ -311,7 +311,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "info",
-      message: `${temp}\u00B0F in Cleveland today. Hot pavement is hard on tires \u2014 make sure your pressure is right.`,
+      message: `${temp}\u00B0F in Cleveland today. Hot pavement is hard on tires. Make sure your pressure is right.`,
       cta: "Tire Check",
       ctaHref: "tel:2168620005",
       icon: "sun",
@@ -325,7 +325,7 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     return {
       active: true,
       severity: "info",
-      message: `${temp}\u00B0F in Cleveland. Cold temps drop tire pressure about 1 PSI per 10\u00B0F \u2014 check yours today.`,
+      message: `${temp}\u00B0F in Cleveland. Cold temps drop tire pressure about 1 PSI per 10\u00B0F. Check yours today.`,
       cta: "Free Check",
       ctaHref: "tel:2168620005",
       icon: "thermometer",

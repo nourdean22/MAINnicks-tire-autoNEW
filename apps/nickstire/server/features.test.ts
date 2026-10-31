@@ -272,7 +272,7 @@ describe("getWeatherAlert", () => {
     const alert = getWeatherAlert(weather);
     expect(alert.active).toBe(true);
     expect(alert.severity).toBe("warning");
-    expect(alert.message).toContain("icy roads");
+    expect(alert.message).toMatch(/icy roads/i);
   });
 
   it("always includes a CTA href for active alerts", () => {
