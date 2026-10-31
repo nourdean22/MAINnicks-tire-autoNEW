@@ -106,7 +106,7 @@ read-only to us).
 | 33 | 10-30 17:01 | "use chrome n go check" the goal label | DONE+LIVE | Manager read in his Chrome 17:05Z: WEEK "2d left" (manager-sweep line 196) | none |
 | 34 | 10-30 13:26, 14:19, 14:39 | Calendar in all of StateNour, two-way | PARTIAL | See top gap 2; his YES again 10-31 12:37Z, brief calendar-everywhere-r2 written; tick 5: lane branch `statenour/calendar-r2-w1` exists, 0 commits past main | M; one grant step N |
 | 35 | 10-30 13:26, 13:28, 13:55 | Chat errors, up to date, queue messages | DONE+LIVE | FACT: 3397, 3404, 3415, 3422 live | none |
-| 36 | 10-30 13:34, 13:37 | Daily autonomous self-learning, both apps | PARTIAL | Session learning-nickstire-r2 (local_79e4d271) working since about 12:40Z 10-31; statenour half queued (brief learning-statenour-r2); tick 5: W0 rescue commit `0724ccd988` local on `nickstire/self-learning-w0-rescue` | His YES again 10-31 12:37Z. M |
+| 36 | 10-30 13:34, 13:37 | Daily autonomous self-learning, both apps | PARTIAL | Session learning-nickstire-r2 (local_79e4d271) working since about 12:40Z 10-31; statenour half queued (brief learning-statenour-r2); tick 8: W0 rescue is PR 3463 (head `0724ccd988`), CI RED: agent-policy job (DoD compiler: capability-ledger-updated evidence STALE) and node (cause not read) | His YES again 10-31 12:37Z. M |
 | 37 | 10-30 13:36, 14:02, 14:03 | Antislop + humanizer on all StateNour and nickstire.org pages | PARTIAL | FACT: nickstire A 3433, F 3442, B 3447, C 3448, D 3453, E 3454, facts 3456, G 3457 all live (tick 2) | StateNour pages: "statenour wave dropped" was a manager ruling (board line 233), not his; only chat audit-002 (3455) is in flight. M |
 | 38 | 10-30 13:39 | NicksMax: cam data + clean the box | DONE+LIVE | FACT: 3388, 3394, 3414 merged; installed on his go 16:02 EDT; Shop Sign ONLINE 02:07Z (board line 230) | Stats read due 16:00 ET today. M |
 | 39 | 10-30 14:19 | Embed the Gracian maxims now | DONE+LIVE | Manager log: 532 rows embedded, 6 permanent fails (board line 95) | none |
@@ -171,6 +171,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 | V9 | Ask him only for spend, sends, prod writes, credentials | The front-desk block went back to him after he said "u do that"; a route blocker (CRD) was named, so this is a soft violation | Row 65 |
 
 ## Loop log
+
+- Tick 8, 2026-10-31 13:55Z: no new asks. 3464 (ticks 5-7) merged. PR H 3462 `c9575e775d` LIVE: nickstire.org runs `c9575e775d`, merge-base 0. With it the nickstire half of row 37 is complete. Row 36: W0 rescue is PR 3463, red on 2 jobs (agent-policy DoD evidence STALE; node). W5b PR is still not open.
 
 - Tick 7, 2026-10-31 13:35Z: no new asks. Humanizer PR H 3462 merged `c9575e775d` (the last nickstire public pages); nickstire.org still runs `d57f14d04d`, so H's live read waits for the deploy. 0 open PRs. W5b PR not open yet.
 
