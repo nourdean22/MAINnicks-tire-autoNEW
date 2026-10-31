@@ -673,11 +673,12 @@ export const chatRouter = router({
         .object({
           cursor: z.string().max(64).optional(),
           take: z.number().int().min(1).max(200).optional(),
+          archived: z.boolean().optional(),
         })
         .optional(),
     )
     .query(async ({ input }) =>
-      listConversations({ cursor: input?.cursor, take: input?.take }),
+      listConversations({ cursor: input?.cursor, take: input?.take, archived: input?.archived }),
     ),
 
   /**

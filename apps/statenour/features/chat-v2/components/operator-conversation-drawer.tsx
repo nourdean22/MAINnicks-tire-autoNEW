@@ -19,6 +19,9 @@ export function OperatorConversationDrawer({
   onRename,
   onTogglePin,
   onArchive,
+  archivedConvos,
+  onLoadArchived,
+  onUnarchive,
   onNew,
   onShowActions,
   actionsDisabled = false,
@@ -38,6 +41,10 @@ export function OperatorConversationDrawer({
   onRename: (id: string, title: string) => void;
   onTogglePin: (id: string) => void;
   onArchive: (id: string) => void;
+  /** U6 · archived rows, read on demand when the Archived tab opens (null = not read, or failed). */
+  archivedConvos: Convo[] | null;
+  onLoadArchived: () => void;
+  onUnarchive: (id: string) => void;
   onNew: () => void;
   onShowActions: () => void;
   /** PR #3090: true while a conversation opens; "/receipts" would land in a thread not yet on screen. */
@@ -45,7 +52,7 @@ export function OperatorConversationDrawer({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<"active" | "pinned">("active");
+  const [mode, setMode] = useState<"active" | "pinned" | "archived">("active");
   // window.prompt is silently suppressed in iOS standalone PWAs — the
   // Rename tap would no-op on the phone. usePromptDialog is the app
   // standard (same pattern as todo-desk / brain-maturity-header).
@@ -60,12 +67,12 @@ export function OperatorConversationDrawer({
   const { confirm: confirmDialog, dialog: deleteDialog } = useConfirmDialog();
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return convos.filter((conversation) => {
+    return (mode === "archived" ? archivedConvos ?? [] : convos).filter((conversation) => {
       if (mode === "pinned" && !pinnedIds.has(conversation.id)) return false;
       if (!q) return true;
       return (conversation.title || "Untitled conversation").toLowerCase().includes(q);
     });
-  }, [convos, mode, pinnedIds, query]);
+  }, [archivedConvos, convos, mode, pinnedIds, query]);
 
   return (
     <aside className="flex h-full flex-col bg-void text-fg">
@@ -84,9 +91,15 @@ export function OperatorConversationDrawer({
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-tertiary" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" className="h-11 w-full rounded-control border border-edge-default bg-raised pl-9 pr-3 text-[16px] sm:text-[13px] text-fg outline-none focus:border-accent" />
         </div>
-        <div className="grid grid-cols-2 rounded-surface border border-edge-default bg-raised p-1">
-          {(["active", "pinned"] as const).map((value) => (
-            <button key={value} onClick={() => setMode(value)} className={`min-h-11 rounded-control sm:min-h-8 text-[13px] font-medium capitalize transition-colors duration-[var(--motion-state)] ${mode === value ? "bg-accent-soft text-fg" : "text-fg-tertiary hover:text-fg-secondary"}`}>
+        <div className="grid grid-cols-3 rounded-surface border border-edge-default bg-raised p-1">
+          {(["active", "pinned", "archived"] as const).map((value) => (
+            <button
+              key={value}
+              aria-pressed={mode === value}
+              onClick={() => {
+                setMode(value);
+                if (value === "archived") onLoadArchived();
+              }} className={`min-h-11 rounded-control sm:min-h-8 text-[13px] font-medium capitalize transition-colors duration-[var(--motion-state)] ${mode === value ? "bg-accent-soft text-fg" : "text-fg-tertiary hover:text-fg-secondary"}`}>
               {value}
             </button>
           ))}
@@ -104,13 +117,25 @@ export function OperatorConversationDrawer({
             <button type="button" onClick={onRetryList} disabled={listState === "loading"} className="min-h-11 rounded-control px-2 font-medium text-fg underline disabled:opacity-50">Retry</button>
           )}
         </div>
-        {listState === "ok" && visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
+        {mode === "archived" && archivedConvos === null && (
+          <p className="p-5 text-center text-xs text-fg-tertiary">Archived conversations not loaded.</p>
+        )}
+        {(mode === "archived" ? archivedConvos !== null : listState === "ok") && visible.length === 0 && (
+          <p className="p-5 text-center text-xs text-fg-tertiary">{mode === "archived" ? "Nothing archived." : "No conversations in this view."}</p>
+        )}
         {visible.map((conversation) => (
           <div key={conversation.id} className={`group mb-1 rounded-control border p-2 transition ${activeId === conversation.id ? "border-accent/40 bg-accent-soft" : "border-transparent hover:border-edge-default hover:bg-raised"}`}>
             <button onClick={() => onSelect(conversation.id)} className="w-full text-left">
               <p className="truncate text-xs font-medium text-fg">{conversation.title || "Untitled conversation"}</p>
               <p className="mt-1 text-[11px] text-fg-tertiary">{conversation._count.messages} Messages · {new Date(conversation.createdAt).toLocaleDateString()}</p>
             </button>
+            {mode === "archived" ? (
+              <div className="mt-2 flex items-center gap-1">
+                <button onClick={() => onUnarchive(conversation.id)} aria-label={`Unarchive ${conversation.title || "Untitled conversation"}`} className="min-h-11 rounded-control px-2 text-[12px] font-medium text-fg-secondary hover:bg-elevated hover:text-fg sm:min-h-8">
+                  Unarchive
+                </button>
+              </div>
+            ) : (
             <div className="mt-2 flex items-center gap-1 opacity-70 transition group-hover:opacity-100">
               <button onClick={() => onTogglePin(conversation.id)} title={pinnedIds.has(conversation.id) ? "Unpin" : "Pin"} aria-label={pinnedIds.has(conversation.id) ? "Unpin conversation" : "Pin conversation"} className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Pin size={12} fill={pinnedIds.has(conversation.id) ? "currentColor" : "none"} /></button>
               <button
@@ -149,9 +174,10 @@ export function OperatorConversationDrawer({
                 <Trash2 size={12} />
               </button>
             </div>
+            )}
           </div>
         ))}
-        {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-11 w-full rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
+        {hasMore && mode !== "archived" && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-11 w-full rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
       </div>
       {renameDialog}
       {deleteDialog}

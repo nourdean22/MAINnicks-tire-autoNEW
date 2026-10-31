@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import type { UIMessage } from "ai";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
@@ -28,6 +28,9 @@ import type { UIMessage } from "ai";
 import { trpc } from "@/lib/trpc/client";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 import { purgeConversation } from "@/features/chat-v2/lib/message-queue";
+/** The pre-U6 browser-only pin list, read once to move its pins onto the server. */
+const LEGACY_PINS_KEY = "nour:pinned-convos";
+
 export interface Convo {
   id: string;
   title: string | null;
@@ -318,28 +321,6 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     [onError, renameConversationMutation]
   );
 
-  // ── Pin/unpin via localStorage (no schema change needed) ──
-  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      return new Set(JSON.parse(localStorage.getItem("nour:pinned-convos") || "[]"));
-    } catch {
-      return new Set();
-    }
-  });
-
-  const togglePin = useCallback((id: string) => {
-    setPinnedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      try {
-        localStorage.setItem("nour:pinned-convos", JSON.stringify([...next]));
-      } catch {}
-      return next;
-    });
-  }, []);
-
   // v10.0.529.59 · audit Wave 8 follow-up · star/archive/mute per-row
   // toggles relocated from the chat header overflow menu into the
   // drawer. PATCH /api/ai/chat/conversation/[id] flips the named
@@ -403,6 +384,71 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     [onError, updateConversationMutation],
   );
 
+  // ── Pins ── U6 (2026-10-31): a pin is the conversation's starredAt on the server, so it
+  // follows Nour from the phone to the desktop. It used to live in this browser's localStorage
+  // only; those pins are moved up once, as their rows load, then dropped from storage.
+  const pinnedIds = useMemo(() => new Set(convos.filter((c) => c.starredAt).map((c) => c.id)), [convos]);
+  const togglePin = useCallback(
+    (id: string) => patchConvoFlag(id, "starred", !pinnedIds.has(id)),
+    [patchConvoFlag, pinnedIds],
+  );
+  useEffect(() => {
+    if (listState !== "ok") return;
+    let legacy: unknown;
+    try {
+      legacy = JSON.parse(localStorage.getItem(LEGACY_PINS_KEY) || "[]");
+    } catch {
+      return;
+    }
+    if (!Array.isArray(legacy) || legacy.length === 0) return;
+    const loaded = new Map(convos.map((c) => [c.id, c]));
+    // A pinned id not on this page yet stays saved for a later load.
+    const left = legacy.filter((id) => {
+      const c = typeof id === "string" ? loaded.get(id) : undefined;
+      if (!c) return typeof id === "string";
+      if (!c.starredAt) patchConvoFlag(c.id, "starred", true);
+      return false;
+    });
+    try {
+      if (left.length > 0) localStorage.setItem(LEGACY_PINS_KEY, JSON.stringify(left));
+      else localStorage.removeItem(LEGACY_PINS_KEY);
+    } catch {
+      // storage blocked: nothing to clean up
+    }
+  }, [listState, convos, patchConvoFlag]);
+
+  // ── Archived ── U6: the Archived tab reads archived rows on demand; Unarchive puts one back.
+  const [archivedConvos, setArchivedConvos] = useState<Convo[] | null>(null);
+  const loadArchived = useCallback(async () => {
+    try {
+      const d = await utils.chat.list.fetch({ archived: true, take: 200 });
+      setArchivedConvos(d.conversations ?? []);
+    } catch {
+      setArchivedConvos(null);
+      onError?.("Couldn't load archived conversations.");
+    }
+  }, [utils, onError]);
+  const unarchive = useCallback(
+    async (id: string) => {
+      // An archive still inside its 300 ms debounce never reached the server: cancel it, done.
+      const key = `${id}:archived`;
+      const pending = patchTimersRef.current.get(key);
+      if (pending) {
+        clearTimeout(pending);
+        patchTimersRef.current.delete(key);
+        return;
+      }
+      try {
+        await updateConversationMutation.mutateAsync({ id, archived: false });
+        setArchivedConvos((prev) => (prev ? prev.filter((c) => c.id !== id) : prev));
+        reloadConvos();
+      } catch {
+        onError?.("Couldn't unarchive that conversation.");
+      }
+    },
+    [updateConversationMutation, reloadConvos, onError],
+  );
+
   // Clean up any pending debounce timer when the hook unmounts to
   // prevent state updates on an unmounted component.
   useEffect(() => {
@@ -441,6 +487,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     renameConvo,
     pinnedIds,
     togglePin,
+    archivedConvos,
+    loadArchived,
+    unarchive,
     /** Exposed so the chat page can refresh the sidebar after a new
      *  conversation is created server-side (when X-Conversation-Id
      *  comes back on the first message). Without this, Nour would
