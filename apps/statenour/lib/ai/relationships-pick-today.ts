@@ -301,10 +301,13 @@ async function buildCandidatePool(): Promise<{ candidates: Candidate[]; calendar
     if (brokenPromises > 0) signals.push(`${brokenPromises} open promise(s)`);
     if (birthdayInDays !== null && birthdayInDays <= 14)
       signals.push(`birthday in ${birthdayInDays}d`);
-    if (daysSilent !== null && daysSilent >= 90) signals.push(`90d+ silent`);
-    else if (daysSilent !== null && daysSilent >= 30) signals.push(`${daysSilent}d silent`);
+    // Someone he is about to see has not gone quiet, so no silence signal either (Codex on 3432).
+    if (!seeingOn) {
+      if (daysSilent !== null && daysSilent >= 90) signals.push(`90d+ silent`);
+      else if (daysSilent !== null && daysSilent >= 30) signals.push(`${daysSilent}d silent`);
+    }
     if (ledgerDelta30d <= -2) signals.push(`ledger -${Math.abs(ledgerDelta30d)} last 30d`);
-    if (ledgerTouches30d === 0 && (daysSilent ?? 999) < 60)
+    if (!seeingOn && ledgerTouches30d === 0 && (daysSilent ?? 999) < 60)
       signals.push("no recent touchpoints");
 
     // Heuristic score (higher = more urgent · roughly calibrated).

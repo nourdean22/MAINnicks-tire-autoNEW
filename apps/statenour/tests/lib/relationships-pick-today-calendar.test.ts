@@ -52,7 +52,12 @@ describe("pickRelationshipsForToday calendar signal", () => {
     h.listEvents.mockResolvedValue([{ id: "e1", summary: "Lunch with Sam Rivers", start: "2026-10-31T16:00:00Z" }]);
     const out = await pickRelationshipsForToday();
     expect(out.picks.map((p) => p.personId)).toEqual(["q", "s"]);
-    expect(out.picks.find((p) => p.personId === "s")?.seeingOn).toBe("tomorrow");
+    const s = out.picks.find((p) => p.personId === "s");
+    expect(s?.seeingOn).toBe("tomorrow");
+    // Codex P1 on 3432: the silence SIGNAL goes too, not only its score, or the
+    // rationale reads "seeing them tomorrow · 90d+ silent".
+    expect(s?.rationale).toContain("seeing them tomorrow");
+    expect(s?.rationale).not.toMatch(/silent|no recent touchpoints/);
     expect(out.calendar).toBe("ok");
     expect(h.listEvents).toHaveBeenCalledWith(expect.objectContaining({ daysAhead: 3 }));
   });
