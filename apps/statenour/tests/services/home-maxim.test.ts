@@ -15,6 +15,7 @@ vi.mock("@/lib/services/pins", () => ({ createPin: h.createPin }));
 
 import { MAXIM_QUERY_INPUT, getHomeMaxim, keepHomeMaxim, skipHomeMaxim } from "@/lib/services/home-maxim";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
+import { MAXIM_TAGS } from "@/lib/wisdom/maxims";
 
 const NOW = new Date("2026-10-29T21:00:00-04:00");
 
@@ -79,7 +80,8 @@ describe("operator.maxim input (MAXIM_QUERY_INPUT)", () => {
   it("takes known tags only, at most one of each, and a bounded step", () => {
     expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: ["customers", "money"] }).success).toBe(true);
     expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: ["smith"] }).success).toBe(false);
-    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: Array(12).fill("money") }).success).toBe(false);
+    // One more than the tag list (it was a literal 12, which went stale when people W3 added "boundaries").
+    expect(MAXIM_QUERY_INPUT.safeParse({ step: 0, tags: Array(MAXIM_TAGS.length + 1).fill("money") }).success).toBe(false);
     expect(MAXIM_QUERY_INPUT.safeParse({ step: -1, tags: [] }).success).toBe(false);
     expect(MAXIM_QUERY_INPUT.safeParse({ step: 10_001, tags: [] }).success).toBe(false);
     expect(MAXIM_QUERY_INPUT.safeParse({ step: 1.5, tags: [] }).success).toBe(false);

@@ -24,6 +24,8 @@ export const MAXIM_TAGS = [
   "learning",
   "decisions",
   "health",
+  // People W3 (2026-10-30): his own judgment over other people's opinions, expectations and pressure.
+  "boundaries",
 ] as const;
 export type MaximTag = (typeof MAXIM_TAGS)[number];
 
@@ -62,6 +64,7 @@ const TAG_WORDS: Record<MaximTag, RegExp> = {
   learning: /\b(learn\w*|read|reading|study|course|book|practice)\b/i,
   decisions: /\b(decide|decision|decisions|approve|approval|approvals|choose|options?)\b/i,
   health: /\b(health|sleep|gym|workout|weight|doctor|rest|tired)\b/i,
+  boundaries: /\b(say no|saying no|pressure\w*|guilt\w*|expectations?|opinions?|approval|boundar\w*|people[- ]pleas\w*)\b/i,
 };
 
 export function tagsForText(text: string): Set<MaximTag> {

@@ -34,6 +34,8 @@ interface Pick {
    *  when the pick endpoint chose not to pre-compute. */
   draft?: string;
   draftAngle?: string;
+  /** People W3: one maxim from his books fitted to this pick. */
+  maxim?: { text: string; source: string };
 }
 
 interface PicksResponse {
@@ -150,6 +152,11 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
       {/* Expanded editor */}
       {expanded && (
         <div className="border-t border-edge-subtle">
+          {active.maxim && (
+            <p className="px-3 pt-2 text-[12px] italic text-fg-secondary">
+              {active.maxim.text} <span className="not-italic text-fg-tertiary">({active.maxim.source})</span>
+            </p>
+          )}
           <PickEditor
             key={active.personId}
             pick={active}
