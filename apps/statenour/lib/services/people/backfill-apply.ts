@@ -108,10 +108,13 @@ export async function runApply(args: { planFile: string; token: string; deps: Ap
 export async function insertWithinWindow(
   row: PlannedChatRow,
   io: {
+    /** False for a person soft-deleted since the plan: recordInteraction's lookup ignores deletedAt. */
+    personLive(personId: string): Promise<boolean>;
     contactsBetween(personId: string, start: Date, end: Date): Promise<number>;
     write(row: PlannedChatRow): Promise<void>;
   },
 ): Promise<"inserted" | "skipped"> {
+  if (!(await io.personLive(row.personId))) return "skipped";
   if ((await io.contactsBetween(row.personId, row.start, row.at)) > 0) return "skipped";
   await io.write(row);
   return "inserted";

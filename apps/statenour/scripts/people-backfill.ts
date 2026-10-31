@@ -230,6 +230,8 @@ async function execute(prisma: Prisma, planFile: string, token: string, apply: A
       },
       insert: (r) =>
         apply.insertWithinWindow(r, {
+          personLive: async (personId) =>
+            (await prisma.personProfile.count({ where: { id: personId, deletedAt: null } })) > 0,
           contactsBetween: async (personId, start, end) =>
             contactRowsOnly(
               await prisma.relationshipLedger.findMany({

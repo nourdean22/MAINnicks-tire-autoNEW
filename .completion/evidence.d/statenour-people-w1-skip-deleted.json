@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "people-w1-skip-deleted": {
+      "ref": "statenour/people-w1-skip-deleted (job 2026-10-30-people-tracker; finding 8 of the author's hostile self-review on #3427). recordInteraction's readPrior uses findUnique with no deletedAt filter, so a person soft-deleted between --plan and --execute would still get a backfilled ledger row. insertWithinWindow (lib/services/people/backfill-apply.ts) now takes a required personLive check and returns 'skipped' before any read or write when it is false; scripts/people-backfill.ts wires it as personProfile.count({ id, deletedAt: null }) > 0 (the only caller). Red first: the deleted-person row was 'inserted'. 3 backfill test files, 37 tests under TZ=UTC and America/New_York; scoped script tsc exit 0. Lands before the --execute run, which still needs Nour's yes."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the backfill script. Live check: the --execute run's skipped count includes any person soft-deleted since --plan."
+    }
+  }
+}

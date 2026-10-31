@@ -137,14 +137,24 @@ describe("insertWithinWindow (the apply's writer, Codex P1 on 3419)", () => {
   it("writes when no contact sits inside [start, at], even if a LATER contact exists", async () => {
     const write = vi.fn(async () => undefined);
     const contactsBetween = vi.fn(async () => 0);
-    expect(await insertWithinWindow(row, { contactsBetween, write })).toBe("inserted");
+    expect(await insertWithinWindow(row, { personLive: async () => true, contactsBetween, write })).toBe("inserted");
     expect(contactsBetween).toHaveBeenCalledWith("p1", row.start, row.at);
     expect(write).toHaveBeenCalledWith(row);
   });
 
   it("skips without writing when a contact already sits inside the window", async () => {
     const write = vi.fn(async () => undefined);
-    expect(await insertWithinWindow(row, { contactsBetween: async () => 1, write })).toBe("skipped");
+    expect(await insertWithinWindow(row, { personLive: async () => true, contactsBetween: async () => 1, write })).toBe("skipped");
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("skips a person soft-deleted since the plan, before reading or writing anything (self-review on 3427)", async () => {
+    const write = vi.fn(async () => undefined);
+    const contactsBetween = vi.fn(async () => 0);
+    const personLive = vi.fn(async () => false);
+    expect(await insertWithinWindow(row, { personLive, contactsBetween, write })).toBe("skipped");
+    expect(personLive).toHaveBeenCalledWith("p1");
+    expect(contactsBetween).not.toHaveBeenCalled();
     expect(write).not.toHaveBeenCalled();
   });
 });
