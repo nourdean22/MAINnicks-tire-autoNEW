@@ -10,6 +10,7 @@
  * DB-free: db-helper, the claim table and every outbound channel are fakes.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getTableName } from "drizzle-orm";
 import type { TrpcContext } from "../_core/context";
 
 const h = vi.hoisted(() => ({
@@ -45,7 +46,15 @@ function render(q: { queryChunks?: unknown[] }): { text: string; params: unknown
 function fakeDrizzle() {
   return {
     update: () => ({ set: () => ({ where: async () => undefined }) }),
-    select: () => ({ from: () => ({ where: () => ({ limit: async () => h.customerRows }) }) }),
+    select: () => ({
+      from: (t: unknown) => {
+        // escalate's loser re-reads the winning callback row (2026-10-31); every other read is the customer record.
+        const rows = getTableName(t as never) === "callback_requests"
+          ? h.inserted.filter((r) => typeof r.context === "string").map((r, i) => ({ id: 77 + i, ...r }))
+          : h.customerRows;
+        return { where: () => ({ limit: async () => rows, orderBy: () => ({ limit: async () => rows }) }) };
+      },
+    }),
     insert: () => ({
       values: (v: Record<string, unknown>) => {
         const p: Promise<unknown> = h.insertFails ? Promise.reject(new Error("db down")) : Promise.resolve([{ insertId: 77 }]);
@@ -317,7 +326,8 @@ describe("Codex re-review: one callback event per call", () => {
     await caller.escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e9" });
     await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
     await caller.escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e9" });
-    await until(() => expect(h.claimTries).toBe(2)); // the second escalate tried, and lost, the claim
+    // 4 claims: escalate 1 = row + alert; escalate 2 = row (lost, no second row) + alert (lost).
+    await until(() => expect(h.claimTries).toBe(4));
     await new Promise((r) => setImmediate(r));
     expect(h.callbackRequested).toHaveBeenCalledTimes(1);
   });
@@ -327,7 +337,7 @@ describe("Codex re-review: one callback event per call", () => {
     await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e10" });
     await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e11" });
     await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
-    expect(h.claimTries).toBe(2);
+    expect(h.claimTries).toBe(4); // a row claim and an alert claim per call
   });
 
   it("no callId: each escalate emits", async () => {

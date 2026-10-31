@@ -172,6 +172,17 @@ describe("(2) one row and one alert per call", () => {
     expect(h.rows).toHaveLength(1);
   });
 
+  it("a failed first alert is retried by the second escalate, still with one row", async () => {
+    h.callbackRequested.mockRejectedValueOnce(new Error("bus down"));
+    const c = await caller();
+    await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x7" });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await until(() => expect([...h.claims].some((k) => k.startsWith("voice-callback:call_x7|"))).toBe(false));
+    await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x7" });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
+    expect(h.rows).toHaveLength(1);
+  });
+
   it("a claim held with no row yet (the winner is mid-write) is not a promise", async () => {
     const c = await caller();
     // Plant the winner's claim without its row.

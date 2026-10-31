@@ -1818,7 +1818,12 @@ export function preserveLiveTransferDestinations(
   if (idx < 0) return config;
   const codeTool = config.model.tools[idx];
   if (codeTool.type !== "transferCall") return config;
-  codeTool.destinations = liveDestinations.map((d) => {
+  // Replace the tool, never mutate it: buildAssistantConfig shallow-copies the
+  // module-level VAPI_TOOLS, so mutating codeTool leaked one push's live plan into
+  // every later build in the process (found 2026-10-31 by test order).
+  const merged: VapiTransferCallToolDef = { ...codeTool, destinations: [] };
+  config.model.tools[idx] = merged;
+  merged.destinations = liveDestinations.map((d) => {
     // Preserve a dashboard-set transferPlan (e.g. warm-transfer) so a code
     // re-push doesn't silently revert to a blind transfer that can't connect
     // from a Vapi number. Fall back to the code default's transferPlan.

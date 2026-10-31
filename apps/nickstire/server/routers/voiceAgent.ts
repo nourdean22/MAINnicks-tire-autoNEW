@@ -681,7 +681,8 @@ export const voiceAgentRouter = router({
       // ONE callback row per call (claim-before-act, 2026-10-31). A Vapi tool retry
       // or a second model call used to write a second row. The persisted claim
       // (INSERT IGNORE, the same compare-and-swap as the alert below) decides who
-      // writes; the loser never writes or alerts, it re-reads the winner's row.
+      // writes; the loser never writes a row, it re-reads the winner's (its alert
+      // stays behind the per-call alert claim, so it cannot double-alert).
       const rowClaimKey = input.callId ? `voice-callback-row:${input.callId}` : null;
       let releaseRowClaimOnFailure = false;
       try {
@@ -690,6 +691,25 @@ export const voiceAgentRouter = router({
         const { callbackRequests } = await import("../../drizzle/schema");
         const d = await db();
         if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+        // Same bus dispatch as the website's callback form (routers/callback.ts):
+        // texts the on-duty manager, Telegram, NOUR OS. Never blocks the tool.
+        // The bus is the one Telegram sender for this callback; urgency rides in the reason.
+        const busReason = input.urgency === "high" ? `HIGH URGENCY: ${reasonWithTime}` : reasonWithTime;
+        const dispatchAlert = (callbackId: number | null) => {
+          const emitCallback = async (): Promise<TelegramSendResult> => {
+            const { emit } = await import("../services/eventBus");
+            await emit.callbackRequested({ id: callbackId, name, phone, reason: busReason });
+            return { status: "delivered" };
+          };
+          // A replayed or retried escalate in the same call must not text and alert twice:
+          // the same persisted per-call claim as the arrival heads-up (a throw hands it back).
+          (input.callId
+            ? import("../services/alertClaim").then(({ sendOncePerState }) => sendOncePerState(`voice-callback:${input.callId}`, emitCallback))
+            : emitCallback()
+          ).catch((e) => log.warn("escalate → event bus dispatch failed", { err: e instanceof Error ? e.message : String(e) }));
+        };
+
         if (rowClaimKey) {
           const { claimAlertOnce } = await import("../services/alertClaim");
           releaseRowClaimOnFailure = await claimAlertOnce(rowClaimKey);
@@ -699,9 +719,13 @@ export const voiceAgentRouter = router({
               .where(like(callbackRequests.context, `%callId=${input.callId} %`))
               .orderBy(desc(callbackRequests.id)).limit(1);
             log.info("escalate → callback already claimed for this call", { callId: input.callId, rowFound: Boolean(winner) });
-            return winner
-              ? { success: true, duplicate: true, message: "Already on the shop's callback list from earlier in this call. Do not call escalate again." }
-              : { success: false, pending: true, message: "This callback is still being saved. Call escalate once more; do not promise a callback until it returns success:true." };
+            if (!winner) {
+              return { success: false, pending: true, message: "This callback is still being saved. Call escalate once more; do not promise a callback until it returns success:true." };
+            }
+            // No second row. The alert stays claim-guarded: a no-op if the first one
+            // was delivered, a retry if the first one failed and handed its claim back.
+            dispatchAlert(winner.id);
+            return { success: true, duplicate: true, message: "Already on the shop's callback list from earlier in this call. Do not call escalate again." };
           }
         }
         const [insertedCallback] = await d.insert(callbackRequests).values({
@@ -716,22 +740,7 @@ export const voiceAgentRouter = router({
         // The row exists: keep the claim from here on, so a later throw never
         // hands it back and lets a retry write a second row.
         releaseRowClaimOnFailure = false;
-
-        // Same bus dispatch as the website's callback form (routers/callback.ts):
-        // texts the on-duty manager, Telegram, NOUR OS. Never blocks the tool.
-        // The bus is the one Telegram sender for this callback; urgency rides in the reason.
-        const busReason = input.urgency === "high" ? `HIGH URGENCY: ${reasonWithTime}` : reasonWithTime;
-        const emitCallback = async (): Promise<TelegramSendResult> => {
-          const { emit } = await import("../services/eventBus");
-          await emit.callbackRequested({ id: insertedCallback?.insertId ? Number(insertedCallback.insertId) : null, name, phone, reason: busReason });
-          return { status: "delivered" };
-        };
-        // A replayed or retried escalate in the same call must not text and alert twice:
-        // the same persisted per-call claim as the arrival heads-up (a throw hands it back).
-        (input.callId
-          ? import("../services/alertClaim").then(({ sendOncePerState }) => sendOncePerState(`voice-callback:${input.callId}`, emitCallback))
-          : emitCallback()
-        ).catch((e) => log.warn("escalate → event bus dispatch failed", { err: e instanceof Error ? e.message : String(e) }));
+        dispatchAlert(insertedCallback?.insertId ? Number(insertedCallback.insertId) : null);
 
         // LINK THE CALLBACK TO THE CALL — same trail mechanism as tireInquiry's
         // leadId, because this had the identical hole and a worse version of it:
