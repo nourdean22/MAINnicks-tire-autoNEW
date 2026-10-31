@@ -40,6 +40,7 @@ const RETIRED = [
   "Not because the law makes us",
   "The differentiator isn't hours, it's",
   "Both sides, no spin",
+  "The metal doesn't lie",
 ];
 
 const read = (rel: string) => fs.readFileSync(path.join(APP, rel), "utf8");

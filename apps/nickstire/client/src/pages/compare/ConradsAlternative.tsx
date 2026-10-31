@@ -29,7 +29,7 @@ export default function ConradsAlternative() {
       extraFaqs={[
         {
           question: "Why do Cleveland drivers switch from Conrad's to Nick's?",
-          answer: "Three reasons every time. One: Conrad's closes Sunday. When your tire blows after the Browns game, the lights are off. Nick's stays open. Two: Conrad's wants an appointment. Nick's is first come, first served, walk in any time. Three: Conrad's invoice often shows up bigger than the verbal quote. Nick's hands you the estimate in writing before we touch a wrench. The metal doesn't lie. Neither do we.",
+          answer: "Three reasons every time. One: Conrad's closes Sunday. When your tire blows after the Browns game, the lights are off. Nick's stays open. Two: Conrad's wants an appointment. Nick's is first come, first served, walk in any time. Three: Conrad's invoice often shows up bigger than the verbal quote. Nick's hands you the estimate in writing before we touch a wrench.",
         },
         {
           question: "How does Nick's tire pricing compare to Conrad's?",

@@ -140,7 +140,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     weaknesses: [
       "Closed Sundays. Same weekend gap as the rest of the chains",
       "Yelp + Google reviews repeatedly call out labor charges and parts add-ons appearing at checkout",
-      "Quality varies dramatically store-to-store post-acquisition. Your last good visit doesn't predict your next one",
+      "Service varies dramatically store-to-store post-acquisition. Your last good visit doesn't predict your next one",
       "Appointment-required for most service, walk-ins routinely turned away",
       "New tires only",
     ],
@@ -288,7 +288,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
       "Frequent coupon and email promotion programs",
     ],
     weaknesses: [
-      "Quality varies wildly store-to-store. Same brand sign, very different experiences",
+      "Service varies wildly store-to-store. Same brand sign, very different experiences",
       "Closed Sundays at most locations",
       "Reviews are bimodal: a chunk of customers love their specific manager, another chunk report aggressive upsell",
       "Coupon-driven pricing means the 'real' price often differs from the advertised one",
@@ -380,7 +380,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
       "Online appointment scheduling",
     ],
     weaknesses: [
-      "Now functionally part of Mavis post-2021 acquisition. Same store-to-store quality variance",
+      "Now functionally part of Mavis post-2021 acquisition. Same store-to-store variance",
       "Closed Sundays",
       "Reviews mention same labor + parts add-ons at checkout pattern as Mavis",
       "Brand identity has been fading as Mavis converts NTB stores to the Mavis banner",
