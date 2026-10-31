@@ -1014,10 +1014,14 @@ const STRUCTURE_EXEMPT: VoiceSurface[] = ["sms", "voice", "social", "admin"];
 export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   {
     id: "structure.dash",
-    pattern: /[—–]|&(?:mdash|ndash|#8212|#8211);|\s--\s/,
+    // Any em dash. An en dash only when it is NOT a number range ("30–60 min",
+    // "$3,500–$5,500", "7,500–10,000 mi"): a range between digits is typography, not a
+    // connector. "June–August" and "Pads – rotors" still fire.
+    pattern:
+      /—|&(?:mdash|#8212);|\s--\s|(?<![0-9%])–|–(?![0-9$])|(?<![0-9%])&(?:ndash|#8211);|&(?:ndash|#8211);(?![0-9$])/,
     label: "em or en dash as a connector",
     why: "The dash lets a sentence skip deciding how two clauses relate; it is the most common machine tell in shop copy",
-    fix: "Use a comma, a period or a new sentence. Never a semicolon. Ranges (hours, prices) come from BUSINESS",
+    fix: "Use a comma, a period or a new sentence. Never a semicolon. Number ranges between digits are fine",
     reason: "llm-tell",
     severity: "block",
     // A string that is only a dash is an empty-value placeholder in UI code, not prose.

@@ -36,6 +36,14 @@ describe("structure rules fire on the shapes they ban (positive control)", () =>
 });
 
 describe("structure rules spare what they must not touch", () => {
+  it("spares a number range between digits, and still flags a word range", () => {
+    for (const range of ["30–60 min", "$3,500–$5,500", "7,500–10,000 mi", "0.5–1 lb", "10–15%", "30&ndash;60 min"]) {
+      expect(ids(range), range).toEqual([]);
+    }
+    expect(ids("June–August")).toContain("structure.dash");
+    expect(ids("Mon – Sat")).toContain("structure.dash");
+  });
+
   it("passes plain copy", () => {
     expect(ids("Written quote first. You approve it before we start.")).toEqual([]);
     expect(ids("No appointment needed. Walk in any day.")).toEqual([]);
