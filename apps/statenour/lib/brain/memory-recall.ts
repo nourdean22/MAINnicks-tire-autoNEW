@@ -93,6 +93,16 @@ export const DURABLE_PERSONAL_CATEGORIES = [
   "routine",
 ] as const;
 
+/**
+ * 2026-10-31 · recall floor. A memory found ONLY by a dense (cosine) lane must match the query at
+ * this similarity or better to reach the prompt: on Nour's own turns best-match cosine runs
+ * p10 0.21 · median 0.27 · p90 0.37, so the 23-24% "matches" the chat panel showed were noise the
+ * model was also handed. Same number and measurement as contextual-recall.ts
+ * WISDOM_SLOT_MIN_SIMILARITY (a test pins them equal). A memory any text lane found (lexical or
+ * exact) always stays: those scores are ts_rank_cd or 0, not cosine, so this floor does not apply.
+ */
+export const DENSE_RECALL_MIN_SIMILARITY = 0.35;
+
 export const CONTEXT_CATEGORIES = new Set<string>([
   ...DURABLE_PERSONAL_CATEGORIES,
   "wisdom",
@@ -850,12 +860,15 @@ export async function recallMemoriesForQuery(
   const exactScored: RecallHit[] = exactRows
     .map(toHit)
     .sort((a, b) => a.knnDistance - b.knnDistance);
-  const scored: RecallHit[] = rrfMergeHitOrders(
-    mainScored,
-    durableScored,
-    lexicalScored,
-    exactScored,
-  ).slice(0, limit);
+  // Recall floor (see DENSE_RECALL_MIN_SIMILARITY): applied before the limit, so the slots it
+  // frees go to the next real match rather than staying empty.
+  const textMatched = new Set([...lexicalRows, ...exactRows].map((r) => r.memory_id));
+  const fused = rrfMergeHitOrders(mainScored, durableScored, lexicalScored, exactScored);
+  const kept = fused.filter((h) => textMatched.has(h.memoryId) || 1 - h.knnDistance >= DENSE_RECALL_MIN_SIMILARITY);
+  if (kept.length < fused.length) {
+    log.info("recall_floor_dropped", { dropped: fused.length - kept.length, kept: kept.length });
+  }
+  const scored: RecallHit[] = kept.slice(0, limit);
   const mainIds = new Set(rows.map((r) => r.memory_id));
   const scannedCount =
     rows.length + durableRows.filter((d) => !mainIds.has(d.memory_id)).length;
