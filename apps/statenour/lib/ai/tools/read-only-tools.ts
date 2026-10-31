@@ -69,7 +69,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "getAgendaItems", "getDriftAlerts",
   "getFinancialSnapshot", "getHabitStreaks", "getMasteryScores", "getMissions",
   "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail",
-  "getTasks", "getTodaySchedule",
+  "getTasks", "getTaskDetails", "getTodaySchedule",
   // ai_analysis (invokeTool only dispatches tools this list already vouches for)
   "summarize", "getFleetTruth",
   "searchTools", "invokeTool",

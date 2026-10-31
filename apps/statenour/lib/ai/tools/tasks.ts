@@ -127,13 +127,16 @@ const tasksCoreTools = {
   // INBOX/READY/DOING, includes mission context).
 
   getTasks: tool({
-    description: "Get active tasks with their missions",
+    description:
+      "Get active tasks with their missions. Each task carries parentTaskId (set on a subtask) and _count.attachments (photos). Notes are not in this list: read one task's notes, photos and subtasks with getTaskDetails.",
     inputSchema: z.object({}),
     execute: async () => {
       // v10.0.529.94 · Wave 38 · field projection · keep id (tool-call
       // anchor) · title · status · autoPriority · effort · context ·
       // loopKind · dueDate · streakCount + mission.title/domain. Drop
       // createdAt / updatedAt / userId / nextPhysicalAction lineage etc.
+      // 2026-10-30 (W3) · + parentTaskId and the photo count. Never notes: a bulk read stays
+      // note-free (tests/services/task-notes-reads.test.ts); getTaskDetails is the task-as-subject read.
       return prisma.task.findMany({
         where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
         select: {
@@ -146,6 +149,8 @@ const tasksCoreTools = {
           loopKind: true,
           dueDate: true,
           streakCount: true,
+          parentTaskId: true,
+          _count: { select: { attachments: { where: { deletedAt: null } } } },
           mission: { select: { title: true, domain: true } },
         },
         orderBy: { autoPriority: { sort: "desc", nulls: "last" } },
@@ -153,6 +158,67 @@ const tasksCoreTools = {
         void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "getTasks" }, "error"));
         return [];
       });
+    },
+  }),
+
+  // 2026-10-30 (W3) · the task-as-subject read: notes, photo captions, parent and subtasks of ONE
+  // task (PR 3360 added them; no tool could read them). Photo bytes never leave the database here.
+  getTaskDetails: tool({
+    description:
+      "Read ONE task in full: its notes, its photos (count and captions), its parent task and its subtasks. Use when Nour asks what the notes say on a task, what photos are on it, or what its subtasks are. Pass taskId (from getTasks) or titleQuery.",
+    inputSchema: z.object({
+      taskId: z.string().optional(),
+      titleQuery: z.string().optional().describe("Part of the task title, used when taskId is unknown"),
+    }),
+    execute: async ({ taskId, titleQuery }) => {
+      const select = {
+        id: true,
+        title: true,
+        status: true,
+        loopKind: true,
+        dueDate: true,
+        notes: true,
+        parent: { select: { id: true, title: true } },
+        children: { where: { deletedAt: null }, select: { id: true, title: true, status: true }, take: 25 },
+        attachments: { where: { deletedAt: null }, select: { caption: true, createdAt: true }, orderBy: { createdAt: "asc" as const }, take: 20 },
+        // The real photo count; the caption list above stops at 20.
+        _count: { select: { attachments: { where: { deletedAt: null } } } },
+      };
+      const query = titleQuery?.trim();
+      let task = taskId ? await prisma.task.findFirst({ where: { id: taskId, deletedAt: null }, select }) : null;
+      if (!task && query) {
+        // Open tasks first; a finished task is found only when no open one matches.
+        const find = (done: boolean) =>
+          prisma.task.findMany({
+            where: { title: { contains: query, mode: "insensitive" }, deletedAt: null, status: done ? "DONE" : { not: "DONE" } },
+            orderBy: { lastTouchedAt: { sort: "desc", nulls: "last" } },
+            take: 5,
+            select,
+          });
+        let candidates = await find(false);
+        if (candidates.length === 0) candidates = await find(true);
+        const titleQuery = query;
+        const exact = candidates.find((c) => c.title.toLowerCase() === titleQuery.toLowerCase());
+        if (exact) task = exact;
+        else if (candidates.length === 1) task = candidates[0] ?? null;
+        else if (candidates.length > 1) {
+          return { found: false, reason: `Several tasks match '${titleQuery}': ${candidates.map((c) => c.title).join(" | ")}. Ask which one, or pass taskId.` };
+        }
+      }
+      if (!task) return { found: false, reason: "task not found" };
+      return {
+        found: true,
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        loopKind: task.loopKind,
+        dueDate: task.dueDate?.toISOString() ?? null,
+        notes: task.notes ? task.notes.slice(0, 4000) : null,
+        notesTruncated: (task.notes?.length ?? 0) > 4000,
+        parent: task.parent,
+        subtasks: task.children,
+        photos: { count: task._count.attachments, captions: task.attachments.map((a) => a.caption).filter(Boolean) },
+      };
     },
   }),
 
@@ -208,6 +274,10 @@ const tasksCoreTools = {
         .string()
         .optional()
         .describe("For PROMISE kind · who Nour is committing to · 'self', 'dania', a customer name"),
+      parentTaskId: z
+        .string()
+        .optional()
+        .describe("Make this a subtask of that task (id from getTasks)"),
     }),
     execute: async ({
       title,
@@ -219,7 +289,12 @@ const tasksCoreTools = {
       dueDate,
       goalId,
       promiseTo,
+      parentTaskId,
     }) => {
+      // A hallucinated parent id would FK-throw on insert; drop it and say so (same rule as missionId).
+      const parentOk = parentTaskId
+        ? Boolean(await prisma.task.findFirst({ where: { id: parentTaskId, deletedAt: null }, select: { id: true } }))
+        : false;
       // classification spine · createTaskAndEnrich gap-fills mission/goal/
       // statHints (compare-and-set won't override what the model chose).
       const task = await createTaskAndEnrich({
@@ -238,6 +313,7 @@ const tasksCoreTools = {
         dueDate: dueDate ? new Date(dueDate) : null,
         goalId: goalId ?? null,
         promiseTo: promiseTo ?? null,
+        parentTaskId: parentOk ? parentTaskId : null,
       });
       return {
         created: true,
@@ -246,6 +322,10 @@ const tasksCoreTools = {
         loopKind,
         goalLinked: !!goalId,
         promised: !!promiseTo,
+        // Read from the saved task: createTaskAndEnrich can return an existing duplicate with no parent.
+        ...(parentTaskId
+          ? { parentLinked: task.parentTaskId === parentTaskId, ...(parentOk ? {} : { parentNote: "parentTaskId not found; created as a top-level task" }) }
+          : {}),
       };
     },
   }),
@@ -557,6 +637,14 @@ const tasksCoreTools = {
         .describe("Set to null to UNLINK from goal · pass an id to link"),
       loopKind: z.enum(["ONCE", "DAILY", "PROMISE"]).optional().describe(LOOP_KIND_LEGEND),
       dueDate: z.string().nullable().optional().describe("ISO · null to clear"),
+      appendNotes: z.string().max(5000).optional().describe("Add to the end of the task's notes, keeping what is there. The normal way to add a note."),
+      notes: z
+        .string()
+        .max(20000)
+        .nullable()
+        .optional()
+        .describe("REPLACE the whole notes (null clears). Refused when the task already has notes unless replaceNotes is true; use only when Nour asked to replace or clear them."),
+      replaceNotes: z.boolean().optional().describe("Set true only when Nour asked to overwrite or clear existing notes"),
     }),
     execute: async ({
       taskId,
@@ -567,9 +655,13 @@ const tasksCoreTools = {
       goalId,
       loopKind,
       dueDate,
+      notes,
+      appendNotes,
+      replaceNotes,
     }) => {
-      let target = taskId
-        ? await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, title: true } })
+      // W3 · deleted tasks are not edited (was findUnique by id with no deletedAt filter).
+      let target: { id: string; title: string } | null = taskId
+        ? await prisma.task.findFirst({ where: { id: taskId, deletedAt: null }, select: { id: true, title: true } })
         : null;
       if (!target && titleQuery) {
         const candidates = await prisma.task.findMany({
@@ -602,6 +694,19 @@ const tasksCoreTools = {
       if (goalId !== undefined) data.goalId = goalId; // null = unlink
       if (loopKind !== undefined) data.loopKind = loopKind;
       if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
+      // Notes are Nour's own writing: never overwritten by accident (second reader P1). Appending is
+      // the default; a replace of existing notes needs replaceNotes, else it is refused and nothing changes.
+      if (notes !== undefined || appendNotes !== undefined) {
+        const current = (await prisma.task.findFirst({ where: { id: target.id }, select: { notes: true } }))?.notes ?? null;
+        if (notes !== undefined) {
+          if (current && !replaceNotes) {
+            return { success: false, reason: "This task already has notes. Use appendNotes to add to them, or set replaceNotes only if Nour asked to overwrite them." };
+          }
+          data.notes = notes;
+        } else if (appendNotes) {
+          data.notes = current ? `${current}\n${appendNotes}` : appendNotes;
+        }
+      }
 
       const updated = await prisma.task.update({
         where: { id: target.id },

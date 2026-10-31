@@ -918,6 +918,10 @@
           "description": "The literal first physical step",
           "type": "string"
         },
+        "parentTaskId": {
+          "description": "Make this a subtask of that task (id from getTasks)",
+          "type": "string"
+        },
         "promiseTo": {
           "description": "For PROMISE kind · who Nour is committing to · 'self', 'dania', a customer name",
           "type": "string"
@@ -1553,8 +1557,25 @@
     }
   },
   {
+    "name": "getTaskDetails",
+    "description": "Read ONE task in full: its notes, its photos (count and captions), its parent task and its subtasks. Use when Nour asks what the notes say on a task, what photos are on it, or what its subtasks are. Pass taskId (from getTasks) or titleQuery.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "titleQuery": {
+          "description": "Part of the task title, used when taskId is unknown",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
     "name": "getTasks",
-    "description": "Get active tasks with their missions",
+    "description": "Get active tasks with their missions. Each task carries parentTaskId (set on a subtask) and _count.attachments (photos). Notes are not in this list: read one task's notes, photos and subtasks with getTaskDetails.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -3029,6 +3050,11 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "appendNotes": {
+          "description": "Add to the end of the task's notes, keeping what is there. The normal way to add a note.",
+          "maxLength": 5000,
+          "type": "string"
+        },
         "dueDate": {
           "anyOf": [
             {
@@ -3065,6 +3091,22 @@
         },
         "missionId": {
           "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "maxLength": 20000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "REPLACE the whole notes (null clears). Refused when the task already has notes unless replaceNotes is true; use only when Nour asked to replace or clear them."
+        },
+        "replaceNotes": {
+          "description": "Set true only when Nour asked to overwrite or clear existing notes",
+          "type": "boolean"
         },
         "taskId": {
           "type": "string"

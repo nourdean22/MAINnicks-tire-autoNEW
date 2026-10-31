@@ -406,12 +406,14 @@ export async function pruneTools(
   };
 
   // Business / revenue / shop
-  if (/\b(lead|customer|client|quote|estimate|invoice|callback|job|revenue|money|\$|pipeline|shop|aging|stale|decline|sale|conversion|ltv|winback|tire|repair|oil|brake)\b/.test(text)) {
+  // 2026-10-30 (W3 census): plurals and past tense ("invoices", "invoiced", "sales", "walked") missed,
+  // so "how much did it invoice today" got "I can't confirm". tests/ai/chat-reach-census.test.ts.
+  if (/\b(leads?|customers?|clients?|quotes?|estimates?|invoices?|invoiced|callbacks?|jobs?|revenue|money|\$|pipeline|shop|aging|stale|declined?|declines|sales?|sold|walked|conversions?|ltv|winbacks?|tires?|repairs?|oil|brakes?|nick'?s)\b/.test(text)) {
     addMatching(/lead|customer|quote|estimate|invoice|revenue|pipeline|aging|callback|decline|ltv|winback|staff|tech|shop|tire|price/i);
   }
 
   // Tasks / missions / commitments
-  if (/\b(task|todo|action|mission|goal|commit|promise|keep|break|pin|priority|overdue|late|stale)\b/.test(text)) {
+  if (/\b(tasks?|subtasks?|todos?|to-dos?|on my plate|notes? on|actions?|missions?|goals?|commit|promise|keep|break|pin|priority|overdue|late|stale)\b/.test(text)) {
     addMatching(/task|loop|commit|mission|triage|followup|schedule/i);
   }
 
@@ -463,7 +465,7 @@ export async function pruneTools(
   }
 
   // Financial / projections / forecast
-  if (/\b(money|\$|finance|budget|save|spend|invest|project|forecast|goal|target|net worth|savings|debt)\b/.test(text)) {
+  if (/\b(money|\$|finance|budget|save|spend|invest|project|forecast|goals?|on pace|on track|behind|slipping|target|net worth|savings|debt)\b/.test(text)) {
     addMatching(/financial|forecast|projection|goal|revenue|aging/i);
   }
 
@@ -494,7 +496,7 @@ export async function pruneTools(
   // Triggers Nour uses constantly · "what did I", "remember when",
   // "what would Greene say", "skills I have", "previous decision",
   // "simulate", "anti-pattern", "notebooklm"
-  if (/\b(remember|recall|what did i|what was the|previous|last time|history|conversation|chat history|skills i|my skills|greene|laws? of|wisdom|advise me|simulate|anti.?pattern|cold memory|blind spots?|decision (history|replay|journal)|reflect|reflection|brain health|emotional state|contradict|which is current|current belief|changed my mind|i was wrong|never mind|scratch that|i still believe|notebooklm|notebook|notebook lm)\b/.test(text)) {
+  if (/\b(remember|recall|what did i|what was the|previous|last time|history|conversation|chat history|skills i|my skills|greene|laws? of|wisdom|maxims?|gracian|quotes? from|advise me|simulate|anti.?pattern|cold memory|blind spots?|decision (history|replay|journal)|reflect|reflection|brain health|emotional state|contradict|which is current|current belief|changed my mind|i was wrong|never mind|scratch that|i still believe|notebooklm|notebook|notebook lm)\b/.test(text)) {
     addMatching(/search|memory|conversation|reflection|greene|wisdom|simulate|anti.?pattern|brain|emotional|decision|skill|cold|contradiction|resolveContradiction|notebooklm/i);
   }
 
@@ -622,7 +624,7 @@ export async function pruneTools(
   // generic "no events" reply with tools=0 in the trace · Nick was
   // bluffing because getTodaySchedule was pruned out. This family
   // surfaces it on schedule-shaped questions.
-  if (/\b(calendar|schedule|meeting|appointment|event|free time|busy|available|book (me |a |some )?(time|slot|focus|block)|when (am|are|is) (i|we|my|the)|focus block|deep work block|reminder)\b/.test(text)) {
+  if (/\b(calendar|schedule|meetings?|appointments?|appts?|events?|free time|am i free|plan my day|busy|available|book (me |a |some )?(time|slot|focus|block)|when (am|are|is) (i|we|my|the)|focus block|deep work block|reminder)\b/.test(text)) {
     addMatching(/Calendar|Schedule|Event/);
   }
 
@@ -933,7 +935,18 @@ export async function pruneTools(
    * Attribution is not a union.
    */
   const keep = (name: string, tier: number) => {
-    if (!allTools[name] || offeredOnce.has(name)) return;
+    if (!allTools[name]) return;
+    if (offeredOnce.has(name)) {
+      // 2026-10-30 (W3) · an intent tier (here the playbook, tier 7, which runs after tier 4) takes
+      // a tool OUT of the contested pool: "tasks" now fires the task family, and the first-tier-wins
+      // rule left the execute playbook's getTasks contested and cut by the budget.
+      const i = contested.findIndex((c) => c.name === name);
+      if (i >= 0) {
+        contested.splice(i, 1);
+        guaranteed.push({ name, tier });
+      }
+      return;
+    }
     offeredOnce.add(name);
     guaranteed.push({ name, tier });
   };
