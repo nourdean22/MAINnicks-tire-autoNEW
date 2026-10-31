@@ -14,7 +14,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { deserializePlan, fileToken, insertWithinWindow, parseApplyArgs, runApply, serializePlan } from "@/lib/services/people/backfill-apply";
+import { backupInOneSnapshot, deserializePlan, fileToken, insertWithinWindow, parseApplyArgs, runApply, serializePlan } from "@/lib/services/people/backfill-apply";
 
 const rows = [
   { personId: "p1", conversationId: "c1", start: new Date("2026-06-01T10:00:00Z"), at: new Date("2026-06-01T11:00:00Z"), interactionKind: "call", backfillKey: "bf:chat:c1:p1" },
@@ -127,7 +127,23 @@ describe("runApply gate order", () => {
       return "inserted";
     });
     const out = await runApply({ planFile, token, deps: d });
-    expect(out).toMatchObject({ status: "applied", inserted: 1, skipped: 0, failed: 1, failures: ["bf:chat:c1:p1"] });
+    // Second reader on #3427: the reason is kept (ids only, no names), and a run with any
+    // failure is never called plain "applied".
+    expect(out).toMatchObject({
+      status: "applied_with_failures",
+      inserted: 1,
+      skipped: 0,
+      failed: 1,
+      failures: [{ key: "bf:chat:c1:p1", error: "No person with id p1" }],
+    });
+  });
+
+  it("an empty source table is refused like a count mismatch, before any insert (second reader on #3427)", async () => {
+    const d = deps();
+    d.backup.mockResolvedValue({ source: 0, backup: 0 });
+    const out = await runApply({ planFile, token, deps: d });
+    expect(out.status).toBe("backup_mismatch");
+    expect(d.insert).not.toHaveBeenCalled();
   });
 });
 
@@ -156,6 +172,54 @@ describe("insertWithinWindow (the apply's writer, Codex P1 on 3419)", () => {
     expect(personLive).toHaveBeenCalledWith("p1");
     expect(contactsBetween).not.toHaveBeenCalled();
     expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe("backupInOneSnapshot (second reader on #3427)", () => {
+  // A fake store: one transaction call, which commits when the callback returns and rolls back when it throws.
+  function store(counts: { source: number; backup: number }, opts: { exists?: boolean } = {}) {
+    const log: string[] = [];
+    return {
+      log,
+      io: {
+        inTransaction: async <T,>(fn: (q: { exec(sql: string): Promise<void>; count(t: string): Promise<number> }) => Promise<T>) => {
+          log.push("begin");
+          try {
+            const out = await fn({
+              exec: async (sql) => {
+                if (opts.exists) throw Object.assign(new Error('relation "_bak" already exists'), { code: "42P07" });
+                log.push(sql.startsWith("CREATE TABLE") ? "copy" : sql);
+              },
+              count: async (t) => (t === "relationship_ledger" ? counts.source : counts.backup),
+            });
+            log.push("commit");
+            return out;
+          } catch (err) {
+            log.push("rollback");
+            throw err;
+          }
+        },
+      },
+    };
+  }
+
+  it("copies and counts in ONE transaction and commits when the counts match", async () => {
+    const s = store({ source: 42, backup: 42 });
+    expect(await backupInOneSnapshot(s.io, "_bak")).toEqual({ source: 42, backup: 42 });
+    expect(s.log).toEqual(["begin", "copy", "commit"]);
+  });
+
+  it("a count mismatch or an empty source rolls the copy back and returns the counts, so the next run is not blocked", async () => {
+    for (const counts of [{ source: 42, backup: 41 }, { source: 0, backup: 0 }]) {
+      const s = store(counts);
+      expect(await backupInOneSnapshot(s.io, "_bak")).toEqual(counts);
+      expect(s.log).toEqual(["begin", "copy", "rollback"]);
+    }
+  });
+
+  it("a backup left by an earlier run is refused with the exact rerun step", async () => {
+    const s = store({ source: 42, backup: 42 }, { exists: true });
+    await expect(backupInOneSnapshot(s.io, "_bak")).rejects.toThrow(/already exists.*RENAME TO "_bak_run1"/s);
   });
 });
 

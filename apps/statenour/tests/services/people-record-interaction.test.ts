@@ -124,8 +124,10 @@ describe("recordInteraction", () => {
       },
       select: { id: true },
     });
+    // The live-person check sits INSIDE the write (self-review + Codex on #3435): a soft-delete
+    // that commits before this statement makes it match nothing, and the ledger row rolls back.
     expect(m.txPersonUpdate).toHaveBeenCalledWith({
-      where: { id: "p1" },
+      where: { id: "p1", deletedAt: null },
       data: { interactionCount: { increment: 1 } },
       select: { id: true },
     });
@@ -193,6 +195,21 @@ describe("recordInteraction", () => {
       recordInteraction({ personId: "ghost", amount: 1, note: "x", source: "manual" }),
     ).rejects.toBeInstanceOf(PersonNotFoundError);
     expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it("a soft-deleted person throws PersonNotFoundError and opens no transaction", async () => {
+    m.personFindUnique.mockResolvedValue({ name: "Demo", role: "friend", lastInteraction: null, deletedAt: new Date() });
+    await expect(
+      recordInteraction({ personId: "p1", amount: 1, note: "x", source: "manual" }),
+    ).rejects.toBeInstanceOf(PersonNotFoundError);
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it("a person soft-deleted between the read and the write throws PersonNotFoundError from inside the transaction", async () => {
+    m.txPersonUpdate.mockRejectedValueOnce(Object.assign(new Error("Record to update not found."), { code: "P2025" }));
+    await expect(
+      recordInteraction({ personId: "p1", amount: 1, note: "x", source: "manual" }),
+    ).rejects.toBeInstanceOf(PersonNotFoundError);
   });
 });
 

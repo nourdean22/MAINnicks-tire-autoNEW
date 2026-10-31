@@ -128,10 +128,11 @@ function normalize(input: RecordInteractionInput): Normalized {
 async function readPrior(personId: string): Promise<Prior> {
   const prior = await prisma.personProfile.findUnique({
     where: { id: personId },
-    select: { name: true, role: true, lastInteraction: true },
+    select: { name: true, role: true, lastInteraction: true, deletedAt: true },
   });
-  if (!prior) throw new PersonNotFoundError(personId);
-  return prior;
+  // A soft-deleted person is not found: a row on them stays hidden, then returns on a revive.
+  if (!prior || prior.deletedAt) throw new PersonNotFoundError(personId);
+  return { name: prior.name, role: prior.role, lastInteraction: prior.lastInteraction };
 }
 
 /**
@@ -161,11 +162,18 @@ async function writeRow(
     },
     select: { id: true },
   });
-  await tx.personProfile.update({
-    where: { id: input.personId },
-    data: { interactionCount: { increment: 1 } },
-    select: { id: true },
-  });
+  // The live check inside the write (Codex on #3435): a soft-delete that committed after
+  // readPrior makes this match nothing (P2025), and the ledger row above rolls back with it.
+  try {
+    await tx.personProfile.update({
+      where: { id: input.personId, deletedAt: null },
+      data: { interactionCount: { increment: 1 } },
+      select: { id: true },
+    });
+  } catch (err) {
+    if ((err as { code?: unknown } | null)?.code === "P2025") throw new PersonNotFoundError(input.personId);
+    throw err;
+  }
   // Forward only. The predicate, not a pre-read, decides — a concurrent later
   // contact keeps its timestamp even if this write commits second.
   await tx.personProfile.updateMany({

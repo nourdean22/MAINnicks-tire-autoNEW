@@ -20,8 +20,14 @@
  *   only). A run that stops early (a crash, 3 provider failures in a row, a failed digest) prints
  *   "partial plan saved: N of M", exits 1 and writes NO plan file or token; rerun with
  *   --resume <out>.progress.json to finish. Only a complete run writes <out> and its token.
- *   Every chat read happens before the first model call (a read between model calls hit the
- *   10 s connect timeout on 2026-10-30 and lost 24 digests).
+ *   The script's own chat reads happen before the first model call (a read between model calls
+ *   hit the 10 s connect timeout on 2026-10-30 and lost 24 digests). The digest call itself
+ *   still touches the DB per conversation (lib/brain/conversation-memory.ts and the AgentTrace
+ *   write in lib/ai/traced-aichat.ts); those failures are counted, with their reason, not fatal.
+ *
+ *   --execute: the backup copy and both counts run in one REPEATABLE READ transaction, and a
+ *   refused backup (0 rows, or a count mismatch) rolls the copy back. A row that fails is listed
+ *   with its error, the status reads "applied_with_failures", and the exact rerun step prints.
  *
  * Lane A (tasks): promise tasks whose promiseTo names a live person exactly.
  * Lane B (chat): conversations where his own messages name a tracked person who
@@ -62,9 +68,11 @@ async function main() {
     console.error(`refused: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(2);
   }
+  // Read the plan file BEFORE the Prisma import: a wrong path fails before any connection opens.
+  const planContents = parsed.mode === "execute" ? readFileSync(parsed.planFile, "utf8") : null;
   const { prisma } = await import("@/lib/prisma");
   if (parsed.mode === "execute") {
-    await execute(prisma, parsed.planFile, parsed.token, apply);
+    await execute(prisma, planContents!, parsed.token, apply);
     await prisma.$disconnect();
     return;
   }
@@ -146,9 +154,13 @@ async function main() {
         // cut by the digest, so a name past char 500 can undercount (never a wrong write).
         const messages = plan.digestWindow(byConv.get(conversationId) ?? [], firstMatchAt);
         if (messages.length === 0) return "too_short";
-        const digest = await digestConversation(conversationId, messages).catch(() => null);
+        let reason = "the digest returned nothing";
+        const digest = await digestConversation(conversationId, messages).catch((err: unknown) => {
+          reason = err instanceof Error ? err.message : String(err);
+          return null;
+        });
         // too-short conversations are not provider failures
-        if (!digest) return messages.length >= 3 ? "failed" : "too_short";
+        if (!digest) return messages.length >= 3 ? { failed: reason } : "too_short";
         const planned = plan.planChatInteractions(
           [
             {
@@ -212,22 +224,32 @@ async function main() {
 type Prisma = (typeof import("@/lib/prisma"))["prisma"];
 type ApplyModule = typeof import("@/lib/services/people/backfill-apply");
 
-async function execute(prisma: Prisma, planFile: string, token: string, apply: ApplyModule) {
-  const contents = readFileSync(planFile, "utf8");
+async function execute(prisma: Prisma, contents: string, token: string, apply: ApplyModule) {
+  const { Prisma: P } = await import("@prisma/client");
   const { recordInteraction } = await import("@/lib/services/people/record-interaction");
   const { contactRowsOnly } = await import("@/lib/services/people/contact-rows");
-  const count = async (table: string) =>
-    Number(((await prisma.$queryRawUnsafe(`SELECT count(*)::int AS n FROM ${table}`)) as Array<{ n: number }>)[0].n);
 
   const result = await apply.runApply({
     planFile: contents,
     token,
     deps: {
-      // CREATE TABLE fails if the backup already exists: a second run never overwrites the first backup.
-      backup: async () => {
-        await prisma.$executeRawUnsafe(`CREATE TABLE "${BACKUP_TABLE}" AS SELECT * FROM relationship_ledger`);
-        return { source: await count("relationship_ledger"), backup: await count(`"${BACKUP_TABLE}"`) };
-      },
+      // One REPEATABLE READ snapshot for the copy and both counts; a refused copy rolls back.
+      backup: () =>
+        apply.backupInOneSnapshot(
+          {
+            inTransaction: (fn) =>
+              prisma.$transaction(
+                (tx) =>
+                  fn({
+                    exec: (sql) => tx.$executeRawUnsafe(sql),
+                    count: async (table) =>
+                      Number(((await tx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM ${table}`)) as Array<{ n: number }>)[0].n),
+                  }),
+                { isolationLevel: P.TransactionIsolationLevel.RepeatableRead, timeout: 120_000 },
+              ),
+          },
+          BACKUP_TABLE,
+        ),
       insert: (r) =>
         apply.insertWithinWindow(r, {
           personLive: async (personId) =>
@@ -259,8 +281,18 @@ async function execute(prisma: Prisma, planFile: string, token: string, apply: A
         }),
     },
   });
-  console.log(`execute: ${JSON.stringify(result)}`);
-  if (result.status !== "applied" || result.failed > 0) process.exitCode = 1;
+  const { failures, ...summary } = result as typeof result & { failures?: Array<{ key: string; error: string }> };
+  console.log(`execute: ${JSON.stringify(summary)}`);
+  if (result.status === "backup_mismatch") {
+    console.log("nothing written: the backup copy was rolled back. To rerun: the same --execute line.");
+  }
+  if (failures && failures.length > 0) {
+    console.log(`first failure: ${failures[0].key}: ${failures[0].error}`);
+    console.log(
+      `rows written are skipped on a rerun. To rerun the failed ones: ALTER TABLE "${BACKUP_TABLE}" RENAME TO "${BACKUP_TABLE}_run1"; then the same --execute line.`,
+    );
+  }
+  if (result.status !== "applied") process.exitCode = 1;
 }
 
 main().catch((err) => {

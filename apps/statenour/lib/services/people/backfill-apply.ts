@@ -67,12 +67,13 @@ export type ApplyResult =
   | { status: "token_mismatch"; fileToken: string }
   | { status: "backup_mismatch"; backup: { source: number; backup: number } }
   | {
-      status: "applied";
+      /** "applied_with_failures" when any row failed: a run where every row failed is never plain "applied". */
+      status: "applied" | "applied_with_failures";
       inserted: number;
       skipped: number;
       failed: number;
-      /** backfillKeys only (conversation + person ids), never a name. */
-      failures: string[];
+      /** backfillKey (conversation + person ids) and the error message, never a name. */
+      failures: Array<{ key: string; error: string }>;
       backup: { source: number; backup: number };
     };
 
@@ -82,21 +83,23 @@ export async function runApply(args: { planFile: string; token: string; deps: Ap
   const plan = deserializePlan(args.planFile);
 
   const backup = await args.deps.backup();
-  if (backup.source !== backup.backup) return { status: "backup_mismatch", backup };
+  // An empty source is refused too: the ledger is never empty in production, so 0 = a wrong database.
+  if (backup.source === 0 || backup.source !== backup.backup) return { status: "backup_mismatch", backup };
 
   let inserted = 0;
   let skipped = 0;
-  const failures: string[] = [];
+  const failures: Array<{ key: string; error: string }> = [];
   for (const row of plan) {
     try {
       if ((await args.deps.insert(row)) === "inserted") inserted++;
       else skipped++;
-    } catch {
+    } catch (err) {
       // One bad row (a person deleted since the plan) must not hide what the others did.
-      failures.push(row.backfillKey);
+      failures.push({ key: row.backfillKey, error: err instanceof Error ? err.message : String(err) });
     }
   }
-  return { status: "applied", inserted, skipped, failed: failures.length, failures, backup };
+  const status = failures.length > 0 ? "applied_with_failures" : "applied";
+  return { status, inserted, skipped, failed: failures.length, failures, backup };
 }
 
 /**
@@ -118,6 +121,42 @@ export async function insertWithinWindow(
   if ((await io.contactsBetween(row.personId, row.start, row.at)) > 0) return "skipped";
   await io.write(row);
   return "inserted";
+}
+
+/**
+ * The --execute backup (second reader on #3427). The copy and both counts run in ONE
+ * transaction (the caller opens it REPEATABLE READ), so they see one snapshot and a live
+ * ledger write in between cannot fake a mismatch. A refused backup (0 source rows, or a
+ * count mismatch) throws inside the transaction to roll the copy back, then returns the
+ * counts for runApply to refuse on, so the next run is not blocked by a half-made table.
+ * CREATE TABLE still fails when a committed backup exists: a run never overwrites one.
+ */
+export async function backupInOneSnapshot(
+  io: {
+    inTransaction<T>(fn: (q: { exec(sql: string): Promise<unknown>; count(table: string): Promise<number> }) => Promise<T>): Promise<T>;
+  },
+  table: string,
+): Promise<{ source: number; backup: number }> {
+  const REFUSED = "backup_refused";
+  let seen = { source: 0, backup: 0 };
+  try {
+    return await io.inTransaction(async (q) => {
+      await q.exec(`CREATE TABLE "${table}" AS SELECT * FROM relationship_ledger`);
+      seen = { source: await q.count("relationship_ledger"), backup: await q.count(`"${table}"`) };
+      if (seen.source === 0 || seen.source !== seen.backup) throw new Error(REFUSED);
+      return seen;
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === REFUSED) return seen;
+    const e = err as { code?: unknown; meta?: { code?: unknown } } | null;
+    if (e?.code === "42P07" || e?.meta?.code === "42P07" || /already exists/.test(String(err))) {
+      throw new Error(
+        `backup table "${table}" already exists from an earlier --execute. Nothing was written now; ` +
+          `rows that run wrote are skipped on a rerun. To rerun: ALTER TABLE "${table}" RENAME TO "${table}_run1"; then the same --execute line.`,
+      );
+    }
+    throw err;
+  }
 }
 
 export function serializePlan(rows: readonly PlannedChatRow[]): string {
