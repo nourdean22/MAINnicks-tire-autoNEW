@@ -321,6 +321,24 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
   // slot sets the cadence, so there is no weekday gate here any more.
   if (trigger === "manual") log.info("[evolve] manual run requested", { at: now.toISOString() });
 
+  // 0 · The canary of an earlier auto-promotion (self-learning W3), before the
+  // experiment, so a failing experiment never skips it. A rollback is told at
+  // once (a failed one as an incident); the line also rides tonight's summary.
+  let canaryLine: string | null = null;
+  try {
+    const { checkReceptionistCanary, productionPromotionDeps } = await import("../../services/receptionistPromotion");
+    const canary = await checkReceptionistCanary(await productionPromotionDeps());
+    canaryLine = canary?.line ?? null;
+    if (canary && (canary.status === "rolled_back" || canary.status === "rollback_failed")) {
+      const { sendTelegram } = await import("../../services/telegram");
+      await sendTelegram(canary.line, canary.status === "rollback_failed" ? "incident" : "receipt").catch(() => undefined);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("[evolve] canary check failed; nothing changed", { error: msg });
+    canaryLine = `Canary: error, nothing changed (${clip(msg, 120)}).`;
+  }
+
   // 1 · Reads. A DB error on the consumed list propagates: the run fails.
   const consumedBefore = parseConsumed(await getKv(CONSUMED_KEY));
   if (consumedBefore === null) {
@@ -461,8 +479,9 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
     promotionLine = `Auto-promote: error, nothing pushed (${clip(msg, 120)}).`;
   }
 
-  const summary = `${telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger })}
-${promotionLine}`;
+  const summary = [telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger }), canaryLine, promotionLine]
+    .filter((l): l is string => !!l)
+    .join("\n");
   const { sendTelegram } = await import("../../services/telegram");
   await sendTelegram(summary, "digest").catch(() => undefined);
 

@@ -161,7 +161,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   let paused: boolean | null;
   try {
     const raw = await deps.kvGet(KILL_SWITCH_KEY);
-    paused = raw !== null && /^(?:true|1|yes|on|paused)$/i.test(raw.trim());
+    paused = parsePaused(raw);
   } catch {
     paused = null;
   }
@@ -579,4 +579,51 @@ export async function checkReceptionistCanary(deps: PromotionDeps): Promise<Cana
 export async function undoReceptionistPromotion(deps: PromotionDeps): Promise<UndoResult> {
   const r = await rollBack(deps, "undone", "operator");
   return { status: r.status === "rolled_back" ? "undone" : r.status, reason: r.reason, line: r.line };
+}
+
+// ── W3: the /admin card (VAPI panel) ───────────────────────────────────────
+
+/** "true" / "1" / "yes" / "on" / "paused" pause; a missing row or anything else runs. */
+function parsePaused(raw: string | null): boolean {
+  return raw !== null && /^(?:true|1|yes|on|paused)$/i.test(raw.trim());
+}
+
+export interface AutoPromoteStatus {
+  armed: boolean;
+  /** null = the kill switch row could not be read (the nightly gate then holds). */
+  paused: boolean | null;
+  /** The promotion whose canary is open; null when none. Hashes only, never prompt text. */
+  open: { versionId: string; at: string; candidateHash: string | null; baseHash: string } | null;
+  /** Newest first, at most 6. null = the history row could not be read or parsed. */
+  recent: Array<{ at: string; status: PromotionStatus; reason: string | null; candidateHash: string | null }> | null;
+}
+
+/** For the admin card: three states, never two. An unreadable row is null, never an empty list. */
+export async function readAutoPromoteStatus(): Promise<AutoPromoteStatus> {
+  let paused: boolean | null;
+  try {
+    paused = parsePaused(await promotionKv.get(KILL_SWITCH_KEY));
+  } catch {
+    paused = null;
+  }
+  let rows: PromotionRecord[] | null;
+  try {
+    rows = parseHistory(await promotionKv.get(HISTORY_KEY));
+  } catch {
+    rows = null;
+  }
+  const open = rows ? openPromotion(rows) : null;
+  return {
+    armed: AUTO_PROMOTE_ARMED,
+    paused,
+    open: open ? { versionId: open.versionId, at: open.at, candidateHash: open.candidateHash, baseHash: open.baseHash } : null,
+    recent: rows ? rows.slice(0, 6).map((r) => ({ at: r.at, status: r.status, reason: r.reason, candidateHash: r.candidateHash })) : null,
+  };
+}
+
+/** Nour's pause switch (kv, never a Railway variable). Pausing stops new promotions; a live one stays until its canary or his undo. */
+export async function setAutoPromotePaused(paused: boolean): Promise<{ paused: boolean }> {
+  await promotionKv.set(KILL_SWITCH_KEY, paused ? "true" : "false");
+  log.info("[auto-promote] pause switch set", { paused });
+  return { paused };
 }

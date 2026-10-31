@@ -53,6 +53,29 @@ export default function VapiPanel() {
     },
     onError: (err: { message: string }) => toast.error("Start failed: " + err.message),
   });
+  // Self-learning (2026-10-31): the nightly experiment promotes its own gated
+  // winners to the live prompt. What is live, its canary, the pause switch and
+  // Nour's one-tap undo. Hashes only; never prompt text.
+  const { data: autoPromote, isLoading: autoPromoteLoading, isError: autoPromoteError, error: autoPromoteErr } = trpc.vapi.autoPromoteStatus.useQuery(undefined, {
+    enabled: status?.connected ?? false,
+    staleTime: 60_000,
+  });
+  const undoAutoPromotion = trpc.vapi.undoAutoPromotion.useMutation({
+    onSuccess: (r) => {
+      if (r.status === "undone") toast.success("Learned edit undone · the previous prompt serves again (read back from Vapi)");
+      else if (r.status === "nothing_to_undo") toast.message("Nothing to undo · no learned edit is live");
+      else toast.error(r.line.replace(/^Auto-promote: /, ""));
+      utils.vapi.autoPromoteStatus.invalidate();
+    },
+    onError: (err: { message: string }) => toast.error("Undo failed: " + err.message),
+  });
+  const setAutoPromotePaused = trpc.vapi.setAutoPromotePaused.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.paused ? "Self-learning paused · nothing new goes live" : "Self-learning resumed · next run 00:45 ET");
+      utils.vapi.autoPromoteStatus.invalidate();
+    },
+    onError: (err: { message: string }) => toast.error("Switch failed: " + err.message),
+  });
   const createAssistant = trpc.vapi.createAssistant.useMutation({
     onSuccess: (result) => {
       if (result.success) {
@@ -361,7 +384,7 @@ export default function VapiPanel() {
                   ? `Running for ${Math.round(evolution.active.elapsedMs / 60000)} min of a ${Math.round(evolution.active.budgetMs / 60000)}-minute budget. This panel refreshes every 30s.`
                   : evolution?.last
                     ? `Idle · last run ${evolution.last.status} in ${Math.round(evolution.last.durationMs / 60000)} min`
-                    : "Idle · runs every Monday, or now"}
+                    : "Idle · runs nightly at 00:45 ET, or now"}
               </p>
             </div>
             <button
@@ -389,8 +412,46 @@ export default function VapiPanel() {
           ) : evolution?.latest.state === "ok" && evolution.latest.latest ? (
             <PromptExperimentResult r={evolution.latest.latest} />
           ) : evolution?.latest.state === "ok" ? (
-            <p className="text-[11px] text-foreground/60">No experiment recorded yet. The weekly run is Monday; the button runs it today.</p>
+            <p className="text-[11px] text-foreground/60">No experiment recorded yet. It runs nightly at 00:45 ET; the button runs it now.</p>
           ) : null}
+        </div>
+      )}
+
+      {/* SELF-LEARNING · what the nightly loop put live, its canary, pause and
+          undo. Three states: an unreadable status is "unknown", never "nothing
+          is live". Both actions are two-tap in-DOM confirms (iOS PWA). */}
+      {connected && (
+        <div data-testid="auto-promote" className="border border-border/40 bg-background/40 p-3 space-y-2">
+          <p className="text-[10px] font-bold text-foreground/50">Self-learning</p>
+          {autoPromoteLoading ? (
+            <p className="text-[11px] text-foreground/60">Loading what is live.</p>
+          ) : autoPromoteError || !autoPromote ? (
+            <p className="text-[11px] text-foreground/60">Self-learning status unavailable: {autoPromoteErr?.message ?? "the request failed"}. Unknown, not empty.</p>
+          ) : (
+            <AutoPromoteCard
+              s={autoPromote}
+              busy={undoAutoPromotion.isPending || setAutoPromotePaused.isPending}
+              onUndo={async () => {
+                const ok = await confirmDialog({
+                  title: "Undo the learned edit?",
+                  message: "Puts the previous prompt back on the live receptionist and checks Vapi took it. The edit stays out of manual Push Latest Config too.",
+                  confirmLabel: "Undo edit",
+                  tone: "danger",
+                });
+                if (ok) undoAutoPromotion.mutate();
+              }}
+              onTogglePause={async (paused) => {
+                const ok = await confirmDialog({
+                  title: paused ? "Pause self-learning?" : "Resume self-learning?",
+                  message: paused
+                    ? "Nightly runs keep measuring, but nothing new goes live until you resume. A learned edit that is already live stays until its canary ends or you undo it."
+                    : "The next nightly run (00:45 ET) may put a gated winner live again.",
+                  confirmLabel: paused ? "Pause" : "Resume",
+                });
+                if (ok) setAutoPromotePaused.mutate({ paused });
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -398,6 +459,81 @@ export default function VapiPanel() {
         <p className="text-[11px] text-foreground/40 italic">
           No calls yet. The assistant goes live when Twilio is configured to forward unanswered calls to Vapi (one-time Twilio dashboard setup: ask vendor for SIP URL).
         </p>
+      )}
+    </div>
+  );
+}
+
+type AutoPromoteStatus = RouterOutputs["vapi"]["autoPromoteStatus"];
+
+const PROMOTION_WORDS: Record<string, string> = {
+  promoted: "went live",
+  promoting: "going live",
+  would_promote: "passed every gate (not armed)",
+  held: "held",
+  push_failed: "Vapi refused the push",
+  readback_restored: "restored after a bad read-back",
+  canary_passed: "canary passed, stays",
+  rolling_back: "rolling back",
+  rolled_back: "rolled back by the canary",
+  undone: "undone by you",
+  rollback_failed: "ROLLBACK FAILED",
+};
+
+const etTime = (iso: string) =>
+  new Date(iso).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** Live learned edit first (the one decision: keep or undo), then the switch, then the last few nights. */
+function AutoPromoteCard({ s, busy, onUndo, onTogglePause }: { s: AutoPromoteStatus; busy: boolean; onUndo: () => void; onTogglePause: (paused: boolean) => void }) {
+  const button =
+    "flex items-center gap-1.5 min-h-[48px] border px-3 py-1 text-[10px] font-bold tracking-wide disabled:opacity-50";
+  return (
+    <div className="text-[11px] text-foreground/70 space-y-2">
+      {s.open ? (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p>
+            Learned edit <span className="font-mono">{s.open.candidateHash?.slice(0, 8) ?? "?"}</span> live since {etTime(s.open.at)} · canary open
+            <span className="text-foreground/50"> (replaced <span className="font-mono">{s.open.baseHash.slice(0, 8)}</span>)</span>
+          </p>
+          <button onClick={onUndo} disabled={busy} className={`${button} border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10`}>
+            UNDO LEARNED EDIT
+          </button>
+        </div>
+      ) : s.recent === null ? (
+        <p>What is live is unknown: the promotion history could not be read. Unknown, not empty.</p>
+      ) : (
+        <p>No learned edit is live. The receptionist serves the prompt from the last Push Latest Config.</p>
+      )}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-foreground/60">
+          {s.paused === null
+            ? "Pause switch unreadable: nothing new goes live until it reads again."
+            : s.paused
+              ? "Paused: nightly runs measure, nothing new goes live."
+              : s.armed
+                ? "On: a nightly winner that passes every gate goes live, with a canary."
+                : "Measuring only: promotion is not armed in this build."}
+        </p>
+        {s.paused !== null && (
+          <button
+            onClick={() => onTogglePause(!s.paused)}
+            disabled={busy}
+            className={`${button} border-primary/30 text-primary bg-primary/5 hover:bg-primary/10`}
+          >
+            {s.paused ? "RESUME SELF-LEARNING" : "PAUSE SELF-LEARNING"}
+          </button>
+        )}
+      </div>
+      {s.recent && s.recent.length > 0 && (
+        <ul className="space-y-0.5 text-foreground/60">
+          {s.recent.map((r, i) => (
+            <li key={`${r.at}-${i}`}>
+              <span className="text-foreground/50">{etTime(r.at)}</span> · {PROMOTION_WORDS[r.status] ?? r.status}
+              {r.reason ? ` (${r.reason})` : ""}
+              {r.candidateHash ? <> · <span className="font-mono">{r.candidateHash.slice(0, 8)}</span></> : null}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -456,9 +592,9 @@ function PromptExperimentResult({ r }: { r: ExperimentSummary }) {
         </ul>
       )}
       <p className="text-foreground/50">
-        Live prompt <span className="font-mono">{r.baselinePromptHash?.slice(0, 8) ?? "?"}</span> unchanged
+        Measured against live prompt <span className="font-mono">{r.baselinePromptHash?.slice(0, 8) ?? "?"}</span>
         {r.experimentId ? <> · receipt <span className="font-mono">{r.experimentId.replace("prompt-evolution:", "").slice(0, 8)}</span>{r.receiptDelivered === false ? " (not delivered)" : ""}</> : " · no receipt"}
-        {" "}· applying a candidate is edit + Push Latest Config.
+        {" "}· a winner that passes every gate goes live on its own (Self-learning, below).
       </p>
     </div>
   );

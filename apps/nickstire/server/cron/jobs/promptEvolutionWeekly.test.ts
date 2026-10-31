@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   logs: [] as Array<{ level: string; message: string; meta: unknown[] }>,
   promote: vi.fn(),
+  canary: vi.fn(),
 }));
 
 /** shop_settings.value is TEXT: a longer value is rejected, never truncated. */
@@ -65,6 +66,7 @@ vi.mock("../../services/telegram", () => ({ sendTelegram: mocks.sendTelegram }))
 vi.mock("../../services/evidenceLedger", () => ({ postToEvidenceLedger: mocks.postToEvidenceLedger }));
 vi.mock("../../services/receptionistPromotion", () => ({
   promoteReceptionistCandidate: mocks.promote,
+  checkReceptionistCanary: mocks.canary,
   productionPromotionDeps: async () => ({ fake: "deps" }),
 }));
 
@@ -165,6 +167,47 @@ describe("processPromptEvolutionWeekly", () => {
     mocks.resolveLiveReceptionistBaseline.mockResolvedValue({ promptHash: LIVE_HASH });
     mocks.postToEvidenceLedger.mockResolvedValue(true);
     mocks.promote.mockResolvedValue({ status: "held", reason: "offline_rejected-holdout", versionId: "v", line: "Auto-promote: held (offline_rejected-holdout). The live prompt is unchanged." });
+    mocks.canary.mockResolvedValue(null);
+  });
+
+  // Self-learning W3: the canary of an earlier promotion is read every night,
+  // BEFORE the experiment, so a failing experiment never skips it.
+  it("the canary runs before the experiment and its line rides the Telegram", async () => {
+    const order: string[] = [];
+    mocks.canary.mockImplementation(async () => {
+      order.push("canary");
+      return { status: "watching", reason: null, line: "Canary: abcd1234 watching, 20/40 won since vs 200/400 before (needs 60)." };
+    });
+    mocks.runPromptEvolution.mockImplementation(async () => {
+      order.push("experiment");
+      return resultOf();
+    });
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(order).toEqual(["canary", "experiment"]);
+    expect(mocks.canary).toHaveBeenCalledWith({ fake: "deps" });
+    expect(telegramText()).toContain("Canary: abcd1234 watching");
+  });
+
+  it("a canary rollback is told at once, even when the experiment then fails", async () => {
+    mocks.canary.mockResolvedValue({ status: "rolled_back", reason: "canary_harm", line: "Auto-promote: ROLLED BACK (canary_harm): abcd1234 is off the live receptionist." });
+    mocks.runPromptEvolution.mockRejectedValue(new Error("only 2 usable seeds — need >= 4"));
+    await expect(processPromptEvolutionWeekly(MONDAY)).rejects.toThrow("usable seeds");
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("ROLLED BACK (canary_harm)"), "receipt");
+  });
+
+  it("a failed rollback is an incident", async () => {
+    mocks.canary.mockResolvedValue({ status: "rollback_failed", reason: "readback_mismatch", line: "Auto-promote: ROLLBACK FAILED (readback_mismatch). Check the receptionist now." });
+    mocks.runPromptEvolution.mockResolvedValue(rejected({ outcome: "rejected-holdout" }));
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("ROLLBACK FAILED"), "incident");
+  });
+
+  it("a canary check that throws never blocks the night's experiment", async () => {
+    mocks.canary.mockRejectedValue(new Error("db down"));
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    const r = await processPromptEvolutionWeekly(MONDAY);
+    expect(r.recordsProcessed).toBe(1);
+    expect(telegramText()).toContain("Canary: error, nothing changed (db down)");
   });
 
   // Self-learning W2: every completed run hands its result and the full live
