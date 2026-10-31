@@ -104,7 +104,7 @@ read-only to us).
 | 31 | 10-30 12:41 | Railway server audit | DONE+LIVE | FACT: 3384, 3406, 3408, 3410, 3411, 3416 live; config applied 22:09Z (1 change, 0 destroy) | Behaviour reads due about 21:00Z today (railway-audit memory line 22). M |
 | 32 | 10-30 13:01 | Goals, planning, wisdom as one system | DONE+LIVE | FACT: 3381, 3395, 3402, 3420, 3421 live | Reads owed 11-02, 11-13, 11-23 |
 | 33 | 10-30 17:01 | "use chrome n go check" the goal label | DONE+LIVE | Manager read in his Chrome 17:05Z: WEEK "2d left" (manager-sweep line 196) | none |
-| 34 | 10-30 13:26, 14:19, 14:39 | Calendar in all of StateNour, two-way | PARTIAL | See top gap 2; his YES again 10-31 12:37Z, brief calendar-everywhere-r2 written; tick 5: lane branch `statenour/calendar-r2-w1` exists, 0 commits past main | M; one grant step N |
+| 34 | 10-30 13:26, 14:19, 14:39 | Calendar in all of StateNour, two-way | PARTIAL | See top gap 2; his YES again 10-31 12:37Z, brief calendar-everywhere-r2 written; tick 10: W1 read path is PR 3465 (head `8ee52a58d9`), CI running | M; one grant step N |
 | 35 | 10-30 13:26, 13:28, 13:55 | Chat errors, up to date, queue messages | DONE+LIVE | FACT: 3397, 3404, 3415, 3422 live | none |
 | 36 | 10-30 13:34, 13:37 | Daily autonomous self-learning, both apps | PARTIAL | Session learning-nickstire-r2 (local_79e4d271) working since about 12:40Z 10-31; statenour half queued (brief learning-statenour-r2); tick 8: W0 rescue is PR 3463 (head `0724ccd988`), CI RED: agent-policy job (DoD compiler: capability-ledger-updated evidence STALE) and node (cause not read) | His YES again 10-31 12:37Z. M |
 | 37 | 10-30 13:36, 14:02, 14:03 | Antislop + humanizer on all StateNour and nickstire.org pages | PARTIAL | FACT: nickstire A 3433, F 3442, B 3447, C 3448, D 3453, E 3454, facts 3456, G 3457 all live (tick 2) | StateNour pages: "statenour wave dropped" was a manager ruling (board line 233), not his; only chat audit-002 (3455) is in flight. M |
@@ -171,6 +171,8 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 | V9 | Ask him only for spend, sends, prod writes, credentials | The front-desk block went back to him after he said "u do that"; a route blocker (CRD) was named, so this is a soft violation | Row 65 |
 
 ## Loop log
+
+- Tick 10, 2026-10-31 14:27Z: no new asks. Row 34: calendar W1 is PR 3465 (CI running). PR 3463 is still red on `0724ccd988`, about 50 minutes with no fix push. W5b still has no remote branch and no PR. Live builds are unchanged (bdnick `cc247e5db3`, nickstire `7e3e459455`).
 
 - Tick 8, 2026-10-31 13:55Z: no new asks. 3464 (ticks 5-7) merged. PR H 3462 `c9575e775d` LIVE: nickstire.org runs `c9575e775d`, merge-base 0. With it the nickstire half of row 37 is complete. Row 36: W0 rescue is PR 3463, red on 2 jobs (agent-policy DoD evidence STALE; node). W5b PR is still not open.
 
