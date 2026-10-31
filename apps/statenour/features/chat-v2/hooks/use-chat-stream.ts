@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { toast } from "sonner";
+import { doneToast } from "../lib/popup-mutes";
 import { useChatTransport, type ChatUIMessage } from "@/hooks/chat/use-chat-transport";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStall } from "@/hooks/chat/use-chat-stall";
@@ -330,7 +331,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         laneModel?: string;
       }) => {
         if (info.applied) {
-          toast.success(`Depth applied · ${info.tier}`, {
+          doneToast(`Depth applied · ${info.tier}`, {
             description: info.laneModel ? `answered by ${info.laneModel}` : undefined,
             duration: 4000,
           });

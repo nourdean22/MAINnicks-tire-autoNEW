@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Bookmark, Check } from "lucide-react";
 import { toast } from "sonner";
+import { doneToast } from "../lib/popup-mutes";
 import { trpc } from "@/lib/trpc/client";
 import { formatTimestamp } from "@/lib/media/timestamp-refs";
 import { toMemoryCandidate } from "@/lib/media/media-moment";
@@ -47,7 +48,7 @@ export function SaveMomentButton() {
       setJustSaved(true);
       setOpen(false);
       setNote("");
-      toast.success("Moment saved to brain");
+      doneToast("Moment saved to brain");
     },
     onError: (err) => {
       // Fail LOUD. A bookmark that silently didn't save is worse than

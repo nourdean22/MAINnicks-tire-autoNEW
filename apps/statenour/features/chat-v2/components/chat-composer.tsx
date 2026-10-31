@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { doneToast, fallbackToast } from "../lib/popup-mutes";
 import { Image as ImageIcon, Mic, X } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
@@ -319,7 +320,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
     const resolvedText = resolution.text;
     updatePending(tempId, { text: resolvedText, status: "sending" });
     if (resolution.timedOut) {
-      toast("Live context took too long, so it went with local context instead", { duration: 2500 });
+      fallbackToast("Live context took too long, so it went with local context instead", { duration: 2500 });
     }
 
     try {
@@ -376,7 +377,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
       chat.setMessages([]);
       setActiveConversationId(null);
       setDiagnosticReport(null);
-      toast.success("New conversation ready", { duration: 1400 });
+      doneToast("New conversation ready", { duration: 1400 });
       return;
     }
 
@@ -398,7 +399,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
           source: "chat",
           label: text.split("\n")[0].slice(0, 80) || "Chat insight",
         });
-        toast.success("Pinned to Nick's prompt");
+        doneToast("Pinned to Nick's prompt");
       } catch {
         toast.error("Couldn't pin that reply");
       }
@@ -792,7 +793,7 @@ export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeContro
               audioTakenRef.current = false;
               if (attachImgFromPaste(event)) {
                 event.preventDefault();
-                toast.success("Image attached from clipboard", { duration: 1500 });
+                doneToast("Image attached from clipboard", { duration: 1500 });
               } else if (audioTakenRef.current) {
                 event.preventDefault();
               }

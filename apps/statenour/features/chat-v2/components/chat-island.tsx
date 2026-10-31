@@ -22,6 +22,7 @@ import type { SavedRow } from "../lib/saved-turn";
 import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 import { useTts } from "../hooks/use-tts";
 import { toast } from "sonner";
+import { readMutedPopups, setPopupMuted, type PopupKind } from "../lib/popup-mutes";
 
 // W3b (B1): at xl the Context and Evidence inspector docks beside the conversation. Module scope,
 // like the composer's coarse-pointer query: useSyncExternalStore re-subscribes when the subscribe
@@ -46,6 +47,11 @@ function saveDocked(open: boolean): void {
     // storage blocked: the choice lasts for this page only
   }
 }
+// U6c: the pop-ups the More sheet can mute. Errors, Undo and "that did not happen" notes are not here.
+const POPUP_ROWS: readonly { kind: PopupKind; label: string; example: string }[] = [
+  { kind: "done", label: "Done confirmations", example: "Copied, saved, pinned, new chat ready" },
+  { kind: "fallback", label: "Live context fallback", example: "Live context was slow, so local context answered" },
+];
 // One stable empty list, so the sidebar sees the same reference while no recall belongs to this turn.
 const NO_HITS: never[] = [];
 function subscribeXl(onChange: () => void): () => void {
@@ -181,6 +187,7 @@ export function ChatIsland() {
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
   // W3b: below md the header shows History and More; auto-read, context and voice live in this sheet.
   const [moreOpen, setMoreOpen] = useState(false);
+  const [mutedPopups, setMutedPopups] = useState(readMutedPopups);
   // W3b: one polite region for the chip's detach (the x unmounts under the finger).
   const [chipAnnouncement, setChipAnnouncement] = useState("");
   const moreButtonRef = useRef<HTMLButtonElement>(null);
@@ -398,7 +405,8 @@ export function ChatIsland() {
       {/* W3b: one line. Nick, the capability dot and its word, Private when it is on; History and
           More on the right below md (auto-read, context and voice sit in the More sheet there),
           all of them at md and up. The five controls keep the 44px box the mobile-a11y pin counts;
-          the three that leave the phone line are hidden by max-md:hidden, never made smaller. */}
+          the three that leave the phone line are hidden by max-md:hidden, never made smaller.
+          U6c: More shows at every width now, since it also holds the pop-up mute list. */}
       <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas px-3 py-1 sm:px-4">
         <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-fg">Nick</h1>
@@ -432,39 +440,54 @@ export function ChatIsland() {
           <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Stop voice typing" : "Start voice typing"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}<span className="sr-only">Voice</span>
           </button>
-          <button ref={moreButtonRef} type="button" onClick={() => setMoreOpen(true)} aria-label="More chat controls" aria-expanded={moreOpen} aria-haspopup="dialog" className="flex h-11 w-11 items-center justify-center rounded-control md:hidden text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg">
+          <button ref={moreButtonRef} type="button" onClick={() => setMoreOpen(true)} aria-label="More chat controls" aria-expanded={moreOpen} aria-haspopup="dialog" className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg">
             <MoreHorizontal size={16} />
           </button>
         </div>
       </header>
 
-      {/* The More sheet (below md): the same three controls as rows, in the DOM (window.* menus do
-          not exist in the installed iOS PWA). Each row acts and closes the sheet; focus returns to More. */}
+      {/* The More sheet: below md the same three controls as rows (the header has them at md and up),
+          then the pop-up mute list at every width. In the DOM: window.* menus do not exist in the
+          installed iOS PWA. A control row acts and closes the sheet; a pop-up row toggles in place. */}
       <Dialog open={moreOpen} onOpenChange={(open) => { if (!open) setMoreOpen(false); }}>
         <DialogContent
           unstyled
           showCloseButton={false}
           finalFocus={moreButtonRef}
           overlayClassName="z-[58] bg-canvas/60"
-          className="fixed inset-x-0 bottom-0 z-[59] rounded-t-float border-t border-edge-default bg-overlay p-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] shadow-l1 outline-none"
+          className="fixed inset-x-0 bottom-0 z-[59] rounded-t-float border-t border-edge-default bg-overlay p-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] shadow-l1 outline-none md:inset-x-auto md:bottom-auto md:right-4 md:top-14 md:w-80 md:rounded-float md:border md:pb-2"
         >
           <DialogTitle className="px-3 py-2 text-[13px] font-medium text-fg-secondary">More chat controls</DialogTitle>
           {tts.supported && (
-            <button type="button" aria-pressed={tts.enabled} onClick={() => { tts.toggle(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+            <button type="button" aria-pressed={tts.enabled} onClick={() => { tts.toggle(); setMoreOpen(false); }} className="flex min-h-11 w-full md:hidden items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
               {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               Auto-read replies
               <span className="ml-auto text-[13px] text-fg-tertiary">{tts.enabled ? "On" : "Off"}</span>
             </button>
           )}
-          <button type="button" aria-pressed={inspectorOpen} onClick={() => { chooseInspector(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+          <button type="button" aria-pressed={inspectorOpen} onClick={() => { chooseInspector(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full md:hidden items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
             <PanelRight size={16} />
             Context and memory
           </button>
-          <button type="button" aria-pressed={isVoiceDocked} onClick={() => { toggleVoiceDock(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+          <button type="button" aria-pressed={isVoiceDocked} onClick={() => { toggleVoiceDock(); setMoreOpen(false); }} className="flex min-h-11 w-full md:hidden items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}
             Voice typing
             <span className="ml-auto text-[13px] text-fg-tertiary">{isVoiceDocked ? "On" : "Off"}</span>
           </button>
+          <p className="px-3 pb-1 pt-3 text-[13px] font-medium text-fg-secondary">Pop-ups</p>
+          {POPUP_ROWS.map(({ kind, label, example }) => {
+            const muted = mutedPopups.includes(kind);
+            return (
+              <button key={kind} type="button" aria-pressed={!muted} onClick={() => setMutedPopups(setPopupMuted(kind, !muted))} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 py-1.5 text-left text-[15px] text-fg hover:bg-surface">
+                <span className="min-w-0">
+                  <span className="block">{label}</span>
+                  <span className="block text-[12px] text-fg-tertiary">{example}</span>
+                </span>
+                <span className="ml-auto shrink-0 text-[13px] text-fg-tertiary">{muted ? "Muted" : "Shown"}</span>
+              </button>
+            );
+          })}
+          <p className="px-3 py-2 text-[12px] text-fg-tertiary">Errors and Undo always show. Saved in this browser.</p>
         </DialogContent>
       </Dialog>
 

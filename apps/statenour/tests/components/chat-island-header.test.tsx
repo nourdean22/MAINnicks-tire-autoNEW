@@ -125,8 +125,32 @@ describe("chat-island header, W3b composition", () => {
     expect(button("Context and memory")).toContain("max-md:hidden");
     expect(button("Start voice typing")).toContain("max-md:hidden");
     expect(button("Conversation history")).not.toContain("max-md:hidden");
-    expect(button("More chat controls")).toContain("md:hidden");
-    expect(button("More chat controls")).not.toContain("max-md:hidden");
+    // U6c: More shows at every width (it also holds the pop-up mute list), so no hiding class.
+    expect(button("More chat controls")).not.toMatch(/(^|\s)(max-)?md:hidden/);
+  });
+
+  it("U6c: More holds the pop-ups list; a tap mutes in place and is saved for this browser", () => {
+    window.localStorage.clear();
+    h.tts = tts({});
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => root.render(<ChatIsland />));
+    act(() => (container.querySelector('button[aria-label="More chat controls"]') as HTMLButtonElement).click());
+    const row = () => Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Done confirmations"))!;
+    expect(row().getAttribute("aria-pressed")).toBe("true");
+    expect(row().textContent).toContain("Shown");
+    expect(document.body.textContent).toContain("Errors and Undo always show.");
+    act(() => row().click());
+    expect(row().textContent).toContain("Muted");
+    expect(row().getAttribute("aria-pressed")).toBe("false");
+    expect(JSON.parse(window.localStorage.getItem("chat:mutedPopups")!)).toEqual(["done"]);
+    // the three header controls are md:hidden inside the sheet; the pop-up rows are not
+    const autoRead = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Auto-read replies"))!;
+    expect(autoRead.className).toMatch(/(^|\s)md:hidden/);
+    expect(row().className).not.toMatch(/md:hidden/);
+    act(() => root.unmount());
+    container.remove();
   });
 
   it("More opens an in-DOM sheet holding the three controls (no native menu)", () => {
