@@ -1600,8 +1600,9 @@ describe("used-tire check reads one list and never states a fixed count", () => 
   });
 
   it("Home and /tire-prices-cleveland both render the list from BUSINESS", () => {
+    // Code lines only: a comment that names the constant must not satisfy this.
     for (const rel of ["client/src/pages/Home.tsx", "client/src/pages/TirePricesClevelandPage.tsx"]) {
-      expect(readFileSync(join(ROOT, rel), "utf8")).toContain("BUSINESS.usedTires.checkSummary");
+      expect(LINES.some((l) => l.file === rel && l.text.includes("BUSINESS.usedTires.checkSummary"))).toBe(true);
     }
   });
 
