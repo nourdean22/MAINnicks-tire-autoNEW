@@ -1,16 +1,14 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/warm-transfer-assistant",
-  "status": "released",
+  "status": "active",
   "sessionKind": "bridge",
   "sessionId": "657030ac-13ff-46a7-954a-d58f2dca84b6",
-  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\warm-transfer-assistant",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\dedupe-gracian-678e14\\.worktrees\\w5",
   "claimedBy": "worktree-setup.ps1",
-  "claimedAt": "2026-10-31T11:27:06.563Z",
-  "expiresAt": "2026-10-31T23:27:06.563Z",
-  "releasedAt": "2026-10-31T11:35:30.177Z",
-  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
-  "priorLeaseSha": "85c5c3c8eead9d4acc4814aa4b5eec265f6652a1",
-  "releasedBy": "657030ac-13ff-46a7-954a-d58f2dca84b6",
-  "foreignReleaseReason": null
+  "claimedAt": "2026-10-31T11:37:08.341Z",
+  "expiresAt": "2026-10-31T23:37:08.341Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": "1a8ca0fd7169bde077319b96a06a8338b91c87c0"
 }
