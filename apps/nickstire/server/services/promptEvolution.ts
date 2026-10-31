@@ -444,7 +444,7 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       usage.judgeCalls++;
       if (opts.tally) opts.tally.judgeCalls++;
     }
-    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits, budget: opts.budget, judgePriority: 3 });
+    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits, budget: opts.budget, judgePriority: 3, ollamaOnly: true });
     slots[i] = {
       id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered,
       guarantees: g.guarantees, emptyReplies: g.emptyReplies, claimViolations: g.claimViolations,
@@ -694,6 +694,7 @@ async function proposeCandidates(
       slotWaitMs: callMs(),
       model: OPTIMIZER_MODEL,
       priority: 3,
+      ollamaOnly: true,
       });
     } catch (err) {
       log(`candidate ${i + 1}: optimizer call failed (${err instanceof Error ? err.message : String(err)}) — recorded as a failed proposal`);
@@ -720,6 +721,7 @@ async function proposeCandidates(
         slotWaitMs: callMs(),
         model: OPTIMIZER_MODEL,
         priority: 3,
+        ollamaOnly: true,
         });
       } catch (err) {
         log(`candidate ${i + 1}: optimizer retry failed (${err instanceof Error ? err.message : String(err)}) — recorded as a failed proposal`);

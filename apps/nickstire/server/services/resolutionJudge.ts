@@ -204,7 +204,7 @@ export async function judgeResolution(
    * timeoutMs: the caller's budget-capped timeout (ghostReplay budgetedTimeout); default 60 s.
    * slotWaitMs: how long to queue for an Ollama slot; default timeoutMs. priority: default P1.
    */
-  opts: { timeoutMs?: number; slotWaitMs?: number; priority?: 0 | 1 | 2 | 3 | 4 } = {},
+  opts: { timeoutMs?: number; slotWaitMs?: number; priority?: 0 | 1 | 2 | 3 | 4; ollamaOnly?: boolean } = {},
 ): Promise<JudgeResult> {
   const { invokeLLM } = await loadLlm();
   try {
@@ -223,6 +223,7 @@ export async function judgeResolution(
       // yield to live lanes, unlike the publish-gating judge (P0). The prompt
       // experiment passes P3 (gradeRepliesWithJudge judgePriority).
       priority: opts.priority ?? 1,
+      ...(opts.ollamaOnly ? { ollamaOnly: true } : {}),
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     const text = typeof raw === "string" ? raw : JSON.stringify(raw);
