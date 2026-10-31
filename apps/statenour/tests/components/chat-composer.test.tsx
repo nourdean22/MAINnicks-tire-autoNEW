@@ -174,6 +174,7 @@ describe("ChatComposer . audio attachments are transcribed", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     URL.createObjectURL = vi.fn(() => "blob:preview");
+    URL.revokeObjectURL = vi.fn(); // jsdom has none; the hook revokes previews on unmount
 
     await pick(new File(["x"], "shot.png", { type: "image/png" }));
 
