@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "Self-learning W0 (PR 3463, 2026-10-31): receptionist-prompt-evolution-gate gains one tests line in docs/operations/capability-ledger.json (ghostReplay.lane.test.ts 6 tests: every replay call Ollama-only, 429 waits 15 s then 45 s within the run budget, other errors not retried, judge carries ollamaOnly; llm.subscription-fallback.test.ts +1: ollamaOnly turns the Gemini quota fallback off) and REALITY-LEDGER.md is re-rendered. Red-first 6 failed / 6 passed on main source; mutation (flag dropped) 2 failed / 10 passed; orphan gate 0 new."
+    }
+  }
+}
