@@ -37,6 +37,7 @@
  *     inputs server-side and maps its output onto the lead contract.
  */
 
+import { readCalendarDay, type CalendarRead } from "@/lib/calendar/day-events";
 import { prisma } from "@/lib/prisma";
 import { deriveBriefing, type Briefing } from "@/lib/home/derive-briefing";
 import { homeHealthState, type ChipState } from "@/lib/home/health-state";
@@ -269,7 +270,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     dueTasks,
     laterGoals,
     weekGoals,
-    calendarUpcoming,
+    calendarRead,
   ] = await Promise.all([
     // Active/resume candidates. Ordering mirrors command-center-state.ts's
     // activeTask pick (autoPriority desc nulls last, lastTouchedAt desc) so
@@ -349,17 +350,19 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
         select: { id: true, title: true, deadline: true },
       }),
     ),
-    // Calendar events land as BrainMemory rows via the daily ingest cron
-    // (app/api/cron/ingest-calendar). metadata.start carries the ISO start.
-    guarded(
-      prisma.brainMemory.findMany({
-        where: { category: "calendar_upcoming", deletedAt: null },
-        orderBy: { updatedAt: "desc" },
-        take: 40,
-        select: { content: true, metadata: true },
-      }),
-    ),
+    // 2026-10-30 · today's events read live from every connected calendar (lib/calendar/day-events,
+    // 5-min cache), not the once-a-day BrainMemory copy capped at 40 rows. Rows keep the
+    // `Event: <title>` + metadata.start shape firstCalendarEventToday reads. All-day events are not
+    // a time pointer. A non-ok state is kept, so TODAY says why instead of reading as a free day.
+    readCalendarDay().catch((err): CalendarRead => ({ state: "read_failed", reason: (err as Error).message })),
   ]);
+  const calendarUpcoming =
+    calendarRead.state === "ok"
+      ? calendarRead.events
+          .filter((e) => !e.allDay)
+          .map((e) => ({ content: `Event: ${e.title}`, metadata: { start: e.start } as unknown }))
+      : null;
+  const calendarGap = calendarRead.state === "ok" ? null : calendarRead.state;
 
   // ── Lead (the tested chain, fed server-side) ──────────────────────────
 
@@ -484,6 +487,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     weekGoals: weekGoals ?? [],
     laterGoals: laterGoals ?? [],
     calendarUpcoming: calendarUpcoming ?? [],
+    calendarGap,
     startOfToday,
     endOfToday,
     measured:
@@ -768,6 +772,15 @@ function composeStateSummary(i: {
 
 // ── Horizon ─────────────────────────────────────────────────────────────
 
+type CalendarGap = "not_connected" | "expired" | "read_failed";
+
+const CONNECT_CALENDAR = "/api/oauth/google-data/start?account=personal";
+const CALENDAR_GAP_SLOT: Record<CalendarGap, { label: string; href: string }> = {
+  not_connected: { label: "Calendar not connected", href: CONNECT_CALENDAR },
+  expired: { label: "Calendar grant expired", href: CONNECT_CALENDAR },
+  read_failed: { label: "Calendar unknown", href: "/system/crons" },
+};
+
 function buildHorizon(i: {
   lead: BriefLeadSection;
   mitText: string | null;
@@ -775,6 +788,8 @@ function buildHorizon(i: {
   weekGoals: Array<{ id: string; title: string; deadline: Date | null }>;
   laterGoals: Array<{ id: string; title: string; horizon: string | null; deadline: Date | null }>;
   calendarUpcoming: Array<{ content: string; metadata: unknown }>;
+  /** Why today's calendar has no events to offer; null or absent when it was read. */
+  calendarGap?: CalendarGap | null;
   startOfToday: Date;
   endOfToday: Date;
   measured: boolean;
@@ -809,9 +824,12 @@ function buildHorizon(i: {
       scope: "today",
       label: todayTask.title,
       href: `/missions#task-${todayTask.id}`,
-      source: "due today",
+      source: i.calendarGap ? "due today · calendar unknown" : "due today",
     });
     claim(todayTask.title);
+  } else if (i.calendarGap) {
+    // An unread calendar is not a free day (calendar r2 W1).
+    slots.push({ scope: "today", ...CALENDAR_GAP_SLOT[i.calendarGap], source: "calendar" });
   }
 
   // WEEK — nearest dated task after today, else a WEEK-horizon goal.

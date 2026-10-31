@@ -7,29 +7,12 @@ import type { ActionParams, ActionResult } from "./types";
 
 export async function handleGoogleGetSchedule(params: ActionParams, type: string): Promise<ActionResult> {
   try {
-    const { listEvents } = await import("@/lib/services/calendar-api");
+    const { readSchedule } = await import("@/lib/ai/tools/calendar");
     const daysAhead = params.daysAhead ? Number(params.daysAhead) : 1;
-    const events = await listEvents({
-      daysAhead,
-      maxResults: 50,
-    });
-    return {
-      action: type,
-      success: true,
-      result: {
-        ok: true,
-        count: events.length,
-        events: events.map((e) => ({
-          id: e.id,
-          summary: e.summary ?? "(no title)",
-          start: e.start ?? null,
-          end: e.end ?? null,
-          location: e.location ?? null,
-          attendees: e.attendees ?? [],
-          link: e.htmlLink ?? null,
-        })),
-      },
-    };
+    const result = await readSchedule(Number.isFinite(daysAhead) ? Math.min(Math.max(daysAhead, 0), 14) : 1);
+    return result.ok
+      ? { action: type, success: true, result }
+      : { action: type, success: false, error: result.error };
   } catch (err) {
     return {
       action: type,

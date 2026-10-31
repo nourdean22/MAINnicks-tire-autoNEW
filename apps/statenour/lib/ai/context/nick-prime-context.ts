@@ -82,6 +82,11 @@ export interface NickPrimeContext {
   domainSnapshot: DomainSnapshot;
   /** v9.1.10 · Temporal context — day, time bucket, weekly targets. */
   temporal: TemporalContext;
+  /**
+   * 2026-10-30 · today's live calendar block (lib/calendar/day-lines), rendered inside TODAY.
+   * Optional: the pure projection has no Google read, so only buildNickPrimeContext sets it.
+   */
+  calendarToday?: string;
   todayProof: ProofRollup;
   activeRisks: {
     drift: DriftAlertSummary[];
@@ -114,7 +119,7 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
   
   const { getWeeklyReviewContext } = await import("@/lib/brain/weekly-review-context");
   
-  const [weeklyReview, recentDigests, anticipated, agendaItems, agendaItemsTotal] = await Promise.all([
+  const [weeklyReview, recentDigests, anticipated, agendaItems, agendaItemsTotal, calendarToday] = await Promise.all([
     getWeeklyReviewContext().catch((): string => ""),
     prisma.auditEvent.findMany({
       where: { eventType: "conversation_digest" },
@@ -141,9 +146,11 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
     prisma.agendaItem.count({
       where: { status: { in: ["ACTIVE", "SNOOZED"] } },
     }).catch(() => 0),
+    buildCalendarTodayBlock(),
   ]);
 
   ctx.weeklyReview = weeklyReview;
+  ctx.calendarToday = calendarToday;
   ctx.agendaItems = agendaItems.map(item => ({
     id: item.id,
     title: item.title,
@@ -170,6 +177,23 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
     : [];
 
   return ctx;
+}
+
+/**
+ * Today's calendar for Nick. Capped at 3 s so a slow Google read never holds a chat turn;
+ * a timeout or error renders "unreadable", never an empty day.
+ */
+async function buildCalendarTodayBlock(): Promise<string> {
+  const { readCalendarDay } = await import("@/lib/calendar/day-events");
+  const { nickCalendarBlock } = await import("@/lib/calendar/day-lines");
+  const timeout = new Promise<{ state: "read_failed"; reason: string }>((resolve) =>
+    setTimeout(() => resolve({ state: "read_failed", reason: "timeout" }), 3_000).unref?.(),
+  );
+  const read = await Promise.race([
+    readCalendarDay().catch((err) => ({ state: "read_failed" as const, reason: (err as Error).message })),
+    timeout,
+  ]);
+  return nickCalendarBlock(read);
 }
 
 /**

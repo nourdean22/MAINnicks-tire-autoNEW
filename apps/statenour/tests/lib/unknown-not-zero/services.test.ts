@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   queryNick: vi.fn(),
   sendTelegram: vi.fn(),
-  listEvents: vi.fn(),
+  readCalendarDay: vi.fn(),
   db: {} as Record<string, Record<string, ReturnType<typeof vi.fn>>> & { $queryRaw?: ReturnType<typeof vi.fn> },
 }));
 
@@ -19,7 +19,14 @@ vi.mock("@/lib/prisma", () => ({ prisma: h.db }));
 vi.mock("@/lib/services/telegram", () => ({ sendTelegram: h.sendTelegram }));
 vi.mock("@/lib/brain/memory-manager", () => ({ brainMemory: { remember: vi.fn(async () => undefined) } }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
-vi.mock("@/lib/services/calendar-api", () => ({ listEvents: h.listEvents }));
+// The brief reads the calendar through lib/calendar/day-events (every account, every calendar).
+const OK_EMPTY = { state: "ok", events: [], sources: { accounts: 1, calendars: 1 }, failedAccounts: [] };
+vi.mock("@/lib/calendar/day-events", async (orig) => ({
+  ...(await orig<typeof import("@/lib/calendar/day-events")>()),
+  readCalendarDay: h.readCalendarDay,
+  // In use recently, so an empty today reads "nothing booked", not "wrong account".
+  readCalendarWindow: vi.fn(async () => ({ ...OK_EMPTY, events: [{ id: "x", title: "x", start: "2026-10-08T14:00:00Z", end: null, allDay: false, accountKey: "primary" }] })),
+}));
 
 import { executeRhythm } from "@/lib/brain/operating-rhythm";
 import { runHealthProbes } from "@/lib/contracts/data-source-health";
@@ -54,7 +61,7 @@ beforeEach(() => {
   resetDb();
   h.queryNick.mockReset();
   h.sendTelegram.mockReset().mockResolvedValue(true);
-  h.listEvents.mockReset().mockResolvedValue([]);
+  h.readCalendarDay.mockReset().mockResolvedValue(OK_EMPTY);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -132,7 +139,7 @@ describe("morning brief personal slice", () => {
   it("a failed task count / calendar / commitments read renders unknown, not a vanished line", async () => {
     h.db.task.count.mockRejectedValue(new Error("db down"));
     h.db.commitment.findMany.mockRejectedValue(new Error("db down"));
-    h.listEvents.mockRejectedValue(new Error("token refresh failed"));
+    h.readCalendarDay.mockResolvedValue({ state: "read_failed", reason: "token refresh failed" });
     const slice = await buildPersonalSlice("2026-10-10");
     const text = slice.lines.join("\n");
     expect(text).toMatch(/Open tasks: unknown/);

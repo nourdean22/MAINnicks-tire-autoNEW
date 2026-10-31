@@ -11,6 +11,54 @@
 import { tool } from "ai";
 import { z } from "zod";
 
+/**
+ * Today plus `daysAhead` days from every connected account and selected calendar
+ * (lib/calendar/day-events). Shared by the getTodaySchedule tool and the agent's
+ * google.getSchedule action so both answer from the same read.
+ */
+export async function readSchedule(daysAhead: number) {
+  const { readCalendarWindow } = await import("@/lib/calendar/day-events");
+  const { startOfDayET, endOfDayET } = await import("@/lib/utils/datetime");
+  const now = new Date();
+  const read = await readCalendarWindow(startOfDayET(now), endOfDayET(new Date(now.getTime() + daysAhead * 86_400_000)));
+  if (read.state === "not_connected") {
+    return {
+      ok: false as const,
+      code: "not_connected",
+      error:
+        read.reason === "shop_account"
+          ? "His own calendar is not connected: the linked Google account is the shop's. Connect nourdean22 via /api/oauth/google-data/start?account=personal."
+          : "His calendar is not connected. Connect nourdean22 via /api/oauth/google-data/start?account=personal.",
+    };
+  }
+  if (read.state === "expired") {
+    return {
+      ok: false as const,
+      code: "auth",
+      error: `Google grant expired (${read.accounts.join(", ")}). Reconnect via /api/oauth/google-data/start?account=personal.`,
+    };
+  }
+  if (read.state === "read_failed") {
+    return { ok: false as const, code: "unknown", error: `Calendar read failed: ${read.reason}` };
+  }
+  return {
+    ok: true as const,
+    count: read.events.length,
+    // An empty list from a connected calendar is real; an account that failed is named.
+    unreadableAccounts: read.failedAccounts,
+    events: read.events.map((e) => ({
+      id: e.id,
+      summary: e.title,
+      start: e.start,
+      end: e.end,
+      allDay: e.allDay,
+      location: e.location ?? null,
+      attendees: e.attendees ?? [],
+      link: e.link ?? null,
+    })),
+  };
+}
+
 export const calendarTools = {
   getTodaySchedule: tool({
     description:
@@ -24,53 +72,7 @@ export const calendarTools = {
         .optional()
         .describe("How many days forward to fetch. Default 1 (today + tomorrow)."),
     }),
-    execute: async ({ daysAhead }) => {
-      try {
-        const { listEvents, CalendarApiError } = await import(
-          "@/lib/services/calendar-api"
-        );
-        const events = await listEvents({
-          daysAhead: daysAhead ?? 1,
-          maxResults: 50,
-        });
-        return {
-          ok: true,
-          count: events.length,
-          events: events.map((e) => ({
-            id: e.id,
-            summary: e.summary ?? "(no title)",
-            start: e.start ?? null,
-            end: e.end ?? null,
-            location: e.location ?? null,
-            attendees: e.attendees ?? [],
-            link: e.htmlLink ?? null,
-          })),
-        };
-      } catch (err) {
-        // Typed error from calendar-api distinguishes scope/auth issues.
-        const e = err as { tag?: string; status?: number; message?: string };
-        if (e?.tag === "scope_or_api_disabled") {
-          return {
-            ok: false,
-            code: "scope_missing",
-            error:
-              "Calendar access not granted. Reconnect Google with calendar.readonly scope via /api/oauth/google-data/start.",
-          };
-        }
-        if (e?.tag === "auth") {
-          return {
-            ok: false,
-            code: "auth",
-            error: "Google OAuth token invalid. Reconnect via /api/oauth/google-data/start.",
-          };
-        }
-        return {
-          ok: false,
-          code: "unknown",
-          error: e?.message ?? "Calendar fetch failed.",
-        };
-      }
-    },
+    execute: async ({ daysAhead }) => readSchedule(daysAhead ?? 1),
   }),
 
   // v10.0.524 · #10 Anti-pattern surfacing tool. The operator's

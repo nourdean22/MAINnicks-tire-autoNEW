@@ -1695,30 +1695,24 @@ async function cmdSchedule(chatId: string): Promise<void> {
   const { generateDailySchedule } = await import("@/lib/brain/daily-scheduler");
   const schedule = await generateDailySchedule();
 
-  // AG-18 · real Google Calendar events, prepended. The AI time-block
-  // plan below contains ZERO calendar reads — the operator's actual
-  // appointments never appeared in /schedule. Graceful-skip mirrors
-  // ingest-calendar's OAuth-expiry handling: on any calendar failure
-  // the reply degrades to the previous output with no error text.
+  // AG-18 · real Google Calendar events, prepended (every connected account and calendar since
+  // 2026-10-30). A read that produced no events says why instead of vanishing.
   let calendarSection = "";
   try {
-    const { listEvents } = await import("@/lib/services/calendar-api");
-    const events = await listEvents({ daysAhead: 1, maxResults: 8 });
-    if (events.length > 0) {
-      const lines = events.map((e) => {
-        const when = e.start
-          ? new Date(e.start).toLocaleTimeString("en-US", {
-              timeZone: "America/New_York",
-              hour: "numeric",
-              minute: "2-digit",
-            })
-          : "all day";
-        return `• <b>${when}</b> ${escapeHtml((e.summary ?? "(untitled)").slice(0, 60))}`;
+    const { readCalendarDay } = await import("@/lib/calendar/day-events");
+    const { briefCalendarLine, etTime } = await import("@/lib/calendar/day-lines");
+    const read = await readCalendarDay();
+    if (read.state === "ok" && read.events.length > 0) {
+      const lines = read.events.slice(0, 8).map((e) => {
+        const when = e.allDay ? "all day" : etTime(e.start);
+        return `• <b>${when}</b> ${escapeHtml(e.title.slice(0, 60))}`;
       });
       calendarSection = `📅 <b>Calendar</b>\n${lines.join("\n")}\n\n`;
+    } else {
+      calendarSection = `📅 ${escapeHtml(briefCalendarLine(read, null))}\n\n`;
     }
   } catch {
-    // OAuth expired / not configured — skip the section silently.
+    calendarSection = "📅 Calendar: unknown (read failed)\n\n";
   }
 
   const blockLines = schedule.blocks.map((b) => {

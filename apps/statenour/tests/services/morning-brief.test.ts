@@ -46,8 +46,10 @@ vi.mock("@/lib/prisma", () => ({
 const streak = vi.hoisted(() => ({ value: 0 as number | null }));
 vi.mock("@/lib/stats/workout-streak", () => ({ readWorkoutStreak: async () => streak.value }));
 
-vi.mock("@/lib/services/calendar-api", () => ({
-  listEvents: vi.fn().mockResolvedValue([]),
+vi.mock("@/lib/calendar/day-events", async (orig) => ({
+  ...(await orig<typeof import("@/lib/calendar/day-events")>()),
+  readCalendarDay: vi.fn().mockResolvedValue({ state: "ok", events: [], sources: { accounts: 1, calendars: 1 }, failedAccounts: [] }),
+  readCalendarWindow: vi.fn().mockResolvedValue({ state: "ok", events: [], sources: { accounts: 1, calendars: 1 }, failedAccounts: [] }),
 }));
 
 // 2026-07-30 · buildAnticipatedSlice now RETHROWS on failure (so the
