@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { scrubBridgePayload, scrubText, stripSyncCustomerPii } from "@/lib/brain/customer-pii";
+import { buildCeoContextFromNickSyncPayload } from "@/lib/nickstire/ceo-context";
 
 describe("scrubBridgePayload · allowlist rules", () => {
   it("a non-identity unknown string key is dropped (the identity regex cannot catch it)", () => {
@@ -124,6 +125,21 @@ describe("stripSyncCustomerPii · memories and patterns", () => {
     expect(plan.match(/AT-RISK:/g)).toHaveLength(1);
     expect(plan).toContain("MOMENTUM: 3 new customers this month.");
     expect(stripSyncCustomerPii(twice)).toEqual(once);
+  });
+
+  // 2026-11-01 · the consumer of the sender's openCount/openTotal/capped reads the STORED row, so
+  // both writers between the POST and the brief must keep the three keys (and null must stay null).
+  it("keeps declinedWork.openCount/openTotal/capped through the strip and the CEO-context row, null included", () => {
+    for (const keys of [
+      { openCount: 37, openTotal: 12480.5, capped: true },
+      { openCount: null, openTotal: null, capped: true },
+    ]) {
+      const raw = { source: "nickstire", declinedWork: { ...payload().declinedWork, ...keys } };
+      const stripped = stripSyncCustomerPii(raw) as { declinedWork: Record<string, unknown> };
+      expect(stripped.declinedWork).toMatchObject(keys);
+      const ceo = buildCeoContextFromNickSyncPayload(stripped as Record<string, unknown>);
+      expect(ceo.declinedWork).toMatchObject(keys);
+    }
   });
 
   it("drops recoveryNotes and declineReason from the decline lines, keeps the numbers", () => {

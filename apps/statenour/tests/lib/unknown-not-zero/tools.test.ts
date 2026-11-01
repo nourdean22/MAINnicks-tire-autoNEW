@@ -116,6 +116,24 @@ describe("dailyPulse / endOfDay", () => {
     expect(s).toContain("unknown");
   });
 
+  // 2026-11-01 · "is the shop open Sunday?" had no tool to answer from: the chat rule sends shop hours
+  // to a tool result, and dailyPulse carries them now (computed, so a failed shop read cannot hide them).
+  it("dailyPulse carries the shop's weekly hours and openNow, even when the shop read failed", async () => {
+    h.queryNickBatch.mockImplementation(batchOf(SOFT_ERROR));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-01T14:00:00Z")); // Sunday 09:00 EST, the DST fall-back day
+      const out = (await run(tasksTools.dailyPulse)) as { shopHours: { openNow: boolean; weekly: Record<string, string>; today: { weekday: string } } };
+      expect(out.shopHours.openNow).toBe(true);
+      expect(out.shopHours.today.weekday).toBe("sunday");
+      expect(out.shopHours.weekly.sunday).toBe("09:00-16:00");
+      vi.setSystemTime(new Date("2026-11-01T21:00:00Z")); // Sunday 16:00 EST: closed
+      expect(((await run(tasksTools.dailyPulse)) as { shopHours: { openNow: boolean } }).shopHours.openNow).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("endOfDay: failed task counts are unknown, not 0", async () => {
     h.queryNickBatch.mockImplementation(batchOf({ error: "fetch failed" }));
     h.db.task.findMany.mockRejectedValue(new Error("db down"));

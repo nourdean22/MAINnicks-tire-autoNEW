@@ -34,6 +34,7 @@ import { financeTools } from "@/lib/ai/tools/finance";
 import { calendarTools } from "@/lib/ai/tools/calendar";
 import { getUnresolvedAlerts } from "@/lib/mastery/drift-engine";
 import { publishCommitmentTransition } from "@/lib/services/commitments";
+import { shopHoursView } from "@/lib/nickstire/shop-hours";
 
 /** A read that failed, as Nick sees it: never an empty list or a 0. */
 const UNKNOWN = "unknown (read failed)";
@@ -1176,7 +1177,7 @@ const tasksCoreTools = {
   }),
 
   dailyPulse: tool({
-    description: "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. v10.0.79 supersedes the narrower getShopBriefing.",
+    description: "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. Also returns the shop's weekly hours and whether it is open right now (shopHours.openNow): use for 'is the shop open', 'shop hours', 'what time do we close'. v10.0.79 supersedes the narrower getShopBriefing.",
     inputSchema: z.object({}),
     execute: async () => {
       const { queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
@@ -1231,6 +1232,8 @@ const tasksCoreTools = {
 
       return {
         shop: shopView(shopData, readBridge),
+        // Computed here, not read from the bridge: a failed shop read cannot hide the hours (2026-11-01).
+        shopHours: shopHoursView(),
         personal: {
           dailyScore: todayScore?.overallScore ?? "not logged",
           energy: todayScore?.energyLevel ?? "?",
