@@ -136,7 +136,9 @@ describe("B1 · a later patch of the row keeps the cards", () => {
     const { partsArray: first } = await buildMessageParts("I added it.", undefined, false, toolPartsFromSteps(twoToolTurn));
     const kept = keepStoredToolParts(throughDb(first));
     const { partsArray: patched } = await buildMessageParts("[verifier] I added it.", undefined, true, kept);
-    expect(patched?.filter((p) => p.type.startsWith("tool-")).length).toBe(2);
+    expect(patched?.map((p) => p.type)).toEqual(["tool-getTasks", "tool-queryNickstire", "text"]);
+    // keepStoredToolParts keeps tool parts only: the old, unbannered text must not ride along.
+    expect(patched?.some((p) => (p as { text?: string }).text === "I added it.")).toBe(false);
     expect(patched?.at(-1)).toEqual({ type: "text", text: "[verifier] I added it." });
   });
 });
@@ -162,5 +164,46 @@ describe("B1 · the next turn replays a reloaded tool turn cleanly", () => {
       out.flatMap((m) => (Array.isArray(m.content) ? m.content : [])).filter((p) => p.type === type).map((p) => p.toolCallId);
     expect(ids("tool-call")).toEqual(["c1", "c2"]);
     expect(ids("tool-result")).toEqual(["c1", "c2"]);
+  });
+});
+
+describe("B1 · error text a card can show", () => {
+  it("an error with nothing readable in it says the tool failed, never 'null' or '{}'", () => {
+    const turn = (error: unknown) => ({ steps: [{ toolCalls: [{ toolCallId: "e1", toolName: "getTasks", input: {} }], toolResults: [], content: [{ type: "tool-error", toolCallId: "e1", toolName: "getTasks", error }] }] });
+    for (const error of [{}, Object.create(null), { toJSON: () => null }]) {
+      const [part] = toolPartsFromSteps(turn(error)) as Array<{ errorText: string }>;
+      expect(part.errorText).toBe("Tool failed.");
+    }
+    const [coded] = toolPartsFromSteps(turn({ code: "E_TIMEOUT" })) as Array<{ errorText: string }>;
+    expect(coded.errorText).toBe('{"code":"E_TIMEOUT"}');
+  });
+});
+
+describe("B1 · a stored tool part never carries a value Postgres jsonb rejects", () => {
+  // jsonb refuses a lone surrogate (\ud83d) and \u0000; one would fail the row insert and lose the
+  // whole reply. lib/ai/tools/brain.ts builds excerpts with .slice(0, 600), which can split an emoji.
+  const broken = "ok \ud83d then \u0000 end";
+  it("repairs lone surrogates and drops NUL, in values and keys, in output, input and errorText", () => {
+    const turn = {
+      steps: [
+        {
+          toolCalls: [{ toolCallId: "s1", toolName: "searchMemories", input: { q: broken } }, { toolCallId: "s2", toolName: "getTasks", input: {} }],
+          toolResults: [{ toolCallId: "s1", toolName: "searchMemories", input: { q: broken }, output: { excerpt: broken, [`k${broken}`]: [broken] } }],
+          content: [{ type: "tool-error", toolCallId: "s2", toolName: "getTasks", error: new Error(broken) }],
+        },
+      ],
+    };
+    const parts = toolPartsFromSteps(turn);
+    // Every key and string value in what would be written, checked as characters, not as escapes.
+    const strings: string[] = [];
+    JSON.stringify(parts, (key, v) => {
+      if (key) strings.push(key);
+      if (typeof v === "string") strings.push(v);
+      return v;
+    });
+    expect(strings.length).toBeGreaterThan(5); // positive control: the walk saw the values
+    const bad = strings.filter((s) => !s.isWellFormed() || s.includes(String.fromCharCode(0)));
+    expect(bad).toEqual([]);
+    expect(parts.flatMap((p) => Object.keys((p as { output?: object }).output ?? {}))).toEqual(["excerpt", "kok � then  end"]);
   });
 });

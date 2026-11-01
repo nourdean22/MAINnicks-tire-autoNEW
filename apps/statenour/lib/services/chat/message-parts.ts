@@ -8,6 +8,7 @@
 
 import type { MessagePart } from "@/lib/ai/chat/message-fields";
 import { normalizeAiSdkToolObservations } from "@/lib/ai/chat/ai-sdk-tool-observation";
+import { logger } from "@/lib/logger";
 
 /**
  * The part types this producer can emit — the ONE place that fact is stated.
@@ -85,14 +86,32 @@ const cut = (text: string, max: number): string => {
   return chars.length > max ? `${chars.slice(0, max).join("")}…` : text;
 };
 
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
 /**
- * A tool result as JSON values, which is what the provider sent on the wire anyway. A Prisma
- * Date becomes an ISO string (the defect PR 3492 fixed for the length retry), a BigInt a
- * string, and a value JSON cannot hold becomes null.
+ * Postgres jsonb rejects a lone surrogate and \u0000, and one would fail the whole row insert
+ * (the reply is lost, not just the card). Repair the first, drop the second. A lone surrogate is
+ * one slice away: lib/ai/tools/brain.ts cuts memory excerpts with .slice(0, 600).
+ */
+const clean = (text: string): string => text.replace(LONE_SURROGATE, "�").replace(/\u0000/g, "");
+
+function jsonbSafe(_key: string, v: unknown): unknown {
+  if (typeof v === "bigint") return v.toString();
+  if (typeof v === "string") return clean(v);
+  if (v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).some((k) => clean(k) !== k)) {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [clean(k), x]));
+  }
+  return v;
+}
+
+/**
+ * A tool result as JSON values, which is what the provider sent on the wire anyway, and values
+ * jsonb accepts. A Prisma Date becomes an ISO string (the defect PR 3492 fixed for the length
+ * retry), a BigInt a string, and a value JSON cannot hold becomes null.
  */
 function jsonValue(value: unknown): unknown {
   try {
-    const text = JSON.stringify(value, (_key, v) => (typeof v === "bigint" ? v.toString() : v));
+    const text = JSON.stringify(value, jsonbSafe);
     return text === undefined ? null : JSON.parse(text);
   } catch {
     return null;
@@ -125,8 +144,9 @@ export function capToolOutput(value: unknown): unknown {
 }
 
 function errorText(error: unknown): string {
-  const text = error instanceof Error ? error.message : typeof error === "string" ? error : JSON.stringify(jsonValue(error));
-  return cut(text || "Tool failed.", 500);
+  const json = JSON.stringify(jsonValue(error));
+  const text = error instanceof Error ? error.message : typeof error === "string" ? error : json === "null" || json === "{}" ? "" : json;
+  return cut(clean(text) || "Tool failed.", 500);
 }
 
 /**
@@ -178,7 +198,15 @@ export async function sanitizeStoredParts(parts: unknown): Promise<unknown> {
   for (const part of parts) {
     if (isToolPart(part)) {
       const check = await safeValidateUIMessages({ messages: [{ id: "stored", role: "assistant", parts: [part] }] });
-      if (!check.success) continue;
+      if (!check.success) {
+        // A schema drift would otherwise wipe cards with no trace.
+        logger.withSurface("chat.read").warn("stored_tool_part_dropped", {
+          type: String(part?.type),
+          toolCallId: typeof part?.toolCallId === "string" ? part.toolCallId : undefined,
+          error: check.error.message.slice(0, 200),
+        });
+        continue;
+      }
     }
     kept.push(part);
   }

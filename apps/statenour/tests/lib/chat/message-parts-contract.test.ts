@@ -97,7 +97,11 @@ describe("buildMessageParts · the PRODUCER emits text, reasoning and UI tool pa
       ["", "because"],
     ] as Array<[string, string | undefined]>) {
       const { partsArray } = await buildMessageParts(text, reasoning, true, [tool]);
-      for (const p of partsArray ?? []) produced.add(p.type.startsWith("tool-") ? "tool-<name>" : p.type);
+      // tool-call / tool-result are model-message shapes, not `tool-<name>`: keep them literal so they fail below.
+      for (const p of partsArray ?? []) {
+        const literal = p.type === "tool-call" || p.type === "tool-result" || !p.type.startsWith("tool-");
+        produced.add(literal ? p.type : "tool-<name>");
+      }
     }
     for (const t of produced) {
       expect(

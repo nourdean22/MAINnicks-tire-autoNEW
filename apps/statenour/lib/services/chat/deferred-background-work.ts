@@ -662,7 +662,16 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 const existingMsg = await prisma.chatMessage.findUnique({
                   where: { id: createdAssistantId },
                   select: { parts: true }
-                }).catch(() => null);
+                }).catch((err) => {
+                  // The patch below still writes the banner; without the read it cannot keep the
+                  // row's reasoning and tool parts, so say so rather than lose them silently.
+                  log.warn("action_receipts_rewrite_read_failed", {
+                    conversationId: convId,
+                    messageId: createdAssistantId,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                  return null;
+                });
                 let existingReasoningText: string | undefined;
                 if (existingMsg?.parts && Array.isArray(existingMsg.parts)) {
                   const reasoningPart = (existingMsg.parts as any[]).find((p) => p.type === "reasoning");
