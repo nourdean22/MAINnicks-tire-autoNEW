@@ -80,7 +80,7 @@ describe("updateAssistant fails closed when it cannot read the live assistant", 
     expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(0);
   });
 
-  it("POSITIVE CONTROL: a good read pushes, carrying the live number AND the whole live transfer plan", async () => {
+  it("POSITIVE CONTROL: a good read pushes, carrying the live number, the live plan, and the code-owned fallback fields", async () => {
     const calls = stubVapi(async () => new Response(JSON.stringify(LIVE_ASSISTANT), { status: 200 }));
     const res = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
     expect(res.success).toBe(true);
@@ -91,7 +91,15 @@ describe("updateAssistant fails closed when it cannot read the live assistant", 
     const sent = JSON.parse(patch!.body!);
     const transfer = sent.model.tools.find((t: { type?: string }) => t.type === "transferCall");
     expect(transfer.destinations[0].number).toBe("+12165550199");
-    expect(transfer.destinations[0].transferPlan).toEqual(LIVE_PLAN);
+    // 2026-10-31: the operator-owned plan fields stay live; transferAssistant,
+    // holdAudioUrl and fallbackPlan come from code (without transferAssistant
+    // Vapi never rolls an unanswered transfer back to the assistant).
+    const { fallbackPlan: _liveFallback, ...operatorOwned } = LIVE_PLAN;
+    const plan = transfer.destinations[0].transferPlan;
+    expect(plan).toMatchObject(operatorOwned);
+    expect(plan.transferAssistant).toBeTruthy();
+    expect(plan.holdAudioUrl).toMatch(/ringback\.wav$/);
+    expect(plan.fallbackPlan.endCallEnabled).toBe(false);
     expect(sent.metadata?.nickBehaviorHash).toMatch(/^[a-f0-9]{24}$/);
     expect(sent.metadata?.nickBehaviorSchema).toBe("vapi-behavior-v1");
     expect(sent.metadata?.nickPromptPolicy).toBe("neutral-first");

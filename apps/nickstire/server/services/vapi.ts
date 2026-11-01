@@ -61,7 +61,7 @@
 
 import { createHash } from "node:crypto";
 import { createLogger } from "../lib/logger";
-import { BUSINESS } from "../../shared/business";
+import { BUSINESS, SITE_URL } from "../../shared/business";
 import { OIL_COUPON, OIL_PRICE, USED_TIRE_QUOTE, oilCouponActive } from "../../shared/pricing";
 import { hiringCallerSection } from "../../shared/jobOpenings";
 import {
@@ -388,7 +388,7 @@ You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promis
 "Fair enough. Let me get someone to look at the rack." → transferCall (OPEN). CLOSED, won't hold, or the transfer doesn't connect → CALLBACK CAPTURE with reason "rack check: <size>" (escalate). Grab the size first if they haven't given it, so the person picking up isn't starting from zero.
 
 ## CALLBACK CAPTURE (transfer didn't connect / caller won't hold / caller unsure)
-Ask only what it's about (skip it if you already know) → escalate({ reason, urgency }); caller ID has the number, so don't ask for it or their name → only when it returns success:true say "you're on the shop's callback list, someone will call you back" → sendConfirmationSms. This is the one time escalate is right while OPEN: the transfer rang out and the fallback handed the caller back to you, or they won't hold. A callback you promise without escalate is a promise nobody can see.
+If the shop's no-answer line already asked "Want the shop to call you back?", don't apologize again or re-offer: go by their answer. Otherwise offer it once. If the caller says no (they'll call back, come in, or try later), do NOT escalate: nothing gets recorded; help with anything else. If yes: ask what it's about (skip it if you already know) and when is a good time for the shop to call (take what they say; never offer a time) → escalate({ reason, urgency, bestTime }); caller ID has the number, so don't ask for it or their name → only when it returns success:true say "you're on the shop's callback list, someone will call you back" (and if they gave a time, "I noted <their time>") → sendConfirmationSms. This is the one time escalate is right while OPEN: the transfer rang out and the fallback handed the caller back to you, or they won't hold. A callback you promise without escalate is a promise nobody can see.
 
 ## WALK-IN / FCFS
 No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby) or DROP OFF (holds their place, run errands — the better call for anything that may take a while). Mention both; never assume drop-off.
@@ -573,9 +573,64 @@ interface VapiTransferCallToolDef {
     // does a blind transfer (carrier hand-off) which does not complete
     // from a Vapi-provided number. A warm-transfer-* mode has VAPI place
     // the outbound leg itself, which works on any number.
-    transferPlan?: { mode: string; message?: string; sipVerb?: string };
+    transferPlan?: VapiTransferPlan;
   }>;
 }
+
+interface VapiTransferPlan {
+  mode: string;
+  message?: string;
+  sipVerb?: string;
+  dialTimeout?: number;
+  transferAssistant?: {
+    firstMessage: string;
+    firstMessageMode: "assistant-speaks-first";
+    maxDurationSeconds: number;
+    silenceTimeoutSeconds: number;
+    model: { provider: "openai"; model: "gpt-4o"; messages: Array<{ role: "system"; content: string }> };
+  };
+  holdAudioUrl?: string;
+  fallbackPlan?: { message: string; endCallEnabled: boolean };
+}
+
+// 2026-10-31 · Unanswered transfer -> back to the bot -> callback (Nour: "Yes, add
+// it"). Vapi rolls a busy or unanswered destination back to the fallback ONLY when
+// transferAssistant is configured (docs.vapi.ai/calls/assistant-based-warm-transfer,
+// read 2026-10-31). The live plan has had experimental mode + fallbackPlan since
+// 2026-09-21 but no transferAssistant, so the fallback could never fire. These
+// three fields are CODE-OWNED: preserveLiveTransferDestinations lays them over a
+// live experimental plan; the number, mode, plan message, sipVerb and dialTimeout
+// stay operator-owned. Runbook: docs/runbooks/vapi-warm-transfer-fallback.md.
+const CODE_OWNED_TRANSFER_FIELDS = {
+  // The counter hears ONE sentence and accepts (manager ruling R2). Vapi gives no
+  // way to bridge before a person answers: the docs tie transferSuccessful to a
+  // live operator accepting.
+  transferAssistant: {
+    firstMessage: "Caller on the line for Nick's. Say yes to take it.",
+    firstMessageMode: "assistant-speaks-first",
+    // Bounded so a caller is never parked: a counter that goes quiet is cancelled
+    // in 10 s, and the whole hand-off cannot outlast 45 s.
+    maxDurationSeconds: 45,
+    silenceTimeoutSeconds: 10,
+    model: {
+      provider: "openai",
+      model: "gpt-4o",
+      messages: [{
+        role: "system",
+        content: "You hand a waiting caller to the front counter at Nick's Tire & Auto. You already said your one line; never speak again. A live person answering with anything that is not a no (yes, yeah, ok, sure, go ahead, put them through, hello, Nick's) -> call transferSuccessful immediately. Call transferCancel for voicemail, a recorded greeting, an automated menu or hold message, a busy tone, silence, or a person who says no or can't take it.",
+      }],
+    },
+  },
+  // Ringback, not music (Nour). Served by routes/webhooks/vapi.ts.
+  holdAudioUrl: `${SITE_URL}/api/webhooks/vapi/ringback.wav`,
+  // endCallEnabled false: the caller returns to the assistant, which runs
+  // CALLBACK CAPTURE. One line, one question; caller ID has the number.
+  fallbackPlan: {
+    message: "Sorry, nobody could grab the phone up front. Want the shop to call you back?",
+    endCallEnabled: false,
+  },
+} satisfies Pick<VapiTransferPlan, "transferAssistant" | "holdAudioUrl" | "fallbackPlan">;
+const EXPERIMENTAL_TRANSFER_MODE = "warm-transfer-experimental";
 
 type VapiToolDef = VapiFunctionToolDef | VapiTransferCallToolDef | VapiVoicemailToolDef;
 
@@ -638,10 +693,14 @@ const VAPI_TOOLS: VapiToolDef[] = [
         // assistant-forwarded-call; 28% of forwards redial within 15m). The
         // prepared upgrade (warm-transfer-experimental + fallbackPlan) is an
         // OPERATOR action: docs/runbooks/vapi-warm-transfer-fallback.md.
+        // 2026-10-31 · the code default now matches the live mode (applied
+        // 2026-09-21) plus the code-owned fields that let the fallback fire.
         transferPlan: {
-          mode: "warm-transfer-say-message",
+          mode: EXPERIMENTAL_TRANSFER_MODE,
           message: "You've got a customer holding on the Nick's Tire and Auto line. Connecting you now.",
           sipVerb: "dial",
+          dialTimeout: 25,
+          ...CODE_OWNED_TRANSFER_FIELDS,
         },
       },
     ],
@@ -756,6 +815,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
           phone: { type: "string", description: "Only if caller ID is missing and the caller gave a number. Caller ID is used otherwise." },
           reason: { type: "string", description: "1-2 sentence reason for the callback (what they need / their issue)." },
           urgency: { type: "string", description: "low | medium | high", enum: ["low", "medium", "high"] },
+          bestTime: { type: "string", description: "When the caller said is a good time for the callback, in their words (e.g. 'after 3', 'tomorrow morning'). Only if they said one; never invent it." },
         },
         required: ["reason"],
       },
@@ -1758,13 +1818,26 @@ export function preserveLiveTransferDestinations(
   if (idx < 0) return config;
   const codeTool = config.model.tools[idx];
   if (codeTool.type !== "transferCall") return config;
-  codeTool.destinations = liveDestinations.map((d) => {
+  // Replace the tool, never mutate it: buildAssistantConfig shallow-copies the
+  // module-level VAPI_TOOLS, so mutating codeTool leaked one push's live plan into
+  // every later build in the process (found 2026-10-31 by test order).
+  const merged: VapiTransferCallToolDef = { ...codeTool, destinations: [] };
+  config.model.tools[idx] = merged;
+  merged.destinations = liveDestinations.map((d) => {
     // Preserve a dashboard-set transferPlan (e.g. warm-transfer) so a code
     // re-push doesn't silently revert to a blind transfer that can't connect
     // from a Vapi number. Fall back to the code default's transferPlan.
-    const transferPlan =
-      (d.transferPlan as { mode: string; message?: string } | undefined) ??
-      codeTool.destinations[0]?.transferPlan;
+    // 2026-10-31: on a live experimental plan the code-owned fields
+    // (transferAssistant, holdAudioUrl, fallbackPlan) are laid over it; until
+    // then the plan was kept whole, so a code change never reached Vapi. Any
+    // other live mode (an operator rollback) is kept whole: those fields only
+    // work in experimental mode.
+    const livePlan = d.transferPlan as VapiTransferPlan | undefined;
+    const transferPlan = !livePlan
+      ? codeTool.destinations[0]?.transferPlan
+      : livePlan.mode === EXPERIMENTAL_TRANSFER_MODE
+        ? { ...livePlan, ...CODE_OWNED_TRANSFER_FIELDS }
+        : livePlan;
     return {
       type: (d.type as "number") || "number",
       number: d.number as string,

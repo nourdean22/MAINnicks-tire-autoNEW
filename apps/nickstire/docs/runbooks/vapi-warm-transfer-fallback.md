@@ -1,5 +1,66 @@
 # Runbook — warm-transfer fallback (answer-proof + no-answer recovery)
 
+## 2026-10-31 — why the fallback never fired, and the fix (read this first)
+
+Nour, 2026-10-31: "Yes, add it" (unanswered transfers come back to the bot for a callback;
+earlier: no hold music). Vapi's page on assistant-based warm transfer
+(https://docs.vapi.ai/calls/assistant-based-warm-transfer, read 2026-10-31) says the no-answer
+rollback needs a transfer assistant: "With `transferAssistant` configured, a busy or unanswered
+destination rolls back to the configured fallback." The live plan (manager dry run, 2026-10-31
+12:33Z) had the mode, `dialTimeout: 25` and `fallbackPlan`, but **no `transferAssistant` and no
+`holdAudioUrl`**. And "Push Latest Config" kept the live plan whole, so no code change could
+reach it.
+
+What the code now owns (`CODE_OWNED_TRANSFER_FIELDS`, `server/services/vapi.ts`), laid over a
+live `warm-transfer-experimental` plan on every Push Latest Config:
+
+```diff
+  {
+    "mode": "warm-transfer-experimental",        (live, kept)
+    "message": "...",                             (live, kept)
+    "sipVerb": "dial",                            (live, kept)
+    "dialTimeout": 25,                            (live, kept)
++   "transferAssistant": {
++     "firstMessage": "Caller on the line for Nick's. Say yes to take it.",
++     "firstMessageMode": "assistant-speaks-first",
++     "maxDurationSeconds": 45, "silenceTimeoutSeconds": 10,
++     "model": { "provider": "openai", "model": "gpt-4o", "messages": [ <connect / cancel rules> ] }
++   },
++   "holdAudioUrl": "https://nickstire.org/api/webhooks/vapi/ringback.wav",
+~   "fallbackPlan": {
++     "message": "Sorry, nobody could grab the phone up front. Want the shop to call you back?",
+      "endCallEnabled": false
+    }
+  }
+```
+
+- **What the counter hears when they answer:** "Caller on the line for Nick's. Say yes to take
+  it." Any answer that is not a no (yes, ok, go ahead, hello) connects the caller. Vapi has no
+  way to connect before a person answers: its docs tie `transferSuccessful` to a live operator
+  accepting. (Manager ruling R2; Nour can overrule it.)
+- **What the caller hears while it rings:** a US ringback tone (440 + 480 Hz, 2 s on, 4 s off),
+  served by the app, never music.
+- **No answer, busy, voicemail, or the counter says no:** the caller hears the one fallback
+  line and is back with the receptionist, which runs CALLBACK CAPTURE: takes what it is about
+  and a best time, calls `escalate` (one `callback_requests` row per call, one crew alert), and
+  says they are on the callback list. A caller who says no gets nothing recorded.
+- **Witness:** these transfers send no `transfer-update` (Vapi docs); the webhook now records
+  `status-update` `forwarding` as `transfer_attempted`.
+- **Rollback still works:** a live plan in any other mode (for example after
+  `--rollback-legacy`) is kept whole by Push Latest Config.
+
+**Nour's one tap (W5c), after the PR merges and deploys:** first open
+https://nickstire.org/api/webhooks/vapi/ringback.wav (it must play a ring), then Admin → Voice
+→ **Push Latest Config**.
+
+**Live check after the tap:** call the shop line, ask for a person, let the counter ring out.
+Expect: ringback, then the fallback line within about 25 s, the callback questions, ONE
+`callback_requests` row for that call id, ONE crew Telegram line, no second call to the shop or
+the caller. Then call again and have the counter answer: the one sentence, a yes, connected.
+Still open (not confirmed): whether `dialTimeout` is honoured in experimental mode, which
+voice the transfer assistant uses, and whether Vapi loops a hold file shorter than the wait
+(the file is 60 s).
+
 **Status: APPLIED IN VAPI — observed 2026-09-22, fallback not yet seen firing.** Prepared
 2026-08-05. A dry run of `scripts/vapi-warm-transfer-fallback.ts` on 2026-09-22 read the live
 receptionist (`150fe622-0b9f-4b03-b8c7-3063812717ae`, last updated 2026-09-21T13:57:43Z) and
@@ -69,7 +130,9 @@ Interaction checks already verified in code:
 - `setTransferDestination` (admin number changes) spreads the existing plan, so a
   later number change **preserves** this plan.
 - `preserveLiveTransferDestinations` keeps the live plan across "Push Latest
-  Config" re-pushes, so a config re-push does **not** revert it.
+  Config" re-pushes, so a config re-push does **not** revert it. (2026-10-31: on an
+  experimental plan it now also lays the code-owned `transferAssistant`, `holdAudioUrl`
+  and `fallbackPlan` over it; see the top of this file.)
 - The forwarded-call SMS follow-up triggers on `/forward/i` reasons; a fallback
   conversation that ends normally will simply not fire it (correct — the AI
   already handled recovery live).
