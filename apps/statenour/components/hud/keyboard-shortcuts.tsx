@@ -9,21 +9,21 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 // ops deck. Two-step: press G then a letter within 1.5s. Cheatsheet
 // overlay triggered by `?`.
 const SHORTCUTS = [
-  { keys: ["⌘", "K"], action: "Command Palette",      section: "Navigation" },
-  { keys: ["?"],      action: "Show Shortcuts",        section: "Navigation" },
+  { keys: ["⌘", "K"], action: "Command palette",      section: "Navigation" },
+  { keys: ["?"],      action: "Show shortcuts",        section: "Navigation" },
   { keys: ["G", "H"], action: "Go to Ultron (home)",   section: "Navigation" },
   { keys: ["G", "N"], action: "Go to Nick (Chat)",     section: "Navigation" },
   { keys: ["G", "T"], action: "Go to Missions",        section: "Navigation" },
   { keys: ["G", "J"], action: "Go to Journal",         section: "Navigation" },
   { keys: ["G", "B"], action: "Go to Brain",           section: "Navigation" },
-  { keys: ["G", "K"], action: "Go to Knowledge Review", section: "Navigation" },
+  { keys: ["G", "K"], action: "Go to knowledge review", section: "Navigation" },
   { keys: ["G", "M"], action: "Go to Stats (Mastery)", section: "Navigation" },
   { keys: ["G", "Y"], action: "Go to Body",            section: "Navigation" },
   { keys: ["G", "S"], action: "Go to System",          section: "Navigation" },
-  { keys: ["G", "C"], action: "Go to Crons",           section: "System Ops" },
-  { keys: ["G", "A"], action: "Go to Actions",         section: "System Ops" },
-  { keys: ["R"],      action: "Refresh Data",          section: "Actions" },
-  { keys: ["Esc"],    action: "Close Panel / Dialog",  section: "Actions" },
+  { keys: ["G", "C"], action: "Go to Crons",           section: "System ops" },
+  { keys: ["G", "A"], action: "Go to Actions",         section: "System ops" },
+  { keys: ["R"],      action: "Refresh data",          section: "Actions" },
+  { keys: ["Esc"],    action: "Close panel / dialog",  section: "Actions" },
   // 2026-09-15 · UI workbench · the object grammar over any list whose rows
   // carry data-entity (hooks/use-selection-keyboard.ts). Esc unwinds one
   // level: peek → selection → inspector.
@@ -134,7 +134,7 @@ export function KeyboardShortcuts() {
         >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-default)]">
           <DialogTitle className="text-[15px] font-semibold text-fg">
-            Keyboard Shortcuts
+            Keyboard shortcuts
           </DialogTitle>
           <button
             type="button"

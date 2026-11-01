@@ -61,7 +61,7 @@ export function TrustLadderPanel() {
     >
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
               <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
-          <Gauge className="h-3.5 w-3.5 text-fg-secondary" /> Trust Ladder
+          <Gauge className="h-3.5 w-3.5 text-fg-secondary" /> Trust ladder
         </p>
         <span className="text-[11px] font-mono text-fg-tertiary">
           {ladderQ.data?.windowDays}d verdicts · auto-execute {flagOn ? "ON" : "OFF"}

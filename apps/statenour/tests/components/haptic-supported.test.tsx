@@ -1,5 +1,5 @@
 /**
- * UI v3 Wave 0, honesty fix (a): the Settings "Haptic Feedback" row must not
+ * UI v3 Wave 0, honesty fix (a): the Settings "Haptic feedback" row must not
  * offer a switch on a device that cannot vibrate.
  *
  * THE DEFECT. lib/ui/haptic.ts fires through navigator.vibrate. Safari has no
@@ -64,7 +64,7 @@ async function mountPanel(): Promise<HTMLDivElement> {
     root!.render(<AiSettingsPanel />);
   });
   // The config loads through an awaited fetch inside an effect; let it settle.
-  for (let i = 0; i < 5 && !container.textContent?.includes("Haptic Feedback"); i++) {
+  for (let i = 0; i < 5 && !container.textContent?.includes("Haptic feedback"); i++) {
     await act(async () => {
       await Promise.resolve();
     });
@@ -72,10 +72,10 @@ async function mountPanel(): Promise<HTMLDivElement> {
   return container;
 }
 
-/** The control container of the row whose label reads "Haptic Feedback". */
+/** The control container of the row whose label reads "Haptic feedback". */
 function hapticRow(el: HTMLElement): HTMLElement {
-  const label = [...el.querySelectorAll("label")].find((l) => l.textContent === "Haptic Feedback");
-  expect(label, "the Haptic Feedback row is missing").toBeTruthy();
+  const label = [...el.querySelectorAll("label")].find((l) => l.textContent === "Haptic feedback");
+  expect(label, "the Haptic feedback row is missing").toBeTruthy();
   const group = label!.parentElement!.querySelector('[role="group"]');
   expect(group, "the row has no control group").toBeTruthy();
   return group as HTMLElement;
@@ -118,7 +118,7 @@ describe("isSupported() is true only when navigator.vibrate is a function", () =
   });
 });
 
-describe("Settings > Haptic Feedback row", () => {
+describe("Settings > Haptic feedback row", () => {
   it("unsupported: says so in plain words and renders no switch", async () => {
     const el = await mountPanel();
     const row = hapticRow(el);

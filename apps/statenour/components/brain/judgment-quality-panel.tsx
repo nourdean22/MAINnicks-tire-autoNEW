@@ -63,7 +63,7 @@ export function JudgmentQualityPanel() {
     >
       <div className="flex items-center justify-between gap-2 border-b border-edge-subtle pb-2">
         <p className="text-[11px] font-mono text-fg-tertiary flex items-center gap-1.5">
-          <Scale className="h-3.5 w-3.5 text-fg-secondary" /> Judgment Quality
+          <Scale className="h-3.5 w-3.5 text-fg-secondary" /> Judgment quality
         </p>
       </div>
 

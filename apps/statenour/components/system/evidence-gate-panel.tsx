@@ -193,7 +193,7 @@ export function EvidenceGatePanel() {
     >
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
               <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
-          <ShieldAlert className="h-3.5 w-3.5 text-fg-secondary" /> Evidence Gate · promotion readout
+          <ShieldAlert className="h-3.5 w-3.5 text-fg-secondary" /> Evidence gate · promotion readout
         </p>
         <span
           data-testid="gate-verdict"

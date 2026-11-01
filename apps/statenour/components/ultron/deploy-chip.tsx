@@ -72,7 +72,7 @@ export function DeployChip({ className }: { className?: string } = {}) {
   if (failed) {
     return (
       <span
-        title="deployInfo read failed — the build identity is unknown, not dev"
+        title="deployInfo read failed: the build identity is unknown, not dev"
         className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/35 bg-amber-500/[0.06] px-2 py-0.5 font-mono text-[11px] text-amber-200"
       >
         <GitCommit className="h-3 w-3" />

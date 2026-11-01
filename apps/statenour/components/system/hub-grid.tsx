@@ -70,10 +70,10 @@ const SEVERITY_ORDER: Record<Severity, number> = {
 // Display order of the domain groups. The attention strip always
 // renders above these regardless of order.
 const GROUP_ORDER: { id: CardGroup; label: string }[] = [
-  { id: "health", label: "Health & Jobs" },
+  { id: "health", label: "Health and jobs" },
   { id: "governance", label: "Governance" },
   { id: "ai", label: "AI & Brain" },
-  { id: "data", label: "Data & Logs" },
+  { id: "data", label: "Data and logs" },
 ];
 
 function GroupHeader({

@@ -42,7 +42,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
         toast.success("Alert resolved");
         closeInspector();
       } else {
-        toast.error("Nothing to resolve — it was already gone");
+        toast.error("Nothing to resolve. It was already gone");
       }
     },
     onError: () => toast.error("Could not resolve the alert"),

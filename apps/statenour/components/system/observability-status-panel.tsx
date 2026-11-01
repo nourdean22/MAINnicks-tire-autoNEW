@@ -82,7 +82,7 @@ export function ObservabilityStatusPanel() {
       className="rounded-surface border border-edge-subtle p-4 space-y-2"
     >
       <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
-              <Activity className="h-3.5 w-3.5 text-fg-secondary" /> LLM Observability
+              <Activity className="h-3.5 w-3.5 text-fg-secondary" /> LLM observability
       </p>
       <ul className="space-y-1.5">
         {lanes.map(({ name, state, fromRead }) => {

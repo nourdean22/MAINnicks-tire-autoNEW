@@ -229,7 +229,7 @@ export function SkillLibraryPanel() {
     <GlassCard ruled>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="section-label">Skill Library</p>
+          <p className="section-label">Skill library</p>
           <p className="text-[12px] text-fg-tertiary mt-0.5">
             patterns pulled from your wins · promote the ones that track · graduate when proven
           </p>

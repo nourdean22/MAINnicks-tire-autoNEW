@@ -1831,7 +1831,7 @@ export function GoalBoard() {
                             }}
                             className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
                           >
-                            Show Legacy Details
+                            Show legacy details
                           </button>
                         </div>
                       </div>
@@ -1965,7 +1965,7 @@ export function GoalBoard() {
                             }}
                             className="min-h-11 min-w-11 ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
                           >
-                            Show Execution Coach
+                            Show execution coach
                           </button>
                         </div>
                       </>

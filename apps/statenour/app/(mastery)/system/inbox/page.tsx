@@ -139,7 +139,7 @@ export default function MemoryInboxPage() {
           </span>
           {isConflicting && (
             <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
-              Contradiction Alert
+              Contradiction alert
             </span>
           )}
         </div>
@@ -197,7 +197,7 @@ export default function MemoryInboxPage() {
         <p className="border-l-2 border-edge-strong py-1 pl-4 text-[15px] text-fg-tertiary">Reading the queue…</p>
       ) : items.length === 0 ? (
         <section className="border-l-2 border-edge-strong pl-5 sm:pl-6">
-          <h2 className="vt-eyebrow text-fg-secondary">Memory Queue Clear</h2>
+          <h2 className="vt-eyebrow text-fg-secondary">Memory queue clear</h2>
           <p className="mt-2 max-w-[56ch] text-[15px] leading-relaxed text-fg-secondary">
             All facts ingested from external sources are safe. Any contradiction or security warning quarantines an item here.
           </p>
@@ -207,7 +207,7 @@ export default function MemoryInboxPage() {
           {/* Sidebar list of quarantined items */}
           <div data-inbox-list="" className="lg:col-span-5 space-y-4 max-h-[75vh] overflow-y-auto pr-1">
               <h2 className="font-mono text-[11px] text-fg-tertiary mb-2">
-              Quarantined Items ({items.length})
+              Quarantined items ({items.length})
             </h2>
             <section aria-labelledby="inbox-priority-heading" className="space-y-3">
               <h3 id="inbox-priority-heading" className="text-[13px] font-medium text-fg-secondary">
@@ -249,7 +249,7 @@ export default function MemoryInboxPage() {
                 <div className="flex items-start justify-between flex-wrap gap-4 border-b border-edge-subtle pb-4">
                   <div>
                     <h3 className="text-sm font-semibold text-fg flex items-center gap-2">
-                      <span>Memory Review</span>
+                      <span>Memory review</span>
                       <span className="text-xs font-normal text-fg-tertiary">
                         ({selectedItem.id.slice(0, 8)})
                       </span>
@@ -294,7 +294,7 @@ export default function MemoryInboxPage() {
                         disabled={resolveMutation.isPending}
                         className={cn(VERB, "bg-amber-500 text-black hover:bg-amber-600")}
                       >
-                        Overwrite Conflicting
+                        Overwrite conflicting
                       </button>
                     )}
                     <button
@@ -310,7 +310,7 @@ export default function MemoryInboxPage() {
                 {/* Raw content fenced */}
                 <div className="space-y-1.5">
               <span className="font-mono text-[11px] text-fg-tertiary">
-                    Raw Ingested Text
+                    Raw ingested text
                   </span>
                   <div className="rounded-micro bg-content p-4 border border-edge-subtle">
               <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-fg font-sans leading-relaxed">
@@ -322,7 +322,7 @@ export default function MemoryInboxPage() {
                 {/* Extracted claims */}
                 <div className="space-y-2">
               <span className="font-mono text-[11px] text-fg-tertiary">
-                    Extracted Claims
+                    Extracted claims
                   </span>
                   <div className="space-y-1.5">
                     {(() => {
@@ -367,7 +367,7 @@ export default function MemoryInboxPage() {
                 {selectedItem.status === "conflicting" && (
                   <div className="space-y-2 pt-2 border-t border-edge-subtle">
               <span className="text-[13px] font-medium text-amber-300 flex items-center gap-1">
-                      Semantic Conflicts Detected
+                      Semantic conflicts detected
                     </span>
                     <div className="space-y-2">
                       {(() => {
@@ -397,7 +397,7 @@ export default function MemoryInboxPage() {
                           >
                             <div className="flex items-center justify-between">
               <span className="text-[11px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded-micro">
-                                Conflicting Memory
+                                Conflicting memory
                               </span>
                               {conflict.similarity !== undefined && (
                                 <span className="text-[11px] font-mono text-amber-400/80">

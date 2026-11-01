@@ -226,7 +226,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
     try {
       // 1. If we don't have a task in DB yet, create it in Inbox
       if (!taskId) {
-        const text = missionTitle.trim() || `Execution Loop: ${goal.title}`;
+        const text = missionTitle.trim() || `Execution loop: ${goal.title}`;
         const created = await createTaskMut.mutateAsync({
           title: text,
           goalId: goal.id,
@@ -542,7 +542,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           {/* Goal Why / Clarity Anchor */}
           <div className="space-y-1.5 p-3 rounded-control bg-surface-raised border border-edge-subtle">
             <span className="text-[11px] font-mono text-fg-tertiary">
-              Clarity Anchor (Why it matters)
+              Clarity anchor (why it matters)
             </span>
             {goal.why ? (
               <p className="text-[12px] text-fg italic leading-relaxed">
@@ -641,7 +641,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           {microSteps.length > 0 && (
             <div className="space-y-2 p-3 rounded-control bg-surface-raised border border-edge-subtle">
               <span className="text-[11px] font-mono text-fg-tertiary flex justify-between items-center">
-                <span>AI Micro-Steps</span>
+                <span>AI micro-steps</span>
                 <button
                   type="button"
                   onClick={() => setMicroSteps([])}
@@ -664,7 +664,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex items-center justify-between p-3 rounded-control bg-surface-raised border border-edge-subtle">
             <div className="space-y-0.5">
               <span className="text-[11px] font-semibold text-fg">
-                EF Rescue Focus
+                EF rescue focus
               </span>
               <p className="text-[11px] text-fg-tertiary">
                 Cap timer to 3m, open distraction-free fullscreen overlay, dump mental clutter.
@@ -709,7 +709,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           {efMode && (
             <div className="space-y-1.5 animate-fade-in">
               <label htmlFor="clutter-dump" className="text-[11px] font-mono text-fg-tertiary">
-                Mental Clutter Dump (Ephemeral)
+                Mental clutter dump (ephemeral)
               </label>
               <textarea
                 id="clutter-dump"
@@ -727,8 +727,8 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               Focus span:
             </span>
             {[
-              { label: efMode ? "3m Focus" : "10m Focus", value: efMode ? 180 : 600 },
-              { label: "2m Micro", value: 120 },
+              { label: efMode ? "3m focus" : "10m focus", value: efMode ? 180 : 600 },
+              { label: "2m micro", value: 120 },
             ].map((o) => (
               <button
                 key={o.value}
@@ -757,7 +757,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             ) : (
               <Play size={11} fill="currentColor" />
             )}
-            Initiate Loop
+            Initiate loop
           </Button>
         </div>
       )}
@@ -770,7 +770,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-edge-subtle pb-4">
             <span className="text-[11px] font-mono text-amber-500 flex items-center gap-1.5">
               <ShieldAlert size={14} className="text-amber-500" />
-              EF Rescue Focus Mode
+              EF rescue focus mode
             </span>
             <Button
               variant="ghost"
@@ -778,7 +778,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               onClick={() => setEfMode(false)}
               className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg h-7 px-2 hover:bg-surface-hover"
             >
-              Exit Focus View
+              Exit focus view
             </Button>
           </div>
 
@@ -796,7 +796,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             ) : (
               <div className="space-y-4">
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
-                  Singular Action
+                  Singular action
                 </span>
                 <h2 className="text-2xl md:text-3xl text-fg font-semibold leading-normal select-none tracking-tight">
                   {missionTitle}
@@ -853,7 +853,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               }}
               className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary py-1"
             >
-              Cancel Focus Session
+              Cancel focus session
             </button>
           </div>
         </div>
@@ -979,13 +979,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               onClick={() => setStep("TIMER")}
               className="min-h-11 min-w-11 flex-1 h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
             >
-              Resume Focus
+              Resume focus
             </Button>
             <Button
               onClick={() => setStep("SURVEY")}
               className="min-h-11 min-w-11 flex-1 h-8 text-[12px] font-medium bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
             >
-              Exit Loop
+              Exit loop
             </Button>
           </div>
         </div>
@@ -1031,7 +1031,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             disabled={selectedFrictions.size === 0}
             className="min-h-11 min-w-11 w-full h-9 text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30 hover:bg-sky-500 hover:text-black transition-colors"
           >
-            Submit & Continue
+            Submit and continue
           </Button>
         </div>
       )}
@@ -1087,7 +1087,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 <div className="space-y-1">
                   <span className="text-[11px] font-mono text-fg-secondary flex items-center gap-1">
                     <BookOpen size={11} className="text-amber-400" />
-                    Continuous Learning
+                    Continuous learning
                   </span>
                   <p className="text-[11px] text-fg-tertiary leading-normal">
                     You flagged execution friction. Queue a spaced review card in the Learning tab to resolve this block.
@@ -1111,7 +1111,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     ) : (
                       <>
                         <ArrowUpRight size={12} />
-                        Queue Spaced Review Card
+                        Queue spaced review card
                       </>
                     )}
                   </Button>
@@ -1130,7 +1130,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             ) : (
               <CheckCircle2 size={11} />
             )}
-            Finish Loop & Credit XP
+            Finish loop and credit XP
           </Button>
         </div>
       )}
@@ -1144,7 +1144,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           <div className="space-y-1">
             <h4 className="text-[15px] font-semibold text-fg">
-              Loop Closed
+              Loop closed
             </h4>
             <p className="text-[11px] text-fg-secondary">
               Momentum locked in. +{efMode ? "12.5" : "10"} XP credited to character sheet.
@@ -1176,7 +1176,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             onClick={handleReset}
             className="min-h-11 min-w-11 w-full h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
           >
-            Run Another Loop
+            Run another loop
           </Button>
         </div>
       )}

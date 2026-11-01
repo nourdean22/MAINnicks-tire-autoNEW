@@ -277,13 +277,13 @@ export const DOMAIN_COLOR: Record<string, string> = {
 };
 
 export const HABIT_LABEL: Record<string, string> = {
-  wake: "Wake Up", exercise: "Workout", workout: "Workout", business: "Biz Block",
-  order: "Daily Order", shutdown: "Shutdown", journal: "Journal", walk: "Walk",
+  wake: "Wake up", exercise: "Workout", workout: "Workout", business: "Biz block",
+  order: "Daily order", shutdown: "Shutdown", journal: "Journal", walk: "Walk",
   nasal: "Breathe", nasal_breathing: "Nasal", water: "Water", water_intake: "Water",
-  adderall: "Meds", read: "Read", meditate: "Meditate", cold_shower: "Cold Shower",
+  adderall: "Meds", read: "Read", meditate: "Meditate", cold_shower: "Cold shower",
   prayer: "Prayer", estimate_followup: "Estimates", instagram_post: "Instagram",
-  sleep_before_midnight: "Sleep Early", morning_routine: "AM Routine",
-  content_creation: "Content", no_impulse_purchase: "No Impulse",
+  sleep_before_midnight: "Sleep early", morning_routine: "AM routine",
+  content_creation: "Content", no_impulse_purchase: "No impulse",
   spanish_practice: "Spanish", daily_command: "Command",
 };
 

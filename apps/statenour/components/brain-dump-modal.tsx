@@ -74,14 +74,14 @@ const CAPTURE_MODES: CaptureMode[] = [
   {
     key: "dump",
     label: "Dump",
-    desc: "Empty your head — raw, unfiltered. Nick sorts it.",
+    desc: "Empty your head, raw and unfiltered. Nick sorts it.",
     placeholder:
-      "What's in your head right now? Nick will sort it into thinking / reasoning / insight / decision / reflection — and extract any tasks, commitments, or patterns.",
+      "What's in your head right now? Nick will sort it into thinking / reasoning / insight / decision / reflection, and pull out any tasks, commitments, or patterns.",
     hint: null,
   },
   {
     key: "debrief",
-    label: "Daily Debrief",
+    label: "Daily debrief",
     desc: "Close the day like an operator.",
     placeholder:
       "Today: what moved? What stalled? What did you avoid? Name the one thing tomorrow must get.",
@@ -89,15 +89,15 @@ const CAPTURE_MODES: CaptureMode[] = [
   },
   {
     key: "battle",
-    label: "Battle Log",
+    label: "Battle log",
     desc: "Log the fight while it's hot.",
     placeholder:
-      "What hit you, how you reacted, what it cost. No varnish — the log is for the operator you're becoming.",
+      "What hit you, how you reacted, what it cost. No varnish. The log is for the operator you're becoming.",
     hint: "venting",
   },
   {
     key: "replay",
-    label: "Decision Replay",
+    label: "Decision replay",
     desc: "Re-run a call you made.",
     placeholder:
       "The decision. The options you saw. Why you chose. What you'd do differently knowing what you know now.",
@@ -105,7 +105,7 @@ const CAPTURE_MODES: CaptureMode[] = [
   },
   {
     key: "breaker",
-    label: "Pattern Breaker",
+    label: "Pattern breaker",
     desc: "Name the loop to break it.",
     placeholder:
       "Which pattern fired again? What triggered it? What's the interrupt next time it starts?",
@@ -113,15 +113,15 @@ const CAPTURE_MODES: CaptureMode[] = [
   },
   {
     key: "win",
-    label: "Win Proof",
+    label: "Win proof",
     desc: "Evidence you're becoming.",
     placeholder:
-      "What did you do that your old self wouldn't have? Specifics — date it, size it, name what it proves.",
+      "What did you do that your old self wouldn't have? Specifics: date it, size it, name what it proves.",
     hint: "reflection",
   },
   {
     key: "future",
-    label: "Future Self",
+    label: "Future self",
     desc: "Write from who you're becoming.",
     placeholder:
       "It's 12 months out and it worked. What did you do THIS week to get here? Lay out the next moves.",
@@ -256,7 +256,7 @@ export function BrainDumpModal() {
           <div className="flex items-center gap-2">
             <NotebookPen size={14} className="text-[var(--gold)]" />
             <DialogTitle className="text-[10px] font-[var(--font-display)] font-bold text-[var(--gold)]">
-              Capture a Thought
+              Capture a thought
             </DialogTitle>
             {inFlight > 0 && (
               <span
@@ -362,7 +362,7 @@ export function BrainDumpModal() {
           />
           <div className="flex items-center justify-between">
             <p className="text-[9px] text-[var(--text-tertiary)]">
-              Runs the full ingest pipeline — tasks, insights, commitments, mood.
+              Runs the full ingest pipeline: tasks, insights, commitments, mood.
               Fires across Ultron + Actions + Journal.
             </p>
             <div className="flex items-center gap-2">

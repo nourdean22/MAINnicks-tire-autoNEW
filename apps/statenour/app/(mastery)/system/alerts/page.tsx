@@ -294,7 +294,7 @@ export default function AlertsInspectorPage() {
   return (
     <StandardPage
       eyebrow="System"
-      title="Alerts Inspector"
+      title="Alerts inspector"
       description="Every alert across the seven brain-side detectors · filter · drill into the audit trail."
       width="xl"
       rhythm="comfortable"

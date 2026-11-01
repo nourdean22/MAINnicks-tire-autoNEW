@@ -167,7 +167,7 @@ export function BodySection() {
         workout_done: workoutDone,
         energy,
         stress: efLogMode && efStress !== null ? efStress : null,
-        notes: notes ? `${notes} (EF Quick-Log)` : (efLogMode ? "EF Quick-Log" : null),
+        notes: notes ? `${notes} (EF quick-log)` : (efLogMode ? "EF quick-log" : null),
       });
       setWeight("");
       setBodyFat("");
@@ -351,7 +351,7 @@ export function BodySection() {
       {/* Quick Entry Form */}
       <GlassCard ruled>
         <div className="mb-4 flex flex-row items-center justify-between">
-          <h3 className="text-[15px] font-semibold text-fg">Quick Entry</h3>
+          <h3 className="text-[15px] font-semibold text-fg">Quick entry</h3>
           <Button
             variant="ghost"
             size="xs"
@@ -373,7 +373,7 @@ export function BodySection() {
             }}
             className="min-h-11 min-w-11 rounded-control border border-edge-default px-2 text-[11px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
-            {efLogMode ? "Normal Mode" : "EF Quick-Log"}
+            {efLogMode ? "Normal mode" : "EF quick-log"}
           </Button>
         </div>
         <div>
@@ -634,7 +634,7 @@ export function BodySection() {
                 : (!weight && !bodyFat && !waist && !sleepHours && workoutDone === null && energy === null && !notes)
             )}
           >
-            {submitting ? "Logging…" : "Log Entry"}
+            {submitting ? "Logging…" : "Log entry"}
           </Button>
         </div>
       </GlassCard>
@@ -644,7 +644,7 @@ export function BodySection() {
         <GlassCard ruled>
           <div className="mb-4">
             <h3 className="text-[15px] font-semibold text-fg">
-              Recent Entries
+              Recent entries
             </h3>
           </div>
           <div>

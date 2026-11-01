@@ -330,8 +330,8 @@ export function CommandPalette() {
       ...navTabCommands,
       // High-value anchors that are deeper than a tab.
       { id: "nav-brain-anti-patterns", label: "Brain · Anti-patterns", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#anti-patterns"), keywords: ["anti-pattern", "lesson", "failure", "revisit"] },
-      { id: "nav-brain-recall-preview", label: "Brain · Recall Preview", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#recall-preview"), keywords: ["recall", "memory", "prompt", "context", "retrieval"] },
-      { id: "nav-brain-time-travel", label: "Brain · Time Travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=health#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
+      { id: "nav-brain-recall-preview", label: "Brain · Recall preview", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#recall-preview"), keywords: ["recall", "memory", "prompt", "context", "retrieval"] },
+      { id: "nav-brain-time-travel", label: "Brain · Time travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=health#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
 
       // ═══ SYSTEM, built from the hub list (UI v3 W5a, 2026-10-18). Every
       // /system hub tile is one row here unless a Navigate row already reaches
@@ -354,15 +354,15 @@ export function CommandPalette() {
       // 2026-10-10 · audit 02-F12: "Start Flow Mode" opened chat with a `mode`
       // param nothing reads; without it, it was a second door to /chat. Chat
       // detects a brain dump on its own, so its keywords live here now.
-      { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help", "flow", "dump", "journal", "debrief"] },
-      { id: "action-generate-image", label: "Generate Image", group: "Quick Actions", icon: <ImageIcon className="size-4" />, action: () => navigate("/chat?prompt=generate+an+image+of+"), keywords: ["image", "picture", "art", "generate", "imagine"] },
-      { id: "action-search-memory", label: "Search Brain Memories", group: "Quick Actions", icon: <SearchIcon className="size-4" />, action: () => navigate("/chat?prompt=search+my+memories+for+"), keywords: ["memory", "search", "recall", "remember"] },
-      { id: "action-blind-spots", label: "Check Blind Spots", group: "Quick Actions", icon: <EyeIcon className="size-4" />, action: () => navigate("/chat?prompt=what+blind+spots+do+I+have+right+now"), keywords: ["blind", "missing", "ignore", "neglect"] },
+      { id: "action-chat-nick", label: "Talk to Nick", group: "Quick actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help", "flow", "dump", "journal", "debrief"] },
+      { id: "action-generate-image", label: "Generate image", group: "Quick actions", icon: <ImageIcon className="size-4" />, action: () => navigate("/chat?prompt=generate+an+image+of+"), keywords: ["image", "picture", "art", "generate", "imagine"] },
+      { id: "action-search-memory", label: "Search brain memories", group: "Quick actions", icon: <SearchIcon className="size-4" />, action: () => navigate("/chat?prompt=search+my+memories+for+"), keywords: ["memory", "search", "recall", "remember"] },
+      { id: "action-blind-spots", label: "Check blind spots", group: "Quick actions", icon: <EyeIcon className="size-4" />, action: () => navigate("/chat?prompt=what+blind+spots+do+I+have+right+now"), keywords: ["blind", "missing", "ignore", "neglect"] },
 
       // ═══ POWER — one-keystroke ops surface (ENR5 new) ═══
       {
         id: "power-health-digest",
-        label: "Run Health Digest Now",
+        label: "Run health digest now",
         group: "Power",
         icon: <RocketIcon className="size-4" />,
         action: probe("Health digest", async () => {
@@ -395,7 +395,7 @@ export function CommandPalette() {
       },
       {
         id: "power-recent-captures",
-        label: "View Recent Captures",
+        label: "View recent captures",
         group: "Power",
         icon: <HistoryIcon className="size-4" />,
         // Captures are journal entries, newest first. This used to open `/`, which has no captures list.
@@ -404,7 +404,7 @@ export function CommandPalette() {
       },
       {
         id: "power-pulse-digest",
-        label: "Check Pulse Digest (bell)",
+        label: "Check pulse digest (bell)",
         group: "Power",
         icon: <PlayIcon className="size-4" />,
         action: probe("Pulse digest", async () => {
@@ -421,8 +421,8 @@ export function CommandPalette() {
       {
         // Was a second "sys-health" id (the navigate entry above owns it).
         id: "probe-health",
-        label: "Run Health Check",
-        group: "System Probes",
+        label: "Run health check",
+        group: "System probes",
         icon: <HeartPulseIcon className="size-4" />,
         action: probe("System Health", async () => {
           // scattered-components slice · trpc.system.healthSummary (the
@@ -435,8 +435,8 @@ export function CommandPalette() {
       },
       {
         id: "sys-diagnostics",
-        label: "Full Diagnostics (KPIs)",
-        group: "System Probes",
+        label: "Full diagnostics (KPIs)",
+        group: "System probes",
         icon: <WrenchIcon className="size-4" />,
         action: probe("Diagnostics", async () => {
           // scattered-components slice · trpc.system.diagnostics (the
@@ -452,8 +452,8 @@ export function CommandPalette() {
       },
       {
         id: "sys-brain",
-        label: "Brain Status",
-        group: "System Probes",
+        label: "Brain status",
+        group: "System probes",
         icon: <BrainIcon className="size-4" />,
         action: probe("Brain", async () => {
           // scattered-components slice · trpc.brain.status (the same
@@ -469,10 +469,10 @@ export function CommandPalette() {
       },
       {
         id: "sys-ai-spend",
-        label: "AI Spend Today",
-        group: "System Probes",
+        label: "AI spend today",
+        group: "System probes",
         icon: <ZapIcon className="size-4" />,
-        action: probe("AI Spend", async () => {
+        action: probe("AI spend", async () => {
           // scattered-components slice · trpc.system.aiSpend — returns
           // `checkBudget()`'s `BudgetStatus` directly (the legacy
           // /api/system/ai-analytics nested the same budget under
@@ -485,8 +485,8 @@ export function CommandPalette() {
       },
       {
         id: "sys-devices",
-        label: "Refresh Device Fleet",
-        group: "System Probes",
+        label: "Refresh device fleet",
+        group: "System probes",
         icon: <RefreshCwIcon className="size-4" />,
         action: probe("Devices", async () => {
           // scattered-components slice · trpc.system.deviceFleet (the
@@ -629,7 +629,7 @@ export function CommandPalette() {
       {
         id: "mode-reality",
         label: realityMode
-          ? "Reality Mode · on — turn off (provenance back to chips)"
+          ? "Reality Mode · on (turn off for chips)"
           : "Reality Mode · show provenance inline on every evidence mark",
         group: "Modes",
         icon: <EyeIcon className="size-4" />,
@@ -748,7 +748,7 @@ export function CommandPalette() {
         className="fixed left-1/2 top-[10vh] z-[70] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 outline-none sm:max-w-2xl data-open:animate-fade-in-scale data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>Command Palette</DialogTitle>
+          <DialogTitle>Command palette</DialogTitle>
           <DialogDescription>Search for a command to run...</DialogDescription>
         </DialogHeader>
         <CommandPrimitive
@@ -851,7 +851,7 @@ export function CommandPalette() {
 
         {recentActions.length > 0 && (
           <>
-            <CommandGroup heading="Recently Used">
+            <CommandGroup heading="Recently used">
               {recentActions.map((action) => (
                 <PaletteRow
                   key={`recent-${action.id}`}

@@ -53,7 +53,7 @@ interface TemplateDef {
 const TEMPLATES: TemplateDef[] = [
   {
     key: "driscoll",
-    label: "What · So What · Now What",
+    label: "What · So what · Now what",
     tagline: "fastest: 3 short lines",
     fields: [
       { key: "what",     label: "what",     placeholder: "what actually happened" },
@@ -84,7 +84,7 @@ const TEMPLATES: TemplateDef[] = [
   },
   {
     key: "aar",
-    label: "After-Action Review",
+    label: "After-action review",
     tagline: "military · for a specific event",
     fields: [
       { key: "expected", label: "expected", placeholder: "what was supposed to happen" },

@@ -87,7 +87,7 @@ describe("/system Detail fold", () => {
     for (const name of ["wiring", "trust", "home-decision", "obs-status", "tool-census", "evidence", "stale", "agenda"]) {
       expect(f!.inside, name).toContain(`data-mark="${name}"`);
     }
-    expect(f!.inside).toContain("Reconciliation Summary");
+    expect(f!.inside).toContain("Reconciliation summary");
     // The first-screen answer stays above the fold, in today's order.
     for (const name of ["hub", "outbox", "owner", "observability", "nick"]) {
       const at = html.indexOf(`data-mark="${name}"`);
