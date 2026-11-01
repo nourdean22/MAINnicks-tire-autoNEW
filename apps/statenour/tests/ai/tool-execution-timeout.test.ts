@@ -94,8 +94,10 @@ describe("default tool budget", () => {
 describe("write-vs-read guidance on timeout", () => {
   it("tells the model NOT to retry a side-effecting tool", async () => {
     // Taken from the catalog rather than hardcoded, so this keeps
-    // testing a genuinely mutating tool as the catalog changes.
-    const mutating = TOOL_CATALOG.find((t) => t.sideEffecting);
+    // testing a genuinely mutating tool as the catalog changes. The calendar
+    // writes are skipped: in their confirm week (lib/tools/two-key.ts) they are
+    // held for approval and never execute, so they cannot time out.
+    const mutating = TOOL_CATALOG.find((t) => t.sideEffecting && !/CalendarEvent$/.test(t.name));
     expect(mutating, "catalog should contain a sideEffecting tool").toBeTruthy();
 
     const tools = wrapOne(mutating!.name, hang);
