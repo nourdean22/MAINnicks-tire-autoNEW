@@ -59,6 +59,9 @@ import { currentTurn } from "@/lib/agent/turn-context";
 import { isEmptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 import { isReadSafeTool } from "@/lib/ai/capability-registry";
 
+/** B2: the most a reply that claims an action waits for CoVe before it is stored (aiChat takes no output-token cap). */
+export const COVE_BLOCKING_TIMEOUT_MS = 20_000;
+
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
   warn(event: string, ctx?: Record<string, unknown>): void;
@@ -384,6 +387,11 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // reads live until then. Skipped when a buffered lane already ran
       // it before display (event.coveDone, audit 04-X11). Flag OFF by
       // default; graceful on any failure (never breaks the turn).
+      // B2 (2026-11-01): only a reply that claims an action waits here, bounded
+      // to COVE_BLOCKING_TIMEOUT_MS. Any other reply is stored and announced on
+      // its draft and verified after (deferred-cove.ts), so the stream ends when
+      // the text does (tail p50 15.9 s, CoVe p50 9.9 s, measured 2026-11-01).
+      let deferCove = false;
       if (hasContent && event.coveDone !== true) {
         try {
           const { getFlag } = await import("@/lib/feature-flags");
@@ -391,8 +399,13 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
             const { verifyAndRevise, FACTUAL_INTENTS } = await import(
               "@/lib/ai/chat/chain-of-verification"
             );
-            if (FACTUAL_INTENTS.has(turnSignal.intent)) {
-              const cove = await verifyAndRevise(cleanedText, userContent);
+            const { detectActionClaims } = await import("@/lib/ai/chat/action-claim-detector");
+            if (FACTUAL_INTENTS.has(turnSignal.intent) && detectActionClaims(cleanedText).claims.length === 0) {
+              deferCove = true;
+            } else if (FACTUAL_INTENTS.has(turnSignal.intent)) {
+              const cove = await verifyAndRevise(cleanedText, userContent, {
+                signal: AbortSignal.timeout(COVE_BLOCKING_TIMEOUT_MS),
+              });
               if (cove.changed) {
                 log.info("cove_revised", {
                   conversationId: convId,
@@ -777,7 +790,17 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // FINAL stored text, then closes (sse-stream.ts) while the deferred
       // work below keeps running. Only a row this turn wrote is announced.
       if (createdAssistantId) {
-        notifyMessagePersisted(traceId, { id: createdAssistantId, content: cleanedText });
+        notifyMessagePersisted(traceId, {
+          id: createdAssistantId,
+          content: cleanedText,
+          ...(deferCove ? { verifying: true } : {}),
+        });
+      }
+      // B2: the check the stream no longer waits for. It runs before the deferred work so
+      // memory and the rest of the turn read the verified text, as they did before.
+      if (deferCove && createdAssistantId) {
+        const { verifyStoredReply } = await import("./deferred-cove");
+        cleanedText = await verifyStoredReply({ messageId: createdAssistantId, cleanedText, reasoningText, userContent, convId, log });
       }
       // ═══ DEFERRED BACKGROUND WORK ═══
       // Fire-and-forget analysis that runs AFTER the assistant ChatMessage
