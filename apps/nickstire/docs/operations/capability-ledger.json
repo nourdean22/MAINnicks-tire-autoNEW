@@ -5873,6 +5873,22 @@
         "liveRuns": "NONE yet. Proof after deploy: sms_orchestrations shows identity, menu_reply and price_question_alignment catalog sends with no staff hold; no free-check template on a comeback; kill read 2026-11-13 with the W2 health read."
       },
       "blockers": []
+    },
+    {
+      "capabilityId": "declined-work-open-totals-sender",
+      "name": "The nickstire -> statenour sync sends the TRUE open declined-work count and dollar total (declinedWork.openCount, openTotal, capped), not a subtotal of the 10 newest orders",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-11-01",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "Branch worktree-agent-a1133ccd236a6bce0 (job 2026-11-01-double-check-missed, sender half): server/services/declinedWorkRecovery.ts getOpenDeclinedWorkTotals() is one COUNT(DISTINCT work order) + SUM(total) statement over flagged work orders' declined lines with no recovery stamp and no row cap, the ledger's own definition of declined and recovered; server/cron/jobs/statenourSync.ts adds openCount, openTotal (null when the aggregate read fails, never 0) and capped to declinedWork and keeps every existing field; server/lib/statenourOutbound.ts adds the three keys to the declinedWork allowlist (without it the redaction layer drops them).",
+        "tests": "server/declinedOpenTotals.test.ts (9, real drizzle over a fake mysql2 client that reads the rendered SQL): the aggregate equals the uncapped ledger's open count and total over the same fixture rows (12 open orders, 1,067.75), exceeds the 10-row sample, drops a line when it is recovered, is one statement with no LIMIT, throws on a failed or null read. server/statenourSyncNoCustomerData.test.ts (+5) and server/lib/statenourOutbound.test.ts (+1, one fixture extended): fields reach the posted body, null on a failed aggregate, capped true/false. Red first 9 of 9 and 7 of 34; mutations (drop the recovery predicate, hard-code LIMIT 10, null -> 0, drop the allowlist keys) each turn tests red.",
+        "liveRuns": "NONE yet. Proof after deploy and after the statenour consumer half is live: the bdnick Shop line's open count and dollar total equal a read-only COUNT/SUM over work_order_items for the same definition; kill read at that time."
+      },
+      "blockers": []
     }
   ],
   "axes": {

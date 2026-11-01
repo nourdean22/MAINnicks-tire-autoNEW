@@ -12,6 +12,10 @@ const NOTE = "Left a voicemail for Maria";
 const h = vi.hoisted(() => ({
   ci: null as Record<string, unknown> | null,
   posts: [] as Array<{ url: string; body: string }>,
+  /** What getOpenDeclinedWorkTotals returns, and how many entries the (capped) ledger returns. */
+  open: { openCount: 1, openTotal: 800 } as { openCount: number; openTotal: number },
+  openFails: false,
+  ledgerLen: 1,
 }));
 
 vi.mock("./db", () => ({ getDb: async () => null }));
@@ -59,11 +63,15 @@ vi.mock("./services/eventBus", () => ({
   getActiveJourneys: async () => [{ customer: "Maria Stone", events: ["lead_created", "booking_made"], hoursActive: 5 }],
 }));
 vi.mock("./services/declinedWorkRecovery", () => ({
-  getDeclinedWorkLedger: async () => [{
-    workOrderId: "wo-1", orderNumber: "WO-1001", customerName: "Maria Stone", phone: "2165550103",
+  getDeclinedWorkLedger: async () => Array.from({ length: h.ledgerLen }, (_, n) => ({
+    workOrderId: `wo-${n + 1}`, orderNumber: `WO-${1001 + n}`, customerName: "Maria Stone", phone: "2165550103",
     vehicle: "2014 Ford F-150", totalDeclinedValue: 800, hasSafetyItems: true,
     declinedItems: [{ description: "Front pads", total: 300, declineReason: "Sam Hill said next payday", safetyRelated: true, outreachAt: null, recoveryMethod: "texted John Doe", recoveryNotes: NOTE, recovered: false }],
-  }],
+  })),
+  getOpenDeclinedWorkTotals: async () => {
+    if (h.openFails) throw new Error("aggregate read failed");
+    return h.open;
+  },
 }));
 vi.mock("./services/declinedWorkSource", () => ({
   declinedWorkSourceState: async () => "measured",
@@ -97,6 +105,9 @@ function expectNoIdentifiers(body: string): void {
 afterEach(() => {
   h.ci = null;
   h.posts = [];
+  h.open = { openCount: 1, openTotal: 800 };
+  h.openFails = false;
+  h.ledgerLen = 1;
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
@@ -141,5 +152,46 @@ describe("business sync -> /api/sync/business", () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();
     expect(h.ci).toEqual(CI);
+  });
+});
+
+describe("declinedWork carries the TRUE open totals beside the 10-order subtotal", () => {
+  async function declinedBlock(): Promise<Record<string, unknown>> {
+    h.ci = structuredClone(CI);
+    stubFetch();
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await syncToStatenour();
+    return JSON.parse(h.posts[0].body).declinedWork;
+  }
+
+  it("sends openCount and openTotal from the uncapped aggregate and flags the sample as capped", async () => {
+    h.open = { openCount: 23, openTotal: 4120.5 };
+    const dw = await declinedBlock();
+    // the existing fields keep their names and meaning: still the sampled ledger rows
+    expect(dw).toMatchObject({ measured: true, totalRecoverable: 800, customerCount: 1, openCount: 23, openTotal: 4120.5, capped: true });
+  });
+
+  it("capped is false when the sample already holds every open order", async () => {
+    h.open = { openCount: 1, openTotal: 800 };
+    expect(await declinedBlock()).toMatchObject({ openCount: 1, openTotal: 800, capped: false });
+  });
+
+  it("a failed aggregate sends null (UNKNOWN), never 0, and leaves the rest of the block as it was", async () => {
+    h.openFails = true;
+    const dw = await declinedBlock();
+    expect(dw).toMatchObject({ measured: true, totalRecoverable: 800, customerCount: 1, openCount: null, openTotal: null });
+    expect((dw.topItems as unknown[]).length).toBe(1);
+  });
+
+  it("a failed aggregate beside a FULL 10-order sample is still capped (more may exist)", async () => {
+    h.openFails = true;
+    h.ledgerLen = 10;
+    expect(await declinedBlock()).toMatchObject({ openCount: null, openTotal: null, capped: true });
+  });
+
+  it("a failed aggregate beside a short sample is not capped (the sample was not limited)", async () => {
+    h.openFails = true;
+    h.ledgerLen = 3;
+    expect(await declinedBlock()).toMatchObject({ openCount: null, openTotal: null, capped: false });
   });
 });

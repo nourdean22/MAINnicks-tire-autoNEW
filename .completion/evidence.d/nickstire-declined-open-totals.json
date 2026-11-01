@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "WHAT THE OPERATOR SEES after this diff: nothing yet. This is the sender half only: nickstire's sync to bdnick.info gains three additive fields on declinedWork (openCount, openTotal, capped) and every existing field keeps its name and meaning. No client file and no nickstire screen reads them; apps/statenour has no reader until the consumer lane lands, so the Monday brief and the Shop line render exactly as before. Proved in server/statenourSyncNoCustomerData.test.ts (the posted body carries the fields; the old fields are unchanged) and server/declinedOpenTotals.test.ts (the aggregate equals the uncapped ledger over the same rows). Live check DEFERRED: after the statenour half is live, the manager compares the Shop line's open count and dollar total with a read-only COUNT/SUM over work_order_items."
+    }
+  }
+}

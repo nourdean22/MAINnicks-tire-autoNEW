@@ -5,7 +5,7 @@
  * Enables follow-up campaigns for safety items and high-value repairs.
  * Recovery methods: callback, SMS follow-up, financing offer, next-visit reminder.
  */
-import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { eq, desc, sql, and, gte, isNull } from "drizzle-orm";
 import { workOrderItems as workOrderItemsTable } from "../../drizzle/schema";
 import { createLogger } from "../lib/logger";
 
@@ -133,6 +133,36 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
   }
 
   return results;
+}
+
+/**
+ * The TRUE open declined work: work orders holding at least one unrecovered declined line, and the
+ * dollar value of those lines, over ALL rows (getDeclinedWorkLedger caps at its `limit`). One
+ * aggregate statement, no row cap. "Declined" and "recovered" are the ledger's own: a flagged
+ * work order, a line with `declined` set, and no `decline_recovered_at` stamp (the ledger's
+ * `recovered: Boolean(item.declineRecoveredAt)`). A failed read THROWS: the caller reports it as
+ * unknown, never as 0 (a bare 0 would read as "nothing to recover").
+ */
+export async function getOpenDeclinedWorkTotals(): Promise<{ openCount: number; openTotal: number }> {
+  const { db, workOrders, workOrderItems } = await getDbAndSchema();
+  const [row] = await db.select({
+    openCount: sql<string | number>`count(distinct ${workOrderItems.workOrderId})`,
+    openTotal: sql<string | number>`coalesce(sum(${workOrderItems.total}), 0)`,
+  }).from(workOrderItems)
+    .innerJoin(workOrders, eq(workOrderItems.workOrderId, workOrders.id))
+    .where(and(
+      eq(workOrders.hasDeclinedWork, true),
+      eq(workOrderItems.declined, true),
+      isNull(workOrderItems.declineRecoveredAt),
+    ));
+  // The driver hands a DECIMAL sum back as a string. Number(null) is 0, so a null is checked first.
+  const num = (v: string | number | null | undefined) => (v == null ? NaN : Number(v));
+  const openCount = num(row?.openCount);
+  const openTotal = num(row?.openTotal);
+  if (!Number.isFinite(openCount) || !Number.isFinite(openTotal)) {
+    throw new Error("open declined-work aggregate returned no usable row");
+  }
+  return { openCount, openTotal: Math.round(openTotal * 100) / 100 };
 }
 
 // ─── Mark item as recovered ─────────────────────────

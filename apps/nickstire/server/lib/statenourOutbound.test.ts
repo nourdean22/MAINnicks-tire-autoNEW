@@ -39,6 +39,9 @@ const businessPayload = () => ({
     totalRecoverable: 800,
     customerCount: 1,
     safetyItemCount: 1,
+    openCount: 23,
+    openTotal: 4120.5,
+    capped: true,
     topItems: [{
       workOrderId: "wo-1", orderNumber: "WO-1001", customer: "Maria Stone", phone: "2165550103",
       vehicle: "2014 Ford F-150", value: 800, hasSafety: true,
@@ -72,6 +75,7 @@ describe("redactBusinessSyncForStatenour", () => {
     expect(out.customerJourneys).toEqual([{ events: ["lead_created", "booking_made"], hoursActive: 5 }]);
     expect(out.declinedWork).toEqual({
       measured: true, totalRecoverable: 800, customerCount: 1, safetyItemCount: 1,
+      openCount: 23, openTotal: 4120.5, capped: true,
       topItems: [{
         workOrderId: "wo-1", orderNumber: "WO-1001", vehicle: "2014 Ford F-150", value: 800, hasSafety: true,
         lines: [{ total: 300, safetyRelated: true, outreachAt: null }],
@@ -99,6 +103,14 @@ describe("redactBusinessSyncForStatenour", () => {
     expect(out.declinedWork).toBeNull();
     expect(out.customerJourneys).toEqual([]);
     expect(out.nickAI).toEqual({ memoryCount: 0 });
+  });
+
+  it("an unknown open total (null) crosses as null, not as a dropped key or a zero", () => {
+    const out = redactBusinessSyncForStatenour({
+      declinedWork: { measured: true, totalRecoverable: 800, customerCount: 1, openCount: null, openTotal: null, capped: true, topItems: [] },
+    }) as Record<string, any>;
+    expect(out.declinedWork).toMatchObject({ openCount: null, openTotal: null, capped: true });
+    expect(Object.hasOwn(out.declinedWork, "openCount")).toBe(true);
   });
 
   it("a block of the wrong shape is dropped, not forwarded", () => {

@@ -296,8 +296,19 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         try {
           const { getDeclinedWorkLedger } = await import("../../services/declinedWorkRecovery");
           const { declinedWorkSourceState, declinedSourceWarning, isMeasured, sourceNote } = await import("../../services/declinedWorkSource");
-          const ledger = await getDeclinedWorkLedger(10);
+          const LEDGER_SAMPLE = 10;
+          const ledger = await getDeclinedWorkLedger(LEDGER_SAMPLE);
           const unrecovered = ledger.filter(e => e.declinedItems.some(i => !i.recovered));
+          // The ledger is the 10 newest orders; the true open totals come from one uncapped aggregate.
+          // A failed aggregate is UNKNOWN (null), never 0, and costs the rest of the block nothing.
+          let openCount: number | null = null;
+          let openTotal: number | null = null;
+          try {
+            const { getOpenDeclinedWorkTotals } = await import("../../services/declinedWorkRecovery");
+            ({ openCount, openTotal } = await getOpenDeclinedWorkTotals());
+          } catch (e) { log.warn("[jobs/statenourSync] declinedWork open totals failed", { error: String(e) }); }
+          // capped: the sample left open orders out. With no aggregate, a full sample may have.
+          const capped = openCount != null ? openCount > unrecovered.length : ledger.length >= LEDGER_SAMPLE;
           // UNKNOWN IS NOT ZERO. The ledger reads work_order_items, which held
           // ZERO declined rows when this was measured (2026-08-25) - so its
           // totals cannot be non-zero regardless of what the shop is actually
@@ -316,6 +327,9 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             totalRecoverable: unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0),
             customerCount: unrecovered.length,
             safetyItemCount: unrecovered.filter(e => e.hasSafetyItems).length,
+            openCount,
+            openTotal,
+            capped,
             topItems: unrecovered.slice(0, 3).map((e) => {
               const open = e.declinedItems.filter((i) => !i.recovered);
               return {
