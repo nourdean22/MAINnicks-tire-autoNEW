@@ -170,6 +170,7 @@ function fixtureRoot(mutate, { dropDependency = false } = {}) {
     assert.equal(src.split(anchor).length - 1, 1, "mutation anchor must occur exactly once");
     // The planted body runs when the block is built, i.e. only after a real detection: the original body is kept, renamed.
     src = src.replace(anchor, `export function buildBlock(...a) { ${mutate} }\nexport function buildBlockUnused(`);
+    src += '\nimport { writeFileSync as plantWrite } from "node:fs";\n';
   }
   writeFileSync(join(root, "scripts", "agent-os", "prompt-sharpen.mjs"), src);
   return root;
@@ -189,11 +190,29 @@ test("BREAKS: a thrown error inside the hook prints nothing on stdout and exits 
   assert.match(r.stderr, /planted by promptSharpen/, "the failure must be the planted one, not some other error");
 });
 
+/** True while `pid` runs; polls up to `ms`, since a Windows kill returns before the process is gone. */
+function aliveAfter(pid, ms) {
+  for (const end = Date.now() + ms; ; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)) {
+    try { process.kill(pid, 0); } catch { return false; }
+    if (Date.now() > end) return true;
+  }
+}
+
 test("BREAKS: a hang inside the hook is killed by the timeout with nothing on stdout", () => {
-  const root = fixtureRoot("for (;;) {}");
-  const r = runHook(configured.command, payload("what about the rest"), { root, env: withHistory(), timeout: 2500 });
-  assert.equal(r.stdout, "");
-  assert.ok(r.signal || r.code !== 0, "the planted hang must actually hang (killed by the spawn timeout)");
+  // On Windows the spawn timeout kills cmd.exe, not the node under it: an endless planted loop outlived every run
+  // (34 orphans spinning a core each, found 2026-11-01). So the loop is bounded and the test kills it by pid.
+  const pidFile = join(mkdtempSync(join(tmpdir(), "sharpen-pid-")), "pid");
+  const root = fixtureRoot("plantWrite(process.env.SHARPEN_PID_FILE, String(process.pid)); for (const end = Date.now() + 30000; Date.now() < end;) {}");
+  let pid = 0;
+  try {
+    const r = runHook(configured.command, payload("what about the rest"), { root, env: { ...withHistory(), SHARPEN_PID_FILE: pidFile }, timeout: 2500 });
+    pid = Number(readFileSync(pidFile, "utf8"));
+    assert.equal(r.stdout, "");
+    assert.ok(r.signal || r.code !== 0, "the planted hang must actually hang (killed by the spawn timeout)");
+  } finally {
+    if (pid) try { process.kill(pid); } catch { /* already gone (Linux: /bin/sh execs node, the timeout killed it) */ }
+  }
+  assert.equal(aliveAfter(pid, 2000), false, `the planted hang (pid ${pid}) outlived the test`);
 });
 
 test("BREAKS: a missing dependency (operator-asks.mjs absent) prints nothing on stdout and exits 0", () => {

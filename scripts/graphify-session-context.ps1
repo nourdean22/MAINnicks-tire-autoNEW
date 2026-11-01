@@ -183,6 +183,14 @@ try {
 
     Write-Output '=== CODE GRAPH (graphify) ==='
     Write-Output ($verdict + $via)
+    # A sync lock held 90+ min means the nightly sync hung (2026-11-01: 5 h with task result 0; a normal run is 8 min).
+    $syncLock = Join-Path (Split-Path -Parent $report) '.sync-running'
+    if (Test-Path $syncLock) {
+        $lockMin = [int]((Get-Date) - (Get-Item $syncLock).LastWriteTime).TotalMinutes
+        if ($lockMin -ge 90) {
+            Write-Output "graph sync: HUNG - lock held $lockMin min ($((Get-Content $syncLock -Raw).Trim())); read graphify-out/obsidian-sync.log, end that pid, rerun scripts/graphify-sync-launcher.ps1"
+        }
+    }
     if ($summary) { $summary | Where-Object { $_ -match '^- ' } | Select-Object -First 1 | Write-Output }
 
     # Compact governance receipt from the SAME directory as the selected report.
