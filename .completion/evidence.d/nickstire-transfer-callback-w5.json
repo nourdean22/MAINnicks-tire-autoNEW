@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "Transfer callback W5b (PR 3472, 2026-10-31): voice-transfer-connect-truth gains one tests line in docs/operations/capability-ledger.json and REALITY-LEDGER.md is re-rendered (commit 55a29c2034). services/vapi.ts (default transfer plan, CALLBACK CAPTURE best time, live-destination merge never mutates the shared tool) and services/alertClaim.ts (claimAlertOnce/releaseAlertClaim exported for the one-row-per-call escalate claim) are the capability code touched. 7 files, 139 passed: vapi.transferCallback 6, vapi.transferCallbackPlan 11, voiceAgent.escalateOncePerCall 8, ringbackTone 5, transferArtifact 26, voiceAgent.headsUp 79, vapi.updateAssistant.failClosed 4. Live only after the operator's Vapi Push Latest Config."
+    }
+  }
+}
