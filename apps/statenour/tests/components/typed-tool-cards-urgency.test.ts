@@ -4,7 +4,7 @@
  * or a missing entry read as fine.
  */
 import { describe, it, expect } from "vitest";
-import { urgencyWord } from "@/features/chat-v2/components/typed-tool-cards";
+import { urgencyWord } from "@/components/chat/typed-cards";
 
 describe("urgencyWord", () => {
   it.each([
