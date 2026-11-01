@@ -140,3 +140,27 @@ describe("B1 · a later patch of the row keeps the cards", () => {
     expect(patched?.at(-1)).toEqual({ type: "text", text: "[verifier] I added it." });
   });
 });
+
+describe("B1 · the next turn replays a reloaded tool turn cleanly", () => {
+  it("stored parts convert to paired tool-call / tool-result history with no conversion error", async () => {
+    const { buildModelMessages } = await import("@/app/api/ai/chat/build-model-messages");
+    const { partsArray } = await buildMessageParts("You have one open task.", undefined, false, toolPartsFromSteps(twoToolTurn));
+    const reloaded = await sanitizeStoredParts(throughDb(partsArray));
+    const errors: string[] = [];
+    const out = (await buildModelMessages({
+      compression: { compressed: false, messages: [] },
+      messages: [
+        { id: "u1", role: "user", parts: [{ type: "text", text: "what's open?" }] },
+        { id: "a1", role: "assistant", parts: reloaded as never },
+        { id: "u2", role: "user", parts: [{ type: "text", text: "thanks" }] },
+      ],
+      log: { error: (event: string) => errors.push(event) },
+    })) as Array<{ role: string; content: Array<{ type: string; toolCallId?: string }> | string }>;
+
+    expect(errors).toEqual([]);
+    const ids = (type: string) =>
+      out.flatMap((m) => (Array.isArray(m.content) ? m.content : [])).filter((p) => p.type === type).map((p) => p.toolCallId);
+    expect(ids("tool-call")).toEqual(["c1", "c2"]);
+    expect(ids("tool-result")).toEqual(["c1", "c2"]);
+  });
+});
