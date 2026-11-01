@@ -122,6 +122,7 @@ Run it with `run_in_background` when the hold may be long; the harness wakes you
 | 5 | a gh call failed BEFORE the merge call | nothing was merged; re-run |
 | 6 | a gh call failed AT or AFTER the merge call | the merge happened or may have: read the PR before any retry; delete the branch by hand once it reads MERGED |
 | 7 | not ready YET: CI not started, a check running, GitHub computing | re-run in a minute |
+| 8 | blocked by the PR body bar (#3494): a section missing (self-review, kill criterion with a `YYYY-MM-DD` live-check date, 10x, second reader), an empty body, or a body gh did not return; docs-only and dependabot PRs are exempt | a body edit, no push: `gh pr edit <n> --body-file <file>`, then re-run; 2 outranks 8, 8 outranks 7 |
 | 64 | bad usage | fix the command; a short or upper-case `--sha` that is a prefix of the PR's head prints the full head as a paste-ready retry (the gate never resolves it for you: the full SHA is the head you verified) |
 
 Without `--merge` it only judges. After MERGED: `git fetch origin main` and
