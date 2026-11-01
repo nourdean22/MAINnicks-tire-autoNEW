@@ -389,7 +389,7 @@ export function ChatIsland() {
         // list looking freshly confirmed.
         if ((err as { name?: string })?.name !== "AbortError" && streamedForRef.current !== lastUserId) {
           setRecallProvenance("ERROR");
-          setRecallProvenanceReason("could not refresh memory for this turn -- showing the last known view");
+          setRecallProvenanceReason("could not refresh memory for this turn: showing the last known view");
         }
       }
     })();

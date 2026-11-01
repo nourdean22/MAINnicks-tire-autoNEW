@@ -47,12 +47,33 @@ const LENGTH_SALVAGE_TIMEOUT_MS = 30_000;
  * ollama/minimax-m3 turn spent all 6,000 output tokens on hidden thinking (the
  * openai chat adapter never surfaces Ollama's reasoning) and persisted the
  * fallback. No tools; reasoning_effort "none" (ignored by non-OpenAI-shaped
- * lanes, NOT live-checked on Ollama). Returns null when it does not apply or
+ * lanes; honoured by Ollama for minimax-m3, probed 2026-11-01). Returns null when it does not apply or
  * fails, and only usage when the retry came back empty, so the fallback copy
  * still covers it. The usage is the cut-off attempt's plus the retry's, so
  * cost rows count both calls.
  */
 type TokenUsage = { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+
+/**
+ * 2026-11-01 · the step loop puts a tool's raw return value into the tool-result
+ * part, so a Prisma Date (searchMemories `updatedAt`) rides along. streamText never
+ * re-validates its own history, but generateText checks the ModelMessage schema and
+ * a Date is not a JSON value: the retry threw AI_InvalidPromptError and the turn
+ * persisted the fallback (live 12:57Z, 9 read tools). Round-trip the value through
+ * JSON, which is what the provider adapter sent on the wire anyway.
+ */
+function jsonSafeToolResults(m: unknown): unknown {
+  const msg = m as { role?: string; content?: unknown };
+  if (msg.role !== "tool" || !Array.isArray(msg.content)) return m;
+  return {
+    ...msg,
+    content: msg.content.map((p: { output?: { type?: string; value?: unknown } }) =>
+      p?.output?.type === "json" || p?.output?.type === "error-json"
+        ? { ...p, output: { ...p.output, value: JSON.parse(JSON.stringify(p.output.value ?? null)) } }
+        : p,
+    ),
+  };
+}
 
 export async function salvageLengthCutoff(args: {
   event: { text?: string; finishReason?: string; response?: { messages?: unknown[] }; usage?: TokenUsage };
@@ -73,10 +94,12 @@ export async function salvageLengthCutoff(args: {
   try {
     const { generateText } = await import("ai");
     // The cut-off step's own assistant message is empty; keep only messages with content (tool history).
-    const prior = (event.response?.messages ?? []).filter((m) => {
-      const c = (m as { content?: unknown }).content;
-      return Array.isArray(c) ? c.length > 0 : Boolean(c);
-    });
+    const prior = (event.response?.messages ?? [])
+      .filter((m) => {
+        const c = (m as { content?: unknown }).content;
+        return Array.isArray(c) ? c.length > 0 : Boolean(c);
+      })
+      .map(jsonSafeToolResults);
     const r = await generateText({
       model: args.model as never,
       system: `${args.system}\n\nYour previous attempt ran out of room before writing anything. Reply to the last message now, directly, in plain prose.`,
@@ -102,7 +125,11 @@ export async function salvageLengthCutoff(args: {
     // An empty retry still spent tokens: hand back the usage alone and keep the cut-off text and finish.
     return text ? { text, finishReason: r.finishReason, usage } : { usage };
   } catch (err) {
-    log.warn("length_cutoff_salvage_failed", { error: err instanceof Error ? err.name : "Error" });
+    // The name alone hid which schema check failed on 2026-11-01; the message says.
+    log.warn("length_cutoff_salvage_failed", {
+      error: err instanceof Error ? err.name : "Error",
+      message: err instanceof Error ? err.message.slice(0, 200) : undefined,
+    });
     return null;
   }
 }

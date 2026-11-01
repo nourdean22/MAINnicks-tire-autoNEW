@@ -51,7 +51,7 @@ export function StaleDataPanel() {
               <p className="font-mono text-[11px] text-fg-secondary">
                 Data hygiene
               </p>
-              <h2 className="mt-0.5 text-sm font-semibold text-fg">Stale Data</h2>
+              <h2 className="mt-0.5 text-sm font-semibold text-fg">Stale data</h2>
               <p className="mt-1 max-w-2xl text-xs text-fg-secondary">
                 Rows that still look live after aging out. Review the exact cleanup effect before changing anything.
               </p>

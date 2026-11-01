@@ -179,7 +179,7 @@ export function TaskFilters({
         if (!showKindRow && !showDomainRow && !showSearch) {
           return (
             <div className="rounded-surface bg-content border border-edge-subtle px-2.5 py-1.5 text-[11px] text-fg-tertiary italic">
-              Nothing to filter — {activeCount} routine{activeCount === 1 ? "" : "s"} on deck.
+              Nothing to filter. {activeCount} routine{activeCount === 1 ? "" : "s"} on deck.
             </div>
           );
         }
@@ -260,7 +260,7 @@ export function TaskFilters({
                         )}
                         title={
                           d.count === 0
-                            ? `No ${d.name} loops yet — tap to filter when you have some`
+                            ? `No ${d.name} loops yet. Tap to filter when you have some`
                             : `Filter to ${d.name}`
                         }
                       >

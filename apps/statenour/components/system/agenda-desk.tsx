@@ -25,8 +25,8 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
     <section className="flex flex-col gap-4 md:col-span-2 lg:col-span-1 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
         <div>
-          <span className="font-mono text-[11px] text-fg-tertiary">A1 · Agenda Desk</span>
-          <h3 className="text-sm font-semibold text-fg mt-0.5">Active Commitments & Intentions</h3>
+          <span className="font-mono text-[11px] text-fg-tertiary">A1 · Agenda desk</span>
+          <h3 className="text-sm font-semibold text-fg mt-0.5">Active commitments and intentions</h3>
         </div>
         {items && (
           <span className="rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">

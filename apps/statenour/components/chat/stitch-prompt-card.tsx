@@ -46,7 +46,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
       <div className="px-4 py-3 border-b border-edge-subtle flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4.5 w-4.5 text-fg-tertiary" />
-          <span className="text-[13px] font-semibold text-fg">Stitch Prompt Architect</span>
+          <span className="text-[13px] font-semibold text-fg">Stitch prompt architect</span>
         </div>
         <div className="flex items-center gap-1.5 rounded-full border border-edge-default bg-surface-raised px-2.5 py-0.5 text-[11px] font-medium text-fg-secondary">
           {designSystem.platform || "Web"}
@@ -62,7 +62,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
 
         {/* Design System Tokens */}
         <div>
-          <div className="font-mono text-[11px] text-fg-tertiary mb-2">Design System Grid</div>
+          <div className="font-mono text-[11px] text-fg-tertiary mb-2">Design system grid</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {Object.entries(designSystem).map(([key, val]) => {
               if (!val || typeof val !== "string" || key === "platform") return null;
@@ -88,7 +88,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
         {/* Page Structure */}
         {pageStructure && pageStructure.length > 0 && (
           <div>
-            <div className="font-mono text-[11px] text-fg-tertiary mb-2">Layout Structure</div>
+            <div className="font-mono text-[11px] text-fg-tertiary mb-2">Layout structure</div>
             <div className="space-y-1.5 text-xs">
               {pageStructure.map((sec, idx) => (
                 <div key={idx} className="flex gap-3 bg-surface-raised border border-edge-subtle p-2 rounded-control">
@@ -136,7 +136,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
             onClick={() => setExpandedPrompt(!expandedPrompt)}
             className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-xs font-medium text-fg-secondary transition-colors hover:bg-surface-hover"
           >
-            <span>Raw Markdown Prompt ({data.finalPromptMarkdown.length} chars)</span>
+            <span>Raw Markdown prompt ({data.finalPromptMarkdown.length} chars)</span>
             {expandedPrompt ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
           {expandedPrompt && (
@@ -160,12 +160,12 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
           {copied ? (
             <>
               <Check className="h-4 w-4" />
-              <span>Copied to Clipboard!</span>
+              <span>Copied</span>
             </>
           ) : (
             <>
               <Copy className="h-4 w-4" />
-              <span>Copy Stitch-Enhanced Prompt</span>
+              <span>Copy Stitch-enhanced prompt</span>
             </>
           )}
         </button>

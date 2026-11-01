@@ -28,9 +28,16 @@
  *   5 a gh call failed BEFORE the merge call; nothing was merged, safe to re-run
  *   6 a gh call failed AT or AFTER the merge call; the merge may have happened (the message says which): read the PR before any retry
  *   7 not ready YET (CI has not started, a check is still running even if GitHub says UNSTABLE, GitHub is still computing, Codex has not reported); re-run in a minute
+ *   8 blocked by the PR body bar (assessBody): a section is missing, empty or undated, or gh returned no body (UNKNOWN). Chain
+ *     scripts treat it like 2, BLOCKED. Fix with `gh pr edit <n> --body-file <file>` (a body edit, no push). A hard blocker
+ *     (exit 2) outranks it; it outranks not-ready-yet (7), so the body is fixed while CI runs.
  *  64 bad usage
+ *
+ * Seam: `node scripts/agent-os/merge-gate.mjs --body-fixture <file.json>` judges {body, author, files} with assessBody only
+ * (exit 0 or 8, 64 for an unreadable fixture). It never calls gh, so probes and a pre-open check need no real PR.
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { isMainModule } from "./cli-common.mjs";
 
 const OK_CONCLUSIONS = new Set(["SUCCESS", "SKIPPED", "NEUTRAL"]);
@@ -203,7 +210,63 @@ export function missingDodFragment(files, branch) {
   return `this PR touches a DoD path (${DOD_PATHS.join(", ")}) but adds no evidence fragment: add .completion/evidence.d/${String(branch).replace(/\//g, "-")}.json (see apps/nickstire/scripts/dod-compiler.mjs) and run the compiler before pushing`;
 }
 
-const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
+// The PR body bar (manager rule 2026-10-30, quality-audit P1 #16). One case-insensitive regex per section, matched against a
+// markdown HEADING's text; spellings read from merged bodies 3486, 3485, 3477 and 3470 on 2026-11-01.
+const BAR_SECTIONS = [
+  { name: "hostile self-review", heading: "## Self-review", re: /^(?:hostile\s+)?self[- ]review\b/i },
+  { name: "kill criterion with a live-check date", heading: "## Kill criterion + live check", re: /^kill[- ]criteri(?:on|a)\b/i, dated: true },
+  { name: "10x option", heading: "## 10x", re: /^10x\b/i },
+  { name: "second reader", heading: "## Second reader", re: /^(?:second[- ]reader|reader\s+of\s+record)\b/i },
+];
+const ISO_DATE = /\b20\d\d-[01]\d-[0-3]\d\b/;
+// test.yml's docs_only filter patterns ('**/*.md', 'docs/**'), applied to EVERY path here rather than to any one of them.
+const isDocPath = (p) => /\.md$/.test(p) || p.startsWith("docs/");
+
+/**
+ * The PR body bar. `body`/`author` come from `gh pr view --json body,author`, `files` from the REST files list (strings are
+ * accepted as filenames for the fixture seam). Returns { reasons, exempt }: reasons empty means the bar passes. Exempt by
+ * rule: a docs-only PR (every path, old name included, is *.md or under docs/; an empty or capped list is not docs-only)
+ * and dependabot (login app/dependabot AND is_bot true, as gh reports it). A heading inside a code fence or an HTML comment,
+ * bold text and prose do not count; a heading needs text under it; the kill criterion needs an ISO (YYYY-MM-DD) date.
+ * A body gh did not return is UNKNOWN and refused, never a pass.
+ */
+export function assessBody({ body, author, files }) {
+  const paths = (files ?? []).flatMap((f) => (typeof f === "string" ? [f] : [f.filename, f.previous_filename])).filter(Boolean);
+  if (files?.length && files.length < 3000 && paths.every(isDocPath)) return { reasons: [], exempt: "docs-only PR (every changed path is *.md or under docs/): the body bar does not apply" };
+  if (author?.is_bot === true && /^(?:app\/)?dependabot(?:\[bot\])?$/.test(String(author.login))) return { reasons: [], exempt: "dependabot PR: the body bar does not apply" };
+  if (typeof body !== "string") return { reasons: ["the PR body was not returned by gh: the four bar sections are UNKNOWN, which is not a pass"], exempt: null };
+  if (!body.trim()) return { reasons: ["the PR body is empty: all four bar sections are missing"], exempt: null };
+  const lines = body
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
+    .replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm, "")
+    .split(/\r?\n/);
+  const headings = lines.flatMap((l, i) => {
+    const m = /^ {0,3}(#{1,6})\s+(.*?)[\s#]*$/.exec(l);
+    return m ? [{ i, level: m[1].length, text: m[2] }] : [];
+  });
+  const reasons = [];
+  for (const s of BAR_SECTIONS) {
+    const found = headings.filter((h) => s.re.test(h.text)).map((h) => {
+      const end = headings.find((n) => n.i > h.i && n.level <= h.level)?.i ?? lines.length;
+      return { ...h, content: lines.slice(h.i + 1, end).join("\n") };
+    });
+    const hint = `add a "${s.heading}" heading with text under it`;
+    if (!found.length) reasons.push(`missing section "${s.name}": ${hint}`);
+    else if (!found.some((h) => h.content.trim())) reasons.push(`section "${s.name}" has a heading but no text under it: ${hint}`);
+    else if (s.dated && !found.some((h) => ISO_DATE.test(h.text) || ISO_DATE.test(h.content))) reasons.push(`section "${s.name}" has no live-check date (YYYY-MM-DD) under its heading`);
+  }
+  return { reasons, exempt: null };
+}
+
+/** Prints the bar verdict; true when it blocks. `pr` is the number for the fix line, or "<n>" from the fixture seam. */
+function logBar(bar, pr, log) {
+  if (bar.exempt) log(`BAR EXEMPT: ${bar.exempt}`);
+  bar.reasons.forEach((r) => log(`BLOCKED (PR body bar): ${r}`));
+  if (bar.reasons.length) log(`FIX: write the missing section(s) into a file and run gh pr edit ${pr} --body-file <file> (a body edit, no push), then re-run this gate`);
+  return bar.reasons.length > 0;
+}
+
+const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup,body,author";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
 const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
 const COMMENT_PAGES = 40; // 2,000 comments; past that the gate refuses rather than guess
@@ -247,13 +310,14 @@ const pushedAt = (view, codexView) => {
  * The whole protocol. `gh(args)` returns stdout; injected so the order of calls can be proven. `codexCheck` exists only so
  * the canary can switch the Codex wait off and prove the tests see the difference; the CLI never passes it.
  */
-export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep, codexWait = CODEX_WAIT_MINUTES, codexCheck = assessCodex }) {
+export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep, codexWait = CODEX_WAIT_MINUTES, codexCheck = assessCodex, barCheck = assessBody }) {
   // A NaN deadline never arrives, which would turn the bounded wait into an endless poll.
   if (!Number.isFinite(wait) || wait < 0) throw new Error("--wait-minutes must be a finite number of minutes, 0 or more");
   if (!Number.isFinite(codexWait) || codexWait < 0) throw new Error("--codex-wait-minutes must be a finite number of minutes, 0 or more");
   const json = (args) => JSON.parse(gh(args));
   let before;
   let codex;
+  let bar;
   try {
     const busy = merge ? await holdWhileBusy({ list: () => json(["pr", "list", "--state", "open", "--limit", "200", "--json", "number,statusCheckRollup"]), self: pr, minutes: wait, sleep, now }) : [];
     if (busy.length) {
@@ -276,6 +340,7 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
     const dod = files.length >= 3000 ? "3000 or more changed files: GitHub lists no more, so this gate cannot see every path; check the DoD fragment by hand" : missingDodFragment(files, before.headRefName);
     if (dod) extra.push(dod);
     if (extra.length) codex = { ...codex, hard: [...codex.hard, ...extra] };
+    bar = barCheck({ body: before.body, author: before.author, files });
   } catch (e) {
     log(`ERROR before any merge call, nothing was merged: ${firstLine(e)}`);
     return 5;
@@ -295,7 +360,9 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
   hard.forEach((w) => log(`BLOCKED: ${w}`));
   soft.forEach((w) => log(`NOT READY YET: ${w}`));
   codex.warn.forEach((w) => log(`WARN: ${w}`));
+  const barBlocks = logBar(bar, pr, log);
   if (hard.length) return 2;
+  if (barBlocks) return 8;
   if (soft.length) return 7;
   if (!merge) {
     log(`READY: #${pr} at ${sha}`);
@@ -354,6 +421,20 @@ export function shaUsageHint(pr, sha, headOid) {
 
 if (isMainModule(import.meta.url)) {
   const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : undefined);
+  if (process.argv.includes("--body-fixture")) {
+    let fixture;
+    try {
+      fixture = JSON.parse(readFileSync(arg("--body-fixture"), "utf8"));
+      if (!fixture || typeof fixture !== "object") throw new Error("the fixture is not a JSON object");
+    } catch (e) {
+      console.error(`--body-fixture needs a readable JSON file {body, author, files}: ${firstLine(e)}`);
+      process.exit(64);
+    }
+    const verdict = assessBody(fixture);
+    const blocked = logBar(verdict, "<n>", (m) => console.log(m));
+    if (!blocked) console.log(`BAR OK${verdict.exempt ? " (exempt)" : ": all four sections present"} (fixture judged only; gh was not called)`);
+    process.exit(blocked ? 8 : 0);
+  }
   const pr = Number(process.argv[2]);
   const sha = arg("--sha");
   if (!Number.isInteger(pr) || !/^[0-9a-f]{40}$/.test(sha ?? "")) {

@@ -123,7 +123,7 @@ export function CronInspector({ entity }: InspectorPanelProps) {
             provenance="ZERO"
             icon={History}
             title={`No runs in the last ${CRON_HISTORY_DAYS}d`}
-            why={row.mode === "active" && row.enabled ? "The log has nothing for this name in the window — expected only if its schedule is longer than a week." : "Not scheduled to fire on its own."}
+            why={row.mode === "active" && row.enabled ? "The log has nothing for this name in the window. Expected only if its schedule is longer than a week." : "Not scheduled to fire on its own."}
           />
         ) : (
           <div className="space-y-3">

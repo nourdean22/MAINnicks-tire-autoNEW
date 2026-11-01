@@ -205,3 +205,105 @@ test("unrelated everyday commands are never blocked", () => {
     assert.ok(!res.denied, `everyday command wrongly blocked by '${res.rule?.id}': ${command}`);
   }
 });
+
+// Hook-skip spellings, end to end through the REAL hook binary (job 2026-11-01-double-check-missed, guard-red-team).
+// FACT 2026-10-30 ~07:40Z: a commit with git's -c option pointing core.hooksPath at a null location passed the guard,
+// whose only pattern was the literal long flag. Literals are built from parts so this file's own edits, quoted in a
+// Bash command, are never judged as the commands they describe; the spawned hook gets no GIT_* variables.
+test("hook-skip spellings: the real pretool.mjs denies every one (exit 2 + rule id) and allows every mention and look-alike", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const HOOK = fileURLToPath(new URL("./pretool.mjs", import.meta.url));
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));
+  const run = (tool, command) => spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: tool, tool_input: { command }, cwd: "C:/Users/nourd/NOURCITY" }), encoding: "utf8", env });
+  const HP = "core." + "hooks" + "Path";
+  const LH = "LEFT" + "HOOK";
+  const NV = "--no-" + "verify";
+  const CFG = "GIT_" + "CONFIG_";
+  const deny = [
+    ["no-verify", "Bash", "git commit -" + "n -m x"],
+    ["no-verify", "Bash", "git commit -" + "nm x"],
+    ["no-verify", "Bash", "git commit -a" + "nm x"],
+    ["no-verify", "Bash", 'git commit -m "msg" -' + "n"],
+    ["no-verify", "Bash", "git -C /c/x commit -" + "n -m x"],
+    ["no-verify", "Bash", "cd /c/x && git commit -v" + "n -m x"],
+    ["no-verify", "PowerShell", "git commit -" + "n -m 'x'"],
+    ["no-verify", "Bash", "git am -" + "n patch.mbox"],
+    ["no-verify", "Bash", "git am -3" + "n patch.mbox"],
+    ["no-verify", "Bash", "git commit " + NV.slice(0, -2) + " -m x"],
+    ["no-verify", "Bash", "git am " + NV.slice(0, 6) + " x.mbox"],
+    ["no-verify", "Bash", "git commit " + NV + " -m x"],
+    ["no-verify", "Bash", `git -c ${HP}=/dev/null commit -m x`],
+    ["no-verify", "Bash", `git -c ${HP.toLowerCase()}=NUL commit -m x`],
+    ["no-verify", "Bash", `git -c "${HP}=/dev/null" push origin chore/x`],
+    ["no-verify", "Bash", `git --config-env=${HP}=EMPTY merge chore/x`],
+    ["no-verify", "Bash", `git --config-env ${HP}=EMPTY rebase origin/main`],
+    ["no-verify", "Bash", `git -C /c/x -c ${HP}=/tmp/none am x.mbox`],
+    ["no-verify", "Bash", `git -c ${HP}=/dev/null cherry-pick abc123`],
+    ["no-verify", "Bash", `sh -c "git -c ${HP}=/dev/null commit -m x"`],
+    ["no-verify", "Bash", `${CFG}COUNT=1 ${CFG}KEY_0=${HP} ${CFG}VALUE_0=/dev/null git commit -m x`],
+    ["no-verify", "PowerShell", `$env:${CFG}KEY_0 = '${HP}'; $env:${CFG}COUNT = 1; git commit -m x`],
+    ["no-verify", "Bash", `export ${CFG}PARAMETERS="'user.name=x' '${HP}=/dev/null'" && git push origin chore/x`],
+    ["no-verify", "Bash", `git config ${HP} /dev/null`],
+    ["no-verify", "Bash", `git config --local ${HP} .nohooks`],
+    ["no-verify", "Bash", `git config --worktree ${HP} x`],
+    ["no-verify", "Bash", `git config --global ${HP} ~/empty`],
+    ["no-verify", "Bash", `git config set ${HP} /dev/null`],
+    ["no-verify", "Bash", `git config --file .git/config ${HP} x`],
+    ["no-verify", "Bash", `git --git-dir /c/x/.git -c ${HP}=x commit -m y`],
+    ["no-verify", "Bash", `git -C "/c/my repo" -c ${HP}=x commit -m y`],
+    ["no-verify", "Bash", "git commit -m x \\\n  -" + "n"],
+    ["no-verify", "Bash", "xargs git commit -" + "n -m x"],
+    ["no-verify", "PowerShell", `$Env:${LH} = '0'; git commit -m x`],
+    ["no-verify", "Bash", `${LH}=0 git commit -m x`],
+    ["no-verify", "Bash", `${LH}_EXCLUDE=lint git push origin chore/x`],
+    ["no-verify", "Bash", `${LH}_BIN=true git commit -m x`],
+    ["no-verify", "Bash", `${LH}_CONFIG=/dev/null git commit -m x`],
+    ["no-verify", "Bash", `env ${LH}=0 git commit -m x`],
+    ["no-verify", "Bash", `export ${LH}=0; git push origin chore/x`],
+    ["no-verify", "PowerShell", `$env:${LH} = '0'; git commit -m x`],
+    ["no-verify", "PowerShell", `setx ${LH} 0`],
+    ["no-verify", "PowerShell", `[Environment]::SetEnvironmentVariable('${LH}', '0', 'User')`],
+  ];
+  const allow = [
+    ["Bash", "git push -" + "n origin chore/x"],
+    ["Bash", "git merge -" + "n chore/x"],
+    ["Bash", "git rebase -" + "n origin/main"],
+    ["Bash", "git cherry-pick -" + "n abc123"],
+    ["Bash", "git log -" + "n 5 --oneline"],
+    ["Bash", 'git commit -m "x -' + 'n y"'],
+    ["Bash", 'git commit -am "turn on -' + 'n"'],
+    ["Bash", "git commit --no-verbose -m x"],
+    ["Bash", "git commit -F msg.txt"],
+    ["Bash", `git commit -m "docs: ban git -c ${HP} and ${LH}=0"`],
+    ["Bash", `echo "git -c ${HP}=/dev/null commit"`],
+    ["Bash", `echo ${LH}=0 git commit -m x`],
+    ["Bash", 'echo "git commit -' + 'n"'],
+    ["Bash", `rg -n "${HP}" scripts/`],
+    ["Bash", `git config --get ${HP}`],
+    ["Bash", `git config ${HP}`],
+    ["Bash", `git config ${HP} 2>&1`],
+    ["Bash", `git config --show-origin ${HP}`],
+    ["Bash", `git config --unset ${HP}`],
+    ["Bash", "git -c user.name=x commit -m y"],
+    ["Bash", "git -c core.editor=vim commit -m x"],
+    ["PowerShell", `$env:${LH}_VERBOSE = '1'; git commit -m x`],
+    ["PowerShell", `[Environment]::SetEnvironmentVariable('${LH}', $null, 'User')`],
+    ["Bash", "git commit -m x && git push -" + "n origin chore/x"],
+    ["Bash", "git commit -F m.txt; git log -" + "n 3"],
+    ["Bash", `git config ${HP} && git status`],
+  ];
+  // Every probe runs and every miss is listed, so a red names all of them, not only the first.
+  const bad = [];
+  for (const [id, tool, command] of deny) {
+    const r = run(tool, command);
+    const got = /BLOCKED by repo policy: (\S+)/.exec(r.stderr)?.[1] ?? "none";
+    if (r.status !== 2 || got !== id) bad.push(`should DENY by ${id} (exit ${r.status}, rule ${got}): ${tool}: ${command}`);
+  }
+  for (const [tool, command] of allow) {
+    const r = run(tool, command);
+    if (r.status !== 0) bad.push(`should ALLOW (exit ${r.status}): ${tool}: ${command}`);
+  }
+  assert.ok(deny.length >= 43 && allow.length >= 26, "the probe set only grows");
+  assert.deepEqual(bad, [], `${bad.length} of ${deny.length + allow.length} probes wrong`);
+});

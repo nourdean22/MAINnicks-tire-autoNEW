@@ -423,7 +423,7 @@ export function PinnedContextPanel() {
         <div className="flex items-center gap-2 flex-wrap">
           <Pin size={14} className="text-fg-secondary" />
           <h2 className="text-[15px] font-semibold text-fg">
-            Pinned Context
+            Pinned context
           </h2>
           <span className="text-[11px] text-[var(--text-tertiary)]">
             always loaded · confidence 1.0
@@ -710,7 +710,7 @@ export function PinnedContextPanel() {
       {ccStateQuery.isError && (
         <div className="pt-3 border-t border-edge-subtle">
           <EmptyState
-            title="Hot Rules couldn't load"
+            title="Hot rules couldn't load"
             provenance="ERROR"
             why="The command-center read failed: this says nothing about whether hard rules exist."
           />
@@ -721,7 +721,7 @@ export function PinnedContextPanel() {
         <div className="pt-3 border-t border-edge-subtle space-y-2">
           <div className="flex items-center gap-1.5 text-[11px] font-mono text-fg-tertiary">
             
-            <span>Active Hot Rules</span>
+            <span>Active hot rules</span>
             <span className="text-[11px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
               Most-re-sighted constraints
             </span>

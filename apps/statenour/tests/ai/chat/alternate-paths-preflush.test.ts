@@ -197,8 +197,10 @@ describe("pre-flush evidence lane", () => {
       expect(await runAlternatePaths(base(HIGH, over))).toBeInstanceOf(Response);
       return (generateText.mock.calls[0][0] as Cfg).prepareStep({ stepNumber: 2 });
     };
-    expect(await lastStep({ provider: "ollama" as never })).toEqual({ activeTools: [] });
-    expect(await lastStep({ provider: "ollama" as never, webSearchIntent: true })).toEqual({ activeTools: [] });
+    // 2026-11-01 · the Ollama last step also turns thinking off (text-only-step.ts).
+    const ollamaLast = { activeTools: [], providerOptions: { openai: { reasoningEffort: "none" } } };
+    expect(await lastStep({ provider: "ollama" as never })).toEqual(ollamaLast);
+    expect(await lastStep({ provider: "ollama" as never, webSearchIntent: true })).toEqual(ollamaLast);
     // CONTROL: honouring providers are unchanged.
     for (const honours of ["openai", "anthropic", "gemini"]) {
       expect(await lastStep({ provider: honours as never })).toEqual({ toolChoice: "none" });

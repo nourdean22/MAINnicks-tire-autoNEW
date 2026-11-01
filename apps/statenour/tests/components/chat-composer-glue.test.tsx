@@ -145,7 +145,7 @@ describe("the /new slash action resets the turn before the conversation is clear
   const startNewChat = async () => {
     const textarea = container.querySelector("textarea")!;
     typeInto(textarea, "/new");
-    const button = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Start New Chat"));
+    const button = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Start new chat"));
     expect(button, "the /new entry of the slash menu").toBeTruthy();
     await act(async () => void button!.click());
   };

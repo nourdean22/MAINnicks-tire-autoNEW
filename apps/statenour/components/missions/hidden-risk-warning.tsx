@@ -94,7 +94,7 @@ export function HiddenRiskWarning({
             className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)] px-2 py-1"
           >
             {showPreview ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            {showPreview ? "Hide Preview" : "Show hidden risks"}
+            {showPreview ? "Hide preview" : "Show hidden risks"}
           </button>
 
           {executionModeActive ? (

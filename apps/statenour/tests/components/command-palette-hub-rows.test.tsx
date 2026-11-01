@@ -156,12 +156,12 @@ describe("command palette · renders the hub rows", () => {
   });
 
   it("a new door opens its page", () => {
-    act(() => item("Memory Inbox")!.click());
+    act(() => item("Memory inbox")!.click());
     expect(h.push).toHaveBeenCalledWith("/system/inbox");
   });
 
   it("a Lab row opens its page and says Lab", () => {
-    act(() => item("Lab · UI Lab")!.click());
+    act(() => item("Lab · UI lab")!.click());
     expect(h.push).toHaveBeenCalledWith("/system/ui-lab");
   });
 });

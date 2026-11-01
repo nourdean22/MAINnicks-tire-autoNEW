@@ -113,7 +113,7 @@ function FixtureMemoryBody() {
   return (
     <div className="space-y-3">
       <p className="text-[14px] leading-relaxed text-fg">
-        Shop closes 6 PM Mon–Sat, 4 PM Sunday. Nour said it directly in chat.
+        Shop closes 6 PM Mon to Sat, 4 PM Sunday. Nour said it directly in chat.
       </p>
       <div className="space-y-1">
         <p className="font-mono text-[11px] text-fg-tertiary">Proof</p>
@@ -137,7 +137,7 @@ export default function UiLabPage() {
   return (
     <StandardPage
       eyebrow="System"
-      title="UI Lab"
+      title="UI lab"
       description="The object grammar's primitives against fixtures, real components, frozen clock, nothing mocked."
       width="sm"
       rhythm="comfortable"

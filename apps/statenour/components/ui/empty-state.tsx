@@ -54,7 +54,7 @@ export type EmptyProvenance = "ZERO" | "UNMEASURED" | "ERROR" | "SUPPRESSED";
 export const PROVENANCE_LABEL: Record<EmptyProvenance, string> = {
   ZERO: "measured · zero",
   UNMEASURED: "unmeasured, not zero",
-  ERROR: "read failed — unknown, not zero",
+  ERROR: "read failed: unknown, not zero",
   SUPPRESSED: "hidden by design",
 };
 

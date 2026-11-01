@@ -486,21 +486,21 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
             <span className="text-[11px] font-mono text-fg-secondary">
-              Focus Review ({activeReviewIdx + 1} of {dueReviews.length})
+              Focus review ({activeReviewIdx + 1} of {dueReviews.length})
             </span>
           </div>
           <button
             onClick={() => setFocusReviewMode(false)}
             className="min-h-11 min-w-11 text-[11px] font-mono text-fg-tertiary hover:text-fg transition-colors"
           >
-            Exit Focus
+            Exit focus
           </button>
         </div>
 
         {/* Ebbinghaus Countdown Timer */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[11px] font-mono">
-            <span className="text-fg-tertiary">Ebbinghaus Urgency Countdown</span>
+            <span className="text-fg-tertiary">Ebbinghaus urgency countdown</span>
             <span className={cn(
               "font-semibold",
               reviewTimeLeft <= 10 ? "text-red-400" : "text-amber-400"
@@ -531,12 +531,12 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               variant="outline"
               className="min-h-11 min-w-11 mx-auto h-10 px-6 border-accent/30 text-fg hover:bg-accent/10 hover:text-fg text-xs font-mono"
             >
-              Show Summary
+              Show summary
             </Button>
           ) : (
             <div className="p-3.5 rounded-surface border border-edge-default bg-content text-left text-fg-secondary text-xs leading-relaxed whitespace-pre-wrap animate-fade-in">
               <p className="font-mono text-[11px] text-fg-tertiary mb-1">
-                Summary / Insight
+                Summary / insight
               </p>
               {currentReviewCard.summary}
             </div>
@@ -569,7 +569,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             aria-label="Deep dive on this topic"
             id="deep-dive-focus-btn"
           >
-            Deep Dive
+            Deep dive
           </button>
           <button
             onClick={handleSkipActiveReview}
@@ -606,7 +606,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               id="adhd-focus-review-btn"
             >
               <Zap size={11} className="fill-amber-400/20" />
-              ADHD Focus: Review One Card
+              ADHD focus: review one card
             </Button>
           </div>
           {dueReviews.slice(0, 3).map((rev) => (

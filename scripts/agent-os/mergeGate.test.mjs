@@ -17,7 +17,7 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -28,7 +28,7 @@ import * as gate from "./merge-gate.mjs";
 
 const GATE = fileURLToPath(new URL("./merge-gate.mjs", import.meta.url));
 const SHA = "a".repeat(40);
-const FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
+const FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup,body,author";
 // The read the first draft used. Real gh answers it with comments(first: 100) only (Codex P2 on #3144), so the fake
 // truncates the same way: a gate that goes back to it loses a marker posted after 100 comments, and goes red here.
 const CODEX_FIELDS = "comments,commits,createdAt";
@@ -66,9 +66,16 @@ const STATE = {
 const codexComment = (state, login = CODEX) => ({ author: { login }, body: `### Codex Review\n\nSummary.\n\n<!-- codex-review-state:v1 ${state} -->`, createdAt: "2026-10-18T10:31:59Z" });
 const thread = (isResolved, login = CODEX, n = 1) => ({ isResolved, path: "apps/x.ts", comments: { nodes: [{ author: { login }, url: `https://github.com/o/r/pull/3100#discussion_r${n}` }] } });
 
+// PR body bar (quality-audit P1 #16, job 2026-11-01-double-check-missed): the four headings as PR 3486 spelled them on
+// 2026-11-01 (`gh pr view 3486 --json body`), each with text under it, the kill criterion carrying an ISO live-check date.
+const BODY = "Summary line.\n\n## Self-review\nLooked for a fail-open; found none.\n\n## Kill criterion + live check\nRevert if X. Live check: 2026-11-08.\n\n## 10x\nOne line.\n\n## Second reader\nCodex: 1 round, 0 open.\n";
+const HUMAN = { id: "U_x", is_bot: false, login: "nourdean22", name: "" };
+// gh pr list --author app/dependabot --json author, read 2026-11-01 (PR 3325): login "app/dependabot", is_bot true.
+const DEPENDABOT = { is_bot: true, login: "app/dependabot" };
+
 // startedAt defaults to the fixture PR's open time: CI starts on the push, and the Codex wait is timed from it.
 const run = (name, conclusion = "SUCCESS", status = "COMPLETED", startedAt = "2026-10-18T10:31:43Z") => ({ __typename: "CheckRun", name, status, conclusion, startedAt });
-const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", files: [file("apps/nickstire/client/src/App.tsx")], ...over });
+const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", files: [file("apps/nickstire/client/src/App.tsx")], body: BODY, author: HUMAN, ...over });
 
 /**
  * A gh with the real contract. `prs` is keyed by PR number; `fail` names calls that throw (list, view, codex, push,
@@ -822,4 +829,177 @@ test("DoD rule: 3000 files (the REST cap) is BLOCKED as unprovable even with a f
   assert.equal(code, 2, JSON.stringify(logs));
   assert.deepEqual(mergeCalls(g), []);
   assert.ok(logs.some((l) => /^BLOCKED: 3000 or more changed files/.test(l)), JSON.stringify(logs));
+});
+
+// ---- PR body bar (quality-audit P1 #16, job 2026-11-01-double-check-missed) -------------------------------------------
+// The four sections the manager sent 3432/3434/3435 back for on 2026-10-30: hostile self-review, kill criterion with a
+// live-check date, the 10x option, a second reader. Exit 8 is its own code (chain scripts treat it like 2, BLOCKED).
+const bar = (over = {}) => gate.assessBody({ body: BODY, author: HUMAN, files: [file("apps/statenour/lib/x.ts")], ...over });
+const SECTION = { self: "## Self-review\nLooked for a fail-open; found none.\n", kill: "## Kill criterion + live check\nRevert if X. Live check: 2026-11-08.\n", tenx: "## 10x\nOne line.\n", reader: "## Second reader\nCodex: 1 round, 0 open.\n" };
+const NAMES = { self: "hostile self-review", kill: "kill criterion with a live-check date", tenx: "10x option", reader: "second reader" };
+const bodyOf = (...keys) => keys.map((k) => SECTION[k]).join("\n");
+
+test("bar control: all four sections with text under each, and a dated kill criterion, pass with no reason and no exemption", () => {
+  assert.equal(typeof gate.assessBody, "function", "merge-gate.mjs exports assessBody");
+  assert.deepEqual(bar(), { reasons: [], exempt: null });
+});
+
+test("bar: 3 of 4 sections is refused, and the reason names exactly the missing one", () => {
+  for (const missing of Object.keys(SECTION)) {
+    const { reasons, exempt } = bar({ body: bodyOf(...Object.keys(SECTION).filter((k) => k !== missing)) });
+    assert.equal(exempt, null);
+    assert.equal(reasons.length, 1, `${missing}: ${JSON.stringify(reasons)}`);
+    assert.ok(reasons[0].includes(`"${NAMES[missing]}"`), `${missing}: ${reasons[0]}`);
+  }
+});
+
+test("bar: the spellings merged bodies used pass (3485, 3477, 3470, older Hostile self-review / Reader of record), any heading level, any case", () => {
+  const spellings = [
+    "### Hostile self-review\nx\n### Kill criterion and live-check date\nLive check: **2026-11-02**.\n### 10x not taken\nx\n### Second reader\nx\n",
+    "## Hostile self-review (what I found and fixed)\nx\n## Kill criterion\nIf nothing by **2026-11-21**, read the holds.\n## 10x option not taken\nx\n## Second reader\nx\n",
+    "## Hostile self-review\nx\n## Kill criterion + live-check date\nby 2026-11-01 12:00Z\n## 10x\nx\n## Reader of record\nthe gate\n",
+    "# SELF-REVIEW\nx\n# kill criteria\n2026-12-01\n# 10X\nx\n# second-reader\nx\n",
+    "## Self-review\r\nx\r\n## Kill criterion\r\n2026-12-01\r\n## 10x\r\nx\r\n## Second reader\r\nx\r\n",
+  ];
+  for (const body of spellings) assert.deepEqual(bar({ body }).reasons, [], body);
+});
+
+test("bar: a kill criterion with no ISO live-check date is refused for the date, not passed", () => {
+  const { reasons } = bar({ body: bodyOf("self", "tenx", "reader") + "\n## Kill criterion\nRevert if the card disagrees.\n" });
+  assert.equal(reasons.length, 1, JSON.stringify(reasons));
+  assert.match(reasons[0], /"kill criterion with a live-check date".*no live-check date/);
+});
+
+test("bar: a heading with nothing under it does not count (an empty template is not a review)", () => {
+  const { reasons } = bar({ body: bodyOf("self", "kill", "reader") + "\n## 10x\n\n" });
+  assert.equal(reasons.length, 1, JSON.stringify(reasons));
+  assert.match(reasons[0], /"10x option" has a heading but no text under it/);
+  // A sub-heading under a section is content of that section, so "## Self-review\n### Findings\n..." still counts.
+  assert.deepEqual(bar({ body: "## Self-review\n### Findings\nnone\n" + bodyOf("kill", "tenx", "reader") }).reasons, []);
+});
+
+test("bar: a section only inside a code fence or an HTML comment does not count (a pasted template is not a section)", () => {
+  const fenced = bodyOf("self", "kill", "tenx") + "\n```md\n## Second reader\nCodex: 1 round\n```\n";
+  assert.match(bar({ body: fenced }).reasons.join("\n"), /missing section "second reader"/);
+  const tilde = bodyOf("self", "kill", "tenx") + "\n~~~\n## Second reader\nx\n~~~\n";
+  assert.match(bar({ body: tilde }).reasons.join("\n"), /missing section "second reader"/);
+  const commented = bodyOf("self", "kill", "tenx") + "\n<!--\n## Second reader\nx\n-->\n";
+  assert.match(bar({ body: commented }).reasons.join("\n"), /missing section "second reader"/);
+  // The words in prose, or as bold text, are not a heading.
+  assert.match(bar({ body: bodyOf("self", "kill", "tenx") + "\n**Second reader:** Codex\n" }).reasons.join("\n"), /missing section "second reader"/);
+});
+
+test("bar: an empty body is refused with all four missing; a body gh did not return is UNKNOWN and refused, never a pass", () => {
+  for (const body of ["", "   \n\n"]) {
+    const { reasons } = bar({ body });
+    assert.equal(reasons.length, 1, JSON.stringify(reasons));
+    assert.match(reasons[0], /PR body is empty/);
+  }
+  for (const body of [undefined, null, 42]) {
+    const { reasons, exempt } = bar({ body });
+    assert.equal(exempt, null);
+    assert.equal(reasons.length, 1, JSON.stringify(reasons));
+    assert.match(reasons[0], /UNKNOWN/);
+  }
+});
+
+test("bar exemption: a docs-only PR (every path *.md or under docs/, the test.yml docs_only patterns) is exempt with no sections, and says so", () => {
+  for (const files of [[file("docs/agent-os/ledger/x.md")], [file("apps/nickstire/AGENTS.md"), file("docs/x.json")], [file("docs/new.md", "renamed", "docs/old.md")]]) {
+    const r = bar({ body: "", files });
+    assert.deepEqual(r.reasons, [], JSON.stringify(files));
+    assert.match(r.exempt ?? "", /docs-only/);
+  }
+});
+
+test("bar exemption is narrow: code beside docs, a rename out of a code path, an empty file list and the 3000-file cap are NOT docs-only", () => {
+  for (const files of [[file("docs/x.md"), file("scripts/agent-os/x.mjs")], [file("docs/x.md", "renamed", "scripts/x.mjs")], [], Array.from({ length: 3000 }, (_, i) => file(`docs/f${i}.md`)), [file("docs.md.ts")], [file("apps/docs/x.ts")]]) {
+    const r = bar({ body: "", files });
+    assert.equal(r.exempt, null, JSON.stringify(files).slice(0, 120));
+    assert.equal(r.reasons.length, 1);
+  }
+});
+
+test("bar exemption: dependabot (login app/dependabot AND is_bot true) is exempt; the login alone, or any other bot, is not", () => {
+  const ok = bar({ body: "", author: DEPENDABOT });
+  assert.deepEqual(ok.reasons, []);
+  assert.match(ok.exempt ?? "", /dependabot/);
+  for (const author of [{ login: "app/dependabot" }, { login: "app/dependabot", is_bot: false }, { login: "app/renovate", is_bot: true }, { login: "dependabot-fan", is_bot: true }, null, undefined]) {
+    assert.equal(bar({ body: "", author }).exempt, null, JSON.stringify(author));
+  }
+});
+
+test("bar in the gate: a PR missing a section exits 8, makes no merge call, names the section and prints the gh pr edit --body-file fix", async () => {
+  const g = fakeGh({ prs: { 3100: view({ body: bodyOf("self", "kill", "tenx") }) } });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 8, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /^BLOCKED \(PR body bar\): missing section "second reader"/.test(l)), JSON.stringify(logs));
+  assert.ok(logs.some((l) => /gh pr edit 3100 --body-file <file>/.test(l) && /no push/.test(l)), JSON.stringify(logs));
+});
+
+test("bar in the gate: judge-only (no --merge) exits 8 too; a body gh did not return exits 8 as UNKNOWN", async () => {
+  assert.equal((await logsOf(fakeGh({ prs: { 3100: view({ body: "## 10x\nx\n" }) } }), { merge: false })).code, 8);
+  const g = fakeGh({ prs: { 3100: view({ body: undefined }) } });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 8);
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /BLOCKED \(PR body bar\).*UNKNOWN/.test(l)), JSON.stringify(logs));
+});
+
+test("bar in the gate: docs-only and dependabot PRs merge with no sections and log the exemption", async () => {
+  for (const over of [{ files: [file("docs/agent-os/ledger/x.md")] }, { author: DEPENDABOT }]) {
+    const g = fakeGh({ prs: { 3100: view({ body: "", ...over }) } });
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 0, JSON.stringify(logs));
+    assert.equal(mergeCalls(g).length, 1);
+    assert.ok(logs.some((l) => /^BAR EXEMPT: /.test(l)), JSON.stringify(logs));
+  }
+});
+
+test("bar in the gate: another hard blocker wins the exit code (2) but the bar line still prints; the bar wins over not-ready-yet (8, not 7)", async () => {
+  const hard = await logsOf(fakeGh({ prs: { 3100: view({ body: "", isDraft: true }) } }));
+  assert.equal(hard.code, 2);
+  assert.ok(hard.logs.some((l) => /BLOCKED \(PR body bar\)/.test(l)), JSON.stringify(hard.logs));
+  const soft = await logsOf(fakeGh({ prs: { 3100: view({ body: "", statusCheckRollup: [run("node", null, "IN_PROGRESS")] }) } }));
+  assert.equal(soft.code, 8, JSON.stringify(soft.logs));
+});
+
+test("bar canary pair: with the bar check stubbed out, a PR with no sections MERGES; with the real check it exits 8 and does not", async () => {
+  const off = fakeGh({ prs: { 3100: view({ body: "" }) } });
+  assert.equal(await mergeGate(opts(off, { barCheck: () => ({ reasons: [], exempt: null }) })), 0, "the failure shape this job fixes: merged with no bar sections");
+  assert.equal(mergeCalls(off).length, 1);
+  const on = fakeGh({ prs: { 3100: view({ body: "" }) } });
+  assert.equal(await mergeGate(opts(on)), 8);
+  assert.deepEqual(mergeCalls(on), []);
+});
+
+// Real-binary probes through the --body-fixture seam: judges a fixture, never calls gh, never merges. gh is pointed at an
+// empty config with no token, so a seam that leaked into a real gh call would fail instead of reading a live PR.
+const fixtureDir = mkdtempSync(join(tmpdir(), "bar-fixture-"));
+const probe = (name, fixture, extra = []) => {
+  const p = join(fixtureDir, `${name}.json`);
+  writeFileSync(p, typeof fixture === "string" ? fixture : JSON.stringify(fixture));
+  const env = { ...process.env, GH_CONFIG_DIR: join(fixtureDir, "no-gh"), GH_TOKEN: "", GITHUB_TOKEN: "" };
+  return spawnSync(process.execPath, [GATE, "--body-fixture", p, ...extra], { encoding: "utf8", env });
+};
+test("CLI --body-fixture probes: exit code AND text, for each shape the brief names", () => {
+  const code = ["scripts/agent-os/x.mjs"];
+  const cases = [
+    ["three-of-four", { body: bodyOf("self", "kill", "tenx"), author: HUMAN, files: code }, 8, /missing section "second reader"[\s\S]*gh pr edit <n> --body-file <file>/],
+    ["four-of-four", { body: BODY, author: HUMAN, files: code }, 0, /^BAR OK/m],
+    ["variants", { body: "### Hostile self-review\nx\n### Kill criterion and live-check date\n2026-11-02\n### 10x not taken\nx\n### Reader of record\nx\n", author: HUMAN, files: code }, 0, /^BAR OK/m],
+    ["docs-only", { body: "", author: HUMAN, files: ["docs/agent-os/x.md"] }, 0, /^BAR EXEMPT: .*docs-only/m],
+    ["dependabot", { body: "", author: DEPENDABOT, files: ["pnpm-lock.yaml"] }, 0, /^BAR EXEMPT: .*dependabot/m],
+    ["empty-body", { body: "", author: HUMAN, files: code }, 8, /PR body is empty/],
+    ["no-body-key", { author: HUMAN, files: code }, 8, /UNKNOWN/],
+    ["fenced-only", { body: bodyOf("self", "kill", "tenx") + "\n```\n## Second reader\nx\n```\n", author: HUMAN, files: code }, 8, /missing section "second reader"/],
+  ];
+  for (const [name, fixture, want, text] of cases) {
+    const r = probe(name, fixture);
+    assert.equal(r.status, want, `${name}: exit ${r.status}; ${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, text, `${name}: ${r.stdout}`);
+  }
+  // An unreadable or non-JSON fixture is bad usage (64), never a pass.
+  assert.equal(probe("garbage", "{not json").status, 64);
+  assert.equal(spawnSync(process.execPath, [GATE, "--body-fixture", join(fixtureDir, "absent.json")], { encoding: "utf8" }).status, 64);
 });

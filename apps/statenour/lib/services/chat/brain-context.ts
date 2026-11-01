@@ -515,10 +515,10 @@ export async function buildBrainContext(
               provenance: userEmbedding.length === 0 && userContent.length > 10 ? "ERROR" : "UNMEASURED",
               provenanceReason:
                 !memoryRecallMod
-                  ? "memory-recall module unavailable -- lane not attempted"
+                  ? "memory-recall module unavailable: lane not attempted"
                   : userEmbedding.length === 0 && userContent.length > 10
-                    ? "query embedding unavailable -- hybrid recall lane skipped entirely"
-                    : "query under 10 chars -- hybrid recall lane not attempted",
+                    ? "query embedding unavailable: hybrid recall lane skipped entirely"
+                    : "query under 10 chars: hybrid recall lane not attempted",
             } as never),
           ),
       // 2026-09-10 · the TIMEOUT is the fourth way grounding can vanish.
@@ -970,7 +970,7 @@ export async function buildBrainContext(
     // still []. Say the read FAILED -- do not let the Memory Inspector
     // render a confident "(0) Nick believes nothing" off a crash.
     recallProvenance = "ERROR";
-    recallProvenanceReason = "brain block assembly threw -- recall state unknown";
+    recallProvenanceReason = "brain block assembly threw: recall state unknown";
     log.warn("brain_blocks_failed", { err: err instanceof Error ? err.message : String(err) });
   }
 
@@ -1000,7 +1000,7 @@ export async function buildBrainContext(
     // UNMEASURED default is only honest for the short-message case.
     recallProvenance = "ERROR";
     recallProvenanceReason =
-      recallProvenanceReason ?? "recall never ran this turn (module unavailable) -- nothing was searched";
+      recallProvenanceReason ?? "recall never ran this turn (module unavailable): nothing was searched";
   }
   const recallStateNotice = buildRecallFailureNotice({
     provenance: recallProvenance,

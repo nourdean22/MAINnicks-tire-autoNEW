@@ -183,7 +183,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       {t.notes ? <p className="text-[12px] italic text-fg-tertiary">{t.notes}</p> : null}
 
       <EntityActionRow entities={[entity]} labelOf={() => t.label} />
-      <p className="font-mono text-[11px] text-fg-tertiary">Policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
+      <p className="font-mono text-[11px] text-fg-tertiary">Policy evaluation stays on the registry page. This is the capability as declared, not a toggle</p>
     </div>
   );
 }

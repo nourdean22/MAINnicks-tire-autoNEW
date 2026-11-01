@@ -125,7 +125,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "hygiene",
     inngest: true,
-    description: "Out-of-band fan-out liveness watchdog — the canary added after the 2-day fan-out outage. Writes a self-row per run (proof Inngest invokes scheduled functions at all) since the 2026-07-28 drift incident.",
+    description: "Out-of-band fan-out liveness watchdog: the canary added after the 2-day fan-out outage. Writes a self-row per run (proof Inngest invokes scheduled functions at all) since the 2026-07-28 drift incident.",
   },
   {
     name: "inngest-liveness",
@@ -153,7 +153,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "review",
     inngest: true,
-    description: "Operator morning brief — Inngest-native.",
+    description: "Operator morning brief. Inngest-native.",
   },
   {
     name: "quality-bench-weekly",
@@ -181,7 +181,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "alert",
     inngest: true,
-    description: "Proactive Telegram pushes & governance nudges — Inngest-native.",
+    description: "Proactive Telegram pushes & governance nudges. Inngest-native.",
   },
   {
     name: "goal-pruner",
@@ -189,7 +189,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "hygiene",
     inngest: true,
-    description: "Prunes stale / abandoned goals — Inngest-native.",
+    description: "Prunes stale / abandoned goals. Inngest-native.",
   },
   {
     name: "goal-drift-detector",
@@ -197,7 +197,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "brain",
     inngest: true,
-    description: "Proactive goal-drift detector (momentum decay + deadline risk) — Inngest-native.",
+    description: "Proactive goal-drift detector (momentum decay + deadline risk). Inngest-native.",
   },
   {
     name: "journal-convergence-scan",
@@ -205,7 +205,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "brain",
     inngest: true,
-    description: "Scans journal threads for convergence / patterns — Inngest-native.",
+    description: "Scans journal threads for convergence / patterns. Inngest-native.",
   },
   {
     name: "journal-thread-dormancy",
@@ -213,7 +213,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "hygiene",
     inngest: true,
-    description: "Flags dormant journal threads — Inngest-native.",
+    description: "Flags dormant journal threads. Inngest-native.",
   },
   {
     name: "intelligence-ingest",
@@ -230,7 +230,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "hygiene",
     inngest: true,
-    description: "Diagnoses cron jobs that fail or stall and alerts operator — Inngest-native.",
+    description: "Diagnoses cron jobs that fail or stall and alerts operator. Inngest-native.",
   },
   {
     name: "crm-weekly-followups",
@@ -238,7 +238,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "signals",
     inngest: true,
-    description: "CRM weekly follow-ups proposer — Inngest-native.",
+    description: "CRM weekly follow-ups proposer. Inngest-native.",
   },
   {
     name: "approval-sweeper",
@@ -257,7 +257,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 9 * * *", // 9am UTC = 5am ET morning slot
     mode: "active",
     category: "compose",
-    description: "Morning composite — pulse + briefing + daily-report + predict",
+    description: "Morning composite: pulse + briefing + daily-report + predict",
     memory: 1024,
     maxDuration: 120,
   },
@@ -298,7 +298,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * *", // 03:00 UTC = 10/11pm ET evening slot
     mode: "active",
     category: "compose",
-    description: "Evening composite — reflect + consolidate + weekly-digest eligibility",
+    description: "Evening composite: reflect + consolidate + weekly-digest eligibility",
     memory: 1024,
     maxDuration: 120,
   },
@@ -314,7 +314,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Google Places review pull into BrainMemory(google_review) — the only writer behind getReviewStats. 1x/day via mega-morning fan-out",
+    description: "Google Places review pull into BrainMemory(google_review), the only writer behind getReviewStats. 1x/day via mega-morning fan-out",
     memory: 512,
     maxDuration: 60,
   },
@@ -329,7 +329,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Multi-account Gmail pull + AI classify + Telegram nudge on high-urgency needs-reply — 1×/day via mega-morning fan-out (operator decision 2026-05-30: one/day is enough)",
+    description: "Multi-account Gmail pull + AI classify + Telegram nudge on high-urgency needs-reply, 1×/day via mega-morning fan-out (operator decision 2026-05-30: one/day is enough)",
     memory: 1024,
     maxDuration: 300,
   },
@@ -340,7 +340,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Calendar pull — 1×/day via mega-morning fan-out",
+    description: "Calendar pull, 1×/day via mega-morning fan-out",
     memory: 512,
     maxDuration: 120,
   },
@@ -353,7 +353,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Drive pull — daily via mega-morning fan-out (idempotent per file ID)",
+    description: "Drive pull, daily via mega-morning fan-out (idempotent per file ID)",
     memory: 1024,
     maxDuration: 300,
   },
@@ -406,7 +406,7 @@ export const CRONS: CronDef[] = [
     category: "hygiene",
     foldedInto: "mega-evening",
     description:
-      "FOLDED into mega-evening · BDN-202 · drafts tool-description rewrites from failure telemetry (≤3 tools/run, fast lane, drafts-only into BrainMemory tool_description_draft — a human applies them in code).",
+      "FOLDED into mega-evening · BDN-202 · drafts tool-description rewrites from failure telemetry (≤3 tools/run, fast lane, drafts-only into BrainMemory tool_description_draft, a human applies them in code).",
     addedAt: "2026-08-13",
     maxDuration: 120,
   },
@@ -567,7 +567,7 @@ export const CRONS: CronDef[] = [
     category: "hygiene",
     foldedInto: "mega",
     description:
-      "FOLDED into mega (morning) · the data-source canary · probes the nickstire bridge + service feeders and writes data_source_probe rows the System hub operational rollup reads to flag a dead bridge / $0-revenue feeder. Pipeline+reader existed since v10.0.58 but the cron was never wired — it ran zero times, which is why the revenue-$0 regression went uncaught.",
+      "FOLDED into mega (morning) · the data-source canary · probes the nickstire bridge + service feeders and writes data_source_probe rows the System hub operational rollup reads to flag a dead bridge / $0-revenue feeder. Pipeline+reader existed since v10.0.58 but the cron was never wired. It ran zero times, which is why the revenue-$0 regression went uncaught.",
     addedAt: "2026-05-29",
   },
   {
@@ -577,7 +577,7 @@ export const CRONS: CronDef[] = [
     category: "hygiene",
     foldedInto: "mega",
     description:
-      "FOLDED into mega (morning) · proof-of-life for the Ollama Cloud lanes (chat/fast/vision). Calls resolveProviderModel — the same function a real turn uses — so it tests the env override, not the registry. Ollama Cloud retires models with no warning and this key has lost two (qwen3-vl 2026-06-16, deepseek-v3.1 2026-07-15); the vision lane then ran DEAD in prod ~6 weeks after the registry was corrected, because a stale Railway OLLAMA_VISION_MODEL pin beat the default. Any non-200 raises Telegram; 410 is called out as permanent.",
+      "FOLDED into mega (morning) · proof-of-life for the Ollama Cloud lanes (chat/fast/vision). Calls resolveProviderModel (the same function a real turn uses), so it tests the env override, not the registry. Ollama Cloud retires models with no warning and this key has lost two (qwen3-vl 2026-06-16, deepseek-v3.1 2026-07-15); the vision lane then ran DEAD in prod ~6 weeks after the registry was corrected, because a stale Railway OLLAMA_VISION_MODEL pin beat the default. Any non-200 raises Telegram; 410 is called out as permanent.",
     addedAt: "2026-08-01",
   },
   {
@@ -636,7 +636,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * 1",
     mode: "active",
     category: "review",
-    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · corpus odometer — counts intelligence_outcomes corrections + supplementary operator labels, upserts the rolling eval_run odometer row, flags the 200-correction fine-tune trigger.",
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · corpus odometer: counts intelligence_outcomes corrections + supplementary operator labels, upserts the rolling eval_run odometer row, flags the 200-correction fine-tune trigger.",
     memory: 256,
     maxDuration: 60,
   },
@@ -708,7 +708,7 @@ export const CRONS: CronDef[] = [
     category: "review",
     foldedInto: "mega-evening",
     description:
-      "FOLDED into mega-evening · Wave-8 (2026-07-29, operator-decided): loss-aversion decay — stats idle past the 7-day grace bleed XP via NEGATIVE mastery_xp_event rows (reversible event-sourcing, idempotent per stat per day via decay:<stat>:<date> keys). Wires the decayXp math that sat tested-but-unwired since 2026-06-01.",
+      "FOLDED into mega-evening · Wave-8 (2026-07-29, operator-decided): loss-aversion decay. Stats idle past the 7-day grace bleed XP via NEGATIVE mastery_xp_event rows (reversible event-sourcing, idempotent per stat per day via decay:<stat>:<date> keys). Wires the decayXp math that sat tested-but-unwired since 2026-06-01.",
     memory: 512,
     maxDuration: 60,
   },
@@ -730,7 +730,7 @@ export const CRONS: CronDef[] = [
     category: "review",
     foldedInto: "mega-evening",
     description:
-      "FOLDED into mega-evening · 2026-08-19 memory-loop wave: the conversation compiler's tail-catcher. Prod measurement: 283 conversations → 15 live conversation_summary rows vs 158 soft-deleted — the nightly merge grinder ate prose summaries (category now consolidation-excluded) and the per-turn guard was one-shot-forever (now staleness-based, 30min debounce). Sweeps ≤10 idle conversations/run whose summary is missing, merge-ground, or older than the conversation's last activity; recompiling revives soft-deleted rows. One 'reason'-lane LLM call per conversation — the whole-corpus backfill drains across nights by design.",
+      "FOLDED into mega-evening · 2026-08-19 memory-loop wave: the conversation compiler's tail-catcher. Prod measurement: 283 conversations → 15 live conversation_summary rows vs 158 soft-deleted. The nightly merge grinder ate prose summaries (category now consolidation-excluded) and the per-turn guard was one-shot-forever (now staleness-based, 30min debounce). Sweeps ≤10 idle conversations/run whose summary is missing, merge-ground, or older than the conversation's last activity; recompiling revives soft-deleted rows. One 'reason'-lane LLM call per conversation. The whole-corpus backfill drains across nights by design.",
     memory: 512,
     maxDuration: 60,
   },
@@ -740,7 +740,7 @@ export const CRONS: CronDef[] = [
     mode: "folded",
     category: "review",
     foldedInto: "mega-evening",
-    description: "FOLDED into mega-evening (~10-11pm ET) · drafts + precomputes tomorrow's 3 anticipated questions · keyed to the BUILD day, so readers fall back to yesterday's key next morning. (Manifest previously claimed a standalone 'Daily 7am UTC' schedule that nothing executed — corrected 2026-06-10.)",
+    description: "FOLDED into mega-evening (~10-11pm ET) · drafts + precomputes tomorrow's 3 anticipated questions · keyed to the BUILD day, so readers fall back to yesterday's key next morning. (Manifest previously claimed a standalone 'Daily 7am UTC' schedule that nothing executed, corrected 2026-06-10.)",
     memory: 512,
     maxDuration: 60,
   },

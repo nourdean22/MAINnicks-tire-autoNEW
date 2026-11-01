@@ -29,7 +29,7 @@ export function ChangeSetLine({ set, status, link, className }: ChangeSetLinePro
   if (status === "error") {
     return (
       <section aria-label="since last visit" className={className ?? "mt-10"} data-change-set="error">
-        <p className="font-mono text-[11px] text-amber-300/90">Change read failed — unknown, not quiet</p>
+        <p className="font-mono text-[11px] text-amber-300/90">Change read failed: unknown, not quiet</p>
       </section>
     );
   }

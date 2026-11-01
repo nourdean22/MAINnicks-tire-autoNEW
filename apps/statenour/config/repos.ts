@@ -75,7 +75,7 @@ export const REPOS: RepoEntry[] = [
     status: "stale",
     monitored: false,
     nickWriteAccess: "none",
-    nextAction: "Archive on GitHub (retired — superseded by the monorepo)",
+    nextAction: "Archive on GitHub (retired, superseded by the monorepo)",
     notes: "Production source moved to apps/statenour in nourdean22/MAINnicks-tire-autoNEW (branch main → Railway → bdnick.info). The statenour-master mirror is retired.",
   },
 
@@ -132,7 +132,7 @@ export const REPOS: RepoEntry[] = [
     status: "archived",
     monitored: false,
     nickWriteAccess: "none",
-    nextAction: "None — archived on GitHub 2026-05-22",
+    nextAction: "None. Archived on GitHub 2026-05-22",
   },
   {
     name: "nicks-tire-social",
@@ -150,7 +150,7 @@ export const REPOS: RepoEntry[] = [
     status: "archived",
     monitored: false,
     nickWriteAccess: "none",
-    nextAction: "None — archived on GitHub 2026-05-22",
+    nextAction: "None. Archived on GitHub 2026-05-22",
   },
 
   // ═══ DESKTOP LAYER ═══
@@ -171,7 +171,7 @@ export const REPOS: RepoEntry[] = [
     status: "archived",
     monitored: false,
     nickWriteAccess: "none",
-    nextAction: "None — archived on GitHub 2026-05-22",
+    nextAction: "None. Archived on GitHub 2026-05-22",
   },
 
   // ═══ ARCHIVED / DEAD ═══
