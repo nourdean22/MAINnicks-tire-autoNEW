@@ -2,6 +2,11 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isEmptyToolOutput, isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
+import type * as z from "zod/mini";
+import {
+  FleetTruthCard, FleetTruthOutputSchema, TopDecisionsCard, TopDecisionsOutputSchema, fleetAllClear, fleetRows,
+  type FleetTruthOutput, type TopDecisionsOutput,
+} from "@/components/chat/typed-cards";
 import {
   CheckCircle2, Plus, Swords, Target, Trash2, Trophy, Zap, HandshakeIcon,
   Flame, ChevronRight, Search, Brain, ListChecks, DollarSign, Users, Activity,
@@ -39,6 +44,11 @@ interface ToolConfig {
    * etc.
    */
   renderRich?: (out: unknown) => React.ReactNode | null;
+  /**
+   * W6 PR 1 · a typed card's output contract. When set, ToolResultCard parses the output first and
+   * calls renderRich with the parsed value only; an output that fails it draws no rich body.
+   */
+  outputSchema?: z.ZodMiniType;
 }
 
 export const TOOL_CONFIG: Record<string, ToolConfig> = {
@@ -1084,6 +1094,36 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       const o = out as { elementsCount?: number } | null;
       return o?.elementsCount ? `${o.elementsCount} elements observed` : null;
     },
+  },
+  // Typed cards (W6 PR 1): bodies and schemas in typed-cards.tsx.
+  getFleetTruth: {
+    label: "Checking the fleet",
+    doneLabel: "Fleet checked",
+    runningLabel: "Checking the fleet…",
+    icon: HeartPulse,
+    color: "sky",
+    subtitle: (out) => {
+      // The subtitle gets the raw output, so it parses too: a drifted shape must not throw mid-render.
+      const p = FleetTruthOutputSchema.safeParse(out);
+      if (!p.success || fleetRows(p.data).length === 0) return null;
+      return fleetAllClear(p.data) ? "all fresh" : p.data.allFresh ? "dead queue rows" : "attention needed";
+    },
+    outputSchema: FleetTruthOutputSchema,
+    renderRich: (out) => <FleetTruthCard output={out as FleetTruthOutput} />,
+  },
+  getTopDecisions: {
+    label: "Reading the decision inbox",
+    doneLabel: "Decision inbox read",
+    runningLabel: "Reading the decision inbox…",
+    icon: Scale,
+    color: "amber",
+    subtitle: (out) => {
+      const p = TopDecisionsOutputSchema.safeParse(out);
+      const n = p.success ? (p.data.decisions?.length ?? 0) : 0;
+      return p.success && n > 0 ? `top ${n} of ${p.data.totalLive ?? n} live` : null;
+    },
+    outputSchema: TopDecisionsOutputSchema,
+    renderRich: (out) => <TopDecisionsCard output={out as TopDecisionsOutput} />,
   },
 };
 
