@@ -64,7 +64,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     publishDate: "2026-03-01",
     readTime: "4 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp",
-    excerpt: "Your brakes are the most important safety system on your vehicle. Knowing when they need attention can prevent costly repairs and keep you safe on Cleveland roads.",
+    excerpt: "Your brakes are the most important safety system on your vehicle. Catching wear early keeps a pad job from turning into a rotor job.",
     sections: [
       {
         heading: "1. Squealing or Squeaking When Braking",
@@ -209,7 +209,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "New Tires at Nick's Tire & Auto",
-        content: "We carry new and quality used tires for all vehicle types at fair prices. Every tire purchase includes professional mounting, balancing, and TPMS sensor service. We help you choose the right tire for your vehicle and driving conditions: whether you need all-season performance or winter grip for Cleveland roads. Serving Cleveland, Euclid, and Northeast Ohio."
+        content: "We carry new and quality used tires for all vehicle types at fair prices. Every tire purchase includes mounting, balancing, and TPMS sensor service. We help you choose the right tire for your vehicle and driving conditions: whether you need all-season performance or winter grip for Cleveland roads. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
     // wave-178: article body explicitly says "it usually indicates an
@@ -289,7 +289,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Oil Changes at Nick's Tire & Auto",
-        content: "We offer both conventional and full synthetic oil changes at fair prices. Every oil change includes a new filter. Ask for a free 27-point check. We use the correct oil type and viscosity for your specific vehicle. Quick, affordable, done right. Serving Cleveland, Euclid, and Northeast Ohio."
+        content: "We offer both conventional and full synthetic oil changes at fair prices. Every oil change includes a new filter. Ask for a free 27-point check. We use the correct oil type and viscosity for your specific vehicle. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
     relatedServices: ["/oil-change"],
@@ -407,7 +407,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brake Fluid Flush: $80–$150",
-        content: "Brake fluid absorbs moisture over time, which lowers its boiling point and can cause brake fade. A brake fluid flush, draining the old fluid and replacing it with fresh fluid, costs $80 to $150. Manufacturers recommend this every 2-3 years. It is a good preventive maintenance item that extends the life of your brake components."
+        content: "Brake fluid absorbs moisture over time, which lowers its boiling point and can cause brake fade. A brake fluid flush, draining the old fluid and replacing it with fresh fluid, costs $80 to $150. Manufacturers recommend this every 2-3 years. It is cheap preventive maintenance."
       },
       {
         heading: "Why Prices Vary So Much",
@@ -450,7 +450,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Used Tires + Free Installation at Nick's",
-        content: "When you buy used tires from Nick's Tire & Auto, you get the same install package that comes with new tires: professional mounting, computer balancing, new valve stems, TPMS reset, and a safety check. No other used tire shop in Cleveland includes all of this."
+        content: "When you buy used tires from Nick's Tire & Auto, you get the same install package that comes with new tires: mounting, computer balancing, new valve stems, TPMS reset, and a safety check. No other used tire shop in Cleveland includes all of this."
       }
     ],
     relatedServices: ["/tires"],
@@ -559,7 +559,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Why Brake Repair Costs Vary So Much",
-        content: "If you have ever called around for brake repair quotes in Cleveland, you know the prices can be confusing. One shop says $99, another says $600, and neither explains what is actually included. The truth is that brake repair is not one job. It is a range of services, and the cost depends on what your vehicle actually needs. A basic pad replacement is a completely different job from a full brake system overhaul with new rotors, calipers, and hardware. The type of vehicle matters too. Brake parts for a Honda Civic cost significantly less than parts for a Ford F-250 or a BMW 3 Series. Where you go also matters: dealerships charge premium labor rates ($150-200 per hour), national chains mark up parts heavily, and independent shops like Nick's Tire & Auto offer the best value because we use quality parts at fair prices with ASE-trained hands who specialize in brake work."
+        content: "If you have ever called around for brake repair quotes in Cleveland, you know the prices can be confusing. One shop says $99, another says $600, and neither explains what is actually included. Brake repair is a range of services, and the cost depends on what your vehicle actually needs. A basic pad replacement is a completely different job from a full brake system overhaul with new rotors, calipers, and hardware. The type of vehicle matters too. Brake parts for a Honda Civic cost significantly less than parts for a Ford F-250 or a BMW 3 Series. Where you go also matters: dealerships charge premium labor rates ($150-200 per hour), national chains mark up parts heavily, and independent shops like Nick's Tire & Auto offer the best value because we use quality parts at fair prices with ASE-trained hands who specialize in brake work."
       },
       {
         heading: "Brake Pad Replacement Only: $149 to $249",
@@ -567,7 +567,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brake Pads and Rotors: From $149.99",
-        content: "This is the most common brake repair we perform at our Cleveland shop. When brake pads wear down, they often damage the rotors. The metal discs the pads clamp against to stop your vehicle. Replacing pads and rotors together ensures even braking, eliminates pulsation and vibration, and gives you the longest-lasting repair. Prices start at $149.99 per axle and depend on the vehicle. This service includes new premium brake pads, new or resurfaced rotors, cleaning and lubricating caliper slides, inspecting brake lines and hardware, and a test drive to verify everything works correctly. Some shops advertise low pad prices but then tell you the rotors need replacing after they have already taken your wheels off. At Nick's, we inspect everything before we quote a price, so there are no checkout math."
+        content: "This is the most common brake repair we perform at our Cleveland shop. When brake pads wear down, they often damage the rotors. The metal discs the pads clamp against to stop your vehicle. Replacing pads and rotors together gives even braking, eliminates pulsation and vibration, and gives you the longest-lasting repair. Prices start at $149.99 per axle and depend on the vehicle. This service includes new premium brake pads, new or resurfaced rotors, cleaning and lubricating caliper slides, inspecting brake lines and hardware, and a test drive to verify everything works correctly. Some shops advertise low pad prices but then tell you the rotors need replacing after they have already taken your wheels off. At Nick's, we inspect everything before we quote a price, so there are no checkout math."
       },
       {
         heading: "Full Brake Job: $449 to $699",
@@ -575,7 +575,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Nick's Tire & Auto vs Dealership vs Chain Shop Pricing",
-        content: "We regularly hear from customers who got quotes elsewhere before coming to us. Here is what we typically see in the Cleveland market. Dealerships charge $400 to $800 per axle for pads and rotors on most vehicles. Their labor rates are $150 to $200 per hour, and they use OEM parts at full retail price. You are paying for the brand name and the lobby coffee. National chain shops like Midas, Firestone, and Meineke advertise brake specials starting at $99 per axle, but those prices rarely include rotors, and the upsell often pushes the final bill to $500 or more. Read the fine print carefully. At Nick's Tire & Auto, our labor rate is competitive and transparent. We use high-quality aftermarket parts that meet or exceed OEM specifications, and we do not pad the bill with unnecessary add-ons. Most customers save 20 to 40 percent compared to dealership pricing for the same quality of work."
+        content: "We regularly hear from customers who got quotes elsewhere before coming to us. Here is what we typically see in the Cleveland market. Dealerships charge $400 to $800 per axle for pads and rotors on most vehicles. Their labor rates are $150 to $200 per hour, and they use OEM parts at full retail price. You are paying for the brand name and the lobby coffee. National chain shops like Midas, Firestone, and Meineke advertise brake specials starting at $99 per axle, but those prices rarely include rotors, and the upsell often pushes the final bill to $500 or more. Read the fine print carefully. At Nick's Tire & Auto, our labor rate is on the written quote. We use high-quality aftermarket parts that meet or exceed OEM specifications, and we do not pad the bill with unnecessary add-ons. Most customers save 20 to 40 percent compared to dealership pricing for the same quality of work."
       },
       {
         heading: "When Do You Actually Need Brake Repair?",
@@ -583,7 +583,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Payment Programs for Brake Repair",
-        content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible payment programs to help you get the repair done now and pay over time. We work with multiple providers to offer plans that fit different credit situations. Terms, including any early payoff option, vary by provider and agreement. The important thing is that you do not delay brake repair because of cost: brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our payment programs page or ask about options when you bring your vehicle in."
+        content: "An unexpected brake bill can strain a budget, so Nick's Tire & Auto offers flexible payment programs to help you get the repair done now and pay over time. We work with multiple providers to offer plans that fit different credit situations. Terms, including any early payoff option, vary by provider and agreement. The important thing is that you do not delay brake repair because of cost: brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our payment programs page or ask about options when you bring your vehicle in."
       },
       {
         heading: "Schedule Your Free Brake Check",
@@ -669,11 +669,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Fluid Checks and Top-Offs",
-        content: "A thorough tune-up includes checking and topping off all vital fluids. Engine oil level and condition (color, consistency), coolant level and freeze point protection, transmission fluid level and color, brake fluid level and moisture content, power steering fluid level, and windshield washer fluid are all checked. While a tune-up does not typically include a full fluid flush, we will recommend one if any fluid shows signs of degradation. For example, brake fluid absorbs moisture over time, which lowers its boiling point and reduces braking performance. If we measure high moisture content during a tune-up, we will recommend a brake fluid flush. Fresh fluids keep all systems operating at peak performance and help prevent costly repairs down the road."
+        content: "A thorough tune-up includes checking and topping off all fluids. Engine oil level and condition (color, consistency), coolant level and freeze point protection, transmission fluid level and color, brake fluid level and moisture content, power steering fluid level, and windshield washer fluid are all checked. While a tune-up does not typically include a full fluid flush, we will recommend one if any fluid shows signs of degradation. For example, brake fluid absorbs moisture over time, which lowers its boiling point and reduces braking performance. If we measure high moisture content during a tune-up, we will recommend a brake fluid flush. Fresh fluids keep all systems operating at peak performance and help prevent costly repairs down the road."
       },
       {
         heading: "How Much Does a Tune-Up Cost?",
-        content: "At Nick's Tire & Auto, tune-up costs range from $150 to $400 depending on your vehicle and what it needs. A basic tune-up for a four-cylinder vehicle (spark plugs, air filter, and visual inspection) starts around $150 to $200. A comprehensive tune-up for a V6 or V8 (spark plugs, air filter, fuel filter, PCV valve, ignition wires, and full fluid check) runs $250 to $400. Some vehicles cost more due to difficult spark plug access: for example, some V6 engines mounted sideways require removing the intake manifold to reach the rear spark plugs, which adds labor time. We always quote the price before we start the work, and we will never add services without your approval. Compared to dealership pricing ($300 to $600 for the same work), you save significantly at our independent shop without sacrificing quality."
+        content: "At Nick's Tire & Auto, tune-up costs range from $150 to $400 depending on your vehicle and what it needs. A basic tune-up for a four-cylinder vehicle (spark plugs, air filter, and visual inspection) starts around $150 to $200. A full tune-up for a V6 or V8 (spark plugs, air filter, fuel filter, PCV valve, ignition wires, and full fluid check) runs $250 to $400. Some vehicles cost more due to difficult spark plug access: for example, some V6 engines mounted sideways require removing the intake manifold to reach the rear spark plugs, which adds labor time. We always quote the price before we start the work, and we will never add services without your approval. Compared to dealership pricing ($300 to $600 for the same work), you save significantly at our independent shop without sacrificing quality."
       },
       {
         heading: "When Do You Need a Tune-Up?",
@@ -692,11 +692,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     publishDate: "2026-03-05",
     readTime: "9 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
-    excerpt: "Cleveland winters test both drivers and vehicles. Lake-effect snow, freezing temperatures, and road salt create harsh conditions that require proper preparation. This guide covers everything you need to do to keep your car safe and reliable through an Ohio winter.",
+    excerpt: "Cleveland winters test both drivers and vehicles. Lake-effect snow, freezing temperatures, and road salt create harsh conditions that require proper preparation. This guide covers everything you need to do to get your car through an Ohio winter.",
     sections: [
       {
         heading: "Why Cleveland Winters Are Especially Hard on Cars",
-        content: "Cleveland's location on the southern shore of Lake Erie creates unique winter driving challenges. Lake-effect snow can dump several inches in a matter of hours, and temperatures regularly swing between freezing and thawing, which is actually harder on vehicles than sustained cold. The freeze-thaw cycle creates potholes that destroy tires and damage suspension components. Road salt, while essential for safety, accelerates corrosion on brake components, undercarriage parts, and body panels. Wind off the lake drops wind chill temperatures well below zero, putting extreme stress on batteries, belts, and fluids. The combination of these factors means Cleveland vehicles need more preparation and maintenance than cars in milder climates. Taking the time to prepare before winter hits saves you from breakdowns, tow bills, and expensive emergency repairs when you can least afford them."
+        content: "Cleveland's location on the southern shore of Lake Erie creates unique winter driving challenges. Lake-effect snow can dump several inches in a matter of hours, and temperatures regularly swing between freezing and thawing, which is actually harder on vehicles than sustained cold. The freeze-thaw cycle creates potholes that destroy tires and damage suspension components. Road salt keeps roads passable but accelerates corrosion on brake components, undercarriage parts, and body panels. Wind off the lake drops wind chill temperatures well below zero, putting extreme stress on batteries, belts, and fluids. The combination of these factors means Cleveland vehicles need more preparation and maintenance than cars in milder climates. Taking the time to prepare before winter hits saves you from breakdowns, tow bills, and expensive emergency repairs when you can least afford them."
       },
       {
         heading: "Winter Tires: The Single Best Safety Upgrade",
@@ -704,7 +704,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Battery Inspection and Testing",
-        content: "Cold weather is the number one killer of car batteries. A battery that works fine at 80 degrees only produces about 50 to 60 percent of its cranking power at zero degrees. At the same time, cold engine oil is thicker and requires more cranking power to turn the engine over. This double hit means a marginal battery that started your car all summer will leave you stranded on the first truly cold morning. Car batteries typically last 3 to 5 years in Cleveland's climate. If your battery is 3 years old or older, get it tested before winter. A load test takes about 5 minutes and tells you exactly how much life is left. At Nick's Tire & Auto, battery testing is always free. Walk in anytime and we will test it while you wait. If you need a new battery, we carry a full range of sizes and have most in stock for same-day installation. We also clean and inspect battery terminals and cables, because corroded connections can prevent a good battery from delivering its full power."
+        content: "Cold weather is the number one killer of car batteries. A battery that works fine at 80 degrees only produces about 50 to 60 percent of its cranking power at zero degrees. At the same time, cold engine oil is thicker and requires more cranking power to turn the engine over. This double hit means a marginal battery that started your car all summer will leave you stranded on the first hard-freeze morning. Car batteries typically last 3 to 5 years in Cleveland's climate. If your battery is 3 years old or older, get it tested before winter. A load test takes about 5 minutes and tells you exactly how much life is left. At Nick's Tire & Auto, battery testing is always free. Walk in anytime and we will test it while you wait. If you need a new battery, we carry a full range of sizes and have most in stock for same-day installation. We also clean and inspect battery terminals and cables, because corroded connections can prevent a good battery from delivering its full power."
       },
       {
         heading: "Antifreeze and Cooling System Check",
@@ -716,19 +716,19 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Windshield Wipers, Washer Fluid, and Visibility",
-        content: "Cleveland winter driving often means driving through freezing rain, road spray, and salt film that coats your windshield. Good wiper blades and proper washer fluid are essential for visibility. Standard wiper blades can ice up and skip across the windshield in freezing conditions. Winter wiper blades have a rubber boot that covers the frame and prevents ice buildup. They cost a few dollars more but work dramatically better in winter weather. Replace your wiper blades in the fall. They should be replaced every 6 to 12 months anyway, and starting winter with fresh blades makes a big difference. Use winter-rated washer fluid rated to at least minus 20 degrees. Standard summer washer fluid will freeze on your windshield and make visibility worse, not better. Keep a full reservoir. You will use more washer fluid in one Cleveland winter commute than you might use in a month of summer driving. Check your rear defroster and all defroster vents to make sure they are working before you need them."
+        content: "Cleveland winter driving often means driving through freezing rain, road spray, and salt film that coats your windshield. Good wiper blades and the right washer fluid keep the windshield clear. Standard wiper blades can ice up and skip across the windshield in freezing conditions. Winter wiper blades have a rubber boot that covers the frame and prevents ice buildup. They cost a few dollars more but work dramatically better in winter weather. Replace your wiper blades in the fall. They should be replaced every 6 to 12 months anyway, and starting winter with fresh blades makes a big difference. Use winter-rated washer fluid rated to at least minus 20 degrees. Standard summer washer fluid will freeze on your windshield and make visibility worse, not better. Keep a full reservoir. You will use more washer fluid in one Cleveland winter commute than you might use in a month of summer driving. Check your rear defroster and all defroster vents to make sure they are working before you need them."
       },
       {
         heading: "Emergency Kit: What to Keep in Your Car",
-        content: "Every Cleveland driver should keep a winter emergency kit in their vehicle from November through March. If you slide off the road or get stuck in a snow squall, having the right supplies can keep you safe until help arrives. Essential items include: a blanket or sleeping bag (not a space blanket, a real blanket that provides genuine warmth), a flashlight with fresh batteries, jumper cables or a portable jump starter, a small bag of kitty litter or sand for traction if stuck, an ice scraper and snow brush, a small folding shovel, basic first aid kit, phone charger (battery pack or car charger), bottled water, and non-perishable snacks. A bag of road salt can help you melt ice under your tires if you are stuck. Flares or reflective triangles make your vehicle visible to other drivers if you are stopped on the shoulder. Keep all of these items in a duffel bag in your trunk so they are always ready. Replace batteries and water at the start of each winter season."
+        content: "Every Cleveland driver should keep a winter emergency kit in their vehicle from November through March. If you slide off the road or get stuck in a snow squall, having the right supplies gets you through until help arrives. Pack a blanket or sleeping bag (not a space blanket, a real blanket that provides genuine warmth), a flashlight with fresh batteries, jumper cables or a portable jump starter, a small bag of kitty litter or sand for traction if stuck, an ice scraper and snow brush, a small folding shovel, basic first aid kit, phone charger (battery pack or car charger), bottled water, and non-perishable snacks. A bag of road salt can help you melt ice under your tires if you are stuck. Flares or reflective triangles make your vehicle visible to other drivers if you are stopped on the shoulder. Keep all of these items in a duffel bag in your trunk so they are always ready. Replace batteries and water at the start of each winter season."
       },
       {
         heading: "Ohio Winter Driving Tips from Our Technicians",
-        content: "Our technicians have decades of combined experience driving and working on vehicles in Cleveland winters. Here are their best tips. Slow down: speed limits are for ideal conditions. In snow and ice, drive 10 to 20 miles per hour below the limit and increase your following distance to at least 6 seconds. Brake early and gently. Slamming the brakes on ice causes skids even with ABS. Start slowing down well before intersections and stop signs. If your vehicle starts to slide, look and steer where you want to go, not where the car is heading. Keep your gas tank at least half full in winter: this adds weight for traction, prevents fuel line freeze, and ensures you have fuel if you get stuck. Clear ALL snow and ice from your vehicle before driving, including the roof, hood, and all windows. Snow flying off your roof is dangerous to other drivers and is illegal in Ohio. Warm up your engine for 30 to 60 seconds before driving (not 10 minutes: modern fuel-injected engines do not need long warm-ups, but a brief warm-up lets oil circulate before you put load on the engine). Finally, know your route. Lake-effect snow can be intense in narrow bands: a highway that is clear in one area can be snow-covered a mile down the road. Check weather and traffic before you leave."
+        content: "Our technicians have decades of combined experience driving and working on vehicles in Cleveland winters. Here are their best tips. Slow down: speed limits are for ideal conditions. In snow and ice, drive 10 to 20 miles per hour below the limit and increase your following distance to at least 6 seconds. Brake early and gently. Slamming the brakes on ice causes skids even with ABS. Start slowing down well before intersections and stop signs. If your vehicle starts to slide, look and steer where you want to go, not where the car is heading. Keep your gas tank at least half full in winter: this adds weight for traction, prevents fuel line freeze, and leaves you fuel if you get stuck. Clear ALL snow and ice from your vehicle before driving, including the roof, hood, and all windows. Snow flying off your roof is dangerous to other drivers and is illegal in Ohio. Warm up your engine for 30 to 60 seconds before driving (not 10 minutes: modern fuel-injected engines do not need long warm-ups, but a brief warm-up lets oil circulate before you put load on the engine). Finally, know your route. Lake-effect snow can be intense in narrow bands: a highway that is clear in one area can be snow-covered a mile down the road. Check weather and traffic before you leave."
       },
       {
         heading: "Get Your Vehicle Winter-Ready at Nick's Tire & Auto",
-        content: "Do not wait until the first snowfall to prepare your vehicle. Bring it to Nick's Tire & Auto for a comprehensive winter readiness inspection. We will check your battery, brakes, tires, coolant, wipers, heater, defroster, belts, hoses, and all fluid levels. If anything needs attention, we will explain what we found and give you an honest price before any work begins. Walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Cuyahoga County. Call us or stop by. We will make sure your vehicle is ready for whatever this Cleveland winter throws at it."
+        content: "Do not wait until the first snowfall to prepare your vehicle. Bring it to Nick's Tire & Auto for a winter readiness check. We will check your battery, brakes, tires, coolant, wipers, heater, defroster, belts, hoses, and all fluid levels. If anything needs attention, we will explain what we found and give you an honest price before any work begins. Walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Cuyahoga County. Call us or stop by. We will make sure your vehicle is ready for whatever this Cleveland winter throws at it."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics", "/battery"],
@@ -861,7 +861,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "What Is TPMS and Why Does It Matter?",
-        content: "TPMS stands for Tire Pressure Monitoring System. Since 2007, every new car sold in the US has sensors inside each wheel that monitor air pressure in real time. When pressure drops below the threshold, usually about 25% below the recommended PSI, the warning light comes on. Driving on underinflated tires is dangerous (especially on I-90 at highway speed) and kills fuel economy. The system exists to keep you safe."
+        content: "TPMS stands for Tire Pressure Monitoring System. Since 2007, every new car sold in the US has sensors inside each wheel that monitor air pressure in real time. When pressure drops below the threshold, usually about 25% below the recommended PSI, the warning light comes on. Driving on underinflated tires is dangerous (especially on I-90 at highway speed) and kills fuel economy."
       },
       {
         heading: "Why TPMS Sensors Fail",
@@ -1300,7 +1300,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Tires (new and quality used), brake repair, oil changes, diagnostics, emissions and E-Check repair, transmission service, electrical work, steering and suspension, and general auto repair. If it has an engine and four wheels, we fix it. We work on all makes and models: Honda, Toyota, Chevy, Ford, Hyundai, Kia, Nissan, BMW, Mercedes, everything. Our technicians have decades of combined experience and see every problem in the book."
       },
       {
-        heading: "Transparent Pricing and Payment Programs",
+        heading: "Written Prices and Payment Programs",
         content: "Every repair starts with a diagnosis and a written estimate before any wrench moves. You approve the price before we start. If we find additional issues during the repair, we call you to discuss before doing any extra work. No surprise prices, no add-ons you did not agree to. For larger repairs, payment programs are available through Kafene, Acima, Koalafi, Snap Finance, and American First Finance. Some don't require established credit; each provider decides approval and terms."
       },
       {
@@ -1375,7 +1375,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What to Do If You Fail",
-        content: "If your vehicle fails E-Check, bring the failure report to Nick's Tire & Auto. The report lists which systems failed and the specific trouble codes. We use that as our starting point for diagnosis. We fix the root cause, verify the repair with our scan tool, and make sure all monitors complete before sending you back for retesting. Ohio covers up to three E-Check tests in a 365-day period, and it won't renew the registration until the vehicle passes or qualifies for a repair waiver or extension. We handle E-Check repair work every day and know the drive cycles for every vehicle to ensure monitors complete properly."
+        content: "If your vehicle fails E-Check, bring the failure report to Nick's Tire & Auto. The report lists which systems failed and the specific trouble codes. We use that as our starting point for diagnosis. We fix the root cause, verify the repair with our scan tool, and make sure all monitors complete before sending you back for retesting. Ohio covers up to three E-Check tests in a 365-day period, and it won't renew the registration until the vehicle passes or qualifies for a repair waiver or extension. We handle E-Check repair work every day and know the drive cycles that get the monitors to complete."
       },
       {
         heading: "E-Check Repair Near Euclid",
@@ -1437,7 +1437,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What We Can Fix Same-Day",
-        content: "Most common emergency repairs are done same-day, even on weekends. Flat tire repair or replacement. We stock hundreds of new and used tires in common sizes. Dead battery: we test and replace batteries while you wait. Brake repair: if your brakes are grinding or your pedal feels soft, we can usually get you fixed the same day. Check engine light diagnosis: we have the scan tools and the expertise to tell you what is wrong and whether it is safe to drive. Starter and alternator issues: common no-start causes that we handle routinely."
+        content: "Most common emergency repairs are done same-day, even on weekends. Flat tire repair or replacement. We stock hundreds of new and used tires in common sizes. Dead battery: we test and replace batteries while you wait. Brake repair: if your brakes are grinding or your pedal feels soft, we can usually get you fixed the same day. Check engine light diagnosis: we have the scan tools to tell you what is wrong and whether it is safe to drive. Starter and alternator issues: common no-start causes that we handle routinely."
       },
       {
         heading: "What Might Need to Wait",
@@ -1445,7 +1445,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "No Appointment Needed",
-        content: "Walk-ins are welcome every day. For emergency situations, just drive in or call (216) 862-0005 and let us know you are coming. If you are stuck and the car will not move, we can recommend reliable tow services that operate on weekends. Once your vehicle arrives, we prioritize emergency repairs to get you back on the road as fast as possible."
+        content: "Walk-ins are welcome every day. For emergency situations, just drive in or call (216) 862-0005 and let us know you are coming. If you are stuck and the car will not move, we can recommend reliable tow services that operate on weekends. Once your vehicle arrives, we put emergency repairs first."
       },
       {
         heading: "Emergency Repairs on a Budget",
@@ -1483,7 +1483,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Alternator replacement in Cleveland runs $350 to $700 for most vehicles, including parts and labor. Some vehicles, especially those with the alternator buried under other components, cost more due to labor time. We use quality replacement alternators with solid warranties. Cheap rebuilt alternators from discount stores fail frequently, and then you are paying for the job twice. At Nick's, we stand behind the repair with our 12-month parts / 90-day labor warranty."
       },
       {
-        heading: "Get It Diagnosed Right the First Time",
+        heading: "Diagnose Before You Buy Parts",
         content: "The worst thing you can do is guess. Replacing a battery when the alternator is bad wastes $200. Replacing an alternator when the battery is the problem wastes even more. At Nick's Tire and Auto, we figure out it correctly the first time. Drive in or call (216) 862-0005. We are at 17625 Euclid Ave, Cleveland: serving Cleveland, Euclid, and all of Northeast Ohio."
       }
     ],
@@ -1616,7 +1616,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Winter Tires or All-Season Inspection",
-        content: "If you have winter tires, October or November is swap time, before the first snow. Winter tires make a dramatic difference in stopping distance and control on ice and packed snow. If you run all-season tires year-round, inspect them now. Minimum tread depth for winter driving should be 5/32 of an inch, not the legal minimum of 2/32. Thin tread on icy Cleveland roads is genuinely dangerous. We stock a wide selection of new and quality used tires for every budget."
+        content: "If you have winter tires, October or November is swap time, before the first snow. Winter tires make a dramatic difference in stopping distance and control on ice and packed snow. If you run all-season tires year-round, inspect them now. Minimum tread depth for winter driving should be 5/32 of an inch, not the legal minimum of 2/32. Thin tread on icy Cleveland roads is dangerous. We stock a wide selection of new and quality used tires for every budget."
       },
       {
         heading: "Antifreeze and Cooling System",
@@ -1698,7 +1698,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Car Winter-Ready at Nick's",
-        content: "Come in for a winter safety check: we inspect tires, brakes, battery, heater, wipers, and fluids. Everything that keeps you safe and mobile when Cleveland does its worst. Call (216) 862-0005 or drive to 17625 Euclid Ave, Cleveland. Nick's Tire and Auto. We drive these same roads."
+        content: "Come in for a winter safety check: we inspect tires, brakes, battery, heater, wipers, and fluids. Call (216) 862-0005 or drive to 17625 Euclid Ave, Cleveland. Nick's Tire and Auto. We drive these same roads."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change"],
@@ -1873,7 +1873,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Save Smart at Nick's Tire & Auto",
-        content: "We help Cleveland drivers keep their cars running without overpaying. Honest diagnosis, quality parts, real warranties, and payment programs when you need them. Call (216) 862-0005 or drive to 17625 Euclid Ave, Cleveland. Saving Cleveland drivers money the right way."
+        content: "We help Cleveland drivers keep their cars running without overpaying. Diagnosis before parts, a written warranty, and payment programs when you need them. Call (216) 862-0005 or drive to 17625 Euclid Ave, Cleveland."
       }
     ],
     relatedServices: ["/oil-change", "/brakes", "/diagnostics", "/general-repair"],
@@ -1896,7 +1896,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Nick's 12-Month Parts / 90-Day Labor Warranty",
-        content: "We warranty our repairs with a 12-month parts / 90-day labor warranty. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
+        content: "We warranty our repairs with a 12-month parts / 90-day labor warranty. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early."
       },
       {
         heading: "What the Warranty Covers",
@@ -2246,7 +2246,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "The Physics Behind Cold Weather Tire Pressure",
-        content: "Air is a gas, and gases contract when they cool. For every 10 degree Fahrenheit drop in temperature, your tires lose about 1 to 2 PSI. In Cleveland, we can easily see 40 to 50 degree temperature swings between a warm October afternoon and a cold November morning. That is a 4 to 10 PSI drop overnight. Your TPMS light is calibrated to trigger at 25 percent below the recommended pressure. If your tires are set to 35 PSI and the temperature drops 30 degrees overnight, you could be down to 29 or 30 PSI by morning: enough to trigger the warning. This is not a malfunction. The system is working correctly. Your tires genuinely have less pressure in them."
+        content: "Air is a gas, and gases contract when they cool. For every 10 degree Fahrenheit drop in temperature, your tires lose about 1 to 2 PSI. In Cleveland, we can easily see 40 to 50 degree temperature swings between a warm October afternoon and a cold November morning. That is a 4 to 10 PSI drop overnight. Your TPMS light is calibrated to trigger at 25 percent below the recommended pressure. If your tires are set to 35 PSI and the temperature drops 30 degrees overnight, you could be down to 29 or 30 PSI by morning: enough to trigger the warning. This is not a malfunction. The system is working correctly. Your tires really do have less pressure in them."
       },
       {
         heading: "Why Low Tire Pressure Is Dangerous in Winter",
@@ -2316,7 +2316,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "The Budget Tire Market Has Changed",
-        content: "Ten years ago, budget tires were genuinely bad. Poor grip, fast wear, noisy ride. Today the picture is completely different. Manufacturing technology has improved across the board, and brands like Ironman, Westlake, Federal, Sailun, and Sentury are producing tires that perform surprisingly well in independent testing. Are they as good as Michelin or Bridgestone? No: the premium brands still have better tread life, slightly better wet grip, and more refined ride quality. But the gap has closed dramatically. For most Cleveland drivers doing a normal daily commute on I-90 or surface streets, a quality budget tire is perfectly safe and a smart financial choice."
+        content: "Ten years ago, budget tires were bad. Poor grip, fast wear, noisy ride. Today the picture is completely different. Manufacturing technology has improved across the board, and brands like Ironman, Westlake, Federal, Sailun, and Sentury are producing tires that perform surprisingly well in independent testing. Are they as good as Michelin or Bridgestone? No: the premium brands still have better tread life, slightly better wet grip, and more refined ride quality. But the gap has closed dramatically. For most Cleveland drivers doing a normal daily commute on I-90 or surface streets, a quality budget tire is perfectly safe and a smart financial choice."
       },
       {
         heading: "Brands We Carry and Trust at Nick's",
@@ -2471,7 +2471,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "At Nick's Tire and Auto, pad replacement starts at $149 per axle and includes a rotor inspection, using quality pads appropriate for your vehicle. For most passenger cars and light SUVs, we use ceramic pads unless the vehicle manufacturer specifies semi-metallic. For trucks and heavier applications, we use semi-metallic. Premium ceramic pad upgrades, brands like Akebono or Power Stop, are available for customers who want the best possible noise and dust performance. Those run a bit more but are worth it for drivers who really care about a quiet, clean brake setup. We will always tell you what we recommend and why before we do the work."
       },
       {
-        heading: "Get Your Brakes Done Right",
+        heading: "Brakes at Nick's",
         content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A budget brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. Pads from $149 per axle. Call (216) 862-0005 or stop by 17625 Euclid Ave, Cleveland. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
       }
     ],
@@ -2639,7 +2639,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Common Causes of Squeaky New Brakes",
-        content: "Glazed rotors are the number one cause of squeaky new pads. If the rotors were not resurfaced or replaced during the pad change, the old transfer layer from the previous pads creates a glassy surface that the new pads cannot grip properly. The pads skate across the glazed surface and vibrate, creating the squeal. Missing or improperly installed anti-squeal shims, the thin metal or rubber-coated plates that sit behind the pad, let the pad vibrate against the caliper piston, creating noise. Dry or unlubricated slide pins cause the caliper to sit at a slight angle, so the pad contacts the rotor unevenly. And low-quality pads with poor material composition are simply noisier than quality pads."
+        content: "Glazed rotors are the number one cause of squeaky new pads. If the rotors were not resurfaced or replaced during the pad change, the old transfer layer from the previous pads creates a glassy surface that the new pads cannot grip properly. The pads skate across the glazed surface and vibrate, creating the squeal. Missing or improperly installed anti-squeal shims, the thin metal or rubber-coated plates that sit behind the pad, let the pad vibrate against the caliper piston, creating noise. Dry or unlubricated slide pins cause the caliper to sit at a slight angle, so the pad contacts the rotor unevenly. And low-quality pads with poor material composition are noisier than better pads."
       },
       {
         heading: "How a Proper Brake Job Prevents Squeal",
@@ -2892,7 +2892,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Walk In or Call Ahead: We Are Open 7 Days",
-        content: "You do not need an appointment for a flat tire repair at Nick's. Walk-ins are welcome and flat repairs are always prioritized because we know you need to get back on the road. We are open Monday through Sunday. If you are not sure whether to drive on it or get a tow, call us at (216) 862-0005 and we will tell you straight. Our shop is at 17625 Euclid Ave, Cleveland: serving Cleveland, Euclid, East Cleveland, Collinwood, and all of Northeast Ohio. [Schedule a visit](/contact) or just pull in. Flat tire repairs, [tire replacement](/tires), [alignment](/tires), and [full auto repair](/general-repair): all under one roof."
+        content: "You do not need an appointment for a flat tire repair at Nick's. Walk-ins are welcome and flat repairs are always prioritized because a flat stops your day. We are open Monday through Sunday. If you are not sure whether to drive on it or get a tow, call us at (216) 862-0005 and we will tell you straight. Our shop is at 17625 Euclid Ave, Cleveland: serving Cleveland, Euclid, East Cleveland, Collinwood, and all of Northeast Ohio. [Schedule a visit](/contact) or just pull in. Flat tire repairs, [tire replacement](/tires), [alignment](/tires), and [full auto repair](/general-repair): all under one roof."
       }
     ],
     relatedServices: ["/tires", "/general-repair"],
@@ -2926,8 +2926,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Check right now before you need it. Pop your trunk, lift the floor panel, and look. Many vehicles built after 2015 (especially sedans and crossovers from Chevy, Hyundai, Kia, and BMW) come with a tire inflator kit instead of a spare. Those kits work for small punctures but are useless for sidewall damage or blowouts. If you do not have a spare and want one, we can set you up with a matching spare tire and jack kit. It is cheap insurance that could save you a tow bill someday."
       },
       {
-        heading: "Get Back on the Road at Nick's",
-        content: "Whether you limp in on a spare or get towed to our door, Nick's Tire and Auto at 17625 Euclid Ave handles it from there. [Flat tire repair](/tires) starting at $15, quality used tires from $25 (select 12-inch; most $40-80), new tires from $89, and we are open 7 days a week. No appointment needed for tire emergencies. Call (216) 862-0005 or just show up. We will get you back on the road fast."
+        heading: "Flat Tire Repair at Nick's",
+        content: "Whether you limp in on a spare or get towed to our door, Nick's Tire and Auto at 17625 Euclid Ave handles it from there. [Flat tire repair](/tires) starting at $15, quality used tires from $25 (select 12-inch; most $40-80), new tires from $89, and we are open 7 days a week. No appointment needed for tire emergencies. Call (216) 862-0005 or just show up."
       }
     ],
     relatedServices: ["/tires", "/general-repair"],
@@ -2981,7 +2981,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Do Not Try to Break In Yourself",
-        content: "We get it: it is cold, you are frustrated, and you just want your keys. But trying to jimmy the door with a coat hanger, screwdriver, or slim jim can damage the door panel, break the window mechanism, bend the door frame, or trigger the airbag on newer vehicles. A locksmith call costs $50 to $100. A door panel repair costs $200 to $500. A new window regulator costs $300 or more. The math is clear. Call a professional."
+        content: "We get it: it is cold, you are frustrated, and you just want your keys. But trying to jimmy the door with a coat hanger, screwdriver, or slim jim can damage the door panel, break the window mechanism, bend the door frame, or trigger the airbag on newer vehicles. A locksmith call costs $50 to $100. A door panel repair costs $200 to $500. A new window regulator costs $300 or more. Have a shop do it."
       },
       {
         heading: "Who to Call When You Are Locked Out",
@@ -3133,7 +3133,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Who Needs Winter Tires in Cleveland",
-        content: "If you have a rear-wheel-drive vehicle (Charger, Challenger, Mustang, most pickups without 4WD), winter tires are almost mandatory. Rear-wheel-drive in Cleveland snow without winter tires is genuinely dangerous. If you commute on highways, winter tires dramatically improve your ability to stop and maintain control. If you have all-wheel drive, winter tires still help: AWD helps you accelerate but does nothing for braking or turning on ice. If you only drive a few miles on residential streets and can stay home during bad weather, good all-seasons with adequate tread are probably fine."
+        content: "If you have a rear-wheel-drive vehicle (Charger, Challenger, Mustang, most pickups without 4WD), winter tires are almost mandatory. Rear-wheel-drive in Cleveland snow without winter tires is dangerous. If you commute on highways, winter tires dramatically improve your ability to stop and maintain control. If you have all-wheel drive, winter tires still help: AWD helps you accelerate but does nothing for braking or turning on ice. If you only drive a few miles on residential streets and can stay home during bad weather, good all-seasons with adequate tread are probably fine."
       },
       {
         heading: "What Winter Tires Cost at Nick's",
@@ -3316,7 +3316,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Honest Pricing at Nick's: No Reason to Risk It",
-        content: "We keep our labor rates fair specifically so that DIY versus shop is not a difficult decision on real repairs. Oil changes from $49. Brake pads from $149 per axle. [Diagnostics](/diagnostics) at $49. We do not charge dealership prices, we do not upsell unnecessary work, and we do the job right the first time. Save your DIY energy for wiper blades and air filters. Bring the real repairs to Nick's Tire and Auto at 17625 Euclid Ave, Cleveland. Call (216) 862-0005. [Brakes](/brakes), [tires](/tires), [general repair](/general-repair): open 7 days a week."
+        content: "We keep our labor rates fair specifically so that DIY versus shop is not a difficult decision on real repairs. Oil changes from $49. Brake pads from $149 per axle. [Diagnostics](/diagnostics) at $49. We do not charge dealership prices or upsell unnecessary work. Save your DIY energy for wiper blades and air filters. Bring the real repairs to Nick's Tire and Auto at 17625 Euclid Ave, Cleveland. Call (216) 862-0005. [Brakes](/brakes), [tires](/tires), [general repair](/general-repair): open 7 days a week."
       }
     ],
     relatedServices: ["/general-repair", "/brakes", "/diagnostics"],
@@ -3386,7 +3386,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Diagnosed Right at Nick's",
-        content: "Our $49 [diagnostic service](/diagnostics) identifies the actual cause of your check engine light, not just the code but the root problem. We give you the repair estimate before we start work. We tell you if it is urgent or if it can safely wait. We tell you the cheapest correct fix, not the most expensive option. If it turns out to be a gas cap, we will tell you that and charge you nothing beyond the diagnostic fee. That is how we have earned 5-star reviews from Cleveland drivers who are tired of getting upsold. Nick's Tire and Auto, 17625 Euclid Ave, Cleveland. Call (216) 862-0005. Open 7 days a week."
+        content: "Our $49 [diagnostic service](/diagnostics) finds the part behind your check engine code. We give you the repair estimate before we start work. We tell you if it is urgent or if it can safely wait. We tell you the cheapest correct fix, not the most expensive option. If it turns out to be a gas cap, we will tell you that and charge you nothing beyond the diagnostic fee. That is how we have earned 5-star reviews from Cleveland drivers who are tired of getting upsold. Nick's Tire and Auto, 17625 Euclid Ave, Cleveland. Call (216) 862-0005. Open 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -3466,7 +3466,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "how-we-inspect-used-tires",
     title: "How We Inspect Used Tires at Nick's Tire",
     metaTitle: "How We Inspect Used Tires — Quality Process | Nick's Tire & Auto Cleveland",
-    metaDescription: "Not all used tire shops are the same. Here is exactly how Nick's Tire inspects every used tire before it goes on your car. Transparency, not guesswork.",
+    metaDescription: "Not all used tire shops are the same. Here is exactly how Nick's Tire inspects every used tire before it goes on your car.",
     category: "Trust",
     publishDate: "2026-04-18",
     readTime: "5 min read",
@@ -3526,7 +3526,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Certified Technicians at Nick's",
-        content: "At Nick's Tire and Auto, our technicians bring both ASE knowledge and years of hands-on experience working on every make and model that drives Cleveland roads: Honda, Toyota, Chevy, Ford, Hyundai, Kia, and more. We invest in our team's training because better-trained mechanics produce better results for you. Combined with our honest pricing and transparent process, it means you get competent work at a fair price. Come to 17625 Euclid Ave, Cleveland or call (216) 862-0005. [Diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), [general repair](/general-repair): open 7 days a week."
+        content: "At Nick's Tire and Auto, our technicians bring both ASE knowledge and years of hands-on experience working on every make and model that drives Cleveland roads: Honda, Toyota, Chevy, Ford, Hyundai, Kia, and more. We invest in our team's training because better-trained mechanics produce better results for you. Come to 17625 Euclid Ave, Cleveland or call (216) 862-0005. [Diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), [general repair](/general-repair): open 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/brakes", "/general-repair"],
@@ -3549,7 +3549,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What We Stand For",
-        content: "Honesty first. If your car does not need a repair, we tell you. If a repair costs more than the car is worth, we tell you that too. We have talked customers out of repairs that would have been profitable for us but wasteful for them. That is not a business strategy. It is how we think business should work. Transparency means showing you the problem, explaining it in plain English, and giving you the price before we start. The invoice has no hidden fees and no shop supplies markup that doubles the bill. Fair pricing means we charge enough to stay in business and pay our technicians well, but we do not gouge you because you do not know what a brake job should cost."
+        content: "Honesty first. If your car does not need a repair, we tell you. If a repair costs more than the car is worth, we tell you that too. We have talked customers out of repairs that would have been profitable for us but wasteful for them. Transparency means showing you the problem, explaining it in plain English, and giving you the price before we start. The invoice has no hidden fees and no shop supplies markup that doubles the bill. Fair pricing means we charge enough to stay in business and pay our technicians well, but we do not gouge you because you do not know what a brake job should cost."
       },
       {
         heading: "Who We Serve",
@@ -3561,7 +3561,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Where We Are Going",
-        content: "We are not trying to become a chain. We are not trying to franchise. We are trying to be the best single-location auto repair shop in Cleveland, the shop that everyone in the neighborhood knows by name and trusts completely. We are investing in better equipment, better training, and better systems so we can serve more customers without sacrificing the quality and honesty that got us here. If you have never been to Nick's, come see us. 17625 Euclid Ave, Cleveland, OH 44112. Call (216) 862-0005. [Tires](/tires), [brakes](/brakes), [diagnostics](/diagnostics), [general repair](/general-repair). We will show you what an honest shop looks like."
+        content: "We are not trying to become a chain. We are not trying to franchise. We are trying to be the best single-location auto repair shop in Cleveland, the shop that everyone in the neighborhood knows by name and trusts completely. We are investing in better equipment, better training, and better systems so we can serve more customers without losing what got us here. If you have never been to Nick's, come see us. 17625 Euclid Ave, Cleveland, OH 44112. Call (216) 862-0005. [Tires](/tires), [brakes](/brakes), [diagnostics](/diagnostics), [general repair](/general-repair). We will show you what an honest shop looks like."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics", "/general-repair"],
@@ -3926,7 +3926,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     publishDate: "2026-03-31",
     readTime: "5 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
-    excerpt: "Downtime costs money. Our fleet maintenance program keeps your vehicles on the road with priority scheduling, preventive maintenance plans, and transparent reporting.",
+    excerpt: "Downtime costs money. Our fleet maintenance program keeps your vehicles on the road with priority scheduling, and preventive maintenance plans.",
     sections: [
       { heading: "Why Fleet Maintenance Matters", content: "Every day a fleet vehicle sits in a shop is lost revenue. Reactive maintenance (fixing things when they break) costs 5-10 times more than preventive maintenance because breakdowns cause cascading problems: tow bills, rental vehicles, missed appointments, overtime for other drivers, and lost customers. A structured maintenance program catches problems early and schedules repairs around your business needs." },
       { heading: "Our Fleet Program Includes", content: "Priority scheduling: fleet vehicles go to the front of the line. Dedicated fleet account manager. Preventive maintenance scheduling based on each vehicle's mileage and service history. Bulk pricing on tires, oil changes, and common repairs. Detailed digital records for each vehicle (service history, upcoming needs, total spend). Monthly reporting on fleet health and upcoming maintenance needs. Emergency roadside coordination." },
@@ -3969,7 +3969,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Winter, all-season, all-weather: the Ohio reality",
-        content: "Tire chains push dedicated winter tires hard. The reality for most Cleveland drivers: a quality all-season tire handles 90% of Ohio winters fine. Where dedicated winter tires actually pay off is the 10%: Snowbelt commutes through Chesterland or Chardon, hilly streets in Cleveland Heights and Shaker Heights that don't get salted as fast, drivers who absolutely cannot risk being late after a lake-effect dump. The middle option that almost nobody talks about: all-weather tires (look for the Three Peak Mountain Snowflake symbol on the sidewall, 3PMSF). These are all-season tires that have passed actual winter traction testing. Better than regular all-seasons, less expensive than dedicated winters, no need to swap tires twice a year. For most Cleveland drivers without a Snowbelt commute, a 3PMSF-rated all-weather is the right answer. We help match tires to your actual commute, not the chain's monthly tire-rotation promo."
+        content: "Tire chains push dedicated winter tires hard. The reality for most Cleveland drivers: a quality all-season tire handles 90% of Ohio winters fine. Where dedicated winter tires actually pay off is the 10%: Snowbelt commutes through Chesterland or Chardon, hilly streets in Cleveland Heights and Shaker Heights that don't get salted as fast, drivers who cannot risk being late after a lake-effect dump. The middle option that almost nobody talks about: all-weather tires (look for the Three Peak Mountain Snowflake symbol on the sidewall, 3PMSF). These are all-season tires that have passed actual winter traction testing. Better than regular all-seasons, less expensive than dedicated winters, no need to swap tires twice a year. For most Cleveland drivers without a Snowbelt commute, a 3PMSF-rated all-weather is the right answer. We help match tires to your actual commute, not the chain's monthly tire-rotation promo."
       },
       {
         heading: "When to replace: the penny test isn't enough",
@@ -3977,7 +3977,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The 'free services' trap vs honest free services",
-        content: "Discount Tire's free flat repair, free balance, free rotation for the lifetime of the tire is genuinely valuable, IF you stay loyal forever. The trap: you can't take that warranty to the shop closer to your office, or the indie shop your buddy recommends, or to Nick's on Euclid Ave when your tire blows on a Sunday and Discount Tire is closed. Lifetime warranties chain you. Honest free services don't. At Nick's, every tire we install, new or used, gets free mount, free balance, free valve stems, free TPMS reset, and a free alignment check. Same visit, no warranty paperwork, no lifetime lock-in. Different model: pay fair market on the tire, get the install services bundled honestly. If you're a Discount Tire loyalist who lives near a store and won't ever shop elsewhere, their model is great. If you want the option to walk into any tire shop in town, ours is."
+        content: "Discount Tire's free flat repair, free balance, free rotation for the lifetime of the tire is worth it, IF you stay loyal forever. The trap: you can't take that warranty to the shop closer to your office, or the indie shop your buddy recommends, or to Nick's on Euclid Ave when your tire blows on a Sunday and Discount Tire is closed. Lifetime warranties chain you. Honest free services don't. At Nick's, every tire we install, new or used, gets free mount, free balance, free valve stems, free TPMS reset, and a free alignment check. Same visit, no warranty paperwork, no lifetime lock-in. Different model: pay fair market on the tire, get the install services bundled honestly. If you're a Discount Tire loyalist who lives near a store and won't ever shop elsewhere, their model is great. If you want the option to walk into any tire shop in town, ours is."
       },
       {
         heading: "Tire rotation: every 5,000 miles, every time",
