@@ -7,10 +7,10 @@ const CONFIG: ServicePageConfig = {
   description: "Our 12-month parts / 90-day labor warranty backs every repair. Transparency, trust, and honest service on Euclid Ave. Pull up any day.",
   eyebrow: "REPAIR GUARANTEE · BUILT ON TRUST",
   h1: "12-MONTH PARTS / 90-DAY LABOR\nWARRANTY.",
-  sub: "Every repair at Nick's Tire & Auto is backed by our 12-month parts / 90-day labor guarantee. We stand behind our work because we do it right the first time. Written estimate before any wrench moves. You don't pay until you say yes.",
+  sub: "Every repair at Nick's Tire & Auto is backed by our 12-month parts / 90-day labor limited warranty. Written estimate before any wrench moves. You don't pay until you say yes.",
   startingPrice: "Guaranteed repair backing",
   pricingTitle: "WARRANTY TIERS",
-  pricingSub: "Coverage that gives you peace of mind on Cleveland roads.",
+  pricingSub: "What each warranty covers, in plain terms.",
   tiers: [
     {
       name: "Parts & Labor",

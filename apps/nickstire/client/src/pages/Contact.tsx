@@ -265,7 +265,7 @@ export default function Contact() {
                     We run on a <strong>first-come, first-served (FCFS)</strong> model. No appointments are needed. Pull up anytime, drop off your vehicle, and we will get to work. We recommend calling ahead to check current bay queue times.
                   </p>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
-                    Whether you need a same-day check for <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair</Link>, quick mounting of new or used <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tires</Link>, an OBD-II scan for <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">engine diagnostics</Link>, or want to set up one of our flexible <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">repair payment programs</Link>, we've got you covered.
+                    Come in for a same-day check for <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair</Link>, quick mounting of new or used <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tires</Link>, an OBD-II scan for <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">engine diagnostics</Link>, or to set up one of our <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">repair payment programs</Link>.
                   </p>
                   <BookingForm />
                 </div>

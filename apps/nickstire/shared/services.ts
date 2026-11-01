@@ -526,7 +526,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
     metaDescription: "Cleveland oil change from $49 (full synthetic from $80), new filter. " + BUSINESS.freeInspection.offer + " Walk-ins 7 days. " + BUSINESS.phone.display,
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First come, first served. Pull up without an appointment, have a seat, and you're out before your coffee's cold.`,
+    heroSubline: `Oil changes in Cleveland: conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter. ${BUSINESS.freeInspection.offer} First come, first served. Pull up without an appointment, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
     turnaround: "Most oil changes done in 15 minutes. No appointment needed.",
     pricingNote: BUSINESS.freeInspection.short + " Correct oil weight per manufacturer spec",
@@ -623,7 +623,7 @@ export const SERVICES: ServiceData[] = [
     slug: "general-repair",
     num: "06",
     title: "GENERAL REPAIR",
-    shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we fix it.",
+    shortDesc: "Suspension, steering, exhaust, cooling, belts, hoses and more.",
     metaTitle: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
     metaDescription: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, suspension, steering, exhaust. Walk-ins 7 days. " + BUSINESS.phone.display + ".",
     heroHeadline: "AUTO REPAIR NEAR ME\nIN CLEVELAND",
@@ -677,7 +677,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How do I find a trustworthy mechanic in Cleveland?",
-        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,710+ Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
+        answer: "Look for a shop with a high volume of verified Google reviews, written quotes, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,710+ Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
       },
       {
         question: "What are signs my car needs suspension repair?",
@@ -697,7 +697,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How do I find a good mechanic near me?",
-        answer: "Look for a mechanic with verified Google reviews, transparent pricing, and technicians who explain repairs in plain language. Nick's Tire & Auto has 4.9 stars from 1,710+ reviews because we show you the problem before we fix it, provide written estimates, and never pressure you into unnecessary repairs. Walk-ins welcome 7 days a week."
+        answer: "Look for a mechanic with verified Google reviews, written quotes, and technicians who explain repairs in plain language. Nick's Tire & Auto has 4.9 stars from 1,710+ reviews because we show you the problem before we fix it, provide written estimates, and never pressure you into unnecessary repairs. Walk-ins welcome 7 days a week."
       }
     ],
     includedItems: [

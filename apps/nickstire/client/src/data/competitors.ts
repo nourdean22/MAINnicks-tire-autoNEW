@@ -183,8 +183,8 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     fullServiceMechanical: false,
     dropoffWithRideshare: false,
     strengths: [
-      "Free flat repair, free balance, free rotation for the lifetime of the tire. It's genuinely valuable if you stay loyal",
-      "Tire-focused expertise. They only do tires, and they do them well",
+      "Free flat repair, free balance, free rotation for the lifetime of the tire. Worth it if you keep going back",
+      "Tires only, and they do them well",
       "Clean stores, no-pressure tire-only sales experience",
       "Strong tire warranty programs",
     ],
@@ -203,7 +203,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
       "Anyone who needs brakes, oil, alignment, or any mechanical repair done at the same visit",
       "Used tire shoppers",
       "Drivers needing Sunday service",
-      "People who want a one-stop shop",
+      "People who want tires and repairs in one place",
     ],
     commonComplaints: [
       "Pleasant tire experience but you still need to find a separate shop for mechanical work",
@@ -301,7 +301,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     notIdealFor: [
       "Anyone wanting predictable, consistent service quality",
       "Sunday service seekers",
-      "Customers who want transparent pricing without a coupon",
+      "Customers who want one clear price without a coupon",
     ],
     commonComplaints: [
       "Same-brand stores deliver wildly different experiences under different managers",
@@ -506,7 +506,7 @@ export function buildNicksTire(reviewRatingDisplay: string): CompetitorProfile {
       "Written estimate before any wrench moves. No surprise shop fees at checkout",
       "Mechanic-owned. The person quoting you the work is the person doing it",
       `${reviewRatingDisplay}★ Google rating from real Cleveland drivers`,
-      "Transparent pricing (labor, parts, and disposal fees disclosed up front)",
+      "Labor, parts and disposal fees shown up front",
     ],
     weaknesses: [
       "Single location at 17625 Euclid Ave. If you're 30+ miles away, the chains are closer",
@@ -524,7 +524,7 @@ export function buildNicksTire(reviewRatingDisplay: string): CompetitorProfile {
     notIdealFor: [
       "Customers more than 30 miles from Euclid Ave (geography wins)",
       "Drivers needing a specific national-chain warranty for a corporate fleet account",
-      "People who genuinely prefer the chain experience and want a waiting room with a coffee machine",
+      "People who prefer the chain experience and want a waiting room with a coffee machine",
     ],
     commonComplaints: [
       "Single location means peak Saturday afternoons can be busy. The trade-off for never overpromising on appointment slots",

@@ -70,6 +70,30 @@ describe("brand-voice gate: structure rules and widened scope (deny canaries)", 
     expect(out).toMatch(/structure\.dash · block/);
   }, 200_000);
 
+  it("BLOCKS every pass-2 phrase class added to a page cleaned in pass 2 (CityPage.tsx)", () => {
+    const { out, code } = runStaged(
+      appendTo(
+        "client/src/pages/CityPage.tsx",
+        'export const ZZ_PASS2_PROBE = "Drive with peace of mind. Bedford drivers trust Nick\'s for it. Looking for another service? Here\'s what happens next. Professional service, every visit.";',
+      ),
+    );
+    expect(code).not.toBe(0);
+    for (const id of ["stock-phrase", "reader-flattery", "rhetorical-cta", "staged-runup", "empty-claim"]) {
+      expect(out, id).toMatch(new RegExp(`structure\\.${id} · block`));
+    }
+  }, 200_000);
+
+  it("sees pass-2 phrases written as JSX text with &apos; and as a curly apostrophe in a .ts data string", () => {
+    const city = readFileSync(join(APP, "client/src/pages/CityPage.tsx"), "utf8");
+    const { out, code } = runStaged({
+      "apps/nickstire/client/src/pages/CityPage.tsx": `${city.replace(/\s*$/, "\n")}export function ZzPass2Jsx() {\n  return <p>Bedford drivers trust Nick&apos;s for brakes.</p>;\n}\n`,
+      ...appendTo("shared/cities.ts", "export const ZZ_PASS2_TS = \"We’ve got you covered.\";"),
+    });
+    expect(code).not.toBe(0);
+    expect(out).toMatch(/structure\.reader-flattery · block/);
+    expect(out).toMatch(/structure\.stock-phrase · warn/);
+  }, 200_000);
+
   it("REPORTS (warn, not blocking) a dash on a page not cleaned yet", () => {
     const { out, code } = runStaged({
       "apps/nickstire/client/src/pages/ZzStructureProbe.tsx":
