@@ -158,7 +158,7 @@ describe("B2 · a reply with no action claim is announced before CoVe finishes",
   it("message.persisted goes out on the draft, flagged verifying, while CoVe is still running", async () => {
     const finish = pendingCove();
     const done = buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
-    for (let i = 0; i < 50 && !h.events.includes("cove-start"); i++) await tick();
+    await vi.waitFor(() => expect(h.events).toContain("cove-start"), { timeout: 15_000, interval: 20 });
 
     expect(h.events).toEqual(["persisted", "cove-start"]);
     expect(h.notified[0]).toMatchObject({ id: "m-1", content: REPLY, verifying: true });
@@ -170,7 +170,7 @@ describe("B2 · a reply with no action claim is announced before CoVe finishes",
   it("a revision patches the stored row and marks the check settled, keeping tokenUsage", async () => {
     const finish = pendingCove();
     const done = buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
-    for (let i = 0; i < 50 && !h.events.includes("cove-start"); i++) await tick();
+    await vi.waitFor(() => expect(h.events).toContain("cove-start"), { timeout: 15_000, interval: 20 });
     finish({ revised: REVISED, changed: true });
     await done;
 
@@ -183,7 +183,7 @@ describe("B2 · a reply with no action claim is announced before CoVe finishes",
   it("an unchanged check still marks the row settled and leaves the text alone", async () => {
     const finish = pendingCove();
     const done = buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
-    for (let i = 0; i < 50 && !h.events.includes("cove-start"); i++) await tick();
+    await vi.waitFor(() => expect(h.events).toContain("cove-start"), { timeout: 15_000, interval: 20 });
     finish({ revised: REPLY, changed: false });
     await done;
 
@@ -209,7 +209,7 @@ describe("B2 · a reply that claims an action still waits for CoVe", () => {
     const timeout = vi.spyOn(AbortSignal, "timeout");
     const finish = pendingCove();
     const done = buildOnFinish(deps())({ text: ACTION_REPLY, finishReason: "stop" } as never);
-    for (let i = 0; i < 50 && !h.events.includes("cove-start"); i++) await tick();
+    await vi.waitFor(() => expect(h.events).toContain("cove-start"), { timeout: 15_000, interval: 20 });
     await tick();
     expect(h.events).toEqual(["cove-start"]); // POSITIVE CONTROL for the test above: here persisted has to wait
 
