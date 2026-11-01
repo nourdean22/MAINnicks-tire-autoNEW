@@ -164,7 +164,7 @@ const HELD_BY_GLOBAL_SMS_PAUSE: ReadonlySet<SendPauseLane> = new Set(["declined_
 export async function readSendSwitchesStatus(
   env: Record<string, string | undefined> = process.env,
   countQueued: () => Promise<Map<SendPauseLane, number> | null> = async () => (await import("../sms")).countQueuedByLane(),
-  readGlobalPause: () => Promise<{ paused: boolean; readable: boolean }> = async () => (await import("./smsControl")).getSmsPauseState(),
+  readGlobalPause: () => Promise<{ paused: boolean; readable: boolean }> = async () => (await import("./smsControl")).getSmsPauseState({ fresh: true }),
 ): Promise<SendSwitchesStatus> {
   const out: SendSwitchesStatus["lanes"] = [];
   const queued = await countQueued().catch(() => null);
