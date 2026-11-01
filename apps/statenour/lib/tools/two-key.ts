@@ -52,6 +52,22 @@ const DEVICE_GUIDANCE =
 const CRITICAL_GUIDANCE =
   "This tool is rated critical-risk and changes state, so it was NOT run. It is waiting for Nour's approval in the approvals queue (System > Actions); approving it there runs it once. Say so plainly; do not retry it in this turn and never claim it happened.";
 
+/**
+ * Calendar r2 W3 (manager ruling 2026-10-31 15:42Z): for the first week, every calendar write
+ * Nick makes waits for Nour's approval here and runs once when he approves. The hold ends on this
+ * date by itself; reads are never held. Set at merge to W3-live + 7 days.
+ */
+export const CALENDAR_WRITE_CONFIRM_UNTIL = "2026-11-14T05:00:00Z";
+export const CALENDAR_WRITE_REASON =
+  "A calendar write in its first week needs a second key: the owner approves this exact change (calendar confirm week).";
+const CALENDAR_GUIDANCE =
+  "This change to Nour's Google calendar was NOT made yet. In the first week every calendar write waits for his approval in the approvals queue (System > Actions); approving it there makes the change once. Say so plainly; do not retry it in this turn and never claim it happened.";
+const calendarConfirmWeek: SecondKeyRule = {
+  held: () => Date.now() < new Date(CALENDAR_WRITE_CONFIRM_UNTIL).getTime(),
+  reason: CALENDAR_WRITE_REASON,
+  guidance: CALENDAR_GUIDANCE,
+};
+
 /** Device verbs that take two keys. The local agents match these exact strings. */
 const SECOND_KEY_DEVICE_COMMANDS = new Set(["unlock", "disarm", "raw"]);
 
@@ -73,6 +89,9 @@ const SECOND_KEY_CALLS: Record<string, SecondKeyRule> = {
     reason: DEVICE_TWO_KEY_REASON,
     guidance: DEVICE_GUIDANCE,
   },
+  proposeCalendarEvent: calendarConfirmWeek,
+  moveCalendarEvent: calendarConfirmWeek,
+  deleteCalendarEvent: calendarConfirmWeek,
 };
 
 /**

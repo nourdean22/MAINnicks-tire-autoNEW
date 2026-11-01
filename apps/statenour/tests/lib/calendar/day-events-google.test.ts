@@ -18,7 +18,7 @@ vi.mock("@/lib/services/google-oauth", () => ({
   getAccessToken: h.token,
 }));
 
-import { readCalendarWindow } from "@/lib/calendar/day-events";
+import { readCalendarWindow, resolveCalendarAccount } from "@/lib/calendar/day-events";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -134,6 +134,23 @@ describe("readCalendarWindow · live Google wiring", () => {
     }));
     const r = await readCalendarWindow(new Date(), new Date(Date.now() + 86_400_000));
     expect(r.state).toBe("read_failed");
+  });
+
+  it("W3: a write may use his slot only; the shop copy, an expired grant or no grant are refusals", async () => {
+    const shop = { accountKey: "primary", integrationName: "google_oauth", email: "shop@example.com" };
+    h.status.mockResolvedValue(both);
+    h.configured.mockResolvedValue([shop, { accountKey: "personal", integrationName: "google_oauth_personal", email: "owner@example.com" }]);
+    expect(await resolveCalendarAccount()).toEqual({ state: "ok", accountKey: "personal" });
+
+    h.configured.mockResolvedValue([shop, { accountKey: "personal", integrationName: "google_oauth_personal", email: "shop@example.com" }]);
+    expect(await resolveCalendarAccount()).toEqual({ state: "shop_account" });
+
+    h.status.mockResolvedValue({ probeFailed: false, accounts: [{ key: "primary", state: "healthy" }, { key: "personal", state: "expired" }] });
+    h.configured.mockResolvedValue([shop, { accountKey: "personal", integrationName: "google_oauth_personal", email: "owner@example.com" }]);
+    expect(await resolveCalendarAccount()).toEqual({ state: "expired" });
+
+    h.status.mockResolvedValue({ probeFailed: false, accounts: [{ key: "primary", state: "healthy" }] });
+    expect(await resolveCalendarAccount()).toEqual({ state: "not_connected" });
   });
 
   it("an unreadable integration table is read_failed, not not_connected", async () => {

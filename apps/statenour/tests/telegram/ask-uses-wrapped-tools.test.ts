@@ -56,7 +56,8 @@ const h = vi.hoisted(() => {
     model: null as unknown,
     prompts: [] as unknown[],
     semanticSearch: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
-    createEvent: vi.fn(async (..._a: unknown[]) => ({ id: "evt_1", htmlLink: "https://calendar.invalid/evt_1" })),
+    // Calendar r2 W3: proposeCalendarEvent writes through lib/calendar/write (his slot, read back).
+    createEvent: vi.fn(async (..._a: unknown[]) => ({ ok: true, kind: "create", eventId: "evt_1", readBack: "match", link: "https://calendar.invalid/evt_1" })),
     sendTelegram: vi.fn(async (..._a: unknown[]) => true),
     createTask: vi.fn(async (..._a: unknown[]) => ({ id: "task_1", title: "Call the supplier" }) as unknown),
     mutationLock: false,
@@ -95,8 +96,11 @@ vi.mock("@/lib/services/google-oauth", async (orig) => ({
 }));
 vi.mock("@/lib/services/calendar-api", async (orig) => ({
   ...(await orig<typeof import("@/lib/services/calendar-api")>()),
-  createEvent: h.createEvent,
   listEvents: vi.fn(async () => []),
+}));
+vi.mock("@/lib/calendar/write", async (orig) => ({
+  ...(await orig<typeof import("@/lib/calendar/write")>()),
+  writeCalendarEvent: h.createEvent,
 }));
 vi.mock("@/lib/services/tasks", async (orig) => ({
   ...(await orig<typeof import("@/lib/services/tasks")>()),
@@ -118,6 +122,7 @@ vi.mock("@/lib/feature-flags", async (orig) => {
 import { POST } from "@/app/api/telegram/webhook/route";
 import { recordTrace } from "@/lib/ai/agent-trace";
 import { VERIFIER_MARKER } from "@/lib/ai/chat/fabrication-rewriter";
+import { CALENDAR_WRITE_CONFIRM_UNTIL } from "@/lib/tools/two-key";
 
 // The first /ask loads the whole nourTools barrel (~180 tools). Cold, under a
 // loaded machine, that alone outran the 20s test timeout -- load it here, once,
@@ -255,10 +260,27 @@ describe("/ask with a recalled memory that asks for a calendar write", () => {
     expect(content.trimEnd()).toMatch(/<\/tool_data tool="memorySearch">$/);
   });
 
-  it("positive control: the owner's own clean request still creates the event", async () => {
+  it("calendar r2 confirm week: the owner's own clean request is held for his approval, not written", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }).setSystemTime(new Date(CALENDAR_WRITE_CONFIRM_UNTIL).getTime() - 60_000);
+    try {
+      h.model = scripted([{ toolName: "proposeCalendarEvent", input: INVITE }, { text: "Done." }]);
+      await POST(ask("/ask put a meeting with X at 9am tomorrow"));
+      expect(h.createEvent).not.toHaveBeenCalled();
+      expect(h.approvalRequestCreate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("positive control: after the confirm week the owner's own clean request still creates the event", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }).setSystemTime(new Date(CALENDAR_WRITE_CONFIRM_UNTIL).getTime() + 60_000);
     h.model = scripted([{ toolName: "proposeCalendarEvent", input: INVITE }, { text: "Done." }]);
 
-    await POST(ask("/ask put a meeting with X at 9am tomorrow"));
+    try {
+      await POST(ask("/ask put a meeting with X at 9am tomorrow"));
+    } finally {
+      vi.useRealTimers();
+    }
 
     expect(h.createEvent).toHaveBeenCalledTimes(1);
     expect(h.approvalRequestCreate).not.toHaveBeenCalled();

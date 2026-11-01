@@ -231,22 +231,39 @@ function etWindow(now: Date): { windowStart: number; windowEnd: number } {
 
 const GCAL = "https://www.googleapis.com/calendar/v3";
 
+/** His calendar slot as the reader sees it: [] when never granted. Throws when we could not ask. */
+async function listRecordAccount(): Promise<Awaited<ReturnType<CalendarDeps["listAccounts"]>>> {
+  const [status, configured] = await Promise.all([
+    getGoogleOauthAccountsStatus(),
+    listConfiguredAccounts({ includeDeadShopCopies: true }),
+  ]);
+  if (status.probeFailed) throw new Error(status.reason);
+  const mine = status.accounts.find((a) => a.key === CALENDAR_ACCOUNT_KEY);
+  if (!mine || mine.state === "missing") return [];
+  // His slot granted with the same Google account as the shop's primary slot is the shop's
+  // calendar, whatever the slot is called (the June grant picked the wrong account).
+  const email = (key: string) => configured.find((c) => c.accountKey === key)?.email?.trim().toLowerCase() || null;
+  const shopEmail = email("primary");
+  const shopAccount = shopEmail !== null && email(CALENDAR_ACCOUNT_KEY) === shopEmail;
+  return [{ accountKey: mine.key, state: mine.state, shopAccount }];
+}
+
+/**
+ * W3: the account a WRITE may use, by the same rules as the reader. Writes never go anywhere but
+ * his slot; anything else is a refusal the caller reports. Throws when the token store is unreadable.
+ */
+export async function resolveCalendarAccount(): Promise<
+  { state: "ok"; accountKey: string } | { state: "not_connected" | "shop_account" | "expired" }
+> {
+  const [mine] = await listRecordAccount();
+  if (!mine) return { state: "not_connected" };
+  if (mine.shopAccount) return { state: "shop_account" };
+  if (mine.state === "expired" || mine.state === "missing") return { state: "expired" };
+  return { state: "ok", accountKey: mine.accountKey };
+}
+
 const googleDeps: CalendarDeps = {
-  async listAccounts() {
-    const [status, configured] = await Promise.all([
-      getGoogleOauthAccountsStatus(),
-      listConfiguredAccounts({ includeDeadShopCopies: true }),
-    ]);
-    if (status.probeFailed) throw new Error(status.reason);
-    const mine = status.accounts.find((a) => a.key === CALENDAR_ACCOUNT_KEY);
-    if (!mine || mine.state === "missing") return [];
-    // His slot granted with the same Google account as the shop's primary slot is the shop's
-    // calendar, whatever the slot is called (the June grant picked the wrong account).
-    const email = (key: string) => configured.find((c) => c.accountKey === key)?.email?.trim().toLowerCase() || null;
-    const shopEmail = email("primary");
-    const shopAccount = shopEmail !== null && email(CALENDAR_ACCOUNT_KEY) === shopEmail;
-    return [{ accountKey: mine.key, state: mine.state, shopAccount }];
-  },
+  listAccounts: listRecordAccount,
   async listCalendars(accountKey) {
     const body = await gget<{ items?: RawCalendar[] }>(accountKey, `${GCAL}/users/me/calendarList?maxResults=100`);
     return body.items ?? [];

@@ -947,6 +947,24 @@
     }
   },
   {
+    "name": "deleteCalendarEvent",
+    "description": "Delete an event from Nour's own Google Calendar. Use the eventId from getTodaySchedule. Use when he asks to cancel, delete or remove one of his events. Never for shop jobs or customer appointments.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "eventId": {
+          "description": "The event id from getTodaySchedule.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "eventId"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "draftOpportunitySms",
     "description": "Get the deterministic, evidence-only SMS draft for a Nick's Tire Decision-Inbox opportunity (from getTopDecisions). READ-ONLY — never sends. Returns the draft text, best channel, risk label, and masked customer identity. Call-first opportunity types (callbacks, complaints, overdue promises) return no draft with the reason — recommend the CALL instead. ALWAYS show Nour the returned draft verbatim before any talk of sending.",
     "inputSchema": {
@@ -1937,6 +1955,34 @@
       },
       "required": [
         "subject"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "moveCalendarEvent",
+    "description": "Move an existing event on Nour's own Google Calendar to a new start and end time. Use the eventId from getTodaySchedule. Use when he asks to move, reschedule or push back one of his events. Never for shop jobs or customer appointments.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "endISO": {
+          "description": "New end in ISO 8601. If the zone is omitted, his Eastern time is assumed.",
+          "type": "string"
+        },
+        "eventId": {
+          "description": "The event id from getTodaySchedule.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "startISO": {
+          "description": "New start in ISO 8601. If the zone is omitted, his Eastern time is assumed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "eventId",
+        "startISO",
+        "endISO"
       ],
       "type": "object"
     }
