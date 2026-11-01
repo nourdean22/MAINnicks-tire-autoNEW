@@ -1200,42 +1200,27 @@ model ChatMessage {
   ///                  reasoningText, and build-model-messages.ts had to strip
   ///                  replayed reasoning parts after a 2026-07-04 incident,
   ///                  which is independent proof they do get persisted.
+  ///   - tool-<name>: { type:"tool-getTasks", toolCallId, state, input,
+  ///                  output | errorText } -- the AI SDK v6 UI tool part, the
+  ///                  shape the live stream renders (B1, 2026-11-01). Terminal
+  ///                  states only (output-available / output-error); output is
+  ///                  JSON-safe and capped at 8 KB (toolPartsFromSteps).
+  ///                  readConversation drops a part that fails the SDK's
+  ///                  UIMessage schema and keeps the message.
   ///
   /// WHAT HAS NO WRITER AT ALL:
-  ///   - tool-call, tool-result, source
+  ///   - tool-call, tool-result, source (the model-message shapes; tool calls
+  ///     are stored in the UI shape above and the AI SDK converts them back to
+  ///     tool-call / tool-result when the client replays history)
   ///
-  /// ⚠ THIS COMMENT USED TO CLAIM ALL SIX WERE CAPTURED, and a first correction
-  /// over-swung and claimed reasoning was never written either. Both were wrong.
-  /// MEASURED IN PRODUCTION 2026-09-17: of 5,278 chat_messages, 5,175 have an
-  /// array-valued `parts`, and across every one the only types present are
-  /// `text` (5,171) and `file` (31). That establishes reasoning was not
-  /// OBSERVED in this sample — not that no writer exists. An absent observation
-  /// and an absent writer are different claims, and this file has now made the
-  /// mistake in both directions.
-  ///
-  /// The real gap is a MISSING WRITER for three variants. `extractParts`
-  /// (lib/ai/chat/message-fields.ts) handles all six correctly; the producer,
-  /// `buildMessageParts` (lib/services/chat/message-parts.ts), has no parameter
-  /// for tool or source parts, so no caller can supply one.
-  /// Three places already consume what is never written:
-  ///   · app/api/ai/chat/build-model-messages.ts whitelists tool-call /
-  ///     tool-result in replayed history and pairs them — hardened by a real
-  ///     2026-07-04 poison-pill incident, so the intent to persist them is on
-  ///     the record;
-  ///   · features/chat-v2/components/chat-message-list.tsx renders ToolResultCard
-  ///     from LIVE streaming parts, so tool cards show during a turn and vanish
-  ///     on reload;
-  ///   · extractParts itself.
-  ///
-  /// Consequence: a reloaded conversation replays the assistant's CLAIMS
-  /// without the tool receipts behind them.
-  ///
-  /// Persisting the rest is a real change, not a comment fix: it needs the
-  /// result payload bounded (a raw search result on every row would bloat both
-  /// the table and every replayed context) and the two part SHAPES reconciled
-  /// (persisted `{toolCallId, result}` vs the UI's `{state, output}`). Pinned
-  /// by tests/lib/chat/message-parts-contract.test.ts — if you add a writer,
-  /// that file fails and tells you to update this comment.
+  /// HISTORY. Until 2026-11-01 only text, file and reasoning had a writer:
+  /// measured 2026-09-17, of 5,278 chat_messages the only types present were
+  /// `text` (5,171) and `file` (31); measured 2026-11-01, 0 of 123 saved
+  /// replies in 7 days kept a tool part while 94 of 124 turns used tools. Tool
+  /// cards showed live and vanished on reload, and a reloaded conversation
+  /// replayed the assistant's claims without the tool receipts behind them.
+  /// Pinned by tests/lib/chat/message-parts-contract.test.ts -- if you add a
+  /// writer, that file fails and tells you to update this comment.
   parts Json?
 
   // ── Streaming lifecycle ──

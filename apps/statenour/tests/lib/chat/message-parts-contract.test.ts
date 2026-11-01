@@ -61,7 +61,7 @@ describe("extractParts · the CONSUMER supports all six variants", () => {
   });
 });
 
-describe("buildMessageParts · the PRODUCER emits only text and reasoning", () => {
+describe("buildMessageParts · the PRODUCER emits text, reasoning and UI tool parts", () => {
   it("emits a text part", async () => {
     const { partsArray } = await buildMessageParts("hello");
     expect(partsArray?.map((p) => p.type)).toEqual(["text"]);
@@ -75,21 +75,14 @@ describe("buildMessageParts · the PRODUCER emits only text and reasoning", () =
     ]);
   });
 
-  it("PINS THE GAP: there is no parameter for tool or source parts", async () => {
-    // The producer's signature is the proof: (text, reasoning, alwaysIncludeText)
-    // and nothing else, so no caller CAN supply a tool part today.
-    //
-    // ⚠ WHAT THIS DOES **NOT** GUARANTEE, stated plainly because the first
-    // version of this test promised it and was wrong: adding an optional fourth
-    // `parts` argument leaves `.length` at 2 and this call supplies no tool
-    // input, so a new writer would NOT fail here. A canary cannot exercise
-    // behaviour that does not exist yet. The real drift guard is the
-    // doc-vs-constant assertion below, which a new writer cannot satisfy
-    // without also updating the schema comment.
-    expect(buildMessageParts.length).toBe(2);
-
-    const { partsArray } = await buildMessageParts("a turn that called tools", "reasoned");
+  it("stores tool calls in the UI shape only, never the model-message shapes (B1, 2026-11-01)", async () => {
+    // Until 2026-11-01 the producer had no parameter for tool parts, so none was ever stored
+    // (0 of 123 saved replies in 7 days). It now takes UI-shape `tool-<name>` parts; the
+    // model-message `tool-call` / `tool-result` and `source` still have no writer.
+    const tool = { type: "tool-getTasks" as const, toolCallId: "c1", input: {}, state: "output-available" as const, output: { ok: true } };
+    const { partsArray } = await buildMessageParts("a turn that called tools", "reasoned", false, [tool]);
     const types = new Set(partsArray?.map((p) => p.type));
+    expect(types.has("tool-getTasks")).toBe(true);
     for (const absent of ["tool-call", "tool-result", "source"]) {
       expect(types.has(absent as never)).toBe(false);
     }
@@ -97,13 +90,14 @@ describe("buildMessageParts · the PRODUCER emits only text and reasoning", () =
 
   it("emits nothing outside PRODUCIBLE_PART_TYPES", async () => {
     const produced = new Set<string>();
+    const tool = { type: "tool-getTasks" as const, toolCallId: "c1", input: {}, state: "output-error" as const, errorText: "x" };
     for (const [text, reasoning] of [
       ["hello", undefined],
       ["hello", "because"],
       ["", "because"],
     ] as Array<[string, string | undefined]>) {
-      const { partsArray } = await buildMessageParts(text, reasoning, true);
-      for (const p of partsArray ?? []) produced.add(p.type);
+      const { partsArray } = await buildMessageParts(text, reasoning, true, [tool]);
+      for (const p of partsArray ?? []) produced.add(p.type.startsWith("tool-") ? "tool-<name>" : p.type);
     }
     for (const t of produced) {
       expect(

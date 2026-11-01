@@ -1,0 +1,142 @@
+/**
+ * B1 (job 2026-11-01-chat-humanizer-w6): a saved reply keeps its tool cards.
+ *
+ * Measured 2026-11-01: 0 of 123 saved replies in 7 days carried a tool part while 94 of 124 turns
+ * used tools (docs/research/chat-upgrades-2026-11-01.md section 2.4). The cards rendered live and
+ * vanished on reload because buildMessageParts had no way to receive them.
+ *
+ * Each test runs the whole path a reply takes: the stream's onFinish steps, the producer, a JSON
+ * round trip (what a Json column hands back) and the load-side check in readConversation.
+ */
+import { describe, it, expect } from "vitest";
+import {
+  buildMessageParts,
+  capToolOutput,
+  keepStoredToolParts,
+  sanitizeStoredParts,
+  toolPartsFromSteps,
+  TOOL_OUTPUT_CAP_BYTES,
+} from "@/lib/services/chat/message-parts";
+
+/** A two-step turn in the AI SDK v6 onFinish shape: one read that returned, one that threw. */
+const twoToolTurn = {
+  steps: [
+    {
+      toolCalls: [{ type: "tool-call", toolCallId: "c1", toolName: "getTasks", input: { status: "open" } }],
+      toolResults: [
+        { type: "tool-result", toolCallId: "c1", toolName: "getTasks", input: { status: "open" }, output: { tasks: [{ id: "t1", title: "Order tires", updatedAt: new Date("2026-11-01T12:00:00Z") }] } },
+      ],
+      content: [],
+    },
+    {
+      toolCalls: [{ type: "tool-call", toolCallId: "c2", toolName: "queryNickstire", input: { q: "invoices today" } }],
+      toolResults: [],
+      content: [{ type: "tool-error", toolCallId: "c2", toolName: "queryNickstire", error: new Error("upstream 502") }],
+    },
+  ],
+};
+
+/** What a Json column gives back: JSON in, JSON out. */
+const throughDb = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+
+describe("B1 · a tool turn survives save and reload", () => {
+  it("persists both tool calls with their states and reads them back", async () => {
+    const { partsArray } = await buildMessageParts("You have one open task.", undefined, false, toolPartsFromSteps(twoToolTurn));
+    const loaded = (await sanitizeStoredParts(throughDb(partsArray))) as Array<Record<string, unknown>>;
+
+    const tools = loaded.filter((p) => String(p.type).startsWith("tool-"));
+    expect(tools.map((p) => [p.type, p.toolCallId, p.state])).toEqual([
+      ["tool-getTasks", "c1", "output-available"],
+      ["tool-queryNickstire", "c2", "output-error"],
+    ]);
+    expect(tools[0].input).toEqual({ status: "open" });
+    expect(tools[1].errorText).toBe("upstream 502");
+    // The text still comes after the cards, as it streamed.
+    expect(loaded.at(-1)).toEqual({ type: "text", text: "You have one open task." });
+  });
+
+  it("stores a tool result as JSON values (a Prisma Date becomes an ISO string)", () => {
+    const [read] = toolPartsFromSteps(twoToolTurn) as Array<{ output: { tasks: Array<{ updatedAt: unknown }> } }>;
+    expect(read.output.tasks[0].updatedAt).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("skips a call the SDK refused because the step offered no tools (it never ran)", () => {
+    const refused = {
+      steps: [
+        {
+          toolCalls: [{ toolCallId: "c9", toolName: "getTasks", input: {} }],
+          toolResults: [],
+          content: [{ type: "tool-error", toolCallId: "c9", toolName: "getTasks", error: { availableTools: [] } }],
+        },
+      ],
+    };
+    expect(toolPartsFromSteps(refused)).toEqual([]);
+  });
+
+  it("a call with no recorded result is saved as failed, never as forever-running", () => {
+    const callOnly = { steps: [{ toolCalls: [{ toolCallId: "c3", toolName: "createTask", input: { title: "x" } }], toolResults: [], content: [] }] };
+    const [part] = toolPartsFromSteps(callOnly) as Array<Record<string, unknown>>;
+    expect(part.state).toBe("output-error");
+    expect(part.errorText).toMatch(/no result/i);
+  });
+
+  it("POSITIVE CONTROL: a turn with no steps (an alternate lane) stores text only, as before", async () => {
+    const { partsArray } = await buildMessageParts("hi", undefined, false, toolPartsFromSteps({}));
+    expect(partsArray?.map((p) => p.type)).toEqual(["text"]);
+  });
+});
+
+describe("B1 · an oversize tool output is capped", () => {
+  it("keeps the output under the cap, keeps its shape and marks it truncated", () => {
+    const rows = Array.from({ length: 400 }, (_, i) => ({ id: i, note: "x".repeat(120) }));
+    const capped = capToolOutput({ rows, total: 400 }) as { rows: unknown[]; total: number; truncated?: boolean };
+    expect(JSON.stringify(capped).length).toBeLessThanOrEqual(TOOL_OUTPUT_CAP_BYTES);
+    expect(Array.isArray(capped.rows)).toBe(true);
+    expect(capped.total).toBe(400);
+    expect(capped.truncated).toBe(true);
+  });
+
+  it("leaves a small output untouched (no truncated flag)", () => {
+    expect(capToolOutput({ ok: true, count: 2 })).toEqual({ ok: true, count: 2 });
+  });
+
+  it("a value that cannot be shrunk by shape falls back to a summary", () => {
+    // 2,000 keys: no row or string to cut, so only a summary fits.
+    const wide = Object.fromEntries(Array.from({ length: 2000 }, (_, i) => [`key${i}`, i]));
+    const capped = capToolOutput(wide) as { truncated: boolean; summary: string };
+    expect(capped.truncated).toBe(true);
+    expect(typeof capped.summary).toBe("string");
+    expect(JSON.stringify(capped).length).toBeLessThanOrEqual(TOOL_OUTPUT_CAP_BYTES);
+  });
+
+  it("a long string output is cut by code point, never leaving half an emoji", () => {
+    const capped = capToolOutput("🚗".repeat(TOOL_OUTPUT_CAP_BYTES)) as string;
+    expect(new TextEncoder().encode(JSON.stringify(capped)).length).toBeLessThanOrEqual(TOOL_OUTPUT_CAP_BYTES);
+    expect(capped.isWellFormed()).toBe(true);
+  });
+});
+
+describe("B1 · a corrupt stored part loads as text only", () => {
+  it("drops the bad tool part and keeps the message's text", async () => {
+    const stored = [
+      { type: "tool-getTasks", toolCallId: "c1", state: "not-a-state", output: {} },
+      { type: "tool-getTasks", state: "output-available", output: {} }, // no toolCallId
+      { type: "text", text: "Here is what I found." },
+    ];
+    expect(await sanitizeStoredParts(stored)).toEqual([{ type: "text", text: "Here is what I found." }]);
+  });
+
+  it("passes a non-array value through untouched (legacy rows)", async () => {
+    expect(await sanitizeStoredParts(null)).toBe(null);
+  });
+});
+
+describe("B1 · a later patch of the row keeps the cards", () => {
+  it("the L2 banner and action-receipt rewrites carry the stored tool parts forward", async () => {
+    const { partsArray: first } = await buildMessageParts("I added it.", undefined, false, toolPartsFromSteps(twoToolTurn));
+    const kept = keepStoredToolParts(throughDb(first));
+    const { partsArray: patched } = await buildMessageParts("[verifier] I added it.", undefined, true, kept);
+    expect(patched?.filter((p) => p.type.startsWith("tool-")).length).toBe(2);
+    expect(patched?.at(-1)).toEqual({ type: "text", text: "[verifier] I added it." });
+  });
+});
