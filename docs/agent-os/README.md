@@ -70,7 +70,12 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   `config/agent-os/policy.json` (v2) and blocks with exit 2: pushes to `main` in any spelling,
   pushes with an **implicit destination** (bare `git push`, `origin`-only, `HEAD`/`@` refspec —
   they resolve to the current branch, which may be main), force-push (incl. bundled `-uf` and
-  `+refspec`), `git add -A`/`--all`/`.`, `--no-verify`, the destructive-restore family
+  `+refspec`), `git add -A`/`--all`/`.`, `--no-verify` and every other spelling of hooks-off (rule `no-verify`,
+  2026-11-01: its abbreviations, `-n` for `git commit`/`git am` only, bundled too, while `git push -n` (dry run) passes;
+  `git -c`/`--config-env core.hooksPath`; `GIT_CONFIG_KEY_<n>`/`GIT_CONFIG_PARAMETERS` naming it; a `git config` write
+  of it (reads and `--unset` pass); `LEFTHOOK`/`_EXCLUDE`/`_CONFIG`/`_BIN` set before a hook-running git verb, or by
+  `setx`/`SetEnvironmentVariable`; new arms start at a command position, so `echo` and messages stay mentions; not
+  covered: `GIT_CONFIG_GLOBAL` to a crafted file, an alias defined elsewhere, a full-path `git.exe`), the destructive-restore family
   (`reset --hard`, `checkout -- <path>`, worktree-writing `git restore`, `git clean -d/-f/-x`),
   `stash pop/apply/branch`, `git worktree remove` AND `rm -r`/`Remove-Item -Recurse` aimed at a
   worktree, the destructive-Prisma family (`--accept-data-loss`, `--force-reset`,
@@ -367,6 +372,19 @@ fallback, since it can predate the push, #3142): no marker after `--codex-wait-m
 without its result`. Findings and unresolved Codex threads never time out. Without `--merge` the WARN says `would merge`.
 Comments are read newest page first through GraphQL, stopping at the marker that decides the head: `gh pr view --json
 comments` returns only the first 100, which hid a later marker (Codex P2 on #3144). Past 2,000 comments it is BLOCKED.
+
+**PR body bar (2026-11-01, quality-audit P1 #16).** The manager sent 3432/3434/3435 back on 2026-10-30 for bodies missing
+the bar sections; nothing enforced it. `merge-gate.mjs` (`assessBody`) now refuses with **exit 8** (chain scripts treat it
+like 2, BLOCKED; a hard blocker still exits 2, and 8 outranks not-ready 7) unless the body has four markdown HEADINGS, each
+with text under it, matched case-insensitively on the heading text: `^(hostile\s+)?self[- ]review\b`,
+`^kill[- ]criteri(on|a)\b` (its section must hold an ISO `YYYY-MM-DD` live-check date), `^10x\b`,
+`^(second[- ]reader|reader\s+of\s+record)\b`. Headings inside code fences or HTML comments, bold labels and prose do not
+count. An empty body is refused as all four missing; a body gh did not return is UNKNOWN and refused. It prints each
+missing section by name and `FIX: ... gh pr edit <n> --body-file <file>` (a body edit, no push). Exempt by rule, with a
+`BAR EXEMPT:` line: docs-only (EVERY changed path, a rename's old name included, is `*.md` or under `docs/`, the test.yml
+`docs_only` patterns; an empty or 3000-capped file list is not docs-only) and dependabot (`app/dependabot` with
+`is_bot: true`). `--body-fixture <file.json>` judges `{body, author, files}` without calling gh (probes, and a check
+before `gh pr create`). Canaries: the bar arms of `mergeGate.test.mjs`, including a stubbed-check pair.
 
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
