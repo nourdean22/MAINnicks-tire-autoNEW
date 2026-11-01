@@ -225,6 +225,16 @@ describe("processPromptEvolutionWeekly", () => {
     expect(telegramText()).toContain("Auto-promote: would promote abcd1234");
   });
 
+  it("a night that promotes never tells Nour 'propose-only, not served to customers'", async () => {
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    mocks.promote.mockResolvedValue({ status: "promoted", reason: null, versionId: "v", line: "Auto-promote: PROMOTED abcd1234 to the live receptionist." });
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(telegramText()).toContain("PROMPT EVOLUTION (nightly · promoted live)");
+    expect(telegramText()).toContain("the canary now measures real calls");
+    expect(telegramText()).not.toContain("not served to customers");
+    expect(telegramText()).not.toContain("propose-only");
+  });
+
   it("a gate that throws never fails the run: the measurement is kept and Telegram says nothing was pushed", async () => {
     mocks.runPromptEvolution.mockResolvedValue(resultOf());
     mocks.promote.mockRejectedValue(new Error("database unavailable"));

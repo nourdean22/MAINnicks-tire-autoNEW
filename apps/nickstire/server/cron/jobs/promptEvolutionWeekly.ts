@@ -268,7 +268,7 @@ function outcomeLines(result: EvolutionResult): string[] {
 
 function telegramSummary(
   result: EvolutionResult,
-  ctx: { experimentId: string | null; receiptDelivered: boolean; previousStatus: PreviousProposalStatus; trigger: PromptEvolutionTrigger },
+  ctx: { experimentId: string | null; receiptDelivered: boolean; previousStatus: PreviousProposalStatus; trigger: PromptEvolutionTrigger; promoted?: boolean },
 ): string {
   const b = result.baseline;
   const baselineLine =
@@ -295,8 +295,10 @@ function telegramSummary(
         : "unknown";
   const u = result.usage;
   return [
-    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "nightly"} · propose-only)`,
-    `Offline evidence only (H2); not served to customers.`,
+    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "nightly"} · ${ctx.promoted ? "promoted live" : "propose-only"})`,
+    ctx.promoted
+      ? "Offline evidence (H2) put this candidate live through the gate; the canary now measures real calls."
+      : `Offline evidence only (H2); not served to customers.`,
     baselineLine,
     laneLine,
     // The success cohort loads only after a holdout pass. Until then its count
@@ -466,6 +468,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
   // It decides from this run's result and the live baseline it measured; it can
   // never fail the run, whose measurement is already written.
   let promotionLine: string;
+  let promoted = false;
   try {
     const { promoteReceptionistCandidate, productionPromotionDeps } = await import("../../services/receptionistPromotion");
     const promotion = await promoteReceptionistCandidate(
@@ -473,13 +476,14 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
       await productionPromotionDeps(),
     );
     promotionLine = promotion.line;
+    promoted = promotion.status === "promoted";
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn("[evolve] auto-promote gate failed; nothing pushed", { error: msg });
     promotionLine = `Auto-promote: error, nothing pushed (${clip(msg, 120)}).`;
   }
 
-  const summary = [telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger }), canaryLine, promotionLine]
+  const summary = [telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger, promoted }), canaryLine, promotionLine]
     .filter((l): l is string => !!l)
     .join("\n");
   const { sendTelegram } = await import("../../services/telegram");
