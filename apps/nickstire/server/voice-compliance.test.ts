@@ -53,7 +53,6 @@ const KNOWN_COPY_DEBT: readonly string[] = [
   // a reliable engine is ordinary English. Kept as debt rather than allowlisted
   // because shop-sense vs vehicle-sense is not safely distinguishable by regex —
   // a human should reword these when the content pass happens.
-  'cliche.reliable@blog.ts:cleveland-winter-driving-guide.excerpt', // "keep your car safe and reliable"
   'cliche.reliable@blog.ts:toyota-camry-brake-issues.excerpt', // "Reliable engine and transmission"
   'cliche.reliable@blog.ts:summer-car-care-checklist-cleveland.excerpt', // "stay reliable through the warm months"
 
