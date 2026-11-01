@@ -9,7 +9,12 @@
  */
 import { prisma } from "@/lib/prisma";
 import { isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
+import { detectActionClaims } from "@/lib/ai/chat/action-claim-detector";
+import { checkKnownTruth } from "@/lib/ai/known-truth-guard";
 import { buildMessageParts } from "./message-parts";
+
+/** The longest the deferred check may run; the chat re-reads for about 80 s. */
+export const DEFERRED_COVE_TIMEOUT_MS = 45_000;
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -19,19 +24,27 @@ interface ChatLogger {
 /** Runs CoVe on the stored draft, patches the row, and returns the text the rest of the turn should use. */
 export async function verifyStoredReply(a: {
   messageId: string;
+  /** The text CoVe was deferred on, before the stations that run ahead of the row write. */
+  draft: string;
   cleanedText: string;
   reasoningText: string;
   userContent: string;
   convId: string | undefined;
   log: ChatLogger;
 }): Promise<string> {
-  // A bannered reply already says it may be wrong; a rewrite would drop the banner.
-  const bannered = isVerifierRewritten(a.cleanedText);
+  // Before B2 a revision went through the stations that run ahead of the row write (known-truth and
+  // action-receipt banners, the calibration notice, L2). Here it lands after them, so CoVe only runs on
+  // text none of them touched, and a revision that adds a claim they would have caught is dropped.
+  const skipped = isVerifierRewritten(a.cleanedText) ? "verifier_banner" : a.cleanedText !== a.draft ? "rewritten_before_store" : null;
   const { verifyAndRevise } = await import("@/lib/ai/chat/chain-of-verification");
-  const cove = bannered ? null : await verifyAndRevise(a.cleanedText, a.userContent);
-  const changed = cove?.changed === true;
+  const cove = skipped ? null : await verifyAndRevise(a.cleanedText, a.userContent, { signal: AbortSignal.timeout(DEFERRED_COVE_TIMEOUT_MS) });
+  const addsClaims =
+    cove?.changed === true &&
+    (detectActionClaims(cove.revised).claims.length > 0 || checkKnownTruth(cove.revised).length > checkKnownTruth(a.cleanedText).length);
+  const changed = cove?.changed === true && !addsClaims;
   const text = changed ? cove.revised : a.cleanedText;
   if (changed) a.log.info("cove_revised", { conversationId: a.convId, questions: cove.questions.length, deferred: true });
+  if (addsClaims) a.log.warn("cove_revision_dropped", { conversationId: a.convId, reason: "adds_unchecked_claim" });
 
   // tokenUsage holds the traceId and receipts: merge, never replace. Without the read there is no
   // safe merge, so the mark is skipped (the chat stops re-reading on its own) and only text is patched.
@@ -40,7 +53,10 @@ export async function verifyStoredReply(a: {
     const row = await prisma.chatMessage.findUnique({ where: { id: a.messageId }, select: { tokenUsage: true } });
     if (row) {
       const prior = row.tokenUsage && typeof row.tokenUsage === "object" ? (row.tokenUsage as Record<string, unknown>) : {};
-      tokenUsage = { ...prior, cove: { status: "done", changed, ...(bannered ? { skipped: "verifier_banner" } : {}) } };
+      tokenUsage = {
+        ...prior,
+        cove: { status: "done", changed, ...(skipped ? { skipped } : {}), ...(addsClaims ? { dropped: "adds_unchecked_claim" } : {}) },
+      };
     }
   } catch (err) {
     a.log.warn("cove_deferred_read_failed", { messageId: a.messageId, error: err instanceof Error ? err.message : String(err) });

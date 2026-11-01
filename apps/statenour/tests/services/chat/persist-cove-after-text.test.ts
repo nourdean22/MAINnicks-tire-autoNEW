@@ -17,6 +17,9 @@ const h = vi.hoisted(() => ({
   events: [] as string[],
   notified: [] as Array<Record<string, unknown>>,
   updates: [] as Array<{ where: { id: string }; data: Record<string, any> }>,
+  /** What the stations before the row write turn the text into (null: unchanged). */
+  storedText: null as string | null,
+  deferredText: undefined as string | undefined,
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -75,15 +78,16 @@ vi.mock("@/lib/ai/chat/chain-of-verification", async (importOriginal) => ({
   verifyAndRevise: (draft: string, q: string, opts?: unknown) => h.verify(draft, q, opts),
 }));
 vi.mock("@/lib/services/chat/post-persist-verification", () => ({
-  runPostPersistVerification: async (a: { cleanedText: string }) => ({ cleanedText: a.cleanedText }),
+  runPostPersistVerification: async (a: { cleanedText: string }) => ({ cleanedText: h.storedText ?? a.cleanedText }),
 }));
 vi.mock("@/lib/services/chat/post-turn-outbox", () => ({
   enqueuePostTurnWork: async () => "outbox-1",
   completePostTurnWork: async () => undefined,
 }));
 vi.mock("@/lib/services/chat/deferred-background-work", () => ({
-  runDeferredBackgroundWork: async () => {
+  runDeferredBackgroundWork: async (ctx: { cleanedText?: string }) => {
     h.events.push("deferred-work");
+    h.deferredText = ctx.cleanedText;
   },
 }));
 vi.mock("@/lib/ai/runtime/sse-stream", () => ({
@@ -145,6 +149,9 @@ beforeEach(() => {
   h.events.length = 0;
   h.notified.length = 0;
   h.updates.length = 0;
+  h.storedText = null;
+  h.deferredText = undefined;
+  vi.restoreAllMocks();
 });
 
 describe("B2 · a reply with no action claim is announced before CoVe finishes", () => {
@@ -170,6 +177,7 @@ describe("B2 · a reply with no action claim is announced before CoVe finishes",
     const patch = h.updates.find((u) => u.where.id === "m-1" && u.data.tokenUsage?.cove);
     expect(patch?.data.content).toBe(REVISED);
     expect(patch?.data.tokenUsage).toMatchObject({ traceId: "t_cove", cove: { status: "done", changed: true } });
+    expect(h.deferredText, "memory and the rest of the turn read the checked text").toBe(REVISED);
   }, 30_000);
 
   it("an unchanged check still marks the row settled and leaves the text alone", async () => {
@@ -198,6 +206,7 @@ describe("B2 · a failing deferred check never costs the turn its deferred work"
 
 describe("B2 · a reply that claims an action still waits for CoVe", () => {
   it("CoVe settles before message.persisted, with a time bound, and nothing is flagged verifying", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
     const finish = pendingCove();
     const done = buildOnFinish(deps())({ text: ACTION_REPLY, finishReason: "stop" } as never);
     for (let i = 0; i < 50 && !h.events.includes("cove-start"); i++) await tick();
@@ -208,6 +217,38 @@ describe("B2 · a reply that claims an action still waits for CoVe", () => {
     await done;
     expect(h.events).toEqual(["cove-start", "cove-end", "persisted", "deferred-work"]);
     expect(h.notified[0].verifying).toBeUndefined();
+    const { COVE_BLOCKING_TIMEOUT_MS } = await import("@/lib/services/chat/persist-assistant-turn");
+    expect(timeout).toHaveBeenCalledWith(COVE_BLOCKING_TIMEOUT_MS);
+    expect(COVE_BLOCKING_TIMEOUT_MS).toBe(20_000);
     expect((h.verify.mock.calls[0][2] as { signal?: AbortSignal })?.signal).toBeInstanceOf(AbortSignal);
+  }, 30_000);
+});
+
+describe("B2 · a check after the row write never undoes the stations before it", () => {
+  it("text a station rewrote before the write (banner, notice) is not checked again, and says why", async () => {
+    h.storedText = `${REPLY}\n\nThis forecast has no likelihood band.`;
+    h.verify.mockResolvedValue({ revised: REVISED, changed: true, questions: ["q"] });
+    await buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
+    expect(h.verify).not.toHaveBeenCalled();
+    const patch = h.updates.find((u) => u.data.tokenUsage?.cove);
+    expect(patch?.data.content).toBeUndefined();
+    expect(patch?.data.tokenUsage.cove).toMatchObject({ status: "done", changed: false, skipped: "rewritten_before_store" });
+  }, 30_000);
+
+  it("a revision that adds an action claim L2 never saw is dropped, and the draft stays", async () => {
+    h.verify.mockResolvedValue({ revised: `${REVISED} I've added a task to follow up on them.`, changed: true, questions: ["q"] });
+    await buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
+    const patch = h.updates.find((u) => u.data.tokenUsage?.cove);
+    expect(patch?.data.content).toBeUndefined();
+    expect(patch?.data.tokenUsage.cove).toMatchObject({ changed: false, dropped: "adds_unchecked_claim" });
+    expect(h.deferredText).toBe(REPLY);
+  }, 30_000);
+
+  it("the deferred check is time-bounded too", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    h.verify.mockResolvedValue({ revised: REPLY, changed: false, questions: [] });
+    await buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
+    const { DEFERRED_COVE_TIMEOUT_MS } = await import("@/lib/services/chat/deferred-cove");
+    expect(timeout).toHaveBeenCalledWith(DEFERRED_COVE_TIMEOUT_MS);
   }, 30_000);
 });

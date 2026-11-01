@@ -123,3 +123,28 @@ describe("message.persisted", () => {
     expect(notifyMessagePersisted("trace-B", { id: "late", content: "z" })).toBe(false);
   });
 });
+
+describe("B2 · message.persisted says when the stored text is a draft still being checked", () => {
+  async function persistedEvent(trace: string, payload: { id: string; content: string; verifying?: boolean }) {
+    const sse = build(trace, new Promise<void>(() => {}));
+    const reader = sse.getReader();
+    const dec = new TextDecoder();
+    let raw = "";
+    for (let i = 0; i < 3; i += 1) raw += dec.decode((await reader.read()).value);
+    notifyMessagePersisted(trace, payload);
+    for (;;) {
+      const r = await reader.read();
+      if (r.done) break;
+      raw += dec.decode(r.value);
+    }
+    return events(raw).find((e) => e.type === "message.persisted")?.data as Record<string, unknown>;
+  }
+
+  it("carries verifying: true when the server is still checking", async () => {
+    expect(await persistedEvent("trace-V1", { id: "m", content: "draft", verifying: true })).toEqual({ id: "m", content: "draft", verifying: true });
+  });
+
+  it("CONTROL: without the flag the key is absent", async () => {
+    expect(await persistedEvent("trace-V2", { id: "m", content: "final" })).toEqual({ id: "m", content: "final" });
+  });
+});

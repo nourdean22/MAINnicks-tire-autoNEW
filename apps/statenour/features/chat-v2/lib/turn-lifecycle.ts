@@ -42,6 +42,17 @@ export function bindPersistedMessage<M extends Message>(
   return [...messages.slice(0, -1), { ...last, id: persisted.id, parts, metadata: nextMetadata }];
 }
 
+/** B2: drop every bubble's `verifying` mark (a new send ends the check read for the old turn). */
+export function clearVerifyingMarks<M extends Message>(messages: M[]): M[] {
+  if (!messages.some((m) => (m.metadata as { verifying?: unknown } | undefined)?.verifying)) return messages;
+  return messages.map((m) => {
+    const meta = m.metadata as Record<string, unknown> | undefined;
+    if (!meta?.verifying) return m;
+    const { verifying: _was, ...rest } = meta;
+    return { ...m, metadata: rest };
+  });
+}
+
 export type StopOutcome = "pending" | "stopped" | "unconfirmed";
 
 /** The turn the operator stopped: the last message on screen at the tap

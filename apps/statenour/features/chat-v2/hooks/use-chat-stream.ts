@@ -16,7 +16,7 @@ import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import { PAGE_ANCHOR_KEYS, pageContextForTurn } from "../lib/page-context-anchors";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
-import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
+import { bindPersistedMessage, clearVerifyingMarks, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
 import { turnHasSideEffect } from "../lib/turn-side-effect";
 import {
   judgeAfterUnansweredReplay,
@@ -620,13 +620,17 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       const read = readSavedTurnRef.current;
       if (!persisted.verifying || !trace || !conversationId || !read) return;
       let attempt = 0;
+      let lastRows: readonly SavedRow[] | null = null;
       const readChecked = async () => {
-        const rows = await read(conversationId).catch(() => null);
+        // Bounded like the Retry read: a fetch that never answers must not strand the mark.
+        const rows = await read(conversationId, AbortSignal.timeout(12_000)).catch(() => null);
+        if (rows) lastRows = rows;
         if (lastTraceIdRef.current !== trace || messagesRef.current[messagesRef.current.length - 1]?.id !== persisted.id) return;
         const settled = settledReplyForTrace(rows, trace);
         if (settled) return bindReply(settled, persisted.id);
         if (attempt < VERIFY_READ_DELAYS_MS.length) savedReplyTimerRef.current = setTimeout(readChecked, VERIFY_READ_DELAYS_MS[attempt++]);
-        else bindReply({ id: persisted.id, content: persisted.content }, persisted.id);
+        // Out of reads: bind whatever the row holds now (a revision whose mark failed), else the draft.
+        else bindReply(savedReplyForTrace(lastRows, trace) ?? { id: persisted.id, content: persisted.content }, persisted.id);
       };
       savedReplyTimerRef.current = setTimeout(readChecked, VERIFY_READ_DELAYS_MS[attempt++]);
       return;
@@ -871,6 +875,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const resetTurn = useCallback(() => {
     cancelPartialResume();
     cancelSavedReplyRead();
+    setMessages(clearVerifyingMarks);
     clearStall();
     retryCountRef.current = 0;
     setStopped(null);
@@ -886,7 +891,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setLastTraceId(null);
     replayOutstandingRef.current = null;
     acknowledgedTracesRef.current.clear();
-  }, [cancelPartialResume, cancelSavedReplyRead, clearStall, clearError, requestInFlight, reattachPageContext]);
+  }, [cancelPartialResume, cancelSavedReplyRead, setMessages, clearStall, clearError, requestInFlight, reattachPageContext]);
 
   return {
     messages: chat.messages,
@@ -902,6 +907,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       cancelSavedReplyRead();
+      // B2: the check read for the old turn stops here, so its line must too.
+      setMessages(clearVerifyingMarks);
       clearStall();
       setStopped(null);
       setHold(null);
@@ -929,6 +936,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       cancelSavedReplyRead();
+      // B2: the check read for the old turn stops here, so its line must too.
+      setMessages(clearVerifyingMarks);
       clearStall();
       setStopped(null);
       setHold(null);

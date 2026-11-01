@@ -2711,18 +2711,35 @@ describe("a reply announced while its check is still running", () => {
     const last = boundAt(setMessages.mock.calls.length - 1, marked);
     expect(last).toMatchObject({ parts: [{ type: "text", text: "draft" }] });
     expect(last.metadata?.verifying).toBeFalsy();
-    expect(readSavedTurn.mock.calls.length).toBeGreaterThan(1);
+    expect(readSavedTurn, "one read per delay, then it stops").toHaveBeenCalledTimes(5);
+    expect(readSavedTurn).toHaveBeenCalledWith("c1", expect.any(AbortSignal));
   });
 
-  it("a new send cancels the check read for the old turn", async () => {
+  it("out of reads, a row the server revised but could not mark is what gets bound", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValueOnce([user, row("draft")]).mockResolvedValue([user, row("revised, unmarked")]);
+    hookOptions = { readSavedTurn };
+    render();
+    act(() => transport().onMessagePersisted({ id: "db-1", content: "draft", traceId: "T1", verifying: true }));
+    settle();
+    afterFirstBind();
+    await act(async () => vi.advanceTimersByTimeAsync(600_000));
+    const last = boundAt(setMessages.mock.calls.length - 1, marked);
+    expect(last).toMatchObject({ parts: [{ type: "text", text: "revised, unmarked" }] });
+    expect(last.metadata?.verifying).toBeFalsy();
+  });
+
+  it("a new send cancels the check read for the old turn and clears its mark", async () => {
     const readSavedTurn = vi.fn().mockResolvedValue([user, row("draft")]);
     hookOptions = { readSavedTurn };
     render();
     act(() => transport().onMessagePersisted({ id: "db-1", content: "draft", traceId: "T1", verifying: true }));
     settle();
+    const before = setMessages.mock.calls.length;
     act(() => void ctl.sendText("next"));
     await act(async () => vi.advanceTimersByTimeAsync(300_000));
     expect(readSavedTurn).not.toHaveBeenCalled();
+    const after = setMessages.mock.calls.slice(before).map((c) => (typeof c[0] === "function" ? (c[0] as (m: Msg[]) => Msg[])([user, marked]) : c[0]) as Msg[]);
+    expect(after.some((list) => (list.at(-1) as { metadata?: { verifying?: boolean } } | undefined)?.metadata?.verifying === undefined)).toBe(true);
   });
 });
 

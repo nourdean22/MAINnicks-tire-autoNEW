@@ -392,6 +392,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // its draft and verified after (deferred-cove.ts), so the stream ends when
       // the text does (tail p50 15.9 s, CoVe p50 9.9 s, measured 2026-11-01).
       let deferCove = false;
+      let coveDraft = cleanedText;
       if (hasContent && event.coveDone !== true) {
         try {
           const { getFlag } = await import("@/lib/feature-flags");
@@ -402,6 +403,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
             const { detectActionClaims } = await import("@/lib/ai/chat/action-claim-detector");
             if (FACTUAL_INTENTS.has(turnSignal.intent) && detectActionClaims(cleanedText).claims.length === 0) {
               deferCove = true;
+              coveDraft = cleanedText;
             } else if (FACTUAL_INTENTS.has(turnSignal.intent)) {
               const cove = await verifyAndRevise(cleanedText, userContent, {
                 signal: AbortSignal.timeout(COVE_BLOCKING_TIMEOUT_MS),
@@ -801,7 +803,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       if (deferCove && createdAssistantId) {
         try {
           const { verifyStoredReply } = await import("./deferred-cove");
-          cleanedText = await verifyStoredReply({ messageId: createdAssistantId, cleanedText, reasoningText, userContent, convId, log });
+          cleanedText = await verifyStoredReply({ messageId: createdAssistantId, draft: coveDraft, cleanedText, reasoningText, userContent, convId, log });
         } catch (err) {
           // Never cost the turn its deferred work; the chat stops re-reading on its own.
           log.warn("cove_deferred_failed", { error: err instanceof Error ? err.message.slice(0, 160) : String(err) });
