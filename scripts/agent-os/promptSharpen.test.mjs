@@ -193,7 +193,7 @@ test("BREAKS: a thrown error inside the hook prints nothing on stdout and exits 
 /** True while `pid` runs; polls up to `ms`, since a Windows kill returns before the process is gone. */
 function aliveAfter(pid, ms) {
   for (const end = Date.now() + ms; ; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)) {
-    try { process.kill(pid, 0); } catch { return false; }
+    try { process.kill(pid, 0); } catch (e) { if (e.code === "ESRCH") return false; throw e; }
     if (Date.now() > end) return true;
   }
 }
@@ -207,6 +207,7 @@ test("BREAKS: a hang inside the hook is killed by the timeout with nothing on st
   try {
     const r = runHook(configured.command, payload("what about the rest"), { root, env: { ...withHistory(), SHARPEN_PID_FILE: pidFile }, timeout: 2500 });
     pid = Number(readFileSync(pidFile, "utf8"));
+    assert.ok(Number.isInteger(pid) && pid > 0, `the plant wrote no usable pid (${pid})`);
     assert.equal(r.stdout, "");
     assert.ok(r.signal || r.code !== 0, "the planted hang must actually hang (killed by the spawn timeout)");
   } finally {

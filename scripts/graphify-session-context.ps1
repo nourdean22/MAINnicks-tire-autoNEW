@@ -185,10 +185,18 @@ try {
     Write-Output ($verdict + $via)
     # A sync lock held 90+ min means the nightly sync hung (2026-11-01: 5 h with task result 0; a normal run is 8 min).
     $syncLock = Join-Path (Split-Path -Parent $report) '.sync-running'
-    if (Test-Path $syncLock) {
-        $lockMin = [int]((Get-Date) - (Get-Item $syncLock).LastWriteTime).TotalMinutes
+    $lockItem = Get-Item $syncLock -ErrorAction SilentlyContinue
+    if ($lockItem) {
+        $lockMin = [int]((Get-Date) - $lockItem.LastWriteTime).TotalMinutes
         if ($lockMin -ge 90) {
-            Write-Output "graph sync: HUNG - lock held $lockMin min ($((Get-Content $syncLock -Raw).Trim())); read graphify-out/obsidian-sync.log, end that pid, rerun scripts/graphify-sync-launcher.ps1"
+            $lockText = "$(Get-Content $syncLock -Raw -ErrorAction SilentlyContinue)".Trim()
+            $lockPid = if ($lockText -match 'pid=(\d+)') { [int]$Matches[1] } else { 0 }
+            $holder = if ($lockPid) { Get-Process -Id $lockPid -ErrorAction SilentlyContinue } else { $null }
+            if ($holder -and $holder.ProcessName -match 'powershell|pwsh') {
+                Write-Output "graph sync: HUNG - lock held $lockMin min ($lockText); read graphify-out/obsidian-sync.log, end that pid, rerun scripts/graphify-sync-launcher.ps1"
+            } else {
+                Write-Output "graph sync: STALE LOCK - the sync died $lockMin min ago without releasing ($lockText); delete graphify-out/.sync-running, rerun scripts/graphify-sync-launcher.ps1"
+            }
         }
     }
     if ($summary) { $summary | Where-Object { $_ -match '^- ' } | Select-Object -First 1 | Write-Output }

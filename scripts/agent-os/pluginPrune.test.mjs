@@ -8,7 +8,7 @@ import { main, planPrune } from "./plugin-prune.mjs";
 
 const policy = {
   required: [{ name: "desktop-commander" }],
-  reject: { zoominfo: "wrong business", "desktop-commander": "never wins over required" },
+  reject: { zoominfo: "wrong business", hunter: "already off: left alone", "desktop-commander": "never wins over required" },
   knownConnectFailures: { servers: ["plugin:telegram:telegram", "plugin:desktop-commander:desktop-commander"] },
 };
 const settings = () => ({
@@ -55,6 +55,11 @@ test("--apply backs up, sets keys false (not deleted), keeps other settings; --r
   assert.equal(Object.keys(after.enabledPlugins).length, 6, "keys are set false, never deleted");
 
   const backup = out.match(/backup (\S+)/)[1];
-  main(["--restore", backup], { home, root });
+  const pruned = readFileSync(file, "utf8");
+  const restored = main(["--restore", backup], { home, root });
   assert.equal(readFileSync(file, "utf8"), before);
+  assert.equal(readFileSync(restored.match(/the file it replaced is (\S+)/)[1], "utf8"), pruned, "restore must keep the file it overwrote");
+  writeFileSync(join(home, "not-json"), "{oops");
+  assert.throws(() => main(["--restore", join(home, "not-json")], { home, root }));
+  assert.equal(readFileSync(file, "utf8"), before, "a bad backup must not overwrite settings");
 });

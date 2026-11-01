@@ -37,8 +37,11 @@ export function main(argv, { home = homedir(), root = ROOT, now = new Date() } =
   const file = join(home, ".claude", "settings.json");
   const r = argv.indexOf("--restore");
   if (r >= 0) {
+    JSON.parse(readFileSync(argv[r + 1], "utf8")); // refuse to restore a file that is not settings JSON
+    const pre = `${file}.bak-pre-restore-${now.toISOString().replace(/[:.]/g, "-")}`;
+    copyFileSync(file, pre);
     copyFileSync(argv[r + 1], file);
-    return `[plugin-prune] restored ${file} from ${argv[r + 1]}`;
+    return `[plugin-prune] restored ${file} from ${argv[r + 1]}; the file it replaced is ${pre}`;
   }
   const settings = JSON.parse(readFileSync(file, "utf8"));
   const plan = planPrune(settings, JSON.parse(readFileSync(join(root, "config", "agent-os", "required-plugins.json"), "utf8")));

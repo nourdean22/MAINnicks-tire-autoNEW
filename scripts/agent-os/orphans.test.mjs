@@ -24,9 +24,12 @@ test("classify: only a parentless, old node running an agent-os script from temp
     p(22, 10, 3600, `node "${TMP}\\sharpen-root-ef/scripts/agent-os/prompt-sharpen.mjs"`), // parent alive
     p(23, 999, 3600, "node C:\\Users\\x\\repo\\scripts\\agent-os\\board.mjs refresh"), // real checkout, not temp
     p(24, 999, 3600, `bash "${TMP}\\x/scripts/agent-os/a.sh"`, "bash.exe"), // not node
+    p(26, 999, 3600, `node "${TMP}\\other\\tool.mjs"`), // temp, but not an agent-os script
+    p(30, 0, 120, "notepad.exe", "notepad.exe"), // took the dead parent's pid after the child started
+    p(25, 30, 3600, `node "${TMP}\\sharpen-root-gh/scripts/agent-os/prompt-sharpen.mjs"`), // parent pid reused: still an orphan
   ];
   const rows = classify(procs, { minAgeS: 600, tmp: TMP });
-  assert.deepEqual(rows.map((r) => [r.pid, r.killable]), [[20, true], [21, false], [23, false], [24, false]]);
+  assert.deepEqual(rows.map((r) => [r.pid, r.killable]), [[20, true], [21, false], [23, false], [24, false], [26, false], [25, true]]);
 });
 
 test("Windows: the real spawnSync-timeout leak is listed KILLABLE and --kill ends it", { skip: process.platform !== "win32" && "leak shape is Windows-only (/bin/sh execs node)" }, () => {
@@ -37,12 +40,15 @@ test("Windows: the real spawnSync-timeout leak is listed KILLABLE and --kill end
   writeFileSync(script, `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 60000);`);
   spawnSync(`node "${script}"`, { shell: true, timeout: 2000 });
   const pid = Number(readFileSync(pidFile, "utf8"));
-  const run = (...args) => JSON.parse(spawnSync(process.execPath, [join(HERE, "orphans.mjs"), "--json", "--min-age", "0", ...args], { encoding: "utf8" }).stdout);
+  const run = (...args) => JSON.parse(spawnSync(process.execPath, [join(HERE, "orphans.mjs"), "--json", ...args], { encoding: "utf8" }).stdout);
   try {
-    const listed = run().orphans.find((r) => r.pid === pid);
-    assert.ok(listed, `the leaked pid ${pid} was not found as an orphan (the scanner must locate its subject)`);
-    assert.equal(listed.killable, true);
-    assert.ok(run("--kill").killed.includes(pid), "--kill did not end the leaked pid");
+    const young = run().orphans.find((r) => r.pid === pid);
+    assert.ok(young, `the leaked pid ${pid} was not found as an orphan (the scanner must locate its subject)`);
+    assert.equal(young.killable, false, "the default 10 min floor must protect a test that is still running");
+    assert.equal(run("--min-age", "0").orphans.find((r) => r.pid === pid)?.killable, true);
+    const k = run("--min-age", "0", "--kill");
+    assert.ok(k.killed.includes(pid), "--kill did not end the leaked pid");
+    assert.ok(k.killed.every((id) => k.orphans.find((o) => o.pid === id)?.killable), "--kill ended a process that was not KILLABLE");
   } finally {
     try { process.kill(pid); } catch { /* ended by --kill */ }
   }

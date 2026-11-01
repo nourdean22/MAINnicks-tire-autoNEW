@@ -40,10 +40,11 @@ export function readProcesses() {
 
 /** Orphans with a verdict. shortcut: Windows-shaped (parent pid gone); Linux reparents orphans to pid 1, extend if the leak appears there. */
 export function classify(procs, { minAgeS = 600, tmp = tmpdir() } = {}) {
-  const alive = new Set(procs.map((p) => p.pid));
+  const age = new Map(procs.map((p) => [p.pid, p.ageS]));
   const t = norm(tmp);
+  // Windows reuses pids: a "parent" younger than its child is a stranger holding the dead parent's number.
   return procs
-    .filter((p) => p.ppid !== 0 && !alive.has(p.ppid))
+    .filter((p) => p.ppid !== 0 && (!age.has(p.ppid) || age.get(p.ppid) < p.ageS))
     .map((p) => {
       const c = norm(p.cmd);
       const fixture = /^node(\.exe)?$/i.test(p.name) && c.includes(t) && c.includes("scripts/agent-os/");
@@ -61,11 +62,15 @@ function main(argv) {
   if (kill) for (const r of rows.filter((x) => x.killable)) {
     try { process.kill(r.pid); killed.push(r.pid); } catch (e) { r.error = e.code ?? String(e); }
   }
-  if (argv.includes("--json")) return void process.stdout.write(JSON.stringify({ orphans: rows, killed }) + "\n");
+  if (argv.includes("--json")) {
+    if (rows.some((r) => r.error)) process.exitCode = 1;
+    return void process.stdout.write(JSON.stringify({ orphans: rows, killed }) + "\n");
+  }
   const k = rows.filter((r) => r.killable);
   process.stdout.write(`[orphans] ${rows.length} orphan process(es), ${k.length} KILLABLE (agent-os fixture copies older than ${minAgeS / 60} min)` +
     (kill ? `, killed ${killed.length}` : k.length ? " - run with --kill to end them" : "") + "\n");
-  for (const r of k) process.stdout.write(`  KILLABLE pid ${r.pid} age ${(r.ageS / 3600).toFixed(1)} h :: ${r.cmd.slice(0, 140)}\n`);
+  for (const r of k) process.stdout.write(`  KILLABLE pid ${r.pid} age ${(r.ageS / 3600).toFixed(1)} h${r.error ? ` KILL FAILED ${r.error}` : ""} :: ${r.cmd.slice(0, 140)}\n`);
+  if (k.some((r) => r.error)) process.exitCode = 1;
 }
 
 if (process.argv[1] && basename(process.argv[1]) === "orphans.mjs") {

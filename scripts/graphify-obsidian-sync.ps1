@@ -120,12 +120,20 @@ Log "python for render/digest steps: $py"
 function Invoke-Bounded([string]$Exe, [string[]]$ArgList, [double]$Minutes, [string]$Step) {
     $out = [IO.Path]::GetTempFileName(); $err = [IO.Path]::GetTempFileName()
     $p = Start-Process -FilePath $Exe -ArgumentList $ArgList -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+    if (-not $p) { Log "ERROR: $Step failed to start ($Exe): $($Error[0])"; return 127 }
     $null = $p.Handle  # without a cached handle, ExitCode reads back empty after exit
     $done = $p.WaitForExit([int]($Minutes * 60000))
-    if (-not $done) { & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null; $null = $p.WaitForExit(10000) }
+    if (-not $done) {
+        & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+        $gone = $p.WaitForExit(10000)
+    }
     Get-Content $out, $err -ErrorAction SilentlyContinue | Add-Content -Path $log
     Remove-Item $out, $err -ErrorAction SilentlyContinue
-    if (-not $done) { Log "ERROR: $Step hung past $Minutes min - killed pid $($p.Id) and its children"; return 124 }
+    if (-not $done) {
+        if ($gone) { Log "ERROR: $Step hung past $Minutes min - killed pid $($p.Id) and its children" }
+        else { Log "ERROR: $Step hung past $Minutes min - KILL FAILED, pid $($p.Id) still running" }
+        return 124
+    }
     return $p.ExitCode
 }
 # <<< watchdog
