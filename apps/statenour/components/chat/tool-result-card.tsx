@@ -98,6 +98,14 @@ function UndoChip({
   );
 }
 
+// A rejected typed output draws no card; say so once per tool, or the drift is invisible to us.
+const warnedSchemaMiss = new Set<string>();
+function warnSchemaMiss(toolName: string, error: unknown) {
+  if (warnedSchemaMiss.has(toolName)) return;
+  warnedSchemaMiss.add(toolName);
+  console.warn(`[tool-card] ${toolName} output failed its schema; card hidden`, error);
+}
+
 export interface ToolResultCardProps {
   toolName: string;
   state: string;
@@ -136,6 +144,7 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
   const subtitle = softFail ? softReason : partialNote ? [doneSubtitle, partialNote].filter(Boolean).join(". ") : doneSubtitle;
   // A typed card draws only from an output that passes its schema: a wrong typed rendering is worse than the receipt row.
   const parsed = isDone && !softFail && config.outputSchema ? config.outputSchema.safeParse(output) : null;
+  if (parsed && !parsed.success) warnSchemaMiss(toolName, parsed.error);
   const richBody =
     isDone && !softFail && config.renderRich && (!parsed || parsed.success)
       ? config.renderRich(parsed ? parsed.data : output)

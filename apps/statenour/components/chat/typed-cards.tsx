@@ -13,23 +13,26 @@ import type { FleetTruth } from "@/lib/observability/fleet-truth";
 
 const FleetArtifact = z.object({
   capability: z.string(),
-  state: z.enum(["fresh", "stale", "never_produced", "unknown"]),
+  // A string, not an enum: a newer server's state must not hide every row on an older cached client.
+  state: z.string(),
   ageH: z.nullable(z.number()),
 });
 
 export const FleetTruthOutputSchema = z.object({
   ok: z.optional(z.boolean()),
   generatedAt: z.optional(z.string()),
-  statenour: z.optional(z.array(FleetArtifact)),
-  nickstire: z.optional(z.array(FleetArtifact)),
-  allFresh: z.optional(z.boolean()),
+  // Required, as the producer always sends them: a renamed key then fails the guard below and the parse.
+  statenour: z.array(FleetArtifact),
+  nickstire: z.array(FleetArtifact),
+  allFresh: z.boolean(),
+  queuesClean: z.optional(z.boolean()),
 });
 export type FleetTruthOutput = z.infer<typeof FleetTruthOutputSchema>;
 
-/** Never called: tsc fails here when the producer's FleetTruth drifts from the schema. */
+/** Never called: tsc fails here when the producer's FleetTruth drifts from the schema (a renamed or retyped key). */
 export const fleetTruthFitsSchema = (t: FleetTruth): z.input<typeof FleetTruthOutputSchema> => t;
 
-const STATE_COLOR: Record<z.infer<typeof FleetArtifact>["state"], string> = {
+const STATE_COLOR: Record<string, string> = {
   fresh: "text-emerald-300",
   stale: "text-amber-300",
   never_produced: "text-red-300",
@@ -38,13 +41,19 @@ const STATE_COLOR: Record<z.infer<typeof FleetArtifact>["state"], string> = {
 
 export function fleetRows(output: FleetTruthOutput) {
   return [
-    ...(output.statenour ?? []).map((a) => ({ ...a, app: "statenour" })),
-    ...(output.nickstire ?? []).map((a) => ({ ...a, app: "nickstire" })),
+    ...output.statenour.map((a) => ({ ...a, app: "statenour" })),
+    ...output.nickstire.map((a) => ({ ...a, app: "nickstire" })),
   ];
+}
+
+/** Fresh only when every capability is fresh AND no durable queue holds a dead row. */
+export function fleetAllClear(output: FleetTruthOutput): boolean {
+  return output.allFresh && output.queuesClean !== false;
 }
 
 export function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
   const rows = fleetRows(output);
+  const clear = fleetAllClear(output);
   if (rows.length === 0) return null;
   return (
     <div className="mt-1" data-testid="fleet-truth-card">
@@ -53,9 +62,9 @@ export function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
           Fleet truth
         </span>
         <span
-          className={`text-[11px] font-semibold ${output.allFresh ? "text-emerald-300" : "text-amber-300"}`}
+          className={`text-[11px] font-semibold ${clear ? "text-emerald-300" : "text-amber-300"}`}
         >
-          {output.allFresh ? "all fresh" : "attention needed"}
+          {clear ? "all fresh" : output.allFresh ? "dead queue rows" : "attention needed"}
         </span>
       </div>
       <div className="space-y-1">
@@ -64,8 +73,8 @@ export function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
             <span className="font-mono text-fg-tertiary">
               {r.app === "nickstire" && !r.capability.startsWith("nickstire") ? `nickstire:${r.capability}` : r.capability}
             </span>
-            <span className={STATE_COLOR[r.state]}>
-              {r.state.replace("_", " ")}
+            <span className={STATE_COLOR[r.state] ?? "text-fg-tertiary"}>
+              {r.state.replace(/_/g, " ")}
               {r.ageH != null ? ` · ${r.ageH}h` : ""}
             </span>
           </div>
@@ -75,8 +84,8 @@ export function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
   );
 }
 
-// The bridge reaches this app untyped. Producer contract: apps/nickstire/shared/bridgeShapes.ts
-// TopDecisionsShape (id is a NUMBER there). Kept looser than it, so an older nickstire still draws.
+// The bridge reaches this app untyped. Producer: apps/nickstire/server/services/opportunityQueue.ts
+// mapRow (id is String(r.id), a uuid; shared/bridgeShapes.ts says number and is wrong). Kept loose.
 export const TopDecisionsOutputSchema = z.object({
   ok: z.optional(z.boolean()),
   decisions: z.optional(

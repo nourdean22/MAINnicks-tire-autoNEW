@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { isEmptyToolOutput, isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 import type * as z from "zod/mini";
 import {
-  FleetTruthCard, FleetTruthOutputSchema, TopDecisionsCard, TopDecisionsOutputSchema, fleetRows,
+  FleetTruthCard, FleetTruthOutputSchema, TopDecisionsCard, TopDecisionsOutputSchema, fleetAllClear, fleetRows,
   type FleetTruthOutput, type TopDecisionsOutput,
 } from "@/components/chat/typed-cards";
 import {
@@ -1106,7 +1106,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       // The subtitle gets the raw output, so it parses too: a drifted shape must not throw mid-render.
       const p = FleetTruthOutputSchema.safeParse(out);
       if (!p.success || fleetRows(p.data).length === 0) return null;
-      return p.data.allFresh ? "all fresh" : "attention needed";
+      return fleetAllClear(p.data) ? "all fresh" : p.data.allFresh ? "dead queue rows" : "attention needed";
     },
     outputSchema: FleetTruthOutputSchema,
     renderRich: (out) => <FleetTruthCard output={out as FleetTruthOutput} />,
