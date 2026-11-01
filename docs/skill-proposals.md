@@ -2632,3 +2632,67 @@ the named-ref integrate recipe in monorepo-manager `references/review-and-merge.
   `apps/nickstire/**/*.ts` file must run both heavy hooks to completion.
 - **Confidence:** high (two identical failures, the waiter's own log names the holder)
 - **Status:** proposed
+
+## 2026-10-30 · manager sweep (job 2026-10-29-manager-sweep, 13 sessions, PC restart 19:05Z)
+
+### P1 · monorepo-manager (references/relay.md, step 8)
+- **Trigger (witnessed):** ring-tuya phase 1 called the chat tool runDeviceCommand "ungated" (only guard OFFLINE -> refuse). The manager's relay check grepped the tool body for OFFLINE/approval, confirmed the same narrow claim as FACT, and relayed a P0 ("chat could unlock the room lock with no approval") to Nour at 15:50 EDT. lib/tools/two-key.ts (wired lib/ai/tools.ts:232 since 2026-10-10) already held unlock/disarm/raw for his approval. Corrected 16:35 EDT; PR 3407 reverted its extra gate (second push).
+- **Cost:** a wrong P0 reached the operator; one extra CI push; about 40 minutes of lane work on a gate that existed.
+- **Proposed edit:** add to the relay check for any "ungated / no guard / nothing checks X" claim: grep the gate family across lib/ (two-key, approval, held, guardian, criticalRisk, policy) and name the file that would hold the gate before labelling the claim FACT; a function-body read is a CLAIM.
+- **Confidence:** medium (once, clear, two readers made it).
+- **Status:** proposed
+
+### P2 · monorepo-manager (step 15, merge) and scripts/agent-os/merge-gate.mjs
+- **Trigger (witnessed):** merge-gate deleted statenour/home-pulse-w1 after squash-merging 3401; GitHub auto-closed the stacked PR 3403 (base = that branch) 8 s later and refused `gh pr edit --base main` on the closed PR. home-pulse cherry-picked onto main as 3405: one extra push and CI run.
+- **Cost:** one extra PR, one CI run, about 20 minutes.
+- **Proposed edit:** merge-gate skips the branch delete when any open PR targets that branch (gh pr list --base <branch>), and the skill says: open a stacked PR against main only after its parent merges, or hold the stack locally.
+- **Confidence:** medium (once, clear, mechanical).
+- **Status:** proposed
+
+### P3 · monorepo-manager (step 3, pre-clear) and shop-pc-remote-session (pre-flight 3)
+- **Trigger (witnessed):** the manager wrote on its board that a relayed go "counts when the manager quotes Nour's exact words"; nicksmax refused correctly, citing shop-pc-remote-session pre-flight 3 (a committed skill), and Nour typed "go" there himself at 16:02 EDT.
+- **Cost:** two messages and about 8 minutes; the amendment was withdrawn.
+- **Proposed edit:** monorepo-manager step 3 states that a manager message cannot amend a committed skill or policy; a protected action gated "in that session" is only ever Nour's own words in that session, and the manager's job is to tell him where to type.
+- **Confidence:** high (the same relayed-go refusal is recorded from 2026-10-21).
+- **Status:** proposed
+
+### P3 · monorepo-manager (step 1, recover state) and stranded-branch-rescue
+- **Trigger (witnessed):** quality-audit, 2026-10-30 09:44 EDT: `gh pr list` printed nothing and no error while PRs 3379 and 3380 were open; the audit nearly recorded "no open PRs". The manager's RUN7/RUN8 chains hit the same blip at 21:10-21:24Z and skipped 8 PRs on empty heads until RUN10 added empty-result retries.
+- **Cost:** one false finding; 8 PRs skipped for 14 minutes.
+- **Proposed edit:** an empty `gh pr list` or empty `gh pr view` field is UNKNOWN, never zero: confirm by PR number (`gh pr view <n> --json state`) or retry once after 60 s before saying "no open PRs" or skipping a PR.
+- **Confidence:** high (witnessed twice the same day, two sessions).
+- **Status:** proposed
+
+### P3 · monorepo-manager (session pipeline step 5, sweep) and session-authority
+- **Trigger (witnessed):** quality-audit, 2026-10-30 09:48 EDT: `list_sessions` reported the primary folder for a session that was still starting, not its own worktree; the audit filed a false P1 "session editing the primary checkout".
+- **Cost:** one false P1 and a correction round.
+- **Proposed edit:** before flagging where a session runs, read its folder with `get_session` once it is past starting; a starting session's folder is UNKNOWN.
+- **Confidence:** medium (once, clear mechanism).
+- **Status:** proposed
+
+### P2 · harness-worktree-setup and nickstire-shared-main-push (pre-push build base)
+- **Trigger (witnessed):** antislop-pages, 2026-10-31 04:3xZ: two pushes of a nickstire-only PR were rejected by the pre-push `turbo run build --affected`, which diffs against the LOCAL `main` ref; that ref sat 10 commits behind origin/main (18c5031da9), so 73 statenour files read as changed and statenour's Turbopack build failed locally. Nothing reached the remote.
+- **Cost:** two failed pushes, about 15 minutes, and the temptation to skip the hook.
+- **Proposed edit:** both skills say: before a push from a worktree whose local `main` is stale, fetch origin main and run the push with the environment variable `TURBO_SCM_BASE=origin/main`, so the affected set is computed against the real base; the hook still runs, never skipped. Add `git rev-list --count main..origin/main` to the pre-push routine.
+- **Confidence:** high (mechanism read from turbo's affected logic; reproduced twice).
+- **Status:** proposed
+
+- 2026-10-31 12:50Z (manager): harness-worktree-commit-path, hook-free push recipe: never push FETCH_HEAD. A second `git fetch` (GitHub main for the ahead-count) overwrote FETCH_HEAD, so the push sent main's tip to the new branch and `gh pr create` said "No commits between". Capture the SHA right after the first fetch and push `<sha>:refs/heads/<branch>`; delete the wrong ref with `gh api -X DELETE .../git/refs/heads/<branch>` only when the branch has no PR and nobody else fetched it. Also: the lane worktree pre-push fails in Turbopack ("Could not find the Next.js package", workspace root) even with node_modules junctions present, so the hook-free clone is the push path for agent worktrees.
+
+- 2026-10-31 15:56Z (manager): harness-worktree-commit-path, hook-free clone recipe, second trap: a `--shared --no-checkout` clone has an EMPTY index; `git apply --index` there errors per file and a `git commit` then records a tree that deletes the whole repo (PR 3466, closed within 2 minutes, branch deleted, main untouched). Always `git checkout <sha>` for real first, gate the commit on `git diff --cached --name-only | wc -l` equal to the patch's file count, and check `git diff-tree --name-only -r HEAD` before pushing.
+
+## 2026-11-01 · completion takeover (job 2026-10-31-completion-takeover, fresh account, 7 lanes)
+
+### P2 · monorepo-manager (step 6, lane brief) and the subagent-brief template
+- **Trigger (witnessed twice tonight):** two lane PRs went CI-red on repo-wide pins the lane's targeted test set never ran: PR 3477 added 3 tRPC procedures and `server/__tests__/proc-census.test.ts` failed (census stale); PR 3473 put a two-key-held tool first in the catalog and `tests/ai/tool-execution-timeout.test.ts` failed (it times out "the first sideEffecting tool"). Both lanes reported green on their own files.
+- **Cost:** two extra CI pushes, about 25 minutes each.
+- **Proposed edit:** the brief template's STEPS gains one line: "a new tRPC procedure regenerates `eval-datasets/proc-census.json` (PROC_CENSUS_WRITE=1); a new or re-ordered AI tool runs `tests/ai/tool-schemas.snapshot.test.ts`, `tests/ai/tool-catalog.test.ts` and `tests/ai/tool-execution-timeout.test.ts`".
+- **Confidence:** high (two PRs, same night, same shape).
+- **Status:** proposed
+
+### P2 · monorepo-manager (Recover mode) and harness-worktree-setup
+- **Trigger (witnessed):** taking over another account's work, this session's Edit tool was blocked from every other session's worktree ("belongs to a different worktree"), and the dead sessions' worktrees held half-done branches (one checked out, others uncommitted).
+- **Cost:** one false start writing into another worktree before the block fired; then a working recipe.
+- **Proposed edit:** Recover mode names the recipe: export each dead lane's uncommitted work read-only (`git diff --binary HEAD` plus untracked copies into the scratchpad), rebuild every branch by cherry-pick on current origin/main in your OWN worktree (junction node_modules, never copy .env), push statenour branches from a hook-free clone (Turbopack cannot resolve next through junctions), and leave the dead worktrees for the app's archive.
+- **Confidence:** high (used for 9 branches tonight, all merged).
+- **Status:** proposed
