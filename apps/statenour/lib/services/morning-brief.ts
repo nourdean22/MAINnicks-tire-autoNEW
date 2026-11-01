@@ -805,8 +805,26 @@ function extractLineOfCars(ctx: Record<string, unknown>): number | null {
   return null;
 }
 
-/** statenourSync.ts builds declinedWork from getDeclinedWorkLedger(10): its totals cover these many orders. */
+/**
+ * OLD senders (before 2026-11-01) built declinedWork from getDeclinedWorkLedger(10) only: customerCount and
+ * totalRecoverable cover these many orders. A sender that also sends openCount/openTotal/capped counts every
+ * row (declinedTruth below); this bound is the wording for the payloads that do not.
+ */
 const DECLINED_LEDGER_ORDERS = 10;
+
+/**
+ * The sender's all-rows aggregate (nickstire statenourSync.ts DECLINED_KEYS: openCount, openTotal, capped),
+ * or null for an old sender. Detected by BOTH keys being present, so a lone legacy `openCount` still takes
+ * the old path. openCount is work orders with an UNRECOVERED declined line, openTotal their dollars; `null`
+ * means the sender's aggregate read failed: unknown, never 0. `capped` only says the 10-order sample
+ * (topItems) is truncated; the count itself is exact.
+ */
+function declinedTruth(dec: Record<string, unknown>): { count: number | null; total: number | null; capped: boolean } | null {
+  if (!("openCount" in dec) || !("openTotal" in dec)) return null;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const count = n(dec.openCount);
+  return { count, total: count == null ? null : n(dec.openTotal), capped: dec.capped === true };
+}
 
 /** A count read from the 10-order ledger page: a full page may hide more. */
 function declinedCountText(n: number): string {
@@ -831,6 +849,22 @@ function extractDeclinedDelta(
       text: failed ? "Declined work: unknown (the count failed)" : "Declined work: not measured yet",
       payload: { measured: false, source: typeof dec.source === "string" ? dec.source : null },
     };
+  }
+
+  const truth = declinedTruth(dec);
+  if (truth) {
+    if (truth.count == null) {
+      return {
+        text: "Declined work: not measured (the open count failed)",
+        payload: { measured: false, source: "unknown" },
+      };
+    }
+    const yest = numericField(dec, ["countYesterday", "yesterdayCount"]);
+    const payload = { count: truth.count, value: truth.total, capped: truth.capped, yesterdayCount: yest };
+    if (truth.count === 0) return { text: "Declined work: none open", payload };
+    const delta = yest != null ? ` (${truth.count - yest >= 0 ? "+" : ""}${truth.count - yest} vs yest)` : "";
+    const money = truth.total != null ? ` · $${formatMoney(truth.total)}` : "";
+    return { text: `Declined work: ${truth.count} open${delta}${money}`, payload };
   }
 
   const todayCount = numericField(dec, ["customerCount", "count", "openCount", "total"]);
@@ -992,9 +1026,17 @@ function wisdomAppliedFact(
   rowIsToday: boolean,
 ): { tag: string; label: string; metric: string } | null {
   const dec = ctx.declinedWork as Record<string, unknown> | undefined;
-  const customers = dec?.measured === true ? numericField(dec, ["customerCount"]) : null;
-  if (customers != null && customers > 0) {
-    return { tag: "customers", label: `declined work (${declinedCountText(customers)} open in the latest ${DECLINED_LEDGER_ORDERS} orders)`, metric: "declined" };
+  const truth = dec ? declinedTruth(dec) : null;
+  if (truth) {
+    // New sender: the true count, or nothing (null and 0 give the revenue maxim a turn).
+    if (dec?.measured === true && truth.count != null && truth.count > 0) {
+      return { tag: "customers", label: `declined work (${truth.count} open)`, metric: "declined" };
+    }
+  } else {
+    const customers = dec?.measured === true ? numericField(dec, ["customerCount"]) : null;
+    if (customers != null && customers > 0) {
+      return { tag: "customers", label: `declined work (${declinedCountText(customers)} open in the latest ${DECLINED_LEDGER_ORDERS} orders)`, metric: "declined" };
+    }
   }
   const rev = ctx.revenue as Record<string, unknown> | undefined;
   if (rev && rowIsToday && rev.available !== false) {

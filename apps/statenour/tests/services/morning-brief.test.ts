@@ -628,6 +628,68 @@ describe("Morning Brief · Declined work line on the real sync payload (2026-10-
     expect(brief.text).not.toContain("Unnamed");
   });
 
+  // 2026-11-01 · the sender now adds openCount/openTotal/capped (all rows, no 10-order cap). With them
+  // the line is the true figure; without them (old sender, deploy gap) the 10-order wording above stays.
+  const declinedPayload = (brief: { payload: unknown }) =>
+    (brief.payload as { shop: { declined: Record<string, unknown> } }).shop.declined;
+
+  it("true totals: openCount/openTotal replace the latest-10 subtotal, with no '10+' and no 'latest 10'", async () => {
+    fresh(DEC({ customerCount: 10, totalRecoverable: 9100, openCount: 37, openTotal: 12480.5, capped: true }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 37 open · $12.5k");
+    expect(brief.text).not.toContain("latest 10");
+    expect(brief.text).not.toContain("10+");
+    expect(declinedPayload(brief)).toMatchObject({ count: 37, value: 12480.5, capped: true });
+  });
+
+  it("true totals below 1k print whole dollars, and the sample's totalRecoverable is not used", async () => {
+    fresh(DEC({ customerCount: 4, totalRecoverable: 3400, openCount: 4, openTotal: 480.25, capped: false }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 4 open · $480");
+    expect(brief.text).not.toContain("$3.4k");
+    expect(declinedPayload(brief)).toMatchObject({ count: 4, value: 480.25, capped: false });
+  });
+
+  it("openCount 0 is 'none open' (all rows counted), never a bare 0", async () => {
+    fresh(DEC({ customerCount: 0, totalRecoverable: 0, openCount: 0, openTotal: 0, capped: false, topItems: [] }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: none open");
+    expect(brief.text).not.toContain("latest 10");
+    expect(brief.text).not.toContain("Declined work: 0");
+    expect(brief.text).not.toContain("0 open");
+  });
+
+  it("openCount null (the aggregate failed) is 'not measured', not 0 and not the sample's count as truth", async () => {
+    fresh(DEC({ customerCount: 4, totalRecoverable: 3400, openCount: null, openTotal: null, capped: true }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: not measured");
+    expect(brief.text).not.toContain("4 open");
+    expect(brief.text).not.toContain("$3.4k");
+    expect(brief.text).not.toContain("0 open");
+    expect(declinedPayload(brief)).toEqual({ measured: false, source: "unknown" });
+  });
+
+  it("openCount present but openTotal null: the count prints, no dollars invented", async () => {
+    fresh(DEC({ customerCount: 4, totalRecoverable: 3400, openCount: 5, openTotal: null, capped: false }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: 5 open");
+    expect(brief.text).not.toMatch(/Declined work: 5 open · \$/);
+  });
+
+  it("measured false still wins over the new fields: today's not-measured line", async () => {
+    fresh(DEC({ measured: false, source: "empty", customerCount: 0, totalRecoverable: 0, openCount: 0, openTotal: 0, capped: false }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work: not measured yet");
+    expect(brief.text).not.toContain("none open");
+  });
+
+  it("OLD SENDER (no openCount/openTotal/capped): the honest latest-10 wording is unchanged", async () => {
+    fresh(DEC({ customerCount: 10, totalRecoverable: 9100 }));
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Declined work (latest 10 orders): 10+ open · $9.1k");
+    expect(declinedPayload(brief)).toMatchObject({ boundedToOrders: 10 });
+  });
+
   it("CONTROL: the legacy count/value shape still renders as before", async () => {
     fresh({ declinedWork: { count: 12, countYesterday: 10, value: 14500 } });
     const brief = await buildMorningBrief();
@@ -685,6 +747,20 @@ describe("Morning Brief · Monday 'Wisdom applied' line (2026-10-29)", () => {
     expect(maxim.tags).toContain("customers");
     expect(line).toContain(maxim.text);
     expect(line).toContain(`(${maxim.source})`);
+  });
+
+  it("true totals from the sender: the maxim is applied to the true open count, not the latest-10 subtotal", async () => {
+    fresh(SYNC({ declinedWork: { customerCount: 10, openCount: 37, openTotal: 12480.5, capped: true } }));
+    const line = wisdomLine((await buildMorningBrief()).text);
+    expect(line).toContain("declined work (37 open)");
+    expect(line).not.toContain("latest 10");
+  });
+
+  it("openCount null or 0: no declined-work maxim, the revenue one is used (no number, no line)", async () => {
+    fresh(SYNC({ declinedWork: { customerCount: 10, openCount: null, openTotal: null, capped: true } }));
+    expect(wisdomLine((await buildMorningBrief()).text)).toContain("revenue ($15.2k, last 7 days)");
+    fresh(SYNC({ declinedWork: { customerCount: 0, openCount: 0, openTotal: 0, capped: false } }));
+    expect(wisdomLine((await buildMorningBrief()).text)).toContain("revenue ($15.2k, last 7 days)");
   });
 
   it("declined work not measured: the week's revenue gets a money maxim", async () => {

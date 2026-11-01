@@ -560,6 +560,15 @@ export async function pruneTools(
     addMatching(/weeklyReview|endOfDay|dailyPulse|morningBrief/i);
   }
 
+  // Shop hours / open now · dailyPulse's shopHours (weekly hours + openNow) is the only source of
+  // shop hours, and the chat rule sends hours and open-or-closed to a tool result (2026-11-01).
+  // No other family matches "is the shop open sunday" by tool name, so this one does.
+  const shopOpenWords = /\b(is|are|was|will|isn't|aren't)\b[^.?!\n]*\b(shop|store|nick'?s|we|you|garage)\b[^.?!\n]*\b(open|closed?)\b/;
+  const shopHourWords = /\b(shop|store|business|opening|our|your|nick'?s) hours\b|\bwhat time\b[^.?!\n]*\b(open|opens|close|closes|closing)\b|\b(open|closed) (now|today|tonight|tomorrow|(on )?(sun|mon|tues|wednes|thurs|fri|satur)day)\b/;
+  if (shopOpenWords.test(text) || shopHourWords.test(text)) {
+    addMatching(/^dailyPulse$/);
+  }
+
   // Browser automation / scrape / page extraction
   // 2026-09-16 · MEASURED: in 467 production turns the browser was used ZERO
   // times. Both BROWSERBASE credentials are present, the browser tools were built

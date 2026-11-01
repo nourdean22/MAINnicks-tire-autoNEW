@@ -30,12 +30,18 @@ async function offeredFor(prompt: string): Promise<Set<string>> {
 // An estimate with no matching invoice is a likely walk: getEstimateLeaks answers those too.
 const SHOP = ["queryNickstire"];
 const WALKED = ["queryNickstire", "getEstimateLeaks"];
+const HOURS = ["dailyPulse"];
 const CENSUS: Array<{ feature: string; prompt: string; tools: string[] }> = [
   { feature: "shop", prompt: "how much did we invoice today", tools: SHOP },
   { feature: "shop", prompt: "how many jobs did the shop close this week", tools: SHOP },
   { feature: "shop", prompt: "any estimates that walked yesterday", tools: WALKED },
   { feature: "shop", prompt: "what were sales at nick's today", tools: SHOP },
   { feature: "shop", prompt: "show me the invoices from monday", tools: SHOP },
+  // 2026-11-01: dailyPulse carries the shop's hours and openNow. These have to reach it by name.
+  { feature: "hours", prompt: "is the shop open sunday", tools: HOURS },
+  { feature: "hours", prompt: "are we open right now", tools: HOURS },
+  { feature: "hours", prompt: "what time does nick's close tonight", tools: HOURS },
+  { feature: "hours", prompt: "what are the shop hours", tools: HOURS },
   { feature: "tasks", prompt: "what's on my plate today", tools: ["getTasks"] },
   { feature: "tasks", prompt: "show my tasks", tools: ["getTasks"] },
   { feature: "tasks", prompt: "what are my todos", tools: ["getTasks"] },
@@ -79,7 +85,8 @@ describe("chat reach census (W3)", () => {
       if (!row.tools.some((t) => offered.has(t))) misses.push(`${row.feature}: "${row.prompt}"`);
     }
     // 2026-10-30: 18/30 on main before the W3 trigger words, 29/30 after. Ratchet: raise, never lower.
-    expect(CENSUS.length - misses.length, `misses:\n${misses.join("\n")}`).toBeGreaterThanOrEqual(29);
+    expect(CENSUS.length - misses.length, `misses:\n${misses.join("\n")}`).toBeGreaterThanOrEqual(CENSUS.length - 1);
     expect(misses.filter((m) => m.startsWith("shop:")), "shop questions must reach the shop tools").toEqual([]);
+    expect(misses.filter((m) => m.startsWith("hours:")), "shop-hours questions must reach dailyPulse").toEqual([]);
   });
 });

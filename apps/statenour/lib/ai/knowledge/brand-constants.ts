@@ -38,6 +38,8 @@
  * everything.
  */
 
+import { SHOP_HOURS_COMPACT } from "@/lib/nickstire/shop-hours";
+
 // ── CONTENT GENERATION MODE — hard rules, prescriptive, top-of-pack ─
 // Apr 28 · Audit found that with descriptive knowledge ("here's the
 // brand voice") loaded, the model still produced generic puns
@@ -183,7 +185,7 @@ export const SMS_VOICE = [
   "VERBS to use: 'we got you,' 'pull up,' 'drop it off,' 'come when you're ready,' 'we'll Uber you home,' 'call us when,' 'your spot is held.'",
   "VERBS to avoid: 'your appointment is scheduled,' 'please confirm,' 'arrive 15 minutes early,' 'we look forward to seeing you' (too corporate / dental-office vibe).",
   "Length: short. Most SMS under 160 chars (avoid multi-segment billing). Long messages only when delivering an estimate or invoice link.",
-  "Always include shop hours when relevant (Mon-Sat 8-6 / Sun 9-4). Always sign off as 'Nick's' or 'Nick's Tire' — never 'Nick's Tire & Auto Co.' or other corporate variants.",
+  `Always include shop hours when relevant (${SHOP_HOURS_COMPACT}). Always sign off as 'Nick's' or 'Nick's Tire' — never 'Nick's Tire & Auto Co.' or other corporate variants.`,
 ].join("\n");
 
 // ── SUCCESS PROFILE — what good and bad days look like ────────────

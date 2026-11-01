@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · declined work shows the true totals, and Nick can answer "is the shop open" from a tool (job 2026-11-01-double-check-missed) · 1 ship
+>
+> Nour, 2026-11-01 08:46Z: "DOUBLE CHECK IM SURE U MISSED SOME STUFF". Two halves the old account's manager parked.
+>
+> - **Part 1, consumer of the nickstire sender PR (branch `nickstire/declined-open-totals`).** `declinedWork` gains `openCount`, `openTotal`, `capped` (all rows, no 10-order cap; counts are work orders with an unrecovered declined line; `null` = the aggregate read failed). `lib/services/morning-brief.ts` `declinedTruth()` reads them (both keys present = new sender): "Declined work: 37 open · $12.5k", "none open" for a true 0, "not measured (the open count failed)" for null, never 0. Without the keys (old sender, deploy gap) PR 3372's "latest 10 orders" / "10+" wording is unchanged; `measured: false` still wins. The Monday "Wisdom applied" fact uses the true count (null or 0 gives the revenue maxim). The Home/Pulse Shop line is this same brief slice (`rg declinedWork apps/statenour` finds no other reader; `ceo-context.ts` passes the object through, `stripSyncCustomerPii` keeps the keys, both pinned in `tests/lib/customer-pii-scrub.test.ts`).
+> - **Part 2.** `lib/nickstire/shop-hours.ts` is the one statenour copy of nickstire's `BUSINESS.hours.structured` (Mon-Sat 08:00-18:00, Sun 09:00-16:00, America/New_York). `dailyPulse` returns `shopHours` { weekly, today, openNow, basis, asOf } computed on the ET wall clock (Intl, DST-safe; close is exclusive), so a failed shop read cannot hide it. A drift test reads `apps/nickstire/shared/business.ts` as text and fails when the two disagree. The SMS-voice line in `brand-constants.ts` is built from the constant. `chat-mode.ts` gets a family so "is the shop open sunday", "shop hours", "what time does nick's close" reach `dailyPulse` by name (census rows added, floor now all-but-one).
+>
+> **Flagged · NOT fixed**
+> - `openNow` is the regular weekly schedule; holidays and one-off closures are not modelled (said in `shopHours.basis`).
+> - Three more typed hours strings remain in `brand-constants.ts` (:88, :112, :129); the drift test pins them to the constant but they are still typed.
+> - Pre-existing census miss: "what did i write in the notes on the brake task" does not reach `getTaskDetails`.
+
 > ## 2026-10-31 · Home sales card says when the shop last synced, not when we read it (job 2026-10-31-completion-takeover, missed-asks row 48) · 1 ship
 >
 > Nour, 2026-10-30 17:53Z asked for the sales card (#3405). It said "today so far" with no time, and its internal `asOf` was the READ time, so a day-old sync would have looked fresh. Consumer half of nickstire PR 3482 (`revenue_today.syncedAt`, the newest successful ShopDriver probe): `readNickRevenue` parses it (null for absent, null or non-ISO), `ShopToday.asOf` is retired for `syncedAt: string | null`, and `lib/home/shop-sync-label.ts` renders "as of 2:40 PM" in ET, date plus time off-day, "sync time unknown" for null, and the age in words past 2 h (four of the admin probe throttle's 30 min windows).
