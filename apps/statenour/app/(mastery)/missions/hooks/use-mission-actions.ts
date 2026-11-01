@@ -9,7 +9,7 @@ import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
 import { useOutcomeDialog, type OutcomeRatingValue } from "@/components/ui/outcome-dialog";
-import { isUserProject } from "@/lib/services/mission-helpers";
+import { retroDueAfterCompletion } from "@/lib/services/mission-helpers";
 import { RESURFACE_PROMISE } from "@/lib/missions/snooze-presets";
 
 const log = rootLogger.withSurface("missions/actions");
@@ -178,18 +178,10 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
         if (wasOpen && task?.missionId && !isRecurring) {
           const mission = missions.find((m) => m.id === task.missionId);
-          // Only a finite user project closes with a retro: an anchor lane or an
-          // inbox never "completes" (map F11), and habits never count as remaining work.
-          if (mission && mission.status === "ACTIVE" && isUserProject(mission)) {
-            const remaining = tasks.filter(
-              (t) =>
-                t.id !== id &&
-                t.missionId === task.missionId &&
-                t.status !== "DONE" &&
-                t.status !== "ARCHIVED" &&
-                !["DAILY", "WEEKLY"].includes(((t as { loopKind?: string }).loopKind ?? "").toUpperCase()),
-            );
-            if (remaining.length === 0) setRetroState({ missionId: mission.id, title: mission.title });
+          // Only a finite user project (one with a declared end) closes with a retro: an anchor lane, an inbox or a
+          // life-area bucket never "completes" (map F11; Nour 2026-11-01), and habits never count as remaining work.
+          if (mission && retroDueAfterCompletion(mission, tasks, id)) {
+            setRetroState({ missionId: mission.id, title: mission.title });
           }
         }
         return true;
