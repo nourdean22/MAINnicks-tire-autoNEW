@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { proposeTaskRoi, proposePredictionOutcome } from "@/lib/brain/calibration-engine";
 import { logger as rootLogger } from "@/lib/logger";
 import { today } from "@/lib/utils/datetime";
+import { runCalibrationAutoResolve } from "@/lib/services/calibration-auto-resolve";
 
 const log = rootLogger.withSurface("cron/calibration-generator");
 
@@ -195,6 +196,14 @@ export const GET = cronHandler(async () => {
   } catch (err) {
     results.tasks.error = err instanceof Error ? err.message : String(err);
     log.error("task_scan_failed", { error: results.tasks.error });
+  }
+
+  // 3. Allowlist auto-resolve: records a decision on every pending item; applies only when armed.
+  try {
+    results.autoResolve = await runCalibrationAutoResolve();
+  } catch (err) {
+    results.autoResolve = { error: err instanceof Error ? err.message : String(err) };
+    log.error("auto_resolve_failed", { error: results.autoResolve.error });
   }
 
   return results;
