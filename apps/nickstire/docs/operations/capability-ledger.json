@@ -5880,7 +5880,7 @@
       "owner": "operator",
       "codeState": "in_progress",
       "operationalState": "unit_verified",
-      "exposure": "internal",
+      "exposure": "disabled",
       "lastVerifiedAt": "2026-11-01",
       "verificationExpiresAt": null,
       "evidence": {
