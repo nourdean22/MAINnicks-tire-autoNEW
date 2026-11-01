@@ -69,6 +69,7 @@ import {
   OpenPromisesPanel,
 } from "@/components/power-atlas/PersonInsights";
 import { rawFetch } from "@/lib/utils/api-fetch";
+import { etDaysBetween } from "@/lib/brain/goal-pace";
 import { visiblePeopleRows } from "@/lib/people/needs-info";
 
 /** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
@@ -85,6 +86,8 @@ interface PersonRow {
   interactionCount: number;
   daysSinceInteraction: number | null;
   isNeglected: boolean;
+  /** Newest contact note from the ledger (/api/people); null = none on file. */
+  latestNote?: { note: string; at: string; source: string } | null;
 }
 
 interface PeopleResponse {
@@ -651,6 +654,13 @@ function RelationshipsPageInner() {
                     {p.leverageNotes && (
                       <p className="mt-1 text-[12px] italic text-fg-tertiary line-clamp-1">
                         leverage: {p.leverageNotes}
+                      </p>
+                    )}
+                    {/* The ledger is where chat digests and the backfill write; show its newest note here, not only in the dossier. */}
+                    {p.latestNote && (
+                      <p className="mt-1 text-[12px] text-fg-tertiary line-clamp-2">
+                        {relativeTime(Math.max(0, etDaysBetween(Date.parse(p.latestNote.at), Date.now())))}:{" "}
+                        {p.latestNote.note}
                       </p>
                     )}
                   </div>

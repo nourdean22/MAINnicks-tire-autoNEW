@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · undone sweep: goals editable, Home Goals card, /people notes, missions rhythms and archive prompt (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Nour walked bdnick.info on 2026-11-01 and found work recorded as live that did not work for him. Each fix was red on the old code and a mutation of the fix turns its test red.
+>
+> - **Goals.** Edit was behind expand, then "Show Legacy Details"; every card in `components/goals/goal-board.tsx` now has its own Edit (44 px), the deadline input is labelled, and the panel's one-tap Archive goes through the in-DOM confirm. The Home Goals card read deadlines only and 0 of 6 goals had one, so it said "No dated goals" every day: `goalsCardRead` uses `goalDue` (horizon-derived ends, labelled from horizon), shows a passed set deadline as "ended Nd ago", and otherwise names the top goal and the active count. `buildGoalsSnapshot` rows carry `createdAt` and the latest `horizonSetAt`.
+> - **People.** The /people list read profile columns only, so the 36 backfilled ledger rows were visible only in a dossier. `/api/people` now returns each person's newest contact note (`contactRowsOnly`) and the row shows it. The backfill universe: lane B read all 387 conversations; 92 were candidates because only those name a tracked person by FULL profile name (`nameMatcher`), not because of a cap. A first-name widening is planned in the PR, sized by a read first.
+> - **Missions.** Rhythms: the deck sent every weekly as today's; `rhythmDueToday` (ET weekday) splits today from "not due today", and only today's count in "N of M today". Archive prompt: the last task of any active non-anchor mission opened "Mission complete, Skip + archive"; `retroDueAfterCompletion` now requires a declared end state.
+>
+> **Flagged · NOT fixed**
+> - Home below xl folds Horizon, Waiting and Change into a closed "Context (N)" (wave B, 2026-10-23); likely what "more cards aren't showing" means on his iPhone. Design call.
+> - The retro wiring is a source pin; the completion hook has no render harness.
+> - Not yet read in prod: whether the Health bucket is GENERAL HEALTH with `system_kind` null (other surfaces would then also treat it as a project).
 > ## 2026-11-01 · declined work shows the true totals, and Nick can answer "is the shop open" from a tool (job 2026-11-01-double-check-missed) · 1 ship
 >
 > Nour, 2026-11-01 08:46Z: "DOUBLE CHECK IM SURE U MISSED SOME STUFF". Two halves the old account's manager parked.

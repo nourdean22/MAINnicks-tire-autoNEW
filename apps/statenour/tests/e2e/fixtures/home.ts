@@ -187,6 +187,8 @@ const demoGoal = {
   progress: 40,
   status: "active",
   deadline: "2026-11-02T05:00:00.000Z",
+  createdAt: "2026-10-26T14:00:00.000Z",
+  horizonSetAt: null,
   why: null,
   pruneCandidate: false,
   daysSinceActivity: 1,

@@ -28,7 +28,13 @@ import {
 import { isGeneralAnchor, isInboxMission, isUserProject } from "@/lib/services/mission-helpers";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
-import { startOfDayET, toDateString } from "@/lib/utils/datetime";
+import { startOfDayET, toDateString, weekdayET } from "@/lib/utils/datetime";
+
+/** Is a rhythm due on this ET weekday (0 = Sun .. 6 = Sat)? A WEEKLY with no weekdays set is due some day this week, not today. */
+export function rhythmDueToday(loopKind: string | null, recurringDays: number[] | null | undefined, weekday: number): boolean {
+  if ((loopKind ?? "DAILY").toUpperCase() !== "WEEKLY") return true;
+  return (recurringDays ?? []).includes(weekday);
+}
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
 
 export const EFFORT_MINUTES: Record<string, number> = {
@@ -117,6 +123,8 @@ export type DeckRhythm = {
   loopKind: string;
   /** Weekdays a WEEKLY rhythm runs on (0 = Sun .. 6 = Sat); empty when none are set. */
   recurringDays?: number[];
+  /** Due on today's ET weekday: a DAILY always, a WEEKLY only on its weekdays (none set = any day this week, not today). */
+  dueToday: boolean;
   doneToday: boolean;
   /** Distinct ET days with a completion event in the trailing window. */
   windowDone: number;
@@ -552,6 +560,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
       daysByTask.get(e.taskId)!.add(key);
     }
     const todayKey = toDateString(now);
+    const weekday = weekdayET(now);
     rhythms = rhythmTasks
       .map((t: ScoredTask) => {
         const days = daysByTask.get(t.id) ?? new Set<string>();
@@ -563,6 +572,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
           title: t.title,
           loopKind: (t.loopKind ?? "DAILY").toUpperCase(),
           recurringDays: t.recurringDays ?? [],
+          dueToday: rhythmDueToday(t.loopKind, t.recurringDays, weekday),
           doneToday,
           windowDone: days.size,
           windowOf: RHYTHM_WINDOW_DAYS,
@@ -576,6 +586,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
       title: t.title,
       loopKind: (t.loopKind ?? "DAILY").toUpperCase(),
       recurringDays: t.recurringDays ?? [],
+      dueToday: rhythmDueToday(t.loopKind, t.recurringDays, weekdayET(now)),
       doneToday:
         t.lastCompletedAt !== null && toDateString(new Date(t.lastCompletedAt)) === toDateString(now),
       windowDone: 0,
