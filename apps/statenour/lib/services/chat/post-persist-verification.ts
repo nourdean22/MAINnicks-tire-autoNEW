@@ -13,7 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { trackGeneration } from "@/lib/ai/track";
-import { buildMessageParts } from "./message-parts";
+import { buildMessageParts, type StoredToolPart } from "./message-parts";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
@@ -32,6 +32,8 @@ export async function runPostPersistVerification(a: {
   reasoningText: string;
   createdAssistantId: string | null;
   capturedToolCalls: CapturedToolCall[];
+  /** B1: the tool parts the row was stored with; the L2 patch rebuilds `parts` and must keep them. */
+  toolParts?: StoredToolPart[];
   /**
    * Read-back results already computed at persist time. Optional so existing
    * callers and tests are untouched; when absent this function runs the
@@ -291,7 +293,7 @@ export async function runPostPersistVerification(a: {
       if (createdAssistantId) {
         const msgId = createdAssistantId;
         const { partsArray: patchedParts, searchableContent: patchedSearchable } =
-          await buildMessageParts(cleanedText, reasoningText, true);
+          await buildMessageParts(cleanedText, reasoningText, true, a.toolParts);
         await prisma.chatMessage
           .update({
             where: { id: msgId },

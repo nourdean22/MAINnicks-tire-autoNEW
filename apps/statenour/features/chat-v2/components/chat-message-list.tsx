@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { TypedToolCards } from "./typed-tool-cards";
 import { Fragment, useState, useCallback, useEffect, useRef } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
@@ -684,7 +683,6 @@ export function ChatMessageList({
                   {toolCards.length > 0 ? toolCards : null}
                 </ToolReceiptSummary>
               )}
-              {message.role === "assistant" && <TypedToolCards message={message} />}
               {/* 2026-10-29 · the draft is written but the turn is still open: the server checks the
                   reply (45-90 s on a gated turn) before it sends the stored version. Without this
                   the only sign was the red Stop button, and a Stop here loses the checked text. */}

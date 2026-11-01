@@ -1,5 +1,31 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · B1: a saved reply keeps its tool cards, so they survive a reload (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Nour, 2026-11-01 13:20Z: "more cards arent showing". Measured that morning (docs/research/chat-upgrades-2026-11-01.md section 2.4): 0 of 123 saved replies in 7 days kept a tool part while 94 of 124 turns used tools. `buildMessageParts` had no parameter for one, so cards showed live and vanished on reload.
+>
+> - **Write.** `toolPartsFromSteps` (lib/services/chat/message-parts.ts) turns the stream's onFinish steps into AI SDK v6 UI tool parts (`tool-<name>`, `output-available` / `output-error`), read through the same seam as the telemetry walk. Outputs and inputs are JSON values, capped at 8 KB by shape (fewer rows, shorter strings, `truncated: true`), and repaired for jsonb (lone surrogates, NUL). A call refused by a no-tools step gets no card; a call with no result is stored as failed, never running. Both row patches (L2 banner, deferred receipt rewrite) carry the parts forward.
+> - **Read.** `readConversation` validates each stored tool part with `safeValidateUIMessages`; a bad part is dropped and logged (`stored_tool_part_dropped`), never the message. The client already passed stored parts through, renders them with the same registry as live cards, and replays them on the next turn as paired tool-call / tool-result history, as a live session already did.
+>
+> **Flagged · NOT fixed**
+> - Alternate lanes (pre-flush evidence, verified regen, self-consistency) hand onFinish no `steps`, so their rows stay text only; the errored-turn writer stores no tool parts either.
+> - The load check validates part shape, not each tool's input schema (the registry needs a live turn to build).
+> - Rows saved before this ship stay text only; there is no backfill (the steps were never stored).
+
+> ## 2026-11-01 · UI v3 W6 PR 1: one typed-card registry (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Nour, 2026-11-01: "register them", "plus any more too", then "Go". W6 (Nick composes the screen from typed cards) was blocked in `docs/design/ui-v3/PLAN.md` until the two chat card registries merged.
+>
+> - **The two registries (FACT, read on main 9afd39fe4a).** `components/chat/tool-result-registry.tsx:44` `TOOL_CONFIG` (labels, subtitles, rich bodies; 61 entries before this PR, 63 after) and `features/chat-v2/components/typed-tool-cards.tsx:143` `RENDERERS` (getFleetTruth, getTopDecisions). They disagreed on one turn: neither tool was in `TOOL_CONFIG`, so the receipt line read "getFleetTruth: returned data" while a second card for the same call drew under the reply, and the second map cast the output with no check (a drifted fleet state rendered as if real).
+> - **Now.** One map. A typed card is a `TOOL_CONFIG` entry with an `outputSchema` (zod/mini, bodies in `components/chat/typed-cards.tsx`); `ToolResultCard` parses first and an output that fails draws no body, the receipt row stays. The fleet schema is pinned to the producer's `FleetTruth` type at compile time (`fleetTruthFitsSchema`: a renamed key fails tsc, TS2741). A fleet state is a plain string, so a newer server's state still draws on an older cached PWA; "all fresh" now also needs `queuesClean` (dead queue rows read "dead queue rows"). A rejected output warns once per tool in the console. Decision ids are uuid strings (`apps/nickstire/server/services/opportunityQueue.ts:157,212`); the schema takes string or number. The cards now sit behind the reply's receipt line like every other card (W3b grammar) instead of always open under it.
+> - **Proof.** Red-first `tests/components/card-registry-single.test.tsx`: 6 failed / 2 passed on main; 14 passed after. Nine mutations all red (schema gate, soft-fail gate, decision rows `z.any()`, decision subtitle, nickstire prefix, required key, state enum, queue check, warn). Touched files: 23 vitest files, 190 passed, 1 skipped. `pnpm typecheck` exit 0. Home and Pulse import neither registry (grep), so they are unchanged.
+>
+> **Flagged · NOT fixed**
+> - "Plus any more": no third tool-result map exists in `components/`, `features/`, `lib/`, `app/` (grep for maps keyed by tool name rendering JSX). Home's `BriefRowKind` (`lib/home/brief-rows.ts:23`) and Pulse's `PulseSource` (`lib/home/pulse-feed.ts:10`) are row vocabularies, not tool cards; W6 PR 2 decides whether they join the card vocabulary.
+> - `docs/UPSTREAMS.md` rows 31 and 87 still say "once the typed-card registry is single": platform lane edit.
+> - `apps/nickstire/shared/bridgeShapes.ts:23` types the decision id as `z.number()`; the producer sends `String(r.id)`. Nothing parses with it today; nickstire lane fix.
+> - Local `next build` could not run in a harness worktree (Turbopack refuses junctioned `node_modules` outside the workspace root); CI's build is the boundary instrument for this PR.
+
 > ## 2026-11-01 · the Pulse stops reporting things that are not broken (job 2026-11-01-chat-humanizer-w6, branch `statenour/crons-failing-pulse`) · 1 ship
 >
 > Nour, 2026-11-01 14:24Z: "LETS FIX THE ERRORS THE PULSE IS REPORTING TOO". Causes read from prod (cron_job_logs, system_metrics, coach rows, Task rows; read-only, his go).
@@ -31,6 +57,7 @@
 > - Home below xl folds Horizon, Waiting and Change into a closed "Context (N)" (wave B, 2026-10-23); likely what "more cards aren't showing" means on his iPhone. Design call.
 > - The retro wiring is a source pin; the completion hook has no render harness.
 > - Not yet read in prod: whether the Health bucket is GENERAL HEALTH with `system_kind` null (other surfaces would then also treat it as a project).
+
 > ## 2026-11-01 · declined work shows the true totals, and Nick can answer "is the shop open" from a tool (job 2026-11-01-double-check-missed) · 1 ship
 >
 > Nour, 2026-11-01 08:46Z: "DOUBLE CHECK IM SURE U MISSED SOME STUFF". Two halves the old account's manager parked.

@@ -48,7 +48,6 @@ vi.mock("@/components/chat/message-bubble-shells", () => ({
 vi.mock("@/components/chat/tool-result-card", () => ({ ToolResultCard: () => null, isKnownToolName: () => false }));
 vi.mock("@/components/chat/reasoning-trace-modal", () => ({ ReasoningTraceModal: () => null }));
 vi.mock("@/components/chat/reasoning-trace-live", () => ({ ReasoningTraceLive: () => null }));
-vi.mock("@/features/chat-v2/components/typed-tool-cards", () => ({ TypedToolCards: () => null }));
 vi.mock("@/features/chat-v2/components/media-timestamp-bar", () => ({ MediaTimestampBar: () => null }));
 
 import { toast } from "sonner";

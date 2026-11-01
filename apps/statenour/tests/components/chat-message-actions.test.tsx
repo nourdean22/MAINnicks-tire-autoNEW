@@ -62,9 +62,6 @@ vi.mock("@/components/chat/reasoning-trace-modal", () => ({
 vi.mock("@/components/chat/reasoning-trace-live", () => ({
   ReasoningTraceLive: () => null,
 }));
-vi.mock("@/features/chat-v2/components/typed-tool-cards", () => ({
-  TypedToolCards: () => null,
-}));
 
 import { ChatMessageList } from "@/features/chat-v2/components/chat-message-list";
 

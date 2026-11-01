@@ -20,7 +20,7 @@ import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from 
 import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/lib/ai/receipts/action-receipt";
 import { toolReceiptRows } from "@/lib/ai/receipts/tool-receipt-rows";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
-import { buildMessageParts } from "./message-parts";
+import { buildMessageParts, type StoredToolPart } from "./message-parts";
 import { findUserTurnRow } from "./user-turn-identity";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
@@ -165,6 +165,8 @@ export async function persistAssistantMessage(a: {
   startedAt: number;
   firstTokenRef: { value: number | null };
   capturedToolCalls: CapturedToolCall[];
+  /** B1 (2026-11-01): the turn's tool calls as UI parts (toolPartsFromSteps), stored so the cards survive a reload. */
+  toolParts?: StoredToolPart[];
   truthFlags: Array<{ kind: string; rule: string; snippet: string; severity: number }>;
   critic: ReturnType<typeof critiqueOutput> | ContentCriticScore | null;
   citations: Array<{ raw: string; category: string; detail?: string | null; start: number; end: number }>;
@@ -205,7 +207,7 @@ export async function persistAssistantMessage(a: {
     truthFlags, critic, citations, gate, evidenceGate, factClaims, unverifiedCount,
     turnSignal, contextBlocksFired, deeperContextCount, deeperContextTypes,
     recallReceipts, contextReceipt, personality, userContent, userClientMessageId,
-    posture, log,
+    posture, log, toolParts,
   } = a;
   let cleanedText = a.cleanedText;
   // (the `void userContent` keep-alive is gone — the calibration
@@ -430,6 +432,8 @@ export async function persistAssistantMessage(a: {
     const { partsArray, searchableContent } = await buildMessageParts(
       cleanedText,
       reasoningText,
+      false,
+      toolParts,
     );
 
     // 2026-10-10 (audit 04-F6) - a turn the operator stopped (DELETE on the
