@@ -172,6 +172,16 @@ Asks not given a row: model switches, "ok", "?", "continue", "go" replies that o
 
 ## Loop log
 
+- Tick 22, 2026-10-31 19:54Z: no new asks. PR 3463 (self-learning W0) MERGED `1f5889f570`; nickstire.org still runs `53a3009b6f` (deploy pending, live read next tick). That unblocks self-learning W1. 3471 and 3472 are still red.
+
+- Tick 21, 2026-10-31 19:37Z: no new asks. PR 3472 (W5) is now red on node too (2 jobs). PR 3463 is green on `7a7533d558`, not merged. 3471 still red (node). Live builds unchanged.
+
+- Tick 20, 2026-10-31 19:20Z: no new asks. Row 61: W5 transfer callback is PR 3472 (head `c3f9f4c52a`), RED on the agent-policy job. Same cause 3463 had: the DoD compiler marks `capability-ledger-updated` evidence STALE, with ledger key `today-owed-texts` (run 41233428180). PR 3463 is on new head `7a7533d558`, 1 check pending. 3471 still red (node).
+
+- Tick 17, 2026-10-31 18:28Z: no new asks. PR 3463 (self-learning W0) is GREEN on new head `c6b1e0c6ff` (0 red, 0 pending), ready for the gate. PR 3471 (calendar W2b, head `1de4b1cda6`) is RED on node. Live builds unchanged.
+
+- Tick 16, 2026-10-31 18:12Z: no new asks. 3470 (tick 15) merged `5fbe581059`. Row 34: calendar W2b is PR 3471 (open). Manager rulings 17:10Z (CLAIM): `b0d2694502` is in no branch head, only GitHub's `refs/pull/3466/head`; closed. The three pushed lane branches are crash backups, not ready for PRs. Order: W5b PR when its lane returns; self-learning W1 after 3463 merges; sharpener finish lane queued for a writer slot. Live builds unchanged.
+
 - Tick 15, 2026-10-31 17:16Z: new ask 16:23Z "WHY U MOVING SO SLOW?" (pace, to the manager; no new row). Humanizer PR I 3468 merged `53a3009b6f` and LIVE (nickstire.org runs it). 3469 (ticks 8-14) merged. Now on GitHub with no PR yet: `chore/prompt-sharpener` `f04dfb1602`, `nickstire/self-learning-w1-daily` `71b4ae24e1`, `nickstire/transfer-callback-w5` `a8d68d5784`. PR 3463 is still red.
 
 - Tick 14, 2026-10-31 16:40Z: no new asks. Held-push follow-up 2 is PR 3467 `4379da172a` (+155 -12, 4 files), merged and LIVE on bdnick (merge-base 0). Row 47's P2 follow-ups are done. Incident checked: PR 3466 (same branch) deleted 11,475 files; it was CLOSED, not merged. main still has 11,486 files (`git ls-tree`). Humanizer PR I is PR 3468 (+54 -10, 3 files), open. RAM 4,744 MB free: loop back to 15 min.
