@@ -145,6 +145,41 @@ describe("featureFlags.list v2", () => {
     expect(rows.find((r) => r.key === "send_pause_declined_recovery")).toMatchObject({ value: true, lastChange: null, lastChangeKnown: false });
   });
 
+  // 2026-10-31 bug-hunt queue: audit_log.created_at has one-second precision and audit_log.id is a random UUID, so two
+  // flips of one flag inside the same second tie on MAX(created_at) and the reader got BOTH rows back. Whichever it
+  // kept last was arbitrary: if that one disagreed with the switch the pause read "history unknown" although the
+  // other row was exactly the flip that put the switch where it is. The tie is broken by the switch's current value.
+  it.each([
+    ["the matching row first", [true, false]],
+    ["the matching row last", [false, true]],
+  ] as const)("two flips in one second: the row that set the switch's current value is named (%s)", async (_label, order) => {
+    // send_pause_declined_recovery is TRUE (paused) in the fixture: a@ set true, b@ set false in the same second.
+    const byActor = { true: "a@example.com", false: "b@example.com" } as const;
+    h.audit = order.map((v) => ({
+      entityId: "send_pause_declined_recovery",
+      actor: byActor[String(v) as "true" | "false"],
+      changes: { value: { old: null, new: String(v) } },
+      createdAt: "2026-10-31 12:00:00",
+    }));
+    const rows = await list();
+    expect(rows.find((r) => r.key === "send_pause_declined_recovery")).toMatchObject({
+      value: true,
+      lastChange: { by: "a@example.com", at: "2026-10-31T12:00:00.000Z", value: true },
+      lastChangeKnown: true,
+    });
+  });
+
+  it("CONTROL: a tie where neither row sets the current value stays UNKNOWN, never a guess", async () => {
+    h.audit = ["false", "false"].map((v, i) => ({
+      entityId: "send_pause_declined_recovery",
+      actor: `x${i}@example.com`,
+      changes: { value: { old: null, new: v } },
+      createdAt: "2026-10-31 12:00:00",
+    }));
+    const rows = await list();
+    expect(rows.find((r) => r.key === "send_pause_declined_recovery")).toMatchObject({ value: true, lastChange: null, lastChangeKnown: false });
+  });
+
   it("positive control: an audit row that agrees with the current value is still shown", async () => {
     h.audit = [
       { entityId: "send_pause_declined_recovery", actor: "x@example.com", changes: { value: { old: null, new: "true" } }, createdAt: "2026-10-12 09:00:00" },
