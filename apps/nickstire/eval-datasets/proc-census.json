@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-27T13:24:48.246Z",
-  "count": 655,
+  "generatedAt": "2026-11-01T01:32:27.128Z",
+  "count": 658,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -280,7 +280,9 @@
     "mutation.vapi.runFollowupCadenceNow",
     "mutation.vapi.runPromptEvolutionNow",
     "mutation.vapi.saveTransferPreset",
+    "mutation.vapi.setAutoPromotePaused",
     "mutation.vapi.setTransferDestination",
+    "mutation.vapi.undoAutoPromotion",
     "mutation.vapi.updateAssistant",
     "mutation.vapi.updateFollowUpAssistant",
     "mutation.vapi.updateQueueStatus",
@@ -612,6 +614,7 @@
     "query.vapi.achievements",
     "query.vapi.activeCallStates",
     "query.vapi.assistantRouting",
+    "query.vapi.autoPromoteStatus",
     "query.vapi.callDetails",
     "query.vapi.callStateHistory",
     "query.vapi.getFollowUpTransferDestination",
