@@ -18,6 +18,16 @@
  * in 4 of 13 turns, and 3 of those ended with no prose. The stripped step now also says,
  * in words, that the tools are done. Stray calls that still come are recorded as not run
  * (ai-sdk-tool-observation.ts `notRun`), not as failures.
+ *
+ * 2026-11-01 · on Ollama the stripped step also turns thinking off. Live 12:57Z: after
+ * two tool steps (3,459 and 5,691 output tokens, all hidden thinking) the text-only step
+ * spent the whole 6,000-token cap thinking at 42k input tokens and wrote nothing.
+ * Probed the same day: Ollama's /v1 endpoint honours reasoning_effort for minimax-m3;
+ * "none" wrote a full reply at a 37k context in 619 tokens, "low" spent more than the
+ * default. The @ai-sdk/openai chat adapter sends providerOptions.openai.reasoningEffort
+ * as reasoning_effort for any model id. Every live Ollama lane model accepts "none"
+ * (200 from glm-5.3, glm-5.3-flash, kimi-k3, kimi-k2.6, deepseek-v4-pro, gemma4:31b,
+ * gpt-oss:120b/20b; gpt-oss still thinks briefly), so a fallback model cannot 400 here.
  */
 import type { ModelMessage } from "ai";
 
@@ -30,6 +40,7 @@ export function textOnlyStep(provider: string | null | undefined, messages?: Mod
   }
   return {
     activeTools: [] as string[],
+    ...(provider === "ollama" ? { providerOptions: { openai: { reasoningEffort: "none" as const } } } : {}),
     // ai@6.0.309 rebuilds each step's messages, so this adds one note per stripped step; the
     // check keeps it to one if a later SDK carries an override forward.
     ...(messages && !messages.some((m) => m.content === TOOLS_DONE_NOTE)

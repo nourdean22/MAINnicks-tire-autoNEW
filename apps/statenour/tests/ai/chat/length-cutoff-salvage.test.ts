@@ -9,7 +9,8 @@
  * streamText; the persist callback is mocked to capture the event it is handed.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { streamText } from "ai";
+import { streamText, tool } from "ai";
+import { z } from "zod";
 import { MockLanguageModelV3 } from "ai/test";
 
 const h = vi.hoisted(() => ({ persisted: [] as Array<Record<string, unknown>> }));
@@ -141,6 +142,48 @@ describe("a reply cut off by the output cap before any text is salvaged once", (
     expect(generateCalls).toHaveLength(0);
     expect(log.info).toHaveBeenCalledWith("length_cutoff_salvage_skipped_private", expect.anything());
     expect(event.text).toBe("");
+  });
+
+  // Live 2026-11-01 12:57Z: a personal message ran 9 read tools, the text-only
+  // step hit the 6,000 cap with no text, and the retry threw AI_InvalidPromptError
+  // (log length_cutoff_salvage_failed), so the "too heavy" copy persisted.
+  // searchMemories returns Prisma `updatedAt` as a Date; the tool-result part
+  // carries it as-is, and generateText's ModelMessage schema rejects a Date.
+  it("tool steps whose results hold a Date, then a cut-off text step: the retry still runs", async () => {
+    const tools = {
+      searchMemories: tool({
+        inputSchema: z.object({ query: z.string() }),
+        execute: async () => ({ count: 1, memories: [{ id: "m1", content: "a memory", updatedAt: new Date("2026-10-31T12:00:00Z") }] }),
+      }),
+    };
+    const TOOL_CALL = [
+      START,
+      { type: "tool-call", toolCallId: "c1", toolName: "searchMemories", input: JSON.stringify({ query: "staff" }) },
+      { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_calls" }, usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } } },
+    ];
+    const streams = [TOOL_CALL, LENGTH_NO_TEXT];
+    let call = 0;
+    const generated: unknown[] = [];
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({ stream: streamOf(streams[Math.min(call++, streams.length - 1)]!) }) as never,
+      doGenerate: async (opts: { prompt: unknown }) => {
+        generated.push(opts.prompt);
+        return {
+          content: [{ type: "text", text: "A short, direct reply." }],
+          finishReason: { unified: "stop", raw: "stop" },
+          usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+          warnings: [],
+        } as never;
+      },
+    });
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const event = await run(model, { prunedTools: tools, log });
+
+    expect(log.warn).not.toHaveBeenCalledWith("length_cutoff_salvage_failed", expect.anything());
+    expect(generated).toHaveLength(1);
+    expect(event.text).toBe("A short, direct reply.");
+    // The retry still sees the tool result, with the date as the provider saw it.
+    expect(JSON.stringify(generated[0])).toContain("2026-10-31T12:00:00.000Z");
   });
 
   it("CONTROL · a normal text turn is untouched and makes no extra call", async () => {
