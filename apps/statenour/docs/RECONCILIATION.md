@@ -1,5 +1,18 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · B2: the reply finishes when its text does; the fact check runs after (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Measured 2026-11-01 (docs/research/chat-upgrades-2026-11-01.md section 2.2): the tail after the last token was p50 15.9 s, p90 43 s, and Chain-of-Verification inside it p50 9.9 s. `message.persisted` closes the stream and waited for CoVe.
+>
+> - **Server.** A factual reply with no action claim is stored and announced on its draft (`verifying: true`). `verifyStoredReply` (lib/services/chat/deferred-cove.ts) then runs CoVe (45 s bound), patches the row when it revises (tool cards kept), and merges `tokenUsage.cove` either way, before the deferred work so memory reads the checked text. A reply that claims an action keeps the blocking check, bounded at 20 s.
+> - **Defense stack intact.** CoVe runs only on text no pre-write station touched (banners, calibration notice, L2), and a revision that adds an action claim or a known-truth flag is dropped.
+> - **Client.** The bubble is marked, the existing "Checking the reply…" line stays on the latest reply, and the chat re-reads the row (5 reads, 12 s bound each) until the check settles, then binds that text; a send clears the mark.
+>
+> **Flagged · NOT fixed**
+> - A send before the check settles (p50 ~10 s) carries the draft in the next turn's history; the row and a reload have the checked text.
+> - A crash during the check (at most 45 s) loses that turn's deferred work, as the same window of the old blocking check did.
+> - Live 7-day read owed: tail p90 under 10 s and the CoVe catch count not lower (by 2026-11-15).
+
 > ## 2026-11-01 · B1: a saved reply keeps its tool cards, so they survive a reload (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >
 > Nour, 2026-11-01 13:20Z: "more cards arent showing". Measured that morning (docs/research/chat-upgrades-2026-11-01.md section 2.4): 0 of 123 saved replies in 7 days kept a tool part while 94 of 124 turns used tools. `buildMessageParts` had no parameter for one, so cards showed live and vanished on reload.

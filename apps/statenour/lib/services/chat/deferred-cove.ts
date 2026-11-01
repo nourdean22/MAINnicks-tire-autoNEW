@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { detectActionClaims } from "@/lib/ai/chat/action-claim-detector";
 import { checkKnownTruth } from "@/lib/ai/known-truth-guard";
-import { buildMessageParts } from "./message-parts";
+import { buildMessageParts, keepStoredToolParts } from "./message-parts";
 
 /** The longest the deferred check may run; the chat re-reads for about 80 s. */
 export const DEFERRED_COVE_TIMEOUT_MS = 45_000;
@@ -46,24 +46,23 @@ export async function verifyStoredReply(a: {
   if (changed) a.log.info("cove_revised", { conversationId: a.convId, questions: cove.questions.length, deferred: true });
   if (addsClaims) a.log.warn("cove_revision_dropped", { conversationId: a.convId, reason: "adds_unchecked_claim" });
 
-  // tokenUsage holds the traceId and receipts: merge, never replace. Without the read there is no
-  // safe merge, so the mark is skipped (the chat stops re-reading on its own) and only text is patched.
-  let tokenUsage: Record<string, unknown> | undefined;
+  // tokenUsage holds the traceId and receipts (merge, never replace) and parts holds the saved tool
+  // cards (B1, carried forward). Without the read neither is safe to rewrite, so the row stays as
+  // stored, the turn keeps the draft, and the chat stops re-reading on its own.
+  let row: { tokenUsage: unknown; parts: unknown } | null = null;
   try {
-    const row = await prisma.chatMessage.findUnique({ where: { id: a.messageId }, select: { tokenUsage: true } });
-    if (row) {
-      const prior = row.tokenUsage && typeof row.tokenUsage === "object" ? (row.tokenUsage as Record<string, unknown>) : {};
-      tokenUsage = {
-        ...prior,
-        cove: { status: "done", changed, ...(skipped ? { skipped } : {}), ...(addsClaims ? { dropped: "adds_unchecked_claim" } : {}) },
-      };
-    }
+    row = await prisma.chatMessage.findUnique({ where: { id: a.messageId }, select: { tokenUsage: true, parts: true } });
   } catch (err) {
     a.log.warn("cove_deferred_read_failed", { messageId: a.messageId, error: err instanceof Error ? err.message : String(err) });
   }
-  if (!changed && !tokenUsage) return text;
+  if (!row) return a.cleanedText;
+  const prior = row.tokenUsage && typeof row.tokenUsage === "object" ? (row.tokenUsage as Record<string, unknown>) : {};
+  const tokenUsage = {
+    ...prior,
+    cove: { status: "done", changed, ...(skipped ? { skipped } : {}), ...(addsClaims ? { dropped: "adds_unchecked_claim" } : {}) },
+  };
 
-  const textFields = changed ? await buildMessageParts(text, a.reasoningText, true) : null;
+  const textFields = changed ? await buildMessageParts(text, a.reasoningText, true, keepStoredToolParts(row.parts)) : null;
   await prisma.chatMessage
     .update({
       where: { id: a.messageId },
@@ -75,7 +74,7 @@ export async function verifyStoredReply(a: {
               searchableContent: textFields.searchableContent ?? undefined,
             }
           : {}),
-        ...(tokenUsage ? { tokenUsage: tokenUsage as Parameters<typeof prisma.chatMessage.update>[0]["data"]["tokenUsage"] } : {}),
+        tokenUsage: tokenUsage as Parameters<typeof prisma.chatMessage.update>[0]["data"]["tokenUsage"],
       },
     })
     .catch((err: unknown) => {

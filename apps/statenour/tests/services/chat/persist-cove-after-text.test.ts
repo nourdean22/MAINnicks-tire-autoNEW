@@ -43,7 +43,11 @@ vi.mock("@/lib/prisma", () => {
             return {
               ...passthrough,
               create: () => Promise.resolve({ id: "m-1" }),
-              findUnique: () => Promise.resolve({ tokenUsage: { traceId: "t_cove" } }),
+              findUnique: () =>
+                Promise.resolve({
+                  tokenUsage: { traceId: "t_cove" },
+                  parts: [{ type: "tool-getTasks", toolCallId: "c1", input: {}, state: "output-available", output: { tasks: [] } }, { type: "text", text: "draft" }],
+                }),
               update: (args: { where: { id: string }; data: Record<string, any> }) => {
                 h.updates.push(args);
                 return Promise.resolve({ id: args.where.id });
@@ -178,6 +182,9 @@ describe("B2 · a reply with no action claim is announced before CoVe finishes",
     expect(patch?.data.content).toBe(REVISED);
     expect(patch?.data.tokenUsage).toMatchObject({ traceId: "t_cove", cove: { status: "done", changed: true } });
     expect(h.deferredText, "memory and the rest of the turn read the checked text").toBe(REVISED);
+    // B1: the revision rebuilds parts, and the saved tool card stays ahead of the new text.
+    expect(patch?.data.parts.map((p: { type: string }) => p.type)).toEqual(["tool-getTasks", "text"]);
+    expect(patch?.data.parts.at(-1)).toEqual({ type: "text", text: REVISED });
   }, 30_000);
 
   it("an unchanged check still marks the row settled and leaves the text alone", async () => {
