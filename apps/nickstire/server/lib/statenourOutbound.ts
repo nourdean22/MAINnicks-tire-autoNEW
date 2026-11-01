@@ -45,7 +45,10 @@ function customerIntelligence(ci: unknown): Rec | null {
   };
 }
 
-const DECLINED_KEYS = ["measured", "source", "sourceNote", "totalRecoverable", "customerCount", "safetyItemCount"] as const;
+const DECLINED_KEYS = [
+  "measured", "source", "sourceNote", "totalRecoverable", "customerCount", "safetyItemCount",
+  "openCount", "openTotal", "capped",
+] as const;
 const DECLINED_ITEM_KEYS = ["workOrderId", "orderNumber", "vehicle", "value", "hasSafety"] as const;
 /**
  * Left out as staff-written text: recoveryNotes (outreach notes, "left a voicemail for ..."),
