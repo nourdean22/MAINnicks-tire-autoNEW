@@ -2655,6 +2655,77 @@ describe("a turn that settles without message.persisted reads its saved reply", 
   });
 });
 
+// B2 (2026-11-01): a reply with no action claim is announced on its draft with `verifying: true`
+// and the server's Chain-of-Verification patches the row after. The open chat marks the bubble,
+// re-reads the row until tokenUsage.cove says the check settled, then binds that text.
+describe("a reply announced while its check is still running", () => {
+  const row = (content: string, cove?: { status: string; changed: boolean }) => ({
+    id: "db-1",
+    role: "assistant",
+    content,
+    tokenUsage: { traceId: "T1", ...(cove ? { cove } : {}) },
+  });
+  const marked = { id: "db-1", role: "assistant", parts: [{ type: "text", text: "draft" }], metadata: { verifying: true } } as Msg;
+  const boundAt = (i: number, base: Msg = reply) =>
+    (setMessages.mock.calls[i][0] as (m: Msg[]) => Msg[])([user, base]).at(-1) as Msg & { metadata?: { verifying?: boolean } };
+  /** What useChat holds after the first bind: the bubble now carries the DB id. */
+  const afterFirstBind = () => {
+    h.chat.messages = [user, marked];
+    render();
+  };
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("binds the draft marked verifying, then the checked text once the row settles, then stops reading", async () => {
+    const readSavedTurn = vi
+      .fn()
+      .mockResolvedValueOnce([user, row("draft")])
+      .mockResolvedValue([user, row("checked text", { status: "done", changed: true })]);
+    hookOptions = { readSavedTurn };
+    render();
+    act(() => transport().onMessagePersisted({ id: "db-1", content: "draft", traceId: "T1", verifying: true }));
+    settle();
+    expect(boundAt(0)).toMatchObject({ id: "db-1", parts: [{ type: "text", text: "draft" }], metadata: { verifying: true } });
+    afterFirstBind();
+
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+
+    expect(setMessages.mock.calls.length, "a second bind after the first").toBeGreaterThan(1);
+    const last = boundAt(setMessages.mock.calls.length - 1, marked);
+    expect(last).toMatchObject({ id: "db-1", parts: [{ type: "text", text: "checked text" }] });
+    expect(last.metadata?.verifying).toBeFalsy();
+    const reads = readSavedTurn.mock.calls.length;
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn, "stops reading once settled").toHaveBeenCalledTimes(reads);
+  });
+
+  it("a row that never settles stops the reads and clears the mark, keeping the draft", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, row("draft")]);
+    hookOptions = { readSavedTurn };
+    render();
+    act(() => transport().onMessagePersisted({ id: "db-1", content: "draft", traceId: "T1", verifying: true }));
+    settle();
+    afterFirstBind();
+    await act(async () => vi.advanceTimersByTimeAsync(600_000));
+    expect(setMessages.mock.calls.length, "the mark is cleared by a bind of its own").toBeGreaterThan(1);
+    const last = boundAt(setMessages.mock.calls.length - 1, marked);
+    expect(last).toMatchObject({ parts: [{ type: "text", text: "draft" }] });
+    expect(last.metadata?.verifying).toBeFalsy();
+    expect(readSavedTurn.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("a new send cancels the check read for the old turn", async () => {
+    const readSavedTurn = vi.fn().mockResolvedValue([user, row("draft")]);
+    hookOptions = { readSavedTurn };
+    render();
+    act(() => transport().onMessagePersisted({ id: "db-1", content: "draft", traceId: "T1", verifying: true }));
+    settle();
+    act(() => void ctl.sendText("next"));
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(readSavedTurn).not.toHaveBeenCalled();
+  });
+});
+
 // 2026-10-29 · the verify tail after the draft is 45-90 s of silence on every gated turn, so the
 // 30 s "warn" painted "Chat degraded" on healthy turns. Only a real stall (the abort) says so.
 describe("the stall warning does not mark the chat degraded", () => {

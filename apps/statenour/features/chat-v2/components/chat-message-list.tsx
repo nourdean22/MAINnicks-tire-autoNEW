@@ -688,7 +688,8 @@ export function ChatMessageList({
               {/* 2026-10-29 · the draft is written but the turn is still open: the server checks the
                   reply (45-90 s on a gated turn) before it sends the stored version. Without this
                   the only sign was the red Stop button, and a Stop here loses the checked text. */}
-              {streamingHere && isVerifyTail(message.parts ?? []) && (
+              {/* B2: or the turn closed on the draft and the server's check is still running. */}
+              {((streamingHere && isVerifyTail(message.parts ?? [])) || (message.metadata as { verifying?: boolean } | undefined)?.verifying === true) && (
                 <p className="mt-3 flex items-center gap-2 font-mono text-[11.5px] text-fg-tertiary">
                   <span aria-hidden className="pulse-live inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
                   Checking the reply…

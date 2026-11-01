@@ -6,7 +6,7 @@
  */
 
 type Part = { type: string };
-type Message = { id: string; role: string; parts?: Part[] };
+type Message = { id: string; role: string; parts?: Part[]; metadata?: unknown };
 
 /**
  * `message.persisted` names the DB row and the STORED text of the reply that
@@ -18,7 +18,7 @@ type Message = { id: string; role: string; parts?: Part[] };
  */
 export function bindPersistedMessage<M extends Message>(
   messages: M[],
-  persisted: { id: string; content: string },
+  persisted: { id: string; content: string; verifying?: boolean },
 ): M[] {
   const last = messages[messages.length - 1];
   if (!last || last.role !== "assistant") return messages;
@@ -35,7 +35,11 @@ export function bindPersistedMessage<M extends Message>(
   }
   if (!placed) parts.push(stored);
 
-  return [...messages.slice(0, -1), { ...last, id: persisted.id, parts }];
+  // B2: `verifying` marks a draft the server is still checking (the list keeps "Checking the reply");
+  // any later bind clears it.
+  const { verifying: _was, ...metadata } = (last.metadata ?? {}) as Record<string, unknown>;
+  const nextMetadata = persisted.verifying ? { ...metadata, verifying: true } : metadata;
+  return [...messages.slice(0, -1), { ...last, id: persisted.id, parts, metadata: nextMetadata }];
 }
 
 export type StopOutcome = "pending" | "stopped" | "unconfirmed";
