@@ -486,7 +486,7 @@ jobs:
       # dataset has actually been created and read back.
       - name: Statenour · Q-32 Langfuse paired experiment
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.statenour == 'true' && vars.LANGFUSE_Q32_ENABLED == '1' }}
-        uses: langfuse/experiment-action@76731c8b04fc7f962af689207690d414a0ee4de7 # v1.0.11
+        uses: langfuse/experiment-action@c7c4efe432e37d4e3693a018de469233c0018de4 # v1.0.12
         with:
           langfuse_public_key: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           langfuse_secret_key: ${{ secrets.LANGFUSE_SECRET_KEY }}
