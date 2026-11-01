@@ -6,7 +6,18 @@ import type * as z from "zod/mini";
 import {
   FleetTruthCard, FleetTruthOutputSchema, TopDecisionsCard, TopDecisionsOutputSchema, fleetAllClear, fleetRows,
   type FleetTruthOutput, type TopDecisionsOutput,
+  INTENT_ROWS, IntentRows, TasksOutputSchema, MissionsOutputSchema, CommitmentsOutputSchema,
+  RelationshipPicksOutputSchema, ScheduleOutputSchema, HabitStreaksOutputSchema,
 } from "@/components/chat/typed-cards";
+
+/** W6 PR 2: subtitle + rows for a read whose output schema is a list of rows. */
+function rowsSubtitle(schema: z.ZodMiniType, count: (o: never) => number, word: (n: number) => string) {
+  return (out: unknown) => {
+    const p = schema.safeParse(out);
+    const n = p.success ? count(p.data as never) : 0;
+    return n > 0 ? word(n) : null;
+  };
+}
 import {
   CheckCircle2, Plus, Swords, Target, Trash2, Trophy, Zap, HandshakeIcon,
   Flame, ChevronRight, Search, Brain, ListChecks, DollarSign, Users, Activity,
@@ -1124,6 +1135,70 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     },
     outputSchema: TopDecisionsOutputSchema,
     renderRich: (out) => <TopDecisionsCard output={out as TopDecisionsOutput} />,
+  },
+  // W6 PR 2 · the reads the /now starter intents need; rows from INTENT_ROWS in typed-cards.tsx.
+  getTasks: {
+    label: "Reading tasks",
+    doneLabel: "Tasks read",
+    runningLabel: "Reading tasks…",
+    icon: ListChecks,
+    color: "gold",
+    link: { href: "/missions", label: "View in Actions" },
+    subtitle: rowsSubtitle(TasksOutputSchema, (o: unknown[]) => o.length, (n) => `${n} open`),
+    outputSchema: TasksOutputSchema,
+    renderRich: (out) => <IntentRows tool="getTasks" rows={INTENT_ROWS.getTasks(out as never)} />,
+  },
+  getMissions: {
+    label: "Reading missions",
+    doneLabel: "Missions read",
+    runningLabel: "Reading missions…",
+    icon: Target,
+    color: "gold",
+    link: { href: "/missions", label: "View in Actions" },
+    subtitle: rowsSubtitle(MissionsOutputSchema, (o: unknown[]) => o.length, (n) => `${n} active`),
+    outputSchema: MissionsOutputSchema,
+    renderRich: (out) => <IntentRows tool="getMissions" rows={INTENT_ROWS.getMissions(out as never)} />,
+  },
+  getCommitments: {
+    label: "Reading commitments",
+    doneLabel: "Commitments read",
+    runningLabel: "Reading commitments…",
+    icon: HandshakeIcon,
+    color: "gold",
+    subtitle: rowsSubtitle(CommitmentsOutputSchema, (o: unknown[]) => o.length, (n) => `${n} active`),
+    outputSchema: CommitmentsOutputSchema,
+    renderRich: (out) => <IntentRows tool="getCommitments" rows={INTENT_ROWS.getCommitments(out as never)} />,
+  },
+  getRelationshipPicks: {
+    label: "Picking who to reach",
+    doneLabel: "People to reach",
+    runningLabel: "Picking who to reach…",
+    icon: Users,
+    color: "gold",
+    link: { href: "/people", label: "Open People" },
+    subtitle: rowsSubtitle(RelationshipPicksOutputSchema, (o: { picks: unknown[] }) => o.picks.length, (n) => `${n} today`),
+    outputSchema: RelationshipPicksOutputSchema,
+    renderRich: (out) => <IntentRows tool="getRelationshipPicks" rows={INTENT_ROWS.getRelationshipPicks(out as never)} />,
+  },
+  getTodaySchedule: {
+    label: "Reading the calendar",
+    doneLabel: "Calendar read",
+    runningLabel: "Reading the calendar…",
+    icon: Calendar,
+    color: "gold",
+    subtitle: rowsSubtitle(ScheduleOutputSchema, (o: { events: unknown[] }) => o.events.length, (n) => `${n} ${n === 1 ? "event" : "events"}`),
+    outputSchema: ScheduleOutputSchema,
+    renderRich: (out) => <IntentRows tool="getTodaySchedule" rows={INTENT_ROWS.getTodaySchedule(out as never)} />,
+  },
+  getHabitStreaks: {
+    label: "Reading habits",
+    doneLabel: "Habits read",
+    runningLabel: "Reading habits…",
+    icon: Flame,
+    color: "gold",
+    subtitle: rowsSubtitle(HabitStreaksOutputSchema, (o: object) => Object.keys(o).length, (n) => `${n} ${n === 1 ? "habit" : "habits"}`),
+    outputSchema: HabitStreaksOutputSchema,
+    renderRich: (out) => <IntentRows tool="getHabitStreaks" rows={INTENT_ROWS.getHabitStreaks(out as never)} />,
   },
 };
 
