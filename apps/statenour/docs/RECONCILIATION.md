@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · B1: a saved reply keeps its tool cards, so they survive a reload (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Nour, 2026-11-01 13:20Z: "more cards arent showing". Measured that morning (docs/research/chat-upgrades-2026-11-01.md section 2.4): 0 of 123 saved replies in 7 days kept a tool part while 94 of 124 turns used tools. `buildMessageParts` had no parameter for one, so cards showed live and vanished on reload.
+>
+> - **Write.** `toolPartsFromSteps` (lib/services/chat/message-parts.ts) turns the stream's onFinish steps into AI SDK v6 UI tool parts (`tool-<name>`, `output-available` / `output-error`), read through the same seam as the telemetry walk. Outputs and inputs are JSON values, capped at 8 KB by shape (fewer rows, shorter strings, `truncated: true`), and repaired for jsonb (lone surrogates, NUL). A call refused by a no-tools step gets no card; a call with no result is stored as failed, never running. Both row patches (L2 banner, deferred receipt rewrite) carry the parts forward.
+> - **Read.** `readConversation` validates each stored tool part with `safeValidateUIMessages`; a bad part is dropped and logged (`stored_tool_part_dropped`), never the message. The client already passed stored parts through, renders them with the same registry as live cards, and replays them on the next turn as paired tool-call / tool-result history, as a live session already did.
+>
+> **Flagged · NOT fixed**
+> - Alternate lanes (pre-flush evidence, verified regen, self-consistency) hand onFinish no `steps`, so their rows stay text only; the errored-turn writer stores no tool parts either.
+> - The load check validates part shape, not each tool's input schema (the registry needs a live turn to build).
+> - Rows saved before this ship stay text only; there is no backfill (the steps were never stored).
+
 > ## 2026-11-01 · UI v3 W6 PR 1: one typed-card registry (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >
 > Nour, 2026-11-01: "register them", "plus any more too", then "Go". W6 (Nick composes the screen from typed cards) was blocked in `docs/design/ui-v3/PLAN.md` until the two chat card registries merged.

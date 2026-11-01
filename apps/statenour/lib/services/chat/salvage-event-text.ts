@@ -14,6 +14,7 @@ import { recordError } from "@/lib/errors/record-error";
 import { emptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import type { ProviderName } from "@/lib/ai/provider";
+import { jsonValue } from "./message-parts";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -69,7 +70,7 @@ function jsonSafeToolResults(m: unknown): unknown {
     ...msg,
     content: msg.content.map((p: { output?: { type?: string; value?: unknown } }) =>
       p?.output?.type === "json" || p?.output?.type === "error-json"
-        ? { ...p, output: { ...p.output, value: JSON.parse(JSON.stringify(p.output.value ?? null)) } }
+        ? { ...p, output: { ...p.output, value: jsonValue(p.output.value ?? null) } }
         : p,
     ),
   };

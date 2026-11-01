@@ -54,6 +54,7 @@ import type { ContextBlocksFired } from "./brain-context";
 import type { ContextReceipt } from "@/lib/ai/context-budget";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
+import { toolPartsFromSteps } from "./message-parts";
 import { reconcileStreamText } from "./reconcile-stream-text";
 import { currentTurn } from "@/lib/agent/turn-context";
 import { isEmptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
@@ -545,6 +546,9 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         // is "streaming" rather than "unknown".
         lane: (ev as { laneName?: string }).laneName,
       });
+      // B1 (2026-11-01): the same steps, as the UI tool parts the row stores, so the cards
+      // survive a reload. An alternate lane hands no steps, so its row stays text only.
+      const toolParts = toolPartsFromSteps(ev);
 
 
       // ── EVIDENCE GATE (SHADOW) — 2026-09-10 ─────────────────────────
@@ -698,6 +702,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         startedAt,
         firstTokenRef,
         capturedToolCalls,
+        toolParts,
         evidenceGate,
         truthFlags,
         critic: critic as Parameters<typeof persistAssistantMessage>[0]["critic"],
@@ -749,6 +754,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         reasoningText,
         createdAssistantId,
         capturedToolCalls,
+        toolParts,
         // Read-backs already ran at persist so they could promote receipts;
         // hand them on rather than querying the same rows again.
         envVerification: __persisted.envVerification,
