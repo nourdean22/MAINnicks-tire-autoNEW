@@ -747,7 +747,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     description: "UI v3 W6: the /now intent surface. Nour says what he wants to see and Nick composes one screen of cards from read-only registered tools (no writes, at most 6 reads). Kill read 2026-11-29: at least 6 compositions, at least 80% with a working card, p50 under 10 s; else delete the page, route and flag.",
     status: "experimental",
     onValue: "1|true",
-    defaultBehavior: "/now and /api/intent/compose return 404.",
+    defaultBehavior: "The intent page and its compose route both return 404.",
     ownerDoc: "docs/design/ui-v3/W6-INTENT-SURFACE.md",
   },
 ];
