@@ -1,5 +1,23 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · the Pulse stops reporting things that are not broken (job 2026-11-01-chat-humanizer-w6, branch `statenour/crons-failing-pulse`) · 1 ship
+>
+> Nour, 2026-11-01 14:24Z: "LETS FIX THE ERRORS THE PULSE IS REPORTING TOO". Causes read from prod (cron_job_logs, system_metrics, coach rows, Task rows; read-only, his go).
+>
+> - **data-source-health red every run since 10-30 09:00Z** ("1 of 7 probes failing"): PR 3350's Apple Health probe failed daily for a phone that stopped posting 08-03. It now fails on the first ET day that sees an outage (from its own stored verdict of an earlier day) and then reads empty with "no Apple Health data since <date>, phone step owed".
+> - **conversation-compile red every night since 10-30** (4 of 9, 4 of 6, 1 of 4): digests past the reason lane's 100 s timeout. Route crons can now declare `degraded: true` (`logCronRun` files `partial`, same rule as the Inngest path); the sweep is partial when some land, red when none do.
+> - **"Cron Healer: Rescued data-source-health · 200"** was false: cronHandler answers 200 for `ok:false`. The healer reads the body's verdict (failed = known_failure, unreadable = unknown, settled from the run row). Healer alerts expire in 25 h.
+> - **"Cron Healer FAILED: neglect-penalty"** was a 10-03 alert (the job left config 10-10) that never expired. Fixed by the expiry; nothing to wire or retire.
+> - **OS drift "tool_count 130 vs 169"**: tool_count stepped 181 -> 133 on 10-21 (deliberate prune). A regression that was already this severe at the previous snapshot and has not moved 5% is `standing` (listed, not alerted); crossing a tier always alerts, so a slow bleed still pages. Drift rows expire in 25 h (rows from 08-27 were still live).
+> - **"Task Healed: decomposed ... into 6 subtasks"**: the stalled-task phase called 2 h in DOING stalled, AI-decomposed Nour's parked CRM planning task and flipped it to WAITING. It now flags a task untouched 3 days once (P2, expires) and changes nothing.
+> - **Pulse titles rewritten to prose**: `coach_event` joins `CONSOLIDATION_EXCLUDE_CATEGORIES` (a row's content is the Pulse title).
+>
+> **Flagged · NOT fixed**
+> - `getActiveCoachEvents` ignores `deletedAt`; soft-deleted coach rows still render.
+> - `system-health.ts` probe rollup ignores `rowCount`, so an empty-with-reason probe counts as ok there (the probes page shows the empty streak).
+> - A chronic `partial` conversation-compile (1 of 10 every night) has no escalation.
+> - The 6 AI subtasks and the WAITING flip on Nour's CRM planning task are still in prod (a write; one-liner in the PR).
+
 > ## 2026-11-01 · declined work shows the true totals, and Nick can answer "is the shop open" from a tool (job 2026-11-01-double-check-missed) · 1 ship
 >
 > Nour, 2026-11-01 08:46Z: "DOUBLE CHECK IM SURE U MISSED SOME STUFF". Two halves the old account's manager parked.
