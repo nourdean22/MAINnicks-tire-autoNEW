@@ -34,7 +34,12 @@ const REF_CHARS = 140;
 const OTHERS_WINDOW_MS = 6 * 3600 * 1000;
 
 const LONE = /^(?:\?+|huh\?*|what\?+|hm+\?*|wdym\?*)$/;
-const OPEN_SCOPE = /\b(?:the rest|everything else|anything else|what else|all the rest|the others|all of it|other stuff|missing (?:some )?stuff|what'?s left|what is left)\b/;
+// Red-team 2026-10-31: "anything left?" and "and the remaining ones?" were missed; "the remaining" counts only when it ends
+// the ask ("the remaining 3 PRs" names its set).
+const OPEN_SCOPE = /\b(?:the rest|everything else|anything else|what else|all the rest|the others|all of it|other stuff|missing (?:some )?stuff|what'?s (?:left|remaining)|what is (?:left|remaining)|anything left|the remaining(?: ones| stuff| items)?(?=[\s?.!]*$))\b/;
+// "what else u got", "what else could u fix": he asks for suggestions, not for the rest of an earlier ask (2 of the 32
+// fires on the 797 real asks, 2026-10-31). The open-scope reading would point the session at the wrong job.
+const ASKS_FOR_IDEAS = /^\s+(?:(?:can|could|would|should|do)\s+(?:u|you|we)\b|(?:u|you|ya)\s+(?:got|have|think)\b)/;
 const REPORT = /^(?:i|im|i'm|ive|i've|its|it's|we|we're)\b/;
 const FILLER = /^(?:(?:ok(?:ay)?|also|and|n|so|plus|just|pls|please|now)\s+)+/;
 const VAGUE_VERB = /^(?:improve(?: it| that)?|fix(?: it| that)?|do the rest|handle (?:it|that)|finish (?:it|that)|clean (?:it|that) up|make it better|sort it out|figure it out)$/;
@@ -72,7 +77,11 @@ export function detect(text) {
   if (!ws.length || ws.length > MAX_WORDS) return null;
   if (LONE.test(t)) return { signal: "lone", cue: t };
   const open = t.match(OPEN_SCOPE);
-  if (open && !NAMED_SET.test(t.slice(open.index + open[0].length))) return { signal: "open", cue: open[0] };
+  const after = open ? t.slice(open.index + open[0].length) : "";
+  // "yes all of it", "fix all of it": the object of a go-ahead in the first two words acts on the last proposal (the
+  // dangling arm's first-object rule).
+  const goAhead = open?.[0] === "all of it" && words(t.slice(0, open.index).replace(FILLER, "")).length <= 1;
+  if (open && !goAhead && !NAMED_SET.test(after) && !(open[0] === "what else" && ASKS_FOR_IDEAS.test(after))) return { signal: "open", cue: open[0] };
   if (REPORT.test(t) && !t.includes("?")) return null;
   const core = t.replace(FILLER, "").replace(/[\s.!?]+$/, "").replace(/\s+(?:too|pls|please|now)$/, "");
   if (VAGUE_VERB.test(core)) return { signal: "verb", cue: core };

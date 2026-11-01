@@ -203,6 +203,10 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   another machine), prints nothing. Fails open: `[memory-recall] off: <reason>`, exit 0. Canary `memoryRecall.test.mjs`
   (planted memory directory, real script, configured command verbatim, three mutants: no floor, `_bak_` copies indexed,
   no line cap; plus a consumer check that the default resolution finds the real directory where one exists).
+- **UserPromptSubmit** (`prompt-sharpen.mjs`, 2026-10-31, after `operator-asks.mjs --refresh`) prints one `[sharpen]` block for a
+  short, open-ended ask ("what about the rest", "?", "improve"): likely intent, deliverable, this session's last 3 asks as
+  referents, other active sessions, unknowns, a rewrite. Deterministic, no model call; private-tagged asks print nothing.
+  Fails open (nothing on stdout, exit 0). Eval table `docs/agent-os/prompt-sharpen-eval.md`; canary `promptSharpen.test.mjs`.
 - **Always-loaded size** (2026-10-22): `CLAUDE.md` and `GEMINI.md` import `docs/agent-os/NOUR-RUNTIME-KERNEL.md` (4 KB),
   not the full `NOUR-COMMAND.md` (11.7 KB), which AGENTS.md still routes to for non-trivial work; `check-adapters.mjs`
   requires the kernel import and refuses a re-import of the full file. The skill-discovery and subagent essays live in

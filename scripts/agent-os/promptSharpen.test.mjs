@@ -89,6 +89,11 @@ const FIRES = [
   ["an open-scope phrase", "how about everything else", /Likely intent: Cover every remaining item of the earlier ask \("everything else"\)/],
   ["a bare vague verb", "improve", /Likely intent: Apply "improve"/],
   ["an unnamed plural set, shorthand spelled out", "u figure out whats going on with those", /Ask, shorthand spelled out: "you figure out what's going on with those"[\s\S]*Likely intent: "those" points at/],
+  // Red-team 2026-10-31 (lane finish): bypasses found by probing the configured hook.
+  ["anything left (bypass)", "anything left?", /Likely intent: Cover every remaining item of the earlier ask \("anything left"\)/],
+  ["the remaining ones (bypass)", "and the remaining ones?", /Likely intent: Cover every remaining item of the earlier ask \("the remaining ones"\)/],
+  ["what's remaining (bypass)", "whats remaining?", /Likely intent: Cover every remaining item/],
+  ["all of it as a question, not a go-ahead object", "what about all of it", /Likely intent: Cover every remaining item of the earlier ask \("all of it"\)/],
 ];
 for (const [name, prompt, want] of FIRES) {
   test(`fires: ${name}`, () => {
@@ -117,6 +122,13 @@ const QUIET = [
   ["an open-scope phrase that names its set (the named-set rule alone)", "also check on the rest of the sessions"],
   ["a 23-word ask with a bare 'the rest' (the length guard alone)", "finish the hook today, then what about the rest, but only after the board shows queue drained and you posted the eval table"],
   ["a report of what he did (the report guard alone)", "i already saved those"],
+  // Red-team 2026-10-31 (lane finish): false positives. The first two are paraphrases of real fires on the 797 machine-local
+  // asks; he asks for suggestions, and the open-scope reading pointed the session at the wrong job.
+  ["asking for ideas: what else u got", "maybe later what else u got ?"],
+  ["asking for ideas: what else could u fix", "ok what else could u get fixing right now while we wait"],
+  ["the remaining with a named set", "merge the remaining 3 PRs"],
+  ["all of it as a go-ahead object", "yes all of it"],
+  ["all of it as an imperative's object", "fix all of it and dont come back until finished"],
 ];
 for (const [name, prompt] of QUIET) {
   test(`quiet: ${name} prints nothing, exit 0`, () => {
