@@ -108,6 +108,7 @@ describe("People Needs info: the route's count and the page's list come from one
     leverageNotes: notes,
     lastInteraction: null,
     interactionCount: 0,
+    ledger: [],
   });
 
   async function readTotals() {

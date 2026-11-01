@@ -22,6 +22,10 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+
+/** Newest ledger rows read per person; the first CONTACT row among them is the note shown on the list. */
+const NOTE_LOOKBACK = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +40,8 @@ interface PersonRow {
   interactionCount: number;
   daysSinceInteraction: number | null;
   isNeglected: boolean;
+  /** Newest contact note from the ledger (chat digests and the backfill write here, not to the profile). */
+  latestNote: { note: string; at: string; source: string } | null;
 }
 
 export const GET = apiHandler(
@@ -70,6 +76,12 @@ export const GET = apiHandler(
         lastInteraction: true,
         interactionCount: true,
         cadenceDays: true,
+        // shortcut: a person whose newest NOTE_LOOKBACK rows are all status flips or mentions reads null; widen if that shows up.
+        ledger: {
+          orderBy: { createdAt: "desc" },
+          take: NOTE_LOOKBACK,
+          select: { note: true, createdAt: true, source: true, metadata: true },
+        },
       },
     });
 
@@ -92,6 +104,10 @@ export const GET = apiHandler(
         interactionCount: r.interactionCount,
         daysSinceInteraction,
         isNeglected: isNeglected(r, nowDate),
+        latestNote: (() => {
+          const n = contactRowsOnly(r.ledger)[0];
+          return n ? { note: n.note, at: n.createdAt.toISOString(), source: n.source } : null;
+        })(),
       };
     });
 
