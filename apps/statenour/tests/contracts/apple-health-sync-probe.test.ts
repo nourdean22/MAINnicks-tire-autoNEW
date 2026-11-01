@@ -27,18 +27,29 @@ describe("Apple Health sync staleness probe", () => {
     expect(getProbeSpecs().find((s) => s.name === NAME)?.kind).toBe("personal");
   });
 
-  it("FAILS on a planted stale sync (last batch 2026-08-03, the real outage)", async () => {
-    nextBatch = async () => ({ receivedAt: new Date("2026-08-03T12:32:55Z") });
+  it("FAILS once on the first day past 48h, so the outage raises one Data feeder down event", async () => {
+    nextBatch = async () => ({ receivedAt: new Date(Date.now() - 60 * 3_600_000) });
     const r = await probeResult();
     expect(r?.ok).toBe(false);
-    expect(r?.reason).toMatch(/last Apple Health sync \d+d ago/);
+    expect(r?.rowCount).toBe(0);
+    expect(r?.reason).toMatch(/no Apple Health data since \d{4}-\d{2}-\d{2} \(2d\), phone step owed/);
   });
 
-  it("FAILS when no sync was ever received", async () => {
+  it("a long outage (2026-08-03, the real one) reads EMPTY with its phone step, not a daily failure (2026-11-01)", async () => {
+    // Failing daily filed data-source-health red every run from 10-30; the heartbeat paged "failing every run".
+    nextBatch = async () => ({ receivedAt: new Date("2026-08-03T12:32:55Z") });
+    const r = await probeResult();
+    expect(r?.ok).toBe(true);
+    expect(r?.rowCount).toBe(0);
+    expect(r?.reason).toMatch(/^no Apple Health data since 2026-08-03 \(\d+d\), phone step owed: open Health Auto Export/);
+  });
+
+  it("no sync ever received is UNMEASURED (empty with its unlock), not a failure", async () => {
     nextBatch = async () => null;
     const r = await probeResult();
-    expect(r?.ok).toBe(false);
-    expect(r?.reason).toMatch(/no Apple Health sync ever received/);
+    expect(r?.ok).toBe(true);
+    expect(r?.rowCount).toBe(0);
+    expect(r?.reason).toMatch(/no Apple Health sync ever received, phone step owed/);
   });
 
   it("passes on a sync inside the 48h window", async () => {

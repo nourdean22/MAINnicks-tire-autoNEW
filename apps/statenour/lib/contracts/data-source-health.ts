@@ -97,8 +97,12 @@ const PROBES: ProbeSpec[] = [
 
   // 2026-10-29 · the iPhone stopped posting Apple Health on 2026-08-03 and
   // nothing noticed for 87 days: the ingest route only speaks when a
-  // request arrives. A stale last batch is a FAILED probe so the cron's
-  // "Data feeder down" event fires. 48h = two missed daily automations.
+  // request arrives. 48h = two missed daily automations.
+  // 2026-11-01 · a silent PHONE is not a broken server. The probe fails only
+  // on the first day past 48h, so the cron's "Data feeder down" event fires
+  // once per outage; after that it reads empty (rowCount 0, the probes page's
+  // empty streak) with the phone step that unlocks it. Failing it every day
+  // filed data-source-health red every run from 10-30 and the heartbeat paged.
   {
     name: "personal.appleHealthSync",
     label: "Apple Health sync (last batch within 48h)",
@@ -107,16 +111,18 @@ const PROBES: ProbeSpec[] = [
         orderBy: { receivedAt: "desc" },
         select: { receivedAt: true },
       });
+      const phoneStep = "phone step owed: open Health Auto Export on the iPhone and turn the automation that posts to bdnick.info back on";
       if (!last) {
-        return { ok: false, rowCount: 0, latencyMs: 0, reason: "no Apple Health sync ever received" };
+        return { ok: true, rowCount: 0, latencyMs: 0, reason: `no Apple Health sync ever received, ${phoneStep}` };
       }
       const ageH = (Date.now() - last.receivedAt.getTime()) / 3_600_000;
       if (ageH > 48) {
+        const since = last.receivedAt.toISOString().slice(0, 10);
         return {
-          ok: false,
+          ok: ageH > 72,
           rowCount: 0,
           latencyMs: 0,
-          reason: `last Apple Health sync ${Math.floor(ageH / 24)}d ago, check the Health Auto Export automation on the iPhone`,
+          reason: `no Apple Health data since ${since} (${Math.floor(ageH / 24)}d), ${phoneStep}`,
         };
       }
       return { ok: true, rowCount: 1, latencyMs: 0 };
