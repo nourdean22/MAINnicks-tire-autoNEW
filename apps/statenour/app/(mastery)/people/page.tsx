@@ -69,6 +69,7 @@ import {
   OpenPromisesPanel,
 } from "@/components/power-atlas/PersonInsights";
 import { rawFetch } from "@/lib/utils/api-fetch";
+import { etDaysBetween } from "@/lib/brain/goal-pace";
 import { visiblePeopleRows } from "@/lib/people/needs-info";
 
 /** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
@@ -658,7 +659,7 @@ function RelationshipsPageInner() {
                     {/* The ledger is where chat digests and the backfill write; show its newest note here, not only in the dossier. */}
                     {p.latestNote && (
                       <p className="mt-1 text-[12px] text-fg-tertiary line-clamp-2">
-                        {relativeTime(Math.max(0, Math.floor((Date.now() - Date.parse(p.latestNote.at)) / 86_400_000)))}:{" "}
+                        {relativeTime(Math.max(0, etDaysBetween(Date.parse(p.latestNote.at), Date.now())))}:{" "}
                         {p.latestNote.note}
                       </p>
                     )}

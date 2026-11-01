@@ -1065,6 +1065,8 @@ export function GoalBoard() {
                   tabIndex={0}
                   onClick={() => setExpandedGoal(isExpanded ? null : g.id)}
                   onKeyDown={(e) => {
+                    // A key on a button inside the row (Edit, Archive, the chips) is that button's, not the row's.
+                    if (e.target !== e.currentTarget) return;
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setExpandedGoal(isExpanded ? null : g.id);

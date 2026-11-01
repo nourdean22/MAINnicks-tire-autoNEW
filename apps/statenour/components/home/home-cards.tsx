@@ -42,9 +42,15 @@ export function goalsCardRead(
 ): GoalsCardRead | null {
   const open = goals.filter((g) => OPEN_STATUSES.has(g.status));
   if (open.length === 0) return null;
-  const ahead = open
-    .map((g) => ({ g, due: goalDue(g) }))
-    .filter((x) => x.due.at !== null && Date.parse(x.due.at) >= now)
+  const dated = open.map((g) => ({ g, due: goalDue(g) })).filter((x) => x.due.at !== null);
+  // A deadline he set that has passed is news, and beats any date ahead (silent-failure read, 2026-11-01). A horizon
+  // period that ended is not: the derived date is only a pace yardstick.
+  const overdue = dated
+    .filter((x) => x.due.source === "set" && Date.parse(x.due.at!) < now)
+    .sort((a, b) => Date.parse(b.due.at!) - Date.parse(a.due.at!))[0];
+  if (overdue) return { title: overdue.g.title, label: timeLeftLabel(now, Date.parse(overdue.due.at!)), active: open.length };
+  const ahead = dated
+    .filter((x) => Date.parse(x.due.at!) >= now)
     .sort((a, b) => Date.parse(a.due.at!) - Date.parse(b.due.at!));
   if (ahead.length === 0) return { title: open[0].title, label: null, active: open.length };
   const { g, due } = ahead[0];
@@ -112,7 +118,7 @@ export function GoalsCardView({ read }: { read: GoalsCardRead | null | "loading"
           <>
             <p className="mt-1 line-clamp-2 text-[15px] text-fg">{read.title}</p>
             <p className="mt-0.5 font-mono text-[12px] tabular-nums text-fg-secondary">
-              {read.label ? `${read.label} · ${read.active} active` : `${read.active} active, no date set`}
+              {read.label ? `${read.label} · ${read.active} active` : `${read.active} active, no date ahead`}
             </p>
           </>
         )}

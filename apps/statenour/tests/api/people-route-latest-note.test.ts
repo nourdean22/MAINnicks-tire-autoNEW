@@ -54,6 +54,20 @@ describe("GET /api/people · the newest contact note per person", () => {
     expect(select.ledger).toMatchObject({ orderBy: { createdAt: "desc" }, select: { note: true, createdAt: true, source: true, metadata: true } });
   });
 
+  it("a row with NULL metadata (most prod rows) is a contact; a synthetic mention is not", async () => {
+    h.findMany.mockResolvedValue([
+      {
+        ...base,
+        ledger: [
+          { note: "mentioned in chat", createdAt: new Date("2026-10-30T12:00:00Z"), source: "chat", metadata: { synthetic: true } },
+          { note: "Coffee on Euclid", createdAt: new Date("2026-10-20T12:00:00Z"), source: "manual", metadata: null },
+        ],
+      },
+    ]);
+    const [p] = await people();
+    expect(p.latestNote?.note).toBe("Coffee on Euclid");
+  });
+
   it("control: a person with no ledger rows reads null, never an invented note", async () => {
     h.findMany.mockResolvedValue([{ ...base, ledger: [] }]);
     const [p] = await people();

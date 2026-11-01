@@ -25,13 +25,27 @@ describe("retroDueAfterCompletion", () => {
     expect(retroDueAfterCompletion(project, [task("t1", "m-p"), task("t0", "m-p", "DONE")], "t1")).toBe(true);
   });
 
+  // Deliberate (silent-failure read, 2026-11-01): a project with no deadline and no criteria no longer opens the retro
+  // on its last task either. It still closes through the explicit "Complete mission" door (handleCompleteMission).
+  it("a user project with no deadline or criteria does not open the retro on its last task", () => {
+    expect(retroDueAfterCompletion({ ...project, deadline: null }, [task("t1", "m-p")], "t1")).toBe(false);
+  });
   it("declared completion criteria count as an end state too", () => {
     const p = { ...project, deadline: null, completionCriteria: { done: "tiles set" } };
     expect(retroDueAfterCompletion(p, [task("t1", "m-p")], "t1")).toBe(true);
   });
 
-  it("another open task, or a different mission, keeps it closed", () => {
+  it("another open task in the same mission keeps it closed", () => {
     expect(retroDueAfterCompletion(project, [task("t1", "m-p"), task("t2", "m-p")], "t1")).toBe(false);
+  });
+
+  it("an open task in ANOTHER mission does not block this one; done or archived siblings do not either", () => {
+    expect(retroDueAfterCompletion(project, [task("t1", "m-p"), task("x", "m-other")], "t1")).toBe(true);
+    expect(retroDueAfterCompletion(project, [task("t1", "m-p"), task("a", "m-p", "ARCHIVED"), task("d", "m-p", "DONE")], "t1")).toBe(true);
+  });
+
+  it("weekly habits do not count as remaining work either", () => {
+    expect(retroDueAfterCompletion(project, [task("t1", "m-p"), task("w", "m-p", "READY", "WEEKLY")], "t1")).toBe(true);
   });
 
   it("habits never count as remaining work", () => {

@@ -121,7 +121,7 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
   };
 
   const isDone = (r: Props["rhythms"][number]) => r.doneToday || marked[r.id] === "done";
-  // A weekly rhythm off its weekdays is not today's work (Nour 2026-11-01, Sunday): it waits under "later this week"
+  // A weekly rhythm off its weekdays is not today's work (Nour 2026-11-01, Sunday): it waits under "not due today"
   // and never counts in "N of M today". Ticked anyway, it joins today's list.
   const today = rhythms.filter((r) => r.dueToday || isDone(r));
   const later = rhythms.filter((r) => !r.dueToday && !isDone(r));
@@ -196,8 +196,8 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
       </p>
       <ul className="divide-y divide-edge">{today.map(row)}</ul>
       {later.length > 0 && (
-        <div aria-label="Rhythms later this week" role="group" className="mt-3">
-          <p className="border-b border-edge pb-2 font-mono text-[11px] text-fg-tertiary">later this week</p>
+        <div aria-label="Rhythms not due today" role="group" className="mt-3">
+          <p className="border-b border-edge pb-2 font-mono text-[11px] text-fg-tertiary">not due today</p>
           <ul className="divide-y divide-edge">{later.map(row)}</ul>
         </div>
       )}

@@ -27,7 +27,34 @@ describe("goalsCardRead", () => {
       NOW,
     );
     expect(r).toMatchObject({ title: "Soon", active: 3 });
-    expect(r?.label).toMatch(/d left/);
+    expect(r?.label, "a set deadline is not labelled from horizon").toMatch(/^\d+d left$/);
+  });
+
+  it("a horizon end that comes before a set deadline wins the sort", () => {
+    const r = goalsCardRead(
+      [goal("Set later", "2026-12-01T05:00:00Z"), { ...goal("Week goal", null, "active", "WEEK"), horizonSetAt: "2026-10-29T14:00:00Z" }],
+      NOW,
+    );
+    expect(r?.title).toBe("Week goal");
+  });
+
+  it("a set deadline that passed reads as ended, never as 'no date set'", () => {
+    const r = goalsCardRead([goal("Overdue", "2026-10-28T05:00:00Z"), goal("Undated", null)], NOW);
+    expect(r).toMatchObject({ title: "Overdue", active: 2 });
+    expect(r?.label).toMatch(/^ended \d+d ago$/);
+  });
+
+  it("a passed set deadline beats a date ahead on another goal (silent-failure read)", () => {
+    const r = goalsCardRead(
+      [goal("Overdue", "2026-10-28T05:00:00Z"), { ...goal("Week goal", null, "active", "WEEK"), horizonSetAt: "2026-10-29T14:00:00Z" }],
+      NOW,
+    );
+    expect(r?.title).toBe("Overdue");
+  });
+
+  it("an ended horizon period is a yardstick, not news: it never shows as ended", () => {
+    const r = goalsCardRead([goal("Old week goal", null, "active", "WEEK")], NOW); // created 10-01, its week ended long ago
+    expect(r).toEqual({ title: "Old week goal", label: null, active: 1 });
   });
 
   // Nour 2026-11-01: "on the home screen the goals card shows nothing". Prod: 6 active goals, 0 with a deadline,
@@ -45,7 +72,7 @@ describe("goalsCardRead", () => {
     expect(r).toEqual({ title: "Lose 20 lbs", label: null, active: 2 });
     const text = renderToStaticMarkup(<GoalsCardView read={r} />).replace(/<[^>]+>/g, "");
     expect(text).toContain("Lose 20 lbs");
-    expect(text).toContain("2 active, no date set");
+    expect(text).toContain("2 active, no date ahead");
     expect(text.toLowerCase()).not.toContain("no dated goals");
   });
 

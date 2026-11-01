@@ -137,4 +137,31 @@ describe("GoalBoard · edit a goal in place", () => {
     expect(h.update, "one tap must not archive").not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('Archive "Lose 20 lbs"?');
   });
+
+  const openArchiveConfirm = async () => {
+    await click(container.querySelector('[role="button"]')!);
+    await click(buttons(/^Show Legacy Details$/)[0]);
+    await click(buttons(/^Archive$/)[0]);
+    const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
+    expect(dialog, "the in-DOM confirm opened").toBeTruthy();
+    return [...dialog!.querySelectorAll("button")];
+  };
+
+  it("confirming archives exactly that goal", async () => {
+    const yes = (await openArchiveConfirm()).find((b) => b.textContent?.trim() === "Archive")!;
+    await act(async () => {
+      yes.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(h.update).toHaveBeenCalledWith({ id: "g1", archive: true });
+  });
+
+  it("cancelling writes nothing", async () => {
+    const no = (await openArchiveConfirm()).find((b) => b.textContent?.trim() === "Cancel")!;
+    await act(async () => {
+      no.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(h.update).not.toHaveBeenCalled();
+  });
 });
