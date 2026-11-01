@@ -12,6 +12,13 @@ import "server-only";
 import { stepCountIs } from "ai";
 import { TOOL_CONFIG } from "@/components/chat/tool-result-registry";
 import { READ_ONLY_TOOLS } from "@/lib/ai/tools/read-only-tools";
+import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
+
+/** The page and the route both refuse while W6_INTENT_SURFACE is off (a DB override applies). */
+export async function isIntentSurfaceOn(): Promise<boolean> {
+  await loadFeatureFlagOverrides().catch(() => {});
+  return getFlag("W6_INTENT_SURFACE")?.isOn === true;
+}
 
 export const INTENT_CARD_CAP = 6;
 export const INTENT_MAX_CHARS = 300;
@@ -56,7 +63,8 @@ const SYSTEM = [
 
 export async function composeIntent(args: {
   intent: string;
-  tools: Record<string, ExecutableTool>;
+  /** nourTools in production; read only by name, so any record of AI SDK tools fits. */
+  tools: Readonly<Record<string, unknown>>;
   generate: Generate;
 }): Promise<ComposeResult> {
   const intent = args.intent.trim();
@@ -67,7 +75,7 @@ export async function composeIntent(args: {
   const seen = new Set<string>();
   const surface: Record<string, ExecutableTool> = {};
   for (const name of surfaceToolNames()) {
-    const tool = args.tools[name];
+    const tool = args.tools[name] as ExecutableTool | undefined;
     if (!tool?.execute) continue;
     const execute = tool.execute;
     surface[name] = {
