@@ -22,7 +22,8 @@ vi.mock("@/lib/brain/legacy-shims", () => ({
   recentScoreSnapshots: async () => [],
   recentShopJobs: async () => [],
 }));
-vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+const logError = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/utils/error-log", () => ({ logError }));
 
 import { scorePendingPredictions } from "@/lib/brain/outcome-tracker";
 
@@ -67,5 +68,19 @@ describe("scorePendingPredictions - provider sentinel", () => {
     const scored = await scorePendingPredictions();
     expect(scored).toHaveLength(1);
     expect(db.update.mock.calls[0][0].data.status).toBe("confirmed");
+  });
+});
+
+describe("scorePendingPredictions - a throw names its cause (2026-11-01)", () => {
+  it("logs the first failure's prediction id and message, not just a count", async () => {
+    // Prod: "[brain.outcome-tracker] 1 predictions failed to score" on 5 of 7 nights, no cause recorded.
+    logError.mockReset();
+    mockChat.mockRejectedValue(new Error("provider timeout after 45000ms"));
+    await scorePendingPredictions();
+    expect(logError).toHaveBeenCalledWith(
+      "brain.outcome-tracker",
+      expect.any(Error),
+      expect.objectContaining({ firstFailure: "pred_123456: provider timeout after 45000ms" }),
+    );
   });
 });
