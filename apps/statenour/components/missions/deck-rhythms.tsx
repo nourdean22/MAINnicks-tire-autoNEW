@@ -120,7 +120,63 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
     setAnnounce(ok ? `${title} done for today.` : `${title} could not be saved. Try again.`);
   };
 
-  const doneCount = rhythms.filter((r) => r.doneToday || marked[r.id] === "done").length;
+  const isDone = (r: Props["rhythms"][number]) => r.doneToday || marked[r.id] === "done";
+  // A weekly rhythm off its weekdays is not today's work (Nour 2026-11-01, Sunday): it waits under "later this week"
+  // and never counts in "N of M today". Ticked anyway, it joins today's list.
+  const today = rhythms.filter((r) => r.dueToday || isDone(r));
+  const later = rhythms.filter((r) => !r.dueToday && !isDone(r));
+  const doneCount = today.filter(isDone).length;
+
+  const row = (r: Props["rhythms"][number]) => {
+    const state = marked[r.id];
+    const done = isDone(r);
+    return (
+      <li key={r.id} className="flex items-center gap-3 py-1">
+        <button
+          type="button"
+          disabled={done || state === "pending"}
+          onClick={() => void tick(r.id, r.title, r.loopKind)}
+          aria-label={done ? `${r.title}, done today` : `Mark ${r.title} done`}
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control active:scale-[0.97]"
+        >
+          <span
+            aria-hidden
+            className={
+              done
+                ? "inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400 text-[12px] font-bold text-[var(--text-inverse)]"
+                : state === "pending"
+                  ? "inline-block h-6 w-6 rounded-full border-2 border-emerald-400/60"
+                  : "inline-block h-6 w-6 rounded-full border border-edge-default transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
+            }
+          >
+            {done ? "✓" : ""}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onEdit(r.id)}
+          aria-label={`Edit ${r.title}`}
+          className="flex min-h-[44px] min-w-0 flex-1 flex-col justify-center text-left"
+        >
+          <span className={done ? "w-full truncate text-[15px] text-fg-tertiary" : "w-full truncate text-[15px] text-fg"}>
+            {r.title}
+          </span>
+          <span className="w-full truncate font-mono text-[11px] text-fg-tertiary">
+            {cadenceWords(r.loopKind, r.recurringDays)}
+          </span>
+        </button>
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
+          {state === "failed"
+            ? <span className="text-rose-300">not saved</span>
+            : done
+              ? <span className="text-emerald-300">done</span>
+              : r.windowOf > 0
+                ? `${r.windowDone} of ${r.windowOf}`
+                : null}
+        </span>
+      </li>
+    );
+  };
 
   return (
     <section aria-labelledby="rhythms-heading">
@@ -129,67 +185,22 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
           rhythms
         </h2>
         {/* An empty list says nothing about today: no "0 of 0". */}
-        {rhythms.length > 0 && (
+        {today.length > 0 && (
           <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
-            {doneCount} of {rhythms.length} today
+            {doneCount} of {today.length} today
           </span>
         )}
       </div>
       <p className="sr-only" aria-live="polite">
         {announce}
       </p>
-      <ul className="divide-y divide-edge">
-        {rhythms.map((r) => {
-          const state = marked[r.id];
-          const done = r.doneToday || state === "done";
-          return (
-            <li key={r.id} className="flex items-center gap-3 py-1">
-              <button
-                type="button"
-                disabled={done || state === "pending"}
-                onClick={() => void tick(r.id, r.title, r.loopKind)}
-                aria-label={done ? `${r.title}, done today` : `Mark ${r.title} done`}
-                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control active:scale-[0.97]"
-              >
-                <span
-                  aria-hidden
-                  className={
-                    done
-                      ? "inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400 text-[12px] font-bold text-[var(--text-inverse)]"
-                      : state === "pending"
-                        ? "inline-block h-6 w-6 rounded-full border-2 border-emerald-400/60"
-                        : "inline-block h-6 w-6 rounded-full border border-edge-default transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
-                  }
-                >
-                  {done ? "✓" : ""}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onEdit(r.id)}
-                aria-label={`Edit ${r.title}`}
-                className="flex min-h-[44px] min-w-0 flex-1 flex-col justify-center text-left"
-              >
-                <span className={done ? "w-full truncate text-[15px] text-fg-tertiary" : "w-full truncate text-[15px] text-fg"}>
-                  {r.title}
-                </span>
-                <span className="w-full truncate font-mono text-[11px] text-fg-tertiary">
-                  {cadenceWords(r.loopKind, r.recurringDays)}
-                </span>
-              </button>
-              <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
-                {state === "failed"
-                  ? <span className="text-rose-300">not saved</span>
-                  : done
-                    ? <span className="text-emerald-300">done</span>
-                    : r.windowOf > 0
-                      ? `${r.windowDone} of ${r.windowOf}`
-                      : null}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <ul className="divide-y divide-edge">{today.map(row)}</ul>
+      {later.length > 0 && (
+        <div aria-label="Rhythms later this week" role="group" className="mt-3">
+          <p className="border-b border-edge pb-2 font-mono text-[11px] text-fg-tertiary">later this week</p>
+          <ul className="divide-y divide-edge">{later.map(row)}</ul>
+        </div>
+      )}
       <div className={rhythms.length > 0 ? "border-t border-edge" : ""}>
         <AddRhythmRow onAdd={onAdd} />
       </div>
