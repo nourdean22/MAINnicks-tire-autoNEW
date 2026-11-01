@@ -151,7 +151,7 @@ export const CITIES: CityData[] = [
     distance: "3 miles",
     driveTime: "8 minutes",
     neighborhoods: ["Forest Hills", "Caledonia", "Superior", "Hayden", "Euclid-Green"],
-    localContent: "",
+    localContent: "The shop is on Euclid Avenue, a short drive from the East Cleveland border. Pothole damage and salt rust come in every week.",
     serviceHighlights: [
       "Pothole damage repair, suspension, alignment, and tire replacement",
       "Brake check and repair with honest assessments",
@@ -226,7 +226,7 @@ export const CITIES: CityData[] = [
     distance: "22 miles",
     driveTime: "30 minutes",
     neighborhoods: ["Mentor-on-the-Lake", "Mentor Headlands", "Garfield Park", "Blackbrook", "Center Street"],
-    localContent: "Many Mentor drivers have discovered that the drive to Nick's Tire & Auto is worth it for the work they get. Same OBD-II scan tools the dealerships use, fraction of the price. We test before we replace, so you only pay for what actually needs to be fixed.",
+    localContent: "Same OBD-II scan tools the dealerships use, fraction of the price. We test before we replace, so you only pay for what actually needs to be fixed.",
     serviceHighlights: [
       "Engine work with OBD-II + live data scanning",
       "Brake system repair, pads, rotors, calipers, lines",
@@ -251,7 +251,7 @@ export const CITIES: CityData[] = [
     distance: "20 miles",
     driveTime: "28 minutes",
     neighborhoods: ["SouthPark Mall area", "Royalton Road", "Pearl Road corridor", "Westwood", "Albion Road"],
-    localContent: "Strongsville is one of Cleveland's most established suburbs, and its residents expect reliable service from every business they patronize. OBD-II scan tools and live data, plain-English explanations, and repairs done efficiently so you can get back to your day.",
+    localContent: "OBD-II scan tools and live data, plain-English explanations, and repairs done efficiently so you can get back to your day.",
     serviceHighlights: [
       "Computer + scan tool work for all car systems",
       "Brake service with OE-grade parts",
@@ -326,7 +326,7 @@ export const CITIES: CityData[] = [
     distance: "6 miles",
     driveTime: "13 minutes",
     neighborhoods: ["Center Plaza", "Richmond Center", "Gates Mills border", "Peacock Creek", "Emerson Circle"],
-    localContent: "ASE-trained hands, OBD-II scan tools, plain-English explanations.",
+    localContent: "Richmond Heights is a few minutes from the shop on Euclid Avenue. ASE-trained hands, OBD-II scan tools and plain-English explanations.",
     serviceHighlights: [
       "Check engine lights. We'll tell you what's wrong",
       "Brake service, pads, rotors, calipers, ABS",
@@ -457,7 +457,7 @@ export const CITIES: CityData[] = [
     distance: "12 miles",
     driveTime: "18 minutes",
     neighborhoods: ["Rockside Road", "Broadway Avenue", "Northfield Road", "Bedford Commons", "Ellenwood"],
-    localContent: "Bedford drivers benefit from easy access to Nick's Tire & Auto via Rockside Road and I-480, making us just an 18-minute drive away. OBD-II scan tools and live data on every car, we show you exactly what's wrong before recommending any repairs, and charge fair prices. From routine oil changes and tire rotations to check-engine work and Ohio E-Check failures, ASE-trained hands handle it all.",
+    localContent: "Bedford is 18 minutes from the shop via Rockside Road and I-480. OBD-II scan tools and live data on every car, we show you exactly what's wrong before recommending any repairs, and charge fair prices. From routine oil changes and tire rotations to check-engine work and Ohio E-Check failures, ASE-trained hands handle it all.",
     serviceHighlights: [
       "Check engine + warning lights. We'll tell you what's wrong",
       "Brake service with OE-grade parts",
@@ -507,7 +507,7 @@ export const CITIES: CityData[] = [
     distance: "9 miles",
     driveTime: "15 minutes",
     neighborhoods: ["Beachwood Place", "Cedar Road corridor", "Chagrin Boulevard", "Richmond Road", "Commerce Park"],
-    localContent: "Our shop on Euclid Avenue is easily accessible from Beachwood via Cedar Road, making us a convenient choice for all your car maintenance and repair needs. We show you the problem before we fix it and explain every repair in plain language. Whether you need brake service, new tires, an oil change, or check-engine work, ASE-trained hands handle it all with the care Beachwood drivers expect.",
+    localContent: "From Beachwood, the shop on Euclid Avenue is a straight drive via Cedar Road. We show you the problem before we fix it and explain every repair in plain language. Whether you need brake service, new tires, an oil change, or check-engine work, ASE-trained hands handle it all with the care Beachwood drivers expect.",
     serviceHighlights: [
       "Check engine + warning lights. We'll tell you what's wrong",
       "Brake service, pads, rotors, calipers, ABS",
