@@ -69,6 +69,9 @@ export const GET = cronHandler(async () => {
         : `Worst severity: ${report.worst}`,
       deepLink: "/system",
       surfaces: ["scoreboard", "brain"],
+      // One row per ET day; with no expiry every night's row stayed on the Pulse
+      // (rows back to 08-27 were still live on 2026-11-01).
+      expiresAt: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
       extra: {
         date: today,
         worst: report.worst,
@@ -94,6 +97,7 @@ export const GET = cronHandler(async () => {
       worst: report.worst,
       regressions: report.regressions.length,
       improvements: report.improvements.length,
+      standing: report.standing.map((r) => r.metric),
     },
     alert: pushResult,
     capturedAt: snap.capturedAt,

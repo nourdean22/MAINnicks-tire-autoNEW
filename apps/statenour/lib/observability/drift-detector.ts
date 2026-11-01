@@ -48,6 +48,10 @@ export interface DriftReport {
   /** Metrics whose read FAILED — excluded from comparison, never "no
    *  regression" (2026-07-30 sweep). */
   metricsUnreadable: string[];
+  /** Still below the 7d baseline but flat since the previous snapshot: a step
+   *  already reported on the day it happened (a deliberate tool prune, a dead-code
+   *  sweep). Listed, never alerted; `worst` ignores them. */
+  standing: Regression[];
 }
 
 /**
@@ -84,6 +88,7 @@ export async function compareToWeekAgo(now: Date = new Date()): Promise<DriftRep
   const regressions: Regression[] = [];
   const improvements: Regression[] = [];
   const metricsUnreadable: string[] = [];
+  const standing: Regression[] = [];
 
   for (const metric of OS_SNAPSHOT_METRIC_NAMES) {
     const rows = await prisma.systemMetric
@@ -158,6 +163,18 @@ export async function compareToWeekAgo(now: Date = new Date()): Promise<DriftRep
       direction: isRegressed ? "regressed" : "improved",
       severity,
     };
+    // 2026-11-01 · alert on movement, not on a standing state. tool_count stepped
+    // 181 -> 133 on 10-21 (deliberate prune) and stayed flat, yet the comparison
+    // re-alerted it every night until the step left the 14d window, each night a
+    // new Pulse row. A regression that did not move since the previous snapshot
+    // (12h+ older, so a same-day re-run does not count) was reported when it moved.
+    const prev = rows.find((r) => r.createdAt.getTime() < rows[0].createdAt.getTime() - 12 * 60 * 60_000)?.value;
+    const movedSincePrev =
+      prev === undefined || prev === 0 || Math.abs((today - prev) / prev) >= SEVERITY_THRESHOLDS.warn;
+    if (isRegressed && !movedSincePrev) {
+      standing.push(reg);
+      continue;
+    }
     (isRegressed ? regressions : improvements).push(reg);
   }
 
@@ -172,7 +189,7 @@ export async function compareToWeekAgo(now: Date = new Date()): Promise<DriftRep
   const worst: RegressionSeverity =
     regressions[0]?.severity ?? "info";
 
-  return { date: dateIso, regressions, improvements, worst, metricsUnreadable };
+  return { date: dateIso, regressions, improvements, worst, metricsUnreadable, standing };
 }
 
 /**
