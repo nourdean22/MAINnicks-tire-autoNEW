@@ -7,24 +7,50 @@
  */
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PeopleCardView, GoalsCardView, nextGoalDue, peopleReadFrom, PEOPLE_READ_LIMIT } from "@/components/home/home-cards";
+import { PeopleCardView, GoalsCardView, goalsCardRead, peopleReadFrom, PEOPLE_READ_LIMIT } from "@/components/home/home-cards";
 import { answerApi, disallowedUnstubbed } from "../e2e/fixtures";
 
 const NOW = Date.parse("2026-10-30T17:40:00Z");
-const goal = (title: string, deadline: string | null, status = "active") => ({ title, deadline, status });
+const goal = (title: string, deadline: string | null, status = "active", horizon: string | null = null) => ({
+  title,
+  deadline,
+  status,
+  horizon,
+  createdAt: "2026-10-01T12:00:00Z",
+  horizonSetAt: null,
+});
 
-describe("nextGoalDue", () => {
-  it("picks the nearest open deadline and counts goals with one", () => {
-    const r = nextGoalDue(
+describe("goalsCardRead", () => {
+  it("picks the nearest open deadline and counts the active goals", () => {
+    const r = goalsCardRead(
       [goal("Later", "2026-12-01T05:00:00Z"), goal("Soon", "2026-11-02T05:00:00Z"), goal("No date", null)],
       NOW,
     );
-    expect(r).toMatchObject({ title: "Soon", withDeadline: 2 });
-    expect(r?.label).toMatch(/d left$/);
+    expect(r).toMatchObject({ title: "Soon", active: 3 });
+    expect(r?.label).toMatch(/d left/);
   });
 
-  it("achieved goals are not 'next'", () => {
-    expect(nextGoalDue([goal("Done one", "2026-11-01T05:00:00Z", "achieved")], NOW)).toBeNull();
+  // Nour 2026-11-01: "on the home screen the goals card shows nothing". Prod: 6 active goals, 0 with a deadline,
+  // so the card read "No dated goals". A horizon gives a derived date (goalDue, W1), and with no date at all
+  // the card still names his goal.
+  it("a horizon goal with no deadline shows its derived end, labelled from horizon", () => {
+    const r = goalsCardRead([{ ...goal("Ship the quote flow", null, "active", "WEEK"), horizonSetAt: "2026-10-29T14:00:00Z" }], NOW);
+    expect(r?.title).toBe("Ship the quote flow");
+    expect(r?.label).toMatch(/d left/);
+    expect(r?.label).toContain("from horizon");
+  });
+
+  it("with no date ahead on any goal, the card still names the top active goal and the count", () => {
+    const r = goalsCardRead([goal("Lose 20 lbs", null, "active", "LIFE"), goal("Read more", null)], NOW);
+    expect(r).toEqual({ title: "Lose 20 lbs", label: null, active: 2 });
+    const text = renderToStaticMarkup(<GoalsCardView read={r} />).replace(/<[^>]+>/g, "");
+    expect(text).toContain("Lose 20 lbs");
+    expect(text).toContain("2 active, no date set");
+    expect(text.toLowerCase()).not.toContain("no dated goals");
+  });
+
+  it("achieved goals are not counted; no open goal at all is a measured zero", () => {
+    expect(goalsCardRead([goal("Done one", "2026-11-01T05:00:00Z", "achieved")], NOW)).toBeNull();
   });
 });
 
@@ -46,7 +72,7 @@ describe("People card", () => {
 describe("Goals card", () => {
   it("shows the next deadline", () => {
     const html = renderToStaticMarkup(
-      <GoalsCardView read={{ title: "Demo goal", label: "3d left", withDeadline: 2 }} />,
+      <GoalsCardView read={{ title: "Demo goal", label: "3d left", active: 2 }} />,
     );
     expect(html).toContain("Demo goal");
     expect(html).toContain("3d left");
@@ -54,10 +80,10 @@ describe("Goals card", () => {
   it("a failed read is unknown, never 'no goals'", () => {
     const html = renderToStaticMarkup(<GoalsCardView read="error" />);
     expect(html.toLowerCase()).toContain("unknown");
-    expect(html.toLowerCase()).not.toContain("no dated goals");
+    expect(html.toLowerCase()).not.toContain("no active goals");
   });
-  it("control: a measured empty says no dated goals", () => {
-    expect(renderToStaticMarkup(<GoalsCardView read={null} />).toLowerCase()).toContain("no dated goals");
+  it("control: a measured empty says no active goals", () => {
+    expect(renderToStaticMarkup(<GoalsCardView read={null} />).toLowerCase()).toContain("no active goals");
   });
   it("both cards open their full page", () => {
     expect(renderToStaticMarkup(<PeopleCardView read="loading" />)).toContain('href="/people"');

@@ -11,27 +11,45 @@
 import { GlassCard } from "@/components/ui/glass-card";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { trpc } from "@/lib/trpc/client";
-import { timeLeftLabel } from "@/lib/brain/goal-pace";
+import { goalDue, timeLeftLabel } from "@/lib/brain/goal-pace";
 
 // UI v3 grammar (ratchet glassCard): ruled, not glass: a left rule, no panel, no radius, like the brief rows.
 const CARD = "block min-h-11 py-2";
 const OPEN_STATUSES = new Set(["active", "in_progress"]);
 
-export interface NextGoal {
+export interface GoalsCardRead {
   title: string;
-  label: string;
-  withDeadline: number;
+  /** Time to the nearest date ahead (a set deadline, or a horizon's derived end), or null when no goal has one. */
+  label: string | null;
+  active: number;
 }
 
-/** Pure: the nearest open goal deadline, or null when no open goal has one. */
-export function nextGoalDue(
-  goals: ReadonlyArray<{ title: string; deadline: string | null; status: string }>,
+/**
+ * Pure: the open goal whose date (goalDue: a set deadline wins, else the horizon's derived end) comes next, else
+ * the first open goal with no date; null only when no goal is open. Nour 2026-11-01: 0 of his 6 goals had a
+ * deadline, so the old deadline-only read showed "No dated goals" every day.
+ */
+export function goalsCardRead(
+  goals: ReadonlyArray<{
+    title: string;
+    deadline: string | null;
+    status: string;
+    horizon: string | null;
+    createdAt: string;
+    horizonSetAt?: string | null;
+  }>,
   now: number = Date.now(),
-): NextGoal | null {
-  const dated = goals.filter((g) => g.deadline && OPEN_STATUSES.has(g.status));
-  if (dated.length === 0) return null;
-  const next = dated.reduce((a, b) => (Date.parse(a.deadline!) <= Date.parse(b.deadline!) ? a : b));
-  return { title: next.title, label: timeLeftLabel(now, Date.parse(next.deadline!)), withDeadline: dated.length };
+): GoalsCardRead | null {
+  const open = goals.filter((g) => OPEN_STATUSES.has(g.status));
+  if (open.length === 0) return null;
+  const ahead = open
+    .map((g) => ({ g, due: goalDue(g) }))
+    .filter((x) => x.due.at !== null && Date.parse(x.due.at) >= now)
+    .sort((a, b) => Date.parse(a.due.at!) - Date.parse(b.due.at!));
+  if (ahead.length === 0) return { title: open[0].title, label: null, active: open.length };
+  const { g, due } = ahead[0];
+  const left = timeLeftLabel(now, Date.parse(due.at!));
+  return { title: g.title, label: due.source === "horizon" ? `${left}, ${due.label}` : left, active: open.length };
 }
 
 function Unknown({ what }: { what: string }) {
@@ -78,7 +96,7 @@ export function PeopleCardView({ read }: { read: PeopleTotals | "capped" | "load
   );
 }
 
-export function GoalsCardView({ read }: { read: NextGoal | null | "loading" | "error" }) {
+export function GoalsCardView({ read }: { read: GoalsCardRead | null | "loading" | "error" }) {
   return (
     // /stats opens on Mastery without a tab, and GoalBoard mounts only on the Goals tab (Codex P2 on #3405).
     <GlassCard as="a" ruled href="/stats?tab=goals" className={CARD}>
@@ -89,11 +107,13 @@ export function GoalsCardView({ read }: { read: NextGoal | null | "loading" | "e
         ) : read === "error" ? (
           <Unknown what="Goals" />
         ) : read === null ? (
-          <p className="mt-1 text-[15px] text-fg">No dated goals</p>
+          <p className="mt-1 text-[15px] text-fg">No active goals</p>
         ) : (
           <>
             <p className="mt-1 line-clamp-2 text-[15px] text-fg">{read.title}</p>
-            <p className="mt-0.5 font-mono text-[12px] tabular-nums text-fg-secondary">{read.label}</p>
+            <p className="mt-0.5 font-mono text-[12px] tabular-nums text-fg-secondary">
+              {read.label ? `${read.label} · ${read.active} active` : `${read.active} active, no date set`}
+            </p>
           </>
         )}
       </div>
@@ -109,7 +129,7 @@ export function HomeCards() {
 
   const peopleRead = people.data ? peopleReadFrom(people.data.totals) : people.error ? "error" : "loading";
   const goalsRead = goals.data
-    ? nextGoalDue(Object.values(goals.data.ladder).flat())
+    ? goalsCardRead(Object.values(goals.data.ladder).flat())
     : goals.isError
       ? "error"
       : "loading";
