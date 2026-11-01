@@ -207,3 +207,18 @@ describe("B1 · a stored tool part never carries a value Postgres jsonb rejects"
     expect(parts.flatMap((p) => Object.keys((p as { output?: object }).output ?? {}))).toEqual(["excerpt", "kok � then  end"]);
   });
 });
+
+describe("B1 · a capped output keeps the shape a typed card reads (W6 PR 3499 note)", () => {
+  it("getFleetTruth keeps statenour[], nickstire[] and allFresh; getTopDecisions keeps decisions[]", () => {
+    const service = (i: number) => ({ name: `svc-${i}`, status: "ok", detail: "d".repeat(300), checkedAt: "2026-11-01T12:00:00.000Z" });
+    const fleet = capToolOutput({ statenour: Array.from({ length: 40 }, (_, i) => service(i)), nickstire: Array.from({ length: 40 }, (_, i) => service(i)), allFresh: true }) as Record<string, unknown>;
+    expect(JSON.stringify(fleet).length).toBeLessThanOrEqual(TOOL_OUTPUT_CAP_BYTES);
+    expect(Array.isArray(fleet.statenour) && (fleet.statenour as unknown[]).length).toBeGreaterThan(0);
+    expect(Array.isArray(fleet.nickstire) && (fleet.nickstire as unknown[]).length).toBeGreaterThan(0);
+    expect(fleet.allFresh).toBe(true);
+
+    const decisions = capToolOutput({ decisions: Array.from({ length: 60 }, (_, i) => ({ id: `d${i}`, title: "t".repeat(200), score: i })) }) as { decisions: Array<{ id: string; score: number }> };
+    expect(decisions.decisions.length).toBeGreaterThan(0);
+    expect(decisions.decisions[0]).toMatchObject({ id: "d0", score: 0 });
+  });
+});

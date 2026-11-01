@@ -107,9 +107,10 @@ function jsonbSafe(_key: string, v: unknown): unknown {
 /**
  * A tool result as JSON values, which is what the provider sent on the wire anyway, and values
  * jsonb accepts. A Prisma Date becomes an ISO string (the defect PR 3492 fixed for the length
- * retry), a BigInt a string, and a value JSON cannot hold becomes null.
+ * retry), a BigInt a string, and a value JSON cannot hold becomes null. The one helper: the
+ * length retry (salvage-event-text.ts) uses it too.
  */
-function jsonValue(value: unknown): unknown {
+export function jsonValue(value: unknown): unknown {
   try {
     const text = JSON.stringify(value, jsonbSafe);
     return text === undefined ? null : JSON.parse(text);
