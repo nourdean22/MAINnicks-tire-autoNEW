@@ -40,7 +40,7 @@ import { withErrorCapture } from "@/lib/errors/record-error";
 import type { ProviderName } from "@/lib/ai/provider";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { looksLikeBrainDump } from "@/lib/ai/chat/brain-dump-detector";
-import { buildMessageParts } from "./message-parts";
+import { buildMessageParts, keepStoredToolParts } from "./message-parts";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -671,7 +671,7 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                   }
                 }
                 const { partsArray: patchedParts, searchableContent: patchedSearchable } =
-                  await buildMessageParts(cleanedText, existingReasoningText, true);
+                  await buildMessageParts(cleanedText, existingReasoningText, true, keepStoredToolParts(existingMsg?.parts));
                 await prisma.chatMessage.update({
                   where: { id: createdAssistantId },
                   data: {
