@@ -363,8 +363,11 @@ export interface FlagChange {
  * entity feature_flag, new value in changes.value.new). The SMS panel's pause button writes the same shape under
  * action sms.global_pause (smsOps.setPause); leaving it out made that pause read "never flipped since install". One grouped query for every key, not one per flag.
  * Returns null when the audit table could not be read: that is UNKNOWN, never "nobody ever flipped it".
+ * `live` (key -> the switch's current value) breaks a tie: created_at has one-second precision and audit_log.id is a random
+ * UUID, so two flips of one flag in the same second both come back, and the one that set the switch's current value is
+ * the one that put it there. Two flips to the SAME value in one second still cannot be told apart (needs a sub-second column).
  */
-export async function getLastFlagChanges(): Promise<Map<string, FlagChange> | null> {
+export async function getLastFlagChanges(live?: ReadonlyMap<string, boolean>): Promise<Map<string, FlagChange> | null> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
@@ -389,7 +392,11 @@ export async function getLastFlagChanges(): Promise<Map<string, FlagChange> | nu
       if (next !== "true" && next !== "false") continue; // a row whose value cannot be read says nothing about the switch
       const at = r.createdAt instanceof Date ? r.createdAt : new Date(`${String(r.createdAt).replace(" ", "T")}Z`);
       if (Number.isNaN(at.getTime())) continue;
-      out.set(String(r.entityId), { by: String(r.actor), at: at.toISOString(), value: next === "true" });
+      const key = String(r.entityId);
+      const prev = out.get(key);
+      // Later rows win, as before, except that a row matching the live value is never displaced by one that does not.
+      if (prev && live?.has(key) && prev.value === live.get(key) && (next === "true") !== live.get(key)) continue;
+      out.set(key, { by: String(r.actor), at: at.toISOString(), value: next === "true" });
     }
     return out;
   } catch (err) {

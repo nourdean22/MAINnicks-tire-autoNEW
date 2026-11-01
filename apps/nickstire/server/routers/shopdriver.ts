@@ -395,7 +395,7 @@ export const shopdriverRouter = router({
     const { getSmsPauseState } = await import("../services/smsControl");
     const sendsEnabled = recoverySendsEnabled(process.env);
     const pause = await sendPause("declined_recovery", { fresh: true });
-    const globalPause = await getSmsPauseState();
+    const globalPause = await getSmsPauseState({ fresh: true }); // same reason as the lane's own fresh read above
     // The shop-wide SMS pause holds these texts too, so "live" with only the lane's own switch off was the wrong word.
     const paused = combinePauses(pause.readable ? pause.paused : null, globalPause.readable ? globalPause.paused : null);
     const state = deriveDeclinedRecoveryState({ featureEnabled, sendsEnabled, paused });

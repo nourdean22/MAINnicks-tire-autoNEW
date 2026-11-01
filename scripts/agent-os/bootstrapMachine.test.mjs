@@ -136,14 +136,32 @@ test("a machine always-on registration that covers only startup reads DRIFT; app
   assert.equal(after[0].matcher, "startup|resume|clear|compact");
 });
 
-test("CLAUDE_CONFIG_DIR: apply writes under the config dir, not <home>/.claude (Codex 4380254412)", () => {
+// No --home here: the OS home (HOME/USERPROFILE) is the fixture, so CLAUDE_CONFIG_DIR is what moves the target.
+test("CLAUDE_CONFIG_DIR without --home: apply writes under the config dir, not <home>/.claude (Codex 4380254412)", () => {
   const home = makeHome("cfgdir-home");
   const cfg = join(SCRATCH, "cfgdir-target");
-  const r = spawnSync(process.execPath, [SCRIPT, "--home", home], { encoding: "utf8", cwd: ROOT, env: { ...env(home), CLAUDE_CONFIG_DIR: cfg }, timeout: 30000 });
+  const r = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8", cwd: ROOT, env: { ...env(home), CLAUDE_CONFIG_DIR: cfg }, timeout: 30000 });
   assert.equal(r.status, 0, r.stdout);
   assert.ok(existsSync(join(cfg, "hooks", "always-on-skills.mjs")), "hook not installed under CLAUDE_CONFIG_DIR");
   assert.ok(!existsSync(join(home, ".claude", "hooks")), "wrote under <home>/.claude despite CLAUDE_CONFIG_DIR");
   assert.match(readFileSync(join(cfg, "settings.json"), "utf8"), /cfgdir-target\/hooks\/always-on-skills\.mjs/);
+});
+
+// Queue item 5 (bug hunt 2026-10-27): an inherited CLAUDE_CONFIG_DIR beat --home, so a test run could write the REAL
+// profile. The decoy stands in for that profile (a temp dir, never the real one): nothing may appear in it.
+test("an explicit --home wins over CLAUDE_CONFIG_DIR: apply writes under <home>/.claude only, and --check reads it there", () => {
+  const home = makeHome("home-wins");
+  seedMachineOnly(home);
+  const decoy = join(SCRATCH, "home-wins-decoy-profile");
+  const e = { ...env(home), CLAUDE_CONFIG_DIR: decoy };
+  const r = spawnSync(process.execPath, [SCRIPT, "--home", home], { encoding: "utf8", cwd: ROOT, env: e, timeout: 30000 });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(files(decoy), [], "wrote into CLAUDE_CONFIG_DIR despite an explicit --home");
+  assert.ok(existsSync(join(home, ".claude", "hooks", "always-on-skills.mjs")), "hook not installed under --home");
+  assert.match(readFileSync(join(home, ".claude", "settings.json"), "utf8"), /home-wins\/\.claude\/hooks\/always-on-skills\.mjs/);
+  const c = spawnSync(process.execPath, [SCRIPT, "--home", home, "--check"], { encoding: "utf8", cwd: ROOT, env: e, timeout: 30000 });
+  assert.match(c.stdout, /\[bootstrap\] clean/, `--check read somewhere other than --home:\n${c.stdout}`);
+  assert.deepEqual(files(decoy), [], "--check wrote into CLAUDE_CONFIG_DIR");
 });
 
 test("apply touches nothing else: unrelated settings, hooks, skills and CLAUDE.md lines survive", () => {

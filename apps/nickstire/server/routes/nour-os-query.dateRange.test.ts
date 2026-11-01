@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const getDb = vi.fn();
 vi.mock("../db", () => ({ getDb: () => getDb() }));
 
+import { RevenueTodayShape } from "@shared/bridgeShapes";
 import { QUERY_HANDLERS } from "./nour-os-query";
 
 /** Flatten a drizzle sql object to its text and params. */
@@ -91,12 +92,32 @@ function predicate(col: string, text: string, params: unknown[]): (ts: string) =
   throw new Error(`the fake database does not model this ${col} predicate: ${text}`);
 }
 
-/** Invoices as stored: `invoiceDate` is the shop-local wall clock. */
-function invoiceDb(invoices: Array<{ invoiceDate: string; totalAmount: number }>) {
+/** A row of alg_probe_log as the sync watermark sees it: the probe's start as epoch seconds. */
+type Probe = { outcome: string; startedEpoch: number };
+
+/**
+ * Invoices as stored: `invoiceDate` is the shop-local wall clock. `probes` models alg_probe_log
+ * for the one statement that reads it (newest `outcome = 'success'` row, as UNIX_TIMESTAMP); a
+ * statement that names the probe log any other way throws, so a rewrite cannot pass unseen.
+ * `probeLogDown` makes that read reject, the way an unreachable table does.
+ */
+function invoiceDb(
+  invoices: Array<{ invoiceDate: string; totalAmount: number }>,
+  opts: { probes?: Probe[]; probeLogDown?: boolean; probeEpoch?: unknown } = {},
+) {
   const calls: Array<{ text: string; params: unknown[] }> = [];
   const execute = vi.fn(async (q: { queryChunks: unknown[] }) => {
     const f = flat(q);
     calls.push(f);
+    if (f.text.includes("alg_probe_log")) {
+      if (opts.probeLogDown) throw new Error("alg_probe_log unreachable");
+      if (!/^SELECT UNIX_TIMESTAMP\(startedAt\) AS probeEpoch FROM alg_probe_log WHERE outcome = 'success' ORDER BY startedAt DESC LIMIT 1$/.test(f.text)) {
+        throw new Error(`the fake database does not model this probe-log read: ${f.text}`);
+      }
+      if ("probeEpoch" in opts) return [[{ probeEpoch: opts.probeEpoch }]];
+      const ok = (opts.probes ?? []).filter((p) => p.outcome === "success").sort((a, b) => b.startedEpoch - a.startedEpoch);
+      return [ok.length ? [{ probeEpoch: ok[0].startedEpoch }] : []];
+    }
     const keep = predicate("invoiceDate", f.text, f.params);
     const hit = invoices.filter((i) => keep(i.invoiceDate));
     const total = hit.reduce((s, i) => s + i.totalAmount, 0);
@@ -306,24 +327,85 @@ describe("revenue_today reads the stored shop-local day", () => {
     { invoiceDate: "2026-10-08 14:30:00", totalAmount: 50_000 }, // timed ticket today
     { invoiceDate: "2026-10-09 00:00:00", totalAmount: 7_000 }, // tomorrow
   ];
-  type Today = { totalCents: number; totalDollars: number; invoiceCount: number };
+  type Today = { totalCents: number; totalDollars: number; invoiceCount: number; syncedAt?: string | null };
   const revenueToday = () => QUERY_HANDLERS.revenue_today({}) as Promise<Today>;
+  const invoiceCall = (calls: Array<{ text: string; params: unknown[] }>) => calls.find((c) => c.text.includes("FROM invoices"))!;
 
   it("counts today's date-only tickets, at 23:30 ET when UTC already says tomorrow", async () => {
     const { db, calls } = invoiceDb(INVOICES);
     getDb.mockResolvedValue(db);
     const out = await at("2026-10-09T03:30:00Z", revenueToday); // 23:30 EDT on Oct 8
-    expect(out).toEqual({ totalCents: 90_000, totalDollars: 900, invoiceCount: 2 });
-    expect(calls[0].params).toEqual(["2026-10-08", "2026-10-08"]);
-    expect(calls[0].text).not.toMatch(/CONVERT_TZ\(invoiceDate/);
+    expect(out).toMatchObject({ totalCents: 90_000, totalDollars: 900, invoiceCount: 2 });
+    expect(invoiceCall(calls).params).toEqual(["2026-10-08", "2026-10-08"]);
+    expect(invoiceCall(calls).text).not.toMatch(/CONVERT_TZ\(invoiceDate/);
   });
 
   it("agrees with revenue_range(today, today)", async () => {
     const { db } = invoiceDb(INVOICES);
     getDb.mockResolvedValue(db);
-    const today = await at("2026-10-08T16:00:00Z", revenueToday);
-    const range = await at("2026-10-08T16:00:00Z", () => revenueRange({ from: "2026-10-08", to: "2026-10-08" }));
+    const today = await at("2026-10-08T16:00:00Z", revenueToday);    const range = await at("2026-10-08T16:00:00Z", () => revenueRange({ from: "2026-10-08", to: "2026-10-08" }));
     expect(today.invoiceCount).toBe(range.invoiceCount);
     expect(today.totalDollars).toBe(range.totalDollars);
+  });
+});
+
+describe("revenue_today says how fresh the shop's numbers are (syncedAt)", () => {
+  // syncedAt is the start of the newest SUCCESSFUL ShopDriver probe in alg_probe_log: the same
+  // watermark the admin Sales card shows as "synced". Unknown stays null, never "now".
+  const INVOICES = [{ invoiceDate: "2026-10-31 14:30:00", totalAmount: 50_000 }];
+  const T_OK = Date.UTC(2026, 9, 31, 18, 40, 0) / 1000; // 14:40 EDT
+  const T_NEWER_FAILED = Date.UTC(2026, 9, 31, 19, 10, 0) / 1000;
+  type Today = { totalCents: number; totalDollars: number; invoiceCount: number; syncedAt?: string | null };
+  const run = (db: unknown) => {
+    getDb.mockResolvedValue(db);
+    return at("2026-10-31T19:30:00Z", () => QUERY_HANDLERS.revenue_today({}) as Promise<Today>);
+  };
+
+  it("carries the newest successful probe as an ISO instant, beside the unchanged figures", async () => {
+    const out = await run(invoiceDb(INVOICES, { probes: [{ outcome: "success", startedEpoch: T_OK }] }).db);
+    expect(out).toEqual({ totalCents: 50_000, totalDollars: 500, invoiceCount: 1, syncedAt: "2026-10-31T18:40:00.000Z" });
+    // the REAL handler output against the contract statenour parses (no hand fixture to drift)
+    expect(RevenueTodayShape.parse(out)).toEqual(out);
+  });
+
+  it("a null syncedAt also satisfies the contract", async () => {
+    const out = await run(invoiceDb(INVOICES, { probeLogDown: true }).db);
+    expect(RevenueTodayShape.parse(out)).toEqual(out);
+  });
+
+  it("a newer FAILED probe does not move it: failure reads as stale, never as fresh", async () => {
+    const out = await run(invoiceDb(INVOICES, {
+      probes: [{ outcome: "success", startedEpoch: T_OK }, { outcome: "error", startedEpoch: T_NEWER_FAILED }, { outcome: "auth_failed", startedEpoch: T_NEWER_FAILED + 60 }],
+    }).db);
+    expect(out.syncedAt).toBe("2026-10-31T18:40:00.000Z");
+  });
+
+  it("an old success stays old (the card shows its age), it is not rewritten to the read time", async () => {
+    const old = Date.UTC(2026, 9, 28, 13, 0, 0) / 1000;
+    const out = await run(invoiceDb(INVOICES, { probes: [{ outcome: "success", startedEpoch: old }] }).db);
+    expect(out.syncedAt).toBe("2026-10-28T13:00:00.000Z");
+  });
+
+  it("is null, with the figures still served, when the probe log holds no success", async () => {
+    const out = await run(invoiceDb(INVOICES, { probes: [{ outcome: "error", startedEpoch: T_OK }] }).db);
+    expect(out).toEqual({ totalCents: 50_000, totalDollars: 500, invoiceCount: 1, syncedAt: null });
+  });
+
+  it("is null, with the figures still served, when the probe log cannot be read", async () => {
+    const out = await run(invoiceDb(INVOICES, { probeLogDown: true }).db);
+    expect(out).toEqual({ totalCents: 50_000, totalDollars: 500, invoiceCount: 1, syncedAt: null });
+  });
+
+  it.each([["zero", 0], ["not a number", "soon"], ["null", null]])("is null when the probe epoch is %s", async (_n, probeEpoch) => {
+    const out = await run(invoiceDb(INVOICES, { probeEpoch }).db);
+    expect(out.syncedAt).toBeNull();
+  });
+
+  it("reads the watermark BEFORE the invoice aggregate (a probe landing between must not make stale rows look synced)", async () => {
+    const { db, calls } = invoiceDb(INVOICES, { probes: [{ outcome: "success", startedEpoch: T_OK }] });
+    await run(db);
+    const iProbe = calls.findIndex((c) => c.text.includes("alg_probe_log"));
+    const iInvoices = calls.findIndex((c) => c.text.includes("FROM invoices"));
+    expect([iProbe, iInvoices]).toEqual([0, 1]);
   });
 });

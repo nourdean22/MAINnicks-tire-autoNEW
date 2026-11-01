@@ -27,7 +27,7 @@
  *   4 the merge call returned but the PR does not read MERGED; the branch is kept
  *   5 a gh call failed BEFORE the merge call; nothing was merged, safe to re-run
  *   6 a gh call failed AT or AFTER the merge call; the merge may have happened (the message says which): read the PR before any retry
- *   7 not ready YET (CI has not started, a check is still running, GitHub is still computing, Codex has not reported); re-run in a minute
+ *   7 not ready YET (CI has not started, a check is still running even if GitHub says UNSTABLE, GitHub is still computing, Codex has not reported); re-run in a minute
  *  64 bad usage
  */
 import { execFileSync } from "node:child_process";
@@ -84,17 +84,21 @@ export function assess(view, expectedSha, events = new Map()) {
   const soft = [];
   if (view.state !== "OPEN") hard.push(`state is ${view.state}, not OPEN`);
   if (view.isDraft) hard.push("the PR is a draft");
+  const rollup = latestRuns(view.statusCheckRollup ?? [], events);
+  // A CheckRun has status + conclusion; a commit StatusContext has only state.
+  const unfinished = (c) => (c.status !== undefined ? c.status !== "COMPLETED" : IN_FLIGHT.test(c.state ?? ""));
   if (view.mergeStateStatus === "UNKNOWN") soft.push("mergeStateStatus is UNKNOWN: GitHub is still computing, re-run in a minute");
+  // GitHub says UNSTABLE for a pending check as well as a failed one (PR 3472). A failed check is hard in the loop below, so
+  // UNSTABLE is "not yet" only while a check is unfinished; with every check finished (or none) it stays hard. Read on the
+  // raw rollup, as GitHub computes UNSTABLE: a superseded run still in flight is pending to GitHub too.
+  else if (view.mergeStateStatus === "UNSTABLE" && (view.statusCheckRollup ?? []).some(unfinished)) soft.push("mergeStateStatus is UNSTABLE while a check is still running: re-run once the checks finish");
   else if (view.mergeStateStatus !== "CLEAN") hard.push(`mergeStateStatus is ${view.mergeStateStatus}, not CLEAN (BEHIND or DIRTY: update the branch)`);
   if (view.headRefOid !== expectedSha) hard.push(`head is ${view.headRefOid}, not the ${expectedSha} you verified: re-verify the new head`);
   // An empty list is right after an open or a push, before Actions has created its runs: this repo has no branch protection, so nothing else stops a merge of a head that never ran CI.
-  const rollup = latestRuns(view.statusCheckRollup ?? [], events);
   if (!rollup.length) soft.push("no checks have reported yet: wait for CI to start, a head that never ran CI must not merge");
   for (const c of rollup) {
-    // A CheckRun has status + conclusion; a commit StatusContext has only state.
     const isRun = c.status !== undefined;
-    const unfinished = isRun ? c.status !== "COMPLETED" : IN_FLIGHT.test(c.state ?? "");
-    if (unfinished) soft.push(`check "${nameOf(c)}" has not finished (${isRun ? c.status : c.state})`);
+    if (unfinished(c)) soft.push(`check "${nameOf(c)}" has not finished (${isRun ? c.status : c.state})`);
     else if (isRun ? !OK_CONCLUSIONS.has(c.conclusion) : c.state !== "SUCCESS") hard.push(`check "${nameOf(c)}" ${(isRun ? c.conclusion : c.state) || "has no conclusion"}`);
   }
   return { hard, soft };

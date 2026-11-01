@@ -334,6 +334,31 @@ function syncFromProbeRows(rows: unknown): ShopSync {
     etTime: at.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }),
   };
 }
+type SalesDb = NonNullable<Awaited<ReturnType<(typeof import("../db"))["getDb"]>>>;
+
+/**
+ * The newest SUCCESSFUL ShopDriver probe: the one sync watermark (the Sales card's "synced" and
+ * the bridge's revenue_today `syncedAt` both read it here). Never throws: an unreadable log is
+ * `unreadable` (unknown), not `never` and not fresh.
+ */
+export async function readShopSync(db: SalesDb): Promise<ShopSync> {
+  const { sql } = await import("drizzle-orm");
+  try {
+    return syncFromProbeRows(
+      await db.execute(sql`
+          SELECT UNIX_TIMESTAMP(startedAt) AS probeEpoch
+          FROM alg_probe_log
+          WHERE outcome = 'success'
+          ORDER BY startedAt DESC
+          LIMIT 1
+        `),
+    );
+  } catch (err) {
+    log.warn("[shopSales] alg_probe_log read failed", { error: err instanceof Error ? err.message : String(err) });
+    return { state: "unreadable", reason: err instanceof Error ? err.message : "probe log read failed" };
+  }
+}
+
 /**
  * The single sales read. Every admin surface that wants "what did the shop
  * sell" should call this rather than writing another window.
@@ -378,21 +403,7 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
     // algProbeBudget writes only when the invoice fetch returned rows. (`empty` was also what a
     // failed invoice fetch was logged as; `auth_failed` and `error` read nothing.) Its own try:
     // an unreadable log makes the sync UNKNOWN, it does not make the invoice figures unavailable.
-    let sync: ShopSync;
-    try {
-      sync = syncFromProbeRows(
-        await db.execute(sql`
-          SELECT UNIX_TIMESTAMP(startedAt) AS probeEpoch
-          FROM alg_probe_log
-          WHERE outcome = 'success'
-          ORDER BY startedAt DESC
-          LIMIT 1
-        `),
-      );
-    } catch (err) {
-      log.warn("[shopSales] alg_probe_log read failed", { error: err instanceof Error ? err.message : String(err) });
-      sync = { state: "unreadable", reason: err instanceof Error ? err.message : "probe log read failed" };
-    }
+    const sync = await readShopSync(db);
 
     // One statement. The buckets are computed in SQL over the same window and
     // the same table, so an exclusion count can never disagree with the headline

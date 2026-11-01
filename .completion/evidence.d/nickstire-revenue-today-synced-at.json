@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No ledger capability covers this diff and none is created (2026-10-31, branch nickstire/revenue-today-synced-at). server/services/shopSales.ts only moves the existing 'newest successful ShopDriver probe' query out of paidInvoiceRevenue into an exported readShopSync (same SQL, same try/catch, same ShopSync result); the one behaviour change is the bridge query revenue_today gaining an optional read-only field, syncedAt (start of that probe, null when never synced or unreadable). It writes nothing, sends nothing and has no exposure decision to promote; the statenour card that renders it is a separate lane. Receipts: server/routes/nour-os-query.dateRange.test.ts + server/__tests__/bridge-shapes.test.ts + server/shopSales.test.ts + server/routes/nour-os-query.quotesBookings.test.ts + server/__tests__/invoiceDateShopLocal.test.ts 5 files / 140 passed, exit 0; red-first 2 files failed, 10f/35p, each red on an undefined syncedAt; mutant syncedAt = read time killed by 8 failures."
+    }
+  }
+}

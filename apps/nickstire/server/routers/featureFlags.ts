@@ -15,7 +15,7 @@ export const featureFlagsRouter = router({
     const known = new Set<string>(FLAG_DEFINITIONS.map((f) => f.key));
     const flags = (await getAllFlags()).filter((f) => known.has(f.key));
     // Sequential: both reads import the db module, and concurrent first-time imports of a mocked module fail in vitest.
-    const changes = await getLastFlagChanges();
+    const changes = await getLastFlagChanges(new Map(flags.map((f) => [f.key, f.value])));
     // 2026-10-25 · `inverted`: TRUE means paused/muted, so OFF is the normal state and must not read as a disabled feature.
     // `lastChange`: who flipped it last and when, from the audit rows toggle writes; null = no toggle on record.
     // `lastChangeKnown` false = the audit table could not be read, so a null lastChange is UNKNOWN, not "never flipped".

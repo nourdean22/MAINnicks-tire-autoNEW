@@ -6,7 +6,7 @@
  *   node scripts/agent-os/bootstrap-machine.mjs            install or refresh every item, one receipt line each
  *   node scripts/agent-os/bootstrap-machine.mjs --check    report only (ok | MISSING | DRIFT), exit 1 when not clean
  *   ... --check --hook                                     SessionStart: one "[health] machine ..." line, exit 0 always
- *   --home <dir>                                           act on <dir> instead of the OS home (tests)
+ *   --home <dir>                                           act on <dir> instead of the OS home (tests); wins over CLAUDE_CONFIG_DIR
  * Wrappers: bootstrap-machine.ps1 (Windows) and bootstrap-machine.sh (Linux, cloud) pass their arguments through.
  *
  * Items, all under <home>/.claude and nothing else:
@@ -72,7 +72,7 @@ export function keepDescription(repoBuf, machineBuf) {
 
 /** Every item as { label, state: ok|MISSING|DRIFT, apply() }. Nothing is written here. */
 export function plan(home) {
-  const claude = configDir(home); // CLAUDE_CONFIG_DIR when set (Codex 4380254412)
+  const claude = configDir(home); // CLAUDE_CONFIG_DIR when set and no --home (Codex 4380254412)
   const items = [];
   const backup = (file) => {
     if (!existsSync(file)) return;
@@ -185,7 +185,10 @@ export function missingPlugins(home, routing) {
 function main() {
   const argv = process.argv.slice(2);
   const i = argv.indexOf("--home");
-  const home = i >= 0 && argv[i + 1] ? resolve(argv[i + 1]) : process.env.USERPROFILE || process.env.HOME || homedir();
+  const explicitHome = i >= 0 && argv[i + 1];
+  // An explicit --home wins over an inherited CLAUDE_CONFIG_DIR (reads and writes), so a test run cannot touch the real profile.
+  if (explicitHome) delete process.env.CLAUDE_CONFIG_DIR;
+  const home = explicitHome ? resolve(argv[i + 1]) : process.env.USERPROFILE || process.env.HOME || homedir();
   const check = argv.includes("--check");
   const items = plan(home);
   const bad = items.filter((x) => x.state !== "ok");
