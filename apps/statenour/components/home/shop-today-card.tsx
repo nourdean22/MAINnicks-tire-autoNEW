@@ -4,20 +4,34 @@
  * Nick's Tire today: one small card with the shop's sales for the day (2026-10-30, home-pulse W2).
  * Nour, 13:53 EDT: "u can put a small nicks tire card on there with total sales for the day". It opens
  * the shop dashboard; the shop's queues stay there. Three states: measured, loading, unknown (never $0).
+ * Under the title, the shop's sync time (missed-asks row 48): "as of 2:40 PM" in ET, the date when it is not
+ * today, "sync time unknown" when the shop sent none, and the age in words once it is over 2 h old.
  */
 import { GlassCard } from "@/components/ui/glass-card";
 import { trpc } from "@/lib/trpc/client";
 import type { ShopToday } from "@/lib/home/shop-today";
+import { shopSyncLabel } from "@/lib/home/shop-sync-label";
 
 const SHOP_ADMIN = "https://nickstire.org/admin";
 
-export function ShopTodayCardView({ read }: { read: ShopToday | "loading" | "error" }) {
+/** `now` is for tests; the live card reads the clock at render. */
+export function ShopTodayCardView({ read, now }: { read: ShopToday | "loading" | "error"; now?: Date }) {
   const unknown = read === "error" || (typeof read === "object" && read.status === "unknown");
+  const sync = typeof read === "object" && read.status === "ok" ? shopSyncLabel(read.syncedAt, now ?? new Date()) : null;
   return (
     <GlassCard as="a" ruled href={SHOP_ADMIN} target="_blank" className="block min-h-11 py-2">
       <div className="flex items-baseline justify-between gap-4" aria-busy={read === "loading"}>
-        {/* "so far": the bridge sends no sync time yet (a nickstire follow-up adds syncedAt, then "as of HH:MM"). */}
-        <p className="text-[13px] text-fg-secondary">Nick&apos;s Tire · today so far</p>
+        <div>
+          <p className="text-[13px] text-fg-secondary">Nick&apos;s Tire · today so far</p>
+          {sync && (
+            <p
+              data-sync={sync.state}
+              className={sync.state === "fresh" ? "text-[13px] text-fg-secondary" : "text-[13px] text-amber-300"}
+            >
+              {sync.text}
+            </p>
+          )}
+        </div>
         {read === "loading" ? (
           <span className="h-5 w-20 animate-pulse rounded-micro bg-raised" aria-hidden />
         ) : unknown ? (

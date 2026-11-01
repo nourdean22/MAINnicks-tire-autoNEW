@@ -68,9 +68,39 @@ describe("readNickRevenue", () => {
       weekDollars: 0,
       jobs: 0,
       hasToday: false,
+      syncedAt: null,
     });
     expect(readNickRevenue({}).hasToday).toBe(false);
     expect(readNickRevenue({ foo: "bar" }).hasToday).toBe(false);
     expect(readNickRevenue({ totalDollars: Infinity }).hasToday).toBe(false);
+  });
+});
+
+// 2026-10-31: nickstire PR 3482 adds `syncedAt` (UTC ISO, the newest successful ShopDriver probe) to the
+// revenue_today answer. Parsed here, in the one reader, so no caller guesses the key.
+describe("readNickRevenue syncedAt", () => {
+  it("passes a UTC ISO instant through as an ISO string", () => {
+    expect(readNickRevenue({ totalDollars: 100, syncedAt: "2026-10-31T18:40:00.000Z" }).syncedAt).toBe("2026-10-31T18:40:00.000Z");
+  });
+
+  it("an old stamp is kept as is: a failed probe never moves it, and an old value is true", () => {
+    expect(readNickRevenue({ totalDollars: 100, syncedAt: "2026-10-01T03:00:00.000Z" }).syncedAt).toBe("2026-10-01T03:00:00.000Z");
+  });
+
+  it("null and absent are both null (sync time unknown), never the read time", () => {
+    expect(readNickRevenue({ totalDollars: 100, syncedAt: null }).syncedAt).toBeNull();
+    expect(readNickRevenue({ totalDollars: 100 }).syncedAt).toBeNull();
+  });
+
+  it("garbage is null: wrong types, empty, and strings that are not an instant", () => {
+    for (const bad of [12345, "", "soon", "1", {}, [], true]) {
+      expect(readNickRevenue({ totalDollars: 100, syncedAt: bad }).syncedAt, String(bad)).toBeNull();
+    }
+  });
+
+  it("a stamp without any figure still parses (the figure and the stamp are read independently)", () => {
+    const r = readNickRevenue({ syncedAt: "2026-10-31T18:40:00.000Z" });
+    expect(r.hasToday).toBe(false);
+    expect(r.syncedAt).toBe("2026-10-31T18:40:00.000Z");
   });
 });

@@ -13,7 +13,7 @@ vi.mock("@/lib/nickstire/query", async (orig) => ({
   ...(await orig<typeof import("@/lib/nickstire/query")>()),
   queryNickBatch: vi.fn(async () => h.batch),
   queryNick: vi.fn(() =>
-    h.never ? new Promise(() => {}) : Promise.resolve({ data: { totalDollars: 410, invoiceCount: 2 }, query: "revenue_today", timestamp: "t" }),
+    h.never ? new Promise(() => {}) : Promise.resolve({ data: { totalDollars: 410, invoiceCount: 2, syncedAt: "2026-10-30T18:40:00.000Z" }, query: "revenue_today", timestamp: "t" }),
   ),
 }));
 vi.mock("@/lib/utils/cache", () => ({ cached: (_k: string, _t: number, fn: () => unknown) => fn() }));
@@ -46,6 +46,42 @@ describe("shopTodayFrom (the Home card's reading)", () => {
   it("an answer with no revenue figure is unknown, never $0", () => {
     expect(shopTodayFrom(ok({ invoiceCount: 2 })).status).toBe("unknown");
     expect(shopTodayFrom(undefined).status).toBe("unknown");
+  });
+
+  // 2026-10-31 (missed-asks row 48): the card's "as of" is the shop's sync time from the payload, never the
+  // time we read it. The old `asOf: now.toISOString()` stamped the read, so a day-old sync looked fresh.
+  describe("syncedAt (the shop's sync time)", () => {
+    it("carries a present stamp from today", () => {
+      const r = shopTodayFrom(ok({ totalDollars: 1240, invoiceCount: 6, syncedAt: "2026-10-30T18:40:00.000Z" }));
+      expect(r).toMatchObject({ status: "ok", syncedAt: "2026-10-30T18:40:00.000Z" });
+    });
+
+    it("carries a stamp from yesterday as is: an old value is true, a failed probe never moves it", () => {
+      const r = shopTodayFrom(ok({ totalDollars: 0, invoiceCount: 0, syncedAt: "2026-10-29T23:00:00.000Z" }));
+      expect(r).toMatchObject({ status: "ok", dollars: 0, syncedAt: "2026-10-29T23:00:00.000Z" });
+    });
+
+    it("null stays null: sync time unknown, and the figures still show", () => {
+      expect(shopTodayFrom(ok({ totalDollars: 1240, invoiceCount: 6, syncedAt: null }))).toMatchObject({
+        status: "ok",
+        dollars: 1240,
+        syncedAt: null,
+      });
+    });
+
+    it("absent (an older nickstire) is null, not the read time", () => {
+      const r = shopTodayFrom(ok({ totalDollars: 1240, invoiceCount: 6 }));
+      expect(r).toMatchObject({ status: "ok", syncedAt: null });
+    });
+
+    it("the read time is retired: no asOf field, so nothing can render it as the sync time", () => {
+      const r = shopTodayFrom(ok({ totalDollars: 1240, invoiceCount: 6, syncedAt: "2026-10-30T18:40:00.000Z" }));
+      expect(r).not.toHaveProperty("asOf");
+    });
+
+    it("an unknown read carries no stamp", () => {
+      expect(shopTodayFrom({ error: "No DB" })).not.toHaveProperty("syncedAt");
+    });
   });
 });
 
@@ -86,6 +122,11 @@ describe("buildShopToday has a deadline", () => {
     vi.useRealTimers();
   });
   it("control: a prompt answer is read as before", async () => {
-    await expect(buildShopToday()).resolves.toMatchObject({ status: "ok", dollars: 410, jobs: 2 });
+    await expect(buildShopToday()).resolves.toMatchObject({
+      status: "ok",
+      dollars: 410,
+      jobs: 2,
+      syncedAt: "2026-10-30T18:40:00.000Z", // the consumer end: bridge answer -> the tRPC output the card reads
+    });
   });
 });

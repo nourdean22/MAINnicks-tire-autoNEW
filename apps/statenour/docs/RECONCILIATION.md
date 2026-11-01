@@ -1,5 +1,9 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-31 · Home sales card says when the shop last synced, not when we read it (job 2026-10-31-completion-takeover, missed-asks row 48) · 1 ship
+>
+> Nour, 2026-10-30 17:53Z asked for the sales card (#3405). It said "today so far" with no time, and its internal `asOf` was the READ time, so a day-old sync would have looked fresh. Consumer half of nickstire PR 3482 (`revenue_today.syncedAt`, the newest successful ShopDriver probe): `readNickRevenue` parses it (null for absent, null or non-ISO), `ShopToday.asOf` is retired for `syncedAt: string | null`, and `lib/home/shop-sync-label.ts` renders "as of 2:40 PM" in ET, date plus time off-day, "sync time unknown" for null, and the age in words past 2 h (four of the admin probe throttle's 30 min windows).
+
 > ## 2026-10-31 · self-learning W1: calibration review items decide themselves each night, shadow only until Nour arms it (job 2026-10-31-self-learning-statenour) · 1 ship
 >
 > Nour, 2026-10-30 13:34Z: "why is there a manual step for me it should me autonomys self learning getting smarter and smarter ... every day"; 10-31 08:37 EDT: "daily self-learning ... YES". W0 named the CalibrationReviewItem queue as the clearest loop that waits on him and picked a per-kind allowlist over one scored gate (its false-positive surface can be listed and tested kind by kind).

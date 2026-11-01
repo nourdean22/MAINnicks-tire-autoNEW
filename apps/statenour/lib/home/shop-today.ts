@@ -6,21 +6,25 @@
  * Sales = the shop's counter invoices for the shop day (each is a closed job; payment status means
  * nothing), from the bridge's revenue_today, which keys the ET shop day on the nickstire side.
  * Read through readNickRevenue, the one reader for that payload. A failed read is unknown, never $0.
+ *
+ * `syncedAt` is the shop's own sync time from the payload (nickstire PR 3482), null when the shop sent none.
+ * It replaced `asOf: now.toISOString()` (2026-10-31, missed-asks row 48): that stamped the READ, so a sync
+ * from yesterday looked fresh. The card renders it through shopSyncLabel.
  */
 import { queryNick, readBridge } from "@/lib/nickstire/query";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 
 export type ShopToday =
-  | { status: "ok"; dollars: number; jobs: number; asOf: string }
+  | { status: "ok"; dollars: number; jobs: number; syncedAt: string | null }
   | { status: "unknown"; reason: string };
 
 /** Pure: a bridge answer to the Home card's reading. */
-export function shopTodayFrom(res: unknown, now: Date = new Date()): ShopToday {
+export function shopTodayFrom(res: unknown): ShopToday {
   const read = readBridge<Record<string, unknown>>(res);
   if (read.status !== "ok") return { status: "unknown", reason: read.reason };
   const rev = readNickRevenue(read.data);
   if (!rev.hasToday) return { status: "unknown", reason: "the answer carried no sales figure" };
-  return { status: "ok", dollars: rev.todayDollars, jobs: rev.jobs, asOf: now.toISOString() };
+  return { status: "ok", dollars: rev.todayDollars, jobs: rev.jobs, syncedAt: rev.syncedAt };
 }
 
 /**

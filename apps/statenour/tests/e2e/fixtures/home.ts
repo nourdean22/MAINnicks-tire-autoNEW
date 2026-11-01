@@ -171,7 +171,7 @@ export const HOME_SHOP_TODAY: inferRouterOutputs<AppRouter>["operator"]["shopTod
   status: "ok",
   dollars: 1240,
   jobs: 6,
-  asOf: NOW_ISO,
+  syncedAt: NOW_ISO,
 };
 
 /** The Home Goals card (home-pulse W2b): one dated demo goal, so the card shows its next deadline. */

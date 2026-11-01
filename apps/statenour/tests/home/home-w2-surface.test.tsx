@@ -53,10 +53,56 @@ describe("the NOW sentence", () => {
 describe("Nick's Tire card", () => {
   it("measured sales show dollars and jobs", () => {
     const html = renderToStaticMarkup(
-      <ShopTodayCardView read={{ status: "ok", dollars: 1240, jobs: 6, asOf: "2026-10-30T18:00:00Z" }} />,
+      <ShopTodayCardView read={{ status: "ok", dollars: 1240, jobs: 6, syncedAt: "2026-10-30T18:00:00Z" }} />,
     );
     expect(html).toContain("$1,240");
     expect(html).toContain("6 jobs");
+  });
+
+  // 2026-10-31 (missed-asks row 48): the line under the title is the SHOP's sync time, in ET, from `syncedAt`.
+  describe("the as-of line", () => {
+    const NOW = new Date("2026-10-31T19:30:00Z"); // 3:30 PM EDT
+    const card = (syncedAt: string | null) =>
+      renderToStaticMarkup(<ShopTodayCardView read={{ status: "ok", dollars: 1240, jobs: 6, syncedAt }} now={NOW} />);
+
+    it("a stamp from today reads as a bare ET time", () => {
+      const html = card("2026-10-31T18:40:00.000Z");
+      expect(html).toContain("as of 2:40 PM");
+      expect(html).not.toContain('data-sync="stale"');
+    });
+
+    it("a stamp from yesterday carries its date", () => {
+      expect(card("2026-10-30T18:40:00.000Z")).toContain("as of Oct 30, 2:40 PM");
+    });
+
+    it("null says sync time unknown, and the sales figure stays", () => {
+      const html = card(null);
+      expect(html).toContain("sync time unknown");
+      expect(html).toContain("$1,240");
+      expect(html).not.toContain("as of");
+    });
+
+    it("older than about 2 hours is marked stale, in words and in the data attribute", () => {
+      const html = card("2026-10-31T16:05:00.000Z");
+      expect(html).toContain("as of 12:05 PM, 3 h old");
+      expect(html).toContain('data-sync="stale"');
+    });
+
+    it("a fresh stamp is not marked stale (control: the marker is not always on)", () => {
+      expect(card("2026-10-31T19:00:00.000Z")).toContain('data-sync="fresh"');
+    });
+
+    it("the read time never appears as the sync time: no stamp, no clock (the old asOf bug)", () => {
+      expect(card(null)).not.toMatch(/\d{1,2}:\d{2} [AP]M/);
+    });
+
+    it("loading and unknown reads show no as-of line", () => {
+      for (const read of ["loading", "error", { status: "unknown", reason: "bridge down" } as const]) {
+        const html = renderToStaticMarkup(<ShopTodayCardView read={read} now={NOW} />);
+        expect(html).not.toContain("as of");
+        expect(html).not.toContain("sync time unknown");
+      }
+    });
   });
 
   it("a failed read says unknown and never $0", () => {
@@ -69,7 +115,7 @@ describe("Nick's Tire card", () => {
 
   it("control: a measured zero shows $0", () => {
     const html = renderToStaticMarkup(
-      <ShopTodayCardView read={{ status: "ok", dollars: 0, jobs: 0, asOf: "2026-10-30T13:00:00Z" }} />,
+      <ShopTodayCardView read={{ status: "ok", dollars: 0, jobs: 0, syncedAt: "2026-10-30T13:00:00Z" }} />,
     );
     expect(html).toContain("$0");
   });

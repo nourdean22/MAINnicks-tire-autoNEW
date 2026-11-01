@@ -26,6 +26,21 @@ export interface NickRevenue {
   jobs: number;
   /** True when the payload actually carried a today-revenue figure. */
   hasToday: boolean;
+  /**
+   * When the shop's sales were last synced (UTC ISO, `revenue_today.syncedAt`, nickstire PR 3482), else null.
+   * null = never synced, an older nickstire without the field, or a value that is not an instant. It is never
+   * the read time. An old value is true (a failed probe does not move it): callers show its age.
+   */
+  syncedAt: string | null;
+}
+
+// Date.parse alone accepts "1" and "Jan"; the contract is an ISO instant, so require the ISO date-time shape.
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+function readSyncedAt(v: unknown): string | null {
+  if (typeof v !== "string" || !ISO_INSTANT.test(v)) return null;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 function firstNumber(obj: Record<string, unknown>, keys: string[]): number | null {
@@ -78,5 +93,6 @@ export function readNickRevenue(revenueObj: unknown): NickRevenue {
     weekDollars,
     jobs: Math.round(jobs),
     hasToday: todayDollarsRaw !== null || todayCents !== null,
+    syncedAt: readSyncedAt(r.syncedAt),
   };
 }
