@@ -14,7 +14,7 @@
  *   node scripts/agent-os/heavy.mjs status
  *
  * Lock files live OUTSIDE the repo (%LOCALAPPDATA%/nourcity/<slot>.lock), one JSON record each:
- * {token, pid, childPid, bootMs, session, command, started, startedMs, acquiredMs}. A heavy run waits (never runs in
+ * {token, pid, childPid, upMs, session, command, started, startedMs, acquiredMs}. A heavy run waits (never runs in
  * parallel, never kills anyone) while: the chrome slot is held, free RAM is under 1500 MB, or another heavy run holds the lease.
  * A `run` lease lives exactly as long as its holder (2026-10-31: a 1,371 s typecheck outlived the old 20 min TTL, a waiter
  * started a second 2.9 GB tsc on top, and the machine rebooted). It is taken over only when the wrapper pid AND the child pid
@@ -33,7 +33,6 @@ import { randomBytes } from "node:crypto";
 
 const EXPIRY_MS = { heavy: 20 * 60_000, chrome: 30 * 60_000 };
 const HARD_CEILING_MS = 45 * 60_000; // about 2x the slowest live holder seen (1,371 s): only a hung holder gets here
-const BOOT_SLACK_MS = 120_000;
 // Old copies of this script (worktrees cut before 2026-10-31) still expire a lease by on-disk startedMs at 20 min, so the
 // holder rewrites startedMs every few minutes; acquiredMs keeps the real start.
 const REFRESH_MS = Number(process.env.HEAVY_REFRESH_MS) || 5 * 60_000;
@@ -54,8 +53,8 @@ export function readFreeMb() {
   return Math.round(freemem() / 1024 / 1024);
 }
 
-/** When this boot started, in epoch ms (uptime counts sleep on Windows and Linux, so it is stable while the machine is up). */
-export const bootMs = () => Math.round(Date.now() - uptime() * 1000);
+/** Milliseconds since this boot. Monotonic (it never steps with the wall clock), so it only goes backwards across a reboot. */
+export const upMs = () => Math.round(uptime() * 1000);
 
 function pidAlive(pid) {
   if (!pid) return false;
@@ -95,8 +94,10 @@ export function readLock(slot) {
 /** Why a record no longer holds its slot ("corrupt", "expired", "dead pid", "machine rebooted", the ceiling), or null while live. */
 export function staleReason(rec, slot, now = Date.now()) {
   if (rec.corrupt) return now - rec.startedMs >= 5000 ? "corrupt" : null;
-  // Nothing written before the last boot still runs; a live-looking pid from then is a reused number, not our holder.
-  if (rec.bootMs && Math.abs(bootMs() - rec.bootMs) > BOOT_SLACK_MS) return "machine rebooted";
+  // Nothing written before the last boot still runs; a live-looking pid from then is a reused number, not our holder. Uptime,
+  // not Date.now(): a wall-clock step read a live holder as rebooted (red-team 2026-10-31). shortcut: a reboot whose new uptime
+  // already passed the record's goes unseen here; the dead-pid check still reclaims it, and a reused pid waits for the ceiling.
+  if (rec.upMs && upMs() + 1000 < rec.upMs) return "machine rebooted";
   const age = now - Number(rec.startedMs || 0);
   if (!rec.pid) return age > EXPIRY_MS[slot] ? "expired" : null; // a `take` record: only its expiry ends it
   if (!pidAlive(rec.pid) && !pidAlive(rec.childPid)) return "dead pid";
@@ -186,7 +187,7 @@ export async function acquire(slot, command, { pid = process.pid, maxWaitMs = MA
     }
     if (!reason) {
       const now = Date.now();
-      const rec = { token, pid, bootMs: bootMs(), session: sessionName(), command, started: new Date(now).toISOString(), startedMs: now, acquiredMs: now };
+      const rec = { token, pid, upMs: upMs(), session: sessionName(), command, started: new Date(now).toISOString(), startedMs: now, acquiredMs: now };
       if (tryCreate(slot, rec)) return rec;
       const held = readLock(slot);
       if (held) {

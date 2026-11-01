@@ -68,12 +68,13 @@ test("positive control: a fresh lock held by a live pid is NOT taken over", asyn
 
 // 2026-10-31: three reboots. A typecheck ran 1,371 s, past the old 20 min TTL, while its tsc was still alive; the next waiter
 // took the "expired" lease, started its own 2.9 GB tsc on top and free RAM fell to 559 MB. A run's lease now lives as long as
-// its holder. bootMs is this boot's, so the record is also the positive control for the reboot check below.
+// its holder. upMs is this boot's, so the record is also the positive control for the reboot check below.
 const thisBoot = () => Math.round(Date.now() - uptime() * 1000);
+const thisUp = () => Math.round(uptime() * 1000);
 
 test("a lease past the old 20 min TTL whose holder pid is ALIVE still blocks the waiter (no overlap)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "heavy-"));
-  plantLock(dir, { pid: process.pid, startedMs: Date.now() - 21 * 60_000, bootMs: thisBoot() });
+  plantLock(dir, { pid: process.pid, startedMs: Date.now() - 21 * 60_000, upMs: thisUp() });
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "1200" });
   assert.equal(r.code, 3, r.out);
@@ -93,7 +94,7 @@ test("the wrapper's pid is dead but the child it spawned is alive: the lease sti
 
 test("a hung holder past the 45 min hard ceiling is reclaimed, and the takeover is logged", async () => {
   const dir = mkdtempSync(join(tmpdir(), "heavy-"));
-  plantLock(dir, { pid: process.pid, startedMs: Date.now() - 46 * 60_000, bootMs: thisBoot() });
+  plantLock(dir, { pid: process.pid, startedMs: Date.now() - 46 * 60_000, upMs: thisUp() });
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /took over the heavy lease from planted cmd .*45 min ceiling/);
@@ -101,15 +102,27 @@ test("a hung holder past the 45 min hard ceiling is reclaimed, and the takeover 
 
 test("a lease written before a reboot is reclaimed at once, even when its pid number is alive again", async () => {
   const dir = mkdtempSync(join(tmpdir(), "heavy-"));
-  plantLock(dir, { pid: process.pid, startedMs: Date.now(), bootMs: Date.now() - 30 * 86_400_000 });
+  plantLock(dir, { pid: process.pid, startedMs: Date.now(), upMs: thisUp() + 86_400_000 });
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /took over .*rebooted/);
   const take = mkdtempSync(join(tmpdir(), "heavy-"));
-  plantLock(take, { pid: null, startedMs: Date.now(), bootMs: Date.now() - 30 * 86_400_000 });
+  plantLock(take, { pid: null, startedMs: Date.now(), upMs: thisUp() + 86_400_000 });
   const r2 = await runAsync(take, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r2.code, 0, r2.out);
   assert.match(r2.out, /took over .*rebooted/, "a pid-less `take` from before the reboot must not hold the slot for its full expiry");
+});
+
+// Red-team 2026-10-31: the first draft compared wall-clock boot estimates (Date.now() - uptime), so an NTP or manual clock step
+// over 2 min read a LIVE holder as "machine rebooted" and a waiter started a second run on top: the exact overlap this fixes.
+test("a wall-clock step does not read as a reboot: a live holder stamped this boot still blocks", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  plantLock(dir, { pid: process.pid, startedMs: Date.now(), acquiredMs: Date.now(), bootMs: thisBoot() - 10 * 60_000, upMs: thisUp() - 1000 });
+  const marker = join(dir, "ran.txt");
+  const r = await runAsync(dir, ["run", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "1200" });
+  assert.equal(r.code, 3, r.out);
+  assert.ok(!existsSync(marker), "a clock step must not let a waiter start beside a live holder");
+  assert.doesNotMatch(r.out, /took over/);
 });
 
 test("a pid-less `take` record still ends at its expiry (over 20 minutes)", async () => {
@@ -151,7 +164,7 @@ test("three runs racing to take over one DEAD holder's lease: exactly one wins a
 
 test("status prints the holder pid, child pid and age", () => {
   const dir = mkdtempSync(join(tmpdir(), "heavy-"));
-  plantLock(dir, { pid: process.pid, childPid: process.pid, startedMs: Date.now() - 95_000, bootMs: thisBoot() });
+  plantLock(dir, { pid: process.pid, childPid: process.pid, startedMs: Date.now() - 95_000, upMs: thisUp() });
   const out = spawnSync(process.execPath, [HEAVY, "status"], { env: env(dir) }).stdout.toString();
   assert.match(out, new RegExp(`heavy: held by sib since \\S+ \\(age 1m 3[5-9]s\\) \\(planted cmd\\), pid ${process.pid}, child pid ${process.pid}`));
 });
@@ -183,7 +196,7 @@ test("a holder whose lease a sibling took over never rewrites or releases the si
   for (let i = 0; i < 100 && !existsSync(lockFile(dir)); i++) await new Promise((r) => setTimeout(r, 50));
   assert.ok(existsSync(lockFile(dir)), "the holder never took the lease");
   const now = Date.now();
-  const sibling = JSON.stringify({ token: "sibling", pid: process.pid, bootMs: thisBoot(), session: "sib", command: "c", startedMs: now, acquiredMs: now });
+  const sibling = JSON.stringify({ token: "sibling", pid: process.pid, upMs: thisUp(), session: "sib", command: "c", startedMs: now, acquiredMs: now });
   writeFileSync(lockFile(dir), sibling);
   assert.equal((await p).code, 0);
   assert.equal(readFileSync(lockFile(dir), "utf8"), sibling, "the sibling's record must survive the old holder's refresh and release");
