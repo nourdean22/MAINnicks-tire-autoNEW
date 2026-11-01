@@ -239,6 +239,20 @@ describe("promoteReceptionistCandidate", () => {
     expect(h.patches).toHaveLength(0);
   });
 
+  it.each([
+    ["an HTTP 500", async () => new Response("down", { status: 500 })],
+    ["a network throw", async () => Promise.reject(new Error("ECONNRESET"))],
+    ["no system message", async () => new Response(JSON.stringify({ model: { messages: [] } }), { status: 200 })],
+  ] as const)("a failed live read (%s) is never 'unchanged': held live_unreadable, nothing pushed", async (_label, get) => {
+    const h = harness();
+    h.deps.getAssistant = get as PromotionDeps["getAssistant"];
+    const r = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
+    expect(r).toMatchObject({ status: "held", reason: "live_unreadable" });
+    expect(h.patches).toHaveLength(0);
+    expect(h.kv.has(STABLE_KEY)).toBe(false);
+    expect(history(h.kv)[0]).toMatchObject({ status: "held", reason: "live_unreadable" });
+  });
+
   it("a read-back that does not match restores the snapshot and records it", async () => {
     const h = harness({ readbackSystem: "something else" });
     const r = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
