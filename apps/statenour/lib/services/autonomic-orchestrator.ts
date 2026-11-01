@@ -63,6 +63,30 @@ function healWindowMs(schedule: string | null | undefined, route: string): numbe
  * (status 0: timeout, network) is UNKNOWN, because the job may still be
  * running; resolveTimedOutHeals settles it on the healer's next run.
  */
+/**
+ * The re-fired run's own verdict. cronHandler keeps HTTP 200 for a route that
+ * resolved with `ok: false` (cron-manager files the row red), so a 200 is not a
+ * rescue: on 2026-11-01 "Rescued data-source-health · Status 200" posted for a
+ * run that had just filed "1 of 7 probes failing". Null when the body carries
+ * no failure claim or cannot be read (truncated at 2,000 chars, not JSON).
+ */
+function reportedFailureIn(body: string | undefined): string | null {
+  if (!body) return null;
+  try {
+    const data = (JSON.parse(body) as { data?: unknown }).data;
+    if (!data || typeof data !== "object" || (data as { ok?: unknown }).ok !== false) return null;
+    const { reason, error } = data as { reason?: unknown; error?: unknown };
+    return typeof reason === "string" ? reason : typeof error === "string" ? error : "handler returned ok:false";
+  } catch {
+    return null;
+  }
+}
+
+/** Healer alerts are about one night's run; without an expiry they stayed on the Pulse for weeks. */
+const HEAL_EVENT_TTL_MS = 25 * HOUR_MS;
+/** A DOING task untouched this long is flagged once (see Phase 5). */
+const STALL_FLAG_AFTER_MS = 72 * HOUR_MS;
+
 async function settleHeal(attemptId: string | null, disposition: AttemptDisposition, reason: string): Promise<void> {
   if (!attemptId) return;
   await settleAttempt(attemptId, { disposition, reason }).catch((err: unknown) =>
@@ -160,7 +184,7 @@ export interface AutonomicOrchestratorResult {
   ollamaQuotaTripped: boolean;
   rescuedWorkItems: string[];
   archivedTasksCount: number;
-  decomposedTasksCount: number;
+  stalledTasksFlagged: number;
 }
 
 export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorResult> {
@@ -172,7 +196,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
     ollamaQuotaTripped: false,
     rescuedWorkItems: [],
     archivedTasksCount: 0,
-    decomposedTasksCount: 0,
+    stalledTasksFlagged: 0,
   };
 
   // ---------------------------------------------------------------------------
@@ -304,10 +328,11 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
         try {
           // The trigger id lets resolveTimedOutHeals find this heal's own run row.
           const cronResult = await runManifestCron(row.name, attemptId ? `heal:${attemptId}` : undefined);
+          const reported = cronResult.ok ? reportedFailureIn(cronResult.body) : null;
           await settleHeal(
             attemptId,
-            cronResult.ok ? "success" : cronResult.status === 0 ? "unknown" : "known_failure",
-            `heal returned HTTP ${cronResult.status}`,
+            cronResult.ok && !reported ? "success" : cronResult.status === 0 ? "unknown" : "known_failure",
+            reported ? `heal ran (HTTP ${cronResult.status}) and the job reported failure: ${reported.slice(0, 200)}` : `heal returned HTTP ${cronResult.status}`,
           );
           // runManifestCron throws only BEFORE it sends (unknown, retired or
           // Inngest-only job: the catch below); once sent, a 404 or a dropped
@@ -315,10 +340,11 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
           // Unconditionally pushing here filed "Cron Healer: Rescued X"
           // coach events for phantom heals, burning the whole
           // MAX_HEAL_PER_RUN budget on 404s before reaching a real cron.
-          if (!cronResult.ok) {
+          if (!cronResult.ok || reported) {
             log.warn("heal_attempt_failed", {
               jobName: row.name,
               status: cronResult.status,
+              ...(reported ? { reported } : {}),
             });
             continue;
           }
@@ -331,6 +357,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
             title: `Cron Healer: Rescued ${row.name}`,
             body: `Cron job "${row.name}" was ${reason} and was automatically healed. Status: ${cronResult.status}, duration: ${cronResult.durationMs}ms.`,
             surfaces: ["scoreboard", "home"],
+            expiresAt: new Date(Date.now() + HEAL_EVENT_TTL_MS).toISOString(),
             extra: {
               jobName: row.name,
               reason,
@@ -357,6 +384,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
               title: `Cron Healer FAILED: ${row.name}`,
               body: `Cron "${row.name}" was ${reason} and the automatic heal attempt threw: ${msg.slice(0, 200)}. Manual investigation needed — this job is currently not running.`,
               surfaces: ["scoreboard", "home"],
+              expiresAt: new Date(Date.now() + HEAL_EVENT_TTL_MS).toISOString(),
               extra: { jobName: row.name, reason, error: msg.slice(0, 200) },
             });
             const { sendTelegram } = await import("@/lib/services/telegram");
@@ -494,65 +522,40 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
   }
 
   // ---------------------------------------------------------------------------
-  // Phase 5: Task Stalling Healer (Auto-Decomposition of Stalled Tasks)
+  // Phase 5: Stalled-task flag (propose only)
   // ---------------------------------------------------------------------------
+  // 2026-11-01 · PROPOSE, never perform. This phase used to call a DOING task
+  // untouched for 2 hours "stalled", AI-decompose it and flip it to WAITING. On
+  // 10-31 it turned the operator's parked "Continue planning and then start crm
+  // build" (DOING since 10-28) into 6 READY subtasks, two of which contradict the
+  // Shop OS plan. Two hours in DOING is normal for a person's multi-day work, and
+  // rewriting the operator's own list is not a heal. It now flags a task untouched
+  // 3 days, once (the 72-96h window, one nightly run), and changes nothing.
   try {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const now = Date.now();
     const stalledTasks = await prisma.task.findMany({
       where: {
         status: TaskStatus.DOING,
-        updatedAt: { lt: twoHoursAgo },
+        updatedAt: { lt: new Date(now - STALL_FLAG_AFTER_MS), gte: new Date(now - STALL_FLAG_AFTER_MS - 24 * HOUR_MS) },
         parentTaskId: null,
-        children: { none: {} },
+        deletedAt: null,
       },
-      take: 3, // Safe concurrency limit
+      select: { id: true, title: true, updatedAt: true },
+      take: 3,
     });
 
-    const { decomposeTaskWithAi } = await import("@/lib/services/ai-tasks");
-
     for (const task of stalledTasks) {
-      log.info("triggering_auto_decomposition", { taskId: task.id, title: task.title });
-      const decompResult = await decomposeTaskWithAi(task.id);
-      
-      // subtasksCount > 0, not just ok. `{ ok: true, subtasksCount: 0 }` is
-      // returned on TWO paths — the model legitimately planning nothing
-      // (ai-tasks.ts:398, pre-existing) and the next-action gate refusing a
-      // batch of non-actions (added 2026-08-23). Treating either as a heal
-      // flips the parent to WAITING, which drops it out of THIS query's own
-      // `status: DOING` filter — so the task is parked permanently, with zero
-      // children, while a P1 on the scoreboard and home surfaces announces it
-      // was "decomposed into 0 actionable subtasks". A fabricated all-clear on
-      // an operator-facing surface. Leaving it DOING means it is retried on the
-      // next tick, which is the honest outcome.
-      if (decompResult.ok && decompResult.subtasksCount > 0) {
-        // Update parent task status to WAITING
-        await prisma.task.update({
-          where: { id: task.id },
-          data: {
-            status: TaskStatus.WAITING,
-            updatedBy: "cron:autonomic-healer",
-          },
-        });
-
-        result.decomposedTasksCount++;
-
-        await recordCoachEvent({
-          kind: "system-alert",
-          subjectId: `task-stall-healed:${task.id}`,
-          priority: "P1",
-          title: `Task Healed: Decomposed "${task.title}"`,
-          body: `Parent task "${task.title}" was stuck in DOING state for over 2 hours. Autonomic Orchestrator automatically decomposed it into ${decompResult.subtasksCount} actionable subtasks.`,
-          surfaces: ["scoreboard", "home"],
-        });
-      } else {
-        log.warn("task_stall_heal_produced_nothing", {
-          taskId: task.id,
-          ok: decompResult.ok,
-          subtasksCount: decompResult.subtasksCount,
-          reason: "suppressedReason" in decompResult ? decompResult.suppressedReason : "model_planned_zero",
-          note: "left in DOING so the next tick retries it; NOT counted as healed",
-        });
-      }
+      await recordCoachEvent({
+        kind: "system-alert",
+        subjectId: `task-stall:${task.id}`,
+        priority: "P2",
+        title: `Untouched 3 days in Doing: "${task.title}"`,
+        body: `Last change ${task.updatedAt.toISOString().slice(0, 10)}. Break it into a next step, or move it to Waiting if it is parked.`,
+        deepLink: "/missions",
+        surfaces: ["scoreboard", "home"],
+        expiresAt: new Date(now + HEAL_EVENT_TTL_MS).toISOString(),
+      });
+      result.stalledTasksFlagged++;
     }
   } catch (stallErr) {
     log.error("task_stalling_healer_failed", { error: stallErr instanceof Error ? stallErr.message : String(stallErr) });
@@ -567,13 +570,13 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       subjectId: "autonomic-orchestrator",
       priority: "P2",
       title: "Autonomic Orchestrator Run Completed",
-      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 3: Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Archived ${result.archivedTasksCount} stale tasks. Phase 5: Decomposed ${result.decomposedTasksCount} stalled tasks.`,
+      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 3: Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Archived ${result.archivedTasksCount} stale tasks. Phase 5: Flagged ${result.stalledTasksFlagged} tasks untouched 3 days (no changes made).`,
       surfaces: ["scoreboard", "home"],
     });
   } catch (eventErr) {
     log.error("unified_event_logging_failed", { error: eventErr instanceof Error ? eventErr.message : String(eventErr) });
   }
 
-  log.info("orchestrator_completed", { healed: result.healedCrons.length, decomposed: result.decomposedTasksCount });
+  log.info("orchestrator_completed", { healed: result.healedCrons.length, stalledFlagged: result.stalledTasksFlagged });
   return result;
 }

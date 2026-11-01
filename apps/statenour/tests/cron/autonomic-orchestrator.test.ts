@@ -561,29 +561,75 @@ describe("services/autonomic-orchestrator", () => {
     );
   });
 
-  it("Phase 5: decomposes stalled Tasks", async () => {
+  it("Phase 5: flags a DOING task untouched 3 days once, and never rewrites the operator's list (2026-11-01)", async () => {
+    // 10-31 03:00Z prod: the old phase turned a parked DOING planning task into 6 AI
+    // subtasks and flipped it to WAITING, two hours after "stalled" began.
     vi.mocked(prisma.task.findMany).mockResolvedValueOnce([
-      { id: "task_stalled_1", title: "Write complex database architecture report", status: TaskStatus.DOING, effort: "H1", nextPhysicalAction: "Start outline", context: "DESK" } as any,
+      { id: "task_stalled_1", title: "Continue planning and then start crm build", updatedAt: new Date("2026-10-28T15:50:19Z") } as any,
     ]);
-
-    mocks.decomposeTaskWithAi.mockResolvedValueOnce({ ok: true, subtasksCount: 4 });
 
     const res = await runAutonomicOrchestrator();
 
-    expect(res.decomposedTasksCount).toBe(1);
-    expect(mocks.decomposeTaskWithAi).toHaveBeenCalledWith("task_stalled_1");
-    expect(prisma.task.update).toHaveBeenCalledWith({
-      where: { id: "task_stalled_1" },
-      data: {
-        status: TaskStatus.WAITING,
-        updatedBy: "cron:autonomic-healer",
-      },
-    });
+    expect(res.stalledTasksFlagged).toBe(1);
+    expect(mocks.decomposeTaskWithAi).not.toHaveBeenCalled();
+    expect(prisma.task.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "task_stalled_1" } }));
     expect(mocks.recordCoachEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        priority: "P1",
-        title: 'Task Healed: Decomposed "Write complex database architecture report"',
+        subjectId: "task-stall:task_stalled_1",
+        priority: "P2",
+        title: 'Untouched 3 days in Doing: "Continue planning and then start crm build"',
+        expiresAt: expect.any(String),
       })
+    );
+    // The query is the once-per-stall window: untouched 72h, but not yet 96h.
+    const where = (vi.mocked(prisma.task.findMany).mock.calls.find((c: any) => c[0]?.where?.status === TaskStatus.DOING)?.[0] as any)?.where;
+    const lt = where.updatedAt.lt.getTime();
+    const gte = where.updatedAt.gte.getTime();
+    expect(Date.now() - lt).toBeGreaterThanOrEqual(72 * 3_600_000 - 1_000);
+    expect(lt - gte).toBe(24 * 3_600_000);
+  });
+
+  it("Phase 1: a 200 whose body reports ok:false is NOT a rescue (2026-11-01)", async () => {
+    // Prod 11-01: "Rescued data-source-health · Status 200" posted for a run that
+    // had just filed "1 of 7 probes failing" (cronHandler keeps HTTP 200 for ok:false).
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        { name: "data-source-health", schedule: "0 9 * * *", enabled: true, mode: "active", lastStatus: "failed", success14d: 5, fail14d: 3, lastRunAt: recentIso(1) },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({
+      ok: true,
+      status: 200,
+      durationMs: 194,
+      body: JSON.stringify({ ok: true, data: { ok: false, reason: "1 of 7 probes failing" }, meta: {} }),
+    });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).not.toContain("data-source-health");
+    expect(mocks.recordCoachEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Cron Healer: Rescued data-source-health" })
+    );
+  });
+
+  it("CONTROL · a 200 whose body reports success is still a rescue, and the alert expires", async () => {
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        { name: "data-source-health", schedule: "0 9 * * *", enabled: true, mode: "active", lastStatus: "failed", success14d: 5, fail14d: 3, lastRunAt: recentIso(1) },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({
+      ok: true,
+      status: 200,
+      durationMs: 194,
+      body: JSON.stringify({ ok: true, data: { ok: true, status: "ok" }, meta: {} }),
+    });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).toContain("data-source-health");
+    expect(mocks.recordCoachEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Cron Healer: Rescued data-source-health", expiresAt: expect.any(String) })
     );
   });
 });
