@@ -67,18 +67,21 @@ function healWindowMs(schedule: string | null | undefined, route: string): numbe
  * The re-fired run's own verdict. cronHandler keeps HTTP 200 for a route that
  * resolved with `ok: false` (cron-manager files the row red), so a 200 is not a
  * rescue: on 2026-11-01 "Rescued data-source-health · Status 200" posted for a
- * run that had just filed "1 of 7 probes failing". Null when the body carries
- * no failure claim or cannot be read (truncated at 2,000 chars, not JSON).
+ * run that had just filed "1 of 7 probes failing". A body that cannot be read
+ * (cut at 2,000 chars, not JSON) is UNREADABLE, never a rescue: the heal settles
+ * unknown and resolveTimedOutHeals settles it from the run's own row. No body at
+ * all is a mega-slot event heal, which never had a body to read.
  */
-function reportedFailureIn(body: string | undefined): string | null {
-  if (!body) return null;
+type HealVerdict = { kind: "ok" } | { kind: "failed"; reason: string } | { kind: "unreadable" };
+function healVerdictFrom(body: string | undefined): HealVerdict {
+  if (body === undefined) return { kind: "ok" };
   try {
     const data = (JSON.parse(body) as { data?: unknown }).data;
-    if (!data || typeof data !== "object" || (data as { ok?: unknown }).ok !== false) return null;
+    if (!data || typeof data !== "object" || (data as { ok?: unknown }).ok !== false) return { kind: "ok" };
     const { reason, error } = data as { reason?: unknown; error?: unknown };
-    return typeof reason === "string" ? reason : typeof error === "string" ? error : "handler returned ok:false";
+    return { kind: "failed", reason: typeof reason === "string" ? reason : typeof error === "string" ? error : "handler returned ok:false" };
   } catch {
-    return null;
+    return { kind: "unreadable" };
   }
 }
 
@@ -328,11 +331,17 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
         try {
           // The trigger id lets resolveTimedOutHeals find this heal's own run row.
           const cronResult = await runManifestCron(row.name, attemptId ? `heal:${attemptId}` : undefined);
-          const reported = cronResult.ok ? reportedFailureIn(cronResult.body) : null;
+          const verdict: HealVerdict = cronResult.ok ? healVerdictFrom(cronResult.body) : { kind: "ok" };
           await settleHeal(
             attemptId,
-            cronResult.ok && !reported ? "success" : cronResult.status === 0 ? "unknown" : "known_failure",
-            reported ? `heal ran (HTTP ${cronResult.status}) and the job reported failure: ${reported.slice(0, 200)}` : `heal returned HTTP ${cronResult.status}`,
+            !cronResult.ok
+              ? cronResult.status === 0 ? "unknown" : "known_failure"
+              : verdict.kind === "ok" ? "success" : verdict.kind === "unreadable" ? "unknown" : "known_failure",
+            verdict.kind === "failed"
+              ? `heal ran (HTTP ${cronResult.status}) and the job reported failure: ${verdict.reason.slice(0, 200)}`
+              : verdict.kind === "unreadable"
+                ? `heal returned HTTP ${cronResult.status} with a body that could not be read; outcome from the run row`
+                : `heal returned HTTP ${cronResult.status}`,
           );
           // runManifestCron throws only BEFORE it sends (unknown, retired or
           // Inngest-only job: the catch below); once sent, a 404 or a dropped
@@ -340,11 +349,12 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
           // Unconditionally pushing here filed "Cron Healer: Rescued X"
           // coach events for phantom heals, burning the whole
           // MAX_HEAL_PER_RUN budget on 404s before reaching a real cron.
-          if (!cronResult.ok || reported) {
+          if (!cronResult.ok || verdict.kind !== "ok") {
             log.warn("heal_attempt_failed", {
               jobName: row.name,
               status: cronResult.status,
-              ...(reported ? { reported } : {}),
+              verdict: verdict.kind,
+              ...(verdict.kind === "failed" ? { reported: verdict.reason } : {}),
             });
             continue;
           }
@@ -545,7 +555,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
     });
 
     for (const task of stalledTasks) {
-      await recordCoachEvent({
+      const flagged = await recordCoachEvent({
         kind: "system-alert",
         subjectId: `task-stall:${task.id}`,
         priority: "P2",
@@ -555,7 +565,8 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
         surfaces: ["scoreboard", "home"],
         expiresAt: new Date(now + HEAL_EVENT_TTL_MS).toISOString(),
       });
-      result.stalledTasksFlagged++;
+      // recordCoachEvent returns null on a failed write: count only rows that landed.
+      if (flagged) result.stalledTasksFlagged++;
     }
   } catch (stallErr) {
     log.error("task_stalling_healer_failed", { error: stallErr instanceof Error ? stallErr.message : String(stallErr) });

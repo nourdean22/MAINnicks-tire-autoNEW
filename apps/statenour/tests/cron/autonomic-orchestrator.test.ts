@@ -10,6 +10,7 @@ const mocks = {
   recordCoachEvent: vi.fn(),
   markOllamaQuotaExhausted: vi.fn(),
   decomposeTaskWithAi: vi.fn(),
+  settleAttempt: vi.fn(),
   clientConnect: vi.fn(),
   clientQuery: vi.fn(),
   clientEnd: vi.fn(),
@@ -41,7 +42,10 @@ vi.mock("@/lib/services/cron-control", () => ({
 // autonomic-orchestrator-heal-window.test.ts; here every claim is granted.
 vi.mock("@/lib/services/action-attempts", () => ({
   beginAttempt: async () => ({ kind: "claimed", attemptId: "attempt_1", attemptNo: 1 }),
-  settleAttempt: async () => "SUCCEEDED_UNVERIFIED",
+  settleAttempt: async (id: string, settle: unknown) => {
+    mocks.settleAttempt(id, settle);
+    return "SUCCEEDED_UNVERIFIED";
+  },
 }));
 
 const recentIso = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
@@ -567,6 +571,7 @@ describe("services/autonomic-orchestrator", () => {
     vi.mocked(prisma.task.findMany).mockResolvedValueOnce([
       { id: "task_stalled_1", title: "Continue planning and then start crm build", updatedAt: new Date("2026-10-28T15:50:19Z") } as any,
     ]);
+    mocks.recordCoachEvent.mockResolvedValue({ eventId: "coach:system-alert:task-stall:task_stalled_1" });
 
     const res = await runAutonomicOrchestrator();
 
@@ -589,6 +594,33 @@ describe("services/autonomic-orchestrator", () => {
     expect(lt - gte).toBe(24 * 3_600_000);
   });
 
+  it("Phase 5: a flag whose event write failed is not counted", async () => {
+    vi.mocked(prisma.task.findMany).mockResolvedValueOnce([
+      { id: "task_stalled_2", title: "x", updatedAt: new Date("2026-10-28T15:50:19Z") } as any,
+    ]);
+    mocks.recordCoachEvent.mockResolvedValue(null);
+    const res = await runAutonomicOrchestrator();
+    expect(res.stalledTasksFlagged).toBe(0);
+  });
+
+  it("Phase 1: a 200 whose body cannot be read settles UNKNOWN and is not a rescue", async () => {
+    // triggerCronByPath cuts the body at 2,000 chars; a cut JSON body does not parse.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        { name: "data-source-health", schedule: "0 9 * * *", enabled: true, mode: "active", lastStatus: "failed", success14d: 5, fail14d: 3, lastRunAt: recentIso(1) },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 194, body: '{"ok":true,"data":{"ok":true,"conversationIds":["a' });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).not.toContain("data-source-health");
+    expect(mocks.settleAttempt).toHaveBeenCalledWith("attempt_1", expect.objectContaining({ disposition: "unknown" }));
+    expect(mocks.recordCoachEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Cron Healer: Rescued data-source-health" })
+    );
+  });
+
   it("Phase 1: a 200 whose body reports ok:false is NOT a rescue (2026-11-01)", async () => {
     // Prod 11-01: "Rescued data-source-health · Status 200" posted for a run that
     // had just filed "1 of 7 probes failing" (cronHandler keeps HTTP 200 for ok:false).
@@ -607,6 +639,10 @@ describe("services/autonomic-orchestrator", () => {
     const res = await runAutonomicOrchestrator();
 
     expect(res.healedCrons).not.toContain("data-source-health");
+    expect(mocks.settleAttempt).toHaveBeenCalledWith(
+      "attempt_1",
+      expect.objectContaining({ disposition: "known_failure", reason: expect.stringContaining("1 of 7 probes failing") }),
+    );
     expect(mocks.recordCoachEvent).not.toHaveBeenCalledWith(
       expect.objectContaining({ title: "Cron Healer: Rescued data-source-health" })
     );

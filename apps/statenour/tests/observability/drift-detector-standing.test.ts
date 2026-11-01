@@ -61,6 +61,20 @@ describe("OS drift: standing step vs new movement", () => {
     expect(report.regressions.map((r) => r.metric)).toEqual(["os_snapshot.tool_count"]);
   });
 
+  it("a slow bleed (4% a day, never 5% day-over-day) still alerts when it crosses warn and again at critical", async () => {
+    // Second-reader finding on this PR: a movement-only rule marked every day standing and never alerted.
+    const bleed = [...daily("2026-10-05", "2026-10-19", 100)];
+    for (let i = 1; i <= 11; i++) bleed.push({ value: 100 * 0.96 ** i, createdAt: new Date(Date.parse("2026-10-19T03:00:00Z") + i * 86_400_000) });
+    const alerted = new Set<string>();
+    for (let i = 1; i <= 11; i++) {
+      const at = Date.parse("2026-10-19T03:00:00Z") + i * 86_400_000;
+      series = bleed.filter((r) => r.createdAt.getTime() <= at);
+      const report = await compareToWeekAgo(new Date(at + 5 * 60_000));
+      for (const r of report.regressions) if (r.severity !== "info") alerted.add(r.severity);
+    }
+    expect([...alerted].sort()).toEqual(["critical", "warn"]);
+  });
+
   it("a further drop on a standing metric alerts again", async () => {
     series = [...PROD.filter((r) => r.createdAt <= new Date("2026-10-27T03:00:00Z")), { value: 110, createdAt: new Date("2026-10-28T03:00:00Z") }];
     const report = await compareToWeekAgo(new Date("2026-10-28T03:05:00Z"));
