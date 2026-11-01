@@ -20,9 +20,9 @@ import type { MissionsDeck } from "@/lib/missions/deck";
 type Rhythms = MissionsDeck["rhythms"];
 
 const ROWS: Rhythms = [
-  { id: "d1", title: "10 breaths in bed", loopKind: "DAILY", doneToday: false, windowDone: 3, windowOf: 7 },
-  { id: "w1", title: "Weigh in", loopKind: "WEEKLY", recurringDays: [1, 3, 5], doneToday: false, windowDone: 1, windowOf: 7 },
-  { id: "w2", title: "Plan the week", loopKind: "WEEKLY", recurringDays: [], doneToday: true, windowDone: 1, windowOf: 7 },
+  { id: "d1", title: "10 breaths in bed", loopKind: "DAILY", dueToday: true, doneToday: false, windowDone: 3, windowOf: 7 },
+  { id: "w1", title: "Weigh in", loopKind: "WEEKLY", recurringDays: [1, 3, 5], dueToday: true, doneToday: false, windowDone: 1, windowOf: 7 },
+  { id: "w2", title: "Plan the week", loopKind: "WEEKLY", recurringDays: [], dueToday: false, doneToday: true, windowDone: 1, windowOf: 7 },
 ];
 
 /** Height / width floor: min-h-11, min-h-[44px], h-11 or taller. A later, smaller class wins, so it is read last. */
@@ -154,6 +154,34 @@ describe("DeckRhythms · edit entry, cadence words, add row", () => {
     expect(still!.value).toBe("Stretch");
   });
 
+  // Nour 2026-11-01, a Sunday: weekly Mon / Mon Wed Fri rhythms sat in today's list and in "2 of 7 today".
+  it("rhythms not due today sit under 'not due today' and never count in 'N of M today'", () => {
+    render([
+      { id: "d1", title: "Stretch", loopKind: "DAILY", dueToday: true, doneToday: true, windowDone: 3, windowOf: 7 },
+      { id: "w1", title: "Monday task", loopKind: "WEEKLY", recurringDays: [1], dueToday: false, doneToday: false, windowDone: 0, windowOf: 7 },
+      { id: "w2", title: "Work out 3x", loopKind: "WEEKLY", recurringDays: [1, 3, 5], dueToday: false, doneToday: false, windowDone: 1, windowOf: 7 },
+    ]);
+    const text = container.textContent ?? "";
+    expect(text).toContain("1 of 1 today");
+    const week = container.querySelector('[aria-label="Rhythms not due today"]');
+    expect(week, "a separate group for rhythms not due today").toBeTruthy();
+    expect(week!.textContent).toContain("Monday task");
+    expect(week!.textContent).toContain("Work out 3x");
+    expect(week!.textContent).not.toContain("Stretch");
+  });
+
+  it("a weekly ticked today stays in today's list even when today is not one of its days", () => {
+    render([{ id: "w1", title: "Monday task", loopKind: "WEEKLY", recurringDays: [1], dueToday: false, doneToday: true, windowDone: 1, windowOf: 7 }]);
+    expect(container.textContent).toContain("1 of 1 today");
+    expect(container.querySelector('[aria-label="Rhythms not due today"]')).toBeNull();
+  });
+
+  it("when nothing is due today, there is no 'N of M today' and the add row stays", () => {
+    render([{ id: "w1", title: "Monday task", loopKind: "WEEKLY", recurringDays: [1], dueToday: false, doneToday: false, windowDone: 0, windowOf: 7 }]);
+    expect(container.textContent).not.toMatch(/of \d+ today/);
+    expect(container.querySelector('[aria-label="Rhythms not due today"]')?.textContent).toContain("Monday task");
+    expect(btn(/\+ rhythm/).length).toBe(1);
+  });
   it("deleting the last rhythm must not remove the way to add one: an empty list still renders the add row", () => {
     render([]);
     expect(btn(/\+ rhythm/).length).toBe(1);

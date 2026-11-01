@@ -113,10 +113,36 @@ if (-not $py) {
 }
 Log "python for render/digest steps: $py"
 
-# 1. Incremental graph update (tree-sitter AST, no LLM, no API keys).
-& $graphify update . 2>&1 | Add-Content -Path $log
-if ($LASTEXITCODE -ne 0) {
-    Log "ERROR: graphify update exited $LASTEXITCODE - aborting before vault write"
+# WATCHDOG (2026-11-01). The 03:00 run hung 5 h in `graphify update .` (29 CPU-s, no output) while the task said 0
+# and the graph lock stayed held; the manager killed it by hand. A step run through this gets a ceiling: on timeout its
+# process tree is killed, an ERROR line is logged, and it returns 124. Canary: scripts/agent-os/graphifySyncWatchdog.test.mjs.
+# >>> watchdog
+function Invoke-Bounded([string]$Exe, [string[]]$ArgList, [double]$Minutes, [string]$Step) {
+    $out = [IO.Path]::GetTempFileName(); $err = [IO.Path]::GetTempFileName()
+    $p = Start-Process -FilePath $Exe -ArgumentList $ArgList -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+    if (-not $p) { Log "ERROR: $Step failed to start ($Exe): $($Error[0])"; return 127 }
+    $null = $p.Handle  # without a cached handle, ExitCode reads back empty after exit
+    $done = $p.WaitForExit([int]($Minutes * 60000))
+    if (-not $done) {
+        & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+        $gone = $p.WaitForExit(10000)
+    }
+    Get-Content $out, $err -ErrorAction SilentlyContinue | Add-Content -Path $log
+    Remove-Item $out, $err -ErrorAction SilentlyContinue
+    if (-not $done) {
+        if ($gone) { Log "ERROR: $Step hung past $Minutes min - killed pid $($p.Id) and its children" }
+        else { Log "ERROR: $Step hung past $Minutes min - KILL FAILED, pid $($p.Id) still running" }
+        return 124
+    }
+    return $p.ExitCode
+}
+# <<< watchdog
+
+# 1. Incremental graph update (tree-sitter AST, no LLM, no API keys). A normal run takes under 8 min of an 8 min sync.
+$updateMinutes = if ($env:GRAPHIFY_UPDATE_TIMEOUT_MIN) { [double]$env:GRAPHIFY_UPDATE_TIMEOUT_MIN } else { 45 }
+$updateExit = Invoke-Bounded $graphify @('update', '.') $updateMinutes 'graphify update'
+if ($updateExit -ne 0) {
+    Log "ERROR: graphify update exited $updateExit - aborting before vault write"
     Release-GraphLock
     exit 1
 }

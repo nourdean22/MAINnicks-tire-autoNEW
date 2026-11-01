@@ -1065,6 +1065,8 @@ export function GoalBoard() {
                   tabIndex={0}
                   onClick={() => setExpandedGoal(isExpanded ? null : g.id)}
                   onKeyDown={(e) => {
+                    // A key on a button inside the row (Edit, Archive, the chips) is that button's, not the row's.
+                    if (e.target !== e.currentTarget) return;
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setExpandedGoal(isExpanded ? null : g.id);
@@ -1165,6 +1167,7 @@ export function GoalBoard() {
                               type="date"
                               value={editDeadline}
                               onChange={(e) => setEditDeadline(e.target.value)}
+                              aria-label="Deadline"
                               className="min-h-11 bg-content border border-edge-default rounded-control px-2 py-0.5 text-[16px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <select
@@ -1764,7 +1767,22 @@ export function GoalBoard() {
                       )}
                     </div>
 
-                    <div className="shrink-0 mt-1">
+                    <div className="shrink-0 flex flex-col items-center">
+                      {/* Nour 2026-11-01: "i cant edit the goals". The form's only door was expand, then
+                          "Show Legacy Details", then Edit; every card now carries its own. */}
+                      {editingId !== g.id && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEdit(g);
+                          }}
+                          aria-label={`Edit ${g.title}`}
+                          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
                       {isExpanded ? (
                         <ChevronUp size={12} className="text-fg-tertiary" />
                       ) : (
@@ -1946,7 +1964,15 @@ export function GoalBoard() {
                             Edit
                           </button>
                           <button
-                            onClick={() => archiveGoal(g.id)}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const ok = await confirm({
+                                title: `Archive "${g.title}"?`,
+                                body: "It moves to paused: you can revive it later from the Goals tab in Stats.",
+                                confirmLabel: "Archive",
+                              });
+                              if (ok) void archiveGoal(g.id);
+                            }}
                             className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                             title="pauses the goal · history preserved · recoverable"
                           >

@@ -238,8 +238,8 @@ export const MISSIONS_DECK: MissionsDeck = {
     { id: LANE_HEALTH, title: "Demo lane: Health", canonicalDomain: "health", isShop: false, openCount: 1, oldestOpenDays: 2 },
   ],
   rhythms: [
-    { id: "demo-rhythm-stretch", title: "Demo rhythm: morning stretch", loopKind: "DAILY", doneToday: true, windowDone: 6, windowOf: 7 },
-    { id: "demo-rhythm-review", title: "Demo rhythm: weekly review", loopKind: "WEEKLY", doneToday: false, windowDone: 0, windowOf: 1 },
+    { id: "demo-rhythm-stretch", title: "Demo rhythm: morning stretch", loopKind: "DAILY", dueToday: true, doneToday: true, windowDone: 6, windowOf: 7 },
+    { id: "demo-rhythm-review", title: "Demo rhythm: weekly review", loopKind: "WEEKLY", dueToday: true, doneToday: false, windowDone: 0, windowOf: 1 },
   ],
   // ageDays = floor((now - task.updatedAt) / day), as lib/missions/deck.ts daysBetween; pinned by the repo test.
   waiting: [

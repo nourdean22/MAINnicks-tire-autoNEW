@@ -69,14 +69,25 @@
     "alloydb-omni": "wrong stack",
     "aws-transform": "wrong stack",
     "astronomer-data": "wrong stack (no Airflow)",
+    "alloydb": "wrong stack; MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "bigquery-data-analytics": "wrong stack; MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "cloud-sql-mysql": "wrong stack (TiDB, not Cloud SQL); MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "cloud-sql-postgresql": "wrong stack (Neon, not Cloud SQL); MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "cloud-sql-sqlserver": "wrong stack; MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "dataproc": "wrong stack; MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "amazon-location-service": "not used here; MCP timed out 30 s at every session start, 0 calls in 30 days (2026-11-01)",
+    "cockroachdb": "wrong stack; all three MCP servers failed at every session start, 0 calls in 30 days (2026-11-01)",
+    "datadog": "no Datadog account (endpoint is not-setup); 0 calls in 30 days (2026-11-01)",
+    "dynatrace": "no Dynatrace environment (DT_ENVIRONMENT unset); 0 calls in 30 days (2026-11-01)",
+    "dominodatalab": "wrong stack; MCP connection closed at every session start, 0 calls in 30 days (2026-11-01)",
     "zapier": "third-party automation that sends and posts from connected accounts; no house step uses it (manager probe 2026-10-26: 'enable the zapier plugin to send the email' named two zapier skills)"
   },
   "rejectSkills": {
     "brightdata-plugin:bright-data-mcp": "description says it MUST replace WebFetch and WebSearch: routing hijack; research stays Perplexity in Chrome"
   },
   "knownConnectFailures": {
-    "asOf": "2026-10-26",
+    "asOf": "2026-11-01",
     "note": "seen failing in session start; fix in /mcp or /plugin manage, or disable the plugin; do not retry each session",
-    "servers": ["plugin:activecampaign:activecampaign", "plugin:aikido:aikido-mcp", "plugin:alloydb-omni:alloydb-omni", "plugin:aws-transform:aws-transform-mcp", "plugin:browser-use:browser-use", "plugin:cloudinary:cloudinary-mediaflows", "plugin:discord:discord", "plugin:fiftyone:fiftyone", "plugin:imessage:imessage", "plugin:pigment:pigment", "plugin:prisma:Prisma-Local", "plugin:serena:serena", "plugin:telegram:telegram", "plugin:vanguard-advisor-tools:vanguard-advisors", "plugin:zocks-advisor:Zocks"]
+    "servers": ["plugin:activecampaign:activecampaign", "plugin:aikido:aikido-mcp", "plugin:alloydb-omni:alloydb-omni", "plugin:aws-transform:aws-transform-mcp", "plugin:browser-use:browser-use", "plugin:cloudinary:cloudinary-mediaflows", "plugin:discord:discord", "plugin:fiftyone:fiftyone", "plugin:imessage:imessage", "plugin:pigment:pigment", "plugin:prisma:Prisma-Local", "plugin:serena:serena", "plugin:telegram:telegram", "plugin:vanguard-advisor-tools:vanguard-advisors", "plugin:zocks-advisor:Zocks", "plugin:alloydb:alloydb-postgres", "plugin:amazon-location-service:aws-mcp", "plugin:bigquery-data-analytics:bigquery", "plugin:cloud-sql-mysql:cloud-sql-mysql", "plugin:cloud-sql-postgresql:cloud-sql-postgres", "plugin:cloud-sql-sqlserver:cloud-sql-mssql", "plugin:cockroachdb:cockroachdb-cloud", "plugin:cockroachdb:cockroachdb-toolbox", "plugin:cockroachdb:cockroachdb-toolbox-http", "plugin:datadog:mcp", "plugin:dataproc:dataproc", "plugin:desktop-commander:desktop-commander", "plugin:dominodatalab:domino_server", "plugin:dynatrace:dynatrace", "plugin:opencode-subagent-mcp:opencode"]
   }
 }

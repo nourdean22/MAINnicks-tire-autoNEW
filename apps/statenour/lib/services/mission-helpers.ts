@@ -120,6 +120,27 @@ export function missionHasEndState(mission: {
   return isMeaningfulCriteria(mission.completionCriteria);
 }
 
+/**
+ * Should ticking task `doneTaskId` open the "Mission complete" retro (which archives the mission)? Only for an
+ * active user project that declares an end state and has no other open non-habit task. A life-area bucket is not
+ * a task list that finishes (Nour 2026-11-01: the last Health task offered to archive "the whole health category").
+ */
+export function retroDueAfterCompletion(
+  mission: { id: string; title: string | null | undefined; status: string; systemKind?: string | null; deadline?: string | Date | null; completionCriteria?: unknown },
+  tasks: ReadonlyArray<{ id: string; missionId?: string | null; status: string; loopKind?: string | null }>,
+  doneTaskId: string,
+): boolean {
+  if (mission.status !== "ACTIVE" || !isUserProject(mission) || !missionHasEndState(mission)) return false;
+  return !tasks.some(
+    (t) =>
+      t.id !== doneTaskId &&
+      t.missionId === mission.id &&
+      t.status !== "DONE" &&
+      t.status !== "ARCHIVED" &&
+      !["DAILY", "WEEKLY"].includes((t.loopKind ?? "").toUpperCase()),
+  );
+}
+
 /** A JSON column is "declared" only if it holds something. `{}`/`[]`/"" do not. */
 function isMeaningfulCriteria(value: unknown): boolean {
   if (value === null || value === undefined) return false;
