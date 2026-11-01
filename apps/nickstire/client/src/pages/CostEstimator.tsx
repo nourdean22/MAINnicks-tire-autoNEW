@@ -81,7 +81,7 @@ const FAQ_ITEMS = [
   {
     question: "Can you match competitor pricing?",
     answer:
-      "We focus on honest, transparent pricing. Bring us a quote and we'll discuss fair alternatives.",
+      "Bring us a quote and we'll talk through fair alternatives.",
   },
   {
     question: "Do you offer payment plans?",
@@ -189,7 +189,7 @@ export default function CostEstimator() {
     <PageLayout activeHref="/cost-estimator" showChat={true}>
       <SEOHead
         title="Auto Repair Cost Estimator | Cleveland OH | Free Quotes"
-        description="Get instant repair cost estimates for your car. Brakes, tires, oil changes, diagnostics. Transparent pricing at Nick's Tire & Auto Cleveland."
+        description="Get instant repair cost estimates for your car. Brakes, tires, oil changes, diagnostics. Written quote first at Nick's Tire & Auto Cleveland."
         canonicalPath="/cost-estimator"
       />
       <Breadcrumbs
@@ -205,7 +205,7 @@ export default function CostEstimator() {
             animate={{ opacity: 1 }}
             className="font-mono text-primary text-sm tracking-wide"
           >
-            TRANSPARENT PRICING
+            PRICES UP FRONT
           </motion.span>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}

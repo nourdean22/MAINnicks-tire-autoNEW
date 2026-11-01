@@ -450,7 +450,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Used Tires + Free Installation at Nick's",
-        content: "When you buy used tires from Nick's Tire & Auto, you get the same install package that comes with new tires: professional mounting, computer balancing, new valve stems, TPMS reset, and a safety check. No other used tire shop in Cleveland includes all of this. That is why Cleveland drivers choose Nick's for both new and used tires."
+        content: "When you buy used tires from Nick's Tire & Auto, you get the same install package that comes with new tires: professional mounting, computer balancing, new valve stems, TPMS reset, and a safety check. No other used tire shop in Cleveland includes all of this."
       }
     ],
     relatedServices: ["/tires"],
@@ -563,7 +563,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brake Pad Replacement Only: $149 to $249",
-        content: "If your brake pads are worn but the rotors are still in good shape, a pad-only replacement is the cheapest fix that exists. This involves removing the wheels, removing the old pads, cleaning the caliper slides, and installing new brake pads. The price range of $149 to $249 per axle covers most passenger cars and small SUVs. Larger trucks and European vehicles can run $50 to $100 more because the parts cost more. At Nick's Tire & Auto, we always measure rotor thickness and check for scoring before recommending pad-only service. If the rotors are too thin or damaged, installing new pads on bad rotors wastes your money because the new pads will wear unevenly and you will be back in the shop sooner than expected. We would rather do the job right the first time."
+        content: "If your brake pads are worn but the rotors are still in good shape, a pad-only replacement is the cheapest fix that exists. This involves removing the wheels, removing the old pads, cleaning the caliper slides, and installing new brake pads. The price range of $149 to $249 per axle covers most passenger cars and small SUVs. Larger trucks and European vehicles can run $50 to $100 more because the parts cost more. At Nick's Tire & Auto, we always measure rotor thickness and check for scoring before recommending pad-only service. If the rotors are too thin or damaged, installing new pads on bad rotors wastes your money because the new pads will wear unevenly and you will be back in the shop sooner than expected. We would rather do it once."
       },
       {
         heading: "Brake Pads and Rotors: From $149.99",
@@ -571,7 +571,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Full Brake Job: $449 to $699",
-        content: "A full brake job goes beyond pads and rotors. This service is needed when calipers are seized or leaking, brake hoses are cracked, or the hydraulic system needs attention. The $449 to $699 per axle price typically includes new pads, new rotors, rebuilt or new calipers, new brake hardware (springs, clips, and pins), brake fluid flush, and a complete system inspection. Vehicles that have gone too long without brake service often need this level of work. If you have been driving with grinding brakes for weeks or months, the damage extends beyond the pads and rotors. The good news is that a full brake job essentially gives you a brand-new braking system that should last 40,000 to 60,000 miles with normal driving."
+        content: "A full brake job goes beyond pads and rotors. This service is needed when calipers are seized or leaking, brake hoses are cracked, or the hydraulic system needs attention. The $449 to $699 per axle price typically includes new pads, new rotors, rebuilt or new calipers, new brake hardware (springs, clips, and pins), brake fluid flush, and a complete system inspection. Vehicles that have gone too long without brake service often need this level of work. If you have been driving with grinding brakes for weeks or months, the damage extends beyond the pads and rotors. A full brake job essentially gives you a brand-new braking system that should last 40,000 to 60,000 miles with normal driving."
       },
       {
         heading: "Nick's Tire & Auto vs Dealership vs Chain Shop Pricing",
@@ -587,7 +587,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Schedule Your Free Brake Check",
-        content: "Whether you are hearing a noise, feeling a vibration, or just want peace of mind, bring your vehicle to Nick's Tire & Auto for a free brake check. We will measure everything, show you what we find, and give you an honest price before any work begins. No appointment needed. Walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Northeast Ohio. Honest work, fair prices, every time."
+        content: "If you hear a noise or feel a vibration, bring your vehicle to Nick's Tire & Auto for a free brake check. We will measure everything, show you what we find, and give you an honest price before any work begins. No appointment needed. Walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Northeast Ohio. Honest work, fair prices, every time."
       }
     ],
     relatedServices: ["/brakes", "/financing", "/diagnostics"],
@@ -912,7 +912,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "When to Stick with Run-Flats",
-        content: "Keep run-flats if you do a lot of highway driving on I-90 or I-77 where changing a tire on the shoulder is dangerous, if you frequently drive alone late at night, or if your vehicle's suspension was specifically tuned for run-flat sidewall stiffness (some BMWs handle differently on regular tires and may need a suspension adjustment). If peace of mind matters more than ride comfort and cost, run-flats are the right choice."
+        content: "Keep run-flats if you do a lot of highway driving on I-90 or I-77 where changing a tire on the shoulder is dangerous, if you frequently drive alone late at night, or if your vehicle's suspension was specifically tuned for run-flat sidewall stiffness (some BMWs handle differently on regular tires and may need a suspension adjustment). If driving on after a puncture matters more to you than ride comfort and cost, run-flats are the right choice."
       },
       {
         heading: "Run Flat and Regular Tire Prices at Nick's",
@@ -1344,7 +1344,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Free Pothole Damage Inspection at Nick's",
-        content: "Hit a bad one? Bring your vehicle to Nick's Tire & Auto for a free pothole damage inspection. We check tires, wheels, alignment indicators, and suspension components. If everything is fine, you leave with peace of mind. If something needs attention, we catch it before it turns into a bigger problem. Walk in any day or call (216) 862-0005."
+        content: "Hit a bad one? Bring your vehicle to Nick's Tire & Auto for a free pothole damage inspection. We check tires, wheels, alignment indicators, and suspension components. If everything is fine, you leave knowing it. If something needs attention, we catch it before it turns into a bigger problem. Walk in any day or call (216) 862-0005."
       }
     ],
     relatedServices: ["/tires", "/wheel-alignment-cleveland", "/general-repair"],
@@ -1865,7 +1865,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Choose the Right Shop: Not the Cheapest",
-        content: "The cheapest quote is often the most expensive in the long run. Shops that undercut everyone are usually cutting corners: bargain-bin parts, rushed work, or diagnosing by replacing parts until something works. A quality repair done right the first time costs less than a discount repair done twice. Look for a shop that diagnoses before replacing, uses quality parts, offers a real warranty, and explains what they found. That is what we do at Nick's."
+        content: "The cheapest quote is often the most expensive in the long run. Shops that undercut everyone are usually cutting corners: bargain-bin parts, rushed work, or diagnosing by replacing parts until something works. One repair done properly costs less than a cheap repair done twice. Look for a shop that diagnoses before replacing, uses quality parts, offers a real warranty, and explains what they found. That is what we do at Nick's."
       },
       {
         heading: "Payment Programs Make Big Repairs Manageable",
@@ -1896,7 +1896,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Nick's 12-Month Parts / 90-Day Labor Warranty",
-        content: "We warranty our repairs with a 12-month parts / 90-day labor warranty. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. This is not a gimmick. It is a commitment to doing the job right the first time. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
+        content: "We warranty our repairs with a 12-month parts / 90-day labor warranty. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
       },
       {
         heading: "What the Warranty Covers",
@@ -3312,7 +3312,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The Real Cost of a Failed DIY Repair",
-        content: "We see it every week at Nick's: someone tried to fix their car, made it worse, and now the repair costs double. A customer tried to replace their own wheel bearing, damaged the hub, and turned a $350 repair into a $700 repair. A customer tried to flush their own coolant, got air in the system, and overheated the engine. A customer tried to replace brake pads and the caliper bolt broke, requiring caliper bracket replacement. The lesson is simple. If you are not confident in the repair, the cost of getting it wrong almost always exceeds the labor cost of having a professional do it right the first time."
+        content: "We see it every week at Nick's: someone tried to fix their car, made it worse, and now the repair costs double. A customer tried to replace their own wheel bearing, damaged the hub, and turned a $350 repair into a $700 repair. A customer tried to flush their own coolant, got air in the system, and overheated the engine. A customer tried to replace brake pads and the caliper bolt broke, requiring caliper bracket replacement. The lesson is simple. If you are not confident in the repair, the cost of getting it wrong almost always exceeds the labor cost of having a shop do it once."
       },
       {
         heading: "Honest Pricing at Nick's: No Reason to Risk It",
@@ -3405,7 +3405,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Free Battery Testing",
-        content: "Your car battery does not give much warning before it dies, especially in Cleveland where summer heat and winter cold both stress batteries. Most batteries last 3 to 5 years. If yours is in that range, get it tested before it leaves you stranded. At Nick's Tire and Auto, we test your battery for free using a professional-grade load tester. It takes 5 minutes. We will tell you the battery's health, cold cranking amps, and how much life is left. No appointment needed. Just pull in. If the battery is weak, we can replace it for $120 to $200 depending on size and type, installed while you wait. But if it tests good, you leave with peace of mind and spend nothing."
+        content: "Your car battery does not give much warning before it dies, especially in Cleveland where summer heat and winter cold both stress batteries. Most batteries last 3 to 5 years. If yours is in that range, get it tested before it leaves you stranded. At Nick's Tire and Auto, we test your battery for free using a professional-grade load tester. It takes 5 minutes. We will tell you the battery's health, cold cranking amps, and how much life is left. No appointment needed. Just pull in. If the battery is weak, we can replace it for $120 to $200 depending on size and type, installed while you wait. But if it tests good, you spend nothing."
       },
       {
         heading: "Free Estimates on Repairs",
@@ -3545,7 +3545,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "How It Started",
-        content: "Nick's Tire and Auto opened its doors at 17625 Euclid Ave in Cleveland, Ohio in 2018. The idea was simple: Cleveland needed an honest, fair-priced auto repair shop that treated customers like people, not transactions. Too many shops in the area were overcharging, upselling, and making car repair feel like a battle. We wanted to build the shop we would want to take our own cars to. Fair prices and transparent service. The first year was tires and basic services. Word got around. Customers kept coming back and bringing their friends and family. Within a couple years, we expanded into full mechanical repair: brakes, diagnostics, engine work, suspension, and everything in between."
+        content: "Nick's Tire and Auto opened its doors at 17625 Euclid Ave in Cleveland, Ohio in 2018. The idea was simple: Cleveland needed an honest, fair-priced auto repair shop that treated customers like people, not transactions. Too many shops in the area were overcharging, upselling, and making car repair feel like a battle. We wanted to build the shop we would want to take our own cars to. Fair prices, shown before the work. The first year was tires and basic services. Word got around. Customers kept coming back and bringing their friends and family. Within a couple years, we expanded into full mechanical repair: brakes, diagnostics, engine work, suspension, and everything in between."
       },
       {
         heading: "What We Stand For",
@@ -3997,7 +3997,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How to pick a tire shop",
-        content: "Chains are fine for some things. National warranty (you can get the same tire serviced anywhere). Brand familiarity. Location density. Coupons. Independents are better at other things. Transparent pricing without coupon games. Walk-in flexibility without appointment friction. Used-tire access. Sunday hours (most chains close). Written estimate before any wrench moves. Red flags at any shop: advertised tire price without total-ticket disclosure (the labor + valve stems + TPMS service + disposal fees that get added at checkout). Recommended-services list that grows mid-job past your authorization. 'While we have it on the lift' upsell pressure on adjacent work. Closed Sunday in a 7-day-a-week economy. Green flags: estimate hits your hand in writing before installation. Mechanic shows you the worn part with a flashlight before recommending replacement. Honest about when a used tire fits vs when new is the right call. Open when you're not at work."
+        content: "Chains are fine for some things. National warranty (you can get the same tire serviced anywhere). Brand familiarity. Location density. Coupons. Independents are better at other things. Prices without coupons. Walk-in flexibility without appointment friction. Used-tire access. Sunday hours (most chains close). Written estimate before any wrench moves. Red flags at any shop: advertised tire price without total-ticket disclosure (the labor + valve stems + TPMS service + disposal fees that get added at checkout). Recommended-services list that grows mid-job past your authorization. 'While we have it on the lift' upsell pressure on adjacent work. Closed Sunday in a 7-day-a-week economy. Green flags: estimate hits your hand in writing before installation. Mechanic shows you the worn part with a flashlight before recommending replacement. Honest about when a used tire fits vs when new is the right call. Open when you're not at work."
       },
       {
         heading: "Pull up to Nick's",

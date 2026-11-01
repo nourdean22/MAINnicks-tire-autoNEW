@@ -203,7 +203,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
       "Anyone who needs brakes, oil, alignment, or any mechanical repair done at the same visit",
       "Used tire shoppers",
       "Drivers needing Sunday service",
-      "People who want a one-stop shop",
+      "People who want tires and repairs in one place",
     ],
     commonComplaints: [
       "Pleasant tire experience but you still need to find a separate shop for mechanical work",
@@ -301,7 +301,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     notIdealFor: [
       "Anyone wanting predictable, consistent service quality",
       "Sunday service seekers",
-      "Customers who want transparent pricing without a coupon",
+      "Customers who want one clear price without a coupon",
     ],
     commonComplaints: [
       "Same-brand stores deliver wildly different experiences under different managers",
@@ -506,7 +506,7 @@ export function buildNicksTire(reviewRatingDisplay: string): CompetitorProfile {
       "Written estimate before any wrench moves. No surprise shop fees at checkout",
       "Mechanic-owned. The person quoting you the work is the person doing it",
       `${reviewRatingDisplay}★ Google rating from real Cleveland drivers`,
-      "Transparent pricing (labor, parts, and disposal fees disclosed up front)",
+      "Labor, parts and disposal fees shown up front",
     ],
     weaknesses: [
       "Single location at 17625 Euclid Ave. If you're 30+ miles away, the chains are closer",

@@ -1062,6 +1062,65 @@ export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
     exempt: STRUCTURE_EXEMPT,
     sources: ["humanizer"],
   },
+  // Pass 2 (2026-11-01): the phrase classes Nour still read as AI-written after pass 1.
+  // The shared catalogue both apps used for the audit lives in the PR body.
+  {
+    id: "structure.stock-phrase",
+    pattern:
+      /\bpeace of mind\b|\b(?:we'?ve|we have|we) got you covered\b|\blook no further\b|\byour (?:go-to|one-stop)\b|\bone-stop shop\b|\bgo-to shop\b|\bsay goodbye to\b|\b(?:worry|stress)[- ]free\b|\bdrive with confidence\b|\bright the first time\b|\ball (?:of )?your [\w-]+(?: [\w-]+){0,2} needs\b/i,
+    label: "stock marketing phrase",
+    why: "A phrase every shop site uses; it tells the reader nothing about this shop",
+    fix: "Replace it with what the shop actually does: 'written quote first', 'we test the fix before you get your keys'",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.reader-flattery",
+    pattern:
+      /\b(?:residents|drivers|families) (?:value|appreciate|expect) [^.\n]{0,60}(?:and that'?s|that'?s) exactly what\b|\b(?:drivers|residents|families) (?:trust|choose) nick'?s\b|\bour reputation for\b|\b(?:has|have) earned the trust\b|\b(?:discovered|find|found) (?:that )?(?:nick'?s|our shop|us)[^.\n]{0,40}\bworth the drive\b|\bthat'?s exactly what (?:nick'?s|we)[^.\n]{0,20}delivers?\b/i,
+    label: "reader flattery / borrowed trust",
+    why: "Tells the reader what their town values and that they already trust us; it is a claim with no fact behind it",
+    fix: "Say where the shop is from there and what happens on a visit; let the review count carry trust",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.rhetorical-cta",
+    pattern: /\blooking for (?:another|a new|an?) [^?\n]{0,40}\?|\bcan'?t sit and wait\?|\btired of [^?\n]{0,60}\?|\bread the rest later\b/i,
+    label: "rhetorical question as a sales opener",
+    why: "A question the reader never asked, used to stage the pitch",
+    fix: "State the offer: 'Other work we do at the same shop.' Real customer questions in an FAQ are fine",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.staged-runup",
+    pattern: /\bhere'?s (?:the truth|the deal|what happens|what you need to know)\b|\bthe good news is\b|\bsimply put\b|\bthe bottom line\b/i,
+    label: "staged run-up before the point",
+    why: "Announces the point instead of making it",
+    fix: "Cut the run-up and start with the point",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
+  {
+    id: "structure.empty-claim",
+    pattern: /\btranspar(?:ent|ency) (?:pricing|service|auto repair)\b|\bprofessional (?:service|auto (?:repair|service)|technicians|mechanics)\b|\bproudly serve\b/i,
+    label: "empty claim (transparent / professional / proudly)",
+    why: "A label the shop gives itself with nothing concrete behind it",
+    fix: "Name the practice: 'written price before we start', 'we call you before doing more'",
+    reason: "llm-tell",
+    severity: "block",
+    exempt: STRUCTURE_EXEMPT,
+    sources: ["humanizer"],
+  },
 ]);
 
 // ─── The positive half — previously enforced NOWHERE ────────────────────────

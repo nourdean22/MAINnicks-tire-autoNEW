@@ -70,6 +70,19 @@ describe("brand-voice gate: structure rules and widened scope (deny canaries)", 
     expect(out).toMatch(/structure\.dash · block/);
   }, 200_000);
 
+  it("BLOCKS every pass-2 phrase class added to a page cleaned in pass 2 (CityPage.tsx)", () => {
+    const { out, code } = runStaged(
+      appendTo(
+        "client/src/pages/CityPage.tsx",
+        'export const ZZ_PASS2_PROBE = "Drive with peace of mind. Bedford drivers trust Nick\'s for it. Looking for another service? Here\'s what happens next. Professional service, every visit.";',
+      ),
+    );
+    expect(code).not.toBe(0);
+    for (const id of ["stock-phrase", "reader-flattery", "rhetorical-cta", "staged-runup", "empty-claim"]) {
+      expect(out, id).toMatch(new RegExp(`structure\\.${id} · block`));
+    }
+  }, 200_000);
+
   it("REPORTS (warn, not blocking) a dash on a page not cleaned yet", () => {
     const { out, code } = runStaged({
       "apps/nickstire/client/src/pages/ZzStructureProbe.tsx":

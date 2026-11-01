@@ -43,7 +43,7 @@ const HEAD_TO_HEAD: ComparisonLink[] = [
 ];
 
 const ALTERNATIVES: ComparisonLink[] = [
-  { path: "/mavis-tire-alternative-cleveland", label: "Mavis Tire alternative", hook: "Tired of Mavis surprise fees at checkout? Walk into Nick's instead." },
+  { path: "/mavis-tire-alternative-cleveland", label: "Mavis Tire alternative", hook: "Written quote before work at Nick's, so the price at checkout matches." },
   { path: "/conrads-tire-alternative-cleveland", label: "Conrad's Tire alternative", hook: "Open Sundays + walk-ins welcome: what Conrad's used to do." },
   { path: "/discount-tire-alternative-cleveland", label: "Discount Tire alternative", hook: "Discount Tire only does tires. Nick's does the whole car." },
   { path: "/firestone-alternative-cleveland", label: "Firestone alternative", hook: "Independent honesty without the chain markup or appointment-only policy." },
