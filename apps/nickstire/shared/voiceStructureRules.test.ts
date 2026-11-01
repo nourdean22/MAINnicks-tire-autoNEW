@@ -81,6 +81,36 @@ describe("structure rules spare what they must not touch", () => {
     }
   });
 
+  it.each([
+    ["structure.stock-phrase", "We’ve got you covered."],
+    ["structure.stock-phrase", "We&apos;ve got you covered."],
+    ["structure.stock-phrase", "Drive with peace of\n          mind."],
+    ["structure.reader-flattery", "Bedford drivers trust Nick&apos;s."],
+    ["structure.reader-flattery", "Bedford drivers trust <strong>Nick's</strong>."],
+    ["structure.reader-flattery", "residents value it, and that’s exactly what Nick’s delivers."],
+    ["structure.rhetorical-cta", "Can&apos;t sit and wait? Drop the keys."],
+    ["structure.staged-runup", "Here’s what happens next."],
+    ["structure.empty-claim", "Professional\n service."],
+  ])("pass-2 rule %s sees the site's real apostrophes and wrapped JSX text: %j", (id, text) => {
+    expect(ids(text)).toContain(id);
+  });
+
+  it("near misses each new rule must let through (second reader, 2026-11-01)", () => {
+    for (const text of [
+      "Looking for a used 205/55R16? We stock that size.", // a customer question, not a cross-sell
+      "Drivers trust their gut on a pull to the right; we check alignment.", // not "trust Nick's"
+      "Our technicians explain every repair before we start.", // no "professional technicians"
+      "Bring a professional's written quote and we'll compare it.", // possessive, not a self-label
+      "Most of your car's maintenance happens every 5,000 miles.", // no "all your ... needs"
+      "Here's the quote: $149 per axle.", // not a staged run-up
+      "We are not looking for another upsell. Is it safe to drive?", // the span stops at the period
+      "Check the bottom line on your written quote.", // a line on the quote, not a run-up
+      "A professional service writer greets you at the counter.", // a job title
+    ]) {
+      expect(ids(text), text).toEqual([]);
+    }
+  });
+
   it("spares a string that is only a dash (an empty-value placeholder)", () => {
     expect(ids('{value ?? "—"}')).toEqual([]);
     expect(ids("const empty = '—';")).toEqual([]);

@@ -456,8 +456,8 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Payment Programs From 5 Providers</h3>
-                    <p className="text-foreground/70 leading-relaxed">Tires or a big repair can be paid over time through <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from five providers</Link>. Some don't require established credit; each provider decides approval and terms, and you see the total cost before you sign.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Payment Programs From {BUSINESS.financing.providers.length} Providers</h3>
+                    <p className="text-foreground/70 leading-relaxed">Tires or a big repair can be paid over time through <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from {BUSINESS.financing.providers.length} providers</Link>. Some don't require established credit; each provider decides approval and terms, and you see the total cost before you sign.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -557,7 +557,7 @@ export default function CityPage() {
               <FadeIn delay={0.15}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
                   <h3 className="font-bold text-lg text-foreground mb-3">What if I can't afford the repair right now?</h3>
-                  <p className="text-foreground/70 leading-relaxed">We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from five providers</Link> on tires and major repairs. Each provider decides approval and terms, and you see the total cost before you sign.</p>
+                  <p className="text-foreground/70 leading-relaxed">We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from {BUSINESS.financing.providers.length} providers</Link> on tires and major repairs. Each provider decides approval and terms, and you see the total cost before you sign.</p>
                 </div>
               </FadeIn>
             </div>

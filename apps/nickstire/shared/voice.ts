@@ -1011,6 +1011,17 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
  */
 const STRUCTURE_EXEMPT: VoiceSurface[] = ["sms", "voice", "social", "admin"];
 
+/**
+ * Pass-2 phrase patterns are written with a plain apostrophe and single spaces, then widened
+ * here: the matcher runs on raw copy, and the site spells the apostrophe `'`, `’`, `&apos;`,
+ * `&#39;` or `&rsquo;`, and Prettier wraps long JSX text across lines (second reader,
+ * 2026-11-01: all five rules missed "Nick&apos;s" and "peace of\n mind").
+ */
+const APOS = "(?:'|’|&apos;|&#39;|&rsquo;)";
+function phraseRx(src: string): RegExp {
+  return new RegExp(src.replace(/'/g, APOS).replace(/ /g, "\\s+"), "i");
+}
+
 export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   {
     id: "structure.dash",
@@ -1066,8 +1077,9 @@ export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   // The shared catalogue both apps used for the audit lives in the PR body.
   {
     id: "structure.stock-phrase",
-    pattern:
-      /\bpeace of mind\b|\b(?:we'?ve|we have|we) got you covered\b|\blook no further\b|\byour (?:go-to|one-stop)\b|\bone-stop shop\b|\bgo-to shop\b|\bsay goodbye to\b|\b(?:worry|stress)[- ]free\b|\bdrive with confidence\b|\bright the first time\b|\ball (?:of )?your [\w-]+(?: [\w-]+){0,2} needs\b/i,
+    pattern: phraseRx(
+      String.raw`\bpeace of mind\b|\b(?:we'?ve|we have|we) got you covered\b|\blook no further\b|\byour (?:go-to|one-stop)\b|\bone-stop shop\b|\bgo-to shop\b|\bsay goodbye to\b|\b(?:worry|stress)[-\s]free\b|\bdrive with confidence\b|\bright the first time\b|\ball (?:of )?your [\w-]+(?: [\w-]+){0,2} needs\b`,
+    ),
     label: "stock marketing phrase",
     why: "A phrase every shop site uses; it tells the reader nothing about this shop",
     fix: "Replace it with what the shop actually does: 'written quote first', 'we test the fix before you get your keys'",
@@ -1078,8 +1090,9 @@ export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   },
   {
     id: "structure.reader-flattery",
-    pattern:
-      /\b(?:residents|drivers|families) (?:value|appreciate|expect) [^.\n]{0,60}(?:and that'?s|that'?s) exactly what\b|\b(?:drivers|residents|families) (?:trust|choose) nick'?s\b|\bour reputation for\b|\b(?:has|have) earned the trust\b|\b(?:discovered|find|found) (?:that )?(?:nick'?s|our shop|us)[^.\n]{0,40}\bworth the drive\b|\bthat'?s exactly what (?:nick'?s|we)[^.\n]{0,20}delivers?\b/i,
+    pattern: phraseRx(
+      String.raw`\b(?:residents|drivers|families) (?:value|appreciate|expect) [^.]{0,60}(?:and that'?s|that'?s) exactly what\b|\b(?:drivers|residents|families) (?:trust|choose) (?:<[^>]*>)?nick'?s\b|\bour reputation for\b|\b(?:has|have) earned the trust\b|\b(?:discovered|find|found) (?:that )?(?:(?:<[^>]*>)?nick'?s|our shop|us)[^.]{0,40}\bworth the drive\b|\bthat'?s exactly what (?:(?:<[^>]*>)?nick'?s|we)[^.]{0,20}delivers?\b`,
+    ),
     label: "reader flattery / borrowed trust",
     why: "Tells the reader what their town values and that they already trust us; it is a claim with no fact behind it",
     fix: "Say where the shop is from there and what happens on a visit; let the review count carry trust",
@@ -1090,7 +1103,10 @@ export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   },
   {
     id: "structure.rhetorical-cta",
-    pattern: /\blooking for (?:another|a new|an?) [^?\n]{0,40}\?|\bcan'?t sit and wait\?|\btired of [^?\n]{0,60}\?|\bread the rest later\b/i,
+    // "Looking for a used 205/55R16?" is a customer's own question and stays legal; only the
+    // cross-sell opener ("Looking for another service?") fires.
+    // The span stops at a sentence end, so "not looking for another upsell. Is it safe?" is spared.
+    pattern: phraseRx(String.raw`\blooking for another [^?.!]{0,40}\?|\bcan'?t sit and wait\?|\btired of [^?.!]{0,60}\?|\bread the rest later\b`),
     label: "rhetorical question as a sales opener",
     why: "A question the reader never asked, used to stage the pitch",
     fix: "State the offer: 'Other work we do at the same shop.' Real customer questions in an FAQ are fine",
@@ -1101,7 +1117,8 @@ export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   },
   {
     id: "structure.staged-runup",
-    pattern: /\bhere'?s (?:the truth|the deal|what happens|what you need to know)\b|\bthe good news is\b|\bsimply put\b|\bthe bottom line\b/i,
+    // "the bottom line" alone is also a line on a written quote; only the run-up form fires.
+    pattern: phraseRx(String.raw`\bhere'?s (?:the truth|the deal|what happens|what you need to know)\b|\bthe good news is\b|\bsimply put\b|\bthe bottom line (?:is|here)\b|\bbottom line:`),
     label: "staged run-up before the point",
     why: "Announces the point instead of making it",
     fix: "Cut the run-up and start with the point",
@@ -1112,7 +1129,8 @@ export const STRUCTURE_RULES: readonly KillRule[] = Object.freeze([
   },
   {
     id: "structure.empty-claim",
-    pattern: /\btranspar(?:ent|ency) (?:pricing|service|auto repair)\b|\bprofessional (?:service|auto (?:repair|service)|technicians|mechanics)\b|\bproudly serve\b/i,
+    // "a professional service writer" is a job title, not a self-label.
+    pattern: phraseRx(String.raw`\btranspar(?:ent|ency) (?:pricing|service|auto repair)\b|\bprofessional (?:service|auto (?:repair|service)|technicians|mechanics)\b(?! (?:writer|advisor))|\bproudly serve\b`),
     label: "empty claim (transparent / professional / proudly)",
     why: "A label the shop gives itself with nothing concrete behind it",
     fix: "Name the practice: 'written price before we start', 'we call you before doing more'",
