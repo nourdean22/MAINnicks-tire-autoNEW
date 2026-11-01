@@ -82,7 +82,9 @@ vi.mock("@/lib/services/chat/post-turn-outbox", () => ({
   completePostTurnWork: async () => undefined,
 }));
 vi.mock("@/lib/services/chat/deferred-background-work", () => ({
-  runDeferredBackgroundWork: async () => undefined,
+  runDeferredBackgroundWork: async () => {
+    h.events.push("deferred-work");
+  },
 }));
 vi.mock("@/lib/ai/runtime/sse-stream", () => ({
   notifyMessagePersisted: (_trace: string, p: Record<string, unknown>) => {
@@ -183,6 +185,17 @@ describe("B2 · a reply with no action claim is announced before CoVe finishes",
   }, 30_000);
 });
 
+describe("B2 · a failing deferred check never costs the turn its deferred work", () => {
+  it("CoVe throwing after the announcement still runs the deferred work", async () => {
+    h.verify.mockImplementation(async () => {
+      h.events.push("cove-start");
+      throw new Error("boom");
+    });
+    await buildOnFinish(deps())({ text: REPLY, finishReason: "stop" } as never);
+    expect(h.events).toEqual(["persisted", "cove-start", "deferred-work"]);
+  }, 30_000);
+});
+
 describe("B2 · a reply that claims an action still waits for CoVe", () => {
   it("CoVe settles before message.persisted, with a time bound, and nothing is flagged verifying", async () => {
     const finish = pendingCove();
@@ -193,7 +206,7 @@ describe("B2 · a reply that claims an action still waits for CoVe", () => {
 
     finish({ revised: ACTION_REPLY, changed: false });
     await done;
-    expect(h.events).toEqual(["cove-start", "cove-end", "persisted"]);
+    expect(h.events).toEqual(["cove-start", "cove-end", "persisted", "deferred-work"]);
     expect(h.notified[0].verifying).toBeUndefined();
     expect((h.verify.mock.calls[0][2] as { signal?: AbortSignal })?.signal).toBeInstanceOf(AbortSignal);
   }, 30_000);

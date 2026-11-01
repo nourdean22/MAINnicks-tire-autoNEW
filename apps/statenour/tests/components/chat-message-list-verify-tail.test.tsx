@@ -106,6 +106,12 @@ describe("ChatMessageList · the verify tail says what is happening", () => {
     expect(render([user, { ...steps, metadata: { verifying: true } }], false)).toContain("Checking the reply");
   });
 
+  it("B2 CONTROL: an older reply keeps its mark after a new send, but no line", () => {
+    const later = { id: "m4", role: "assistant", parts: [{ type: "text", text: "newer reply", state: "done" }] };
+    const markup = render([user, { ...steps, metadata: { verifying: true } }, { ...user, id: "m3" }, later], false);
+    expect(markup).not.toContain("Checking the reply");
+  });
+
   it("CONTROL: a tool still running is not the verify tail", () => {
     const tool = { ...steps, parts: [...steps.parts, { type: "tool-searchTools", state: "input-available", input: {} }] };
     expect(render([user, tool], true)).not.toContain("Checking the reply");

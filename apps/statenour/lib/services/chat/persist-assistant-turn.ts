@@ -799,8 +799,13 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // B2: the check the stream no longer waits for. It runs before the deferred work so
       // memory and the rest of the turn read the verified text, as they did before.
       if (deferCove && createdAssistantId) {
-        const { verifyStoredReply } = await import("./deferred-cove");
-        cleanedText = await verifyStoredReply({ messageId: createdAssistantId, cleanedText, reasoningText, userContent, convId, log });
+        try {
+          const { verifyStoredReply } = await import("./deferred-cove");
+          cleanedText = await verifyStoredReply({ messageId: createdAssistantId, cleanedText, reasoningText, userContent, convId, log });
+        } catch (err) {
+          // Never cost the turn its deferred work; the chat stops re-reading on its own.
+          log.warn("cove_deferred_failed", { error: err instanceof Error ? err.message.slice(0, 160) : String(err) });
+        }
       }
       // ═══ DEFERRED BACKGROUND WORK ═══
       // Fire-and-forget analysis that runs AFTER the assistant ChatMessage
