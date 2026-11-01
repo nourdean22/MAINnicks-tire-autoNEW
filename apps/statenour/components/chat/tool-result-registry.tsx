@@ -1103,9 +1103,10 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     icon: HeartPulse,
     color: "sky",
     subtitle: (out) => {
-      const o = out as FleetTruthOutput | null;
-      if (!o || fleetRows(o).length === 0) return null;
-      return o.allFresh ? "all fresh" : "attention needed";
+      // The subtitle gets the raw output, so it parses too: a drifted shape must not throw mid-render.
+      const p = FleetTruthOutputSchema.safeParse(out);
+      if (!p.success || fleetRows(p.data).length === 0) return null;
+      return p.data.allFresh ? "all fresh" : "attention needed";
     },
     outputSchema: FleetTruthOutputSchema,
     renderRich: (out) => <FleetTruthCard output={out as FleetTruthOutput} />,
@@ -1117,9 +1118,9 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     icon: Scale,
     color: "amber",
     subtitle: (out) => {
-      const o = out as TopDecisionsOutput | null;
-      const n = Array.isArray(o?.decisions) ? o.decisions.length : 0;
-      return n > 0 ? `top ${n} of ${o?.totalLive ?? n} live` : null;
+      const p = TopDecisionsOutputSchema.safeParse(out);
+      const n = p.success ? (p.data.decisions?.length ?? 0) : 0;
+      return p.success && n > 0 ? `top ${n} of ${p.data.totalLive ?? n} live` : null;
     },
     outputSchema: TopDecisionsOutputSchema,
     renderRich: (out) => <TopDecisionsCard output={out as TopDecisionsOutput} />,

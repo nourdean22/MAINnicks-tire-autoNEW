@@ -1,5 +1,18 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · UI v3 W6 PR 1: one typed-card registry (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Nour, 2026-11-01: "register them", "plus any more too", then "Go". W6 (Nick composes the screen from typed cards) was blocked in `docs/design/ui-v3/PLAN.md` until the two chat card registries merged.
+>
+> - **The two registries (FACT, read on main 9afd39fe4a).** `components/chat/tool-result-registry.tsx:44` `TOOL_CONFIG` (labels, subtitles, rich bodies, about 180 tools) and `features/chat-v2/components/typed-tool-cards.tsx:143` `RENDERERS` (getFleetTruth, getTopDecisions). They disagreed on one turn: neither tool was in `TOOL_CONFIG`, so the receipt line read "getFleetTruth: returned data" while a second card for the same call drew under the reply, and the second map cast the output with no check (a drifted fleet state rendered as if real).
+> - **Now.** One map. A typed card is a `TOOL_CONFIG` entry with an `outputSchema` (zod/mini, bodies in `components/chat/typed-cards.tsx`); `ToolResultCard` parses first and an output that fails draws no body, the receipt row stays. The fleet schema is pinned to the producer's `FleetTruth` type at compile time (`fleetTruthFitsSchema`: dropping a state fails tsc, exit 2, `typed-cards.tsx:30`); the decision schema follows `apps/nickstire/shared/bridgeShapes.ts` `TopDecisionsShape` (id is a number there: a string-only draft would have hidden every real card, caught by the prior-art read). The cards now sit behind the reply's receipt line like every other card (W3b grammar) instead of always open under it.
+> - **Proof.** Red-first `tests/components/card-registry-single.test.tsx`: 6 failed / 2 passed on main; green after. Mutations: schema gate removed, 1 red; decision id back to string, 1 red. Touched files: 23 vitest files, 184 passed, 1 skipped. `pnpm typecheck` exit 0. Home and Pulse import neither registry (grep), so they are unchanged.
+>
+> **Flagged · NOT fixed**
+> - "Plus any more": no third tool-result map exists in `components/`, `features/`, `lib/`, `app/` (grep for maps keyed by tool name rendering JSX). Home's `BriefRowKind` (`lib/home/brief-rows.ts:23`) and Pulse's `PulseSource` (`lib/home/pulse-feed.ts:10`) are row vocabularies, not tool cards; W6 PR 2 decides whether they join the card vocabulary.
+> - `docs/UPSTREAMS.md` rows 31 and 87 still say "once the typed-card registry is single": platform lane edit.
+> - Local `next build` could not run in a harness worktree (Turbopack refuses junctioned `node_modules` outside the workspace root); CI's build is the boundary instrument for this PR.
+
 > ## 2026-11-01 · declined work shows the true totals, and Nick can answer "is the shop open" from a tool (job 2026-11-01-double-check-missed) · 1 ship
 >
 > Nour, 2026-11-01 08:46Z: "DOUBLE CHECK IM SURE U MISSED SOME STUFF". Two halves the old account's manager parked.

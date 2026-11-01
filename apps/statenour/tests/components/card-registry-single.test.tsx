@@ -132,6 +132,13 @@ describe("one typed-card registry", () => {
     expect(markup).toContain("Fleet checked");
   });
 
+  it("a non-array where rows belong still renders the turn (the subtitle reads the raw output too)", () => {
+    const markup = markupFor("getFleetTruth", { ...FLEET, statenour: "not rows", nickstire: 3 });
+    expect(markup).not.toContain('data-testid="fleet-truth-card"');
+    expect(markup).toContain("Fleet checked");
+    expect(markup).not.toContain("attention needed");
+  });
+
   it("a failed read keeps its failure words and draws no typed card", () => {
     const markup = markupFor("getTopDecisions", { ok: false, error: "nickstire bridge timed out after 8s" });
     expect(markup).not.toContain('data-testid="top-decisions-card"');
