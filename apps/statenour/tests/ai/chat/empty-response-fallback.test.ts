@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { emptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
+import { emptyResponseFallback, isEmptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 
 // A past-tense completion claim would be a fabrication (the model produced
 // NOTHING) and would also trip the action-claim fabrication detector.
@@ -60,6 +60,18 @@ describe("emptyResponseFallback", () => {
     expect(msg.toLowerCase()).toContain("refus");
     expect(msg).not.toBe(emptyResponseFallback("stop"));
     expect(msg).not.toBe(emptyResponseFallback("tool-calls"));
+  });
+
+  // 2026-11-01 · a "length" turn is not "too heavy": the model ran out of output
+  // room (hidden thinking spends it) before writing, and the bounded retry also
+  // came back empty. Say that, and still invite a retry.
+  it("names the output cap on a length cutoff instead of calling the request too heavy", () => {
+    const msg = emptyResponseFallback("length");
+    expect(msg.toLowerCase()).not.toContain("too heavy");
+    expect(msg.toLowerCase()).toMatch(/out of room|output/);
+    expect(msg.toLowerCase()).toContain("retry");
+    expect(msg).not.toMatch(FABRICATION);
+    expect(isEmptyResponseFallback(msg)).toBe(true);
   });
 
   it("the refusal message is honest — no fabricated side effect, no fake outage", () => {

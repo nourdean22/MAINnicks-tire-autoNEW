@@ -32,6 +32,9 @@ import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
 import { instrumentScope } from "@/lib/observability/instrument-scope";
 import type { getModel, ProviderName } from "@/lib/ai/provider";
 import { textOnlyStep } from "./text-only-step";
+// The lane comes from the model that serves the turn, as in build-stream-config.ts:121;
+// `provider` is the configured primary and can differ after a rotation.
+import { inferProviderName } from "@/lib/ai/stream-with-fallback";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { ChatMode } from "@/lib/ai/chat-mode";
@@ -739,7 +742,7 @@ export async function runAlternatePaths(args: {
             stepNumber === 0 && webSearchPinned
               ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
               : stepNumber >= lastStep
-                ? textOnlyStep(provider, messages)
+                ? textOnlyStep(inferProviderName(model) ?? provider, messages)
                 : { toolChoice: "auto" as const },
         } as Parameters<typeof generateText>[0]);
         winner = r.text;

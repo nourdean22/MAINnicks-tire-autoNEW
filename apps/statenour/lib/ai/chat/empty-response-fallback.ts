@@ -31,7 +31,7 @@
  */
 export function isEmptyResponseFallback(text: string): boolean {
   const t = text.trim();
-  return [undefined, "tool-calls", "content-filter"].some((r) => emptyResponseFallback(r) === t);
+  return [undefined, "tool-calls", "content-filter", "length"].some((r) => emptyResponseFallback(r) === t);
 }
 
 export function emptyResponseFallback(finishReason?: string): string {
@@ -45,6 +45,12 @@ export function emptyResponseFallback(finishReason?: string): string {
     // retry does NOT guarantee a different provider (refusals deliberately
     // don't mark the lane failed), so the copy must not imply it.
     return "The model refused this one — a provider-side safety classifier, not a system failure. Rephrase it and retry.";
+  }
+  // 2026-11-01 · "length" means the model used its whole output budget (hidden
+  // thinking counts) before writing, and the bounded retry in
+  // salvage-event-text.ts also failed. That is a cap, not a heavy request.
+  if (finishReason === "length") {
+    return "I ran out of output room before writing the reply, so nothing came through. Hit retry; asking for one part first also helps.";
   }
   if (finishReason === "tool-calls") {
     return "I went to take an action on that but came back without a written response. Check whether it actually went through before you re-send — re-asking could create a duplicate.";
