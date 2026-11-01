@@ -20,6 +20,7 @@ import { deriveDeclinedRecoveryState } from "../lib/declinedRecoveryState";
 const h = vi.hoisted(() => ({
   pause: { paused: false, readable: true } as { paused: boolean; readable: boolean },
   globalPause: { paused: false, readable: true } as { paused: boolean; readable: boolean },
+  globalPauseOpts: [] as Array<{ fresh?: boolean } | undefined>,
   sendsEnabled: true,
   estimates: [] as Array<{ id: number; estimatedAmount: number | null; followUp7dSent: number; followUp30dSent: number; estimateDate: Date }>,
   lastRun: null as null | { jobName: string; startedAt: Date; status: string; details: string | null; recordsProcessed: number | null },
@@ -39,7 +40,10 @@ vi.mock("../cron/jobs/declinedWorkRecovery", () => ({
 }));
 // The shop-wide SMS pause (Settings > Safety, "Automated customer texts") holds these texts too (sms.ts sendSms).
 vi.mock("../services/smsControl", () => ({
-  getSmsPauseState: async () => h.globalPause,
+  getSmsPauseState: async (opts?: { fresh?: boolean }) => {
+    h.globalPauseOpts.push(opts);
+    return h.globalPause;
+  },
 }));
 
 // The router reads two tables through db(): alg_estimates (eligible rows) then cron_log (latest sender run).
@@ -92,6 +96,7 @@ beforeEach(() => {
   process.env.FEATURE_DECLINED_RECOVERY = "1";
   h.pause = { paused: false, readable: true };
   h.globalPause = { paused: false, readable: true };
+  h.globalPauseOpts.length = 0;
   h.sendsEnabled = true;
   h.estimates = [
     { id: 1, estimatedAmount: 30_000, followUp7dSent: 0, followUp30dSent: 0, estimateDate: new Date() },
@@ -129,6 +134,14 @@ describe("deriveDeclinedRecoveryState", () => {
 });
 
 describe("shopdriver.declinedRecoveryStatus v2", () => {
+  // The Settings card refetches this right after a pause flip; smsControl's 5 s cache would show the old state.
+  it("reads the shop-wide SMS pause fresh, as it reads the lane's own switch", async () => {
+    h.globalPause = { paused: true, readable: true };
+    const out = await status();
+    expect(out).toMatchObject({ paused: true, state: "paused" }); // positive control: the global pause was read
+    expect(h.globalPauseOpts).toEqual([{ fresh: true }]);
+  });
+
   it("live: env on, sends enabled, switch readable and not paused; every old field is still there", async () => {
     const out = await status();
     expect(out).toMatchObject({

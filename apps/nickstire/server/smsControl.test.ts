@@ -81,6 +81,26 @@ describe("getSmsPauseState", () => {
     _resetPauseCacheForTest();
     expect((await getSmsPauseState()).paused).toBe(true);
   });
+
+  // 2026-10-31 bug-hunt queue item: a Settings flip showed up to 5 s late on the admin read-backs. `fresh` skips the cache
+  // for those reads only; the send path calls with no argument and keeps the cache.
+  it("fresh: true sees a flip made behind the cache at once, and refreshes the cache for the send path", async () => {
+    const { getSmsPauseState, _resetPauseCacheForTest } = await import("./services/smsControl");
+    _resetPauseCacheForTest();
+    expect((await getSmsPauseState()).paused).toBe(false); // primes the cache: live
+    flagRows = [{ v: 1 }]; // flipped behind the cache (another process, or setFlag in this one)
+    expect((await getSmsPauseState()).paused, "CONTROL: the send path still reads the cache").toBe(false);
+    expect((await getSmsPauseState({ fresh: true })).paused).toBe(true);
+    expect((await getSmsPauseState()).paused, "the fresh read refreshed the cache").toBe(true);
+  });
+
+  it("fresh: true on an unreadable switch is readable:false, never a stale cached answer", async () => {
+    const { getSmsPauseState, _resetPauseCacheForTest } = await import("./services/smsControl");
+    _resetPauseCacheForTest();
+    expect((await getSmsPauseState()).readable).toBe(true);
+    dbMode = "throw";
+    expect(await getSmsPauseState({ fresh: true })).toMatchObject({ paused: false, readable: false });
+  });
 });
 
 describe("checkGlobalDailyCap", () => {

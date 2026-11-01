@@ -52,9 +52,11 @@ export interface PauseState {
 const PAUSE_CACHE_MS = 5_000;
 let _pauseCache: { state: PauseState; expiresAt: number } | null = null;
 
-export async function getSmsPauseState(): Promise<PauseState> {
+/** opts.fresh: skip the cache (and refresh it). For the admin read-backs a Settings flip is checked on (sendPause.ts
+ *  readSendSwitchesStatus, shopdriver.declinedRecoveryStatus); the send path passes nothing and keeps the cache. */
+export async function getSmsPauseState(opts: { fresh?: boolean } = {}): Promise<PauseState> {
   const now = Date.now();
-  if (_pauseCache && _pauseCache.expiresAt > now) return _pauseCache.state;
+  if (!opts.fresh && _pauseCache && _pauseCache.expiresAt > now) return _pauseCache.state;
   let state: PauseState;
   try {
     const { getDb } = await import("../db");

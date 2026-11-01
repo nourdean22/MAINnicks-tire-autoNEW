@@ -17,7 +17,7 @@ const h = vi.hoisted(() => ({ rows: new Map<string, boolean>(), flagReads: 0 }))
 vi.mock("./db", () => ({
   getDb: async () => ({
     execute: async (q: unknown) => {
-      const key = /send_pause_[a-z_]+/.exec(JSON.stringify(q))?.[0];
+      const key = /send_pause_[a-z_]+|sms_global_pause/.exec(JSON.stringify(q))?.[0];
       if (!key) return [[]];
       h.flagReads++;
       return [h.rows.get(key) ? [{ v: 1 }] : []];
@@ -43,6 +43,7 @@ beforeEach(async () => {
   vi.setSystemTime(new Date("2026-10-14T15:00:00Z"));
   const { _resetSendPauseCacheForTest } = await import("./services/sendPause");
   _resetSendPauseCacheForTest();
+  (await import("./services/smsControl"))._resetPauseCacheForTest();
 });
 
 afterEach(() => {
@@ -65,6 +66,16 @@ describe("send pause cache vs the toggle", () => {
     h.rows.set("send_pause_declined_recovery", true); // no setFlag in this process
     const s = await readSendSwitchesStatus({}, async () => new Map());
     expect(s.lanes.find((l) => l.lane === "declined_recovery")?.paused).toBe(true);
+  });
+
+  // The card's shop-wide chip (effectivePaused) also reads sms_global_pause, which smsControl caches 5 s per process.
+  it("the status read sees a flip of the shop-wide SMS pause made behind smsControl's cache", async () => {
+    const { getSmsPauseState } = await import("./services/smsControl");
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    expect((await getSmsPauseState()).paused).toBe(false); // primes smsControl's cache: not paused
+    h.rows.set("sms_global_pause", true);
+    const s = await readSendSwitchesStatus({}, async () => new Map()); // default readGlobalPause, the production path
+    expect(s.lanes.find((l) => l.lane === "declined_recovery")?.effectivePaused).toBe(true);
   });
 
   it("CONTROL: a non-send_pause toggle leaves the send pause cache alone", async () => {
