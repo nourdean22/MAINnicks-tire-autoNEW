@@ -215,6 +215,50 @@ test("exit 7 means not ready YET (CI not started, still running, GitHub computin
   assert.equal(await mergeGate(opts(fakeGh({ prs: { 3100: view({ mergeStateStatus: "BEHIND" }) } }))), 2);
 });
 
+// 2026-11-01 (PR 3472, witnessed by the manager): GitHub reports UNSTABLE while a check is merely still running, and the gate
+// printed "BLOCKED: mergeStateStatus is UNSTABLE" with exit 2 beside "NOT READY YET: check node has not finished". UNSTABLE
+// also covers a FAILED check, so it reads "not yet" only while a check is unfinished; with every check finished it stays hard.
+test("UNSTABLE while a check is still running is NOT READY (exit 7, no BLOCKED line): the PR 3472 shape", async () => {
+  const shapes = [
+    [run("node", null, "IN_PROGRESS"), run("security")],
+    [run("node", null, "QUEUED")],
+    [{ __typename: "StatusContext", context: "ci/legacy", state: "PENDING" }, run("node")],
+  ];
+  for (const rollup of shapes) {
+    const g = fakeGh({ prs: { 3100: view({ mergeStateStatus: "UNSTABLE", statusCheckRollup: rollup, comments: [] }) } });
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 7, `exit ${code}: ${JSON.stringify(logs)}`);
+    assert.ok(!logs.some((l) => l.startsWith("BLOCKED")), JSON.stringify(logs));
+    assert.ok(logs.some((l) => /^NOT READY YET: mergeStateStatus is UNSTABLE/.test(l)), JSON.stringify(logs));
+    assert.deepEqual(mergeCalls(g), []);
+  }
+});
+
+test("UNSTABLE stays BLOCKED (exit 2) for a red check, a red check beside a running one, every check finished, or no checks", async () => {
+  for (const [label, rollup, want] of [
+    ["a failed check", [run("node"), run("security", "FAILURE")], /"security" FAILURE/],
+    ["a failed check beside a running one", [run("node", null, "IN_PROGRESS"), run("security", "FAILURE")], /"security" FAILURE/],
+    ["every check finished and green (GitHub sees something the rollup does not)", [run("node"), run("security")], /UNSTABLE, not CLEAN/],
+    ["no checks at all", [], /UNSTABLE, not CLEAN/],
+  ]) {
+    const g = fakeGh({ prs: { 3100: view({ mergeStateStatus: "UNSTABLE", statusCheckRollup: rollup }) } });
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 2, `${label}: exit ${code} ${JSON.stringify(logs)}`);
+    assert.ok(logs.some((l) => want.test(l)), `${label}: wanted ${want}; got ${JSON.stringify(logs)}`);
+    assert.deepEqual(mergeCalls(g), [], label);
+  }
+});
+
+test("DIRTY, BEHIND, BLOCKED and any other non-CLEAN state stay BLOCKED (exit 2) even while a check is still running", async () => {
+  for (const mergeStateStatus of ["DIRTY", "BEHIND", "BLOCKED", "HAS_HOOKS", "NEW_VALUE_GITHUB_ADDS_NEXT_YEAR"]) {
+    const g = fakeGh({ prs: { 3100: view({ mergeStateStatus, statusCheckRollup: [run("node", null, "IN_PROGRESS")] }) } });
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 2, `${mergeStateStatus}: exit ${code}`);
+    assert.ok(logs.some((l) => new RegExp(`^BLOCKED: mergeStateStatus is ${mergeStateStatus}, not CLEAN`).test(l)), JSON.stringify(logs));
+    assert.deepEqual(mergeCalls(g), [], mergeStateStatus);
+  }
+});
+
 test("the open-PR list asks for up to 200 PRs with exactly the keys it reads", async () => {
   const g = fakeGh();
   await mergeGate(opts(g));
@@ -689,6 +733,13 @@ test("rollup: the LATEST run decides, so an older success never hides a newer fa
 test("rollup: a newer pull_request run still in progress is 'not finished' (soft), not a hard failure from the older run", () => {
   const rollup = [wfRun("node", "FAILURE", 0, 100), wfRun("node", "", 10, 200, "CI", "IN_PROGRESS")];
   assert.deepEqual(rb(rollup, events({ 200: "pull_request" })), ['check "node" has not finished (IN_PROGRESS)']);
+});
+
+test("rollup + UNSTABLE: a superseded run still in flight is pending to GitHub, so UNSTABLE reads not yet (soft), not BLOCKED", () => {
+  const rollup = [wfRun("node", "", 0, 100, "CI", "IN_PROGRESS"), wfRun("node", "SUCCESS", 10, 200)];
+  const { hard, soft } = gate.assess(view({ mergeStateStatus: "UNSTABLE", statusCheckRollup: rollup }), SHA, events({ 200: "pull_request" }));
+  assert.deepEqual(hard, []);
+  assert.deepEqual(soft, ["mergeStateStatus is UNSTABLE while a check is still running: re-run once the checks finish"]);
 });
 
 test("rollup: same name in different workflows, no start time, or a start-time tie are NOT collapsed (fail closed)", () => {
