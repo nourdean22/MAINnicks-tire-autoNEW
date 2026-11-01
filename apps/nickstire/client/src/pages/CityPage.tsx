@@ -425,12 +425,12 @@ export default function CityPage() {
         <section className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
           <div className="container max-w-4xl">
             <FadeIn>
-              <span className="font-mono text-nick-blue-light text-sm tracking-wide">The Nick's Difference</span>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">How a Visit Works</span>
               <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
-                WHY {city.name.toUpperCase()} DRIVERS TRUST NICK'S
+                WHAT {city.name.toUpperCase()} DRIVERS GET AT NICK'S
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                Finding an honest mechanic shouldn't feel like a gamble. At Nick's Tire & Auto on Euclid Ave in Cleveland, we've built our reputation one car at a time, and {reviewCountDisplay} Google reviews at {reviewRating} stars prove it. Here's what {city.name} drivers can count on every visit.
+                Nick's Tire & Auto is one shop on Euclid Ave in Cleveland, with {reviewCountDisplay} Google reviews at {reviewRating} stars. This is how a visit goes for {city.name} drivers.
               </p>
             </FadeIn>
             <div className="mt-10 space-y-6">
@@ -438,8 +438,8 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Transparent Pricing · Written Quote First</h3>
-                    <p className="text-foreground/70 leading-relaxed">We quote you a price before we start any work. If something changes during the repair, we call you first. No hidden fees. What we quote is what you pay.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Written Quote First</h3>
+                    <p className="text-foreground/70 leading-relaxed">You get a written price before we start. If the repair changes, we call you before doing more. We won't add a fee at pickup that wasn't on the estimate.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -448,7 +448,7 @@ export default function CityPage() {
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Walk-Ins Welcome, First Come First Served</h3>
-                    <p className="text-foreground/70 leading-relaxed">No appointment needed for most services. Drive in from {city.name} and we'll get you taken care of. We operate on a first-come, first-served basis. The earlier you arrive, the sooner you're back on the road. Our shop is open {BUSINESS.hours.display}, including Sundays from 9 to 4.</p>
+                    <p className="text-foreground/70 leading-relaxed">No appointment needed for most services. Cars are worked first come, first served, so the earlier you pull in from {city.name}, the sooner you leave. Open {BUSINESS.hours.display}.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -456,8 +456,8 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Payment Programs From 5 Providers</h3>
-                    <p className="text-foreground/70 leading-relaxed">Need tires or a major repair but can't pay in full today? We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from five providers</Link>. Some don't require established credit; each provider decides approval and terms, and you see the total cost before you sign.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Payment Programs From {BUSINESS.financing.providers.length} Providers</h3>
+                    <p className="text-foreground/70 leading-relaxed">Tires or a big repair can be paid over time through <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from {BUSINESS.financing.providers.length} providers</Link>. Some don't require established credit; each provider decides approval and terms, and you see the total cost before you sign.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -465,8 +465,8 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
-                    <p className="text-foreground/70 leading-relaxed">We work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/diagnostics" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we figure out the actual problem, not just the most expensive one.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Cars, Trucks and SUVs</h3>
+                    <p className="text-foreground/70 leading-relaxed">We work on daily drivers, trucks and SUVs: a <Link href="/diagnostics" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full set of tires</Link>. We find the actual problem before we quote the repair.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -483,7 +483,7 @@ export default function CityPage() {
                 COMMON REPAIRS FOR {city.name.toUpperCase()} VEHICLES
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                Ohio roads are tough on cars. Between potholes, salt, and temperature swings, {city.name} drivers deal with wear and tear that drivers in milder climates never see. These are the repairs we handle most often for customers coming from {city.name}.
+                Potholes, road salt and freeze-thaw swings wear cars out fast here. These are the repairs we do most for customers coming from {city.name}.
               </p>
             </FadeIn>
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
@@ -519,13 +519,13 @@ export default function CityPage() {
               <FadeIn delay={0.25}>
                 <Link href="/emissions" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">E-Check Failure Diagnosis & Repair</h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? The state runs the test; we run a free readiness check and fix whatever is causing a failure before you go back.</p>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Ohio won't renew your registration until the car passes E-Check. The state runs the test; we run a free readiness check and fix whatever is causing a failure before you go back.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.3}>
                 <Link href="/auto-repair-near-me" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">Suspension & Steering</h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">Hitting Cleveland potholes takes a toll on struts, shocks, tie rods, and ball joints. If your car pulls, bounces, or the steering feels loose, bring it in before it gets worse.</p>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Cleveland potholes wear out struts, shocks, tie rods and ball joints. If your car pulls, bounces, or the steering feels loose, bring it in before it gets worse.</p>
                 </Link>
               </FadeIn>
             </div>
@@ -557,7 +557,7 @@ export default function CityPage() {
               <FadeIn delay={0.15}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
                   <h3 className="font-bold text-lg text-foreground mb-3">What if I can't afford the repair right now?</h3>
-                  <p className="text-foreground/70 leading-relaxed">We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from five providers</Link> on tires and major repairs. Each provider decides approval and terms, and you see the total cost before you sign.</p>
+                  <p className="text-foreground/70 leading-relaxed">We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from {BUSINESS.financing.providers.length} providers</Link> on tires and major repairs. Each provider decides approval and terms, and you see the total cost before you sign.</p>
                 </div>
               </FadeIn>
             </div>

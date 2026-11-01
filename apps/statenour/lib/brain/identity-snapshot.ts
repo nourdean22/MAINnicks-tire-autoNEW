@@ -654,15 +654,22 @@ export async function loadIdentityHistory(days = 30): Promise<Array<{
   date: string;
   axes: Partial<Record<AxisKey, number>>;
 }>> {
-  const rows = await prisma.brainMemory.findMany({
-    where: {
-      category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
-      key: { startsWith: "history:" },
-    },
-    orderBy: { key: "asc" },
-    take: days,
-    select: { key: true, content: true },
-  });
+  // 2026-11-01 · newest N, then chronological. `orderBy asc + take` returned the
+  // OLDEST N rows: every sparkline, the 14-day projection and the journey lens
+  // read May-August while the doc said "last N days", and a soft-deleted
+  // prose row (history:2026-05-26) logged "malformed" on every read.
+  const rows = (
+    await prisma.brainMemory.findMany({
+      where: {
+        category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
+        key: { startsWith: "history:" },
+        deletedAt: null,
+      },
+      orderBy: { key: "desc" },
+      take: days,
+      select: { key: true, content: true },
+    })
+  ).reverse();
   const out: Array<{ date: string; axes: Partial<Record<AxisKey, number>> }> = [];
   let malformed = 0;
   for (const r of rows) {

@@ -877,6 +877,10 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // 2026-10-29 · curated Greene seeds (structured metadata: fullText, matchPhrases, chapter).
   // The grinder took 149 of 153 between 06-08 and 08-17 and stopped only at 3 live rows.
   BRAIN_CATEGORIES.GREENE_LAW,
+  // 2026-11-01 · Pulse rows: `content` IS the item's title (coach-events.ts rowToCoachEvent) and
+  // the event lives in metadata. Prod 11-01: an os-drift title had been rewritten into LLM prose,
+  // and coach rows were soft-deleted inside the merge's 03:00-04:15Z window (one 81s after write).
+  BRAIN_CATEGORIES.COACH_EVENT,
 ];
 
 /**

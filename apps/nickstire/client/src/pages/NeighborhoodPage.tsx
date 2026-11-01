@@ -128,11 +128,11 @@ function buildNeighborhoodFaqItems(neighborhood: Neighborhood): Array<{ q: strin
     },
     {
       q: `What services do you offer for ${neighborhood.name} residents?`,
-      a: "We offer a full range of auto repair services including brakes, tires, oil changes, check-engine light, alignment, and general repairs for all makes and models.",
+      a: "Brakes, tires, oil changes, check-engine lights, alignment and general repair, on all makes and models.",
     },
     {
       q: `Do you serve the ${neighborhood.name} area?`,
-      a: `Yes, we proudly serve ${neighborhood.name} and surrounding areas with professional auto repair and maintenance services.`,
+      a: `Yes. Drivers from ${neighborhood.name} and nearby come to the shop on Euclid Ave for repairs and maintenance.`,
     },
   ];
 }
@@ -307,7 +307,7 @@ export default function NeighborhoodPage() {
             <div className="mt-8 flex flex-wrap gap-6 stagger-in text-sm text-foreground/60">
               <div className="flex items-center gap-2 stagger-in">
                 <Navigation className="w-4 h-4 text-nick-blue-light" />
-                <span className="font-mono">Only {neighborhood.driveTime} away!</span>
+                <span className="font-mono">{neighborhood.driveTime} away</span>
               </div>
               <div className="flex items-center gap-2 stagger-in">
                 <MapPin className="w-4 h-4 text-primary" />

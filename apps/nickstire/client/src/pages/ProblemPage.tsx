@@ -189,7 +189,7 @@ export default function ProblemPage() {
                 HOW WE FIX THIS AT NICK'S
               </h2>
               <p className="text-foreground/70 leading-relaxed text-lg mb-8">
-                Every repair at Nick's Tire & Auto starts with finding the actual problem. Here's what happens from the moment you pull into our shop on Euclid Ave to the moment you drive away with a fix that lasts.
+                We find the cause before we fix anything. This is how the job goes at the shop on Euclid Ave.
               </p>
             </FadeIn>
 
@@ -201,7 +201,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Drop Off or Wait</h3>
-                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome. No appointment needed. Tell our front desk what you're experiencing and we'll get your car into the bay. Most checks start within 30 minutes of arrival.</p>
+                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome. No appointment needed. Tell the front desk what the car is doing and we'll get it into a bay.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -212,7 +212,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Full Diagnostic Inspection</h3>
-                    <p className="text-foreground/70 leading-relaxed">We use OBD-II scan tools, live data, visual check, and road testing when needed. We don't just read a code and guess. We trace the problem to its root cause so we fix it right the first time.</p>
+                    <p className="text-foreground/70 leading-relaxed">We use OBD-II scan tools, live data, a visual check and a road test when needed. A code tells us where to look. We trace it to the part that failed before we quote.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -222,8 +222,8 @@ export default function ProblemPage() {
                     <span className="font-bold text-primary text-sm">3</span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Honest Quote, Your Decision</h3>
-                    <p className="text-foreground/70 leading-relaxed">We'll call you with exactly what we found, what needs to be fixed, and what it costs. You decide what gets done. If you want a second opinion, no hard feelings. We give you the information and you make the call.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Written Quote, Your Call</h3>
+                    <p className="text-foreground/70 leading-relaxed">We call you with what we found, what needs fixing and the price. You decide what gets done, and you're free to get a second opinion.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -233,8 +233,8 @@ export default function ProblemPage() {
                     <span className="font-bold text-primary text-sm">4</span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Repair & Quality Check</h3>
-                    <p className="text-foreground/70 leading-relaxed">Once you say yes, we get to work. Most standard repairs are completed same-day. Before handing your keys back, we verify the fix with a final check to make sure everything is solid.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Repair and Final Check</h3>
+                    <p className="text-foreground/70 leading-relaxed">Once you say yes, we start. Most standard repairs are done the same day. We test the fix before you get your keys back.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -272,7 +272,7 @@ export default function ProblemPage() {
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Why Nick's</span>
               <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
-                CLEVELAND DRIVERS, EVERY DAY SINCE 2018
+                CLEVELAND DRIVERS, EVERY DAY SINCE {BUSINESS.founded.year}
               </h2>
             </FadeIn>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-in">
@@ -292,7 +292,7 @@ export default function ProblemPage() {
               </FadeIn>
               <FadeIn delay={0.15}>
                 <div className="text-center p-6">
-                  <div className="text-4xl font-bold text-primary mb-2">4</div>
+                  <div className="text-4xl font-bold text-primary mb-2">{BUSINESS.financing.providers.length}</div>
                   <div className="text-foreground/60 text-sm">Payment Programs</div>
                   <div className="text-foreground/40 text-xs mt-1"><Link href="/financing" className="text-nick-blue-light hover:underline">Compare auto repair payment programs</Link></div>
                 </div>
@@ -307,7 +307,7 @@ export default function ProblemPage() {
             </div>
             <FadeIn delay={0.25}>
               <p className="mt-8 text-center text-foreground/60 max-w-2xl mx-auto leading-relaxed">
-                Located at {BUSINESS.address.full}, Nick's Tire & Auto has been serving Cleveland and Northeast Ohio since 2018. We fix the problem, explain the cost, and get you back on the road. Read what our customers say on our <Link href="/reviews" className="text-nick-blue-light hover:underline">reviews page</Link>.
+                Nick's Tire & Auto, {BUSINESS.address.full}, has worked on Cleveland cars since {BUSINESS.founded.year}. Customer reviews are on our <Link href="/reviews" className="text-nick-blue-light hover:underline">reviews page</Link>.
               </p>
             </FadeIn>
           </div>

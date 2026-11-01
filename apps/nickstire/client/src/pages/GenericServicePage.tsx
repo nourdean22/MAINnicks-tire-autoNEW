@@ -66,7 +66,7 @@ function serviceDataToConfig(service: ServiceData): ServicePageConfig {
           name: service.title,
           price: "Free written estimate",
           sub: service.duration ? `Typically ${service.duration}` : undefined,
-          use: service.shortDesc || "Professional service at Nick's Tire & Auto",
+          use: service.shortDesc || "Service at Nick's Tire & Auto",
           featured: true,
         },
       ];

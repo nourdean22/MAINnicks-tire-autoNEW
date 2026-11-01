@@ -4,7 +4,7 @@
 >
 > Nour, 2026-11-01: "register them", "plus any more too", then "Go". W6 (Nick composes the screen from typed cards) was blocked in `docs/design/ui-v3/PLAN.md` until the two chat card registries merged.
 >
-> - **The two registries (FACT, read on main 9afd39fe4a).** `components/chat/tool-result-registry.tsx:44` `TOOL_CONFIG` (labels, subtitles, rich bodies, about 180 tools) and `features/chat-v2/components/typed-tool-cards.tsx:143` `RENDERERS` (getFleetTruth, getTopDecisions). They disagreed on one turn: neither tool was in `TOOL_CONFIG`, so the receipt line read "getFleetTruth: returned data" while a second card for the same call drew under the reply, and the second map cast the output with no check (a drifted fleet state rendered as if real).
+> - **The two registries (FACT, read on main 9afd39fe4a).** `components/chat/tool-result-registry.tsx:44` `TOOL_CONFIG` (labels, subtitles, rich bodies; 61 entries before this PR, 63 after) and `features/chat-v2/components/typed-tool-cards.tsx:143` `RENDERERS` (getFleetTruth, getTopDecisions). They disagreed on one turn: neither tool was in `TOOL_CONFIG`, so the receipt line read "getFleetTruth: returned data" while a second card for the same call drew under the reply, and the second map cast the output with no check (a drifted fleet state rendered as if real).
 > - **Now.** One map. A typed card is a `TOOL_CONFIG` entry with an `outputSchema` (zod/mini, bodies in `components/chat/typed-cards.tsx`); `ToolResultCard` parses first and an output that fails draws no body, the receipt row stays. The fleet schema is pinned to the producer's `FleetTruth` type at compile time (`fleetTruthFitsSchema`: a renamed key fails tsc, TS2741). A fleet state is a plain string, so a newer server's state still draws on an older cached PWA; "all fresh" now also needs `queuesClean` (dead queue rows read "dead queue rows"). A rejected output warns once per tool in the console. Decision ids are uuid strings (`apps/nickstire/server/services/opportunityQueue.ts:157,212`); the schema takes string or number. The cards now sit behind the reply's receipt line like every other card (W3b grammar) instead of always open under it.
 > - **Proof.** Red-first `tests/components/card-registry-single.test.tsx`: 6 failed / 2 passed on main; 14 passed after. Nine mutations all red (schema gate, soft-fail gate, decision rows `z.any()`, decision subtitle, nickstire prefix, required key, state enum, queue check, warn). Touched files: 23 vitest files, 190 passed, 1 skipped. `pnpm typecheck` exit 0. Home and Pulse import neither registry (grep), so they are unchanged.
 >
@@ -13,6 +13,25 @@
 > - `docs/UPSTREAMS.md` rows 31 and 87 still say "once the typed-card registry is single": platform lane edit.
 > - `apps/nickstire/shared/bridgeShapes.ts:23` types the decision id as `z.number()`; the producer sends `String(r.id)`. Nothing parses with it today; nickstire lane fix.
 > - Local `next build` could not run in a harness worktree (Turbopack refuses junctioned `node_modules` outside the workspace root); CI's build is the boundary instrument for this PR.
+
+> ## 2026-11-01 · the Pulse stops reporting things that are not broken (job 2026-11-01-chat-humanizer-w6, branch `statenour/crons-failing-pulse`) · 1 ship
+>
+> Nour, 2026-11-01 14:24Z: "LETS FIX THE ERRORS THE PULSE IS REPORTING TOO". Causes read from prod (cron_job_logs, system_metrics, coach rows, Task rows; read-only, his go).
+>
+> - **data-source-health red every run since 10-30 09:00Z** ("1 of 7 probes failing"): PR 3350's Apple Health probe failed daily for a phone that stopped posting 08-03. It now fails on the first ET day that sees an outage (from its own stored verdict of an earlier day) and then reads empty with "no Apple Health data since <date>, phone step owed".
+> - **conversation-compile red every night since 10-30** (4 of 9, 4 of 6, 1 of 4): digests past the reason lane's 100 s timeout. Route crons can now declare `degraded: true` (`logCronRun` files `partial`, same rule as the Inngest path); the sweep is partial when some land, red when none do.
+> - **"Cron Healer: Rescued data-source-health · 200"** was false: cronHandler answers 200 for `ok:false`. The healer reads the body's verdict (failed = known_failure, unreadable = unknown, settled from the run row). Healer alerts expire in 25 h.
+> - **"Cron Healer FAILED: neglect-penalty"** was a 10-03 alert (the job left config 10-10) that never expired. Fixed by the expiry; nothing to wire or retire.
+> - **OS drift "tool_count 130 vs 169"**: tool_count stepped 181 -> 133 on 10-21 (deliberate prune). A regression that was already this severe at the previous snapshot and has not moved 5% is `standing` (listed, not alerted); crossing a tier always alerts, so a slow bleed still pages. Drift rows expire in 25 h (rows from 08-27 were still live).
+> - **"Task Healed: decomposed ... into 6 subtasks"**: the stalled-task phase called 2 h in DOING stalled, AI-decomposed Nour's parked CRM planning task and flipped it to WAITING. It now flags a task untouched 3 days once (P2, expires) and changes nothing.
+> - **Pulse titles rewritten to prose**: `coach_event` joins `CONSOLIDATION_EXCLUDE_CATEGORIES` (a row's content is the Pulse title).
+> - **Manager adds (error_logs, Sentry).** `loadIdentityHistory` read the OLDEST N snapshots (asc + take), so sparklines, the 14-day projection and the journey lens showed May-August; now newest N live rows. outcome-tracker's nightly "N predictions failed to score" now names the first failure. Sentry is not silent: 8 prod server events on 10-19; the app's handled-error path (`logError`) never forwards to Sentry, so only uncaught errors land. The 03:00Z learning-journal sentinel shares the window with ~120 AI calls in the mega-evening fan-out (STRONG INFERENCE: provider saturation, same as the compile timeouts). None of these reach the Pulse (`logError` writes error_logs only).
+>
+> **Flagged · NOT fixed**
+> - `getActiveCoachEvents` ignores `deletedAt`; soft-deleted coach rows still render.
+> - `system-health.ts` probe rollup ignores `rowCount`, so an empty-with-reason probe counts as ok there (the probes page shows the empty streak).
+> - A chronic `partial` conversation-compile (1 of 10 every night) has no escalation.
+> - The 6 AI subtasks and the WAITING flip on Nour's CRM planning task are still in prod (a write; one-liner in the PR).
 
 > ## 2026-11-01 · undone sweep: goals editable, Home Goals card, /people notes, missions rhythms and archive prompt (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >

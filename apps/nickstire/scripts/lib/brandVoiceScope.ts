@@ -52,6 +52,16 @@ export const STRUCTURE_CLEAN_FILES: readonly string[] = [
   "client/src/pages/TireSizePage.tsx",
   "client/src/pages/TireBrandPage.tsx",
   "shared/tireBrands.ts",
+  // Pass 2 (2026-11-01): zero word or structure hits in an --audit run after the rewrite.
+  "client/src/pages/CityPage.tsx",
+  "client/src/pages/ProblemPage.tsx",
+  "client/src/pages/BlogPost.tsx",
+  "client/src/pages/Contact.tsx",
+  "client/src/pages/Warranties.tsx",
+  "client/src/pages/GenericServicePage.tsx",
+  "client/src/pages/compare/CompareHub.tsx",
+  "client/src/components/RelatedServices.tsx",
+  "client/src/components/conversion/DecoyPricingTable.tsx",
 ];
 
 /**

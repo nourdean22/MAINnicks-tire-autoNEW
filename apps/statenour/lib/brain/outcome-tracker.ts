@@ -86,6 +86,8 @@ export async function scorePendingPredictions(): Promise<PredictionScore[]> {
   const scored: PredictionScore[] = [];
 
   let scoreFailCount = 0;
+  // 2026-11-01 · the nightly "N predictions failed to score" (5 of 7 nights) carried no cause.
+  let firstScoreFailure: string | null = null;
   for (const pred of pending) {
     try {
       const result = await aiChat(
@@ -200,14 +202,18 @@ Was this prediction accurate?`,
         outcome,
         accurate,
       });
-    } catch {
+    } catch (err) {
       // Skip predictions that fail to score
       scoreFailCount++;
+      firstScoreFailure ??= `${pred.id}: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`;
     }
   }
 
   if (scoreFailCount > 0) {
-    logError("brain.outcome-tracker", new Error(`${scoreFailCount} predictions failed to score`), { fn: "scorePendingPredictions" });
+    logError("brain.outcome-tracker", new Error(`${scoreFailCount} predictions failed to score`), {
+      fn: "scorePendingPredictions",
+      firstFailure: firstScoreFailure,
+    });
   }
 
   return scored;

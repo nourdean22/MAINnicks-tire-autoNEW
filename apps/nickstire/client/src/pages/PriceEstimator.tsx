@@ -70,7 +70,7 @@ export default function PriceEstimator() {
       {/* Hero */}
       <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="container max-w-3xl text-center">
-          <span className="font-mono text-nick-teal text-sm tracking-wide">Transparent Pricing</span>
+          <span className="font-mono text-nick-teal text-sm tracking-wide">Prices Up Front</span>
           <h1 className="font-bold text-4xl lg:text-5xl text-foreground mt-3 tracking-tight">
             INSTANT <span className="text-primary">PRICE ESTIMATE</span>
           </h1>

@@ -97,6 +97,33 @@ describe("logCronRun", () => {
     }
   });
 
+  it("files PARTIAL with the declared reason when the handler resolves degraded:true (2026-11-01)", async () => {
+    const run = await logCronRun("conversation-compile", async () => ({
+      degraded: true,
+      degradedReason: "1 of 4 conversation compiles failed",
+      resultCount: 3,
+    }));
+    expect(run.success).toBe(true);
+    expect(run.reportedFailure).toBeUndefined();
+    expect(h.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "partial",
+          error: "degraded · 1 of 4 conversation compiles failed",
+          resultCount: 3,
+        }),
+      }),
+    );
+  });
+
+  it("ok:false still wins over degraded:true (a failure claim is never softened)", async () => {
+    const run = await logCronRun("j", async () => ({ ok: false, degraded: true, reason: "0 of 4 compiled" }));
+    expect(run.reportedFailure).toBe("0 of 4 compiled");
+    expect(h.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "failed" }) }),
+    );
+  });
+
   it("still files failed + returns success:false on a thrown handler", async () => {
     const run = await logCronRun("j", async () => {
       throw new Error("boom");

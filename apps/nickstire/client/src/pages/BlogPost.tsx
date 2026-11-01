@@ -261,7 +261,7 @@ function MidArticleCTA({ category }: { category: string }) {
               While you're here
             </div>
             <h3 className="font-semibold text-foreground text-lg leading-tight mb-2">
-              Need {svc.label.toLowerCase()}? Read the rest later.
+              {svc.label} at Nick's
             </h3>
             <p className="text-foreground/65 text-sm leading-relaxed mb-4">
               {svc.pitch}
