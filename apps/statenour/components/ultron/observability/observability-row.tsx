@@ -41,7 +41,7 @@ export function ObservabilityRow() {
 
   return (
     <section
-      aria-label="System observability — cost, eval pass rate, OS drift"
+      aria-label="System observability: cost, eval pass rate, OS drift"
       className="space-y-2"
     >
       {/* Zone label — matches the mono eyebrow rhythm used by

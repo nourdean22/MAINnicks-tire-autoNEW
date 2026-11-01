@@ -210,7 +210,7 @@ export function LevelUpDirectiveCard() {
       {/* skill-cape milestone, only when the next level is a tier gate */}
       {directive.milestone ? (
         <p className="text-[12px] tabular-nums text-fg-tertiary">
-          Milestone in reach · {Math.round(directive.xpToNext)} XP to Lvl{" "}
+          Milestone in reach · {Math.round(directive.xpToNext)} XP to level{" "}
           {directive.milestone.level} {directive.milestone.tier}
         </p>
       ) : null}

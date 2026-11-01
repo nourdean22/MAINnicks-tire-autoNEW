@@ -285,7 +285,7 @@ export function CalibrationSection() {
           <GlassCard ruled className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div className="mb-4">
               <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
-                Task ROI Precision
+                Task ROI precision
                 <Sliders className="h-4 w-4 text-fg-tertiary" />
               </h3>
             </div>
@@ -304,8 +304,8 @@ export function CalibrationSection() {
                   scoreboard.biasVerdict === "underconfident" && "text-sky-400 border-sky-500/20 bg-sky-500/5",
                   scoreboard.biasVerdict === "calibrated" && "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
                 )}>
-                  {scoreboard.biasVerdict === "overconfident" && "Bias: Overconfident (+ROI)"}
-                  {scoreboard.biasVerdict === "underconfident" && "Bias: Underconfident (-ROI)"}
+                  {scoreboard.biasVerdict === "overconfident" && "Bias: overconfident (+ROI)"}
+                  {scoreboard.biasVerdict === "underconfident" && "Bias: underconfident (-ROI)"}
                   {scoreboard.biasVerdict === "calibrated" && "Calibrated ROI estimation"}
                 </Badge>
               </div>
@@ -316,7 +316,7 @@ export function CalibrationSection() {
           <GlassCard ruled className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div className="mb-4">
               <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
-                Overestimate Bias
+                Overestimate bias
                 <Flame className="h-4 w-4 text-fg-tertiary" />
               </h3>
             </div>
@@ -328,7 +328,7 @@ export function CalibrationSection() {
                 Percentage of completed tasks where actual ROI was lower than estimate
               </p>
               <div className="pt-2 text-[11px] text-fg-secondary">
-                Mean Bias: <span className="font-mono">{scoreboard.taskRoiBias30d !== null ? `${scoreboard.taskRoiBias30d.toFixed(1)} pts` : "0.0"}</span>
+                Mean bias: <span className="font-mono">{scoreboard.taskRoiBias30d !== null ? `${scoreboard.taskRoiBias30d.toFixed(1)} pts` : "0.0"}</span>
               </div>
             </div>
           </GlassCard>
@@ -340,7 +340,7 @@ export function CalibrationSection() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <h3 className="text-[17px] font-semibold text-fg flex items-center gap-2">
-              <span>Pending Calibration Review ({pending.length})</span>
+              <span>Pending calibration review ({pending.length})</span>
               {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400" />}
             </h3>
             <button
@@ -353,7 +353,7 @@ export function CalibrationSection() {
               id="ef-grade-mode-toggle"
             >
               <Sliders className={cn("h-3.5 w-3.5", efGradeMode && "text-amber-400")} />
-              {efGradeMode ? "ADHD Quick-Grade Active" : "ADHD Quick-Grade Mode"}
+              {efGradeMode ? "ADHD quick-grade active" : "ADHD quick-grade mode"}
             </button>
           </div>
 
@@ -389,7 +389,7 @@ export function CalibrationSection() {
           <GlassCard ruled>
             <div className="py-6 text-center space-y-2">
               <Check className="h-8 w-8 text-emerald-500 mx-auto" />
-              <p className="text-sm text-fg font-medium">Outcome Review Queue Clear</p>
+              <p className="text-sm text-fg font-medium">Outcome review queue clear</p>
               <p className="text-xs text-fg-tertiary max-w-sm mx-auto">
                 No completed tasks or expired predictions require manual grading calibration at this time. Nightly cron compiles next reviews.
               </p>
@@ -442,7 +442,7 @@ export function CalibrationSection() {
                                 handleResolve(item.id, "correct", {
                                   outcomeScore: val,
                                   classification: "underestimated",
-                                  rationale: "Underestimated via EF Quick-Grade Mode."
+                                  rationale: "Underestimated via EF quick-grade mode."
                                 });
                               }}
                               disabled={resolvingId !== null}
@@ -457,13 +457,13 @@ export function CalibrationSection() {
                                 handleResolve(item.id, "correct", {
                                   outcomeScore: item.predictedOutcome.roiScore,
                                   classification: "accurate",
-                                  rationale: "Accurate outcome via EF Quick-Grade Mode."
+                                  rationale: "Accurate outcome via EF quick-grade mode."
                                 });
                               }}
                               disabled={resolvingId !== null}
                               className="min-h-11 min-w-11 text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
                             >
-                              Spot On
+                              Spot on
                             </Button>
                             <Button
                               size="xs"
@@ -473,7 +473,7 @@ export function CalibrationSection() {
                                 handleResolve(item.id, "correct", {
                                   outcomeScore: val,
                                   classification: "overestimated",
-                                  rationale: "Overestimated via EF Quick-Grade Mode."
+                                  rationale: "Overestimated via EF quick-grade mode."
                                 });
                               }}
                               disabled={resolvingId !== null}
@@ -490,7 +490,7 @@ export function CalibrationSection() {
                               onClick={() => {
                                 handleResolve(item.id, "correct", {
                                   status: "confirmed",
-                                  outcomeDescription: "Confirmed via EF Quick-Grade Mode."
+                                  outcomeDescription: "Confirmed via EF quick-grade mode."
                                 });
                               }}
                               disabled={resolvingId !== null}
@@ -504,7 +504,7 @@ export function CalibrationSection() {
                               onClick={() => {
                                 handleResolve(item.id, "correct", {
                                   status: "disproven",
-                                  outcomeDescription: "Disproven via EF Quick-Grade Mode."
+                                  outcomeDescription: "Disproven via EF quick-grade mode."
                                 });
                               }}
                               disabled={resolvingId !== null}
@@ -546,7 +546,7 @@ export function CalibrationSection() {
                           <Badge className={cn("text-[11px] py-0.5", 
                             isTask ? "bg-sky-500/10 text-sky-300 border-sky-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
                           )}>
-                            {isTask ? "Task ROI Estimate" : "System Prediction"}
+                            {isTask ? "Task ROI estimate" : "System prediction"}
                           </Badge>
                           {isTopCard && (
                             <Badge variant="outline" className="text-[11px] border-sky-500/30 bg-sky-500/5 text-sky-400 font-mono py-0.5">
@@ -581,7 +581,7 @@ export function CalibrationSection() {
                       )}
                       <div className="space-y-1 text-xs">
                         <p className="text-fg font-medium flex items-center gap-1.5">
-                          Proposed Actual Outcome:
+                          Proposed actual outcome:
                           {isTask ? (
                             <Badge className={cn("text-[11px] font-bold py-0 h-4",
                               item.proposedActualOutcome.classification === "accurate" && "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
@@ -614,27 +614,27 @@ export function CalibrationSection() {
                         <Separator className="bg-edge-subtle" />
                         <h5 className="font-mono text-[11px] text-fg-tertiary flex items-center gap-1.5">
                           <FileText className="h-3 w-3" />
-                          Evidence Details
+                          Evidence details
                         </h5>
                         <div className="rounded-surface bg-surface-interactive border border-edge-subtle p-3 text-xs space-y-2 text-fg-secondary">
                           {isTask ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <span className="text-[11px] text-fg-tertiary block">Execution Metrics</span>
+                                <span className="text-[11px] text-fg-tertiary block">Execution metrics</span>
                                 <div className="space-y-1 font-mono text-fg">
-                                  <p>Effort Band: <span className="text-fg">{item.predictedOutcome.effort}</span></p>
-                                  <p>Actual Minutes: <span className="text-fg">{item.evidence.actualMinutes || "0"} min</span></p>
+                                  <p>Effort band: <span className="text-fg">{item.predictedOutcome.effort}</span></p>
+                                  <p>Actual minutes: <span className="text-fg">{item.evidence.actualMinutes || "0"} min</span></p>
                                 </div>
                               </div>
                               <div className="space-y-1">
-                                <span className="text-[11px] text-fg-tertiary block">Completion Notes</span>
+                                <span className="text-[11px] text-fg-tertiary block">Completion notes</span>
                                 <p className="italic text-fg">
                                   "{item.evidence.completionNote || "None recorded"}"
                                 </p>
                               </div>
                               {item.evidence.proof && (
                                 <div className="md:col-span-2 space-y-1">
-                                  <span className="text-[11px] text-fg-tertiary block">Proof Uploaded</span>
+                                  <span className="text-[11px] text-fg-tertiary block">Proof uploaded</span>
                                   <pre className="text-[11px] font-mono text-fg bg-surface-interactive p-2 rounded-control border border-edge-subtle overflow-auto max-h-24">
                                     {JSON.stringify(item.evidence.proof, null, 2)}
                                   </pre>
@@ -645,7 +645,7 @@ export function CalibrationSection() {
                             <div className="space-y-3">
                               {item.evidence.businessMetrics && (
                                 <div className="space-y-1">
-                                  <span className="text-[11px] text-fg-tertiary block">Business Metrics (From Nick's Tire)</span>
+                                  <span className="text-[11px] text-fg-tertiary block">Business metrics (from Nick's Tire)</span>
                                   <pre className="text-[11px] font-mono text-fg bg-surface-interactive p-2 rounded-control border border-edge-subtle overflow-auto">
                                     {JSON.stringify(item.evidence.businessMetrics, null, 2)}
                                   </pre>
@@ -653,7 +653,7 @@ export function CalibrationSection() {
                               )}
                               {item.evidence.matchingMemories && (
                                 <div className="space-y-2">
-                                  <span className="text-[11px] text-fg-tertiary block">Semantically Related Memories</span>
+                                  <span className="text-[11px] text-fg-tertiary block">Semantically related memories</span>
                                   {item.evidence.matchingMemories.map((m: any, idx: number) => (
                                     <div key={idx} className="bg-surface-interactive p-2 rounded-control border border-edge-subtle text-[11px]">
                                       <div className="flex items-center justify-between text-[11px] text-fg-tertiary mb-1">
@@ -676,13 +676,13 @@ export function CalibrationSection() {
                       <div className="pt-2 pb-1 space-y-4 animate-fade-in bg-surface-interactive p-3 rounded-surface border border-edge-subtle">
                         <h5 className="font-mono text-[11px] text-amber-300 flex items-center gap-1.5">
                           <Sliders className="h-3 w-3" />
-                          Override Calibrated Outcome
+                          Override calibrated outcome
                         </h5>
                         
                         {isTask ? (
                           <div className="space-y-2">
                             <label className="text-xs text-fg-secondary flex justify-between">
-                              <span>Correct Outcome ROI Score:</span>
+                              <span>Correct outcome ROI score:</span>
                               <span className="font-bold text-fg font-mono">{correctionRoi} / 100</span>
                             </label>
                             <input 
@@ -694,15 +694,15 @@ export function CalibrationSection() {
                               className="h-11 w-full cursor-pointer accent-sky-500"
                             />
                             <div className="flex justify-between text-[11px] text-fg-tertiary font-mono">
-                              <span>1 (Low)</span>
-                              <span>50 (Mid)</span>
-                              <span>100 (Max)</span>
+                              <span>1 (low)</span>
+                              <span>50 (mid)</span>
+                              <span>100 (max)</span>
                             </div>
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1">
-                              <label className="text-xs text-fg-secondary block">Correct Status:</label>
+                              <label className="text-xs text-fg-secondary block">Correct status:</label>
                               <div className="flex gap-1.5">
                                 {["confirmed", "disproven", "expired"].map((st) => (
                                   <button
@@ -721,7 +721,7 @@ export function CalibrationSection() {
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs text-fg-secondary block">Outcome Description:</label>
+                              <label className="text-xs text-fg-secondary block">Outcome description:</label>
                               <input 
                                 type="text"
                                 value={correctionDescription}
@@ -734,7 +734,7 @@ export function CalibrationSection() {
                         )}
 
                         <div className="space-y-1">
-                          <label className="text-xs text-fg-secondary block">Adjustment Note (Optional):</label>
+                          <label className="text-xs text-fg-secondary block">Adjustment note (optional):</label>
                           <input 
                             type="text"
                             value={correctionNote}
@@ -775,7 +775,7 @@ export function CalibrationSection() {
                             }}
                             disabled={resolvingId !== null}
                           >
-                            Submit Correction
+                            Submit correction
                           </Button>
                         </div>
                       </div>
@@ -789,9 +789,9 @@ export function CalibrationSection() {
                         className="min-h-11 min-w-11 text-xs text-fg-tertiary hover:text-fg flex items-center gap-1 transition-colors duration-[var(--motion-state)]"
                       >
                         {isExpanded ? (
-                          <>Hide Evidence <ChevronUp className="h-3.5 w-3.5" /></>
+                          <>Hide evidence <ChevronUp className="h-3.5 w-3.5" /></>
                         ) : (
-                          <>Inspect Evidence <ChevronDown className="h-3.5 w-3.5" /></>
+                          <>Inspect evidence <ChevronDown className="h-3.5 w-3.5" /></>
                         )}
                       </button>
 
@@ -804,7 +804,7 @@ export function CalibrationSection() {
                             onClick={() => handleResolve(item.id, "needs_more_evidence")}
                             disabled={resolvingId !== null}
                           >
-                            Need Evidence
+                            Need evidence
                           </Button>
                           <Button
                             size="xs"
@@ -850,7 +850,7 @@ export function CalibrationSection() {
         <div className="space-y-4">
           <h3 className="text-[17px] font-semibold text-fg flex items-center gap-2">
             <BookOpen className="h-4 w-4 text-fg-tertiary" />
-            Calibration Lessons Feed
+            Calibration lessons feed
           </h3>
 
           {lessons.length === 0 ? (
@@ -882,7 +882,7 @@ export function CalibrationSection() {
         <div className="space-y-4">
           <h3 className="text-[17px] font-semibold text-fg flex items-center gap-2">
             <History className="h-4 w-4 text-fg-tertiary" />
-            Recent Resolutions
+            Recent resolutions
           </h3>
 
           {history.length === 0 ? (
@@ -930,7 +930,7 @@ export function CalibrationSection() {
                         )}
                         {h.correctionNote && (
                           <p className="text-[11px] text-amber-300 mt-1">
-                            Override Reason: {h.correctionNote}
+                            Override reason: {h.correctionNote}
                           </p>
                         )}
                       </div>

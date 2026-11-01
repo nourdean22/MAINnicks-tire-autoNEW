@@ -45,7 +45,7 @@ export function InspectorNotice({ state, kind, code }: InspectorNoticeProps) {
           tone="warning"
           icon={AlertTriangle}
           title={`Could not read this ${noun}`}
-          why={`The read failed${code ? ` (${code})` : ""}. Its state is unknown — not empty, not missing.`}
+          why={`The read failed${code ? ` (${code})` : ""}. Its state is unknown, not empty or missing.`}
           unlock="Try again, or open it on its page."
         />
       </div>

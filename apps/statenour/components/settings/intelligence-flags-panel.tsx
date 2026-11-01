@@ -212,7 +212,7 @@ export function IntelligenceFlagsPanel() {
                     {/* High Risk warning badge */}
                     {isHighRisk && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium bg-red-500/15 border border-red-500/25 text-red-400">
-                        <AlertTriangle size={8} /> High Risk
+                        <AlertTriangle size={8} /> High risk
                       </span>
                     )}
                   </div>

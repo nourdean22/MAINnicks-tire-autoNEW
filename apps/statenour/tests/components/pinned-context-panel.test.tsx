@@ -337,6 +337,6 @@ describe("PinnedContextPanel · hot-rule confidence is not a percentage", () => 
     stubs.ccState.isError = true;
     const html = render();
     expect(html).toContain('data-provenance="ERROR"');
-    expect(text(html)).toContain("Hot Rules couldn't load");
+    expect(text(html)).toContain("Hot rules couldn't load");
   });
 });

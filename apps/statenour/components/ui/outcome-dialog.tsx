@@ -137,7 +137,7 @@ export function useOutcomeDialog(): {
         <DialogHeader>
           <DialogTitle>{state.title}</DialogTitle>
           <DialogDescription>
-            {state.body ?? "one tap teaches Nick — ratings scale what this task's domain learns."}
+            {state.body ?? "One tap teaches Nick. Ratings scale what this task's domain learns."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -161,7 +161,7 @@ export function useOutcomeDialog(): {
             aria-label="lesson learned"
             value={state.lesson}
             onChange={(e) => setState((s) => ({ ...s, lesson: e.target.value }))}
-            placeholder="lesson learned — optional, becomes memory"
+            placeholder="Lesson learned (optional, becomes memory)"
             maxLength={5000}
             className="w-full rounded-control border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-hover)] focus:outline-none"
           />

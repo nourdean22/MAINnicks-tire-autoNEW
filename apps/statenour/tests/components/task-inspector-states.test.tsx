@@ -127,7 +127,7 @@ describe("TaskInspector · page actions", () => {
     stubs.query.data = { ...TASK, priorityBreakdown: BREAKDOWN };
     const html = render();
     expect(html).not.toContain("data-inspector-page-actions");
-    expect(html).toContain("open it there to act");
+    expect(html).toContain("Open it there to act");
   });
 
   it("renders the actions the page lent, 44px on phones, and drops the pointer", () => {
@@ -144,7 +144,7 @@ describe("TaskInspector · page actions", () => {
     expect(html).toContain('data-inspector-page-actions="2"');
     expect(html).toContain("snooze · tomorrow 6am");
     expect(html).toContain("min-h-[44px]");
-    expect(html).not.toContain("open it there to act");
+    expect(html).not.toContain("Open it there to act");
   });
 
   it("the not-found state carries no page actions (there is no task to act on)", () => {

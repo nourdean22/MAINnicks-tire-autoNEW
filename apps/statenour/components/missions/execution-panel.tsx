@@ -204,14 +204,14 @@ export function ExecutionPanel({
         <div className="flex items-center gap-2">
           <span className={cn("h-2 w-2 rounded-full bg-amber-400", isDoing && "pulse-live")} />
           <h2 className="font-mono text-[11px] text-fg-tertiary">
-            Execution Mode · active task
+            Execution mode · active task
           </h2>
         </div>
         <button
           onClick={onExit}
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
-          Exit Focus <X size={10} />
+          Exit focus <X size={10} />
         </button>
       </div>
 
@@ -385,7 +385,7 @@ export function ExecutionPanel({
                 disabled={submitting === "block"}
                 className="min-h-[44px] px-3 py-1.5 rounded-control bg-violet-600/80 hover:bg-violet-600 text-[13px] text-white font-medium transition-colors duration-[var(--motion-state)]"
               >
-                {submitting === "block" ? "Saving..." : "Mark Blocked"}
+                {submitting === "block" ? "Saving..." : "Mark blocked"}
               </button>
             </div>
           </form>
@@ -395,7 +395,7 @@ export function ExecutionPanel({
         {showSnoozeOptions && (
           <div className="p-3 bg-surface-raised rounded-surface border border-violet-500/20 space-y-2 animate-slide-down">
             <p className="font-mono text-[11px] text-violet-300">
-              Snooze / Defer Task Until
+              Snooze / defer task until
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
@@ -434,7 +434,7 @@ export function ExecutionPanel({
               <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="font-mono text-[11px] text-rose-300">
-                  Confirm Abandonment
+                  Confirm abandonment
                 </p>
                 <p className="text-[13px] text-fg-secondary leading-snug">
                   Are you sure you want to abandon “{task.title}”? It will be archived and removed from execution.
@@ -455,7 +455,7 @@ export function ExecutionPanel({
                 disabled={submitting === "abandon"}
                 className="min-h-[44px] px-3 py-1.5 rounded-control bg-rose-600/80 hover:bg-rose-600 text-[13px] text-white font-medium transition-colors duration-[var(--motion-state)] flex items-center gap-1"
               >
-                <Trash2 size={12} /> Yes, Abandon
+                <Trash2 size={12} /> Yes, abandon
               </button>
             </div>
           </div>
@@ -478,11 +478,11 @@ export function ExecutionPanel({
             >
               {isDoing ? (
                 <>
-                  <Pause size={14} fill="currentColor" /> Park Task
+                  <Pause size={14} fill="currentColor" /> Park task
                 </>
               ) : (
                 <>
-                  <Play size={14} fill="currentColor" /> Start / Resume
+                  <Play size={14} fill="currentColor" /> Start / resume
                 </>
               )}
             </button>
@@ -494,7 +494,7 @@ export function ExecutionPanel({
               disabled={submitting != null}
               className="flex min-h-[44px] items-center justify-center gap-2 rounded-control py-3.5 bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
-              <Check size={14} strokeWidth={3} /> Complete Task
+              <Check size={14} strokeWidth={3} /> Complete task
             </button>
 
             {/* Block / Wait */}
@@ -504,7 +504,7 @@ export function ExecutionPanel({
               disabled={submitting != null}
               className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-violet-500/20 bg-violet-500/5 text-violet-300 hover:bg-violet-500/10 text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
-              Mark Blocked
+              Mark blocked
             </button>
 
             {/* Snooze / Defer */}
@@ -514,7 +514,7 @@ export function ExecutionPanel({
               disabled={submitting != null}
               className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
-              <Clock size={12} /> Snooze / Defer
+              <Clock size={12} /> Snooze / defer
             </button>
 
             {/* Break Smaller / Edit */}
@@ -524,7 +524,7 @@ export function ExecutionPanel({
               disabled={submitting != null}
               className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
-              <Pencil size={12} /> Break / Edit
+              <Pencil size={12} /> Break / edit
             </button>
 
             {/* Abandon Cleanly */}
@@ -534,7 +534,7 @@ export function ExecutionPanel({
               disabled={submitting != null}
               className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-rose-500/20 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
-              <Trash2 size={12} /> Abandon Task
+              <Trash2 size={12} /> Abandon task
             </button>
           </div>
         )}

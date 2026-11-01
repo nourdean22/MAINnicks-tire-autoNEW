@@ -76,7 +76,7 @@ export function ToolUsageCensusPanel() {
     >
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
               <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
-          <Wrench className="h-3.5 w-3.5 text-fg-secondary" /> Tool Usage Census
+          <Wrench className="h-3.5 w-3.5 text-fg-secondary" /> Tool usage census
         </p>
         <span className="text-[11px] font-mono text-fg-tertiary">
           {c.invokedCount}/{c.catalogSize} invoked · {c.highFailure.length} failing · {c.neverInvoked.length} never

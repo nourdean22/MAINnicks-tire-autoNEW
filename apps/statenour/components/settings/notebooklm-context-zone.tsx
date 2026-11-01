@@ -55,7 +55,7 @@ export function NotebookLMContextZone() {
       <summary className="flex items-center gap-2 p-4 min-h-[44px] cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <BrainCircuit size={14} className="text-fg-tertiary" aria-hidden />
         <h3 className="text-[15px] font-semibold text-fg">
-          NotebookLM Context Zone
+          NotebookLM context zone
         </h3>
         <ChevronDown
           size={14}
@@ -100,7 +100,7 @@ export function NotebookLMContextZone() {
               {status === "ingesting" ? (
                 <><Loader2 size={12} className="animate-spin" /> Ingesting</>
               ) : (
-                <><Upload size={12} /> Inject Context</>
+                <><Upload size={12} /> Inject context</>
               )}
             </button>
           </div>

@@ -129,14 +129,14 @@ export function classify<T, U>(
   // BEFORE the data-undefined fall-through, or a failed fetch keeps landing in
   // "empty" and reads as a quiet endpoint rather than a broken one.
   if (raw.isError === true) {
-    return { kind: "error", message: "read failed — this value is unknown" };
+    return { kind: "error", message: "read failed: this value is unknown" };
   }
   if (raw.data === undefined) {
     return { kind: "empty" };
   }
   // BEFORE isEmpty, because the padded sparkline makes an outage look non-empty.
   if (isFailed?.(raw.data)) {
-    return { kind: "error", message: "burn read failed — spend is unknown, not $0" };
+    return { kind: "error", message: "burn read failed: spend is unknown, not $0" };
   }
   if (isEmpty(raw.data)) return { kind: "empty" };
 

@@ -323,7 +323,7 @@ export function AiSettingsPanel() {
             defaultMode (derive-turn-signals) + disabledTools (prepare-tools). */}
 
         {/* Default mode */}
-        <Row label="Default Mode">
+        <Row label="Default mode">
           <SegmentedSelect
             value={config.defaultMode || "auto"}
             options={["auto", "standard", "deep"]}
@@ -346,7 +346,7 @@ export function AiSettingsPanel() {
         {/* iOS has no web vibration (Safari lacks the Vibration API), so on an
             iPhone the switch below would promise feedback that can never fire:
             say so instead of showing a dead control (UI v3 W0). */}
-        <Row label="Haptic Feedback">
+        <Row label="Haptic feedback">
           {hapticSupported ? (
             <Toggle
               label="Haptic feedback"

@@ -54,16 +54,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   planning: "Planning",
   business_read: "Business · Read",
   business_write: "Business · Write",
-  live_shop: "Live Shop",
+  live_shop: "Live shop",
   content: "Content",
   comms: "Comms",
-  ai_analysis: "AI Analysis",
+  ai_analysis: "AI analysis",
   brain: "Brain",
   files: "Files",
   routines: "Routines",
   research: "Research",
   browser: "Browser",
-  meta: "Meta / System"
+  meta: "Meta / system"
 };
 
 function formatAgo(ms?: number): string {
@@ -213,7 +213,7 @@ export function ToolTelemetryPanel() {
         <div className="p-3 bg-amber-500/[0.04] border border-amber-500/20 rounded-surface text-[11px] text-amber-300/95 space-y-1">
           <div className="flex items-center gap-1.5 font-bold text-amber-400">
             <AlertTriangle size={12} />
-            <span>Registry Drift Detected</span>
+            <span>Registry drift detected</span>
           </div>
           {drift.inToolsetMissingFromRegistry.length > 0 && (
             <p>
@@ -239,7 +239,7 @@ export function ToolTelemetryPanel() {
         <div className="p-3 bg-red-500/[0.04] border border-red-500/20 rounded-surface text-[11px] text-red-300/95 space-y-1.5">
           <div className="flex items-center gap-1.5 font-bold text-red-400">
             <Key size={12} />
-            <span>Missing Environment Keys</span>
+            <span>Missing environment keys</span>
           </div>
           <p className="text-[11px] text-[var(--text-tertiary)] text-left">The following keys are required by active tools but missing in Railway environment variables:</p>
           <div className="flex flex-wrap gap-1.5">
@@ -269,7 +269,7 @@ export function ToolTelemetryPanel() {
           onChange={(e) => setSelectedCategory(e.target.value)}
           className="min-h-11 px-2 py-1 text-[11px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-accent sm:w-48"
         >
-          <option value="all">All Categories</option>
+          <option value="all">All categories</option>
           {categories.map((cat) => (
             <option key={cat} value={cat}>
               {CATEGORY_LABELS[cat] ?? cat}
@@ -380,7 +380,7 @@ export function ToolTelemetryPanel() {
                               <p className="font-mono text-[11px] text-fg-tertiary">Description</p>
                               <p className="text-[10.5px] leading-relaxed">{s.description}</p>
                               
-                              <p className="font-mono text-[11px] text-fg-tertiary pt-1">Category & Operations</p>
+                              <p className="font-mono text-[11px] text-fg-tertiary pt-1">Category and operations</p>
                               <div className="flex flex-wrap gap-1.5 text-[9.5px]">
                                 <span className="px-1.5 py-0.5 bg-content border border-edge-subtle rounded-micro">
                                   {CATEGORY_LABELS[s.category] ?? s.category}
@@ -401,7 +401,7 @@ export function ToolTelemetryPanel() {
                             {/* Environment checklist */}
                             {s.requiredEnv.length > 0 && (
                               <div className="space-y-1 text-left">
-                                <p className="font-mono text-[11px] text-fg-tertiary">Environment Check</p>
+                                <p className="font-mono text-[11px] text-fg-tertiary">Environment check</p>
                                 <div className="space-y-1 font-mono text-[9.5px]">
                                   {s.requiredEnv.map((key) => {
                                     const missing = s.missingEnv.includes(key);
@@ -429,7 +429,7 @@ export function ToolTelemetryPanel() {
                             <div className="mt-2.5 pt-2 border-t border-[var(--border-default)]/20 space-y-1 text-left">
                               <p className="text-[11px] font-mono text-red-400 flex items-center gap-1">
                                 <Clock size={9} />
-                                <span>Recent Error History (Last {s.lastErrors.length})</span>
+                                <span>Recent error history (last {s.lastErrors.length})</span>
                               </p>
                               {s.lastErrors.map((e, i) => (
                                 <p

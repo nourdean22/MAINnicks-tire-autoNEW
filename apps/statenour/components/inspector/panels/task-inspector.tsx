@@ -193,7 +193,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
 
       <EntityActionRow entities={[entity]} labelOf={() => t.title} />
       {!pageActions || pageActions.length === 0 ? (
-        <p className="font-mono text-[11px] text-fg-tertiary">Complete · snooze · park run from the Missions board — open it there to act</p>
+        <p className="font-mono text-[11px] text-fg-tertiary">Complete · snooze · park run from the Missions board. Open it there to act</p>
       ) : null}
     </div>
   );

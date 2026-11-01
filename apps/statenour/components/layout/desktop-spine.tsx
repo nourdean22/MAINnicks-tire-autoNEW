@@ -94,7 +94,7 @@ export function DesktopSpine() {
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event(COMMAND_PALETTE_OPEN_EVENT))}
-          aria-label="Resolve — search, act or inspect anything (⌘K)"
+          aria-label="Resolve: search, act or inspect anything (⌘K)"
           title="Resolve · ⌘K"
           className={cn(RAIL_ITEM, RAIL_IDLE)}
         >

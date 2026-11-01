@@ -1,5 +1,5 @@
 /**
- * /system/inbox: a failed read is unknown, never "Memory Queue Clear ... safe"
+ * /system/inbox: a failed read is unknown, never "Memory queue clear ... safe"
  * (audit 2026-10-10, 02-F13).
  *
  * THE DEFECT. `items = data ?? []`, then `items.length === 0` rendered "Memory
@@ -62,7 +62,7 @@ describe("/system/inbox: a failed read is unknown, not clear", () => {
     // 2026-10-29 sync audit, finding 16: a fixed sentence and a Retry, never the raw server message.
     expect(html).not.toContain("upstream 500");
     expect(html).toContain("Retry");
-    expect(html).not.toContain("Memory Queue Clear");
+    expect(html).not.toContain("Memory queue clear");
     expect(html).not.toMatch(/\bsafe\b/);
     expect(html).not.toContain("clear and committed");
   });
@@ -72,20 +72,20 @@ describe("/system/inbox: a failed read is unknown, not clear", () => {
     const html = render();
     expect(html).toContain("unknown - read failed");
     expect(html).not.toContain("poll 500");
-    expect(html).not.toContain("Memory Queue Clear");
+    expect(html).not.toContain("Memory queue clear");
     expect(html).not.toContain("clear and committed");
   });
 
   it("before the first read lands, the queue is not called clear", () => {
     stub.q = q({ isPending: true, isFetching: true });
     const html = render();
-    expect(html).not.toContain("Memory Queue Clear");
+    expect(html).not.toContain("Memory queue clear");
     expect(html).not.toContain("clear and committed");
   });
 
   it("POSITIVE CONTROL: a successful empty read keeps its clear copy", () => {
     const html = render();
-    expect(html).toContain("Memory Queue Clear");
+    expect(html).toContain("Memory queue clear");
     expect(html).not.toContain("read failed");
   });
 });

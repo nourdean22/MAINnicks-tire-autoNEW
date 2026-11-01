@@ -29,7 +29,7 @@ export function HealthGovernorStrip() {
       accent: "bg-rose-500/10 border-rose-500/20 text-rose-300",
       barColor: "bg-rose-500",
       icon: AlertCircle,
-      title: "Health Lockdown Mode",
+      title: "Health lockdown mode",
     },
     SHADOW_MODE: {
       bg: "bg-amber-950/15 border-amber-500/20",
@@ -37,7 +37,7 @@ export function HealthGovernorStrip() {
       accent: "bg-amber-500/10 border-amber-500/20 text-amber-300",
       barColor: "bg-amber-500",
       icon: Shield,
-      title: "Shadow Execution Mode",
+      title: "Shadow execution mode",
     },
     RECOVERY_LOCK: {
       bg: "bg-orange-950/15 border-orange-500/20",
@@ -45,7 +45,7 @@ export function HealthGovernorStrip() {
       accent: "bg-orange-500/10 border-orange-500/20 text-orange-300",
       barColor: "bg-orange-500",
       icon: Shield,
-      title: "Active Recovery Lock",
+      title: "Active recovery lock",
     },
     OPTIMIZED: {
       bg: "bg-emerald-950/15 border-emerald-500/20",
@@ -53,7 +53,7 @@ export function HealthGovernorStrip() {
       accent: "bg-emerald-500/10 border-emerald-500/20 text-emerald-300",
       barColor: "bg-emerald-500",
       icon: Sparkles,
-      title: "Optimized State",
+      title: "Optimized state",
     },
     STABLE: {
       bg: "bg-content border-edge-subtle",
@@ -61,7 +61,7 @@ export function HealthGovernorStrip() {
       accent: "bg-surface-interactive border-edge-default text-fg-secondary",
       barColor: "bg-fg-tertiary",
       icon: CheckCircle2,
-      title: "Stable Baseline State",
+      title: "Stable baseline state",
     },
   }[mode];
 
@@ -69,7 +69,7 @@ export function HealthGovernorStrip() {
 
   return (
     <section
-      aria-label="Health Governor Status"
+      aria-label="Health governor status"
       className={cn(
         "rounded-surface border px-4 py-3.5",
         config.bg

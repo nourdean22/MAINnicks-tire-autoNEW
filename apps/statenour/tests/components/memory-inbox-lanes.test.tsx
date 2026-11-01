@@ -98,7 +98,7 @@ describe("/system/inbox: conflicting first, the rest behind Other", () => {
 
   it("the detail opens on the conflicting item and keeps all three verdicts", async () => {
     render();
-    expect(button(/^Overwrite Conflicting$/)).toBeTruthy();
+    expect(button(/^Overwrite conflicting$/)).toBeTruthy();
     expect(button(/^Reject$/)).toBeTruthy();
     expect(button(/^Coexist$/)).toBeTruthy();
     await act(async () => button(/^Coexist$/)!.click());
@@ -112,11 +112,11 @@ describe("/system/inbox: conflicting first, the rest behind Other", () => {
       Array.from(document.body.querySelectorAll('[role="dialog"] button, [role="alertdialog"] button')).find((b) =>
         name.test(b.textContent ?? ""),
       ) as HTMLButtonElement | undefined;
-    await act(async () => button(/^Overwrite Conflicting$/)!.click());
+    await act(async () => button(/^Overwrite conflicting$/)!.click());
     expect(h.mutateAsync).not.toHaveBeenCalled();
     await act(async () => inDialog(/^Cancel$/)!.click());
     expect(h.mutateAsync).not.toHaveBeenCalled();
-    await act(async () => button(/^Overwrite Conflicting$/)!.click());
+    await act(async () => button(/^Overwrite conflicting$/)!.click());
     await act(async () => inDialog(/^Overwrite$/)!.click());
     expect(h.mutateAsync).toHaveBeenCalledWith({ id: "i2", verdict: "overwrite" });
   });
@@ -126,24 +126,24 @@ describe("/system/inbox: conflicting first, the rest behind Other", () => {
   it("only-Other inbox: no detail until Other is opened and an item tapped; collapsing clears it", () => {
     h.q = q({ data: [ITEMS[0], ITEMS[2]] });
     render();
-    expect(host.textContent).not.toContain("Memory Review");
+    expect(host.textContent).not.toContain("Memory review");
     expect(button(/^Reject$/)).toBeUndefined();
     act(() => button(/^Other, 2/)!.click());
-    expect(host.textContent).not.toContain("Memory Review");
+    expect(host.textContent).not.toContain("Memory review");
     const pick = Array.from(list().querySelectorAll("button")).find((b) => /Pending note two/.test(b.textContent ?? ""))!;
     act(() => pick.click());
-    expect(host.textContent).toContain("Memory Review");
+    expect(host.textContent).toContain("Memory review");
     expect(button(/^Reject$/)).toBeTruthy();
     act(() => button(/^Other, 2/)!.click());
-    expect(host.textContent).not.toContain("Memory Review");
+    expect(host.textContent).not.toContain("Memory review");
     act(() => button(/^Other, 2/)!.click());
-    expect(host.textContent).not.toContain("Memory Review");
+    expect(host.textContent).not.toContain("Memory review");
   });
 
   it("CONTROL: a Priority item still opens the detail by itself", () => {
     render();
-    expect(host.textContent).toContain("Memory Review");
-    expect(button(/^Overwrite Conflicting$/)).toBeTruthy();
+    expect(host.textContent).toContain("Memory review");
+    expect(button(/^Overwrite conflicting$/)).toBeTruthy();
   });
 
   it("CONTROL: with nothing conflicting, Priority says so and Other still lists the rest", () => {

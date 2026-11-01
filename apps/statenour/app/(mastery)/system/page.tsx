@@ -420,8 +420,8 @@ export default function SystemPage() {
         <section className="flex flex-col gap-4 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] text-fg-tertiary">F2 · System Change Digest</span>
-              <h3 className="text-sm font-semibold text-fg mt-0.5">Reconciliation Summary</h3>
+              <span className="font-mono text-[11px] text-fg-tertiary">F2 · System change digest</span>
+              <h3 className="text-sm font-semibold text-fg mt-0.5">Reconciliation summary</h3>
             </div>
             {changeDigestQuery.data?.deployment.status && (
               <span className="flex items-center gap-1.5 rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
@@ -512,7 +512,7 @@ export default function SystemPage() {
         <section className="flex flex-col gap-4 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] text-fg-tertiary">P5 · Grounded Truth Evals</span>
+              <span className="font-mono text-[11px] text-fg-tertiary">P5 · Grounded truth evals</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Scoreboard</h3>
             </div>
             {memoryEvalsQuery.data && (
@@ -578,7 +578,7 @@ export default function SystemPage() {
               </div>
 
               <div className="border-t border-edge-subtle pt-2 text-[11px] font-mono text-fg-tertiary flex justify-between">
-                <span>Docs Grounded: {memoryEvalsQuery.data.sourcesFound}/{memoryEvalsQuery.data.sourcesExpected}</span>
+                <span>Docs grounded: {memoryEvalsQuery.data.sourcesFound}/{memoryEvalsQuery.data.sourcesExpected}</span>
               </div>
             </div>
           ) : memoryEvalsQuery.isError ? (
@@ -592,8 +592,8 @@ export default function SystemPage() {
         <section className="flex flex-col gap-4 md:col-span-2 lg:col-span-1 border-l-2 border-edge-strong pl-5 sm:pl-6">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] text-fg-tertiary">F4 · Action Receipt Feed</span>
-              <h3 className="text-sm font-semibold text-fg mt-0.5">Recent Activities</h3>
+              <span className="font-mono text-[11px] text-fg-tertiary">F4 · Action receipt feed</span>
+              <h3 className="text-sm font-semibold text-fg mt-0.5">Recent activity</h3>
             </div>
             {receiptFeedQuery.data?.counts && (
               <span className="rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">

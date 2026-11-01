@@ -7,7 +7,7 @@
  * swallowed catch." So a FAILED read and a read still in flight rendered the
  * same dash on every live card. SYSTEM.md §9: unknown carries the word.
  *
- * And the "Brain Categories" tile linked bare /brain (which opens the Map tab)
+ * And the "Brain categories" tile linked bare /brain (which opens the Map tab)
  * while promising "people intelligence", which /brain does not show.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -58,7 +58,7 @@ describe("hub grid · a failed rollup read is unknown, not a dash", () => {
 });
 
 describe("hub grid · the Brain tile lands where it says", () => {
-  const brain = CARDS.find((c) => c.title === "Brain Categories");
+  const brain = CARDS.find((c) => c.title === "Brain categories");
 
   it("opens the memory tab, not the bare /brain Map", () => {
     expect(brain?.href).toBe("/brain?tab=memory");
