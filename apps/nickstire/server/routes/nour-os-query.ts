@@ -335,13 +335,26 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     // ticket (stored at that day's midnight) onto the day before: today's revenue counted only
     // timed tickets, and disagreed with revenue_range(today, today).
     const today = getBusinessDateKey();
+    // 2026-10-31 · `syncedAt`: when the shop's counter invoices were last brought up to date, so
+    // the card can say "as of 2:40 PM" instead of the read time. It is the start of the newest
+    // SUCCESSFUL ShopDriver probe (the Sales card's watermark, shopSales.readShopSync), read
+    // BEFORE the aggregate: a probe landing between the two reads then makes the figures fresher
+    // than the stamp, never staler. null = never synced or unreadable; a failed probe never moves
+    // it, and an old success stays old. Covers ShopDriver rows only; an app-made order is live.
+    const { readShopSync } = await import("../services/shopSales");
+    const sync = await readShopSync(d);
     const [rows] = await d.execute(sql`
       SELECT COALESCE(SUM(totalAmount), 0) as totalCents, COUNT(*) as invoiceCount
       FROM invoices
       WHERE invoiceDate >= ${today} AND invoiceDate < DATE_ADD(${today}, INTERVAL 1 DAY)
     `);
     const r = (rows as Record<string, unknown>[])?.[0] || rows as Record<string, unknown>;
-    return { totalCents: Number(r.totalCents || 0), totalDollars: Number(r.totalCents || 0) / 100, invoiceCount: Number(r.invoiceCount || 0) };
+    return {
+      totalCents: Number(r.totalCents || 0),
+      totalDollars: Number(r.totalCents || 0) / 100,
+      invoiceCount: Number(r.invoiceCount || 0),
+      syncedAt: sync.state === "ok" ? sync.lastAt : null,
+    };
   },
 
   // 2026-10-09 · `from`/`to` are shop-local days, both inclusive (shopDayRange). `invoiceDate`
