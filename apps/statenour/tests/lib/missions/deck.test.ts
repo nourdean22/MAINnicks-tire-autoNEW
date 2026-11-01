@@ -289,6 +289,34 @@ describe("deck · sections tell the truth about their shapes", () => {
     const taskRead = mocks.task.findMany.mock.calls.map((c) => c[0]).find((a) => a?.select?.loopKind === true);
     expect(taskRead?.select.recurringDays).toBe(true);
   });
+
+  // Nour 2026-11-01 (a Sunday): "Monday task (weekly · Mon)" and "Work out 3x (weekly · Mon Wed Fri)" were listed
+  // as today's rhythms, "2 of 7 today". A weekly rhythm is due only on its weekdays, read on the ET wall clock.
+  it("on a Sunday a Mon/Wed/Fri weekly is not due today, a daily is, and a weekly with no days is never 'today'", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-daily", title: "Stretch", loopKind: "DAILY", missionId: "m-general-personal" }),
+      task({ id: "t-mwf", title: "Work out 3x", loopKind: "WEEKLY", missionId: "m-general-personal", recurringDays: [1, 3, 5] }),
+      task({ id: "t-sun", title: "Plan the week", loopKind: "WEEKLY", missionId: "m-general-personal", recurringDays: [0] }),
+      task({ id: "t-bare", title: "Call mom", loopKind: "WEEKLY", missionId: "m-general-personal" }),
+    ]);
+    const deck = await buildMissionsDeck(new Date("2026-11-01T14:00:00Z")); // Sun 09:00 EST
+    const due = (id: string) => deck.rhythms.find((x) => x.id === id)?.dueToday;
+    expect(due("t-daily")).toBe(true);
+    expect(due("t-mwf")).toBe(false);
+    expect(due("t-sun")).toBe(true);
+    expect(due("t-bare")).toBe(false);
+  });
+
+  it("the weekday is the ET one: Sunday 23:30 EST is already Monday in UTC, and Monday's rhythm is still not due", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-mon", title: "Monday task", loopKind: "WEEKLY", missionId: "m-general-personal", recurringDays: [1] }),
+    ]);
+    const sundayNight = await buildMissionsDeck(new Date("2026-11-02T04:30:00Z"));
+    expect(sundayNight.rhythms[0]?.dueToday).toBe(false);
+    // Positive control: the same rhythm IS due on Monday morning ET.
+    const monday = await buildMissionsDeck(new Date("2026-11-02T14:00:00Z"));
+    expect(monday.rhythms[0]?.dueToday).toBe(true);
+  });
 });
 
 describe("deck · readiness freshness bound (the 96/100-off-stale-logs pin)", () => {

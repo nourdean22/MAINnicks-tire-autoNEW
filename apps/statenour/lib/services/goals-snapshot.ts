@@ -44,6 +44,10 @@ export interface GoalRow {
   progress: number; // 0-100
   status: string;
   deadline: string | null;
+  /** ISO; with horizonSetAt, the start of a horizon goal's derived period (goalDue). */
+  createdAt: string;
+  /** When the current horizon was set (latest horizon_set GoalEvent); null = since creation. */
+  horizonSetAt: string | null;
   why: string | null;
   /** Whether Nick has flagged this goal as a pruning candidate */
   pruneCandidate: boolean;
@@ -129,6 +133,8 @@ export async function buildGoalsSnapshot(): Promise<GoalsSnapshot> {
             },
           },
         },
+        // The derived due date of a horizon goal counts from its latest horizon_set (goalDue).
+        events: { where: { kind: "horizon_set" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
       },
     }),
     prisma.mission.findMany({
@@ -248,6 +254,8 @@ export async function buildGoalsSnapshot(): Promise<GoalsSnapshot> {
       progress: g.progress,
       status: g.status,
       deadline: g.deadline?.toISOString() ?? null,
+      createdAt: g.createdAt.toISOString(),
+      horizonSetAt: g.events[0]?.createdAt.toISOString() ?? null,
       why: g.why,
       pruneCandidate: pruneSet.has(g.id),
       daysSinceActivity: daysSince(eventByGoal.get(g.id) ?? g.updatedAt),

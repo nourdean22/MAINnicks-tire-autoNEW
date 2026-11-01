@@ -29,6 +29,7 @@ const row = (cadenceDays: number | null) => ({
   lastInteraction: new Date(Date.now() - 20 * DAY),
   interactionCount: 2,
   cadenceDays,
+  ledger: [],
 });
 
 async function people() {
