@@ -70,7 +70,12 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   `config/agent-os/policy.json` (v2) and blocks with exit 2: pushes to `main` in any spelling,
   pushes with an **implicit destination** (bare `git push`, `origin`-only, `HEAD`/`@` refspec —
   they resolve to the current branch, which may be main), force-push (incl. bundled `-uf` and
-  `+refspec`), `git add -A`/`--all`/`.`, `--no-verify`, the destructive-restore family
+  `+refspec`), `git add -A`/`--all`/`.`, `--no-verify` and every other spelling of hooks-off (rule `no-verify`,
+  2026-11-01: its abbreviations, `-n` for `git commit`/`git am` only, bundled too, while `git push -n` (dry run) passes;
+  `git -c`/`--config-env core.hooksPath`; `GIT_CONFIG_KEY_<n>`/`GIT_CONFIG_PARAMETERS` naming it; a `git config` write
+  of it (reads and `--unset` pass); `LEFTHOOK`/`_EXCLUDE`/`_CONFIG`/`_BIN` set before a hook-running git verb, or by
+  `setx`/`SetEnvironmentVariable`; new arms start at a command position, so `echo` and messages stay mentions; not
+  covered: `GIT_CONFIG_GLOBAL` to a crafted file, an alias defined elsewhere, a full-path `git.exe`), the destructive-restore family
   (`reset --hard`, `checkout -- <path>`, worktree-writing `git restore`, `git clean -d/-f/-x`),
   `stash pop/apply/branch`, `git worktree remove` AND `rm -r`/`Remove-Item -Recurse` aimed at a
   worktree, the destructive-Prisma family (`--accept-data-loss`, `--force-reset`,
