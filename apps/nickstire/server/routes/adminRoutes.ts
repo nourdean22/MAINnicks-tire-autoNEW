@@ -131,7 +131,7 @@ export function registerAdminRoutes(app: Express): void {
 
   // ─── Receptionist prompt experiment, on demand (admin) ──
   // 2026-10-09 · POST /api/admin/run-prompt-evolution starts the SAME cycle
-  // the prompt-evolution-weekly tier job runs on Mondays, today: same
+  // the prompt-evolution-weekly tier job runs every night, right now: same
   // cross-dyno lock, same 30-minute budget, same cron_log row, same /proof
   // receipt, propose-only. Returns as soon as the run is started (a full
   // cycle takes up to 25 minutes). GET /api/admin/prompt-evolution-status

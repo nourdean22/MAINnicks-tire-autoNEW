@@ -22,7 +22,7 @@ export interface InventoryInput {
 const CRON_INVENTORY_BEGIN = "<!-- generated:begin — do not edit by hand; run pnpm exec tsx scripts/gen-cron-inventory.mts -->";
 const CRON_INVENTORY_END = "<!-- generated:end -->";
 
-const TIER_ORDER = ["heartbeat", "pulse", "hourly", "daily", "briefings", "nightly"];
+const TIER_ORDER = ["heartbeat", "pulse", "hourly", "daily", "briefings", "nightly", "learning"];
 
 function fmtInterval(min: number): string {
   if (min % 1440 === 0) return `${min / 1440}d`;

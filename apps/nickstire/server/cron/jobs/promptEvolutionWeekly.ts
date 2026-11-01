@@ -1,22 +1,23 @@
 /**
- * Weekly prompt evolution (2026-08-06) — the R&D loop, self-sustaining.
+ * Prompt evolution (2026-08-06) — the R&D loop, self-sustaining. The file and
+ * the job keep the name "weekly" (cron_log history, the cron lock, the manual door).
  *
- * Runs the gated-edit cycle (services/promptEvolution.ts) every Monday on
+ * Runs the gated-edit cycle (services/promptEvolution.ts) every night (the
+ * learning wall-clock slot, 00:45 ET; every Monday until 2026-10-31) on
  * fresh Ossuary seeds. PROPOSE-ONLY: an accepted candidate is persisted to
- * the shop_settings kv (prompt_evolution_latest) and summarized to Telegram
+ * the shop_settings kv (prompt_evolution_latest, and prompt_evolution_last_accepted
+ * so the next night's run cannot overwrite it) and summarized to Telegram
  * — the served prompt is never written; applying a proposal is an operator
  * edit + Push Config, as always. Results are kv+Telegram (NOT files):
  * Railway's filesystem is ephemeral, and a proposal written to container
  * disk would be the built-unwired disease with extra steps.
  *
- * Rides the daily tier and self-gates to Monday ("Skipped · not Monday"
- * matches the loop-shape whole-run-skip vocabulary, so the shape observer
- * never reads the six quiet days as dormancy). The gate binds the SCHEDULED
- * trigger only: a manual run (services/promptEvolutionManualRun.ts, behind the
- * admin session and the admin API key) passes `trigger: "manual"` and runs the
- * same cycle on any day, under the same cross-dyno lock and budget. The row,
- * the Telegram header and the cron_log details all name the trigger, so a
- * Thursday receipt is never mistaken for the Monday cadence.
+ * Rides the learning tier (scheduler.ts, wallClockTiers.ts). A manual run
+ * (services/promptEvolutionManualRun.ts, behind the admin session and the admin
+ * API key) passes `trigger: "manual"` and runs the same cycle at any hour, under
+ * the same cross-dyno lock and budget. The row, the Telegram header and the
+ * cron_log details all name the trigger, so a daytime manual receipt is never
+ * mistaken for the nightly run.
  *
  * WIRED 2026-10-09 (autoresearch audit). In run order:
  *  1. READS. shop_settings key prompt_evolution_confirmation_consumed (the
@@ -41,7 +42,7 @@
  *  4. WRITES, integrity first: any spent seed the hook did not record, then
  *     the Reality Ledger receipt (best-effort, never fails the run), then
  *     prompt_evolution_latest, then Telegram.
- * prompt_evolution_latest is a POINTER to the latest run, overwritten weekly:
+ * prompt_evolution_latest is a POINTER to the latest run, overwritten nightly:
  * the result (hashes, gates, the proposal and its line diff, for the operator
  * to apply) plus the receipt's experimentId. The receipt is the durable,
  * redacted history; this row is the one place the full candidate prompt
@@ -67,6 +68,7 @@ const log = createLogger("cron:prompt-evolution");
 
 const LATEST_KEY = "prompt_evolution_latest";
 const CONSUMED_KEY = "prompt_evolution_confirmation_consumed";
+const LAST_ACCEPTED_KEY = "prompt_evolution_last_accepted";
 const CONSUMED_LABEL = "Prompt evolution — sealed confirmation seeds already spent (never re-read)";
 /** Consumed ids kept, newest first. Far beyond the failed-call pool a run reads (seedCount * 3 rows). */
 const CONSUMED_CAP = 500;
@@ -289,7 +291,7 @@ function telegramSummary(
         : "unknown";
   const u = result.usage;
   return [
-    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "weekly"} · propose-only)`,
+    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "nightly"} · propose-only)`,
     `Offline evidence only (H2); not served to customers.`,
     baselineLine,
     laneLine,
@@ -311,11 +313,9 @@ function telegramSummary(
 
 export async function processPromptEvolutionWeekly(now: Date = new Date(), options: PromptEvolutionRunOptions = {}): Promise<ProcessResult> {
   const trigger: PromptEvolutionTrigger = options.trigger ?? "scheduled";
-  const day = now.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
-  if (trigger === "scheduled" && day !== "Monday") {
-    return { recordsProcessed: 0, details: "Skipped · not Monday (weekly cadence)" };
-  }
-  if (trigger === "manual") log.info("[evolve] manual run requested", { day });
+  // Every night since 2026-10-31 (self-learning W1): the learning wall-clock
+  // slot sets the cadence, so there is no weekday gate here any more.
+  if (trigger === "manual") log.info("[evolve] manual run requested", { at: now.toISOString() });
 
   // 1 · Reads. A DB error on the consumed list propagates: the run fails.
   const consumedBefore = parseConsumed(await getKv(CONSUMED_KEY));
@@ -425,20 +425,20 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
 
   const receiptDelivered = receipt ? await postPromptEvolutionReceipt(receipt) : false;
 
-  await setKv(
-    LATEST_KEY,
-    latestRowJson({
-      ...result,
-      ranAt: now.toISOString(),
-      trigger,
-      experimentId: receipt?.experimentId ?? null,
-      receiptDelivered,
-      evidenceGrade: "H2",
-      businessOutcomeEvidence: "not_measured_candidate_has_not_served",
-      previousProposal: { candidatePromptHash: previousHash, status: previousStatus },
-    }),
-    "Prompt evolution — latest weekly result (propose-only)",
-  );
+  const row = latestRowJson({
+    ...result,
+    ranAt: now.toISOString(),
+    trigger,
+    experimentId: receipt?.experimentId ?? null,
+    receiptDelivered,
+    evidenceGrade: "H2",
+    businessOutcomeEvidence: "not_measured_candidate_has_not_served",
+    previousProposal: { candidatePromptHash: previousHash, status: previousStatus },
+  });
+  await setKv(LATEST_KEY, row, "Prompt evolution — latest nightly result (propose-only)");
+  // The latest pointer is overwritten every night; an accepted candidate also
+  // lives here until the next accepted one, so a quiet night never erases it.
+  if (result.accepted) await setKv(LAST_ACCEPTED_KEY, row, "Prompt evolution — last accepted candidate (propose-only)");
 
   const summary = telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger });
   const { sendTelegram } = await import("../../services/telegram");

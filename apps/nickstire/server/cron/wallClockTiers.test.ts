@@ -84,7 +84,7 @@ type Run = { tier: string; at: Date; pid: number };
 
 let pidSeq = 0;
 /** One server process: the real loop and runner, fresh in-memory state, shared store. */
-function bootProcess(store: Store, runs: Run[], opts: { passMs?: number; running?: Set<string> } = {}) {
+function bootProcess(store: Store, runs: Run[], opts: { passMs?: number; running?: Set<string>; tiers?: string[] } = {}) {
   const pid = ++pidSeq;
   const running = opts.running ?? new Set<string>();
   const runner = createWallClockRunner({
@@ -98,7 +98,7 @@ function bootProcess(store: Store, runs: Run[], opts: { passMs?: number; running
     isTierRunning: (t) => running.has(t),
     log: { info: () => {}, warn: () => {} },
   });
-  const stop = startWallClockLoop(runner, ["daily", "briefings"], {
+  const stop = startWallClockLoop(runner, opts.tiers ?? ["daily", "briefings"], {
     bootDelayMs: 5 * 30_000, // the scheduler's: tiers.length × 30 s stagger
     onError: (_t, err) => {
       throw err;
@@ -385,6 +385,33 @@ describe("briefings — twice a day, at the times its own jobs accept", () => {
   });
 });
 
+describe("learning — the nightly self-learning slot (00:45 ET, self-learning W1a 2026-10-30)", () => {
+  // Measured 2026-10-30: statenour made zero LLM calls 04:00-08:59Z over 14 days; its
+  // evening batch runs at 03:00Z and its morning jobs at 09:00Z. 00:45 ET is 04:45Z (EDT)
+  // or 05:45Z (EST): 45+ minutes after the batch, 2+ hours before the morning jobs, and
+  // outside both DST hours (01:00-02:59).
+  it("opens 00:45 ET and closes at 01:00, before the repeated fall-back hour", async () => {
+    expect(await slotAt("learning", "2026-09-23T00:44:59-04:00")).toBe("closed");
+    expect(await slotAt("learning", "2026-09-23T00:45:00-04:00")).toBe("open");
+    expect(await slotAt("learning", "2026-09-23T00:59:59-04:00")).toBe("open");
+    expect(await slotAt("learning", "2026-09-23T01:00:00-04:00")).toBe("closed");
+  });
+
+  it("runs once a night across the fall-back weekend: 04:45Z on EDT nights, 05:45Z on EST nights", async () => {
+    vi.setSystemTime(new Date("2026-10-31T00:00:00-04:00"));
+    const store = fakeStore();
+    const runs: Run[] = [];
+    const p = bootProcess(store, runs, { tiers: ["learning"] });
+    await advanceTo("2026-11-03T00:00:00-05:00");
+    p.kill();
+    expect(of(runs, "learning").map((r) => r.at.toISOString())).toEqual([
+      "2026-10-31T04:45:00.000Z",
+      "2026-11-01T04:45:00.000Z",
+      "2026-11-02T05:45:00.000Z",
+    ]);
+  });
+});
+
 describe("the scheduler wires it: daily and briefings have no boot claim and no setInterval", () => {
   const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
   const src = stripComments(readFileSync(resolve(__dirname, "./scheduler.ts"), "utf8"));
@@ -405,6 +432,13 @@ describe("the scheduler wires it: daily and briefings have no boot claim and no 
     expect(src).toContain("stopWallClockLoop = startWallClockLoop(wallClockRunner, wallClockTierNames, {");
     expect(src).toMatch(/runTier: async \(tierName\) => \{\s*const tier = tiers\.find\(\(t\) => t\.name === tierName\);\s*if \(tier\) await runTier\(tier\);/);
     expect(sliceBlock(src, "export function stopTieredScheduler", "\n}", { label: "scheduler.ts" })).toContain("stopWallClockLoop?.();");
+  });
+
+  it("the receptionist prompt experiment runs in the learning tier, and only there (self-learning W1)", () => {
+    const learning = sliceBlock(src, 'name: "learning",', "running: false,", { label: "scheduler.ts learning tier" });
+    expect(learning).toContain('name: "prompt-evolution-weekly"');
+    expect(learning).toContain("processPromptEvolutionWeekly()");
+    expect(src.split('name: "prompt-evolution-weekly"').length - 1).toBe(1);
   });
 
   it("the ALG probes throw on failure instead of returning a 'completed' details string", () => {
