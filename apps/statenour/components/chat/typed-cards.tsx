@@ -1,48 +1,53 @@
-"use client";
-
 /**
- * Typed tool-result renderers (UI-3, 2026-07-28).
+ * Typed card bodies for the one tool-card registry (TOOL_CONFIG in tool-result-registry.tsx).
  *
- * The registry pattern the audit asked for, started deliberately small:
- * ONE card, backed by a tool whose output shape shipped today and is
- * fully known (getFleetTruth). The registry keys on the message part's
- * tool name; anything unregistered keeps the existing generic receipt
- * row — a wrong typed rendering is worse than prose, so cards are added
- * one verified shape at a time (approval card and decision card are the
- * named next two).
+ * Started as a second registry (features/chat-v2/components/typed-tool-cards.tsx, UI-3 2026-07-28)
+ * and folded in on 2026-11-01 (W6 PR 1). A typed card owns a zod output schema: ToolResultCard
+ * parses the output first and an output that fails the schema draws no body, because a wrong
+ * typed rendering is worse than the plain receipt row. Add a schema only for a VERIFIED shape.
+ *
+ * zod/mini, not zod: these schemas ship in the chat client bundle, which had no zod before.
  */
+import * as z from "zod/mini";
+import type { FleetTruth } from "@/lib/observability/fleet-truth";
 
-import type { UIMessage } from "ai";
+const FleetArtifact = z.object({
+  capability: z.string(),
+  state: z.enum(["fresh", "stale", "never_produced", "unknown"]),
+  ageH: z.nullable(z.number()),
+});
 
-interface FleetArtifact {
-  capability: string;
-  state: "fresh" | "stale" | "never_produced" | "unknown";
-  ageH: number | null;
-}
-interface FleetTruthOutput {
-  ok?: boolean;
-  generatedAt?: string;
-  statenour?: FleetArtifact[];
-  nickstire?: FleetArtifact[];
-  allFresh?: boolean;
-}
+export const FleetTruthOutputSchema = z.object({
+  ok: z.optional(z.boolean()),
+  generatedAt: z.optional(z.string()),
+  statenour: z.optional(z.array(FleetArtifact)),
+  nickstire: z.optional(z.array(FleetArtifact)),
+  allFresh: z.optional(z.boolean()),
+});
+export type FleetTruthOutput = z.infer<typeof FleetTruthOutputSchema>;
 
-const STATE_COLOR: Record<FleetArtifact["state"], string> = {
+/** Never called: tsc fails here when the producer's FleetTruth drifts from the schema. */
+export const fleetTruthFitsSchema = (t: FleetTruth): z.input<typeof FleetTruthOutputSchema> => t;
+
+const STATE_COLOR: Record<z.infer<typeof FleetArtifact>["state"], string> = {
   fresh: "text-emerald-300",
   stale: "text-amber-300",
   never_produced: "text-red-300",
   unknown: "text-fg-tertiary",
 };
 
-function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
-  if (output.ok === false) return null; // errors keep the generic receipt row
-  const rows = [
+export function fleetRows(output: FleetTruthOutput) {
+  return [
     ...(output.statenour ?? []).map((a) => ({ ...a, app: "statenour" })),
     ...(output.nickstire ?? []).map((a) => ({ ...a, app: "nickstire" })),
   ];
+}
+
+export function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
+  const rows = fleetRows(output);
   if (rows.length === 0) return null;
   return (
-    <div className="mt-2 rounded-surface border border-edge-subtle bg-content p-3" data-testid="fleet-truth-card">
+    <div className="mt-1" data-testid="fleet-truth-card">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[11px] font-medium tracking-[0.12em] text-fg-tertiary">
           Fleet truth
@@ -59,7 +64,7 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
             <span className="font-mono text-fg-tertiary">
               {r.app === "nickstire" && !r.capability.startsWith("nickstire") ? `nickstire:${r.capability}` : r.capability}
             </span>
-            <span className={STATE_COLOR[r.state] ?? "text-fg-tertiary"}>
+            <span className={STATE_COLOR[r.state]}>
               {r.state.replace("_", " ")}
               {r.ageH != null ? ` · ${r.ageH}h` : ""}
             </span>
@@ -70,22 +75,28 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
   );
 }
 
-interface DecisionRow {
-  id?: string;
-  urgency?: string;
-  state?: string;
-  recommendedAction?: string;
-  valueDollars?: number;
-  dataQuality?: string;
-  attempts?: number;
-}
-interface TopDecisionsOutput {
-  ok?: boolean;
-  decisions?: DecisionRow[];
-  totalLive?: number;
-  excludedNoConsent?: number;
-  excludedSnoozed?: number;
-}
+// The bridge reaches this app untyped. Producer contract: apps/nickstire/shared/bridgeShapes.ts
+// TopDecisionsShape (id is a NUMBER there). Kept looser than it, so an older nickstire still draws.
+export const TopDecisionsOutputSchema = z.object({
+  ok: z.optional(z.boolean()),
+  decisions: z.optional(
+    z.array(
+      z.object({
+        id: z.optional(z.union([z.number(), z.string()])),
+        urgency: z.optional(z.string()),
+        state: z.optional(z.string()),
+        recommendedAction: z.optional(z.string()),
+        valueDollars: z.optional(z.nullable(z.number())),
+        dataQuality: z.optional(z.string()),
+        attempts: z.optional(z.number()),
+      }),
+    ),
+  ),
+  totalLive: z.optional(z.number()),
+  excludedNoConsent: z.optional(z.number()),
+  excludedSnoozed: z.optional(z.number()),
+});
+export type TopDecisionsOutput = z.infer<typeof TopDecisionsOutputSchema>;
 
 const URGENCY_COLOR: Record<string, string> = {
   critical: "text-red-300",
@@ -100,12 +111,11 @@ export function urgencyWord(urgency: string | undefined): string {
   return URGENCY_WORD[urgency] ?? urgency.replace(/_/g, " ");
 }
 
-function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
-  if (output.ok === false) return null;
+export function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
   const rows = output.decisions ?? [];
   if (rows.length === 0) return null;
   return (
-    <div className="mt-2 rounded-surface border border-edge-subtle bg-content p-3" data-testid="top-decisions-card">
+    <div className="mt-1" data-testid="top-decisions-card">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[11px] font-medium tracking-[0.12em] text-fg-tertiary">
           Decision inbox: top {rows.length}
@@ -137,25 +147,4 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
       </p>
     </div>
   );
-}
-
-/** tool name → renderer. Add entries only for VERIFIED output shapes. */
-const RENDERERS: Record<string, (output: unknown) => React.ReactNode> = {
-  getFleetTruth: (output) => <FleetTruthCard output={(output ?? {}) as FleetTruthOutput} />,
-  getTopDecisions: (output) => <TopDecisionsCard output={(output ?? {}) as TopDecisionsOutput} />,
-};
-
-export function TypedToolCards({ message }: { message: UIMessage }) {
-  const parts = (message.parts ?? []) as Array<{ type: string; state?: string; output?: unknown }>;
-  const cards = parts
-    .filter((p) => p.type.startsWith("tool-") && p.state === "output-available")
-    .map((p, i) => {
-      const toolName = p.type.slice("tool-".length);
-      const render = RENDERERS[toolName];
-      if (!render) return null;
-      return <div key={`${toolName}-${i}`}>{render(p.output)}</div>;
-    })
-    .filter(Boolean);
-  if (cards.length === 0) return null;
-  return <>{cards}</>;
 }

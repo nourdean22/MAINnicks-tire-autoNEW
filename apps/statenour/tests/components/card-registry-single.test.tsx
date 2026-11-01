@@ -88,7 +88,11 @@ const FLEET = {
 };
 const DECISIONS = {
   ok: true,
-  decisions: [{ id: "d1", urgency: "this_week", recommendedAction: "Call back about the brake quote", valueDollars: 420 }],
+  // apps/nickstire/shared/bridgeShapes.ts TopDecisionsShape: id is a number, valueDollars may be null.
+  decisions: [
+    { id: 17, urgency: "this_week", state: "open", recommendedAction: "Call back about the brake quote", valueDollars: 420, dataQuality: "verified", attempts: 1 },
+    { id: 18, urgency: "later", state: "open", recommendedAction: "Unpriced tire follow-up", valueDollars: null, dataQuality: "partial", attempts: 0 },
+  ],
   totalLive: 7,
   excludedNoConsent: 1,
   excludedSnoozed: 0,
@@ -118,6 +122,7 @@ describe("one typed-card registry", () => {
     expect(markup).not.toContain("getTopDecisions: returned data");
     expect(markup).toContain("This week");
     expect(markup).toContain("$420");
+    expect(markup).toContain("value unknown");
   });
 
   it("an output that fails its schema draws no typed card but keeps the receipt row", () => {

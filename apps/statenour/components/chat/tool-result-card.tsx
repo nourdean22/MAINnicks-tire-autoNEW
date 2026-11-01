@@ -134,7 +134,12 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
   const partialNote = isDone && !softFail ? errorSentence((output as { error?: unknown } | null)?.error) : undefined;
   const doneSubtitle = isDone && config.subtitle ? config.subtitle(output) : null;
   const subtitle = softFail ? softReason : partialNote ? [doneSubtitle, partialNote].filter(Boolean).join(". ") : doneSubtitle;
-  const richBody = isDone && !softFail && config.renderRich ? config.renderRich(output) : null;
+  // A typed card draws only from an output that passes its schema: a wrong typed rendering is worse than the receipt row.
+  const parsed = isDone && !softFail && config.outputSchema ? config.outputSchema.safeParse(output) : null;
+  const richBody =
+    isDone && !softFail && config.renderRich && (!parsed || parsed.success)
+      ? config.renderRich(parsed ? parsed.data : output)
+      : null;
 
   return (
     <div
