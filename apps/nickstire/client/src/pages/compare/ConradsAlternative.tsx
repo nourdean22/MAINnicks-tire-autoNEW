@@ -24,7 +24,7 @@ export default function ConradsAlternative() {
       primary={COMPETITORS.conrads}
       slug="conrads-tire-alternative-cleveland"
       seoTitle="Conrad's Tire Alternative Cleveland · Open Sundays | Nick's"
-      seoDescription="Tired of Conrad's? Nick's Tire & Auto on Euclid Ave is open 7 days, walk-in any time, used tires from $25 installed (select 12-inch; most $40-80). Free check. Written quote. You don't pay until you say yes."
+      seoDescription="Nick's Tire & Auto on Euclid Ave is open 7 days, walk-in any time, used tires from $25 installed (select 12-inch; most $40-80). Free check. Written quote. You don't pay until you say yes."
       intro="Conrad's has been Cleveland's tire chain since 1934. Nothing wrong with that. They've got 37 locations, full-service repair, established financing. They're also closed Sunday, want an appointment, and won't sell you a used tire. Nick's Tire & Auto on Euclid Ave is what the chain isn't: walk-in any day we're awake including Sundays, used tires from $25 installed (select 12-inch; most $40-80), the quote in writing before any wrench moves. Same Euclid Ave you've driven past a hundred times. Yellow sign. Real address. Mechanic on duty. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {

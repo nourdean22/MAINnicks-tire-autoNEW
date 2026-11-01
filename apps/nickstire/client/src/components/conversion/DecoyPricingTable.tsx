@@ -64,7 +64,7 @@ export default function DecoyPricingTable({
     <section className="my-8">
       {serviceName && (
         <div className="text-[11px] font-bold tracking-widest text-primary uppercase mb-2">
-          {serviceName} · Transparent pricing
+          {serviceName} · Prices up front
         </div>
       )}
 

@@ -23,7 +23,7 @@ export default function FirestoneAlternative() {
       primary={COMPETITORS.firestone}
       slug="firestone-alternative-cleveland"
       seoTitle="Firestone Alternative Cleveland · No Chain Pricing | Nick's"
-      seoDescription="Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address."
+      seoDescription="Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, written quote first, real address."
       intro={`Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, chain-level labor rates, dealership-style upsell pressure, and a ${formatRating(fs.rating ?? 0)}-star Google rating on ${fs.count} reviews at the Downtown Cleveland location vs Nick's ${reviewRatingDisplay} stars on ${reviewCountDisplay} reviews at one shop on Euclid Ave. Nick's is the opposite of corporate. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $25 installed (select 12-inch; most $40-80) if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop.`}
       extraFaqs={[
         {

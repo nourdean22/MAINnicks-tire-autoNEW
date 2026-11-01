@@ -30,6 +30,23 @@ describe("structure rules fire on the shapes they ban (positive control)", () =>
     ["structure.negation-tail", "We fix it right, no guessing."],
     ["structure.closer", "The metal doesn't lie. Neither do we."],
     ["structure.honest-doubled", "Honest parts, honest work."],
+    // Pass 2 (2026-11-01): the phrase classes Nour still read as machine-made after pass 1.
+    ["structure.stock-phrase", "Drive with peace of mind."],
+    ["structure.stock-phrase", "We've got you covered."],
+    ["structure.stock-phrase", "Your go-to shop for brakes."],
+    ["structure.stock-phrase", "We fix it right the first time."],
+    ["structure.stock-phrase", "We handle all your car maintenance needs."],
+    ["structure.reader-flattery", "Beachwood residents value solid work, and that's exactly what Nick's delivers."],
+    ["structure.reader-flattery", "Bedford drivers trust Nick's Tire & Auto for honest answers."],
+    ["structure.reader-flattery", "Our reputation for honest work brings customers from across Lake County."],
+    ["structure.reader-flattery", "Parma drivers have discovered that Nick's is worth the drive."],
+    ["structure.rhetorical-cta", "Looking for another service? We handle it all."],
+    ["structure.rhetorical-cta", "Can't sit and wait? Drop the keys."],
+    ["structure.rhetorical-cta", "Need brakes? Read the rest later."],
+    ["structure.staged-runup", "Here's what happens when you pull in."],
+    ["structure.staged-runup", "The good news is most fixes are cheap."],
+    ["structure.empty-claim", "Professional service, transparent pricing."],
+    ["structure.empty-claim", "Yes, we proudly serve Avon."],
   ])("%s fires on %j", (id, text) => {
     expect(ids(text)).toContain(id);
   });
@@ -48,6 +65,50 @@ describe("structure rules spare what they must not touch", () => {
     expect(ids("Written quote first. You approve it before we start.")).toEqual([]);
     expect(ids("No appointment needed. Walk in any day.")).toEqual([]);
     expect(ids("Honest answer before any work.")).toEqual([]);
+  });
+
+  it("passes the pass-2 rewrites and ordinary shop questions (negative control)", () => {
+    for (const text of [
+      "You get a written price before we start. If the repair changes, we call you before doing more.",
+      "From Avon, the shop is about 32 min away.",
+      "Do I need an appointment, or can I just walk in?",
+      "Not sure of your size? Check the sidewall.",
+      "We find the cause before we fix anything. This is how the job goes at the shop on Euclid Ave.",
+      "Repair and Final Check",
+      "Ride quality and handling both drop when struts wear out.",
+    ]) {
+      expect(ids(text), text).toEqual([]);
+    }
+  });
+
+  it.each([
+    ["structure.stock-phrase", "We’ve got you covered."],
+    ["structure.stock-phrase", "We&apos;ve got you covered."],
+    ["structure.stock-phrase", "Drive with peace of\n          mind."],
+    ["structure.reader-flattery", "Bedford drivers trust Nick&apos;s."],
+    ["structure.reader-flattery", "Bedford drivers trust <strong>Nick's</strong>."],
+    ["structure.reader-flattery", "residents value it, and that’s exactly what Nick’s delivers."],
+    ["structure.rhetorical-cta", "Can&apos;t sit and wait? Drop the keys."],
+    ["structure.staged-runup", "Here’s what happens next."],
+    ["structure.empty-claim", "Professional\n service."],
+  ])("pass-2 rule %s sees the site's real apostrophes and wrapped JSX text: %j", (id, text) => {
+    expect(ids(text)).toContain(id);
+  });
+
+  it("near misses each new rule must let through (second reader, 2026-11-01)", () => {
+    for (const text of [
+      "Looking for a used 205/55R16? We stock that size.", // a customer question, not a cross-sell
+      "Drivers trust their gut on a pull to the right; we check alignment.", // not "trust Nick's"
+      "Our technicians explain every repair before we start.", // no "professional technicians"
+      "Bring a professional's written quote and we'll compare it.", // possessive, not a self-label
+      "Most of your car's maintenance happens every 5,000 miles.", // no "all your ... needs"
+      "Here's the quote: $149 per axle.", // not a staged run-up
+      "We are not looking for another upsell. Is it safe to drive?", // the span stops at the period
+      "Check the bottom line on your written quote.", // a line on the quote, not a run-up
+      "A professional service writer greets you at the counter.", // a job title
+    ]) {
+      expect(ids(text), text).toEqual([]);
+    }
   });
 
   it("spares a string that is only a dash (an empty-value placeholder)", () => {

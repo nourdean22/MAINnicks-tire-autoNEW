@@ -12,9 +12,9 @@
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
-import { HARD_FAILURE_STATUSES, isHardFailure } from "@/lib/services/cron-status";
+import { DECLARED_DEGRADATION_PREFIX, HARD_FAILURE_STATUSES, isHardFailure } from "@/lib/services/cron-status";
 // One counting rule for resultCount on both cron paths (08-F13): NULL only when the summary names no count.
-import { TERMINAL_OK_STATUSES, deriveResultCount } from "@/lib/inngest/cron-lifecycle";
+import { TERMINAL_OK_STATUSES, deriveDegradation, deriveResultCount } from "@/lib/inngest/cron-lifecycle";
 
 /**
  * A cron that CATCHES its own error and returns `{ ok: false }` resolves
@@ -121,9 +121,15 @@ export async function logCronRun(
       publishCronFailure(jobName, reported, durationMs);
       return { success: true, result, durationMs, reportedFailure: reported };
     }
+    // 2026-11-01 · same rule as the Inngest path (cron-lifecycle.ts): a run that
+    // declares `degraded: true` did part of its work. Without this, a route's only
+    // choices were green or red, and conversation-compile filed "failed" every night
+    // one digest of four timed out.
+    const degradation = deriveDegradation(result);
     await settle(
       {
-        status: "success",
+        status: degradation.degraded ? "partial" : "success",
+        ...(degradation.degraded ? { error: `${DECLARED_DEGRADATION_PREFIX}${degradation.reason}` } : {}),
         duration: durationMs,
         resultCount: deriveResultCount(result),
         skipReason: deriveSkipReason(result),

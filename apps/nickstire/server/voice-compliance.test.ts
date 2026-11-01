@@ -47,7 +47,6 @@ const KNOWN_COPY_DEBT: readonly string[] = [
   'cliche.expert@seo-pages.ts:check-engine-light-cleveland.metaDescription', // "OBD-II experts"
   'cliche.quality@blog.ts:used-tires-near-me-cleveland.metaTitle', // "Quality Inspected" badge
   'cliche.quality@blog.ts:how-we-inspect-used-tires.metaTitle', // "Quality Process"
-  'cliche.reliable@cities.ts:strongsville-auto-repair.localContent', // "residents expect reliable service"
 
   // "reliable" describing the CUSTOMER'S VEHICLE, not the shop. VOICE.md bans
   // the word as a self-description ("Tells the reader nothing"); a Camry having
