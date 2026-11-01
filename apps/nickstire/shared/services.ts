@@ -623,7 +623,7 @@ export const SERVICES: ServiceData[] = [
     slug: "general-repair",
     num: "06",
     title: "GENERAL REPAIR",
-    shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we fix it.",
+    shortDesc: "Suspension, steering, exhaust, cooling, belts, hoses and more.",
     metaTitle: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
     metaDescription: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, suspension, steering, exhaust. Walk-ins 7 days. " + BUSINESS.phone.display + ".",
     heroHeadline: "AUTO REPAIR NEAR ME\nIN CLEVELAND",

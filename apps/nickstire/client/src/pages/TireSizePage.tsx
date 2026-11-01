@@ -73,7 +73,7 @@ export default function TireSizePage() {
     },
     {
       q: `Can I buy just one or two ${page.size} tires?`,
-      a: `Absolutely. We sell tires individually, in pairs, or as a full set. For best performance and safety, we recommend replacing at least two tires at a time on the same axle.`,
+      a: `Yes. We sell tires one at a time, in pairs or as a full set. We recommend replacing at least two at a time on the same axle so both sides grip and wear the same.`,
     },
     {
       q: `Do you have payment programs for ${page.size} tires?`,

@@ -183,8 +183,8 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     fullServiceMechanical: false,
     dropoffWithRideshare: false,
     strengths: [
-      "Free flat repair, free balance, free rotation for the lifetime of the tire. It's genuinely valuable if you stay loyal",
-      "Tire-focused expertise. They only do tires, and they do them well",
+      "Free flat repair, free balance, free rotation for the lifetime of the tire. Worth it if you keep going back",
+      "Tires only, and they do them well",
       "Clean stores, no-pressure tire-only sales experience",
       "Strong tire warranty programs",
     ],
@@ -524,7 +524,7 @@ export function buildNicksTire(reviewRatingDisplay: string): CompetitorProfile {
     notIdealFor: [
       "Customers more than 30 miles from Euclid Ave (geography wins)",
       "Drivers needing a specific national-chain warranty for a corporate fleet account",
-      "People who genuinely prefer the chain experience and want a waiting room with a coffee machine",
+      "People who prefer the chain experience and want a waiting room with a coffee machine",
     ],
     commonComplaints: [
       "Single location means peak Saturday afternoons can be busy. The trade-off for never overpromising on appointment slots",

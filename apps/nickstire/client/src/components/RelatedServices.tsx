@@ -145,7 +145,7 @@ export default function RelatedServices({ current, related, title = "Related Ser
           {title}
         </h3>
         <p className="text-foreground/70 text-sm mb-8">
-          Looking for another service? We handle it all under one roof.
+          Other work we do at the same shop.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {services.map((s) => (
