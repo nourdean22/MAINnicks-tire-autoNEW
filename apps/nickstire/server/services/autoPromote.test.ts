@@ -13,6 +13,8 @@ import {
   buildOverlay,
   decideReceptionistPromotion,
   openPromotion,
+  promotionInFlight,
+  takenBackBefore,
   type ReceptionistPromotionInput,
 } from "./autoPromote";
 
@@ -140,6 +142,26 @@ describe("history", () => {
 
   it("a canary that is open holds the next promotion", () => {
     expect(decideReceptionistPromotion(input({ canaryOpen: true }))).toEqual({ verdict: "hold", reason: "canary_open" });
+  });
+
+  it("promotionInFlight: a 'promoting' row with no end after it, holds or not", () => {
+    const row = (versionId: string, status: string) => ({ ...rec(1), versionId, status }) as never;
+    expect(promotionInFlight([row("b", "held"), row("a", "promoting")])).toBe(true);
+    expect(promotionInFlight([row("a", "promoted")])).toBe(false);
+    expect(promotionInFlight([row("a", "push_failed")])).toBe(false);
+    expect(promotionInFlight([row("a", "readback_restored")])).toBe(false);
+    expect(promotionInFlight([row("b", "held"), row("a", "promoted"), row("z", "promoting")])).toBe(false);
+    expect(promotionInFlight([])).toBe(false);
+    expect(decideReceptionistPromotion(input({ promotionInFlight: true }))).toEqual({ verdict: "hold", reason: "promotion_in_flight" });
+  });
+
+  it("takenBackBefore: a candidate rolled back, undone or whose rollback failed is never promoted again", () => {
+    const row = (status: string, candidateHash: string) => ({ ...rec(1), status, candidateHash }) as never;
+    for (const s of ["rolled_back", "undone", "rollback_failed", "rolling_back"]) expect(takenBackBefore([row(s, "c9")], "c9")).toBe(true);
+    expect(takenBackBefore([row("canary_passed", "c9"), row("promoted", "c9")], "c9")).toBe(false);
+    expect(takenBackBefore([row("rolled_back", "c8")], "c9")).toBe(false);
+    expect(takenBackBefore([row("rolled_back", "c9")], null)).toBe(false);
+    expect(decideReceptionistPromotion(input({ candidateTakenBack: true }))).toEqual({ verdict: "hold", reason: "candidate_taken_back_before" });
   });
   it("refuses to overwrite a stored row that is not a list (null = do not write)", () => {
     expect(appendPromotionHistory("{}", rec(1))).toBeNull();

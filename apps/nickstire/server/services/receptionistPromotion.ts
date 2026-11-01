@@ -24,10 +24,13 @@
  * updateAssistant applies to the code prompt, so Nour's next manual push keeps
  * it instead of silently reverting it.
  *
- * DISARMED. AUTO_PROMOTE_ARMED is false in W2: a winner is recorded as
- * would_promote and nothing is pushed. W3 adds the live canary, automatic
- * rollback and the one-tap undo, then arms it; that PR is the announcement to
- * the manager before the first live auto-promotion can fire.
+ * ARMED IN CODE, OFF IN THE DATA. AUTO_PROMOTE_ARMED is true since W3 (the
+ * canary, automatic rollback and the one-tap undo exist), but the kill switch
+ * row starts missing, which reads as paused: nothing goes live until Nour taps
+ * RESUME SELF-LEARNING once in /admin > VAPI (ruling 2026-10-31, so the first
+ * live auto-promotion is announced before it can fire). Before the claim the
+ * gate also holds a promotion still in flight, a candidate that was rolled
+ * back or undone before, and a baseline too thin for the canary to judge.
  *
  * Every outcome is one history row (autoPromote.ts appendPromotionHistory) and
  * one plain line for the run's Telegram. Prompt text never reaches a log.
@@ -42,6 +45,8 @@ import {
   decideReceptionistPromotion,
   openPromotion,
   promotionHistoryKey,
+  promotionInFlight,
+  takenBackBefore,
   RECEPTIONIST_LOOP,
   type PromotionRecord,
   type PromotionStatus,
@@ -52,7 +57,7 @@ const log = createLogger("auto-promote");
 /** Armed in W3 (2026-10-31), with the canary, automatic rollback and Nour's undo in place. */
 const AUTO_PROMOTE_ARMED = true;
 
-/** Kill switch (shop_settings kv). true/1/yes/on/paused = paused; a missing row or anything else = running; an unreadable row = paused. */
+/** Kill switch (shop_settings kv). false/0/no/off/running = running; a missing row (never switched on), anything else or an unreadable row = paused. */
 const KILL_SWITCH_KEY = "auto_promote_paused";
 /** The prompt callers heard before the latest promotion: { versionId, promptHash, prompt }. */
 const STABLE_KEY = "autopromote_receptionist_prompt_stable";
@@ -142,11 +147,9 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
     if (next === null) return null;
     return (await deps.kvCompareAndSet(HISTORY_KEY, expected, next)) ? next : null;
   };
-  const finish = async (claimed: string, status: PromotionStatus, reason: string | null): Promise<void> => {
-    const rows = JSON.parse(claimed) as PromotionRecord[];
-    rows[0] = record(status, reason);
-    if (!(await deps.kvCompareAndSet(HISTORY_KEY, claimed, JSON.stringify(rows)))) {
-      log.warn("[auto-promote] history moved under a claimed promotion; final status not recorded", { versionId, status });
+  const finish = async (status: PromotionStatus, reason: string | null): Promise<void> => {
+    if (!(await settleClaim(deps, versionId, "promoting", record(status, reason)))) {
+      log.warn("[auto-promote] claimed promotion row not found; final status not recorded", { versionId, status });
     }
   };
   const result = (status: PromotionResult["status"], reason: string | null, line: string): PromotionResult => {
@@ -159,13 +162,22 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   }
 
   let paused: boolean | null;
+  let switchRow: string | null = null;
   try {
-    const raw = await deps.kvGet(KILL_SWITCH_KEY);
-    paused = parsePaused(raw);
+    switchRow = await deps.kvGet(KILL_SWITCH_KEY);
+    paused = parsePaused(switchRow);
   } catch {
     paused = null;
   }
+  // A fresh deploy never promotes on its own: until Nour taps RESUME once, the
+  // row is missing and every night holds (ruling 2026-10-31, the first live
+  // promotion is announced before it can fire).
+  if (paused === true && switchRow === null) {
+    await swapHistory(historyRaw, record("held", "not_switched_on"));
+    return result("held", "not_switched_on", "held, self-learning is not switched on (tap RESUME SELF-LEARNING in /admin > VAPI to let gated winners go live).");
+  }
 
+  const rows = historyRaw === null ? [] : (JSON.parse(historyRaw) as PromotionRecord[]);
   const decision = decideReceptionistPromotion({
     paused,
     outcome: input.outcome,
@@ -175,7 +187,9 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
     basePrompt: input.baseline.prompt,
     candidatePrompt: input.accepted?.prompt ?? null,
     codePrompt: deps.codePrompt,
-    canaryOpen: historyRaw !== null && openPromotion(JSON.parse(historyRaw) as PromotionRecord[]) !== null,
+    canaryOpen: openPromotion(rows) !== null,
+    promotionInFlight: promotionInFlight(rows),
+    candidateTakenBack: takenBackBefore(rows, candidateHash),
   });
 
   if (decision.verdict === "hold") {
@@ -187,6 +201,24 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
     return result("would_promote", null, `would promote ${short(candidateHash)} (passed every gate; auto-promote is not armed yet, nothing pushed).`);
   }
 
+  // The canary needs a baseline to judge against; without one it would roll the
+  // edit back unconditionally the next night, so it never goes live. A failed
+  // read holds too (never read as zero, never as enough).
+  if (input.baseline.assistantId) {
+    let before: CallCounts | null = null;
+    try {
+      before = (await deps.canaryCounts({ assistantId: input.baseline.assistantId, promptHash: candidateHash ?? "", promotedAt: deps.now().toISOString(), baselineDays: CANARY.baselineDays })).before;
+    } catch {
+      before = null;
+    }
+    const why = before === null ? "canary_baseline_unreadable" : before.evaluated < CANARY.minBaseline ? "canary_unmeasurable" : null;
+    if (why) {
+      await swapHistory(historyRaw, record("held", why));
+      const detail = before === null ? "the call history could not be read" : `${before.evaluated} evaluated calls in ${CANARY.baselineDays} days, the canary needs ${CANARY.minBaseline}`;
+      return result("held", why, `held (${why}: ${detail}). The live prompt is unchanged.`);
+    }
+  }
+
   // 1 · Claim. The loser of the swap acts on nothing.
   const claimed = await swapHistory(historyRaw, record("promoting", null));
   if (claimed === null) return { status: "duplicate", reason: "claimed_by_another_run", versionId: null, line: "Auto-promote: another run holds this promotion." };
@@ -194,7 +226,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   const assistantId = input.baseline.assistantId;
   const candidate = input.accepted!.prompt;
   if (!assistantId) {
-    await finish(claimed, "held", "no_assistant");
+    await finish("held", "no_assistant");
     return result("held", "no_assistant", "held (the run measured no live assistant).");
   }
 
@@ -202,11 +234,11 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   const live = await readLive(deps, assistantId);
   const livePrompt = live ? systemPromptOf(live) : null;
   if (!live || livePrompt === null) {
-    await finish(claimed, "held", "live_unreadable");
+    await finish("held", "live_unreadable");
     return result("held", "live_unreadable", "held, the live assistant could not be read (nothing pushed).");
   }
   if (sha24(livePrompt) !== input.baseline.promptHash) {
-    await finish(claimed, "held", "live_changed_since_measured");
+    await finish("held", "live_changed_since_measured");
     return result("held", "live_changed_since_measured", "held, the live prompt changed after tonight's run measured it (nothing pushed).");
   }
 
@@ -235,7 +267,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
     pushed = null;
   }
   if (!pushed?.ok) {
-    await finish(claimed, "push_failed", pushed ? `http_${pushed.status}` : "network");
+    await finish("push_failed", pushed ? `http_${pushed.status}` : "network");
     return result("push_failed", pushed ? `http_${pushed.status}` : "network", "the push was refused; the live prompt is unchanged.");
   }
 
@@ -248,7 +280,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
       .then((r) => r.ok)
       .catch(() => false);
     const reason = restored ? "readback_mismatch" : "readback_mismatch_restore_failed";
-    await finish(claimed, "readback_restored", reason);
+    await finish("readback_restored", reason);
     return result(
       "readback_restored",
       reason,
@@ -262,7 +294,7 @@ export async function promoteReceptionistCandidate(input: PromotionInput, deps: 
   if (overlay) {
     await deps.kvSet(OVERLAY_KEY, JSON.stringify({ versionId, candidateHash: sha24(candidate), baseHash: input.baseline.promptHash, ...overlay, at: deps.now().toISOString() }));
   }
-  await finish(claimed, "promoted", null);
+  await finish("promoted", null);
   return result("promoted", null, `PROMOTED ${short(sha24(candidate))} to the live receptionist (was ${short(input.baseline.promptHash)}), read-back verified, version ${versionId.slice(0, 8)}.`);
 }
 
@@ -456,6 +488,23 @@ function parseHistory(raw: string | null): PromotionRecord[] | null {
 }
 
 /**
+ * Replace this run's claim row (found by versionId and claim status) with its
+ * end state. Other rows may have been prepended since the claim (a held night,
+ * a pause), so it re-reads and swaps, a few times, instead of assuming row 0.
+ */
+async function settleClaim(deps: PromotionDeps, versionId: string, claimStatus: PromotionStatus, rec: PromotionRecord): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const raw = await deps.kvGet(HISTORY_KEY);
+    const rows = parseHistory(raw);
+    const at = rows ? rows.findIndex((r) => r.versionId === versionId && r.status === claimStatus) : -1;
+    if (!rows || at < 0) return false;
+    rows[at] = rec;
+    if (await deps.kvCompareAndSet(HISTORY_KEY, raw, JSON.stringify(rows))) return true;
+  }
+  return false;
+}
+
+/**
  * Take the open promotion back: claim (compare-and-swap a rolling_back row; a
  * loser acts on nothing), restore the stable snapshot when the live prompt is
  * still the promoted one, else reverse the edit on whatever is live (a manual
@@ -475,10 +524,8 @@ async function rollBack(deps: PromotionDeps, status: "rolled_back" | "undone", r
     return { status: "duplicate", reason: "claimed_by_another_run", line: "Auto-promote: another rollback holds this promotion." };
   }
   const finish = async (s: PromotionStatus, why: string | null): Promise<void> => {
-    const list = JSON.parse(claimNext) as PromotionRecord[];
-    list[0] = row(s, why);
-    if (!(await deps.kvCompareAndSet(HISTORY_KEY, claimNext, JSON.stringify(list)))) {
-      log.warn("[auto-promote] history moved under a claimed rollback; final status not recorded", { versionId: open.versionId, status: s });
+    if (!(await settleClaim(deps, open.versionId, "rolling_back", row(s, why)))) {
+      log.warn("[auto-promote] claimed rollback row not found; final status not recorded", { versionId: open.versionId, status: s });
     }
   };
   const failed = async (why: string, line: string) => {
@@ -583,9 +630,13 @@ export async function undoReceptionistPromotion(deps: PromotionDeps): Promise<Un
 
 // ── W3: the /admin card (VAPI panel) ───────────────────────────────────────
 
-/** "true" / "1" / "yes" / "on" / "paused" pause; a missing row or anything else runs. */
+/**
+ * Runs only on an explicit "false" / "0" / "no" / "off" / "running" (what the
+ * RESUME tap writes). A missing row (never switched on) or anything else is
+ * paused: fail closed (ruling 2026-10-31).
+ */
 function parsePaused(raw: string | null): boolean {
-  return raw !== null && /^(?:true|1|yes|on|paused)$/i.test(raw.trim());
+  return raw === null || !/^(?:false|0|no|off|running)$/i.test(raw.trim());
 }
 
 export interface AutoPromoteStatus {

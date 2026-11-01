@@ -8,6 +8,7 @@
  * snapshot when the read-back does not match. Ships DISARMED: W3 arms it.
  */
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { checkReceptionistCanary, promoteReceptionistCandidate, undoReceptionistPromotion, type PromotionDeps } from "./receptionistPromotion";
 
@@ -33,8 +34,10 @@ const liveAssistant = (system: string) => ({
 
 /** In-memory kv with a real compare-and-swap, and a scripted Vapi. */
 type Counts = { evaluated: number; success: number } | null;
-function harness(opts: { live?: string; kv?: Record<string, string>; armed?: boolean; patchStatus?: number; readbackSystem?: string | null; killReadFails?: boolean; now?: Date } = {}) {
-  const kv = new Map<string, string>(Object.entries(opts.kv ?? {}));
+function harness(opts: { live?: string; kv?: Record<string, string>; armed?: boolean; patchStatus?: number; readbackSystem?: string | null; killReadFails?: boolean; now?: Date; switchRow?: string | null } = {}) {
+  // Nour's one tap (RESUME) writes "false"; a missing row means never switched on.
+  const switchRow = opts.switchRow === undefined ? "false" : opts.switchRow;
+  const kv = new Map<string, string>(Object.entries({ ...(switchRow === null ? {} : { [KILL_SWITCH_KEY]: switchRow }), ...(opts.kv ?? {}) }));
   let served = opts.live ?? LIVE;
   let servedMeta: Record<string, unknown> = liveAssistant(LIVE).metadata;
   const patches: Array<Record<string, any>> = [];
@@ -162,14 +165,71 @@ describe("promoteReceptionistCandidate", () => {
     expect(h1.patches.length + h2.patches.length).toBe(0);
   });
 
-  it.each(["TRUE", "1", "yes", "on", "paused"])("the kill switch reads %s as paused", async (v) => {
+  it.each(["TRUE", "1", "yes", "on", "paused", "", "maybe"])("the kill switch reads %j as paused (anything but an explicit run value)", async (v) => {
     const h = harness({ kv: { [KILL_SWITCH_KEY]: v } });
     expect(await promoteReceptionistCandidate(accepted(GOOD), h.deps)).toMatchObject({ status: "held", reason: "kill_switch" });
+    expect(h.patches).toHaveLength(0);
   });
 
-  it.each(["false", "0", "", "off"])("the kill switch reads %j as running", async (v) => {
+  it.each(["false", "0", "no", "OFF", "running"])("the kill switch reads %j as running", async (v) => {
     const h = harness({ kv: { [KILL_SWITCH_KEY]: v } });
     expect((await promoteReceptionistCandidate(accepted(GOOD), h.deps)).status).toBe("promoted");
+  });
+
+  it("a fresh deploy never promotes on its own: no switch row = never switched on, held, nothing pushed", async () => {
+    const h = harness({ switchRow: null });
+    const r = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
+    expect(r).toMatchObject({ status: "held", reason: "not_switched_on" });
+    expect(r.line).toMatch(/RESUME/);
+    expect(h.patches).toHaveLength(0);
+    expect(history(h.kv)[0]).toMatchObject({ status: "held", reason: "not_switched_on" });
+  });
+
+  it("a promotion still in flight (a crashed run left 'promoting') blocks the next claim", async () => {
+    const h = harness();
+    const stuck = { versionId: "v-stuck", at: "2026-11-02T05:30:00.000Z", loop: RECEPTIONIST_LOOP, status: "promoting", reason: null, baseHash: hash(LIVE), candidateHash: hash(GOOD) };
+    const held = { ...stuck, versionId: "v-later", status: "held", reason: "promotion_in_flight" };
+    h.kv.set(HISTORY, JSON.stringify([held, stuck]));
+    const r = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
+    expect(r).toMatchObject({ status: "held", reason: "promotion_in_flight" });
+    expect(h.patches).toHaveLength(0);
+  });
+
+  it("a second runner that starts after the first claimed acts on nothing", async () => {
+    const h = harness();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const realGet = h.deps.getAssistant;
+    let first = true;
+    // Runner A pauses on its live read, i.e. after its claim landed.
+    h.deps.getAssistant = async (id) => {
+      if (first) {
+        first = false;
+        await gate;
+      }
+      return realGet(id);
+    };
+    const a = promoteReceptionistCandidate(accepted(GOOD), h.deps);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(history(h.kv)[0].status).toBe("promoting");
+    const b = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
+    release();
+    expect(b).toMatchObject({ status: "held", reason: "promotion_in_flight" });
+    expect((await a).status).toBe("promoted");
+    expect(h.patches).toHaveLength(1);
+    // B's row landed between A's claim and its end: A still settles its own row, so the canary and undo see it.
+    expect(history(h.kv).map((r: { status: string }) => r.status)).toEqual(["held", "promoted"]);
+    expect(await checkReceptionistCanary(h.deps)).toMatchObject({ status: "watching" });
+  });
+
+  it("a baseline too thin for the canary to judge is held before anything goes live", async () => {
+    const h = harness();
+    h.canary.before = { evaluated: 99, success: 50 };
+    expect(await promoteReceptionistCandidate(accepted(GOOD), h.deps)).toMatchObject({ status: "held", reason: "canary_unmeasurable" });
+    const h2 = harness();
+    h2.canary.before = null;
+    expect(await promoteReceptionistCandidate(accepted(GOOD), h2.deps)).toMatchObject({ status: "held", reason: "canary_baseline_unreadable" });
+    expect(h.patches.length + h2.patches.length).toBe(0);
   });
 
   it("the live prompt changed after the run measured it: refused, nothing pushed", async () => {
@@ -239,7 +299,7 @@ describe("W3 · canary, rollback, undo", () => {
     const h = harness();
     await promoted(h);
     await checkReceptionistCanary(h.deps);
-    expect(h.canary.asked[0]).toMatchObject({ assistantId: "asst-1", promptHash: hash(GOOD), promotedAt: "2026-11-03T05:30:00.000Z", baselineDays: 14 });
+    expect(h.canary.asked.at(-1)).toMatchObject({ assistantId: "asst-1", promptHash: hash(GOOD), promotedAt: "2026-11-03T05:30:00.000Z", baselineDays: 14 });
   });
 
   it("too few calls yet: watching, nothing changes", async () => {
@@ -289,7 +349,22 @@ describe("W3 · canary, rollback, undo", () => {
     const r = await undoReceptionistPromotion(h.deps);
     expect(r).toMatchObject({ status: "undone", reason: "operator" });
     expect(hash(h.served())).toBe(hash(LIVE));
+    expect(hash(h.served())).toBe(history(h.kv)[0].baseHash);
     expect(history(h.kv)[0]).toMatchObject({ status: "undone" });
+  });
+
+  it.each(["undo", "canary"] as const)("a candidate taken back (%s) is never promoted again", async (how) => {
+    const h = harness();
+    await promoted(h);
+    if (how === "undo") await undoReceptionistPromotion(h.deps);
+    else {
+      h.canary.after = { evaluated: 60, success: 18 };
+      expect(await checkReceptionistCanary(h.deps)).toMatchObject({ status: "rolled_back" });
+    }
+    const again = await promoteReceptionistCandidate(accepted(GOOD), h.deps);
+    expect(again).toMatchObject({ status: "held", reason: "candidate_taken_back_before" });
+    expect(h.served()).toBe(LIVE);
+    expect(h.patches).toHaveLength(2);
   });
 
   it("undo with nothing promoted changes nothing", async () => {
@@ -313,6 +388,25 @@ describe("W3 · canary, rollback, undo", () => {
     const [a, b] = await Promise.all([undoReceptionistPromotion(h.deps), undoReceptionistPromotion(h.deps)]);
     expect([a.status, b.status].sort()).toEqual(["duplicate", "undone"]);
     expect(h.patches).toHaveLength(2);
+  });
+
+  it("the nightly path never calls updateAssistant or rebuilds the config (comments stripped)", () => {
+    const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "$1");
+    const banned = /\b(?:updateAssistant|buildAssistantConfig)\b/;
+    const files = {
+      promotion: strip(readFileSync(new URL("./receptionistPromotion.ts", import.meta.url), "utf8")),
+      job: strip(readFileSync(new URL("../cron/jobs/promptEvolutionWeekly.ts", import.meta.url), "utf8")),
+    };
+    // Located the subject: the push and the job's two calls are in the scanned text.
+    expect(files.promotion.match(/deps\s*\.patchAssistant\(/g)?.length).toBe(3);
+    expect(files.promotion).toContain("vapi.patchAssistantPromptOnly");
+    expect(files.job).toContain("promoteReceptionistCandidate(");
+    expect(files.job).toContain("checkReceptionistCanary(");
+    // The scanner fires on a planted call and stays quiet on a comment about it.
+    expect(banned.test(strip("const r = await updateAssistant(id);"))).toBe(true);
+    expect(banned.test(strip("// never updateAssistant here"))).toBe(false);
+    expect(banned.test(files.promotion)).toBe(false);
+    expect(banned.test(files.job)).toBe(false);
   });
 
   it("a manual push since the promotion: the edit is reversed on the live text, the rest of the push kept", async () => {

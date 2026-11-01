@@ -104,6 +104,10 @@ export interface ReceptionistPromotionInput {
   codePrompt: string;
   /** A promotion whose canary has not ended (W3): one live change is measured at a time. */
   canaryOpen?: boolean;
+  /** A claimed promotion with no end recorded (in flight, or a run died mid-push): the live state is not known. */
+  promotionInFlight?: boolean;
+  /** This exact candidate was rolled back or undone before: Nour's undo and the canary's verdict stick. */
+  candidateTakenBack?: boolean;
 }
 
 /** One nightly receptionist decision. Order matters: the first refusal is the reason. */
@@ -112,6 +116,8 @@ export function decideReceptionistPromotion(input: ReceptionistPromotionInput): 
   if (input.paused === null) return hold("kill_switch_unreadable");
   if (input.paused) return hold("kill_switch");
   if (input.canaryOpen) return hold("canary_open");
+  if (input.promotionInFlight) return hold("promotion_in_flight");
+  if (input.candidateTakenBack) return hold("candidate_taken_back_before");
   if (input.outcome !== "accepted") return hold(`offline_${input.outcome}`);
   if (!input.confirmed) return hold("offline_unconfirmed");
   if (input.parity === "diverged") return hold("live_prompt_diverged");
@@ -187,6 +193,34 @@ export function openPromotion(rows: readonly PromotionRecord[]): PromotionRecord
     if (row.status === "promoted") return row;
   }
   return null;
+}
+
+/** Statuses that end a claimed push (it went live, or nothing changed). */
+const PUSH_ENDED: ReadonlySet<PromotionStatus> = new Set(["promoted", "push_failed", "readback_restored", ...CANARY_ENDED]);
+
+/**
+ * A "promoting" claim with no end after it: another runner is mid-push, or one
+ * died there. Holds until a person looks (fail closed); held and would-promote
+ * rows after it do not end it.
+ */
+export function promotionInFlight(rows: readonly PromotionRecord[]): boolean {
+  for (const row of rows) {
+    if (row.status === "promoting") return true;
+    if (PUSH_ENDED.has(row.status)) return false;
+  }
+  return false;
+}
+
+/** Statuses that took a promoted candidate back off the live receptionist (or tried to). */
+const TAKEN_BACK: ReadonlySet<PromotionStatus> = new Set(["rolling_back", "rolled_back", "undone", "rollback_failed"]);
+
+/**
+ * True when this candidate was taken back before, so the next night cannot put
+ * the same text live again. shortcut: remembers only the last HISTORY_CAP rows;
+ * a separate retired-hash row if a taken-back candidate ever reappears after that.
+ */
+export function takenBackBefore(rows: readonly PromotionRecord[], candidateHash: string | null): boolean {
+  return candidateHash !== null && rows.some((r) => TAKEN_BACK.has(r.status) && r.candidateHash === candidateHash);
 }
 
 export interface PromotionRecord {
