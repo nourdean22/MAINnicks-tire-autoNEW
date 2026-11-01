@@ -11,6 +11,7 @@
 > - **OS drift "tool_count 130 vs 169"**: tool_count stepped 181 -> 133 on 10-21 (deliberate prune). A regression that was already this severe at the previous snapshot and has not moved 5% is `standing` (listed, not alerted); crossing a tier always alerts, so a slow bleed still pages. Drift rows expire in 25 h (rows from 08-27 were still live).
 > - **"Task Healed: decomposed ... into 6 subtasks"**: the stalled-task phase called 2 h in DOING stalled, AI-decomposed Nour's parked CRM planning task and flipped it to WAITING. It now flags a task untouched 3 days once (P2, expires) and changes nothing.
 > - **Pulse titles rewritten to prose**: `coach_event` joins `CONSOLIDATION_EXCLUDE_CATEGORIES` (a row's content is the Pulse title).
+> - **Manager adds (error_logs, Sentry).** `loadIdentityHistory` read the OLDEST N snapshots (asc + take), so sparklines, the 14-day projection and the journey lens showed May-August; now newest N live rows. outcome-tracker's nightly "N predictions failed to score" now names the first failure. Sentry is not silent: 8 prod server events on 10-19; the app's handled-error path (`logError`) never forwards to Sentry, so only uncaught errors land. The 03:00Z learning-journal sentinel shares the window with ~120 AI calls in the mega-evening fan-out (STRONG INFERENCE: provider saturation, same as the compile timeouts). None of these reach the Pulse (`logError` writes error_logs only).
 >
 > **Flagged · NOT fixed**
 > - `getActiveCoachEvents` ignores `deletedAt`; soft-deleted coach rows still render.
