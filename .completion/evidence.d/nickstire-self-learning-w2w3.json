@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Self-learning W2+W3 (branch nickstire/self-learning-w2w3, 2026-10-31): the prompt-evolution-weekly job gains two steps, each fail-closed for the live receptionist and never failing the run's measurement. Step 0 (the canary of an earlier promotion, before the experiment): a throw is caught, nothing changes, Telegram says 'Canary: error, nothing changed'; a rollback is sent at once, a failed rollback as an incident. Step 5 (the auto-promote gate): a throw is caught, Telegram says 'Auto-promote: error, nothing pushed'; a failed run never reaches it. Inside the gate every unreadable input holds (kill switch row, history row, live assistant, canary baseline); a failed canary read keeps the canary open (UNKNOWN). Tests: server/cron/jobs/promptEvolutionWeekly.test.ts (30), server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts still green; 13 files, 210 passed, exit 0."
+    },
+    "operator-walkthrough": {
+      "ref": "Deferred to the first live check, with reason: no agent can sign in to /admin. WHAT THE OPERATOR SEES after this diff: Admin -> Settings -> VAPI panel gains a 'Self-learning' card under the prompt experiment. On a fresh deploy it reads 'Paused: nightly runs measure, nothing new goes live.' with a RESUME SELF-LEARNING button (two-tap in-DOM confirm); until that tap, every nightly Telegram ends 'Auto-promote: held, self-learning is not switched on (tap RESUME SELF-LEARNING in /admin > VAPI ...)'. After a promotion the card shows 'Learned edit <hash> live since <time> . canary open' with UNDO LEARNED EDIT (two-tap confirm), then the last six nights' outcomes in plain words. An unreadable status reads 'unknown, not empty'. The experiment footer now says a gated winner goes live on its own. Client tests: client/src/__tests__/vapi-auto-promote-card.test.tsx, vapi-followup-push-confirm.test.tsx green in the same 13-file run."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' gains one tests line for self-learning W2+W3 (autoPromote.test.ts 32, receptionistPromotion.test.ts 45, receptionistCanary.test.ts 8, vapiAutoPromoteRouter.test.ts 4, promptEvolutionWeekly.test.ts 30, promotedOverlay test) and REALITY-LEDGER.md is re-rendered (189 capabilities). Red-first 11 failed / 63 passed on the dead lane's code; 13 guards removed one at a time, each red, each restored; control 85 passed."
+    }
+  }
+}

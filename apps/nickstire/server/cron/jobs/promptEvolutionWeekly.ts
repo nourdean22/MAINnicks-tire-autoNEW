@@ -42,6 +42,10 @@
  *  4. WRITES, integrity first: any spent seed the hook did not record, then
  *     the Reality Ledger receipt (best-effort, never fails the run), then
  *     prompt_evolution_latest, then Telegram.
+ *  5. AUTO-PROMOTE (self-learning W2, 2026-10-31): the result and the live
+ *     baseline go to services/receptionistPromotion.ts, which decides through
+ *     the gate and (once W3 arms it) pushes the live system prompt only. Its one
+ *     line rides the Telegram; it can never fail the run.
  * prompt_evolution_latest is a POINTER to the latest run, overwritten nightly:
  * the result (hashes, gates, the proposal and its line diff, for the operator
  * to apply) plus the receipt's experimentId. The receipt is the durable,
@@ -264,7 +268,7 @@ function outcomeLines(result: EvolutionResult): string[] {
 
 function telegramSummary(
   result: EvolutionResult,
-  ctx: { experimentId: string | null; receiptDelivered: boolean; previousStatus: PreviousProposalStatus; trigger: PromptEvolutionTrigger },
+  ctx: { experimentId: string | null; receiptDelivered: boolean; previousStatus: PreviousProposalStatus; trigger: PromptEvolutionTrigger; promoted?: boolean },
 ): string {
   const b = result.baseline;
   const baselineLine =
@@ -291,8 +295,10 @@ function telegramSummary(
         : "unknown";
   const u = result.usage;
   return [
-    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "nightly"} · propose-only)`,
-    `Offline evidence only (H2); not served to customers.`,
+    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "nightly"} · ${ctx.promoted ? "promoted live" : "propose-only"})`,
+    ctx.promoted
+      ? "Offline evidence (H2) put this candidate live through the gate; the canary now measures real calls."
+      : `Offline evidence only (H2); not served to customers.`,
     baselineLine,
     laneLine,
     // The success cohort loads only after a holdout pass. Until then its count
@@ -316,6 +322,24 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
   // Every night since 2026-10-31 (self-learning W1): the learning wall-clock
   // slot sets the cadence, so there is no weekday gate here any more.
   if (trigger === "manual") log.info("[evolve] manual run requested", { at: now.toISOString() });
+
+  // 0 · The canary of an earlier auto-promotion (self-learning W3), before the
+  // experiment, so a failing experiment never skips it. A rollback is told at
+  // once (a failed one as an incident); the line also rides tonight's summary.
+  let canaryLine: string | null = null;
+  try {
+    const { checkReceptionistCanary, productionPromotionDeps } = await import("../../services/receptionistPromotion");
+    const canary = await checkReceptionistCanary(await productionPromotionDeps());
+    canaryLine = canary?.line ?? null;
+    if (canary && (canary.status === "rolled_back" || canary.status === "rollback_failed")) {
+      const { sendTelegram } = await import("../../services/telegram");
+      await sendTelegram(canary.line, canary.status === "rollback_failed" ? "incident" : "receipt").catch(() => undefined);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("[evolve] canary check failed; nothing changed", { error: msg });
+    canaryLine = `Canary: error, nothing changed (${clip(msg, 120)}).`;
+  }
 
   // 1 · Reads. A DB error on the consumed list propagates: the run fails.
   const consumedBefore = parseConsumed(await getKv(CONSUMED_KEY));
@@ -440,7 +464,28 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
   // lives here until the next accepted one, so a quiet night never erases it.
   if (result.accepted) await setKv(LAST_ACCEPTED_KEY, row, "Prompt evolution — last accepted candidate (propose-only)");
 
-  const summary = telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger });
+  // 5 · The auto-promote gate (self-learning W2, services/receptionistPromotion.ts).
+  // It decides from this run's result and the live baseline it measured; it can
+  // never fail the run, whose measurement is already written.
+  let promotionLine: string;
+  let promoted = false;
+  try {
+    const { promoteReceptionistCandidate, productionPromotionDeps } = await import("../../services/receptionistPromotion");
+    const promotion = await promoteReceptionistCandidate(
+      { outcome: result.outcome, accepted: result.accepted, candidateDiff: result.candidateDiff, baseline },
+      await productionPromotionDeps(),
+    );
+    promotionLine = promotion.line;
+    promoted = promotion.status === "promoted";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("[evolve] auto-promote gate failed; nothing pushed", { error: msg });
+    promotionLine = `Auto-promote: error, nothing pushed (${clip(msg, 120)}).`;
+  }
+
+  const summary = [telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger, promoted }), canaryLine, promotionLine]
+    .filter((l): l is string => !!l)
+    .join("\n");
   const { sendTelegram } = await import("../../services/telegram");
   await sendTelegram(summary, "digest").catch(() => undefined);
 

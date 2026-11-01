@@ -716,6 +716,9 @@ async function processCallEndReport(
             hash: meta.nickBehaviorHash ?? null,
             schema: meta.nickBehaviorSchema ?? null,
             promptPolicy: meta.nickPromptPolicy ?? null,
+            // Set only by an auto-promoted prompt (services/receptionistPromotion.ts); null otherwise.
+            promptHash: meta.nickPromptHash ?? null,
+            promptVersion: meta.nickPromptVersion ?? null,
             source: meta.nickBehaviorHash ? "vapi_assistant_metadata" : "assistant_metadata_unavailable",
           };
           const { sql } = await import("drizzle-orm");

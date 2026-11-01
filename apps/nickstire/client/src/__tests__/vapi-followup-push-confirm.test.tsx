@@ -39,6 +39,9 @@ vi.mock("@/lib/trpc", () => ({
       updateFollowUpAssistant: { useMutation: () => ({ mutate: h.followUpMutate, isPending: false }) },
       promptEvolutionStatus: { useQuery: () => ({ data: h.evolutionQueryState.loading || h.evolutionQueryState.error ? undefined : h.evolutionStatus, isLoading: h.evolutionQueryState.loading, isError: h.evolutionQueryState.error, error: h.evolutionQueryState.error ? { message: "UNAUTHORIZED (test)" } : null }) },
       runPromptEvolutionNow: { useMutation: () => ({ mutate: h.evolutionMutate, isPending: false }) },
+      autoPromoteStatus: { useQuery: () => ({ data: { armed: true, paused: false, open: null, recent: [] }, isLoading: false, isError: false, error: null }) },
+      undoAutoPromotion: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      setAutoPromotePaused: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
   },
 }));

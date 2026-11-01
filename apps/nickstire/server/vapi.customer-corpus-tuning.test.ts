@@ -61,6 +61,10 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).toContain("vapi_assistant_metadata");
     expect(src).toContain("assistant_metadata_unavailable");
     expect(src).toContain("meta.nickBehaviorHash");
+    // Self-learning W2: an auto-promoted prompt is named per call, so the canary
+    // can tell which prompt each call heard.
+    expect(src).toContain("promptHash: meta.nickPromptHash ?? null");
+    expect(src).toContain("promptVersion: meta.nickPromptVersion ?? null");
   });
   it("carries behavior and call-linked arrival evidence into revenue reconciliation without upgrading the verdict", () => {
     const src = readFileSync(new URL("./services/revenueReconciliation.ts", import.meta.url), "utf8");

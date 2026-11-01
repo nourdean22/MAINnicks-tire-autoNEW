@@ -1314,6 +1314,24 @@ export async function fetchAssistantById(assistantId: string): Promise<Response>
 }
 
 /**
+ * The one automated write to the assistant (self-learning W2, 2026-10-31,
+ * services/receptionistPromotion.ts): PATCH { model, metadata } and nothing
+ * else. The caller sends back the live model block it read with only the system
+ * message changed; Vapi replaces the whole model object on PATCH. Unlike
+ * updateAssistant it never rebuilds the config from code, so it cannot ship
+ * changes that are still waiting for Nour's Push Config tap.
+ */
+export async function patchAssistantPromptOnly(
+  assistantId: string,
+  body: { model: Record<string, unknown>; metadata: Record<string, unknown> },
+): Promise<Response> {
+  return vapiFetch(`/assistant/${encodeURIComponent(assistantId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ model: body.model, metadata: body.metadata }),
+  });
+}
+
+/**
  * wave-145 · The outbound caller-ID line. Defaults to Nick's registered VAPI
  * number — the same line callers reach inbound, so outbound calls show a
  * number customers recognize. Operator can point elsewhere via env override.
@@ -1863,6 +1881,18 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
   try {
     const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
 
+    // self-learning W2 (2026-10-31) · keep an auto-promoted prompt edit across
+    // this manual push; when the code moved and it no longer fits, code wins and
+    // the result says so (services/receptionistPromotion.ts applyPromotedOverlay).
+    let overlayWarning: string | undefined;
+    const codeMsg = config.model?.messages?.[0];
+    if (codeMsg && typeof codeMsg.content === "string") {
+      const { applyPromotedOverlay } = await import("./receptionistPromotion");
+      const withOverlay = await applyPromotedOverlay(codeMsg.content);
+      codeMsg.content = withOverlay.prompt;
+      overlayWarning = withOverlay.warning;
+    }
+
     // self-improving loop (phase 2) · append the highest-confidence learned
     // lessons to the system prompt on THIS manual re-push only. buildAssistantConfig
     // stays pure (its test asserts the static prompt); the append lives here so
@@ -1953,7 +1983,8 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
     } else {
       log.warn("Updated Vapi assistant · provider read-back unverified", { id: assistantId, behaviorHash, warning });
     }
-    return { success: true, verified, behaviorHash, ...(warning ? { warning } : {}) };
+    const warnings = [warning, overlayWarning].filter(Boolean).join(" ");
+    return { success: true, verified, behaviorHash, ...(warnings ? { warning: warnings } : {}) };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
   }

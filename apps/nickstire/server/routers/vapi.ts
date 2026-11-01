@@ -343,6 +343,27 @@ export const vapiRouter = router({
     return { ...promptEvolutionManualRunStatus(), latest };
   }),
 
+  // 2026-10-31 · self-learning W3 · the nightly experiment promotes its own
+  // gated winners to the live receptionist. This is Nour's side of it: what is
+  // live and its canary (hashes only), a pause switch, and a one-tap undo that
+  // restores the prior prompt through the same read-back push the canary uses.
+  // adminProcedure, not dbAdminProcedure: with the database down the card must
+  // still render, and readAutoPromoteStatus says "unknown" (null) itself.
+  autoPromoteStatus: adminProcedure.query(async () => {
+    const { readAutoPromoteStatus } = await import("../services/receptionistPromotion");
+    return readAutoPromoteStatus();
+  }),
+
+  undoAutoPromotion: adminProcedure.mutation(async () => {
+    const { productionPromotionDeps, undoReceptionistPromotion } = await import("../services/receptionistPromotion");
+    return undoReceptionistPromotion(await productionPromotionDeps());
+  }),
+
+  setAutoPromotePaused: adminProcedure.input(z.object({ paused: z.boolean() })).mutation(async ({ input }) => {
+    const { setAutoPromotePaused } = await import("../services/receptionistPromotion");
+    return setAutoPromotePaused(input.paused);
+  }),
+
   promptLessons: adminProcedure.query(async () => {
     const { topPromptLessons } = await import("../services/nickMemory");
     const lessons = await topPromptLessons();
