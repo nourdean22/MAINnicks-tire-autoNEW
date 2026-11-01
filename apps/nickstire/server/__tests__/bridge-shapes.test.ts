@@ -53,6 +53,16 @@ describe("bridge shapes — statenour contract pins", () => {
     expect(RevenueTodayShape.safeParse({ totalCents: 1 }).success).toBe(false);
   });
 
+  it("revenue_today: syncedAt is optional (old payloads parse), an ISO string or null, and survives the parse", () => {
+    const at = "2026-10-31T18:40:00.000Z";
+    expect(RevenueTodayShape.parse({ ...revenueTodayFixture, syncedAt: at }).syncedAt).toBe(at);
+    expect(RevenueTodayShape.parse({ ...revenueTodayFixture, syncedAt: null }).syncedAt).toBeNull();
+    expect("syncedAt" in RevenueTodayShape.parse(revenueTodayFixture)).toBe(false);
+    for (const bad of [1761936000, true, {}, "2:40 PM", "2026-10-31", "2026-10-31T14:40:00-04:00"]) {
+      expect(RevenueTodayShape.safeParse({ ...revenueTodayFixture, syncedAt: bad }).success).toBe(false);
+    }
+  });
+
   it("lot_brief: the REAL composed brief parses (no hand fixture to drift), as does the failure branch", () => {
     const brief = composeLotBrief({
       date: "2026-10-15", weekday: "thursday", open: true, arrivals: 30, passThroughs: 2,

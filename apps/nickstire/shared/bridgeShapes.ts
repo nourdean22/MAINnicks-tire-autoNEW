@@ -38,6 +38,12 @@ export const RevenueTodayShape = z.object({
   totalCents: z.number(),
   totalDollars: z.number(),
   invoiceCount: z.number(),
+  /**
+   * 2026-10-31 · start of the newest successful ShopDriver probe, UTC ISO ("sales known up to");
+   * null when never synced or unreadable. Optional so an older nickstire still parses. Only
+   * the handler (routes/nour-os-query.ts) writes it, so it is always present on a live answer.
+   */
+  syncedAt: z.iso.datetime().nullable().optional(),
 });
 
 /**
