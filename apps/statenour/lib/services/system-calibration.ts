@@ -1,6 +1,86 @@
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { calculateScoreboardStats } from "@/lib/brain/calibration-engine";
+import type { CalibrationReviewItem, Prisma, PrismaClient } from "@prisma/client";
+
+type Db = PrismaClient | Prisma.TransactionClient;
+type LessonUpsert = Prisma.BrainMemoryUpsertArgs;
+
+/**
+ * The one writer for a low-risk approval's source row: Task.outcomeScore, or a
+ * Prediction's status, outcome and Brier score. Used by the bulk tap and by the
+ * allowlist auto-resolver (calibration-auto-resolve.ts), which runs it inside its
+ * claim transaction, so nothing here swallows an error. The lesson memory is
+ * returned, not written: a failed statement inside a Postgres transaction aborts
+ * it even when caught, so the caller writes the lesson after commit.
+ */
+export async function applyLowRiskOutcome(
+  db: Db,
+  item: CalibrationReviewItem,
+  note: string,
+): Promise<{ accuracyScore: number | null; lesson: LessonUpsert }> {
+  const proposed = item.proposedActualOutcome as any;
+  const predicted = item.predictedOutcome as any;
+  const ttl = () => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+  if (item.type === "task_roi") {
+    const outcomeScore = Number(proposed.outcomeScore);
+    const task = await db.task.update({
+      where: { id: item.sourceId },
+      data: { outcomeScore },
+    });
+    const accuracyScore = Math.abs(outcomeScore - (predicted?.roiScore || 50));
+    const classification = proposed.classification || "accurate";
+    const content = `Task ROI Calibration: Task "${task.title}" estimated ROI ${predicted?.roiScore || 50} vs actual ROI ${outcomeScore}. Class: ${classification}. Note: ${note}`;
+    const metadata = {
+      sourceId: item.sourceId,
+      sourceType: "Task",
+      estimatedRoi: predicted?.roiScore || 50,
+      actualRoi: outcomeScore,
+      classification,
+    };
+    const key = `task-roi-${item.sourceId}`;
+    return {
+      accuracyScore,
+      lesson: {
+        where: { category_key: { category: "prediction_lesson", key } },
+        create: { category: "prediction_lesson", key, content, confidence: 1.0, source: "system:calibration", expiresAt: ttl(), metadata },
+        update: { content, expiresAt: ttl(), metadata },
+      },
+    };
+  }
+
+  const approvedStatus = proposed.status;
+  const outcomeDescription = proposed.outcomeDescription || "";
+  const outcomeVal = approvedStatus === "confirmed" ? 1 : 0;
+  const brier = (item.confidence - outcomeVal) ** 2;
+  const pred = await db.prediction.update({
+    where: { id: item.sourceId },
+    data: { status: approvedStatus, outcome: outcomeDescription, brierScore: brier },
+  });
+  const content = `Prediction Calibration: Prediction "${pred.prediction}" (confidence: ${pred.confidence}) resolved as ${approvedStatus}. Brier: ${brier !== null ? brier.toFixed(3) : "N/A"}. Outcome: ${outcomeDescription}`;
+  const metadata = {
+    sourceId: item.sourceId,
+    sourceType: "Prediction",
+    confidence: pred.confidence,
+    approvedStatus,
+    brierScore: brier,
+  };
+  const key = `pred-calib-${item.sourceId}`;
+  return {
+    accuracyScore: brier,
+    lesson: {
+      where: { category_key: { category: "prediction_lesson", key } },
+      create: { category: "prediction_lesson", key, content, confidence: pred.confidence, source: "system:calibration", expiresAt: ttl(), metadata },
+      update: { content, expiresAt: ttl(), metadata },
+    },
+  };
+}
+
+/** Best effort, as before the extraction: a lesson write never fails a resolution. */
+export async function writeCalibrationLesson(lesson: LessonUpsert): Promise<void> {
+  await prisma.brainMemory.upsert(lesson).catch(() => {});
+}
 
 export async function getCalibrationReviews() {
   const pending = await prisma.calibrationReviewItem.findMany({
@@ -236,116 +316,17 @@ export async function bulkResolveCalibrationReviews(action: string) {
       }
 
       if (shouldApprove) {
-        // Process approval
-        const finalStatus = "approved";
-        const finalActualOutcome = proposed;
-        let accuracyScore: number | null = null;
-
-        if (item.type === "task_roi") {
-          const outcomeScore = Number(finalActualOutcome.outcomeScore);
-          const task = await prisma.task.update({
-            where: { id: item.sourceId },
-            data: { outcomeScore },
-          });
-
-          accuracyScore = Math.abs(outcomeScore - (predicted?.roiScore || 50));
-
-          const classification = finalActualOutcome.classification || "accurate";
-          await prisma.brainMemory.upsert({
-            where: {
-              category_key: {
-                category: "prediction_lesson",
-                key: `task-roi-${item.sourceId}`,
-              },
-            },
-            create: {
-              category: "prediction_lesson",
-              key: `task-roi-${item.sourceId}`,
-              content: `Task ROI Calibration: Task "${task.title}" estimated ROI ${predicted?.roiScore || 50} vs actual ROI ${outcomeScore}. Class: ${classification}. Note: Bulk auto-approved (low risk)`,
-              confidence: 1.0,
-              source: "system:calibration",
-              expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-              metadata: {
-                sourceId: item.sourceId,
-                sourceType: "Task",
-                estimatedRoi: predicted?.roiScore || 50,
-                actualRoi: outcomeScore,
-                classification,
-              },
-            },
-            update: {
-              content: `Task ROI Calibration: Task "${task.title}" estimated ROI ${predicted?.roiScore || 50} vs actual ROI ${outcomeScore}. Class: ${classification}. Note: Bulk auto-approved (low risk)`,
-              expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-              metadata: {
-                sourceId: item.sourceId,
-                sourceType: "Task",
-                estimatedRoi: predicted?.roiScore || 50,
-                actualRoi: outcomeScore,
-                classification,
-              },
-            },
-          }).catch(() => {});
-        } else if (item.type === "prediction") {
-          const approvedStatus = finalActualOutcome.status;
-          const outcomeDescription = finalActualOutcome.outcomeDescription || "";
-
-          let brier: number | null = null;
-          const outcomeVal = approvedStatus === "confirmed" ? 1 : 0;
-          brier = (item.confidence - outcomeVal) ** 2;
-          accuracyScore = brier;
-
-          const pred = await prisma.prediction.update({
-            where: { id: item.sourceId },
-            data: {
-              status: approvedStatus,
-              outcome: outcomeDescription,
-              brierScore: brier,
-            },
-          });
-
-          await prisma.brainMemory.upsert({
-            where: {
-              category_key: {
-                category: "prediction_lesson",
-                key: `pred-calib-${item.sourceId}`,
-              },
-            },
-            create: {
-              category: "prediction_lesson",
-              key: `pred-calib-${item.sourceId}`,
-              content: `Prediction Calibration: Prediction "${pred.prediction}" (confidence: ${pred.confidence}) resolved as ${approvedStatus}. Brier: ${brier !== null ? brier.toFixed(3) : "N/A"}. Outcome: ${outcomeDescription}`,
-              confidence: pred.confidence,
-              source: "system:calibration",
-              expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-              metadata: {
-                sourceId: item.sourceId,
-                sourceType: "Prediction",
-                confidence: pred.confidence,
-                approvedStatus,
-                brierScore: brier,
-              },
-            },
-            update: {
-              content: `Prediction Calibration: Prediction "${pred.prediction}" (confidence: ${pred.confidence}) resolved as ${approvedStatus}. Brier: ${brier !== null ? brier.toFixed(3) : "N/A"}. Outcome: ${outcomeDescription}`,
-              expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-              metadata: {
-                sourceId: item.sourceId,
-                sourceType: "Prediction",
-                confidence: pred.confidence,
-                approvedStatus,
-                brierScore: brier,
-              },
-            },
-          }).catch(() => {});
-        }
+        const note = "Bulk auto-approved (low risk)";
+        const { accuracyScore, lesson } = await applyLowRiskOutcome(prisma, item, note);
+        await writeCalibrationLesson(lesson);
 
         await prisma.calibrationReviewItem.update({
           where: { id: item.id },
           data: {
-            status: finalStatus,
-            approvedActualOutcome: finalActualOutcome,
+            status: "approved",
+            approvedActualOutcome: item.proposedActualOutcome as Prisma.InputJsonValue,
             accuracyScore,
-            correctionNote: "Bulk auto-approved (low risk)",
+            correctionNote: note,
             reviewedAt: new Date(),
             reviewedBy: "owner",
           },
