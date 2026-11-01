@@ -109,6 +109,24 @@ export function FollowUpTransferCard() {
     );
   }
 
+  // No transfer tool is the design (server/services/vapi.ts followUpToolSet), so there is
+  // nothing to reset: a "Reset to shop" here could only fail.
+  if (dest.hasTransferTool === false) {
+    return (
+      <div className="bg-card/50 border border-border/30 rounded p-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-bold text-foreground/40">Follow-Up Caller transfer</span>
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-foreground/5 text-foreground/60 border border-border/30">
+            No transfer step
+          </span>
+        </div>
+        <div className="text-[10px] text-foreground/40 mt-0.5">
+          This caller never transfers a call. When a customer wants the shop, it puts them on the callback list.
+        </div>
+      </div>
+    );
+  }
+
   const isShop = dest.isShopLandline;
 
   return (

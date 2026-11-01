@@ -455,6 +455,16 @@ describe("Plain words on the page", () => {
     expect(screen.getByText("(216) 555-0123")).toBeTruthy();
     expect(screen.queryByText("No number set")).toBeNull();
   });
+
+  // The Follow-Up Caller has no transfer step by design; "Reset to shop" there could only fail.
+  it("a follow-up caller with no transfer step says so and offers no reset or edit", () => {
+    h.queries.set("vapi.getFollowUpTransferDestination", ok({ ok: true, hasTransferTool: false, isShopLandline: false, currentNumber: null }));
+    render(<VoiceReceptionistSection />);
+    expect(screen.getByText("No transfer step")).toBeTruthy();
+    expect(screen.queryByText("Off shop number")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset to shop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit (advanced)" })).toBeNull();
+  });
 });
 
 describe("Codex round 1 on PR 3334", () => {
