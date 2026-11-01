@@ -368,6 +368,19 @@ without its result`. Findings and unresolved Codex threads never time out. Witho
 Comments are read newest page first through GraphQL, stopping at the marker that decides the head: `gh pr view --json
 comments` returns only the first 100, which hid a later marker (Codex P2 on #3144). Past 2,000 comments it is BLOCKED.
 
+**PR body bar (2026-11-01, quality-audit P1 #16).** The manager sent 3432/3434/3435 back on 2026-10-30 for bodies missing
+the bar sections; nothing enforced it. `merge-gate.mjs` (`assessBody`) now refuses with **exit 8** (chain scripts treat it
+like 2, BLOCKED; a hard blocker still exits 2, and 8 outranks not-ready 7) unless the body has four markdown HEADINGS, each
+with text under it, matched case-insensitively on the heading text: `^(hostile\s+)?self[- ]review\b`,
+`^kill[- ]criteri(on|a)\b` (its section must hold an ISO `YYYY-MM-DD` live-check date), `^10x\b`,
+`^(second[- ]reader|reader\s+of\s+record)\b`. Headings inside code fences or HTML comments, bold labels and prose do not
+count. An empty body is refused as all four missing; a body gh did not return is UNKNOWN and refused. It prints each
+missing section by name and `FIX: ... gh pr edit <n> --body-file <file>` (a body edit, no push). Exempt by rule, with a
+`BAR EXEMPT:` line: docs-only (EVERY changed path, a rename's old name included, is `*.md` or under `docs/`, the test.yml
+`docs_only` patterns; an empty or 3000-capped file list is not docs-only) and dependabot (`app/dependabot` with
+`is_bot: true`). `--body-fixture <file.json>` judges `{body, author, files}` without calling gh (probes, and a check
+before `gh pr create`). Canaries: the bar arms of `mergeGate.test.mjs`, including a stubbed-check pair.
+
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
 
