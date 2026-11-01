@@ -23,9 +23,15 @@ export const GET = cronHandler(async () => {
   const result = await summarizeIdleConversations({ limit: 10 });
   // cron-manager's countFrom() records only `resultCount`; without it every
   // night logged NULL, so a sweep that compiled nothing read as success.
-  // A failed digest must file a red row: cron-manager reds only on ok: false.
+  // A night where no digest landed is a red row (cron-manager reds only on ok: false).
+  // A night where some landed is PARTIAL: the failed ones stay eligible and retry
+  // tomorrow by design. Filing those red (10-30..11-01: 4 of 9, 4 of 6, 1 of 4, each a
+  // reason-lane call past its 100s timeout) made the heartbeat page "failing every run".
   if (result.failed > 0) {
-    return { ...result, ok: false, reason: `${result.failed} of ${result.eligible} conversation compiles failed`, resultCount: result.compiled };
+    const reason = `${result.failed} of ${result.eligible} conversation compiles failed`;
+    return result.compiled > 0
+      ? { ...result, degraded: true, degradedReason: reason, resultCount: result.compiled }
+      : { ...result, ok: false, reason, resultCount: result.compiled };
   }
   return { ...result, resultCount: result.compiled };
 });

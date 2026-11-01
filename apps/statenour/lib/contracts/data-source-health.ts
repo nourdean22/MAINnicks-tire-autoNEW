@@ -97,8 +97,13 @@ const PROBES: ProbeSpec[] = [
 
   // 2026-10-29 · the iPhone stopped posting Apple Health on 2026-08-03 and
   // nothing noticed for 87 days: the ingest route only speaks when a
-  // request arrives. A stale last batch is a FAILED probe so the cron's
-  // "Data feeder down" event fires. 48h = two missed daily automations.
+  // request arrives. 48h = two missed daily automations.
+  // 2026-11-01 · a silent PHONE is not a broken server. The probe fails on the
+  // first ET day that sees the outage, decided from its own stored verdict of an
+  // earlier day (not a clock window, so a missed run cannot skip the alert), and
+  // the cron's "Data feeder down" event fires once. After that it reads empty
+  // (rowCount 0, the probes page's empty streak) with the phone step that unlocks
+  // it. Failing every day filed data-source-health red every run from 10-30.
   {
     name: "personal.appleHealthSync",
     label: "Apple Health sync (last batch within 48h)",
@@ -107,19 +112,31 @@ const PROBES: ProbeSpec[] = [
         orderBy: { receivedAt: "desc" },
         select: { receivedAt: true },
       });
-      if (!last) {
-        return { ok: false, rowCount: 0, latencyMs: 0, reason: "no Apple Health sync ever received" };
+      const ageH = last ? (Date.now() - last.receivedAt.getTime()) / 3_600_000 : Infinity;
+      if (ageH <= 48) return { ok: true, rowCount: 1, latencyMs: 0 };
+
+      const phoneStep = "phone step owed: open Health Auto Export on the iPhone and turn the automation that posts to bdnick.info back on";
+      const reason = last
+        ? `no Apple Health data since ${last.receivedAt.toISOString().slice(0, 10)} (${Math.floor(ageH / 24)}d), ${phoneStep}`
+        : `no Apple Health sync ever received, ${phoneStep}`;
+      const prior = await prisma.brainMemory.findFirst({
+        where: {
+          category: "data_source_probe",
+          key: { startsWith: "personal.appleHealthSync_", not: `personal.appleHealthSync_${etDateKey()}` },
+          deletedAt: null,
+        },
+        orderBy: { updatedAt: "desc" },
+        select: { content: true },
+      });
+      // Already reported = an earlier day's row read this outage (rowCount 0). No
+      // row or an unreadable one counts as not reported: fail toward alerting.
+      let alreadyReported = false;
+      try {
+        alreadyReported = prior !== null && (JSON.parse(prior.content) as { rowCount?: unknown }).rowCount === 0;
+      } catch {
+        alreadyReported = false;
       }
-      const ageH = (Date.now() - last.receivedAt.getTime()) / 3_600_000;
-      if (ageH > 48) {
-        return {
-          ok: false,
-          rowCount: 0,
-          latencyMs: 0,
-          reason: `last Apple Health sync ${Math.floor(ageH / 24)}d ago, check the Health Auto Export automation on the iPhone`,
-        };
-      }
-      return { ok: true, rowCount: 1, latencyMs: 0 };
+      return { ok: alreadyReported, rowCount: 0, latencyMs: 0, reason };
     }),
     emptyDaysAlertThreshold: 2,
     kind: "personal",
@@ -225,6 +242,11 @@ function timed(
   };
 }
 
+/** The ET calendar day a probe row is keyed by. */
+function etDateKey(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
 /** Run all probes in parallel and persist per-probe results. */
 export async function runHealthProbes(): Promise<{
   total: number;
@@ -242,8 +264,7 @@ export async function runHealthProbes(): Promise<{
 
   // Persist results — one row per probe per ET date so a streak query
   // can count consecutive empty days.
-  const dateKey = new Date()
-    .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const dateKey = etDateKey();
   for (const r of results) {
     const key = `${r.name}_${dateKey}`;
     await prisma.brainMemory
