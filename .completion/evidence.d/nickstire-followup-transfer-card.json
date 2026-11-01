@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "WHAT THE OPERATOR SEES after this diff: Admin -> Voice -> the Follow-Up Caller transfer card. Before: an amber 'Off shop number' chip, 'No number set', and a 'Reset to shop' button that failed with 'Assistant has no transferCall tool - re-run vapi-update-assistant.ts'. After: a neutral 'No transfer step' chip and one line, 'This caller never transfers a call. When a customer wants the shop, it puts them on the callback list.', with no Reset or Edit buttons. The receptionist card is unchanged. Rendered in the client test (voice-plain-words.test.tsx, the no-transfer-step case: chip shown, no 'Off shop number', no Reset or Edit button). Live signed-in walkthrough DEFERRED: the admin needs Nour's sign-in; the manager reads the card on his next visit after deploy."
+    }
+  }
+}

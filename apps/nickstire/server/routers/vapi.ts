@@ -1003,6 +1003,8 @@ export const vapiRouter = router({
         assistantName: assistant.name || null,
         currentNumber: dest?.number || null,
         currentMessage: dest?.message || null,
+        // False is the design (services/vapi.ts followUpToolSet): no number to reset, not an off-shop one.
+        hasTransferTool: Boolean(transfer),
         // True iff currently set to the canonical shop landline.
         isShopLandline: dest?.number === SHOP_LANDLINE_E164,
         shopLandline: SHOP_LANDLINE_E164,
@@ -1085,7 +1087,9 @@ export const vapiRouter = router({
       if (idx < 0) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Assistant has no transferCall tool — re-run vapi-update-assistant.ts to add it",
+          message: input.target === "followUp"
+            ? "The Follow-Up Caller has no transfer step by design: its callbacks go to the shop's callback list, so there is no number to change."
+            : "Assistant has no transferCall tool — re-run vapi-update-assistant.ts to add it",
         });
       }
       const existingDestinations = (tools[idx].destinations as Array<Record<string, unknown>>) || [];
