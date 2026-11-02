@@ -90,4 +90,14 @@ describe("decodeCockpitSseResponse", () => {
     expect(onMessagePersisted).toHaveBeenCalledWith({ id: "m1", content: "Stored reply.", traceId: "tr-9" });
     expect(seen.map((d) => d.type)).toEqual(["message.persisted"]);
   });
+
+  it("B2: passes verifying through when the server is still checking the stored draft", async () => {
+    const onMessagePersisted = vi.fn();
+    const res = decodeCockpitSseResponse(
+      sse(['event: message.persisted\ndata: {"id":"m1","content":"Draft.","verifying":true}\n\n'], { "X-Trace-Id": "tr-9" }),
+      { isResume: false, onMessagePersisted },
+    );
+    await readText(res);
+    expect(onMessagePersisted).toHaveBeenCalledWith({ id: "m1", content: "Draft.", traceId: "tr-9", verifying: true });
+  });
 });

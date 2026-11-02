@@ -20,8 +20,8 @@ export interface DecodeCockpitSseOpts {
   isResume: boolean;
   /** P2-B6 · id of the bubble a named resume merges into. */
   resumeInto?: string;
-  /** `event: message.persisted { id, content }`, tagged with this response's X-Trace-Id. */
-  onMessagePersisted?: (persisted: { id: string; content: string; traceId: string | null }) => void;
+  /** `event: message.persisted { id, content, verifying? }`, tagged with this response's X-Trace-Id. */
+  onMessagePersisted?: (persisted: { id: string; content: string; traceId: string | null; verifying?: boolean }) => void;
   /** Called at most once per response when a chunk payload cannot be decoded. */
   onDecodeError?: () => void;
 }
@@ -132,7 +132,13 @@ export function decodeCockpitSseResponse(res: Response, opts: DecodeCockpitSseOp
                     typeof parsed?.id === "string" &&
                     typeof parsed?.content === "string"
                   ) {
-                    onMessagePersisted?.({ id: parsed.id, content: parsed.content, traceId: responseTraceId });
+                    onMessagePersisted?.({
+                      id: parsed.id,
+                      content: parsed.content,
+                      traceId: responseTraceId,
+                      // B2: the stored text is the draft and the server is still checking it.
+                      ...(parsed.verifying === true ? { verifying: true } : {}),
+                    });
                   }
                   const ev = new CustomEvent("cockpit-event", {
                     detail: { type: currentEvent, payload: parsed },

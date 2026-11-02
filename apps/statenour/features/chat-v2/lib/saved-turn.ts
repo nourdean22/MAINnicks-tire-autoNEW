@@ -69,6 +69,14 @@ export function savedReplyForTrace(rows: readonly SavedRow[] | null | undefined,
   return null;
 }
 
+/** B2: this turn's row once the server's deferred check has settled it (tokenUsage.cove.status "done"). */
+export function settledReplyForTrace(rows: readonly SavedRow[] | null | undefined, traceId: string): { id: string; content: string } | null {
+  const saved = savedReplyForTrace(rows, traceId);
+  const row = saved && (rows ?? []).find((r) => r?.id === saved.id);
+  const cove = (row?.tokenUsage as { cove?: { status?: unknown } } | null | undefined)?.cove;
+  return saved && cove?.status === "done" ? saved : null;
+}
+
 /**
  * safe: every saved row says nothing a replay would repeat. ran: a settled row
  * records a write (or an action block). unconfirmed: nothing saved, nothing read,
