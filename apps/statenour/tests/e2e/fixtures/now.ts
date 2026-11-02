@@ -14,6 +14,7 @@ export const NOW_COMPOSE: { ok: true; data: ComposeResult } = {
   data: {
     refused: 0,
     failed: 0,
+    skipped: 0,
     parts: [
       {
         type: "tool-getTasks",
