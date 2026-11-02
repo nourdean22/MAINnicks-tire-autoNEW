@@ -147,6 +147,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "addTasksToProject",            category: "personal_write", cost: "free" },
   { name: "archiveGoal",                  category: "personal_write", cost: "free" },
   { name: "completeCommitment",           category: "personal_write", cost: "free" },
+  { name: "answerOpenLoop",               category: "personal_write", cost: "free" },
   { name: "completeTask",                 category: "personal_write", cost: "free" },
   { name: "createCommitment",             category: "personal_write", cost: "free" },
   { name: "createMissionPlan",            category: "personal_write", cost: "free" },

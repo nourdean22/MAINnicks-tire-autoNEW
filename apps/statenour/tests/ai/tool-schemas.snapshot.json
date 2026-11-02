@@ -256,6 +256,32 @@
     }
   },
   {
+    "name": "answerOpenLoop",
+    "description": "Record Nour's answer to the open-loop question dailyPulse returned (openLoop.id): done (he did it), not_yet (still on him), dropped (he decided not to). Once per question; never ask it again after.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "answer": {
+          "enum": [
+            "done",
+            "not_yet",
+            "dropped"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "description": "openLoop.id from dailyPulse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "answer"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "archiveGoal",
     "description": "Archive a LifeGoal (soft-delete · preserves CoachLog + GoalEvent history · recoverable). Use when Nour says 'drop this goal' / 'archive that goal'. Pre-Wave-28 the UI hard-deleted goals · now both UI + Nick use soft-delete.",
     "inputSchema": {
@@ -939,7 +965,7 @@
   },
   {
     "name": "dailyPulse",
-    "description": "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. Also returns the shop's weekly hours and whether it is open right now (shopHours.openNow): use for 'is the shop open', 'shop hours', 'what time do we close'. v10.0.79 supersedes the narrower getShopBriefing.",
+    "description": "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. Also returns the shop's weekly hours and whether it is open right now (shopHours.openNow): use for 'is the shop open', 'shop hours', 'what time do we close'. v10.0.79 supersedes the narrower getShopBriefing. openLoop, when present, is something Nour said he would do by a date that has passed: ask him about it once, in one short line that quotes him and names the day (no nagging, no follow-up push). When he answers, call answerOpenLoop with openLoop.id and done / not_yet / dropped.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
