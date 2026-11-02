@@ -277,7 +277,8 @@ const POLICY_PATH = fileURLToPath(new URL("../../config/agent-os/policy.json", i
 
 /**
  * The default for --codex-wait-minutes: `mergeGate.codexWaitMinutes` in config/agent-os/policy.json, so a Codex-quota day is
- * one reviewed number, not a flag every caller must remember. It sets the length of the existing no-marker timer only. A
+ * one reviewed number, not a flag every caller must remember. It sets only the existing fail-open timers: no marker after N
+ * minutes, and a review still running after 2N (assessCodex). A
  * missing key is the built-in 25 silently; an unreadable file or a bad value is also 25 (the longest wait, never the shortest)
  * with a `note` for the caller to print. The `--codex-wait-minutes` flag wins over this.
  */

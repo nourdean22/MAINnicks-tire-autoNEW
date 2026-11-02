@@ -45,7 +45,7 @@
   ],
   "version": 2,
   "mergeGate": {
-    "$comment": "Default for merge-gate.mjs --codex-wait-minutes (job 2026-11-02-platform-followups-w6): how long a PR with no Codex review marker waits before the gate WARNs and merges without it. Lower it (0 = do not wait) on a day Codex is out of quota, restore 25 after. The flag still overrides; a missing or malformed value means 25. It sets the length of one existing fail-open timer and changes no merge condition: findings, unresolved Codex threads, CI, the PR body bar and the busy-check hold are unaffected. Read by scripts/agent-os/merge-gate.mjs codexWaitDefault; pinned by scripts/agent-os/mergeGate.test.mjs.",
+    "$comment": "Default for merge-gate.mjs --codex-wait-minutes (job 2026-11-02-platform-followups-w6): how long a PR with no Codex review marker waits before the gate WARNs and merges without it (a review still running is waited on for twice this). Lower it (0 = do not wait for either) on a day Codex is out of quota, restore 25 after. The flag still overrides; a missing or malformed value means 25. It sets the length of those two existing fail-open timers and changes no merge condition: findings, unresolved Codex threads, CI, the PR body bar and the busy-check hold are unaffected. Read by scripts/agent-os/merge-gate.mjs codexWaitDefault; pinned by scripts/agent-os/mergeGate.test.mjs.",
     "codexWaitMinutes": 25
   },
   "infraApprovals": {
