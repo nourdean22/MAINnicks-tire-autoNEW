@@ -53,6 +53,8 @@ export const V3_PAGES: { key: string; path: string; landmark: string; baselinePe
   { key: "missions", path: "/missions", landmark: "main" },
   // ?h=1 opens the History drawer, the only way a conversation loads (openChatHistory above).
   { key: "chat", path: "/chat?h=1", landmark: "main" },
+  // W6: /now 404s until W6_INTENT_SURFACE is on (set in e2e-statenour.yml). Pending until its baselines are captured from main.
+  { key: "now", path: "/now", landmark: "main", baselinePending: true },
 ];
 
 export const V3_VIEWPORTS = [
@@ -84,6 +86,15 @@ export async function openChatHistory(page: Page, title: string): Promise<void> 
   await expect(row, "chat: the seeded conversation never reached the History drawer").toBeVisible({ timeout: 60_000 });
   await row.click();
   await expect(page.getByRole("button", { name: "Close history" }), "chat: the History drawer never closed after the pick").toHaveCount(0);
+}
+
+/**
+ * /now asks nothing on load (components/now/intent-surface.tsx): the cards arrive only after a starter
+ * intent is tapped, and the fixtures answer that POST (fixtures/now.ts). A chip that is gone makes the
+ * click time out, which is a loud failure, not a quiet empty render.
+ */
+export async function openNowStarter(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Shop today", exact: true }).click({ timeout: 60_000 });
 }
 
 /**

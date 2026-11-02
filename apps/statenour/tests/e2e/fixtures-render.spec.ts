@@ -3,7 +3,7 @@
  * default. It proves the fixture lane works on the hermetic CI stack, so the
  * opt-in v3 gate does not discover on capture day that its data never arrived.
  *
- * Three tests, phone width: Home, Missions and (W3a) Chat rendered from the DEMO
+ * Four tests, phone width: Home, Missions, (W3a) Chat and (W6) Now rendered from the DEMO
  * fixtures must show text that exists ONLY in the fixtures (tests/repo/v3-gate.test.ts
  * greps the app source to prove it), so a page rendered from the empty database
  * cannot pass. It also fails on the page's own error states, on an uncaught
@@ -14,7 +14,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures, type FixtureReport } from "./fixtures";
-import { IGNORED_PAGE_ERRORS, VT_CONTEXT, openChatHistory, settleChat } from "./vt-render";
+import { IGNORED_PAGE_ERRORS, VT_CONTEXT, openChatHistory, openNowStarter, settleChat } from "./vt-render";
 
 test.use({ viewport: { width: 390, height: 844 }, ...VT_CONTEXT });
 
@@ -65,5 +65,16 @@ test.describe("v3 fixtures render", () => {
     await expect(page.getByText(PAGE_ERRORS.chat)).toHaveCount(0);
     expect(disallowedUnstubbed(report.unstubbed), "Chat read page data the fixtures do not answer").toEqual([]);
     expect(pageErrors, "Chat threw during render").toEqual([]);
+  });
+
+  // W6: /now is a 404 unless W6_INTENT_SURFACE is on (e2e-statenour.yml sets it); a tapped starter intent draws the cards.
+  test("Now shows the composed DEMO cards after a starter intent, not the empty surface", async ({ page }) => {
+    const { pageErrors, report } = await openFromFixtures(page, "/now");
+    await openNowStarter(page);
+    await expect(page.getByText(DEMO.nowCard).first()).toBeVisible({ timeout: 60_000 });
+    await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+    await expect(page.getByText(PAGE_ERRORS.now)).toHaveCount(0);
+    expect(disallowedUnstubbed(report.unstubbed), "Now read page data the fixtures do not answer").toEqual([]);
+    expect(pageErrors, "Now threw during render").toEqual([]);
   });
 });
