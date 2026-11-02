@@ -37,10 +37,10 @@ import { pruneTools } from "@/lib/ai/chat-mode";
 import { afterEach } from "vitest";
 
 // 2026-08-12 · the ceiling is now the env-tunable NICK_TOOL_BUDGET
-// (default 24, floor 10 — was a hardcoded 50). Tool-selection precision
+// (default 32 since 2026-11-02 B3, was 24; floor 10 — was a hardcoded 50). Tool-selection precision
 // degrades sharply with exposed-tool count; the tiers keep priority
 // order and prepare-tools re-adds intent-critical tools after pruning.
-const DEFAULT_BUDGET = 24;
+const DEFAULT_BUDGET = 32;
 
 afterEach(() => {
   delete process.env.NICK_TOOL_BUDGET;

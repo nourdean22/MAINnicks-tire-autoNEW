@@ -134,7 +134,7 @@ export async function prepareTools(args: {
   // ═══ PERF: Prune tools by mode ═══
   // Quick mode → zero tools. Standard → core + semantic top-15 + keyword.
   // Deep → core + semantic top-40 + keyword. Both bounded by the
-  // NICK_TOOL_BUDGET ceiling (default 24, was a hardcoded 50 — see
+  // NICK_TOOL_BUDGET ceiling (default 32 since 2026-11-02, was 24, before that a hardcoded 50 — see
   // pruneTools in lib/ai/chat-mode.ts; the "all 159" this comment used
   // to claim was stale even then).
   // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
