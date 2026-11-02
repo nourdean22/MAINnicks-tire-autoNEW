@@ -35,6 +35,8 @@ interface CreateCockpitSseStreamInput {
 export interface PersistedMessage {
   id: string;
   content: string;
+  /** B2: the stored text is the draft; Chain-of-Verification is still running and patches the row. */
+  verifying?: boolean;
 }
 const persistedListeners = new Map<string, (p: PersistedMessage) => void>();
 
@@ -94,7 +96,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
       // loop below still awaits onFinishPromise); nothing more is sent.
       const onPersisted = (p: PersistedMessage) => {
         if (turnClosed) return;
-        sendEvent("message.persisted", { id: p.id, content: p.content });
+        sendEvent("message.persisted", { id: p.id, content: p.content, ...(p.verifying ? { verifying: true } : {}) });
         sendEvent("message.completed", COMPLETED_PAYLOAD);
         turnClosed = true;
         persistedListeners.delete(traceId);
