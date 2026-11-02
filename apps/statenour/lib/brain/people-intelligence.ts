@@ -12,6 +12,7 @@
  * - People most relevant to current goals
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
@@ -20,8 +21,51 @@ import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { isNeglected } from "@/lib/services/people/neglect";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { nameMatcher } from "@/lib/services/people/backfill-plan";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
+
+/** The fallback note both chat writers use when the digest gave no detail: it records a contact, nothing about the person. */
+const GENERIC_NOTE = /^interaction reported in chat \(/i;
+const CONTEXT_MAX = 3;
+/** A dismissed role/notes suggestion stays away this long, like a dismissed cadence (second reader on 3519). */
+const ENRICH_REPROPOSE_DAYS = 30;
+
+function proposedWithin(metadata: unknown, key: string, days: number): boolean {
+  const at = (metadata as Record<string, unknown> | null)?.[key];
+  const ms = typeof at === "string" ? Date.parse(at) : NaN;
+  return Number.isFinite(ms) && ms > Date.now() - days * 86_400_000;
+}
+
+/**
+ * A waiting suggestion that already proposes a role, notes or a trust change. A cadence-only
+ * one (W2) does not count: on 2026-11-02 it was blocking 9 of the 10 "Needs info" people.
+ */
+function hasEnrichProposal(pc: unknown): boolean {
+  const o = pc as { role?: unknown; leverageNotes?: unknown; trustAdjustment?: unknown } | null;
+  return !!o && (!!o.role || !!o.leverageNotes || (typeof o.trustAdjustment === "number" && o.trustAdjustment !== 0));
+}
+
+/** Up to `max` snippets of HIS OWN chat messages naming the person (whole word), newest first. */
+async function chatSnippets(name: string, max: number): Promise<string[]> {
+  const re = nameMatcher(name);
+  // shortcut: a short name inside many longer words can fill the 20 rows with non-matches; widen take if a name that short appears.
+  const rows = await prisma.chatMessage.findMany({
+    where: { role: "user", content: { contains: name.trim(), mode: "insensitive" } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { content: true },
+  });
+  const out: string[] = [];
+  for (const r of rows) {
+    const m = re.exec(r.content);
+    if (!m) continue;
+    const from = Math.max(0, m.index - 80);
+    out.push(r.content.slice(from, from + 200).replace(/\s+/g, " ").trim());
+    if (out.length >= max) break;
+  }
+  return out;
+}
 
 /**
  * Operator opened/edited the dossier within `days` — a "reviewed" signal
@@ -48,7 +92,7 @@ export async function runPeopleIntelligence(): Promise<{
   profilesUpdated: number;
   alerts: string[];
   /** Set when the enrich pass could not read its context: 0 updates then means UNKNOWN, not a quiet day. */
-  enrich?: "ledger_read_failed";
+  enrich?: "ledger_read_failed" | "chat_read_failed";
   /** People W2: cadence proposals parked for his accept this run. */
   cadenceProposed?: number;
   /** Set when the cadence pass could not read the ledger: no proposal was guessed. */
@@ -108,14 +152,18 @@ export async function runPeopleIntelligence(): Promise<{
   }
 
   // Propose enrichment for profiles that are too sparse — but skip any
-  // that ALREADY have a suggestion waiting for the operator (don't burn
-  // AI calls re-proposing the same thing, and don't clobber a pending one).
+  // that ALREADY have a role/notes suggestion waiting for the operator (don't
+  // burn AI calls re-proposing the same thing). A cadence-only one is merged into.
   const sparse = people.filter(
-    (p) => (p.role === "unknown" || !p.leverageNotes) && !p.pendingClassification
+    (p) =>
+      (p.role === "unknown" || !p.leverageNotes) &&
+      !hasEnrichProposal(p.pendingClassification) &&
+      !proposedWithin(p.metadata, "enrichProposedAt", ENRICH_REPROPOSE_DAYS)
   );
 
   let updated = 0;
   let ledgerReadFailed = false;
+  let chatReadFailed = false;
   const suggestedNow = new Set<string>();
   if (sparse.length > 0) {
     // People W0 (2026-10-30): the context is the person's own ledger notes.
@@ -142,19 +190,33 @@ export async function runPeopleIntelligence(): Promise<{
     const ledgerContext: Record<string, string[]> = {};
     for (const n of notes ?? []) {
       const list = (ledgerContext[n.personId] ??= []);
-      if (list.length < 3 && n.note.trim()) list.push(n.note.trim().slice(0, 200));
+      const note = n.note.trim();
+      if (list.length < CONTEXT_MAX && note && !GENERIC_NOTE.test(note)) list.push(note.slice(0, 200));
     }
 
     let enrichFailCount = 0;
-    // Nothing on record means nothing to ground a suggestion in: no call.
-    for (const person of sparse.filter((p) => ledgerContext[p.id]?.length).slice(0, 5)) {
-      const contexts = ledgerContext[person.id];
+    let calls = 0;
+    // Nothing on record and nothing he wrote means nothing to ground a suggestion in: no call.
+    for (const person of ledgerReadFailed ? [] : sparse) {
+      if (calls >= 5) break;
+      const logged = ledgerContext[person.id] ?? [];
+      const said =
+        logged.length < CONTEXT_MAX
+          ? await chatSnippets(person.name, CONTEXT_MAX - logged.length).catch((err) => {
+              logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.chatSnippets" });
+              chatReadFailed = true;
+              return [] as string[];
+            })
+          : [];
+      const contexts = [...logged, ...said];
+      if (contexts.length === 0) continue;
+      calls++;
 
       const enrichResult = await aiChat(
         [
           {
             role: "system",
-            content: `Based on these logged interactions, determine this person's role and strategic relevance to Nour (CEO of an auto repair shop).
+            content: `Based on these logged interactions and what Nour wrote about this person in chat, determine this person's role and strategic relevance to Nour (CEO of an auto repair shop).
 
 Pick the role from EXACTLY this list (use the closest fit; do not invent one):
 ${PERSON_ROLE_PROMPT_LIST}
@@ -168,7 +230,7 @@ Return ONLY JSON:
           },
           {
             role: "user",
-            content: `Person: ${person.name}\nCurrent role: ${person.role}\nRelationship: ${person.relationship}\nLogged interactions: ${contexts.join("; ")}\nInteraction count: ${person.interactionCount}`,
+            content: `Person: ${person.name}\nCurrent role: ${person.role}\nRelationship: ${person.relationship}\nLogged interactions: ${logged.join("; ") || "none"}\nWhat Nour wrote in chat: ${said.join(" | ") || "none"}\nInteraction count: ${person.interactionCount}`,
           },
         ],
         "fast"
@@ -201,10 +263,24 @@ Return ONLY JSON:
 
           // Nothing worth surfacing? Skip — don't park an empty suggestion.
           if (suggestedRole || suggestedNotes || trustAdjustment !== 0) {
+            // Keep a waiting cadence proposal: one banner, and his Accept applies both.
+            const prior = person.pendingClassification;
+            const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
+            const meta =
+              person.metadata && typeof person.metadata === "object" && !Array.isArray(person.metadata)
+                ? (person.metadata as Record<string, unknown>)
+                : {};
+            // Compare-and-swap on the slot this run read: if he accepted or dismissed it during
+            // the model call, the write matches nothing (P2025) and is skipped below.
             await prisma.personProfile.update({
-              where: { id: person.id },
+              where: {
+                id: person.id,
+                pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue },
+              },
               data: {
+                metadata: { ...meta, enrichProposedAt: new Date().toISOString() } as object,
                 pendingClassification: {
+                  ...keep,
                   role: suggestedRole,
                   leverageNotes: suggestedNotes,
                   trustAdjustment,
@@ -216,8 +292,9 @@ Return ONLY JSON:
             updated++;
             suggestedNow.add(person.id);
           }
-        } catch {
-          enrichFailCount++;
+        } catch (err) {
+          // Lost the swap: he answered the banner mid-run. His answer stands; not a failure.
+          if ((err as { code?: unknown } | null)?.code !== "P2025") enrichFailCount++;
         }
       }
     }
@@ -234,7 +311,11 @@ Return ONLY JSON:
   return {
     profilesUpdated: updated,
     alerts,
-    ...(ledgerReadFailed ? { enrich: "ledger_read_failed" as const } : {}),
+    ...(ledgerReadFailed
+      ? { enrich: "ledger_read_failed" as const }
+      : chatReadFailed
+        ? { enrich: "chat_read_failed" as const }
+        : {}),
     cadenceProposed: cadence.proposed,
     ...(cadence.readFailed ? { cadence: "ledger_read_failed" as const } : {}),
   };
