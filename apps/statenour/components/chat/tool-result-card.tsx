@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { ChevronRight, Loader2 } from "lucide-react";
-import { TOOL_CONFIG, COLORS } from "@/components/chat/tool-result-registry";
+import { TOOL_CONFIG, COLORS, isKnownToolName } from "@/components/chat/tool-result-registry";
 import { isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 export { isKnownToolName } from "@/components/chat/tool-result-registry";
 
@@ -113,7 +113,7 @@ export interface ToolResultCardProps {
 }
 
 export function ToolResultCard({ toolName, state, output }: ToolResultCardProps) {
-  const config = TOOL_CONFIG[toolName];
+  const config = isKnownToolName(toolName) ? TOOL_CONFIG[toolName] : undefined;
   const [expanded, setExpanded] = useState(false);
   const isDone = state === "output-available";
   const rawJson = useMemo(() => {

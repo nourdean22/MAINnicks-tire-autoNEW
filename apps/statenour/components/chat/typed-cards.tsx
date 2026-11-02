@@ -157,3 +157,76 @@ export function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
     </div>
   );
 }
+
+// ─── W6 PR 2 · the six reads /now needs (tasks, missions, commitments, people, calendar, habits) ───
+// Loose on purpose: only the fields a row draws are required, so a new producer field never hides a card.
+
+const DateText = z.optional(z.nullable(z.string()));
+// lib/ai/tools.ts wrapToolsWithEmptyHandling answers an empty get* list with this envelope instead of [].
+const NoDataEnvelope = z.object({ status: z.literal("no_data_found"), data: z.array(z.unknown()) });
+const listOf = <T extends z.ZodMiniType>(row: T) => z.union([z.array(row), NoDataEnvelope]);
+export const asList = <T,>(o: T[] | z.infer<typeof NoDataEnvelope>): T[] => (Array.isArray(o) ? o : []);
+
+export const TasksOutputSchema = listOf(
+  z.object({ title: z.string(), status: z.optional(z.string()), dueDate: DateText, mission: z.optional(z.nullable(z.object({ title: z.string() }))) }),
+);
+export const MissionsOutputSchema = listOf(z.object({ title: z.string(), domain: z.optional(z.nullable(z.string())) }));
+export const CommitmentsOutputSchema = listOf(
+  z.object({ description: z.string(), toWhom: z.optional(z.nullable(z.string())), deadline: DateText }),
+);
+export const RelationshipPicksOutputSchema = z.object({
+  picks: z.array(z.object({ name: z.string(), why: z.optional(z.nullable(z.string())), daysQuiet: z.optional(z.nullable(z.number())) })),
+});
+// ok:false (not connected, grant expired) never reaches this: ToolResultCard reads it as a soft failure first.
+export const ScheduleOutputSchema = z.object({
+  count: z.optional(z.number()),
+  unreadableAccounts: z.optional(z.array(z.string())),
+  events: z.array(z.object({ summary: z.string(), start: z.optional(z.nullable(z.string())), allDay: z.optional(z.boolean()), location: z.optional(z.nullable(z.string())) })),
+});
+export const HabitStreaksOutputSchema = z.record(z.string(), z.object({ completed: z.number(), total: z.number() }));
+
+export interface IntentRow {
+  primary: string;
+  secondary?: string | null;
+}
+
+const ROW_CAP = 5;
+const day = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : null);
+const etTime = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" });
+};
+const joinParts = (...parts: Array<string | null | undefined>) => parts.filter(Boolean).join(" · ") || null;
+
+/** Each read's parsed output as rows: the one body all six share. */
+export const INTENT_ROWS = {
+  getTasks: (o: z.infer<typeof TasksOutputSchema>): IntentRow[] =>
+    asList(o).map((t) => ({ primary: t.title, secondary: joinParts(t.mission?.title, t.dueDate ? `due ${day(t.dueDate)}` : null) })),
+  getMissions: (o: z.infer<typeof MissionsOutputSchema>): IntentRow[] => asList(o).map((m) => ({ primary: m.title, secondary: m.domain?.toLowerCase() ?? null })),
+  getCommitments: (o: z.infer<typeof CommitmentsOutputSchema>): IntentRow[] =>
+    asList(o).map((c) => ({ primary: c.description, secondary: joinParts(c.toWhom && c.toWhom !== "self" ? `to ${c.toWhom}` : null, c.deadline ? `due ${day(c.deadline)}` : null) })),
+  getRelationshipPicks: (o: z.infer<typeof RelationshipPicksOutputSchema>): IntentRow[] =>
+    o.picks.map((p) => ({ primary: p.name, secondary: p.why ?? (p.daysQuiet != null ? `${p.daysQuiet} days quiet` : null) })),
+  getTodaySchedule: (o: z.infer<typeof ScheduleOutputSchema>): IntentRow[] =>
+    o.events.map((e) => ({ primary: e.summary, secondary: joinParts(e.allDay ? "all day" : e.start ? etTime(e.start) : null, e.location) })),
+  getHabitStreaks: (o: z.infer<typeof HabitStreaksOutputSchema>): IntentRow[] =>
+    Object.entries(o).map(([title, s]) => ({ primary: title, secondary: `${s.completed} of ${s.total} days` })),
+};
+
+export function IntentRows({ tool, rows }: { tool: string; rows: IntentRow[] }) {
+  if (rows.length === 0) return null;
+  const shown = rows.slice(0, ROW_CAP);
+  return (
+    <ul className="mt-1 space-y-1.5" data-testid={`intent-rows-${tool}`}>
+      {shown.map((r, i) => (
+        <li key={`${r.primary}-${i}`} className="text-[12.5px] leading-snug">
+          <span className="text-fg">{r.primary}</span>
+          {r.secondary ? <span className="block text-[11.5px] text-fg-tertiary">{r.secondary}</span> : null}
+        </li>
+      ))}
+      {rows.length > ROW_CAP && <li className="text-[11.5px] text-fg-tertiary">{rows.length - ROW_CAP} more</li>}
+    </ul>
+  );
+}

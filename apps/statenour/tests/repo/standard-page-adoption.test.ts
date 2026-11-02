@@ -24,6 +24,8 @@ const EXCEPTIONS: Record<string, string> = {
     "Home delegates to HomeConsole, which owns the command-surface composition.",
   "app/(mastery)/chat/page.tsx":
     "Chat is a fixed viewport application canvas with explicit safe-area and desktop-spine geometry.",
+  "app/(mastery)/now/page.tsx":
+    "A server gate for W6_INTENT_SURFACE; it renders IntentSurface (components/now), which owns StandardPage.",
 };
 
 function walkPages(dir: string, out: string[] = []): string[] {
