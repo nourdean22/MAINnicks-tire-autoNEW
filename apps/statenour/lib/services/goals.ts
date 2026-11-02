@@ -139,6 +139,42 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     }
   }
 
+  // 2026-11-02 · the missions planned from each goal (Mission.lifeGoalId): the card shows the
+  // ladder's progress and links to it. A failed read lists none; it never hides the goal.
+  type GoalMission = { id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number };
+  const missionsByGoal = new Map<string, GoalMission[]>();
+  if (goalIds.length > 0) {
+    try {
+      const missions = await prisma.mission.findMany({
+        where: activeOnly({ lifeGoalId: { in: goalIds } }),
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          lifeGoalId: true,
+          planData: true,
+          tasks: { where: activeOnly(), select: { status: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      for (const m of missions) {
+        if (!m.lifeGoalId) continue;
+        const phases = (m.planData as { phases?: unknown } | null)?.phases;
+        const row: GoalMission = {
+          id: m.id,
+          title: m.title,
+          status: m.status,
+          phaseCount: Array.isArray(phases) ? phases.length : 0,
+          tasksDone: m.tasks.filter((t) => t.status === "DONE").length,
+          tasksTotal: m.tasks.length,
+        };
+        (missionsByGoal.get(m.lifeGoalId) ?? missionsByGoal.set(m.lifeGoalId, []).get(m.lifeGoalId)!).push(row);
+      }
+    } catch (err) {
+      console.warn("[services/goals] missions query failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
   const byGoal = new Map<string, typeof linkedTasks>();
   for (const t of linkedTasks) {
     if (!t.goalId) continue;
@@ -217,6 +253,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           }
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
+      missions: missionsByGoal.get(g.id) ?? [],
       people: peopleOnGoal(tasks),
       stats,
       // Ambition Engine P3 · ladder position for the card — parent breadcrumb

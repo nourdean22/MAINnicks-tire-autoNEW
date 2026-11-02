@@ -143,6 +143,8 @@ interface LifeGoal {
   // Apr 27 · GB1 + GB3: server-enriched fields from /api/goals
   nextMove?: { id: string; title: string; status: string } | null;
   loopsThisWeek?: number;
+  /** The missions planned from this goal (Mission.lifeGoalId; lib/services/goals.ts getGoals). */
+  missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number }>;
   // Ambition Engine P1 · the mastery stats this goal levels (resolved
   // server-side: declared GoalStat rows, else domain-inferred). A rep on
   // a task tagged with this goal credits XP to these stats.
@@ -1502,6 +1504,18 @@ export function GoalBoard() {
                             {g.kind === "milestone" ? "milestones" : "loops"}
                           </span>
                         )}
+                        {/* 2026-11-02 · the mission "Plan it" made from this goal, with its ladder. */}
+                        {(g.missions ?? []).map((m) => (
+                          <Link
+                            key={m.id}
+                            href="/missions"
+                            onClick={(e) => e.stopPropagation()}
+                            className="min-h-11 inline-flex items-center gap-0.5 px-2 rounded-control border border-sky-500/30 bg-sky-500/5 text-sky-300 hover:bg-sky-500/15"
+                            title={`Mission: ${m.title}`}
+                          >
+                            mission{m.status !== "ACTIVE" ? ` ${m.status.toLowerCase()}` : ""} · {m.phaseCount} phases · {m.tasksDone}/{m.tasksTotal} tasks
+                          </Link>
+                        ))}
                         {/* Apr 27 · GB3: loops moved this week. The
                             "is this goal alive?" pulse. Pulled from
                             TaskEvent log; rendered emerald when > 0,

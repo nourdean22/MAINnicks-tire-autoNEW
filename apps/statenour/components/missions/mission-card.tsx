@@ -36,6 +36,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
+import Link from "next/link";
 import { missionHasEndState } from "@/lib/services/mission-helpers";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
@@ -248,6 +249,17 @@ export function MissionCard({
               {openTasks.length} open
             </span>
           ))}
+        {/* 2026-11-02 · the goal this mission was planned from (Mission.lifeGoalId). */}
+        {mission.lifeGoal && (
+          <Link
+            href="/stats?tab=goals"
+            onClick={(e) => e.stopPropagation()}
+            className="min-h-11 inline-flex items-center shrink-0 max-w-[10rem] truncate font-mono text-[11px] text-sky-300 hover:underline"
+            title={`Goal: ${mission.lifeGoal.title}`}
+          >
+            goal · {mission.lifeGoal.title}
+          </Link>
+        )}
         {deadlineLabel && (
           <span
             className={cn(

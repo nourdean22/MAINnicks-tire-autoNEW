@@ -23,6 +23,11 @@ const missionBaseSchema = z.object({
   deadline: nullableDate.optional(),
   weeklyReviewNote: nullableString.optional(),
   manualRankOverride: nullableInteger(1, 999).optional(),
+  // 2026-11-02 · the goal this mission was planned from (Mission.lifeGoalId) and what done looks
+  // like. Neither was accepted before, so the goal flow's link and the drawer's "done when" text
+  // were stripped on every save (prod: 13 live missions, 0 linked).
+  lifeGoalId: nullableString.optional(),
+  completionCriteria: nullableString.optional(),
   // May 02 · phase reorder + manual plan tweaks PATCH planData
   // through the same /api/missions/[id] route. Validator stays
   // permissive on shape since ProjectPlanData is a deep nested type
@@ -58,6 +63,8 @@ export const missionUpdateSchema = z
     deadline: nullableDate,
     weeklyReviewNote: nullableString,
     manualRankOverride: nullableInteger(1, 999),
+    lifeGoalId: nullableString,
+    completionCriteria: nullableString,
     planData: z.unknown()
   })
   .partial();

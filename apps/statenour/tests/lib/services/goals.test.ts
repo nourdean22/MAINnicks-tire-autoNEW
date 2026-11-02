@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   taskEvent: {
     findMany: vi.fn(),
   },
+  // 2026-11-02: a goal lists the missions planned from it (Mission.lifeGoalId).
+  mission: {
+    findMany: vi.fn(),
+  },
   emitGoalEventAsync: vi.fn(),
   emitGoalTransition: vi.fn(),
   softDelete: vi.fn(),
@@ -30,6 +34,7 @@ vi.mock("@/lib/prisma", () => ({
     task: mocks.task,
     taskEvent: mocks.taskEvent,
     brainDump: mocks.brainDump,
+    mission: mocks.mission,
   },
 }));
 
@@ -99,6 +104,45 @@ describe("Goals Service", () => {
       const result = await getGoals();
 
       expect(result[0].nextMove?.id).toBe("critical");
+    });
+
+    it("lists the missions planned from the goal with phase and task counts", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([
+        { id: "g1", title: "Goal", progress: 0, status: "active" },
+        { id: "g2", title: "Other", progress: 0, status: "active" },
+      ]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([
+        {
+          id: "m1",
+          title: "Goal",
+          status: "ACTIVE",
+          lifeGoalId: "g1",
+          planData: { v: 1, phases: [{ name: "a", steps: [] }, { name: "b", steps: [] }, { name: "c", steps: [] }] },
+          tasks: [{ status: "DONE" }, { status: "READY" }, { status: "DOING" }],
+        },
+      ]);
+
+      const result = await getGoals();
+
+      expect(mocks.mission.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ lifeGoalId: { in: ["g1", "g2"] }, deletedAt: null }) }),
+      );
+      expect(result[0].missions).toEqual([{ id: "m1", title: "Goal", status: "ACTIVE", phaseCount: 3, tasksDone: 1, tasksTotal: 3 }]);
+      expect(result[1].missions).toEqual([]);
+    });
+
+    it("a failed missions read lists none and does not break the goals", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockRejectedValueOnce(new Error("db down"));
+
+      const result = await getGoals();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].missions).toEqual([]);
     });
   });
 
