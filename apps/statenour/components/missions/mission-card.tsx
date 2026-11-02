@@ -254,7 +254,7 @@ export function MissionCard({
           <Link
             href="/stats?tab=goals"
             onClick={(e) => e.stopPropagation()}
-            className="shrink-0 max-w-[10rem] truncate font-mono text-[11px] text-sky-300 hover:underline"
+            className="min-h-11 inline-flex items-center shrink-0 max-w-[10rem] truncate font-mono text-[11px] text-sky-300 hover:underline"
             title={`Goal: ${mission.lifeGoal.title}`}
           >
             goal · {mission.lifeGoal.title}
