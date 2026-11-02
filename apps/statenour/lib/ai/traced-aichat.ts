@@ -72,7 +72,10 @@ export function makeTracedAiChat(
     taskType: TaskType = "reason",
     runtimeOpts: AiChatRuntimeOpts = {},
   ): Promise<AiResponse> => {
-    return tracedAiChat({ label, source }, messages, taskType, { ...defaults, ...runtimeOpts });
+    return tracedAiChat({ label, source }, messages, taskType, {
+      ...runtimeOpts,
+      timeoutMs: runtimeOpts.timeoutMs ?? defaults.timeoutMs,
+    });
   };
 }
 

@@ -62,6 +62,16 @@ describe("aiChat · per-call timeoutMs", () => {
     expect(aborts[0]).toBe(180_000);
   });
 
+  it("a non-positive timeoutMs falls back to the default instead of aborting at once", async () => {
+    const { aiChat } = await import("@/lib/ai/provider");
+    const aborts: number[] = [];
+    hangUntilAbort(aborts);
+    const pending = aiChat([{ role: "user", content: "x" }], "reason", { timeoutMs: 0 });
+    await vi.advanceTimersByTimeAsync(400_000);
+    await pending;
+    expect(aborts[0]).toBe(100_000);
+  });
+
   it("timeoutMs also lifts the fast lane's 45 s ceiling", async () => {
     const { aiChat } = await import("@/lib/ai/provider");
     const aborts: number[] = [];

@@ -41,6 +41,12 @@ describe("tracedAiChat · forwards timeoutMs", () => {
     expect(mocks.aiChatRaw.mock.calls[0][2].timeoutMs).toBe(5_000);
   });
 
+  it("a call site passing timeoutMs: undefined keeps the factory default", async () => {
+    const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+    await makeTracedAiChat("x", "brain", { timeoutMs: 90_000 })([{ role: "user", content: "q" }], "fast", { timeoutMs: undefined });
+    expect(mocks.aiChatRaw.mock.calls[0][2].timeoutMs).toBe(90_000);
+  });
+
   it("CONTROL: no default leaves timeoutMs unset (chat callers keep the provider default)", async () => {
     const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
     await makeTracedAiChat("x")([{ role: "user", content: "q" }], "fast");

@@ -468,15 +468,22 @@ export const megaFanoutEvening = inngest.createFunction(
     // In a step, so a replay after ET midnight keeps the run's own answer (08-X4).
     const sunday = await step.run("is-sunday-et", () => isSundayET());
     // The brain children run later, one at a time (megaBrainOffpeak). Scheduled before the
-    // batch so a partial batch's throw below cannot cancel them.
-    const brainAt = await step.run("brain-offpeak-at", () => offpeakStart(new Date()));
-    if (brainAt) {
+    // batch so a partial batch's throw below cannot cancel them, and caught so a failed
+    // hand-off cannot stop the batch (it is reported in the slot's failure below).
+    const brain = await step.run("brain-offpeak-at", () => offpeakStart(new Date()));
+    let handoffFailure: string | null = null;
+    try {
       await step.sendEvent("brain-offpeak", {
         name: BRAIN_OFFPEAK_EVENT,
-        // Inngest drops a repeat event id for 24h: a replay or a manual fire the same night is one phase.
-        id: `brain-offpeak-${brainAt}`,
-        data: { at: brainAt },
+        // One id per night: Inngest drops a repeat id for 24 h, so a replay or a second
+        // fire that night is one phase (think never writes twice). To re-run a night by
+        // hand, send mega/brain.offpeak directly with a new id.
+        id: `brain-offpeak-${brain.night}`,
+        data: { at: brain.at },
       });
+    } catch (err) {
+      handoffFailure = `brain-offpeak hand-off: ${err instanceof Error ? err.message : String(err)}`;
+      logError("inngest.mega-fanout", err, { stage: "brain-offpeak-handoff", night: brain.night });
     }
     const jobs = (sunday ? [...EVENING_JOBS, ...WEEKLY_JOBS] : EVENING_JOBS).filter(
       (p) => !OFFPEAK_BRAIN_JOBS.includes(p),
@@ -502,9 +509,10 @@ export const megaFanoutEvening = inngest.createFunction(
         failures: sum.failures.slice(0, 10),
       });
       throw new Error(
-        `mega-evening: ${sum.jobsFailed}/${settled.length} child crons failed · ${sum.failures.slice(0, 8).join(" ; ")}`,
+        `mega-evening: ${sum.jobsFailed}/${settled.length} child crons failed · ${sum.failures.slice(0, 8).join(" ; ")}${handoffFailure ? ` ; ${handoffFailure}` : ""}`,
       );
     }
+    if (handoffFailure) throw new Error(`mega-evening: ${handoffFailure}`);
     return {
       slot: "evening",
       isSundayET: sunday,
@@ -517,20 +525,24 @@ export const megaFanoutEvening = inngest.createFunction(
 const BRAIN_OFFPEAK_EVENT = "mega/brain.offpeak";
 
 /**
- * When the brain phase starts: 05:00Z (00:00 ET in winter) for the 03:00Z run, now for a run
- * already inside 05:00-07:00Z, never for a manual fire in the day (the nightly run covers it).
- * Quiet window measured on conversation-memory, the one brain surface that also runs by day
- * (Langfuse, 7 d to 2026-11-01): zero calls 04:00-09:59Z. It ends by ~07:35Z, before the
- * 09:00Z morning slot and the 12:00Z cron-heartbeat silence check (26 h window).
+ * When the brain phase starts, and which night it belongs to: 05:00Z (00:00 ET in winter) for
+ * the 03:00Z run, now for a run already inside 05:00-07:00Z, and the next 05:00Z for a manual
+ * fire in the day (never a peak-hour phase). Quiet window measured on conversation-memory, the
+ * one brain surface that also runs by day (Langfuse, 7 d to 2026-11-01): zero calls
+ * 04:00-09:59Z. It ends by ~07:35Z, before the 09:00Z morning slot and the 12:00Z
+ * cron-heartbeat silence check (26 h window).
  */
-export function offpeakStart(now: Date): string | null {
+export function offpeakStart(now: Date): { at: string; night: string } {
   const hour = now.getUTCHours();
-  if (hour < 5) {
-    const at = new Date(now);
-    at.setUTCHours(5, 0, 0, 0);
-    return at.toISOString();
+  if (hour >= 5 && hour < 7) {
+    const at = now.toISOString();
+    return { at, night: at.slice(0, 10) };
   }
-  return hour < 7 ? now.toISOString() : null;
+  const start = new Date(now);
+  if (hour >= 7) start.setUTCDate(start.getUTCDate() + 1);
+  start.setUTCHours(5, 0, 0, 0);
+  const at = start.toISOString();
+  return { at, night: at.slice(0, 10) };
 }
 
 /**
@@ -571,28 +583,40 @@ export const megaBrainOffpeak = inngest.createFunction(
   },
   async ({ event, step }) => {
     const at = new Date(String((event.data as { at?: unknown } | undefined)?.at));
-    if (Number.isNaN(at.getTime())) return { skipped: true, reason: "no valid start time" };
+    if (Number.isNaN(at.getTime())) {
+      log.warn("mega_brain_offpeak_bad_start", { at: (event.data as { at?: unknown } | undefined)?.at });
+      return { skipped: true, reason: "no valid start time" };
+    }
     const cronSecret = (process.env.CRON_SECRET ?? "").trim();
     if (!cronSecret) throw new Error("CRON_SECRET unset · refusing to fan out");
 
     await step.sleepUntil("offpeak-start", at);
+    // Read at wake, not at send: switching the fan-out off at 04:00Z stops the 05:00Z phase.
+    if (megaFanoutDisabled()) {
+      log.info("mega_brain_offpeak_skipped_cutover_off", {});
+      return { skipped: true, reason: "INNGEST_MEGA_V2 off" };
+    }
 
     const plan = [
       ...OFFPEAK_BRAIN_JOBS.map((path) => ({ id: stepIdFor(path), path })),
       ...BRAIN_RETRY_JOBS.map((path) => ({ id: `retry:${path.replace(/[^a-zA-Z0-9_-]/g, "_")}`, path })),
     ];
     const failures: string[] = [];
+    // 202 = still running (detached, or past the 90 s ceiling); the child's own CronJobLog row has the outcome.
+    const children: Array<{ path: string; status: number }> = [];
     for (const [i, { id, path }] of plan.entries()) {
       try {
-        await step.run(id, () => dispatchChild(path, cronSecret));
+        const res = await step.run(id, () => dispatchChild(path, cronSecret));
+        children.push({ path, status: res.status });
       } catch (err) {
         failures.push(`${path}: ${err instanceof Error ? err.message : String(err)}`);
+        children.push({ path, status: 0 });
       }
       if (i < plan.length - 1) await step.sleep(`gap:${id}`, BRAIN_GAP[path] ?? "20m");
     }
     if (failures.length > 0) {
       throw new Error(`mega-brain-offpeak: ${failures.length}/${plan.length} child crons failed · ${failures.join(" ; ")}`);
     }
-    return { dispatched: plan.length };
+    return { children };
   },
 );
