@@ -9,6 +9,10 @@ Also runs when Nour says "heartbeat". Run from the primary checkout `C:\Users\no
 
 Allowed effects: reads, plus one push notification to Nour when the status changes. Nothing else: no edits,
 merges, deploys, DB scripts, CI reruns, customer messages, secret or skill changes. Budget: about 10 tool calls.
+Every command carries a time limit: the tool's `timeout` at most 120000 ms, `curl --max-time`, `railway logs --lines <n>`
+(never a streaming or follow command, never an interactive prompt). A command that hits its limit makes its check UNKNOWN
+and is not retried: write the line and move on. The PM run of 2026-11-01 sat 12 hours on one PowerShell call that never
+returned and had to be stopped by hand.
 
 ## Checks
 
