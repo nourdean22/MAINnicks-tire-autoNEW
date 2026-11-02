@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-02 · B3: fewer tool-lookup detours (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Measured read-only on 2026-11-02 with Nour's go (notes chat-b3-tool-lookups-data.md): 221 turns in 14 days, the 24-tool budget cut 148 (67%), candidates p50 37; searchTools fired on 64 turns and invokeTool on 55, each a model step (p50 10.5 s). invokeTool's targets were spread thin (githubSearchCode 8, searchColdMemory 8, queryNickstire 6, getEstimateLeaks 4), so pinning them always-on would have been the impressions-without-calls shape earlier audits removed.
+>
+> - **Budget.** `pruneTools` default 24 -> 32 (`NICK_TOOL_BUDGET` still overrides). In a census of the top invokeTool targets through the real pruner and catalog, searchColdMemory was cut at 24 and offered at 32.
+> - **Family.** The commitment-done family now matches the command form ("mark the commitment to call X done"); completeCommitment was cut at any budget before.
+> - **Guard kept.** The browser-reachability cost check still holds at its old 24 ceiling (budget pinned) and again at the new default.
+>
+> **Flagged · NOT fixed**
+> - `prompt:size-check` needs a database URL and did not run here; the extra 8 tool schemas are prompt tokens per step.
+> - The census uses keyword tiers only (no embeddings); live detour share is the real check, owed 2026-11-15.
+
 > ## 2026-11-01 · B1: a saved reply keeps its tool cards, so they survive a reload (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >
 > Nour, 2026-11-01 13:20Z: "more cards arent showing". Measured that morning (docs/research/chat-upgrades-2026-11-01.md section 2.4): 0 of 123 saved replies in 7 days kept a tool part while 94 of 124 turns used tools. `buildMessageParts` had no parameter for one, so cards showed live and vanished on reload.
