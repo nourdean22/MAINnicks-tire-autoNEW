@@ -1,5 +1,22 @@
 # Reconciliation · statenour-os
 
+> ## 2026-11-01 · UI v3 W6 PR 2: /now, Nick composes the screen from typed cards (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Spec `docs/design/ui-v3/W6-INTENT-SURFACE.md`, alternative A (manager ruling 21:40Z: a client-bound layout language is a second vocabulary the registry was merged to remove). Behind `W6_INTENT_SURFACE`, off by default.
+>
+> - **Compose** (`lib/intent/compose.ts`). One `generateText` handed ONLY read-only registered tools (`READ_ONLY_TOOLS` ∩ `TOOL_CONFIG`), so a write tool cannot be reached. At most 6 calls; a repeated call runs once; a refused call never runs; a read that throws comes back as a failure part. Copied from Telegram `/ask` (`withTurnContext`, `getModel("reason")`, step cap, abort).
+> - **Route** `POST /api/intent/compose`: owner auth, `ai` rate limit, 404 while the flag is off, 300-character intent, one `recordTrace` labelled `intent-surface` per call (the kill read counts these), a sanitized 502 on model failure.
+> - **Page** `/now` (`components/now/intent-surface.tsx`): four starter intents, a 16 px input, 44 px targets, cards drawn open through `ToolResultCard`, a failed read shows its own words, an empty answer points at Chat, refused reads are named. No native dialogs.
+> - **Six new typed cards** ("plus any more too"): getTasks, getMissions, getCommitments, getRelationshipPicks, getTodaySchedule, getHabitStreaks, one shared rows body (5 rows, then "N more"). They also draw in Chat, where these tools showed the plain no-card line before.
+> - **Fixture** `tests/e2e/fixtures/now.ts` (`POST /api/intent/compose` in `REST_FIXTURES`).
+> - **Second readers** (silent-failure-hunter, pr-test-analyzer), fixed: `nourTools` turns a thrown or timed-out read into `{ error }`, so `failed` was always 0 (now counted with `isSoftFailedToolOutput`); its empty-list envelope `{ status: "no_data_found" }` failed the list schemas (now accepted, reads "none listed", in Chat too); a calendar account that failed to read is named; skipped tool names are counted in the trace; `isKnownToolName` and the card lookup use `Object.hasOwn` (a `constructor` tool name drew `Object` as a card config). 16 mutations, all red.
+>
+> **Flagged · NOT fixed**
+> - `/now` is not in the six-feet gate's `V3_PAGES` yet: the gate renders every listed page on every e2e run, and the e2e server needs `W6_INTENT_SURFACE: "1"` in `.github/workflows/e2e-statenour.yml` (platform lane). Then add the `V3_PAGES` entry (`baselinePending`), a `DEMO.nowCard` smoke anchor and capture the baselines.
+> - `getTasks`, `getCommitments` (`lib/ai/tools/tasks.ts`) and `getHabitStreaks` (`lib/ai/tools/habits.ts`) return an empty answer when their database read fails, so a failed read draws as "none listed": an empty-vs-error gap in the tools, older than this PR.
+> - A cold start with the database down falls back to the env value of `W6_INTENT_SURFACE`, so a flag that is on only through the Settings override shows `/now` as a 404 until the read recovers (fails closed).
+> - Kill read 2026-11-29: at least 6 compositions, at least 80% with a working card, p50 under 10 s (`intent-surface` traces); else delete page, route and flag.
+
 > ## 2026-11-02 · B3: fewer tool-lookup detours (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >
 > Measured read-only on 2026-11-02 with Nour's go (notes chat-b3-tool-lookups-data.md): 221 turns in 14 days, the 24-tool budget cut 148 (67%), candidates p50 37; searchTools fired on 64 turns and invokeTool on 55, each a model step (p50 10.5 s). invokeTool's targets were spread thin (githubSearchCode 8, searchColdMemory 8, queryNickstire 6, getEstimateLeaks 4), so pinning them always-on would have been the impressions-without-calls shape earlier audits removed.
