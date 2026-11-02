@@ -21,7 +21,8 @@
  *            FAILED <last result>
  *   tailnet  informational only, never a FAIL: is tailscale.exe present (docs/agent-os/TAILNET-MCP.md)
  * A failed read is UNKNOWN (<reason>), never ok, and carries no guessed fix. An absent client file (ENOENT) is a real
- * "nothing configured" and reads MISSING. Total budget 1.5 s; every probe has its own timeout.
+ * "nothing configured" and reads MISSING. Total budget 8 s from process start (a ceiling: ~0.4 s idle); every probe
+ * has its own timeout.
  * Flags (tests): --home <dir> (also the base of AppData/Roaming), --config <file>, --primary <dir> (skips git rev-parse).
  * Project dir: CLAUDE_PROJECT_DIR, else cwd. Exit 0 always; an own error prints "[health] off: <reason>".
  * Canary: sessionHealth.test.mjs.
@@ -36,15 +37,19 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 const WIN = process.platform === "win32";
-const T0 = Date.now();
-const BUDGET_MS = 1500;
-// A real MCP initialize, not a TCP connect: any program can hold the port. 1 s, inside the 1.5 s budget.
+// SessionStart runs this beside every other hook and plugin starting up. Under 48 busy processes on 8 cores the whole
+// hook took 6.4-8.6 s with nothing timing out (node start-up alone ~2.5 s, inferred), and a 1.5 s budget read healthy
+// parts as UNKNOWN (timeout). The budget runs from PROCESS start (process.uptime), so slow start-up spends it instead
+// of adding to it, leaving ~2 s for Claude's shell before the 10 s hook timeout in .claude/settings.json kills the hook.
+const BUDGET_MS = 8000;
+// A real MCP initialize, not a TCP connect: any program can hold the port. 1 s, inside the budget.
 const PROBE_MS = 1000;
 const STALE_AFTER = 50;
 const PS = "powershell -NoProfile -ExecutionPolicy Bypass -File";
 
 const short = (err) => String(err?.message || err).split(/\r?\n/)[0].slice(0, 60);
-const msLeft = () => Math.max(50, BUDGET_MS - 150 - (Date.now() - T0));
+// Whole ms: execFile rejects a fractional timeout, and process.uptime() is fractional.
+const msLeft = () => Math.max(50, Math.floor(BUDGET_MS - 150 - process.uptime() * 1000));
 
 function readText(file, { missingOk = false } = {}) {
   try {
@@ -160,7 +165,7 @@ async function graphItem(primary, fix) {
   if (!m) return unknownItem("graph", "no build commit in GRAPH_REPORT.md");
   // One git call answers both questions: "<off-main>\t<behind>". A build commit off main (a branch, a detached HEAD)
   // has off-main > 0 and can still count 0 behind, so ancestry is checked first (same answer as merge-base
-  // --is-ancestor, one spawn instead of two inside the 1.5 s budget).
+  // --is-ancestor, one spawn instead of two inside the budget).
   const r = await sh("git", ["-C", primary.value, "rev-list", "--left-right", "--count", `${m[1]}...origin/main`], primary.value);
   if (r.code !== 0 && /unknown revision|bad revision|invalid revision|not a valid/i.test(r.err)) {
     return failItem(`graph STALE (built from ${m[1]}, not in this repo)`, fix);
