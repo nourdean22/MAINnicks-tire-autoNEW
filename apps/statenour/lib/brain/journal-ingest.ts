@@ -297,7 +297,7 @@ Return ONLY valid JSON with this structure:
   "concerns": ["worries or risks mentioned"],
   "wins": ["positive things mentioned, accomplishments"],
   "linkedTopics": ["tasks, people, missions, or events this connects to"],
-  "people": [{"name": "the person's name as written", "interacted": true}],
+  "people": [{"name": "the person's name as written", "interacted": false}],
   "situationContext": "ONLY when entryType is situation: 2-3 words naming the arena (e.g. pricing, supplier, employee, landlord). Otherwise null."
 }
 
