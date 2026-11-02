@@ -62,15 +62,24 @@ export interface TracedAiChatOpts {
  * This eliminates 30 call-site rewrites for the AgentTrace coverage
  * sweep — each consumer just changes its import line once.
  */
-export function makeTracedAiChat(label: string, source: TraceSource = "brain") {
+export function makeTracedAiChat(
+  label: string,
+  source: TraceSource = "brain",
+  defaults: { timeoutMs?: number } = {},
+) {
   return async (
     messages: AiMessage[],
     taskType: TaskType = "reason",
-    runtimeOpts: { signal?: AbortSignal; force?: boolean } = {},
+    runtimeOpts: AiChatRuntimeOpts = {},
   ): Promise<AiResponse> => {
-    return tracedAiChat({ label, source }, messages, taskType, runtimeOpts);
+    return tracedAiChat({ label, source }, messages, taskType, {
+      ...runtimeOpts,
+      timeoutMs: runtimeOpts.timeoutMs ?? defaults.timeoutMs,
+    });
   };
 }
+
+type AiChatRuntimeOpts = { signal?: AbortSignal; force?: boolean; timeoutMs?: number };
 
 /**
  * Drop-in replacement for `aiChat()` that records an AgentTrace row
@@ -81,7 +90,7 @@ export async function tracedAiChat(
   opts: TracedAiChatOpts,
   messages: AiMessage[],
   taskType: TaskType = "reason",
-  runtimeOpts: { signal?: AbortSignal; force?: boolean } = {},
+  runtimeOpts: AiChatRuntimeOpts = {},
 ): Promise<AiResponse> {
   const traceId = opts.parentTraceId ?? mintTraceId();
   const startedAt = Date.now();

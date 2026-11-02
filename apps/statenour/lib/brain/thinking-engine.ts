@@ -26,6 +26,9 @@ import { prisma } from "@/lib/prisma";
 // /system/agent-traces shows cost + latency + error class per turn.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("thinking-engine");
+// The three /api/cron/think layers only (05:00Z off-peak phase). 14 of 21 calls aborted AT 100.0 s and
+// ok p90 was 98.9 s (Langfuse, 7 d to 2026-11-01). runSimulation is a chat tool and keeps the default.
+const CRON_LAYER_OPTS = { timeoutMs: 180_000 };
 import { extractJsonArray, extractJsonObject } from "@/lib/ai/extract-structured";
 import { logError } from "@/lib/utils/error-log";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
@@ -79,7 +82,7 @@ GOOD contradictions:
 Return [] if no contradictions found. Max 4.`,
     },
     { role: "user", content: context },
-  ], "reason");
+  ], "reason", CRON_LAYER_OPTS);
 
   // v10.0.229 · shared extractor with repair pass
   const extracted = extractJsonArray<{ claim: string; reality: string; gap: string; severity: string; category: string }>(result.content);
@@ -158,7 +161,7 @@ Return ONLY JSON:
 Score values ONLY from data, not from claims. 0.0 = no evidence, 1.0 = overwhelming evidence.`,
     },
     { role: "user", content: context },
-  ], "reason");
+  ], "reason", CRON_LAYER_OPTS);
 
   // Use any-typed result · prisma create expects a specific input
   // shape that's not worth duplicating here. The repair pass still
@@ -342,7 +345,7 @@ intervention: "Hard shutdown at 11pm. No screens. The system will be there tomor
 Max 3 chains. Skip if no clear causal pattern exists.`,
     },
     { role: "user", content: context },
-  ], "reason");
+  ], "reason", CRON_LAYER_OPTS);
 
   const extracted = extractJsonArray<{ effect: string; rootCause: string; chain: unknown[]; intervention: string }>(result.content);
   if (!extracted.ok) return { chains: 0 };

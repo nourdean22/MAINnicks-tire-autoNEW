@@ -198,6 +198,20 @@ export const EVENING_JOBS: readonly string[] = [
 ];
 
 /**
+ * The LLM-heavy brain children of EVENING_JOBS, in the order the 05:00Z off-peak phase runs them
+ * (mega-fanout megaBrainOffpeak), one at a time. They stay listed in EVENING_JOBS because
+ * cron-heartbeat, check:crons and the autonomic orchestrator read that list; the evening fan-out
+ * skips them at 03:00Z. Measured (Langfuse prod, 7 d to 2026-11-01): every aborted call of these
+ * surfaces fell in the 03:00Z hour, where ~25 children start together.
+ */
+export const OFFPEAK_BRAIN_JOBS: readonly string[] = [
+  "/api/cron/think",
+  "/api/cron/distill-sessions",
+  "/api/cron/conversation-compile",
+  "/api/cron/consolidate",
+];
+
+/**
  * Weekly fan-out · appended to EVENING_JOBS when the run falls on
  * Sunday-ET (per `if (slot === 'evening' && isSundayET)` branch in
  * both legacy + Inngest dispatchers).
