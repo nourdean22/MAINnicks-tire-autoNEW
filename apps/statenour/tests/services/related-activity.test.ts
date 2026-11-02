@@ -133,4 +133,14 @@ describe("relatedActivity · person (ids only, never phone or email)", () => {
     expect(selects).not.toMatch(/phone|email|person"/i);
     expect(r.items[0]).toMatchObject({ kind: "contact", source: "manual", ref: { table: "RelationshipLedger", id: "l1" } });
   });
+
+  it("a chat mention or a status flip is not listed as a contact", async () => {
+    h.relationshipLedger.mockResolvedValue([
+      { id: "l1", note: "called him", source: "manual", createdAt: at(1), metadata: null },
+      { id: "l2", note: "named in chat", source: "chat", createdAt: at(2), metadata: { synthetic: true } },
+      { id: "l3", note: "status cooling", source: "manual", createdAt: at(3), metadata: { kind: "status_flip" } },
+    ]);
+    const r = await relatedActivity({ personId: "p1" });
+    expect(r.items.map((i) => i.ref.id)).toEqual(["l1"]);
+  });
 });

@@ -12,6 +12,7 @@
  * waves read the same signature.
  */
 import { prisma } from "@/lib/prisma";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 /** The caps, set once here; tools read them, never copy them. */
 export const RELATED_MAX_ITEMS = 50;
@@ -179,10 +180,11 @@ export async function relatedActivity(
     reads.push(
       {
         name: "contact",
+        // Contacts only: a chat mention or a status flip is a ledger row, not a contact (contact-rows.ts).
         run: async () =>
-          (await prisma.relationshipLedger.findMany({
+          contactRowsOnly(await prisma.relationshipLedger.findMany({
             where: { personId, ...created },
-            select: { id: true, note: true, source: true, createdAt: true },
+            select: { id: true, note: true, source: true, createdAt: true, metadata: true },
             ...desc,
           })).map((l) => ({ at: l.createdAt, kind: "contact", source: l.source, title: clip(l.note), ref: { table: "RelationshipLedger", id: l.id } })),
       },
