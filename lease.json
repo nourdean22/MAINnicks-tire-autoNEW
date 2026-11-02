@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/chat-b2-end-at-text",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "0574fd2a-d95d-470c-a55b-e4c44b2e1364",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\missed-asks-audit-b00463",
+  "claimedBy": "B2 chat reply ends at text (job 2026-11-01-chat-humanizer-w6)",
+  "claimedAt": "2026-11-02T00:15:40.266Z",
+  "expiresAt": "2026-11-02T12:15:40.266Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
