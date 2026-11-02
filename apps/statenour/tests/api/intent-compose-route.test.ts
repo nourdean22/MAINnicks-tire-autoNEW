@@ -103,6 +103,7 @@ describe("POST /api/intent/compose", () => {
     // One step: with toolChoice "required" a longer budget loops forced tool steps.
     expect(call.stopWhen({ steps: [{}] })).toBe(true);
     expect(call.abortSignal).toBeInstanceOf(AbortSignal);
+    expect((call as { experimental_telemetry?: { functionId?: string } }).experimental_telemetry?.functionId).toBe("intent-surface-compose");
     expect((finish.metadataDelta as Record<string, unknown>).failed).toBe(0);
     expect((finish.metadataDelta as Record<string, unknown>).skipped).toBe(0);
   });

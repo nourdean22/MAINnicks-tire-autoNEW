@@ -13,6 +13,7 @@ import { getModel } from "@/lib/ai/provider";
 import { nourTools } from "@/lib/ai/tools";
 import { mintTraceId, recordTrace } from "@/lib/ai/agent-trace";
 import { withTurnContext } from "@/lib/agent/turn-context";
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { composeIntent, isIntentSurfaceOn, INTENT_MAX_CHARS, type Generate } from "@/lib/intent/compose";
 
 const bodySchema = z.object({ intent: z.string().trim().min(1).max(INTENT_MAX_CHARS) });
@@ -33,6 +34,7 @@ export const POST = apiHandler(
         model: getModel("reason"),
         tools: opts.tools as Parameters<typeof generateText>[0]["tools"],
         abortSignal: AbortSignal.timeout(20_000),
+        experimental_telemetry: langfuseTelemetry({ functionId: "intent-surface-compose", metadata: { traceId } }),
       });
 
     try {
