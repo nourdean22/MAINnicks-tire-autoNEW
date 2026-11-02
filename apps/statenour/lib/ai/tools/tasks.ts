@@ -1248,10 +1248,13 @@ const tasksCoreTools = {
           return getUnresolvedAlerts().catch((): null => null);
         })(),
         // Upgrade 9: at most one past-due promise to ask about. Recording the ask is a write, so a
-        // Private Lab turn skips it. null = measured none; a failed read is UNKNOWN.
+        // Private Lab turn skips it, and so does a caller with no chat turn (MCP): Nour would never
+        // see that ask, yet it would spend the day's one. null = measured none; a failed read is UNKNOWN.
         (async () => {
           const { currentTurn } = await import("@/lib/agent/turn-context");
-          if (currentTurn()?.privateMode === true) return "skipped: private turn";
+          const turn = currentTurn();
+          if (!turn) return "skipped: not a chat turn";
+          if (turn.privateMode === true) return "skipped: private turn";
           const { nextOpenLoopAsk } = await import("@/lib/brain/open-loops");
           const ask = await nextOpenLoopAsk();
           return ask.state === "ask" ? { id: ask.id, quote: ask.quote, saidOn: ask.saidOn, dueOn: ask.dueOn } : null;

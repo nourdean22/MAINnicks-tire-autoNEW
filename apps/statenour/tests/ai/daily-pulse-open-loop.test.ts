@@ -32,7 +32,10 @@ import { tasksTools } from "@/lib/ai/tools/tasks";
 type Exec = { execute: (args: unknown, opts?: unknown) => Promise<Record<string, unknown>> };
 const run = (name: keyof typeof tasksTools, args: unknown = {}) => (tasksTools[name] as unknown as Exec).execute(args, {});
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.currentTurn.mockReturnValue({ privateMode: false });
+});
 
 describe("dailyPulse · openLoop", () => {
   it("carries one ask with its ledger id when a loop is due", async () => {
@@ -64,8 +67,15 @@ describe("dailyPulse · openLoop", () => {
       expect(h.nextOpenLoopAsk).not.toHaveBeenCalled();
       expect(String(out.openLoop)).toMatch(/private/);
     } finally {
-      h.currentTurn.mockReturnValue(undefined);
+      h.currentTurn.mockReturnValue({ privateMode: false });
     }
+  });
+
+  it("an MCP or other non-chat caller records no ask (Nour would never see it)", async () => {
+    h.currentTurn.mockReturnValue(null);
+    const out = await run("dailyPulse");
+    expect(h.nextOpenLoopAsk).not.toHaveBeenCalled();
+    expect(String(out.openLoop)).toMatch(/not a chat turn/);
   });
 
   it("the tool tells Nick to ask once and how to record the answer", () => {
