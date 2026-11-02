@@ -43,6 +43,13 @@ async function rawTcp() {
   listeners.push(s);
   return s.address().port;
 }
+/** An HTTP listener that takes the request and never answers: a server too busy (or hung) to reply in time. */
+async function silent() {
+  const s = createHttpServer((req) => req.resume());
+  await new Promise((r) => s.listen(0, "127.0.0.1", r));
+  listeners.push(s);
+  return s.address().port;
+}
 async function closedPort() {
   const s = createServer();
   await new Promise((r) => s.listen(0, "127.0.0.1", r));
@@ -212,6 +219,17 @@ test("broken fixture: each broken piece is its own FAIL, and FIX FIRST names a f
   assert.match(fixes, /-ExecutionPolicy Bypass/, "hook fix");
   assert.equal((fixes.match(/\(\d+\)/g) ?? []).length, 4, `four FAILs, four numbered fixes:\n${fixes}`);
   assert.ok(r.ms < 4000, `took ${r.ms} ms; the probes must stay inside their budget`);
+});
+
+test("a server that takes the request but does not answer in time reads UNKNOWN (no answer), not DOWN with a restart fix", async () => {
+  // Under SessionStart load a healthy server can miss the deadline; only a refused connection proves it is down.
+  // The broken fixture above keeps the true case: a closed port still reads DOWN with its fix.
+  const f = await healthy("silent", { ports: [await listen(), await silent()] });
+  const line = oneLine(await run(f));
+  assert.match(line, /spare UNKNOWN \(no answer\)/);
+  assert.doesNotMatch(line, /spare DOWN/);
+  assert.doesNotMatch(line, /FIX FIRST/, "no answer is not proof of DOWN, so it must not order a server restart");
+  assert.match(line, /graphify up/);
 });
 
 test("STALE: a graph built more than 50 commits behind origin/main is a FAIL with the sync fix", async () => {
