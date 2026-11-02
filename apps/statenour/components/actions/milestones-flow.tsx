@@ -299,7 +299,7 @@ export function MilestonesFlow({
           <div className="flex items-center justify-between pt-1.5 border-t border-edge-subtle">
             <span className="text-[11px] text-fg-tertiary italic">
               {phase === "generating"
-                ? "Writing the plan from your milestones · up to 3 min · a slow planner still gives you one checkpoint per milestone"
+                ? "Writing the plan from your milestones · a few minutes · a slow planner still gives you one checkpoint per milestone"
                 : "Each milestone becomes a phase in the plan"}
             </span>
             <button

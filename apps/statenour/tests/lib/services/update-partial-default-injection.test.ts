@@ -76,6 +76,7 @@ vi.mock("@/lib/utils/cache", () => ({
   invalidate: vi.fn(),
 }));
 
+import { Prisma } from "@prisma/client";
 import { updateMission } from "@/lib/services/missions";
 import { missionCreateSchema, missionUpdateSchema } from "@/lib/validators/missions";
 import { personalLogCreateSchema, personalLogUpdateSchema } from "@/lib/validators/personal-logs";
@@ -176,6 +177,24 @@ describe("updateMission · the /missions archive tap", () => {
     expect(write.data.successMetric).toBe("leads");
     expect(write.data.domain).toBeUndefined();
     expect(write.data.roiScore).toBeUndefined();
+  });
+
+  // 2026-11-02 · completionCriteria is a Json? column: Prisma refuses a plain null there
+  // (NullableJsonNullValueInput), so the drawer's empty "done when" field, sent as null, would
+  // fail every edit of a mission that has no criteria yet (13 of 13 live ones that day).
+  it("an empty done-when clears the Json column with Prisma.DbNull, and text is written as is", async () => {
+    mocks.mission.findUnique.mockResolvedValue(missionRow());
+    mocks.mission.update.mockResolvedValue(missionRow());
+
+    await updateMission("m1", { title: "x", completionCriteria: null, lifeGoalId: null });
+    let write = mocks.mission.update.mock.calls[0][0];
+    expect(write.data.completionCriteria).toBe(Prisma.DbNull);
+    expect(write.data.lifeGoalId).toBeNull();
+
+    await updateMission("m1", { completionCriteria: "3 approaches logged", lifeGoalId: "g1" });
+    write = mocks.mission.update.mock.calls[1][0];
+    expect(write.data.completionCriteria).toBe("3 approaches logged");
+    expect(write.data.lifeGoalId).toBe("g1");
   });
 });
 

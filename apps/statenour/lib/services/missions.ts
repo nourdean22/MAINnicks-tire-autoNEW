@@ -202,6 +202,15 @@ export async function getMissionRanking() {
   return rankMissions(serializeForJson(missions));
 }
 
+/**
+ * 2026-11-02 · completionCriteria is a Json? column: Prisma refuses a plain null there (it wants
+ * Prisma.DbNull), so the drawer's empty "done when" field, which zod turns into null, failed every
+ * edit of a mission that had no criteria yet. lifeGoalId is a plain nullable string and stays as is.
+ */
+function withJsonNulls<T extends { completionCriteria?: string | null }>(payload: T) {
+  return payload.completionCriteria === null ? { ...payload, completionCriteria: Prisma.DbNull } : payload;
+}
+
 export async function createMission(input: unknown, tx?: Prisma.TransactionClient) {
   const payload = missionCreateSchema.parse(input);
 
@@ -251,7 +260,7 @@ export async function createMission(input: unknown, tx?: Prisma.TransactionClien
       // since ProjectPlanData is a deep nested type owned elsewhere);
       // Prisma's JSON column accepts InputJsonValue. Cast at the
       // boundary to keep the validator simple.
-      data: payload as Prisma.MissionCreateInput
+      data: withJsonNulls(payload) as Prisma.MissionCreateInput
     });
 
     return mission;
@@ -328,7 +337,7 @@ export async function updateMission(id: string, input: unknown) {
     const mission = await tx.mission.update({
       where: { id },
       // See createMission note re: planData/JSON column boundary cast.
-      data: payload as Prisma.MissionUpdateInput
+      data: withJsonNulls(payload) as Prisma.MissionUpdateInput
     });
 
     return mission;

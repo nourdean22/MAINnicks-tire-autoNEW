@@ -1508,7 +1508,7 @@ export function GoalBoard() {
                         {(g.missions ?? []).map((m) => (
                           <Link
                             key={m.id}
-                            href={`/missions?missionId=${m.id}`}
+                            href="/missions"
                             onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-0.5 px-1 rounded-control border border-sky-500/30 bg-sky-500/5 text-sky-300 hover:bg-sky-500/15"
                             title={`Mission: ${m.title}`}

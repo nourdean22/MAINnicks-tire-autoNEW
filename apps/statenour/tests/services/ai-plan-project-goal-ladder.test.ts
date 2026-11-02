@@ -86,6 +86,18 @@ describe("plan mode with confirmed milestones", () => {
     expect(written.summary).toMatch(/milestones/i);
   });
 
+  it("a reply with no phases (broken JSON, empty plan) becomes the skeleton too, never a 0-phase plan", async () => {
+    mockChat.mockResolvedValue({ content: "Sure! Here is the plan: {\"summary\": \"ok\"}", provider: "ollama", model: "m" });
+
+    const res = await runPlanProject({ mode: "plan", title: "approach 3 people", missionId: "m1", milestones: MILESTONES });
+
+    if (res.mode !== "plan") throw new Error("unreachable");
+    expect(res.fallback).toBe("skeleton");
+    expect(res.plan.phases).toHaveLength(3);
+    const written = db.missionUpdate.mock.calls[0][0].data.planData as { phases: unknown[] };
+    expect(written.phases).toHaveLength(3);
+  });
+
   it("without milestones a failed provider still throws (an outage must not erase an existing plan)", async () => {
     mockChat.mockResolvedValue(SENTINEL);
     await expect(runPlanProject({ mode: "plan", title: "x", missionId: "m1" })).rejects.toThrow();

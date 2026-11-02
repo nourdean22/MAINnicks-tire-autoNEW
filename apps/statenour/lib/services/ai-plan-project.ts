@@ -551,6 +551,11 @@ Respond ONLY with valid JSON:
     } else {
       assertAiAvailable(result);
       plan = normalizeRawPlan(parseJson(result.content), title);
+      // A reply that parsed to no phases (prose, broken JSON) is the same dead end as no reply.
+      if (withMilestones && plan.phases.length === 0) {
+        plan = skeletonPlan(confirmedMilestones, title);
+        fallback = "skeleton";
+      }
     }
     if (answers) plan.strategicAnswers = answers;
 

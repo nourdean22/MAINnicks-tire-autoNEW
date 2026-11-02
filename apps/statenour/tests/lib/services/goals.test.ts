@@ -113,7 +113,7 @@ describe("Goals Service", () => {
       ]);
       mocks.task.findMany.mockResolvedValue([]);
       mocks.taskEvent.findMany.mockResolvedValue([]);
-      mocks.mission.findMany.mockResolvedValue([
+      mocks.mission.findMany.mockResolvedValueOnce([
         {
           id: "m1",
           title: "Goal",
@@ -137,7 +137,7 @@ describe("Goals Service", () => {
       mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
       mocks.task.findMany.mockResolvedValue([]);
       mocks.taskEvent.findMany.mockResolvedValue([]);
-      mocks.mission.findMany.mockRejectedValue(new Error("db down"));
+      mocks.mission.findMany.mockRejectedValueOnce(new Error("db down"));
 
       const result = await getGoals();
 
