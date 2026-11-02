@@ -121,6 +121,9 @@ jobs:
       # (assistant-reply roundtrip) — the operator-keyed extra ──
       E2E_HERMETIC: "1"
       PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
+      # ── UI v3 W6: /now 404s while this flag is off, so the six-feet gate
+      # (tests/e2e/vt-render.ts V3_PAGES) can only render it with it on ──
+      W6_INTENT_SURFACE: "1"
 
     services:
       postgres:
@@ -379,7 +382,7 @@ jobs:
         working-directory: apps/statenour
         run: |
           dir=tests/e2e/visible-transformation-v3.spec.ts-snapshots
-          for f in home-desktop home-phone missions-desktop missions-phone chat-desktop chat-phone; do
+          for f in home-desktop home-phone missions-desktop missions-phone chat-desktop chat-phone now-desktop now-phone; do
             test -f "$dir/$f.png" || { echo "missing baseline: $dir/$f.png"; exit 1; }
           done
           ls -l "$dir"

@@ -652,6 +652,9 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       // Chat (W3a): the header pill's words and the list's empty and loading states.
       "features/chat-v2/lib/capability-label.ts",
       "features/chat-v2/components/chat-message-list.tsx",
+      // /now (W6): the compose failure and empty-result copy, and a card's failed-read label.
+      "components/now/intent-surface.tsx",
+      "components/chat/tool-result-card.tsx",
     ].map((f) => read(path.join(APP_DIR, f)).replace(/&apos;/g, "'"));
     for (const [name, re] of Object.entries(PAGE_ERRORS)) {
       for (const alt of re.source.split("|")) {
@@ -903,8 +906,8 @@ describe("pending baselines: a missing PNG skips, a present one is always judged
     expect(baselineSkipReason({ label: "x", baselineExists: false, pending: true })).not.toBeNull();
   });
 
-  it("no page is pending today (chat's baselines were captured from main 7dc82474c, run 38908095706); a pending page must not have its PNGs", () => {
-    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual([]);
+  it("only /now is pending today (chat's baselines were captured from main 7dc82474c, run 38908095706; now waits for the capture_v3_baselines run on main); a pending page must not have its PNGs", () => {
+    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual(["now"]);
     for (const p of V3_PAGES.filter((x) => x.baselinePending)) {
       for (const v of V3_VIEWPORTS) {
         const png = `${p.key}-${v.key}.png`;
@@ -1245,7 +1248,7 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
         named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" chat-desktop chat-phone", "");
       },
       "the completeness check names a file the spec never captures": (w) => {
-        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace("chat-phone;", "chat-phone brain-phone;");
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace("now-phone;", "now-phone brain-phone;");
       },
       "the completeness check removed": (w) => {
         w.jobs.e2e.steps = steps(w).filter((s) => !s.name?.startsWith("Check v3 baselines are complete"));

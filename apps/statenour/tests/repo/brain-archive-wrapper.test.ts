@@ -23,7 +23,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // Async on purpose: each powershell.exe run is ~9 s quiet, and a synchronous child held
 // the vitest worker's event loop for all of it, so a loaded machine could not answer the
@@ -33,6 +33,15 @@ const execFileAsync = promisify(execFile);
 const exitStatus = (e: unknown): number => (typeof (e as { code?: unknown }).code === "number" ? (e as { code: number }).code : -1);
 
 const isWindows = process.platform === "win32";
+
+/**
+ * The day the wrapper uses for `auto-<date>`: PowerShell's `Get-Date`, the machine's zone. Not this process's clock: TZ=UTC
+ * reaches Node and not PowerShell, so in the ET evening (from 19:00 EST, 20:00 EDT) a date built here names tomorrow's folder.
+ */
+async function wrapperDate(): Promise<string> {
+  const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-Command", "Get-Date -Format yyyy-MM-dd"], { encoding: "utf8", timeout: 30_000 });
+  return stdout.trim();
+}
 const scriptPath = path.join(__dirname, "..", "..", "scripts", "run-brain-archive.ps1");
 
 describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
@@ -167,11 +176,16 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
   it("backs up the existing orphan file to a dated auto-snapshot before any export", async () => {
     const vault = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-vault2-"));
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-repo2-"));
+    // This process's clock is pinned to 00:30Z, the hour the wrapper's day and a UTC day disagree (the failure seen 00:2xZ
+    // 2026-11-02 under TZ=UTC). The wrapper still runs on the real clock, so the expected folder comes from ITS clock below.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2020-01-01T00:30:00Z"));
     try {
       fs.writeFileSync(path.join(repo, "package.json"), '{"name":"fixture"}');
       const archiveDir = path.join(vault, "Statenour", "_archive");
       fs.mkdirSync(archiveDir, { recursive: true });
       fs.writeFileSync(path.join(archiveDir, "brain-orphans.ndjson"), "LAST-COPY-SENTINEL");
+      const before = await wrapperDate();
 
       let stdout = "";
       let exitCode = 0;
@@ -204,22 +218,15 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
       // must have happened FIRST. That ordering is the whole point: the
       // irreplaceable file survives even a stale/broken exporter.
       expect(exitCode).not.toBe(0);
-      const localNow = new Date();
-      const today = [
-        localNow.getFullYear(),
-        String(localNow.getMonth() + 1).padStart(2, "0"),
-        String(localNow.getDate()).padStart(2, "0"),
-      ].join("-");
-      const backup = path.join(
-        archiveDir,
-        "snapshots",
-        `auto-${today}`,
-        "brain-orphans.ndjson",
-      );
-      expect(fs.existsSync(backup)).toBe(true);
-      expect(fs.readFileSync(backup, "utf8")).toBe("LAST-COPY-SENTINEL");
+      // The folder is named from the wrapper's day, read before and after the run so a run across midnight still matches.
+      const after = await wrapperDate();
+      const candidates = [...new Set([before, after])].map((d) => path.join(archiveDir, "snapshots", `auto-${d}`, "brain-orphans.ndjson"));
+      const backup = candidates.find((p) => fs.existsSync(p));
+      expect(backup, `no snapshot at ${candidates.join(" or ")}`).toBeDefined();
+      expect(fs.readFileSync(backup!, "utf8")).toBe("LAST-COPY-SENTINEL");
       expect(stdout).toMatch(/pre-run orphan snapshot/);
     } finally {
+      vi.useRealTimers();
       fs.rmSync(vault, { recursive: true, force: true });
       fs.rmSync(repo, { recursive: true, force: true });
     }

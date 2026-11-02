@@ -44,6 +44,10 @@
     "are not in the list. Registered in .claude/settings.json by the pretool-only MCP matcher. Documented in docs/agent-os/README.md > Infra tools: deny by name."
   ],
   "version": 2,
+  "mergeGate": {
+    "$comment": "Default for merge-gate.mjs --codex-wait-minutes (job 2026-11-02-platform-followups-w6): how long a PR with no Codex review marker waits before the gate WARNs and merges without it (a review still running is waited on for twice this). Lower it (0 = do not wait for either) on a day Codex is out of quota, restore 25 after. The flag still overrides; a missing or malformed value means 25. It sets the length of those two existing fail-open timers and changes no merge condition: findings, unresolved Codex threads, CI, the PR body bar and the busy-check hold are unaffected. Read by scripts/agent-os/merge-gate.mjs codexWaitDefault; pinned by scripts/agent-os/mergeGate.test.mjs.",
+    "codexWaitMinutes": 25
+  },
   "infraApprovals": {
     "$comment": "Per-action approval of ONE infra-mutation-tool call (job 2026-10-20-infra-approve-per-action, scripts/agent-os/infra-approve.mjs). neverApprovable: leaves no approval lifts (the six outage-class tools, plus every project-level leaf: its input names only a project id, a scope id no approval can name; Codex P2 on PR 3193); a malformed list makes NOTHING approvable. aliases: an approval target -> the ids it also matches as a whole input value; a malformed map adds nothing. The 30-minute window is a constant in code, not here.",
     "neverApprovable": ["railway-agent", "delete_project", "delete-service", "set_default_branch", "accept_project_transfer_request", "buy_domain",
