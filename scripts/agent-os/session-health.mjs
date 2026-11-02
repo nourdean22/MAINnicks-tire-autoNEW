@@ -10,8 +10,9 @@
  *   host     COMPUTERNAME / os.hostname() not in hosts -> "[health] local services: not expected on this host", exit 0
  *   graph    <primary>/graphify-out/graph.json present, build commit from GRAPH_REPORT.md, commits behind origin/main
  *            -> ok | STALE (> 50 behind, or the build commit is gone) | MISSING <file>
- *   servers  MCP initialize POST to 127.0.0.1:<port><path>, 1 s -> up (200 + serverInfo.name = kind) | DOWN (refused,
- *            no answer) | WRONG SERVICE (anything else answered); an empty list -> "servers: none configured" (FAIL)
+ *   servers  MCP initialize POST to 127.0.0.1:<port><path>, 1 s -> up (200 + serverInfo.name = kind) | DOWN (refused)
+ *            | UNKNOWN (no answer) | WRONG SERVICE (anything else answered); an empty list -> "servers: none
+ *            configured" (FAIL)
  *   clients  ~/.claude.json mcpServers, ~/.codex/config.toml [mcp_servers.*], %APPDATA%/Code/User/mcp.json servers:
  *            each must list every server at http://127.0.0.1:<port><path> -> ok | MISSING <names> | WRONG URL <names>
  *   hooks    a powershell/pwsh hook running -File <x>.ps1 with no Bypass/Unrestricted/RemoteSigned policy BEFORE -File
@@ -97,7 +98,8 @@ const INIT = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", param
 
 /**
  * POST an MCP initialize to http://127.0.0.1:<port><path>. up = HTTP 200 whose body (JSON or one SSE event) carries
- * serverInfo with "name":"<kind>"; refused or no answer in time = DOWN; anything else that answered = WRONG SERVICE.
+ * serverInfo with "name":"<kind>"; refused = DOWN; no answer in time = NO ANSWER (a server starved at SessionStart
+ * misses the deadline, so silence is not proof it is down); anything else that answered = WRONG SERVICE.
  */
 export function mcpProbe(port, path, kind) {
   return new Promise((resolveProbe) => {
@@ -123,7 +125,7 @@ export function mcpProbe(port, path, kind) {
       req.destroy();
       resolveProbe(state);
     };
-    req.on("timeout", () => done(status ? verdict() : "DOWN"));
+    req.on("timeout", () => done(status ? verdict() : "NO ANSWER"));
     req.on("error", (e) => done(e.code === "ECONNREFUSED" ? "DOWN" : "WRONG SERVICE"));
     req.end(INIT);
   });
@@ -351,6 +353,7 @@ async function main() {
     ...expected.map((s) => within(mcpProbe(s.port, s.path, s.kind ?? s.name).then(async (st) => {
       if (st === "up") return okItem(`${s.name} up`);
       if (st === "DOWN") return failItem(`${s.name} DOWN`, await serverFix);
+      if (st === "NO ANSWER") return unknownItem(s.name, "no answer");
       return failItem(`${s.name} WRONG SERVICE`, `find the program on port ${s.port}: Get-NetTCPConnection -LocalPort ${s.port} -State Listen; free the port or move ${s.name} in config/agent-os/local-services.json`);
     }), s.name)),
   ];
