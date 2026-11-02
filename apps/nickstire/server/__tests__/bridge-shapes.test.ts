@@ -12,7 +12,8 @@ import { composeLotBrief } from "../lib/lotBrief";
 const topDecisionsFixture = {
   decisions: [
     {
-      id: 42,
+      // revenue_opportunities.id is VARCHAR(36); opportunityQueue mapRow sends String(r.id).
+      id: "0b7e4c1a-5d2f-4e8b-9a6c-3f1d2e4b5a60",
       urgency: "today",
       state: "new",
       recommendedAction: "Call Mike about the $940 brake quote",
@@ -43,8 +44,8 @@ describe("bridge shapes — statenour contract pins", () => {
     expect(TopDecisionsShape.safeParse(drifted).success).toBe(false);
   });
 
-  it("top_decisions: REJECTS wrong-typed decision id", () => {
-    const f = { ...topDecisionsFixture, decisions: [{ ...topDecisionsFixture.decisions[0], id: "42" }] };
+  it("top_decisions: REJECTS wrong-typed decision id (a number; the queue id is a uuid string)", () => {
+    const f = { ...topDecisionsFixture, decisions: [{ ...topDecisionsFixture.decisions[0], id: 42 }] };
     expect(TopDecisionsShape.safeParse(f).success).toBe(false);
   });
 
