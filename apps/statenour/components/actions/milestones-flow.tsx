@@ -151,6 +151,11 @@ export function MilestonesFlow({
           roiScore: 60,
           neglectCost: 40,
           status: "ACTIVE",
+          // 2026-11-02 · the mission knows its goal, its finish line and its date. Before this
+          // the link was stripped by the schema (prod: 0 of 13 missions linked).
+          lifeGoalId: goal.id,
+          completionCriteria: trimmed[trimmed.length - 1],
+          deadline: goal.deadline ?? undefined,
         });
         missionId = (mission as { id?: string } | null)?.id;
       } catch (err) {
@@ -170,16 +175,20 @@ export function MilestonesFlow({
       // actions-surface slice · POST /api/ai/plan-project mode=plan →
       // trpc.ai.planProject. mutateAsync rejects on a server error · the
       // outer catch surfaces the "Plan failed" toast.
+      let skeleton = false;
       try {
-        await planProjectMut.mutateAsync({
+        const planned = await planProjectMut.mutateAsync({
           mode: "plan",
           missionId,
           title: goal.title,
           milestones: trimmed,
           domain: goal.domain,
         });
-      } catch {
-        toast.error("AI couldn't generate the plan");
+        // The service turns a provider outage into a skeleton (one checkpoint per milestone),
+        // so a failure here is a save failure, not a slow model.
+        skeleton = planned.mode === "plan" && planned.fallback === "skeleton";
+      } catch (err) {
+        toast.error(`Couldn't save the plan${err instanceof Error && err.message ? `: ${err.message.slice(0, 120)}` : ""}`);
         setPhase("editing");
         return;
       }
@@ -200,7 +209,9 @@ export function MilestonesFlow({
       }
 
       toast.success(
-        `Project spawned · ${trimmed.length} phases${spawned > 0 ? ` · ${spawned} starter tasks on NOW` : ""}`,
+        skeleton
+          ? `Project spawned from your ${trimmed.length} milestones (the AI planner did not answer in time; each milestone is one checkpoint task)`
+          : `Project spawned · ${trimmed.length} phases${spawned > 0 ? ` · ${spawned} starter tasks on NOW` : ""}`,
       );
       notifyDataChanged("missions", { source: "milestones-flow", detail: "plan", id: missionId });
       notifyDataChanged("projects", { source: "milestones-flow", detail: "plan", id: missionId });
@@ -287,7 +298,9 @@ export function MilestonesFlow({
 
           <div className="flex items-center justify-between pt-1.5 border-t border-edge-subtle">
             <span className="text-[11px] text-fg-tertiary italic">
-              Each milestone becomes a phase in the plan
+              {phase === "generating"
+                ? "Writing the plan from your milestones · up to 3 min · a slow planner still gives you one checkpoint per milestone"
+                : "Each milestone becomes a phase in the plan"}
             </span>
             <button
               onClick={() => void generatePlan()}

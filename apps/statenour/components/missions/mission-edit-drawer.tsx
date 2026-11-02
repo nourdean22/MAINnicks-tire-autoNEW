@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import Link from "next/link";
 import { isGeneralAnchor } from "@/lib/services/mission-helpers";
 
 const STATUSES = ["ACTIVE", "PAUSED", "COMPLETE", "KILLED"] as const;
@@ -38,8 +39,11 @@ export interface MissionEditDrawerProps {
     title: string;
     status: string;
     domain: string | null;
-    description: string | null;
+    /** "What does done look like" (Mission.completionCriteria). Sent as `description` until 2026-11-02, which no schema accepted. */
+    completionCriteria: string | null;
     deadline: string | null;
+    /** The goal this mission was planned from (Mission.lifeGoalId), shown read-only. */
+    goal?: { id: string; title: string } | null;
     /** "GENERAL" for a system lane; such a mission cannot be deleted. */
     systemKind?: string | null;
   };
@@ -61,7 +65,7 @@ function MissionEditDrawerBody({
   const [title, setTitle] = useState(() => initial?.title ?? "");
   const [status, setStatus] = useState(() => initial?.status ?? "ACTIVE");
   const [domain, setDomain] = useState(() => initial?.domain ?? "");
-  const [description, setDescription] = useState(() => initial?.description ?? "");
+  const [description, setDescription] = useState(() => initial?.completionCriteria ?? "");
   const [deadline, setDeadline] = useState(() =>
     initial?.deadline ? initial.deadline.slice(0, 10) : "",
   );
@@ -86,7 +90,7 @@ function MissionEditDrawerBody({
           title: trimmed,
           status,
           domain: domain.trim() || undefined,
-          description: description.trim() || undefined,
+          completionCriteria: description.trim() || undefined,
           deadline: deadline.trim() || undefined,
         });
         toast.success(`Created mission “${trimmed}”.`);
@@ -105,7 +109,7 @@ function MissionEditDrawerBody({
             title: trimmed,
             status,
             domain: domain.trim() || null,
-            description: description.trim() || null,
+            completionCriteria: description.trim() || null,
             deadline: deadline.trim() || null,
           }),
         });
@@ -251,7 +255,16 @@ function MissionEditDrawerBody({
             />
           </Field>
 
-          <Field label="description">
+          {initial?.goal && (
+            <p className="text-[12px] text-fg-secondary">
+              <span className="font-mono text-[11px] text-fg-tertiary">goal </span>
+              <Link href="/stats?tab=goals" onClick={onClose} className="text-sky-300 hover:underline">
+                {initial.goal.title}
+              </Link>
+            </p>
+          )}
+
+          <Field label="done when">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}

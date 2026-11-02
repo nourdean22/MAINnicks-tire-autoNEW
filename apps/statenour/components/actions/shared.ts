@@ -34,6 +34,8 @@ export interface Project {
    *  completion percentage on it via missionHasEndState — a bucket with no
    *  declared end has no meaningful 100%. */
   completionCriteria?: unknown;
+  /** 2026-11-02 · the goal this mission was planned from (listMissions includes it). */
+  lifeGoal?: { id: string; title: string } | null;
   planData?: unknown;
   /** Wave AJ · 2026-05-28 · operator-set sort rank · lower = higher in
    *  the missions list · nulls sink to bottom. MissionFeed sorts by

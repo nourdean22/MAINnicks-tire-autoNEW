@@ -255,8 +255,9 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         title: mission.title,
         status: mission.status,
         domain: mission.domain ?? null,
-        description: mission.description ?? null,
+        completionCriteria: typeof mission.completionCriteria === "string" ? mission.completionCriteria : null,
         deadline: mission.deadline ?? null,
+        goal: mission.lifeGoal ?? null,
         // The drawer hides Delete for a system lane (GENERAL anchor); the server refuses it too.
         systemKind: mission.systemKind ?? null,
       });

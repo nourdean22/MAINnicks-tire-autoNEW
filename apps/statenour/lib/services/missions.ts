@@ -105,7 +105,9 @@ export async function listMissions() {
           id: true,
           status: true
         }
-      }
+      },
+      // 2026-11-02 · the goal a mission was planned from, for the card and the edit drawer.
+      lifeGoal: { select: { id: true, title: true } }
     },
     orderBy: [
       {

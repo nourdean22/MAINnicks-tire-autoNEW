@@ -96,6 +96,8 @@ export type PlanProjectWireResult =
       flatSteps: unknown;
       provider?: string;
       model?: string;
+      /** "skeleton": the confirmed milestones became the plan because every provider failed. */
+      fallback?: "skeleton";
     }
   | {
       mode: "learn";

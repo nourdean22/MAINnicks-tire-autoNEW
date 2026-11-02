@@ -94,6 +94,8 @@ export type PlanProjectResult =
       flatSteps: Array<Record<string, unknown>>;
       provider?: string;
       model?: string;
+      /** "skeleton": every provider failed, so the confirmed milestones became the plan (one checkpoint step each). */
+      fallback?: "skeleton";
     }
   | { mode: "learn"; learning: LearningPath; provider?: string }
   | { mode: "guide"; entry: CoachEntry; provider?: string };
@@ -122,6 +124,24 @@ export class PlanProjectError extends Error {
  *  Mission.planData. Fail the call instead. */
 function assertAiAvailable(result: { provider?: string; content?: string }): void {
   if (isAiSentinel(result)) throw new AiUnavailableError("plan-project: provider sentinel", "provider_unavailable");
+}
+
+/** Under the tRPC route's 180 s maxDuration, with room for the brain-context reads. */
+const PLAN_WITH_MILESTONES_TIMEOUT_MS = 170_000;
+
+/** The confirmed milestones as a plan: one phase each, its single step the checkpoint. */
+function skeletonPlan(milestones: readonly string[], title: string): ProjectPlanData {
+  return normalizeRawPlan(
+    {
+      summary: "Plan skeleton from your confirmed milestones: the AI planner did not answer in time. Each milestone is one checkpoint; add steps as you go.",
+      phases: milestones.map((m) => ({
+        name: m,
+        milestone: m,
+        steps: [{ title: m, nextAction: m, effort: "M30", who: "Nour", isCheckpoint: true }],
+      })),
+    },
+    title,
+  );
 }
 
 function parseJson(text: string): Record<string, unknown> {
@@ -406,26 +426,53 @@ Respond ONLY with valid JSON:
   // ─── MODE 2: PLAN ────────────────────────────────────────────────
   if (mode === "plan") {
     const confirmedMilestones = input.milestones ?? [];
-    const milestonesBlock =
-      confirmedMilestones.length > 0
-        ? `\n\nCONFIRMED MILESTONES (Nour has approved these — generate ONE phase per milestone, in order, using the milestone label as the phase name):\n${confirmedMilestones.map((m, i) => `${i + 1}. ${m}`).join("\n")}`
-        : "";
-    const phaseInstruction =
-      confirmedMilestones.length > 0
-        ? `- EXACTLY ${confirmedMilestones.length} phases, one per confirmed milestone (use the milestone text as the phase name)`
-        : "- 5-7 distinct phases with clear milestones";
-    const prompt = `You are a world-class project planner creating a COMPREHENSIVE, BATTLE-TESTED plan.
+    // 2026-11-02 · with confirmed milestones the ladder is already decided, so the plan is
+    // small: 2-4 steps per milestone and nothing else. The full prompt below asks for 15-30
+    // steps plus costs, tools, risks and a weekend schedule (~8,000 output tokens), which a
+    // local model cannot finish inside the 100 s provider timeout: 3 of 3 goal plans that day
+    // ended provider_emergency at 53-58 s and the mission was left with no plan.
+    const compactPrompt = `You are a project planner turning Nour's confirmed milestones into a short, concrete plan.
+
+PROJECT: ${title}
+${description ? `DETAILS: ${description}` : ""}
+${memoryContext}
+${decisionContext}
+
+CONFIRMED MILESTONES (Nour approved these; one phase per milestone, in order, the milestone text as the phase name):
+${confirmedMilestones.map((m, i) => `${i + 1}. ${m}`).join("\n")}
+
+REQUIREMENTS:
+- EXACTLY ${confirmedMilestones.length} phases, one per confirmed milestone, in order
+- 2-4 steps per phase; each step is a PHYSICAL action Nour can start right now
+- Time estimates using: M5, M15, M30, H1, H2PLUS
+- The last step of each phase is the checkpoint that proves the milestone is done (isCheckpoint: true)
+- No costs, tools, schedules or risk sections
+
+Respond ONLY with valid JSON:
+{
+  "summary": "1-2 sentence summary of the plan",
+  "phases": [
+    {
+      "name": "Milestone text",
+      "milestone": "What is true when this phase is done",
+      "steps": [
+        { "title": "Specific step", "nextAction": "The literal first physical thing to do", "effort": "M30", "who": "Nour", "isCheckpoint": false }
+      ]
+    }
+  ]
+}`;
+    const fullPrompt = `You are a world-class project planner creating a COMPREHENSIVE, BATTLE-TESTED plan.
 
 PROJECT: ${title}
 ${description ? `DETAILS: ${description}` : ""}
 ${answers ? `NOUR'S STRATEGIC ANSWERS:\n${answers}` : ""}
 ${memoryContext}
-${decisionContext}${milestonesBlock}
+${decisionContext}
 
 CREATE THE ULTIMATE PROJECT PLAN. Think like you're being paid $10K for this plan.
 
 REQUIREMENTS:
-${phaseInstruction}
+- 5-7 distinct phases with clear milestones
 - 15-30 specific steps total (more is better than less)
 - Each step = a PHYSICAL action someone can start doing RIGHT NOW
 - Include WHO does each step (Nour, contractor, supplier, wife, employee)
@@ -475,6 +522,7 @@ Respond ONLY with valid JSON:
   "toolsAndMaterials": [{ "item": "Name", "quantity": "Amount", "estimatedCost": 0, "where": "Where to buy" }],
   "decisionPoints": [{ "decision": "What to decide", "options": ["A", "B"], "recommendation": "What I'd choose and why" }]
 }`;
+    const withMilestones = confirmedMilestones.length > 0;
 
     const result = await tracedAiChat(
       { label: "plan-project:plan", source: "tool", metadata: { missionId } },
@@ -485,14 +533,25 @@ Respond ONLY with valid JSON:
             "You are the world's best project planner. You've managed $100M+ in projects. Return only valid JSON. Be obsessively detailed and specific. Include costs, timelines, risks, and insider tips that only someone with 20 years of experience would know. This plan should be so good that Nour doesn't need to think — just follow the steps." +
             (lensBlock ? `\n\n${lensBlock}` : ""),
         },
-        { role: "user", content: prompt },
+        { role: "user", content: withMilestones ? compactPrompt : fullPrompt },
       ],
       "deep",
+      // The tRPC route allows 180 s (app/api/trpc/[trpc]/route.ts maxDuration); the 100 s default is for chat.
+      withMilestones ? { timeoutMs: PLAN_WITH_MILESTONES_TIMEOUT_MS } : {},
     );
-    assertAiAvailable(result);
 
-    const raw = parseJson(result.content);
-    const plan = normalizeRawPlan(raw, title);
+    let plan: ProjectPlanData;
+    let fallback: "skeleton" | undefined;
+    if (withMilestones && isAiSentinel(result)) {
+      // Every provider failed. The milestones are Nour's own reviewed input, so they become the
+      // plan: one phase each, one checkpoint step each. A plan with no steps blocks spawnTasks
+      // (400) and leaves the goal with a mission that does nothing; this never dead-ends.
+      plan = skeletonPlan(confirmedMilestones, title);
+      fallback = "skeleton";
+    } else {
+      assertAiAvailable(result);
+      plan = normalizeRawPlan(parseJson(result.content), title);
+    }
     if (answers) plan.strategicAnswers = answers;
 
     // Flatten phases into steps for backward-compat with callers that
@@ -508,18 +567,13 @@ Respond ONLY with valid JSON:
       }
     }
 
-    // Persist the plan data if a missionId was provided.
+    // Persist the plan data if a missionId was provided. A failed write used to be a warn
+    // and a "success" to the caller, which then spawned from a plan that did not exist.
     if (missionId) {
-      await prisma.mission
-        .update({
-          where: { id: missionId },
-          data: { planData: JSON.parse(JSON.stringify(plan)) },
-        })
-        .catch((err) =>
-          log.warn("persist_plan_failed", {
-            err: err instanceof Error ? err.message : String(err),
-          }),
-        );
+      await prisma.mission.update({
+        where: { id: missionId },
+        data: { planData: JSON.parse(JSON.stringify(plan)) },
+      });
     }
 
     return {
@@ -528,6 +582,7 @@ Respond ONLY with valid JSON:
       flatSteps,
       provider: result.provider,
       model: result.model,
+      ...(fallback ? { fallback } : {}),
     };
   }
 
