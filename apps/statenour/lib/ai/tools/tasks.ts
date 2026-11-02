@@ -812,10 +812,14 @@ const tasksCoreTools = {
     }),
     execute: async ({ id, answer }) => {
       const { answerOpenLoop } = await import("@/lib/brain/open-loops");
-      const recorded = await answerOpenLoop(id, answer);
-      return recorded
-        ? { recorded: true, answer }
-        : { recorded: false, error: "no open-loop question with that id, or it was already answered" };
+      try {
+        const result = await answerOpenLoop(id, answer);
+        if (result === "recorded") return { recorded: true, answer };
+        if (result === "already_answered") return { recorded: false, alreadyAnswered: true };
+        return { recorded: false, error: "no open-loop question with that id" };
+      } catch {
+        return { recorded: false, error: "could not save the answer (write failed); say so, do not claim it was saved" };
+      }
     },
   }),
 
@@ -1251,7 +1255,11 @@ const tasksCoreTools = {
           const { nextOpenLoopAsk } = await import("@/lib/brain/open-loops");
           const ask = await nextOpenLoopAsk();
           return ask.state === "ask" ? { id: ask.id, quote: ask.quote, saidOn: ask.saidOn, dueOn: ask.dueOn } : null;
-        })().catch(() => UNKNOWN),
+        })().catch(async (err: unknown) => {
+          const { logError } = await import("@/lib/utils/error-log");
+          logError("tools.dailyPulse.openLoop", err);
+          return UNKNOWN;
+        }),
       ]);
 
       return {

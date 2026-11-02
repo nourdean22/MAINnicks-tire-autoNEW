@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   nextOpenLoopAsk: vi.fn(),
   answerOpenLoop: vi.fn(),
   currentTurn: vi.fn(),
+  logError: vi.fn(),
 }));
 vi.mock("@/lib/agent/turn-context", () => ({ currentTurn: h.currentTurn }));
 vi.mock("@/lib/brain/open-loops", () => ({ nextOpenLoopAsk: h.nextOpenLoopAsk, answerOpenLoop: h.answerOpenLoop }));
@@ -23,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/mastery/drift-engine", () => ({ getUnresolvedAlerts: vi.fn().mockResolvedValue([]) }));
-vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+vi.mock("@/lib/utils/error-log", () => ({ logError: h.logError }));
 vi.mock("@/lib/errors/record-error", () => ({ recordError: vi.fn() }));
 
 import { tasksTools } from "@/lib/ai/tools/tasks";
@@ -53,6 +54,7 @@ describe("dailyPulse · openLoop", () => {
     const out = await run("dailyPulse");
     expect(out.openLoop).not.toBeNull();
     expect(String(out.openLoop)).toMatch(/unknown/i);
+    expect(h.logError).toHaveBeenCalledWith("tools.dailyPulse.openLoop", expect.any(Error));
   });
 
   it("a Private Lab turn records no ask (it writes nothing)", async () => {
@@ -75,15 +77,27 @@ describe("dailyPulse · openLoop", () => {
 
 describe("answerOpenLoop tool", () => {
   it("records the answer on the ask's row", async () => {
-    h.answerOpenLoop.mockResolvedValue(true);
+    h.answerOpenLoop.mockResolvedValue("recorded");
     const out = await run("answerOpenLoop", { id: "row-1", answer: "done" });
     expect(h.answerOpenLoop).toHaveBeenCalledWith("row-1", "done");
     expect(out).toMatchObject({ recorded: true });
   });
 
   it("says so when the id is not an open-loop ask", async () => {
-    h.answerOpenLoop.mockResolvedValue(false);
+    h.answerOpenLoop.mockResolvedValue("not_found");
     const out = await run("answerOpenLoop", { id: "nope", answer: "not_yet" });
-    expect(out).toMatchObject({ recorded: false });
+    expect(out).toMatchObject({ recorded: false, error: expect.stringMatching(/no open-loop question/) });
+  });
+
+  it("an already answered question is not an error", async () => {
+    h.answerOpenLoop.mockResolvedValue("already_answered");
+    const out = await run("answerOpenLoop", { id: "row-1", answer: "done" });
+    expect(out).toMatchObject({ recorded: false, alreadyAnswered: true });
+  });
+
+  it("a failed write says the write failed, not that the id is wrong", async () => {
+    h.answerOpenLoop.mockRejectedValue(new Error("open-loop answer not recorded"));
+    const out = await run("answerOpenLoop", { id: "row-1", answer: "done" });
+    expect(out).toMatchObject({ recorded: false, error: expect.stringMatching(/could not save/) });
   });
 });
