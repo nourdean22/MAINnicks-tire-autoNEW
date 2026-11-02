@@ -61,6 +61,7 @@ export const ACCEPTED_EXCEPTIONS: Readonly<Record<string, string>> = {
   last30days: "With the topic 'setup' it installs software on the server and writes its config file there, once (idempotent, server-local, no outside effect).",
   scrapeWebPage: "A replay can issue the same GET to the page a second time.",
   getShopSnapshot: "Reaches nickstire's /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",
+  dailyPulse: "Writes at most one outcome-ledger row a day (an open-loop ask, lib/brain/open-loops.ts); a replay the same day finds it and asks nothing. Skipped in Private Lab turns.",
 };
 
 export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([

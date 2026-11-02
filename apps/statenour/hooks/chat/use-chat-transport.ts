@@ -154,7 +154,7 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * the X-Trace-Id of the response it arrived on, so the caller can refuse
    * a payload that belongs to another turn.
    */
-  onMessagePersisted?: (persisted: { id: string; content: string; traceId: string | null }) => void;
+  onMessagePersisted?: (persisted: { id: string; content: string; traceId: string | null; verifying?: boolean }) => void;
   /**
    * P2-B6 · the id of the bubble already showing the turn a resume names
    * (`?traceId=`), or undefined when there is none. The replay answers under
