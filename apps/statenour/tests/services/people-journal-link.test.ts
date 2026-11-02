@@ -104,7 +104,10 @@ describe("linkJournalPeople · the resolver gate", () => {
   });
 
   it("a typo-tier match (Levenshtein 1) is NOT accepted: the resolver takes the first near name with no tie check", async () => {
-    await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Danai", interacted: true }] });
+    // "Danya" is one substitution from "Dania". ("Danai", the resolver header's own example, is a transposition:
+    // Levenshtein 2, so it lands in the Jaro-Winkler tier instead; the first cut of this test used it and the
+    // accept-levenshtein mutant survived.)
+    await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Danya", interacted: true }] });
     expect(writtenIds()).toEqual([]);
     expect(h.once).not.toHaveBeenCalled();
   });
