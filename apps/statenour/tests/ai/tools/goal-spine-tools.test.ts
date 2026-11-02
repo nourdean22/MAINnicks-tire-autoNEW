@@ -81,6 +81,10 @@ describe("getGoals", () => {
     // Staleness is a visible state (Linear L2), never a silent green.
     expect(g2.health).toEqual({ state: "no_check_in", at: null });
     expect(r.failed).toEqual([]);
+    // One newest row per (goal, kind), never a global cap that can push an older check-in out.
+    const args = h.eventFindMany.mock.calls[0][0];
+    expect(args.distinct).toEqual(["goalId", "kind"]);
+    expect(args.take).toBeUndefined();
   });
 
   it("a failed check-in read says unknown, never 'no check-in'", async () => {

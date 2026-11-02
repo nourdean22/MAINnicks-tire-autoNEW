@@ -47,8 +47,9 @@ export const goalsTools = {
       try {
         const events = await prisma.goalEvent.findMany({
           where: { goalId: { in: goals.map((g) => g.id) }, kind: { in: ["check_in", "horizon_set"] } },
+          // The newest row per (goal, kind): a cap across all goals would hide an older check-in as "none".
           orderBy: { createdAt: "desc" },
-          take: 200,
+          distinct: ["goalId", "kind"],
           select: { goalId: true, kind: true, payload: true, createdAt: true },
         });
         for (const e of events) {
