@@ -8,7 +8,7 @@
  * See: src/inngest/client.ts · app/api/inngest/route.ts
  */
 
-export { megaFanoutMorning, megaFanoutEvening } from "./mega-fanout";
+export { megaFanoutMorning, megaFanoutEvening, megaBrainOffpeak } from "./mega-fanout";
 // 2026-05-30 · out-of-band liveness watchdog for the fan-out (the canary
 // that was missing when the fan-out went ~70% dead for 2 days).
 export { cronHeartbeat } from "./cron-heartbeat";

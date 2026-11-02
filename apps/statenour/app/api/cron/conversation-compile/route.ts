@@ -17,7 +17,8 @@ export const maxDuration = 60;
  * Cap 10/run, 200ms apart — one digest is a full "reason"-lane LLM call;
  * a backfill over the whole corpus drains across nights by design, never
  * in one shot (the $5/day AI budget is enforced pre-flight per call).
- * Schedule: NIGHTLY via the mega-evening fan-out (EVENING_JOBS).
+ * Schedule: NIGHTLY via the mega-evening fan-out (EVENING_JOBS), in its 05:00Z off-peak
+ * phase with one retry pass (OFFPEAK_BRAIN_JOBS, mega-brain-offpeak, since 2026-11-01).
  */
 export const GET = cronHandler(async () => {
   const result = await summarizeIdleConversations({ limit: 10 });

@@ -41,7 +41,9 @@ import { admitMemory } from "@/lib/brain/memory-admission";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
-const aiChat = makeTracedAiChat("session-distiller");
+// 90 s, not the fast lane's 45 s: 37 of 70 calls aborted AT 45.0 s and ok p99 was 44.5 s (Langfuse, 7 d to
+// 2026-11-01). Runs only in the 05:00Z off-peak phase (mega-fanout megaBrainOffpeak), never in a chat turn.
+const aiChat = makeTracedAiChat("session-distiller", "brain", { timeoutMs: 90_000 });
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
 import { logError } from "@/lib/utils/error-log";

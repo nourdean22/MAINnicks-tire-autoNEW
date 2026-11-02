@@ -397,7 +397,7 @@ export const CRONS: CronDef[] = [
     mode: "folded",
     category: "brain",
     foldedInto: "mega-evening",
-    description: "FOLDED into mega-evening · roll-up of fresh BrainMemory into consolidated_belief rows.",
+    description: "FOLDED into mega-evening, run in its 05:00Z off-peak phase (mega-brain-offpeak, one child at a time, since 2026-11-01) · roll-up of fresh BrainMemory into consolidated_belief rows.",
   },
   {
     name: "tool-description-rewrite",
@@ -697,7 +697,7 @@ export const CRONS: CronDef[] = [
     category: "brain",
     foldedInto: "mega-evening",
     addedAt: "2026-10-02",
-    description: "FOLDED into mega-evening (detached) · thinking engine L7/L8/L10: contradictions, identity_snapshots, causal_chains. Resurrected 2026-10-02 after a 4-month freeze.",
+    description: "FOLDED into mega-evening, run in its 05:00Z off-peak phase (mega-brain-offpeak, one child at a time, since 2026-11-01) · thinking engine L7/L8/L10: contradictions, identity_snapshots, causal_chains. Resurrected 2026-10-02 after a 4-month freeze.",
     memory: 512,
     maxDuration: 300,
   },
@@ -719,7 +719,7 @@ export const CRONS: CronDef[] = [
     category: "review",
     foldedInto: "mega-evening",
     description:
-      "FOLDED into mega-evening · RESURRECTED 2026-08-06 (deleted in the Wave-AE prune 2026-05-28, never re-wired). Distills idle chat sessions into BrainMemory(chat_summary) and upserts the rolling nick_current_concerns aggregate. Its absence killed both: chat_summary froze at 34 rows and nick_current_concerns was NEVER written (0 rows), so the /chat concerns context block fired 0 times in 1,128 measured turns and fireAfternoonPush degraded to silence. Batch-capped at 10 conversations/run; one LLM call per distilled conversation. Was every-30-min via vercel.json; nightly is ample since every eligibility rule is 'since last distill'.",
+      "FOLDED into mega-evening, run in its 05:00Z off-peak phase (mega-brain-offpeak, one child at a time, plus one retry pass, since 2026-11-01) · RESURRECTED 2026-08-06 (deleted in the Wave-AE prune 2026-05-28, never re-wired). Distills idle chat sessions into BrainMemory(chat_summary) and upserts the rolling nick_current_concerns aggregate. Its absence killed both: chat_summary froze at 34 rows and nick_current_concerns was NEVER written (0 rows), so the /chat concerns context block fired 0 times in 1,128 measured turns and fireAfternoonPush degraded to silence. Batch-capped at 10 conversations/run; one LLM call per distilled conversation. Was every-30-min via vercel.json; nightly is ample since every eligibility rule is 'since last distill'.",
     memory: 512,
     maxDuration: 60,
   },
@@ -730,7 +730,7 @@ export const CRONS: CronDef[] = [
     category: "review",
     foldedInto: "mega-evening",
     description:
-      "FOLDED into mega-evening · 2026-08-19 memory-loop wave: the conversation compiler's tail-catcher. Prod measurement: 283 conversations → 15 live conversation_summary rows vs 158 soft-deleted. The nightly merge grinder ate prose summaries (category now consolidation-excluded) and the per-turn guard was one-shot-forever (now staleness-based, 30min debounce). Sweeps ≤10 idle conversations/run whose summary is missing, merge-ground, or older than the conversation's last activity; recompiling revives soft-deleted rows. One 'reason'-lane LLM call per conversation. The whole-corpus backfill drains across nights by design.",
+      "FOLDED into mega-evening, run in its 05:00Z off-peak phase (mega-brain-offpeak, one child at a time, plus one retry pass, since 2026-11-01) · 2026-08-19 memory-loop wave: the conversation compiler's tail-catcher. Prod measurement: 283 conversations → 15 live conversation_summary rows vs 158 soft-deleted. The nightly merge grinder ate prose summaries (category now consolidation-excluded) and the per-turn guard was one-shot-forever (now staleness-based, 30min debounce). Sweeps ≤10 idle conversations/run whose summary is missing, merge-ground, or older than the conversation's last activity; recompiling revives soft-deleted rows. One 'reason'-lane LLM call per conversation. The whole-corpus backfill drains across nights by design.",
     memory: 512,
     maxDuration: 60,
   },
