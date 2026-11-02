@@ -17,6 +17,32 @@
 > - A cold start with the database down falls back to the env value of `W6_INTENT_SURFACE`, so a flag that is on only through the Settings override shows `/now` as a 404 until the read recovers (fails closed).
 > - Kill read 2026-11-29: at least 6 compositions, at least 80% with a working card, p50 under 10 s (`intent-surface` traces); else delete page, route and flag.
 
+> ## 2026-11-01 · open-loop follow-ups: Nick asks once about a dated promise after its date (job 2026-11-01-chat-humanizer-w6, upgrade 9) · 1 ship
+>
+> Nour, 2026-11-01: "good continue n fix it all". Upgrade 9 of `docs/research/chat-upgrades-2026-11-01.md`.
+>
+> - **Now.** `lib/brain/open-loops.ts` reads Nour's own chat messages from the last 21 days (newest first, at most 2000, each under 1500 chars) and keeps only sentences with "I'll / I will / I'm going to" plus an action verb and a weekday, today, tomorrow, "by/on <m/d>" or a month name and day. Hedged, negated, conditional, question, quoted or reported sentences never count, and neither does a date before the day it was said. `dailyPulse` returns `openLoop` (one ask, `null` for a measured none, `unknown (read failed)` with a logged error, `skipped: private turn` in Private Lab): at most one ask a day, each promise once, only after its date and at most 14 days late. Each ask is an `intelligence_outcomes` row (`source_engine = 'open-loop'`) whose `evidence_refs` say why it fired; the new `answerOpenLoop` tool decides it (done = accepted; not yet / dropped = dismissed with the non-correction refs `dismiss:timing` / `dismiss:alternative`). No schema change, no push, no SMS.
+> - **Proof.** Red-first: both new files failed on main (module missing; 4 dailyPulse assertions), then 2, 14 and 23 more failures for each review round before their fixes; 77 passed after. 25 mutations all red. 127 tests pass under TZ UTC, Pacific/Kiritimati, America/Los_Angeles and America/New_York. `tests/ai`, `brain`, `lib`, `services`, `trpc` on the first commit: 973 files, 10,490 tests passed. `pnpm typecheck`, `check:et-clock`, `prompt:size-check` exit 0. The tool-contract snapshot gained only `answerOpenLoop` and the `dailyPulse` description.
+>
+> **Flagged · NOT fixed**
+> - An ask counts as shown when dailyPulse returns it, even if Nick does not voice it (dailyPulse also answers "is the shop open"). The kill read's denominator is therefore conservative. A voiced-ask marker belongs to the chat stream lane.
+> - Archived conversations are still read (archiving a chat does not retract a promise).
+> - Two dailyPulse calls racing in the same second can both ask (different promises); one a day otherwise.
+> - Kill read 2026-12-01: `SELECT count(*) AS asks, count(*) FILTER (WHERE decided_at <= shown_at + interval '14 days') AS answered FROM intelligence_outcomes WHERE source_engine = 'open-loop';` needs at least 1 in 3.
+
+> ## 2026-11-01 · B2: the reply finishes when its text does; the fact check runs after (job 2026-11-01-chat-humanizer-w6) · 1 ship
+>
+> Measured 2026-11-01 (docs/research/chat-upgrades-2026-11-01.md section 2.2): the tail after the last token was p50 15.9 s, p90 43 s, and Chain-of-Verification inside it p50 9.9 s. `message.persisted` closes the stream and waited for CoVe.
+>
+> - **Server.** A factual reply with no action claim is stored and announced on its draft (`verifying: true`). `verifyStoredReply` (lib/services/chat/deferred-cove.ts) then runs CoVe (45 s bound), patches the row when it revises (tool cards kept), and merges `tokenUsage.cove` either way, before the deferred work so memory reads the checked text. A reply that claims an action keeps the blocking check, bounded at 20 s.
+> - **Defense stack intact.** CoVe runs only on text no pre-write station touched (banners, calibration notice, L2), and a revision that adds an action claim or a known-truth flag is dropped.
+> - **Client.** The bubble is marked, the existing "Checking the reply…" line stays on the latest reply, and the chat re-reads the row (5 reads, 12 s bound each) until the check settles, then binds that text; a send clears the mark.
+>
+> **Flagged · NOT fixed**
+> - A send before the check settles (p50 ~10 s) carries the draft in the next turn's history; the row and a reload have the checked text.
+> - A crash during the check (at most 45 s) loses that turn's deferred work, as the same window of the old blocking check did.
+> - Live 7-day read owed: tail p90 under 10 s and the CoVe catch count not lower (by 2026-11-15).
+
 > ## 2026-11-01 · background brains finish: off-peak, one at a time, measured ceilings (job 2026-11-01-chat-humanizer-w6, upgrade 5) · 1 ship
 >
 > Nour, 2026-11-01: "good continue n fix it all". Upgrade 5 of `docs/research/chat-upgrades-2026-11-01.md`.

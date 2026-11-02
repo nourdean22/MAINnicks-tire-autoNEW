@@ -34,7 +34,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-health.mjs\"",
-            "timeout": 10
+            "timeout": 15
           }
         ]
       },

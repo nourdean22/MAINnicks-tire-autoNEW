@@ -10,7 +10,7 @@ import { createServer as createHttpServer } from "node:http";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -123,12 +123,30 @@ function project(label) {
   return dir;
 }
 
-function run({ homeDir, configFile, primaryDir, projectDir }, { script = SCRIPT } = {}) {
+/**
+ * A preload that plays a machine busy at SessionStart: node start-up takes STARTUP_DELAY_MS before the script loads, and
+ * every execFile answer (git, schtasks) is held for SPAWN_DELAY_MS.
+ */
+const SLOW_SPAWN = join(SCRATCH, "slow-spawn.mjs");
+writeFileSync(SLOW_SPAWN, `import cp from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
+const until = Date.now() + Number(process.env.STARTUP_DELAY_MS);
+while (Date.now() < until);
+const real = cp.execFile;
+const ms = Number(process.env.SPAWN_DELAY_MS);
+cp.execFile = (cmd, args, opts, cb) => real(cmd, args, opts, (...a) => setTimeout(() => cb(...a), ms));
+syncBuiltinESMExports();
+`);
+
+function run({ homeDir, configFile, primaryDir, projectDir }, { script = SCRIPT, spawnDelayMs, startupDelayMs = 0 } = {}) {
   const args = [script, "--home", homeDir, "--config", configFile];
   if (primaryDir) args.push("--primary", primaryDir);
+  if (spawnDelayMs !== undefined) args.unshift("--import", pathToFileURL(SLOW_SPAWN).href);
   const started = Date.now();
+  const env = { ...GIT_ENV, CLAUDE_PROJECT_DIR: projectDir, SPAWN_DELAY_MS: String(spawnDelayMs ?? 0),
+    STARTUP_DELAY_MS: String(startupDelayMs) };
   // Async on purpose: the fixture MCP servers live in THIS process, and spawnSync would block them from answering.
-  const child = spawn(process.execPath, args, { cwd: projectDir, env: { ...GIT_ENV, CLAUDE_PROJECT_DIR: projectDir } });
+  const child = spawn(process.execPath, args, { cwd: projectDir, env });
   let out = "";
   let err = "";
   child.stdout.on("data", (d) => (out += d));
@@ -236,6 +254,24 @@ test("--primary at a dir that is not a repo: the graph reads UNKNOWN, never ok, 
   assert.match(oneLine(await run(f)), /graph UNKNOWN \(/);
 });
 
+// At SessionStart this hook shares the machine with every other hook and plugin starting up: a 48-process CPU load on
+// NATTYNOUR (8 cores) made the whole hook take 6.4-8.6 s (node start-up ~2.5 s of it), and the old 1.5 s budget
+// printed UNKNOWN (timeout) for healthy parts.
+test("a slow machine is not a broken one: a git answer 2.5 s late still reads graph ok, not UNKNOWN (timeout)", async () => {
+  const line = oneLine(await run(await healthy("slow-spawn"), { spawnDelayMs: 2500 }));
+  assert.match(line, /graph ok \(0 behind origin\/main\)/);
+});
+
+test("slow start-up plus a hung probe still prints inside the hook timeout: graph UNKNOWN (timeout), never ok", async () => {
+  const { hooks, at } = configured();
+  const r = await run(await healthy("hung-spawn"), { spawnDelayMs: 60000, startupDelayMs: 2500 });
+  const line = oneLine(r);
+  assert.match(line, /graph UNKNOWN \(timeout\)/);
+  assert.match(line, /graphify up/, "the other checks still render");
+  // Claude kills the hook at its timeout and the line is lost; keep 1 s for the shell Claude starts it through.
+  assert.ok(r.ms < hooks[at].timeout * 1000 - 1000, `took ${r.ms} ms against a ${hooks[at].timeout} s hook timeout`);
+});
+
 test("an empty servers list is a FAIL, not a vacuous all-clear", async () => {
   const f = await healthy("no-servers", { config: { servers: [] } });
   const line = oneLine(await run(f));
@@ -323,6 +359,16 @@ test("scheduled tasks (Windows): an unregistered task is MISSING with its regist
   const line = oneLine(await run(await healthy("tasks", { config: { tasks: [{ name, register: "scripts/register-x.ps1" }] } })));
   assert.match(line, new RegExp(`task ${name} MISSING`));
   assert.match(line, /FIX FIRST: \(1\) [^|]*register-x\.ps1/);
+});
+
+test("scheduled tasks (Windows): schtasks starts beside git rev-parse, not after it, so slow spawns do not add up", async (t) => {
+  if (!WIN) return t.skip("schtasks is Windows-only; the check is skipped on other OS");
+  const name = `NOURCITY-Health-Test-Absent-${process.pid}`;
+  const f = await healthy("tasks-parallel", { config: { tasks: [{ name, register: "scripts/register-x.ps1" }] } });
+  delete f.primaryDir; // the real hook runs git rev-parse first; --primary would skip it
+  // Every spawn answers 4 s late: in a row that is 8 s, past the budget; side by side it is 4 s.
+  const line = oneLine(await run(f, { spawnDelayMs: 4000 }));
+  assert.match(line, new RegExp(`task ${name} MISSING`));
 });
 
 function configured() {

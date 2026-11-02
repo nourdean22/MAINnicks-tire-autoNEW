@@ -20,6 +20,15 @@ type Msg = { id: string; role: string; parts: Array<Record<string, unknown> & { 
 const user: Msg = { id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] };
 
 describe("bindPersistedMessage", () => {
+  it("B2: marks the bubble verifying while the server's check runs, and clears the mark on the next bind", () => {
+    const streamed = { id: "client-abc", role: "assistant", parts: [{ type: "text", text: "raw" }], metadata: { traceId: "T1" } } as Msg;
+    const marked = bindPersistedMessage([user, streamed], { id: "row_1", content: "draft", verifying: true });
+    expect(marked.at(-1)).toMatchObject({ metadata: { traceId: "T1", verifying: true } });
+    const settled = bindPersistedMessage(marked, { id: "row_1", content: "checked" });
+    expect(settled.at(-1)).toMatchObject({ metadata: { traceId: "T1" }, parts: [{ type: "text", text: "checked" }] });
+    expect((settled.at(-1) as { metadata?: { verifying?: boolean } }).metadata?.verifying).toBeUndefined();
+  });
+
   it("binds the streamed bubble to the DB id and replaces its text with the stored text", () => {
     const streamed: Msg = { id: "client-abc", role: "assistant", parts: [{ type: "text", text: "raw stream" }] };
     const out = bindPersistedMessage([user, streamed], { id: "row_1", content: "[banner] raw stream" });

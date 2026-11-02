@@ -92,6 +92,15 @@ regexes = [
   # specific published verification key, which is already public regardless
   # of what this file says.
   '''INDEXNOW_KEY = "d274e03f24e4438599616695d23dab67"''',
+  # A FEATURE-FLAG KEY, not a credential (added 2026-11-02 with PR 3507, UI v3 W6).
+  # `generic-api-key` fired on `key: "W6_INTENT_SURFACE"` in lib/feature-flags.ts and
+  # its two tests: the registry field is literally named `key` and the name has
+  # enough distinct characters to pass the entropy floor. Its neighbours
+  # (NICK_MUTATION_LOCK, INNGEST_MEGA_V2, ...) sit under the floor, which is why this
+  # is the first flag to trip it. Matched by EXACT NAME, like the two entries above,
+  # so it exempts this one identifier and nothing else; the value is a public env
+  # var name that CI and the Settings panel both print.
+  '''W6_INTENT_SURFACE''',
 ]
 # Test-fixture tokens for the agent-bridge scope canary are SYNTHETIC — the
 # file asserts token->scope resolution and never contains a real secret. Path-
