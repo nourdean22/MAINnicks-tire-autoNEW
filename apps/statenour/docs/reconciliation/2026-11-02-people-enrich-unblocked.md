@@ -6,6 +6,9 @@
 > - **Second cause.** Its only context was ledger notes, and every note on the 10 sparse people is the generic `interaction reported in chat (...)` line the backfill writes: a contact happened, nothing about the person.
 > - **Fix** (`lib/brain/people-intelligence.ts`). A cadence-only proposal no longer blocks; the role and notes suggestion is merged into it, so one Accept applies both. Generic notes are not context; up to 3 snippets of his OWN chat messages naming the person (whole word, newest first) top it up. A failed chat read returns `enrich: "chat_read_failed"`, never a quiet night. Still 5 model calls a night, still suggest-then-approve.
 >
+> - **Second reader** (Codex was usage-limited): a dismissed role or notes suggestion now stays away 30 days (`metadata.enrichProposedAt`, the cadence rule), since the chat path re-runs the engine every 6 hours; and the write is a compare-and-swap on the `pendingClassification` it read, so an answer he gives mid-run is never overwritten (P2025 = skipped, not a failure). The JSON equality filter was proven read-only on prod.
+>
 > **Flagged · NOT fixed**
-> - A dismissed role or notes suggestion comes back the next night (no cooldown, unlike cadence's 30 days). Pre-existing; now reaches more people.
+> - Dismiss clears the merged cadence along with the role and notes (one banner, one answer).
+> - `lib/ai/agent-actions/person-actions.ts` (Nick's path) still replaces the whole suggestion, so it can wipe a merged cadence. Pre-existing.
 > - The 39 backfill rows keep their generic note text; rewriting them is a production write.

@@ -12,6 +12,7 @@
  * - People most relevant to current goals
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
@@ -27,6 +28,14 @@ import { logError } from "@/lib/utils/error-log";
 /** The fallback note both chat writers use when the digest gave no detail: it records a contact, nothing about the person. */
 const GENERIC_NOTE = /^interaction reported in chat \(/i;
 const CONTEXT_MAX = 3;
+/** A dismissed role/notes suggestion stays away this long, like a dismissed cadence (second reader on 3519). */
+const ENRICH_REPROPOSE_DAYS = 30;
+
+function proposedWithin(metadata: unknown, key: string, days: number): boolean {
+  const at = (metadata as Record<string, unknown> | null)?.[key];
+  const ms = typeof at === "string" ? Date.parse(at) : NaN;
+  return Number.isFinite(ms) && ms > Date.now() - days * 86_400_000;
+}
 
 /**
  * A waiting suggestion that already proposes a role, notes or a trust change. A cadence-only
@@ -146,7 +155,10 @@ export async function runPeopleIntelligence(): Promise<{
   // that ALREADY have a role/notes suggestion waiting for the operator (don't
   // burn AI calls re-proposing the same thing). A cadence-only one is merged into.
   const sparse = people.filter(
-    (p) => (p.role === "unknown" || !p.leverageNotes) && !hasEnrichProposal(p.pendingClassification)
+    (p) =>
+      (p.role === "unknown" || !p.leverageNotes) &&
+      !hasEnrichProposal(p.pendingClassification) &&
+      !proposedWithin(p.metadata, "enrichProposedAt", ENRICH_REPROPOSE_DAYS)
   );
 
   let updated = 0;
@@ -254,9 +266,19 @@ Return ONLY JSON:
             // Keep a waiting cadence proposal: one banner, and his Accept applies both.
             const prior = person.pendingClassification;
             const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
+            const meta =
+              person.metadata && typeof person.metadata === "object" && !Array.isArray(person.metadata)
+                ? (person.metadata as Record<string, unknown>)
+                : {};
+            // Compare-and-swap on the slot this run read: if he accepted or dismissed it during
+            // the model call, the write matches nothing (P2025) and is skipped below.
             await prisma.personProfile.update({
-              where: { id: person.id },
+              where: {
+                id: person.id,
+                pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue },
+              },
               data: {
+                metadata: { ...meta, enrichProposedAt: new Date().toISOString() } as object,
                 pendingClassification: {
                   ...keep,
                   role: suggestedRole,
@@ -270,8 +292,9 @@ Return ONLY JSON:
             updated++;
             suggestedNow.add(person.id);
           }
-        } catch {
-          enrichFailCount++;
+        } catch (err) {
+          // Lost the swap: he answered the banner mid-run. His answer stands; not a failure.
+          if ((err as { code?: unknown } | null)?.code !== "P2025") enrichFailCount++;
         }
       }
     }
