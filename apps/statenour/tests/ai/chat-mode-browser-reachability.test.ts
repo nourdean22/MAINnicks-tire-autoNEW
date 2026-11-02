@@ -265,17 +265,23 @@ describe("never-surfaced capabilities are reachable from plain language", () => 
     ).toContain(tool);
   });
 
-  it("COST CONTROL: ordinary prompts do not balloon past the budget", () => {
+  it("COST CONTROL: ordinary prompts do not balloon past the budget", async () => {
     // The token matcher feeds the HIGH-PRIORITY exact tier, so a sloppy rule
     // would crowd out the keyword families beneath it. A reachability win paid
     // for by truncating everything else is not a win.
-    return Promise.all(
-      ["what are my tasks today", "i feel scattered and behind", "what should i do next"].map(
-        async (p) => {
+    // 2026-11-02 (B3): the default budget rose 24 -> 32. The check keeps its old ceiling by
+    // pinning the budget it was written against, and holds again at the new default.
+    try {
+      for (const [budget, ceiling] of [["24", 24], [undefined, 32]] as const) {
+        if (budget) process.env.NICK_TOOL_BUDGET = budget;
+        else delete process.env.NICK_TOOL_BUDGET;
+        for (const p of ["what are my tasks today", "i feel scattered and behind", "what should i do next"]) {
           const offered = await offeredFor(p);
-          expect(offered.length, `"${p}" offered ${offered.length}`).toBeLessThanOrEqual(24);
-        },
-      ),
-    );
+          expect(offered.length, `"${p}" offered ${offered.length} at budget ${ceiling}`).toBeLessThanOrEqual(ceiling);
+        }
+      }
+    } finally {
+      delete process.env.NICK_TOOL_BUDGET;
+    }
   });
 });

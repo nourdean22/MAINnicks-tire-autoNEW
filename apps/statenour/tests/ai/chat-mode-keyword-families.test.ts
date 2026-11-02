@@ -396,7 +396,7 @@ describe("2026-07-11 families · compareCompetitors + analyzeFitness reachable",
 // casual completion reports matched no family, so the commitment write tools
 // were pruned on exactly the turns the rule fires.
 const P_RECONCILE = {
-  trigger: /\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the))\b/i,
+  trigger: /\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the)|(?<!(?:n't|not) )mark (it|that|this|them|the [\w' -]{1,60}?) (as )?(done|complete|completed|finished)|(?<!(?:n't|not) )(complete|finish|close)( out)? (the|my|that) commitments?(?! (?:form|window|deadline)))\b/i,
   tools: /commit|completeTask/i,
 };
 
@@ -409,6 +409,13 @@ describe("2026-07-11 commitment-reconciliation family", () => {
     "took care of the radiator",
     "knocked it out before lunch",
     "i ran the 10x10 today",
+    // 2026-11-02 (B3): the command form invokeTool had to recover 3 times in 14 days.
+    "mark the commitment to call the supplier done",
+    "mark it as complete",
+    "close my commitment for the gym",
+    "mark them done",
+    "complete my commitments",
+    "close out the commitment",
   ])("fires on completion report: %s", (q) => {
     expect(P_RECONCILE.trigger.test(q)).toBe(true);
   });
@@ -424,6 +431,12 @@ describe("2026-07-11 commitment-reconciliation family", () => {
     "the gym was packed today",
     "can you send an email for me",
     "i did nothing all day, feeling stuck",
+    "should i mark this as urgent",
+    "finish the commitment form",
+    "close the commitment window at 5",
+    "i can't finish the commitment",
+    "don't mark it as done yet",
+    "mark the calendar",
   ])("does NOT fire on non-completion talk: %s", (q) => {
     expect(P_RECONCILE.trigger.test(q)).toBe(false);
   });

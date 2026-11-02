@@ -460,7 +460,9 @@ export async function pruneTools(
   // tools were pruned on exactly the turns the rule fires. Prod symptom:
   // 69 active commitments, ~1 ever completed, Pulse nagging about done
   // promises. MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
-  if (/\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the))\b/i.test(text)) {
+  if (/\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the)|(?<!(?:n't|not) )mark (it|that|this|them|the [\w' -]{1,60}?) (as )?(done|complete|completed|finished)|(?<!(?:n't|not) )(complete|finish|close)( out)? (the|my|that) commitments?(?! (?:form|window|deadline)))\b/i.test(text)) {
+    // 2026-11-02 (B3): plus the command form ("mark the commitment to call X done"): invokeTool
+    // reached completeCommitment on 3 turns in 14 days because this family missed it.
     addMatching(/commit|completeTask/i);
   }
 
@@ -915,7 +917,11 @@ export async function pruneTools(
   // guaranteed REGARDLESS of this budget — prepare-tools re-adds
   // alwaysOn / action-intent / web-search tools AFTER pruning, so a
   // tight budget can never break a step-0 toolChoice force.
-  const TOOL_BUDGET = Math.max(10, Number(process.env.NICK_TOOL_BUDGET) || 24);
+  // 2026-11-02 (B3) · default 24 -> 32. Measured over 14 days: the budget cut 148 of 221 turns
+  // (candidates p50 37), and cut tools came back through searchTools / invokeTool (64 and 55
+  // turns), each detour a model step (p50 10.5 s). Kill: the cached prompt share or judge-eval
+  // mean drops, or detours stay above 30%; then set NICK_TOOL_BUDGET=24 or revert.
+  const TOOL_BUDGET = Math.max(10, Number(process.env.NICK_TOOL_BUDGET) || 32);
 
   // 2026-09-03 · selection telemetry. Records WHICH tier supplied each
   // tool and which candidates fell off the budget cliff. Previously a

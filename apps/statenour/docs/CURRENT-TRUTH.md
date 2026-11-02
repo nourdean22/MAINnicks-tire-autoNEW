@@ -497,7 +497,7 @@ only what changes how you WORK is repeated here.
   (retired upstream mid-session), `kimi-k3` is HTTP 402 (outside the flat plan),
   `deepseek-v3.1:671b` is long gone (410) — **do not recommend it**.
 - **REFUTED, do not re-propose:** wrong model pinned · tool overload (the pruner
-  caps exposure at 24, `NICK_TOOL_BUDGET`) · prompt/context bloat
+  caps exposure at 32 since 2026-11-02 B3, was 24, `NICK_TOOL_BUDGET`) · prompt/context bloat
   (`PROMPT-AB-2026-08-12`+`12b` — incumbent 4 / compact 3, below the
   pre-registered ≥3 lead → abandoned as noise) · stale pin · persona stance
   (`PERSONA-AB-2026-08-16-clean`: A=3.50 / B=3.08, lead −0.42, inside ±0.75 on
