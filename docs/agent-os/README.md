@@ -223,10 +223,12 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
 - **SessionStart** (`session-health.mjs`, 2026-10-19, every source, right after session-surface) prints one `[health]`
   line for the local code-intelligence setup in `config/agent-os/local-services.json` (hosts, servers, clients, tasks,
   plus the machine and site inventory): graph freshness (primary `graphify-out/graph.json`, build commit vs
-  origin/main, STALE over 50 behind), each MCP server (TCP 300 ms), each client's MCP entry (`~/.claude.json`,
+  origin/main, STALE over 50 behind), each MCP server (MCP initialize, 1 s), each client's MCP entry (`~/.claude.json`,
   `~/.codex/config.toml`, VS Code `mcp.json`), PowerShell hooks missing `-ExecutionPolicy Bypass`, and the scheduled
   tasks (Windows). Each FAIL is followed by its fix under `FIX FIRST:`; a failed read is `UNKNOWN (<reason>)` with no
-  guessed fix; a host not in `hosts` prints one not-expected line; budget 1.5 s; exit 0 always, own errors print
+  guessed fix; a host not in `hosts` prints one not-expected line; budget 8 s from process start (git rev-parse,
+  schtasks and the MCP probes start side by side) inside a 15 s hook timeout (1.5 s read healthy parts as UNKNOWN at
+  startup, fixed 2026-11-01); exit 0 always, own errors print
   `[health] off: <reason>`. Tailscale presence is information only (`TAILNET-MCP.md`). Canary `sessionHealth.test.mjs`
   (healthy and broken fixtures, real sockets, a 55-commit fixture repo, mutants); `hookCommand.test.mjs` asserts every
   PowerShell hook carries Bypass (Windows PowerShell 5.1 on NATTYNOUR is Restricted, so the graphify briefing was
