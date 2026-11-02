@@ -125,6 +125,21 @@ test("shop data arm 2: a hollow SHOP DATA line (no meanings) is denied; the labe
   shopDenied(laneBrief(`${SHOP_TASK} See the SHOP DATA: line in USER.md for invoice and estimate meanings.`), "a mid-line label is a pointer, not the pasted block");
 });
 
+// 2026-11-02 11:46Z: start_session with `SHOP DATA: none read (no shop records in scope)` was denied, so an honest brief had
+// to paste the meanings anyway. A line that declares no read is "n/a" (like a brief that never reads records), unless the
+// rest of the brief names invoices and estimates: that is the lying declaration arm 2 and the skeptic arm still deny.
+test("shop data arm 2b: an explicit no-read declaration passes; a lying or loose one does not", () => {
+  const task = "Fix the nickstire customers report layout: count the rows per page in the table.";
+  for (const decl of ["none read (no shop records in scope)", "n/a", "not read.", "no shop records", "None"]) {
+    const r = laneBrief(`${task}\nSHOP DATA: ${decl}`);
+    assert.equal(r.code, 0, `declaration "${decl}" must pass: ${r.out}`);
+  }
+  shopDenied(laneBrief(`${task}\nSHOP DATA: nonetheless read everything`), "none as a word prefix is not a declaration");
+  shopDenied(laneBrief(`${task}\nSHOP DATA: none needed.`), "loose wording is not a declaration");
+  shopDenied(laneBrief(`${task} ${SHOP_TASK}\nSHOP DATA: none read (no shop records in scope)`), "declared none while the brief counts estimates and invoices");
+  shopDenied(laneBrief(`${task}\nMentioning SHOP DATA: none read mid-line`), "a mid-line label is not a declaration");
+});
+
 test("shop data arm 3: the brief FILE is read: meanings missing there are denied, present there pass", () => {
   const dir = mkdtempSync(join(tmpdir(), "shop-brief-"));
   const bare = join(dir, "bare-brief.md");
