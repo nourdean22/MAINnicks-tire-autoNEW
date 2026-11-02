@@ -12,6 +12,19 @@
 > - `prompt:size-check` needs a database URL and did not run here; the extra 8 tool schemas are prompt tokens per step.
 > - The census uses keyword tiers only (no embeddings); live detour share is the real check, owed 2026-11-15.
 
+> ## 2026-11-01 · background brains finish: off-peak, one at a time, measured ceilings (job 2026-11-01-chat-humanizer-w6, upgrade 5) · 1 ship
+>
+> Nour, 2026-11-01: "good continue n fix it all". Upgrade 5 of `docs/research/chat-upgrades-2026-11-01.md`.
+>
+> - **Measured (FACT, Langfuse prod, 7 d to 2026-11-01).** Every aborted call of session-distiller (37 of 70), memory-consolidation (29 of 349), thinking-engine (14 of 21) and the night share of conversation-memory (11 of 27) happened in the 03:00Z hour and stopped exactly at the provider ceiling (45 s fast, 100 s reason). conversation-memory aborted 1 of 142 calls the rest of the day on the same model and ceiling. STRONG INFERENCE: slot contention at 03:00Z, where ~25 evening children start together.
+> - **Now.** think, distill-sessions, conversation-compile and consolidate (`OFFPEAK_BRAIN_JOBS`, still listed in `EVENING_JOBS`) leave the 03:00Z batch; the evening slot sends one `mega/brain.offpeak` event (one id per night, so a replay or second fire is one phase) and the new `megaBrainOffpeak` (concurrency 1, kill switch read at wake) runs them from 05:00Z one at a time with measured gaps (15/20/20/60 min), then retries distill and compile once. A daytime manual fire queues the next 05:00Z. A failed hand-off no longer blocks the batch; the slot still fails loudly. `aiChat` takes a per-call `timeoutMs` (positive only); session-distiller 90 s, memory-consolidation and the three think cron layers 180 s; chat callers and `runSimulation` keep the default.
+> - **Proof.** Red-first: 17 failed / 5 passed on main, then 14 failed / 20 passed for the second-reader fixes; 34 passed after. 13 mutations all red. Touched files: 8 vitest files, 75 passed. Full suite on the first commit: 1728 files passed, 17,454 tests, exit 0. `pnpm typecheck` and `check:crons` exit 0.
+>
+> **Flagged · NOT fixed**
+> - Gaps, not completion, keep the children apart (think and consolidate are detached; distill and compile return 202 at 90 s). 10x follow-up: a completion event from `cronHandler` and `step.waitForEvent`.
+> - A think or consolidate that answers non-2xx is still retried by Inngest's per-step retries (same as before this change).
+> - error_logs rows for learning-journal and outcome-tracker (03:00Z, same pattern) are not read here; they stay in the evening batch. Kill read 2026-11-15.
+
 > ## 2026-11-01 · B1: a saved reply keeps its tool cards, so they survive a reload (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >
 > Nour, 2026-11-01 13:20Z: "more cards arent showing". Measured that morning (docs/research/chat-upgrades-2026-11-01.md section 2.4): 0 of 123 saved replies in 7 days kept a tool part while 94 of 124 turns used tools. `buildMessageParts` had no parameter for one, so cards showed live and vanished on reload.

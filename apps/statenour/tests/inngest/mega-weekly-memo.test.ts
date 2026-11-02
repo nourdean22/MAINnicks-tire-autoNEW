@@ -32,6 +32,7 @@ function memoStep(memo: Map<string, unknown>, requested: string[]) {
       memo.set(id, out);
       return out;
     },
+    sendEvent: async () => undefined,
   };
 }
 
