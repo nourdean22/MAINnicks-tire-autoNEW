@@ -13,7 +13,16 @@ const h = vi.hoisted(() => ({
   eventCreate: vi.fn(),
   updateGoal: vi.fn(),
   relatedActivity: vi.fn(),
+  warn: vi.fn(),
 }));
+
+vi.mock("@/lib/logger", async (orig) => {
+  const actual = await orig<typeof import("@/lib/logger")>();
+  return {
+    ...actual,
+    logger: { ...actual.logger, withSurface: (s: string) => ({ ...actual.logger.withSurface(s), warn: (...a: unknown[]) => h.warn(s, ...a) }) },
+  };
+});
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -85,6 +94,8 @@ describe("getGoals", () => {
     const args = h.eventFindMany.mock.calls[0][0];
     expect(args.distinct).toEqual(["goalId", "kind"]);
     expect(args.take).toBeUndefined();
+    // Archived or paused goals never surface: their ids would be fed to logGoalCheckIn.
+    expect(h.goalFindMany.mock.calls[0][0].where).toEqual({ status: "active", deletedAt: null });
   });
 
   it("a failed check-in read says unknown, never 'no check-in'", async () => {
@@ -93,6 +104,7 @@ describe("getGoals", () => {
     const r = await run("getGoals");
     expect((r.goals as Array<{ health: unknown }>)[0].health).toEqual({ state: "unknown", at: null });
     expect(r.failed).toEqual(["check_ins"]);
+    expect(h.warn).toHaveBeenCalledWith("ai/tools/goals", "check_in_read_failed", expect.objectContaining({ err: "db down" }));
   });
 });
 
@@ -175,9 +187,28 @@ describe("logGoalCheckIn", () => {
     expect(r).toMatchObject({ logged: false });
   });
 
-  it("a failed value write is reported, never claimed", async () => {
-    h.updateGoal.mockRejectedValue(new Error("Goal not found"));
+  it("the value is set BEFORE the day's claim is taken", async () => {
+    const order: string[] = [];
+    h.updateGoal.mockImplementation(async () => void order.push("value"));
+    h.eventCreate.mockImplementation(async ({ data }) => (order.push("event"), { id: "ge1", createdAt: new Date(NOW), ...data }));
+    await run("logGoalCheckIn", { goalId: "g1", health: "on_track", value: 9000, note: "x" });
+    expect(order).toEqual(["value", "event"]);
+  });
+
+  it("(a) a failed value write takes no claim: nothing logged, and a retry today is still open", async () => {
+    h.updateGoal.mockRejectedValueOnce(new Error("Goal not found"));
     const r = await run("logGoalCheckIn", { goalId: "g1", health: "on_track", value: 9000, note: "x" });
-    expect(r).toMatchObject({ logged: true, valueSet: false, valueError: "Goal not found" });
+    expect(h.eventCreate).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ logged: false, valueSet: false, valueError: "Goal not found" });
+    const retry = await run("logGoalCheckIn", { goalId: "g1", health: "on_track", value: 9000, note: "x" });
+    expect(retry).toMatchObject({ logged: true, valueSet: true });
+  });
+
+  it("(b) the value set, then the event write fails: says so, no check-in claimed", async () => {
+    h.eventCreate.mockRejectedValue(new Error("connection reset"));
+    const r = await run("logGoalCheckIn", { goalId: "g1", health: "on_track", value: 9000, note: "x" });
+    expect(h.updateGoal).toHaveBeenCalledWith({ id: "g1", currentValue: 9000 });
+    expect(r).toMatchObject({ logged: false, valueSet: true, eventWritten: false });
+    expect(String(r.reason)).toMatch(/value was set/);
   });
 });

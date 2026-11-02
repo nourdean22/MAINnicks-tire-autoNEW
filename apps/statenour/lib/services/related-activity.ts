@@ -13,6 +13,9 @@
  */
 import { prisma } from "@/lib/prisma";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("services/related-activity");
 
 /** The caps, set once here; tools read them, never copy them. */
 export const RELATED_MAX_ITEMS = 50;
@@ -199,6 +202,14 @@ export async function relatedActivity(
   settled.forEach((s, i) => {
     if (s.status === "rejected") {
       const name = reads[i].name;
+      // Logged with the reason: a Prisma validation error after a column rename must not stay silent.
+      log.warn("read_failed", {
+        table: name,
+        goalId,
+        missionId,
+        personId,
+        err: s.reason instanceof Error ? s.reason.message : String(s.reason),
+      });
       if (!failed.includes(name)) failed.push(name);
       return;
     }

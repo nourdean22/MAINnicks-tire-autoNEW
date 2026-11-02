@@ -17,10 +17,18 @@ const h = vi.hoisted(() => ({
   chatConversation: vi.fn(),
   personProfile: vi.fn(),
 }));
+const warn = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/prisma", () => ({
   prisma: Object.fromEntries(Object.entries(h).map(([k, fn]) => [k, { findMany: fn }])),
 }));
+vi.mock("@/lib/logger", async (orig) => {
+  const actual = await orig<typeof import("@/lib/logger")>();
+  return {
+    ...actual,
+    logger: { ...actual.logger, withSurface: (s: string) => ({ ...actual.logger.withSurface(s), warn: (...a: unknown[]) => warn(s, ...a) }) },
+  };
+});
 
 import { relatedActivity, RELATED_MAX_DAYS, RELATED_MAX_ITEMS } from "@/lib/services/related-activity";
 
@@ -31,6 +39,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   for (const fn of Object.values(h)) fn.mockReset().mockResolvedValue([]);
+  warn.mockReset();
 });
 
 describe("relatedActivity · goal", () => {
@@ -68,6 +77,21 @@ describe("relatedActivity · goal", () => {
     const r = await relatedActivity({ goalId: "g1" });
     expect(r.failed).toEqual(["reflection"]);
     expect(r.items.map((i) => i.ref.id)).toEqual(["ge1"]);
+    // Named AND logged with the reason, so a column rename is not silent forever.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      "services/related-activity",
+      "read_failed",
+      expect.objectContaining({ table: "reflection", goalId: "g1", err: "relation does not exist" }),
+    );
+  });
+
+  it("with goal and mission keys every key's reads run (no short-circuit on the first key)", async () => {
+    await relatedActivity({ goalId: "g1", missionId: "m1" });
+    expect(h.goalEvent).toHaveBeenCalledTimes(1);
+    expect(h.taskEvent).toHaveBeenCalledTimes(1);
+    expect(h.chatConversation).toHaveBeenCalledTimes(1);
+    expect(h.task).toHaveBeenCalledTimes(2);
   });
 
   it("every read is bounded by since and the cap", async () => {
