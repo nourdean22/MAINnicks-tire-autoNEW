@@ -13,6 +13,7 @@ import { stepCountIs } from "ai";
 import { TOOL_CONFIG } from "@/components/chat/tool-result-registry";
 import { READ_ONLY_TOOLS } from "@/lib/ai/tools/read-only-tools";
 import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
+import { isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 
 /** The page and the route both refuse while W6_INTENT_SURFACE is off (a DB override applies). */
 export async function isIntentSurfaceOn(): Promise<boolean> {
@@ -34,8 +35,10 @@ export interface ComposeResult {
   parts: IntentPart[];
   /** Calls past the cap or repeated: counted, never run. */
   refused: number;
-  /** Reads that threw: drawn as failures. */
+  /** Reads that failed (threw, timed out, or answered with an error): drawn as failures. */
   failed: number;
+  /** Calls to a name that is not on the surface (an invented tool, an inherited key): dropped, counted for the trace. */
+  skipped: number;
 }
 
 type ExecutableTool = { execute?: (input: unknown, ...rest: unknown[]) => unknown };
@@ -103,10 +106,18 @@ export async function composeIntent(args: {
 
   const parts: IntentPart[] = [];
   let failed = 0;
+  let skipped = 0;
   for (const c of result.steps?.[0]?.content ?? []) {
-    if (!c.toolName || !(c.toolName in surface)) continue;
+    if (c.type !== "tool-result" && c.type !== "tool-error") continue;
+    // hasOwn, not `in`: "constructor" is `in` every object.
+    if (!c.toolName || !Object.hasOwn(surface, c.toolName)) {
+      skipped++;
+      continue;
+    }
     if (c.type === "tool-result") {
       if (c.output === REFUSED) continue;
+      // nourTools turns a thrown or timed-out read into a normal result ({ error, reflection | timedOut }).
+      if (isSoftFailedToolOutput(c.output)) failed++;
       parts.push({ type: `tool-${c.toolName}`, state: "output-available", output: c.output });
     } else if (c.type === "tool-error") {
       failed++;
@@ -114,5 +125,5 @@ export async function composeIntent(args: {
       parts.push({ type: `tool-${c.toolName}`, state: "output-error", errorText });
     }
   }
-  return { parts, refused, failed };
+  return { parts, refused, failed, skipped };
 }

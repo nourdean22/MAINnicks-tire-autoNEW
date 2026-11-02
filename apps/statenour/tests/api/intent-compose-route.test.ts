@@ -98,7 +98,13 @@ describe("POST /api/intent/compose", () => {
     const [start, finish] = recordTrace.mock.calls[0] as [Record<string, unknown>, Record<string, unknown>];
     expect(start.label).toBe("intent-surface");
     expect(finish.toolCalls).toBe(1);
+    const call = generateText.mock.calls[0][0] as { stopWhen: (s: { steps: unknown[] }) => boolean; abortSignal: unknown };
     expect(generateText.mock.calls[0][0]).toMatchObject({ model: "model-reason", toolChoice: "required" });
+    // One step: with toolChoice "required" a longer budget loops forced tool steps.
+    expect(call.stopWhen({ steps: [{}] })).toBe(true);
+    expect(call.abortSignal).toBeInstanceOf(AbortSignal);
+    expect((finish.metadataDelta as Record<string, unknown>).failed).toBe(0);
+    expect((finish.metadataDelta as Record<string, unknown>).skipped).toBe(0);
   });
 
   it("a model failure is a 502 that says so, and still records a trace", async () => {

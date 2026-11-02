@@ -162,12 +162,16 @@ export function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
 // Loose on purpose: only the fields a row draws are required, so a new producer field never hides a card.
 
 const DateText = z.optional(z.nullable(z.string()));
+// lib/ai/tools.ts wrapToolsWithEmptyHandling answers an empty get* list with this envelope instead of [].
+const NoDataEnvelope = z.object({ status: z.literal("no_data_found"), data: z.array(z.unknown()) });
+const listOf = <T extends z.ZodMiniType>(row: T) => z.union([z.array(row), NoDataEnvelope]);
+export const asList = <T,>(o: T[] | z.infer<typeof NoDataEnvelope>): T[] => (Array.isArray(o) ? o : []);
 
-export const TasksOutputSchema = z.array(
+export const TasksOutputSchema = listOf(
   z.object({ title: z.string(), status: z.optional(z.string()), dueDate: DateText, mission: z.optional(z.nullable(z.object({ title: z.string() }))) }),
 );
-export const MissionsOutputSchema = z.array(z.object({ title: z.string(), domain: z.optional(z.nullable(z.string())) }));
-export const CommitmentsOutputSchema = z.array(
+export const MissionsOutputSchema = listOf(z.object({ title: z.string(), domain: z.optional(z.nullable(z.string())) }));
+export const CommitmentsOutputSchema = listOf(
   z.object({ description: z.string(), toWhom: z.optional(z.nullable(z.string())), deadline: DateText }),
 );
 export const RelationshipPicksOutputSchema = z.object({
@@ -176,6 +180,7 @@ export const RelationshipPicksOutputSchema = z.object({
 // ok:false (not connected, grant expired) never reaches this: ToolResultCard reads it as a soft failure first.
 export const ScheduleOutputSchema = z.object({
   count: z.optional(z.number()),
+  unreadableAccounts: z.optional(z.array(z.string())),
   events: z.array(z.object({ summary: z.string(), start: z.optional(z.nullable(z.string())), allDay: z.optional(z.boolean()), location: z.optional(z.nullable(z.string())) })),
 });
 export const HabitStreaksOutputSchema = z.record(z.string(), z.object({ completed: z.number(), total: z.number() }));
@@ -198,10 +203,10 @@ const joinParts = (...parts: Array<string | null | undefined>) => parts.filter(B
 /** Each read's parsed output as rows: the one body all six share. */
 export const INTENT_ROWS = {
   getTasks: (o: z.infer<typeof TasksOutputSchema>): IntentRow[] =>
-    o.map((t) => ({ primary: t.title, secondary: joinParts(t.mission?.title, t.dueDate ? `due ${day(t.dueDate)}` : null) })),
-  getMissions: (o: z.infer<typeof MissionsOutputSchema>): IntentRow[] => o.map((m) => ({ primary: m.title, secondary: m.domain?.toLowerCase() ?? null })),
+    asList(o).map((t) => ({ primary: t.title, secondary: joinParts(t.mission?.title, t.dueDate ? `due ${day(t.dueDate)}` : null) })),
+  getMissions: (o: z.infer<typeof MissionsOutputSchema>): IntentRow[] => asList(o).map((m) => ({ primary: m.title, secondary: m.domain?.toLowerCase() ?? null })),
   getCommitments: (o: z.infer<typeof CommitmentsOutputSchema>): IntentRow[] =>
-    o.map((c) => ({ primary: c.description, secondary: joinParts(c.toWhom && c.toWhom !== "self" ? `to ${c.toWhom}` : null, c.deadline ? `due ${day(c.deadline)}` : null) })),
+    asList(o).map((c) => ({ primary: c.description, secondary: joinParts(c.toWhom && c.toWhom !== "self" ? `to ${c.toWhom}` : null, c.deadline ? `due ${day(c.deadline)}` : null) })),
   getRelationshipPicks: (o: z.infer<typeof RelationshipPicksOutputSchema>): IntentRow[] =>
     o.picks.map((p) => ({ primary: p.name, secondary: p.why ?? (p.daysQuiet != null ? `${p.daysQuiet} days quiet` : null) })),
   getTodaySchedule: (o: z.infer<typeof ScheduleOutputSchema>): IntentRow[] =>

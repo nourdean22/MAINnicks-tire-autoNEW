@@ -6,7 +6,7 @@ import type * as z from "zod/mini";
 import {
   FleetTruthCard, FleetTruthOutputSchema, TopDecisionsCard, TopDecisionsOutputSchema, fleetAllClear, fleetRows,
   type FleetTruthOutput, type TopDecisionsOutput,
-  INTENT_ROWS, IntentRows, TasksOutputSchema, MissionsOutputSchema, CommitmentsOutputSchema,
+  INTENT_ROWS, IntentRows, asList, TasksOutputSchema, MissionsOutputSchema, CommitmentsOutputSchema,
   RelationshipPicksOutputSchema, ScheduleOutputSchema, HabitStreaksOutputSchema,
 } from "@/components/chat/typed-cards";
 
@@ -14,8 +14,10 @@ import {
 function rowsSubtitle(schema: z.ZodMiniType, count: (o: never) => number, word: (n: number) => string) {
   return (out: unknown) => {
     const p = schema.safeParse(out);
-    const n = p.success ? count(p.data as never) : 0;
-    return n > 0 ? word(n) : null;
+    if (!p.success) return null;
+    const n = count(p.data as never);
+    // Parsed and empty: say so, not a bare label. (getTasks/getCommitments also answer [] on a failed DB read.)
+    return n > 0 ? word(n) : "none listed";
   };
 }
 import {
@@ -1144,7 +1146,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     icon: ListChecks,
     color: "gold",
     link: { href: "/missions", label: "View in Actions" },
-    subtitle: rowsSubtitle(TasksOutputSchema, (o: unknown[]) => o.length, (n) => `${n} open`),
+    subtitle: rowsSubtitle(TasksOutputSchema, (o: unknown[]) => asList(o).length, (n) => `${n} open`),
     outputSchema: TasksOutputSchema,
     renderRich: (out) => <IntentRows tool="getTasks" rows={INTENT_ROWS.getTasks(out as never)} />,
   },
@@ -1155,7 +1157,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     icon: Target,
     color: "gold",
     link: { href: "/missions", label: "View in Actions" },
-    subtitle: rowsSubtitle(MissionsOutputSchema, (o: unknown[]) => o.length, (n) => `${n} active`),
+    subtitle: rowsSubtitle(MissionsOutputSchema, (o: unknown[]) => asList(o).length, (n) => `${n} active`),
     outputSchema: MissionsOutputSchema,
     renderRich: (out) => <IntentRows tool="getMissions" rows={INTENT_ROWS.getMissions(out as never)} />,
   },
@@ -1165,7 +1167,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Reading commitments…",
     icon: HandshakeIcon,
     color: "gold",
-    subtitle: rowsSubtitle(CommitmentsOutputSchema, (o: unknown[]) => o.length, (n) => `${n} active`),
+    subtitle: rowsSubtitle(CommitmentsOutputSchema, (o: unknown[]) => asList(o).length, (n) => `${n} active`),
     outputSchema: CommitmentsOutputSchema,
     renderRich: (out) => <IntentRows tool="getCommitments" rows={INTENT_ROWS.getCommitments(out as never)} />,
   },
@@ -1186,7 +1188,15 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Reading the calendar…",
     icon: Calendar,
     color: "gold",
-    subtitle: rowsSubtitle(ScheduleOutputSchema, (o: { events: unknown[] }) => o.events.length, (n) => `${n} ${n === 1 ? "event" : "events"}`),
+    subtitle: (out) => {
+      const p = ScheduleOutputSchema.safeParse(out);
+      if (!p.success) return null;
+      const n = p.data.events.length;
+      const count = n > 0 ? `${n} ${n === 1 ? "event" : "events"}` : "none listed";
+      // A connected calendar can still fail one account (lib/ai/tools/calendar.ts unreadableAccounts).
+      const missed = p.data.unreadableAccounts ?? [];
+      return missed.length > 0 ? `${count}, could not read ${missed.join(", ")}` : count;
+    },
     outputSchema: ScheduleOutputSchema,
     renderRich: (out) => <IntentRows tool="getTodaySchedule" rows={INTENT_ROWS.getTodaySchedule(out as never)} />,
   },
@@ -1239,7 +1249,8 @@ export const COLORS: Record<
 };
 
 export function isKnownToolName(toolName: string): boolean {
-  return toolName in TOOL_CONFIG;
+  // hasOwn, not `in`: "constructor" and "toString" are `in` every object and have no card.
+  return Object.hasOwn(TOOL_CONFIG, toolName);
 }
 
 /**
@@ -1250,7 +1261,7 @@ export function isKnownToolName(toolName: string): boolean {
  * renderer keep working.
  */
 export function toolReceiptLabel(toolName: string, state: unknown, output: unknown): string | null {
-  const config = TOOL_CONFIG[toolName];
+  const config = isKnownToolName(toolName) ? TOOL_CONFIG[toolName] : undefined;
   if (!config || state !== "output-available" || isSoftFailedToolOutput(output)) return null;
   // PR #3090: an empty success says what the receipt counts say ("found nothing"), not the success label.
   if (isEmptyToolOutput(output)) return `${config.label}: found nothing`;

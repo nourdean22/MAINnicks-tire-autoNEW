@@ -4,6 +4,8 @@
  * Fixtures copy each producer's real return (file named per case). A shape that drifts draws no body;
  * the calendar's not-connected answer reads as a failure with its reason, never as "no events".
  */
+// The rows print Eastern time; a UTC process (CI) proves the timeZone is set, not inherited from the machine.
+process.env.TZ = "UTC";
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
@@ -20,7 +22,7 @@ vi.mock("@/lib/trpc/client", () => {
   const procProxy = new Proxy({}, { get: () => hookLeaf });
   return { trpc: new Proxy({}, { get: () => procProxy }) };
 });
-vi.spyOn(console, "warn").mockImplementation(() => {});
+const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
 import { ToolResultCard } from "@/components/chat/tool-result-card";
 import { TOOL_CONFIG, isKnownToolName } from "@/components/chat/tool-result-registry";
@@ -94,6 +96,57 @@ describe("the six intent reads are registered typed cards", () => {
     expect(markup).toContain("Not done");
     expect(markup).toContain("His calendar is not connected");
     expect(markup).not.toContain('data-testid="intent-rows-getTodaySchedule"');
+  });
+
+  it.each(["getTasks", "getMissions", "getCommitments"])(
+    "%s: the nourTools empty envelope reads as none listed, never a schema miss",
+    (tool) => {
+      // lib/ai/tools.ts wrapToolsWithEmptyHandling: an empty list from a get* read arrives as this envelope.
+      const envelope = { success: true, count: 0, data: [], status: "no_data_found", message: "Query completed successfully, but zero matching records were found." };
+      warn.mockClear();
+      const markup = card(tool, envelope);
+      expect(markup).toContain("none listed");
+      expect(markup).not.toContain(`data-testid="intent-rows-${tool}"`);
+      expect(warn.mock.calls.filter((c) => String(c[0]).includes(tool))).toHaveLength(0);
+    },
+  );
+
+  it("row details: no 'to self', lower-case domain, due dates, all-day and Eastern times", () => {
+    const tasks = card("getTasks", [{ id: "t", title: "Rotate the lift", status: "READY", dueDate: "2026-11-05T00:00:00.000Z", mission: null }]);
+    expect(tasks).toContain("due 2026-11-05");
+    const missions = card("getMissions", [{ id: "m", title: "Hire", domain: "BUSINESS" }]);
+    expect(missions).toContain("business");
+    const commits = card("getCommitments", [{ id: 1, toWhom: "self", description: "Sleep by 11", deadline: null, status: "active" }]);
+    expect(commits).not.toContain("to self");
+    const day = card("getTodaySchedule", {
+      ok: true,
+      count: 2,
+      events: [
+        { id: "a", summary: "Holiday", start: "2026-11-11", allDay: true, location: null },
+        // 18:30Z on 2026-11-02 is 1:30 PM Eastern (EST, UTC-5), a Monday.
+        { id: "b", summary: "Supplier call", start: "2026-11-02T18:30:00.000Z", allDay: false, location: "Shop office" },
+      ],
+    });
+    expect(day).toContain("all day");
+    expect(day).toContain("Mon 1:30 PM");
+    expect(day).toContain("Shop office");
+  });
+
+  it("a calendar account that could not be read is named, even when other events came back", () => {
+    const markup = card("getTodaySchedule", {
+      ok: true,
+      count: 1,
+      unreadableAccounts: ["personal"],
+      events: [{ id: "e", summary: "Supplier call", start: "2026-11-02T18:30:00.000Z", allDay: false, location: null }],
+    });
+    expect(markup).toContain("could not read personal");
+    expect(markup).toContain("Supplier call");
+  });
+
+  it("an inherited key is not a card: 'constructor' has no registry entry and draws nothing", () => {
+    expect(isKnownToolName("constructor")).toBe(false);
+    expect(isKnownToolName("toString")).toBe(false);
+    expect(card("constructor", { ok: true })).toBe("");
   });
 
   it("a long list draws five rows and says how many more", () => {

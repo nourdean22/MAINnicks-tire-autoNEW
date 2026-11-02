@@ -146,6 +146,50 @@ describe("/now intent surface", () => {
     expect(host.textContent).toContain("2 more");
   });
 
+  it("a 200 without parts is a failure, never a crash or an empty screen", async () => {
+    fetchMock.mockResolvedValue(reply({ ok: true, data: { refused: 0 } }));
+    await mount();
+    await tap(chip("Shop today"));
+    expect(host.textContent).toContain("compose read failed");
+    expect(host.textContent).not.toContain("found no card");
+  });
+
+  it("an ask he typed becomes a shortcut after it composes, and survives a remount", async () => {
+    fetchMock.mockResolvedValue(reply({ ok: true, data: { parts: [FLEET_PART], refused: 0, failed: 0 } }));
+    await mount();
+    const input = host.querySelector("input") as HTMLInputElement;
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      set.call(input, "brake jobs this week");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => {});
+    act(() => root.unmount());
+    host.remove();
+    await mount();
+    expect(chip("brake jobs this week")).not.toBeNull();
+    expect(host.querySelectorAll("form + div button")).toHaveLength(4);
+  });
+
+  it("blocked storage only loses the shortcuts: the starter intents still show and still compose", async () => {
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    fetchMock.mockResolvedValue(reply({ ok: true, data: { parts: [FLEET_PART], refused: 0, failed: 0 } }));
+    await mount();
+    for (const label of DEFAULT_INTENTS) expect(chip(label)).not.toBeNull();
+    await tap(chip("Shop today"));
+    expect(host.querySelector('[data-testid="fleet-truth-card"]')).not.toBeNull();
+    get.mockRestore();
+    set.mockRestore();
+  });
+
   it("never uses a native dialog", async () => {
     const spies = [vi.spyOn(window, "confirm"), vi.spyOn(window, "alert"), vi.spyOn(window, "prompt")];
     fetchMock.mockResolvedValue(reply({ ok: false, error: "boom" }, 502));

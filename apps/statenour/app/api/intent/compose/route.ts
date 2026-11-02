@@ -40,7 +40,7 @@ export const POST = apiHandler(
       void recordTrace(start, {
         durationMs: Date.now() - startedAt,
         toolCalls: result.parts.length,
-        metadataDelta: { refused: result.refused, failed: result.failed, tools: result.parts.map((p) => p.type) },
+        metadataDelta: { refused: result.refused, failed: result.failed, skipped: result.skipped, tools: result.parts.map((p) => p.type) },
       });
       return result;
     } catch (err) {
