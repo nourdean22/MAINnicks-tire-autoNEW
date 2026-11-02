@@ -138,8 +138,25 @@ export function assembleDigest(p: DigestParts): SystemChangeDigest {
 
 export interface DigestDeps {
   loadDoc?: (relPath: string) => string | null;
+  listDocs?: (relDir: string) => string[];
   env?: Record<string, string | undefined>;
   now?: () => string;
+}
+
+/** One file per PR since 2026-11-02 (`<YYYY-MM-DD>-<slug>.md`); RECONCILIATION.md holds the entries before that. */
+export const RECONCILIATION_DIR = "docs/reconciliation/";
+
+/** The newest entry file name (its date leads the name), or null for an empty or unreadable folder. Pure. */
+export function newestReconciliationFile(names: string[]): string | null {
+  return names.filter((n) => /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/.test(n)).sort().pop() ?? null;
+}
+
+function defaultListDocs(relDir: string): string[] {
+  try {
+    return fs.readdirSync(path.join(process.cwd(), relDir));
+  } catch {
+    return []; // no folder: the digest falls back to the top of RECONCILIATION.md
+  }
 }
 
 function defaultLoadDoc(relPath: string): string | null {
@@ -157,7 +174,10 @@ export async function buildSystemChangeDigest(deps: DigestDeps = {}): Promise<Sy
   const env = deps.env ?? process.env;
   const now = deps.now ? deps.now() : new Date().toISOString();
 
-  const reconciliation = parseLatestReconciliation(loadDoc("docs/RECONCILIATION.md") ?? "");
+  const newest = newestReconciliationFile((deps.listDocs ?? defaultListDocs)(RECONCILIATION_DIR));
+  const reconciliation =
+    (newest ? parseLatestReconciliation(loadDoc(`${RECONCILIATION_DIR}${newest}`) ?? "") : null) ??
+    parseLatestReconciliation(loadDoc("docs/RECONCILIATION.md") ?? "");
 
   // Stale-doc scan over the key truth docs only (bounded + the worst place for a regression).
   let staleCriticalInKeyDocs = 0;

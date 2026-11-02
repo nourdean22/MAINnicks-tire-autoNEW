@@ -2,8 +2,9 @@
 
 > **Read first:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — deploy path, providers, what is
 > retired, in one screen. Guarded by `pnpm check:stale-docs`.
-> **Ship history:** [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md), newest wave on top — the only
-> place a wave entry belongs. **Runbooks:** [`docs/runbooks/index.md`](docs/runbooks/index.md).
+> **Ship history:** one file per PR in [`docs/reconciliation/`](docs/reconciliation/) since 2026-11-02
+> (`node scripts/agent-os/reconciliation-render.mjs`); older waves in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md).
+> Never insert a new entry there: two open PRs then conflict on one line. **Runbooks:** [`docs/runbooks/index.md`](docs/runbooks/index.md).
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 

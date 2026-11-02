@@ -131,6 +131,7 @@ describe("buildSystemChangeDigest (injected deps — no fs/DB)", () => {
     };
     const d = await buildSystemChangeDigest({
       loadDoc: (rel) => docs[rel] ?? null,
+      listDocs: () => [],
       env: { RAILWAY_GIT_COMMIT_SHA: "abc1234", RAILWAY_ENVIRONMENT_NAME: "production" },
       now: () => "2026-06-09T00:00:00.000Z",
     });
@@ -139,5 +140,32 @@ describe("buildSystemChangeDigest (injected deps — no fs/DB)", () => {
     expect(d.truth.evals.total).toBeGreaterThan(0);
     expect(d.truth.staleCriticalInKeyDocs).toBe(0); // the CURRENT-TRUTH fixture is clean
     expect(d.generatedAt).toBe("2026-06-09T00:00:00.000Z");
+  });
+
+  // 2026-11-02: entries are one file per PR under docs/reconciliation/; the newest file is the latest wave.
+  it("reads the newest docs/reconciliation/ file as the latest wave, ignoring misnamed files", async () => {
+    const docs: Record<string, string> = {
+      "docs/RECONCILIATION.md": RECON,
+      "docs/reconciliation/2026-11-02-older.md": "> ## 2026-11-02 · older split wave\n> - **`1234abcd`** x",
+      "docs/reconciliation/2026-11-05-newer.md": "> ## 2026-11-05 · newer split wave\n> - **`feedf00d`** y",
+    };
+    const d = await buildSystemChangeDigest({
+      loadDoc: (rel) => docs[rel] ?? null,
+      listDocs: () => ["2026-11-02-older.md", "notes.md", "2026-11-05-newer.md", "zz-draft.md"],
+      env: {},
+      now: () => "2026-11-05T00:00:00.000Z",
+    });
+    expect(d.latestWave?.date).toBe("2026-11-05");
+    expect(d.latestWave?.title).toContain("newer split wave");
+  });
+
+  it("falls back to the top of RECONCILIATION.md when the newest file has no dated header", async () => {
+    const d = await buildSystemChangeDigest({
+      loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON, "docs/reconciliation/2026-11-05-bad.md": "no header" })[rel] ?? null,
+      listDocs: () => ["2026-11-05-bad.md"],
+      env: {},
+      now: () => "2026-11-05T00:00:00.000Z",
+    });
+    expect(d.latestWave?.date).toBe("2026-06-09");
   });
 });

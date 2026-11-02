@@ -52,6 +52,7 @@ on:
       # scripts/agent-os/workflowCostGuards.test.mjs derives this list from those two sources and fails if a
       # runtime-read doc is not selected (Codex review of #3083).
       - 'apps/statenour/docs/RECONCILIATION.md'
+      - 'apps/statenour/docs/reconciliation/**'
       - 'apps/statenour/docs/CURRENT-TRUTH.md'
       - 'apps/statenour/docs/runbooks/index.md'
       - 'apps/statenour/docs/runbooks/task-classifier-domain-missions.md'
