@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/goals-plan-link",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "ff985df4-cf02-403c-9d74-0a81640740cf",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\nickstire-bridge-decision-id-8f2325",
+  "claimedBy": "2026-11-02-nour-os-interconnect",
+  "claimedAt": "2026-11-02T22:04:27.162Z",
+  "expiresAt": "2026-11-03T10:04:27.162Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
