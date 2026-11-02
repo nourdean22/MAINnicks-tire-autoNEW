@@ -2,7 +2,10 @@
 /**
  * Merge protocol as one command (2026-10-15): the manager skill's step 15 (step 13 before the 2026-10-22 rewrite).
  *
- *   node scripts/agent-os/merge-gate.mjs <pr> --sha <head sha you verified> [--wait-minutes 30] [--codex-wait-minutes 25] [--merge]
+ *   node scripts/agent-os/merge-gate.mjs <pr> --sha <head sha you verified> [--wait-minutes 30] [--codex-wait-minutes 25] [--retry-minutes 0] [--merge]
+ *
+ * --retry-minutes <n> re-runs the whole gate every 90 s for up to n minutes while a pass exits 3, 5, 7 or 8 (held, gh failed
+ * before the merge, not ready yet, body bar); it stops at once on 0, 2, 4, 6 or 64, and never on parsed output (retryGate).
  *
  * Without --merge it only judges and prints READY or the blockers. With --merge it:
  *   1. holds (ONE bounded wait, no model turns) while another open PR has a node or e2e check in flight: a merge
@@ -440,6 +443,48 @@ export function shaUsageHint(pr, sha, headOid) {
   return `#${pr} head is ${headOid}. If that is the head you verified, re-run: node scripts/agent-os/merge-gate.mjs ${pr} --sha ${headOid}`;
 }
 
+// --retry-minutes (2026-11-02). The manager's PowerShell wrapper re-ran the gate every 90 s and read its OUTPUT with a
+// case-insensitive `-match 'MERGED:'`, so "nothing was merged:" counted as a merge twice (PR 3500) and a body-bar exit 8
+// went unseen for 45 min. The loop lives here and decides on the EXIT CODE mergeGate returns; no line is parsed, and no
+// merge condition changes: every pass is a full mergeGate run that prints its own BLOCKED / NOT READY YET lines.
+export const RETRY_EVERY_MS = 90_000;
+const RETRY_TABLE = {
+  0: [false, "ready or merged"],
+  2: [false, "hard BLOCKED: something is wrong with the PR"],
+  3: [true, "held: another PR's node or e2e run is in flight"],
+  4: [false, "the merge call returned but the PR does not read MERGED: read it before any retry"],
+  5: [true, "a gh call failed before the merge call; nothing was merged"],
+  6: [false, "a gh call failed at or after the merge call: the merge may have happened, never retry blind"],
+  7: [true, "not ready yet: CI running, GitHub computing or Codex not reported"],
+  8: [true, "the PR body bar (fix the body with gh pr edit while this waits)"],
+  64: [false, "bad usage"],
+};
+/** Whether one gate pass's exit code earns another pass, with the reason. An unknown code stops (fail closed). */
+export function retryDecision(code) {
+  const [retry, why] = RETRY_TABLE[code] ?? [false, `exit ${code} is not in the retry table`];
+  return { retry, why };
+}
+/**
+ * Runs `run()` (one full gate pass returning its exit code) now, then every RETRY_EVERY_MS until a pass returns a code
+ * retryDecision stops on, or the next pass would start after `minutes`. Returns the last pass's code. 0 minutes = one pass.
+ */
+export async function retryGate({ run, minutes, sleep, now, log, everyMs = RETRY_EVERY_MS }) {
+  if (!Number.isFinite(minutes) || minutes < 0) throw new Error("--retry-minutes must be a finite number of minutes, 0 or more");
+  const deadline = now() + minutes * 60_000;
+  for (;;) {
+    const code = await run();
+    const { retry, why } = retryDecision(code);
+    if (!retry || minutes === 0) return code;
+    const next = now() + everyMs;
+    if (next > deadline) {
+      log(`RETRY gave up after ${minutes} min: the last pass exited ${code} (${why})`);
+      return code;
+    }
+    log(`RETRY in ${Math.round(everyMs / 1000)} s (exit ${code}: ${why}); ${Math.ceil((deadline - next) / 60_000)} min left`);
+    await sleep(everyMs);
+  }
+}
+
 if (isMainModule(import.meta.url)) {
   const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : undefined);
   if (process.argv.includes("--body-fixture")) {
@@ -459,7 +504,7 @@ if (isMainModule(import.meta.url)) {
   const pr = Number(process.argv[2]);
   const sha = arg("--sha");
   if (!Number.isInteger(pr) || !/^[0-9a-f]{40}$/.test(sha ?? "")) {
-    console.error("usage: node scripts/agent-os/merge-gate.mjs <pr number> --sha <full 40-char head sha> [--wait-minutes 30] [--codex-wait-minutes 25] [--merge]");
+    console.error("usage: node scripts/agent-os/merge-gate.mjs <pr number> --sha <full 40-char head sha> [--wait-minutes 30] [--codex-wait-minutes 25] [--retry-minutes 0] [--merge]");
     let head;
     try {
       if (Number.isInteger(pr)) head = execFileSync("gh", ["pr", "view", String(pr), "--json", "headRefOid", "--jq", ".headRefOid"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 15000 }).trim();
@@ -485,18 +530,28 @@ if (isMainModule(import.meta.url)) {
     console.error("--codex-wait-minutes needs a number of minutes, 0 or more (a following flag is not a value)");
     process.exit(64);
   }
-  const code = await mergeGate({
-    codexWait,
-    gh: (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }),
-    pr,
-    sha,
-    wait,
-    merge: process.argv.includes("--merge"),
-    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-    now: () => Date.now(),
-    log: (m) => console.log(m),
-    // Imported only after a merge, so a broken sweep module can never stop a merge (the throw lands in the SWEEP failed log).
-    sweep: async (head, log) => (await import("./repo-status.mjs")).sweepAfterMerge(head, { cwd: process.cwd(), log }),
-  });
-  process.exit(code);
+  const rawRetry = arg("--retry-minutes");
+  const retryMinutes = rawRetry === undefined ? 0 : /^\d+(\.\d+)?$/.test(rawRetry) ? Number(rawRetry) : NaN;
+  if (!Number.isFinite(retryMinutes)) {
+    console.error("--retry-minutes needs a number of minutes, 0 or more (a following flag is not a value); 0 runs the gate once");
+    process.exit(64);
+  }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const now = () => Date.now();
+  const log = (m) => console.log(m);
+  const pass = () =>
+    mergeGate({
+      codexWait,
+      gh: (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }),
+      pr,
+      sha,
+      wait,
+      merge: process.argv.includes("--merge"),
+      sleep,
+      now,
+      log,
+      // Imported only after a merge, so a broken sweep module can never stop a merge (the throw lands in the SWEEP failed log).
+      sweep: async (head, log) => (await import("./repo-status.mjs")).sweepAfterMerge(head, { cwd: process.cwd(), log }),
+    });
+  process.exit(await retryGate({ run: pass, minutes: retryMinutes, sleep, now, log }));
 }
