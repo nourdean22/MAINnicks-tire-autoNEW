@@ -23,6 +23,14 @@ import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { latestJournalByPerson, type LatestJournal } from "@/lib/services/people/journal-link";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("api/people");
+
+/** Newest journal entries read to find each person's latest one. */
+// shortcut: a person last named before the newest JOURNAL_LOOKBACK linked entries reads null; widen or query per person if that shows up.
+const JOURNAL_LOOKBACK = 200;
 
 /** Newest ledger rows read per person; the first CONTACT row among them is the note shown on the list. */
 const NOTE_LOOKBACK = 5;
@@ -42,6 +50,8 @@ interface PersonRow {
   isNeglected: boolean;
   /** Newest contact note from the ledger (chat digests and the backfill write here, not to the profile). */
   latestNote: { note: string; at: string; source: string } | null;
+  /** Newest journal entry naming the person (brain_dumps.person_ids); null = none, or the read failed (see `reads`). */
+  latestJournal: LatestJournal | null;
 }
 
 export const GET = apiHandler(
@@ -91,6 +101,25 @@ export const GET = apiHandler(
     // 14.4 days quiet was neglected in one surface and not the other.
     const nowDate = new Date();
 
+    // A failed read is not an empty journal: every latestJournal is null AND reads.journal says "failed".
+    let journal = new Map<string, LatestJournal>();
+    let journalRead: "ok" | "failed" = "ok";
+    if (rows.length > 0) {
+      try {
+        journal = latestJournalByPerson(
+          await prisma.brainDump.findMany({
+            where: { deletedAt: null, personIds: { hasSome: rows.map((r) => r.id) } },
+            orderBy: { createdAt: "desc" },
+            take: JOURNAL_LOOKBACK,
+            select: { id: true, createdAt: true, rawThoughts: true, personIds: true },
+          }),
+        );
+      } catch (err) {
+        journalRead = "failed";
+        log.warn("people_latest_journal_failed", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     const people: PersonRow[] = rows.map((r) => {
       const daysSinceInteraction = daysSinceContact(r, nowDate);
       return {
@@ -108,6 +137,7 @@ export const GET = apiHandler(
           const n = contactRowsOnly(r.ledger)[0];
           return n ? { note: n.note, at: n.createdAt.toISOString(), source: n.source } : null;
         })(),
+        latestJournal: journal.get(r.id) ?? null,
       };
     });
 
@@ -122,6 +152,7 @@ export const GET = apiHandler(
     return {
       people,
       totals,
+      reads: { journal: journalRead },
       generatedAt: new Date().toISOString(),
     };
   },

@@ -58,6 +58,9 @@ export const LEDGER_SOURCES = [
   "gmail",
   "calendar",
   "greene_play",
+  // W4 2026-11-02: a contact he wrote in the journal (lib/services/people/journal-link.ts). Not "chat": every
+  // row keeps its source, and a journal line is his own account, not a digest of a chat conversation.
+  "journal",
 ] as const;
 export type LedgerSource = (typeof LEDGER_SOURCES)[number];
 

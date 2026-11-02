@@ -63,6 +63,9 @@ export interface FeedEntry {
   linkStatus?: string | null;
   linkConfidence?: number | null;
   linkedGoalTitle?: string | null;
+  /** Dumps only (W4 2026-11-02): the people the entry names, live ones, in the entry's order.
+   *  null = the name read failed (couldn't load), never the same as [] (names no one). */
+  people?: { id: string; name: string }[] | null;
 }
 
 export interface FeedCounts {
@@ -232,6 +235,7 @@ export async function buildJournalFeed(args: {
   ]);
 
   const feed: FeedEntry[] = [];
+  const dumpPersonIds = new Map<string, string[]>();
 
   for (const d of brainDumps) {
     let extracted: {
@@ -265,7 +269,11 @@ export async function buildJournalFeed(args: {
       missionId: d.missionId,
       linkStatus: d.linkStatus,
       linkConfidence: d.linkConfidence,
+      people: [],
     });
+    // Rows read before the person_ids migration (and test fixtures) have no column: no people.
+    const ids = (d as { personIds?: string[] }).personIds ?? [];
+    if (ids.length) dumpPersonIds.set(d.id, ids);
   }
 
   for (const r of reflections) {
@@ -376,6 +384,28 @@ export async function buildJournalFeed(args: {
       .catch((): { id: string; title: string }[] => []);
     const titleById = new Map(goals.map((g) => [g.id, g.title]));
     for (const e of feed) if (e.goalId) e.linkedGoalTitle = titleById.get(e.goalId) ?? null;
+  }
+
+  // W4 · people chips: ONE query over every id on the page, live people only (a deleted person drops off the row).
+  const personIds = [...new Set([...dumpPersonIds.values()].flat())];
+  if (personIds.length) {
+    const named = await prisma.personProfile
+      .findMany({ where: { id: { in: personIds }, deletedAt: null }, select: { id: true, name: true } })
+      .then((rows) => new Map(rows.map((p) => [p.id, p.name])))
+      .catch((err: unknown) => {
+        log.warn("feed_people_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+        return null;
+      });
+    for (const e of feed) {
+      const ids = e.source === "dump" ? dumpPersonIds.get(e.id) : undefined;
+      if (!ids) continue;
+      e.people = named
+        ? ids.flatMap((id) => {
+            const name = named.get(id);
+            return name ? [{ id, name }] : [];
+          })
+        : null;
+    }
   }
 
   feed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

@@ -1334,6 +1334,10 @@ model BrainDump {
   enrichedAt     DateTime? @map("enriched_at")
   goal           LifeGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
   mission        Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  /// W4 interconnect (2026-11-02) · PersonProfile ids the entry names, resolved by
+  /// lib/services/people/journal-link.ts (exact or unique case-insensitive name only).
+  /// No FK (Postgres has none for arrays): readers filter deletedAt on the person side.
+  personIds      String[]  @default([]) @map("person_ids")
 
   @@index([date])
   @@index([date, actionsTaken])
@@ -2388,7 +2392,7 @@ model RelationshipLedger {
   createdAt DateTime @default(now()) @map("created_at")
   amount    Int
   note      String   @db.Text
-  source    String // gmail | calendar | chat | telegram | manual | auto | greene_play
+  source    String // gmail | calendar | chat | telegram | manual | auto | greene_play | journal
 
   metadata Json?
 
