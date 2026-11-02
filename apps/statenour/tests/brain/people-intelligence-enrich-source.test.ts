@@ -24,6 +24,8 @@ vi.mock("@/lib/prisma", () => ({
     personProfile: { findMany: h.peopleFindMany, update: h.personUpdate },
     relationshipLedger: { findMany: h.ledgerFindMany },
     auditEvent: { findMany: h.auditFindMany },
+    // 2026-11-02: his own chat words top up the context (people-intelligence-enrich-unblocked.test.ts).
+    chatMessage: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 vi.mock("@/lib/ai/traced-aichat", () => ({ makeTracedAiChat: () => h.aiChat }));
