@@ -2696,3 +2696,40 @@ the named-ref integrate recipe in monorepo-manager `references/review-and-merge.
 - **Proposed edit:** Recover mode names the recipe: export each dead lane's uncommitted work read-only (`git diff --binary HEAD` plus untracked copies into the scratchpad), rebuild every branch by cherry-pick on current origin/main in your OWN worktree (junction node_modules, never copy .env), push statenour branches from a hook-free clone (Turbopack cannot resolve next through junctions), and leave the dead worktrees for the app's archive.
 - **Confidence:** high (used for 9 branches tonight, all merged).
 - **Status:** proposed
+
+## 2026-11-02 · platform forever-fixes (job 2026-11-02-platform-forever-fixes; source: the manager's own defects while merging 21 PRs on 2026-11-01/02)
+
+### P1 · monorepo-manager (step 13, integrate) and the subagent-brief template
+- **Trigger (witnessed):** `.github/pull_request_template.md` was the old six-section form while `merge-gate.mjs` (assessBody) refused any body without the four bar headings; PR 3509 sat 45 minutes on exit 8 on 2026-11-01. Fixed in this job (template rewritten; old template exit 8, new template exit 0 through `--body-fixture`).
+- **Cost:** 45 minutes per PR opened from the template, every time.
+- **Proposed edit:** when a gate reads a document the repo also templates, the gate's test feeds the template through the gate (a template that the gate refuses is a defect of the template). One assertion in `mergeGate.test.mjs`: the committed template, placeholders filled, passes assessBody.
+- **Confidence:** high (the mismatch stood for two days of merges).
+- **Status:** proposed
+
+### P1 · guard-red-team and monorepo-manager (step 6, dispatch)
+- **Trigger (witnessed):** 2026-11-02 11:46Z, start_session with `SHOP DATA: none read (no shop records in scope)` was denied by `brief-shop-data`; the only pass was to paste the meanings into a brief that read no records. Fixed in this job (`policy.mjs shopDataState` returns n/a for an explicit no-read declaration).
+- **Cost:** one denied dispatch, one brief carrying text that was false for it.
+- **Proposed edit:** guard-red-team's probe set adds "the honest negative": for every rule that demands a declaration, probe the sentence that declares the opposite in plain words. A guard that refuses an honest "none" trains lying briefs.
+- **Confidence:** medium (once, clear mechanism).
+- **Status:** proposed
+
+### P1 · statenour-wave-reconcile and monorepo-manager (step 13)
+- **Trigger (witnessed):** PRs 3500, 3504, 3506, 3507 and 3508 each inserted at line 3 of `apps/statenour/docs/RECONCILIATION.md` and went DIRTY against each other five times; the manager re-merged each by hand. GitHub does not run `.gitattributes` merge drivers when merging a PR (community discussion 9288, open since 2021-12-24; a 2017 GitHub Support reply quoted there says GitHub does not consider user-defined .gitattributes). Fixed in this job: one file per PR under `docs/reconciliation/`, `reconciliation-render.mjs`.
+- **Cost:** five hand re-merges, about 10 minutes each.
+- **Proposed edit:** manager step 13 names the rule: any file every PR appends to at a fixed line (a changelog, a ledger, a reconciliation log) is one-file-per-PR plus a renderer, the pattern `docs/agent-os/ledger/` already uses. `prior-art-grep` adds "a shared append-at-top file" to its list of shapes to grep for.
+- **Confidence:** high (five conflicts in two days).
+- **Status:** proposed
+
+### P2 · monorepo-manager (step 15, merge) and answer-first
+- **Trigger (witnessed):** the manager's PowerShell wrapper `gate-chain.ps1` re-ran `merge-gate.mjs` every 90 s and read "MERGED:" case-insensitively, so "nothing was merged:" counted as a merge twice (PR 3500, 2026-11-01) and the body-bar exit 8 went unseen for 45 minutes. Fixed in this job: `merge-gate.mjs --retry-minutes <n>` with a tested decision function.
+- **Cost:** two false "merged" reads, 45 minutes of a PR sitting on a fixable exit code.
+- **Proposed edit:** manager step 15 says: never wrap the gate in a shell regex; the gate's own `--retry-minutes` is the only retry loop, and every pass prints the exit-8 reasons.
+- **Confidence:** high (two misreads, one night).
+- **Status:** proposed
+
+### P2 · HEARTBEAT.md (not a skill; `.agents/core/HEARTBEAT.md`) and monorepo-manager (session pipeline step 5, sweep)
+- **Trigger (witnessed):** scheduled session local_67a5680a (NOURCITY heartbeat 6 PM, task nourcity-heartbeat-pm) stayed "running" from 2026-11-01 23:56Z to 2026-11-02 12:12Z on one PowerShell call that never returned; its tool-call budget had no per-command time limit. Fixed in this job (per-command timeout line, stuck read = UNKNOWN).
+- **Cost:** 12 hours of a hung session, stopped by hand.
+- **Proposed edit:** the sweep (step 5) treats a scheduled session whose last event is a tool call older than 15 minutes as hung: stop it and record the call. Any read-only review doc (HEARTBEAT, a future morning brief) carries the same timeout line.
+- **Confidence:** medium (once, 12 hours).
+- **Status:** proposed
