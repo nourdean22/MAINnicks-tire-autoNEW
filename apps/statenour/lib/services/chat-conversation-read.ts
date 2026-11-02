@@ -28,6 +28,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { stripVerifierBanner } from "@/lib/ai/chat/fabrication-rewriter";
+import { sanitizeStoredParts } from "@/lib/services/chat/message-parts";
 
 /** A conversation-list row · matches the legacy `/api/ai/chat` shape. */
 
@@ -265,7 +266,7 @@ export async function readConversation(args: {
       ? conversation.lastActiveAt.toISOString()
       : null,
     messageCount: conversation.messageCount,
-    messages: conversation.messages.map((m) => ({
+    messages: await Promise.all(conversation.messages.map(async (m) => ({
       id: m.id,
       role: m.role,
       // 2026-09-10 · strip the verifier banner before the bubble renders
@@ -287,7 +288,9 @@ export async function readConversation(args: {
       // message still hydrated and rendered the raw system trace, and
       // the content-only fix reached exactly the legacy rows that have
       // no parts -- i.e. the ones that needed it least.
-      parts: stripVerifierBannerFromParts(m.parts),
+      // B1 (2026-11-01): a stored tool part that fails the AI SDK's UIMessage schema is
+      // dropped here, never the message, so a corrupt part loads as the reply's text.
+      parts: await sanitizeStoredParts(stripVerifierBannerFromParts(m.parts)),
       clientMessageId: m.clientMessageId,
       parentMessageId: m.parentMessageId,
       branchId: m.branchId,
@@ -305,7 +308,7 @@ export async function readConversation(args: {
       feedbackScore: m.feedbackScore,
       tokenUsage: m.tokenUsage,
       createdAt: m.createdAt.toISOString(),
-    })),
+    }))),
   };
 }
 
