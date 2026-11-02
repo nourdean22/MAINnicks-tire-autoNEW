@@ -154,8 +154,9 @@ export function newestReconciliationFile(names: string[]): string | null {
 function defaultListDocs(relDir: string): string[] {
   try {
     return fs.readdirSync(path.join(process.cwd(), relDir));
-  } catch {
-    return []; // no folder: the digest falls back to the top of RECONCILIATION.md
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return []; // no folder: the digest falls back to the top of RECONCILIATION.md
+    throw e; // any other failure is UNREADABLE, never "no entries"
   }
 }
 
@@ -174,15 +175,27 @@ export async function buildSystemChangeDigest(deps: DigestDeps = {}): Promise<Sy
   const env = deps.env ?? process.env;
   const now = deps.now ? deps.now() : new Date().toISOString();
 
-  const newest = newestReconciliationFile((deps.listDocs ?? defaultListDocs)(RECONCILIATION_DIR));
-  const reconciliation =
-    (newest ? parseLatestReconciliation(loadDoc(`${RECONCILIATION_DIR}${newest}`) ?? "") : null) ??
-    parseLatestReconciliation(loadDoc("docs/RECONCILIATION.md") ?? "");
+  const keyDocsUnreadable: string[] = [];
+  // The newest docs/reconciliation/ file is the latest wave; RECONCILIATION.md (frozen 2026-11-02) only when the folder
+  // has no entry. A folder that cannot be listed, or a newest file that cannot be read or parsed, is UNREADABLE and
+  // reported like a key doc, never papered over with the frozen file's older top entry (second reader, 2026-11-02).
+  let reconciliation: ReconEntry | null = null;
+  let newest: string | null = null;
+  try {
+    newest = newestReconciliationFile((deps.listDocs ?? defaultListDocs)(RECONCILIATION_DIR));
+  } catch {
+    keyDocsUnreadable.push(RECONCILIATION_DIR);
+  }
+  if (newest) {
+    reconciliation = parseLatestReconciliation(loadDoc(`${RECONCILIATION_DIR}${newest}`) ?? "");
+    if (!reconciliation) keyDocsUnreadable.push(`${RECONCILIATION_DIR}${newest}`);
+  } else if (!keyDocsUnreadable.length) {
+    reconciliation = parseLatestReconciliation(loadDoc("docs/RECONCILIATION.md") ?? "");
+  }
 
   // Stale-doc scan over the key truth docs only (bounded + the worst place for a regression).
   let staleCriticalInKeyDocs = 0;
   let staleWarnInKeyDocs = 0;
-  const keyDocsUnreadable: string[] = [];
   for (const rel of KEY_DOCS) {
     const content = loadDoc(rel);
     if (content == null) {

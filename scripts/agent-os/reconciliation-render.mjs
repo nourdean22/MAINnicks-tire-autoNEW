@@ -33,7 +33,13 @@ export function loadEntries(root) {
       problems.push(`${name}: name must be <YYYY-MM-DD>-<lowercase-slug>.md`);
       continue;
     }
-    const text = readFileSync(join(root, RECON_DIR, name), "utf8").replace(/\r\n/g, "\n").trim();
+    let text;
+    try {
+      text = readFileSync(join(root, RECON_DIR, name), "utf8").replace(/\r\n/g, "\n").trim();
+    } catch (e) {
+      problems.push(`${name}: unreadable (${String(e.message).split("\n")[0]})`); // one bad file never hides the others
+      continue;
+    }
     const header = text.split("\n")[0];
     if (!new RegExp(`^>\\s*##\\s+${date}\\b`).test(header)) problems.push(`${name}: first line must be "> ## ${date} · <title>", got "${header.slice(0, 80)}"`);
     else entries.push({ name, header, text });

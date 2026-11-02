@@ -44,10 +44,12 @@ test("entries print newest first, in full, and --tail / --list narrow them", () 
 
 test("a misnamed file or a header whose date disagrees with the name fails the run, named, and good entries still print", () => {
   const root = fixture({ "2026-11-02-older.md": OLD, "notes.md": OLD, "2026-11-03-wrong-date.md": OLD });
+  mkdirSync(join(root, "apps", "statenour", "docs", "reconciliation", "2026-11-04-a-directory.md")); // a directory, not a file
   const r = run(root, "--list");
   assert.equal(r.code, 1, r.err);
   assert.match(r.err, /notes\.md: name must be/);
   assert.match(r.err, /2026-11-03-wrong-date\.md: first line must be "> ## 2026-11-03/);
+  assert.match(r.err, /2026-11-04-a-directory\.md: unreadable/, "one unreadable entry is named, not the whole folder");
   assert.equal(r.out, "2026-11-02-older.md  > ## 2026-11-02 · older wave · 1 ship\n", "only the well-formed entry prints");
 });
 

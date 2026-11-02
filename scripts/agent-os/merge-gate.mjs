@@ -6,6 +6,7 @@
  *
  * --retry-minutes <n> re-runs the whole gate every 90 s for up to n minutes while a pass exits 3, 5, 7 or 8 (held, gh failed
  * before the merge, not ready yet, body bar); it stops at once on 0, 2, 4, 6 or 64, and never on parsed output (retryGate).
+ * The limit is checked BETWEEN passes: a pass that holds in holdWhileBusy (up to --wait-minutes) can run past it once.
  *
  * Without --merge it only judges and prints READY or the blockers. With --merge it:
  *   1. holds (ONE bounded wait, no model turns) while another open PR has a node or e2e check in flight: a merge
@@ -530,8 +531,9 @@ if (isMainModule(import.meta.url)) {
     console.error("--codex-wait-minutes needs a number of minutes, 0 or more (a following flag is not a value)");
     process.exit(64);
   }
+  // A trailing `--retry-minutes` with no value reads as undefined too; it must not silently mean "run once".
   const rawRetry = arg("--retry-minutes");
-  const retryMinutes = rawRetry === undefined ? 0 : /^\d+(\.\d+)?$/.test(rawRetry) ? Number(rawRetry) : NaN;
+  const retryMinutes = !process.argv.includes("--retry-minutes") ? 0 : /^\d+(\.\d+)?$/.test(rawRetry ?? "") ? Number(rawRetry) : NaN;
   if (!Number.isFinite(retryMinutes)) {
     console.error("--retry-minutes needs a number of minutes, 0 or more (a following flag is not a value); 0 runs the gate once");
     process.exit(64);

@@ -136,6 +136,7 @@ test("shop data arm 2b: an explicit no-read declaration passes; a lying or loose
   }
   shopDenied(laneBrief(`${task}\nSHOP DATA: nonetheless read everything`), "none as a word prefix is not a declaration");
   shopDenied(laneBrief(`${task}\nSHOP DATA: none needed.`), "loose wording is not a declaration");
+  shopDenied(laneBrief(`${task}\nSHOP DATA: none, but this brief counts invoices per month in nickstire TiDB.`), "a declaration with a tail that reads records is not one");
   shopDenied(laneBrief(`${task} ${SHOP_TASK}\nSHOP DATA: none read (no shop records in scope)`), "declared none while the brief counts estimates and invoices");
   shopDenied(laneBrief(`${task}\nMentioning SHOP DATA: none read mid-line`), "a mid-line label is not a declaration");
 });

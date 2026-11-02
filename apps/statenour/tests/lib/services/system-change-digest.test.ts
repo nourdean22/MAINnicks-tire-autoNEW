@@ -159,13 +159,34 @@ describe("buildSystemChangeDigest (injected deps — no fs/DB)", () => {
     expect(d.latestWave?.title).toContain("newer split wave");
   });
 
-  it("falls back to the top of RECONCILIATION.md when the newest file has no dated header", async () => {
+  // RECONCILIATION.md is frozen, so falling back to it would always show an OLDER wave as the latest (second reader,
+  // 2026-11-02). A newest file that cannot be read or parsed, or a folder that cannot be listed, is UNREADABLE.
+  it("a newest file with no dated header is UNREADABLE: latestWave null, named in risks, never the frozen top entry", async () => {
     const d = await buildSystemChangeDigest({
       loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON, "docs/reconciliation/2026-11-05-bad.md": "no header" })[rel] ?? null,
       listDocs: () => ["2026-11-05-bad.md"],
       env: {},
       now: () => "2026-11-05T00:00:00.000Z",
     });
-    expect(d.latestWave?.date).toBe("2026-06-09");
+    expect(d.latestWave).toBeNull();
+    expect(d.truth.keyDocsUnreadable).toContain("docs/reconciliation/2026-11-05-bad.md");
+    expect(d.risks.join(" ")).toContain("UNREADABLE");
+    expect(d.nextOwnerDecision.toLowerCase()).not.toContain("nothing pending");
+  });
+
+  it("a folder that cannot be listed (not ENOENT) is UNREADABLE too; an absent folder still falls back to RECONCILIATION.md", async () => {
+    const thrown = await buildSystemChangeDigest({
+      loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON })[rel] ?? null,
+      listDocs: () => {
+        throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      },
+      env: {},
+      now: () => "2026-11-05T00:00:00.000Z",
+    });
+    expect(thrown.latestWave).toBeNull();
+    expect(thrown.truth.keyDocsUnreadable).toContain("docs/reconciliation/");
+    const absent = await buildSystemChangeDigest({ loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON })[rel] ?? null, listDocs: () => [], env: {}, now: () => "x" });
+    expect(absent.latestWave?.date).toBe("2026-06-09");
+    expect(absent.truth.keyDocsUnreadable.filter((d) => d.startsWith("docs/reconciliation"))).toEqual([]);
   });
 });

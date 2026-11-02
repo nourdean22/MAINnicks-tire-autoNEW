@@ -71,10 +71,28 @@ test("retryGate gives up at the deadline with the last code and says so; 0 minut
   assert.equal(once.logs.filter((l) => /^RETRY/.test(l)).length, 0);
 });
 
-test("the CLI refuses a non-numeric --retry-minutes (exit 64) and keeps the usage line current", () => {
-  const r = spawnSync(process.execPath, [GATE, "1", "--sha", "a".repeat(40), "--retry-minutes", "--merge"], { encoding: "utf8" });
-  assert.equal(r.status, 64, r.stderr);
-  assert.match(r.stderr, /--retry-minutes/);
+test("the CLI refuses a non-numeric or valueless --retry-minutes (exit 64) and keeps the usage line current", () => {
+  for (const argv of [["--retry-minutes", "--merge"], ["--merge", "--retry-minutes"], ["--retry-minutes", "ten"]]) {
+    const r = spawnSync(process.execPath, [GATE, "1", "--sha", "a".repeat(40), ...argv], { encoding: "utf8" });
+    assert.equal(r.status, 64, `${argv.join(" ")}: ${r.stderr}`);
+    assert.match(r.stderr, /--retry-minutes/);
+  }
   const usage = spawnSync(process.execPath, [GATE, "notanumber"], { encoding: "utf8" });
   assert.match(usage.stderr, /--retry-minutes/, "the usage line names the flag");
+});
+
+// Wiring: the real process must return what retryGate returns. With no `gh` on PATH every pass exits 5 (a gh call failed
+// before the merge), which retries; with a 1-minute budget the second pass would start at 90 s, past the deadline, so the
+// loop gives up at once and prints its line. A CLI that called mergeGate directly would exit 5 without that line.
+test("CLI wiring: --retry-minutes drives retryGate (the gave-up line comes from the loop, not from mergeGate)", () => {
+  const r = spawnSync(process.execPath, [GATE, "9999999", "--sha", "a".repeat(40), "--retry-minutes", "1"], {
+    encoding: "utf8",
+    env: { ...process.env, PATH: "", Path: "" },
+  });
+  assert.equal(r.status, 5, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /ERROR before any merge call, nothing was merged/);
+  assert.match(r.stdout, /RETRY gave up after 1 min: the last pass exited 5/);
+  const once = spawnSync(process.execPath, [GATE, "9999999", "--sha", "a".repeat(40)], { encoding: "utf8", env: { ...process.env, PATH: "", Path: "" } });
+  assert.equal(once.status, 5);
+  assert.doesNotMatch(once.stdout, /RETRY/, "without the flag there is one pass and no retry line");
 });

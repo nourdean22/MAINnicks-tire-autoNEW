@@ -158,7 +158,7 @@ const BRIEF_MAX_FILES = 5;
 // A block whose first line declares no read (2026-11-02: "SHOP DATA: none read (no shop records in scope)" was denied). Exact
 // phrases only: "none needed" and "nonetheless ..." are not declarations. Still "no" when the rest of the brief names both
 // invoices and estimates, since a brief that counts them has read records whatever its label says.
-const SHOP_NO_READ = /^[ \t>*_-]*SHOP DATA\s*:\s*\**\s*(?:n\/a|none(?:\s+read)?|not\s+read|no\s+shop\s+(?:data|records))\s*(?:$|[.;,(—-])/i;
+const SHOP_NO_READ = /^[ \t>*_-]*SHOP DATA\s*:\s*\**\s*(?:n\/a|none(?:\s+read)?|not\s+read|no\s+shop\s+(?:data|records))\s*(?:$|\.\s*$|\()/i; // "none, but ..." is not a declaration
 export function shopDataState(text, laneType = "") {
   const words = text.replace(FILE_TOKEN, " ");
   if (!SHOP_NOUN.test(words) || !SHOP_READ.test(words) || !(SHOP_PLACE.test(text) || /^lane-nickstire-/i.test(laneType))) return "n/a";
