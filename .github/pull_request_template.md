@@ -1,48 +1,35 @@
-## 1) Summary
+## Summary
 
-- What changed?
-- Why this change is necessary now?
-- Which system boundaries are affected?
+What changed, why now, which boundary it touches. One short paragraph.
 
-## 2) Scope
+## Self-review
 
-- [ ] Customer-facing runtime (`client/`)
-- [ ] Server/control runtime (`server/`)
-- [ ] DB schema/migrations (`drizzle/`)
-- [ ] CI/workflows (`.github/workflows/`)
-- [ ] Environment contract (`.env.example` / validator)
-- [ ] Docs/governance only
+Hostile read of my own diff. What did it find, and what did I fix or leave? (A "no defects" line is not a review.)
 
-## 3) Validation (required)
+- [ ] Verify gate for the touched app(s) run, with counts: `pnpm verify:nick` / `pnpm verify:state` / worker `pnpm check`
+- [ ] New or changed test seen RED on the old code first
+- [ ] Docs and ledger row updated in this PR
 
-- [ ] `pnpm env:validate`
-- [ ] `pnpm check`
-- [ ] `pnpm lint`
-- [ ] `pnpm test`
-- [ ] `pnpm build`
+Receipts: paste counts and exit codes, not "tests pass".
 
-Paste notable output or links to CI runs.
+## Kill criterion + live check
 
-## 4) Risk review
+Kill criterion: the result that would make us drop or revert this.
 
-- [ ] Touches load-bearing systems (auth/payments/integrations/cron/webhooks)
-- [ ] Includes migration change
-- [ ] Includes external integration change
-- [ ] Includes auth/permission logic change
+Live check YYYY-MM-DD: what will be read in production on that date, and what it must show.
 
-If any checked, include explicit impact analysis below.
+Ruling: each reversible decision made without Nour, with its cost if wrong (one line each, or "none").
 
-## 5) Rollback plan
+## 10x option
 
-- How to revert quickly if this causes issues?
-- Any data migration rollback caveats?
+The bigger version of this change, and why it was or was not taken now.
 
-## 6) Documentation updates
+Benchmarked against: name (URL, date), adopted: mechanism, rejected: mechanism and why. (Or "nothing to benchmark" for a small fix.)
 
-- [ ] README updated (if runtime/commands changed)
-- [ ] `.env.example` updated (if env contract changed)
-- [ ] Other runbook/docs updated
+## Second reader
 
-## 7) Follow-ups
+Who or what read the diff besides me (agent, reviewer, tool) and what they found.
 
-List deferred tasks, known limitations, or cleanup tickets.
+## Rollback
+
+How to revert quickly, and any data caveat.
