@@ -652,8 +652,9 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       // Chat (W3a): the header pill's words and the list's empty and loading states.
       "features/chat-v2/lib/capability-label.ts",
       "features/chat-v2/components/chat-message-list.tsx",
-      // /now (W6): the compose failure and empty-result copy.
+      // /now (W6): the compose failure and empty-result copy, and a card's failed-read label.
       "components/now/intent-surface.tsx",
+      "components/chat/tool-result-card.tsx",
     ].map((f) => read(path.join(APP_DIR, f)).replace(/&apos;/g, "'"));
     for (const [name, re] of Object.entries(PAGE_ERRORS)) {
       for (const alt of re.source.split("|")) {

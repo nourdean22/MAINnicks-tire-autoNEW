@@ -14,7 +14,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures, type FixtureReport } from "./fixtures";
-import { IGNORED_PAGE_ERRORS, VT_CONTEXT, openChatHistory, openNowStarter, settleChat } from "./vt-render";
+import { IGNORED_PAGE_ERRORS, VT_CONTEXT, openChatHistory, openNowStarter, settleChat, settleNow } from "./vt-render";
 
 test.use({ viewport: { width: 390, height: 844 }, ...VT_CONTEXT });
 
@@ -74,6 +74,7 @@ test.describe("v3 fixtures render", () => {
     await expect(page.getByText(DEMO.nowCard).first()).toBeVisible({ timeout: 60_000 });
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
     await expect(page.getByText(PAGE_ERRORS.now)).toHaveCount(0);
+    await settleNow(page);
     expect(disallowedUnstubbed(report.unstubbed), "Now read page data the fixtures do not answer").toEqual([]);
     expect(pageErrors, "Now threw during render").toEqual([]);
   });

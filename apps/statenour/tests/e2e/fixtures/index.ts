@@ -48,8 +48,9 @@ export const PAGE_ERRORS = {
   // Chat has no error panel: its failures are a pill that never reaches "ready" (the header's capability words
   // for unmeasured, unknown, degraded and offline), or a list that never left the empty / loading state.
   chat: /checking capabilities|AI health unknown|tool health unknown|chat offline|chat degraded|AI offline|fallback active|tools limited|Loading conversation|What are we solving/i,
-  // /now has no error panel: a failed compose prints one of these two lines, an empty one the third.
-  now: /could not reach the server|the compose read failed|nick found no card/i,
+  // /now has no error panel: a failed compose prints one of the first two lines (or the server's own error) above a Retry
+  // button, an empty one the third; a card whose read failed says "Tool failed" or "Not done" (tool-result-card.tsx).
+  now: /could not reach the server|the compose read failed|nick found no card|\bretry\b|tool failed|not done/i,
 } as const;
 
 /**

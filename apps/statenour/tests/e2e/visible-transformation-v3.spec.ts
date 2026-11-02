@@ -40,7 +40,7 @@ import { expect, test } from "@playwright/test";
 
 import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures } from "./fixtures";
 import { baselineSkipReason, captureVerdict, measureAndJudge } from "./v3-gate";
-import { V3_PAGES, V3_VIEWPORTS, VT_CONTEXT, openChatHistory, openNowStarter, renderPage, settleChat, warmRoutes, type RenderAnchor } from "./vt-render";
+import { V3_PAGES, V3_VIEWPORTS, VT_CONTEXT, openChatHistory, openNowStarter, renderPage, settleChat, settleNow, warmRoutes, type RenderAnchor } from "./vt-render";
 import { inkCoverage } from "./visual-distance";
 
 const SNAPSHOT_DIR = path.join(__dirname, "visible-transformation-v3.spec.ts-snapshots");
@@ -54,7 +54,7 @@ const ANCHOR: Record<string, RenderAnchor> = {
   // Chat loads no conversation by itself: open() picks the seeded one in the History drawer, settle() waits out the island.
   chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },
   // /now shows nothing until a starter intent is tapped (openNowStarter), then the composed cards.
-  now: { anchorText: DEMO.nowCard, errorPattern: PAGE_ERRORS.now, open: openNowStarter },
+  now: { anchorText: DEMO.nowCard, errorPattern: PAGE_ERRORS.now, open: openNowStarter, settle: settleNow },
 };
 
 for (const vp of V3_VIEWPORTS) {
