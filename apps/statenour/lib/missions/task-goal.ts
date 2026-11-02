@@ -26,8 +26,9 @@ export type GoalRow = {
 export type TaskGoal = { id: string; title: string | null; source: "task" | "mission" };
 export type GoalTask<T extends Task = Task> = T & { goal: TaskGoal | null };
 
-/** CONTROLS RULE: the filter row's chip cap, named once. */
+/** CONTROLS RULE: the filter row's chip cap and every goal chip's truncation width, named once. */
 export const GOAL_FILTER_CHIP_CAP = 6;
+export const GOAL_CHIP_WIDTH = "max-w-[10rem]";
 
 export function taskGoal(
   task: Pick<Task, "goalId">,

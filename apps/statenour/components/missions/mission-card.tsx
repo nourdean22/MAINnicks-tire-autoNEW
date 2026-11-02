@@ -38,6 +38,7 @@ import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
 import Link from "next/link";
 import { missionHasEndState } from "@/lib/services/mission-helpers";
+import { GOAL_CHIP_WIDTH, goalFilterHref } from "@/lib/missions/task-goal";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 export interface MissionCardProps {
@@ -251,13 +252,16 @@ export function MissionCard({
           ))}
         {/* 2026-11-02 · the goal this mission was planned from (Mission.lifeGoalId). */}
         {mission.lifeGoal && (
+          // 2026-11-02 · tapping filters the board to this goal (?goalId=), like the task-row chip.
           <Link
-            href="/stats?tab=goals"
+            href={goalFilterHref(mission.lifeGoal.id)}
+            replace
+            scroll={false}
             onClick={(e) => e.stopPropagation()}
-            className="min-h-11 inline-flex items-center shrink-0 max-w-[10rem] truncate font-mono text-[11px] text-sky-300 hover:underline"
+            className={cn("min-h-11 inline-flex items-center shrink-0 font-mono text-[11px] text-sky-300 hover:underline", GOAL_CHIP_WIDTH)}
             title={`Goal: ${mission.lifeGoal.title}`}
           >
-            goal · {mission.lifeGoal.title}
+            <span className="truncate">goal · {mission.lifeGoal.title}</span>
           </Link>
         )}
         {deadlineLabel && (

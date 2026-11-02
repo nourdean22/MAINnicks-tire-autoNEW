@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
 import type { Project, Task } from "@/components/actions/shared";
+import { withTaskGoals, type GoalRow, type GoalTask } from "@/lib/missions/task-goal";
 
 /**
  * Execution Deck (2026-09-01): the page's data story is one server-composed
@@ -17,6 +18,10 @@ import type { Project, Task } from "@/components/actions/shared";
  *    the result (deep links use #task-<id> anchors, not ?taskId=).
  * task.list also slows 15s → 30s: the deck carries the fresh-scored
  * ordering now, so the raw list only feeds actions/filters.
+ *
+ * 2026-11-02 (job nour-os-interconnect W3) · task.goals joins: goal titles for the
+ * chips, the align picker and the pace lineage hidden-risk reads. Every task carries
+ * goal (lib/missions/task-goal taskGoal: own goalId, else the mission's goal).
  */
 export function useMissionsData() {
   const utils = trpc.useUtils();
@@ -45,14 +50,27 @@ export function useMissionsData() {
     staleTime: 30_000,
   });
 
-  const tasks = useMemo<Task[]>(
-    () => (tasksQuery.data ?? []) as Task[],
-    [tasksQuery.data],
+  const goalsQuery = trpc.task.goals.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const goals = useMemo<GoalRow[] | undefined>(
+    () => (goalsQuery.data?.goals as GoalRow[] | undefined),
+    [goalsQuery.data],
+  );
+  const activeGoals = useMemo(
+    () => (goals ?? []).filter((g) => g.status === "active").map((g) => ({ id: g.id, title: g.title })),
+    [goals],
   );
 
   const missions = useMemo<Project[]>(
     () => (missionsQuery.data ?? []) as Project[],
     [missionsQuery.data],
+  );
+
+  const tasks = useMemo<GoalTask[]>(
+    () => withTaskGoals((tasksQuery.data ?? []) as Task[], missions, goals),
+    [tasksQuery.data, missions, goals],
   );
 
   return {
@@ -61,6 +79,9 @@ export function useMissionsData() {
     tasksQuery,
     missionsQuery,
     ccStateQuery,
+    goalsQuery,
+    goals,
+    activeGoals,
     tasks,
     missions,
   };

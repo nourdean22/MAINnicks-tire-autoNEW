@@ -20,7 +20,7 @@
  * Wave AB.b PersonEditDrawer.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Trash2, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,10 @@ export interface TaskEditSheetProps {
   task: Task | null;
   /** Pass the live mission list so the operator can reassign. */
   missions: Project[];
+  /** Active goals for the align picker (job 2026-11-02 W3, Sunsama S1). */
+  goals?: { id: string; title: string }[];
+  /** Open scrolled to this field: the row's "Align to goal" opens at goal. */
+  focusField?: "goal" | null;
   onSaved?: () => void;
 }
 
@@ -65,6 +69,8 @@ function TaskEditSheetBody({
   onClose,
   task,
   missions,
+  goals = [],
+  focusField = null,
   onSaved,
 }: TaskEditSheetProps & { task: Task }) {
   const [title, setTitle] = useState(() => task.title ?? "");
@@ -79,6 +85,14 @@ function TaskEditSheetBody({
   );
   const [waitingOn, setWaitingOn] = useState(() => task.waitingOn ?? "");
   const [missionId, setMissionId] = useState(() => task.missionId ?? "");
+  // The task's OWN goal only; an inherited (mission) goal is not stored on the task.
+  const [goalId, setGoalId] = useState(() => task.goalId ?? "");
+  const goalRef = useRef<HTMLSelectElement | null>(null);
+  useEffect(() => {
+    if (focusField !== "goal") return;
+    goalRef.current?.scrollIntoView?.({ block: "center" });
+    goalRef.current?.focus();
+  }, [focusField]);
   // Wave AL · 2026-05-28 · recurring tasks · loopKind exposed in UI for
   // the first time. ONCE = default · DAILY = recur tomorrow via the
   // existing WAITING+snoozedUntil mechanism + task-resurface cron.
@@ -91,6 +105,7 @@ function TaskEditSheetBody({
   const [recurringDays, setRecurringDays] = useState<number[]>(
     () => (task as unknown as { recurringDays?: number[] }).recurringDays ?? [],
   );
+  const missionGoal = missions.find((m) => m.id === missionId)?.lifeGoal ?? null;
   const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
@@ -163,6 +178,8 @@ function TaskEditSheetBody({
       if (JSON.stringify(nextRecurring) !== JSON.stringify(initialRecurring))
         fields.recurringDays = nextRecurring;
 
+      if (goalId !== (task.goalId ?? "")) fields.goalId = goalId || null;
+
       const initialMissionId = task.missionId ?? "";
       const missionChanged = missionId !== initialMissionId;
       if (missionChanged && missionId) fields.missionId = missionId;
@@ -204,6 +221,7 @@ function TaskEditSheetBody({
     loopKind,
     recurringDays,
     missionId,
+    goalId,
     updateMutation,
     leaveMissionMutation,
     utils,
@@ -426,6 +444,25 @@ function TaskEditSheetBody({
                     {m.title}
                   </option>
                 ))}
+            </select>
+          </Field>
+
+          <Field label="goal · why this task matters">
+            <select
+              ref={goalRef}
+              name="goal"
+              value={goalId}
+              onChange={(e) => setGoalId(e.target.value)}
+              disabled={submitting}
+              className={inputCls}
+            >
+              <option value="">{missionGoal ? `(none · follows the mission: ${missionGoal.title})` : "(none)"}</option>
+              {goals.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title}
+                </option>
+              ))}
+              {goalId && !goals.some((g) => g.id === goalId) && <option value={goalId}>(current goal, not active)</option>}
             </select>
           </Field>
 

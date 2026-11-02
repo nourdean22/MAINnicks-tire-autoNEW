@@ -47,6 +47,8 @@ export interface MissionTaskRowProps {
 // so the task inspector's page actions snooze to the same instants as this row.
 import { nextMondayMorning, tomorrowMorning } from "@/lib/missions/snooze-presets";
 import { formatDueHint } from "@/lib/missions/due-hint";
+import Link from "next/link";
+import { GOAL_CHIP_WIDTH, goalFilterHref, type GoalTask } from "@/lib/missions/task-goal";
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 
 export function MissionTaskRow({
@@ -153,6 +155,7 @@ export function MissionTaskRow({
     return complexKeywords.some(keyword => titleLower.includes(keyword));
   })();
 
+  const rowGoal = (task as Partial<GoalTask>).goal ?? null;
   const dueHint = formatDueHint(task.dueDate);
   // 2026-09-15 · UI workbench · the row is an addressable object: data-entity
   // makes j/k/Space/Enter/x work inside the board's selection scope, and the
@@ -429,6 +432,19 @@ export function MissionTaskRow({
             {dueHint && <span>{dueHint}</span>}
           </div>
         )}
+        {/* 2026-11-02 · a goal this task serves on its own (Task.goalId). An inherited goal
+         *  is on the mission card above, so the row stays quiet (lib/missions/task-goal). */}
+        {rowGoal?.source === "task" && (
+          <Link
+            href={goalFilterHref(rowGoal.id)}
+            replace
+            scroll={false}
+            onClick={(e) => e.stopPropagation()}
+            className={cn("inline-flex min-h-11 items-center font-mono text-[11px] text-sky-300 hover:underline", GOAL_CHIP_WIDTH)}
+          >
+            <span className="truncate">goal · {rowGoal.title ?? "title not read"}</span>
+          </Link>
+        )}
         {/* Suggest-then-approve · a parked LOW-confidence mission match waits
          *  here for the operator to attach or dismiss (set by enrichTaskLinkage). */}
         {(task as unknown as { pendingClassification?: unknown })
@@ -481,6 +497,10 @@ export function MissionTaskRow({
         <div role="group" aria-label="task actions" className="flex basis-full flex-wrap justify-end gap-2 pb-1">
           <button type="button" onClick={() => actions.handleEditTask(task)} className={ROW_VERB}>
             Edit
+          </button>
+          {/* Sunsama S1: align with a goal in one tap; opens the editor at its goal field. */}
+          <button type="button" onClick={() => actions.handleEditTask(task, { focus: "goal" })} className={ROW_VERB}>
+            {rowGoal?.source === "task" ? "Change goal" : "Align to goal"}
           </button>
           <button type="button" onClick={() => openInspector({ kind: "task", id: task.id })} className={ROW_VERB}>
             Details
