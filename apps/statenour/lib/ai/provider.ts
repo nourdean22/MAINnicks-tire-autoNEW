@@ -1161,6 +1161,8 @@ export async function aiChat(
     telemetry?: Partial<LangfuseTelemetryInput>;
     /** U6 · every completed call is recorded in AiGeneration unless the caller records it itself. */
     tracked?: boolean;
+    /** Per-attempt ceiling for this call, replacing the task default below. Off-peak brain jobs set it. */
+    timeoutMs?: number;
   } = {},
 ): Promise<AiResponse> {
   // L.1 · external AbortSignal support · when caller passes a signal,
@@ -1292,7 +1294,8 @@ export async function aiChat(
   //   deep/code/math: 8000  (structured plans, full reasoning)
   //   default       : 4000  (chat / summary / extract / vision)
   const longForm = new Set<TaskType>(["deep", "reason", "code", "math", "creative"]);
-  const PROVIDER_TIMEOUT = longForm.has(taskType) ? 100_000 : 45_000;
+  const PROVIDER_TIMEOUT =
+    opts.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : longForm.has(taskType) ? 100_000 : 45_000;
   const MAX_OUTPUT_TOKENS =
     taskType === "fast" || taskType === "classify"
       ? 1500

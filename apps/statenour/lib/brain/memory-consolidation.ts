@@ -17,7 +17,9 @@ import { brainMemory } from "./memory-manager";
 import { admitMemory } from "@/lib/brain/memory-admission";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
-const aiChat = makeTracedAiChat("memory-consolidation");
+// 180 s, not reason's 100 s: 29 calls aborted AT 100.0 s and the ok max was 99.1 s (Langfuse, 7 d to
+// 2026-11-01). Only runConsolidation calls the model, and it runs in the 05:00Z off-peak phase.
+const aiChat = makeTracedAiChat("memory-consolidation", "brain", { timeoutMs: 180_000 });
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { today, daysAgo } from "@/lib/utils/datetime";
 // v10.0.65 · structured logger for surfacing dedupe-delete failures.

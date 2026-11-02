@@ -41,7 +41,7 @@ import { onInngestFailure } from "../on-failure";
 // 2026-05-17 follow-up · shared job arrays (single source of truth)
 // replace the formerly-duplicated MORNING_JOBS / EVENING_JOBS /
 // WEEKLY_JOBS that lived here AND in app/api/cron/mega/route.ts.
-import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../jobs";
+import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS, OFFPEAK_BRAIN_JOBS } from "../jobs";
 import { logger as rootLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
@@ -467,9 +467,27 @@ export const megaFanoutEvening = inngest.createFunction(
 
     // In a step, so a replay after ET midnight keeps the run's own answer (08-X4).
     const sunday = await step.run("is-sunday-et", () => isSundayET());
-    const jobs = sunday
-      ? [...EVENING_JOBS, ...WEEKLY_JOBS]
-      : EVENING_JOBS;
+    // The brain children run later, one at a time (megaBrainOffpeak). Scheduled before the
+    // batch so a partial batch's throw below cannot cancel them, and caught so a failed
+    // hand-off cannot stop the batch (it is reported in the slot's failure below).
+    const brain = await step.run("brain-offpeak-at", () => offpeakStart(new Date()));
+    let handoffFailure: string | null = null;
+    try {
+      await step.sendEvent("brain-offpeak", {
+        name: BRAIN_OFFPEAK_EVENT,
+        // One id per night: Inngest drops a repeat id for 24 h, so a replay or a second
+        // fire that night is one phase (think never writes twice). To re-run a night by
+        // hand, send mega/brain.offpeak directly with a new id.
+        id: `brain-offpeak-${brain.night}`,
+        data: { at: brain.at },
+      });
+    } catch (err) {
+      handoffFailure = `brain-offpeak hand-off: ${err instanceof Error ? err.message : String(err)}`;
+      logError("inngest.mega-fanout", err, { stage: "brain-offpeak-handoff", night: brain.night });
+    }
+    const jobs = (sunday ? [...EVENING_JOBS, ...WEEKLY_JOBS] : EVENING_JOBS).filter(
+      (p) => !OFFPEAK_BRAIN_JOBS.includes(p),
+    );
 
     const settled = await Promise.allSettled(
       jobs.map((path) =>
@@ -491,14 +509,114 @@ export const megaFanoutEvening = inngest.createFunction(
         failures: sum.failures.slice(0, 10),
       });
       throw new Error(
-        `mega-evening: ${sum.jobsFailed}/${settled.length} child crons failed · ${sum.failures.slice(0, 8).join(" ; ")}`,
+        `mega-evening: ${sum.jobsFailed}/${settled.length} child crons failed · ${sum.failures.slice(0, 8).join(" ; ")}${handoffFailure ? ` ; ${handoffFailure}` : ""}`,
       );
     }
+    if (handoffFailure) throw new Error(`mega-evening: ${handoffFailure}`);
     return {
       slot: "evening",
       isSundayET: sunday,
       jobsRun: sum.jobsRun,
       totalDurationMs: sum.totalDurationMs,
     };
+  },
+);
+
+const BRAIN_OFFPEAK_EVENT = "mega/brain.offpeak";
+
+/**
+ * When the brain phase starts, and which night it belongs to: 05:00Z (00:00 ET in winter) for
+ * the 03:00Z run, now for a run already inside 05:00-07:00Z, and the next 05:00Z for a manual
+ * fire in the day (never a peak-hour phase). Quiet window measured on conversation-memory, the
+ * one brain surface that also runs by day (Langfuse, 7 d to 2026-11-01): zero calls
+ * 04:00-09:59Z. It ends by ~07:35Z, before the 09:00Z morning slot and the 12:00Z
+ * cron-heartbeat silence check (26 h window).
+ */
+export function offpeakStart(now: Date): { at: string; night: string } {
+  const hour = now.getUTCHours();
+  if (hour >= 5 && hour < 7) {
+    const at = now.toISOString();
+    return { at, night: at.slice(0, 10) };
+  }
+  const start = new Date(now);
+  if (hour >= 7) start.setUTCDate(start.getUTCDate() + 1);
+  start.setUTCHours(5, 0, 0, 0);
+  const at = start.toISOString();
+  return { at, night: at.slice(0, 10) };
+}
+
+/**
+ * Wait after each dispatch before the next starts, sized from each child's measured 03:00Z
+ * run window (first span start to last span end, Langfuse, 7 nights to 2026-11-01) under the
+ * new ceilings: think <=3 min, distill <=7, compile <=12, consolidate <=29.
+ */
+const BRAIN_GAP: Record<string, string> = {
+  "/api/cron/think": "15m",
+  "/api/cron/distill-sessions": "20m",
+  "/api/cron/conversation-compile": "20m",
+  "/api/cron/consolidate": "60m",
+};
+
+/**
+ * The retry window: one more pass for the two children whose failed items stay eligible and
+ * are skipped once done (distill: "since last distill"; compile: failed digests "retry
+ * tomorrow by design"). think and consolidate are never re-run here: a second think writes
+ * duplicate rows, and consolidate runs 20-36 min.
+ */
+const BRAIN_RETRY_JOBS = ["/api/cron/distill-sessions", "/api/cron/conversation-compile"];
+
+/**
+ * The brain children of the evening slot, one at a time, off-peak. Each still runs through
+ * its own cron route, so the kill switch, CronJobLog row and route auth are unchanged.
+ * Upgrade 5 (apps/statenour/docs/research/chat-upgrades-2026-11-01.md): aborted calls on
+ * session-distiller, memory-consolidation, thinking-engine and conversation-memory were
+ * 37, 29, 14 and 12 a week, all at 03:00Z. Kill criterion: under 10 a week each by 2026-11-15.
+ */
+export const megaBrainOffpeak = inngest.createFunction(
+  {
+    id: "mega-brain-offpeak",
+    name: "Mega cron · brain jobs off-peak",
+    concurrency: { limit: 1 },
+    retries: 3,
+    triggers: [{ event: BRAIN_OFFPEAK_EVENT }],
+    onFailure: onInngestFailure,
+  },
+  async ({ event, step }) => {
+    const at = new Date(String((event.data as { at?: unknown } | undefined)?.at));
+    if (Number.isNaN(at.getTime())) {
+      log.warn("mega_brain_offpeak_bad_start", { at: (event.data as { at?: unknown } | undefined)?.at });
+      return { skipped: true, reason: "no valid start time" };
+    }
+    const cronSecret = (process.env.CRON_SECRET ?? "").trim();
+    if (!cronSecret) throw new Error("CRON_SECRET unset · refusing to fan out");
+
+    await step.sleepUntil("offpeak-start", at);
+    // Read at wake, not at send: switching the fan-out off at 04:00Z stops the 05:00Z phase.
+    if (megaFanoutDisabled()) {
+      log.info("mega_brain_offpeak_skipped_cutover_off", {});
+      return { skipped: true, reason: "INNGEST_MEGA_V2 off" };
+    }
+
+    const plan = [
+      ...OFFPEAK_BRAIN_JOBS.map((path) => ({ id: stepIdFor(path), path })),
+      ...BRAIN_RETRY_JOBS.map((path) => ({ id: `retry:${path.replace(/[^a-zA-Z0-9_-]/g, "_")}`, path })),
+    ];
+    const failures: string[] = [];
+    // 202 = still running (detached, or past the 90 s ceiling); the child's own CronJobLog row has the outcome.
+    const children: Array<{ path: string; status: number }> = [];
+    for (const [i, { id, path }] of plan.entries()) {
+      try {
+        const res = await step.run(id, () => dispatchChild(path, cronSecret));
+        children.push({ path, status: res.status });
+      } catch (err) {
+        failures.push(`${path}: ${err instanceof Error ? err.message : String(err)}`);
+        children.push({ path, status: 0 });
+      }
+      if (i < plan.length - 1) await step.sleep(`gap:${id}`, BRAIN_GAP[path] ?? "20m");
+    }
+    if (failures.length > 0) {
+      throw new Error(`mega-brain-offpeak: ${failures.length}/${plan.length} child crons failed · ${failures.join(" ; ")}`);
+    }
+    return { children };
   },
 );
