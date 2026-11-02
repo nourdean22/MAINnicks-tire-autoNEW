@@ -20,7 +20,7 @@ import { z } from "zod";
 export const TopDecisionsShape = z.object({
   decisions: z.array(
     z.object({
-      id: z.number(),
+      id: z.string(),
       urgency: z.string(),
       state: z.string(),
       recommendedAction: z.string(),

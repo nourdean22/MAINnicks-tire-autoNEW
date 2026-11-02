@@ -85,7 +85,7 @@ export function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
 }
 
 // The bridge reaches this app untyped. Producer: apps/nickstire/server/services/opportunityQueue.ts
-// mapRow (id is String(r.id), a uuid; shared/bridgeShapes.ts says number and is wrong). Kept loose.
+// mapRow (id is String(r.id), a uuid; shared/bridgeShapes.ts pins it as a string). Kept loose.
 export const TopDecisionsOutputSchema = z.object({
   ok: z.optional(z.boolean()),
   decisions: z.optional(
