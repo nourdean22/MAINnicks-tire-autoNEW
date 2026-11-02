@@ -11,7 +11,7 @@
  *      check finished and each one SUCCESS, SKIPPED or NEUTRAL (an allow-list: a conclusion GitHub adds next year blocks
  *      until someone reads it), in this same process as the merge, so nothing can change in between;
  *      and the Codex review (assessCodex) has completed on that SHA with no unresolved finding and no unresolved Codex
- *      thread; with no Codex marker for the SHA it waits --codex-wait-minutes from the push, then merges with a WARN line;
+ *      thread; with no Codex marker for the SHA it waits --codex-wait-minutes (default: mergeGate.codexWaitMinutes in config/agent-os/policy.json, else 25) from the push, then merges with a WARN line;
  *      and a PR touching apps/nickstire/{drizzle,server/cron,server/services}/ carries a DoD evidence fragment (missingDodFragment);
  *   3. merges with --match-head-commit, so GitHub itself refuses if the head moved after step 2;
  *   4. re-reads the PR and deletes the branch through the API ONLY once it reads MERGED. Deleting the head branch of an
@@ -38,6 +38,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { isMainModule } from "./cli-common.mjs";
 
 const OK_CONCLUSIONS = new Set(["SUCCESS", "SKIPPED", "NEUTRAL"]);
@@ -272,6 +273,25 @@ const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:
 const COMMENT_PAGES = 40; // 2,000 comments; past that the gate refuses rather than guess
 // Calibrated 2026-10-18: Codex posted its review 3 to 9 minutes after PR open on #3139 and #3141; 25 leaves room for a slow run.
 const CODEX_WAIT_MINUTES = 25;
+const POLICY_PATH = fileURLToPath(new URL("../../config/agent-os/policy.json", import.meta.url));
+
+/**
+ * The default for --codex-wait-minutes: `mergeGate.codexWaitMinutes` in config/agent-os/policy.json, so a Codex-quota day is
+ * one reviewed number, not a flag every caller must remember. It sets the length of the existing no-marker timer only. A
+ * missing key is the built-in 25 silently; an unreadable file or a bad value is also 25 (the longest wait, never the shortest)
+ * with a `note` for the caller to print. The `--codex-wait-minutes` flag wins over this.
+ */
+export function codexWaitDefault(read = () => readFileSync(POLICY_PATH, "utf8")) {
+  let value;
+  try {
+    value = JSON.parse(read())?.mergeGate?.codexWaitMinutes;
+  } catch (e) {
+    return { minutes: CODEX_WAIT_MINUTES, note: `policy.json could not be read (${firstLine(e)}): the Codex wait stays ${CODEX_WAIT_MINUTES} min` };
+  }
+  if (value === undefined) return { minutes: CODEX_WAIT_MINUTES };
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return { minutes: value };
+  return { minutes: CODEX_WAIT_MINUTES, note: `mergeGate.codexWaitMinutes in policy.json is ${JSON.stringify(value)}, not a number of minutes (0 or more): the Codex wait stays ${CODEX_WAIT_MINUTES} min` };
+}
 
 /**
  * The PR's top-level comments, oldest first, read NEWEST page first and only as far back as needed: it stops at the
@@ -456,7 +476,10 @@ if (isMainModule(import.meta.url)) {
   }
   // Digits only: Number("") and Number(" ") are 0, which would skip the Codex wait without anyone typing a 0.
   const rawCodexWait = arg("--codex-wait-minutes");
-  const codexWait = rawCodexWait === undefined ? CODEX_WAIT_MINUTES : /^\d+(\.\d+)?$/.test(rawCodexWait) ? Number(rawCodexWait) : NaN;
+  const configured = rawCodexWait === undefined ? codexWaitDefault() : null;
+  if (configured?.note) console.log(`WARN: ${configured.note}`);
+  if (configured && configured.minutes !== CODEX_WAIT_MINUTES) console.log(`Codex wait is ${configured.minutes} min (config/agent-os/policy.json mergeGate.codexWaitMinutes; the built-in default is ${CODEX_WAIT_MINUTES})`);
+  const codexWait = configured ? configured.minutes : /^\d+(\.\d+)?$/.test(rawCodexWait) ? Number(rawCodexWait) : NaN;
   if (!Number.isFinite(codexWait)) {
     console.error("--codex-wait-minutes needs a number of minutes, 0 or more (a following flag is not a value)");
     process.exit(64);

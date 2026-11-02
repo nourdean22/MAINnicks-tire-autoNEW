@@ -372,6 +372,9 @@ fallback, since it can predate the push, #3142): no marker after `--codex-wait-m
 (default 25) logs `WARN: Codex never reported on <sha>; merging without its review`, and still `running` at twice that
 (default 50, a stall: Codex finishes in 3 to 9 min) logs `WARN: Codex review still running on <sha> after <n> min; merging
 without its result`. Findings and unresolved Codex threads never time out. Without `--merge` the WARN says `would merge`.
+The 25 is `mergeGate.codexWaitMinutes` in `config/agent-os/policy.json` (2026-11-02): on a day Codex is out of quota, lower it
+there in a PR (0 = do not wait) instead of passing the flag on every call, and restore it after; the flag still wins, a
+missing or malformed value means 25 with a `WARN:` line, and nothing but the length of this one timer changes.
 Comments are read newest page first through GraphQL, stopping at the marker that decides the head: `gh pr view --json
 comments` returns only the first 100, which hid a later marker (Codex P2 on #3144). Past 2,000 comments it is BLOCKED.
 
