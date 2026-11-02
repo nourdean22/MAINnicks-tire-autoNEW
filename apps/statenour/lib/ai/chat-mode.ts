@@ -460,7 +460,7 @@ export async function pruneTools(
   // tools were pruned on exactly the turns the rule fires. Prod symptom:
   // 69 active commitments, ~1 ever completed, Pulse nagging about done
   // promises. MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
-  if (/\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the)|mark (it|that|this|the [\w' -]{1,60}?) (as )?(done|complete|completed|finished)|(complete|finish|close) (the|my|that) commitment)\b/i.test(text)) {
+  if (/\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the)|(?<!(?:n't|not) )mark (it|that|this|them|the [\w' -]{1,60}?) (as )?(done|complete|completed|finished)|(?<!(?:n't|not) )(complete|finish|close)( out)? (the|my|that) commitments?(?! (?:form|window|deadline)))\b/i.test(text)) {
     // 2026-11-02 (B3): plus the command form ("mark the commitment to call X done"): invokeTool
     // reached completeCommitment on 3 turns in 14 days because this family missed it.
     addMatching(/commit|completeTask/i);

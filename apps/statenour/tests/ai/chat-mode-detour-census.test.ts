@@ -44,10 +44,11 @@ describe("B3 · the tools invokeTool reached most are offered in the first step"
     expect(offered).toContain(tool);
   });
 
-  it("POSITIVE CONTROL: the census runs against a catalog big enough to be cut", async () => {
+  it("POSITIVE CONTROL: the budget binds here, so the census measures the cut, not an empty catalog", async () => {
     expect(Object.keys(allTools).length).toBeGreaterThan(40);
-    const offered = Object.keys(await pruneTools("standard", allTools, "list my github repos", []));
-    expect(offered.length).toBeLessThan(Object.keys(allTools).length);
+    // The lease phrasing fills the default budget exactly: 32 offered, more candidates cut.
+    const offered = Object.keys(await pruneTools("standard", allTools, "what did I say about the shop lease back in the spring", []));
+    expect(offered.length).toBe(32);
   });
 
   it("the env override still wins over the default budget", async () => {

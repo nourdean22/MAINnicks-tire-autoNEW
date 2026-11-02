@@ -271,14 +271,17 @@ describe("never-surfaced capabilities are reachable from plain language", () => 
     // for by truncating everything else is not a win.
     // 2026-11-02 (B3): the default budget rose 24 -> 32. The check keeps its old ceiling by
     // pinning the budget it was written against, and holds again at the new default.
-    for (const [budget, ceiling] of [["24", 24], [undefined, 32]] as const) {
-      if (budget) process.env.NICK_TOOL_BUDGET = budget;
-      else delete process.env.NICK_TOOL_BUDGET;
-      for (const p of ["what are my tasks today", "i feel scattered and behind", "what should i do next"]) {
-        const offered = await offeredFor(p);
-        expect(offered.length, `"${p}" offered ${offered.length} at budget ${ceiling}`).toBeLessThanOrEqual(ceiling);
+    try {
+      for (const [budget, ceiling] of [["24", 24], [undefined, 32]] as const) {
+        if (budget) process.env.NICK_TOOL_BUDGET = budget;
+        else delete process.env.NICK_TOOL_BUDGET;
+        for (const p of ["what are my tasks today", "i feel scattered and behind", "what should i do next"]) {
+          const offered = await offeredFor(p);
+          expect(offered.length, `"${p}" offered ${offered.length} at budget ${ceiling}`).toBeLessThanOrEqual(ceiling);
+        }
       }
+    } finally {
+      delete process.env.NICK_TOOL_BUDGET;
     }
-    delete process.env.NICK_TOOL_BUDGET;
   });
 });
