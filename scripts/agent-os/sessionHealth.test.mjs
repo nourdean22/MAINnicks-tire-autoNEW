@@ -361,6 +361,16 @@ test("scheduled tasks (Windows): an unregistered task is MISSING with its regist
   assert.match(line, /FIX FIRST: \(1\) [^|]*register-x\.ps1/);
 });
 
+test("scheduled tasks (Windows): schtasks starts beside git rev-parse, not after it, so slow spawns do not add up", async (t) => {
+  if (!WIN) return t.skip("schtasks is Windows-only; the check is skipped on other OS");
+  const name = `NOURCITY-Health-Test-Absent-${process.pid}`;
+  const f = await healthy("tasks-parallel", { config: { tasks: [{ name, register: "scripts/register-x.ps1" }] } });
+  delete f.primaryDir; // the real hook runs git rev-parse first; --primary would skip it
+  // Every spawn answers 4 s late: in a row that is 8 s, past the budget; side by side it is 4 s.
+  const line = oneLine(await run(f, { spawnDelayMs: 4000 }));
+  assert.match(line, new RegExp(`task ${name} MISSING`));
+});
+
 function configured() {
   const group = (SETTINGS.hooks?.SessionStart ?? []).find((g) => !g.matcher || g.matcher === "*");
   const hooks = group?.hooks ?? [];

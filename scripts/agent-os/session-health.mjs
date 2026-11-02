@@ -37,10 +37,10 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 const WIN = process.platform === "win32";
-// SessionStart runs this beside every other hook and plugin starting up. Under 48 busy processes on 8 cores the whole
-// hook took 6.4-8.6 s with nothing timing out (node start-up alone ~2.5 s, inferred), and a 1.5 s budget read healthy
-// parts as UNKNOWN (timeout). The budget runs from PROCESS start (process.uptime), so slow start-up spends it instead
-// of adding to it, leaving ~2 s for Claude's shell before the 10 s hook timeout in .claude/settings.json kills the hook.
+// SessionStart runs this beside every other hook and plugin starting up. Under 48 busy processes on 8 cores a run took
+// 6.4-8.6 s wall, shell start included, with nothing timing out (node start-up ~2.5 s, inferred), and a 1.5 s budget
+// read healthy parts as UNKNOWN (timeout). The budget runs from PROCESS start (process.uptime), so slow start-up
+// spends it instead of adding to it; the 15 s hook timeout in .claude/settings.json leaves room for the shell.
 const BUDGET_MS = 8000;
 // A real MCP initialize, not a TCP connect: any program can hold the port. 1 s, inside the budget.
 const PROBE_MS = 1000;
@@ -301,10 +301,13 @@ export function taskFromCsv(task, line, fix, root) {
   return failItem(`${label} FAILED ${result}`, `${fix} (then check its log)`);
 }
 
-async function taskItem(task, root) {
+async function taskItem(task, rootP) {
   const label = `task ${task.name}`;
+  // schtasks starts before the root is known, so it runs beside git rev-parse instead of after it.
+  const query = sh(join(process.env.SystemRoot || "C:\\Windows", "System32", "schtasks.exe"), ["/query", "/tn", task.name, "/fo", "CSV", "/v", "/nh"]);
+  const root = await rootP;
   const fix = `${PS} ${join(root, task.register ?? "")} -RepoRoot ${root}`;
-  const r = await sh(join(process.env.SystemRoot || "C:\\Windows", "System32", "schtasks.exe"), ["/query", "/tn", task.name, "/fo", "CSV", "/v", "/nh"]);
+  const r = await query;
   if (r.code === 1 && /cannot find|does not exist/i.test(r.err)) return failItem(`${label} MISSING`, fix);
   if (r.code !== 0) return unknownItem(label, `schtasks ${r.why || `exit ${r.code}`}`);
   return taskFromCsv(task, r.out.split(/\r?\n/).find((l) => l.trim()) ?? "", fix, root);
@@ -331,10 +334,11 @@ async function main() {
   if (!config.hosts.some((h) => String(h).toUpperCase() === host)) return "[health] local services: not expected on this host";
 
   const projectDir = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-  const primary = await within(primaryRoot(projectDir, flag("--primary")), "primary").then((p) => (p.text ? { err: "timeout" } : p));
-  const root = primary.value ?? REPO;
+  // Not awaited here: the probes and schtasks start now, beside git rev-parse; only the graph check needs its answer.
+  const primaryP = within(primaryRoot(projectDir, flag("--primary")), "primary").then((p) => (p.text ? { err: "timeout" } : p));
+  const rootP = primaryP.then((p) => p.value ?? REPO);
   const expected = config.servers.map((s) => ({ name: s.name, port: s.port, path: s.path, kind: s.kind, url: `http://127.0.0.1:${s.port}${s.path}` }));
-  const serverFix = `${PS} ${join(root, "scripts", "local-mcp-servers.ps1")} -Start`;
+  const serverFix = rootP.then((root) => `${PS} ${join(root, "scripts", "local-mcp-servers.ps1")} -Start`);
 
   const readers = {
     claude: () => urlMap(objectOrEmpty(readJson(join(home, ".claude.json"), { missingOk: true }), "mcpServers")),
@@ -343,15 +347,15 @@ async function main() {
   };
 
   const checks = [
-    within(graphItem(primary, `${PS} ${join(root, "scripts", "graphify-sync-launcher.ps1")}`), "graph"),
-    ...expected.map((s) => within(mcpProbe(s.port, s.path, s.kind ?? s.name).then((st) => {
+    within(primaryP.then((p) => graphItem(p, `${PS} ${join(p.value ?? REPO, "scripts", "graphify-sync-launcher.ps1")}`)), "graph"),
+    ...expected.map((s) => within(mcpProbe(s.port, s.path, s.kind ?? s.name).then(async (st) => {
       if (st === "up") return okItem(`${s.name} up`);
-      if (st === "DOWN") return failItem(`${s.name} DOWN`, serverFix);
+      if (st === "DOWN") return failItem(`${s.name} DOWN`, await serverFix);
       return failItem(`${s.name} WRONG SERVICE`, `find the program on port ${s.port}: Get-NetTCPConnection -LocalPort ${s.port} -State Listen; free the port or move ${s.name} in config/agent-os/local-services.json`);
     }), s.name)),
   ];
   // Tasks start with the other probes: schtasks is the slowest child (cold start measured near 1 s).
-  const tasks = WIN ? Promise.all((config.tasks ?? []).map((t) => within(taskItem(t, root), `task ${t.name}`))) : Promise.resolve([]);
+  const tasks = WIN ? Promise.all((config.tasks ?? []).map((t) => within(taskItem(t, rootP), `task ${t.name}`))) : Promise.resolve([]);
   const items = await Promise.all(checks);
   if (!expected.length) items.push(failItem("servers: none configured", "add the graphify entry to config/agent-os/local-services.json"));
   for (const c of config.clients) items.push(readers[c] ? clientItem(c, readers[c], expected) : unknownItem(c, "unknown client"));
