@@ -17,7 +17,7 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -614,6 +614,37 @@ test("an invalid codex wait is refused before any gh call, in the function and i
     assert.equal(r.status, 64, `${JSON.stringify(bad)}: ${r.stdout}${r.stderr}`);
     assert.match(r.stderr, /--codex-wait-minutes/);
   }
+});
+
+// The Codex-quota knob (job 2026-11-02-platform-followups-w6): the flat 25 min wait becomes `mergeGate.codexWaitMinutes` in
+// config/agent-os/policy.json. A bad value must fall back to the LONGEST wait with a note, never to a shorter one.
+test("codexWaitDefault reads mergeGate.codexWaitMinutes; a missing key is 25, a bad value or file is 25 with a note", () => {
+  const file = (mergeGate) => () => JSON.stringify({ rules: [], ...(mergeGate === undefined ? {} : { mergeGate }) });
+  assert.deepEqual(gate.codexWaitDefault(file(undefined)), { minutes: 25 });
+  assert.deepEqual(gate.codexWaitDefault(file({})), { minutes: 25 });
+  assert.deepEqual(gate.codexWaitDefault(file({ codexWaitMinutes: 0 })), { minutes: 0 }, "0 means do not wait, and is not mistaken for a missing key");
+  assert.deepEqual(gate.codexWaitDefault(file({ codexWaitMinutes: 7.5 })), { minutes: 7.5 });
+  for (const bad of ["12", "abc", -1, null, true, [], {}]) {
+    const r = gate.codexWaitDefault(file({ codexWaitMinutes: bad }));
+    assert.equal(r.minutes, 25, JSON.stringify(bad));
+    assert.match(r.note, /not a number of minutes/, JSON.stringify(bad));
+  }
+  const infinite = gate.codexWaitDefault(() => '{"mergeGate":{"codexWaitMinutes":1e999}}');
+  assert.equal(infinite.minutes, 25, "1e999 parses to Infinity: not a number of minutes");
+  assert.match(infinite.note, /not a number of minutes/);
+  for (const read of [() => "{ not json", () => { throw new Error("EACCES: permission denied"); }]) {
+    const r = gate.codexWaitDefault(read);
+    assert.equal(r.minutes, 25);
+    assert.match(r.note, /could not be read/);
+  }
+});
+
+test("positive control: the shipped policy.json carries the key codexWaitDefault reads, so a rename cannot fall back to 25 unseen", () => {
+  const shipped = JSON.parse(readFileSync(fileURLToPath(new URL("../../config/agent-os/policy.json", import.meta.url)), "utf8"));
+  assert.equal(typeof shipped.mergeGate?.codexWaitMinutes, "number", "mergeGate.codexWaitMinutes missing from config/agent-os/policy.json");
+  const r = gate.codexWaitDefault();
+  assert.equal(r.note, undefined, r.note);
+  assert.equal(r.minutes, shipped.mergeGate.codexWaitMinutes);
 });
 
 // Codex P2 on #3144: `gh pr view --json comments` returns only the first 100 comments, so on a busy PR the marker was

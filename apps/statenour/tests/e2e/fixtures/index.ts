@@ -30,7 +30,7 @@ import type { Page } from "@playwright/test";
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_GOALS, HOME_LOVE_MAP, HOME_MAXIM, HOME_PEOPLE, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
-import { NOW_COMPOSE } from "./now";
+import { NOW_CARD_TITLE, NOW_COMPOSE } from "./now";
 import { SHELL_PULSE, SHELL_SIGNALS, SHELL_TICKER } from "./shell";
 import { FIXED_TIME } from "./time";
 
@@ -48,6 +48,9 @@ export const PAGE_ERRORS = {
   // Chat has no error panel: its failures are a pill that never reaches "ready" (the header's capability words
   // for unmeasured, unknown, degraded and offline), or a list that never left the empty / loading state.
   chat: /checking capabilities|AI health unknown|tool health unknown|chat offline|chat degraded|AI offline|fallback active|tools limited|Loading conversation|What are we solving/i,
+  // /now has no error panel: a failed compose prints one of the first two lines (or the server's own error) above a Retry
+  // button, an empty one the third; a card whose read failed says "Tool failed" or "Not done" (tool-result-card.tsx).
+  now: /could not reach the server|the compose read failed|nick found no card|\bretry\b|tool failed|not done/i,
 } as const;
 
 /**
@@ -119,6 +122,7 @@ export const DEMO = {
   missionTitle: ALPHA_TITLE,
   chatReply: CHAT_REPLY,
   chatTitle: CHAT_TITLE,
+  nowCard: NOW_CARD_TITLE,
 } as const;
 
 /**

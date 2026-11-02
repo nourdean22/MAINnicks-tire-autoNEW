@@ -53,6 +53,8 @@ export const V3_PAGES: { key: string; path: string; landmark: string; baselinePe
   { key: "missions", path: "/missions", landmark: "main" },
   // ?h=1 opens the History drawer, the only way a conversation loads (openChatHistory above).
   { key: "chat", path: "/chat?h=1", landmark: "main" },
+  // W6: /now 404s until W6_INTENT_SURFACE is on (set in e2e-statenour.yml). Pending until its baselines are captured from main.
+  { key: "now", path: "/now", landmark: "main", baselinePending: true },
 ];
 
 export const V3_VIEWPORTS = [
@@ -84,6 +86,30 @@ export async function openChatHistory(page: Page, title: string): Promise<void> 
   await expect(row, "chat: the seeded conversation never reached the History drawer").toBeVisible({ timeout: 60_000 });
   await row.click();
   await expect(page.getByRole("button", { name: "Close history" }), "chat: the History drawer never closed after the pick").toHaveCount(0);
+}
+
+/**
+ * /now asks nothing on load (components/now/intent-surface.tsx): the cards arrive only after a starter
+ * intent is tapped, and the fixtures answer that POST (fixtures/now.ts). A chip that is gone makes the
+ * click time out, which is a loud failure, not a quiet empty render.
+ */
+export async function openNowStarter(page: Page): Promise<void> {
+  const rejected: string[] = [];
+  page.on("console", (m) => {
+    if (/\[tool-card\]/.test(m.text())) rejected.push(m.text());
+  });
+  CARD_REJECTIONS.set(page, rejected);
+  await page.getByRole("button", { name: "Shop today", exact: true }).click({ timeout: 60_000 });
+}
+
+/**
+ * A card whose fixture output fails its schema draws no body and only warns `[tool-card] ... card hidden` in the console
+ * (tool-result-card.tsx), which neither the anchor nor the error texts see. openNowStarter listens; this fails on any.
+ */
+const CARD_REJECTIONS = new WeakMap<Page, string[]>();
+export async function settleNow(page: Page): Promise<void> {
+  expect(CARD_REJECTIONS.get(page), "now: openNowStarter never ran, so card rejections were not watched").toBeDefined();
+  expect(CARD_REJECTIONS.get(page), "now: a DEMO card failed its schema and was hidden").toEqual([]);
 }
 
 /**
