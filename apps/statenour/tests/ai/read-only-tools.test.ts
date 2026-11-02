@@ -36,7 +36,7 @@ const OTHER_MUTATING_NAMES = ["runSimulation"];
 const UNFLAGGED_WRITES_NO_WIRE = ["arsenalDeepResearch"];
 // Executors that only compute, generate or draft (read 2026-10-15): they trip the name wire, not a real one.
 const REVIEWED_COMPUTE = ["runCode", "writeCreative", "draftOpportunitySms"];
-const NAMED_EXCEPTIONS = ["getEmotionalState", "getTodaySchedule", "last30days", "scrapeWebPage", "getShopSnapshot"];
+const NAMED_EXCEPTIONS = ["getEmotionalState", "getTodaySchedule", "last30days", "scrapeWebPage", "getShopSnapshot", "dailyPulse"];
 
 describe("the reviewed read-only list", () => {
   it("names only tools that exist in the catalog", () => {

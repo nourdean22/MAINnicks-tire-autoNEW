@@ -804,6 +804,21 @@ const tasksCoreTools = {
     },
   }),
 
+  answerOpenLoop: tool({
+    description: "Record Nour's answer to the open-loop question dailyPulse returned (openLoop.id): done (he did it), not_yet (still on him), dropped (he decided not to). Once per question; never ask it again after.",
+    inputSchema: z.object({
+      id: z.string().describe("openLoop.id from dailyPulse"),
+      answer: z.enum(["done", "not_yet", "dropped"]),
+    }),
+    execute: async ({ id, answer }) => {
+      const { answerOpenLoop } = await import("@/lib/brain/open-loops");
+      const recorded = await answerOpenLoop(id, answer);
+      return recorded
+        ? { recorded: true, answer }
+        : { recorded: false, error: "no open-loop question with that id, or it was already answered" };
+    },
+  }),
+
   // ═══════════════════════════════════════════════════════════
   // DECISION JOURNALING — Auto-log decisions from chat
   // ═══════════════════════════════════════════════════════════
@@ -1177,11 +1192,11 @@ const tasksCoreTools = {
   }),
 
   dailyPulse: tool({
-    description: "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. Also returns the shop's weekly hours and whether it is open right now (shopHours.openNow): use for 'is the shop open', 'shop hours', 'what time do we close'. v10.0.79 supersedes the narrower getShopBriefing.",
+    description: "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. Also returns the shop's weekly hours and whether it is open right now (shopHours.openNow): use for 'is the shop open', 'shop hours', 'what time do we close'. v10.0.79 supersedes the narrower getShopBriefing. openLoop, when present, is something Nour said he would do by a date that has passed: ask him about it once, in one short line that quotes him and names the day (no nagging, no follow-up push). When he answers, call answerOpenLoop with openLoop.id and done / not_yet / dropped.",
     inputSchema: z.object({}),
     execute: async () => {
       const { queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
-      const [shopData, todayScore, criticalTasks, driftAlerts] = await Promise.all([
+      const [shopData, todayScore, criticalTasks, driftAlerts, openLoop] = await Promise.all([
         // v10.0.79 · expanded to 6 shop queries to fully cover the
         // retired getShopBriefing's surface (added work_orders_active
         // + bookings_today). dailyPulse is now a strict superset.
@@ -1228,12 +1243,22 @@ const tasksCoreTools = {
           const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
           return getUnresolvedAlerts().catch((): null => null);
         })(),
+        // Upgrade 9: at most one past-due promise to ask about. Recording the ask is a write, so a
+        // Private Lab turn skips it. null = measured none; a failed read is UNKNOWN.
+        (async () => {
+          const { currentTurn } = await import("@/lib/agent/turn-context");
+          if (currentTurn()?.privateMode === true) return "skipped: private turn";
+          const { nextOpenLoopAsk } = await import("@/lib/brain/open-loops");
+          const ask = await nextOpenLoopAsk();
+          return ask.state === "ask" ? { id: ask.id, quote: ask.quote, saidOn: ask.saidOn, dueOn: ask.dueOn } : null;
+        })().catch(() => UNKNOWN),
       ]);
 
       return {
         shop: shopView(shopData, readBridge),
         // Computed here, not read from the bridge: a failed shop read cannot hide the hours (2026-11-01).
         shopHours: shopHoursView(),
+        openLoop,
         personal: {
           dailyScore: todayScore?.overallScore ?? "not logged",
           energy: todayScore?.energyLevel ?? "?",

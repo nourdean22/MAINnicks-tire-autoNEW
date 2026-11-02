@@ -109,6 +109,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // completeTask + createTask).
   createCommitment: { family: "personal-write", description: "Create a new commitment" },
   completeCommitment: { family: "personal-write", description: "Mark a commitment satisfied" },
+  answerOpenLoop: { family: "personal-write", description: "Record Nour's answer to a dailyPulse open-loop question" },
   reviewDecisionReplay: { family: "personal-write", description: "Grade a past decision + log outcome" },
   setWeeklyTargets: { family: "personal-write", description: "Set this week's 3 targets" },
   setOKRs: { family: "personal-write", description: "Set objectives/key-results" },
