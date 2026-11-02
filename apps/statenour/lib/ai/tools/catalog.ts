@@ -81,6 +81,9 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getCameraIntelligence",        category: "personal_read",  battle: true,  cost: "free" },
   { name: "getCommitments",               category: "personal_read",  battle: true,  cost: "free" },
   { name: "getRelationshipPicks",         category: "personal_read",  battle: true,  cost: "free" },
+  // 2026-11-02 · nour-os-interconnect W1 · goals by id, and the relatedActivity spine on demand.
+  { name: "getGoals",                     category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getRelated",                   category: "personal_read",  battle: true,  cost: "cheap" },
   // 2026-08-12 · retrieval-side JIT complement (agendaItem rows; the
   // prompt gate drops the inline agenda on casual/social-content turns).
   { name: "getAgendaItems",               category: "personal_read",  battle: false, cost: "free" },
@@ -146,6 +149,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // (canonical: completeTask + createTask)
   { name: "addTasksToProject",            category: "personal_write", cost: "free" },
   { name: "archiveGoal",                  category: "personal_write", cost: "free" },
+  { name: "logGoalCheckIn",               category: "personal_write", cost: "free" },
   { name: "completeCommitment",           category: "personal_write", cost: "free" },
   { name: "answerOpenLoop",               category: "personal_write", cost: "free" },
   { name: "completeTask",                 category: "personal_write", cost: "free" },

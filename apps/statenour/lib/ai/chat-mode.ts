@@ -781,9 +781,20 @@ export async function pruneTools(
   // is a shop job, not a personal pick (second read on #3440).
   if (
     /\b(who (should|do) i (call|text|reach out to|check (in )?on|see|talk to)|reach out to|check in (on|with)|gone quiet|(not|n'?t) (talked|spoken|heard from) .{0,20}(while|lately|weeks?|months?)|relationship picks?|who needs me)\b/.test(text) &&
-    !/\b(customers?|clients?|estimates?|invoices?|quotes?|jobs?|cars?|vehicles?|tires?|brakes?|shop|techs?|staff|employees?|team|leads?)\b/.test(text)
+    // goals?|missions?|projects?: "check in on my revenue goal" is a goal check-in, not a person (W1 2026-11-02).
+    !/\b(customers?|clients?|estimates?|invoices?|quotes?|jobs?|cars?|vehicles?|tires?|brakes?|shop|techs?|staff|employees?|team|leads?|goals?|missions?|projects?)\b/.test(text)
   ) {
     addMatching(/^getRelationshipPicks$/);
+  }
+
+  // nour-os-interconnect W1 (2026-11-02) · the relatedActivity spine: "what's happened on / everything
+  // related to" one goal, mission or person. getGoals and logGoalCheckIn already ride the /goal/ name
+  // pattern of the finance and planning families. tests/ai/chat-mode-goal-spine.test.ts.
+  if (
+    /\b(related|connected|linked|happened|activity|history|lately|recently|done (on|toward|towards|for)|everything (on|about|for))\b/.test(text) &&
+    /\b(goals?|missions?|projects?|dania|wife|friend|family)\b/.test(text)
+  ) {
+    addMatching(/^getRelated$/);
   }
 
   // #8 · Recent-sentiment research + short-video generation. last30days

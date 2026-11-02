@@ -1,7 +1,8 @@
 /**
  * Goal + OKR + weekly-target tools.
  *
- * Includes: archiveGoal · setOKRs · setWeeklyTargets · getWeeklyTargets.
+ * Includes: getGoals · getRelated · logGoalCheckIn · archiveGoal · setOKRs ·
+ * setWeeklyTargets · getWeeklyTargets.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -13,8 +14,172 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
+import { goalDue, goalPaceView } from "@/lib/brain/goal-pace";
+import { NEXT_STEP_STATUSES } from "@/lib/services/goal-next-step";
+import { RELATED_DEFAULT_DAYS, RELATED_MAX_DAYS } from "@/lib/services/related-activity";
+import { idempotentCreate, mintIdempotencyKey } from "@/lib/db/idempotency";
+import { today } from "@/lib/utils/datetime";
+
+const CHECK_IN_HEALTH = ["on_track", "at_risk", "off_track"] as const;
 
 export const goalsTools = {
+
+  // Job 2026-11-02-nour-os-interconnect W1 · Nick sees goals BY ID (createTask.goalId,
+  // logGoalCheckIn and getRelated take one). Health is the newest check-in; none is a visible
+  // state (Linear L2), and a failed read is "unknown", never "no check-in".
+  getGoals: tool({
+    description:
+      "List Nour's active goals with their ids: title, kind, horizon, unit, current/target value, due date, pace, health (from the latest check-in, or no_check_in) and open linked tasks. Use the id with createTask.goalId, createMissionPlan.lifeGoalId, getRelated and logGoalCheckIn.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const goals = await prisma.lifeGoal.findMany({
+        where: { status: "active", deletedAt: null },
+        orderBy: [{ horizon: "asc" }, { progress: "desc" }],
+        take: 20,
+        select: {
+          id: true, title: true, kind: true, horizon: true, unit: true, currentValue: true, targetValue: true,
+          status: true, deadline: true, createdAt: true,
+          _count: { select: { tasks: { where: { deletedAt: null, status: { in: [...NEXT_STEP_STATUSES] } } } } },
+        },
+      });
+      const failed: string[] = [];
+      const latest = new Map<string, { health?: string; checkInAt?: Date; horizonSetAt?: Date }>();
+      try {
+        const events = await prisma.goalEvent.findMany({
+          where: { goalId: { in: goals.map((g) => g.id) }, kind: { in: ["check_in", "horizon_set"] } },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+          select: { goalId: true, kind: true, payload: true, createdAt: true },
+        });
+        for (const e of events) {
+          const row = latest.get(e.goalId) ?? {};
+          if (e.kind === "check_in" && !row.checkInAt) {
+            row.health = String((e.payload as { health?: unknown } | null)?.health ?? "unknown");
+            row.checkInAt = e.createdAt;
+          }
+          if (e.kind === "horizon_set" && !row.horizonSetAt) row.horizonSetAt = e.createdAt;
+          latest.set(e.goalId, row);
+        }
+      } catch {
+        failed.push("check_ins");
+      }
+      return {
+        goals: goals.map((g) => {
+          const l = latest.get(g.id);
+          const dates = {
+            deadline: g.deadline?.toISOString() ?? null,
+            horizon: g.horizon,
+            createdAt: g.createdAt.toISOString(),
+            horizonSetAt: l?.horizonSetAt?.toISOString() ?? null,
+          };
+          const view = goalPaceView({ ...dates, currentValue: g.currentValue, targetValue: g.targetValue, unit: g.unit, status: g.status });
+          return {
+            id: g.id,
+            title: g.title,
+            kind: g.kind,
+            horizon: g.horizon,
+            unit: g.unit,
+            currentValue: g.currentValue,
+            targetValue: g.targetValue,
+            due: goalDue(dates),
+            pace: view ? (view.kind === "note" ? view.text : view.label) : null,
+            health: failed.length
+              ? { state: "unknown", at: null }
+              : l?.checkInAt
+                ? { state: l.health, at: l.checkInAt.toISOString() }
+                : { state: "no_check_in", at: null },
+            openTasks: g._count.tasks,
+          };
+        }),
+        failed,
+      };
+    },
+  }),
+
+  // The relatedActivity spine, pulled on demand (never pushed into every prompt).
+  getRelated: tool({
+    description:
+      "Everything logged about ONE goal, mission or person in the last N days: goal check-ins and progress, task changes (a goal also reaches tasks through its missions), journal entries, reflections, situations, decisions, contacts and chats, newest first. Pass goalId (from getGoals), missionId (from getMissions) or personId. `failed` names any source that could not be read: its rows are missing, not zero.",
+    inputSchema: z.object({
+      goalId: z.string().optional(),
+      missionId: z.string().optional(),
+      personId: z.string().optional(),
+      days: z.number().int().min(1).max(RELATED_MAX_DAYS).optional().describe(`Look-back window, default ${RELATED_DEFAULT_DAYS}`),
+    }),
+    execute: async ({ goalId, missionId, personId, days }) => {
+      if (!goalId && !missionId && !personId) return { error: "pass a goalId, missionId or personId" };
+      const { relatedActivity } = await import("@/lib/services/related-activity");
+      const since = new Date(Date.now() - (days ?? RELATED_DEFAULT_DAYS) * 86_400_000);
+      const r = await relatedActivity({ goalId, missionId, personId }, { since });
+      return {
+        items: r.items.map((i) => ({ title: i.title, kind: i.kind, source: i.source, at: i.at.toISOString() })),
+        failed: r.failed,
+      };
+    },
+  }),
+
+  // One check-in per goal per ET day: the GoalEvent's idempotency key is the claim (create, P2002
+  // reads the winner; claim-before-act rule 4). The goal is matched by id ONLY; the note is never
+  // parsed for a target. currentValue is SET (not incremented), and only on a metric goal.
+  logGoalCheckIn: tool({
+    description:
+      "Log a goal check-in: health (on_track, at_risk, off_track) and a short note, plus the current value for a metric goal. One per goal per day. goalId must come from getGoals.",
+    inputSchema: z.object({
+      goalId: z.string().min(1).describe("The goal's id from getGoals"),
+      health: z.enum(CHECK_IN_HEALTH),
+      value: z.number().optional().describe("Metric goals only: the value now (sets currentValue, does not add)"),
+      note: z.string().max(500).describe("One line on why"),
+    }),
+    execute: async ({ goalId, health, value, note }) => {
+      const goal = await prisma.lifeGoal.findFirst({
+        where: { id: goalId, deletedAt: null },
+        select: { id: true, title: true, kind: true },
+      });
+      if (!goal) return { logged: false, reason: "goal not found: pass an id from getGoals" };
+      const day = today();
+      const key = mintIdempotencyKey({ goalId: goal.id, kind: "check_in", day });
+      const { row, created } = await idempotentCreate({
+        model: prisma.goalEvent,
+        key,
+        data: {
+          goalId: goal.id,
+          kind: "check_in",
+          source: "chat",
+          payload: { health, ...(value !== undefined ? { value } : {}), note, day },
+          idempotencyKey: key,
+        },
+      });
+      if (!created) {
+        return {
+          logged: false,
+          duplicate: true,
+          reason: "already checked in on this goal today",
+          existing: { health: (row.payload as { health?: string } | null)?.health ?? null, at: row.createdAt.toISOString() },
+        };
+      }
+      let valueSet = false;
+      let valueError: string | undefined;
+      if (value !== undefined && goal.kind === "metric") {
+        try {
+          const { updateGoal } = await import("@/lib/services/goals");
+          await updateGoal({ id: goal.id, currentValue: value });
+          valueSet = true;
+        } catch (err) {
+          valueError = err instanceof Error ? err.message : String(err);
+        }
+      }
+      return {
+        logged: true,
+        goalId: goal.id,
+        title: goal.title,
+        health,
+        at: row.createdAt.toISOString(),
+        valueSet,
+        ...(valueError ? { valueError } : {}),
+        ...(value !== undefined && goal.kind !== "metric" ? { valueIgnored: `a ${goal.kind} goal has no numeric value` } : {}),
+      };
+    },
+  }),
 
   archiveGoal: tool({
     description:
