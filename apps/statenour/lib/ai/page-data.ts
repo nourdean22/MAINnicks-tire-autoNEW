@@ -327,7 +327,7 @@ export async function buildPageData(page: string): Promise<string> {
           where: { deletedAt: null, status: "active" },
           orderBy: [{ horizon: "asc" }, { progress: "desc" }],
           take: 12,
-          select: { title: true, domain: true, progress: true, horizon: true },
+          select: { id: true, title: true, domain: true, progress: true, horizon: true },
         }),
         prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 8 }),
       ]);
@@ -338,7 +338,7 @@ export async function buildPageData(page: string): Promise<string> {
               .slice(0, 6)
               .map(
                 (g) =>
-                  `"${g.title.slice(0, 50)}" ${g.progress}% (${g.domain}${g.horizon ? `/${g.horizon}` : ""})`,
+                  `"${g.title.slice(0, 50)}" [id:${g.id}] ${g.progress}% (${g.domain}${g.horizon ? `/${g.horizon}` : ""})`,
               )
               .join(" · ")}`
           : "",

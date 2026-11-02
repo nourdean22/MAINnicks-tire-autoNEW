@@ -781,6 +781,10 @@
           ],
           "type": "string"
         },
+        "lifeGoalId": {
+          "description": "The goal this mission serves (id from getGoals); its tasks then count toward that goal",
+          "type": "string"
+        },
         "priority": {
           "default": 50,
           "description": "1-100, higher is more important.",
@@ -1342,6 +1346,15 @@
     }
   },
   {
+    "name": "getGoals",
+    "description": "List Nour's active goals with their ids: title, kind, horizon, unit, current/target value, due date, pace, health (from the latest check-in, or no_check_in) and open linked tasks. Use the id with createTask.goalId, createMissionPlan.lifeGoalId, getRelated and logGoalCheckIn.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
     "name": "getGscSummary",
     "description": "Real Google Search Console totals for nickstire.org over a date range — clicks, impressions, CTR, average position. Use whenever Nour asks how SEO is performing, traffic, search visibility, or rankings overall. Defaults to last 30 days if no dates given. Numbers are derived from raw click+impression sums (not avg-of-avg) so multi-day totals are accurate. Position is impression-weighted.",
     "inputSchema": {
@@ -1500,6 +1513,31 @@
             "triggered",
             "all"
           ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getRelated",
+    "description": "Everything logged about ONE goal, mission or person in the last N days: goal check-ins and progress, task changes (a goal also reaches tasks through its missions), journal entries, reflections, situations, decisions, contacts and chats, newest first. Pass goalId (from getGoals), missionId (from getMissions) or personId. `failed` names any source that could not be read: its rows are missing, not zero.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "description": "Look-back window, default 14",
+          "maximum": 90,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "goalId": {
+          "type": "string"
+        },
+        "missionId": {
+          "type": "string"
+        },
+        "personId": {
           "type": "string"
         }
       },
@@ -1911,6 +1949,43 @@
       },
       "required": [
         "topic"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "logGoalCheckIn",
+    "description": "Log a goal check-in: health (on_track, at_risk, off_track) and a short note, plus the current value for a metric goal. One per goal per day. goalId must come from getGoals.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "goalId": {
+          "description": "The goal's id from getGoals",
+          "minLength": 1,
+          "type": "string"
+        },
+        "health": {
+          "enum": [
+            "on_track",
+            "at_risk",
+            "off_track"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "description": "One line on why",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "value": {
+          "description": "Metric goals only: the value now (sets currentValue, does not add)",
+          "type": "number"
+        }
+      },
+      "required": [
+        "goalId",
+        "health",
+        "note"
       ],
       "type": "object"
     }
