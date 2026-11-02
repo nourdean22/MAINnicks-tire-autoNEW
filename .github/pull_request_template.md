@@ -1,48 +1,36 @@
-## 1) Summary
+<!-- The four headings below are read by scripts/agent-os/merge-gate.mjs (assessBody). Replace every comment with your
+text: a heading whose only content is a comment counts as EMPTY and the gate refuses the PR (exit 8). -->
 
-- What changed?
-- Why this change is necessary now?
-- Which system boundaries are affected?
+## Summary
 
-## 2) Scope
+<!-- What changed, why now, which boundary it touches. One short paragraph. -->
 
-- [ ] Customer-facing runtime (`client/`)
-- [ ] Server/control runtime (`server/`)
-- [ ] DB schema/migrations (`drizzle/`)
-- [ ] CI/workflows (`.github/workflows/`)
-- [ ] Environment contract (`.env.example` / validator)
-- [ ] Docs/governance only
+## Self-review
 
-## 3) Validation (required)
+<!-- Hostile read of my own diff. What did it find, and what did I fix or leave? ("No defects" is not a review.)
+- Verify gate for the touched app(s) run, with counts: `pnpm verify:nick` / `pnpm verify:state` / worker `pnpm check`
+- New or changed test seen RED on the old code first
+- Docs and ledger row updated in this PR
+Receipts: paste counts and exit codes, not "tests pass". -->
 
-- [ ] `pnpm env:validate`
-- [ ] `pnpm check`
-- [ ] `pnpm lint`
-- [ ] `pnpm test`
-- [ ] `pnpm build`
+## Kill criterion + live check
 
-Paste notable output or links to CI runs.
+<!-- Kill criterion: the result that would make us drop or revert this. -->
 
-## 4) Risk review
+Live check YYYY-MM-DD: <!-- what will be read in production on that date, and what it must show; the date must be real -->
 
-- [ ] Touches load-bearing systems (auth/payments/integrations/cron/webhooks)
-- [ ] Includes migration change
-- [ ] Includes external integration change
-- [ ] Includes auth/permission logic change
+<!-- Ruling: each reversible decision made without Nour, with its cost if wrong (one line each, or "none"). -->
 
-If any checked, include explicit impact analysis below.
+## 10x option
 
-## 5) Rollback plan
+<!-- The bigger version of this change, and why it was or was not taken now. -->
 
-- How to revert quickly if this causes issues?
-- Any data migration rollback caveats?
+<!-- Benchmarked against: name (URL, date), adopted: mechanism, rejected: mechanism and why. Or "nothing to benchmark" for a small fix. -->
 
-## 6) Documentation updates
+## Second reader
 
-- [ ] README updated (if runtime/commands changed)
-- [ ] `.env.example` updated (if env contract changed)
-- [ ] Other runbook/docs updated
+<!-- Who or what read the diff besides me (agent, reviewer, tool) and what they found. -->
 
-## 7) Follow-ups
+## Rollback
 
-List deferred tasks, known limitations, or cleanup tickets.
+<!-- How to revert quickly, and any data caveat. -->

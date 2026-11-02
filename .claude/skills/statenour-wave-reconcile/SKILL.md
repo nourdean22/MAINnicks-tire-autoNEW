@@ -1,6 +1,6 @@
 ---
 name: statenour-wave-reconcile
-description: Use at the end of a statenour work wave (a batch of commits) — refresh docs/RECONCILIATION.md and AGENTS.md so the next session resumes on accurate ground truth.
+description: Use at the end of a statenour work wave (a batch of commits) — add a docs/reconciliation/ entry file and refresh AGENTS.md so the next session resumes on accurate ground truth.
 triggers: end of a wave, batch of commits, reconciliation.md, refresh docs, ground truth, ship history, wave reconcile, statenour docs
 ---
 
@@ -12,21 +12,23 @@ when a wave of work lands, before ending the session.
 
 ## Procedure
 
-1. **`apps/statenour/docs/RECONCILIATION.md`** — prepend a new entry at
-   the top, AFTER the `**Last verified:**` header line and BEFORE the
-   previous entry. Match the existing blockquote format:
+1. **`apps/statenour/docs/reconciliation/<YYYY-MM-DD>-<slug>.md`** — one
+   NEW file per PR (since 2026-11-02). Never insert into
+   `RECONCILIATION.md` any more: every PR inserting at its line 3 made any
+   two open PRs conflict there (PRs 3500, 3504, 3506, 3507, 3508 went
+   DIRTY against each other five times on 2026-11-01/02). The file's first
+   line must carry the file's date, in the existing blockquote format:
    - `> ## <date> · <wave name> · <N> ships`
    - a summary paragraph
    - a ship-by-ship roll-up — one bold line per commit
    - a `**Flagged · NOT fixed**` list for known-but-deferred issues
 
-   **If another OPEN branch already carries a same-day entry at the top,
-   insert yours BELOW that day's entries and say so in the commit** — a
-   conflict on this file's line 3 is the commonest way a docs commit stalls
-   a sibling's merge (2026-09-15: Session B's two entries sat at the top
-   with its next PR open; the waves 2-3 entry went beneath them).
+   Check it with `node scripts/agent-os/reconciliation-render.mjs --list`
+   (exit 1 names a misnamed file or a header whose date differs from the
+   name). The bdnick change digest reads the newest file as the latest wave.
 
-   Then update the `**Last verified:**` stamp. **Do not trust a line number
+   Then, once per wave (not per PR: it is one shared line), update the
+   `**Last verified:**` stamp in `RECONCILIATION.md`. **Do not trust a line number
    for it — find it with the guard's own regex.** `check-stale-docs.ts:226`
    matches `/Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i`, i.e. the first
    occurrence *followed by a DATE*. Verified 2026-09-18.

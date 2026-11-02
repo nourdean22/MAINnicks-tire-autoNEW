@@ -318,7 +318,7 @@ Do NOT claim the feature is broken when it's env-gated. The distinction matters.
 This codebase has extensive AI-built layers. Before modifying any feature:
 
 1. Read the relevant `AGENTS.md` / `CLAUDE.md` for the app — it documents what shipped
-2. Check `docs/RECONCILIATION.md` (statenour) or `truth_os.md` (nickstire) for the latest wave
+2. Check `docs/reconciliation/` then `docs/RECONCILIATION.md` (statenour) or `truth_os.md` (nickstire) for the latest wave
 3. If a file looks "dead," search its base name across the whole codebase before deleting
 4. Never rewrite a working system without a clearly-documented reason and rollback path
 
@@ -381,8 +381,8 @@ At end of every session, your report must include:
 1. Root `AGENTS.md` (canonical policy) — then this file for operator context
 2. `apps/statenour/AGENTS.md` (primary context)
 3. `apps/statenour/docs/CURRENT-TRUTH.md` (one-screen reality check)
-4. `apps/statenour/docs/RECONCILIATION.md` (top entry = latest wave)
-5. `apps/statenour/.remember/now.md` (session buffer)
+4. `apps/statenour/docs/reconciliation/` (one file per PR since 2026-11-02, newest = latest wave; older waves in `RECONCILIATION.md`)
+5. agent memory (`~/.claude/projects/<repo>/memory/MEMORY.md`) and `docs/agent-os/ledger/` (the `.remember/now.md` buffer was retired 2026-11-02; archived beside it)
 6. `apps/statenour/docs/AGENT-CONTEXT.md` (quick context for Antigravity)
 7. `apps/statenour/docs/OPERATOR-BIOGRAPHY.md` (operator biography & context backfill)
 

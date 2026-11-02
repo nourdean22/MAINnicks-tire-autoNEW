@@ -68,7 +68,7 @@ Each bullet names the file pattern that arms it. Fire on the trigger, not on a v
   `statenour-wave-reconcile`.** Keep it to ONE line: one date, one PR pair, one pointer. It grew to
   6,650 bytes on a single line once (~1,662 tokens of ship history loaded into every session, in
   violation of the no-grow rule printed beside it) and was cut back on 2026-08-21. The full wave
-  entry goes to the top of `docs/RECONCILIATION.md`, never here.
+  entry goes to its own file in `docs/reconciliation/` (since 2026-11-02), never here.
 - **A confirm, alert, or text-capture dialog in `app/` or `components/` →
   `nickstire-ios-pwa-primitives`.** The skill is named for the sibling app but governs this one
   too: statenour is also a standalone iOS PWA, where `window.confirm/alert/prompt` return

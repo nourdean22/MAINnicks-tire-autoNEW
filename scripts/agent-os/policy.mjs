@@ -155,18 +155,30 @@ const FILE_TOKEN = /\S*[\\/]\S*|\S+\.(?:md|mjs|cjs|js|ts|tsx|json|txt|sql)\b/g;
 const SHOP_FIELD_END = /^\s*$|^[A-Z][A-Z0-9 /()-]{2,}:/; // a blank line or the next brief field ends the SHOP DATA block
 const BRIEF_MAX_BYTES = 512 * 1024;
 const BRIEF_MAX_FILES = 5;
+// A block whose first line declares no read (2026-11-02: "SHOP DATA: none read (no shop records in scope)" was denied). Exact
+// phrases only: "none needed" and "nonetheless ..." are not declarations. Still "no" when the rest of the brief names both
+// invoices and estimates, since a brief that counts them has read records whatever its label says.
+const SHOP_NO_READ = /^[ \t>*_-]*SHOP DATA\s*:\s*\**\s*(?:n\/a|none(?:\s+read)?|not\s+read|no\s+shop\s+(?:data|records))\s*(?:$|\.\s*$|\()/i; // "none, but ..." is not a declaration
 export function shopDataState(text, laneType = "") {
   const words = text.replace(FILE_TOKEN, " ");
   if (!SHOP_NOUN.test(words) || !SHOP_READ.test(words) || !(SHOP_PLACE.test(text) || /^lane-nickstire-/i.test(laneType))) return "n/a";
   const lines = text.split(/\r?\n/);
+  let declared = false;
+  const outside = [];
   for (let i = 0; i < lines.length; i++) {
-    if (!/^[ \t>*_-]*SHOP DATA\s*:/i.test(lines[i])) continue;
+    if (!/^[ \t>*_-]*SHOP DATA\s*:/i.test(lines[i])) {
+      outside.push(lines[i]);
+      continue;
+    }
     const block = [lines[i]];
     for (let j = i + 1; j < lines.length && !SHOP_FIELD_END.test(lines[j]); j++) block.push(lines[j]);
+    i += block.length - 1;
     const b = block.join("\n").slice(0, 1200);
     if (/\binvoice/i.test(b) && /\bestimate/i.test(b)) return "yes"; // any block that carries the meanings
+    if (SHOP_NO_READ.test(block[0])) declared = true;
   }
-  return "no";
+  const rest = outside.join("\n").replace(FILE_TOKEN, " ");
+  return declared && !(/\binvoice/i.test(rest) && /\bestimate/i.test(rest)) ? "n/a" : "no";
 }
 function briefTexts(prompt, cwd) {
   const out = [];

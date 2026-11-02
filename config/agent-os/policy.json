@@ -1011,7 +1011,7 @@
       "tools": ["Agent"],
       "pattern": "^(?:lane-dispatch|agent|session-start) (?:.* )?shop-data=no$",
       "why": "Nour, 2026-10-22: a scout session reported '0 declines ever captured' because its brief carried none of the shop's data meanings (an estimate with no invoice IS the decline). A fresh agent or session does not load the manager's memory, so a brief that reads Nick's Tire records must carry them. Judged on the summary line policy.mjs > agentDispatchCall builds for Agent, Task and mcp__ccd_session__start_session.",
-      "fix": "Add a line that STARTS with 'SHOP DATA:' (at the start of its own line, not mid-paragraph; it counts in the prompt, start_session background, or the brief file) and paste after it the 'Shop data meanings' lines from .agents/core/USER.md (memory shop-data-meanings): a counter invoice is a closed job and its payment status means nothing (separate register); an estimate with no matching invoice most likely means the customer walked (declined work) but stays an inference; key follow-ups to invoices, not bookings.",
+      "fix": "Add a line that STARTS with 'SHOP DATA:' (at the start of its own line, not mid-paragraph; it counts in the prompt, start_session background, or the brief file) and paste after it the 'Shop data meanings' lines from .agents/core/USER.md (memory shop-data-meanings): a counter invoice is a closed job and its payment status means nothing (separate register); an estimate with no matching invoice most likely means the customer walked (declined work) but stays an inference; key follow-ups to invoices, not bookings. A brief that reads no shop records says so on a line STARTING 'SHOP DATA: none read (no shop records in scope)' (also 'n/a', 'not read', 'no shop records'); that declaration is refused if the brief still names invoices and estimates outside it.",
       "denyExamples": [
         "lane-dispatch type=lane-nickstire-server model=sonnet brief=C:/x/retention-brief.md model-effort-line=yes shop-data=no",
         "agent type=general-purpose shop-data=no",
@@ -1025,6 +1025,7 @@
         "agent type=Explore shop-data=n/a",
         "session-start model=claude-sonnet-5-5 effort=high brief=C:/x/retention-brief.md model-effort-line=yes shop-data=yes",
         "session-start model=claude-opus-5-5 effort=high brief=C:/x/hook-brief.md model-effort-line=yes shop-data=n/a",
+        "session-start model=claude-sonnet-5-5 effort=high brief=C:/x/platform-forever-fixes-brief.md model-effort-line=yes shop-data=n/a",
         "agent type=shop-data=no-helper shop-data=n/a"
       ]
     },

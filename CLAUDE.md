@@ -39,7 +39,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   - Security review of a diff → **differential-review** (no checkout; report outside repo); dependency risk → **supply-chain-risk-auditor**.
   - Captures, bundles, devices of OUR OWN accounts or equipment → **reverse-engineer-anything** (static first; no evasion, keys, decoders).
   - New RTSP camera → **camera-onboard-rtsp**; cam/ears lane design → **shop-camera-best-in-class**; shop PC → **shop-pc-remote-session**.
-  - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
+  - End of a wave → **statenour-wave-reconcile** (ship history lands in one file per PR under `apps/statenour/docs/reconciliation/`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
     `docs/skill-proposals.md`). A job touching more than one lane → **monorepo-manager**.
 - **Output shape** — lead with the answer in sentence one, number every procedure, put the receipt

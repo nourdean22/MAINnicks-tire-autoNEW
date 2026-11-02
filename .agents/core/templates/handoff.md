@@ -1,4 +1,4 @@
-# Handoff note (append to apps/<app>/.remember/now.md, newest on top)
+# Handoff note (a memory file under `~/.claude/projects/<repo>/memory/`, indexed in its MEMORY.md; for a manager job also the ledger row in `docs/agent-os/ledger/`. The per-app `.remember/now.md` buffers were retired 2026-11-02.)
 
 ```
 ## <YYYY-MM-DD HH:MM ET> | <branch> | <one-line state>

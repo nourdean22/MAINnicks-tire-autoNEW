@@ -1,5 +1,9 @@
 # Reconciliation · statenour-os
 
+**New entries go one file per PR in [`reconciliation/`](reconciliation/) (`<YYYY-MM-DD>-<slug>.md`, same blockquote format) since 2026-11-02,
+so two open PRs never edit the same line. Read them newest first: `node scripts/agent-os/reconciliation-render.mjs` (`--list`, `--tail <n>`).
+Below: every entry up to 2026-11-02, unchanged; do not add new ones here.**
+
 > ## 2026-11-01 · UI v3 W6 PR 2: /now, Nick composes the screen from typed cards (job 2026-11-01-chat-humanizer-w6) · 1 ship
 >
 > Spec `docs/design/ui-v3/W6-INTENT-SURFACE.md`, alternative A (manager ruling 21:40Z: a client-bound layout language is a second vocabulary the registry was merged to remove). Behind `W6_INTENT_SURFACE`, off by default.

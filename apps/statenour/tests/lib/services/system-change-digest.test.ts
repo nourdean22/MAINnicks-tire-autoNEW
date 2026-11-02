@@ -131,6 +131,7 @@ describe("buildSystemChangeDigest (injected deps — no fs/DB)", () => {
     };
     const d = await buildSystemChangeDigest({
       loadDoc: (rel) => docs[rel] ?? null,
+      listDocs: () => [],
       env: { RAILWAY_GIT_COMMIT_SHA: "abc1234", RAILWAY_ENVIRONMENT_NAME: "production" },
       now: () => "2026-06-09T00:00:00.000Z",
     });
@@ -139,5 +140,53 @@ describe("buildSystemChangeDigest (injected deps — no fs/DB)", () => {
     expect(d.truth.evals.total).toBeGreaterThan(0);
     expect(d.truth.staleCriticalInKeyDocs).toBe(0); // the CURRENT-TRUTH fixture is clean
     expect(d.generatedAt).toBe("2026-06-09T00:00:00.000Z");
+  });
+
+  // 2026-11-02: entries are one file per PR under docs/reconciliation/; the newest file is the latest wave.
+  it("reads the newest docs/reconciliation/ file as the latest wave, ignoring misnamed files", async () => {
+    const docs: Record<string, string> = {
+      "docs/RECONCILIATION.md": RECON,
+      "docs/reconciliation/2026-11-02-older.md": "> ## 2026-11-02 · older split wave\n> - **`1234abcd`** x",
+      "docs/reconciliation/2026-11-05-newer.md": "> ## 2026-11-05 · newer split wave\n> - **`feedf00d`** y",
+    };
+    const d = await buildSystemChangeDigest({
+      loadDoc: (rel) => docs[rel] ?? null,
+      listDocs: () => ["2026-11-02-older.md", "notes.md", "2026-11-05-newer.md", "zz-draft.md"],
+      env: {},
+      now: () => "2026-11-05T00:00:00.000Z",
+    });
+    expect(d.latestWave?.date).toBe("2026-11-05");
+    expect(d.latestWave?.title).toContain("newer split wave");
+  });
+
+  // RECONCILIATION.md is frozen, so falling back to it would always show an OLDER wave as the latest (second reader,
+  // 2026-11-02). A newest file that cannot be read or parsed, or a folder that cannot be listed, is UNREADABLE.
+  it("a newest file with no dated header is UNREADABLE: latestWave null, named in risks, never the frozen top entry", async () => {
+    const d = await buildSystemChangeDigest({
+      loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON, "docs/reconciliation/2026-11-05-bad.md": "no header" })[rel] ?? null,
+      listDocs: () => ["2026-11-05-bad.md"],
+      env: {},
+      now: () => "2026-11-05T00:00:00.000Z",
+    });
+    expect(d.latestWave).toBeNull();
+    expect(d.truth.keyDocsUnreadable).toContain("docs/reconciliation/2026-11-05-bad.md");
+    expect(d.risks.join(" ")).toContain("UNREADABLE");
+    expect(d.nextOwnerDecision.toLowerCase()).not.toContain("nothing pending");
+  });
+
+  it("a folder that cannot be listed (not ENOENT) is UNREADABLE too; an absent folder still falls back to RECONCILIATION.md", async () => {
+    const thrown = await buildSystemChangeDigest({
+      loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON })[rel] ?? null,
+      listDocs: () => {
+        throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      },
+      env: {},
+      now: () => "2026-11-05T00:00:00.000Z",
+    });
+    expect(thrown.latestWave).toBeNull();
+    expect(thrown.truth.keyDocsUnreadable).toContain("docs/reconciliation/");
+    const absent = await buildSystemChangeDigest({ loadDoc: (rel) => ({ "docs/RECONCILIATION.md": RECON })[rel] ?? null, listDocs: () => [], env: {}, now: () => "x" });
+    expect(absent.latestWave?.date).toBe("2026-06-09");
+    expect(absent.truth.keyDocsUnreadable.filter((d) => d.startsWith("docs/reconciliation"))).toEqual([]);
   });
 });
