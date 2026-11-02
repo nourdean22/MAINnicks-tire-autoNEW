@@ -382,7 +382,7 @@ At end of every session, your report must include:
 2. `apps/statenour/AGENTS.md` (primary context)
 3. `apps/statenour/docs/CURRENT-TRUTH.md` (one-screen reality check)
 4. `apps/statenour/docs/reconciliation/` (one file per PR since 2026-11-02, newest = latest wave; older waves in `RECONCILIATION.md`)
-5. `apps/statenour/.remember/now.md` (session buffer)
+5. agent memory (`~/.claude/projects/<repo>/memory/MEMORY.md`) and `docs/agent-os/ledger/` (the `.remember/now.md` buffer was retired 2026-11-02; archived beside it)
 6. `apps/statenour/docs/AGENT-CONTEXT.md` (quick context for Antigravity)
 7. `apps/statenour/docs/OPERATOR-BIOGRAPHY.md` (operator biography & context backfill)
 

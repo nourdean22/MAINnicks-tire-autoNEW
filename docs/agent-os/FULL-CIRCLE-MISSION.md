@@ -65,7 +65,7 @@ competing implementation to get around a block.
 ## 3. Repo rules that bite (all verified this session)
 
 - Never commit or push to `main`. Branches: `statenour/<task>` · `nickstire/<task>` · `docs/<task>` · `chore/<task>`. Squash-merge your own PR when CI is green; CI is advisory (no branch protection), so red means stop by convention.
-- Stage by explicit path. `git add -A` is policy-blocked for Claude and forbidden for everyone. `apps/statenour/.remember/now.md` is gitignored: `git add -f`.
+- Stage by explicit path. `git add -A` is policy-blocked for Claude and forbidden for everyone. (The `.remember/now.md` ledgers were retired 2026-11-02; handoffs go to agent memory and `docs/agent-os/ledger/`.)
 - Commit subject `<type> · statenour · <one line>`; AI commits carry `Co-Authored-By: <model> <noreply@anthropic.com>`. Never amend, rebase or force-push anything pushed.
 - PR body mirrors `.github/pull_request_template.md` (Summary · Scope · Validation · Risk review · Rollback · Documentation updates · Follow-ups). Receipts are numbers (`142 files / 1,639 passed, exit 0`), never "tests pass". Say which gate was skipped.
 - Gates from `apps/statenour`: `pnpm typecheck` · `pnpm exec eslint <changed files>` · `pnpm exec vitest run --maxWorkers=2 <every test referencing a changed basename>` · `pnpm check:anti-slop` · `STALE_DOCS_STRICT=1 pnpm check:stale-docs` · `pnpm agent:parity` (repo root) · `rm -rf .next/cache && NODE_OPTIONS=--max-old-space-size=12288 PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 AUTH_FORCE_MOCK=1 NEXT_TELEMETRY_DISABLED=1 pnpm exec next build` (background, 20 min budget). Piping vitest to `tail` masks the exit code.

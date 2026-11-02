@@ -2733,3 +2733,10 @@ the named-ref integrate recipe in monorepo-manager `references/review-and-merge.
 - **Proposed edit:** the sweep (step 5) treats a scheduled session whose last event is a tool call older than 15 minutes as hung: stop it and record the call. Any read-only review doc (HEARTBEAT, a future morning brief) carries the same timeout line.
 - **Confidence:** medium (once, 12 hours).
 - **Status:** proposed
+
+### P2 · positive-control-first and guard-red-team (wall-clock canaries)
+- **Trigger (witnessed twice, 2026-11-02):** `scripts/agent-os/sharedDepsRule.test.mjs:141` asserts a regex finishes an adversarial input in under 1,000 ms absolute. Under machine load (free RAM under 500 MB, sibling sessions building) it read 1,249 ms and failed `agent-os-verify` in two pre-commit runs of this job; alone it reads 451 ms. The canary guards linearity, which the number cannot tell from a slow laptop.
+- **Cost:** two failed commits, about 12 minutes of hooks each, and the temptation to commit from a hook-free clone.
+- **Proposed edit:** both skills say: a timing canary compares against a baseline measured in the same run (the same regex on a 10x smaller input, cap at 3x the ratio a linear scan predicts) or caps at 3x a generous absolute, never a bare wall-clock number. This canary is not edited here (a candidate branch may not edit its judges).
+- **Confidence:** high (two runs, one day, same number).
+- **Status:** proposed

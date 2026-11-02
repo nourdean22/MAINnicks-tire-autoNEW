@@ -229,11 +229,11 @@ cd [REPO_ROOT]/apps/statenour
 git log --oneline -10
 cat docs/CURRENT-TRUTH.md
 
-# 3. Read last session
-cat .remember/now.md
+# 3. Read last session: agent memory (~/.claude/projects/<repo>/memory/MEMORY.md) and the open ledger rows
+node ../../scripts/agent-os/ledger-render.mjs --open --tail 5
 
-# 4. Check latest reconciliation (top entry)
-head -30 docs/RECONCILIATION.md
+# 4. Check latest reconciliation (one file per PR since 2026-11-02; older waves in docs/RECONCILIATION.md)
+node ../../scripts/agent-os/reconciliation-render.mjs --tail 1
 
 # 5. Verify environment
 pnpm typecheck
