@@ -57,6 +57,8 @@ export interface FeedEntry {
   linkStatus?: string | null;
   linkConfidence?: number | null;
   linkedGoalTitle?: string | null;
+  /** Dumps only (W4): the people the entry names. null = the names couldn't load (not "no one"). */
+  people?: { id: string; name: string }[] | null;
 }
 
 type IconComponent = ComponentType<{ size?: number; className?: string }>;

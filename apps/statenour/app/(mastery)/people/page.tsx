@@ -88,6 +88,8 @@ interface PersonRow {
   isNeglected: boolean;
   /** Newest contact note from the ledger (/api/people); null = none on file. */
   latestNote?: { note: string; at: string; source: string } | null;
+  /** Newest journal entry naming the person (/api/people); null = none, or the read failed (`reads.journal`). */
+  latestJournal?: { at: string; excerpt: string; dumpId: string } | null;
 }
 
 interface PeopleResponse {
@@ -98,6 +100,8 @@ interface PeopleResponse {
     high_trust: number;
     sparse: number;
   };
+  /** Which side reads failed; a failed journal read nulls every latestJournal, so it is said once, not hidden. */
+  reads?: { journal: "ok" | "failed" };
   generatedAt: string;
 }
 
@@ -429,6 +433,11 @@ function RelationshipsPageInner() {
               </button>
             </p>
           )}
+          {data.reads?.journal === "failed" && (
+            <p role="status" className="mt-2 text-[13px] text-amber-200">
+              Journal lines couldn&apos;t load. What you wrote about people is unknown here, not empty.
+            </p>
+          )}
         </section>
       )}
 
@@ -661,6 +670,13 @@ function RelationshipsPageInner() {
                       <p className="mt-1 text-[12px] text-fg-tertiary line-clamp-2">
                         {relativeTime(Math.max(0, etDaysBetween(Date.parse(p.latestNote.at), Date.now())))}:{" "}
                         {p.latestNote.note}
+                      </p>
+                    )}
+                    {/* W4 2026-11-02: the newest journal entry that names this person (brain_dumps.person_ids). */}
+                    {p.latestJournal && (
+                      <p className="mt-1 text-[12px] text-fg-tertiary line-clamp-2">
+                        Journal, {relativeTime(Math.max(0, etDaysBetween(Date.parse(p.latestJournal.at), Date.now())))}:{" "}
+                        {p.latestJournal.excerpt}
                       </p>
                     )}
                   </div>
