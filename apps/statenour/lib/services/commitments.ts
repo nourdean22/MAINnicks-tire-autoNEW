@@ -287,6 +287,176 @@ export async function abandonActiveCommitment(
   return res.count === 1;
 }
 
+// ─── Promises on /missions (R3 · 2026-11-03) ───────────────────────────
+// The one place Nour lists, edits and closes commitments by hand. Every write here stamps
+// updatedBy PROMISE_ACTOR so the kill read (rows closed or tasked through the section) can
+// count them apart from the pulse ticker and chat, which write "operator".
+
+export const PROMISE_ACTOR = "nour";
+const TASK_REF = "task:";
+const PENDING_REF = "task:pending:";
+/** A claim older than this is a crashed create, not a live one: the next tap may retake it. */
+const PENDING_STALE_MS = 60_000;
+
+/** Whole ET calendar days from a to b, both YYYY-MM-DD. */
+function dayDiff(a: string, b: string): number {
+  const ms = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((ms(b) - ms(a)) / 86_400_000);
+}
+
+export interface PromiseRow {
+  id: number;
+  description: string;
+  toWhom: string;
+  deadline: string | null;
+  /** ET days since it was made. */
+  ageDays: number;
+  /** ET days until the deadline; negative is past due; null when undated. */
+  deadlineDays: number | null;
+  /** The task made from it (executionRef task:<id>), when that task still exists. */
+  task: { id: string; status: string } | null;
+}
+
+const PROMISE_SELECT = {
+  id: true,
+  description: true,
+  toWhom: true,
+  deadline: true,
+  dateMade: true,
+  executionRef: true,
+} as const;
+
+/** Active promises (all) and the newest proposed ones, with the real totals of each. Throws on a failed read. */
+export async function listPromises(proposedLimit = 20): Promise<{
+  active: PromiseRow[];
+  proposed: PromiseRow[];
+  activeCount: number;
+  proposedCount: number;
+}> {
+  const [activeRows, proposedRows, activeCount, proposedCount] = await Promise.all([
+    prisma.commitment.findMany({
+      where: { status: "active", deletedAt: null },
+      orderBy: [{ deadline: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+      take: 200,
+      select: PROMISE_SELECT,
+    }),
+    prisma.commitment.findMany({
+      where: { status: "proposed", deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: proposedLimit,
+      select: PROMISE_SELECT,
+    }),
+    prisma.commitment.count({ where: { status: "active", deletedAt: null } }),
+    prisma.commitment.count({ where: { status: "proposed", deletedAt: null } }),
+  ]);
+
+  const taskIds = activeRows
+    .map((r) => r.executionRef)
+    .filter((ref): ref is string => !!ref?.startsWith(TASK_REF) && !ref.startsWith(PENDING_REF))
+    .map((ref) => ref.slice(TASK_REF.length));
+  const tasks = taskIds.length
+    ? await prisma.task.findMany({ where: { id: { in: taskIds }, deletedAt: null }, select: { id: true, status: true } })
+    : [];
+  const taskById = new Map(tasks.map((t) => [t.id, { id: t.id, status: String(t.status) }]));
+
+  const now = today();
+  const shape = (r: (typeof activeRows)[number]): PromiseRow => ({
+    id: r.id,
+    description: r.description,
+    toWhom: r.toWhom,
+    deadline: r.deadline,
+    ageDays: Math.max(0, dayDiff(r.dateMade, now)),
+    deadlineDays: r.deadline && /^\d{4}-\d{2}-\d{2}$/.test(r.deadline) ? dayDiff(now, r.deadline) : null,
+    task: r.executionRef?.startsWith(TASK_REF) ? (taskById.get(r.executionRef.slice(TASK_REF.length)) ?? null) : null,
+  });
+  return { active: activeRows.map(shape), proposed: proposedRows.map(shape), activeCount, proposedCount };
+}
+
+/** Edit an active promise's text, who it is to, or its deadline (null clears it). */
+export async function editPromise(
+  id: number,
+  patch: { description?: string; toWhom?: string; deadline?: string | null },
+): Promise<boolean> {
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: "active", deletedAt: null },
+    data: {
+      ...(patch.description !== undefined ? { description: patch.description.trim() } : {}),
+      ...(patch.toWhom !== undefined ? { toWhom: patch.toWhom.trim() || "self" } : {}),
+      ...(patch.deadline !== undefined ? { deadline: patch.deadline || null } : {}),
+      updatedBy: PROMISE_ACTOR,
+    },
+  });
+  return res.count === 1;
+}
+
+/** Done = kept (completed), Drop = abandoned. The same writers the pulse ticker uses, stamped nour. */
+export async function resolvePromise(id: number, action: "done" | "drop"): Promise<boolean> {
+  return action === "done"
+    ? completeActiveCommitment(id, "Done (Promises on /missions)", PROMISE_ACTOR)
+    : abandonActiveCommitment(id, "Dropped (Promises on /missions)", PROMISE_ACTOR);
+}
+
+export type PromiseToTaskResult =
+  | { taskId: string; created: boolean }
+  | { taskId: null; reason: "not_active" | "in_flight" };
+
+/**
+ * Make it a task: creates one task (Inbox, or the chosen mission) and links it through
+ * executionRef task:<id>. The promise stays active; Done closes it. Idempotent: the ref is
+ * claimed by compare-and-swap BEFORE the create, so a second tap returns the same task and a
+ * racing tap creates nothing.
+ */
+export async function promiseToTask(id: number, missionId: string | null): Promise<PromiseToTaskResult> {
+  const row = await prisma.commitment.findFirst({
+    where: { id, status: "active", deletedAt: null },
+    select: { description: true, executionRef: true },
+  });
+  if (!row) return { taskId: null, reason: "not_active" };
+  const ref = row.executionRef;
+
+  if (ref?.startsWith(PENDING_REF)) {
+    if (Date.now() - Number(ref.slice(PENDING_REF.length)) < PENDING_STALE_MS) return { taskId: null, reason: "in_flight" };
+  } else if (ref?.startsWith(TASK_REF)) {
+    const taskId = ref.slice(TASK_REF.length);
+    const task = await prisma.task.findFirst({ where: { id: taskId, deletedAt: null }, select: { id: true } });
+    if (task) return { taskId, created: false };
+    // The linked task was deleted: make a new one.
+  }
+
+  const claim = `${PENDING_REF}${Date.now()}`;
+  const won = await prisma.commitment.updateMany({
+    where: { id, status: "active", deletedAt: null, executionRef: ref },
+    data: { executionRef: claim, updatedBy: PROMISE_ACTOR },
+  });
+  if (won.count !== 1) {
+    const winner = await prisma.commitment.findUnique({ where: { id }, select: { executionRef: true } });
+    const winnerRef = winner?.executionRef ?? null;
+    return winnerRef?.startsWith(TASK_REF) && !winnerRef.startsWith(PENDING_REF)
+      ? { taskId: winnerRef.slice(TASK_REF.length), created: false }
+      : { taskId: null, reason: "in_flight" };
+  }
+
+  let task: { id: string };
+  try {
+    const { createTaskFromAPI } = await import("@/lib/services/task-actions");
+    task = (await createTaskFromAPI({
+      title: row.description.slice(0, 300),
+      ...(missionId ? { missionId, status: "READY" } : { status: "INBOX" }),
+    })) as { id: string };
+  } catch (err) {
+    await prisma.commitment.updateMany({ where: { id, executionRef: claim }, data: { executionRef: ref } });
+    throw err;
+  }
+  await prisma.commitment.updateMany({
+    where: { id, executionRef: claim },
+    data: { executionRef: `${TASK_REF}${task.id}`, updatedBy: PROMISE_ACTOR },
+  });
+  return { taskId: task.id, created: true };
+}
+
 /**
  * Evidence-tier + confidence off a journal take's stored JSON —
  * PURE and exported for the test (2026-08-12 WP). Machine takes carry

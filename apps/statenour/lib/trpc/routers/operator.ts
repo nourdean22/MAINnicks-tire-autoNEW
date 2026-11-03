@@ -137,6 +137,10 @@ import {
   dismissProposed,
   completeActiveCommitment,
   abandonActiveCommitment,
+  listPromises,
+  editPromise,
+  resolvePromise,
+  promiseToTask,
 } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
 import { logError } from "@/lib/utils/error-log";
@@ -1435,6 +1439,43 @@ export const operatorRouter = router({
       const ok = await dismissProposed(input.id);
       return { ok };
     }),
+
+  /**
+   * R3 · 2026-11-03 · the Promises section on /missions. One server path: lib/services/
+   * commitments.ts (listPromises / editPromise / resolvePromise / promiseToTask), every write
+   * stamped updatedBy "nour". A failed list read throws, so the client shows unknown, never empty.
+   */
+  promisesList: operatorProcedure.query(async () => listPromises()),
+
+  promiseEdit: operatorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        description: z.string().trim().min(1).max(2000).optional(),
+        toWhom: z.string().max(120).optional(),
+        deadline: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable()
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input: { id, ...patch } }) => ({ ok: await editPromise(id, patch) })),
+
+  promiseResolve: operatorProcedure
+    .input(z.object({ id: z.number().int().positive(), action: z.enum(["done", "drop"]) }))
+    .mutation(async ({ input }) => {
+      const resolved = await resolvePromise(input.id, input.action);
+      if (resolved) {
+        const { invalidate } = await import("@/lib/utils/cache");
+        invalidate("ultron_personal_pulse_v3");
+      }
+      return { resolved };
+    }),
+
+  promiseToTask: operatorProcedure
+    .input(z.object({ id: z.number().int().positive(), missionId: z.string().min(1).max(64).nullable() }))
+    .mutation(async ({ input }) => promiseToTask(input.id, input.missionId)),
 
   /**
    * BDN-104 · Home decision sensor. Fire-and-forget from the Home
