@@ -150,6 +150,16 @@ describe("backfill-journal-person-ids", () => {
     expect(r.requireFn).not.toHaveBeenCalledWith("@/lib/prisma");
   });
 
+  // prod-db-guard step 4: say which database before reading or writing (every worktree's .env points at prod).
+  it("prints the database host, never the credentials, before any read", async () => {
+    const r = await run([], { DATABASE_URL: "postgresql://user:s3cret@ep-demo-123.us-east-2.aws.neon.tech/neondb?sslmode=require" });
+    const out = r.logs.join("\n");
+    expect(r.logs[0]).toBe("database host: ep-demo-123.us-east-2.aws.neon.tech");
+    expect(out).not.toMatch(/s3cret|user:/);
+    expect(r.prisma.personProfile.findMany.mock.invocationCallOrder[0]).toBeGreaterThan(0);
+    expect((await run([], {})).logs[0]).toBe("database host: unknown (DATABASE_URL unset or unparseable)");
+  });
+
   it("--limit must be a positive integer", async () => {
     expect((await run(["--limit", "0"])).code).toBe(2);
     expect((await run(["--limit", "abc"])).code).toBe(2);

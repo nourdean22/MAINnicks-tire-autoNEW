@@ -94,6 +94,14 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     console.error(`refused: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(2);
   }
+  // prod-db-guard: say which database before any read or write (a worktree's .env points at production). Host only.
+  let host = "unknown (DATABASE_URL unset or unparseable)";
+  try {
+    if (process.env.DATABASE_URL) host = new URL(process.env.DATABASE_URL).hostname || host;
+  } catch {
+    /* host stays unknown */
+  }
+  console.log(`database host: ${host}`);
   const fs = await import("node:fs");
   // --revert reads its manifest BEFORE the Prisma import: a wrong path fails before any connection opens.
   const manifest =
