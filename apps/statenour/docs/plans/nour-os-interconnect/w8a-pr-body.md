@@ -14,6 +14,8 @@ Goals core W8a of job 2026-11-02-nour-os-interconnect: the write and counting si
 10. **Dead weight**: unreachable branch, full-plan prompt, one `clip`, classifier reads `completionCriteria` (falls back to `successMetric`; no column retired), `check:soft-delete` waived by signature for `contradictions.ts`.
 11. Audit doc copied unchanged.
 
+MCP surface pin (`tests/security/mcp-surface.snapshot.json`) re-pinned with `pnpm snapshot:mcp-surface`: 4 description hashes moved (completeTask, createTask, getMissions, pinMemory); no tool added or removed, no risk class changed. Finding for the platform lane, not fixed here: the pin's input-schema hash did not move for pinMemory although it gained two inputs (`lib/agent-bridge/surface-digest.ts:103` hashes `stable(t.inputSchema)`, which does not see a zod schema's fields).
+
 Procedure changes (PATH EXCEPTIONS): `lib/trpc/routers/ai.ts` (plan result gains `spawned`, `spawnFailed`), `lib/trpc/routers/journal.ts` (saveWeeklyReview input: `notes[].health`, `achieved`, `missed`). Tool input changes (snapshot regenerated and reviewed, 13 lines): `pinMemory` gains `goalId` / `personId`; `createTask.goalId`, `createTask`, `completeTask`, `getMissions`, `pinMemory` descriptions.
 
 Benchmarked against: research doc 01 sections 3-5 (Linear L1 goal inherited through the project; Sunsama S2 do one step today, S3 review as check-in, S4 close with an outcome). This lane could not web-read; mechanisms were taken from doc 01's citations.
