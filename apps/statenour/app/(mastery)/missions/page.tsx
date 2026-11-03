@@ -51,7 +51,7 @@ import { TaskFilters } from "@/components/actions/task-filters";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
 import { computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
-import { goalFilterOptions, goalLineage, riskTasks } from "@/lib/missions/task-goal";
+import { goalFilterLabel, goalFilterOptions, goalLineage, riskTasks } from "@/lib/missions/task-goal";
 import { GoalFilterChips } from "@/components/missions/goal-filter-chips";
 import { cn } from "@/lib/utils";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -277,6 +277,8 @@ function MissionsPageInner() {
           onClearFilters={filters.handleClearFilters}
           onExitFocusMode={() => setExecutionModeActive(false)}
           onQueueNext={handleQueueNext}
+          // A failed goals read turns hidden-risk step 7 (goal pace) off: say so, only when something is hidden.
+          goalPaceUnread={goalsQuery.isError && (filters.filtersActive || executionModeActive)}
         />
 
         {/* Completion outcome prompt: mounted OUTSIDE the exec-mode branch
@@ -427,7 +429,7 @@ function MissionsPageInner() {
                     ...(filters.kindFilter !== "all" ? [{ label: `kind · ${filters.kindFilter}`, onRemove: () => filters.setKindFilter("all") }] : []),
                     ...(filters.domainFilter ? [{ label: `domain · ${filters.domainFilter}`, onRemove: () => filters.setDomainFilter(null) }] : []),
                     ...(filters.goalFilter
-                      ? [{ label: `goal · ${goalOptions.find((o) => o.id === filters.goalFilter)?.title ?? "no linked work"}`, onRemove: () => filters.setGoalFilter(null) }]
+                      ? [{ label: goalFilterLabel(filters.goalFilter, goalOptions, goals), onRemove: () => filters.setGoalFilter(null) }]
                       : []),
                   ]}
                   onClearAll={filters.handleClearFilters}

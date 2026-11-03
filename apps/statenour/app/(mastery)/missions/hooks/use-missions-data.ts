@@ -69,8 +69,8 @@ export function useMissionsData() {
   );
 
   const tasks = useMemo<GoalTask[]>(
-    () => withTaskGoals((tasksQuery.data ?? []) as Task[], missions, goals),
-    [tasksQuery.data, missions, goals],
+    () => withTaskGoals((tasksQuery.data ?? []) as Task[], missions, goals, goalsQuery.isError ? "failed" : goals ? "ok" : "loading"),
+    [tasksQuery.data, missions, goals, goalsQuery.isError],
   );
 
   return {

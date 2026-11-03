@@ -434,7 +434,7 @@ export function MissionTaskRow({
         )}
         {/* 2026-11-02 · a goal this task serves on its own (Task.goalId). An inherited goal
          *  is on the mission card above, so the row stays quiet (lib/missions/task-goal). */}
-        {rowGoal?.source === "task" && (
+        {rowGoal?.source === "task" && rowGoal.missing !== "loading" && (
           <Link
             href={goalFilterHref(rowGoal.id)}
             replace
@@ -442,7 +442,7 @@ export function MissionTaskRow({
             onClick={(e) => e.stopPropagation()}
             className={cn("inline-flex min-h-11 items-center font-mono text-[11px] text-sky-300 hover:underline", GOAL_CHIP_WIDTH)}
           >
-            <span className="truncate">goal · {rowGoal.title ?? "title not read"}</span>
+            <span className="truncate">goal · {rowGoal.title ?? (rowGoal.missing === "absent" ? "not found" : "title not read")}</span>
           </Link>
         )}
         {/* Suggest-then-approve · a parked LOW-confidence mission match waits

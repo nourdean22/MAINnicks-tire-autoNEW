@@ -10,7 +10,11 @@ interface HiddenRiskWarningProps {
   onClearFilters: () => void;
   onExitFocusMode: () => void;
   onQueueNext: (taskId: string) => void;
+  /** 2026-11-02 · the goals read failed: tasks behind on a goal cannot be flagged this pass. */
+  goalPaceUnread?: boolean;
 }
+
+const GOAL_PACE_UNREAD = "goal pace not read this pass: tasks behind on a goal are not flagged";
 
 export function HiddenRiskWarning({
   summary,
@@ -19,6 +23,7 @@ export function HiddenRiskWarning({
   onClearFilters,
   onExitFocusMode,
   onQueueNext,
+  goalPaceUnread = false,
 }: HiddenRiskWarningProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [dismissedUntilFilterChange, setDismissedUntilFilterChange] = useState(false);
@@ -37,7 +42,9 @@ export function HiddenRiskWarning({
     setDismissedUntilFilterChange(false);
   }, [filterKey]);
 
-  if (summary.counts.total === 0) return null;
+  if (summary.counts.total === 0) {
+    return goalPaceUnread ? <p className="font-mono text-[11px] text-fg-tertiary">{GOAL_PACE_UNREAD}</p> : null;
+  }
   if (dismissedUntilFilterChange || dismissedSession) return null;
 
   const highestSeverity = summary.counts.critical > 0
@@ -178,6 +185,7 @@ export function HiddenRiskWarning({
           )}
         </div>
       )}
+      {goalPaceUnread && <p className="font-mono text-[11px] text-fg-tertiary">{GOAL_PACE_UNREAD}</p>}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   GOAL_FILTER_CHIP_CAP,
   filterByGoal,
   goalFilterHref,
+  goalFilterLabel,
   goalFilterOptions,
   goalLineage,
   riskTasks,
@@ -146,6 +147,67 @@ describe("goalFilterOptions · chips only for goals with linked work", () => {
     const tasks = withTaskGoals(many.map((g, i) => task(`t${i}`, "m1", g.id)), missions, many);
     expect(goalFilterOptions(tasks, missions, many, last).map((o) => o.id)).toContain(last);
   });
+});
+
+describe("goalFilterOptions · boundaries and stale links (second reader, 2026-11-02)", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => goal(`g${i}`, `Goal ${i}`));
+  const linked = (goals: GoalRow[]) => withTaskGoals(goals.map((g, i) => task(`t${i}`, "m1", g.id)), [mission("m1")], goals);
+
+  it("CAP+3 goals, the selected one at index CAP+2: exactly CAP+1 ids, the selected last", () => {
+    const goals = many(GOAL_FILTER_CHIP_CAP + 3);
+    const sel = goals[GOAL_FILTER_CHIP_CAP + 2].id;
+    const ids = goalFilterOptions(linked(goals), [mission("m1")], goals, sel).map((o) => o.id);
+    expect(ids).toHaveLength(GOAL_FILTER_CHIP_CAP + 1);
+    expect(ids[ids.length - 1]).toBe(sel);
+  });
+
+  it("exactly CAP goals, the selected one at CAP-1: CAP ids, no duplicate", () => {
+    const goals = many(GOAL_FILTER_CHIP_CAP);
+    const ids = goalFilterOptions(linked(goals), [mission("m1")], goals, goals[GOAL_FILTER_CHIP_CAP - 1].id).map((o) => o.id);
+    expect(ids).toHaveLength(GOAL_FILTER_CHIP_CAP);
+    expect(new Set(ids).size).toBe(GOAL_FILTER_CHIP_CAP);
+  });
+
+  it("a stale ?goalId= filters to nothing and adds no phantom chip", () => {
+    const missions = [mission("m1", { id: "g-run", title: "Run" })];
+    const tasks = withTaskGoals([task("a", "m1")], missions, GOALS);
+    expect(filterByGoal(tasks, missions, "g-gone")).toEqual({ tasks: [], missions: [] });
+    expect(goalFilterOptions(tasks, missions, GOALS, "g-gone").map((o) => o.id)).not.toContain("g-gone");
+  });
+
+  it("no chips until the goals list is known (an archived goal never flashes a chip)", () => {
+    const missions = [mission("m1", { id: "g-old", title: "Old goal" })];
+    expect(goalFilterOptions(withTaskGoals([task("a", "m1")], missions, undefined), missions, undefined)).toEqual([]);
+  });
+});
+
+describe("goalFilterLabel · the active-filters pill says why a goal has no chip", () => {
+  const missions = [mission("m1", { id: "g-run", title: "Run a half marathon" })];
+  const tasks = withTaskGoals([task("a", "m1")], missions, GOALS);
+  const opts = goalFilterOptions(tasks, missions, GOALS);
+
+  it("a goal with a chip reads its title", () => {
+    expect(goalFilterLabel("g-run", opts, GOALS)).toBe("goal · Run a half marathon");
+  });
+  it("an id the goals read does not hold as active reads archived or not found", () => {
+    expect(goalFilterLabel("g-gone", opts, GOALS)).toBe("goal · archived or not found");
+    expect(goalFilterLabel("g-old", opts, [...GOALS, goal("g-old", "Old", { status: "archived" })])).toBe("goal · archived or not found");
+  });
+  it("an active goal with no linked work reads no linked work", () => {
+    expect(goalFilterLabel("g-cash", opts, GOALS)).toBe("goal · Save 10k · no linked work");
+  });
+  it("before the goals read lands it says the titles are not read", () => {
+    expect(goalFilterLabel("g-run", [], undefined)).toBe("goal · title not read");
+  });
+});
+
+describe("withTaskGoals · an untitled goal says why (loading, failed, absent)", () => {
+  const mk = (goals: GoalRow[] | undefined, read: "ok" | "loading" | "failed") =>
+    withTaskGoals([task("a", "m1", "g-cash")], [mission("m1")], goals, read)[0].goal;
+  it("loading", () => expect(mk(undefined, "loading")).toEqual({ id: "g-cash", title: null, source: "task", missing: "loading" }));
+  it("failed", () => expect(mk(undefined, "failed")).toEqual({ id: "g-cash", title: null, source: "task", missing: "failed" }));
+  it("read answered but the goal is not in it", () => expect(mk([], "ok")).toEqual({ id: "g-cash", title: null, source: "task", missing: "absent" }));
+  it("POSITIVE CONTROL: a titled goal carries no missing flag", () => expect(mk(GOALS, "ok")).toEqual({ id: "g-cash", title: "Save 10k", source: "task" }));
 });
 
 describe("goalFilterHref · the deep link the goal card and the chips share", () => {

@@ -24,6 +24,7 @@ vi.mock("@/hooks/use-inspector", () => ({ useInspector: () => ({ openInspector: 
 
 import { MissionTaskRow } from "@/components/missions/mission-task-row";
 import { GoalFilterChips } from "@/components/missions/goal-filter-chips";
+import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
 import { MissionDispatchProvider } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 import type { Task } from "@/components/actions/shared";
 
@@ -50,9 +51,19 @@ describe("task row goal chip", () => {
     expect(html).not.toContain("goal ·");
   });
 
-  it("an unread title says so instead of inventing one", () => {
-    const html = row({ ...base, goal: { id: "g-run", title: null, source: "task" } } as unknown as Task);
+  it("a FAILED goals read says the title was not read, instead of inventing one", () => {
+    const html = row({ ...base, goal: { id: "g-run", title: null, source: "task", missing: "failed" } } as unknown as Task);
     expect(html).toContain("goal · title not read");
+  });
+
+  it("while the goals read is LOADING the row shows no chip and no failure copy", () => {
+    const html = row({ ...base, goal: { id: "g-run", title: null, source: "task", missing: "loading" } } as unknown as Task);
+    expect(html).not.toContain("goal ·");
+  });
+
+  it("a goal the read answered without says not found", () => {
+    const html = row({ ...base, goal: { id: "g-run", title: null, source: "task", missing: "absent" } } as unknown as Task);
+    expect(html).toContain("goal · not found");
   });
 
   it("POSITIVE CONTROL: no goal, no chip", () => {
@@ -76,6 +87,13 @@ describe("goal filter row", () => {
     expect(html).toContain('href="/missions?goalId=g-cash"');
     expect(html).toMatch(/aria-current="true"[^>]*>(<span[^>]*>)?Run a half marathon/);
     expect(html.match(/min-h-11/g)?.length).toBe(2);
+  });
+
+  it("hidden-risk card: a failed goals read says goal pace was not read, never a silent nothing", () => {
+    const empty = { hiddenTasks: [], counts: { critical: 0, high: 0, medium: 0, total: 0 }, categories: {}, previewList: [] } as never;
+    const props = { summary: empty, executionModeActive: false, filterKey: "k", onClearFilters: () => {}, onExitFocusMode: () => {}, onQueueNext: () => {} };
+    expect(renderToStaticMarkup(<HiddenRiskWarning {...props} goalPaceUnread />)).toContain("goal pace not read this pass");
+    expect(renderToStaticMarkup(<HiddenRiskWarning {...props} />), "POSITIVE CONTROL: read fine, nothing hidden").toBe("");
   });
 
   it("a failed goals read says so on the row, never a silent empty", () => {

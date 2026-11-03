@@ -23,7 +23,14 @@ export type GoalRow = {
 };
 
 /** `source: "mission"` means the mission card already shows it. A null title was not read. */
-export type TaskGoal = { id: string; title: string | null; source: "task" | "mission" };
+export type TaskGoal = {
+  id: string;
+  title: string | null;
+  source: "task" | "mission";
+  /** Why the title is null: the goals read is loading, failed, or answered without this goal. */
+  missing?: "loading" | "failed" | "absent";
+};
+export type GoalsRead = "ok" | "loading" | "failed";
 export type GoalTask<T extends Task = Task> = T & { goal: TaskGoal | null };
 
 /** CONTROLS RULE: the filter row's chip cap and every goal chip's truncation width, named once. */
@@ -42,10 +49,19 @@ export function taskGoal(
   return null;
 }
 
-export function withTaskGoals<T extends Task>(tasks: T[], missions: Project[], goals: GoalRow[] | undefined): GoalTask<T>[] {
+export function withTaskGoals<T extends Task>(
+  tasks: T[],
+  missions: Project[],
+  goals: GoalRow[] | undefined,
+  read: GoalsRead = goals ? "ok" : "loading",
+): GoalTask<T>[] {
   const titles = new Map((goals ?? []).map((g) => [g.id, g.title]));
   const byId = new Map(missions.map((m) => [m.id, m]));
-  return tasks.map((t) => ({ ...t, goal: taskGoal(t, byId.get(t.missionId), titles) }));
+  const missing = read === "ok" ? "absent" : read;
+  return tasks.map((t) => {
+    const goal = taskGoal(t, byId.get(t.missionId), titles);
+    return { ...t, goal: goal && goal.title === null ? { ...goal, missing } : goal };
+  });
 }
 
 export function filterByGoal<T extends GoalTask, M extends Project>(
@@ -72,10 +88,12 @@ export function goalFilterOptions(
   goals: GoalRow[] | undefined,
   selectedId: string | null = null,
 ): { id: string; title: string }[] {
-  const status = new Map((goals ?? []).map((g) => [g.id, g.status]));
+  // No chips until the goals list is known: before it lands an archived goal would flash a chip.
+  if (!goals) return [];
+  const status = new Map(goals.map((g) => [g.id, g.status]));
   const counts = new Map<string, { title: string; n: number }>();
   const add = (id: string, title: string | null | undefined) => {
-    if (goals && status.get(id) !== "active") return;
+    if (status.get(id) !== "active") return;
     const cur = counts.get(id);
     if (cur) cur.n++;
     else if (title) counts.set(id, { title, n: 1 });
@@ -86,6 +104,15 @@ export function goalFilterOptions(
   const shown = ranked.slice(0, GOAL_FILTER_CHIP_CAP);
   const selected = ranked.find((o) => o.id === selectedId);
   return selected && !shown.includes(selected) ? [...shown, selected] : shown;
+}
+
+/** The active-filters pill for ?goalId=: the title, or why there is no chip for it. */
+export function goalFilterLabel(goalId: string, options: { id: string; title: string }[], goals: GoalRow[] | undefined): string {
+  const opt = options.find((o) => o.id === goalId);
+  if (opt) return `goal · ${opt.title}`;
+  if (!goals) return "goal · title not read";
+  const g = goals.find((x) => x.id === goalId && x.status === "active");
+  return g ? `goal · ${g.title} · no linked work` : "goal · archived or not found";
 }
 
 export function goalFilterHref(goalId: string | null): string {
