@@ -11,15 +11,20 @@
  *   whose own settings run this script, so the repo hook and the user hook never print twice)
  *
  * Candidates (1 to MAX_SYMBOLS, in order of appearance): backticked words, path-like tokens (a/b.ts), file names
- * (merge-gate.mjs), camelCase and snake_case identifiers. Plain words never qualify, so prose prints nothing.
+ * (merge-gate.mjs), camelCase and snake_case identifiers. Plain words are not symbols.
+ * Plain-words fallback (Nour, 2026-11-03: "the graph needs to be used whenever possible not just when I ask"): a prompt with NO
+ * symbol candidate gets its content words (contentWords: stopwords and words under 4 letters dropped, a trailing s taken off)
+ * sent to ONE query_graph call, and at most 3 lines print, only for nodes whose label IS a word (or its plural) as a file, a
+ * function or a PascalCase model (LifeGoal for "goals"): see wordHits for what never prints (test files, docs, scratch
+ * scripts, headings, source-less nodes; on the real graph "graph" alone matched `graph()` in a scratch script). No match prints nothing, never a generic list.
  * Source: the graphify MCP over Streamable HTTP at the URL in config/agent-os/local-services.json (one initialize, then
  * get_node per candidate in parallel, then get_neighbors for the hits; measured 2026-11-03: 6-90 ms initialize, 10-30 ms
  * per call, against 14.3 s for `graphify query` on the CLI, which loads the 80k-node graph.json every time). Callers are
  * the incoming `calls` edges, then other incoming edges except `contains`, at most 3 names. Only real symbols print: see
  * MIN_DEGREE / TEST_PATH below (an ambiguous name, a degree-1 node, a test-file node the prompt did not name are dropped).
  * Caps, all here: MIN_PROMPT_CHARS (shorter prompts and bare slash commands print nothing), MAX_SYMBOLS (and so lines),
- * BUDGET_MS from the first request (anything the server has not answered by then is dropped: a 1.5 s hook on every
- * prompt is the price of context, so a slow graph costs silence, never a wait).
+ * BUDGET_MS from the first request (anything the server has not answered by then is dropped: a hook on every prompt is
+ * the price of context, so a slow graph costs silence, never a wait past the hook's own timeout).
  * Silent when nothing resolves and when the port is closed; prints one `[graph-recall] mcp down, next: <command>` line
  * only when graph-ensure-mcp.mjs's machine-wide state file (last writer wins) holds a DOWN verdict under 24 h old, never
  * while a launch is in flight. Any other failure prints `[graph-recall] UNKNOWN (<reason>)` at most once per 30 min.
@@ -40,8 +45,16 @@ import { STATE_FILE, stateDir } from "./graph-ensure-mcp.mjs";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MIN_PROMPT_CHARS = 12;
 const MAX_SYMBOLS = 6; // candidates per prompt, and so the most lines a turn can carry
-const BUDGET_MS = 1500;
+// 3.5 s of the hook's 5 s timeout (.claude/settings.json), keeping 1.5 s for node start: at 1.5 s, 2 of 5 runs on the primary
+// printed nothing while the MCP answered (311 / 1867 / 1916 / 1748 / 369 ms, manager 2026-11-03 17:26Z). graphRecall.test.mjs
+// pins both ends: a 1.2 s server still prints, a 4 s one is one UNKNOWN line, and timeout - budget stays >= 1 s.
+const BUDGET_MS = 3500;
 const MAX_CALLERS = 3;
+// The plain-words fallback (a prompt with no symbol): at most MAX_WORDS content words in ONE query_graph call, at most
+// MAX_WORD_LINES lines back. Nour writes in plain words, so the symbol rule alone left his own prompts with no graph context.
+const MAX_WORDS = 4;
+const MAX_WORD_LINES = 3;
+const STOP = new Set(("about above after again also always been before being below between both cannot could does doing done dont each else even ever every from have here into isnt just like look made make many more most much must need only other over please really same shall should show since some still such tell thank thanks than that their them then there these they thing this those through very want wasnt were what when where which while will with would your yeah okay").split(/\s+/));
 // Only the first MAX_SCAN_CHARS of a prompt are scanned for symbols: the path regex is quadratic on a pasted report, and
 // the request usually sits at the start of a prompt (round-2 reader: 40k chars took 1.5-3 s before the clock started).
 const MAX_SCAN_CHARS = 8000;
@@ -141,11 +154,76 @@ export function parseCallers(text) {
   return [...calls, ...other].slice(0, MAX_CALLERS);
 }
 
-async function recall(target, symbols) {
-  const deadline = Date.now() + BUDGET_MS;
+/**
+ * The prompt's content words for the plain-words fallback: lower-case letters only, stopwords and words under 4 letters
+ * dropped, a trailing s taken off (goals -> goal; status, class and analysis stay), deduped, at most MAX_WORDS.
+ */
+export function contentWords(prompt) {
+  const out = [];
+  for (const w of prompt.toLowerCase().match(/[a-z]+/g) ?? []) {
+    if (w.length < 4 || STOP.has(w)) continue;
+    const s = w.length > 4 && /[^sui]s$/.test(w) ? w.slice(0, -1) : w;
+    if (!out.includes(s) && out.length < MAX_WORDS) out.push(s);
+  }
+  return out;
+}
+
+const NODE_LINE = /^NODE (.+) \[src=(\S*) loc=(\S*) community=(.*)\]$/;
+const KIND_RANK = { model: 0, file: 1, fn: 2 };
+
+/**
+ * The lines to print for a query_graph answer: NODE lines whose LABEL is one of `words` (or its plural), as a file name
+ * (commitments.ts), a function (commitments()) or a model, where a model is a PascalCase label equal to the word or ending
+ * in it (LifeGoal for goal). Never a node without a source file, a test file, a markdown or sql file, a docs/ path, or a
+ * label with a space (a heading). One line per word first (models, then files, then functions), then the rest, at most 3.
+ */
+export function wordHits(text, words) {
+  const seen = new Set();
+  const hits = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const m = NODE_LINE.exec(raw);
+    if (!m) continue;
+    const [, label, src, loc, community] = m;
+    if (!src || /\s/.test(label) || /\.md$/i.test(label) || /\.(md|sql)$/i.test(src) || /(^|\/)(?:docs|scratch)\//.test(src) || TEST_PATH.test(src)) continue;
+    let kind = kindOf(label);
+    const pascal = kind === "sym" && /^[A-Z][A-Za-z0-9]*$/.test(label) && /[a-z]/.test(label);
+    if (kind === "sym" && !pascal) continue;
+    if (pascal) kind = "model";
+    const base = label.replace(/\(\)$/, "").replace(/\.[a-z0-9]{1,5}$/i, "").toLowerCase();
+    const head = pascal ? label.match(/[A-Z][a-z0-9]*/g).pop().toLowerCase() : base;
+    const word = words.find((w) => [base, head].some((b) => b === w || b === `${w}s`));
+    const key = `${label}|${src}`;
+    if (!word || seen.has(key)) continue;
+    seen.add(key);
+    const line = /^L(\d+)$/.exec(loc)?.[1];
+    hits.push({ word, rank: KIND_RANK[kind], text: `[graph-recall] ${kind} ${label} -> ${src}${line ? `:${line}` : ""} · community ${community.replace(/^"|"$/g, "")}` });
+  }
+  hits.sort((a, b) => a.rank - b.rank);
+  const first = new Set();
+  const lead = [];
+  const rest = [];
+  for (const h of hits) (first.has(h.word) ? rest : (first.add(h.word), lead)).push(h);
+  return [...lead, ...rest].slice(0, MAX_WORD_LINES).map((h) => h.text);
+}
+
+async function openSession(target, deadline) {
   const init = await rpc(target, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "graph-recall", version: "1" } } }, deadline);
   const sid = init.sessionId;
   if (init.status !== 200 || !sid) throw new Error(`initialize answered ${init.status}`);
+  return sid;
+}
+
+/** The fallback: one initialize and ONE query_graph call for the content words; no match prints nothing. */
+async function recallWords(target, words) {
+  const deadline = Date.now() + BUDGET_MS;
+  const sid = await openSession(target, deadline);
+  const r = await rpc(target, { jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "query_graph", arguments: { question: words.join(" ") } } }, deadline, sid);
+  return wordHits(resultText(r), words);
+}
+
+async function recall(target, symbols) {
+  const deadline = Date.now() + BUDGET_MS;
+  const sid = await openSession(target, deadline);
   const quiet = (p) => p.catch(() => null);
   const nodes = await Promise.all(symbols.map((s, i) => quiet(rpc(target, { jsonrpc: "2.0", id: 10 + i, method: "tools/call", params: { name: "get_node", arguments: { label: s } } }, deadline, sid)).then((r) => parseNode(resultText(r), s))));
   const hits = nodes.filter(Boolean);
@@ -211,13 +289,15 @@ async function main() {
   const { prompt } = readInput(argv, root);
   const text = String(prompt).trim();
   if (text.length < MIN_PROMPT_CHARS || /^\/\S+(\s|$)/.test(text) && text.split(/\s+/).length <= 2) return;
-  const symbols = candidates(text.slice(0, MAX_SCAN_CHARS));
-  if (!symbols.length) return;
+  const scan = text.slice(0, MAX_SCAN_CHARS);
+  const symbols = candidates(scan);
+  const words = symbols.length ? [] : contentWords(scan);
+  if (!symbols.length && !words.length) return;
   const cfg = argv.indexOf("--config");
   const target = loadUrl(cfg >= 0 ? resolve(argv[cfg + 1]) : process.env.GRAPH_LOCAL_SERVICES ?? join(REPO, "config", "agent-os", "local-services.json"));
   let lines;
   try {
-    lines = await recall(target, symbols);
+    lines = symbols.length ? await recall(target, symbols) : await recallWords(target, words);
   } catch (err) {
     if (err?.code === "ECONNREFUSED") {
       // Port closed: DOWN only when graph-ensure-mcp saw it too; a launch in flight stays quiet.
@@ -243,7 +323,7 @@ function isEntry() {
 
 if (isEntry()) {
   // A process-level ceiling beside the request deadline: a hook that prints nothing on time beats one the harness kills.
-  const guard = setTimeout(() => process.exit(0), BUDGET_MS + 2500);
+  const guard = setTimeout(() => process.exit(0), BUDGET_MS + 1000); // under the hook's 5 s timeout
   main()
     .catch((err) => process.stdout.write(`[graph-recall] off: ${String(err?.message || err).split(/\r?\n/)[0]}\n`))
     .then(() => { clearTimeout(guard); process.exit(0); });

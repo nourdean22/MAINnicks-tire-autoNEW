@@ -414,6 +414,26 @@ missing section by name and `FIX: ... gh pr edit <n> --body-file <file>` (a body
 `is_bot: true`). `--body-fixture <file.json>` judges `{body, author, files}` without calling gh (probes, and a check
 before `gh pr create`). Canaries: the bar arms of `mergeGate.test.mjs`, including a stubbed-check pair.
 
+**Kill reads have a reader (2026-11-03, slice R2c).** The dates the bar forces into PR bodies sat unread: `ledger-render
+--open` hides MERGED rows and HEARTBEAT checks 1-10 skip them. `scripts/agent-os/kill-reads.mjs` lists every dated read,
+sorted, as `date  source  text` (`pr #N`, `ledger <job>`, `ship <file>`), with `[due]` on dates on or before today in
+America/New_York; `--due` prints `N due, T today` on line 1 (HEARTBEAT check 11, optional, never lowers the state), or
+`UNKNOWN (>= N due, T today; <source> failed)` when any source could not be read, never a bare number from part of them;
+`--json` carries the same plus `complete`. Sources: merged PR bodies since 2026-10-29 (the first merged bodies carrying the section) through
+`gh pr list --state merged --search "kill in:body merged:<month>"`, one capped call per calendar month and one
+`search/issues` count to compare with the joined list (a window at the 500 cap, a count above the list or an incomplete
+search is UNKNOWN), read with
+`merge-gate.mjs`'s own `bodySections` (one heading parser, exported; a bold label or a fenced heading is not a section); ledger
+"Next action or blocker" cells of rows not LIVE-VERIFIED or CANCELLED, a date counting only when a cue word (owed, due,
+check, kill, ...) leads it in its clause, or `by` directly before it; ship-record lines naming a kill criterion or live check
+and the list items under such a label line until the next blank line or label. A source that cannot be read prints
+`<source>: UNKNOWN (reason)` (a failed or capped gh is never "no PRs"; a ledger file the tooling cannot parse, or one
+unreadable ship file, is named and the rest still list) and the others still list; one read per source and date. A date inside a
+job id (`2026-10-12-parked-reel-lane`) is not a read. Limit: nothing records that a read was RUN, so a run read stays listed
+and due; the count measures dated reads at or past their day, not unrun ones. Canary: `killReads.test.mjs` (planted dated
+body listed, the same body undated not; yesterday, today and tomorrow count 2; a failing gh is UNKNOWN with the local
+sources still listed; the HEARTBEAT row's own command run verbatim).
+
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
 
