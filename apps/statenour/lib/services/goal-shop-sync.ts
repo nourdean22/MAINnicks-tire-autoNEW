@@ -39,6 +39,8 @@ type Window = { from: string; to: string };
 /** ET day key of a wall-clock Y/M/D; Date.UTC normalises an out-of-range day (a Monday in the prior month). */
 const dayKey = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
 
+const PERIOD_HORIZONS: ReadonlySet<string> = new Set(["DAY", "WEEK", "MONTH", "QUARTER", "YEAR"]);
+
 /** First ET day of the horizon period (Mon-Sun week, calendar month / quarter / year) `at` falls in. */
 function periodStart(horizon: string, at: Date): string {
   const { year, month, day, weekday } = etCalendarParts(at);
@@ -53,28 +55,36 @@ function periodStart(horizon: string, at: Date): string {
  * The shop days (ET, both inclusive, as revenue_range reads them) a goal's number covers, or null when there
  * are none. The end is goalDue's (a deadline Nour set, else the end of the horizon period the goal was created
  * in), capped at today; so a goal past its period keeps its period's number instead of counting on. The start
- * is that period's first day for a horizon-dated goal ("$15K this month" counts the whole month) and the
- * creation day otherwise.
- * shortcut: a set deadline or a horizon change counts from createdAt, not from the latest horizon_set event;
- * upgrade if Nour re-dates goals often.
+ * is the first day of the period the goal was created in when it has a DAY..YEAR horizon ("$15K this month"
+ * counts the whole month), whether or not it also has a deadline: the weekly review's Extend writes one, and
+ * the start must not jump to the creation day and drop days already counted. Otherwise the creation day.
+ * shortcut: a horizon change counts from createdAt, not from the latest horizon_set event; upgrade if Nour
+ * re-dates goals often.
  */
 export function goalShopWindow(g: GoalForWindow, now: Date = new Date()): Window | null {
   const due = goalDue({ deadline: g.deadline, horizon: g.horizon, createdAt: g.createdAt });
-  const from = due.source === "horizon" ? periodStart(g.horizon!.toUpperCase(), g.createdAt) : toDateString(g.createdAt);
+  const horizon = g.horizon?.toUpperCase() ?? "";
+  const from = PERIOD_HORIZONS.has(horizon) ? periodStart(horizon, g.createdAt) : toDateString(g.createdAt);
   const todayKey = toDateString(now);
   const dueKey = due.at ? toDateString(new Date(due.at)) : null;
   const to = dueKey && dueKey < todayKey ? dueKey : todayKey;
   return from <= to ? { from, to } : null;
 }
 
-type RangeRead = { status: "ok"; totalDollars: number; invoiceCount: number } | { status: "unknown"; reason: string };
+/** A zero-invoice window this long is a stalled shop sync, not a quiet stretch (the shop is open 7 days). */
+const STALL_DAYS = 7;
+const windowDays = ({ from, to }: Window) => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
+
+type RangeRead =
+  | { status: "ok"; totalDollars: number; invoiceCount: number }
+  | { status: "unknown"; reason: string; timedOut?: true };
 
 /** revenue_range for one window, under the Home card's deadline (lib/home/shop-today.ts). Past it: unknown. */
 async function readRange({ from, to }: Window): Promise<RangeRead> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<RangeRead>((resolve) => {
     timer = setTimeout(
-      () => resolve({ status: "unknown", reason: `the shop did not answer within ${SHOP_READ_DEADLINE_MS / 1000} s` }),
+      () => resolve({ status: "unknown", reason: `the shop did not answer within ${SHOP_READ_DEADLINE_MS / 1000} s`, timedOut: true }),
       SHOP_READ_DEADLINE_MS,
     );
   });
@@ -118,10 +128,18 @@ export async function syncGoalsFromShop(now: Date = new Date()): Promise<ShopSyn
   const skip = (goalId: string, reason: string) => out.skipped.push({ goalId, reason });
   // Two goals over the same window share one read.
   const reads = new Map<string, Promise<RangeRead>>();
+  // After one timeout the shop is down for this run: 3 s per further window would run past maxDuration (60 s).
+  let timedOut = false;
+  let longEmpty = 0;
 
   for (const g of goals) {
-    const metric = (g.metric ?? "").trim().toLowerCase();
-    if (!isShopMetric(metric)) continue; // not a shop number: untouched
+    const raw = (g.metric ?? "").trim();
+    const metric = raw.toLowerCase();
+    if (!isShopMetric(metric)) {
+      // Untouched and unread, but said: a near miss ("monthly revenue") must not look like a sync that ran.
+      skip(g.id, `skipped: metric "${raw}" is not ${SHOP_METRICS.join("|")}`);
+      continue;
+    }
     if (metric === "reviews") {
       skip(g.id, REVIEWS_SKIP);
       continue;
@@ -132,18 +150,31 @@ export async function syncGoalsFromShop(now: Date = new Date()): Promise<ShopSyn
       continue;
     }
     const key = `${window.from}|${window.to}`;
-    if (!reads.has(key)) reads.set(key, readRange(window));
+    if (!reads.has(key)) {
+      if (timedOut) {
+        skip(g.id, "skipped: bridge unavailable (earlier read timed out)");
+        continue;
+      }
+      reads.set(key, readRange(window));
+    }
     const read = await reads.get(key)!;
     if (read.status !== "ok") {
+      if (read.timedOut) timedOut = true;
       skip(g.id, `skipped: bridge unavailable (${read.reason})`);
       continue;
     }
     // A quiet window and a stalled shop sync both read as zero invoices: never written as a measured 0.
     if (read.invoiceCount === 0) {
+      if (windowDays(window) >= STALL_DAYS) longEmpty++;
       skip(g.id, "skipped: no invoices in the window (a quiet window and a stalled shop sync read the same)");
       continue;
     }
     const value = metric === "revenue" ? Math.round(read.totalDollars * 100) / 100 : read.invoiceCount;
+    // updateGoal floors at 0, so a negative total (refunds) would be written as a 0.
+    if (value <= 0) {
+      skip(g.id, "skipped: non-positive total");
+      continue;
+    }
     if (value === g.currentValue) {
       skip(g.id, "unchanged");
       continue;
@@ -163,11 +194,14 @@ export async function syncGoalsFromShop(now: Date = new Date()): Promise<ShopSyn
   }
   out.resultCount = out.synced.length;
   // cron_job_logs keeps status + error, not this body: a goal the bridge or the write failed files the run
-  // "partial" with the count and the first reason (cron-lifecycle deriveDegradation), so the miss is readable there.
+  // "partial" with the counts and the first reason (cron-lifecycle deriveDegradation), so the miss is readable
+  // there. A week or more with no invoices is a shop sync stall, not a quiet stretch, so it counts too.
   const unread = out.skipped.filter((s) => s.reason.startsWith("skipped: bridge unavailable"));
-  if (unread.length || out.failed.length) {
+  if (unread.length || longEmpty || out.failed.length) {
+    const first = unread[0]?.reason ?? out.failed[0]?.reason ?? `no invoices in a window of ${STALL_DAYS}+ days`;
     out.degraded = true;
-    out.degradedReason = `${unread.length} goal(s) bridge unavailable, ${out.failed.length} write(s) failed: ${(unread[0] ?? out.failed[0])!.reason}`.slice(0, 300);
+    out.degradedReason =
+      `${unread.length} goal(s) bridge unavailable, ${longEmpty} long window(s) with no invoices, ${out.failed.length} write(s) failed: ${first}`.slice(0, 300);
   }
   log.info("goal_shop_sync", { synced: out.synced.length, skipped: out.skipped, failed: out.failed });
   return out;

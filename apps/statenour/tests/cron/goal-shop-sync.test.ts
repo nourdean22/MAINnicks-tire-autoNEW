@@ -56,7 +56,7 @@ import { GET } from "@/app/api/cron/goal-shop-sync/route";
 import { goalShopWindow, SHOP_SYNC_SOURCE } from "@/lib/services/goal-shop-sync";
 import { SHOP_READ_DEADLINE_MS } from "@/lib/home/shop-today";
 import { CRONS } from "@/config/crons";
-import { EVENING_JOBS, OFFPEAK_BRAIN_JOBS } from "@/lib/inngest/jobs";
+import { EVENING_JOBS } from "@/lib/inngest/jobs";
 import { deriveDegradation } from "@/lib/inngest/cron-lifecycle";
 
 type Result = {
@@ -161,20 +161,44 @@ describe("cron/goal-shop-sync · the value comes from the shop", () => {
     });
   });
 
-  it("never writes a check-in: no check_in event, and no GoalEvent row written directly", async () => {
+  it("never writes a check-in: no check_in event, one progress_logged per written goal, no GoalEvent row written directly", async () => {
     await run();
-    expect(events().length).toBeGreaterThan(0);
     expect(events().filter((e) => e.kind === "check_in")).toEqual([]);
-    expect(events().every((e) => e.kind === "progress_logged" && e.source === "shop-bridge")).toBe(true);
+    for (const id of ["g_rev", "g_cars"]) {
+      expect(events().filter((e) => e.goalId === id && e.kind === "progress_logged" && e.source === "shop-bridge"), id).toHaveLength(1);
+    }
     expect(h.goalEventCreate).not.toHaveBeenCalled();
   });
 
-  it("a goal whose metric is not a shop metric is untouched and costs no bridge read", async () => {
-    h.goals = [NOT_SHOP];
+  it("a shop value at or above target flips the goal achieved, and the achieved event says shop-bridge", async () => {
+    h.goals = [{ ...CARS, targetValue: 70 }];
+    await run();
+    expect(writes()[0]!.data).toMatchObject({ currentValue: 77, status: "achieved" });
+    expect(events().filter((e) => e.kind === "achieved")).toEqual([{ goalId: "g_cars", kind: "achieved", source: "shop-bridge" }]);
+    expect(events().filter((e) => e.kind === "check_in")).toEqual([]);
+  });
+
+  it("a business goal whose metric is not a shop metric is untouched, costs no bridge read, and says why", async () => {
+    h.goals = [NOT_SHOP, goal({ id: "g_near", metric: " Monthly Revenue " })];
     const out = await run();
     expect(h.queryNick).not.toHaveBeenCalled();
     expect(h.update).not.toHaveBeenCalled();
-    expect(out.skipped).toEqual([]);
+    expect(out.skipped).toEqual([
+      { goalId: "g_savings", reason: 'skipped: metric "savings_balance" is not revenue|cars|reviews' },
+      { goalId: "g_near", reason: 'skipped: metric "Monthly Revenue" is not revenue|cars|reviews' },
+    ]);
+  });
+
+  it("two goals over the same window share one bridge read", async () => {
+    h.goals = [CARS, { ...CARS, id: "g_rev2", metric: "revenue", currentValue: 0 }];
+    const out = await run();
+    expect(h.queryNick).toHaveBeenCalledTimes(1);
+    expect(out.synced.map((s) => s.goalId)).toEqual(["g_cars", "g_rev2"]);
+  });
+
+  it("a rejected goal-list read rejects the run, so it files FAILED, never a green run that read nothing", async () => {
+    h.findMany.mockRejectedValue(new Error("neon: connection terminated"));
+    await expect(run()).rejects.toThrow("connection terminated");
   });
 
   it("a reviews goal is skipped with its reason: the stored Places sample is not the shop's review total", async () => {
@@ -202,13 +226,30 @@ describe("cron/goal-shop-sync · a failed read is never a zero", () => {
       { goalId: "g_rev", reason: expect.stringMatching(/^skipped: bridge unavailable/) },
       { goalId: "g_cars", reason: expect.stringMatching(/^skipped: bridge unavailable/) },
       { goalId: "g_reviews", reason: expect.stringMatching(/review total/) },
+      { goalId: "g_savings", reason: expect.stringMatching(/is not revenue\|cars\|reviews/) },
     ]);
   });
 
   it("a bridge miss files the run partial with its reason (the consumer: cron-lifecycle deriveDegradation)", async () => {
     h.queryNick.mockResolvedValue({ error: "fetch failed" });
     const out = await run();
-    expect(deriveDegradation(out)).toEqual({ degraded: true, reason: expect.stringMatching(/^2 goal\(s\) bridge unavailable, 0 write\(s\) failed: skipped: bridge unavailable \(fetch failed\)/) });
+    expect(deriveDegradation(out)).toEqual({
+      degraded: true,
+      reason: expect.stringMatching(/^2 goal\(s\) bridge unavailable, 0 long window\(s\) with no invoices, 0 write\(s\) failed: skipped: bridge unavailable \(fetch failed\)/),
+    });
+  });
+
+  it("after the first bridge timeout, the remaining windows are skipped without another read", async () => {
+    h.goals = [REVENUE, CARS]; // two distinct windows
+    h.queryNick.mockImplementation(() => new Promise(() => {}));
+    const p = run();
+    await vi.advanceTimersByTimeAsync(SHOP_READ_DEADLINE_MS);
+    const out = await p;
+    expect(h.queryNick).toHaveBeenCalledTimes(1);
+    expect(out.skipped).toEqual([
+      { goalId: "g_rev", reason: expect.stringMatching(/^skipped: bridge unavailable \(the shop did not answer within 3 s\)/) },
+      { goalId: "g_cars", reason: "skipped: bridge unavailable (earlier read timed out)" },
+    ]);
   });
 
   it("control: a clean run, and an unchanged or reviews skip, is not degraded", async () => {
@@ -225,8 +266,26 @@ describe("cron/goal-shop-sync · a failed read is never a zero", () => {
 
   it("a handler error inside a 200 (No DB) is unknown, not zero", async () => {
     h.queryNick.mockResolvedValue(answer({ error: "No DB" }));
-    await run();
+    const out = await run();
     expect(h.update).not.toHaveBeenCalled();
+    expect(out.skipped[0]).toEqual({ goalId: "g_rev", reason: "skipped: bridge unavailable (No DB)" });
+  });
+
+  it("a negative total (refunds) is skipped, never clamped to a written 0", async () => {
+    h.goals = [REVENUE];
+    h.queryNick.mockResolvedValue(answer({ totalDollars: -50, invoiceCount: 3, avgTicket: -16.67 }));
+    const out = await run();
+    expect(h.update).not.toHaveBeenCalled();
+    expect(out.skipped).toEqual([{ goalId: "g_rev", reason: "skipped: non-positive total" }]);
+  });
+
+  it("a zero-invoice window of 7+ days marks the run degraded (a shop sync stall); a short one does not", async () => {
+    h.queryNick.mockResolvedValue(answer({ totalDollars: 0, invoiceCount: 0, avgTicket: 0 }));
+    // g_rev reads 3 days (11-01..11-03), g_cars 15 days (10-20..11-03).
+    const out = await run();
+    expect(deriveDegradation(out)).toEqual({ degraded: true, reason: expect.stringMatching(/^0 goal\(s\) bridge unavailable, 1 long window\(s\) with no invoices, 0 write/) });
+    h.goals = [REVENUE];
+    expect(deriveDegradation(await run())).toEqual({ degraded: false, reason: null });
   });
 
   it("a shop that does not answer within the Home deadline is skipped, not waited on", async () => {
@@ -257,6 +316,7 @@ describe("cron/goal-shop-sync · a failed read is never a zero", () => {
     const out = await run();
     expect(out.failed).toEqual([{ goalId: "g_rev", reason: expect.stringMatching(/connection terminated/) }]);
     expect(out.synced.map((s) => s.goalId)).toEqual(["g_cars"]);
+    expect(deriveDegradation(out)).toEqual({ degraded: true, reason: expect.stringMatching(/1 write\(s\) failed: neon: connection terminated/) });
   });
 });
 
@@ -278,6 +338,20 @@ describe("goalShopWindow · ET shop days", () => {
   it("a deadline before the creation day is no window", () => {
     expect(goalShopWindow(goal({ deadline: new Date("2026-10-01T16:00:00.000Z") }), NOW)).toBeNull();
   });
+  it("a WEEK goal created Wednesday keeps its Monday start after the weekly review gives it a deadline", () => {
+    const created = new Date("2026-10-28T16:00:00.000Z");
+    expect(goalShopWindow(goal({ horizon: "WEEK", createdAt: created, deadline: new Date("2026-11-06T16:00:00.000Z") }), NOW)).toEqual({ from: "2026-10-26", to: "2026-11-03" });
+  });
+  it.each([
+    ["DAY, created on a past day", "DAY", "2026-10-29T16:00:00.000Z", { from: "2026-10-29", to: "2026-10-29" }],
+    ["created today: a one-day window", "DAY", "2026-11-03T15:00:00.000Z", { from: "2026-11-03", to: "2026-11-03" }],
+    // 2026-11-02T01:00Z is 20:00 EST on Sunday 2026-11-01: the week is the one ending that Sunday.
+    ["WEEK created on a Sunday ET", "WEEK", "2026-11-02T01:00:00.000Z", { from: "2026-10-26", to: "2026-11-01" }],
+    ["QUARTER", "QUARTER", "2026-11-02T15:00:00.000Z", { from: "2026-10-01", to: "2026-11-03" }],
+    ["YEAR", "YEAR", "2026-11-02T15:00:00.000Z", { from: "2026-01-01", to: "2026-11-03" }],
+  ])("window edge: %s", (_name, horizon, createdAt, want) => {
+    expect(goalShopWindow(goal({ horizon, createdAt: new Date(createdAt) }), NOW)).toEqual(want);
+  });
 });
 
 describe("cron/goal-shop-sync · wiring (the scheduler reaches it)", () => {
@@ -288,8 +362,7 @@ describe("cron/goal-shop-sync · wiring (the scheduler reaches it)", () => {
     expect(entry!.foldedInto).toBe("mega-evening");
     expect(entry!.description).toMatch(/never a check-in/);
     expect(EVENING_JOBS).toContain("/api/cron/goal-shop-sync");
-    // mega-fanout's evening batch dispatches EVENING_JOBS minus the off-peak brain set.
-    expect(OFFPEAK_BRAIN_JOBS).not.toContain("/api/cron/goal-shop-sync");
+    // The silence watcher's own read of it is pinned in tests/inngest/cron-heartbeat-registry-manifest.test.ts.
     expect(fs.existsSync(path.resolve(__dirname, "../../app/api/cron/goal-shop-sync/route.ts"))).toBe(true);
   });
 });
