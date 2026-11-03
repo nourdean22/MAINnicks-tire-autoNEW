@@ -6,11 +6,12 @@
  * "Weekly review is ready" line now rides the 05:00 ET morning brief (tests/inngest/morning-brief-delivery
  * .test.ts), and this route only REPORTS whether the review row landed. It must never push.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { mockPrisma, mockGenerateText, mockSendPush } = vi.hoisted(() => ({
+const { mockPrisma, mockGenerateText, mockSendPush, mockLogError } = vi.hoisted(() => ({
   mockGenerateText: vi.fn(),
   mockSendPush: vi.fn(),
+  mockLogError: vi.fn(),
   mockPrisma: {
     brainMemory: { findMany: vi.fn(), create: vi.fn(), upsert: vi.fn() },
     task: { findMany: vi.fn() },
@@ -23,6 +24,7 @@ const { mockPrisma, mockGenerateText, mockSendPush } = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("ai", () => ({ generateText: mockGenerateText }));
 vi.mock("@/lib/notifications/push", () => ({ sendPush: mockSendPush }));
+vi.mock("@/lib/utils/error-log", () => ({ logError: mockLogError }));
 vi.mock("@/lib/utils/http", () => ({
   cronHandler: (h: (req: Request, ctx: unknown) => Promise<unknown>) => h,
 }));
@@ -65,12 +67,41 @@ describe("weekly-review · reports the review row, never pushes at night", () =>
     expect(mockPrisma.brainMemory.create).not.toHaveBeenCalled();
   });
 
-  it("a review whose upsert failed reports persisted: false (the morning brief then finds no row)", async () => {
+  it("F2 · a review whose upsert failed is a FAILED run (ok: false, named), logged through logError", async () => {
     mockPrisma.brainMemory.upsert.mockRejectedValueOnce(new Error("db down"));
     const res = await call();
-    expect(res.persisted).toBe(false);
+    expect(res).toMatchObject({ ok: false, persisted: false, reason: "persist_failed" });
+    expect(mockLogError).toHaveBeenCalledWith("cron/weekly-review", expect.anything(), expect.objectContaining({ stage: "persist" }));
     expect(mockSendPush).not.toHaveBeenCalled();
   });
+
+  it("F1(d) · a rerun revives its own week: the update branch clears deletedAt", async () => {
+    await call();
+    const update = (mockPrisma.brainMemory.upsert.mock.calls[0][0] as { update: Record<string, unknown> }).update;
+    expect(update).toHaveProperty("deletedAt", null);
+  });
+});
+
+describe("weekly-review · the key it writes is the week being REVIEWED (G3 + late fire)", () => {
+  afterEach(() => vi.useRealTimers());
+  const writtenKey = () =>
+    (mockPrisma.brainMemory.upsert.mock.calls[0][0] as { where: { category_key: { key: string } } }).where.category_key.key;
+  const cases: Array<[string, string, string]> = [
+    ["on time, EST", "2026-11-09T03:00:00Z", "weekly:2026-11-02"],
+    ["on time, the fall-back Sunday 2026-11-01", "2026-11-02T03:00:00Z", "weekly:2026-10-26"],
+    ["on time, EDT", "2026-10-26T03:00:00Z", "weekly:2026-10-19"],
+    ["on time, the spring-forward Sunday 2027-03-14", "2027-03-15T03:00:00Z", "weekly:2027-03-08"],
+    ["late fire after midnight EDT (same key as on time)", "2026-10-26T04:30:00Z", "weekly:2026-10-19"],
+    ["late fire after midnight EST (same key as on time)", "2026-11-09T06:30:00Z", "weekly:2026-11-02"],
+  ];
+  for (const [label, at, want] of cases) {
+    it(`${label}: ${at} -> ${want}`, async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(at));
+      await call();
+      expect(writtenKey()).toBe(want);
+    });
+  }
 
   it("the weekly_review_nudge marker category is never merged by the nightly consolidation", () => {
     expect(CONSOLIDATION_EXCLUDE_CATEGORIES).toContain("weekly_review_nudge");

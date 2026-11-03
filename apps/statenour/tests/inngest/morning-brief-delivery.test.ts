@@ -22,13 +22,14 @@ const h = vi.hoisted(() => ({
   memFindMany: vi.fn(),
   memCreate: vi.fn(),
   memDeleteMany: vi.fn(),
+  memFindUnique: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     lifeGoal: { findMany: h.lifeGoalFindMany },
     goalEvent: { findMany: h.goalEventFindMany },
-    brainMemory: { findMany: h.memFindMany, create: h.memCreate, deleteMany: h.memDeleteMany },
+    brainMemory: { findMany: h.memFindMany, create: h.memCreate, deleteMany: h.memDeleteMany, findUnique: h.memFindUnique },
   },
 }));
 vi.mock("@/lib/inngest/client", () => ({
@@ -62,6 +63,159 @@ beforeEach(() => {
   h.memFindMany.mockResolvedValue([]);
   h.memCreate.mockResolvedValue({ id: "nudge-1" });
   h.memDeleteMany.mockResolvedValue({ count: 1 });
+  h.memFindUnique.mockResolvedValue(null);
+});
+
+describe("deliverMorningBrief · manager round 1 (R2a, 2026-11-03)", () => {
+  const DAY = 86_400_000;
+  const ago = (d: number) => new Date(Date.now() - d * DAY);
+  const B = (date: string, text = "Drift: LOW\nOpen tasks: 3") => ({ date, text, sectionCount: 2 });
+  const body = (i = 0) => (h.sendPush.mock.calls[i][0] as { body: string }).body;
+  // A key-honouring read: only rows whose key is in where.key.in come back.
+  const reviewRows = (...keys: string[]) =>
+    h.memFindMany.mockImplementation(async (a: { where: { key: { in: string[] } } }) =>
+      keys.filter((k) => a.where.key.in.includes(k)).map((key) => ({ key })));
+  const claimedKey = () => (h.memCreate.mock.calls[0]?.[0] as { data: { key: string } } | undefined)?.data.key;
+  const p2002 = () => Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+
+  describe("G1 · a failed claim read or create is no line, never a thrown step", () => {
+    it("review read rejects: brief ships, no line, no claim, logged as a warn", async () => {
+      h.memFindMany.mockRejectedValue(new Error("db blip"));
+      const r = await deliverMorningBrief(B("2026-11-09"));
+      expect(r.status).toBe("sent");
+      expect(body()).toBe("Drift: LOW · Open tasks: 3");
+      expect(h.memCreate).not.toHaveBeenCalled();
+      expect(h.logError).toHaveBeenCalledWith("inngest/morning-brief", expect.anything(), expect.objectContaining({ stage: "weekly-review-claim" }), "warn");
+    });
+    it("claim create rejects with a non-P2002 error: brief ships, no line", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.memCreate.mockRejectedValue(Object.assign(new Error("conn reset"), { code: "P1001" }));
+      const r = await deliverMorningBrief(B("2026-11-09"));
+      expect(r.status).toBe("sent");
+      expect(body()).toBe("Drift: LOW · Open tasks: 3");
+    });
+  });
+
+  describe("G2 · the key set follows the brief's weekday through a key-honouring read", () => {
+    it("Tuesday after an undelivered Monday still finds last week's review and claims its week", async () => {
+      reviewRows("weekly:2026-11-02");
+      await deliverMorningBrief(B("2026-11-10"));
+      expect(claimedKey()).toBe("2026-W45");
+      expect(body().endsWith("Weekly review is ready")).toBe(true);
+    });
+    it("Sunday 2026-11-08 (before that night's cron) reads 11-02's and 10-26's keys and claims 2026-W44", async () => {
+      reviewRows("weekly:2026-10-26");
+      await deliverMorningBrief(B("2026-11-08"));
+      expect(claimedKey()).toBe("2026-W44");
+    });
+    it("the fall-back Monday 2026-11-02 finds the review keyed 2026-10-26 and claims 2026-W44", async () => {
+      reviewRows("weekly:2026-10-26");
+      await deliverMorningBrief(B("2026-11-02"));
+      expect(claimedKey()).toBe("2026-W44");
+    });
+    it("two rows: the newest review wins", async () => {
+      reviewRows("weekly:2026-11-02", "weekly:2026-11-09");
+      await deliverMorningBrief(B("2026-11-10"));
+      expect(claimedKey()).toBe("2026-W46");
+    });
+    it("ISO year boundary: 2026-12-28 claims 2026-W53, 2029-12-31 claims 2030-W01", async () => {
+      reviewRows("weekly:2026-12-28");
+      await deliverMorningBrief(B("2027-01-04"));
+      expect(claimedKey()).toBe("2026-W53");
+      vi.clearAllMocks();
+      h.sendPush.mockResolvedValue({ sent: 1, failed: 0 });
+      h.memCreate.mockResolvedValue({ id: "nudge-2" });
+      reviewRows("weekly:2029-12-31");
+      await deliverMorningBrief(B("2030-01-07"));
+      expect(claimedKey()).toBe("2030-W01");
+    });
+  });
+
+  describe("F3 · a claim this brief already made (crash, retry) is its own", () => {
+    it("P2002 on a row stamped with today's brief date: the line is sent, the row is the claim", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.memCreate.mockRejectedValue(p2002());
+      h.memFindUnique.mockResolvedValue({ id: "earlier-attempt", metadata: { briefDate: "2026-11-09" } });
+      await deliverMorningBrief(B("2026-11-09"));
+      expect(body().endsWith("Weekly review is ready")).toBe(true);
+      const where = (h.memFindUnique.mock.calls[0][0] as { where: { category_key: { category: string; key: string } } }).where;
+      expect(where.category_key).toEqual({ category: "weekly_review_nudge", key: "2026-W45" });
+    });
+    it("P2002 on a row from yesterday's brief: no line", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.memCreate.mockRejectedValue(p2002());
+      h.memFindUnique.mockResolvedValue({ id: "monday", metadata: { briefDate: "2026-11-09" } });
+      await deliverMorningBrief(B("2026-11-10"));
+      expect(body()).toBe("Drift: LOW · Open tasks: 3");
+    });
+    it("an own-claim brief that then reaches nobody releases that row", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.memCreate.mockRejectedValue(p2002());
+      h.memFindUnique.mockResolvedValue({ id: "earlier-attempt", metadata: { briefDate: "2026-11-09" } });
+      h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+      h.sendTelegram.mockResolvedValue(false);
+      await deliverMorningBrief(B("2026-11-09"));
+      expect(h.memDeleteMany).toHaveBeenCalledWith({ where: { id: "earlier-attempt", category: "weekly_review_nudge", key: "2026-W45" } });
+    });
+  });
+
+  describe("F4 · a failed check-in read is visible, never a quiet zero", () => {
+    it("the goal read fails: no line, checkInsDue null in the result, logged as a warn", async () => {
+      h.lifeGoalFindMany.mockRejectedValue(new Error("db down"));
+      const r = await deliverMorningBrief(B("2026-11-03"));
+      expect(r.checkInsDue).toBeNull();
+      expect(body()).toBe("Drift: LOW · Open tasks: 3");
+      expect(h.logError).toHaveBeenCalledWith("inngest/morning-brief", expect.anything(), expect.objectContaining({ stage: "check-in-count" }), "warn");
+    });
+    it("G5 · the goal read works but the event read fails: no count line (never every goal 'overdue')", async () => {
+      h.lifeGoalFindMany.mockResolvedValue([{ id: "g1", horizon: "WEEK", createdAt: ago(40) }]);
+      h.goalEventFindMany.mockRejectedValue(new Error("db blip"));
+      const r = await deliverMorningBrief(B("2026-11-03"));
+      expect(body()).toBe("Drift: LOW · Open tasks: 3");
+      expect(r.checkInsDue).toBeNull();
+    });
+    it("a working read reports the count in the result", async () => {
+      h.lifeGoalFindMany.mockResolvedValue([{ id: "g1", horizon: "WEEK", createdAt: ago(40) }]);
+      expect((await deliverMorningBrief(B("2026-11-03"))).checkInsDue).toBe(1);
+    });
+    it("F6 · the goal read is ordered, so take: 50 is not an arbitrary 50", async () => {
+      await deliverMorningBrief(B("2026-11-03"));
+      expect((h.lifeGoalFindMany.mock.calls[0][0] as { orderBy?: unknown }).orderBy).toBeDefined();
+    });
+  });
+
+  it("G4 · Telegram fallback: both lines whole, a planted title and the Goals header stay out", async () => {
+    reviewRows("weekly:2026-11-02");
+    h.lifeGoalFindMany.mockResolvedValue([
+      { id: "g1", horizon: "WEEK", createdAt: ago(40) },
+      { id: "g2", horizon: "MONTH", createdAt: ago(90) },
+    ]);
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+    const r = await deliverMorningBrief(B("2026-11-09", "Drift: LOW\nOpen tasks: 3\n<b>Goals</b> · 2 active\nCheck in on: Planted goal title"));
+    expect(r.status).toBe("telegram_fallback");
+    const msg = String(h.sendTelegram.mock.calls[0][0]);
+    expect(msg).toContain("Drift: LOW · Open tasks: 3 · 2 goals need a check-in · Weekly review is ready\n\n");
+    expect(msg).not.toContain("Planted goal title");
+    expect(msg).not.toContain("Goals");
+  });
+
+  describe("M12 · a failed release never masks the result or the push error", () => {
+    it("undelivered + release rejects: still undelivered, and the logged error names the claim", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+      h.sendTelegram.mockResolvedValue(false);
+      h.memDeleteMany.mockRejectedValue(new Error("db blip"));
+      await expect(deliverMorningBrief(B("2026-11-09"))).resolves.toMatchObject({ status: "undelivered" });
+      const undelivered = h.logError.mock.calls.find((c) => String((c[1] as Error).message).includes("reached no device"));
+      expect(undelivered?.[2]).toMatchObject({ weeklyClaim: "2026-W45" });
+    });
+    it("push throws + release rejects: the PUSH error is what the step sees", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.sendPush.mockRejectedValue(new Error("vapid down"));
+      h.memDeleteMany.mockRejectedValue(new Error("db blip"));
+      await expect(deliverMorningBrief(B("2026-11-09"))).rejects.toThrow("vapid down");
+    });
+  });
 });
 
 describe("deliverMorningBrief · 'Weekly review is ready' rides the morning push once per ISO week (R2a ruling, 2026-11-03)", () => {
@@ -179,7 +333,7 @@ describe("deliverMorningBrief", () => {
     const result = await deliverMorningBrief(BRIEF);
     expect(h.sendPush).toHaveBeenCalledTimes(1);
     expect(h.sendTelegram).not.toHaveBeenCalled();
-    expect(result).toEqual({ status: "sent", push: { sent: 1, failed: 0 } });
+    expect(result).toEqual({ status: "sent", push: { sent: 1, failed: 0 }, checkInsDue: 0 });
   });
 
   it("a push that reaches no device falls back to Telegram", async () => {
@@ -238,7 +392,7 @@ describe("operator-morning-brief · pushes straight after compose", () => {
   it("runs compose, then deliver-push, with no sleep and no declared wait", async () => {
     const CANNED: Record<string, unknown> = {
       compose: BRIEF,
-      "deliver-push": { status: "sent", push: { sent: 1, failed: 0 } },
+      "deliver-push": { status: "sent", push: { sent: 1, failed: 0 }, checkInsDue: null },
       "voice-file": { status: "skipped" },
       "pin-scoreboard": { status: "pinned", numberCount: 3 },
     };
@@ -262,6 +416,8 @@ describe("operator-morning-brief · pushes straight after compose", () => {
     expect(out.waitedMs).toBeUndefined();
     expect(out.pushSent).toBe(1);
     expect(out.delivery).toBe("sent");
+    // F4: a failed check-in read stays visible in the run's result (null, never 0).
+    expect(out).toHaveProperty("checkInsDue", null);
   });
 
   it("an undelivered brief is declared partial with a reason, not a quiet success", async () => {

@@ -895,6 +895,10 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // 2026-11-03 · R2a · the once-per-week "Weekly review is ready" brief-line claim, read by key (P2002): a merge
   // would rewrite one week's marker into prose and soft-delete the rest.
   BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+  // 2026-11-03 · R2a round 1 · weekly reviews are per-week records, never merged. Prod (manager read
+  // 11-03, counts only): 22 cron rows soft-deleted, 3 live; weekly:2026-09-28 was written 10-05 03:03Z
+  // and soft-deleted 03:16Z the same night, three more together 10-16 03:08Z, inside the merge window.
+  BRAIN_CATEGORIES.WEEKLY_REVIEW,
 ];
 
 /**

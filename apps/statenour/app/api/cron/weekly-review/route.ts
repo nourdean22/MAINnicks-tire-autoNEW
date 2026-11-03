@@ -10,17 +10,18 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("cron/weekly-review");
 
-import { daysAgo, toDateString, weekdayET } from "@/lib/utils/datetime";
+import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { logError } from "@/lib/utils/error-log";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
-function getWeekStartMonday(): string {
-  const now = new Date();
-  const day = weekdayET(now);
-  const diff = day === 0 ? 6 : day - 1;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - diff);
-  return toDateString(monday);
+/** The ET Monday of the week being REVIEWED. The cron is scheduled Sunday ~22:00-23:00 ET (Monday 03:00
+ *  UTC); a late fire past midnight ET used to key NEXT week, and the on-time run then wrote a second row
+ *  (R2a round 1). Reading the ET date 12 h back keeps a fire up to Monday noon ET on Sunday's week. */
+function getWeekStartMonday(now: Date = new Date()): string {
+  const day = new Date(`${toDateString(new Date(now.getTime() - 12 * 3_600_000))}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+  return day.toISOString().slice(0, 10);
 }
 
 export const GET = cronHandler(async () => {
@@ -280,11 +281,14 @@ Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 4
           model: modelId,
           durationMs,
         } as never,
+        // A rerun revives its own week: the nightly merge soft-deleted 22 of these rows before
+        // weekly_review joined CONSOLIDATION_EXCLUDE_CATEGORIES (R2a round 1, 2026-11-03).
+        deletedAt: null,
       },
     })
     .then(() => true)
     .catch((err) => {
-      log.error("persist_failed", { err: err instanceof Error ? err.message : String(err) });
+      logError("cron/weekly-review", err, { stage: "persist", weekStart });
       return false;
     });
 
@@ -316,5 +320,6 @@ Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 4
 
   // R2a: no push from here. This cron fires ~22:00-23:00 ET, inside sendPush's quiet hours, so the
   // "Weekly review is ready" line rides the next morning brief, which finds this row by its key.
-  return { weekStart, persisted };
+  // A review that never landed is a FAILED run (cron-manager files an explicit ok: false), not a quiet success.
+  return persisted ? { weekStart, persisted } : { ok: false, weekStart, persisted, reason: "persist_failed" };
 });

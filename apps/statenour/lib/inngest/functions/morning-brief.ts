@@ -187,6 +187,7 @@ function addDaysYmd(ymd: string, days: number): string {
  */
 async function claimWeeklyReviewLine(today: string): Promise<{ id: string; week: string } | null> {
   const thisMonday = addDaysYmd(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  let week: string | null = null;
   try {
     const { prisma } = await import("@/lib/prisma");
     const rows = await prisma.brainMemory.findMany({
@@ -195,7 +196,7 @@ async function claimWeeklyReviewLine(today: string): Promise<{ id: string; week:
     });
     if (rows.length === 0) return null;
     const weekStart = rows.map((r) => r.key.slice("weekly:".length)).sort().at(-1)!;
-    const week = isoWeekOfMonday(weekStart);
+    week = isoWeekOfMonday(weekStart);
     // brain-memory-direct-write: a once-per-week send marker (the claim), not a semantic memory. No
     // expiresAt and confidence 1.0, so pruneNoise and data-cleanup never reach it; excluded from merge.
     const row = await prisma.brainMemory.create({
@@ -211,18 +212,45 @@ async function claimWeeklyReviewLine(today: string): Promise<{ id: string; week:
     });
     return { id: row.id, week };
   } catch (err) {
-    if ((err as { code?: string } | null)?.code === "P2002") return null;
-    log.warn("weekly_review_claim_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    if (week && (err as { code?: string } | null)?.code === "P2002") return ownClaimFromToday(week, today);
+    await warn("weekly-review-claim", err, { week });
     return null;
   }
 }
 
-/** Release a claim whose brief reached nobody, by its own id, so the next brief can carry the line. */
+/** The P2002 winner is THIS brief's own when an earlier attempt today made it (a crash or retry after
+ *  the create committed, or a create that committed while the client saw an error). Any other day's
+ *  claim means the line already went out this week. A failed read = no line. */
+async function ownClaimFromToday(week: string, today: string): Promise<{ id: string; week: string } | null> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const row = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: week } },
+      select: { id: true, metadata: true },
+    });
+    const briefDate = (row?.metadata as { briefDate?: unknown } | null)?.briefDate;
+    return row && briefDate === today ? { id: row.id, week } : null;
+  } catch (err) {
+    await warn("weekly-review-claim", err, { week, stage2: "read-winner" });
+    return null;
+  }
+}
+
+/** Release a claim whose brief reached nobody, by its own id, so the next brief can carry the line.
+ *  Never throws: a failed release must not mask the delivery result or the push error. */
 async function releaseWeeklyReviewLine(claim: { id: string; week: string }): Promise<void> {
-  const { prisma } = await import("@/lib/prisma");
-  await prisma.brainMemory
-    .deleteMany({ where: { id: claim.id, category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: claim.week } })
-    .catch((err) => log.error("weekly_review_release_failed", { week: claim.week, err: err instanceof Error ? err.message : String(err) }));
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.brainMemory.deleteMany({ where: { id: claim.id, category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: claim.week } });
+  } catch (err) {
+    await warn("weekly-review-release", err, { week: claim.week });
+  }
+}
+
+/** A read the push can live without failed: recorded where /system/errors reads it, as a warn. */
+async function warn(stage: string, err: unknown, extra: Record<string, unknown> = {}): Promise<void> {
+  const { logError } = await import("@/lib/utils/error-log");
+  logError("inngest/morning-brief", err, { stage, ...extra }, "warn");
 }
 
 /** Active goals past their check-in cadence (lib/brain/goal-pace.ts), the read Home's
@@ -233,6 +261,8 @@ async function countCheckInsDue(now: number = Date.now()): Promise<number | null
     const { checkInOverdueDays } = await import("@/lib/brain/goal-pace");
     const goals = await prisma.lifeGoal.findMany({
       where: { deletedAt: null, status: "active" },
+      // shortcut: counts at most the 50 newest active goals; raise it if Nour ever holds more.
+      orderBy: { createdAt: "desc" },
       take: 50,
       select: { id: true, horizon: true, createdAt: true },
     });
@@ -247,7 +277,7 @@ async function countCheckInsDue(now: number = Date.now()): Promise<number | null
     for (const e of events) if (!last.has(e.goalId)) last.set(e.goalId, e.createdAt);
     return goals.filter((g) => checkInOverdueDays({ ...g, lastCheckInAt: last.get(g.id) ?? null }, now) >= 0).length;
   } catch (err) {
-    log.warn("check_in_count_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    await warn("check-in-count", err);
     return null;
   }
 }
@@ -370,12 +400,14 @@ async function sendBriefPush(brief: ComposedBrief, checkInsDue: number, weeklyRe
 export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
   status: "sent" | "telegram_fallback" | "undelivered";
   push: { sent: number; failed: number };
+  /** Goals due a check-in; null = the read failed (no line was sent, and the run says so). */
+  checkInsDue: number | null;
 }> {
-  const checkInsDue = (await countCheckInsDue()) ?? 0;
+  const checkInsDue = await countCheckInsDue();
   const review = await claimWeeklyReviewLine(brief.date);
   let push: Awaited<ReturnType<typeof sendBriefPush>>;
   try {
-    push = await sendBriefPush(brief, checkInsDue, review !== null);
+    push = await sendBriefPush(brief, checkInsDue ?? 0, review !== null);
   } catch (err) {
     // The step retries on a throw; give the line back so the retry can claim it again.
     if (review) await releaseWeeklyReviewLine(review);
@@ -385,12 +417,13 @@ export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
   const { setShownSurface } = await import("@/lib/services/outcome-ledger");
   if (push.sent > 0) {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "web-push");
-    return { status: "sent", push: counts };
+    return { status: "sent", push: counts, checkInsDue };
   }
-  const fallback = await briefTelegramFallback(brief, push, push.ledgerId, checkInsDue, review !== null);
+  // Manager ruling (R2a round 1): a Telegram timeout or abort keeps the claim; a missed line beats a double line.
+  const fallback = await briefTelegramFallback(brief, push, push.ledgerId, checkInsDue ?? 0, review !== null);
   if (fallback.status === "sent") {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "telegram-fallback");
-    return { status: "telegram_fallback", push: counts };
+    return { status: "telegram_fallback", push: counts, checkInsDue };
   }
   // The brief reached nobody, so the review line did not either: release the claim.
   if (review) await releaseWeeklyReviewLine(review);
@@ -398,9 +431,9 @@ export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
   logError(
     "inngest/morning-brief",
     new Error("morning brief reached no device and the Telegram fallback failed"),
-    { date: brief.date, pushFailed: push.failed, ledgerId: push.ledgerId },
+    { date: brief.date, pushFailed: push.failed, ledgerId: push.ledgerId, weeklyClaim: review?.week ?? null },
   );
-  return { status: "undelivered", push: counts };
+  return { status: "undelivered", push: counts, checkInsDue };
 }
 /**
  * Step 3 · generate a Cartesia-TTS audio file for the brief and
@@ -607,6 +640,7 @@ export const operatorMorningBrief = inngest.createFunction(
       pushSent: delivery.push.sent,
       pushFailed: delivery.push.failed,
       delivery: delivery.status,
+      checkInsDue: delivery.checkInsDue ?? null,
       audioStatus: audio.status,
       audioBytes: audio.bytes ?? null,
       audioReason: audio.reason ?? null,
