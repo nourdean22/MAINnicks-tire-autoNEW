@@ -26,12 +26,12 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
 
 | Check | NATTYNOUR | NicksMax | MECHANICS |
 |---|---|---|---|
-| Clone | primary `C:\Users\nourd\NattyNour\nicks-tire`, serves the graph (ledger 2026-10-19, FACT then) | sparse partial clone `C:\Users\nourd\NicksMax\repos\NOURCITY`, 109 behind main at 09:40 (FACT: `git rev-list --left-right --count HEAD...origin/main`) | **none**: 0 `.git` directories on C: to depth 6; `C:\NOURCITY` holds hash-pinned downloads (office lane, lot-vision f195f99a6), not a checkout; Git is installed (FACT, its session, 09:50) |
-| `.claude` on disk | yes | **was absent**: sparse list was `.github apps/... camera-bridge config docs scripts`; `git sparse-checkout add .claude` done 09:43, 88 skills, 6 agents, settings.json now present (FACT) | none; `~/.claude/CLAUDE.md` missing, `settings.json` 71 bytes with no hooks, `~/.claude/skills` empty (FACT) |
-| `bootstrap-machine.mjs --check` | ok per W9 | 15 MISSING before, 13 installed 09:50, 2 MISSING: `find-skills`, `steal-like-an-artist` (no repo copy) (FACT) | cannot run: no clone and **no Node.js** (FACT) |
-| Required plugins not enabled | NOT CHECKED | hook line says agentic-council, receipts-check, desktop-commander, avoid-ai-writing, pr-review-toolkit, hookify; the first three are loaded in the session that ran it, so the detector misses account-synced plugins in the desktop app (INFERRED); the three marketplace ones are really absent | plugins folder from 10/26, no `enabledPlugins` key; unmapped without the script (FACT) |
-| Graphify | server on loopback, graph current via merge-gate rebuild + daily task (W9) | none, by policy (`local-services.json`: "no heavy services"); `session-health` prints `local services: not expected on this host` (FACT) | none |
-| Tailnet | `nattynour-1` 100.127.185.69, online, DERP relay; ports 22, 2222, 3389, 8765 closed from NicksMax (FACT 09:38) | `nicksmax` 100.95.169.54, sshd on the tailnet interface | **Tailscale not installed** (FACT); reach is Chrome Remote Desktop (`local-services.json`) |
+| Clone | primary `C:\Users\nourd\NattyNour\nicks-tire`, serves the graph (ledger 2026-10-19, FACT then) | sparse partial clone `C:\Users\nourd\NicksMax\repos\NOURCITY`; was 109 behind main at 09:40, **ff-synced to 9e456b645 at 09:51** on Nour's go, no camera-bridge file in the delta (FACT) | **was none** (0 `.git` directories on C: to depth 6; `C:\NOURCITY` holds hash-pinned downloads for the office lane and lot-vision f195f99a6). **Sparse clone made 09:50-09:58** on Nour's go in its session: `C:\Users\Nick's Tire\NOURCITY` at main 9e456b645, `--filter=blob:none`, sparse set `.claude config docs scripts` (FACT, its session) |
+| `.claude` on disk | yes | **was absent**: sparse list was `.github apps/... camera-bridge config docs scripts`; `git sparse-checkout add .claude` done 09:43, 88 skills, 6 agents, settings.json now present (FACT) | yes since the clone; before it `~/.claude/CLAUDE.md` was missing, `settings.json` 71 bytes with no hooks, `~/.claude/skills` empty (FACT) |
+| `bootstrap-machine.mjs --check` | ok per W9 | 15 MISSING before; 13 installed 09:50, prompt-sharpen hook added after the ff-sync; 2 MISSING: `find-skills`, `steal-like-an-artist` (no repo copy) (FACT) | **Node.js LTS v26.13.0 installed** (winget, machine scope, hash verified); bootstrap applied 14 items (both hook files, 7 skills, 4 settings.json hooks, CLAUDE.md block), backups in `~/.claude/bootstrap-backup`; same 2 MISSING (FACT, its session). Caveat: the Claude app there started before Node existed, so hooks in new sessions may not find `node` until the app restarts |
+| Required plugins not enabled | NOT CHECKED | hook line says agentic-council, receipts-check, desktop-commander, avoid-ai-writing, pr-review-toolkit, hookify; the first three are loaded in the session that ran it, so the detector misses account-synced plugins in the desktop app (INFERRED); the three marketplace ones are really absent | same six names from the hook line, and the same observation: agentic-council and desktop-commander skills load in its desktop-app session (FACT); 30 known MCP connect failures as of 11/01 |
+| Graphify | server on loopback, graph current via merge-gate rebuild + daily task (W9) | none, by policy (`local-services.json`: "no heavy services"); `session-health` prints `local services: not expected on this host` (FACT) | none; client only, no serve, no build |
+| Tailnet | `nattynour-1` 100.127.185.69, online, DERP relay; ports 22, 2222, 3389, 8765 closed from NicksMax (FACT 09:38) | `nicksmax` 100.95.169.54, sshd on the tailnet interface | **Tailscale 1.104.5 installed and signed in as nourdean22, 100.98.25.123** (FACT, its session); `local-services.json` reach updated from "Chrome Remote Desktop" to Tailscale + Chrome Remote Desktop in this PR |
 | Reach for an agent | its own sessions | its own sessions; SSH from NATTYNOUR | its own session only ("Fresh session 10/26") |
 
 ## Steps for Nour
@@ -49,11 +49,9 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
    `.claude/skills` (then every PC gets them by git) or stay personal.
 5. **Obsidian vault**: say where it should live for all PCs. Google Drive for desktop in streaming mode is on NicksMax
    since today; a vault on Drive needs its folder marked "Available offline" on each PC, or Obsidian sees placeholders.
-6. **MECHANICS**, in its session, each on your typed go there, in this order: install Node.js LTS (`winget install
-   OpenJS.NodeJS.LTS`); a sparse clone (`git clone --filter=blob:none --sparse <repo> C:\Users\<user>\NOURCITY`, then
-   `git sparse-checkout set .claude scripts config docs`); `node scripts/agent-os/bootstrap-machine.mjs`; then
-   `bootstrap-machine.mjs --check --hook` for the plugin line. Tailscale (`winget install Tailscale.Tailscale`, sign in)
-   only if MECHANICS should query the graph; its office lane runs from hash-pinned downloads today and needs none of this.
+6. **MECHANICS**: done 09:50-09:58 on your go in its session (Node.js LTS, the sparse clone, the bootstrap, Tailscale
+   signed in). Left there: restart the Claude app once so new sessions' hooks find `node`; re-run
+   `node scripts/agent-os/bootstrap-machine.mjs` after each `git pull --ff-only origin main`.
 
 ## Follow-ups in the repo
 
@@ -70,4 +68,6 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
 - `git sparse-checkout add .claude` (09:43): `.claude/` materialized, tracked tree clean.
 - `node scripts/agent-os/bootstrap-machine.mjs` (09:50): 13 installed, 2 MISSING; `~/.claude/settings.json` gained the
   SessionStart always-on hook and the two UserPromptSubmit hooks; backup in `~/.claude/bootstrap-backup/`.
-- Not done on NicksMax: the ff-sync (step 1), no graph build (policy), no tailnet client (blocked on step 2).
+- `git pull --ff-only origin main` (09:51, Nour's go): 570633c25 -> 9e456b645, no camera-bridge change, no edge
+  restart; bootstrap re-run added the prompt-sharpen hook.
+- Not done on NicksMax: no graph build (policy), no tailnet client (blocked on step 2).
