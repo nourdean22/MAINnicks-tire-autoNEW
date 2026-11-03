@@ -1064,3 +1064,10 @@ test("no rebuild when the PR does not read MERGED, when blocked, or without --me
   await logsOf(fakeGh({ prs: { 3100: view({ isCrossRepository: true }) } }), { rebuild: async () => cross++ });
   assert.equal(cross, 1);
 });
+
+test("a branch delete that fails after MERGED (exit 6) still queued the rebuild once (round-2 reader)", async () => {
+  let called = 0;
+  const { code } = await logsOf(fakeGh({ fail: { delete: true } }), { rebuild: async () => called++ });
+  assert.equal(code, 6);
+  assert.equal(called, 1);
+});

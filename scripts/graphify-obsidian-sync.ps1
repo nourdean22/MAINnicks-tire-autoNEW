@@ -53,8 +53,28 @@ Log "graphify: $graphify"
 # lives in the HOOKS (60 min) rather than here, so a sync that dies without
 # reaching its release cannot mute rebuilds forever.
 $script:lockFile = Join-Path $RepoRoot "graphify-out\.sync-running"
+# ONE check for every caller (the daily task, merge-gate's graph-rebuild.mjs, a hand run): a fresh lock whose pid is
+# alive means a sync is mid-run; two `graphify update .` at ~4 GB each must never overlap (round-2 reader, 2026-11-03).
+if (Test-Path $script:lockFile) {
+    $heldTxt = "$(Get-Content $script:lockFile -Raw -ErrorAction SilentlyContinue)".Trim()
+    $heldMin = [int]((Get-Date) - (Get-Item $script:lockFile).LastWriteTime).TotalMinutes
+    $heldPid = if ($heldTxt -match 'pid=(\d+)') { [int]$Matches[1] } else { 0 }
+    $heldProc = if ($heldPid) { Get-Process -Id $heldPid -ErrorAction SilentlyContinue } else { $null }
+    if ($heldMin -lt 90 -and $heldProc) {
+        Log "another sync holds the lock (pid $heldPid, $heldMin min): exiting without touching the graph"
+        exit 0
+    }
+    Log "lock on disk from a dead or 90+ min sync ($heldTxt, $heldMin min): taking over"
+}
 Set-Content -Path $script:lockFile -Value "pid=$PID started=$(Get-Date -Format o)" -Encoding ASCII
 Log "graph lock acquired ($script:lockFile)"
+
+# The last result, for the SessionStart graph line (scripts/graphify-session-context.ps1): a failed rebuild must not
+# vanish into this log, which nothing reads at session start.
+function Write-LastResult([int]$Code, [string]$Err) {
+    $obj = @{ exit = $Code; at = (Get-Date -Format o); error = $Err; graphOnly = [bool]$GraphOnly }
+    [System.IO.File]::WriteAllText((Join-Path $RepoRoot "graphify-out\.sync-last.json"), ($obj | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding $false))
+}
 
 function Release-GraphLock {
     if ($script:lockFile -and (Test-Path $script:lockFile)) {
@@ -148,6 +168,7 @@ $updateMinutes = if ($env:GRAPHIFY_UPDATE_TIMEOUT_MIN) { [double]$env:GRAPHIFY_U
 $updateExit = Invoke-Bounded $graphify @('update', '.') $updateMinutes 'graphify update'
 if ($updateExit -ne 0) {
     Log "ERROR: graphify update exited $updateExit - aborting before vault write"
+    Write-LastResult $updateExit "graphify update exited $updateExit"
     Release-GraphLock
     exit 1
 }
@@ -311,6 +332,7 @@ if ($LASTEXITCODE -ne 0) {
 & $py (Join-Path $RepoRoot "scripts\graphify-obsidian-sync.py") 2>&1 | Add-Content -Path $log
 if ($LASTEXITCODE -ne 0) {
     Log "ERROR: obsidian sync exited $LASTEXITCODE"
+    Write-LastResult $LASTEXITCODE "obsidian sync exited $LASTEXITCODE"
     Release-GraphLock
     exit 1
 }
@@ -433,5 +455,6 @@ if (-not $IngestBrain -or $GraphOnly) {
     }
 }
 
+Write-LastResult 0 ""
 Release-GraphLock
 Log "=== sync done (labels: $labelStatus) ==="

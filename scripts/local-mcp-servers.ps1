@@ -19,8 +19,9 @@
   (graphify took about 21 s to listen on the 86k-node graph), records its pid in %LOCALAPPDATA%\nourcity\mcp-<name>.pid,
   and exits 1 if any server is not UP. -Stop stops a listener only when its command line names graphify or its pid is
   the recorded one; anything else is REFUSED (exit 1), never killed.
-  "UP" means an MCP initialize POST answers HTTP 200 with serverInfo.name = <kind> within 2 s; refused or no answer is
-  DOWN; any other answer is WRONG SERVICE. -ConfigFile <file> points at another local-services.json (tests).
+  "UP" means an MCP initialize POST answers HTTP 200 with serverInfo.name = <kind> within 2 s; refused is DOWN; no
+  answer in time is NO ANSWER (loading or reloading; never killed, never doubled); any other answer is WRONG SERVICE.
+  -Start takes a 60 s lock per server (%LOCALAPPDATA%\nourcity\mcp-start-<name>.lock) so two sessions cannot start two. -ConfigFile <file> points at another local-services.json (tests).
   Logs: %LOCALAPPDATA%\nourcity\mcp-<name>.log (stdout) and mcp-<name>.err.log (stderr), replaced on each start.
   Registered at logon by scripts/register-local-mcp-task.ps1. Checked every session by scripts/agent-os/session-health.mjs.
 #>
@@ -50,6 +51,13 @@ if (-not (@($config.hosts) | Where-Object { $_ -ieq $env:COMPUTERNAME })) {
     exit 0
 }
 
+function Test-Port([int]$Port) {
+    $client = New-Object System.Net.Sockets.TcpClient
+    try { return ($client.ConnectAsync('127.0.0.1', $Port).Wait(300) -and $client.Connected) }
+    catch { return $false }
+    finally { $client.Close() }
+}
+
 # Same probe as session-health.mjs: a raw TCP connect accepts any listener, so ask the MCP service who it is.
 $initBody = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"health","version":"1"}}}'
 function Test-Mcp($server) {
@@ -64,17 +72,29 @@ function Test-Mcp($server) {
         # An HTTP error status, a dropped connection or a non-HTTP reply means some other program answered; refused or
         # no answer in time means nothing is serving (DOWN), as in session-health.mjs.
         if ($_.Exception.Response) { return 'WRONG SERVICE' }
-        $status = [string]$_.Exception.Status
-        if ($status -eq 'ConnectFailure' -or $status -eq 'Timeout') { return 'DOWN' }
+        # Nothing listening is DOWN whatever .NET calls it: a closed loopback port read as Status=Timeout, not
+        # ConnectFailure, on this machine (2026-11-03, test port 58285), so the verdict comes from a raw TCP connect.
+        if (-not (Test-Port $server.port)) { return 'DOWN' }
+        # The port accepts but HTTP did not answer in time: a server still loading the graph (~21 s) or reloading it
+        # after a rebuild. NO ANSWER, never DOWN, so -Start neither kills it nor starts a second one (round-2 reader).
+        if ([string]$_.Exception.Status -eq 'Timeout') { return 'NO ANSWER' }
         return 'WRONG SERVICE'
     }
 }
-
-function Test-Port([int]$Port) {
-    $client = New-Object System.Net.Sockets.TcpClient
-    try { return ($client.ConnectAsync('127.0.0.1', $Port).Wait(300) -and $client.Connected) }
-    catch { return $false }
-    finally { $client.Close() }
+# One -Start at a time per server: two sessions starting at once launched two servers. The lock names the starter's pid
+# and is honoured for 60 s while that pid lives.
+$script:startLockFile = $null
+function Test-StartLock($server) {
+    $f = Join-Path $logDir "mcp-start-$($server.name).lock"
+    if (Test-Path $f) {
+        $txt = "$(Get-Content $f -Raw -ErrorAction SilentlyContinue)".Trim()
+        $ageSec = [int]((Get-Date) - (Get-Item $f).LastWriteTime).TotalSeconds
+        $holder = if ($txt -match '^\d+$') { Get-Process -Id ([int]$txt) -ErrorAction SilentlyContinue } else { $null }
+        if ($ageSec -lt 60 -and $holder) { return "pid $txt, ${ageSec}s ago" }
+    }
+    Set-Content -Path $f -Value $PID -Encoding ASCII
+    $script:startLockFile = $f
+    return $null
 }
 
 # PATH first, then the user bin dir pipx and uv install into: ~/.local/bin was not on PATH for older processes.
@@ -134,17 +154,32 @@ foreach ($server in @($config.servers)) {
         if ($Start) { $down++ }
         continue
     }
+    if ($state -eq 'NO ANSWER') {
+        Write-Output "NO ANSWER  $($server.name)  $url - listening but no answer in 2 s (loading or reloading the graph); not restarted"
+        if ($Start) { $down++ }
+        continue
+    }
     if (-not $Start) { Write-Output "DOWN  $($server.name)  $url"; continue }
 
-    # DOWN with the recorded pid still alive = a listener that died under its process (2026-11-03: asyncio's accept loop
-    # ended with WinError 64 during a graph rebuild; graph_stats had answered minutes before). Our own pid, so end it
-    # before starting a fresh one; anything else on the port is WRONG SERVICE above and is never touched.
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    $starting = Test-StartLock $server
+    if ($starting) { Write-Output "START IN PROGRESS  $($server.name)  $url - another -Start holds the lock ($starting); not started twice"; continue }
+
+    # DOWN (connection refused) with the recorded pid still alive = a listener that died under its process (2026-11-03:
+    # asyncio's accept loop ended with WinError 64 during a graph rebuild; graph_stats had answered minutes before). Our
+    # own pid, older than 45 s (a fresh start has not bound its port yet), so end it before starting a fresh one; anything
+    # else on the port is WRONG SERVICE above and is never touched.
     if (Test-Path $pidFile) {
         $stalePid = [int]((Get-Content $pidFile -Raw).Trim())
         $stale = Get-Process -Id $stalePid -ErrorAction SilentlyContinue
-        if ($stale -and $stale.ProcessName -match 'graphify|python') {
+        $staleAge = if ($stale -and $stale.StartTime) { ((Get-Date) - $stale.StartTime).TotalSeconds } else { 0 }
+        if ($stale -and $stale.ProcessName -match 'graphify|python' -and $staleAge -ge 45) {
             Stop-Process -Id $stalePid -Force -ErrorAction SilentlyContinue
-            Write-Output "STOPPED  $($server.name)  pid $stalePid was alive but not listening on $($server.port)"
+            Write-Output "STOPPED  $($server.name)  pid $stalePid was alive but not listening on $($server.port) (started $([int]$staleAge) s ago)"
+        } elseif ($stale -and $stale.ProcessName -match 'graphify|python') {
+            Write-Output "STARTING  $($server.name)  pid $stalePid is $([int]$staleAge) s old and not listening yet; not restarted"
+            $down++
+            continue
         }
     }
     $launch = Get-Launch $server
@@ -173,5 +208,6 @@ foreach ($server in @($config.servers)) {
     }
 }
 
+if ($script:startLockFile) { Remove-Item $script:startLockFile -Force -ErrorAction SilentlyContinue }
 if (($Start -or $Stop) -and $down -gt 0) { exit 1 }
 exit 0

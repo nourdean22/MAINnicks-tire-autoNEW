@@ -209,11 +209,13 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   (planted memory directory, real script, configured command verbatim, three mutants: no floor, `_bak_` copies indexed,
   no line cap; plus a consumer check that the default resolution finds the real directory where one exists).
 - **UserPromptSubmit** (`graph-recall.mjs`, 2026-11-03, right after memory-recall) prints, for the symbols a prompt names
-  (backticked words, paths, file names, camelCase, snake_case; 1 to 6), one `[graph-recall] <symbol> -> <file:line> ·
-  community <name> · callers: a, b, c` line each, from the graphify MCP over HTTP (one initialize, get_node per symbol,
+  (backticked words, paths, file names, camelCase, snake_case; 1 to 6), one `[graph-recall] <fn|file|sym> <symbol> ->
+  <file:line> · community <name> · callers: a, b, c` line each, from the graphify MCP over HTTP (one initialize, get_node per symbol,
   get_neighbors per hit; 10-30 ms a call, measured; `graphify query` on the CLI takes 14 s). Caps in one block: a prompt
   under 12 chars or a bare slash command prints nothing, 6 symbols, 1.5 s budget (a slow answer is dropped, never
-  waited for). Silent when nothing resolves and when the MCP is down; one `[graph-recall] mcp down, next: <command>` line
+  waited for). Only real symbols print (manager probe 2026-11-03: `updatedAt` resolved to a degree-1 node in a random
+  test file): the server's own `Ambiguous: matches N nodes` answer, a node with Degree under 3, and a test-file node the
+  prompt did not name as a file are dropped. Silent when nothing resolves and when the MCP is down; one `[graph-recall] mcp down, next: <command>` line
   only when graph-ensure-mcp recorded a real DOWN this session. Fails open: `[graph-recall] off: <reason>`, exit 0.
   Canary `graphRecall.test.mjs` (stub MCP in a child process, configured command verbatim, three mutants: cap, budget, floor).
 - **UserPromptSubmit** (`prompt-sharpen.mjs`, 2026-10-31, after `operator-asks.mjs --refresh`) prints one `[sharpen]` block for a
@@ -465,7 +467,12 @@ The two hooks above (launch, query) plus:
    on the PRIMARY checkout (steps 0, 1 and the governance receipt: fast-forward, `graphify update .` under the 45 min
    watchdog, receipt; no labels, render, vault, rotation or ingest). A fresh `.sync-running` lock (under 90 min) means a
    rebuild is already running: nothing is spawned. Measured 2026-11-03 on 80,993 nodes: `graphify update .` re-extracts
-   every code file (7,381, "uncached"), 8 min 40 s, 4.0 GB peak RSS (python), hence the heavy lease. The MCP hot-reloads
+   every code file (7,381, "uncached"), 8 min 40 s, 4.0 GB peak RSS (python): `detect_incremental` returns the whole
+   corpus as changed AND unchanged, and the per-file AST cache (`graphify-out/cache/ast/`) holds entries for about a
+   third of the code files (3,169; a 400-file sample hits 110), so the "incremental" update is a near-full pass (graphify
+   0.9.80; why `save_cached` skips the rest is unread). Manager ruling: the merge rebuild runs only with free RAM at or
+   above 5,000 MB and no heavy.mjs lease file (holder or waiter); otherwise one `GRAPH REBUILD deferred to the daily task
+   (RAM N MB...)` line and the daily task carries it (the graph lags one day instead of one merge). The MCP hot-reloads
    graph.json by mtime (graphify serve.py), so no restart; the daily NOURCITY-Graphify-Sync task stays the fallback and
    the only path that relabels communities. The SessionStart graph line adds `- rebuild queued (sync lock held N min,
    pid P)` while the lock is fresh. heavy's lines: `graphify-out/.sync.log`; the sync's: `graphify-out/obsidian-sync.log`.

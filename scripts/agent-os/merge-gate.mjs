@@ -427,18 +427,18 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
       log(`NOT MERGED: #${pr} reads ${after.state}; the branch ${before.headRefName} is kept`);
       return 4;
     }
+    // The rebuild is queued as soon as MERGED reads true: a branch-delete failure below (exit 6) must not lose it.
+    await rebuildGraph();
     if (before.isCrossRepository) {
       // headRefName names a branch in the fork; deleting that name in the base repository could remove an unrelated branch.
       log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; cross-repository PR, branch ${before.headRefName} left in the fork`);
       await sweepMerged();
-      await rebuildGraph();
       return 0;
     }
     const repo = gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
     gh(["api", "-X", "DELETE", `repos/${repo}/git/refs/heads/${before.headRefName}`]);
     log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; branch ${before.headRefName} deleted`);
     await sweepMerged();
-    await rebuildGraph();
     return 0;
   } catch (e) {
     log(`ERROR after the merge call (${firstLine(e)}). The merge HAPPENED for #${pr}: do not retry it. Check gh pr view ${pr} --json state,mergeCommit; once it reads MERGED, delete branch ${before.headRefName} through the API if it is still there`);

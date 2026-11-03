@@ -32,12 +32,12 @@
  * Canary: bootstrapMachine.test.mjs.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { matcherCovers, SKILLS } from "./always-on-skills.mjs";
-import { configDir, enabledPlugins, readRouting } from "./plugin-index.mjs";
+import { configDir, enabledPlugins, globalConfigFile, readRouting } from "./plugin-index.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -128,7 +128,7 @@ export function plan(home) {
     { event: "UserPromptSubmit", matcher: "", key: "find-skills-turn.mjs", command: `node "${fwd(join(claude, "hooks", "find-skills-turn.mjs"))}"`, timeout: 5 },
     { event: "UserPromptSubmit", matcher: "", key: "skill-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "skill-recall.mjs"))}" --scope global` },
     { event: "UserPromptSubmit", matcher: "", key: "prompt-sharpen.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "prompt-sharpen.mjs"))}" --scope global`, timeout: 5 },
-    { event: "SessionStart", matcher: "", key: "graph-ensure-mcp.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-ensure-mcp.mjs"))}" --scope global`, timeout: 5 },
+    { event: "SessionStart", matcher: "", key: "graph-ensure-mcp.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-ensure-mcp.mjs"))}" --scope global`, timeout: 15 },
     { event: "UserPromptSubmit", matcher: "", key: "graph-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-recall.mjs"))}" --scope global`, timeout: 5 },
   ];
   let settings;
@@ -167,8 +167,9 @@ export function plan(home) {
     } });
   }
 
-  // User-scope MCP entry in ~/.claude.json (beside the config dir: <configDir>/../.claude.json, or <home>/.claude.json).
-  const claudeJson = join(dirname(claude), ".claude.json");
+  // User-scope MCP entry in the global config file, where plugin-index.mjs (the repo's own reader) looks: inside
+  // CLAUDE_CONFIG_DIR when one lives there, else <home>/.claude.json (round-3 reader).
+  const claudeJson = globalConfigFile(home);
   const graph = JSON.parse(readFileSync(join(REPO, "config", "agent-os", "local-services.json"), "utf8")).servers.find((s) => s.kind === "graphify");
   const wantMcp = { type: "http", url: `http://127.0.0.1:${graph.port}${graph.path}` };
   const mcpLabel = "~/.claude.json mcpServers graphify";
@@ -187,7 +188,10 @@ export function plan(home) {
     s.mcpServers = { ...(s.mcpServers ?? {}), graphify: wantMcp };
     backup(claudeJson);
     mkdirSync(dirname(claudeJson), { recursive: true });
-    writeFileSync(claudeJson, `${JSON.stringify(s, null, 2)}\n`);
+    // Atomic: the harness rewrites this 160 KB file itself while sessions run; a truncating write would race it.
+    const tmp = `${claudeJson}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(s, null, 2)}\n`);
+    renameSync(tmp, claudeJson);
   } });
 
   // Global CLAUDE.md pointer block.

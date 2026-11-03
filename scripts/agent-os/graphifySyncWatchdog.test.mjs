@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,13 +73,14 @@ test("control: a quick command returns its own exit code, and its stdout and std
   assert.doesNotMatch(r.log, /ERROR/);
 });
 
-/** Runs a fixture copy of graphify-session-context.ps1; `lock` is null (no lock) or {ageMin, pid}. */
-function sessionContext(lock) {
+/** Runs a fixture copy of graphify-session-context.ps1; `lock` is null (no lock) or {ageMin, pid}; `last` plants .sync-last.json. */
+function sessionContext(lock, last = null) {
   const root = mkdtempSync(join(tmpdir(), "graphify-ctx-"));
   mkdirSync(join(root, "scripts"));
   mkdirSync(join(root, "graphify-out"));
   copyFileSync(join(ROOT, "scripts", "graphify-session-context.ps1"), join(root, "scripts", "graphify-session-context.ps1"));
   writeFileSync(join(root, "graphify-out", "GRAPH_REPORT.md"), "# Graph Report\n\n## Summary\n- 5 nodes\n");
+  if (last) writeFileSync(join(root, "graphify-out", ".sync-last.json"), JSON.stringify(last));
   if (lock) {
     const file = join(root, "graphify-out", ".sync-running");
     writeFileSync(file, `pid=${lock.pid} started=planted`);
@@ -95,7 +96,9 @@ test("session start: HUNG for a live sync held 5 h, STALE LOCK for a dead one, q
   const holder = spawn("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep 120"], { stdio: "ignore" });
   const dead = spawnSync(process.execPath, ["-e", ""]).pid;
   try {
-    assert.match(sessionContext({ ageMin: 300, pid: holder.pid }), new RegExp(`graph sync: HUNG - lock held 30\\d min \\(pid=${holder.pid} started=planted\\)`));
+    const hung = sessionContext({ ageMin: 300, pid: holder.pid });
+    assert.match(hung, new RegExp(`graph sync: HUNG - lock held 30\\d min \\(pid=${holder.pid} started=planted\\)`));
+    assert.doesNotMatch(hung, /rebuild queued/, "a 300 min lock is a hang, never a rebuild underway (round-3 mutant M9)");
     const stale = sessionContext({ ageMin: 300, pid: dead });
     assert.match(stale, /graph sync: STALE LOCK - the sync died 30\d min ago/);
     assert.doesNotMatch(stale, /HUNG/);
@@ -108,11 +111,58 @@ test("session start: HUNG for a live sync held 5 h, STALE LOCK for a dead one, q
 
 // Rebuild on merge (job 2026-11-03-graphify-always-on): while a sync holds a FRESH lock the graph line says so, so a
 // session reading "N commits ahead" knows the rebuild is already underway instead of launching another.
-test("session start: a fresh lock (5 min) adds `rebuild queued` to the freshness line; 89 min too; no lock says nothing", { skip: win }, () => {
+test("session start: a fresh lock (5 min) with a LIVE pid adds `rebuild queued`; 89 min too; a fresh lock with a DEAD pid reads STALE LOCK, never queued; no lock says nothing", { skip: win }, () => {
   const holder = spawn("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep 120"], { stdio: "ignore" });
+  const dead = spawnSync(process.execPath, ["-e", ""]).pid;
   try {
     assert.match(sessionContext({ ageMin: 5, pid: holder.pid }), /graph freshness: [^\n]* - rebuild queued \(sync lock held 5 min, pid \d+\)/);
     assert.match(sessionContext({ ageMin: 89, pid: holder.pid }), /rebuild queued \(sync lock held 89 min/);
-    assert.doesNotMatch(sessionContext(null), /rebuild queued/);
+    const deadOut = sessionContext({ ageMin: 5, pid: dead });
+    assert.doesNotMatch(deadOut, /rebuild queued/, "a reboot-killed sync is not a rebuild underway");
+    assert.match(deadOut, /graph sync: STALE LOCK - the sync died 5 min ago/);
+    assert.doesNotMatch(sessionContext(null), /rebuild queued|STALE LOCK|HUNG/);
   } finally { holder.kill(); }
+});
+
+test("session start: a failed last rebuild (.sync-last.json exit 1) is on the freshness line; exit 0 says nothing", { skip: win }, () => {
+  assert.match(sessionContext(null, { exit: 1, at: "2026-11-03T15:00:00Z", error: "graphify update exited 124" }), /graph freshness: [^\n]* - last rebuild FAILED \(2026-11-03T15:00:00Z: graphify update exited 124; read graphify-out\/obsidian-sync\.log\)/);
+  assert.doesNotMatch(sessionContext(null, { exit: 0, at: "x", error: "" }), /last rebuild/);
+});
+
+// Round-3 reader: the source arm proves guard TEXT precedes each step, not that the step is inside the guard. Run the real
+// script with -GraphOnly against a stub `graphify` on PATH and read what it did.
+test("a REAL -GraphOnly run (stub graphify on PATH): update runs, no label, no render, no vault write, no backup rotation, no ingest; .sync-last.json exit 0", { skip: win }, () => {
+  const root = mkdtempSync(join(tmpdir(), "graphify-graphonly-"));
+  mkdirSync(join(root, "scripts"));
+  mkdirSync(join(root, "graphify-out"));
+  mkdirSync(join(root, "graphify-out", "obsidian-backup-2020-01-01"));
+  for (let i = 2; i <= 9; i++) mkdirSync(join(root, "graphify-out", `obsidian-backup-2020-01-0${i}`));
+  copyFileSync(join(ROOT, "scripts", "graphify-obsidian-sync.ps1"), join(root, "scripts", "graphify-obsidian-sync.ps1"));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  // The stub records every invocation and exits 0; a `label` call would be a slipped guard.
+  writeFileSync(join(bin, "graphify.cmd"), `@echo off\r\necho %* >> "${join(root, "graphify-calls.txt")}"\r\nexit /b 0\r\n`);
+  const r = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(root, "scripts", "graphify-obsidian-sync.ps1"), "-RepoRoot", root, "-GraphOnly"], { encoding: "utf8", env: { ...process.env, PATH: `${bin};${process.env.PATH}` }, timeout: 120000 });
+  const log = readFileSync(join(root, "graphify-out", "obsidian-sync.log"), "utf8");
+  const calls = existsSync(join(root, "graphify-calls.txt")) ? readFileSync(join(root, "graphify-calls.txt"), "utf8") : "";
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}\n${log}`);
+  assert.match(calls, /^update \./m, `graphify update must run:\n${calls}`);
+  assert.doesNotMatch(calls, /label/, `graphify label ran on a graph-only run:\n${calls}`);
+  assert.match(log, /graph-only run \(merge rebuild\)/);
+  for (const forbidden of ["rotated out", "labeling communities", "community render", "obsidian sync exited", "ingesting vault"]) assert.doesNotMatch(log, new RegExp(forbidden), `${forbidden} on a graph-only run:\n${log}`);
+  assert.equal(readdirSync(join(root, "graphify-out")).filter((d) => d.startsWith("obsidian-backup-")).length, 9, "the backup rotation must not touch the vault backups");
+  const last = JSON.parse(readFileSync(join(root, "graphify-out", ".sync-last.json"), "utf8"));
+  assert.equal(last.exit, 0);
+  assert.equal(last.graphOnly, true);
+  assert.match(log, /=== sync done \(labels: skipped \(graph-only\)\) ===/);
+});
+
+test("the sync script refuses to overlap a live sync (fresh lock + live pid) and writes .sync-last.json on every exit path; the daily launcher goes through heavy.mjs", () => {
+  const code = SRC.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join("\n");
+  assert.match(code, /if \(\$heldMin -lt 90 -and \$heldProc\) \{[\s\S]{0,200}exit 0/, "a live fresh lock must make the sync exit before the graph is touched");
+  assert.ok(code.indexOf("another sync holds the lock") < code.indexOf('Set-Content -Path $script:lockFile'), "the overlap check runs before the lock is written");
+  assert.equal((code.match(/Write-LastResult /g) ?? []).length, 3, "update failure, vault failure and success each record a result");
+  const launcher = readFileSync(join(ROOT, "scripts", "graphify-sync-launcher.ps1"), "utf8");
+  assert.match(launcher, /heavy\.mjs/, "the daily launcher must take the heavy lease");
+  assert.match(launcher, /'--max-wait', '1800s'/);
 });

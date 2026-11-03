@@ -267,12 +267,44 @@ test("graph: apply writes the user-scope MCP entry into ~/.claude.json, keeps ev
   const s = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
   const ensure = s.hooks.SessionStart.flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-ensure-mcp.mjs"));
   const recall = s.hooks.UserPromptSubmit.flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-recall.mjs"));
-  assert.ok(ensure && / --scope global$/.test(ensure.command), JSON.stringify(ensure));
+  assert.ok(ensure && / --scope global$/.test(ensure.command) && ensure.timeout === 15, JSON.stringify(ensure));
   assert.ok(recall && / --scope global$/.test(recall.command) && recall.timeout === 5, JSON.stringify(recall));
   assert.equal(run(home, "--check").code, 0);
   j.mcpServers.graphify.url = "http://127.0.0.1:9/mcp";
   write(join(home, ".claude.json"), JSON.stringify(j));
   assert.match(run(home, "--check").out, /DRIFT\s+~\/\.claude\.json mcpServers graphify/);
+});
+
+test("graph: with CLAUDE_CONFIG_DIR holding its own .claude.json, the MCP entry lands THERE (where plugin-index.globalConfigFile reads), not in <home>/.claude.json", () => {
+  const home = makeHome("graph-cfgdir");
+  const cfg = join(SCRATCH, "graph-cfgdir-target");
+  write(join(cfg, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "c" } }));
+  const r = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8", cwd: ROOT, env: { ...env(home), CLAUDE_CONFIG_DIR: cfg }, timeout: 30000 });
+  assert.equal(r.status, 0, r.stdout);
+  const there = JSON.parse(readFileSync(join(cfg, ".claude.json"), "utf8"));
+  assert.deepEqual(there.mcpServers.graphify, { type: "http", url: GRAPH_URL });
+  assert.deepEqual(there.oauthAccount, { accountUuid: "c" });
+  assert.ok(!existsSync(join(home, ".claude.json")), "nothing written beside the home dir when the config dir holds the file");
+});
+
+test("graph: the two user-level `--scope global` commands bootstrap writes run verbatim through a shell (ensure: a [graph] mcp line; recall: the off line on garbage stdin)", () => {
+  const home = makeHome("graph-verbatim");
+  seedMachineOnly(home);
+  assert.equal(run(home).code, 0);
+  const s = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  const cmdOf = (event, key) => s.hooks[event].flatMap((g) => g.hooks ?? []).find((h) => h.command.includes(key)).command;
+  // The commands name the PRIMARY checkout's scripts; until this branch merges that checkout has no graph-*.mjs, so the
+  // path is swapped for this checkout's root (same relative path): the proof is the command string's shape and run.
+  const primary = /node "([^"]+)\/scripts\/agent-os\/graph-ensure-mcp\.mjs"/.exec(cmdOf("SessionStart", "graph-ensure-mcp.mjs"))[1];
+  const here = ROOT.replaceAll("\\", "/");
+  const shell = (cmd, input, extraEnv) => spawnSync(cmd.replaceAll(primary, here), { shell: process.platform === "win32" ? true : "/bin/sh", input, encoding: "utf8", cwd: ROOT, env: { ...env(home), CLAUDE_PROJECT_DIR: join(SCRATCH, "not-a-repo"), NOURCITY_STATE_DIR: join(SCRATCH, "verbatim-state"), GRAPH_ENSURE_LAUNCHER: JSON.stringify([process.execPath, "-e", "process.exit(0)"]), ...extraEnv }, timeout: 30000 });
+  mkdirSync(join(SCRATCH, "not-a-repo"), { recursive: true });
+  const e = shell(cmdOf("SessionStart", "graph-ensure-mcp.mjs"), JSON.stringify({ source: "startup" }));
+  assert.equal(e.status, 0, e.stderr);
+  assert.match(e.stdout.trim(), /^\[graph\] mcp/, `ensure: ${e.stdout}${e.stderr}`);
+  const r = shell(cmdOf("UserPromptSubmit", "graph-recall.mjs"), "not json");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), "", "recall in global scope outside this repo prints nothing, even its off line, before it reads the prompt");
 });
 
 test("graph: a ~/.claude.json that is not valid JSON is never overwritten; the item reads DRIFT with the fix-by-hand note", () => {

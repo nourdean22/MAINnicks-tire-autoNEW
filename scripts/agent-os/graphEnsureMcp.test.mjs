@@ -4,18 +4,20 @@
 // the wiring arm runs the CONFIGURED command string verbatim through a shell (guard-red-team rule 5).
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startMcpStub, startMcpStubProcess } from "./fixtures/mcp-stub.mjs";
+import { LAUNCH_LOCK, LAUNCH_LOG, STATE_FILE } from "./graph-ensure-mcp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
 const SCRIPT = join(HERE, "graph-ensure-mcp.mjs");
 const STUB = join(HERE, "fixtures", "mcp-stub.mjs");
 const SETTINGS = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
+const BOOTSTRAP_SRC = readFileSync(join(HERE, "bootstrap-machine.mjs"), "utf8");
 const HOST = (process.env.COMPUTERNAME || hostname()).toUpperCase();
 const SCRATCH = mkdtempSync(join(tmpdir(), "graph-ensure-test-"));
 const pids = [];
@@ -34,10 +36,13 @@ function config(label, port, { hosts = [HOST] } = {}) {
   return { dir, file };
 }
 
-/** launcher = JSON argv the hook runs instead of local-mcp-servers.ps1 -Start. */
-function run(label, { port, hosts, launcher } = {}) {
+/** launcher = JSON argv the hook runs instead of local-mcp-servers.ps1 -Start; `state`/`launchLog` plant the previous verdict. */
+function run(label, { port, hosts, launcher, state, launchLog } = {}) {
   const { dir, file } = config(label, port, { hosts });
   const stateDir = join(dir, "state");
+  if (state || launchLog) mkdirSync(stateDir, { recursive: true });
+  if (state) writeFileSync(join(stateDir, STATE_FILE), JSON.stringify(state));
+  if (launchLog) writeFileSync(join(stateDir, LAUNCH_LOG), launchLog);
   const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, NOURCITY_STATE_DIR: stateDir };
   if (launcher) env.GRAPH_ENSURE_LAUNCHER = JSON.stringify(launcher);
   const t0 = Date.now();
@@ -81,7 +86,7 @@ test("MCP down, launcher exits non-zero: `[graph] mcp DOWN: launcher exited 1, n
   const r = run("launcher-fails", { port, launcher: [process.execPath, "-e", "process.exit(1)"] });
   assert.equal(r.code, 0, r.err);
   const line = oneLine(r.out);
-  assert.match(line, /^\[graph\] mcp DOWN: launcher exited 1, next: .*local-mcp-servers\.ps1 -Start$/, line);
+  assert.match(line, /^\[graph\] mcp DOWN: launcher exited 1, next: .*local-mcp-servers\.ps1" -Start$/, line);
   assert.equal(state(r.stateDir).state, "DOWN");
 });
 
@@ -92,12 +97,59 @@ test("MCP down, launcher cannot be spawned (no such exe): DOWN with the spawn er
   assert.match(oneLine(r.out), /^\[graph\] mcp DOWN: launcher ENOENT[^\n]*, next: /, r.out);
 });
 
-test("budget: a launcher that never answers still prints `started` and returns inside 3 s + process start", async () => {
+// Round-2 reader (2026-11-03): the first draft printed `started` for a launcher that did nothing. Now `started` needs a
+// probe answer; anything else is "requested, not verified" with state `launching`, and the NEXT SessionStart turns a
+// still-closed port into DOWN with the launcher's own last log line.
+test("a launcher that exits 0 but brings nothing up: `launch requested, not verified`, state launching, inside the budget", async () => {
+  const port = await freePort();
+  const r = run("not-verified", { port, launcher: [process.execPath, "-e", "process.exit(0)"] });
+  assert.equal(r.code, 0, r.err);
+  assert.match(oneLine(r.out), /^\[graph\] mcp launch requested, not verified \(\d+ ms; graphify listens in about 20 s; the next SessionStart checks\)$/, r.out);
+  assert.equal(state(r.stateDir).state, "launching");
+  assert.doesNotMatch(r.out, /started/);
+});
+
+test("a wrapper that never exits and never listens: DOWN `launcher still running after 10 s`, and the hook returns inside the 15 s hook timeout", async () => {
   const port = await freePort();
   const r = run("budget", { port, launcher: [process.execPath, "-e", "setTimeout(() => {}, 60000)"] });
   assert.equal(r.code, 0, r.err);
-  assert.match(oneLine(r.out), /^\[graph\] mcp started \(not answering yet after \d+ ms; graphify listens in about 20 s\)$/, r.out);
-  assert.ok(r.ms < 6000, `took ${r.ms} ms`);
+  assert.match(oneLine(r.out), /^\[graph\] mcp DOWN: launcher still running after 10 s \(see .*mcp-launch\.wrapper\.log\), next: /, r.out);
+  assert.ok(r.ms > 10000 && r.ms < 14500, `took ${r.ms} ms`);
+  assert.equal(state(r.stateDir).state, "DOWN");
+});
+
+test("a slow wrapper (exits 0 after 4 s, as PowerShell does under start-up load) is waited for: `not verified`, never killed with the hook", async () => {
+  const port = await freePort();
+  const marker = join(SCRATCH, "slow-wrapper-done.txt");
+  const r = run("slow-wrapper", { port, launcher: [process.execPath, "-e", `setTimeout(() => { require("fs").writeFileSync(${JSON.stringify(marker)}, "done"); process.exit(0); }, 4000)`] });
+  assert.match(oneLine(r.out), /^\[graph\] mcp launch requested, not verified \(\d+ ms/, r.out);
+  assert.ok(existsSync(marker), "the wrapper must be allowed to finish its work (it was killed with the hook in the first draft)");
+  assert.ok(r.ms >= 4000 && r.ms < 9000, `took ${r.ms} ms`);
+});
+
+test("next SessionStart after a young launch (41 s ago), port still closed: `launch in progress`, no second launcher run", async () => {
+  const port = await freePort();
+  const r = run("in-progress", { port, launcher: [process.execPath, "-e", "process.exit(9)"], state: { state: "launching", at: new Date(Date.now() - 41000).toISOString() } });
+  assert.match(oneLine(r.out), /^\[graph\] mcp launch in progress \(4\d s ago\), not verified; next: /, r.out);
+  assert.equal(state(r.stateDir).state, "launching", "the verdict is untouched");
+});
+
+test("next SessionStart after an old launch (10 min), port still closed: DOWN with the launcher's last log line, state DOWN, no relaunch", async () => {
+  const port = await freePort();
+  const r = run("said", { port, launcher: [process.execPath, "-e", "process.exit(9)"], state: { state: "launching", at: new Date(Date.now() - 600000).toISOString() },
+    launchLog: "STOPPED  graphify  pid 7 was alive but not listening on 8765\nDOWN  graphify  http://127.0.0.1:8765/mcp - cannot start: graphify-mcp not found on PATH\n\n" });
+  assert.match(oneLine(r.out), /^\[graph\] mcp DOWN: launcher said "DOWN  graphify  http:\/\/127\.0\.0\.1:8765\/mcp - cannot start: graphify-mcp not found on PATH", next: /, r.out);
+  assert.equal(state(r.stateDir).state, "DOWN");
+  const r2 = run("said-nolog", { port, launcher: [process.execPath, "-e", "process.exit(9)"], state: { state: "launching", at: new Date(Date.now() - 600000).toISOString() } });
+  assert.match(oneLine(r2.out), /^\[graph\] mcp DOWN: launched at .* but nothing listens, next: /, r2.out);
+});
+
+test("the real wrapper argv quotes the script path inside -ArgumentList and redirects the launcher's stdout to the launch log; the next: command quotes the path", () => {
+  const src = readFileSync(SCRIPT, "utf8");
+  assert.match(src, /-RedirectStandardOutput \$\{psq\(log\)\}/, "launcher stdout must go to the launch log");
+  assert.match(src, /psq\(`"\$\{script\}"`\)/, "the script path is quoted inside the ArgumentList element");
+  assert.match(src, /"-EncodedCommand", Buffer\.from\(cmd, "utf16le"\)\.toString\("base64"\)/, "the wrapper text must travel as -EncodedCommand (a -Command string spawned from node ran nothing, live 2026-11-03)");
+  assert.match(src, /const manual = \(primary\) => `\$\{PS\.join\(" "\)\} "\$\{join\(primary/, "the next: command quotes the path");
 });
 
 test("host gate: a host not in the config says so and points at the report + CLI fallback, never launches", async () => {
@@ -105,6 +157,88 @@ test("host gate: a host not in the config says so and points at the report + CLI
   const r = run("host", { port, hosts: ["SOME-OTHER-HOST"], launcher: [process.execPath, STUB, String(port)] });
   assert.equal(r.code, 0, r.err);
   assert.match(oneLine(r.out), /^\[graph\] mcp: not expected on host .*; fallback: graphify-out\/GRAPH_REPORT\.md \+ `graphify query`$/, r.out);
+});
+
+// Round-3 reader: two SessionStarts at once both read DOWN and both launched (no lock); session B's launcher then killed
+// session A's server that was still coming up. One exclusive launch lock; the loser says so.
+test("concurrent starts: two hooks at once against one free port launch ONCE (counter file = 1); the other says launch in progress", async () => {
+  const port = await freePort();
+  const { dir, file } = config("concurrent", port);
+  const stateDir = join(dir, "state");
+  const counter = join(dir, "counter.txt");
+  const pidFile = join(dir, "late.pid");
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, NOURCITY_STATE_DIR: stateDir, GRAPH_ENSURE_LAUNCHER: JSON.stringify([process.execPath, STUB, String(port), pidFile, "graphify", "late", counter]) };
+  const child = () => new Promise((res) => {
+    const c = spawn(process.execPath, [SCRIPT, "--config", file, "--primary", dir], { env, cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+    let out = ""; c.stdout.on("data", (d) => { out += d; }); c.on("exit", (code) => res({ code, out: out.trim() }));
+  });
+  const [a, b] = await Promise.all([child(), child()]);
+  if (existsSync(pidFile)) pids.push(Number(readFileSync(pidFile, "utf8")));
+  assert.equal(a.code, 0); assert.equal(b.code, 0);
+  assert.equal(existsSync(counter) ? readFileSync(counter, "utf8").length : 0, 1, `launcher ran ${existsSync(counter) ? readFileSync(counter, "utf8").length : 0} times:\n${a.out}\n${b.out}`);
+  const outs = [a.out, b.out].sort();
+  assert.ok(outs.some((o) => /^\[graph\] mcp (started \(\d+ ms\)|launch requested, not verified)/.test(o)), JSON.stringify(outs));
+  assert.ok(outs.some((o) => /^\[graph\] mcp launch in progress \(another session holds the launch lock: pid \d+, \d+ s ago\), not verified/.test(o)), JSON.stringify(outs));
+  assert.ok(!existsSync(join(stateDir, LAUNCH_LOCK)), "the launch lock is released when the winner is done");
+});
+
+test("no answer (a listener that never answers initialize): UNKNOWN, next: command, and the launcher is NOT run (counter stays 0)", async () => {
+  const stub = await startMcpStubProcess({ mode: "hang" });
+  const counter = join(SCRATCH, "hang-counter.txt");
+  try {
+    const r = run("hang", { port: stub.port, launcher: [process.execPath, "-e", `require("fs").appendFileSync(${JSON.stringify(counter)}, "x")`] });
+    assert.equal(r.code, 0, r.err);
+    assert.match(oneLine(r.out), /^\[graph\] mcp UNKNOWN \(no answer within the probe window\), next: /, r.out);
+    assert.ok(!existsSync(counter), "a no-answer port must never launch a second server");
+    assert.equal(state(r.stateDir).state, "UNKNOWN");
+  } finally { stub.close(); }
+});
+
+test("--scope global: zero bytes in a project whose settings register this hook; the normal line in one that does not", async () => {
+  const stub = await startMcpStubProcess();
+  try {
+    const registered = join(SCRATCH, "global-registered");
+    mkdirSync(join(registered, ".claude"), { recursive: true });
+    writeFileSync(join(registered, ".claude", "settings.json"), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: 'node "x/scripts/agent-os/graph-ensure-mcp.mjs"' }] }] } }));
+    const bare = join(SCRATCH, "global-bare");
+    mkdirSync(bare, { recursive: true });
+    const { file, dir } = config("global", stub.port);
+    const go = (projectDir) => spawnSync(process.execPath, [SCRIPT, "--scope", "global", "--config", file, "--primary", dir], { encoding: "utf8", cwd: ROOT, env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, NOURCITY_STATE_DIR: join(dir, "state") }, timeout: 20000 });
+    assert.equal(go(registered).stdout, "", "the project hook already prints; the user entry must stay quiet");
+    assert.match(go(bare).stdout.trim(), /^\[graph\] mcp up \(\d+ ms\)$/);
+  } finally { stub.close(); }
+});
+
+test("the probe budget is 3 s: the `not verified` line's own ms figure stays under 3200 (a widened BUDGET_MS would show here)", async () => {
+  const port = await freePort();
+  const r = run("budget-figure", { port, launcher: [process.execPath, "-e", "process.exit(0)"] });
+  const ms = Number(/not verified \((\d+) ms/.exec(r.out)?.[1]);
+  assert.ok(ms > 0 && ms < 3500, r.out);
+});
+
+test("the user-level entry bootstrap writes has the same timeout as the repo registration (15)", () => {
+  const repo = (SETTINGS.hooks.SessionStart ?? []).flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-ensure-mcp.mjs")).timeout;
+  const m = /key: "graph-ensure-mcp\.mjs",[^\n]*timeout: (\d+)/.exec(BOOTSTRAP_SRC);
+  assert.ok(m, "bootstrap must register graph-ensure-mcp.mjs with a timeout");
+  assert.equal(Number(m[1]), repo);
+});
+
+// The launcher itself (local-mcp-servers.ps1): a recorded pid that is alive, named python/graphify and younger than 45 s is
+// a server still coming up; -Start must say STARTING and never STOPPED (round-3 reader: session B killed session A's).
+test("local-mcp-servers.ps1 -Start: a live recorded pid under 45 s old is not stopped (STARTING, exit 1, no STOPPED, lock released)", { skip: process.platform !== "win32" && "Windows PowerShell" }, async () => {
+  const port = await freePort();
+  const local = join(SCRATCH, "localappdata");
+  mkdirSync(join(local, "nourcity"), { recursive: true });
+  const young = spawn("python", ["-c", "import time; time.sleep(60)"], { stdio: "ignore" });
+  pids.push(young.pid);
+  await new Promise((r) => setTimeout(r, 300));
+  writeFileSync(join(local, "nourcity", "mcp-graphify.pid"), String(young.pid));
+  const { file } = config("ps1-young", port);
+  const r = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(ROOT, "scripts", "local-mcp-servers.ps1"), "-Start", "-ConfigFile", file], { encoding: "utf8", env: { ...process.env, LOCALAPPDATA: local }, timeout: 60000 });
+  assert.doesNotMatch(r.stdout, /STOPPED/, r.stdout);
+  assert.match(r.stdout, new RegExp(`STARTING  graphify  pid ${young.pid} is \\d+ s old and not listening yet; not restarted`), r.stdout + r.stderr);
+  assert.equal(r.status, 1, "not UP, so -Start exits 1");
+  assert.ok(!existsSync(join(local, "nourcity", "mcp-start-graphify.lock")), "the start lock is released");
 });
 
 test("fail open: a broken config prints one `[graph] off:` line and exits 0", () => {
@@ -128,7 +262,9 @@ test("settings: registered on SessionStart for every source, forward slashes, ti
   assert.equal(hook.timeout, 15);
   const cmd = process.platform === "win32" ? hook.command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : hook.command;
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
-  const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: JSON.stringify({ source: "startup" }), encoding: "utf8", cwd: ROOT, env: { ...env, CLAUDE_PROJECT_DIR: ROOT, NOURCITY_STATE_DIR: join(SCRATCH, "wired") }, timeout: 20000 });
+  // A no-op launcher: the wiring arm must never start or stop the live server on this machine (round-2 reader).
+  const noop = JSON.stringify([process.execPath, "-e", "process.exit(0)"]);
+  const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: JSON.stringify({ source: "startup" }), encoding: "utf8", cwd: ROOT, env: { ...env, CLAUDE_PROJECT_DIR: ROOT, NOURCITY_STATE_DIR: join(SCRATCH, "wired"), GRAPH_ENSURE_LAUNCHER: noop }, timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(oneLine(r.stdout), /^\[graph\] (mcp|off)/, r.stdout);
+  assert.match(oneLine(r.stdout), /^\[graph\] mcp/, `an off line is a crash, not a verdict:\n${r.stdout}`);
 });
